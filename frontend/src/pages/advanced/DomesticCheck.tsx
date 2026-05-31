@@ -9,7 +9,8 @@ export default function DomesticCheck() {
       description="实时检测当前 OS / JDK / DB / 中间件 / 国密 Provider 的国产化等级"
     >
       <PageState
-        state="disabled"
+        state="empty"
+        title="入口暂未激活"
         description="国产化自检已并入 /system/operations 运行底座快照；本入口待运维域整合方案完成后激活。"
         action={<RoadmapLink taskIds={["GA-ENG-BASE-07"]} />}
       />

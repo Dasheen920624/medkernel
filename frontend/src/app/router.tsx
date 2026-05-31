@@ -6,7 +6,6 @@ import { AppLayout } from "@/widgets/AppLayout";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const StepFlowDemo = lazy(() => import("@/pages/StepFlowDemo"));
 const EmbedLaunch = lazy(() => import("@/pages/clinical/EmbedLaunch"));
 
 // 试点准备域
@@ -64,7 +63,6 @@ export function AppRouter() {
           <Route path="/onboarding/guide" element={<ImplementationGuide />} />
           <Route path="/tenant/onboarding" element={<TenantOnboarding />} />
           <Route path="/config/packages" element={<ConfigPackages />} />
-          <Route path="/config/packages/demo" element={<StepFlowDemo />} />
           <Route path="/pathway/templates" element={<PathwayTemplates />} />
           <Route path="/rule/definitions" element={<RuleDefinitions />} />
           <Route path="/terminology/mapping" element={<TerminologyMapping />} />

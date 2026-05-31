@@ -1,54 +1,44 @@
-import { Button, Result, Spin, Typography } from "antd";
+import { Button, Result, Space, Spin, Typography } from "antd";
 import type { ReactNode } from "react";
+import type { FailureDetail, NonReadyPageStateKind, PageStateKind } from "./PageState.contract";
 
 const { Text } = Typography;
 
-export type PageStateKind =
-  | "loading"
-  | "empty"
-  | "error"
-  | "forbidden"
-  | "partial"
-  | "disabled"
-  | "ready";
-
-interface PageStateProps {
+export interface PageStateProps {
   state: PageStateKind;
   title?: string;
   description?: ReactNode;
   traceId?: string;
   successCount?: number;
   failureCount?: number;
+  failureDetails?: FailureDetail[];
   action?: ReactNode;
   onRetry?: () => void;
   children?: ReactNode;
 }
 
-const DEFAULT_TITLE: Record<Exclude<PageStateKind, "ready">, string> = {
+const DEFAULT_TITLE: Record<NonReadyPageStateKind, string> = {
   loading: "正在加载",
   empty: "暂无数据",
   error: "页面暂时不可用",
   forbidden: "当前权限不足",
   partial: "部分处理完成",
-  disabled: "等待引擎能力上线",
 };
 
-const RESULT_STATUS: Record<Exclude<PageStateKind, "ready">, "info" | "error" | "403"> = {
+const RESULT_STATUS: Record<NonReadyPageStateKind, "info" | "error" | "403"> = {
   loading: "info",
   empty: "info",
   error: "error",
   forbidden: "403",
   partial: "info",
-  disabled: "info",
 };
 
-const DEFAULT_DESCRIPTION: Record<Exclude<PageStateKind, "ready">, ReactNode> = {
+const DEFAULT_DESCRIPTION: Record<NonReadyPageStateKind, ReactNode> = {
   loading: "正在读取当前组织范围内的数据。",
   empty: "当前筛选条件下没有结果，可调整筛选或创建第一条记录。",
   error: "请稍后重试；如果持续失败，请带 traceId 联系信息科。",
   forbidden: "该页面包含受控数据，请联系信息科主任调整角色或数据范围。",
   partial: "部分项目已完成，其余项目需要查看原因后重试或转人工处理。",
-  disabled: "本页依赖底层引擎能力，引擎完成后自动激活。",
 };
 
 export function PageState({
@@ -58,6 +48,7 @@ export function PageState({
   traceId,
   successCount,
   failureCount,
+  failureDetails = [],
   action,
   onRetry,
   children,
@@ -87,6 +78,17 @@ export function PageState({
     state === "partial" && typeof successCount === "number" && typeof failureCount === "number"
       ? `${successCount} 项成功，${failureCount} 项需处理。`
       : undefined;
+  const partialDetails =
+    state === "partial" && failureDetails.length > 0 ? (
+      <Space direction="vertical" size={2}>
+        {failureDetails.map((failure) => (
+          <Text key={failure.key} type="secondary">
+            {failure.key}：{failure.reason}
+            {failure.retryable ? "，可重试" : ""}
+          </Text>
+        ))}
+      </Space>
+    ) : null;
 
   return (
     <Result
@@ -95,6 +97,7 @@ export function PageState({
       subTitle={
         <>
           <div>{description ?? partialDescription ?? DEFAULT_DESCRIPTION[state]}</div>
+          {partialDetails}
           {traceId && <Text type="secondary">traceId: {traceId}</Text>}
         </>
       }

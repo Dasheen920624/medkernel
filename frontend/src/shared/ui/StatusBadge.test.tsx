@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { StatusBadge, STATUS_MACHINES } from "./StatusBadge";
+import { StatusBadge } from "./StatusBadge";
+import { resolveStatusMeta, STATUS_MACHINES } from "./StatusBadge.contract";
 
 describe("StatusBadge", () => {
   it("renders config 已发布 label", () => {
@@ -14,14 +15,21 @@ describe("StatusBadge", () => {
   });
 
   it("STATUS_MACHINES contains 4 machines", () => {
-    expect(Object.keys(STATUS_MACHINES)).toHaveLength(4);
-    expect(STATUS_MACHINES.config).toContain("active");
-    expect(STATUS_MACHINES.todo).toContain("escalated");
+    expect(STATUS_MACHINES).toEqual({
+      config: ["draft", "pending_review", "published", "active", "deprecated", "archived"],
+      change: ["pending", "canary", "rolled_out", "rolled_back"],
+      todo: ["unread", "in_progress", "done", "escalated"],
+      alert: ["new", "assigned", "remediating", "closed", "waived"],
+    });
   });
 
-  it("falls back to 未知状态 for invalid value", () => {
-    // @ts-expect-error testing fallback
-    render(<StatusBadge machine="config" status="bogus" />);
-    expect(screen.getByText(/未知状态/)).toBeInTheDocument();
+  it("rejects an unregistered status instead of inventing fallback copy", () => {
+    expect(() =>
+      resolveStatusMeta({
+        machine: "config",
+        // @ts-expect-error testing runtime defense for invalid API data
+        status: "bogus",
+      }),
+    ).toThrow(/未注册状态机状态/);
   });
 });
