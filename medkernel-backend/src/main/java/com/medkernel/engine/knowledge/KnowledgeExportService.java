@@ -1,11 +1,19 @@
 package com.medkernel.engine.knowledge;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,7 +42,7 @@ import com.medkernel.shared.context.RequestContext;
  * <ul>
  *   <li>Job 持久化在 {@code knowledge_export_job}，对外可见 ID 是 {@code job_code}（UUID）</li>
  *   <li>{@code worker} 在线程池执行：PENDING → RUNNING → SUCCEEDED/FAILED</li>
- *   <li>当前实现是 stub：仅计数命中条目，不输出真实文件 URI（后续 GA-ENG-PKG-01 接入对象存储）</li>
+ *   <li>导出内容先落本机 JSONL 文件，{@code result_uri} 返回当前 API 的下载端点</li>
  *   <li>结果 TTL 默认 7 天（{@code expires_at}），由 GA-ENG-PKG-01 清理任务 sweep</li>
  * </ul>
  */
@@ -43,17 +51,33 @@ public class KnowledgeExportService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeExportService.class);
     private static final Duration DEFAULT_TTL = Duration.ofDays(7);
+    private static final int EXPORT_BATCH_SIZE = 500;
+    private static final String DOWNLOAD_PREFIX = "/api/v1/engine/knowledge/exports/";
 
     private final KnowledgeExportJobRepository jobRepository;
     private final KnowledgeIdentityRepository identityRepository;
+    private final KnowledgeAssetVersionRepository versionRepository;
+    private final KnowledgeSupersessionRepository supersessionRepository;
+    private final CitationRepository citationRepository;
+    private final ObjectMapper json;
     private final Executor knowledgeExportExecutor;
+    private final Path exportDirectory;
 
     public KnowledgeExportService(KnowledgeExportJobRepository jobRepository,
                                   KnowledgeIdentityRepository identityRepository,
+                                  KnowledgeAssetVersionRepository versionRepository,
+                                  KnowledgeSupersessionRepository supersessionRepository,
+                                  CitationRepository citationRepository,
+                                  ObjectMapper json,
                                   @Qualifier("knowledgeExportExecutor") Executor knowledgeExportExecutor) {
         this.jobRepository = jobRepository;
         this.identityRepository = identityRepository;
+        this.versionRepository = versionRepository;
+        this.supersessionRepository = supersessionRepository;
+        this.citationRepository = citationRepository;
+        this.json = json;
         this.knowledgeExportExecutor = knowledgeExportExecutor;
+        this.exportDirectory = Path.of(System.getProperty("java.io.tmpdir"), "medkernel-knowledge-exports");
     }
 
     /**
@@ -123,7 +147,7 @@ public class KnowledgeExportService {
         }
     }
 
-    void executeJob(String jobCode) {
+    void executeJob(String jobCode) throws IOException {
         String tenantId = requireCurrentTenant();
         KnowledgeExportJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> new IllegalStateException("Job " + jobCode + " missing in worker"));
@@ -138,32 +162,34 @@ public class KnowledgeExportService {
             b.progress = 10;
         }));
 
-        long count;
-        switch (job.exportType()) {
-            case IDENTITIES -> count = identityRepository.countByTenantId(tenantId);
-            case VERSIONS, LINEAGE, CITATIONS, FULL_TENANT -> {
-                // 本 PR 用 identity 数量做粗略 placeholder；真实导出由 GA-ENG-PKG-01 接管
-                count = identityRepository.countByTenantId(tenantId);
-            }
-            default -> count = 0L;
-        }
+        ExportFile exportFile = writeExportFile(tenantId, job);
 
         Instant completedAt = Instant.now();
         Instant expiresAt = completedAt.plus(DEFAULT_TTL);
-        // result_uri 是占位（实施时由 GA-ENG-PKG-01 改为对象存储签名 URL）
-        String resultUri = "memory://knowledge-export/" + jobCode + ".jsonl";
-        long finalCount = count;
         KnowledgeExportJob refreshed = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode).orElseThrow();
         jobRepository.save(rebuild(refreshed, b -> {
             b.status = ExportStatus.SUCCEEDED;
             b.startedAt = startedAt;
             b.completedAt = completedAt;
             b.progress = 100;
-            b.itemCount = finalCount;
-            b.resultUri = resultUri;
+            b.itemCount = exportFile.itemCount();
+            b.resultUri = exportFile.downloadUri();
             b.expiresAt = expiresAt;
         }));
-        log.info("Knowledge export job {} succeeded (type={}, count={})", jobCode, job.exportType(), count);
+        log.info("Knowledge export job {} succeeded (type={}, count={}, file={})",
+            jobCode, job.exportType(), exportFile.itemCount(), exportFile.path());
+    }
+
+    public InputStream downloadFile(String jobCode) throws IOException {
+        KnowledgeExportJob job = get(jobCode);
+        if (job.status() != ExportStatus.SUCCEEDED) {
+            throw new ApiException(ErrorCode.CONFLICT, "导出作业尚未成功，当前状态=" + job.status());
+        }
+        Path path = physicalExportPath(jobCode);
+        if (!Files.exists(path)) {
+            throw ApiException.notFound("导出文件不存在或已清理 jobCode=" + jobCode);
+        }
+        return Files.newInputStream(path);
     }
 
     @Transactional
@@ -189,6 +215,84 @@ public class KnowledgeExportService {
             b.completedAt = effCompleted;
             b.errorMessage = errorMessage;
         }));
+    }
+
+    private ExportFile writeExportFile(String tenantId, KnowledgeExportJob job) throws IOException {
+        Files.createDirectories(exportDirectory);
+        Path path = physicalExportPath(job.jobCode());
+        try (BufferedWriter writer = Files.newBufferedWriter(path)) {
+            long itemCount = switch (job.exportType()) {
+                case IDENTITIES -> writeIdentities(writer, tenantId);
+                case VERSIONS -> writeVersions(writer, tenantId);
+                case LINEAGE -> writeLineage(writer, tenantId);
+                case CITATIONS -> writeCitations(writer, tenantId);
+                case FULL_TENANT -> writeFullTenant(writer, tenantId);
+            };
+            return new ExportFile(path, DOWNLOAD_PREFIX + job.jobCode() + "/download", itemCount);
+        }
+    }
+
+    private long writeIdentities(BufferedWriter writer, String tenantId) throws IOException {
+        return writePaged(writer, "knowledge_identity",
+            (offset, limit) -> identityRepository.pageByTenantId(tenantId, offset, limit));
+    }
+
+    private long writeVersions(BufferedWriter writer, String tenantId) throws IOException {
+        return writePaged(writer, "knowledge_asset_version",
+            (offset, limit) -> versionRepository.pageByTenantId(tenantId, offset, limit));
+    }
+
+    private long writeLineage(BufferedWriter writer, String tenantId) throws IOException {
+        long count = writeIdentities(writer, tenantId);
+        count += writeVersions(writer, tenantId);
+        count += writePaged(writer, "knowledge_supersession",
+            (offset, limit) -> supersessionRepository.pageByTenantId(tenantId, offset, limit));
+        return count;
+    }
+
+    private long writeCitations(BufferedWriter writer, String tenantId) throws IOException {
+        return writePaged(writer, "citation",
+            (offset, limit) -> citationRepository.pageByTenantId(tenantId, offset, limit));
+    }
+
+    private long writeFullTenant(BufferedWriter writer, String tenantId) throws IOException {
+        return writeLineage(writer, tenantId) + writeCitations(writer, tenantId);
+    }
+
+    private <T> long writePaged(BufferedWriter writer, String recordType, PageFetcher<T> fetcher) throws IOException {
+        long count = 0;
+        int offset = 0;
+        while (true) {
+            List<T> rows = fetcher.fetch(offset, EXPORT_BATCH_SIZE);
+            if (rows.isEmpty()) {
+                return count;
+            }
+            for (T row : rows) {
+                writeJsonLine(writer, recordType, row);
+                count++;
+            }
+            if (rows.size() < EXPORT_BATCH_SIZE) {
+                return count;
+            }
+            offset += rows.size();
+        }
+    }
+
+    private void writeJsonLine(BufferedWriter writer, String recordType, Object payload) throws IOException {
+        Map<String, Object> line = new LinkedHashMap<>();
+        line.put("recordType", recordType);
+        line.put("payload", payload);
+        writer.write(json.writeValueAsString(line));
+        writer.newLine();
+    }
+
+    private Path physicalExportPath(String jobCode) {
+        String safeJobCode = jobCode.replaceAll("[^A-Za-z0-9_.-]", "_");
+        return exportDirectory.resolve("knowledge-export-" + safeJobCode + ".jsonl");
+    }
+
+    Path physicalExportPathForTest(String jobCode) {
+        return physicalExportPath(jobCode);
     }
 
     /**
@@ -240,6 +344,14 @@ public class KnowledgeExportService {
             this.completedAt = j.completedAt();
             this.expiresAt = j.expiresAt();
         }
+    }
+
+    private record ExportFile(Path path, String downloadUri, long itemCount) {
+    }
+
+    @FunctionalInterface
+    private interface PageFetcher<T> {
+        List<T> fetch(int offset, int limit);
     }
 
     private String requireCurrentTenant() {

@@ -45,6 +45,14 @@ public interface KnowledgeIdentityRepository extends ListCrudRepository<Knowledg
     List<KnowledgeIdentity> pageByFilter(String tenantId, String domain, String specialtyId, String status, String keyword,
                                          int offset, int limit);
 
+    @Query("""
+        SELECT * FROM knowledge_identity
+        WHERE tenant_id = :tenantId
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeIdentity> pageByTenantId(String tenantId, int offset, int limit);
+
     /**
      * 悲观锁定身份行，用于 activate / withdraw 等状态机变迁。
      *

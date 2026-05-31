@@ -264,6 +264,92 @@ test("后端生产代码触碰文件会阻断随机造数、吞错成功、UUID 
   );
 });
 
+test("后端生产代码会阻断时间戳或 hashCode 伪造证据摘要", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/HashEvidenceService.java": `
+        package com.medkernel.engine;
+
+        import java.time.Instant;
+
+        public class HashEvidenceService {
+          String sourceVersionHash(SourceVersionRegisterRequest request) {
+            return sha256(request.versionNo() + "_" + Instant.now().toEpochMilli());
+          }
+
+          String idempotencyDigest(ContextSnapshotRequest request) {
+            return Integer.toHexString(request.hashCode());
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/HashEvidenceService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.hashcode-digest",
+        "backend.timestamp-as-hash",
+      ]);
+    },
+  );
+});
+
+test("后端生产代码会阻断导出成功但仅写 memory 占位 URI", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/KnowledgeExportService.java": `
+        package com.medkernel.engine;
+
+        public class KnowledgeExportService {
+          String finish(String jobCode) {
+            return "memory://knowledge-export/" + jobCode + ".jsonl";
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/KnowledgeExportService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.placeholder-export-uri"]);
+    },
+  );
+});
+
+test("后端控制器触碰文件会阻断 RequestBody Map 裸入参", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/BadController.java": `
+        package com.medkernel.engine;
+
+        import java.util.Map;
+        import org.springframework.web.bind.annotation.RequestBody;
+
+        public class BadController {
+          ApiResult<?> submit(@RequestBody Map<String, Object> body) {
+            return ApiResult.ok(body);
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/BadController.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.raw-request-body-map",
+      ]);
+    },
+  );
+});
+
 test("后端占位 Javadoc 门禁只检查 Javadoc 块内部", async () => {
   await withFixture(
     {

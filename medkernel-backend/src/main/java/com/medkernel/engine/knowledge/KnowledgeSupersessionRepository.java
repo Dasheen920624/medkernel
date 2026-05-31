@@ -26,4 +26,12 @@ public interface KnowledgeSupersessionRepository extends ListCrudRepository<Know
         """)
     List<KnowledgeSupersession> lineageAfter(String tenantId, Long identityId,
                                              java.time.Instant sinceExclusive, int limit);
+
+    @Query("""
+        SELECT * FROM knowledge_supersession
+        WHERE tenant_id = :tenantId
+        ORDER BY transitioned_at ASC, id ASC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeSupersession> pageByTenantId(String tenantId, int offset, int limit);
 }

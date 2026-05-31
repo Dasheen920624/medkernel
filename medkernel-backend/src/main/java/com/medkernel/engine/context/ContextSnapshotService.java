@@ -1,7 +1,10 @@
 package com.medkernel.engine.context;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -311,7 +314,12 @@ public class ContextSnapshotService {
     }
 
     private String digest(ContextSnapshotRequest req) {
-        return Integer.toHexString(req.hashCode());
+        try {
+            byte[] bytes = writeJson(req).getBytes(StandardCharsets.UTF_8);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("JDK 缺少 SHA-256 摘要算法", exception);
+        }
     }
 
     private void publishFailureAudit(ErrorCode code, String summary) {

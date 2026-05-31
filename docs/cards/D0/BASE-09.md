@@ -68,6 +68,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - PR2（临床页净化）：清理 `Followup` 本地随访计划、假任务结案、假 Trace 审计和硬编码租户/病种样例；清理 `EmbedLaunch` 备用推荐数据集、本地 traceId 和无患者上下文推荐查询。记录见 [BASE-09 前端净化 PR2 记录](../../audit/BASE-09-clinical-cleanup-pr2.md)。本 PR 仍不勾选 FR/AC，继续清 `Provenance` / `QcEvalResults` / 规则路径页契约残留。
 - PR3（证据与评估结果净化）：清理 `Provenance` 内置演示证据链、假 traceId、假审计日志、前端自校验沙箱和本地防伪导出；清理 `QcEvalResults` 固定 KPI 常量和 Mock 口径，所有指标改由真实查询结果派生；补修浏览器核验发现的路由授权契约断层，使后端 `menuKeys` 能驱动菜单页访问。记录见 [BASE-09 前端净化 PR3 记录](../../audit/BASE-09-evidence-cleanup-pr3.md)。本 PR 仍不勾选 FR/AC，继续清 `RuleDefinitions` / `PathwayTemplates` / `ImplementationGuide` 以及后端 Map、硬编码和假证据残留。
 - PR4（规则 / 路径相关前端净化）：清理 `RuleDefinitions`、`PathwayTemplates`、`RuleValidate`、`PatientPathways`、`AdapterHub`、`QcAlerts`、`CdssFatigue` 和 `ImplementationGuide` 中的固定患者、病种、药品、路径模板、假 trace、假入径台账、空上下文试运行和规避门禁注释；扩展真实性门禁阻断旧规则 / 路径占位符回流；同步清理浏览器验收暴露的 `Tabs.TabPane`、`Spin tip`、`Progress width` 废弃用法，并收敛 `AdapterHub` 存量类型告警。记录见 [BASE-09 前端净化 PR4 记录](../../audit/BASE-09-rule-path-cleanup-pr4.md)。本 PR 仍不勾选 FR/AC，继续清后端 Map、硬编码、假证据 / 假同步。
+- PR5（后端知识真实性净化）：清理上下文幂等 `hashCode()` 摘要、来源版本时间戳伪哈希、知识导出 `memory://` 占位成功；新增知识导出 JSONL 真实文件与下载端点；承接 V22 已有 `source_fragment.content_hash` 列，补五方言唯一约束和注释强化；真实性门禁新增阻断后端时间戳伪哈希、`hashCode()` 摘要、占位导出 URI 与 `@RequestBody Map` 裸入参。记录见 [BASE-09 后端知识真实性净化 PR5 记录](../../audit/BASE-09-backend-knowledge-cleanup-pr5.md)。本 PR 仍不勾选全部 FR/AC，继续清剩余硬编码业务示例、包同步证据和域级验收残留。
 
 ## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
 - 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。

@@ -122,6 +122,28 @@ const BACKEND_RULES = [
       /(?:hash|Hash|HASH)[\s\S]{0,160}UUID\.randomUUID\s*\(\s*\)\.toString\s*\(\s*\)|UUID\.randomUUID\s*\(\s*\)\.toString\s*\(\s*\)[\s\S]{0,160}(?:hash|Hash|HASH)/m,
   },
   {
+    ruleId: "backend.timestamp-as-hash",
+    message: "后端生产代码禁止用时间戳拼接后充当内容或证据哈希。",
+    pattern:
+      /(?:sha256|hash|Hash|digest|Digest)\s*\([\s\S]{0,180}(?:Instant\.now\s*\(\s*\)\.toEpochMilli\s*\(\s*\)|System\.currentTimeMillis\s*\(\s*\))/m,
+  },
+  {
+    ruleId: "backend.hashcode-digest",
+    message: "后端生产代码禁止用 Object.hashCode() 充当幂等或证据摘要。",
+    pattern:
+      /(?:Integer\.toHexString\s*\([\s\S]{0,80}\.hashCode\s*\(\s*\)\s*\)|(?:hash|Hash|digest|Digest)[\s\S]{0,160}\.hashCode\s*\(\s*\))/m,
+  },
+  {
+    ruleId: "backend.placeholder-export-uri",
+    message: "后端生产代码禁止用 memory:// 等占位 URI 伪造导出成功。",
+    pattern: /memory:\/\/knowledge-export|resultUri\s*=\s*["']memory:\/\//,
+  },
+  {
+    ruleId: "backend.raw-request-body-map",
+    message: "后端控制器禁止使用 @RequestBody Map 裸入参，必须定义 Record DTO + 校验。",
+    pattern: /@RequestBody[\s\S]{0,120}\bMap\s*<[^>]+>/m,
+  },
+  {
     ruleId: "backend.placeholder-javadoc",
     message: "后端生产 Javadoc 禁止出现模拟、仿真、演示、占位或 placeholder。",
     javadocBlockPattern: /模拟|仿真|演示|占位|placeholder/i,

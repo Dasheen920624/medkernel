@@ -12,7 +12,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -163,9 +165,13 @@ class ContextSnapshotServiceTest {
         when(idemRepo.findByTenantIdAndIdempotencyKey(eq("tenant-A"), anyString()))
             .thenReturn(Optional.empty());
 
-        service.create(sampleRequest(), "fresh-key");
+        ContextSnapshotRequest request = sampleRequest();
+        service.create(request, "fresh-key");
 
-        verify(idemRepo, times(1)).save(any());
+        ArgumentCaptor<ContextIdempotencyKey> idemCap = ArgumentCaptor.forClass(ContextIdempotencyKey.class);
+        verify(idemRepo, times(1)).save(idemCap.capture());
+        assertThat(idemCap.getValue().payloadDigest()).isEqualTo(sha256Json(request));
+        assertThat(idemCap.getValue().payloadDigest()).matches("[0-9a-f]{64}");
     }
 
     @Test
@@ -293,5 +299,17 @@ class ContextSnapshotServiceTest {
 
     private ContextSnapshotResources validResources() {
         return ContextSnapshotServiceFixtures.validResources();
+    }
+
+    private String sha256Json(ContextSnapshotRequest request) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.findAndRegisterModules();
+            byte[] payload = mapper.writeValueAsBytes(request);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(payload);
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
     }
 }

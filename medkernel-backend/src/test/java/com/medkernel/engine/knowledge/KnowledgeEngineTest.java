@@ -172,6 +172,7 @@ class KnowledgeEngineTest {
         assertThat(saved).isNotNull();
         assertThat(saved.anchorPath()).isEqualTo("sec-1");
         assertThat(saved.textExcerpt()).isEqualTo("关节置换核心条文");
+        assertThat(saved.contentHash()).isEqualTo(sha256("关节置换核心条文"));
         verify(sourceFragRepo, times(1)).save(any(SourceFragment.class));
     }
 

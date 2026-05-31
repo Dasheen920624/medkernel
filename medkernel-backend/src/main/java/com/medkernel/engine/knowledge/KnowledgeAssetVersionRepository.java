@@ -35,4 +35,12 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
         ORDER BY created_at DESC, id DESC
         """)
     List<KnowledgeAssetVersion> listByIdentity(String tenantId, Long identityId);
+
+    @Query("""
+        SELECT * FROM knowledge_asset_version
+        WHERE tenant_id = :tenantId
+        ORDER BY updated_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<KnowledgeAssetVersion> pageByTenantId(String tenantId, int offset, int limit);
 }

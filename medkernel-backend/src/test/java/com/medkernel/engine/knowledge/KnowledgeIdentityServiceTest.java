@@ -141,12 +141,34 @@ class KnowledgeIdentityServiceTest {
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
     }
 
+    @Test
+    void registerSourceVersionRejectsBlankContentHashInsteadOfSynthesizingTimestampHash() {
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), " ", "s3://bucket/source.pdf", "zh-CN");
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.registerSourceVersion(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
     private KnowledgeIdentity identityRow(Long id) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
             id, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "测试主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, null,
             now, "u", now, "u"
+        );
+    }
+
+    private SourceDocument identitySourceDocument() {
+        Instant now = Instant.now();
+        return new SourceDocument(
+            1L, "t-1", "SRC.X", SourceType.GUIDELINE, SourceAuthorityLevel.HOSPITAL,
+            "来源文件", "发布机构", "LICENSE", "zh-CN", now, "u", now, "u"
         );
     }
 }

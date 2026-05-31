@@ -36,9 +36,18 @@ class KnowledgeIdentityRepositoryTest {
 
     @Autowired
     KnowledgeIdentityRepository repository;
+    @Autowired
+    SourceDocumentRepository sourceDocumentRepository;
+    @Autowired
+    SourceVersionRepository sourceVersionRepository;
+    @Autowired
+    SourceFragmentRepository sourceFragmentRepository;
 
     @AfterEach
     void wipe() {
+        sourceFragmentRepository.deleteAll();
+        sourceVersionRepository.deleteAll();
+        sourceDocumentRepository.deleteAll();
         repository.deleteAll();
     }
 
@@ -105,6 +114,28 @@ class KnowledgeIdentityRepositoryTest {
         KnowledgeIdentity saved = repository.save(sample("t-1", "DRUG.LOCK", KnowledgeDomain.DRUG, "锁测试"));
         Optional<KnowledgeIdentity> locked = repository.findByTenantIdAndIdForUpdate("t-1", saved.id());
         assertThat(locked).isPresent();
+    }
+
+    @Test
+    void sourceFragmentContentHashIsPersistedAndQueryable() {
+        Instant now = Instant.now();
+        SourceDocument document = sourceDocumentRepository.save(new SourceDocument(
+            null, "t-1", "SRC.A", SourceType.GUIDELINE, SourceAuthorityLevel.SOCIETY,
+            "来源文件", "发布机构", "LICENSE", "zh-CN", now, "tester", now, "tester"
+        ));
+        SourceVersion version = sourceVersionRepository.save(new SourceVersion(
+            null, "t-1", document.id(), "v1", now, "source-hash", "file://source.pdf", "zh-CN", now, "tester"
+        ));
+        SourceFragment fragment = sourceFragmentRepository.save(new SourceFragment(
+            null, "t-1", version.id(), "§1", "第一节", "真实来源片段", "fragment-hash", now
+        ));
+
+        assertThat(fragment.id()).isNotNull();
+        assertThat(sourceFragmentRepository.findBySourceVersionIdAndContentHash(version.id(), "fragment-hash"))
+            .isPresent()
+            .get()
+            .extracting(SourceFragment::anchorPath)
+            .isEqualTo("§1");
     }
 
     private KnowledgeIdentity sample(String tenantId, String code, KnowledgeDomain domain, String subject) {
