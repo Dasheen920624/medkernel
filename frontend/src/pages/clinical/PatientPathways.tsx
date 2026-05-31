@@ -18,6 +18,7 @@ import {
   Col,
   Timeline,
 } from "antd";
+import type { BadgeProps, TableProps } from "antd";
 import {
   PlusOutlined,
   BugOutlined,
@@ -44,6 +45,22 @@ import type { PathwayTemplate, PatientPathway, PatientPathwayStatus } from "@/sh
 const { TextArea } = Input;
 const { Option } = Select;
 
+type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null) return fallback;
+  const candidate = error as ApiErrorResponse;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
+
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
@@ -54,44 +71,15 @@ export default function PatientPathways() {
   const [size] = useState<number>(10);
   const [patientFilter, setPatientFilter] = useState<string>("");
 
-  // API 突变及查询
-  // 借助 template 里的 list 接口来列出 PUBLISHED 状态的受控路径以备入径使用
   const { data: templatesData } = usePathwayTemplates({
     status: "PUBLISHED",
     page: 1,
     size: 100,
   });
 
-  // 获取正在运行的患者入径台账列表
-  // 后端 PathwayEngineController: enterPatientPathway/patientDetail/advance，没有提供 listPatients API。
-  // 我们通过模拟一些台账或者直接在前端通过已入径实例进行列表管理。
-  // 为了能完整展示，我们在 API hooks.ts 中其实封装的是标准 query。在这里，我们模拟在 table 事实里展示示例，
-  // 并且当用户点击 "办理入径" 成功后，将新增入径成功的患者列表！
-  const [localPathways, setLocalPathways] = useState<PatientPathway[]>([
-    {
-      patientPathwayId: "PP-1001",
-      patientId: "P-1001",
-      encounterId: "E-2001",
-      templateId: "PT-CAP-01",
-      currentNodeCode: "TREAT_PLAN",
-      status: "ACTIVE",
-      enteredAt: new Date(Date.now() - 3600000 * 2).toISOString(), // 2小时前入径
-      traceId: "TRACE-RULE-3312918",
-    },
-    {
-      patientPathwayId: "PP-1002",
-      patientId: "P-1002",
-      encounterId: "E-2002",
-      templateId: "PT-CAP-01",
-      currentNodeCode: "CHECK_LEVEL",
-      status: "ACTIVE",
-      enteredAt: new Date(Date.now() - 3600000 * 24).toISOString(), // 24小时前入径
-      traceId: "TRACE-RULE-8891023",
-    },
-  ]);
+  const [sessionPathways, setSessionPathways] = useState<PatientPathway[]>([]);
 
-  // 患者检索过滤后的列表数据
-  const filteredPathways = localPathways.filter((p) => {
+  const filteredPathways = sessionPathways.filter((p) => {
     if (!patientFilter) return true;
     return p.patientId.includes(patientFilter) || p.patientPathwayId.includes(patientFilter);
   });
@@ -139,14 +127,13 @@ export default function PatientPathways() {
       setEnterModalVisible(false);
       enterForm.resetFields();
 
-      // 追加到本地列表展现
       if (res?.patientPathway) {
-        setLocalPathways((prev) => [res.patientPathway, ...prev]);
+        setSessionPathways((prev) => [res.patientPathway, ...prev]);
       } else {
-        message.warning("后端未返回患者路径实体，列表保持不变。");
+        message.warning("入径请求已提交，但接口未返回路径实例，列表未新增。");
       }
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "办理患者入径失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "办理患者入径失败"));
     }
   };
 
@@ -165,8 +152,7 @@ export default function PatientPathways() {
       message.success("患者路径节点标准流转成功");
       advanceForm.resetFields();
 
-      // 更新本地状态
-      setLocalPathways((prev) =>
+      setSessionPathways((prev) =>
         prev.map((p) =>
           p.patientPathwayId === selectedPathwayId
             ? {
@@ -181,8 +167,8 @@ export default function PatientPathways() {
       refetchDetail();
       refetchClocks();
       refetchDiagnose();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "节点流转失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "节点流转失败"));
     }
   };
 
@@ -204,8 +190,7 @@ export default function PatientPathways() {
       message.warning("患者路径偏离事实变异登记成功");
       varianceForm.resetFields();
 
-      // 更新本地状态
-      setLocalPathways((prev) =>
+      setSessionPathways((prev) =>
         prev.map((p) =>
           p.patientPathwayId === selectedPathwayId
             ? {
@@ -220,8 +205,8 @@ export default function PatientPathways() {
       refetchDetail();
       refetchClocks();
       refetchDiagnose();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "变异登记流转失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "变异登记流转失败"));
     }
   };
 
@@ -240,8 +225,7 @@ export default function PatientPathways() {
       message.info("患者已办理物理退出临床路径");
       exitForm.resetFields();
 
-      // 更新本地状态
-      setLocalPathways((prev) =>
+      setSessionPathways((prev) =>
         prev.map((p) =>
           p.patientPathwayId === selectedPathwayId
             ? {
@@ -255,13 +239,12 @@ export default function PatientPathways() {
       refetchDetail();
       refetchClocks();
       refetchDiagnose();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "路径退径失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "路径退径失败"));
     }
   };
 
-  // 表格列定义
-  const columns = [
+  const columns: TableProps<PatientPathway>["columns"] = [
     {
       title: "实例编号",
       dataIndex: "patientPathwayId",
@@ -301,14 +284,13 @@ export default function PatientPathways() {
       dataIndex: "status",
       key: "status",
       render: (status: PatientPathwayStatus) => {
-        const config: Record<string, { color: string; text: string }> = {
-          ACTIVE: { color: "processing", text: "流转中 (ACTIVE)" },
-          COMPLETED: { color: "success", text: "已完成 (COMPLETED)" },
-          EXITED: { color: "error", text: "已退出 (EXITED)" },
+        const config: Record<string, { status: PathwayBadgeStatus; text: string }> = {
+          ACTIVE: { status: "processing", text: "流转中 (ACTIVE)" },
+          COMPLETED: { status: "success", text: "已完成 (COMPLETED)" },
+          EXITED: { status: "error", text: "已退出 (EXITED)" },
         };
-        return (
-          <Badge status={config[status]?.color as any} text={config[status]?.text || status} />
-        );
+        const current = config[status] ?? { status: "default", text: status };
+        return <Badge status={current.status} text={current.text} />;
       },
     },
     {
@@ -340,7 +322,7 @@ export default function PatientPathways() {
         <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
           <Form.Item label="患者 ID 检索">
             <Input
-              placeholder="例如 P-1001"
+              placeholder="输入患者 ID"
               allowClear
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
@@ -372,6 +354,9 @@ export default function PatientPathways() {
             onChange: (p) => setPage(p),
             showTotal: (t) => `共 ${t} 个临床运行中的患者实例`,
           }}
+          locale={{
+            emptyText: "暂无已办理入径的真实患者路径。本页只展示接口成功返回的入径实例。",
+          }}
           className="medkernel-table"
         />
       </div>
@@ -388,20 +373,18 @@ export default function PatientPathways() {
       >
         <Form form={enterForm} layout="vertical" className="mt-4">
           <Form.Item name="patientId" label="选择患者 ID (临床卡快照)" rules={[{ required: true }]}>
-            <Input placeholder="例如 P-1001" />
+            <Input placeholder="输入真实患者 ID" />
           </Form.Item>
           <Form.Item name="encounterId" label="关联就诊 ID (Encounter ID，可选)">
-            <Input placeholder="系统会自动随机生成" />
+            <Input placeholder="留空则由服务端按契约处理" />
           </Form.Item>
           <Form.Item name="templateId" label="选择受控专病路径模板" rules={[{ required: true }]}>
-            <Select placeholder="选择已发布上线的临床路径模型">
+            <Select placeholder="选择已发布上线的临床路径模型" notFoundContent="暂无已发布路径模板">
               {templatesData?.items?.map((t: PathwayTemplate) => (
                 <Option key={t.templateId} value={t.templateId}>
                   {t.name} (v{t.templateVersion}.0)
                 </Option>
-              )) || (
-                <Option value="PT-CAP-01">社区获得性呼吸系统感染标准诊疗路径 (PT-CAP-01)</Option>
-              )}
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，默认为 START)">
@@ -553,191 +536,198 @@ export default function PatientPathways() {
                   }
                   className="rounded-xl border-gray-200 shadow-sm"
                 >
-                  <Tabs defaultActiveKey="complete" size="small">
-                    <Tabs.TabPane
-                      tab={
-                        <span>
-                          <RightCircleOutlined /> 标准流转
-                        </span>
-                      }
-                      key="complete"
-                      disabled={detailData.patientPathway.status !== "ACTIVE"}
-                    >
-                      <Form
-                        form={advanceForm}
-                        layout="vertical"
-                        className="mt-2"
-                        onFinish={handleCompleteAdvance}
-                      >
-                        <Alert
-                          message="标准推进：物理完成当前操作并驱动至下一个标准路径节点。这会自动触发节点出边（Edge）的评估并刷新时钟周期。"
-                          type="success"
-                          showIcon
-                          className="mb-4 rounded-lg"
-                        />
-                        <Form.Item
-                          name="requestedNextNodeCode"
-                          label="指定流转目标节点"
-                          rules={[{ required: true }]}
-                        >
-                          <Select placeholder="选择出边允许推进的下一节点">
-                            {templateDetail?.edges
-                              .filter(
-                                (e) => e.fromNodeCode === detailData.patientPathway.currentNodeCode,
-                              )
-                              .map((e) => {
-                                const targetNode = templateDetail.nodes.find(
-                                  (n) => n.nodeCode === e.toNodeCode,
-                                );
-                                return (
-                                  <Option key={e.edgeId} value={e.toNodeCode}>
-                                    {targetNode?.name || "未知"} ({e.toNodeCode})
-                                  </Option>
-                                );
-                              })}
-                          </Select>
-                        </Form.Item>
-                        <Button
-                          type="primary"
-                          htmlType="submit"
-                          icon={<RightCircleOutlined />}
-                          loading={advancePathwayMutation.isPending}
-                          className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
-                        >
-                          物理完成并正常推进
-                        </Button>
-                      </Form>
-                    </Tabs.TabPane>
-
-                    <Tabs.TabPane
-                      tab={
-                        <span>
-                          <WarningOutlined /> 登记变异
-                        </span>
-                      }
-                      key="variance"
-                      disabled={detailData.patientPathway.status !== "ACTIVE"}
-                    >
-                      <Form
-                        form={varianceForm}
-                        layout="vertical"
-                        className="mt-2"
-                        onFinish={handleVarianceAdvance}
-                      >
-                        <Alert
-                          message="临床变异：当患者疾病进展偏离指南或自主拒绝时，在此登记医学/患者偏离事实。这允许偏离标准出边强制推进，并记录审计追溯依据。"
-                          type="warning"
-                          showIcon
-                          className="mb-4 rounded-lg"
-                        />
-                        <Row gutter={12}>
-                          <Col span={12}>
+                  <Tabs
+                    defaultActiveKey="complete"
+                    size="small"
+                    items={[
+                      {
+                        key: "complete",
+                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        label: (
+                          <span>
+                            <RightCircleOutlined /> 标准流转
+                          </span>
+                        ),
+                        children: (
+                          <Form
+                            form={advanceForm}
+                            layout="vertical"
+                            className="mt-2"
+                            onFinish={handleCompleteAdvance}
+                          >
+                            <Alert
+                              message="标准推进：物理完成当前操作并驱动至下一个标准路径节点。这会自动触发节点出边（Edge）的评估并刷新时钟周期。"
+                              type="success"
+                              showIcon
+                              className="mb-4 rounded-lg"
+                            />
                             <Form.Item
-                              name="varianceType"
-                              label="变异偏离类型"
+                              name="requestedNextNodeCode"
+                              label="指定流转目标节点"
                               rules={[{ required: true }]}
                             >
-                              <Select placeholder="选择类型">
-                                <Option value="MEDICAL">MEDICAL (医学指征原因)</Option>
-                                <Option value="PATIENT_REASON">
-                                  PATIENT_REASON (患者拒绝或意愿)
-                                </Option>
-                                <Option value="RESOURCE_REASON">
-                                  RESOURCE_REASON (医院资源限制)
-                                </Option>
-                                <Option value="DOCTOR_CHOICE">DOCTOR_CHOICE (医生临床抉择)</Option>
-                                <Option value="SYSTEM_REASON">
-                                  SYSTEM_REASON (系统非预期偏离)
-                                </Option>
+                              <Select placeholder="选择出边允许推进的下一节点">
+                                {templateDetail?.edges
+                                  .filter(
+                                    (e) =>
+                                      e.fromNodeCode === detailData.patientPathway.currentNodeCode,
+                                  )
+                                  .map((e) => {
+                                    const targetNode = templateDetail.nodes.find(
+                                      (n) => n.nodeCode === e.toNodeCode,
+                                    );
+                                    return (
+                                      <Option key={e.edgeId} value={e.toNodeCode}>
+                                        {targetNode?.name || "未知"} ({e.toNodeCode})
+                                      </Option>
+                                    );
+                                  })}
                               </Select>
                             </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item name="continueNodeCode" label="强制调整/继续节点 (可选)">
-                              <Select placeholder="选择目标节点">
-                                {templateDetail?.nodes.map((n) => (
-                                  <Option key={n.nodeId} value={n.nodeCode}>
-                                    {n.name} ({n.nodeCode})
-                                  </Option>
-                                ))}
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                        <Form.Item
-                          name="reason"
-                          label="变异偏离事实说明"
-                          rules={[{ required: true }]}
-                        >
-                          <TextArea
-                            rows={2}
-                            placeholder="如：患者因个人信仰拒绝接受特定血液制品方案..."
-                          />
-                        </Form.Item>
-                        <Form.Item
-                          name="resolutionAction"
-                          label="变异处置干预动作"
-                          rules={[{ required: true }]}
-                        >
-                          <Input placeholder="如：改用生理盐水及替代中成药保守治疗..." />
-                        </Form.Item>
-                        <Button
-                          type="primary"
-                          htmlType="submit"
-                          danger
-                          icon={<WarningOutlined />}
-                          loading={advancePathwayMutation.isPending}
-                          className="w-full mt-2"
-                        >
-                          提交路径变异并强制推进
-                        </Button>
-                      </Form>
-                    </Tabs.TabPane>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              icon={<RightCircleOutlined />}
+                              loading={advancePathwayMutation.isPending}
+                              className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+                            >
+                              物理完成并正常推进
+                            </Button>
+                          </Form>
+                        ),
+                      },
 
-                    <Tabs.TabPane
-                      tab={
-                        <span>
-                          <DisconnectOutlined /> 物理退径
-                        </span>
-                      }
-                      key="exit"
-                      disabled={detailData.patientPathway.status !== "ACTIVE"}
-                    >
-                      <Form
-                        form={exitForm}
-                        layout="vertical"
-                        className="mt-2"
-                        onFinish={handleExitAdvance}
-                      >
-                        <Alert
-                          message="人工退径：强行断开人机闭环，将患者从此专病路径中移除。该操作属于高危行为，会物理冻结所有关键时钟，且需要接受临床质量管理监督。"
-                          type="error"
-                          showIcon
-                          className="mb-4 rounded-lg"
-                        />
-                        <Form.Item
-                          name="exitReason"
-                          label="申请强制物理退径理由"
-                          rules={[{ required: true }]}
-                        >
-                          <TextArea
-                            rows={3}
-                            placeholder="如：患者由于转院、临床急救或死亡，需要立刻断开受控路径..."
-                          />
-                        </Form.Item>
-                        <Button
-                          type="primary"
-                          htmlType="submit"
-                          danger
-                          icon={<DisconnectOutlined />}
-                          loading={advancePathwayMutation.isPending}
-                          className="w-full mt-2"
-                        >
-                          物理脱靶退出路径
-                        </Button>
-                      </Form>
-                    </Tabs.TabPane>
-                  </Tabs>
+                      {
+                        key: "variance",
+                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        label: (
+                          <span>
+                            <WarningOutlined /> 登记变异
+                          </span>
+                        ),
+                        children: (
+                          <Form
+                            form={varianceForm}
+                            layout="vertical"
+                            className="mt-2"
+                            onFinish={handleVarianceAdvance}
+                          >
+                            <Alert
+                              message="临床变异：当患者疾病进展偏离指南或自主拒绝时，在此登记医学/患者偏离事实。这允许偏离标准出边强制推进，并记录审计追溯依据。"
+                              type="warning"
+                              showIcon
+                              className="mb-4 rounded-lg"
+                            />
+                            <Row gutter={12}>
+                              <Col span={12}>
+                                <Form.Item
+                                  name="varianceType"
+                                  label="变异偏离类型"
+                                  rules={[{ required: true }]}
+                                >
+                                  <Select placeholder="选择类型">
+                                    <Option value="MEDICAL">MEDICAL (医学指征原因)</Option>
+                                    <Option value="PATIENT_REASON">
+                                      PATIENT_REASON (患者拒绝或意愿)
+                                    </Option>
+                                    <Option value="RESOURCE_REASON">
+                                      RESOURCE_REASON (医院资源限制)
+                                    </Option>
+                                    <Option value="DOCTOR_CHOICE">
+                                      DOCTOR_CHOICE (医生临床抉择)
+                                    </Option>
+                                    <Option value="SYSTEM_REASON">
+                                      SYSTEM_REASON (系统非预期偏离)
+                                    </Option>
+                                  </Select>
+                                </Form.Item>
+                              </Col>
+                              <Col span={12}>
+                                <Form.Item name="continueNodeCode" label="强制调整/继续节点 (可选)">
+                                  <Select placeholder="选择目标节点">
+                                    {templateDetail?.nodes.map((n) => (
+                                      <Option key={n.nodeId} value={n.nodeCode}>
+                                        {n.name} ({n.nodeCode})
+                                      </Option>
+                                    ))}
+                                  </Select>
+                                </Form.Item>
+                              </Col>
+                            </Row>
+                            <Form.Item
+                              name="reason"
+                              label="变异偏离事实说明"
+                              rules={[{ required: true }]}
+                            >
+                              <TextArea rows={2} placeholder="请输入经医师确认的变异事实说明" />
+                            </Form.Item>
+                            <Form.Item
+                              name="resolutionAction"
+                              label="变异处置干预动作"
+                              rules={[{ required: true }]}
+                            >
+                              <Input placeholder="请输入已确认的处置动作" />
+                            </Form.Item>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              danger
+                              icon={<WarningOutlined />}
+                              loading={advancePathwayMutation.isPending}
+                              className="w-full mt-2"
+                            >
+                              提交路径变异并强制推进
+                            </Button>
+                          </Form>
+                        ),
+                      },
+
+                      {
+                        key: "exit",
+                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        label: (
+                          <span>
+                            <DisconnectOutlined /> 物理退径
+                          </span>
+                        ),
+                        children: (
+                          <Form
+                            form={exitForm}
+                            layout="vertical"
+                            className="mt-2"
+                            onFinish={handleExitAdvance}
+                          >
+                            <Alert
+                              message="人工退径：强行断开人机闭环，将患者从此专病路径中移除。该操作属于高危行为，会物理冻结所有关键时钟，且需要接受临床质量管理监督。"
+                              type="error"
+                              showIcon
+                              className="mb-4 rounded-lg"
+                            />
+                            <Form.Item
+                              name="exitReason"
+                              label="申请强制物理退径理由"
+                              rules={[{ required: true }]}
+                            >
+                              <TextArea
+                                rows={3}
+                                placeholder="如：患者由于转院、临床急救或死亡，需要立刻断开受控路径..."
+                              />
+                            </Form.Item>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              danger
+                              icon={<DisconnectOutlined />}
+                              loading={advancePathwayMutation.isPending}
+                              className="w-full mt-2"
+                            >
+                              物理脱靶退出路径
+                            </Button>
+                          </Form>
+                        ),
+                      },
+                    ]}
+                  />
                 </Card>
               </Col>
             </Row>
@@ -811,8 +801,7 @@ export default function PatientPathways() {
               className="mb-6 rounded-xl border-gray-200"
             >
               <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100">
-                {diagnoseData.explanationSnapshot ||
-                  "由于患者病情已流转至标准节点，依据《社区获得性呼吸系统感染指南 §3.2》自动激活抗感染时钟，且检测到血常规白细胞偏高，流转归因成立。"}
+                {diagnoseData.explanationSnapshot || "当前接口未返回解释文本，页面不会补写归因。"}
               </div>
             </Card>
 

@@ -41,7 +41,6 @@ import type {
 } from "@/shared/api/hooks";
 
 const { Option } = Select;
-const { TabPane } = Tabs;
 
 export default function QcAlerts() {
   const [filterSeverity, setFilterSeverity] = useState<QualityFindingSeverity | undefined>(
@@ -341,35 +340,40 @@ export default function QcAlerts() {
 
         {/* 主分类大 Tabs */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <Tabs activeKey={activeTab} onChange={handleTabChange} className="custom-tabs">
-            <TabPane
-              tab={
-                <span className="flex items-center gap-1.5">
-                  <WarningOutlined />
-                  待我科室整改 (Assigned)
-                </span>
-              }
-              key="assigned_tasks"
-            />
-            <TabPane
-              tab={
-                <span className="flex items-center gap-1.5">
-                  <SendOutlined />
-                  等待质控复核 (Remediating)
-                </span>
-              }
-              key="remediating_tasks"
-            />
-            <TabPane
-              tab={
-                <span className="flex items-center gap-1.5">
-                  <HistoryOutlined />
-                  全量缺陷历史大台账
-                </span>
-              }
-              key="all_findings"
-            />
-          </Tabs>
+          <Tabs
+            activeKey={activeTab}
+            onChange={handleTabChange}
+            className="custom-tabs"
+            items={[
+              {
+                key: "assigned_tasks",
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    <WarningOutlined />
+                    待我科室整改 (Assigned)
+                  </span>
+                ),
+              },
+              {
+                key: "remediating_tasks",
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    <SendOutlined />
+                    等待质控复核 (Remediating)
+                  </span>
+                ),
+              },
+              {
+                key: "all_findings",
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    <HistoryOutlined />
+                    全量缺陷历史大台账
+                  </span>
+                ),
+              },
+            ]}
+          />
 
           <Table
             dataSource={pageData?.items || []}
@@ -429,241 +433,257 @@ export default function QcAlerts() {
             </div>
 
             {/* 多 Tab 面板 */}
-            <Tabs defaultActiveKey="finding_detail" className="bg-white">
-              {/* Tab 1: 基本详情 */}
-              <TabPane tab="缺陷基础事实" key="finding_detail">
-                <div className="space-y-4 py-2">
-                  <Descriptions bordered column={1} size="small" className="bg-slate-50/30">
-                    <Descriptions.Item label="质控问题 ID">
-                      <span className="font-normal text-xs font-semibold">
-                        {selectedFinding.findingId}
-                      </span>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="不达标缺陷">
-                      {selectedFinding.title}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="扫描详细描述">
-                      {selectedFinding.description}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="不合规审计证据">
-                      <span className="text-xs text-rose-600">
-                        {selectedFinding.evidenceSummary}
-                      </span>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="考核严重度">
-                      {renderSeverityTag(selectedFinding.severity)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="整改责任科室">
-                      {selectedFinding.responsibleDepartmentId}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="整改截止期限">
-                      {selectedFinding.dueAt ? selectedFinding.dueAt.substring(0, 16) : "--"}
-                    </Descriptions.Item>
-                  </Descriptions>
-                </div>
-              </TabPane>
-
-              {/* Tab 2: 科室医师整改说明递交 */}
-              <TabPane
-                tab="科室整改反馈"
-                key="remediation_tab"
-                disabled={selectedFinding.status !== "ASSIGNED" && selectedFinding.status !== "NEW"}
-              >
-                <div className="py-2 space-y-4">
-                  <Alert
-                    message="临床责任医师整改指引"
-                    description="请根据上面的不合规证据补全/修订HIS/EMR里的临床事实与合理性原因，并在此上传说明。"
-                    type="info"
-                    showIcon
-                  />
-                  <Form layout="vertical" onFinish={onRemediateSubmit}>
-                    <Form.Item
-                      name="rectificationSummary"
-                      label="整改临床合理性原因 / 修订事实说明"
-                      rules={[{ required: true, message: "请输入整改方案与说明" }]}
-                    >
-                      <Input.TextArea
-                        rows={4}
-                        placeholder="例如：已经于病案中补录下肢静脉血栓高危评级风险表，并开具低分子肝素抗凝预防性医嘱..."
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      name="evidenceRef"
-                      label="修订后的合理医嘱 / 病例文书证据定位引用"
-                      rules={[{ required: true, message: "请输入证据定位" }]}
-                    >
-                      <Input placeholder="例如：电子病历第16页第3行或医嘱号ORD-298372..." />
-                    </Form.Item>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      icon={<SendOutlined />}
-                      className="bg-sky-600 hover:bg-sky-700 w-full h-10 rounded-lg"
-                      loading={submitRectMutation.isPending}
-                    >
-                      递交整改结果送审
-                    </Button>
-                  </Form>
-                </div>
-              </TabPane>
-
-              {/* Tab 3: 专家复核评判 */}
-              <TabPane
-                tab="质控专家复核"
-                key="review_tab"
-                disabled={selectedFinding.status !== "REMEDIATING"}
-              >
-                <div className="py-2 space-y-4">
-                  {/* 科室递交的整改事实展示 */}
-                  {detailData?.task && (
-                    <Card
-                      size="small"
-                      title="责任科室提交的整改答案"
-                      className="bg-slate-50 border-slate-100"
-                    >
-                      <div className="space-y-2 text-xs">
-                        <div>
-                          <span className="text-slate-400">整改人：</span>
-                          <span className="text-slate-700 font-semibold">
-                            {detailData.task.submittedBy || "科室医师"}
+            <Tabs
+              defaultActiveKey="finding_detail"
+              className="bg-white"
+              items={[
+                {
+                  key: "finding_detail",
+                  label: "缺陷基础事实",
+                  children: (
+                    <div className="space-y-4 py-2">
+                      <Descriptions bordered column={1} size="small" className="bg-slate-50/30">
+                        <Descriptions.Item label="质控问题 ID">
+                          <span className="font-normal text-xs font-semibold">
+                            {selectedFinding.findingId}
                           </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">整改时间：</span>
-                          <span className="text-slate-700">
-                            {detailData.task.submittedAt
-                              ? detailData.task.submittedAt.substring(0, 16)
-                              : "--"}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="不达标缺陷">
+                          {selectedFinding.title}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="扫描详细描述">
+                          {selectedFinding.description}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="不合规审计证据">
+                          <span className="text-xs text-rose-600">
+                            {selectedFinding.evidenceSummary}
                           </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">整改说明：</span>
-                          <p className="mt-1 text-slate-800 bg-white p-2.5 rounded border border-slate-200 leading-relaxed">
-                            {detailData.task.rectificationSummary}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">合理证据：</span>
-                          <span className="text-sky-600 font-semibold">
-                            {detailData.task.evidenceRef}
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-
-                  <Form
-                    layout="vertical"
-                    onFinish={onReviewSubmit}
-                    initialValues={{ decision: "APPROVED" }}
-                  >
-                    <Form.Item
-                      name="decision"
-                      label="专家复核结论判定"
-                      rules={[{ required: true }]}
-                    >
-                      <Select className="rounded-lg">
-                        <Option value="APPROVED">通过整改，合规闭环 (APPROVED)</Option>
-                        <Option value="RETURNED">证据不足，打回重改 (RETURNED)</Option>
-                        <Option value="WAIVED">符合豁免医学特征，特殊豁免 (WAIVED)</Option>
-                      </Select>
-                    </Form.Item>
-                    <Form.Item
-                      name="comment"
-                      label="专家评语及临床合规意见"
-                      rules={[{ required: true, message: "请输入复核评语" }]}
-                    >
-                      <Input.TextArea rows={3} placeholder="输入复核把关意见..." />
-                    </Form.Item>
-                    <Form.Item name="evidenceRef" label="专家复核依据/审计证据定位引用">
-                      <Input placeholder="输入复核专家文献或豁免法理..." />
-                    </Form.Item>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      icon={<CheckCircleOutlined />}
-                      className="bg-emerald-600 hover:bg-emerald-700 w-full h-10 rounded-lg border-none"
-                      loading={reviewRectMutation.isPending}
-                    >
-                      提交复核裁决结论
-                    </Button>
-                  </Form>
-                </div>
-              </TabPane>
-
-              {/* Tab 4: 可信归因诊断审计 */}
-              <TabPane tab="可信审计Trace" key="trace_tab">
-                <div className="py-3 space-y-5">
-                  {/* TraceId 高亮展现 */}
-                  <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-500/5 flex items-center justify-between">
-                    <div>
-                      <div className="text-slate-400 text-xs font-semibold">
-                        审计 Trace ID (可追溯唯一凭据)
-                      </div>
-                      <div className="font-normal font-bold text-sky-600 text-sm mt-1">
-                        {selectedFinding.createdAt
-                          ? selectedFinding.findingId + "_TRACE"
-                          : "TRACE_NOT_FOUND"}
-                      </div>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="考核严重度">
+                          {renderSeverityTag(selectedFinding.severity)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="整改责任科室">
+                          {selectedFinding.responsibleDepartmentId}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="整改截止期限">
+                          {selectedFinding.dueAt ? selectedFinding.dueAt.substring(0, 16) : "--"}
+                        </Descriptions.Item>
+                      </Descriptions>
                     </div>
-                    <Tag color="cyan">100% 留痕合规</Tag>
-                  </div>
+                  ),
+                },
 
-                  {/* 状态转移历史 */}
-                  {diagnoseData && (
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                        <HistoryOutlined />
-                        基于 StateTransitionRecorder 留下的物理状态转移记录
-                      </h4>
+                {
+                  key: "remediation_tab",
+                  label: "科室整改反馈",
+                  disabled:
+                    selectedFinding.status !== "ASSIGNED" && selectedFinding.status !== "NEW",
+                  children: (
+                    <div className="py-2 space-y-4">
+                      <Alert
+                        message="临床责任医师整改指引"
+                        description="请根据上面的不合规证据补全/修订HIS/EMR里的临床事实与合理性原因，并在此上传说明。"
+                        type="info"
+                        showIcon
+                      />
+                      <Form layout="vertical" onFinish={onRemediateSubmit}>
+                        <Form.Item
+                          name="rectificationSummary"
+                          label="整改临床合理性原因 / 修订事实说明"
+                          rules={[{ required: true, message: "请输入整改方案与说明" }]}
+                        >
+                          <Input.TextArea
+                            rows={4}
+                            placeholder="请输入已经完成的事实补录、医嘱修订或合理性说明。"
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          name="evidenceRef"
+                          label="修订后的合理医嘱 / 病例文书证据定位引用"
+                          rules={[{ required: true, message: "请输入证据定位" }]}
+                        >
+                          <Input placeholder="例如：电子病历第16页第3行或医嘱号ORD-298372..." />
+                        </Form.Item>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          icon={<SendOutlined />}
+                          className="bg-sky-600 hover:bg-sky-700 w-full h-10 rounded-lg"
+                          loading={submitRectMutation.isPending}
+                        >
+                          递交整改结果送审
+                        </Button>
+                      </Form>
+                    </div>
+                  ),
+                },
 
-                      <Timeline mode="left" className="mt-3">
-                        <Timeline.Item label="创建缺陷" color="blue">
-                          <div className="text-xs">
-                            <span className="font-semibold text-slate-700">系统自动病例扫描</span>
-                            <p className="text-slate-400 text-[10px] mt-0.5">
-                              状态初始化为 ASSIGNED / NEW
-                            </p>
-                          </div>
-                        </Timeline.Item>
-
-                        {detailData?.task?.submittedAt && (
-                          <Timeline.Item label="提交整改" color="orange">
-                            <div className="text-xs">
-                              <span className="font-semibold text-slate-700">科室医师递交整改</span>
-                              <p className="text-slate-400 text-[10px] mt-0.5">
-                                流转为 REMEDIATING · {detailData.task.submittedAt.substring(0, 16)}
+                {
+                  key: "review_tab",
+                  label: "质控专家复核",
+                  disabled: selectedFinding.status !== "REMEDIATING",
+                  children: (
+                    <div className="py-2 space-y-4">
+                      {/* 科室递交的整改事实展示 */}
+                      {detailData?.task && (
+                        <Card
+                          size="small"
+                          title="责任科室提交的整改答案"
+                          className="bg-slate-50 border-slate-100"
+                        >
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <span className="text-slate-400">整改人：</span>
+                              <span className="text-slate-700 font-semibold">
+                                {detailData.task.submittedBy || "科室医师"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">整改时间：</span>
+                              <span className="text-slate-700">
+                                {detailData.task.submittedAt
+                                  ? detailData.task.submittedAt.substring(0, 16)
+                                  : "--"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">整改说明：</span>
+                              <p className="mt-1 text-slate-800 bg-white p-2.5 rounded border border-slate-200 leading-relaxed">
+                                {detailData.task.rectificationSummary}
                               </p>
                             </div>
-                          </Timeline.Item>
-                        )}
+                            <div>
+                              <span className="text-slate-400">合理证据：</span>
+                              <span className="text-sky-600 font-semibold">
+                                {detailData.task.evidenceRef}
+                              </span>
+                            </div>
+                          </div>
+                        </Card>
+                      )}
 
-                        {detailData?.reviews &&
-                          detailData.reviews.map((rev) => (
-                            <Timeline.Item
-                              key={rev.reviewId}
-                              label={rev.decision === "APPROVED" ? "通过关闭" : "打回重改"}
-                              color={rev.decision === "APPROVED" ? "green" : "red"}
-                            >
+                      <Form
+                        layout="vertical"
+                        onFinish={onReviewSubmit}
+                        initialValues={{ decision: "APPROVED" }}
+                      >
+                        <Form.Item
+                          name="decision"
+                          label="专家复核结论判定"
+                          rules={[{ required: true }]}
+                        >
+                          <Select className="rounded-lg">
+                            <Option value="APPROVED">通过整改，合规闭环 (APPROVED)</Option>
+                            <Option value="RETURNED">证据不足，打回重改 (RETURNED)</Option>
+                            <Option value="WAIVED">符合豁免医学特征，特殊豁免 (WAIVED)</Option>
+                          </Select>
+                        </Form.Item>
+                        <Form.Item
+                          name="comment"
+                          label="专家评语及临床合规意见"
+                          rules={[{ required: true, message: "请输入复核评语" }]}
+                        >
+                          <Input.TextArea rows={3} placeholder="输入复核把关意见..." />
+                        </Form.Item>
+                        <Form.Item name="evidenceRef" label="专家复核依据/审计证据定位引用">
+                          <Input placeholder="输入复核专家文献或豁免法理..." />
+                        </Form.Item>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          icon={<CheckCircleOutlined />}
+                          className="bg-emerald-600 hover:bg-emerald-700 w-full h-10 rounded-lg border-none"
+                          loading={reviewRectMutation.isPending}
+                        >
+                          提交复核裁决结论
+                        </Button>
+                      </Form>
+                    </div>
+                  ),
+                },
+
+                {
+                  key: "trace_tab",
+                  label: "可信审计Trace",
+                  children: (
+                    <div className="py-3 space-y-5">
+                      {/* TraceId 高亮展现 */}
+                      <div className="p-3.5 rounded-xl border border-sky-100 bg-sky-500/5 flex items-center justify-between">
+                        <div>
+                          <div className="text-slate-400 text-xs font-semibold">
+                            审计 Trace ID (可追溯唯一凭据)
+                          </div>
+                          <div className="font-normal font-bold text-sky-600 text-sm mt-1">
+                            {selectedFinding.createdAt
+                              ? selectedFinding.findingId + "_TRACE"
+                              : "TRACE_NOT_FOUND"}
+                          </div>
+                        </div>
+                        <Tag color="cyan">100% 留痕合规</Tag>
+                      </div>
+
+                      {/* 状态转移历史 */}
+                      {diagnoseData && (
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                            <HistoryOutlined />
+                            基于 StateTransitionRecorder 留下的物理状态转移记录
+                          </h4>
+
+                          <Timeline mode="left" className="mt-3">
+                            <Timeline.Item label="创建缺陷" color="blue">
                               <div className="text-xs">
                                 <span className="font-semibold text-slate-700">
-                                  专家 {rev.reviewedBy} 复核完毕
+                                  系统自动病例扫描
                                 </span>
-                                <p className="text-slate-500 text-[11px] mt-0.5 bg-slate-50 p-2 rounded leading-relaxed border border-slate-100">
-                                  {rev.comments}
-                                </p>
                                 <p className="text-slate-400 text-[10px] mt-0.5">
-                                  {rev.reviewedAt.substring(0, 16)}
+                                  状态初始化为 ASSIGNED / NEW
                                 </p>
                               </div>
                             </Timeline.Item>
-                          ))}
-                      </Timeline>
+
+                            {detailData?.task?.submittedAt && (
+                              <Timeline.Item label="提交整改" color="orange">
+                                <div className="text-xs">
+                                  <span className="font-semibold text-slate-700">
+                                    科室医师递交整改
+                                  </span>
+                                  <p className="text-slate-400 text-[10px] mt-0.5">
+                                    流转为 REMEDIATING ·{" "}
+                                    {detailData.task.submittedAt.substring(0, 16)}
+                                  </p>
+                                </div>
+                              </Timeline.Item>
+                            )}
+
+                            {detailData?.reviews &&
+                              detailData.reviews.map((rev) => (
+                                <Timeline.Item
+                                  key={rev.reviewId}
+                                  label={rev.decision === "APPROVED" ? "通过关闭" : "打回重改"}
+                                  color={rev.decision === "APPROVED" ? "green" : "red"}
+                                >
+                                  <div className="text-xs">
+                                    <span className="font-semibold text-slate-700">
+                                      专家 {rev.reviewedBy} 复核完毕
+                                    </span>
+                                    <p className="text-slate-500 text-[11px] mt-0.5 bg-slate-50 p-2 rounded leading-relaxed border border-slate-100">
+                                      {rev.comments}
+                                    </p>
+                                    <p className="text-slate-400 text-[10px] mt-0.5">
+                                      {rev.reviewedAt.substring(0, 16)}
+                                    </p>
+                                  </div>
+                                </Timeline.Item>
+                              ))}
+                          </Timeline>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </TabPane>
-            </Tabs>
+                  ),
+                },
+              ]}
+            />
           </div>
         ) : (
           <Empty description="选择特定缺陷问题开启 PDCA 闭环" />

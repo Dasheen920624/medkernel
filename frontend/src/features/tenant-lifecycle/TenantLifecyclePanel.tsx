@@ -42,7 +42,10 @@ export function TenantLifecyclePanel() {
         className={styles.card}
       >
         <div className={styles.loaderContainer}>
-          <Spin size="large" tip="正在物理加载多维生命周期数据..." />
+          <Spin size="large" />
+          <Text type="secondary" className={styles.loaderText}>
+            正在物理加载多维生命周期数据...
+          </Text>
         </div>
       </Card>
     );
@@ -165,7 +168,7 @@ export function TenantLifecyclePanel() {
                     "0%": healthMeta.color,
                     "100%": "var(--ant-color-primary)",
                   }}
-                  width={100}
+                  size={100}
                   format={(percent) => (
                     <div className={styles.progressFormat}>
                       <span className={styles.progressScore}>{percent}</span>

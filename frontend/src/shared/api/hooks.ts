@@ -2127,6 +2127,16 @@ export interface WebhookTestPayload {
   payload: string;
 }
 
+export interface WebhookSignatureTestResult {
+  webhookId: string;
+  callbackUrl: string;
+  secretKey: string;
+  timestamp: number;
+  payloadSigned: string;
+  signature: string;
+  status: string;
+}
+
 interface IntegrationEnvelope<T> {
   success: boolean;
   code: string;
@@ -2220,7 +2230,7 @@ export function useCreateWebhook() {
 export function useTestWebhookSignature() {
   return useMutation({
     mutationFn: async (payload: WebhookTestPayload) => {
-      const { data } = await apiClient.post<IntegrationEnvelope<any>>(
+      const { data } = await apiClient.post<IntegrationEnvelope<WebhookSignatureTestResult>>(
         "/api/v1/engine/integration/webhooks/test",
         payload,
       );
