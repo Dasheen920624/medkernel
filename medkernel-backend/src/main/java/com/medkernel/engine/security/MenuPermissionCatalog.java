@@ -21,34 +21,12 @@ public final class MenuPermissionCatalog {
         if (permissions == null || permissions.isEmpty()) {
             return List.of();
         }
-        keys.add("workbench");
-        addIfAny(keys, permissions, "pilot-setup",
-            PermissionCode.ORG_WRITE,
-            PermissionCode.TENANT_READ,
-            PermissionCode.PACKAGE_READ,
-            PermissionCode.TERM_WRITE,
-            PermissionCode.RULE_WRITE,
-            PermissionCode.PATHWAY_WRITE);
-        addIfAny(keys, permissions, "clinical-run",
-            PermissionCode.RECOMMENDATION_READ,
-            PermissionCode.RECOMMENDATION_ACCEPT,
-            PermissionCode.PATHWAY_READ,
-            PermissionCode.RULE_READ);
-        addIfAny(keys, permissions, "quality-improve",
-            PermissionCode.EVALUATION_READ,
-            PermissionCode.EVALUATION_WRITE,
-            PermissionCode.EVALUATION_PUBLISH,
-            PermissionCode.EVALUATION_EXECUTE,
-            PermissionCode.EVALUATION_REMEDIATE,
-            PermissionCode.EVALUATION_REVIEW);
-        addIfAny(keys, permissions, "compliance-ops",
-            PermissionCode.AUDIT_READ,
-            PermissionCode.AUDIT_EXPORT,
-            PermissionCode.SYSTEM_READ,
-            PermissionCode.SYSTEM_MANAGE);
-        addIfAny(keys, permissions, "advanced-tools",
-            PermissionCode.KNOWLEDGE_REVIEW,
-            PermissionCode.SYSTEM_READ);
+        addIfAny(keys, permissions, "workbench", PermissionCode.MENU_WORKBENCH);
+        addIfAny(keys, permissions, "pilot-setup", PermissionCode.MENU_PILOT_SETUP);
+        addIfAny(keys, permissions, "clinical-run", PermissionCode.MENU_CLINICAL_RUN);
+        addIfAny(keys, permissions, "quality-improve", PermissionCode.MENU_QUALITY_IMPROVE);
+        addIfAny(keys, permissions, "compliance-ops", PermissionCode.MENU_COMPLIANCE_OPS);
+        addIfAny(keys, permissions, "advanced-tools", PermissionCode.MENU_ADVANCED_TOOLS);
         return List.copyOf(keys);
     }
 

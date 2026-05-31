@@ -14,6 +14,8 @@ import { apiClient } from "./client";
 // ──────────────────────────────────────────
 // 身份安全 · 当前用户权限画像
 // ──────────────────────────────────────────
+export type PermissionDimension = "MENU" | "ACTION" | "DATA" | "ASSET" | "ENVIRONMENT" | string;
+
 export interface SecurityProfile {
   userId: string;
   roles: Array<{
@@ -25,6 +27,8 @@ export interface SecurityProfile {
   }>;
   permissions: Array<{
     code: string;
+    dimension: PermissionDimension;
+    target: string;
     displayName: string;
     risk: "LOW" | "MEDIUM" | "HIGH" | string;
   }>;

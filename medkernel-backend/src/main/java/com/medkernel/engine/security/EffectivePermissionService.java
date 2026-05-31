@@ -50,6 +50,8 @@ public class EffectivePermissionService {
             .sorted(Comparator.comparing(PermissionCode::code))
             .map(p -> new EffectivePermissionProfile.PermissionView(
                 p.code(),
+                p.dimension().name(),
+                p.target(),
                 p.displayName(),
                 p.risk().name()))
             .toList();

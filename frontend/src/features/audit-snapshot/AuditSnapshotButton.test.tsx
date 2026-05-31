@@ -5,7 +5,15 @@ import { AuditSnapshotButton } from "./AuditSnapshotButton";
 
 const auditState = vi.hoisted(() => ({
   mutate: vi.fn(),
-  permissions: [{ code: "audit.export" }],
+  permissions: [
+    {
+      code: "audit.export",
+      dimension: "ACTION",
+      target: "audit",
+      displayName: "导出审计",
+      risk: "HIGH",
+    },
+  ],
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -25,7 +33,15 @@ function renderButton() {
 
 describe("AuditSnapshotButton", () => {
   it("requests a persisted audit snapshot through the protected API", () => {
-    auditState.permissions = [{ code: "audit.export" }];
+    auditState.permissions = [
+      {
+        code: "audit.export",
+        dimension: "ACTION",
+        target: "audit",
+        displayName: "导出审计",
+        risk: "HIGH",
+      },
+    ];
     auditState.mutate.mockClear();
     renderButton();
 
@@ -35,7 +51,15 @@ describe("AuditSnapshotButton", () => {
   });
 
   it("fails closed when the current profile lacks audit export permission", () => {
-    auditState.permissions = [{ code: "audit.read" }];
+    auditState.permissions = [
+      {
+        code: "audit.read",
+        dimension: "ACTION",
+        target: "audit",
+        displayName: "查看审计",
+        risk: "LOW",
+      },
+    ];
     renderButton();
 
     expect(screen.getByRole("button", { name: /审计快照/ })).toBeDisabled();

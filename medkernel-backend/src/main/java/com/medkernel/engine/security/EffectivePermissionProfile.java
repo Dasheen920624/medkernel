@@ -36,6 +36,8 @@ public record EffectivePermissionProfile(
 
     public record PermissionView(
         String code,
+        String dimension,
+        String target,
         String displayName,
         String risk
     ) {

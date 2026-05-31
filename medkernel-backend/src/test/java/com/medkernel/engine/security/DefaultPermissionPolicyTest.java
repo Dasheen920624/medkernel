@@ -41,9 +41,11 @@ class DefaultPermissionPolicyTest {
     void auditComplianceIsReadOnly() {
         var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE);
         for (PermissionCode p : perms) {
-            assertThat(p.code())
-                .as("合规审计角色仅可读 / 导出，不应有写权限：%s", p.code())
-                .matches("(.+\\.read|.+\\.export)");
+            if (p.dimension() == PermissionDimension.ACTION) {
+                assertThat(p.code())
+                    .as("合规审计角色动作权限仅可读 / 导出，不应有写权限：%s", p.code())
+                    .matches("(.+\\.read|.+\\.export)");
+            }
         }
         assertThat(perms).contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT);
     }

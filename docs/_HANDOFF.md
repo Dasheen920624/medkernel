@@ -10,15 +10,16 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-01 组织层级与闭包底座 🚧
+### 线 1 · BASE-02 身份权限五维目录与角色基线 🚧
 - 类型：软件开发
-- 分支：codex/base-01-org-context
-- 目标：完成 BASE-01 PR1：七层组织枚举、组织路径、闭包表、祖先/后代查询与防环校验，覆盖 AC-1。
-- 状态：实现、触碰文件清理与本地最终验证已完成；组织底座已统一为七层 `SPECIALTY` 专病层口径，触碰到的配置包页面已移除本地演示兜底、假资产、假同步目标、假差异结果与假组织 ID；Testcontainers 已固定到可连接 Docker Desktop 29 的版本，后端全量测试会真实执行 PostgreSQL/Oracle 迁移 smoke。
-- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 等 CI 通过后合并并确认 `origin/main`；3. 合并后从最新 `main` 领取下一张 D0/D1 卡继续执行。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-01.md`；`medkernel-backend/src/main/java/com/medkernel/engine/org/**`；`medkernel-backend/src/main/resources/db/migration/*/V2__org_audit_baseline.sql`；`frontend/src/pages/tenant/ConfigPackages.tsx` 已按纯净代码原则清理本地演示兜底，不再用前端假数据代替真实后端返回。
+- 分支：codex/base-02-permission-core
+- 目标：完成 BASE-02 PR1：五维权限点目录、13 角色目录实体、默认五维角色基线与五方言迁移，覆盖 AC-2 的角色与目录基础。
+- 状态：本地实现与验证已完成，待提交/推送/开 PR；已补齐 `PermissionDimension`、`sys_role/sys_permission` 目录实体、五维权限画像字段、菜单权限与动作权限分离、H2/五方言迁移契约红绿测试；Oracle 重复索引问题已用非冗余角色启用状态索引修正。
+- 下一步（精确到动作/命令）：1. `git add`/`git commit`/`git push -u origin codex/base-02-permission-core`；2. 开 PR，等 CI 全绿后 squash 合并；3. 从最新 `origin/main` 新开下一逻辑单元分支，继续 BASE-02 PR2 或下一张 D0 卡；4. D0 域级验收通过前不得启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-02.md`；`medkernel-backend/src/main/java/com/medkernel/engine/security/**`；`medkernel-backend/src/main/resources/db/migration/*/V6__security_permission_baseline.sql`；前端 `SecurityProfile.permissions` 已增加 `dimension/target`，旧 mock 必须同步字段；菜单可见性只看 `MENU_*` 权限，不再由动作权限隐式推导。验证证据：`mvn -q test`、`mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、`npm test`、`npm run typecheck`、`npm run build`、`npm run lint`、`npx prettier --check ...`、`node scripts/authenticity-guard.mjs --mode all`、`scripts/check-comment-zh.sh`。
 
 ## 已归档工作线（最近完成，供回溯）
+- BASE-01 组织层级与闭包底座 ✅（#175）：七层组织枚举、`org_path`、闭包表、祖先/后代查询、防环重挂、Testcontainers 1.21.4 Docker Desktop 29 兼容修复；触碰到的配置包页面已清理本地演示兜底、假资产、假同步目标、假差异结果与假组织 ID；远端 CI 8/8 通过并合入 `origin/main`。
 - 登录页体验与真实性债务整治 ✅（#173）：补齐登录页主题切换、品牌上下文、表单可用性、统一身份待配置入口、浏览器桌面/暗黑/移动端验收；清理触碰文件真实性债务，真实性 inventory 清零；远端 CI 8/8 通过并合入 `origin/main`。本机 Docker Desktop 可用，但 Testcontainers 在本机 socket 下仍跳过 3 个多方言冒烟，远端 CI 已通过。
 - D0 登录域 28 卡 ✅（#152 + #153）
 - D1 工作台 3 卡 ✅（#154：INFRA-09 + WORKBENCH-01/02）
@@ -58,4 +59,4 @@
 ```
 
 ---
-> 末次更新：2026-05-31 · wave2 全 55 卡已合（#168 + #169）→ **卡体系迁移 100% 完成**；AGENTS.md AI 协作总纲已合（#170）；AI 研发重启闸门 + 业务实现范围核查已完成（#171）；D0 第一闸真实性触碰文件门禁已完成（#172）；登录页体验与真实性债务整治已完成（#173）；下一步从 backlog 选择新的 D0 执行开发任务
+> 末次更新：2026-05-31 · BASE-02 PR1 五维权限目录与 13 角色基线已完成本地验证，待提交推送开 PR；D0 域级验收前不得启动 D1 新功能 PR
