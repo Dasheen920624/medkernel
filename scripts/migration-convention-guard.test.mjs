@@ -83,3 +83,40 @@ test("合规迁移通过中文注释、命名规约和租户索引门禁", async
     },
   );
 });
+
+test("高风险迁移缺少中文回滚或补偿说明会被阻断", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V32__drop_legacy_shadow.sql": `
+        DROP TABLE legacy_audit_shadow;
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V32__drop_legacy_shadow.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["migration.rollback-plan"]);
+    },
+  );
+});
+
+test("高风险迁移带中文回滚或补偿说明时通过回滚规约门禁", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V32__drop_legacy_shadow.sql": `
+        -- ROLLBACK: 如需回退，先从备份表 legacy_audit_shadow_bak 恢复数据，再重放 V32 前的审计快照。
+        DROP TABLE legacy_audit_shadow;
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V32__drop_legacy_shadow.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});

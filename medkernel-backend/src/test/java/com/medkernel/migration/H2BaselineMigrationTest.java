@@ -39,6 +39,10 @@ class H2BaselineMigrationTest {
                 "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27",
                 "28", "29", "30");
 
+        var repeated = flyway.migrate();
+        assertThat(repeated.success).as("H2 baseline repeated migrate succeeds").isTrue();
+        assertThat(repeated.migrationsExecuted).as("H2 baseline repeated migrate is idempotent").isZero();
+
         JdbcTemplate jdbc = new JdbcTemplate(ds);
         Integer assignmentCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM user_role_assignment WHERE tenant_id = 't-1' AND active_flag = 'Y'",
