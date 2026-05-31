@@ -12,7 +12,13 @@ const securityProfileState = vi.hoisted(() => ({
       | {
           menuKeys: string[];
           roles: Array<{ code: string; displayName: string }>;
-          permissions: Array<{ code: string; displayName: string; risk: string }>;
+          permissions: Array<{
+            code: string;
+            dimension: string;
+            target: string;
+            displayName: string;
+            risk: string;
+          }>;
           dataScope: Record<string, string | null>;
         }
       | undefined,

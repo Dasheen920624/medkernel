@@ -30,7 +30,8 @@ class EffectivePermissionServiceTest {
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of(
                 override("t-1", RoleCode.DOCTOR, PermissionCode.RECOMMENDATION_ACCEPT, PermissionEffect.DENY),
-                override("t-1", RoleCode.DOCTOR, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW)
+                override("t-1", RoleCode.DOCTOR, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW),
+                override("t-1", RoleCode.DOCTOR, PermissionCode.MENU_COMPLIANCE_OPS, PermissionEffect.ALLOW)
             ));
 
         var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");

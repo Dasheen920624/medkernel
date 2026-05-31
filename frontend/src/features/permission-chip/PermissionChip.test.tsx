@@ -17,8 +17,34 @@ const securityProfileState = vi.hoisted(() => ({
         },
       ],
       permissions: [
-        { code: "audit.read", displayName: "查看审计日志", risk: "LOW" },
-        { code: "audit.export", displayName: "导出审计日志", risk: "HIGH" },
+        {
+          code: "audit.read",
+          dimension: "ACTION",
+          target: "audit",
+          displayName: "查看审计日志",
+          risk: "LOW",
+        },
+        {
+          code: "audit.export",
+          dimension: "ACTION",
+          target: "audit",
+          displayName: "导出审计日志",
+          risk: "HIGH",
+        },
+        {
+          code: "data.desensitized",
+          dimension: "DATA",
+          target: "desensitized",
+          displayName: "访问脱敏数据",
+          risk: "LOW",
+        },
+        {
+          code: "env.production",
+          dimension: "ENVIRONMENT",
+          target: "production",
+          displayName: "访问正式环境",
+          risk: "HIGH",
+        },
       ],
       menuKeys: ["compliance-ops"],
       dataScope: {
@@ -58,6 +84,9 @@ describe("PermissionChip", () => {
     fireEvent.click(screen.getByText("合规审计"));
 
     expect(screen.getByText("导出审计日志")).toBeInTheDocument();
+    expect(screen.getByText("菜单与范围")).toBeInTheDocument();
+    expect(screen.getByText("访问脱敏数据")).toBeInTheDocument();
+    expect(screen.getByText("访问正式环境")).toBeInTheDocument();
     expect(screen.getByText(/科室 quality/)).toBeInTheDocument();
   });
 

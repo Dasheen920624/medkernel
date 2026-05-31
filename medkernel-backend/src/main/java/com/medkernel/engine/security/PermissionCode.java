@@ -88,20 +88,65 @@ public enum PermissionCode {
     EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动令牌和记录反馈"),
     LLM_READ("llm.read", Risk.LOW, "查看模型能力状态和调用记录"),
     LLM_WRITE("llm.write", Risk.MEDIUM, "管理配置路由策略和提交模型任务"),
-    LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件");
+    LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
+
+    // ─── 菜单维度（INFRA-05 细化到 27 二级菜单前的一级入口基线）──────────────
+    MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),
+    MENU_PILOT_SETUP("menu.pilot-setup", PermissionDimension.MENU, Risk.LOW, "查看试点准备入口"),
+    MENU_CLINICAL_RUN("menu.clinical-run", PermissionDimension.MENU, Risk.LOW, "查看临床运行入口"),
+    MENU_QUALITY_IMPROVE("menu.quality-improve", PermissionDimension.MENU, Risk.LOW, "查看质控改进入口"),
+    MENU_COMPLIANCE_OPS("menu.compliance-ops", PermissionDimension.MENU, Risk.LOW, "查看合规运维入口"),
+    MENU_ADVANCED_TOOLS("menu.advanced-tools", PermissionDimension.MENU, Risk.LOW, "查看高级工具入口"),
+
+    // ─── 数据维度（BASE-01 orgPath 上的组织范围基线）──────────────────────
+    DATA_DEPARTMENT("data.department", PermissionDimension.DATA, Risk.LOW, "访问本科室数据"),
+    DATA_HOSPITAL("data.hospital", PermissionDimension.DATA, Risk.MEDIUM, "访问全院数据"),
+    DATA_GROUP("data.group", PermissionDimension.DATA, Risk.HIGH, "访问集团跨院数据"),
+    DATA_DESENSITIZED("data.desensitized", PermissionDimension.DATA, Risk.LOW, "访问脱敏数据"),
+
+    // ─── 资产维度（知识、字典、规则、路径、配置包的授权边界）──────────────────
+    ASSET_CONFIG_PACKAGE("asset.config-package", PermissionDimension.ASSET, Risk.MEDIUM, "访问配置包资产"),
+    ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问字典映射资产"),
+    ASSET_KNOWLEDGE_PACKAGE("asset.knowledge-package", PermissionDimension.ASSET, Risk.MEDIUM, "访问知识包资产"),
+    ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
+    ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),
+
+    // ─── 环境维度（正式应急的细粒度回收在 BASE-02 PR3 承接）───────────────
+    ENV_TEST("env.test", PermissionDimension.ENVIRONMENT, Risk.LOW, "访问测试环境"),
+    ENV_TRIAL("env.trial", PermissionDimension.ENVIRONMENT, Risk.MEDIUM, "访问试运行环境"),
+    ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
+    ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境");
 
     private final String code;
+    private final PermissionDimension dimension;
+    private final String target;
     private final Risk risk;
     private final String displayName;
 
     PermissionCode(String code, Risk risk, String displayName) {
+        this(code, PermissionDimension.ACTION, risk, displayName);
+    }
+
+    PermissionCode(String code, PermissionDimension dimension, Risk risk, String displayName) {
         this.code = code;
+        this.dimension = dimension;
+        this.target = targetFrom(code, dimension);
         this.risk = risk;
         this.displayName = displayName;
     }
 
     public String code() {
         return code;
+    }
+
+    /** 权限所属五维之一。 */
+    public PermissionDimension dimension() {
+        return dimension;
+    }
+
+    /** 权限目标标识，通常是编码点号后的业务对象。 */
+    public String target() {
+        return target;
     }
 
     public Risk risk() {
@@ -120,6 +165,17 @@ public enum PermissionCode {
         return Arrays.stream(values())
             .filter(p -> p.code.equalsIgnoreCase(normalized))
             .findFirst();
+    }
+
+    private static String targetFrom(String code, PermissionDimension dimension) {
+        int separator = code.indexOf('.');
+        if (separator < 0) {
+            return code;
+        }
+        if (dimension == PermissionDimension.ACTION) {
+            return code.substring(0, separator);
+        }
+        return code.substring(separator + 1);
     }
 
     /** 风险级别。配合产品宪法第 6 条 / §10.2 体验门禁使用。 */

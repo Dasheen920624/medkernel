@@ -44,9 +44,15 @@ export function PermissionChip() {
 }
 
 function PermissionDetails({ profile }: { profile: SecurityProfile }) {
-  const readable = profile.permissions.filter((permission) => permission.risk === "LOW");
-  const changeable = profile.permissions.filter((permission) => permission.risk === "MEDIUM");
-  const highRisk = profile.permissions.filter((permission) => permission.risk === "HIGH");
+  const actionPermissions = profile.permissions.filter(
+    (permission) => permission.dimension === "ACTION",
+  );
+  const scopePermissions = profile.permissions.filter(
+    (permission) => permission.dimension !== "ACTION",
+  );
+  const readable = actionPermissions.filter((permission) => permission.risk === "LOW");
+  const changeable = actionPermissions.filter((permission) => permission.risk === "MEDIUM");
+  const highRisk = actionPermissions.filter((permission) => permission.risk === "HIGH");
 
   return (
     <>
@@ -69,6 +75,13 @@ function PermissionDetails({ profile }: { profile: SecurityProfile }) {
           title="高风险操作"
           items={highRisk.map((item) => item.displayName)}
           color="warning"
+        />
+      )}
+      {scopePermissions.length > 0 && (
+        <PermSection
+          title="菜单与范围"
+          items={scopePermissions.map((item) => item.displayName)}
+          color="geekblue"
         />
       )}
       <Text type="secondary" className="mk-text-xs">

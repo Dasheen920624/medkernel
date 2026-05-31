@@ -36,7 +36,15 @@ const mapping: TermMapping = {
 const profile: SecurityProfile = {
   userId: "user-1",
   roles: [],
-  permissions: [{ code: "advanced.read", displayName: "高级工具", risk: "LOW" }],
+  permissions: [
+    {
+      code: "advanced.read",
+      dimension: "ACTION",
+      target: "advanced",
+      displayName: "高级工具",
+      risk: "LOW",
+    },
+  ],
   menuKeys: ["terminology-mapping", "advanced-tools"],
   dataScope: {
     tenantId: "tenant-1",

@@ -18,7 +18,15 @@ const experience: RouteExperience = {
 };
 
 const expertProfile = {
-  permissions: [{ code: "advanced.read", displayName: "高级工具", risk: "LOW" }],
+  permissions: [
+    {
+      code: "advanced.read",
+      dimension: "ACTION",
+      target: "advanced",
+      displayName: "高级工具",
+      risk: "LOW",
+    },
+  ],
   menuKeys: ["advanced-tools"],
 };
 const normalProfile = { permissions: [], menuKeys: [] };
