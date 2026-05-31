@@ -212,7 +212,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("does not trust menuKeys without matching permission codes", () => {
+  it("uses backend menuKeys to authorize direct entry to the granted menu section", () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["pilot-setup"]),
@@ -222,8 +222,8 @@ describe("AppLayout", () => {
     mockViewport(1280);
     renderLayout();
 
-    expect(screen.queryByText("字典映射内容")).toBeNull();
-    expect(screen.getByText("当前权限不足")).toBeInTheDocument();
+    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.queryByText("当前权限不足")).toBeNull();
   });
 
   it("opens the command palette from the global keyboard shortcut", () => {

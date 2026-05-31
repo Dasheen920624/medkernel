@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { findRouteByPath, getRouteBreadcrumb, routeMetas, customerRouteMetas } from "./routes";
+import {
+  canAccessRoute,
+  findRouteByPath,
+  getRouteBreadcrumb,
+  routeMetas,
+  customerRouteMetas,
+} from "./routes";
 
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
@@ -44,6 +50,23 @@ describe("route metadata", () => {
       .forEach((route) => {
         expect(route.requiredPermissions).toContain(`menu.${route.sectionKey}`);
       });
+  });
+
+  it("accepts backend menuKeys as the route authorization source for menu sections", () => {
+    expect(
+      canAccessRoute(findRouteByPath("/qc/eval/results"), {
+        roles: [{ code: "qa-manager" }],
+        permissions: [],
+        menuKeys: ["quality-improve"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(findRouteByPath("/advanced/provenance"), {
+        roles: [{ code: "audit-compliance" }],
+        permissions: [],
+        menuKeys: ["advanced-tools"],
+      }),
+    ).toBe(true);
   });
 
   it("requires experience metadata for authenticated menu routes", () => {
