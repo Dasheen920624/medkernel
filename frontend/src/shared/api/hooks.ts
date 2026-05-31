@@ -986,17 +986,23 @@ export function useCreateRecommendationTrigger() {
 }
 
 // 2. Card Hooks
-export function useRecommendationCards(params?: {
-  status?: RecommendationCardStatus;
-  riskLevel?: RecommendationRiskLevel;
-  scenarioCode?: string;
-  patientId?: string;
-  page?: number;
-  size?: number;
-  sort?: string;
-}) {
+export function useRecommendationCards(
+  params?: {
+    status?: RecommendationCardStatus;
+    riskLevel?: RecommendationRiskLevel;
+    scenarioCode?: string;
+    patientId?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
   return useQuery({
     queryKey: ["recommendations", "cards", params ?? {}],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<RecommendationCard> }>(
         "/engine/recommendations/cards",

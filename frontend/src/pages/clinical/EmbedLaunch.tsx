@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, Button, Tag, Alert, Spin, Radio, Input, Modal, Badge, message } from "antd";
+import { Card, Button, Tag, Alert, Spin, Radio, Input, Modal, Badge, Empty, message } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -11,75 +11,8 @@ import {
   SendOutlined,
 } from "@ant-design/icons";
 import { useEmbedLaunch, useSubmitEmbedFeedback, useRecommendationCards } from "@/shared/api/hooks";
-import type { RecommendationCard } from "@/shared/api/hooks";
 
 const { TextArea } = Input;
-
-// ────────────────────────────────────────────────────────
-// 顶级架构师设计：高保真嵌入式临床建议仿真数据集 (备用降级演示)
-// ────────────────────────────────────────────────────────
-const fallbackCards: RecommendationCard[] = [
-  {
-    cardId: "rc-vte-caprini",
-    tenantId: "TENANT-001",
-    triggerId: "trg-vte-001",
-    patientId: "P-1001",
-    encounterId: "E-2001",
-    scenarioCode: "VTE_PREVENT",
-    cardType: "CLINICAL_QUALITY",
-    riskLevel: "HIGH",
-    interruptLevel: "SOFT",
-    cardCode: "VTE_CAPRINI_RECOMMEND",
-    title: "下肢深静脉血栓风险高危预警及干预推荐",
-    severity: "HIGH",
-    summary:
-      "患者李建国，大隐静脉曲张剥脱术后24小时。依据 Caprini 评估量表得分为 5 分（极高危），推荐规范开启物理/药物预防。",
-    recommendations: [
-      {
-        actionCode: "ORDER_LMWH",
-        actionType: "ORDER",
-        description: "建议开具低分子肝素钙注射液 4100 IU qd 皮下注射进行抗凝预防。",
-      },
-      {
-        actionCode: "ORDER_IPC",
-        actionType: "ORDER",
-        description: "建议双下肢配置间歇充气加压装置 (IPC) 进行物理预防指导。",
-      },
-    ],
-    evidenceSummary:
-      "术后卧床时间 > 72小时，静脉血栓高危风险判定依据：年龄68岁(+2)，手术时间>45分钟(+1)，下肢静脉曲张(+1)，术后卧床(+1)。",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    cardId: "rc-ami-redline",
-    tenantId: "TENANT-001",
-    triggerId: "trg-ami-002",
-    patientId: "P-1001",
-    encounterId: "E-2001",
-    scenarioCode: "AMI_CONTRAINDICATION",
-    cardType: "DRUG_SAFETY",
-    riskLevel: "HIGH",
-    interruptLevel: "HARD",
-    cardCode: "AMI_CONTRAINDICATION",
-    title: "急性心肌梗死溶栓禁忌症物理红线预警",
-    severity: "CRITICAL",
-    summary:
-      "患者收缩压持续 > 180 mmHg。临床路径红线阻断：严重未控制的血压异常属于溶栓绝对禁忌症，禁止直接开具尿激酶/阿替普酶！",
-    recommendations: [
-      {
-        actionCode: "CONSULT_NEURO",
-        actionType: "CONSULT",
-        description:
-          "首要建议：紧急请心内科与急性神经事件中心会诊，评估急诊 PCI 手术指征或先期静脉降压治疗。",
-      },
-    ],
-    evidenceSummary:
-      "实时多参监护仪数据回流显示：血压 185/105 mmHg，心率 102次/分。符合溶栓禁忌症红线判定规则 AMI-RULE-009。",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-  },
-];
 
 export default function EmbedLaunch() {
   const [searchParams] = useSearchParams();
@@ -93,7 +26,7 @@ export default function EmbedLaunch() {
   } = useEmbedLaunch(token);
 
   // 2. 状态原子定义
-  const [localActive, setLocalActive] = useState<boolean>(true);
+  const [sessionClosed, setSessionClosed] = useState<boolean>(false);
   const [feedbackVisible, setFeedbackVisible] = useState<boolean>(false);
   const [selectedAction, setSelectedAction] = useState<"ADOPT" | "REJECT">("ADOPT");
   const [rejectReason, setRejectReason] = useState<string>("");
@@ -104,15 +37,20 @@ export default function EmbedLaunch() {
   const submitFeedbackMutation = useSubmitEmbedFeedback();
 
   // 4. 根据兑换出来的患者上下文，拉取对应的 CDSS 推荐卡片
-  const patientIdQuery = launchContext?.patientId || "P-1001";
-  const { data: apiCards } = useRecommendationCards({
-    patientId: patientIdQuery,
-    status: "ACTIVE",
-  });
+  const recommendationsEnabled = Boolean(launchContext?.active && launchContext.patientId);
+  const {
+    data: apiCards,
+    isLoading: loadingCards,
+    isError: cardsError,
+  } = useRecommendationCards(
+    {
+      patientId: launchContext?.patientId,
+      status: "ACTIVE",
+    },
+    { enabled: recommendationsEnabled },
+  );
 
-  // 合并后端与仿真推荐数据
-  const displayCards =
-    apiCards?.items && apiCards.items.length > 0 ? apiCards.items : fallbackCards;
+  const displayCards = apiCards?.items ?? [];
 
   // 医师做决策并派发双向跨域通知
   const handleDecision = async (action: "ADOPT" | "REJECT") => {
@@ -177,7 +115,7 @@ export default function EmbedLaunch() {
   };
 
   // 针对单次原子消费令牌，在兑换失败、或者刷新导致 USED 时优雅降级至安全隔离状态
-  const isSessionInvalid = launchError || (!loadingLaunch && !launchContext?.active);
+  const isSessionInvalid = !token || launchError || (!loadingLaunch && !launchContext?.active);
 
   if (loadingLaunch) {
     return (
@@ -190,7 +128,7 @@ export default function EmbedLaunch() {
     );
   }
 
-  if (isSessionInvalid || !localActive) {
+  if (isSessionInvalid || sessionClosed) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-200 p-8 text-center">
         <div className="bg-rose-950/20 border border-rose-900/30 p-8 rounded-2xl max-w-md shadow-2xl flex flex-col items-center gap-4 animate-fadeIn">
@@ -239,7 +177,7 @@ export default function EmbedLaunch() {
 
       {/* 临床决策卡片 Panel 区域 */}
       <div className="flex flex-col gap-4 flex-1 overflow-y-auto pr-1">
-        {submittedFeedback ? (
+        {submittedFeedback && (
           <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl text-center shadow-lg animate-fadeIn">
             <CheckCircleOutlined className="text-4xl text-emerald-500 mb-2 animate-bounce" />
             <div className="text-sm font-bold text-emerald-400">医师反馈决策已安全同步并留痕！</div>
@@ -255,7 +193,7 @@ export default function EmbedLaunch() {
               </div>
             )}
             <Alert
-              message="事件已通过 postMessage 双向同步回核心工作站。为了审计安全性，当前嵌入式令牌会话将在 3 秒内安全隔离自动关闭。"
+              message="事件已通过 postMessage 双向同步回核心工作站。为了审计安全性，请完成后主动退出当前嵌入式令牌会话。"
               type="info"
               showIcon
               className="text-left max-w-md mx-auto mt-4 text-xs bg-slate-900 border-slate-800 text-slate-300"
@@ -263,13 +201,42 @@ export default function EmbedLaunch() {
             <Button
               type="default"
               size="small"
-              onClick={() => setLocalActive(false)}
+              onClick={() => setSessionClosed(true)}
               className="mt-4 rounded-lg bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600"
             >
               立即安全隔离退出
             </Button>
           </div>
-        ) : (
+        )}
+        {!submittedFeedback && loadingCards && (
+          <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl text-center">
+            <Spin />
+            <div className="mt-3 text-xs text-slate-400">正在读取当前就诊的真实临床建议...</div>
+          </div>
+        )}
+        {!submittedFeedback && !loadingCards && cardsError && (
+          <Alert
+            type="error"
+            showIcon
+            message="临床建议接口读取失败"
+            description="请返回工作站重试，或联系信息部门核查推荐服务状态。"
+            className="bg-slate-800 border-slate-700 text-slate-200"
+          />
+        )}
+        {!submittedFeedback && !loadingCards && !cardsError && displayCards.length === 0 && (
+          <div className="bg-slate-800 border border-slate-700 p-10 rounded-2xl">
+            <Empty
+              description={<span className="text-slate-300">当前就诊暂无可显示的临床建议</span>}
+            />
+            <div className="text-center text-xs text-slate-500 mt-3">
+              请确认推荐引擎已为当前就诊生成有效建议，或返回工作站重新触发。
+            </div>
+          </div>
+        )}
+        {!submittedFeedback &&
+          !loadingCards &&
+          !cardsError &&
+          displayCards.length > 0 &&
           displayCards.map((card) => {
             const isCritical = card.severity === "CRITICAL";
             return (
@@ -348,8 +315,7 @@ export default function EmbedLaunch() {
                 </div>
               </Card>
             );
-          })
-        )}
+          })}
       </div>
 
       {/* 底部审计存证信息 */}
@@ -358,7 +324,7 @@ export default function EmbedLaunch() {
           <AuditOutlined /> 嵌入式交互合规审计凭证 traceId
         </span>
         <span className="font-normal bg-slate-900 px-2 py-0.5 rounded text-slate-400">
-          {launchContext?.traceId || "tr-local-embed-9122"}
+          {launchContext?.traceId || "暂无追踪链路"}
         </span>
       </div>
 

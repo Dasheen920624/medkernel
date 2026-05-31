@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import ConfigPackages from "./tenant/ConfigPackages";
+import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
 import QcAlerts from "./quality/QcAlerts";
 import AdminUsers from "./compliance/AdminUsers";
@@ -69,6 +70,13 @@ describe("page smoke coverage", () => {
     renderPage(<WorkflowTodos />);
     expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
     expect(screen.getByText("待办接口尚未接入")).toBeInTheDocument();
+  });
+
+  it("renders the clinical followup console without local demo plans", () => {
+    renderPage(<Followup />);
+    expect(screen.getByRole("heading", { name: "智能随访工作台" })).toBeInTheDocument();
+    expect(screen.queryByText("FP-2026001")).not.toBeInTheDocument();
+    expect(screen.getByText("当前暂无随访计划")).toBeInTheDocument();
   });
 
   it("renders the quality qc-alerts placeholder", () => {

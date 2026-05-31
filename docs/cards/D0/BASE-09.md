@@ -65,6 +65,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 ## 执行记录
 
 - PR1（前端净化首批）：清理通知、待办、身份源、安全基线、医保审核、质控驾驶舱 6 个本地假闭环页面；`QcEvalSets` 删除 `DEMO_SNAPSHOTS` 并按患者或就诊读取真实 `context/snapshots`；补强真实性门禁 `frontend.mock-bypass-language` / `frontend.demo-snapshot-export`。记录见 [BASE-09 前端净化 PR1 记录](../../audit/BASE-09-frontend-cleanup-pr1.md)。本 PR 仍不勾选 FR/AC，残留项按报告继续下一批净化。
+- PR2（临床页净化）：清理 `Followup` 本地随访计划、假任务结案、假 Trace 审计和硬编码租户/病种样例；清理 `EmbedLaunch` 备用推荐数据集、本地 traceId 和无患者上下文推荐查询。记录见 [BASE-09 前端净化 PR2 记录](../../audit/BASE-09-clinical-cleanup-pr2.md)。本 PR 仍不勾选 FR/AC，继续清 `Provenance` / `QcEvalResults` / 规则路径页契约残留。
 
 ## 大卡工序（2d，存量重构，建议按"前端 mock / 后端 Map / 假证据"三组分 PR）
 - PR1：前端 mock 假闭环 + eslint-disable 清除 → AC-1。
