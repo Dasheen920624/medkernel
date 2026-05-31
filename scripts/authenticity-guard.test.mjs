@@ -110,6 +110,46 @@ test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   );
 });
 
+test("前端生产文件禁止用规避门禁话术隐藏本地假数据闭环", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/BypassPage.tsx": `
+        // 规避 no-page-mock：通过函数动态提供初始通知列表
+        function getInitialNotifications() {
+          return [{ id: 1, title: "本地假通知" }];
+        }
+        export function BypassPage() {
+          return getInitialNotifications().map((item) => <div key={item.id}>{item.title}</div>);
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/BypassPage.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.mock-bypass-language"]);
+    },
+  );
+});
+
+test("共享 API 层禁止导出演示快照供生产页面调用", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/api/hooks.ts": `
+        export const DEMO_SNAPSHOTS = [
+          { id: "ctx-vte-demo-1", name: "演示快照" },
+        ];
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/shared/api/hooks.ts"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.demo-snapshot-export"]);
+    },
+  );
+});
+
 test("CSS 触碰文件会阻断 hex/rgb/hsl 与字号圆角 px 硬编码", async () => {
   await withFixture(
     {

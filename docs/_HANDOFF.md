@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · CONFIG-01 配置中心 PR3（运行配置热读取 + 启动边界门禁）🚧
+### 线 1 · BASE-09 前端净化 PR1（假闭环首批 + 门禁漏检补强）🚧
 
 - 类型：软件开发
-- 分支：codex/config-01-runtime-boundary
-- 目标：完成 CONFIG-01 PR3：JWT TTL、登录 Cookie 策略、日志级别、审计降级路径、临床事件 worker 轮询间隔均由配置中心运行时读取；新增配置边界门禁，阻断新增后端代码直接读取非启动必需 `medkernel.*` yml/env；收口 AC-1 剩余项与 AC-3。
-- 状态：已基于最新 `origin/main` 开工；红灯覆盖 JWT TTL 热生效、Cookie 策略热生效、日志级别热生效、非启动必需 `medkernel.*` 直接读取门禁。已清理旧直接读取残留：`ClinicalEventOutboxWorker` 改为配置中心驱动动态调度，`AuditFallbackStore` 改为运行时读取配置中心路径并保留安全默认。完整本地验证已绿：`mvn -q test`；`npm run verify`；`npm run build`；`node --test scripts/config-boundary-guard.test.mjs scripts/authenticity-guard.test.mjs scripts/migration-convention-guard.test.mjs`；`scripts/check-comment-zh.sh`；`node scripts/authenticity-guard.mjs --mode=inventory`；`node scripts/config-boundary-guard.mjs --mode=inventory`；`git diff --check`。
-- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 等远端 CI 全绿后合并；3. 回到最新 `origin/main`，先做 D0 域级验收核查；D0 域级验收前不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：配置边界门禁允许的启动键仅限 `medkernel.jwt.dev-secret`、`medkernel.version`、`medkernel.stage`；`AuthJwtProperties` / `AuthCookieProperties` / `ClinicalEventProperties` / `AuditFallbackProperties` 只作为启动种子和安全兜底，运行值必须经 `SystemConfigService` 读取；`RuntimeLogLevelManager` 只处理 `medkernel.logging.level.*`。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
+- 分支：codex/base-09-frontend-clean
+- 目标：完成 BASE-09 前端净化首批：清理已确认的本地假数据闭环页面、删除共享 API 层演示快照，并补强真实性门禁，防止后续 AI 继续把“绕门禁话术/演示快照”误判为干净基线。
+- 状态：已基于 `origin/main@d56d07e` 开工；红灯测试已验证旧门禁漏检 `规避 no-page-mock` 与 `DEMO_SNAPSHOTS`；当前代码已删除 6 个本地假闭环页面的本地数组/假成功交互，`QcEvalSets` 改为按患者或就诊读取真实 `GET /engine/context/snapshots`，`AdminUsers` 清除硬编码默认租户 `t-1`；新增 `docs/audit/BASE-09-frontend-cleanup-pr1.md` 记录已清理与残留项。本地已跑：`(frontend/) npm run verify`（28 文件 / 115 测试通过，lint 0 error、存量 warning 54 个）、`(frontend/) npm run build`、`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、`git diff --check`。
+- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 等远端 CI 全绿后合并；3. 回到最新 `origin/main`，继续 BASE-09 下一批残留净化（Followup/EmbedLaunch/Provenance/QcEvalResults/RuleDefinitions/PathwayTemplates/ImplementationGuide），D0 域级验收前不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：本 PR 不宣称 BASE-09 完成，不勾选 FR/AC；残留清单见 `docs/audit/BASE-09-frontend-cleanup-pr1.md`。清理原则：页面没有真实接口时只给诚实空态，不再用本地样例、假 `setTimeout`、假“已入库/已审计”撑界面。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- CONFIG-01 配置中心 PR3 ✅（#193）：JWT TTL、登录 Cookie 策略、日志级别、审计降级路径、临床事件 worker 轮询间隔均改由配置中心运行时读取；新增配置边界门禁，阻断新增后端代码直接读取非启动必需 `medkernel.*` yml/env；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`（merge `d56d07e`）。下一步转 BASE-09 清理旧假闭环与门禁漏检。
 - CONFIG-01 配置中心 PR2 ✅（#192）：配置回滚端点、`expectedVersion` 防覆盖、高危变更二次确认、审计/国密禁关优先护栏、Feature Flag/备份读失败安全默认和运行页诚实告警；本地后端/前端/T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `63b0664`）。PR3 继续收口 JWT TTL/Cookie/日志级别/启动边界。
 - BASE-07 运行底座 PR2（备份恢复 + 国产化 smoke）✅（#191）：备份启用/RPO/RTO 可经配置中心 PATCH 后无需重启即时反映到 `/api/v1/system/operations`；`application-container.yml` 已移除旧 `graph-enabled/dify-enabled` 口径；新增隔离恢复演练脚本与国产化真实连接 smoke 脚本；本机 Docker 已跑隔离恢复演练，后端全量、前端 verify/build、部署资产合同、真实性门禁、迁移规约门禁、中文注释门禁、diff 空白检查与远端 CI 8/8 通过并合入 `origin/main`（merge `ccbfded`）。达梦/人大金仓真实连接需闭源驱动和内网实例自托管执行，不得伪造。
 - CONFIG-01 配置中心 PR1 ✅（#190）：`mk_config_item` / `mk_config_history` 五方言存储 + 元数据 + 运行 Feature Flag 热生效 + 启动 YML 种子 + 高危审计/国密开关关闭护栏；本地后端全量、前端 verify/build、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `532f227`）。
@@ -79,4 +80,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · CONFIG-01 PR3 正在收口运行配置热读取与启动边界门禁；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-09 前端净化 PR1 正在清理假闭环首批与门禁漏检；D0 域级验收前不得启动 D1 新功能 PR

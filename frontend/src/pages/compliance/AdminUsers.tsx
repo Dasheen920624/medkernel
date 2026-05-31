@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
+  useSecurityProfile,
   useUserRoleAssignments,
   useCreateUserRoleAssignment,
   useDeleteUserRoleAssignment,
@@ -11,37 +12,22 @@ import {
   useTenants,
   useProvisionTenant,
 } from "@/shared/api/hooks";
+import { ROLE_OPTIONS, SCOPE_LEVEL_OPTIONS } from "@/shared/config/roleCatalog";
 import styles from "./Compliance.module.css";
 
-// 规避 no-page-mock：使用函数返回预设角色与范围级别，防止 ESLint AST 扫描报错
-function getRolesConfig() {
-  return [
-    { code: "platform-admin", name: "平台管理员" },
-    { code: "group-admin", name: "集团管理员" },
-    { code: "hospital-admin", name: "医院管理员" },
-    { code: "it-ops", name: "信息科" },
-    { code: "medical-affairs", name: "医务处" },
-    { code: "qa-manager", name: "质控办" },
-    { code: "insurance-manager", name: "医保办" },
-    { code: "dept-head", name: "科主任" },
-    { code: "specialist", name: "专科专家" },
-    { code: "doctor", name: "临床医生" },
-    { code: "nurse", name: "护理人员" },
-    { code: "audit-compliance", name: "合规审计" },
-    { code: "implementation-engineer", name: "实施工程师" },
-  ];
-}
-
-function getScopeLevels() {
-  return [
-    { code: "TENANT", name: "租户级 (TENANT)" },
-    { code: "HOSPITAL", name: "医院级 (HOSPITAL)" },
-    { code: "CAMPUS", name: "院区级 (CAMPUS)" },
-    { code: "DEPARTMENT", name: "科室级 (DEPARTMENT)" },
-  ];
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const candidate = error as {
+    response?: { data?: { message?: unknown } };
+    message?: unknown;
+  };
+  const responseMessage = candidate.response?.data?.message;
+  if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
+  if (typeof candidate.message === "string" && candidate.message.trim()) return candidate.message;
+  return fallback;
 }
 
 export default function AdminUsers() {
+  const { data: securityProfile } = useSecurityProfile();
   const { data: assignments, isLoading, refetch } = useUserRoleAssignments();
   const createMutation = useCreateUserRoleAssignment();
   const deleteMutation = useDeleteUserRoleAssignment();
@@ -78,20 +64,25 @@ export default function AdminUsers() {
       setMessage({ text: "用户ID不能为空", type: "error" });
       return;
     }
+    const normalizedScopeCode = scopeCode.trim() || securityProfile?.dataScope?.tenantId;
+    if (!normalizedScopeCode) {
+      setMessage({ text: "作用域编码不能为空，请输入当前租户或组织编码", type: "error" });
+      return;
+    }
     try {
       await createMutation.mutateAsync({
         userId: userId.trim(),
         roleCode,
         scopeLevel,
-        scopeCode: scopeCode.trim() || "t-1", // 默认租户ID为 t-1
+        scopeCode: normalizedScopeCode,
       });
       setMessage({ text: "角色范围分配成功！", type: "success" });
       setUserId("");
       setScopeCode("");
       refetch();
       setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "操作失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "操作失败");
       setMessage({ text: `绑定失败: ${errMsg}`, type: "error" });
     }
   };
@@ -106,8 +97,8 @@ export default function AdminUsers() {
       setMessage({ text: "角色解绑成功！", type: "success" });
       refetch();
       setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "解绑失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "解绑失败");
       setMessage({ text: `操作失败: ${errMsg}`, type: "error" });
     }
   };
@@ -134,8 +125,8 @@ export default function AdminUsers() {
       setMemberInitPwd("");
       refetchCredentials();
       refetch();
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "开通失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "开通失败");
       setMessage({ text: `开通成员失败: ${errMsg}`, type: "error" });
     }
   };
@@ -148,8 +139,8 @@ export default function AdminUsers() {
         type: "success",
       });
       refetchCredentials();
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "重置失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "重置失败");
       setMessage({ text: `重置密码失败: ${errMsg}`, type: "error" });
     }
   };
@@ -160,8 +151,8 @@ export default function AdminUsers() {
       await setStatusMutation.mutateAsync({ userId: uid, status: next });
       setMessage({ text: `账号 ${uid} 已${next === "ACTIVE" ? "启用" : "停用"}`, type: "success" });
       refetchCredentials();
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "操作失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "操作失败");
       setMessage({ text: `状态更新失败: ${errMsg}`, type: "error" });
     }
   };
@@ -186,8 +177,8 @@ export default function AdminUsers() {
       setNewTenantName("");
       setNewTenantAdmin("");
       refetchTenants();
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || "开通失败";
+    } catch (err: unknown) {
+      const errMsg = getApiErrorMessage(err, "开通失败");
       setMessage({ text: `开通租户失败: ${errMsg}`, type: "error" });
     }
   };
@@ -199,7 +190,7 @@ export default function AdminUsers() {
   };
 
   const getRoleName = (code: string) => {
-    const found = getRolesConfig().find((r) => r.code === code);
+    const found = ROLE_OPTIONS.find((r) => r.code === code);
     return found ? found.name : code;
   };
 
@@ -385,7 +376,7 @@ export default function AdminUsers() {
                     onChange={(e) => setMemberRole(e.target.value)}
                     className={styles.formInput}
                   >
-                    {getRolesConfig().map((role) => (
+                    {ROLE_OPTIONS.map((role) => (
                       <option key={role.code} value={role.code}>
                         {role.name} ({role.code})
                       </option>
@@ -512,7 +503,7 @@ export default function AdminUsers() {
                     onChange={(e) => setRoleCode(e.target.value)}
                     className={styles.formInput}
                   >
-                    {getRolesConfig().map((role) => (
+                    {ROLE_OPTIONS.map((role) => (
                       <option key={role.code} value={role.code}>
                         {role.name} ({role.code})
                       </option>
@@ -527,7 +518,7 @@ export default function AdminUsers() {
                     onChange={(e) => setScopeLevel(e.target.value)}
                     className={styles.formInput}
                   >
-                    {getScopeLevels().map((level) => (
+                    {SCOPE_LEVEL_OPTIONS.map((level) => (
                       <option key={level.code} value={level.code}>
                         {level.name}
                       </option>
@@ -541,7 +532,7 @@ export default function AdminUsers() {
                     type="text"
                     value={scopeCode}
                     onChange={(e) => setScopeCode(e.target.value)}
-                    placeholder="请输入关联编码，如院区级输入 c-1，不填默认为 t-1"
+                    placeholder="不填时使用当前登录画像的租户编码"
                     className={styles.formInput}
                   />
                 </div>
@@ -573,13 +564,13 @@ export default function AdminUsers() {
         {/* 现有绑定台账列表 */}
         <div className={styles.card}>
           <div className={styles.title}>用户角色分配台账</div>
-          {isLoading ? (
-            <div>正在加载安全底座数据...</div>
-          ) : !assignments || assignments.length === 0 ? (
+          {isLoading && <div>正在加载安全底座数据...</div>}
+          {!isLoading && (!assignments || assignments.length === 0) && (
             <div className={styles.description}>
               当前租户暂无用户分配记录，可通过上方配置面板进行物理授权绑定。
             </div>
-          ) : (
+          )}
+          {!isLoading && assignments && assignments.length > 0 && (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>

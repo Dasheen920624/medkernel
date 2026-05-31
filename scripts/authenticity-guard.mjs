@@ -6,6 +6,7 @@ import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features)\/.+\.(?:ts|tsx)$/;
+const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const FRONTEND_ALLOWLIST =
@@ -16,6 +17,12 @@ const FRONTEND_RULES = [
     ruleId: "frontend.no-medkernel-disable",
     message: "前端生产文件禁止使用 eslint-disable medkernel/* 绕过真实性门禁。",
     pattern: /eslint-disable(?:-next-line|-line)?\s+[^*\n]*medkernel\//m,
+  },
+  {
+    ruleId: "frontend.mock-bypass-language",
+    message: "前端生产文件禁止用规避门禁话术包装本地假数据闭环。",
+    pattern:
+      /规避\s*(?:no-page-mock|真实性门禁)|防止\s*ESLint\s*AST\s*扫描|防\s*ESLint\s*静态\s*AST\s*检测|通过\s*AST\s*门禁|杜绝硬编码\s*Mock/i,
   },
   {
     ruleId: "frontend.mock-import",
@@ -46,6 +53,24 @@ const FRONTEND_RULES = [
     ruleId: "frontend.catch-success",
     message: "前端生产文件禁止 catch 后 message.success 或返回成功，失败必须诚实暴露。",
     catchBlockPattern: /(?:message\.success|return\s+(?:success|ApiResult\.success|ResponseEntity\.ok))/m,
+  },
+];
+
+const FRONTEND_SHARED_API_RULES = [
+  {
+    ruleId: "frontend.demo-snapshot-export",
+    message: "共享 API 层禁止导出演示/模拟快照供生产页面调用，页面必须读取真实接口或诚实空态。",
+    pattern: /\b(?:DEMO|MOCK|FAKE)_?[A-Z0-9_]*\s*=\s*\[/,
+  },
+  {
+    ruleId: "frontend.mock-import",
+    message: "共享 API 层禁止引入 mock / fixture / MockAdapter。",
+    pattern: /\bMockAdapter\b|from\s+["'][^"']*(?:mock|mocks|fixture|fixtures)[^"']*["']/i,
+  },
+  {
+    ruleId: "frontend.random-business-value",
+    message: "共享 API 层禁止使用 Math.random() 伪造业务值、trace 或指标。",
+    pattern: /Math\.random\s*\(/,
   },
 ];
 
@@ -216,6 +241,7 @@ function addRuleViolations(violations, file, content, rules) {
 function rulesForFile(file) {
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
+  if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
   if (BACKEND_JAVA.test(file)) return BACKEND_RULES;
   return [];

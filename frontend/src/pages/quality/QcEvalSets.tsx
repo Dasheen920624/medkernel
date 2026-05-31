@@ -30,7 +30,7 @@ import {
   usePublishEvaluationIndicator,
   useActivateEvaluationIndicator,
   useEvaluateSnapshot,
-  DEMO_SNAPSHOTS,
+  useContextSnapshots,
 } from "@/shared/api/hooks";
 import type {
   EvaluationIndicator,
@@ -52,9 +52,11 @@ export default function QcEvalSets() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedIndicator, setSelectedIndicator] = useState<EvaluationIndicator | null>(null);
 
-  // 沙箱扫描仿真状态
+  // 扫描试运行状态
   const [isSandboxOpen, setIsSandboxOpen] = useState(false);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("ctx-vte-demo-2");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [snapshotPatientId, setSnapshotPatientId] = useState<string>("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState<string>("");
   const [scenarioCode, setScenarioCode] = useState<string>("DISCHARGE");
   const [scanResult, setScanResult] = useState<EvaluationRunResponse | null>(null);
 
@@ -77,6 +79,20 @@ export default function QcEvalSets() {
   const publishMutation = usePublishEvaluationIndicator();
   const activateMutation = useActivateEvaluationIndicator();
   const scanMutation = useEvaluateSnapshot();
+  const snapshotPatientFilter = snapshotPatientId.trim();
+  const snapshotEncounterFilter = snapshotEncounterId.trim();
+  const hasSnapshotFilter = Boolean(snapshotPatientFilter || snapshotEncounterFilter);
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: snapshotPatientFilter || undefined,
+      encounterId: snapshotEncounterFilter || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+    },
+    { enabled: hasSnapshotFilter },
+  );
+  const snapshots = snapshotsQuery.data?.items ?? [];
 
   const handleCreate = async (values: {
     indicatorCode: string;
@@ -167,6 +183,51 @@ export default function QcEvalSets() {
         ?.message;
       message.error(errorMsg || "扫描计算失败：病例不符合分母入组规则或缺少 ACTIVE 指标");
     }
+  };
+
+  const renderSnapshotChoices = () => {
+    if (!hasSnapshotFilter) {
+      return <Empty description="请输入患者 ID 或就诊 ID 读取真实快照，或直接输入已知快照 ID" />;
+    }
+    if (snapshotsQuery.isLoading) {
+      return <Card className="border-slate-100 rounded-lg">正在读取临床快照列表...</Card>;
+    }
+    if (snapshotsQuery.isError) {
+      return <Empty description="临床快照接口读取失败，请稍后重试或直接输入已存在的快照 ID" />;
+    }
+    if (snapshots.length === 0) {
+      return <Empty description="当前患者或就诊下暂无 ACTIVE 临床快照" />;
+    }
+    return snapshots.map((snap) => (
+      <Card
+        key={snap.snapshotId}
+        hoverable
+        className={`border-slate-100 rounded-lg cursor-pointer ${
+          selectedSnapshotId === snap.snapshotId
+            ? "border-amber-300 bg-amber-500/5 shadow-sm"
+            : "bg-white"
+        }`}
+        onClick={() => setSelectedSnapshotId(snap.snapshotId)}
+      >
+        <div className="flex items-start gap-2.5">
+          <span
+            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold text-white mt-0.5 ${
+              selectedSnapshotId === snap.snapshotId ? "bg-amber-500 animate-pulse" : "bg-slate-400"
+            }`}
+          >
+            {selectedSnapshotId === snap.snapshotId ? "✓" : "•"}
+          </span>
+          <div>
+            <div className="font-semibold text-slate-800 text-xs">{snap.snapshotId}</div>
+            <div className="text-slate-500 text-[11px] mt-1 leading-relaxed">
+              患者 {snap.patientId} · 就诊 {snap.encounterId} · 状态 {snap.status} · 质量{" "}
+              {snap.qualityStatus}
+              {snap.createdAt ? ` · 创建 ${snap.createdAt}` : ""}
+            </div>
+          </div>
+        </div>
+      </Card>
+    ));
   };
 
   // 精美渲染状态 Badge 六态
@@ -268,7 +329,7 @@ export default function QcEvalSets() {
   return (
     <PageShell
       title="评估指标库"
-      description="配置并管理医院临床医疗质量、安全防线及医保控费评估指标，支持口径版本化控制与沙箱质控扫描"
+      description="配置并管理医院临床医疗质量、安全防线及医保控费评估指标，支持口径版本化控制与质控扫描试运行"
     >
       <div className="space-y-6">
         {/* 顶部高级过滤及动作栏 */}
@@ -322,7 +383,7 @@ export default function QcEvalSets() {
                 setIsSandboxOpen(true);
               }}
             >
-              沙箱质控扫描仿真
+              质控扫描试运行
             </Button>
             <Button
               type="primary"
@@ -595,12 +656,12 @@ export default function QcEvalSets() {
         </Form>
       </Modal>
 
-      {/* 侧拉抽屉：指标沙箱质控扫描仿真 */}
+      {/* 侧拉抽屉：指标质控扫描试运行 */}
       <Drawer
         title={
           <div className="flex items-center gap-3">
             <PlayCircleOutlined className="text-amber-500" />
-            <span className="font-semibold text-lg">沙箱质控自动扫描仿真</span>
+            <span className="font-semibold text-lg">质控扫描试运行</span>
           </div>
         }
         placement="right"
@@ -611,58 +672,43 @@ export default function QcEvalSets() {
       >
         <div className="space-y-6">
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-800">
-              第一步：选择或配置仿真就诊临床快照
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-800">第一步：选择真实就诊临床快照</h3>
 
-            {/* 仿真样本快速填充列表 */}
-            <div className="space-y-2.5">
-              {DEMO_SNAPSHOTS.map((snap) => (
-                <Card
-                  key={snap.id}
-                  hoverable
-                  className={`border-slate-100 rounded-lg cursor-pointer ${
-                    selectedSnapshotId === snap.id
-                      ? "border-amber-300 bg-amber-500/5 shadow-sm"
-                      : "bg-white"
-                  }`}
-                  onClick={() => setSelectedSnapshotId(snap.id)}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <span
-                      className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold text-white mt-0.5 ${
-                        selectedSnapshotId === snap.id
-                          ? "bg-amber-500 animate-pulse"
-                          : "bg-slate-400"
-                      }`}
-                    >
-                      {selectedSnapshotId === snap.id ? "✓" : "•"}
-                    </span>
-                    <div>
-                      <div className="font-semibold text-slate-800 text-xs">{snap.name}</div>
-                      <div className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                        {snap.desc}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-slate-400 mb-1.5">
-                  或输入自定义快照 ID (Snapshot ID)
-                </div>
+                <div className="text-xs text-slate-400 mb-1.5">患者 ID</div>
                 <Input
-                  value={selectedSnapshotId}
-                  onChange={(e) => setSelectedSnapshotId(e.target.value)}
-                  placeholder="输入数据库中的快照 ID"
+                  value={snapshotPatientId}
+                  onChange={(e) => setSnapshotPatientId(e.target.value)}
+                  placeholder="按患者读取真实快照"
                   className="rounded-lg"
                 />
               </div>
               <div>
-                <div className="text-xs text-slate-400 mb-1.5">就诊触发点 (Scenario Point)</div>
+                <div className="text-xs text-slate-400 mb-1.5">就诊 ID</div>
+                <Input
+                  value={snapshotEncounterId}
+                  onChange={(e) => setSnapshotEncounterId(e.target.value)}
+                  placeholder="按就诊读取真实快照"
+                  className="rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2.5">{renderSnapshotChoices()}</div>
+
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <div className="text-xs text-slate-400 mb-1.5">临床快照 ID</div>
+                <Input
+                  value={selectedSnapshotId}
+                  onChange={(e) => setSelectedSnapshotId(e.target.value)}
+                  placeholder="输入已存在的快照 ID"
+                  className="rounded-lg"
+                />
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 mb-1.5">就诊触发点</div>
                 <Input
                   value={scenarioCode}
                   onChange={(e) => setScenarioCode(e.target.value)}
@@ -677,13 +723,14 @@ export default function QcEvalSets() {
               icon={<PlayCircleOutlined />}
               className="w-full bg-amber-500 hover:bg-amber-600 border-none rounded-lg h-10 font-medium"
               loading={scanMutation.isPending}
+              disabled={!selectedSnapshotId.trim()}
               onClick={handleRunScan}
             >
-              一键执行自动评估质控扫描 (Audit Engine Run)
+              执行自动评估质控扫描
             </Button>
           </div>
 
-          {/* 仿真结果求值呈现 */}
+          {/* 结果求值呈现 */}
           {scanResult && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-slate-800 pl-2 border-l-2 border-amber-500 flex items-center gap-1.5">
@@ -736,7 +783,8 @@ export default function QcEvalSets() {
                     </div>
                     <div className="text-rose-600 text-[11px] mt-1 leading-relaxed">
                       经评估质控引擎扫描，当前就诊存在【{scanResult.findingCount}
-                      项】未达标分子标准的重要质控问题，已自动派发科室整改任务跟踪闭环。
+                      项】未达标分子标准的重要质控问题；满足派单条件的项目已生成【
+                      {scanResult.taskCount}】个整改任务。
                     </div>
                   </div>
                 </div>
@@ -753,13 +801,19 @@ export default function QcEvalSets() {
                 </div>
               )}
 
-              {/* 调试日志 */}
-              <div className="space-y-1.5">
-                <div className="text-slate-400 text-xs font-semibold">
-                  详细引擎仿真诊断日志 (Raw JSON Response)
+              {/* 运行追踪 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="text-slate-400 text-xs">运行状态</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-800">
+                    {scanResult.status}
+                  </div>
                 </div>
-                <div className="text-[10px] font-normal text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 overflow-x-auto max-h-[300px]">
-                  {JSON.stringify(scanResult, null, 2)}
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="text-slate-400 text-xs">追踪号</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-800 break-all">
+                    {scanResult.traceId}
+                  </div>
                 </div>
               </div>
             </div>

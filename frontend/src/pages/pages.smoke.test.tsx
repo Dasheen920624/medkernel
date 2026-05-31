@@ -17,6 +17,7 @@ import Login from "./Login";
 import AdapterHub from "./tenant/AdapterHub";
 import EmbedLaunch from "./clinical/EmbedLaunch";
 import QcEvalResults from "./quality/QcEvalResults";
+import QcEvalSets from "./quality/QcEvalSets";
 import PatientPathways from "./clinical/PatientPathways";
 import Mpi from "./clinical/Mpi";
 import CdssFatigue from "./clinical/CdssFatigue";
@@ -67,7 +68,7 @@ describe("page smoke coverage", () => {
   it("renders the clinical workflow-todos console", () => {
     renderPage(<WorkflowTodos />);
     expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
-    expect(screen.getByText(/高危红线挂起待办/)).toBeInTheDocument();
+    expect(screen.getByText("待办接口尚未接入")).toBeInTheDocument();
   });
 
   it("renders the quality qc-alerts placeholder", () => {
@@ -132,6 +133,17 @@ describe("page smoke coverage", () => {
     renderPage(<QcEvalResults />);
     expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
     expect(screen.getByText(/总评估病例库/)).toBeInTheDocument();
+  });
+
+  it("renders the quality qc-eval-sets scan with real snapshot filters", async () => {
+    renderPage(<QcEvalSets />);
+    expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /质控扫描试运行/ }));
+
+    expect(screen.getByText("患者 ID")).toBeInTheDocument();
+    expect(screen.getByText("就诊 ID")).toBeInTheDocument();
+    expect(screen.getByText(/请输入患者 ID 或就诊 ID 读取真实快照/)).toBeInTheDocument();
   });
 
   it("renders the clinical patient-pathways console", () => {

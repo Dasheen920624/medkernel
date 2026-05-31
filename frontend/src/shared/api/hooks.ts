@@ -1447,18 +1447,42 @@ export function useEvaluationRunDiagnose(runId: string) {
   });
 }
 
-export const DEMO_SNAPSHOTS = [
-  {
-    id: "ctx-vte-demo-1",
-    name: "患者李建国 - 术后静脉血栓高危风险已评估病例 (达标样板)",
-    desc: "出院诊断：脑梗死、深静脉血栓形成。已于入院24小时内规范进行了静脉血栓评估并开具预防性用药医嘱。",
+export type ContextSnapshotStatus = "ACTIVE" | "SUPERSEDED" | "REVOKED" | string;
+
+export interface ContextSnapshotSummary {
+  snapshotId: string;
+  patientId: string;
+  encounterId: string;
+  status: ContextSnapshotStatus;
+  qualityStatus: string;
+  createdAt?: string;
+}
+
+export function useContextSnapshots(
+  params?: {
+    patientId?: string;
+    encounterId?: string;
+    status?: ContextSnapshotStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
   },
-  {
-    id: "ctx-vte-demo-2",
-    name: "患者张淑芳 - 剖宫产术后未录入血栓评估病例 (缺陷样板)",
-    desc: "剖宫产术后24小时，医嘱与病历中均未记录下肢深静脉血栓风险分层评估及预防性护理，判定触发质控缺陷派单。",
+  options?: {
+    enabled?: boolean;
   },
-];
+) {
+  return useQuery({
+    queryKey: ["context", "snapshots", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ContextSnapshotSummary> }>(
+        "/engine/context/snapshots",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
 
 // ==================== 智能随访引擎相关的实体及 DTO 契约 ====================
 
