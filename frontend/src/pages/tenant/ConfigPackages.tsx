@@ -20,6 +20,7 @@ import {
   Progress,
   Radio,
   Popconfirm,
+  Checkbox,
   theme as antdTheme,
   Space,
 } from "antd";
@@ -118,6 +119,14 @@ export default function ConfigPackages() {
 
   const [syncModalVisible, setSyncModalVisible] = useState<boolean>(false);
   const [rollbackModalVisible, setRollbackModalVisible] = useState<boolean>(false);
+  const [rollbackReason, setRollbackReason] = useState<string>("");
+  const [rollbackConfirmed, setRollbackConfirmed] = useState<boolean>(false);
+
+  const closeRollbackModal = () => {
+    setRollbackModalVisible(false);
+    setRollbackReason("");
+    setRollbackConfirmed(false);
+  };
 
   // 物理添加细项的库选项（RULE/PATHWAY/EVALUATION/TERMINOLOGY）
   const { data: activeRules } = useRuleDefinitions({ size: 100 });
@@ -230,15 +239,26 @@ export default function ConfigPackages() {
   };
 
   // E. 版本一键回滚
-  const handleRollback = async (targetPkgId: string) => {
-    if (!selectedPackageId) return;
+  const handleRollback = async (targetPackage: KnowledgePackage) => {
+    if (!selectedPackageId || !selectedPackage) return;
+    const reason = rollbackReason.trim();
+    if (!reason || !rollbackConfirmed) {
+      message.error("请填写回滚原因，并完成高危影响确认。");
+      return;
+    }
     try {
       await rollbackPackageMutation.mutateAsync({
         packageId: selectedPackageId,
-        targetPackageId: targetPkgId,
+        request: {
+          targetPackageId: targetPackage.packageId,
+          confirmedCurrentVersion: selectedPackage.packageVersion,
+          confirmedTargetVersion: targetPackage.packageVersion,
+          reason,
+          confirmedHighRisk: rollbackConfirmed,
+        },
       });
-      message.success("版本回滚成功！目标包已原子切换为 ACTIVE。");
-      setRollbackModalVisible(false);
+      message.success("版本回滚成功，目标版本已启用，当前版本已下线。");
+      closeRollbackModal();
       refetchPackages();
     } catch (err: unknown) {
       message.error(apiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换。"));
@@ -250,6 +270,7 @@ export default function ConfigPackages() {
   const publishedCount = displayPackages.filter((p) => p.status === "PUBLISHED").length;
   const draftCount = displayPackages.filter((p) => p.status === "DRAFT").length;
   const offlineCount = displayPackages.filter((p) => p.status === "OFFLINE").length;
+  const rollbackActionDisabled = !rollbackReason.trim() || !rollbackConfirmed;
 
   // 8. 表格列定义
   const columns = [
@@ -1111,11 +1132,11 @@ export default function ConfigPackages() {
         title={
           <div className="flex items-center gap-2 text-rose-700 font-semibold text-lg border-b border-slate-100 pb-3">
             <HistoryOutlined />
-            <span>高危决策：配置包版本一键快速原子回滚</span>
+            <span>高危决策：配置包版本安全回滚</span>
           </div>
         }
         open={rollbackModalVisible}
-        onCancel={() => setRollbackModalVisible(false)}
+        onCancel={closeRollbackModal}
         width={680}
         footer={null}
         destroyOnClose
@@ -1124,7 +1145,7 @@ export default function ConfigPackages() {
           <div className="mt-4 flex flex-col gap-6">
             <Alert
               message="高危操作警告"
-              description="一键版本回滚将会立即关闭降级当前执行中 (ACTIVE) 版本的服务实体，并在事务中原子瞬间拉起重新激活指定的目标历史版本。此动作可能直接影响临床在用诊断流程，请务必核实并由专家确认！"
+              description="版本回滚会下线当前执行中 (ACTIVE) 版本，并启用指定历史版本。此动作可能直接影响临床在用诊断流程，请务必核实并由专家确认。"
               type="error"
               showIcon
               className="rounded-lg font-medium"
@@ -1151,10 +1172,32 @@ export default function ConfigPackages() {
                     历史版本点
                   </Tag>
                   <div className="text-xs text-slate-500 mt-2 font-medium">
-                    请在下方选择曾经成功发布过的配置包
+                    请在下方选择同一配置包编码下曾经成功发布过的版本
                   </div>
                 </Col>
               </Row>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-rose-100">
+              <Form layout="vertical">
+                <Form.Item label="回滚原因（写入审计）" required className="mb-3">
+                  <TextArea
+                    rows={3}
+                    maxLength={500}
+                    showCount
+                    value={rollbackReason}
+                    onChange={(event) => setRollbackReason(event.target.value)}
+                    placeholder="请填写临床专家确认、回滚窗口、影响范围或故障原因。"
+                    className="rounded-lg"
+                  />
+                </Form.Item>
+                <Checkbox
+                  checked={rollbackConfirmed}
+                  onChange={(event) => setRollbackConfirmed(event.target.checked)}
+                >
+                  我已核对当前版本与目标版本，并确认该回滚会影响临床在用流程。
+                </Checkbox>
+              </Form>
             </div>
 
             {/* 历史版本列表表格 (排除当前选中的 ACTIVE 版本) */}
@@ -1169,7 +1212,10 @@ export default function ConfigPackages() {
             >
               <Table
                 dataSource={displayPackages.filter(
-                  (p) => p.packageId !== selectedPackageId && p.status !== "DRAFT",
+                  (p) =>
+                    p.packageId !== selectedPackageId &&
+                    p.status !== "DRAFT" &&
+                    p.packageCode === selectedPackage.packageCode,
                 )}
                 rowKey="packageId"
                 size="small"
@@ -1203,20 +1249,24 @@ export default function ConfigPackages() {
                     key: "rollback",
                     render: (_: unknown, record: KnowledgePackage) => (
                       <Popconfirm
-                        title={`确定要瞬间原子回退激活到版本 ${record.packageVersion} 吗？`}
-                        onConfirm={() => handleRollback(record.packageId)}
+                        title={`确认将 ${selectedPackage.packageVersion} 回滚至 ${record.packageVersion}？`}
+                        description="系统会再次核对版本、原因与高危确认，校验失败不会变更包状态。"
+                        onConfirm={() => handleRollback(record)}
                         okText="确认回退"
                         cancelText="我再想想"
-                        okButtonProps={{ danger: true }}
+                        disabled={rollbackActionDisabled}
+                        okButtonProps={{ danger: true, loading: rollbackPackageMutation.isPending }}
                       >
                         <Button
                           type="primary"
                           danger
                           size="small"
                           icon={<HistoryOutlined />}
+                          disabled={rollbackActionDisabled}
+                          loading={rollbackPackageMutation.isPending}
                           className="rounded-md text-xs font-semibold"
                         >
-                          瞬间安全回滚
+                          确认回滚
                         </Button>
                       </Popconfirm>
                     ),

@@ -122,8 +122,8 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.rollback')")
     public ApiResult<PackageResponse> rollbackPackage(
             @PathVariable String packageId,
-            @RequestParam String targetPackageId) {
-        return ApiResult.ok(service.rollbackPackage(packageId, targetPackageId));
+            @RequestBody @Valid PackageRollbackRequest request) {
+        return ApiResult.ok(service.rollbackPackage(packageId, request));
     }
 
     /**

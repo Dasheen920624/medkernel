@@ -72,6 +72,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - PR6（后端包同步真实性净化）：清理 `LenientPackageSyncAdapter` 模拟离线同步和 `LNT-*` 时间戳摘要伪证据；新增 `NOT_SYNCED` 发布计划 / 同步日志状态，无真实通道时写诚实失败、清空 `syncEvidence` 且不推进知识包状态；补 V33 五方言状态约束和真实性门禁 `backend.fake-sync-evidence`。记录见 [BASE-09 后端包同步真实性净化 PR6 记录](../../audit/BASE-09-backend-package-sync-cleanup-pr6.md)。本 PR 仍不勾选全部 FR/AC，继续清剩余硬编码业务示例、包发布影响分析 / 回滚闭环残留和域级验收。
 - PR7（后端包影响分析真实性净化）：清理 `PackageEngineService.calculateDiff` 中的 `dept-default` 默认科室、模拟注释和 catch 吞错伪降级；规则资产改用 `RuleDefinition.applicableOrgUnitId`，评估指标继续用 `EvaluationIndicator.responsibleDepartmentId`，路径模板因暂无真实责任科室字段而诚实空缺；补真实性门禁 `backend.fake-impact-department`。记录见 [BASE-09 后端包影响分析真实性净化 PR7 记录](../../audit/BASE-09-backend-package-impact-cleanup-pr7.md)。本 PR 仍不勾选全部 FR/AC，继续清包发布回滚闭环、影响范围导出和剩余域级验收残留。
 - PR8（后端包同步状态机净化）：收紧 `PackageEngineService.syncPackage` 的最终状态与包生命周期推进条件；全部未接入真实通道保持 `NOT_SYNCED` 且不发布草稿包，任一目标失败时发布计划落 `FAILED` 且不推进包状态；灰度包只有全通道成功才从 `DRAFT` 进入 `PUBLISHED`。记录见 [BASE-09 后端包同步状态机净化 PR8 记录](../../audit/BASE-09-backend-package-sync-state-cleanup-pr8.md)。本 PR 仍不勾选全部 FR/AC，继续清包发布回滚闭环、影响范围导出和剩余域级验收残留。
+- PR9（后端包回滚二次确认净化）：回滚端点从 query 参数改为 `PackageRollbackRequest` 请求体；服务层强制校验高危确认、审计原因、当前 / 目标版本确认、当前包 `ACTIVE` 与同一 `packageCode`，失败不保存状态；前端同步采集原因和确认，只展示同编码历史版本。记录见 [BASE-09 后端包回滚二次确认净化 PR9 记录](../../audit/BASE-09-backend-package-rollback-confirm-pr9.md)。本 PR 仍不勾选全部 FR/AC，继续清回滚反向投影、回滚 plan/log 证据链、影响范围导出和剩余域级验收残留。
 
 ## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
 - 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。

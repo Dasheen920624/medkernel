@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 后端包同步状态机净化 PR8（部分失败不发布）🚧
+### 线 1 · BASE-09 后端包回滚二次确认净化 PR9 🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-package-sync-partial-clean
-- 目标：完成 BASE-09 第八批后端净化：收紧包同步状态机，全部未接入或任一目标失败时不得把草稿包推进为 `PUBLISHED`，部分失败不得停留在可误解的 `EXECUTING`。
-- 状态：已基于 `origin/main@66055a1` 完成实现与完整本地验证：`PackageEngineService.syncPackage` 只有全通道成功才推进包生命周期；全部未接入保持 `NOT_SYNCED` 且不发布草稿包；任一目标失败时发布计划落 `FAILED`。新增 `PackageEngineServiceTest` 覆盖全部未同步与部分失败场景，新增审计记录 `docs/audit/BASE-09-backend-package-sync-state-cleanup-pr8.md`，并更新 BASE-09 执行记录。当前已通过目标后端测试、真实性 inventory、三类脚本门禁测试、`mvn -B -q test`（含 Docker Testcontainers PostgreSQL / Oracle 迁移烟测）和 `git diff --check`。
-- 下一步（精确到动作/命令）：1. `git status --short` 核对变更；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 包发布回滚闭环、影响范围导出、剩余硬编码业务示例和域级验收，D0 域级验收前不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 完成，不勾选全部 FR/AC；非全成功只能留下真实计划 / 日志状态，不能推进权威包状态；回滚二次确认、回滚反向投影和回滚 plan/log 证据链仍是后续高优先残留。后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
+- 分支：codex/base-09-package-rollback-confirm
+- 目标：完成 BASE-09 第九批后端净化：把配置包高危回滚二次确认从前端提示升级为后端强制契约，缺原因、缺高危确认、版本核对不一致或跨配置包编码时不得变更包状态。
+- 状态：已基于 `origin/main@8f6b114` 完成实现与完整本地验证：新增 `PackageRollbackRequest`；`PackageEngineController.rollbackPackage` 改为请求体；`PackageEngineService.rollbackPackage` 强制校验高危确认、审计原因、当前 / 目标版本、当前包 `ACTIVE`、同一 `packageCode`；`ConfigPackages` 回滚弹窗采集原因和确认并只展示同编码历史版本；新增审计记录 `docs/audit/BASE-09-backend-package-rollback-confirm-pr9.md`，并更新 BASE-09 执行记录。当前已通过后端红绿目标测试、控制器权限回归、前端 verify/build、真实性 inventory、三类脚本门禁测试、`mvn -B -q test`（含 Docker Testcontainers PostgreSQL / Oracle 迁移烟测）、`git diff --check` 与旧 query 回滚调用 grep。
+- 下一步（精确到动作/命令）：1. `git status --short` 核对变更；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 回滚反向投影、回滚 plan/log 证据链、影响范围导出、剩余硬编码业务示例和域级验收，D0 域级验收前不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 完成，不勾选全部 FR/AC；前端 Popconfirm 只能作为体验层，安全边界必须在后端；后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 后端包同步状态机净化 PR8 ✅（#201）：收紧 `PackageEngineService.syncPackage` 的最终状态与包生命周期推进条件；全部未接入真实通道保持 `NOT_SYNCED` 且不发布草稿包，任一目标失败时发布计划落 `FAILED` 且不推进包状态；灰度包只有全通道成功才从 `DRAFT` 进入 `PUBLISHED`；本地后端全量、脚本门禁、真实性 inventory、迁移规约、`git diff --check` 与远端 CI 8/8 通过并合入 `origin/main`（merge `8f6b114`）。下一步继续 BASE-09 回滚二次确认、回滚反向投影、回滚 plan/log 证据链和域级验收残留。
 - BASE-09 后端包影响分析真实性净化 PR7 ✅（#200）：清理 `PackageEngineService.calculateDiff` 中的 `dept-default` 默认科室、模拟注释和 catch 吞错伪降级；规则资产改用 `RuleDefinition.applicableOrgUnitId`，评估指标继续用 `EvaluationIndicator.responsibleDepartmentId`，路径模板因暂无真实责任科室字段而诚实空缺；补真实性门禁 `backend.fake-impact-department`；本地后端全量、脚本门禁、真实性 inventory、生产路径伪科室 grep 与远端 CI 8/8 通过并合入 `origin/main`（merge `66055a1`）。下一步继续 BASE-09 包同步状态机 / 回滚闭环残留和域级验收。
 - BASE-09 后端包同步真实性净化 PR6 ✅（#199）：清理 `LenientPackageSyncAdapter` 模拟离线同步和 `LNT-*` 时间戳摘要伪证据；新增 `NOT_SYNCED` 发布计划 / 同步日志状态，无真实通道时写诚实失败、清空 `syncEvidence` 且不推进知识包状态；补 V33 五方言状态约束和真实性门禁 `backend.fake-sync-evidence`；本地后端全量、脚本门禁、真实性 / 配置边界 inventory、迁移规约、伪同步 grep 与远端 CI 8/8 通过并合入 `origin/main`（merge `e9911e2`）。下一步继续 BASE-09 包发布影响分析 / 回滚闭环残留和域级验收。
 - BASE-09 后端知识真实性净化 PR5 ✅（#198）：清理上下文幂等 `hashCode()` 摘要、来源版本时间戳伪哈希、知识导出 `memory://` 占位成功；新增知识导出 JSONL 真实文件与下载端点；承接 V22 已有 `source_fragment.content_hash` 列，补 V32 五方言唯一约束和注释强化；真实性门禁新增阻断后端时间戳伪哈希、`hashCode()` 摘要、占位导出 URI 与 `@RequestBody Map` 裸入参。本地后端全量、脚本门禁、真实性 / 配置边界 inventory、迁移规约、伪哈希 grep 与远端 CI 8/8 通过并合入 `origin/main`（merge `c480e47`）。下一步继续 BASE-09 后端包同步伪证据、硬编码业务示例和域级验收残留。
@@ -87,4 +88,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-09 后端包同步状态机净化 PR8 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-05-31 · BASE-09 后端包回滚二次确认净化 PR9 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR

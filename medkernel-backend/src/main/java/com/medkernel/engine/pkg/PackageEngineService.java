@@ -424,16 +424,20 @@ public class PackageEngineService {
      * 一键快速回滚包版本到指定历史点。
      */
     @Transactional
-    public PackageResponse rollbackPackage(String packageId, String targetPackageId) {
+    public PackageResponse rollbackPackage(String packageId, PackageRollbackRequest request) {
         String tenantId = currentTenantId();
-        String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
+        PackageRollbackRequest rollbackRequest = requireRollbackRequest(request);
+        String targetPackageId = requireRollbackText(rollbackRequest.targetPackageId(), "回滚目标包不能为空");
+        String rollbackReason = validateRollbackRequestShape(rollbackRequest);
 
         KnowledgePackage currentActive = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "当前在用包不存在: " + packageId));
 
         KnowledgePackage targetRollback = packageRepository.findByPackageIdAndTenantId(targetPackageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "回滚目标包不存在: " + targetPackageId));
+
+        validateRollbackAssets(currentActive, targetRollback, rollbackRequest);
 
         if (targetRollback.status() != KnowledgePackageStatus.PUBLISHED 
             && targetRollback.status() != KnowledgePackageStatus.OFFLINE) {
@@ -446,7 +450,10 @@ public class PackageEngineService {
 
         // 异步发布回滚审计事实存证
         auditPublisher.publish(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
-            "一键回滚包版本从 " + currentActive.packageVersion() + " 回退到 " + targetRollback.packageVersion());
+            "一键回滚包版本从 " + currentActive.packageVersion()
+                + " 回退到 " + targetRollback.packageVersion()
+                + "，原因: " + rollbackReason
+                + "，操作人: " + actor);
 
         return PackageResponse.from(savedTarget);
     }
@@ -463,6 +470,56 @@ public class PackageEngineService {
     }
 
     // ────────────────────────── 辅助支撑逻辑 ──────────────────────────
+
+    private PackageRollbackRequest requireRollbackRequest(PackageRollbackRequest request) {
+        if (request == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚请求不能为空");
+        }
+        return request;
+    }
+
+    private String validateRollbackRequestShape(PackageRollbackRequest request) {
+        requireRollbackText(request.confirmedCurrentVersion(), "当前在用版本确认不能为空");
+        requireRollbackText(request.confirmedTargetVersion(), "目标回滚版本确认不能为空");
+        String reason = requireRollbackText(request.reason(), "回滚原因不能为空");
+        if (!Boolean.TRUE.equals(request.confirmedHighRisk())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚属于高危操作，必须完成二次确认");
+        }
+        return reason;
+    }
+
+    private void validateRollbackAssets(
+            KnowledgePackage currentActive,
+            KnowledgePackage targetRollback,
+            PackageRollbackRequest request) {
+        String confirmedCurrentVersion = requireRollbackText(
+            request.confirmedCurrentVersion(),
+            "当前在用版本确认不能为空");
+        String confirmedTargetVersion = requireRollbackText(
+            request.confirmedTargetVersion(),
+            "目标回滚版本确认不能为空");
+
+        if (currentActive.status() != KnowledgePackageStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前包必须处于 ACTIVE 状态才允许执行回滚");
+        }
+        if (!currentActive.packageCode().equals(targetRollback.packageCode())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚目标包必须与当前在用包属于同一配置包编码");
+        }
+        if (!currentActive.packageVersion().equals(confirmedCurrentVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前在用版本确认与实际版本不一致");
+        }
+        if (!targetRollback.packageVersion().equals(confirmedTargetVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "目标回滚版本确认与实际版本不一致");
+        }
+    }
+
+    private String requireRollbackText(String value, String message) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, message);
+        }
+        return normalized;
+    }
 
     private String currentTenantId() {
         return RequestContext.snapshot().orgScope().tenantId();
