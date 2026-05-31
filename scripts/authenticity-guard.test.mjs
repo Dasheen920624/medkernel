@@ -348,6 +348,30 @@ test("后端生产代码会阻断模拟同步和时间戳摘要伪造同步证�
   );
 });
 
+test("后端生产代码会阻断包影响分析伪造默认科室", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadImpactService.java": `
+        package com.medkernel.engine.pkg;
+
+        public class BadImpactService {
+          String getAssetDepartment() {
+            return "dept-default";
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadImpactService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.fake-impact-department"]);
+    },
+  );
+});
+
 test("后端同步证据字段与审计时间更新不会被误判为伪同步证据", async () => {
   await withFixture(
     {
