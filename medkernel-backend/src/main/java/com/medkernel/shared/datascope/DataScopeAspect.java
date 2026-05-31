@@ -41,7 +41,7 @@ public class DataScopeAspect {
             throw ApiException.tenantMissing();
         }
         // requireAtLeast=TENANT 是默认值，等价于"只要求租户"，由上面的 requireTenant 校验覆盖；
-        // 仅当要求严于 TENANT（即 GROUP/HOSPITAL/CAMPUS/SITE/DEPARTMENT/WARD）时才追加校验。
+        // 仅当要求严于 TENANT（即 GROUP/HOSPITAL/CAMPUS/SITE/DEPARTMENT/SPECIALTY）时才追加校验。
         if (annotation.requireAtLeast() != OrgLevel.TENANT
                 && !satisfiesAtLeast(scope, annotation.requireAtLeast())) {
             throw new ApiException(ErrorCode.DATA_SCOPE_DENIED,
@@ -73,7 +73,7 @@ public class DataScopeAspect {
             case CAMPUS -> notBlank(scope.campusId());
             case SITE -> notBlank(scope.siteId());
             case DEPARTMENT -> notBlank(scope.departmentId());
-            case WARD -> notBlank(scope.wardId());
+            case SPECIALTY -> notBlank(scope.specialtyId());
         };
     }
 

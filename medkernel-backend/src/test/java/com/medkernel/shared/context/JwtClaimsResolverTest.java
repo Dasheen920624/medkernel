@@ -31,7 +31,6 @@ class JwtClaimsResolverTest {
             "campus_id", "c-1",
             "site_id", "s-1",
             "department_id", "d-1",
-            "ward_id", "w-1",
             "specialty_id", "sp-cardio"
         ));
 
@@ -42,7 +41,6 @@ class JwtClaimsResolverTest {
         assertThat(scope.campusId()).isEqualTo("c-1");
         assertThat(scope.siteId()).isEqualTo("s-1");
         assertThat(scope.departmentId()).isEqualTo("d-1");
-        assertThat(scope.wardId()).isEqualTo("w-1");
         assertThat(scope.specialtyId()).isEqualTo("sp-cardio");
         assertThat(JwtClaimsResolver.resolveUserId(token)).isEqualTo("u-7");
     }

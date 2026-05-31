@@ -14,9 +14,10 @@ import org.springframework.data.relational.core.mapping.Table;
  */
 @Table("org_unit")
 public record OrgUnit(
-    @Id Long id,
-    @Column("parent_id") Long parentId,
+    @Id String id,
+    @Column("parent_id") String parentId,
     @Column("tenant_id") String tenantId,
+    @Column("org_path") String orgPath,
     @Column("level_code") OrgLevel level,
     @Column("code") String code,
     @Column("name") String name,
@@ -29,10 +30,20 @@ public record OrgUnit(
     @Column("updated_by") String updatedBy
 ) {
 
+    /**
+     * 判断当前组织是否为租户内根节点。
+     *
+     * @return 未设置父节点时返回 {@code true}
+     */
     public boolean isRoot() {
         return parentId == null;
     }
 
+    /**
+     * 判断当前组织是否处于启用状态。
+     *
+     * @return 状态为 {@link OrgUnitStatus#ACTIVE} 时返回 {@code true}
+     */
     public boolean isActive() {
         return status == OrgUnitStatus.ACTIVE;
     }

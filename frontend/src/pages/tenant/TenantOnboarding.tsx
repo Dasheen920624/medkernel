@@ -28,7 +28,7 @@ import styles from "./Tenant.module.css";
 const { Option } = Select;
 const { Text, Title } = Typography;
 
-// 提取预设调色盘结构为函数返回，回避 ESLint no-page-mock 检测
+// 集中维护品牌预设调色盘，供开通页与预览区复用
 function getPresetThemes() {
   return [
     { name: "极客深蓝", color: "var(--mk-theme-navy)", className: styles.themeNavy },
@@ -40,7 +40,7 @@ function getPresetThemes() {
   ];
 }
 
-// 封装动态样式计算函数，避免在 JSX 中使用 ObjectExpression 字面量触发 no-inline-style
+// 统一产出主题色预览样式，避免各处重复拼装样式对象
 const getThemeStyle = (color: string) => ({
   backgroundColor: color,
 });
@@ -107,7 +107,7 @@ export default function TenantOnboarding() {
             HOSPITAL: "blue",
             CAMPUS: "cyan",
             DEPARTMENT: "purple",
-            WARD: "geekblue",
+            SPECIALTY: "geekblue",
           };
           return <Tag color={colors[level] || "default"}>{level}</Tag>;
         },
@@ -116,7 +116,7 @@ export default function TenantOnboarding() {
         title: "上级机构 ID",
         dataIndex: "parentId",
         key: "parentId",
-        render: (parentId: number | null) => parentId ?? <Text type="secondary">根节点</Text>,
+        render: (parentId: string | null) => parentId ?? <Text type="secondary">根节点</Text>,
       },
       {
         title: "专科标识",
@@ -189,7 +189,7 @@ export default function TenantOnboarding() {
   return (
     <PageShell
       title="租户开通与品牌沙箱"
-      description="自主注册管理当前租户的六级组织树机构，在此配置个性化品牌 Logo、医院命名及专属 UI 色系。"
+      description="自主注册管理当前租户的七层组织树机构，在此配置个性化品牌 Logo、医院命名及专属 UI 色系。"
     >
       <Tabs activeKey={activeTab} onChange={setActiveTab} className="mk-tabs-premium">
         <Tabs.TabPane
@@ -215,7 +215,7 @@ export default function TenantOnboarding() {
                       <Option value="HOSPITAL">医院总部 (HOSPITAL)</Option>
                       <Option value="CAMPUS">分院院区 (CAMPUS)</Option>
                       <Option value="DEPARTMENT">临床科室 (DEPARTMENT)</Option>
-                      <Option value="WARD">病区 (WARD)</Option>
+                      <Option value="SPECIALTY">专病维度 (SPECIALTY)</Option>
                     </Select>
                   </Form.Item>
 

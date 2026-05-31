@@ -127,7 +127,6 @@ public class EffectivePermissionService {
             case "CAMPUS" -> matches(assignedCode, scope.campusId());
             case "SITE" -> matches(assignedCode, scope.siteId());
             case "DEPARTMENT" -> matches(assignedCode, scope.departmentId());
-            case "WARD" -> matches(assignedCode, scope.wardId());
             case "SPECIALTY" -> matches(assignedCode, scope.specialtyId());
             default -> false;
         };
@@ -182,7 +181,6 @@ public class EffectivePermissionService {
             safe.campusId(),
             safe.siteId(),
             safe.departmentId(),
-            safe.wardId(),
             safe.specialtyId()
         );
     }

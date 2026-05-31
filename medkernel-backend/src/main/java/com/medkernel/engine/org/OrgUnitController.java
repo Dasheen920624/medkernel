@@ -69,12 +69,12 @@ public class OrgUnitController {
 
     @GetMapping("/children-map")
     @PreAuthorize("@perm.has('org.read')")
-    public ApiResult<Map<Long, List<OrgUnit>>> childrenMap() {
+    public ApiResult<Map<String, List<OrgUnit>>> childrenMap() {
         return ApiResult.ok(service.childrenMapByCurrentTenant());
     }
 
     /**
-     * 在当前租户下原子创建组织单元节点（医院/院区/科室/病区等）。
+     * 在当前租户下原子创建组织单元节点（集团/医院/院区/服务点/科室/专病等）。
      *
      * @param dto 组织单元创建请求负载
      * @return 统一返回格式包，包含已落库的实体
@@ -86,6 +86,7 @@ public class OrgUnitController {
             null,
             dto.parentId(),
             null, // tenantId 由 RequestContext 隐式注入
+            null, // orgPath 由服务端根据父级闭包生成
             dto.level(),
             dto.code(),
             dto.name(),
@@ -101,7 +102,7 @@ public class OrgUnitController {
      * 组织单元创建传输对象。
      */
     public record OrgUnitCreateDto(
-        Long parentId,
+        String parentId,
 
         @NotNull(message = "组织级别不能为空")
         OrgLevel level,

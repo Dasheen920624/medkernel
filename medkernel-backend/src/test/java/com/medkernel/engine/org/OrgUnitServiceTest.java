@@ -24,12 +24,14 @@ import static org.mockito.ArgumentMatchers.eq;
 class OrgUnitServiceTest {
 
     private OrgUnitRepository repository;
+    private OrgHierarchyRepository hierarchyRepository;
     private OrgUnitService service;
 
     @BeforeEach
     void setUp() {
         repository = Mockito.mock(OrgUnitRepository.class);
-        service = new OrgUnitService(repository);
+        hierarchyRepository = Mockito.mock(OrgHierarchyRepository.class);
+        service = new OrgUnitService(repository, hierarchyRepository);
     }
 
     @AfterEach
@@ -75,15 +77,15 @@ class OrgUnitServiceTest {
     @Test
     void childrenMapGroupsByParent() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u"));
-        OrgUnit root = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", 1L);
-        OrgUnit dept1 = sample("t-1", 1L, OrgLevel.DEPARTMENT, "DEPT-A", 2L);
-        OrgUnit dept2 = sample("t-1", 1L, OrgLevel.DEPARTMENT, "DEPT-B", 3L);
+        OrgUnit root = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "1");
+        OrgUnit dept1 = sample("t-1", "1", OrgLevel.DEPARTMENT, "DEPT-A", "2");
+        OrgUnit dept2 = sample("t-1", "1", OrgLevel.DEPARTMENT, "DEPT-B", "3");
         Mockito.when(repository.findByTenantIdOrderByLevelAscCodeAsc("t-1"))
             .thenReturn(List.of(root, dept1, dept2));
 
         var map = service.childrenMapByCurrentTenant();
-        assertThat(map.get(0L)).hasSize(1);
-        assertThat(map.get(1L)).extracting(OrgUnit::code).containsExactly("DEPT-A", "DEPT-B");
+        assertThat(map.get("ROOT")).hasSize(1);
+        assertThat(map.get("1")).extracting(OrgUnit::code).containsExactly("DEPT-A", "DEPT-B");
     }
 
     @Test
@@ -100,15 +102,17 @@ class OrgUnitServiceTest {
         @Test
     void createOrgUnitSuccessfully() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
-        OrgUnit input = sample("t-1", null, OrgLevel.CAMPUS, "CAMP-002", null);
-        OrgUnit expected = sample("t-1", null, OrgLevel.CAMPUS, "CAMP-002", 20L);
+        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
+        OrgUnit input = sample("t-1", "parent-1", OrgLevel.CAMPUS, "CAMP-002", null);
+        OrgUnit expected = sample("t-1", "parent-1", OrgLevel.CAMPUS, "CAMP-002", "20");
 
         Mockito.when(repository.findByTenantIdAndCode("t-1", "CAMP-002")).thenReturn(Optional.empty());
+        Mockito.when(repository.findByTenantIdAndId("t-1", "parent-1")).thenReturn(Optional.of(parent));
         Mockito.when(repository.save(any(OrgUnit.class))).thenReturn(expected);
 
         OrgUnit saved = service.createOrgUnit(input);
 
-        assertThat(saved.id()).isEqualTo(20L);
+        assertThat(saved.id()).isEqualTo("20");
         assertThat(saved.code()).isEqualTo("CAMP-002");
         assertThat(saved.tenantId()).isEqualTo("t-1");
     }
@@ -117,7 +121,7 @@ class OrgUnitServiceTest {
     void createOrgUnitCodeConflictThrowsApiException() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
         OrgUnit input = sample("t-1", null, OrgLevel.CAMPUS, "CAMP-002", null);
-        OrgUnit existing = sample("t-1", null, OrgLevel.CAMPUS, "CAMP-002", 10L);
+        OrgUnit existing = sample("t-1", null, OrgLevel.CAMPUS, "CAMP-002", "10");
 
         Mockito.when(repository.findByTenantIdAndCode("t-1", "CAMP-002")).thenReturn(Optional.of(existing));
 
@@ -139,12 +143,12 @@ class OrgUnitServiceTest {
     }
 
     private OrgUnit sampleHospital(String tenantId) {
-        return sample(tenantId, null, OrgLevel.HOSPITAL, "HOSP-001", 10L);
+        return sample(tenantId, null, OrgLevel.HOSPITAL, "HOSP-001", "10");
     }
 
-    private OrgUnit sample(String tenantId, Long parentId, OrgLevel level, String code, Long id) {
+    private OrgUnit sample(String tenantId, String parentId, OrgLevel level, String code, String id) {
         Instant now = Instant.now();
-        return new OrgUnit(id, parentId, tenantId, level, code, code, null, null,
+        return new OrgUnit(id, parentId, tenantId, "/" + code, level, code, code, null, null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
     }
 }

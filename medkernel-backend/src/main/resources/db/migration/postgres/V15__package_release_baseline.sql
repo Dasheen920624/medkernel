@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS release_plan (
     trace_id          VARCHAR(128)  NULL,
     CONSTRAINT uk_release_plan_id UNIQUE (plan_id),
     CONSTRAINT ck_release_plan_strategy CHECK (strategy IN ('GRAYSCALE','FULL')),
-    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','DEPARTMENT','WARD','DOCTOR_TEAM')),
+    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
     CONSTRAINT ck_release_plan_status CHECK (status IN ('DRAFT','EXECUTING','SUCCESS','FAILED','ROLLBACKED'))
 );
 
@@ -131,7 +131,7 @@ COMMENT ON COLUMN release_plan.plan_id            IS '发布计划 ID';
 COMMENT ON COLUMN release_plan.package_id         IS '关联的知识包 ID → knowledge_package.package_id';
 COMMENT ON COLUMN release_plan.target_org_unit_id IS '发布的受众组织 ID';
 COMMENT ON COLUMN release_plan.strategy           IS '发布策略：GRAYSCALE 灰度 / FULL 全量';
-COMMENT ON COLUMN release_plan.scope_type         IS '作用范围类型：ALL 全量 / DEPARTMENT 科室 / WARD 病区 / DOCTOR_TEAM 医生团队';
+COMMENT ON COLUMN release_plan.scope_type         IS '作用范围类型：ALL 全量 / GROUP 集团 / HOSPITAL 医院 / CAMPUS 院区 / SITE 服务点 / DEPARTMENT 科室 / SPECIALTY 专病';
 COMMENT ON COLUMN release_plan.scope_value        IS '作用范围值快照（ID逗号分隔）';
 
 COMMENT ON TABLE sync_target IS '同步投影目标：保存 Dify、Neo4j、医院业务库等各种环境的同步通道信息';

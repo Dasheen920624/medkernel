@@ -6,10 +6,16 @@ package com.medkernel.engine.pkg;
 public enum ReleaseScopeType {
     /** 全体 */
     ALL,
+    /** 指定集团 */
+    GROUP,
+    /** 指定医院 */
+    HOSPITAL,
+    /** 指定院区 */
+    CAMPUS,
+    /** 指定社区服务点 */
+    SITE,
     /** 指定科室 */
     DEPARTMENT,
-    /** 指定病区 */
-    WARD,
-    /** 指定医生团队 */
-    DOCTOR_TEAM
+    /** 指定专病 / 专科维度 */
+    SPECIALTY
 }
