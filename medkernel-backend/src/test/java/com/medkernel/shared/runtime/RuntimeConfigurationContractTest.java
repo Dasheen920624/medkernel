@@ -44,9 +44,23 @@ class RuntimeConfigurationContractTest {
     }
 
     @Test
+    void containerProfileKeepsRuntimeSwitchesInConfigurationCenterShape() throws IOException {
+        String container = Files.readString(backendResource("application-container.yml"));
+
+        assertThat(container)
+            .contains("feature-flags:")
+            .contains("graph-projection:")
+            .contains("dify-workflow:")
+            .contains("external-provider:")
+            .doesNotContain("graph-enabled:")
+            .doesNotContain("dify-enabled:");
+    }
+
+    @Test
     void backupRestoreScriptsRequireSha256Evidence() throws IOException {
         String backup = Files.readString(repoRoot.resolve("deploy/docker/scripts/backup.sh"));
         String restore = Files.readString(repoRoot.resolve("deploy/docker/scripts/restore.sh"));
+        String drill = Files.readString(repoRoot.resolve("deploy/docker/scripts/backup-restore-drill.sh"));
         String validator = Files.readString(repoRoot.resolve("deploy/docker/tests/validate-deployment-assets.sh"));
 
         assertThat(backup)
@@ -57,10 +71,31 @@ class RuntimeConfigurationContractTest {
             .contains("verify_checksum")
             .contains(".sha256")
             .contains("PostgreSQL backup checksum verified");
+        assertThat(drill)
+            .contains("MEDKERNEL_BACKUP_DRILL_DB")
+            .contains("pg_restore")
+            .contains("restore drill evidence")
+            .contains("flyway_schema_history")
+            .doesNotContain(" -d \"$MEDKERNEL_DB_NAME\"");
         assertThat(validator)
+            .contains("backup-restore-drill.sh")
             .contains("checksum_file")
             .contains("verify_checksum")
             .contains(".sha256");
+    }
+
+    @Test
+    void govcloudSmokeScriptFailsClosedWithoutRealDomesticConnection() throws IOException {
+        String smoke = Files.readString(repoRoot.resolve("deploy/docker/scripts/govcloud-smoke.sh"));
+
+        assertThat(smoke)
+            .contains("MEDKERNEL_GOV_DB_URL")
+            .contains("MEDKERNEL_GOV_DB_DRIVER")
+            .contains("MEDKERNEL_GOV_DATABASE_DIALECT")
+            .contains("dm|kingbase")
+            .contains("Domestic crypto smoke passed")
+            .contains("mvn -q -Dtest=SmCryptoServiceTest test")
+            .doesNotContain("|| true");
     }
 
     private Path backendResource(String file) {

@@ -117,6 +117,7 @@ public class RuntimeOperationsService {
         boolean graphEnabled = flagEnabled("graph-projection");
         boolean difyEnabled = flagEnabled("dify-workflow");
         boolean externalProviderEnabled = flagEnabled("external-provider");
+        RuntimeBackupReadiness backup = backupReadiness();
         return List.of(
             new RuntimeDependencyStatus(
                 "database",
@@ -133,10 +134,10 @@ public class RuntimeOperationsService {
             new RuntimeDependencyStatus(
                 "backup-restore",
                 "备份恢复",
-                properties.getBackup().isEnabled() ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                properties.getBackup().isEnabled()
-                    ? properties.getBackup().getChecksumPolicy() + "；尚未附带本次恢复演练结果，不标记 UP"
-                    : "备份策略未启用；" + properties.getBackup().getChecksumPolicy()
+                backup.enabled() ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
+                backup.enabled()
+                    ? backup.checksumPolicy() + "；尚未附带本次恢复演练结果，不标记 UP"
+                    : "备份策略未启用；" + backup.checksumPolicy()
             ),
             new RuntimeDependencyStatus(
                 "graph-projection",
@@ -174,15 +175,7 @@ public class RuntimeOperationsService {
     }
 
     private RuntimeBackupReadiness backupReadiness() {
-        RuntimeProperties.Backup backup = properties.getBackup();
-        return new RuntimeBackupReadiness(
-            backup.isEnabled(),
-            backup.getRpo(),
-            backup.getRto(),
-            backup.getBackupScript(),
-            backup.getRestoreScript(),
-            backup.getChecksumPolicy()
-        );
+        return configService.runtimeBackupReadiness(properties);
     }
 
     private RuntimeDomesticProfile domesticProfile() {

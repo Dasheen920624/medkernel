@@ -17,6 +17,7 @@ import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.AuditSafetyGuard;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
 import com.medkernel.shared.runtime.RuntimeProperties;
 
@@ -29,6 +30,7 @@ public class SystemConfigService {
     static final String SYSTEM_TENANT = "SYSTEM";
     static final String RUNTIME_FLAG_PREFIX = "medkernel.runtime.feature-flags.";
     static final String RUNTIME_FLAG_SUFFIX = ".enabled";
+    static final String RUNTIME_BACKUP_PREFIX = "medkernel.runtime.backup.";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
 
@@ -92,6 +94,18 @@ public class SystemConfigService {
         return readFlagValue(configKey(key), fallback.isEnabled());
     }
 
+    public RuntimeBackupReadiness runtimeBackupReadiness(RuntimeProperties properties) {
+        RuntimeProperties.Backup backup = properties.getBackup();
+        return new RuntimeBackupReadiness(
+            readBooleanValue(RUNTIME_BACKUP_PREFIX + "enabled", backup.isEnabled()),
+            readStringValue(RUNTIME_BACKUP_PREFIX + "rpo", backup.getRpo()),
+            readStringValue(RUNTIME_BACKUP_PREFIX + "rto", backup.getRto()),
+            readStringValue(RUNTIME_BACKUP_PREFIX + "backup-script", backup.getBackupScript()),
+            readStringValue(RUNTIME_BACKUP_PREFIX + "restore-script", backup.getRestoreScript()),
+            readStringValue(RUNTIME_BACKUP_PREFIX + "checksum-policy", backup.getChecksumPolicy())
+        );
+    }
+
     private RuntimeFeatureFlag runtimeFeatureFlag(String key, RuntimeProperties.FeatureFlag fallback) {
         SystemConfigItem config = repository.findActive(SYSTEM_TENANT, configKey(key)).orElse(null);
         boolean enabled = config == null ? fallback.isEnabled() : parseBoolean(config.value(), fallback.isEnabled());
@@ -107,6 +121,19 @@ public class SystemConfigService {
     private boolean readFlagValue(String configKey, boolean fallback) {
         return repository.findActive(SYSTEM_TENANT, configKey)
             .map(item -> parseBoolean(item.value(), fallback))
+            .orElse(fallback);
+    }
+
+    private boolean readBooleanValue(String configKey, boolean fallback) {
+        return repository.findActive(SYSTEM_TENANT, configKey)
+            .map(item -> parseBoolean(item.value(), fallback))
+            .orElse(fallback);
+    }
+
+    private String readStringValue(String configKey, String fallback) {
+        return repository.findActive(SYSTEM_TENANT, configKey)
+            .map(SystemConfigItem::value)
+            .filter(value -> !value.isBlank())
             .orElse(fallback);
     }
 

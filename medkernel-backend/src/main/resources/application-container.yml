@@ -33,7 +33,14 @@ medkernel:
       enabled: ${MEDKERNEL_BACKUP_ENABLED:true}
       rpo: ${MEDKERNEL_BACKUP_RPO:24 小时}
       rto: ${MEDKERNEL_BACKUP_RTO:4 小时}
-    graph-enabled: ${MEDKERNEL_GRAPH_ENABLED:false}
-    neo4j-uri: ${MEDKERNEL_NEO4J_URI:bolt://neo4j:7687}
-    dify-enabled: ${MEDKERNEL_DIFY_ENABLED:false}
-    dify-api-url: ${MEDKERNEL_DIFY_API_URL:http://host.docker.internal:8090}
+    feature-flags:
+      graph-projection:
+        enabled: ${MEDKERNEL_GRAPH_ENABLED:false}
+      dify-workflow:
+        enabled: ${MEDKERNEL_DIFY_ENABLED:false}
+      external-provider:
+        enabled: ${MEDKERNEL_EXTERNAL_PROVIDER_ENABLED:false}
+      audit-persistence:
+        enabled: true
+      domestic-crypto:
+        enabled: true

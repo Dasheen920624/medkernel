@@ -68,10 +68,27 @@
 ./deploy/docker/scripts/down.sh optional
 ./deploy/docker/scripts/backup.sh
 ./deploy/docker/scripts/restore.sh /path/to/medkernel-backup.dump
+./deploy/docker/scripts/backup-restore-drill.sh
 ```
 
 `optional` 仅停止 Neo4j 与 Dify，用于验证 PostgreSQL 驱动的基础能力在可选服务不可用
-时仍然可运行。停止操作不会删除持久化目录。
+时仍然可运行。`backup-restore-drill.sh` 会把当前 PostgreSQL 备份恢复到隔离演练库，
+校验 `flyway_schema_history` 后删除演练库并生成恢复证据，不会覆盖主库。停止操作不会
+删除持久化目录。
+
+国产化数据库烟测必须在具备达梦或人大金仓真实实例与闭源 JDBC 驱动的内网环境执行：
+
+```bash
+MEDKERNEL_GOV_DATABASE_DIALECT=dm \
+MEDKERNEL_GOV_DB_URL=jdbc:dm://... \
+MEDKERNEL_GOV_DB_DRIVER=dm.jdbc.driver.DmDriver \
+MEDKERNEL_GOV_DB_USERNAME=... \
+MEDKERNEL_GOV_DB_PASSWORD=... \
+MEDKERNEL_GOV_JDBC_JAR=/path/to/DmJdbcDriver.jar \
+./deploy/docker/scripts/govcloud-smoke.sh
+```
+
+脚本缺少任一连接条件会直接失败，不把“未连接”伪装成通过。
 
 ## 迁移到服务器
 

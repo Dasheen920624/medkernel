@@ -32,6 +32,9 @@ class SystemConfigControllerTest {
     private static final String GRAPH_FLAG_KEY = "medkernel.runtime.feature-flags.graph-projection.enabled";
     private static final String AUDIT_FLAG_KEY = "medkernel.runtime.feature-flags.audit-persistence.enabled";
     private static final String DOMESTIC_CRYPTO_FLAG_KEY = "medkernel.runtime.feature-flags.domestic-crypto.enabled";
+    private static final String BACKUP_ENABLED_KEY = "medkernel.runtime.backup.enabled";
+    private static final String BACKUP_RPO_KEY = "medkernel.runtime.backup.rpo";
+    private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
 
     @Autowired
     MockMvc mvc;
@@ -56,6 +59,18 @@ class SystemConfigControllerTest {
             """, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY);
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?)",
             GRAPH_FLAG_KEY, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, BACKUP_ENABLED_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '未启用', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key IN (?, ?)
+            """, BACKUP_RPO_KEY, BACKUP_RTO_KEY);
+        jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?)",
+            BACKUP_ENABLED_KEY, BACKUP_RPO_KEY, BACKUP_RTO_KEY);
     }
 
     @Test
@@ -99,6 +114,28 @@ class SystemConfigControllerTest {
                 .value(hasItem(true)))
             .andExpect(jsonPath("$.data[?(@.key=='medkernel.runtime.feature-flags.graph-projection.enabled')].source")
                 .value(hasItem("YML_SEED")));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void backupPolicyIsBackedByConfigCenterWithoutRestart() throws Exception {
+        assertThat(runtimeOperationsService.snapshot().backup().enabled()).isFalse();
+
+        patchConfig(BACKUP_ENABLED_KEY, "true", "验证备份策略热生效");
+        patchConfig(BACKUP_RPO_KEY, "30 分钟", "验证备份 RPO 热生效");
+        patchConfig(BACKUP_RTO_KEY, "2 小时", "验证备份 RTO 热生效");
+
+        assertThat(runtimeOperationsService.snapshot().backup().enabled()).isTrue();
+        assertThat(runtimeOperationsService.snapshot().backup().rpo()).isEqualTo("30 分钟");
+        assertThat(runtimeOperationsService.snapshot().backup().rto()).isEqualTo("2 小时");
+
+        Integer historyCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM mk_config_history WHERE config_key IN (?, ?, ?)",
+            Integer.class,
+            BACKUP_ENABLED_KEY,
+            BACKUP_RPO_KEY,
+            BACKUP_RTO_KEY);
+        assertThat(historyCount).isEqualTo(3);
     }
 
     @Test
@@ -148,5 +185,21 @@ class SystemConfigControllerTest {
             .filter(flag -> key.equals(flag.key()))
             .findFirst()
             .orElseThrow();
+    }
+
+    private void patchConfig(String key, String value, String reason) throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "%s",
+                      "reason": "%s"
+                    }
+                    """.formatted(value, reason)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.key").value(key))
+            .andExpect(jsonPath("$.data.value").value(value))
+            .andExpect(jsonPath("$.data.source").value("API"));
     }
 }

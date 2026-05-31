@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · CONFIG-01 配置中心 PR1（支撑 BASE-07 PR2）🚧
+### 线 1 · BASE-07 运行底座 PR2（备份恢复 + 国产化 smoke）🚧
 
 - 类型：软件开发
-- 分支：codex/base-07-config-foundation
-- 目标：先完成 CONFIG-01 PR1：`mk_config_item` / `mk_config_history` 五方言存储 + 元数据 + 热生效读取 + 启动引导边界，并让 BASE-07 运行底座的 Feature Flag 从配置中心消费，避免在配置中心未落地时假装完成 BASE-07 AC-1。
-- 状态：BASE-07 PR1 已由 #189 合入 `origin/main`（CI run #948 全绿，merge `6243418`）。当前 CONFIG-01 红灯已确认（端点/迁移缺失；审计持久化 Feature Flag 原可被关闭），实现已补 `mk_config_item` / `mk_config_history`、配置中心端点、YML 种子、运行 Feature Flag 热读取；审计持久化与国密增强高危运行开关已服务端强拦截，拒绝关闭会写审计。工作区验证已跑：配置中心红绿测试、五方言 V31 迁移 smoke、后端全量、前端 verify/build、迁移规约、真实性扫描、中文注释扫描。
-- 下一步（精确到动作/命令）：1. 复跑提交前正式 diff 门禁；2. 更新证据并提交/推送 PR；3. 远端 CI 全绿后合并；4. 回到最新 `origin/main` 继续 BASE-07 国产化 profile / 国密 smoke / 备份恢复演练。
-- 相关文件 / 测试 / 坑：CONFIG-01 是配置中心单一归属，BASE-07 只消费；本批不伪造备份恢复成功、不伪造国产化数据库连通、不净增前端二级菜单；后续 AI 不得把 `protected_flag` 只当展示字段，审计持久化与国密增强禁止从 UI / 配置中心关闭。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
+- 分支：codex/base-07-domestic-backup
+- 目标：完成 BASE-07 PR2 中无需新增页面的运行底座收口：备份策略从配置中心热读取、RPO/RTO 可治理、Docker 隔离恢复演练脚本、容器 profile 清理旧 Feature Flag 口径、国产化真实连接 smoke 脚本与国密 smoke 证据。
+- 状态：CONFIG-01 PR1 已由 #190 合入 `origin/main`（merge `532f227`）。当前分支已写红灯并转绿：备份启用/RPO/RTO 可经配置中心 PATCH 后无需重启即时反映到 `/api/v1/system/operations`；`application-container.yml` 已移除旧 `graph-enabled/dify-enabled` 口径，统一走 `feature-flags`；新增 `backup-restore-drill.sh` 与 `govcloud-smoke.sh`；本机 Docker 已跑一次隔离恢复演练，证据文件在本机 runtime：`restore-drill-20260601-031730.txt`。本地验证已跑：后端全量、前端 verify/build、部署资产合同、真实性门禁、迁移规约门禁、中文注释门禁、diff 空白检查。达梦/人大金仓真实连接仍需具备闭源驱动和内网实例的自托管环境执行，当前不得伪造通过。
+- 下一步（精确到动作/命令）：1. 提交并推送 `codex/base-07-domestic-backup`；2. 创建 PR 并等待远端 CI；3. 远端 CI 全绿后合并；4. 回到最新 `origin/main`，若无国产化自托管环境则继续 CONFIG-01 PR2（回滚/二次确认/读失败兜底）或下一张 D0 卡，不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：`deploy/docker/scripts/backup-restore-drill.sh` 必须恢复到隔离库，禁止覆盖 `MEDKERNEL_DB_NAME` 主库；`govcloud-smoke.sh` 缺真实达梦/人大金仓连接条件必须失败，不得用 H2/PostgreSQL 冒充国产化连通；后续 AI 不得把 `application-*.yml` 旧 `graph-enabled/dify-enabled` 当当前模型。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- CONFIG-01 配置中心 PR1 ✅（#190）：`mk_config_item` / `mk_config_history` 五方言存储 + 元数据 + 运行 Feature Flag 热生效 + 启动 YML 种子 + 高危审计/国密开关关闭护栏；本地后端全量、前端 verify/build、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `532f227`）。
 - BASE-07 运行底座 PR1 ✅（#189）：开启 actuator liveness/readiness；运行快照依赖状态收紧为 `NOT_CONNECTED` / `MODEL_DISABLED` / `DEGRADED`，不再用旧 `DISABLED` 假关闭；前端 Provider 状态页同步中文展示；BASE-07 勾选 FR-2/FR-3 与 AC-2/AC-5；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-06 前端 IA 骨架 PR1 ✅（#186）：锁定 5+1 / 27+5 菜单 IA、路由 `requiredPermissions/requiredRoles`、权限码驱动菜单和直接访问判定、授权命令面板与 Ctrl/Cmd+K；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-06 PageShell 六态与状态组件 PR2 ✅（#187）：锁定加载/空/错误/无权限/部分成功/正常六态，移除 `disabled` 第七态和隐藏 `StepFlowDemo` 生产路由；`PageShell` 承载六态，`StatusBadge` 严格四状态机，`StepFlow` 对齐核心 §4 七步流，路由增加 `requiresSixStates/requiresStepFlow` 门禁；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
@@ -76,4 +77,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · CONFIG-01 PR1 已补配置中心存储、元数据、Feature Flag 热读取、审计/国密高危关闭护栏与五方言 V31 迁移，正在提交前收口；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-07 PR2 正在收口备份配置中心热读取、隔离恢复演练、容器 profile 旧口径清理与国产化 smoke 脚本；D0 域级验收前不得启动 D1 新功能 PR
