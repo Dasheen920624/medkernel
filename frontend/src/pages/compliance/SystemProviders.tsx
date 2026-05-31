@@ -20,7 +20,8 @@ import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/h
 const STATUS_LABEL: Record<string, string> = {
   UP: "正常",
   DEGRADED: "降级",
-  DISABLED: "关闭",
+  NOT_CONNECTED: "未连接",
+  MODEL_DISABLED: "模型未启用",
   DOWN: "异常",
   OUT_OF_SERVICE: "停服",
   UNKNOWN: "未知",
@@ -29,7 +30,8 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_COLOR: Record<string, string> = {
   UP: "success",
   DEGRADED: "warning",
-  DISABLED: "default",
+  NOT_CONNECTED: "default",
+  MODEL_DISABLED: "default",
   DOWN: "error",
   OUT_OF_SERVICE: "error",
   UNKNOWN: "default",

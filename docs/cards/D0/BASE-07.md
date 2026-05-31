@@ -18,8 +18,8 @@
 ## 功能要求（原子可测条目）
 
 - [ ] **FR-1 Feature Flag**：功能开关经 [CONFIG-01](CONFIG-01.md) 配置中心管理（核心 #19，**禁写死 yml**）；可审计、高危项有护栏。
-- [ ] **FR-2 健康检查**：liveness / readiness 端点 + 依赖探活（DB / 图 / 模型 / 外部系统）返回**诚实状态**（`NOT_CONNECTED`/`MODEL_DISABLED`，核心 §11，不伪造连通）。
-- [ ] **FR-3 监控指标**：Micrometer/Prometheus 暴露系统 + 业务指标；与 [OBS-01](OBS-01.md) 可观测骨干同源。
+- [x] **FR-2 健康检查**：liveness / readiness 端点 + 依赖探活（DB / 图 / 模型 / 外部系统）返回**诚实状态**（`NOT_CONNECTED`/`MODEL_DISABLED`，核心 §11，不伪造连通）。
+- [x] **FR-3 监控指标**：Micrometer/Prometheus 暴露系统 + 业务指标；与 [OBS-01](OBS-01.md) 可观测骨干同源。
 - [ ] **FR-4 备份恢复**：备份策略经配置中心；RPO-RTO 规约 + 恢复演练脚本（核心 §12）。
 - [ ] **FR-5 国产化 profile**：麒麟/统信/openEuler + 达梦/人大金仓 + KAE/BiSheng JDK 21 + Ollama profile；国密 SM2/3/4 smoke。
 - [ ] **FR-6 内外网双形态**：内网（国产化栈、权威源院内、不出网）/ 外网（SaaS、数据出境合规）启动 profile 切换。
@@ -58,16 +58,17 @@ N·A —— 「国产化自检」页在 D6 高级工具消费本卡探活/smoke 
 
 ## 验收 + 验证
 - [ ] **AC-1（FR-1）**：功能开关从配置中心改值即时生效；尝试写死 yml 开关被门禁拒（核心 #19）。
-- [ ] **AC-2（FR-2/6）**：关闭模型/图/外部系统 → 健康端点返回各自诚实状态（非全绿伪装），主链路仍 ready。
+- [x] **AC-2（FR-2/6）**：关闭模型/图/外部系统 → 健康端点返回各自诚实状态（非全绿伪装），主链路仍 ready。
 - [ ] **AC-3（FR-5）**：国产化 profile 下达梦/人大金仓连通 + 国密 smoke 通过。
 - [ ] **AC-4（FR-4）**：按 RPO-RTO 跑一次备份恢复演练成功。
-- [ ] **AC-5（FR-3）**：监控指标暴露且无 Math.random 造数（真实采集）。
+- [x] **AC-5（FR-3）**：监控指标暴露且无 Math.random 造数（真实采集）。
 - 关联 A1–A9：A6 合规运维（离线/国产化包验证）。
 - T-GATE：后端门禁全绿（健康/RTT 不伪造）。
 - B0 验收：底座本身确定性；模型关闭后健康端点诚实，主链路 ready。
 
 ## 完工证据
-- 代码 permalink：健康探活 / 国产化 profile / Feature Flag 接入 / 备份恢复脚本 / 国密 smoke。
+- PR1 本地证据：`RuntimeOperationsControllerTest` 覆盖 liveness/readiness 与 `NOT_CONNECTED`/`MODEL_DISABLED` 诚实状态；`BusinessMetricsTest` 与运行快照覆盖 Micrometer 业务指标；前端 `SystemProviders.test.tsx` 覆盖中文状态展示且不裸露旧 `DISABLED`。
+- 代码 permalink：健康探活 / 国产化 profile / Feature Flag 接入 / 备份恢复脚本 / 国密 smoke（PR 合并后回填）。
 - 测试：依赖断开诚实状态测试 + 国产化 smoke + 备份恢复演练记录 + 配置中心开关生效测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 

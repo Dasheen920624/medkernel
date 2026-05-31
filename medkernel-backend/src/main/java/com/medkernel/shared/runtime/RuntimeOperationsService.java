@@ -18,7 +18,7 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeJvmMetadata
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeOsMetadata;
 
 /**
- * 系统运维快照与国产化自检业务服务 (GA-ENG-AUDIT-01)。
+ * 系统运维快照与国产化自检业务服务（BASE-07）。
  *
  * <p>提供当前系统运行事实信息的汇聚与转换服务。包括 JVM 元数据、操作系统信息、功能开关状态、外部系统依赖存活状态及备份容灾就绪情况。
  */
@@ -27,7 +27,8 @@ public class RuntimeOperationsService {
 
     private static final String STATUS_UP = "UP";
     private static final String STATUS_DEGRADED = "DEGRADED";
-    private static final String STATUS_DISABLED = "DISABLED";
+    private static final String STATUS_NOT_CONNECTED = "NOT_CONNECTED";
+    private static final String STATUS_MODEL_DISABLED = "MODEL_DISABLED";
 
     private final Environment environment;
     private final HealthEndpoint healthEndpoint;
@@ -124,6 +125,7 @@ public class RuntimeOperationsService {
         boolean prometheusReady = meterRegistry.find("medkernel_tenant_onboarding_total").counter() != null;
         boolean graphEnabled = flagEnabled("graph-projection");
         boolean difyEnabled = flagEnabled("dify-workflow");
+        boolean externalProviderEnabled = flagEnabled("external-provider");
         return List.of(
             new RuntimeDependencyStatus(
                 "database",
@@ -140,20 +142,38 @@ public class RuntimeOperationsService {
             new RuntimeDependencyStatus(
                 "backup-restore",
                 "备份恢复",
-                properties.getBackup().isEnabled() ? STATUS_UP : STATUS_DISABLED,
-                properties.getBackup().getChecksumPolicy()
+                properties.getBackup().isEnabled() ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
+                properties.getBackup().isEnabled()
+                    ? properties.getBackup().getChecksumPolicy() + "；尚未附带本次恢复演练结果，不标记 UP"
+                    : "备份策略未启用；" + properties.getBackup().getChecksumPolicy()
             ),
             new RuntimeDependencyStatus(
                 "graph-projection",
                 "知识图谱投影",
-                graphEnabled ? STATUS_UP : STATUS_DISABLED,
-                graphEnabled ? "图谱投影已启用" : "Feature Flag 关闭"
+                graphEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
+                graphEnabled ? "Feature Flag 已开启；真实图谱探活未接入，不标记 UP" : "Feature Flag 关闭，未连接图谱投影"
             ),
             new RuntimeDependencyStatus(
                 "dify-workflow",
                 "Dify 工作流",
-                difyEnabled ? STATUS_UP : STATUS_DISABLED,
-                difyEnabled ? "Dify 工作流已启用" : "Feature Flag 关闭"
+                difyEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
+                difyEnabled ? "Feature Flag 已开启；真实模型工作流探活未接入，不标记 UP" : "Feature Flag 关闭，模型工作流未启用"
+            ),
+            new RuntimeDependencyStatus(
+                "model-gateway",
+                "模型 Provider",
+                externalProviderEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
+                externalProviderEnabled
+                    ? "外部 Provider 开关已开启；真实模型 Provider 探活未接入，不标记 UP"
+                    : "外部 Provider 开关关闭，模型能力按 B0 主链路降级"
+            ),
+            new RuntimeDependencyStatus(
+                "external-provider",
+                "外部系统 Provider",
+                externalProviderEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
+                externalProviderEnabled
+                    ? "外部 Provider 开关已开启；真实外部系统探活未接入，不标记 UP"
+                    : "外部 Provider 开关关闭，未连接 HIS/EMR/时间戳等外部系统"
             )
         );
     }
