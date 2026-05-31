@@ -11,7 +11,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.PermissionDeniedException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,7 +43,7 @@ class RequirePermissionAspectTest {
 
         authenticate(RoleCode.DOCTOR);
         assertThatThrownBy(() -> aspect.enforce(annotation))
-            .isInstanceOf(ApiException.class)
+            .isInstanceOf(PermissionDeniedException.class)
             .hasMessageContaining(PermissionCode.RULE_PUBLISH.code());
 
         authenticate(RoleCode.MEDICAL_AFFAIRS);

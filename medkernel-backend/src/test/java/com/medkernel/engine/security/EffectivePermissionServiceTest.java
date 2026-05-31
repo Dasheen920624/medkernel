@@ -1,5 +1,8 @@
 package com.medkernel.engine.security;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -20,8 +23,15 @@ class EffectivePermissionServiceTest {
         Mockito.mock(RolePermissionOverrideRepository.class);
     private final UserRoleAssignmentRepository userRoleAssignmentRepository =
         Mockito.mock(UserRoleAssignmentRepository.class);
+    private final EmergencyPermissionGrantRepository emergencyGrantRepository =
+        Mockito.mock(EmergencyPermissionGrantRepository.class);
+    private final Clock clock = Clock.fixed(Instant.parse("2026-05-31T12:00:00Z"), ZoneOffset.UTC);
     private final EffectivePermissionService service =
-        new EffectivePermissionService(rolePermissionRepository, userRoleAssignmentRepository);
+        new EffectivePermissionService(
+            rolePermissionRepository,
+            userRoleAssignmentRepository,
+            emergencyGrantRepository,
+            clock);
 
     @Test
     void tenantOverrideCanDenyDefaultPermissionAndAllowExtraPermission() {
@@ -113,6 +123,44 @@ class EffectivePermissionServiceTest {
         assertThat(profile.menuKeys()).contains("quality-improve");
     }
 
+    @Test
+    void activeEmergencyGrantAddsEmergencyEnvironmentUntilItExpires() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
+            .thenReturn(List.of());
+        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
+            .thenReturn(List.of());
+        when(emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
+                "t-1",
+                "doctor-1",
+                PermissionCode.ENV_EMERGENCY.code(),
+                clock.instant()))
+            .thenReturn(List.of(grant("t-1", "doctor-1", clock.instant().plusSeconds(1800))));
+
+        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+
+        assertThat(profile.permissionCodes()).contains(PermissionCode.ENV_EMERGENCY.code());
+        assertThat(profile.environmentKeys()).contains("production", "emergency");
+    }
+
+    @Test
+    void missingEmergencyGrantDoesNotExposeEmergencyEnvironment() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
+            .thenReturn(List.of());
+        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
+            .thenReturn(List.of());
+        when(emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
+                "t-1",
+                "doctor-1",
+                PermissionCode.ENV_EMERGENCY.code(),
+                clock.instant()))
+            .thenReturn(List.of());
+
+        var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
+
+        assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.ENV_EMERGENCY.code());
+        assertThat(profile.environmentKeys()).contains("production").doesNotContain("emergency");
+    }
+
     private UsernamePasswordAuthenticationToken auth(RoleCode role) {
         return new UsernamePasswordAuthenticationToken(
             "doctor-1",
@@ -161,6 +209,26 @@ class EffectivePermissionServiceTest {
             "test",
             null,
             "test"
+        );
+    }
+
+    private EmergencyPermissionGrant grant(String tenantId, String userId, Instant expiresAt) {
+        return new EmergencyPermissionGrant(
+            null,
+            tenantId,
+            userId,
+            PermissionCode.ENV_EMERGENCY.code(),
+            "抢救高危患者需要临时访问应急环境",
+            "chief-1",
+            clock.instant(),
+            expiresAt,
+            null,
+            null,
+            "Y",
+            clock.instant(),
+            "chief-1",
+            clock.instant(),
+            "chief-1"
         );
     }
 }

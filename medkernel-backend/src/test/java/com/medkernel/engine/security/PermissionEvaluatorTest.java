@@ -56,13 +56,17 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void platformAdminHasEverything() {
+    void platformAdminHasEveryNonEmergencyPermission() {
         authenticate(RoleCode.PLATFORM_ADMIN);
         for (PermissionCode perm : PermissionCode.values()) {
+            if (perm == PermissionCode.ENV_EMERGENCY) {
+                continue;
+            }
             assertThat(evaluator.has(perm.code()))
                 .as("PLATFORM_ADMIN 应拥有 %s", perm.code())
                 .isTrue();
         }
+        assertThat(evaluator.has(PermissionCode.ENV_EMERGENCY.code())).isFalse();
     }
 
     @Test
@@ -76,11 +80,11 @@ class PermissionEvaluatorTest {
     }
 
     @Test
-    void platformAdminGetsEmergencyEnvironmentThroughPermissionSet() {
+    void platformAdminDoesNotGetEmergencyEnvironmentWithoutBreakGlassGrant() {
         authenticate(RoleCode.PLATFORM_ADMIN);
 
-        assertThat(evaluator.can(PermissionDimension.ENVIRONMENT, "emergency")).isTrue();
-        assertThat(evaluator.effectivePermissions()).contains(PermissionCode.ENV_EMERGENCY);
+        assertThat(evaluator.can(PermissionDimension.ENVIRONMENT, "emergency")).isFalse();
+        assertThat(evaluator.effectivePermissions()).doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     @Test

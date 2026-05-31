@@ -53,6 +53,13 @@ function PermissionDetails({ profile }: { profile: SecurityProfile }) {
   const readable = actionPermissions.filter((permission) => permission.risk === "LOW");
   const changeable = actionPermissions.filter((permission) => permission.risk === "MEDIUM");
   const highRisk = actionPermissions.filter((permission) => permission.risk === "HIGH");
+  const declaredEnvironmentKeys = profile.environmentKeys ?? [];
+  const environmentKeys =
+    declaredEnvironmentKeys.length > 0
+      ? declaredEnvironmentKeys
+      : profile.permissions
+          .filter((permission) => permission.dimension === "ENVIRONMENT")
+          .map((permission) => permission.target);
 
   return (
     <>
@@ -85,10 +92,30 @@ function PermissionDetails({ profile }: { profile: SecurityProfile }) {
         />
       )}
       <Text type="secondary" className="mk-text-xs">
+        可用环境：{formatEnvironmentKeys(environmentKeys)}
+      </Text>
+      <Text type="secondary" className="mk-text-xs">
         数据范围：{formatDataScope(profile.dataScope)}；权限由合规运维统一配置。
       </Text>
     </>
   );
+}
+
+function formatEnvironmentKeys(environmentKeys: string[]) {
+  if (environmentKeys.length === 0) {
+    return "未授权环境";
+  }
+  return environmentKeys.map(formatEnvironmentKey).join(" / ");
+}
+
+function formatEnvironmentKey(environmentKey: string) {
+  const labels: Record<string, string> = {
+    test: "测试环境",
+    trial: "试运行环境",
+    production: "正式环境",
+    emergency: "应急环境",
+  };
+  return labels[environmentKey] ?? environmentKey;
 }
 
 function formatDataScope(dataScope: SecurityProfile["dataScope"]) {

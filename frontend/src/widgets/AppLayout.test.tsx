@@ -19,6 +19,7 @@ const securityProfileState = vi.hoisted(() => ({
             displayName: string;
             risk: string;
           }>;
+          environmentKeys: string[];
           dataScope: Record<string, string | null>;
         }
       | undefined,
@@ -94,6 +95,7 @@ beforeEach(() => {
       ],
       roles: [],
       permissions: [],
+      environmentKeys: ["production"],
       dataScope: {},
     },
   };
@@ -152,6 +154,7 @@ describe("AppLayout", () => {
         menuKeys: ["quality-improve"],
         roles: [],
         permissions: [],
+        environmentKeys: ["production"],
         dataScope: {},
       },
     };
@@ -196,6 +199,7 @@ describe("AppLayout", () => {
         menuKeys: ["clinical-run"],
         roles: [],
         permissions: [],
+        environmentKeys: ["production"],
         dataScope: {},
       },
     };

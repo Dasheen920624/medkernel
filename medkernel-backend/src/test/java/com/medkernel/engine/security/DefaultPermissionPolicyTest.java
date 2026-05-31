@@ -9,21 +9,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DefaultPermissionPolicyTest {
 
     @Test
-    void platformAdminHasAllPermissions() {
+    void platformAdminHasAllNonEmergencyPermissions() {
+        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
+        expected.remove(PermissionCode.ENV_EMERGENCY);
+
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
-            .containsAll(EnumSet.allOf(PermissionCode.class));
+            .containsAll(expected)
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
-    void groupAdminHasAllPermissions() {
+    void groupAdminHasAllNonEmergencyPermissions() {
+        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
+        expected.remove(PermissionCode.ENV_EMERGENCY);
+
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
-            .containsAll(EnumSet.allOf(PermissionCode.class));
+            .containsAll(expected)
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
     void hospitalAdminLacksPlatformOps() {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
-            .doesNotContain(PermissionCode.SYSTEM_MANAGE)
+            .doesNotContain(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY)
             .contains(PermissionCode.RULE_PUBLISH, PermissionCode.PACKAGE_ROLLBACK);
     }
 
