@@ -1,7 +1,10 @@
 package com.medkernel.shared.audit.persistence;
 
+import java.util.concurrent.Executor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -21,8 +24,9 @@ import com.medkernel.shared.observability.BusinessMetrics;
  * </ul>
  *
  * <p>失败策略：捕获所有持久化异常，递增
- * {@link BusinessMetrics#incAuditPersistenceFailures()} 并写 ERROR 日志；
- * 不向业务调用方抛出，避免审计存储抖动连累主链路。
+ * {@link BusinessMetrics#incAuditPersistenceFailures()}、写 ERROR 日志并追加本地 JSONL 兜底文件；
+ * 不向业务调用方抛出，避免审计存储抖动连累主链路。事务内成功事件在提交后异步落库；
+ * outcome=FAILED 的独立失败留痕和事务外事件保持同步落库，确保失败证据和快照接口即时可见。
  */
 @Component
 public class AuditPersistenceSink {
@@ -31,15 +35,30 @@ public class AuditPersistenceSink {
 
     private final AuditChainWriter writer;
     private final BusinessMetrics metrics;
+    private final AuditFallbackStore fallbackStore;
+    private final Executor auditExecutor;
 
-    public AuditPersistenceSink(AuditChainWriter writer, BusinessMetrics metrics) {
+    public AuditPersistenceSink(AuditChainWriter writer,
+                                BusinessMetrics metrics,
+                                AuditFallbackStore fallbackStore,
+                                @Qualifier("applicationTaskExecutor") Executor auditExecutor) {
         this.writer = writer;
         this.metrics = metrics;
+        this.fallbackStore = fallbackStore;
+        this.auditExecutor = auditExecutor;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAfterCommit(AuditEvent event) {
-        safePersist(event);
+        if (AuditEvent.OUTCOME_FAILED.equals(event.outcome())) {
+            safePersist(event);
+            return;
+        }
+        try {
+            auditExecutor.execute(() -> safePersist(event));
+        } catch (RuntimeException ex) {
+            handlePersistenceFailure(event, ex);
+        }
     }
 
     /** 兜底：当事件发布时没有活动事务，{@code @TransactionalEventListener} 不会触发，
@@ -47,7 +66,7 @@ public class AuditPersistenceSink {
     @EventListener
     public void onNoTransaction(AuditEvent event) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            return; // let AFTER_COMMIT handle it
+            return; // 事务提交后由 AFTER_COMMIT 监听器处理
         }
         safePersist(event);
     }
@@ -57,17 +76,33 @@ public class AuditPersistenceSink {
             writer.persist(event);
             metrics.incAuditChainSigned();
         } catch (RuntimeException ex) {
-            metrics.incAuditPersistenceFailures();
+            handlePersistenceFailure(event, ex);
+        }
+    }
+
+    private void handlePersistenceFailure(AuditEvent event, RuntimeException ex) {
+        metrics.incAuditPersistenceFailures();
+        log.error(
+            "AUDIT_PERSISTENCE_FAILED eventId={} action={} resource={}/{} actor={} traceId={} cause={}",
+            event.id(),
+            event.action(),
+            event.resourceType(),
+            event.resourceId(),
+            event.actorUserId(),
+            event.traceId(),
+            ex.toString(),
+            ex);
+        try {
+            fallbackStore.store(event, ex);
+            metrics.incAuditFallbackWritten();
+        } catch (Exception fallbackFailure) {
+            metrics.incAuditFallbackFailures();
             log.error(
-                "AUDIT_PERSISTENCE_FAILED eventId={} action={} resource={}/{} actor={} traceId={} cause={}",
+                "AUDIT_FALLBACK_WRITE_FAILED eventId={} traceId={} cause={}",
                 event.id(),
-                event.action(),
-                event.resourceType(),
-                event.resourceId(),
-                event.actorUserId(),
                 event.traceId(),
-                ex.toString(),
-                ex);
+                fallbackFailure.toString(),
+                fallbackFailure);
         }
     }
 }

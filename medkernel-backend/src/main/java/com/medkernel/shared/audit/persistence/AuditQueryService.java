@@ -34,12 +34,35 @@ public class AuditQueryService {
                                                  String actorUserId,
                                                  Instant from,
                                                  Instant to) {
+        return list(cursor, action, resourceType, actorUserId, null, null, null, false, from, to);
+    }
+
+    public CursorResponse<AuditEventRecord> list(CursorRequest cursor,
+                                                 String action,
+                                                 String resourceType,
+                                                 String actorUserId,
+                                                 String orgPathPrefix,
+                                                 String environmentKey,
+                                                 String outcome,
+                                                 Boolean superAdminOnly,
+                                                 Instant from,
+                                                 Instant to) {
         String tenantId = requireCurrentTenant();
         int size = cursor.safeSize();
         Long cursorId = parseCursor(cursor.cursor());
 
         AuditEventQuery query = new AuditEventQuery(
-            action, resourceType, actorUserId, from, to, cursorId, size);
+            trimToNull(action),
+            trimToNull(resourceType),
+            trimToNull(actorUserId),
+            normalizeOrgPathPrefix(orgPathPrefix),
+            trimToNull(environmentKey),
+            trimToNull(outcome),
+            Boolean.TRUE.equals(superAdminOnly),
+            from,
+            to,
+            cursorId,
+            size);
         List<AuditEventRecord> rows = repository.findPage(tenantId, query);
 
         if (rows.size() > size) {
@@ -72,5 +95,24 @@ public class AuditQueryService {
             throw ApiException.tenantMissing();
         }
         return scope.tenantId();
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String normalizeOrgPathPrefix(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        while (trimmed.length() > 1 && trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 }

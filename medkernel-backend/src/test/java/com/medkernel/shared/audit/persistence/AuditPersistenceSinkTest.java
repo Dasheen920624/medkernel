@@ -1,6 +1,12 @@
 package com.medkernel.shared.audit.persistence;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Queue;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import com.medkernel.shared.audit.AuditAction;
@@ -28,17 +34,23 @@ import static org.mockito.Mockito.verify;
  */
 class AuditPersistenceSinkTest {
 
+    @TempDir
+    Path tempDir;
+
     @Test
-    void persistenceFailureIsSwallowedAndCountsAsFailure() {
+    void persistenceFailureIsSwallowedCountsAndWritesFallbackFile() throws Exception {
         AuditChainWriter writer = mock(AuditChainWriter.class);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         BusinessMetrics metrics = new BusinessMetrics(registry);
         metrics.register();
+        AuditFallbackStore fallbackStore = new AuditFallbackStore(
+            tempDir.resolve("audit-fallback.jsonl"),
+            new com.fasterxml.jackson.databind.ObjectMapper());
 
         doThrow(new DataAccessResourceFailureException("db down"))
             .when(writer).persist(org.mockito.ArgumentMatchers.any(AuditEvent.class));
 
-        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics);
+        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics, fallbackStore, Runnable::run);
 
         AuditEvent event = AuditEvent.of(AuditAction.CREATE, "rule", "r-1", "test");
 
@@ -49,6 +61,14 @@ class AuditPersistenceSinkTest {
             .isEqualTo(1.0);
         assertThat(registry.counter("medkernel_audit_chain_signed_total").count())
             .isEqualTo(0.0);
+        assertThat(registry.counter("medkernel_audit_fallback_written_total").count())
+            .isEqualTo(1.0);
+
+        String fallback = Files.readString(tempDir.resolve("audit-fallback.jsonl"));
+        assertThat(fallback)
+            .contains(event.id())
+            .contains("db down")
+            .contains("\"action\":\"CREATE\"");
     }
 
     @Test
@@ -57,9 +77,12 @@ class AuditPersistenceSinkTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         BusinessMetrics metrics = new BusinessMetrics(registry);
         metrics.register();
+        AuditFallbackStore fallbackStore = new AuditFallbackStore(
+            tempDir.resolve("audit-fallback.jsonl"),
+            new com.fasterxml.jackson.databind.ObjectMapper());
 
         // mocked writer returns null by default — sink only inspects metrics
-        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics);
+        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics, fallbackStore, Runnable::run);
         AuditEvent event = AuditEvent.of(AuditAction.PUBLISH, "rule", "r-2", "test");
         sink.onNoTransaction(event);
 
@@ -67,5 +90,52 @@ class AuditPersistenceSinkTest {
             .isEqualTo(1.0);
         assertThat(registry.counter("medkernel_audit_persistence_failures_total").count())
             .isEqualTo(0.0);
+    }
+
+    @Test
+    void afterCommitSchedulesPersistenceOnExecutor() {
+        AuditChainWriter writer = mock(AuditChainWriter.class);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        BusinessMetrics metrics = new BusinessMetrics(registry);
+        metrics.register();
+        Queue<Runnable> queue = new ArrayDeque<>();
+        AuditFallbackStore fallbackStore = new AuditFallbackStore(
+            tempDir.resolve("audit-fallback.jsonl"),
+            new com.fasterxml.jackson.databind.ObjectMapper());
+
+        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics, fallbackStore, queue::add);
+        AuditEvent event = AuditEvent.of(AuditAction.PUBLISH, "rule", "r-3", "test");
+
+        sink.onAfterCommit(event);
+        verify(writer, times(0)).persist(event);
+
+        assertThat(queue).hasSize(1);
+        queue.remove().run();
+        verify(writer, times(1)).persist(event);
+        assertThat(registry.counter("medkernel_audit_chain_signed_total").count())
+            .isEqualTo(1.0);
+    }
+
+    @Test
+    void afterCommitPersistsFailedEventSynchronouslyForFailureEvidence() {
+        AuditChainWriter writer = mock(AuditChainWriter.class);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        BusinessMetrics metrics = new BusinessMetrics(registry);
+        metrics.register();
+        Queue<Runnable> queue = new ArrayDeque<>();
+        AuditFallbackStore fallbackStore = new AuditFallbackStore(
+            tempDir.resolve("audit-fallback.jsonl"),
+            new com.fasterxml.jackson.databind.ObjectMapper());
+
+        AuditPersistenceSink sink = new AuditPersistenceSink(writer, metrics, fallbackStore, queue::add);
+        AuditEvent event = AuditEvent.failure(
+            AuditAction.EXECUTE, "context_snapshot", "ctx-1", "ENG-CONTEXT-003", "test");
+
+        sink.onAfterCommit(event);
+
+        assertThat(queue).isEmpty();
+        verify(writer, times(1)).persist(event);
+        assertThat(registry.counter("medkernel_audit_chain_signed_total").count())
+            .isEqualTo(1.0);
     }
 }

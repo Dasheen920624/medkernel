@@ -12,6 +12,7 @@ target/
 *.pid
 *.mv.db
 *.trace.db
+var/audit-fallback/
 
 # Local environment and secrets
 .env

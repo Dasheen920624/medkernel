@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.medkernel.shared.audit.AuditActorClassifier;
 import com.medkernel.shared.audit.persistence.AuditEventRecord;
 
 /**
@@ -25,7 +26,14 @@ public record AuditEvent(
     String resourceId,
     String traceId,
     String signature,
-    String status
+    String status,
+    String actorRoles,
+    String orgPath,
+    String environmentKey,
+    String outcome,
+    String errorCode,
+    String payloadDigest,
+    boolean superAdminAction
 ) {
 
     public static AuditEvent from(AuditEventRecord record) {
@@ -43,7 +51,14 @@ public record AuditEvent(
             record.resourceId(),
             record.traceId(),
             record.signature(),
-            record.status()
+            record.status(),
+            record.actorRoles(),
+            record.orgPath(),
+            record.environmentKey(),
+            record.outcome(),
+            record.errorCode(),
+            record.payloadDigest(),
+            AuditActorClassifier.isSuperAdminAction(record.actorRoles())
         );
     }
 }

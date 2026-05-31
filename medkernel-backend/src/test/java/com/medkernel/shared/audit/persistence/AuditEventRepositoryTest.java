@@ -20,6 +20,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.audit.AuditEvent;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -164,6 +166,42 @@ class AuditEventRepositoryTest {
     }
 
     @Test
+    void findPageAppliesOrgEnvironmentOutcomeAndSuperAdminFilters() {
+        repository.initChainHead("t-1");
+        Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
+        repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-1",
+            base, "ROLE_SYSTEM_SUPERADMIN", "tenant:t-1/hospital:h-1", "prod", "FAILED", "sig-a"));
+        repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-2",
+            base.plusSeconds(1), "ROLE_PLATFORM_ADMIN", "tenant:t-1/hospital:h-2", "prod", "SUCCESS", "sig-b"));
+        repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-3",
+            base.plusSeconds(2), "ROLE_SYSTEM_SUPERADMIN", "tenant:t-1/hospital:h-1", "test", "FAILED", "sig-c"));
+        repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-4",
+            base.plusSeconds(3), "ROLE_SUPERADMIN_READONLY", "tenant:t-1/hospital:h-1", "prod", "FAILED", "sig-d"));
+        repository.insertEvent(sampleWithSpine("t-1", "UPDATE", "audit_config", "cfg-5",
+            base.plusSeconds(4), "ROLE_SYSTEM_SUPERADMIN", "tenant:t-1/hospital:h-10", "prod", "FAILED", "sig-e"));
+
+        AuditEventQuery query = new AuditEventQuery(
+            "UPDATE",
+            "audit_config",
+            null,
+            "tenant:t-1/hospital:h-1",
+            "prod",
+            "FAILED",
+            true,
+            null,
+            null,
+            null,
+            50);
+
+        List<AuditEventRecord> rows = repository.findPage("t-1", query);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).resourceId()).isEqualTo("cfg-1");
+        assertThat(rows.get(0).actorRoles()).contains("ROLE_SYSTEM_SUPERADMIN");
+        assertThat(rows.get(0).environmentKey()).isEqualTo("prod");
+    }
+
+    @Test
     void findPageWithCursorReturnsRowsStrictlyBeforeCursor() {
         repository.initChainHead("t-1");
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -210,6 +248,46 @@ class AuditEventRepositoryTest {
             "SUCCESS",
             null,
             null
+        );
+    }
+
+    private static AuditEventRecord sampleWithSpine(String tenantId,
+                                                    String action,
+                                                    String resourceType,
+                                                    String resourceId,
+                                                    Instant occurredAt,
+                                                    String actorRoles,
+                                                    String orgPath,
+                                                    String environmentKey,
+                                                    String outcome,
+                                                    String signature) {
+        return new AuditEventRecord(
+            null,
+            UUID.randomUUID().toString(),
+            "trace-" + resourceId,
+            occurredAt,
+            "user-1",
+            action,
+            resourceType,
+            resourceId,
+            "summary " + resourceId,
+            "digest-" + resourceId,
+            tenantId,
+            "h-1",
+            null,
+            null,
+            "GENESIS",
+            signature,
+            "SIGNED",
+            outcome,
+            AuditEvent.OUTCOME_FAILED.equals(outcome) ? "ENG-AUDIT-001" : null,
+            null,
+            actorRoles,
+            orgPath,
+            environmentKey,
+            "{\"enabled\":true}",
+            "{\"enabled\":false}",
+            "dedupe-" + resourceId
         );
     }
 }

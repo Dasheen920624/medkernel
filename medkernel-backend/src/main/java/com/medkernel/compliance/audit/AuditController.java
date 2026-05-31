@@ -2,10 +2,14 @@ package com.medkernel.compliance.audit;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,7 +19,9 @@ import com.medkernel.shared.api.CursorRequest;
 import com.medkernel.shared.api.CursorResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditConfigChangeCommand;
 import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditSafetyGuard;
 import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.audit.persistence.AuditQueryService;
 import com.medkernel.shared.crypto.SmCryptoService;
@@ -42,13 +48,16 @@ public class AuditController {
     private final AuditQueryService queryService;
     private final AuditEventPublisher publisher;
     private final SmCryptoService crypto;
+    private final AuditSafetyGuard safetyGuard;
 
     public AuditController(AuditQueryService queryService,
                            AuditEventPublisher publisher,
-                           SmCryptoService crypto) {
+                           SmCryptoService crypto,
+                           AuditSafetyGuard safetyGuard) {
         this.queryService = queryService;
         this.publisher = publisher;
         this.crypto = crypto;
+        this.safetyGuard = safetyGuard;
     }
 
     @GetMapping("/events")
@@ -59,14 +68,26 @@ public class AuditController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String actorUserId,
+            @RequestParam(required = false) String orgPath,
+            @RequestParam(required = false) String environmentKey,
+            @RequestParam(required = false) String outcome,
+            @RequestParam(required = false) Boolean superAdminOnly,
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to) {
 
         CursorRequest req = new CursorRequest(cursor, size);
         CursorResponse<AuditEventRecord> records = queryService.list(
-            req, action, resourceType, actorUserId, from, to);
+            req, action, resourceType, actorUserId, orgPath, environmentKey, outcome, superAdminOnly, from, to);
         List<AuditEvent> items = records.items().stream().map(AuditEvent::from).toList();
         return ApiResult.ok(CursorResponse.of(items, records.nextCursor()));
+    }
+
+    @PostMapping("/settings/validate")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<Map<String, Boolean>> validateSettingChange(
+            @Valid @RequestBody AuditSettingChangeRequest request) {
+        safetyGuard.assertChangeAllowed(request.toCommand());
+        return ApiResult.ok(Map.of("accepted", true));
     }
 
     @PostMapping("/snapshot")
@@ -84,5 +105,17 @@ public class AuditController {
         AuditEventRecord persisted = queryService.findByEventId(event.id())
             .orElseThrow(() -> ApiException.notFound("审计事件 " + event.id()));
         return ApiResult.ok(AuditEvent.from(persisted));
+    }
+
+    public record AuditSettingChangeRequest(
+        @NotBlank String key,
+        String beforeValue,
+        @NotBlank String value,
+        String reason
+    ) {
+
+        AuditConfigChangeCommand toCommand() {
+            return new AuditConfigChangeCommand(key, beforeValue, value, reason);
+        }
     }
 }
