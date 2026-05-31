@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Breadcrumb, Drawer, Grid, Layout, Menu, Typography, Space, Button, Tooltip } from "antd";
 import {
   MenuFoldOutlined,
@@ -8,8 +8,8 @@ import {
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
-import { menuSections } from "@/shared/config/menu";
-import { findRouteByPath, getRouteBreadcrumb } from "@/shared/config/routes";
+import { getMenuSectionsForProfile } from "@/shared/config/menu";
+import { canAccessRoute, findRouteByPath, getRouteBreadcrumb } from "@/shared/config/routes";
 import { useSecurityProfile } from "@/shared/api/hooks";
 import { PageState } from "@/shared/ui/PageState";
 import { PermissionChip } from "@/features/permission-chip/PermissionChip";
@@ -36,22 +36,18 @@ export function AppLayout() {
   const currentRoute = findRouteByPath(location.pathname);
   const breadcrumb = getRouteBreadcrumb(location.pathname);
   const securityProfile = useSecurityProfile();
-  const allowedMenuKeys = securityProfile.data?.menuKeys;
   const routeRequiresAuth = currentRoute?.requireAuth ?? true;
   const hasSecurityProfile = Boolean(securityProfile.data);
   const canViewCurrentRoute =
     !routeRequiresAuth ||
-    (hasSecurityProfile &&
-      (!currentRoute?.sectionKey ||
-        currentRoute.sectionKey === "workbench" ||
-        Boolean(allowedMenuKeys?.includes(currentRoute.sectionKey))));
+    (hasSecurityProfile && canAccessRoute(currentRoute, securityProfile.data));
 
   const visibleMenuSections = useMemo(
     () =>
-      menuSections
+      getMenuSectionsForProfile(securityProfile.data)
         .filter((s) => !s.hidden)
-        .filter((s) => s.key === "workbench" || allowedMenuKeys?.includes(s.key)),
-    [allowedMenuKeys],
+        .filter((s) => s.items.length > 0),
+    [securityProfile.data],
   );
 
   const items: MenuProps["items"] = useMemo(
@@ -74,11 +70,23 @@ export function AppLayout() {
   );
 
   const advancedItems = useMemo(
+    () => getMenuSectionsForProfile(securityProfile.data).find((s) => s.hidden)?.items ?? [],
+    [securityProfile.data],
+  );
+  const commandSections = useMemo(
     () =>
-      allowedMenuKeys?.includes("advanced-tools")
-        ? (menuSections.find((s) => s.hidden)?.items ?? [])
-        : [],
-    [allowedMenuKeys],
+      advancedItems.length > 0
+        ? [
+            ...visibleMenuSections,
+            {
+              key: "advanced-tools" as const,
+              label: "高级工具",
+              hidden: true,
+              items: advancedItems,
+            },
+          ]
+        : visibleMenuSections,
+    [advancedItems, visibleMenuSections],
   );
   let mainLayoutClassName = "mk-layout-main mk-layout-main-mobile";
   if (isDesktop) {
@@ -97,6 +105,17 @@ export function AppLayout() {
       setMobileMenuOpen(false);
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const renderContent = () => {
     if (routeRequiresAuth && !hasSecurityProfile) {
@@ -201,7 +220,11 @@ export function AppLayout() {
         </Header>
         <Content className="mk-app-content">{renderContent()}</Content>
       </Layout>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        sections={commandSections}
+      />
     </Layout>
   );
 }

@@ -82,22 +82,36 @@ function renderLayout(initialPath = "/terminology/mapping") {
   );
 }
 
+function menuPermission(code: string) {
+  return {
+    code: `menu.${code}`,
+    dimension: "MENU",
+    target: code,
+    displayName: `查看${code}`,
+    risk: "LOW",
+  };
+}
+
+function permissionProfile(menuKeys: string[]) {
+  return {
+    menuKeys,
+    roles: [],
+    permissions: menuKeys.map(menuPermission),
+    environmentKeys: ["production"],
+    dataScope: {},
+  };
+}
+
 beforeEach(() => {
   securityProfileState.value = {
-    data: {
-      menuKeys: [
-        "workbench",
-        "pilot-setup",
-        "clinical-run",
-        "quality-improve",
-        "compliance-ops",
-        "advanced-tools",
-      ],
-      roles: [],
-      permissions: [],
-      environmentKeys: ["production"],
-      dataScope: {},
-    },
+    data: permissionProfile([
+      "workbench",
+      "pilot-setup",
+      "clinical-run",
+      "quality-improve",
+      "compliance-ops",
+      "advanced-tools",
+    ]),
   };
 });
 
@@ -148,15 +162,9 @@ describe("AppLayout", () => {
     expect(screen.getAllByText("试点准备").length).toBeGreaterThan(0);
   });
 
-  it("filters primary menus by security profile menu keys", () => {
+  it("filters primary menus by granted menu permission codes", () => {
     securityProfileState.value = {
-      data: {
-        menuKeys: ["quality-improve"],
-        roles: [],
-        permissions: [],
-        environmentKeys: ["production"],
-        dataScope: {},
-      },
+      data: permissionProfile(["quality-improve"]),
     };
     mockViewport(1280);
     renderLayout("/qc/dashboard");
@@ -181,7 +189,7 @@ describe("AppLayout", () => {
     const navigation = document.querySelector(".ant-menu");
     expect(navigation).not.toBeNull();
     expect(within(navigation as HTMLElement).queryByText("试点准备")).toBeNull();
-    expect(screen.getAllByText("工作台").length).toBeGreaterThan(0);
+    expect(within(navigation as HTMLElement).queryByText("工作台")).toBeNull();
   });
 
   it("does not render the workbench before an effective permission profile is available", () => {
@@ -195,12 +203,20 @@ describe("AppLayout", () => {
 
   it("blocks direct entry to a page outside the granted menu scope", () => {
     securityProfileState.value = {
+      data: permissionProfile(["clinical-run"]),
+    };
+    mockViewport(1280);
+    renderLayout();
+
+    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.getByText("当前权限不足")).toBeInTheDocument();
+  });
+
+  it("does not trust menuKeys without matching permission codes", () => {
+    securityProfileState.value = {
       data: {
-        menuKeys: ["clinical-run"],
-        roles: [],
+        ...permissionProfile(["pilot-setup"]),
         permissions: [],
-        environmentKeys: ["production"],
-        dataScope: {},
       },
     };
     mockViewport(1280);
@@ -208,5 +224,14 @@ describe("AppLayout", () => {
 
     expect(screen.queryByText("字典映射内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
+  });
+
+  it("opens the command palette from the global keyboard shortcut", () => {
+    mockViewport(1280);
+    renderLayout();
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+    expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
   });
 });

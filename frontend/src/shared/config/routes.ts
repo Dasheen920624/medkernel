@@ -30,12 +30,20 @@ export interface RouteMeta {
   sectionKey?: RouteSectionKey;
   menuKey?: string;
   menuLabel?: string;
-  roles?: string[];
-  permissions?: string[];
+  requiredRoles: string[];
+  requiredPermissions: string[];
   hidden?: boolean;
   pageType?: PageType;
   stateMachine?: "config" | "change" | "todo" | "alert";
   experience?: RouteExperience;
+}
+
+type RouteMetaInput = Omit<RouteMeta, "requiredRoles" | "requiredPermissions"> &
+  Partial<Pick<RouteMeta, "requiredRoles" | "requiredPermissions">>;
+
+export interface RoutePermissionProfile {
+  roles?: Array<{ code: string }>;
+  permissions?: Array<{ code: string }>;
 }
 
 export interface RouteSectionMeta {
@@ -110,7 +118,7 @@ const terminologyMappingExperience: RouteExperience = {
   riskLevel: "medium",
 };
 
-export const routeMetas: RouteMeta[] = [
+const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/login",
     title: "登录",
@@ -547,12 +555,54 @@ export const routeMetas: RouteMeta[] = [
   },
 ];
 
+export function sectionPermissionCode(sectionKey: RouteSectionKey): string {
+  return `menu.${sectionKey}`;
+}
+
+function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
+  const requiredPermissions =
+    route.requiredPermissions ??
+    (route.requireAuth ? [sectionPermissionCode(route.sectionKey ?? "workbench")] : []);
+
+  return {
+    ...route,
+    requiredPermissions,
+    requiredRoles: route.requiredRoles ?? [],
+  };
+}
+
+export const routeMetas: RouteMeta[] = routeMetaInputs.map(normalizeRouteMeta);
+
 export const customerRouteMetas = routeMetas.filter(
   (route) => route.requireAuth && !route.hidden && route.sectionKey !== "advanced-tools",
 );
 
 export function findRouteByPath(path: string): RouteMeta | undefined {
   return routeMetas.find((route) => route.path === path);
+}
+
+export function canAccessRoute(
+  route: RouteMeta | undefined,
+  profile: RoutePermissionProfile | undefined,
+): boolean {
+  if (!route?.requireAuth) {
+    return true;
+  }
+  if (!profile) {
+    return false;
+  }
+
+  const grantedPermissions = new Set(
+    profile.permissions?.map((permission) => permission.code) ?? [],
+  );
+  const grantedRoles = new Set(profile.roles?.map((role) => role.code) ?? []);
+  const hasRequiredPermissions = route.requiredPermissions.every((permission) =>
+    grantedPermissions.has(permission),
+  );
+  const hasRequiredRole =
+    route.requiredRoles.length === 0 || route.requiredRoles.some((role) => grantedRoles.has(role));
+
+  return hasRequiredPermissions && hasRequiredRole;
 }
 
 export function getRouteBreadcrumb(path: string): string[] {

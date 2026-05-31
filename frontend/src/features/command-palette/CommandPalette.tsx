@@ -2,17 +2,18 @@ import { useEffect, useState, useMemo } from "react";
 import { Modal, Input, List, Typography, Tag } from "antd";
 import { useNavigate } from "react-router-dom";
 import { menuSections } from "@/shared/config/menu";
+import type { MenuSection } from "@/shared/config/menu";
 
 /**
  * 全局命令面板。
  *
- * 极致易用，对老 IT 友好 — 任何人 1 秒打开 → 输入关键词 → Enter 跳菜单。
- * 后续会扩展到：搜患者 / 搜配置包 / 搜规则 / 搜审计快照。
+ * 只接收当前权限画像允许的菜单项，避免在搜索入口暴露未授权页面。
  */
 
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
+  sections?: MenuSection[];
 }
 
 interface CommandItem {
@@ -22,13 +23,13 @@ interface CommandItem {
   path: string;
 }
 
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, sections = menuSections }: CommandPaletteProps) {
   const [q, setQ] = useState("");
   const navigate = useNavigate();
 
   const allCommands: CommandItem[] = useMemo(
     () =>
-      menuSections.flatMap((s) =>
+      sections.flatMap((s) =>
         s.items.map((it) => ({
           key: it.key,
           label: it.label,
@@ -36,7 +37,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           path: it.path,
         })),
       ),
-    [],
+    [sections],
   );
 
   const filtered = useMemo(() => {
@@ -51,17 +52,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     if (!open) setQ("");
   }, [open]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        // 外层用 prop 控制 open；这里只做 dev hint
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   return (
     <Modal
       open={open}
@@ -72,7 +62,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       destroyOnClose
     >
       <Input.Search
-        placeholder="搜菜单 / 患者 / 配置包 / 规则 / 审计快照"
+        placeholder="搜索菜单"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         autoFocus
@@ -92,9 +82,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           >
             <Tag color="default">{item.group}</Tag>
             <Typography.Text>{item.label}</Typography.Text>
-            <Typography.Text type="secondary" className="mk-push-inline-start-auto mk-text-xs">
-              {item.path}
-            </Typography.Text>
           </List.Item>
         )}
       />
