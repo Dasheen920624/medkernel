@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-03 标准 API 契约 PR2 🚧
+### 线 1 · BASE-04 审计骨干 PR1 🚧
 
 - 类型：软件开发
-- 分支：codex/base-03-idempotency
-- 目标：完成 BASE-03 PR2：Record DTO + Bean Validation 治理测试、traceId 一致性、平台级 `Idempotency-Key` 幂等过滤器与 `sys_idempotency` 五方言迁移。
-- 状态：本地实现与验证已完成；幂等重复提交 / 冲突测试、Controller 入参治理测试、H2 与多方言迁移冒烟已转绿；BASE-03 卡与 backlog 已标记完成；后端全量、前端 typecheck / test / build / lint / format:check 与 T-GATE 已通过。
-- 下一步（精确到动作/命令）：1. 提交 `codex/base-03-idempotency`；2. 推送并创建 PR；3. 等待远端 CI 全绿后 squash 合并；4. 从新 `origin/main` 领取 BASE-04 审计骨干。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`IdempotencyFilter.java`；`JdbcIdempotencyRepository.java`；`sys_idempotency` 五方言 V29 迁移；`ApiContractGovernanceTest.java`；`IdempotencyFilterTest.java`；成功响应仍走 `ApiResult`，失败统一 `ProblemDetail`，写请求携带同租户同 key 且同请求体时重放首次成功结果，不得重复业务副作用。
+- 分支：codex/base-04-audit-spine
+- 目标：完成 BASE-04 PR1：统一 `AuditRecorder`、完整审计事件模型、`audit_event` V30 五方言字段补齐、SM3 完整性哈希、`(traceId, action, target)` 幂等去重。
+- 状态：已完成红灯测试、核心实现与本地全量验证；`AuditRecorderTest`、`AuditChainWriterTest`、`AuditEventRepositoryTest`、审计查询 / fail-soft 相关测试、H2/Postgres/Oracle Flyway smoke、后端全量、前端 typecheck / test / build / lint / format:check、T-GATE 已转绿。旧 `AuditEventPublisher` 已降级为兼容门面，运行时动作发布转交 `AuditRecorder`，避免后续业务绕过完整字段。待提交 PR 与远端 CI。
+- 下一步（精确到动作/命令）：1. 提交并推送 `codex/base-04-audit-spine`；2. 创建 PR，等 CI 全绿后 squash 合并；3. 基于新 `origin/main` 继续 BASE-04 PR2。
+- 相关文件 / 测试 / 坑：`AuditRecorder.java` / `AuditRecordCommand.java` / `AuditEvent.java` / `AuditChainWriter.java` / `AuditEventRepository.java` / `V30__audit_event_spine_contract.sql`（h2/postgres/oracle/dm/kingbase）。卡片里的 `sys_audit_log` 已统一解释为现有 `audit_event` 权威表，禁止后续 AI 另建重复审计表。Oracle 会为唯一约束自动建索引，不能再额外创建同列 `idx_audit_event_dedupe`。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-03 PR2 标准 API 契约收官 ✅（#181）：Record DTO + Bean Validation 治理测试、traceId 一致性、平台级 `Idempotency-Key` 幂等过滤器与 `sys_idempotency` 五方言迁移；后端全量、前端 typecheck / test / build / lint / format:check、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-03 PR1 标准 API 契约前半 ✅（#180）：失败响应统一 `ProblemDetail`，移除 `ApiResult.error` 旧失败包络，补齐 `GlobalExceptionHandler` 契约测试；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR3 环境维与应急权限闭环 ✅（#178）：`emergency_permission_grant` 五方言迁移、break-glass 授予服务、到期自动失效、`security/me.environmentKeys`、越权 403 ProblemDetail、前端权限指纹“可用环境”；平台 / 集团 / 医院管理员默认不再直接拥有 `env.emergency`；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR2 权限引擎与数据范围判定 ✅（#177）：`PermissionEvaluator.can(dimension,target)`、`@RequirePermission` 方法级门禁、`DataScopeResolver` 数据行级范围判定、超管无旁路源码契约；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
@@ -68,4 +69,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-03 PR2 本地完成并待 PR；合并后领取 BASE-04 审计骨干；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-04 审计骨干 PR1 本地验证与 T-GATE 已通过，待 PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR

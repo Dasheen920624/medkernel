@@ -39,6 +39,7 @@ public class AuditChainWriter {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuditEventRecord persist(AuditEvent event) {
         String tenantId = resolveTenant(event.orgScope());
+        String dedupeKey = dedupeKey(event, tenantId);
 
         try {
             repository.initChainHead(tenantId);
@@ -49,6 +50,10 @@ public class AuditChainWriter {
         AuditEventRepository.ChainHead head = repository.lockChainHead(tenantId)
             .orElseThrow(() -> new IllegalStateException(
                 "audit_chain_head missing immediately after initChainHead for tenant=" + tenantId));
+        var existing = repository.findByDedupeKey(tenantId, dedupeKey);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
 
         String prevSignature = head.lastSignature() == null ? GENESIS : head.lastSignature();
         String canonical = canonicalize(event, tenantId);
@@ -74,9 +79,19 @@ public class AuditChainWriter {
             STATUS_SIGNED,
             event.outcome() == null ? AuditEvent.OUTCOME_SUCCESS : event.outcome(),
             event.errorCode(),
-            null
+            null,
+            event.actorRoles(),
+            event.orgPath(),
+            event.environmentKey(),
+            event.beforeSnapshot(),
+            event.afterSnapshot(),
+            dedupeKey
         );
-        repository.insertEvent(record);
+        try {
+            repository.insertEvent(record);
+        } catch (DuplicateKeyException duplicate) {
+            return repository.findByDedupeKey(tenantId, dedupeKey).orElseThrow(() -> duplicate);
+        }
         repository.advanceChainHead(tenantId, event.id(), signature);
         return record;
     }
@@ -102,7 +117,12 @@ public class AuditChainWriter {
                 record.departmentId(),
                 null),
             record.outcome(),
-            record.errorCode()
+            record.errorCode(),
+            record.actorRoles(),
+            record.orgPath(),
+            record.environmentKey(),
+            record.beforeSnapshot(),
+            record.afterSnapshot()
         );
         String canonical = canonicalize(reconstructed, record.tenantId());
         String prev = record.prevSignature() == null ? GENESIS : record.prevSignature();
@@ -118,12 +138,36 @@ public class AuditChainWriter {
             nullSafe(event.resourceType()),
             nullSafe(event.resourceId()),
             nullSafe(event.actorUserId()),
+            nullSafe(event.actorRoles()),
             nullSafe(tenantId),
+            nullSafe(event.orgPath()),
             nullSafe(scope.hospitalId()),
             nullSafe(scope.departmentId()),
+            nullSafe(event.environmentKey()),
             event.occurredAt() == null ? "" : event.occurredAt().toString(),
-            nullSafe(event.payloadDigest())
+            nullSafe(event.payloadDigest()),
+            nullSafe(event.beforeSnapshot()),
+            nullSafe(event.afterSnapshot()),
+            nullSafe(event.outcome()),
+            nullSafe(event.errorCode())
         );
+    }
+
+    private String dedupeKey(AuditEvent event, String tenantId) {
+        if (event.traceId() == null || event.traceId().isBlank()
+            || event.action() == null
+            || event.resourceType() == null || event.resourceType().isBlank()
+            || event.resourceId() == null || event.resourceId().isBlank()) {
+            return null;
+        }
+        return "sm3:" + crypto.sm3Hex(String.join(
+            CANONICAL_FIELD_SEPARATOR,
+            tenantId,
+            event.traceId().trim(),
+            event.action().name(),
+            event.resourceType().trim(),
+            event.resourceId().trim()
+        ));
     }
 
     private static boolean isSystemTenant(String tenantId) {

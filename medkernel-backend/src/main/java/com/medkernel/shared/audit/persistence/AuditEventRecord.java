@@ -3,7 +3,7 @@ package com.medkernel.shared.audit.persistence;
 import java.time.Instant;
 
 /**
- * 审计事件持久化模型（对应 {@code audit_event} 表 + V5 哈希链列 + V9 outcome/errorCode）。
+ * 审计事件持久化模型（对应 {@code audit_event} 表 + V5 哈希链列 + V9 outcome/errorCode + V30 完整审计脊柱字段）。
  *
  * <p>与 {@link com.medkernel.shared.audit.AuditEvent} 区分：
  * <ul>
@@ -33,6 +33,37 @@ public record AuditEventRecord(
     String status,
     String outcome,
     String errorCode,
-    Instant createdAt
+    Instant createdAt,
+    String actorRoles,
+    String orgPath,
+    String environmentKey,
+    String beforeSnapshot,
+    String afterSnapshot,
+    String dedupeKey
 ) {
+
+    public AuditEventRecord(Long id,
+                            String eventId,
+                            String traceId,
+                            Instant occurredAt,
+                            String actorUserId,
+                            String action,
+                            String resourceType,
+                            String resourceId,
+                            String summary,
+                            String payloadDigest,
+                            String tenantId,
+                            String hospitalId,
+                            String departmentId,
+                            String prevEventId,
+                            String prevSignature,
+                            String signature,
+                            String status,
+                            String outcome,
+                            String errorCode,
+                            Instant createdAt) {
+        this(id, eventId, traceId, occurredAt, actorUserId, action, resourceType, resourceId,
+            summary, payloadDigest, tenantId, hospitalId, departmentId, prevEventId, prevSignature,
+            signature, status, outcome, errorCode, createdAt, null, null, null, null, null, null);
+    }
 }

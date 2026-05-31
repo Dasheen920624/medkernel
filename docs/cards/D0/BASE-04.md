@@ -36,8 +36,8 @@
 N·A —— 审计日志页在 D5「审计日志」槽（页面卡），本卡供其查询 API 与数据模型。
 
 ## 数据与迁移
-- 表族：`sys_audit_log`（append-only）；可选 `sys_audit_archive`（冷归档）。
-- 主键：ULID；唯一约束：`(trace_id, action, target_id)` 去重；索引：`who`、`org_path`、`action`、`ts`、`env`。
+- 表族：`audit_event`（历史命名，作为 `sys_audit_log` 概念的权威实现；禁止另建重复审计表）；可选 `sys_audit_archive`（冷归档）。
+- 主键：`event_id`；唯一约束：`dedupe_key = SM3(tenant_id + trace_id + action + target)` 去重；索引：`who`、`org_path`、`action`、`ts`、`env`。
 - 组织字段：`tenant_id` + `org_path`（审计可按组织维过滤）；不可变（无 update/delete 权限，DB 层尽量约束）。
 - 5 方言迁移：h2 / postgres / oracle / dm / kingbase + 中文注释 + 时间分区建议。
 
@@ -59,7 +59,7 @@ N·A —— 审计日志页在 D5「审计日志」槽（页面卡），本卡�
 - 本卡落点：单一 `AuditRecorder` + append-only 表 + fail-soft，让七类动作零遗漏留痕、高危项无法静默关闭。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：触发七类动作各一次，`sys_audit_log` 各产一条含完整 {who,org,action,target,traceId}。
+- [ ] **AC-1（FR-1/2）**：触发七类动作各一次，`audit_event` 各产一条含完整 {who,org,role,action,target,before,after,traceId,env,ts}。
 - [ ] **AC-2（FR-3）**：故意令审计存储不可用 → 业务**成功不回滚** + 审计降级落地 + 告警一条（非静默吞）。
 - [ ] **AC-3（FR-4）**：尝试 update/delete 审计记录被拒；尝试从配置中心 UI 关闭审计 → 不可关（核心 #19）。
 - [ ] **AC-4（FR-5）**：超管执行一动作 → 审计标记高亮且可独立筛出。
@@ -69,10 +69,10 @@ N·A —— 审计日志页在 D5「审计日志」槽（页面卡），本卡�
 - B0 验收：纯确定性，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`AuditRecorder` / 审计查询服务 / `sys_audit_log` 迁移（×5 方言）/ 完整性 hash 实现（SM3）。
+- 代码 permalink：`AuditRecorder` / 审计查询服务 / `audit_event` V30 迁移（×5 方言）/ 完整性 hash 实现（SM3）。
 - 测试：七类动作留痕测试 + fail-soft 不回滚测试 + append-only 约束测试 + 完整性 hash 测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（3d，后端）
-- PR1：审计事件模型 + `AuditRecorder` + append-only 表 + 5 方言迁移 + 完整性 hash → AC-1/5。
+- PR1：审计事件模型 + `AuditRecorder` + append-only 表字段补齐 + 5 方言迁移 + 完整性 hash → AC-1/5。
 - PR2：fail-soft 异步 + 高危护栏（不可关）+ 超管高亮 + 查询端点 → AC-2/3/4。

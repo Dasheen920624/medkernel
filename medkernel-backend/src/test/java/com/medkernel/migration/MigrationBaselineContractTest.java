@@ -55,7 +55,8 @@ class MigrationBaselineContractTest {
         "V26__integration_adapter_health_states.sql",
         "V27__platform_credential.sql",
         "V28__emergency_permission_grant.sql",
-        "V29__sys_idempotency.sql"
+        "V29__sys_idempotency.sql",
+        "V30__audit_event_spine_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -150,7 +151,9 @@ class MigrationBaselineContractTest {
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
         "idx_platform_credential_login",
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
-        "idx_sys_idempotency_expiry"
+        "idx_sys_idempotency_expiry",
+        "idx_audit_event_org_path",
+        "idx_audit_event_env"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -231,7 +234,8 @@ class MigrationBaselineContractTest {
         "uk_platform_credential_id", "uk_platform_credential_username",
         "ck_platform_credential_status", "ck_platform_credential_mustchg",
         "ck_emergency_permission_code", "ck_emergency_permission_active",
-        "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status"
+        "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
+        "uk_audit_event_dedupe"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -434,6 +438,22 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("error_code");
         assertThat(h2).contains("ck_audit_event_outcome");
         assertThat(h2).contains("idx_audit_event_outcome");
+    }
+
+    @Test
+    void v30ShouldExtendAuditEventIntoCompleteSpineContract() {
+        String h2 = readMigration("h2", "V30__audit_event_spine_contract.sql");
+        assertThat(h2).contains("ALTER TABLE audit_event ADD COLUMN");
+        assertThat(h2).contains(
+            "actor_roles",
+            "org_path",
+            "environment_key",
+            "before_snapshot",
+            "after_snapshot",
+            "dedupe_key");
+        assertThat(h2).contains("uk_audit_event_dedupe");
+        assertThat(h2).contains("idx_audit_event_org_path");
+        assertThat(h2).contains("idx_audit_event_env");
     }
 
     @Test
