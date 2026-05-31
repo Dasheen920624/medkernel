@@ -1,11 +1,8 @@
 package com.medkernel.shared.api;
 
-import java.util.List;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -14,8 +11,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ApiResult 序列化契约测试 — 锁定对外 JSON 形态。
+ * ApiResult 成功响应序列化契约测试 — 锁定对外 JSON 形态。
  * 任何字段重命名、删除都会让本测试失败，迫使做出兼容性决策。
+ *
+ * <p>失败响应由 {@code ProblemDetail} 承载，不再使用 ApiResult 失败包络。
  */
 class ApiResultTest {
 
@@ -39,39 +38,7 @@ class ApiResultTest {
         assertThat(node.get("data").asText()).isEqualTo("hello");
         assertThat(node.get("traceId").asText()).isEqualTo("trace-abc");
         assertThat(node.get("timestamp").asText()).isNotBlank();
-        assertThat(node.has("errors")).isFalse(); // NON_NULL — empty errors must not appear
-    }
-
-    @Test
-    void errorEnvelopePropagatesCode() throws Exception {
-        RequestContext.restore(new RequestContext.Snapshot("trace-err", OrgScope.empty(), null));
-
-        ApiResult<Void> result = ApiResult.error(ErrorCode.NOT_FOUND, "患者不存在");
-        JsonNode node = mapper.valueToTree(result);
-
-        assertThat(node.get("success").asBoolean()).isFalse();
-        assertThat(node.get("code").asText()).isEqualTo("ENG-API-005");
-        assertThat(node.get("message").asText()).isEqualTo("患者不存在");
-        assertThat(node.has("data")).isFalse();
-        assertThat(node.get("traceId").asText()).isEqualTo("trace-err");
-    }
-
-    @Test
-    void errorEnvelopeWithFieldErrorsIsSerialized() throws Exception {
-        RequestContext.restore(new RequestContext.Snapshot("trace-v", OrgScope.empty(), null));
-
-        List<ApiError> errors = List.of(
-            new ApiError("patientMpi", "NotBlank", "患者主索引必填"),
-            new ApiError("severity", "Pattern", "严重级别取值不在白名单内")
-        );
-        ApiResult<Void> result = ApiResult.error(ErrorCode.VALIDATION_FAILED, "请求参数校验失败", errors);
-        JsonNode node = mapper.valueToTree(result);
-
-        assertThat(node.get("success").asBoolean()).isFalse();
-        assertThat(node.get("code").asText()).isEqualTo("ENG-API-002");
-        assertThat(node.get("errors")).hasSize(2);
-        assertThat(node.get("errors").get(0).get("field").asText()).isEqualTo("patientMpi");
-        assertThat(node.get("errors").get(1).get("code").asText()).isEqualTo("Pattern");
+        assertThat(node.has("errors")).isFalse();
     }
 
     @Test
