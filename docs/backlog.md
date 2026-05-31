@@ -96,7 +96,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | ID | 任务 | 范围 | 工作量 | 状态 |
 |---|---|---|---:|---|
 | BASE-01 | 组织与租户上下文 | 平台/集团/医院/院区/社区服务点/科室/专病七层组织 + user/role/package_version 全链路注入 | 3d | done |
-| BASE-02 | 身份权限（五维）| 菜单/动作/数据/资产/环境 + 13 角色矩阵 + 27 二级菜单粒度（详规 §7.3 + 宪法 §5）| 5d | pending |
+| BASE-02 | 身份权限（五维）| 菜单/动作/数据/资产/环境 + 13 角色矩阵 + 27 二级菜单粒度（详规 §7.3 + 宪法 §5）| 5d | done |
 | BASE-03 | 标准 API 契约 | ApiResult + ProblemDetail + Record DTO + Bean Validation + traceId + 幂等 | 4d | pending |
 | BASE-04 | 审计骨干 | 写操作/审核/发布/运行/反馈/导出/回滚统一留痕；audit 异步或 fail-soft 不回滚业务 | 3d | pending |
 | BASE-05 | 5 方言数据迁移骨架 | h2/postgres/oracle/dm/kingbase + 一致性测试 + 中文注释 + 索引约束 | 4d | pending |
