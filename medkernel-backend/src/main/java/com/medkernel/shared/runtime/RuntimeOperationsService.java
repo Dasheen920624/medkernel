@@ -2,7 +2,6 @@ package com.medkernel.shared.runtime;
 
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -10,6 +9,7 @@ import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
+import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDependencyStatus;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDomesticProfile;
@@ -34,6 +34,7 @@ public class RuntimeOperationsService {
     private final HealthEndpoint healthEndpoint;
     private final MeterRegistry meterRegistry;
     private final RuntimeProperties properties;
+    private final SystemConfigService configService;
 
     /**
      * 构造函数。
@@ -42,15 +43,18 @@ public class RuntimeOperationsService {
      * @param healthEndpoint Spring Actuator 健康监测端点
      * @param meterRegistry Micrometer 业务指标注册中心
      * @param properties 运维配置属性
+     * @param configService 配置中心服务
      */
     public RuntimeOperationsService(Environment environment,
                                     HealthEndpoint healthEndpoint,
                                     MeterRegistry meterRegistry,
-                                    RuntimeProperties properties) {
+                                    RuntimeProperties properties,
+                                    SystemConfigService configService) {
         this.environment = environment;
         this.healthEndpoint = healthEndpoint;
         this.meterRegistry = meterRegistry;
         this.properties = properties;
+        this.configService = configService;
     }
 
     /**
@@ -105,20 +109,7 @@ public class RuntimeOperationsService {
     }
 
     private List<RuntimeFeatureFlag> featureFlags() {
-        return properties.getFeatureFlags().entrySet().stream()
-            .sorted(Comparator.comparing(entry -> entry.getKey()))
-            .map(entry -> {
-                RuntimeProperties.FeatureFlag flag = entry.getValue();
-                return new RuntimeFeatureFlag(
-                    entry.getKey(),
-                    flag.getDisplayName(),
-                    flag.isEnabled(),
-                    flag.getRisk(),
-                    flag.getOwner(),
-                    flag.getDescription()
-                );
-            })
-            .toList();
+        return configService.runtimeFeatureFlags(properties);
     }
 
     private List<RuntimeDependencyStatus> dependencies(String healthStatus) {
@@ -179,8 +170,7 @@ public class RuntimeOperationsService {
     }
 
     private boolean flagEnabled(String key) {
-        RuntimeProperties.FeatureFlag flag = properties.getFeatureFlags().get(key);
-        return flag != null && flag.isEnabled();
+        return configService.runtimeFeatureFlagEnabled(properties, key);
     }
 
     private RuntimeBackupReadiness backupReadiness() {

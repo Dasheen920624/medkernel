@@ -36,8 +36,8 @@
 N·A —— 本卡是配置**引擎**；前台「系统配置中心」界面是 D5 页面卡（`D5-PAGE-系统配置中心`，挂"安全基线与系统配置"槽，核心 §2.2 不净增二级菜单）。
 
 ## 数据与迁移
-- 表族：`sys_config`（key/value/risk/metadata/version）；`sys_config_history`（变更历史/回滚点）。
-- 主键：ULID；唯一约束：`(tenant_id, config_key)`；索引：`config_key`、`risk`、`updated_at`。
+- 表族：`mk_config_item`（key/value/risk/metadata/version）；`mk_config_history`（变更历史/回滚点）。旧计划中的 `sys_config` 命名已按 BASE-05 新增迁移规约收敛为 `mk_<域>_<实体>`，后续实现不得回退旧表名。
+- 主键：字符串 ID；唯一约束：`uk_config_item_tenant_key (tenant_id, config_key)`；索引：`idx_config_item_tenant_key`、`idx_config_history_tenant_key`。
 - 组织字段：平台级 + 租户级配置（继承覆盖，核心 §9）；审计字段齐全。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释 + 从 yml 迁入的初始配置种子。
 
@@ -69,10 +69,11 @@ N·A —— 本卡是配置**引擎**；前台「系统配置中心」界面是 
 - B0 验收：纯确定性配置引擎，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`sys_config` 存储 / 热生效机制 / 变更审计 + 回滚 / 高危护栏 / 启动引导边界 / yml→DB 迁入种子。
+- PR1 本地证据：`mk_config_item` / `mk_config_history` 五方言迁移；`SystemConfigControllerTest` 覆盖配置中心元数据、运行 Feature Flag 热生效、API 更新来源标记与历史记录；运行底座 `RuntimeOperationsService` 已从配置中心读取 Feature Flag，YML 仅作为启动种子与缺失兜底；审计持久化、国密增强高危运行开关禁止从配置中心关闭，拒绝动作写入审计。
+- 代码 permalink：配置存储 / 热生效机制 / 变更审计 + 回滚 / 高危护栏 / 启动引导边界 / yml→DB 迁入种子。
 - 测试：热生效测试 + 变更审计回滚测试 + 高危护栏拦截测试 + 启动边界测试 + 读失败安全默认测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（5d，后端）
-- PR1：`sys_config` 存储 + 元数据 + 热生效 + 启动引导边界 → AC-1/3。
+- PR1：`mk_config_item` / `mk_config_history` 存储 + 元数据 + 运行 Feature Flag 热生效 + 启动引导边界 + 审计/国密高危关闭护栏 → 支撑 AC-1/3/5 的第一段。
 - PR2：变更审计 + 回滚点 + 高危护栏 + 二次确认 + 读失败兜底 → AC-2/4/5。

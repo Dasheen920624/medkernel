@@ -51,4 +51,21 @@ class AuditSafetyGuardTest {
             "更新审计页提示")))
             .doesNotThrowAnyException();
     }
+
+    @Test
+    void disablingAuditPersistenceRuntimeFeatureFlagIsRejected() {
+        AuditRecorder recorder = mock(AuditRecorder.class);
+        AuditSafetyGuard guard = new AuditSafetyGuard(recorder);
+
+        AuditConfigChangeCommand command = new AuditConfigChangeCommand(
+            "medkernel.runtime.feature-flags.audit-persistence.enabled",
+            "true",
+            "false",
+            "验证配置中心高危护栏");
+
+        assertThatThrownBy(() -> guard.assertChangeAllowed(command))
+            .isInstanceOf(ApiException.class)
+            .satisfies(t -> assertThat(((ApiException) t).errorCode())
+                .isEqualTo(ErrorCode.ENG_AUDIT_001));
+    }
 }
