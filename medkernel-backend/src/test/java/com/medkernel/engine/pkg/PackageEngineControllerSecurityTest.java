@@ -49,6 +49,16 @@ class PackageEngineControllerSecurityTest {
         }
         """;
 
+    private static final String ROLLBACK_BODY = """
+        {
+          "targetPackageId": "pkg-2",
+          "confirmedCurrentVersion": "2.0.0",
+          "confirmedTargetVersion": "1.0.0",
+          "reason": "临床专家已确认回滚窗口",
+          "confirmedHighRisk": true
+        }
+        """;
+
     @Autowired
     MockMvc mvc;
 
@@ -102,7 +112,9 @@ class PackageEngineControllerSecurityTest {
                 .content(SYNC_BODY))
             .andExpect(status().isForbidden());
 
-        mvc.perform(post("/api/v1/engine/packages/pkg-1/rollback?targetPackageId=pkg-2"))
+        mvc.perform(post("/api/v1/engine/packages/pkg-1/rollback")
+                .contentType("application/json")
+                .content(ROLLBACK_BODY))
             .andExpect(status().isForbidden());
     }
 

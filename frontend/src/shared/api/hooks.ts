@@ -1718,6 +1718,14 @@ export interface PackageSyncRequest {
   targetIds: string[];
 }
 
+export interface PackageRollbackRequest {
+  targetPackageId: string;
+  confirmedCurrentVersion: string;
+  confirmedTargetVersion: string;
+  reason: string;
+  confirmedHighRisk: boolean;
+}
+
 export interface SyncLogResponse {
   logId: string;
   targetId: string;
@@ -1829,11 +1837,10 @@ export function useSyncPackage() {
 // 8. 一键快速回滚在用包版本至历史点
 export function useRollbackPackage() {
   return useMutation({
-    mutationFn: async (payload: { packageId: string; targetPackageId: string }) => {
+    mutationFn: async (payload: { packageId: string; request: PackageRollbackRequest }) => {
       const { data } = await apiClient.post<{ data: PackageResponse }>(
         `/engine/packages/${payload.packageId}/rollback`,
-        null,
-        { params: { targetPackageId: payload.targetPackageId } },
+        payload.request,
       );
       return data.data;
     },
