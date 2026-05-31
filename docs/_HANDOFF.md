@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-02 环境维与应急权限闭环 🚧
+### 线 1 · BASE-03 标准 API 契约 PR1 🚧
 
 - 类型：软件开发
-- 分支：codex/base-02-emergency-permission
-- 目标：完成 BASE-02 PR3：环境维权限、应急 break-glass 授予、到期自动失效、越权 ProblemDetail、前端同源权限指纹展示，覆盖 AC-4 / AC-6，并清理“默认角色直接拥有应急环境”的旧口径。
-- 状态：本地实现与验证已完成，待提交 / PR / CI / 合并；已补齐 `emergency_permission_grant` 五方言迁移、`EmergencyPermissionGrant*` 持久化 / 授予服务、`EffectivePermissionProfile.environmentKeys`、应急授权参与 `security/me` 权限画像、`PermissionDeniedException` + 403 ProblemDetail、前端权限指纹“可用环境”展示；已把平台 / 集团 / 医院管理员默认权限中的 `env.emergency` 移除，必须通过时限授予获得。本地验证已通过：`mvn -q test`、`mvn -q -Dtest=H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,MigrationBaselineContractTest test`、`npm run typecheck`、`npm test`、`npm run build`、`npm run lint`（0 errors，既有 69 warnings）、`npm run format:check`、`git diff --check`、`node scripts/authenticity-guard.mjs --mode all`。
-- 下一步（精确到动作/命令）：1. `git add` 本线相关文件；2. 重新跑暂存态 `scripts/check-comment-zh.sh` 与 `git diff --cached --check`；3. 提交 `feat: 补齐应急权限与越权拒绝闭环`；4. 推送 `codex/base-02-emergency-permission` 并开 PR；5. 等远端 CI 全绿后 squash 合并；6. 从最新 `origin/main` 新开下一条 D0 任务分支继续，D0 域级验收通过前不得启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-02.md`；`EffectivePermissionService.java`；`EmergencyPermissionGrant*.java`；`GlobalExceptionHandler.java`；`PermissionChip.tsx`；`V28__emergency_permission_grant.sql`（h2 / postgres / oracle / dm / kingbase）。注意：应急环境不得再由任何默认角色直接获得；授予原因必须非空、过期时间必须晚于当前时间；通用 `AccessDeniedException` 返回通用范围，不得泄露目标资源存在性。
+- 分支：codex/base-03-api-contract
+- 目标：完成 BASE-03 PR1：统一成功 `ApiResult` 与失败 `ProblemDetail` 契约、统一异常处理、错误码字典中文 reason + traceId；先清理现有 `GlobalExceptionHandler` 混用信封的旧口径，再补契约测试。
+- 状态：待从最新 `origin/main` 开分支实施；BASE-02 已通过 PR1/2/3 合入，backlog 已标记 done，D0 下一卡为 BASE-03。
+- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 新开 `codex/base-03-api-contract`；2. 读 `docs/cards/D0/BASE-03.md` + D0 brief + 质量基线最小必要锚点；3. 建绿色基线；4. TDD 写统一异常 / ProblemDetail / traceId / 错误码契约红灯测试；5. 实现 PR1；6. 本地全量验证 + T-GATE；7. PR / CI / squash 合并；8. 继续 BASE-03 PR2 或下一 D0 卡。
+- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`GlobalExceptionHandler.java`；`ApiResult.java`；`ApiError.java`；`ErrorCode.java`；`TraceIdFilter.java` / `RequestContext`；现有部分端点仍返回 `ApiResult.error`，BASE-03 要统一失败口径但需兼容前端错误消费，避免把业务异常伪装为 200。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-02 PR3 环境维与应急权限闭环 ✅（#178）：`emergency_permission_grant` 五方言迁移、break-glass 授予服务、到期自动失效、`security/me.environmentKeys`、越权 403 ProblemDetail、前端权限指纹“可用环境”；平台 / 集团 / 医院管理员默认不再直接拥有 `env.emergency`；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR2 权限引擎与数据范围判定 ✅（#177）：`PermissionEvaluator.can(dimension,target)`、`@RequirePermission` 方法级门禁、`DataScopeResolver` 数据行级范围判定、超管无旁路源码契约；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR1 五维权限目录与 13 角色基线 ✅（#176）：`PermissionDimension`、13 角色目录、`sys_role/sys_permission` 五维迁移、默认五维角色基线、菜单权限与动作权限分离、H2/五方言迁移契约；远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-01 组织层级与闭包底座 ✅（#175）：七层组织枚举、`org_path`、闭包表、祖先/后代查询、防环重挂、Testcontainers 1.21.4 Docker Desktop 29 兼容修复；触碰到的配置包页面已清理本地演示兜底、假资产、假同步目标、假差异结果与假组织 ID；远端 CI 8/8 通过并合入 `origin/main`。
@@ -66,4 +67,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-02 PR3 环境维与应急权限闭环本地实现与全量验证完成，待提交 / PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-05-31 · BASE-02 全卡完成并归档；下一步领取 BASE-03 标准 API 契约 PR1；D0 域级验收前不得启动 D1 新功能 PR
