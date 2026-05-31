@@ -123,7 +123,7 @@ export interface RuntimeFeatureFlag {
 export interface RuntimeDependencyStatus {
   key: string;
   displayName: string;
-  status: "UP" | "DEGRADED" | "DISABLED" | string;
+  status: "UP" | "DEGRADED" | "NOT_CONNECTED" | "MODEL_DISABLED" | string;
   detail: string;
 }
 

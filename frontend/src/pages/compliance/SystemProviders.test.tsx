@@ -44,8 +44,20 @@ const snapshot = {
     {
       key: "backup-restore",
       displayName: "备份恢复",
-      status: "UP",
-      detail: "SHA-256 摘要随备份文件生成，恢复前自动校验",
+      status: "DEGRADED",
+      detail: "SHA-256 摘要随备份文件生成，恢复前自动校验；尚未附带本次恢复演练结果，不标记 UP",
+    },
+    {
+      key: "graph-projection",
+      displayName: "知识图谱投影",
+      status: "NOT_CONNECTED",
+      detail: "Feature Flag 关闭，未连接图谱投影",
+    },
+    {
+      key: "dify-workflow",
+      displayName: "Dify 工作流",
+      status: "MODEL_DISABLED",
+      detail: "Feature Flag 关闭，模型工作流未启用",
     },
   ],
   backup: {
@@ -84,8 +96,8 @@ describe("SystemProviders", () => {
     expect(screen.getByRole("heading", { name: "Provider 状态" })).toBeInTheDocument();
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
-    expect(screen.getByText("知识图谱投影")).toBeInTheDocument();
-    expect(screen.getByText("Dify 工作流")).toBeInTheDocument();
+    expect(screen.getAllByText("知识图谱投影").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Dify 工作流").length).toBeGreaterThan(0);
     expect(screen.getAllByText("备份恢复").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("SHA-256 摘要随备份文件生成，恢复前自动校验").length,
@@ -94,8 +106,18 @@ describe("SystemProviders", () => {
     expect(
       within(screen.getByTestId("runtime-dependencies")).getByText("关系数据库"),
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("降级"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("未连接"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("模型未启用"),
+    ).toBeInTheDocument();
 
     expect(screen.queryByText("Oracle 23ai · 主库")).not.toBeInTheDocument();
     expect(screen.queryByText(/总院 PACS/)).not.toBeInTheDocument();
+    expect(screen.queryByText("DISABLED")).not.toBeInTheDocument();
   });
 });

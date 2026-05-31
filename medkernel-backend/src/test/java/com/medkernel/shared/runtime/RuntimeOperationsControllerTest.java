@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 验证系统运维快照 Controller 的安全切面防护与国产化数据契约 (GA-ENG-AUDIT-01)。
+ * 验证系统运维快照 Controller 的安全切面防护与国产化数据契约（BASE-07）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -65,11 +65,32 @@ class RuntimeOperationsControllerTest {
                 "prometheus",
                 "backup-restore",
                 "graph-projection",
-                "dify-workflow"
+                "dify-workflow",
+                "model-gateway",
+                "external-provider"
             )))
+            .andExpect(jsonPath("$.data.dependencies[?(@.key=='graph-projection')].status", hasItem("NOT_CONNECTED")))
+            .andExpect(jsonPath("$.data.dependencies[?(@.key=='dify-workflow')].status", hasItem("MODEL_DISABLED")))
+            .andExpect(jsonPath("$.data.dependencies[?(@.key=='model-gateway')].status", hasItem("MODEL_DISABLED")))
+            .andExpect(jsonPath("$.data.dependencies[?(@.key=='external-provider')].status", hasItem("NOT_CONNECTED")))
+            .andExpect(content().string(not(containsString("\"status\":\"DISABLED\""))))
             .andExpect(jsonPath("$.data.backup.checksumPolicy").value("SHA-256 摘要随备份文件生成，恢复前自动校验"))
             .andExpect(jsonPath("$.data.domesticProfile.databaseVendors", hasItems("达梦", "人大金仓")))
             .andExpect(content().string(not(containsString("password"))))
             .andExpect(content().string(not(containsString("secret"))));
+    }
+
+    /**
+     * 验证 actuator liveness/readiness 探针已经作为运行底座一等契约暴露。
+     */
+    @Test
+    void actuatorLivenessAndReadinessAreExposed() throws Exception {
+        mvc.perform(get("/actuator/health/liveness"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("UP"));
+
+        mvc.perform(get("/actuator/health/readiness"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("UP"));
     }
 }

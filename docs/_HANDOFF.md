@@ -13,11 +13,11 @@
 ### 线 1 · BASE-07 运行底座 PR1 🚧
 
 - 类型：软件开发
-- 分支：待创建（建议 `codex/base-07-runtime-foundation`，必须基于最新 `origin/main`）
-- 目标：领取 BASE-07 运行底座，交付 Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）、监控、健康检查、备份恢复、国产化 profile 的第一批可验证实现。
-- 状态：BASE-06 已由 #186/#187 合并完成；backlog 与 BASE-06 卡状态已在收官同步分支更新。D0 仍未完成，下一张卡按 backlog 顺序进入 BASE-07，不得启动 D1 新功能 PR。
-- 下一步（精确到动作/命令）：1. 合并本次 BASE-06 收官状态同步 PR；2. `git fetch origin main --prune`；3. `git checkout -B codex/base-07-runtime-foundation origin/main`；4. 读 `docs/cards/D0/BASE-07.md` + D0 简报 + 核心相关章节；5. 建绿基线、写红灯测试，再做 PR1。
-- 相关文件 / 测试 / 坑：BASE-07 必须避免把业务开关写死在 yml；配置中心未完成前只能保留启动引导/兜底，并明确真实降级状态；健康检查、备份恢复、国产化 profile 不得做假成功。
+- 分支：codex/base-07-runtime-foundation
+- 目标：完成 BASE-07 PR1：健康探活 + 监控指标 + 依赖诚实状态（AC-2/AC-5），为 PR2 的国产化 profile / Feature Flag 配置中心 / 备份恢复演练打底。
+- 状态：已基于最新 `origin/main` 开工。红灯测试已确认：`/actuator/health/liveness` / `/actuator/health/readiness` 原为 404，运行快照缺 `model-gateway` / `external-provider` 且使用旧 `DISABLED` 状态；现已开启 actuator probes，运行快照将图谱/外部系统标为 `NOT_CONNECTED`、Dify/模型标为 `MODEL_DISABLED`，开关开启但未真实探活时只标 `DEGRADED`，不伪造 `UP`；前端 Provider 状态页已同步中文显示“未连接 / 模型未启用”。本地验证已跑：`mvn -q test`、`npm run verify`、`npm run build`、`scripts/check-comment-zh.sh`、工作区 diff 真实性扫描、`git diff --check`。
+- 下一步（精确到动作/命令）：1. 提交 BASE-07 PR1；2. 推送并创建 PR；3. 远端 CI 全绿后 squash 合并；4. 基于最新 main 继续 BASE-07 PR2（国产化 profile / 国密 smoke / Feature Flag 配置中心 / 备份恢复演练）。
+- 相关文件 / 测试 / 坑：本 PR 只做 PR1 范围；不要把 Feature Flag 配置中心化、国产化 profile、备份恢复演练混进来。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，本 PR 未触碰其业务行为，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -75,4 +75,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-06 两个 PR 已合并并完成收官状态同步；下一步基于最新 `origin/main` 领取 BASE-07，D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-07 PR1 健康探活、监控指标与诚实依赖状态已完成本地全量验证，待提交 / PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR
