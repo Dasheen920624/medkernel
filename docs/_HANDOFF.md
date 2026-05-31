@@ -15,9 +15,9 @@
 - 类型：软件开发
 - 分支：codex/base-03-api-contract
 - 目标：完成 BASE-03 PR1：统一成功 `ApiResult` 与失败 `ProblemDetail` 契约、统一异常处理、错误码字典中文 reason + traceId；先清理现有 `GlobalExceptionHandler` 混用信封的旧口径，再补契约测试。
-- 状态：待从最新 `origin/main` 开分支实施；BASE-02 已通过 PR1/2/3 合入，backlog 已标记 done，D0 下一卡为 BASE-03。
-- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 新开 `codex/base-03-api-contract`；2. 读 `docs/cards/D0/BASE-03.md` + D0 brief + 质量基线最小必要锚点；3. 建绿色基线；4. TDD 写统一异常 / ProblemDetail / traceId / 错误码契约红灯测试；5. 实现 PR1；6. 本地全量验证 + T-GATE；7. PR / CI / squash 合并；8. 继续 BASE-03 PR2 或下一 D0 卡。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`GlobalExceptionHandler.java`；`ApiResult.java`；`ApiError.java`；`ErrorCode.java`；`TraceIdFilter.java` / `RequestContext`；现有部分端点仍返回 `ApiResult.error`，BASE-03 要统一失败口径但需兼容前端错误消费，避免把业务异常伪装为 200。
+- 状态：本地实现与验证已完成；统一失败 `ProblemDetail` 红灯测试已转绿，`ApiResult.error` 失败包络入口已移除，后端全量测试、前端 typecheck / test / build / lint / format:check 与 T-GATE 已通过。
+- 下一步（精确到动作/命令）：1. 提交 `codex/base-03-api-contract`；2. 推送并创建 PR；3. 等待远端 CI 全绿后 squash 合并；4. 从新 `origin/main` 继续 BASE-03 PR2 或下一 D0 卡。
+- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`GlobalExceptionHandler.java`；`ApiResult.java`；`ApiError.java`；`ErrorCode.java`；`TraceIdFilter.java` / `RequestContext`；成功响应继续使用 `ApiResult.ok/empty`，失败响应统一走 `ProblemDetail`，禁止恢复 `ApiResult.error` 或把业务异常伪装为 200。
 
 ## 已归档工作线（最近完成，供回溯）
 

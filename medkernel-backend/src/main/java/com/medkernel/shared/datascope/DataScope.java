@@ -14,7 +14,7 @@ import com.medkernel.engine.org.OrgLevel;
  * 当前 {@link com.medkernel.shared.context.RequestContext#currentOrgScope()} 是否满足要求。
  *
  * <p>不满足时抛 {@link com.medkernel.shared.api.error.ApiException}（{@code TENANT_CONTEXT_MISSING} /
- * {@code DATA_SCOPE_DENIED}），由 {@code GlobalExceptionHandler} 统一翻译为 ApiResult。
+ * {@code DATA_SCOPE_DENIED}），由 {@code GlobalExceptionHandler} 统一翻译为 ProblemDetail。
  *
  * <p>典型用法：
  * <pre>{@code

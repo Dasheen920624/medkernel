@@ -20,7 +20,7 @@ import com.medkernel.shared.context.RequestContext;
  *
  * <p>所有方法在执行前都调用 {@link #requireCurrentTenant()}，从 {@link RequestContext} 取出 tenantId；
  * 未鉴权或 JWT 缺少 {@code tenant_id} claim 的请求会被翻译为 {@link ErrorCode#TENANT_CONTEXT_MISSING} 400 错误，
- * 由 {@code GlobalExceptionHandler} 统一返回 ApiResult。
+ * 由 {@code GlobalExceptionHandler} 统一返回 ProblemDetail。
  *
  * <p>避免在业务方法签名上暴露 tenantId 参数（客户端永远不应能伪造）。
  */

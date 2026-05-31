@@ -6,7 +6,7 @@ import com.medkernel.shared.api.ApiError;
 
 /**
  * 业务异常基类。任何业务层判定的非法情形都应抛出本异常或其子类，
- * 由 {@link GlobalExceptionHandler} 统一翻译为 {@link com.medkernel.shared.api.ApiResult}。
+ * 由 {@link GlobalExceptionHandler} 统一翻译为 {@link org.springframework.http.ProblemDetail}。
  *
  * <p>禁止在业务代码中直接抛 {@link RuntimeException} 或 {@link IllegalArgumentException}；
  * 这些将被作为未预期错误兜底翻译为 {@link ErrorCode#INTERNAL_ERROR}。
