@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 菜单 IA 锁**：左侧 SideMenu 渲染 5+1 一级 + 27+5 二级（核心 §2，顺序固定）；新增一级菜单 / 净增二级菜单被测试与门禁拒绝（核心 #2/#3）。
-- [ ] **FR-2 路由元数据**：每路由带 `{sectionKey, menuKey, menuLabel, requiredPermissions, requiredRoles}`；菜单可见性由 [BASE-02](BASE-02.md) 五维判定源驱动（前后端同源）。
-- [ ] **FR-3 PageShell + 六态**：统一 `PageShell` 外壳 + 加载/空/错误/无权限/部分成功/正常 六态组件（体验契约）；任何页面缺一态被拒。
-- [ ] **FR-4 4 状态机 Badge**：配置/变更/待办/告警 四套状态机的统一 Badge 组件（核心 §3），禁自创状态文案。
-- [ ] **FR-5 7 步流组件**：统一 `StepFlow` 组件（选模板→校验→看影响→提交审核→灰度→全量→留证，核心 §4），配置类页面复用、禁自创两步流。
-- [ ] **FR-6 命令面板**：全局命令面板（快速导航/搜索菜单），SideMenu 始终为主菜单（核心 #2，不改顶部横向导航）。
+- [x] **FR-1 菜单 IA 锁**：左侧 SideMenu 渲染 5+1 一级 + 27+5 二级（核心 §2，顺序固定）；新增一级菜单 / 净增二级菜单被测试与门禁拒绝（核心 #2/#3）。
+- [x] **FR-2 路由元数据**：每路由带 `{sectionKey, menuKey, menuLabel, requiredPermissions, requiredRoles}`；菜单可见性由 [BASE-02](BASE-02.md) 五维判定源驱动（前后端同源）。
+- [x] **FR-3 PageShell + 六态**：统一 `PageShell` 外壳 + 加载/空/错误/无权限/部分成功/正常 六态组件（体验契约）；任何页面缺一态被拒。
+- [x] **FR-4 4 状态机 Badge**：配置/变更/待办/告警 四套状态机的统一 Badge 组件（核心 §3），禁自创状态文案。
+- [x] **FR-5 7 步流组件**：统一 `StepFlow` 组件（选模板→校验→看影响→提交审核→灰度→全量→留证，核心 §4），配置类页面复用、禁自创两步流。
+- [x] **FR-6 命令面板**：全局命令面板（快速导航/搜索菜单），SideMenu 始终为主菜单（核心 #2，不改顶部横向导航）。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -56,19 +56,20 @@ N·A —— 前端骨架不落库。菜单目录数据来自 BASE-02/[INFRA-05](
 - 本卡落点：把"菜单/外壳/六态/状态机/7 步流/命令面板"做成不可绕的复用骨架，页面卡只能在框内填内容。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：渲染菜单 = 5+1 一级 + 27 二级 + 5 高级；尝试加一级菜单的 PR 被门禁/测试拒绝。
-- [ ] **AC-2（FR-2/3）**：任一路由缺 `requiredPermissions` 或缺六态之一 → 构建/测试失败。
-- [ ] **AC-3（FR-4/5）**：配置类页面复用同一 `StepFlow` 七步 + 状态机 Badge；自创"草稿→提交"两步流被拒。
-- [ ] **AC-4（FR-2）**：无菜单权限的角色登入 → 该二级菜单不渲染且直接访问路由返回无权限态（与后端 BASE-02 一致）。
-- [ ] **AC-5（FR-6）**：命令面板可导航；SideMenu 始终在左为主菜单（无顶部横向主导航）。
+- [x] **AC-1（FR-1）**：渲染菜单 = 5+1 一级 + 27 二级 + 5 高级；尝试加一级菜单的 PR 被门禁/测试拒绝。
+- [x] **AC-2（FR-2/3）**：任一路由缺 `requiredPermissions` 或缺六态之一 → 构建/测试失败。
+- [x] **AC-3（FR-4/5）**：配置类页面复用同一 `StepFlow` 七步 + 状态机 Badge；自创"草稿→提交"两步流被拒。
+- [x] **AC-4（FR-2）**：无菜单权限的角色登入 → 该二级菜单不渲染且直接访问路由返回无权限态（与后端 BASE-02 一致）。
+- [x] **AC-5（FR-6）**：命令面板可导航；SideMenu 始终在左为主菜单（无顶部横向主导航）。
 - 关联 A1–A9：横切（各域页面均挂此骨架）。
 - T-GATE：前端 `no-page-mock` + stylelint 全绿（骨架零 eslint-disable、零 hex 字面量）。
 - B0 验收：纯前端骨架，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`SideMenu` / 路由元数据 schema / `PageShell` 六态 / 状态机 `Badge` / `StepFlow` / 命令面板。
-- 测试：菜单 IA 锁测试（不可净增）+ 路由元数据完整性测试 + 六态渲染测试 + 7 步流复用测试。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码 permalink：PR #186 覆盖 `SideMenu` / 路由元数据 schema / 命令面板；PR #187 覆盖 `PageShell` 六态 / 状态机 `Badge` / `StepFlow` / 路由六态与 7 步流门禁。
+- 测试：`routes.test.ts` / `menu.test.ts` / `AppLayout.test.tsx` / `CommandPalette.test.tsx` / `PageState.test.tsx` / `PageShell.test.tsx` / `StatusBadge.test.tsx` / `StepFlow.test.tsx`。
+- 验证：#186 与 #187 远端 CI 8/8 通过；收官复核在最新 `origin/main` 上运行 `npm run verify`（28 文件 / 114 测试）与 `npm run build` 通过。
+- 审计员签字：PR 合并门禁 + 远端 CI；人工 reviewer 待项目治理补签。
 
 ## 大卡工序（4d，前端）
 - PR1：SideMenu 5+1/27+5 + 路由元数据 schema + 命令面板 → AC-1/5。
