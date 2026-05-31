@@ -47,7 +47,9 @@ public record RuntimeOperationsSnapshot(
         boolean enabled,
         String risk,
         String owner,
-        String description
+        String description,
+        String source,
+        String warning
     ) {
     }
 
@@ -65,7 +67,9 @@ public record RuntimeOperationsSnapshot(
         String rto,
         String backupScript,
         String restoreScript,
-        String checksumPolicy
+        String checksumPolicy,
+        String source,
+        String warning
     ) {
     }
 

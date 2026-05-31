@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 DB 配置存储**：key/value + 元数据（display-name / risk / owner / description，沿用 yml 现有 feature-flags 结构）。
-- [ ] **FR-2 热生效**：配置变更即时生效，无需重启（功能开关 / JWT TTL / Cookie 策略 / 备份 RPO-RTO / 日志级别 等）。
-- [ ] **FR-3 变更审计 + 回滚**：每次配置变更留审计（[BASE-04](BASE-04.md)，who/before/after）+ 回滚点可恢复。
+- [x] **FR-1 DB 配置存储**：key/value + 元数据（display-name / risk / owner / description，沿用 yml 现有 feature-flags 结构）。
+- [ ] **FR-2 热生效**：配置变更即时生效，无需重启（功能开关 / JWT TTL / Cookie 策略 / 备份 RPO-RTO / 日志级别 等）。已覆盖功能开关与备份 RPO/RTO；JWT TTL / Cookie 策略 / 日志级别仍待后续 PR。
+- [x] **FR-3 变更审计 + 回滚**：每次配置变更留审计（[BASE-04](BASE-04.md)，who/before/after）+ 回滚点可恢复。
 - [ ] **FR-4 启动引导边界**：启动只从 yml/env 读 **DB 连接 / 端口 / profile / 迁移位置 / 启动密钥**；其余 `medkernel.*` 从配置存储读（核心 #19）。
-- [ ] **FR-5 高危护栏**：审计持久化（audit-persistence）等关键项**不可从 UI 关闭/删除**（沿用 yml"生产必须开启"口径）；置灰 + 说明。
-- [ ] **FR-6 二次确认 + 兜底**：高危项变更走影响提示 + 二次确认；配置存储读失败回退**安全默认** + 诚实告警（不静默用错值）。
+- [x] **FR-5 高危护栏**：审计持久化（audit-persistence）等关键项**不可从配置中心关闭/删除**（沿用 yml"生产必须开启"口径）；引擎已拦截，D5 页面置灰 + 说明由系统配置中心页面卡承载。
+- [x] **FR-6 二次确认 + 兜底**：高危项变更走影响提示 + 二次确认；配置存储读失败回退**安全默认** + 诚实告警（不静默用错值）。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -59,17 +59,18 @@ N·A —— 本卡是配置**引擎**；前台「系统配置中心」界面是 
 - 本卡落点：DB 配置存储 + 热生效 + 审计回滚 + 高危护栏 + 启动引导边界，把"除启动必需外配置不写死 yml"做成可治理、可审计、有护栏的事实。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：从配置中心改功能开关/JWT TTL → 热生效（无需重启）。
-- [ ] **AC-2（FR-3）**：配置变更留审计（who/before/after）+ 回滚到前值成功。
+- [ ] **AC-1（FR-1/2）**：从配置中心改功能开关/JWT TTL → 热生效（无需重启）。功能开关与备份 RPO/RTO 已验收，JWT TTL 待补齐后再勾选。
+- [x] **AC-2（FR-3）**：配置变更留审计（who/before/after）+ 回滚到前值成功。
 - [ ] **AC-3（FR-4）**：启动只读 yml 的 DB/端口/profile/迁移/密钥；写死业务配置 yml 被门禁/校验提示应迁配置中心。
-- [ ] **AC-4（FR-5）**：尝试从 UI 关审计持久化 → `CONFIG_PROTECTED` 拦截（置灰不可关）。
-- [ ] **AC-5（FR-6）**：高危项变更需二次确认；配置存储读失败 → 回退安全默认 + 诚实告警（非静默错值）。
+- [x] **AC-4（FR-5）**：尝试从配置中心关审计持久化 → `ENG-AUDIT-001` / `CONFIG_PROTECTED` 类护栏拦截；D5 UI 置灰不可关由页面卡呈现。
+- [x] **AC-5（FR-6）**：高危项变更需二次确认；配置存储读失败 → 回退安全默认 + 诚实告警（非静默错值）。
 - 关联 A1–A9：A6 合规运维（配置治理 + 审计）。
 - T-GATE：后端门禁全绿（配置不写死 yml / 读失败不静默伪造）。
 - B0 验收：纯确定性配置引擎，天然 B0。
 
 ## 完工证据
 - PR1 本地证据：`mk_config_item` / `mk_config_history` 五方言迁移；`SystemConfigControllerTest` 覆盖配置中心元数据、运行 Feature Flag 热生效、API 更新来源标记与历史记录；运行底座 `RuntimeOperationsService` 已从配置中心读取 Feature Flag，YML 仅作为启动种子与缺失兜底；审计持久化、国密增强高危运行开关禁止从配置中心关闭，拒绝动作写入审计。
+- PR2 本地证据：新增配置回滚端点 `POST /api/v1/system/configs/{key}/rollback`；配置更新支持 `expectedVersion` 防覆盖与 `confirmedHighRisk` 二次确认；高危更新/回滚缺确认返回 `ENG-CONFIG-002`；普通配置回滚写 `mk_config_history.change_type = ROLLBACK` 并记录 `AuditAction.ROLLBACK`；审计持久化/国密禁关仍优先返回 `ENG-AUDIT-001` / `ENG-CONFIG-001`；运行 Feature Flag 与备份配置读取失败或布尔非法时回退安全默认并通过 `source/warning` 暴露，Provider 状态页展示告警。
 - 代码 permalink：配置存储 / 热生效机制 / 变更审计 + 回滚 / 高危护栏 / 启动引导边界 / yml→DB 迁入种子。
 - 测试：热生效测试 + 变更审计回滚测试 + 高危护栏拦截测试 + 启动边界测试 + 读失败安全默认测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
@@ -77,3 +78,4 @@ N·A —— 本卡是配置**引擎**；前台「系统配置中心」界面是 
 ## 大卡工序（5d，后端）
 - PR1：`mk_config_item` / `mk_config_history` 存储 + 元数据 + 运行 Feature Flag 热生效 + 启动引导边界 + 审计/国密高危关闭护栏 → 支撑 AC-1/3/5 的第一段。
 - PR2：变更审计 + 回滚点 + 高危护栏 + 二次确认 + 读失败兜底 → AC-2/4/5。
+- PR3（待）：JWT TTL / Cookie 策略 / 日志级别热读取 + 启动引导边界门禁 → 收口 AC-1 剩余项与 AC-3。

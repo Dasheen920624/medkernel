@@ -8,9 +8,13 @@ import jakarta.validation.constraints.Size;
  *
  * @param value  配置值，按 valueType 做业务校验
  * @param reason 变更原因，写入配置历史与审计快照
+ * @param expectedVersion 前端读取到的配置版本，用于避免覆盖他人变更
+ * @param confirmedHighRisk 高危配置影响二次确认
  */
 public record SystemConfigUpdateRequest(
     @NotBlank String value,
-    @Size(max = 500) String reason
+    @Size(max = 500) String reason,
+    Long expectedVersion,
+    Boolean confirmedHighRisk
 ) {
 }

@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,5 +45,14 @@ public class SystemConfigController {
                                                       Authentication authentication) {
         String actor = SystemConfigService.currentActor(authentication == null ? null : authentication.getName());
         return ApiResult.ok(service.update(key, request, actor));
+    }
+
+    @PostMapping("/{key:.+}/rollback")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<SystemConfigItemResponse> rollback(@PathVariable String key,
+                                                        @Valid @RequestBody SystemConfigRollbackRequest request,
+                                                        Authentication authentication) {
+        String actor = SystemConfigService.currentActor(authentication == null ? null : authentication.getName());
+        return ApiResult.ok(service.rollback(key, request, actor));
     }
 }

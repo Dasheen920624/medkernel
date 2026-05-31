@@ -165,6 +165,20 @@ export default function SystemProviders() {
                 dataIndex: "risk",
                 render: (risk) => <Tag color={RISK_COLOR[risk] ?? "default"}>{risk}</Tag>,
               },
+              {
+                title: "配置来源",
+                dataIndex: "source",
+                render: (source, record) => (
+                  <Space direction="vertical" size={2}>
+                    <Tag color={source === "SAFE_DEFAULT" ? "warning" : "processing"}>
+                      {source ?? "CONFIG_CENTER"}
+                    </Tag>
+                    {record.warning ? (
+                      <Typography.Text type="warning">{record.warning}</Typography.Text>
+                    ) : null}
+                  </Space>
+                ),
+              },
               { title: "负责人", dataIndex: "owner" },
               { title: "说明", dataIndex: "description" },
             ]}
@@ -180,6 +194,12 @@ export default function SystemProviders() {
                 <Typography.Text>备份脚本：{data.backup.backupScript}</Typography.Text>
                 <Typography.Text>恢复脚本：{data.backup.restoreScript}</Typography.Text>
                 <Typography.Text>{data.backup.checksumPolicy}</Typography.Text>
+                {data.backup.source ? (
+                  <Typography.Text>配置来源：{data.backup.source}</Typography.Text>
+                ) : null}
+                {data.backup.warning ? (
+                  <Typography.Text type="warning">{data.backup.warning}</Typography.Text>
+                ) : null}
               </Space>
             </Card>
           </Col>

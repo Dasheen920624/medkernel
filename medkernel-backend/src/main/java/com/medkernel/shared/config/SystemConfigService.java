@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class SystemConfigService {
     static final String RUNTIME_FLAG_PREFIX = "medkernel.runtime.feature-flags.";
     static final String RUNTIME_FLAG_SUFFIX = ".enabled";
     static final String RUNTIME_BACKUP_PREFIX = "medkernel.runtime.backup.";
+    private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
 
@@ -62,7 +64,9 @@ public class SystemConfigService {
         auditSafetyGuard.assertChangeAllowed(
             new AuditConfigChangeCommand(normalizedKey, before.value(), value, request.reason()));
         assertProtectedRuntimeDisableAllowed(before, value, request.reason());
-        SystemConfigItem after = repository.updateValue(SYSTEM_TENANT, normalizedKey, value, actor, request.reason());
+        assertHighRiskChangeConfirmed(before, request.reason(), request.confirmedHighRisk());
+        SystemConfigItem after = repository.updateValue(
+            SYSTEM_TENANT, normalizedKey, value, actor, request.reason(), request.expectedVersion());
         auditRecorder.record(new AuditRecordCommand(
             AuditAction.UPDATE,
             "system_config",
@@ -70,6 +74,32 @@ public class SystemConfigService {
             "更新配置项：" + normalizedKey,
             snapshot(before, request.reason()),
             snapshot(after, request.reason()),
+            null));
+        return SystemConfigItemResponse.from(after);
+    }
+
+    @Transactional
+    public SystemConfigItemResponse rollback(String key, SystemConfigRollbackRequest request, String actor) {
+        String normalizedKey = normalizeKey(key);
+        String reason = normalizeReason(request.reason());
+        SystemConfigItem before = repository.findActive(SYSTEM_TENANT, normalizedKey)
+            .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
+        SystemConfigHistoryEntry latest = repository.findLatestHistory(SYSTEM_TENANT, normalizedKey)
+            .orElseThrow(() -> ApiException.conflict("配置项没有可回滚的历史版本"));
+        String targetValue = normalizeValue(latest.beforeValue());
+        validateValue(before, targetValue);
+        auditSafetyGuard.assertChangeAllowed(
+            new AuditConfigChangeCommand(normalizedKey, before.value(), targetValue, reason));
+        assertProtectedRuntimeDisableAllowed(before, targetValue, reason);
+        assertHighRiskChangeConfirmed(before, reason, request.confirmedHighRisk());
+        SystemConfigItem after = repository.rollbackValue(SYSTEM_TENANT, normalizedKey, targetValue, actor, reason);
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.ROLLBACK,
+            "system_config",
+            normalizedKey,
+            "回滚配置项：" + normalizedKey,
+            snapshot(before, reason),
+            snapshot(after, reason),
             null));
         return SystemConfigItemResponse.from(after);
     }
@@ -96,45 +126,63 @@ public class SystemConfigService {
 
     public RuntimeBackupReadiness runtimeBackupReadiness(RuntimeProperties properties) {
         RuntimeProperties.Backup backup = properties.getBackup();
+        RuntimeBooleanRead enabled = readRuntimeBooleanConfig(RUNTIME_BACKUP_PREFIX + "enabled", backup.isEnabled());
+        RuntimeStringRead rpo = readRuntimeStringConfig(RUNTIME_BACKUP_PREFIX + "rpo", backup.getRpo());
+        RuntimeStringRead rto = readRuntimeStringConfig(RUNTIME_BACKUP_PREFIX + "rto", backup.getRto());
+        RuntimeStringRead backupScript = readRuntimeStringConfig(
+            RUNTIME_BACKUP_PREFIX + "backup-script", backup.getBackupScript());
+        RuntimeStringRead restoreScript = readRuntimeStringConfig(
+            RUNTIME_BACKUP_PREFIX + "restore-script", backup.getRestoreScript());
+        RuntimeStringRead checksumPolicy = readRuntimeStringConfig(
+            RUNTIME_BACKUP_PREFIX + "checksum-policy", backup.getChecksumPolicy());
         return new RuntimeBackupReadiness(
-            readBooleanValue(RUNTIME_BACKUP_PREFIX + "enabled", backup.isEnabled()),
-            readStringValue(RUNTIME_BACKUP_PREFIX + "rpo", backup.getRpo()),
-            readStringValue(RUNTIME_BACKUP_PREFIX + "rto", backup.getRto()),
-            readStringValue(RUNTIME_BACKUP_PREFIX + "backup-script", backup.getBackupScript()),
-            readStringValue(RUNTIME_BACKUP_PREFIX + "restore-script", backup.getRestoreScript()),
-            readStringValue(RUNTIME_BACKUP_PREFIX + "checksum-policy", backup.getChecksumPolicy())
+            enabled.value(),
+            rpo.value(),
+            rto.value(),
+            backupScript.value(),
+            restoreScript.value(),
+            checksumPolicy.value(),
+            aggregateSource(enabled.source(), rpo.source(), rto.source(), backupScript.source(),
+                restoreScript.source(), checksumPolicy.source()),
+            aggregateWarning(enabled.warning(), rpo.warning(), rto.warning(), backupScript.warning(),
+                restoreScript.warning(), checksumPolicy.warning())
         );
     }
 
     private RuntimeFeatureFlag runtimeFeatureFlag(String key, RuntimeProperties.FeatureFlag fallback) {
-        SystemConfigItem config = repository.findActive(SYSTEM_TENANT, configKey(key)).orElse(null);
-        boolean enabled = config == null ? fallback.isEnabled() : parseBoolean(config.value(), fallback.isEnabled());
+        RuntimeBooleanRead read = readRuntimeBooleanConfig(configKey(key), fallback.isEnabled());
+        SystemConfigItem config = read.item();
         return new RuntimeFeatureFlag(
             key,
             valueOrFallback(config == null ? null : config.displayName(), fallback.getDisplayName()),
-            enabled,
+            read.value(),
             valueOrFallback(config == null ? null : config.risk(), fallback.getRisk()),
             valueOrFallback(config == null ? null : config.owner(), fallback.getOwner()),
-            valueOrFallback(config == null ? null : config.description(), fallback.getDescription()));
+            valueOrFallback(config == null ? null : config.description(), fallback.getDescription()),
+            read.source(),
+            read.warning());
     }
 
     private boolean readFlagValue(String configKey, boolean fallback) {
-        return repository.findActive(SYSTEM_TENANT, configKey)
-            .map(item -> parseBoolean(item.value(), fallback))
-            .orElse(fallback);
+        return readRuntimeBooleanConfig(configKey, fallback).value();
     }
 
-    private boolean readBooleanValue(String configKey, boolean fallback) {
-        return repository.findActive(SYSTEM_TENANT, configKey)
-            .map(item -> parseBoolean(item.value(), fallback))
-            .orElse(fallback);
-    }
-
-    private String readStringValue(String configKey, String fallback) {
-        return repository.findActive(SYSTEM_TENANT, configKey)
-            .map(SystemConfigItem::value)
-            .filter(value -> !value.isBlank())
-            .orElse(fallback);
+    private RuntimeStringRead readRuntimeStringConfig(String configKey, String fallback) {
+        try {
+            SystemConfigItem item = repository.findActive(SYSTEM_TENANT, configKey).orElse(null);
+            if (item == null || item.value() == null || item.value().isBlank()) {
+                return new RuntimeStringRead(
+                    fallback,
+                    SAFE_DEFAULT_SOURCE,
+                    "配置中心缺少运行配置，已使用启动安全默认。");
+            }
+            return new RuntimeStringRead(item.value(), valueOrFallback(item.source(), "CONFIG_CENTER"), null);
+        } catch (DataAccessException ignored) {
+            return new RuntimeStringRead(
+                fallback,
+                SAFE_DEFAULT_SOURCE,
+                "配置中心读取失败，已使用启动安全默认。");
+        }
     }
 
     private static String configKey(String runtimeFlagKey) {
@@ -152,8 +200,13 @@ public class SystemConfigService {
     }
 
     private static boolean parseBoolean(String value, boolean fallback) {
+        Boolean parsed = parseBooleanOrNull(value);
+        return parsed == null ? fallback : parsed;
+    }
+
+    private static Boolean parseBooleanOrNull(String value) {
         if (value == null) {
-            return fallback;
+            return null;
         }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         if ("true".equals(normalized)) {
@@ -162,7 +215,7 @@ public class SystemConfigService {
         if ("false".equals(normalized)) {
             return false;
         }
-        return fallback;
+        return null;
     }
 
     private static String normalizeKey(String key) {
@@ -177,6 +230,13 @@ public class SystemConfigService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "配置值不能为空");
         }
         return value.trim();
+    }
+
+    private static String normalizeReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "配置变更原因不能为空");
+        }
+        return reason.trim();
     }
 
     private static Map<String, Object> snapshot(SystemConfigItem item, String reason) {
@@ -209,8 +269,95 @@ public class SystemConfigService {
         throw new ApiException(ErrorCode.ENG_CONFIG_001);
     }
 
+    private void assertHighRiskChangeConfirmed(SystemConfigItem item, String reason, Boolean confirmedHighRisk) {
+        if (!isHighRisk(item)) {
+            return;
+        }
+        if (Boolean.TRUE.equals(confirmedHighRisk) && reason != null && !reason.isBlank()) {
+            return;
+        }
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.PERMISSION_CHANGE,
+            "system_config",
+            item.key(),
+            "拒绝未确认高危配置变更：" + item.key(),
+            snapshot(item, reason),
+            Map.of("key", item.key(), "reason", reason == null ? "" : reason),
+            null));
+        throw new ApiException(ErrorCode.ENG_CONFIG_002);
+    }
+
+    private static boolean isHighRisk(SystemConfigItem item) {
+        return item.protectedConfig() || "HIGH".equalsIgnoreCase(item.risk());
+    }
+
+    private RuntimeBooleanRead readRuntimeBooleanConfig(String configKey, boolean fallback) {
+        try {
+            SystemConfigItem item = repository.findActive(SYSTEM_TENANT, configKey).orElse(null);
+            if (item == null) {
+                return new RuntimeBooleanRead(
+                    null,
+                    fallback,
+                    SAFE_DEFAULT_SOURCE,
+                    "配置中心缺少运行配置，已使用启动安全默认。");
+            }
+            Boolean parsed = parseBooleanOrNull(item.value());
+            if (parsed == null) {
+                return new RuntimeBooleanRead(
+                    item,
+                    fallback,
+                    SAFE_DEFAULT_SOURCE,
+                    "配置中心布尔值非法，已使用启动安全默认。");
+            }
+            return new RuntimeBooleanRead(item, parsed, valueOrFallback(item.source(), "CONFIG_CENTER"), null);
+        } catch (DataAccessException ignored) {
+            return new RuntimeBooleanRead(
+                null,
+                fallback,
+                SAFE_DEFAULT_SOURCE,
+                "配置中心读取失败，已使用启动安全默认。");
+        }
+    }
+
+    private static String aggregateSource(String... sources) {
+        for (String source : sources) {
+            if (SAFE_DEFAULT_SOURCE.equals(source)) {
+                return SAFE_DEFAULT_SOURCE;
+            }
+        }
+        for (String source : sources) {
+            if (source != null && !source.isBlank()) {
+                return source;
+            }
+        }
+        return "CONFIG_CENTER";
+    }
+
+    private static String aggregateWarning(String... warnings) {
+        return java.util.Arrays.stream(warnings)
+            .filter(warning -> warning != null && !warning.isBlank())
+            .distinct()
+            .reduce((left, right) -> left + " " + right)
+            .orElse(null);
+    }
+
     private static String valueOrFallback(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private record RuntimeBooleanRead(
+        SystemConfigItem item,
+        boolean value,
+        String source,
+        String warning
+    ) {
+    }
+
+    private record RuntimeStringRead(
+        String value,
+        String source,
+        String warning
+    ) {
     }
 
     public static String currentActor(String authenticationName) {

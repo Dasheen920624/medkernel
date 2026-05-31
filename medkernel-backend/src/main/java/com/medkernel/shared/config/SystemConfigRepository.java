@@ -22,6 +22,7 @@ import com.medkernel.shared.api.error.ApiException;
 public class SystemConfigRepository {
 
     private static final RowMapper<SystemConfigItem> ROW_MAPPER = SystemConfigRepository::mapRow;
+    private static final RowMapper<SystemConfigHistoryEntry> HISTORY_ROW_MAPPER = SystemConfigRepository::mapHistoryRow;
 
     private final JdbcTemplate jdbc;
 
@@ -87,9 +88,42 @@ public class SystemConfigRepository {
         }
     }
 
-    public SystemConfigItem updateValue(String tenantId, String key, String value, String actor, String reason) {
+    public Optional<SystemConfigHistoryEntry> findLatestHistory(String tenantId, String key) {
+        List<SystemConfigHistoryEntry> rows = jdbc.query("""
+            SELECT tenant_id, config_key, before_value, after_value, change_type,
+                   version, created_at, created_by
+              FROM mk_config_history
+             WHERE tenant_id = ? AND config_key = ?
+             ORDER BY version DESC, created_at DESC
+            """, HISTORY_ROW_MAPPER, tenantId, key);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    public SystemConfigItem updateValue(String tenantId,
+                                        String key,
+                                        String value,
+                                        String actor,
+                                        String reason,
+                                        Long expectedVersion) {
+        return changeValue(tenantId, key, value, actor, reason, expectedVersion, "UPDATE");
+    }
+
+    public SystemConfigItem rollbackValue(String tenantId, String key, String value, String actor, String reason) {
+        return changeValue(tenantId, key, value, actor, reason, null, "ROLLBACK");
+    }
+
+    private SystemConfigItem changeValue(String tenantId,
+                                         String key,
+                                         String value,
+                                         String actor,
+                                         String reason,
+                                         Long expectedVersion,
+                                         String changeType) {
         SystemConfigItem before = findActive(tenantId, key)
             .orElseThrow(() -> ApiException.notFound("配置项 " + key));
+        if (expectedVersion != null && before.version() != expectedVersion) {
+            throw ApiException.conflict("配置项版本已变化，请刷新后重试");
+        }
         Instant now = Instant.now();
         long nextVersion = before.version() + 1;
         int updated = jdbc.update("""
@@ -111,13 +145,14 @@ public class SystemConfigRepository {
             INSERT INTO mk_config_history (
                 history_id, tenant_id, config_key, before_value, after_value, change_type,
                 reason, version, created_at, created_by
-            ) VALUES (?, ?, ?, ?, ?, 'UPDATE', ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             "cfg-hist-" + UUID.randomUUID(),
             tenantId,
             key,
             before.value(),
             value,
+            changeType,
             reason,
             nextVersion,
             Timestamp.from(now),
@@ -142,6 +177,19 @@ public class SystemConfigRepository {
             "Y".equalsIgnoreCase(rs.getString("active_flag")),
             rs.getLong("version"),
             updatedAt == null ? null : updatedAt.toInstant());
+    }
+
+    private static SystemConfigHistoryEntry mapHistoryRow(ResultSet rs, int rowNum) throws SQLException {
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        return new SystemConfigHistoryEntry(
+            rs.getString("tenant_id"),
+            rs.getString("config_key"),
+            rs.getString("before_value"),
+            rs.getString("after_value"),
+            rs.getString("change_type"),
+            rs.getLong("version"),
+            createdAt == null ? null : createdAt.toInstant(),
+            rs.getString("created_by"));
     }
 
     private static String flag(boolean value) {
