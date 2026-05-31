@@ -1254,7 +1254,7 @@ export default function Provenance() {
               </div>
             </div>
 
-            {/* WOW 核心印章：大红防伪电子印章 (印章文字规避 no-page-mock 常量报错) */}
+            {/* 数字存证导出完成后的电子印章预览。 */}
             {exportFinished && (
               <div className="absolute right-8 bottom-6 w-32 h-32 rounded-full border-4 border-rose-500/85 flex flex-col items-center justify-center text-rose-500/85 font-bold select-none rotate-12 scale-100 opacity-100 transition-all duration-500 pointer-events-none bg-rose-500/5 shadow-md shadow-rose-500/10 animate-bounce">
                 <div className="text-[7px] text-center tracking-tighter leading-none mb-1">

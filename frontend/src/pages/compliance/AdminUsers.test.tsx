@@ -6,6 +6,13 @@ const refetchCredentials = vi.fn();
 const provisionTenantMock = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
+  useSecurityProfile: () => ({
+    data: {
+      dataScope: {
+        tenantId: "tenant-test",
+      },
+    },
+  }),
   useUserRoleAssignments: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
   useCreateUserRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteUserRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),

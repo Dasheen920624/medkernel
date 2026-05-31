@@ -62,6 +62,10 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - 测试：净化后 T-GATE 红绿截图 + grep 清零报告 + 受影响功能回归测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
+## 执行记录
+
+- PR1（前端净化首批）：清理通知、待办、身份源、安全基线、医保审核、质控驾驶舱 6 个本地假闭环页面；`QcEvalSets` 删除 `DEMO_SNAPSHOTS` 并按患者或就诊读取真实 `context/snapshots`；补强真实性门禁 `frontend.mock-bypass-language` / `frontend.demo-snapshot-export`。记录见 [BASE-09 前端净化 PR1 记录](../../audit/BASE-09-frontend-cleanup-pr1.md)。本 PR 仍不勾选 FR/AC，残留项按报告继续下一批净化。
+
 ## 大卡工序（2d，存量重构，建议按"前端 mock / 后端 Map / 假证据"三组分 PR）
 - PR1：前端 mock 假闭环 + eslint-disable 清除 → AC-1。
 - PR2：后端裸 Map + 硬编码常量 + 假证据/假同步清除 + 报告 → AC-2/3/4/5。
