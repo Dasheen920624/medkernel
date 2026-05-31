@@ -24,6 +24,8 @@ const snapshot = {
       risk: "MEDIUM",
       owner: "信息科 / 架构组",
       description: "控制 Neo4j 图谱投影和图谱查询能力是否参与运行。",
+      source: "SAFE_DEFAULT",
+      warning: "配置中心读取失败，已使用启动安全默认。",
     },
     {
       key: "dify-workflow",
@@ -32,6 +34,8 @@ const snapshot = {
       risk: "MEDIUM",
       owner: "AI 平台组",
       description: "控制 Dify 工作流接入。",
+      source: "YML_SEED",
+      warning: null,
     },
   ],
   dependencies: [
@@ -67,6 +71,8 @@ const snapshot = {
     backupScript: "./deploy/docker/scripts/backup.sh",
     restoreScript: "./deploy/docker/scripts/restore.sh",
     checksumPolicy: "SHA-256 摘要随备份文件生成，恢复前自动校验",
+    source: "SAFE_DEFAULT",
+    warning: "备份策略读取失败，已使用启动安全默认。",
   },
   domesticProfile: {
     targetOs: "麒麟 / 统信 / openEuler",
@@ -98,7 +104,9 @@ describe("SystemProviders", () => {
     expect(screen.getByText("postgres")).toBeInTheDocument();
     expect(screen.getAllByText("知识图谱投影").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Dify 工作流").length).toBeGreaterThan(0);
+    expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(screen.getAllByText("备份恢复").length).toBeGreaterThan(0);
+    expect(screen.getByText("备份策略读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(
       screen.getAllByText("SHA-256 摘要随备份文件生成，恢复前自动校验").length,
     ).toBeGreaterThan(0);

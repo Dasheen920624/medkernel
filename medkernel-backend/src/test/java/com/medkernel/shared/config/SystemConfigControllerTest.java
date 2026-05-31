@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +33,7 @@ class SystemConfigControllerTest {
     private static final String GRAPH_FLAG_KEY = "medkernel.runtime.feature-flags.graph-projection.enabled";
     private static final String AUDIT_FLAG_KEY = "medkernel.runtime.feature-flags.audit-persistence.enabled";
     private static final String DOMESTIC_CRYPTO_FLAG_KEY = "medkernel.runtime.feature-flags.domestic-crypto.enabled";
+    private static final String EXTERNAL_PROVIDER_FLAG_KEY = "medkernel.runtime.feature-flags.external-provider.enabled";
     private static final String BACKUP_ENABLED_KEY = "medkernel.runtime.backup.enabled";
     private static final String BACKUP_RPO_KEY = "medkernel.runtime.backup.rpo";
     private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
@@ -57,8 +59,13 @@ class SystemConfigControllerTest {
                SET config_value = 'true', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key IN (?, ?)
             """, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY);
-        jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?)",
-            GRAPH_FLAG_KEY, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, EXTERNAL_PROVIDER_FLAG_KEY);
+        jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?, ?)",
+            GRAPH_FLAG_KEY, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY, EXTERNAL_PROVIDER_FLAG_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -140,6 +147,101 @@ class SystemConfigControllerTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
+    void highRiskFeatureFlagRequiresSecondConfirmationBeforeUpdate() throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "true",
+                      "reason": "验证高危配置必须二次确认",
+                      "expectedVersion": 1
+                    }
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ENG-CONFIG-002"));
+
+        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
+
+        mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "true",
+                      "reason": "已完成高危配置影响确认",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.key").value(EXTERNAL_PROVIDER_FLAG_KEY))
+            .andExpect(jsonPath("$.data.value").value("true"))
+            .andExpect(jsonPath("$.data.version").value(2));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void configRollbackRestoresPreviousValueAndWritesRollbackHistory() throws Exception {
+        patchConfig(GRAPH_FLAG_KEY, "true", "验证配置回滚前置变更");
+        assertThat(runtimeFlag("graph-projection").enabled()).isTrue();
+
+        mvc.perform(post("/api/v1/system/configs/{key}/rollback", GRAPH_FLAG_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "回滚到上一版本"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.key").value(GRAPH_FLAG_KEY))
+            .andExpect(jsonPath("$.data.value").value("false"))
+            .andExpect(jsonPath("$.data.version").value(3));
+
+        assertThat(runtimeFlag("graph-projection").enabled()).isFalse();
+        Integer rollbackCount = jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*) FROM mk_config_history
+             WHERE config_key = ? AND change_type = 'ROLLBACK'
+               AND before_value = 'true' AND after_value = 'false'
+            """,
+            Integer.class,
+            GRAPH_FLAG_KEY);
+        assertThat(rollbackCount).isEqualTo(1);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void highRiskRollbackRequiresSecondConfirmation() throws Exception {
+        patchHighRiskConfig(EXTERNAL_PROVIDER_FLAG_KEY, "true", "先开启高危配置以验证回滚确认");
+
+        mvc.perform(post("/api/v1/system/configs/{key}/rollback", EXTERNAL_PROVIDER_FLAG_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "缺少二次确认的高危回滚"
+                    }
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ENG-CONFIG-002"));
+
+        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("true");
+
+        mvc.perform(post("/api/v1/system/configs/{key}/rollback", EXTERNAL_PROVIDER_FLAG_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "已确认高危配置回滚影响",
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.value").value("false"))
+            .andExpect(jsonPath("$.data.version").value(3));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
     void auditPersistenceFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", AUDIT_FLAG_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -187,6 +289,13 @@ class SystemConfigControllerTest {
             .orElseThrow();
     }
 
+    private String configValue(String key) {
+        return jdbcTemplate.queryForObject(
+            "SELECT config_value FROM mk_config_item WHERE tenant_id = 'SYSTEM' AND config_key = ?",
+            String.class,
+            key);
+    }
+
     private void patchConfig(String key, String value, String reason) throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", key)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -201,5 +310,19 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.data.key").value(key))
             .andExpect(jsonPath("$.data.value").value(value))
             .andExpect(jsonPath("$.data.source").value("API"));
+    }
+
+    private void patchHighRiskConfig(String key, String value, String reason) throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "%s",
+                      "reason": "%s",
+                      "confirmedHighRisk": true
+                    }
+                    """.formatted(value, reason)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
     }
 }

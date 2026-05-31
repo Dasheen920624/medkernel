@@ -118,6 +118,8 @@ export interface RuntimeFeatureFlag {
   risk: "LOW" | "MEDIUM" | "HIGH" | string;
   owner: string;
   description: string;
+  source?: string | null;
+  warning?: string | null;
 }
 
 export interface RuntimeDependencyStatus {
@@ -134,6 +136,8 @@ export interface RuntimeBackupReadiness {
   backupScript: string;
   restoreScript: string;
   checksumPolicy: string;
+  source?: string | null;
+  warning?: string | null;
 }
 
 export interface RuntimeDomesticProfile {

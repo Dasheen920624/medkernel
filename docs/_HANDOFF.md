@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-07 运行底座 PR2（备份恢复 + 国产化 smoke）🚧
+### 线 1 · CONFIG-01 配置中心 PR2（回滚 + 二次确认 + 读失败兜底）🚧
 
 - 类型：软件开发
-- 分支：codex/base-07-domestic-backup
-- 目标：完成 BASE-07 PR2 中无需新增页面的运行底座收口：备份策略从配置中心热读取、RPO/RTO 可治理、Docker 隔离恢复演练脚本、容器 profile 清理旧 Feature Flag 口径、国产化真实连接 smoke 脚本与国密 smoke 证据。
-- 状态：CONFIG-01 PR1 已由 #190 合入 `origin/main`（merge `532f227`）。当前分支已写红灯并转绿：备份启用/RPO/RTO 可经配置中心 PATCH 后无需重启即时反映到 `/api/v1/system/operations`；`application-container.yml` 已移除旧 `graph-enabled/dify-enabled` 口径，统一走 `feature-flags`；新增 `backup-restore-drill.sh` 与 `govcloud-smoke.sh`；本机 Docker 已跑一次隔离恢复演练，证据文件在本机 runtime：`restore-drill-20260601-031730.txt`。本地验证已跑：后端全量、前端 verify/build、部署资产合同、真实性门禁、迁移规约门禁、中文注释门禁、diff 空白检查。达梦/人大金仓真实连接仍需具备闭源驱动和内网实例的自托管环境执行，当前不得伪造通过。
-- 下一步（精确到动作/命令）：1. 提交并推送 `codex/base-07-domestic-backup`；2. 创建 PR 并等待远端 CI；3. 远端 CI 全绿后合并；4. 回到最新 `origin/main`，若无国产化自托管环境则继续 CONFIG-01 PR2（回滚/二次确认/读失败兜底）或下一张 D0 卡，不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：`deploy/docker/scripts/backup-restore-drill.sh` 必须恢复到隔离库，禁止覆盖 `MEDKERNEL_DB_NAME` 主库；`govcloud-smoke.sh` 缺真实达梦/人大金仓连接条件必须失败，不得用 H2/PostgreSQL 冒充国产化连通；后续 AI 不得把 `application-*.yml` 旧 `graph-enabled/dify-enabled` 当当前模型。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
+- 分支：codex/config-01-rollback-guard
+- 目标：完成 CONFIG-01 PR2：配置变更回滚到前值、回滚历史与审计、`expectedVersion` 版本防覆盖、高危配置二次确认、审计/国密禁关护栏保持优先、Feature Flag/备份配置中心读失败时安全默认并在运行页面诚实告警。
+- 状态：已基于最新 `origin/main` 开工；红灯已覆盖高危配置未确认不能改、配置回滚写 `ROLLBACK` 历史、高危回滚必须确认、配置中心读取失败/布尔非法时 Feature Flag 安全默认并暴露 `source/warning`、备份配置读取失败安全默认并暴露 `source/warning`、Provider 状态页展示降级告警。当前目标测试已转绿：后端 `mvn -q -Dtest=SystemConfigControllerTest,SystemConfigServiceTest,RuntimeOperationsControllerTest test`，前端 `npm run test -- SystemProviders.test.tsx`。
+- 下一步（精确到动作/命令）：1. 更新 `docs/cards/D0/CONFIG-01.md` 勾选 PR2 已证实项并保留 JWT TTL/Cookie/日志级别与启动边界缺口；2. 跑完整后端/前端验证与 T-GATE；3. 提交、推送、创建 PR；4. 等远端 CI 全绿后合并；5. 回到最新 `origin/main`，继续 CONFIG-01 剩余 PR 或下一张 D0 卡，D0 域级验收前不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：`SystemConfigService` 的高危确认必须排在审计持久化/国密禁关护栏之后，避免把 `ENG-AUDIT-001` / `ENG-CONFIG-001` 误覆盖成二次确认错误；`RuntimeOperationsSnapshot` 新增 `source/warning` 是运行诚实降级契约，前端不得吞掉；回滚只回最近前值，不做任意历史版本跳转，避免未经业务确认的复杂回滚语义。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-07 运行底座 PR2（备份恢复 + 国产化 smoke）✅（#191）：备份启用/RPO/RTO 可经配置中心 PATCH 后无需重启即时反映到 `/api/v1/system/operations`；`application-container.yml` 已移除旧 `graph-enabled/dify-enabled` 口径；新增隔离恢复演练脚本与国产化真实连接 smoke 脚本；本机 Docker 已跑隔离恢复演练，后端全量、前端 verify/build、部署资产合同、真实性门禁、迁移规约门禁、中文注释门禁、diff 空白检查与远端 CI 8/8 通过并合入 `origin/main`（merge `ccbfded`）。达梦/人大金仓真实连接需闭源驱动和内网实例自托管执行，不得伪造。
 - CONFIG-01 配置中心 PR1 ✅（#190）：`mk_config_item` / `mk_config_history` 五方言存储 + 元数据 + 运行 Feature Flag 热生效 + 启动 YML 种子 + 高危审计/国密开关关闭护栏；本地后端全量、前端 verify/build、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `532f227`）。
 - BASE-07 运行底座 PR1 ✅（#189）：开启 actuator liveness/readiness；运行快照依赖状态收紧为 `NOT_CONNECTED` / `MODEL_DISABLED` / `DEGRADED`，不再用旧 `DISABLED` 假关闭；前端 Provider 状态页同步中文展示；BASE-07 勾选 FR-2/FR-3 与 AC-2/AC-5；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-06 前端 IA 骨架 PR1 ✅（#186）：锁定 5+1 / 27+5 菜单 IA、路由 `requiredPermissions/requiredRoles`、权限码驱动菜单和直接访问判定、授权命令面板与 Ctrl/Cmd+K；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
@@ -77,4 +78,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-07 PR2 正在收口备份配置中心热读取、隔离恢复演练、容器 profile 旧口径清理与国产化 smoke 脚本；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · CONFIG-01 PR2 正在收口配置回滚、高危二次确认与读失败安全默认/诚实告警；D0 域级验收前不得启动 D1 新功能 PR
