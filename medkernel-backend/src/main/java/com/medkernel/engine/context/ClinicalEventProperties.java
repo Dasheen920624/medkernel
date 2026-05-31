@@ -16,7 +16,8 @@ public record ClinicalEventProperties(
     Duration syncTimeout,
     int workerBatchSize,
     int maxRetries,
-    List<Long> backoffSeconds
+    List<Long> backoffSeconds,
+    long workerPollIntervalMs
 ) {
 
     public ClinicalEventProperties {
@@ -37,9 +38,20 @@ public record ClinicalEventProperties(
         } else {
             backoffSeconds = List.copyOf(backoffSeconds);
         }
+        if (workerPollIntervalMs <= 0) {
+            workerPollIntervalMs = 200L;
+        }
+    }
+
+    public ClinicalEventProperties(long maxPayloadSizeBytes,
+                                   Duration syncTimeout,
+                                   int workerBatchSize,
+                                   int maxRetries,
+                                   List<Long> backoffSeconds) {
+        this(maxPayloadSizeBytes, syncTimeout, workerBatchSize, maxRetries, backoffSeconds, 200L);
     }
 
     public ClinicalEventProperties() {
-        this(1_048_576L, Duration.ofSeconds(3), 50, 5, List.of(5L, 30L, 300L, 1800L));
+        this(1_048_576L, Duration.ofSeconds(3), 50, 5, List.of(5L, 30L, 300L, 1800L), 200L);
     }
 }

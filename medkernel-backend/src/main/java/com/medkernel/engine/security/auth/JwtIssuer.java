@@ -13,11 +13,14 @@ import com.nimbusds.jwt.SignedJWT;
 
 import java.nio.charset.StandardCharsets;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
+import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.security.AuthJwtProperties;
 
 /**
  * 平台 JWT 签发器（HS256，复用 medkernel.jwt.dev-secret，与 devJwtDecoder 对称验签）。
@@ -27,13 +30,23 @@ import com.medkernel.shared.context.JwtClaimsResolver;
 public class JwtIssuer {
 
     private final byte[] secret;
-    private final long ttlSeconds;
+    private final AuthJwtProperties properties;
+    private final SystemConfigService configService;
 
+    @Autowired
     public JwtIssuer(
             @Value("${medkernel.jwt.dev-secret:medkernel-dev-secret-please-change-at-least-32-bytes}") String secret,
-            @Value("${medkernel.auth.jwt.ttl-seconds:28800}") long ttlSeconds) {
+            AuthJwtProperties properties,
+            SystemConfigService configService) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
-        this.ttlSeconds = ttlSeconds;
+        this.properties = properties;
+        this.configService = configService;
+    }
+
+    JwtIssuer(String secret, long ttlSeconds) {
+        this.secret = secret.getBytes(StandardCharsets.UTF_8);
+        this.properties = new AuthJwtProperties(ttlSeconds);
+        this.configService = null;
     }
 
     public String issue(String userId, String tenantId, List<String> roles) {
@@ -44,7 +57,7 @@ public class JwtIssuer {
                 .claim(JwtClaimsResolver.CLAIM_TENANT_ID, tenantId)
                 .claim(JwtClaimsResolver.CLAIM_ROLES, roles)
                 .issueTime(Date.from(now))
-                .expirationTime(Date.from(now.plusSeconds(ttlSeconds)))
+                .expirationTime(Date.from(now.plusSeconds(ttlSeconds())))
                 .build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
             jwt.sign(new MACSigner(secret));
@@ -55,6 +68,6 @@ public class JwtIssuer {
     }
 
     public long ttlSeconds() {
-        return ttlSeconds;
+        return configService == null ? properties.ttlSeconds() : configService.runtimeJwtTtlSeconds(properties);
     }
 }

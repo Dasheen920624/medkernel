@@ -29,6 +29,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
 import com.medkernel.shared.context.TenantContextEnricherFilter;
+import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.idempotency.IdempotencyFilter;
 import com.medkernel.shared.idempotency.IdempotencyProperties;
 import com.medkernel.shared.idempotency.IdempotencyRepository;
@@ -54,7 +55,7 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
  */
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-@EnableConfigurationProperties(AuthCookieProperties.class)
+@EnableConfigurationProperties({AuthCookieProperties.class, AuthJwtProperties.class, AuditFallbackProperties.class})
 public class SecurityConfig {
 
     @Bean
