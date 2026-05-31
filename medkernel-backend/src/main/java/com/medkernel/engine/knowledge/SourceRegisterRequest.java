@@ -1,5 +1,8 @@
 package com.medkernel.engine.knowledge;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 来源文献注册请求。
  *
@@ -12,9 +15,13 @@ package com.medkernel.engine.knowledge;
  * @param language 语言，默认 zh-CN
  */
 public record SourceRegisterRequest(
+    @NotBlank
     String sourceCode,
+    @NotNull
     SourceType sourceType,
+    @NotNull
     SourceAuthorityLevel authorityLevel,
+    @NotBlank
     String title,
     String publisher,
     String license,

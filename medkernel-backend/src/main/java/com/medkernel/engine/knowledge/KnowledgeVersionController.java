@@ -79,7 +79,7 @@ public class KnowledgeVersionController {
      */
     @PostMapping("/versions/draft")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<KnowledgeAssetVersion> createDraftVersion(@RequestBody DraftVersionCreateRequest request) {
+    public ApiResult<KnowledgeAssetVersion> createDraftVersion(@Valid @RequestBody DraftVersionCreateRequest request) {
         return ApiResult.ok(versionService.createDraftVersion(request));
     }
 

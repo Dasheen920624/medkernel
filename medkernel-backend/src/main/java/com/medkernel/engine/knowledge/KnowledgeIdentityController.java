@@ -1,9 +1,12 @@
 package com.medkernel.engine.knowledge;
 
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -80,9 +83,9 @@ public class KnowledgeIdentityController {
      * @param request 来源文献注册请求
      * @return 来源文献实体
      */
-    @org.springframework.web.bind.annotation.PostMapping("/sources")
+    @PostMapping("/sources")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<SourceDocument> registerSource(@org.springframework.web.bind.annotation.RequestBody SourceRegisterRequest request) {
+    public ApiResult<SourceDocument> registerSource(@Valid @RequestBody SourceRegisterRequest request) {
         return ApiResult.ok(service.registerSource(request));
     }
 
@@ -92,9 +95,9 @@ public class KnowledgeIdentityController {
      * @param request 来源版本注册请求
      * @return 来源版本实体
      */
-    @org.springframework.web.bind.annotation.PostMapping("/sources/versions")
+    @PostMapping("/sources/versions")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<SourceVersion> registerSourceVersion(@org.springframework.web.bind.annotation.RequestBody SourceVersionRegisterRequest request) {
+    public ApiResult<SourceVersion> registerSourceVersion(@Valid @RequestBody SourceVersionRegisterRequest request) {
         return ApiResult.ok(service.registerSourceVersion(request));
     }
 
@@ -104,9 +107,9 @@ public class KnowledgeIdentityController {
      * @param request 片段创建请求
      * @return 文献片段实体
      */
-    @org.springframework.web.bind.annotation.PostMapping("/sources/fragments")
+    @PostMapping("/sources/fragments")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<SourceFragment> createFragment(@org.springframework.web.bind.annotation.RequestBody FragmentCreateRequest request) {
+    public ApiResult<SourceFragment> createFragment(@Valid @RequestBody FragmentCreateRequest request) {
         return ApiResult.ok(service.createFragment(request));
     }
 }

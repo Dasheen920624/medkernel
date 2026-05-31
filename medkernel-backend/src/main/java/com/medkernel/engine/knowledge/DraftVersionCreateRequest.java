@@ -1,5 +1,8 @@
 package com.medkernel.engine.knowledge;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 待审版本草稿创建请求。
  *
@@ -13,13 +16,13 @@ package com.medkernel.engine.knowledge;
  * @param riskLevel 风险级别
  */
 public record DraftVersionCreateRequest(
-    Long identityId,
-    String versionNo,
+    @NotNull Long identityId,
+    @NotBlank String versionNo,
     String versionLabel,
-    Long sourceDocumentId,
-    Long sourceVersionId,
-    String content,
+    @NotNull Long sourceDocumentId,
+    @NotNull Long sourceVersionId,
+    @NotBlank String content,
     String anchors,
-    KnowledgeRiskLevel riskLevel
+    @NotNull KnowledgeRiskLevel riskLevel
 ) {
 }

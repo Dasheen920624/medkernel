@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 统一响应信封**：成功 `ApiResult<T>{code,message,data,traceId}`；失败 `ProblemDetail`（RFC 7807，含 `type/title/status/detail/traceId`）。
-- [ ] **FR-2 入参 Record DTO**：所有 `@RequestBody` 用 Record DTO + Bean Validation；**禁** `Map<String,Object>` / 裸 `Object`（核心 #7，门禁在 [INFRA-02](INFRA-02.md)）。
-- [ ] **FR-3 traceId 全链路**：入口生成 / 透传 / 回显；与 [OBS-01](OBS-01.md) MDC 同源，不另造。
-- [ ] **FR-4 写操作幂等**：写端点支持幂等键（`Idempotency-Key` 头或业务键），重复提交返回**首次**结果不重复副作用。
-- [ ] **FR-5 统一异常处理**：`@RestControllerAdvice` 把业务异常 / 校验失败 → `ProblemDetail`，含**中文** reason + traceId（呼应六态错误态、[INFRA-03](INFRA-03.md)）。
-- [ ] **FR-6 错误码字典**：统一错误码枚举（与 OBS-01 `ErrorCode` 同源），分类业务/权限/校验/系统/降级；客户面文案中文。
+- [x] **FR-1 统一响应信封**：成功 `ApiResult<T>{code,message,data,traceId}`；失败 `ProblemDetail`（RFC 7807，含 `type/title/status/detail/traceId`）。
+- [x] **FR-2 入参 Record DTO**：所有 `@RequestBody` 用 Record DTO + Bean Validation；**禁** `Map<String,Object>` / 裸 `Object`（核心 #7，门禁在 [INFRA-02](INFRA-02.md)）。
+- [x] **FR-3 traceId 全链路**：入口生成 / 透传 / 回显；与 [OBS-01](OBS-01.md) MDC 同源，不另造。
+- [x] **FR-4 写操作幂等**：写端点支持幂等键（`Idempotency-Key` 头或业务键），重复提交返回**首次**结果不重复副作用。
+- [x] **FR-5 统一异常处理**：`@RestControllerAdvice` 把业务异常 / 校验失败 → `ProblemDetail`，含**中文** reason + traceId（呼应六态错误态、[INFRA-03](INFRA-03.md)）。
+- [x] **FR-6 错误码字典**：统一错误码枚举（与 OBS-01 `ErrorCode` 同源），分类业务/权限/校验/系统/降级；客户面文案中文。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -58,11 +58,11 @@ N·A —— 无页面。前端错误态消费本契约（`ProblemDetail` → For
 - 本卡落点：一套 `ApiResult/ProblemDetail` + `@RestControllerAdvice` + 幂等过滤器，钉死全端点的输入校验、错误信封、防重与 traceId。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/5）**：任一端点抛业务异常 → 返回 `ProblemDetail`（中文 reason + traceId + 正确 status），非 200 包错误。
-- [ ] **AC-2（FR-2）**：构造 `Map<String,Object>` 入参的端点被门禁/测试拒绝；Record DTO 校验失败返回字段级错误。
-- [ ] **AC-3（FR-3）**：一次请求的 traceId 在响应头、日志 MDC、ProblemDetail 三处一致。
-- [ ] **AC-4（FR-4）**：同一 `Idempotency-Key` 重复提交写端点 → 仅一次副作用，二次返回首次结果。
-- [ ] **AC-5（FR-6）**：错误码枚举集中且客户面文案中文；无裸英文异常信息直出客户。
+- [x] **AC-1（FR-1/5）**：任一端点抛业务异常 → 返回 `ProblemDetail`（中文 reason + traceId + 正确 status），非 200 包错误。
+- [x] **AC-2（FR-2）**：构造 `Map<String,Object>` 入参的端点被门禁/测试拒绝；Record DTO 校验失败返回字段级错误。
+- [x] **AC-3（FR-3）**：一次请求的 traceId 在响应头、日志 MDC、ProblemDetail 三处一致。
+- [x] **AC-4（FR-4）**：同一 `Idempotency-Key` 重复提交写端点 → 仅一次副作用，二次返回首次结果。
+- [x] **AC-5（FR-6）**：错误码枚举集中且客户面文案中文；无裸英文异常信息直出客户。
 - 关联 A1–A9：横切（各剧本错误处理均依赖）。
 - T-GATE：后端门禁全绿（无 Map 入参 / 无 catch 吞错伪造成功）。
 - B0 验收：纯确定性，天然 B0。

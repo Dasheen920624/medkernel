@@ -49,6 +49,10 @@ logging:
     com.medkernel: DEBUG
 
 medkernel:
+  api:
+    idempotency:
+      enabled: ${MEDKERNEL_API_IDEMPOTENCY_ENABLED:true}
+      ttl: ${MEDKERNEL_API_IDEMPOTENCY_TTL:24h}
   auth:
     jwt:
       ttl-seconds: 28800
