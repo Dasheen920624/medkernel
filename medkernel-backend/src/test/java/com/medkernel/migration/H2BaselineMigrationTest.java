@@ -31,13 +31,13 @@ class H2BaselineMigrationTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("H2 baseline migrations succeed").isTrue();
-        assertThat(result.migrationsExecuted).as("V1 至 V29 全部应用").isEqualTo(29);
+        assertThat(result.migrationsExecuted).as("V1 至 V30 全部应用").isEqualTo(30);
 
         var applied = flyway.info().applied();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
             .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
                 "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27",
-                "28", "29");
+                "28", "29", "30");
 
         JdbcTemplate jdbc = new JdbcTemplate(ds);
         Integer assignmentCount = jdbc.queryForObject(

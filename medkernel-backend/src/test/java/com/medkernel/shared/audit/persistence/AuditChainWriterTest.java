@@ -94,6 +94,23 @@ class AuditChainWriterTest {
     }
 
     @Test
+    void sameTraceActionAndTargetIsIdempotentAndDoesNotAdvanceChain() {
+        withTenant("t-1", () -> {
+            AuditEventRecord r1 = writer.persist(
+                AuditEvent.of(AuditAction.UPDATE, "rule", "r-1", "第一次记录"));
+            AuditEventRecord replay = writer.persist(
+                AuditEvent.of(AuditAction.UPDATE, "rule", "r-1", "重复提交"));
+
+            assertThat(replay.eventId()).isEqualTo(r1.eventId());
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_event", Long.class)).isEqualTo(1L);
+
+            AuditEventRepository.ChainHead head = repository.lockChainHead("t-1").orElseThrow();
+            assertThat(head.lastEventId()).isEqualTo(r1.eventId());
+            assertThat(head.lastSignature()).isEqualTo(r1.signature());
+        });
+    }
+
+    @Test
     void differentTenantsHaveIndependentChains() {
         withTenant("t-1", () -> {
             AuditEventRecord r1 = writer.persist(

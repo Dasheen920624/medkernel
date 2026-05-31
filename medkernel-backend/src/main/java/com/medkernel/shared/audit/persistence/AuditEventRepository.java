@@ -49,9 +49,10 @@ public class AuditEventRepository {
                 event_id, trace_id, occurred_at, actor_user_id, action,
                 resource_type, resource_id, summary, payload_digest,
                 tenant_id, hospital_id, department_id,
+                actor_roles, org_path, environment_key, before_snapshot, after_snapshot, dedupe_key,
                 prev_event_id, prev_signature, signature, status,
                 outcome, error_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             record.eventId(),
             record.traceId(),
@@ -65,6 +66,12 @@ public class AuditEventRepository {
             record.tenantId(),
             record.hospitalId(),
             record.departmentId(),
+            record.actorRoles(),
+            record.orgPath(),
+            record.environmentKey(),
+            record.beforeSnapshot(),
+            record.afterSnapshot(),
+            record.dedupeKey(),
             record.prevEventId(),
             record.prevSignature(),
             record.signature(),
@@ -118,6 +125,7 @@ public class AuditEventRepository {
             SELECT id, event_id, trace_id, occurred_at, actor_user_id, action,
                    resource_type, resource_id, summary, payload_digest,
                    tenant_id, hospital_id, department_id,
+                   actor_roles, org_path, environment_key, before_snapshot, after_snapshot, dedupe_key,
                    prev_event_id, prev_signature, signature, status,
                    outcome, error_code, created_at
               FROM audit_event
@@ -171,6 +179,7 @@ public class AuditEventRepository {
             SELECT id, event_id, trace_id, occurred_at, actor_user_id, action,
                    resource_type, resource_id, summary, payload_digest,
                    tenant_id, hospital_id, department_id,
+                   actor_roles, org_path, environment_key, before_snapshot, after_snapshot, dedupe_key,
                    prev_event_id, prev_signature, signature, status,
                    outcome, error_code, created_at
               FROM audit_event
@@ -178,6 +187,26 @@ public class AuditEventRepository {
             """,
             ROW_MAPPER,
             tenantId, eventId);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    public Optional<AuditEventRecord> findByDedupeKey(String tenantId, String dedupeKey) {
+        if (dedupeKey == null || dedupeKey.isBlank()) {
+            return Optional.empty();
+        }
+        List<AuditEventRecord> rows = jdbc.query(
+            """
+            SELECT id, event_id, trace_id, occurred_at, actor_user_id, action,
+                   resource_type, resource_id, summary, payload_digest,
+                   tenant_id, hospital_id, department_id,
+                   actor_roles, org_path, environment_key, before_snapshot, after_snapshot, dedupe_key,
+                   prev_event_id, prev_signature, signature, status,
+                   outcome, error_code, created_at
+              FROM audit_event
+             WHERE tenant_id = ? AND dedupe_key = ?
+            """,
+            ROW_MAPPER,
+            tenantId, dedupeKey);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
@@ -202,7 +231,13 @@ public class AuditEventRepository {
             rs.getString("status"),
             rs.getString("outcome"),
             rs.getString("error_code"),
-            toInstant(rs.getTimestamp("created_at"))
+            toInstant(rs.getTimestamp("created_at")),
+            rs.getString("actor_roles"),
+            rs.getString("org_path"),
+            rs.getString("environment_key"),
+            rs.getString("before_snapshot"),
+            rs.getString("after_snapshot"),
+            rs.getString("dedupe_key")
         );
     }
 
