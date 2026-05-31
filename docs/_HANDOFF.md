@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-07 运行底座 PR1 🚧
+### 线 1 · CONFIG-01 配置中心 PR1（支撑 BASE-07 PR2）🚧
 
 - 类型：软件开发
-- 分支：codex/base-07-runtime-foundation
-- 目标：完成 BASE-07 PR1：健康探活 + 监控指标 + 依赖诚实状态（AC-2/AC-5），为 PR2 的国产化 profile / Feature Flag 配置中心 / 备份恢复演练打底。
-- 状态：已基于最新 `origin/main` 开工。红灯测试已确认：`/actuator/health/liveness` / `/actuator/health/readiness` 原为 404，运行快照缺 `model-gateway` / `external-provider` 且使用旧 `DISABLED` 状态；现已开启 actuator probes，运行快照将图谱/外部系统标为 `NOT_CONNECTED`、Dify/模型标为 `MODEL_DISABLED`，开关开启但未真实探活时只标 `DEGRADED`，不伪造 `UP`；前端 Provider 状态页已同步中文显示“未连接 / 模型未启用”。本地验证已跑：`mvn -q test`、`npm run verify`、`npm run build`、`scripts/check-comment-zh.sh`、工作区 diff 真实性扫描、`git diff --check`。
-- 下一步（精确到动作/命令）：1. 提交 BASE-07 PR1；2. 推送并创建 PR；3. 远端 CI 全绿后 squash 合并；4. 基于最新 main 继续 BASE-07 PR2（国产化 profile / 国密 smoke / Feature Flag 配置中心 / 备份恢复演练）。
-- 相关文件 / 测试 / 坑：本 PR 只做 PR1 范围；不要把 Feature Flag 配置中心化、国产化 profile、备份恢复演练混进来。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，本 PR 未触碰其业务行为，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
+- 分支：codex/base-07-config-foundation
+- 目标：先完成 CONFIG-01 PR1：`mk_config_item` / `mk_config_history` 五方言存储 + 元数据 + 热生效读取 + 启动引导边界，并让 BASE-07 运行底座的 Feature Flag 从配置中心消费，避免在配置中心未落地时假装完成 BASE-07 AC-1。
+- 状态：BASE-07 PR1 已由 #189 合入 `origin/main`（CI run #948 全绿，merge `6243418`）。当前 CONFIG-01 红灯已确认（端点/迁移缺失；审计持久化 Feature Flag 原可被关闭），实现已补 `mk_config_item` / `mk_config_history`、配置中心端点、YML 种子、运行 Feature Flag 热读取；审计持久化与国密增强高危运行开关已服务端强拦截，拒绝关闭会写审计。工作区验证已跑：配置中心红绿测试、五方言 V31 迁移 smoke、后端全量、前端 verify/build、迁移规约、真实性扫描、中文注释扫描。
+- 下一步（精确到动作/命令）：1. 复跑提交前正式 diff 门禁；2. 更新证据并提交/推送 PR；3. 远端 CI 全绿后合并；4. 回到最新 `origin/main` 继续 BASE-07 国产化 profile / 国密 smoke / 备份恢复演练。
+- 相关文件 / 测试 / 坑：CONFIG-01 是配置中心单一归属，BASE-07 只消费；本批不伪造备份恢复成功、不伪造国产化数据库连通、不净增前端二级菜单；后续 AI 不得把 `protected_flag` 只当展示字段，审计持久化与国密增强禁止从 UI / 配置中心关闭。当前 `frontend/src/shared/api/hooks.ts` 仍存在 D4 评估页历史 `DEMO_SNAPSHOTS`，后续 BASE-09/对应 D4 卡清理时必须处理，不能当作完成态。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-07 运行底座 PR1 ✅（#189）：开启 actuator liveness/readiness；运行快照依赖状态收紧为 `NOT_CONNECTED` / `MODEL_DISABLED` / `DEGRADED`，不再用旧 `DISABLED` 假关闭；前端 Provider 状态页同步中文展示；BASE-07 勾选 FR-2/FR-3 与 AC-2/AC-5；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-06 前端 IA 骨架 PR1 ✅（#186）：锁定 5+1 / 27+5 菜单 IA、路由 `requiredPermissions/requiredRoles`、权限码驱动菜单和直接访问判定、授权命令面板与 Ctrl/Cmd+K；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-06 PageShell 六态与状态组件 PR2 ✅（#187）：锁定加载/空/错误/无权限/部分成功/正常六态，移除 `disabled` 第七态和隐藏 `StepFlowDemo` 生产路由；`PageShell` 承载六态，`StatusBadge` 严格四状态机，`StepFlow` 对齐核心 §4 七步流，路由增加 `requiresSixStates/requiresStepFlow` 门禁；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-05 五方言迁移一致性与幂等回滚 PR2 ✅（#185）：新增五方言表列一致性报告、H2/PostgreSQL/Oracle 重复 `migrate()` 幂等断言、Oracle 小写 `flyway_schema_history` 断言、高风险迁移中文 ROLLBACK/补偿说明门禁；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
@@ -75,4 +76,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-07 PR1 健康探活、监控指标与诚实依赖状态已完成本地全量验证，待提交 / PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · CONFIG-01 PR1 已补配置中心存储、元数据、Feature Flag 热读取、审计/国密高危关闭护栏与五方言 V31 迁移，正在提交前收口；D0 域级验收前不得启动 D1 新功能 PR

@@ -22,6 +22,7 @@ public class AuditSafetyGuard {
     private static final Set<String> PROTECTED_AUDIT_SWITCHES = Set.of(
         "medkernel.audit.persistence.enabled",
         "medkernel.audit.enabled",
+        "medkernel.runtime.feature-flags.audit-persistence.enabled",
         "audit.persistence.enabled",
         "audit.enabled");
 

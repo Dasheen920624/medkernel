@@ -133,6 +133,7 @@ public enum ErrorCode {
     ENG_AUTH_005("ENG-AUTH-005", 404, "账号不存在", ErrorClass.DATA, false),
     ENG_AUTH_006("ENG-AUTH-006", 409, "用户名在该租户下已存在", ErrorClass.DATA, false),
     ENG_TENANT_001("ENG-TENANT-001", 409, "租户已存在，无法重复开通", ErrorClass.DATA, false),
+    ENG_CONFIG_001("ENG-CONFIG-001", 403, "高危运行配置禁止从界面关闭", ErrorClass.AUTH, false),
     ENG_AUDIT_001("ENG-AUDIT-001", 403, "审计持久化为高危配置，禁止从界面关闭", ErrorClass.AUTH, false);
 
     private final String code;
