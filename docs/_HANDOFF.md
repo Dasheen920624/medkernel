@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-03 标准 API 契约 PR1 🚧
+### 线 1 · BASE-03 标准 API 契约 PR2 🚧
 
 - 类型：软件开发
-- 分支：codex/base-03-api-contract
-- 目标：完成 BASE-03 PR1：统一成功 `ApiResult` 与失败 `ProblemDetail` 契约、统一异常处理、错误码字典中文 reason + traceId；先清理现有 `GlobalExceptionHandler` 混用信封的旧口径，再补契约测试。
-- 状态：本地实现与验证已完成；统一失败 `ProblemDetail` 红灯测试已转绿，`ApiResult.error` 失败包络入口已移除，后端全量测试、前端 typecheck / test / build / lint / format:check 与 T-GATE 已通过。
-- 下一步（精确到动作/命令）：1. 提交 `codex/base-03-api-contract`；2. 推送并创建 PR；3. 等待远端 CI 全绿后 squash 合并；4. 从新 `origin/main` 继续 BASE-03 PR2 或下一 D0 卡。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`GlobalExceptionHandler.java`；`ApiResult.java`；`ApiError.java`；`ErrorCode.java`；`TraceIdFilter.java` / `RequestContext`；成功响应继续使用 `ApiResult.ok/empty`，失败响应统一走 `ProblemDetail`，禁止恢复 `ApiResult.error` 或把业务异常伪装为 200。
+- 分支：codex/base-03-idempotency
+- 目标：完成 BASE-03 PR2：Record DTO + Bean Validation 治理测试、traceId 一致性、平台级 `Idempotency-Key` 幂等过滤器与 `sys_idempotency` 五方言迁移。
+- 状态：本地实现与验证已完成；幂等重复提交 / 冲突测试、Controller 入参治理测试、H2 与多方言迁移冒烟已转绿；BASE-03 卡与 backlog 已标记完成；后端全量、前端 typecheck / test / build / lint / format:check 与 T-GATE 已通过。
+- 下一步（精确到动作/命令）：1. 提交 `codex/base-03-idempotency`；2. 推送并创建 PR；3. 等待远端 CI 全绿后 squash 合并；4. 从新 `origin/main` 领取 BASE-04 审计骨干。
+- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-03.md`；`IdempotencyFilter.java`；`JdbcIdempotencyRepository.java`；`sys_idempotency` 五方言 V29 迁移；`ApiContractGovernanceTest.java`；`IdempotencyFilterTest.java`；成功响应仍走 `ApiResult`，失败统一 `ProblemDetail`，写请求携带同租户同 key 且同请求体时重放首次成功结果，不得重复业务副作用。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-03 PR1 标准 API 契约前半 ✅（#180）：失败响应统一 `ProblemDetail`，移除 `ApiResult.error` 旧失败包络，补齐 `GlobalExceptionHandler` 契约测试；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR3 环境维与应急权限闭环 ✅（#178）：`emergency_permission_grant` 五方言迁移、break-glass 授予服务、到期自动失效、`security/me.environmentKeys`、越权 403 ProblemDetail、前端权限指纹“可用环境”；平台 / 集团 / 医院管理员默认不再直接拥有 `env.emergency`；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR2 权限引擎与数据范围判定 ✅（#177）：`PermissionEvaluator.can(dimension,target)`、`@RequirePermission` 方法级门禁、`DataScopeResolver` 数据行级范围判定、超管无旁路源码契约；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR1 五维权限目录与 13 角色基线 ✅（#176）：`PermissionDimension`、13 角色目录、`sys_role/sys_permission` 五维迁移、默认五维角色基线、菜单权限与动作权限分离、H2/五方言迁移契约；远端 CI 8/8 通过并合入 `origin/main`。
@@ -67,4 +68,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-02 全卡完成并归档；下一步领取 BASE-03 标准 API 契约 PR1；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-05-31 · BASE-03 PR2 本地完成并待 PR；合并后领取 BASE-04 审计骨干；D0 域级验收前不得启动 D1 新功能 PR

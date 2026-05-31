@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +29,9 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
 import com.medkernel.shared.context.TenantContextEnricherFilter;
+import com.medkernel.shared.idempotency.IdempotencyFilter;
+import com.medkernel.shared.idempotency.IdempotencyProperties;
+import com.medkernel.shared.idempotency.IdempotencyRepository;
 
 /**
  * GA-CORE-02 / W1-G3 闸门：Spring Security 6 OAuth2 Resource Server + JWT。
@@ -56,7 +60,10 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http,
                                     TenantContextEnricherFilter tenantEnricher,
-                                    CookieBearerTokenResolver cookieResolver) throws Exception {
+                                    CookieBearerTokenResolver cookieResolver,
+                                    IdempotencyRepository idempotencyRepository,
+                                    IdempotencyProperties idempotencyProperties,
+                                    ObjectMapper objectMapper) throws Exception {
         http
             // CSRF 关闭：前后端分离 + SameSite=Strict cookie，CSRF 双提交令牌方案列 Phase 2
             .csrf(AbstractHttpConfigurer::disable)
@@ -80,7 +87,10 @@ public class SecurityConfig {
                 .bearerTokenResolver(cookieResolver)
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(buildJwtAuthenticationConverter()))
             )
-            .addFilterAfter(tenantEnricher, BearerTokenAuthenticationFilter.class);
+            .addFilterAfter(tenantEnricher, BearerTokenAuthenticationFilter.class)
+            .addFilterAfter(
+                new IdempotencyFilter(idempotencyRepository, idempotencyProperties, objectMapper),
+                TenantContextEnricherFilter.class);
 
         return http.build();
     }

@@ -1,5 +1,8 @@
 package com.medkernel.engine.knowledge;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 引用锚点片段创建请求。
  *
@@ -9,9 +12,13 @@ package com.medkernel.engine.knowledge;
  * @param textExcerpt 物理文本片段
  */
 public record FragmentCreateRequest(
+    @NotNull
     Long sourceVersionId,
+    @NotBlank
     String anchorPath,
+    @NotBlank
     String anchorLabel,
+    @NotBlank
     String textExcerpt
 ) {
 }

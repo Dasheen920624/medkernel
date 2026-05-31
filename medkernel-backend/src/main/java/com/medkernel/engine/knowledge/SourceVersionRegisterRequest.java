@@ -2,6 +2,9 @@ package com.medkernel.engine.knowledge;
 
 import java.time.Instant;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 来源文献版本注册请求。
  *
@@ -13,10 +16,14 @@ import java.time.Instant;
  * @param language 语言，默认 zh-CN
  */
 public record SourceVersionRegisterRequest(
+    @NotNull
     Long sourceDocumentId,
+    @NotBlank
     String versionNo,
     Instant publishedAt,
+    @NotBlank
     String contentHash,
+    @NotBlank
     String fileUri,
     String language
 ) {
