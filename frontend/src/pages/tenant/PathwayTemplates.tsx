@@ -18,6 +18,7 @@ import {
   Col,
   Timeline,
 } from "antd";
+import type { BadgeProps, TableProps } from "antd";
 import {
   PlusOutlined,
   PlayCircleOutlined,
@@ -36,46 +37,95 @@ import {
   usePublishPathwayTemplate,
   useSimulatePathway,
 } from "@/shared/api/hooks";
-import type { SpecialtyPackage, PathwayTemplate, PathwayTemplateStatus } from "@/shared/api/hooks";
+import type {
+  PathwayEdgeType,
+  PathwayNodeType,
+  PathwayTemplate,
+  PathwayTemplateStatus,
+  SpecialtyPackage,
+} from "@/shared/api/hooks";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
-// 默认路径节点 JSON 引导模板
 const DEFAULT_NODES_JSON = `[
-  { "nodeCode": "START", "name": "入径准入与评估", "nodeType": "START", "sortOrder": 1, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 30, "terminalFlag": false },
-  { "nodeCode": "TREAT_PLAN", "name": "制定抗感染化疗方案", "nodeType": "PROCESS", "sortOrder": 2, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 120, "terminalFlag": false },
-  { "nodeCode": "CHECK_LEVEL", "name": "不良反应监测与疗效评估", "nodeType": "BRANCH", "sortOrder": 3, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 1440, "terminalFlag": false },
-  { "nodeCode": "DISCHARGE", "name": "办理出院与健康宣教", "nodeType": "STOP", "sortOrder": 4, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 180, "terminalFlag": true }
+  { "nodeCode": "START", "name": "准入评估", "nodeType": "START", "sortOrder": 1, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 30, "terminalFlag": false },
+  { "nodeCode": "PLAN", "name": "方案确认", "nodeType": "PROCESS", "sortOrder": 2, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 120, "terminalFlag": false },
+  { "nodeCode": "REVIEW", "name": "阶段复核", "nodeType": "BRANCH", "sortOrder": 3, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 1440, "terminalFlag": false },
+  { "nodeCode": "EXIT", "name": "出径交接", "nodeType": "STOP", "sortOrder": 4, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 180, "terminalFlag": true }
 ]`;
 
-// 默认连线 JSON 引导模板
 const DEFAULT_EDGES_JSON = `[
-  { "edgeCode": "E1", "fromNodeCode": "START", "toNodeCode": "TREAT_PLAN", "edgeType": "STANDARD", "priority": 1 },
-  { "edgeCode": "E2", "fromNodeCode": "TREAT_PLAN", "toNodeCode": "CHECK_LEVEL", "edgeType": "STANDARD", "priority": 1 },
-  { "edgeCode": "E3", "fromNodeCode": "CHECK_LEVEL", "toNodeCode": "DISCHARGE", "edgeType": "CONDITIONAL", "conditionJson": "{\\"fact\\": \\"patient.condition\\", \\"operator\\": \\"equals\\", \\"value\\": \\"STABLE\\"}", "priority": 1 },
-  { "edgeCode": "E4", "fromNodeCode": "CHECK_LEVEL", "toNodeCode": "TREAT_PLAN", "edgeType": "VARIANCE", "conditionJson": "{\\"fact\\": \\"patient.condition\\", \\"operator\\": \\"equals\\", \\"value\\": \\"DETERIORATED\\"}", "priority": 2 }
+  { "edgeCode": "E1", "fromNodeCode": "START", "toNodeCode": "PLAN", "edgeType": "STANDARD", "priority": 1 },
+  { "edgeCode": "E2", "fromNodeCode": "PLAN", "toNodeCode": "REVIEW", "edgeType": "STANDARD", "priority": 1 },
+  { "edgeCode": "E3", "fromNodeCode": "REVIEW", "toNodeCode": "EXIT", "edgeType": "CONDITIONAL", "conditionJson": "{\\"fact\\": \\"context.readyForExit\\", \\"operator\\": \\"equals\\", \\"value\\": true}", "priority": 1 },
+  { "edgeCode": "E4", "fromNodeCode": "REVIEW", "toNodeCode": "PLAN", "edgeType": "VARIANCE", "conditionJson": "{\\"fact\\": \\"context.needReplan\\", \\"operator\\": \\"equals\\", \\"value\\": true}", "priority": 2 }
 ]`;
+
+type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+type PathwayNodeDraft = {
+  nodeCode: string;
+  name: string;
+  nodeType: PathwayNodeType;
+  sortOrder: number;
+  responsibleRole?: string;
+  timeWindowMinutes?: number;
+  terminalFlag: boolean;
+  configJson?: string;
+};
+type PathwayEdgeDraft = {
+  edgeCode: string;
+  fromNodeCode: string;
+  toNodeCode: string;
+  edgeType: PathwayEdgeType;
+  conditionJson?: string;
+  priority: number;
+};
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null) return fallback;
+  const candidate = error as ApiErrorResponse;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
+
+function parseJsonInput(value: string, errorMessage: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    message.error(errorMessage);
+    return null;
+  }
+  try {
+    return JSON.parse(normalized) as unknown;
+  } catch {
+    message.error("JSON 格式不合法，请检查后再提交。");
+    return null;
+  }
+}
 
 export default function PathwayTemplates() {
   const [page, setPage] = useState<number>(1);
   const [size] = useState<number>(10);
 
-  // 过滤条件状态
   const [statusFilter, setStatusFilter] = useState<PathwayTemplateStatus | undefined>(undefined);
   const [diseaseFilter, setDiseaseFilter] = useState<string>("");
   const [packageFilter, setPackageFilter] = useState<string>("");
 
-  // 弹窗与抽屉可见性
   const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  // 仿真运行态
   const [simulateStartNode, setSimulateStartNode] = useState<string>("START");
+  const [simulateContextJson, setSimulateContextJson] = useState<string>("");
   const [simulateResult, setSimulateResult] = useState<string[] | null>(null);
 
-  // API 查询
   const {
     data: listData,
     isLoading: listLoading,
@@ -99,17 +149,14 @@ export default function PathwayTemplates() {
     size: 100,
   });
 
-  // API 突变动作
   const createPackageMutation = useCreateSpecialtyPackage();
   const createTemplateMutation = useCreatePathwayTemplate();
   const publishTemplateMutation = usePublishPathwayTemplate();
   const simulateMutation = useSimulatePathway(selectedTemplateId || "");
 
-  // 表单绑定
   const [packageForm] = Form.useForm();
   const [templateForm] = Form.useForm();
 
-  // 创建专病包
   const handleCreatePackage = async () => {
     try {
       const values = await packageForm.validateFields();
@@ -117,26 +164,17 @@ export default function PathwayTemplates() {
       message.success("专病包资产草稿创建成功");
       packageForm.resetFields();
       refetchPackages();
-    } catch {
-      message.error("创建专病包失败，请检查参数");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "创建专病包失败，请检查参数"));
     }
   };
 
-  // 创建路径模板
   const handleCreateTemplate = async () => {
     try {
       const values = await templateForm.validateFields();
-
-      // 解析节点与连线 JSON
-      let parsedNodes = [];
-      let parsedEdges = [];
-      try {
-        parsedNodes = JSON.parse(values.nodesJson);
-        parsedEdges = JSON.parse(values.edgesJson);
-      } catch {
-        message.error("节点或连线 JSON 格式不合法，请检查！");
-        return;
-      }
+      const parsedNodes = parseJsonInput(values.nodesJson, "请输入生命周期节点配置 JSON");
+      const parsedEdges = parseJsonInput(values.edgesJson, "请输入拓扑流转连线配置 JSON");
+      if (!parsedNodes || !parsedEdges) return;
 
       await createTemplateMutation.mutateAsync({
         packageId: values.packageId,
@@ -148,20 +186,19 @@ export default function PathwayTemplates() {
         description: values.description,
         entryCriteriaJson: "{}",
         exitCriteriaJson: "{}",
-        nodes: parsedNodes,
-        edges: parsedEdges,
+        nodes: parsedNodes as PathwayNodeDraft[],
+        edges: parsedEdges as PathwayEdgeDraft[],
       });
 
       message.success("专病路径模板草稿创建成功");
       setCreateTemplateVisible(false);
       templateForm.resetFields();
       refetchList();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "创建路径模板失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "创建路径模板失败"));
     }
   };
 
-  // 发布路径模板 (门禁校验)
   const handlePublishTemplate = async () => {
     if (!selectedTemplateId) return;
     try {
@@ -169,31 +206,36 @@ export default function PathwayTemplates() {
       message.success("路径模板发布成功，已正式上线运行！");
       refetchDetail();
       refetchList();
-    } catch (err: any) {
+    } catch (error: unknown) {
       Modal.error({
         title: "路径发布门禁拒绝",
-        content: err.response?.data?.message || "未通过路径闭环或时窗门禁核查，禁止上线。",
+        content: getApiErrorMessage(error, "未通过路径闭环或时窗门禁核查，禁止上线。"),
       });
     }
   };
 
-  // 沙箱运行轨迹仿真
   const handleSimulate = async () => {
     if (!selectedTemplateId) return;
     try {
+      const contextJson = simulateContextJson.trim();
+      if (!contextJson) {
+        message.error("请先粘贴真实脱敏路径上下文快照 JSON");
+        return;
+      }
+      if (!parseJsonInput(contextJson, "请先粘贴真实脱敏路径上下文快照 JSON")) return;
+
       const result = await simulateMutation.mutateAsync({
         startNodeCode: simulateStartNode,
-        contextJson: "{}",
+        contextJson,
       });
       setSimulateResult(result.simulatedPath || []);
-      message.success("路径轨迹仿真模拟运行成功");
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "路径仿真推进失败");
+      message.success("路径轨迹试运行成功");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "路径试运行失败"));
     }
   };
 
-  // 路径模板表格列
-  const columns = [
+  const columns: TableProps<PathwayTemplate>["columns"] = [
     {
       title: "模板代码",
       dataIndex: "templateCode",
@@ -228,12 +270,13 @@ export default function PathwayTemplates() {
       dataIndex: "status",
       key: "status",
       render: (status: PathwayTemplateStatus) => {
-        const config = {
-          DRAFT: { color: "warning", text: "设计中(DRAFT)" },
-          PUBLISHED: { color: "success", text: "运行中(PUBLISHED)" },
-          OFFLINE: { color: "default", text: "已下线(OFFLINE)" },
-        };
-        return <Badge status={config[status].color as any} text={config[status].text} />;
+        const config: Record<PathwayTemplateStatus, { status: PathwayBadgeStatus; text: string }> =
+          {
+            DRAFT: { status: "warning", text: "设计中(DRAFT)" },
+            PUBLISHED: { status: "success", text: "运行中(PUBLISHED)" },
+            OFFLINE: { status: "default", text: "已下线(OFFLINE)" },
+          };
+        return <Badge status={config[status].status} text={config[status].text} />;
       },
     },
     {
@@ -249,7 +292,7 @@ export default function PathwayTemplates() {
           }}
           className="text-emerald-600 hover:text-emerald-900 font-semibold"
         >
-          设计与仿真校验
+          设计与试运行
         </Button>
       ),
     },
@@ -258,7 +301,7 @@ export default function PathwayTemplates() {
   return (
     <PageShell
       title="路径中枢"
-      description="配置并维护专病临床路径标准，设定生命周期节点与变异流转边拓扑，提供沙箱仿真与时窗门禁发布验证。"
+      description="配置并维护专病临床路径标准，设定生命周期节点与变异流转边拓扑，提供真实快照试运行与时窗门禁发布验证。"
     >
       {/* 筛选过滤条 */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
@@ -278,7 +321,7 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Form.Item label="病种编码">
             <Input
-              placeholder="例如 DX-CODE-A"
+              placeholder="输入真实病种编码"
               allowClear
               value={diseaseFilter}
               onChange={(e) => setDiseaseFilter(e.target.value)}
@@ -365,27 +408,27 @@ export default function PathwayTemplates() {
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item name="packageCode" label="专病包编码" rules={[{ required: true }]}>
-                  <Input placeholder="如 PKG-COP-001" />
+                  <Input placeholder="输入专病包编码" />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="diseaseCode" label="病种代码 (ICD)" rules={[{ required: true }]}>
-                  <Input placeholder="如 J44" />
+                  <Input placeholder="输入真实病种代码" />
                 </Form.Item>
               </Col>
             </Row>
             <Form.Item name="name" label="专病包名称" rules={[{ required: true }]}>
-              <Input placeholder="如 慢性阻塞性肺疾病合理化诊疗包" />
+              <Input placeholder="输入专病包名称" />
             </Form.Item>
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item name="packageVersion" label="版本" rules={[{ required: true }]}>
-                  <Input placeholder="如 1.0.0" />
+                  <Input placeholder="输入版本号" />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="sourceRef" label="知识来源" rules={[{ required: true }]}>
-                  <Input placeholder="如 中华医学会诊疗指南2025" />
+                  <Input placeholder="输入已审核指南、院内制度或配置包来源" />
                 </Form.Item>
               </Col>
             </Row>
@@ -454,19 +497,19 @@ export default function PathwayTemplates() {
             </Col>
             <Col span={12}>
               <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
-                <Input placeholder="如 社区获得性呼吸系统感染标准诊疗路径" />
+                <Input placeholder="输入路径模型名称" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="templateCode" label="路径模型代码" rules={[{ required: true }]}>
-                <Input placeholder="如 PT-CAP-01" />
+                <Input placeholder="输入路径模型代码" />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="diseaseCode" label="病种代码" rules={[{ required: true }]}>
-                <Input placeholder="如 DX-CODE-C" />
+                <Input placeholder="输入真实病种编码" />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -479,7 +522,7 @@ export default function PathwayTemplates() {
             </Col>
           </Row>
           <Form.Item name="sourceRef" label="临床知识与指南基础" rules={[{ required: true }]}>
-            <Input placeholder="如 社区获得性呼吸系统感染诊断和治疗指南 (2025年版)" />
+            <Input placeholder="输入已审核指南、院内制度或配置包来源" />
           </Form.Item>
           <Form.Item name="description" label="收治标准与排除指标">
             <TextArea rows={2} placeholder="输入路径说明..." />
@@ -508,11 +551,11 @@ export default function PathwayTemplates() {
         </Form>
       </Modal>
 
-      {/* 路径详情配置与沙箱仿真 Drawer */}
+      {/* 路径详情配置与真实快照试运行 Drawer */}
       <Drawer
         title={
           <div className="flex items-center justify-between w-full">
-            <span>路径配置与沙箱仿真控制台</span>
+            <span>路径配置与真实快照试运行控制台</span>
             {detailData?.template.status === "DRAFT" && (
               <Button
                 type="primary"
@@ -541,7 +584,7 @@ export default function PathwayTemplates() {
               message={
                 detailData.template.status === "PUBLISHED"
                   ? "当前临床路径处于已上线（PUBLISHED）状态，为保障临床运行安全，拓扑结构已被写保护锁定。如需修改，请发布新版本包升级。"
-                  : "当前临床路径处于设计中（DRAFT）状态，您可以在左侧面板内预览拓扑，在右侧进行沙箱仿真运行，校验用例无误后申请发布。"
+                  : "当前临床路径处于设计中（DRAFT）状态，您可以预览拓扑，并使用真实脱敏上下文快照试运行后申请发布。"
               }
               type={detailData.template.status === "PUBLISHED" ? "success" : "info"}
               showIcon
@@ -644,11 +687,11 @@ export default function PathwayTemplates() {
                 />
               </Tabs.TabPane>
 
-              <Tabs.TabPane tab="沙箱仿真校验 (Sandbox)" key="simulate">
+              <Tabs.TabPane tab="真实快照试运行" key="simulate">
                 <Row gutter={16}>
                   <Col span={10}>
                     <Card
-                      title="仿真输入设置"
+                      title="试运行输入设置"
                       size="small"
                       className="border-gray-200 shadow-sm rounded-lg"
                     >
@@ -662,6 +705,15 @@ export default function PathwayTemplates() {
                             ))}
                           </Select>
                         </Form.Item>
+                        <Form.Item label="真实脱敏路径上下文快照 JSON">
+                          <TextArea
+                            rows={7}
+                            value={simulateContextJson}
+                            onChange={(e) => setSimulateContextJson(e.target.value)}
+                            placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者或病种。"
+                            className="font-normal text-xs"
+                          />
+                        </Form.Item>
                         <Button
                           type="primary"
                           icon={<PlayCircleOutlined />}
@@ -669,14 +721,14 @@ export default function PathwayTemplates() {
                           loading={simulateMutation.isPending}
                           className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700 mt-4"
                         >
-                          开始沙箱推进仿真
+                          开始路径试运行
                         </Button>
                       </Form>
                     </Card>
                   </Col>
                   <Col span={14}>
                     <Card
-                      title="预测仿真流转轨迹 (Simulation Path)"
+                      title="路径试运行轨迹"
                       size="small"
                       className="border-gray-200 shadow-sm rounded-lg"
                     >
@@ -703,7 +755,7 @@ export default function PathwayTemplates() {
                       ) : (
                         <div className="flex flex-col items-center justify-center min-h-48 text-gray-400">
                           <ExclamationCircleOutlined className="text-48px mb-4" />
-                          <span>在左侧选择起点后，点击仿真以进行预测计算</span>
+                          <span>粘贴真实脱敏上下文快照后，点击试运行以计算路径轨迹</span>
                         </div>
                       )}
                     </Card>

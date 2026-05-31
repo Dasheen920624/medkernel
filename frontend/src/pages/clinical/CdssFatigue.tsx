@@ -20,6 +20,7 @@ import {
   Progress,
   Empty,
 } from "antd";
+import type { BadgeProps, TableProps } from "antd";
 import {
   BugOutlined,
   BookOutlined,
@@ -55,6 +56,32 @@ import type {
 const { TextArea } = Input;
 const { Option } = Select;
 
+type RecommendationBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+  errorFields?: unknown;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null) return fallback;
+  const candidate = error as ApiErrorResponse;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
+
+function isFormValidationError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "errorFields" in error &&
+    Array.isArray((error as ApiErrorResponse).errorFields)
+  );
+}
+
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
@@ -80,7 +107,7 @@ export default function CdssFatigue() {
   const [feedbackForm] = Form.useForm();
   const [triggerForm] = Form.useForm();
 
-  // 真实推荐卡列表：后端分页 + 服务端过滤。绝不使用本地写死/伪造卡片。
+  // 真实推荐卡列表：后端分页 + 服务端过滤，页面不伪造卡片。
   const {
     data: cardsPage,
     isLoading: cardsLoading,
@@ -150,9 +177,9 @@ export default function CdssFatigue() {
       setTriggerModalVisible(false);
       triggerForm.resetFields();
       refetchCards();
-    } catch (err: any) {
-      if (err?.errorFields) return; // 表单校验错误已在控件上提示
-      message.error(err?.response?.data?.message || "触发 CDSS 计算失败，请稍后重试");
+    } catch (error: unknown) {
+      if (isFormValidationError(error)) return;
+      message.error(getApiErrorMessage(error, "触发 CDSS 计算失败，请稍后重试"));
     }
   };
 
@@ -180,14 +207,14 @@ export default function CdssFatigue() {
       refetchSources();
       refetchFatigue();
       refetchDiagnose();
-    } catch (err: any) {
-      if (err?.errorFields) return;
-      message.error(err?.response?.data?.message || "反馈提交失败，卡片可能已过期或已处于终止态");
+    } catch (error: unknown) {
+      if (isFormValidationError(error)) return;
+      message.error(getApiErrorMessage(error, "反馈提交失败，卡片可能已过期或已处于终止态"));
     }
   };
 
   // 表格列
-  const columns = [
+  const columns: TableProps<RecommendationCard>["columns"] = [
     {
       title: "卡片编号",
       dataIndex: "cardId",
@@ -235,15 +262,14 @@ export default function CdssFatigue() {
       dataIndex: "status",
       key: "status",
       render: (status: RecommendationCardStatus) => {
-        const config: Record<string, { color: string; text: string }> = {
-          PENDING: { color: "warning", text: "待处理 (PENDING)" },
-          ACCEPTED: { color: "success", text: "已采纳 (ACCEPTED)" },
-          REJECTED: { color: "error", text: "已驳回 (REJECTED)" },
-          EXPIRED: { color: "default", text: "已失效 (EXPIRED)" },
+        const config: Record<string, { status: RecommendationBadgeStatus; text: string }> = {
+          PENDING: { status: "warning", text: "待处理 (PENDING)" },
+          ACCEPTED: { status: "success", text: "已采纳 (ACCEPTED)" },
+          REJECTED: { status: "error", text: "已驳回 (REJECTED)" },
+          EXPIRED: { status: "default", text: "已失效 (EXPIRED)" },
         };
-        return (
-          <Badge status={config[status]?.color as any} text={config[status]?.text || status} />
-        );
+        const current = config[status] ?? { status: "default", text: status };
+        return <Badge status={current.status} text={current.text} />;
       },
     },
     {
@@ -308,7 +334,7 @@ export default function CdssFatigue() {
           </Form.Item>
           <Form.Item label="患者 ID">
             <Input
-              placeholder="如 P-1001"
+              placeholder="输入患者 ID"
               allowClear
               value={patientIdFilter}
               onChange={(e) => {
@@ -378,7 +404,7 @@ export default function CdssFatigue() {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="patientId" label="患者 ID (临床快照卡)" rules={[{ required: true }]}>
-                <Input placeholder="例如 P-1001" />
+                <Input placeholder="输入真实患者 ID" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -399,7 +425,7 @@ export default function CdssFatigue() {
             </Col>
             <Col span={12}>
               <Form.Item name="diseaseCode" label="病种诊断 (ICD-10)" rules={[{ required: true }]}>
-                <Input placeholder="如 DX-CODE-C" />
+                <Input placeholder="输入真实病种编码" />
               </Form.Item>
             </Col>
           </Row>
@@ -465,207 +491,236 @@ export default function CdssFatigue() {
               </Descriptions.Item>
             </Descriptions>
 
-            <Tabs defaultActiveKey="sources">
-              {/* 可信证据指南来源 Tab */}
-              <Tabs.TabPane
-                tab={
-                  <span>
-                    <ReadOutlined /> 临床学术指南与文献证据 (Evidence)
-                  </span>
-                }
-                key="sources"
-              >
-                <div className="flex flex-col gap-4 mt-2 max-h-[460px] overflow-y-auto pr-2">
-                  {sourcesData && sourcesData.length > 0 ? (
-                    sourcesData.map((source: RecommendationSource) => (
-                      <Card
-                        key={source.sourceId}
-                        size="small"
-                        title={
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-800 text-xs">
-                              {source.title}
-                            </span>
-                            <Tag color="purple">权威度评分: {source.authorityScore || 90}分</Tag>
-                          </div>
-                        }
-                        className="border-gray-200 bg-gray-50 rounded-lg shadow-sm"
-                      >
-                        <div className="text-xs text-gray-700 leading-relaxed font-normal">
-                          {source.content}
-                        </div>
-                        <Descriptions
-                          size="small"
-                          column={2}
-                          className="mt-3 bg-white p-2 rounded border border-gray-100"
-                        >
-                          <Descriptions.Item label="指南/文献出处">
-                            <span className="text-gray-500 font-semibold">{source.sourceRef}</span>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="证据级别">
-                            <Tag color="cyan">{source.evidenceLevel || "Class I"}</Tag>
-                          </Descriptions.Item>
-                        </Descriptions>
-                      </Card>
-                    ))
-                  ) : (
-                    <Empty description="该提醒卡暂无来源解释证据（仅展示后端真实来源，不做任何兜底伪造）" />
-                  )}
-                </div>
-              </Tabs.TabPane>
-
-              {/* 医生人机采纳反馈 Tab */}
-              <Tabs.TabPane
-                tab={
-                  <span>
-                    <CheckCircleOutlined /> 医师人机交互反馈 (Feedback)
-                  </span>
-                }
-                key="feedback"
-                disabled={detailData.card.status !== "PENDING"}
-              >
-                <Card className="border-gray-200 shadow-sm rounded-xl mt-2">
-                  <Form form={feedbackForm} layout="vertical">
-                    <Alert
-                      message="合理化医师反馈是临床合理处方闭环的核心留痕。选择不采纳时，请录入客观严谨的临床医学抗拒理由，以便医疗质控追溯与持续优化CDSS阈值。操作者身份由系统按登录态如实记录。"
-                      type="info"
-                      showIcon
-                      className="mb-4 rounded-lg"
-                    />
-
-                    <Tabs defaultActiveKey="accept" type="card" size="small" className="mb-4">
-                      <Tabs.TabPane tab="采纳合理建议 (ACCEPT)" key="accept">
-                        <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-800 text-xs mb-4">
-                          确认采纳此建议。系统将登记采纳反馈并生成临床决策证据；是否下达/撤销医嘱由医师在
-                          HIS 中确认。
-                        </div>
-                        <Form.Item name="comments" label="采纳说明 (非必填)">
-                          <Input placeholder="输入采纳说明，如：遵照指南撤销不合理克拉霉素..." />
-                        </Form.Item>
-                        <Button
-                          type="primary"
-                          onClick={() => handleFeedback("ACCEPT")}
-                          loading={feedbackMutation.isPending}
-                          className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
-                        >
-                          确认并予以采纳 (ACCEPT)
-                        </Button>
-                      </Tabs.TabPane>
-
-                      <Tabs.TabPane tab="拒绝驳回建议 (REJECT)" key="reject">
-                        <Form.Item
-                          name="rejectReason"
-                          label="医生拒绝/不采纳的临床抗拒原因"
-                          rules={[{ required: true, message: "请选择拒绝采纳的临床理由" }]}
-                        >
-                          <Select placeholder="选择合理的抗拒指征原因">
-                            <Option value="方案不合个体指征">
-                              方案不合个体指征 (患者存在基因多态或联合耐药事实)
-                            </Option>
-                            <Option value="已有替代有效疗法">
-                              已有替代有效疗法 (临床已采取其它合理对症治疗手段)
-                            </Option>
-                            <Option value="数据存在延迟偏差">
-                              数据存在延迟偏差 (系统检测到的就诊或过敏事实与临床现状不符)
-                            </Option>
-                            <Option value="其他合理临床抉择">
-                              其他合理临床抉择 (需要医生在下方输入备注具体说明)
-                            </Option>
-                          </Select>
-                        </Form.Item>
-                        <Form.Item
-                          name="comments"
-                          label="备注/不采纳详细医学判定说明"
-                          rules={[{ required: true, message: "请输入详细拒绝说明" }]}
-                        >
-                          <TextArea
-                            rows={2}
-                            placeholder="请录入专业客观的临床诊断说明以便应对质控核查..."
-                          />
-                        </Form.Item>
-                        <Button
-                          type="primary"
-                          danger
-                          onClick={() => handleFeedback("REJECT")}
-                          loading={feedbackMutation.isPending}
-                          className="w-full"
-                        >
-                          确认拒绝采纳该建议 (REJECT)
-                        </Button>
-                      </Tabs.TabPane>
-                    </Tabs>
-                  </Form>
-                </Card>
-              </Tabs.TabPane>
-
-              {/* 疲劳度治理信号 Tab */}
-              <Tabs.TabPane
-                tab={
-                  <span>
-                    <DashboardOutlined /> 提醒超频疲劳治理 (Fatigue Signal)
-                  </span>
-                }
-                key="fatigue"
-              >
-                <div className="mt-2 pr-2">
-                  <Alert
-                    message="为防范“提醒狼来了麻木”，MedKernel 引擎引入高阶提醒疲劳度限流控制事实。当特定场景超频触发且被医生频繁驳回时，系统会触发静音/限频甚至全面物理拦截阻断。"
-                    type="warning"
-                    showIcon
-                    className="mb-4 rounded-lg"
-                  />
-
-                  {fatigueSignalsData?.items && fatigueSignalsData.items.length > 0 ? (
-                    fatigueSignalsData.items.map((signal: RecommendationFatigueSignal) => (
-                      <Card
-                        key={signal.signalId}
-                        size="small"
-                        className="border-gray-200 bg-gray-50 rounded-lg shadow-sm mb-4"
-                      >
-                        <Descriptions size="small" column={2}>
-                          <Descriptions.Item label="疲劳 Key">
-                            <span className="font-normal text-xs font-semibold">
-                              {signal.fatigueKey}
-                            </span>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="信号定位">
-                            <Tag color={signal.signalType === "MUTE" ? "orange" : "red"}>
-                              {signal.signalType}
-                            </Tag>
-                          </Descriptions.Item>
-                        </Descriptions>
-                        <div className="mt-3">
-                          <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-                            <span>疲劳触发进度 (当前触发 / 疲劳静音阈值)</span>
-                            <span className="font-semibold text-gray-700">
-                              {signal.triggerCount} / {signal.governanceThreshold} 次
-                            </span>
-                          </div>
-                          <Progress
-                            percent={Math.min(
-                              100,
-                              Math.floor((signal.triggerCount / signal.governanceThreshold) * 100),
-                            )}
-                            status={
-                              signal.triggerCount >= signal.governanceThreshold
-                                ? "exception"
-                                : "active"
+            <Tabs
+              defaultActiveKey="sources"
+              items={[
+                {
+                  key: "sources",
+                  label: (
+                    <span>
+                      <ReadOutlined /> 临床学术指南与文献证据 (Evidence)
+                    </span>
+                  ),
+                  children: (
+                    <div className="flex flex-col gap-4 mt-2 max-h-[460px] overflow-y-auto pr-2">
+                      {sourcesData && sourcesData.length > 0 ? (
+                        sourcesData.map((source: RecommendationSource) => (
+                          <Card
+                            key={source.sourceId}
+                            size="small"
+                            title={
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-gray-800 text-xs">
+                                  {source.title}
+                                </span>
+                                <Tag color="purple">
+                                  权威度评分: {source.authorityScore || 90}分
+                                </Tag>
+                              </div>
                             }
-                          />
-                        </div>
-                        {signal.summary && (
-                          <div className="mt-3 text-xs text-gray-500 italic bg-white p-2 rounded border border-gray-100">
-                            {signal.summary}
-                          </div>
-                        )}
-                      </Card>
-                    ))
-                  ) : (
-                    <Empty description="该场景暂无疲劳治理信号（仅展示后端真实采集信号）" />
-                  )}
-                </div>
-              </Tabs.TabPane>
-            </Tabs>
+                            className="border-gray-200 bg-gray-50 rounded-lg shadow-sm"
+                          >
+                            <div className="text-xs text-gray-700 leading-relaxed font-normal">
+                              {source.content}
+                            </div>
+                            <Descriptions
+                              size="small"
+                              column={2}
+                              className="mt-3 bg-white p-2 rounded border border-gray-100"
+                            >
+                              <Descriptions.Item label="指南/文献出处">
+                                <span className="text-gray-500 font-semibold">
+                                  {source.sourceRef}
+                                </span>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="证据级别">
+                                <Tag color="cyan">{source.evidenceLevel || "Class I"}</Tag>
+                              </Descriptions.Item>
+                            </Descriptions>
+                          </Card>
+                        ))
+                      ) : (
+                        <Empty description="该提醒卡暂无来源解释证据（仅展示后端真实来源，不做任何兜底伪造）" />
+                      )}
+                    </div>
+                  ),
+                },
+
+                {
+                  key: "feedback",
+                  disabled: detailData.card.status !== "PENDING",
+                  label: (
+                    <span>
+                      <CheckCircleOutlined /> 医师人机交互反馈 (Feedback)
+                    </span>
+                  ),
+                  children: (
+                    <Card className="border-gray-200 shadow-sm rounded-xl mt-2">
+                      <Form form={feedbackForm} layout="vertical">
+                        <Alert
+                          message="合理化医师反馈是临床合理处方闭环的核心留痕。选择不采纳时，请录入客观严谨的临床医学抗拒理由，以便医疗质控追溯与持续优化CDSS阈值。操作者身份由系统按登录态如实记录。"
+                          type="info"
+                          showIcon
+                          className="mb-4 rounded-lg"
+                        />
+
+                        <Tabs
+                          defaultActiveKey="accept"
+                          type="card"
+                          size="small"
+                          className="mb-4"
+                          items={[
+                            {
+                              key: "accept",
+                              label: "采纳合理建议 (ACCEPT)",
+                              children: (
+                                <>
+                                  <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-800 text-xs mb-4">
+                                    确认采纳此建议。系统将登记采纳反馈并生成临床决策证据；是否下达/撤销医嘱由医师在
+                                    HIS 中确认。
+                                  </div>
+                                  <Form.Item name="comments" label="采纳说明 (非必填)">
+                                    <Input placeholder="输入采纳说明，如：遵照指南撤销不合理克拉霉素..." />
+                                  </Form.Item>
+                                  <Button
+                                    type="primary"
+                                    onClick={() => handleFeedback("ACCEPT")}
+                                    loading={feedbackMutation.isPending}
+                                    className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+                                  >
+                                    确认并予以采纳 (ACCEPT)
+                                  </Button>
+                                </>
+                              ),
+                            },
+
+                            {
+                              key: "reject",
+                              label: "拒绝驳回建议 (REJECT)",
+                              children: (
+                                <>
+                                  <Form.Item
+                                    name="rejectReason"
+                                    label="医生拒绝/不采纳的临床抗拒原因"
+                                    rules={[
+                                      { required: true, message: "请选择拒绝采纳的临床理由" },
+                                    ]}
+                                  >
+                                    <Select placeholder="选择合理的抗拒指征原因">
+                                      <Option value="方案不合个体指征">
+                                        方案不合个体指征 (患者存在基因多态或联合耐药事实)
+                                      </Option>
+                                      <Option value="已有替代有效疗法">
+                                        已有替代有效疗法 (临床已采取其它合理对症治疗手段)
+                                      </Option>
+                                      <Option value="数据存在延迟偏差">
+                                        数据存在延迟偏差 (系统检测到的就诊或过敏事实与临床现状不符)
+                                      </Option>
+                                      <Option value="其他合理临床抉择">
+                                        其他合理临床抉择 (需要医生在下方输入备注具体说明)
+                                      </Option>
+                                    </Select>
+                                  </Form.Item>
+                                  <Form.Item
+                                    name="comments"
+                                    label="备注/不采纳详细医学判定说明"
+                                    rules={[{ required: true, message: "请输入详细拒绝说明" }]}
+                                  >
+                                    <TextArea
+                                      rows={2}
+                                      placeholder="请录入专业客观的临床诊断说明以便应对质控核查..."
+                                    />
+                                  </Form.Item>
+                                  <Button
+                                    type="primary"
+                                    danger
+                                    onClick={() => handleFeedback("REJECT")}
+                                    loading={feedbackMutation.isPending}
+                                    className="w-full"
+                                  >
+                                    确认拒绝采纳该建议 (REJECT)
+                                  </Button>
+                                </>
+                              ),
+                            },
+                          ]}
+                        />
+                      </Form>
+                    </Card>
+                  ),
+                },
+
+                {
+                  key: "fatigue",
+                  label: (
+                    <span>
+                      <DashboardOutlined /> 提醒超频疲劳治理 (Fatigue Signal)
+                    </span>
+                  ),
+                  children: (
+                    <div className="mt-2 pr-2">
+                      <Alert
+                        message="为防范“提醒狼来了麻木”，MedKernel 引擎引入高阶提醒疲劳度限流控制事实。当特定场景超频触发且被医生频繁驳回时，系统会触发静音/限频甚至全面物理拦截阻断。"
+                        type="warning"
+                        showIcon
+                        className="mb-4 rounded-lg"
+                      />
+
+                      {fatigueSignalsData?.items && fatigueSignalsData.items.length > 0 ? (
+                        fatigueSignalsData.items.map((signal: RecommendationFatigueSignal) => (
+                          <Card
+                            key={signal.signalId}
+                            size="small"
+                            className="border-gray-200 bg-gray-50 rounded-lg shadow-sm mb-4"
+                          >
+                            <Descriptions size="small" column={2}>
+                              <Descriptions.Item label="疲劳 Key">
+                                <span className="font-normal text-xs font-semibold">
+                                  {signal.fatigueKey}
+                                </span>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="信号定位">
+                                <Tag color={signal.signalType === "MUTE" ? "orange" : "red"}>
+                                  {signal.signalType}
+                                </Tag>
+                              </Descriptions.Item>
+                            </Descriptions>
+                            <div className="mt-3">
+                              <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                                <span>疲劳触发进度 (当前触发 / 疲劳静音阈值)</span>
+                                <span className="font-semibold text-gray-700">
+                                  {signal.triggerCount} / {signal.governanceThreshold} 次
+                                </span>
+                              </div>
+                              <Progress
+                                percent={Math.min(
+                                  100,
+                                  Math.floor(
+                                    (signal.triggerCount / signal.governanceThreshold) * 100,
+                                  ),
+                                )}
+                                status={
+                                  signal.triggerCount >= signal.governanceThreshold
+                                    ? "exception"
+                                    : "active"
+                                }
+                              />
+                            </div>
+                            {signal.summary && (
+                              <div className="mt-3 text-xs text-gray-500 italic bg-white p-2 rounded border border-gray-100">
+                                {signal.summary}
+                              </div>
+                            )}
+                          </Card>
+                        ))
+                      ) : (
+                        <Empty description="该场景暂无疲劳治理信号（仅展示后端真实采集信号）" />
+                      )}
+                    </div>
+                  ),
+                },
+              ]}
+            />
 
             {/* 可信归因诊断按钮 */}
             <div className="mt-6 flex justify-center w-full">

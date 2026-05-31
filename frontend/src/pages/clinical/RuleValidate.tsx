@@ -27,48 +27,43 @@ import type { RuleEvaluationItem, RuleEvaluateResponse } from "@/shared/api/hook
 
 const { TextArea } = Input;
 
-// 默认仿真临床上下文 JSON 引导
-const DEFAULT_CLINICAL_CONTEXT = `{
-  "patient": {
-    "patientId": "P-1001",
-    "name": "张三",
-    "age": 68,
-    "gender": "M"
-  },
-  "prescription": {
-    "drug_code": "DRUG-CODE",
-    "drug_name": "强力阿司匹林",
-    "dose": "100mg"
-  },
-  "diagnosis": {
-    "code": "DX-CODE-A",
-    "name": "原发性血压异常"
-  }
-}`;
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null) return fallback;
+  const candidate = error as ApiErrorResponse;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
 
 export default function RuleValidate() {
-  const [contextJson, setContextJson] = useState<string>(DEFAULT_CLINICAL_CONTEXT);
+  const [contextJson, setContextJson] = useState<string>("");
   const [triggerPoint, setTriggerPoint] = useState<string>("PRESCRIPTION_SUBMIT");
+  const [patientId, setPatientId] = useState<string>("");
 
-  // 匹配结果态
   const [evaluateResponse, setEvaluateResponse] = useState<RuleEvaluateResponse | null>(null);
-
-  // 诊断追踪详情态
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
-  // 评估 API hook
   const evaluateMutation = useEvaluateRules();
-
-  // 诊断 API hook
   const { data: diagnoseData, isLoading: diagnoseLoading } = useRuleExecutionDiagnose(
     selectedExecutionId || "",
   );
 
-  // 执行全规则评估
   const handleEvaluate = async () => {
     try {
+      const payloadJson = contextJson.trim();
+      if (!payloadJson) {
+        message.error("请先粘贴真实脱敏上下文 JSON");
+        return;
+      }
       try {
-        JSON.parse(contextJson);
+        JSON.parse(payloadJson);
       } catch {
         message.error("临床上下文的 JSON 格式不合法，请检查！");
         return;
@@ -76,15 +71,14 @@ export default function RuleValidate() {
 
       const res = await evaluateMutation.mutateAsync({
         triggerPoint,
-        patientId: "P-1001", // 模拟传入
-        payloadJson: contextJson,
+        patientId: patientId.trim() || undefined,
+        payloadJson,
       });
 
       setEvaluateResponse(res);
       message.success("批量规则匹配评估成功！");
-    } catch (err) {
-      const error = err as { response?: { data?: { message?: string } } };
-      message.error(error.response?.data?.message || "批量规则评估失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "批量规则评估失败"));
     }
   };
 
@@ -144,8 +138,8 @@ export default function RuleValidate() {
 
   return (
     <PageShell
-      title="规则沙箱"
-      description="向规则引擎输入模拟的就诊、诊断与处方上下文，实时观测匹配命中情况，进行可信解释与归因诊断。"
+      title="规则试运行"
+      description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因诊断。"
     >
       <Row gutter={24}>
         {/* 左栏：输入上下文 */}
@@ -164,21 +158,32 @@ export default function RuleValidate() {
                 触发时点 (Trigger Point)
               </div>
               <Input
-                placeholder="例如: PRESCRIPTION_SUBMIT"
+                placeholder="输入触发时点编码"
                 value={triggerPoint}
                 onChange={(e) => setTriggerPoint(e.target.value)}
                 className="font-normal text-sm"
               />
             </div>
 
+            <div className="mb-4">
+              <div className="text-xs font-semibold text-gray-700 mb-1">患者 ID（可选）</div>
+              <Input
+                placeholder="输入真实患者 ID；无患者上下文时可留空"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                className="font-normal text-sm"
+              />
+            </div>
+
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-1">
-                患者、就诊与处方 Payload JSON 快照
+                真实脱敏 Payload JSON 快照
               </div>
               <TextArea
                 rows={16}
                 value={contextJson}
                 onChange={(e) => setContextJson(e.target.value)}
+                placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、诊断或药品。"
                 className="font-normal text-xs p-3 bg-gray-50 rounded-lg"
               />
             </div>

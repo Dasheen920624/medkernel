@@ -25,7 +25,6 @@ import styles from "./Tenant.module.css";
 
 const { Text } = Typography;
 
-// 提取 Steps 的结构定义，避免触发 ArrayExpression 内联 mock 的 VariableDeclarator ESLint 检测
 function getStepsConfig() {
   return [
     { title: "签合同 · 建立项目", stage: "PREPARATION", subStep: 1, owner: "销售 + 客户成功" },
@@ -40,10 +39,21 @@ function getStepsConfig() {
   ];
 }
 
-/**
- * GA-TENANT-01 · 客户实施向导
- * 实施工程师上线 checklist 动态控制台
- */
+function splitDisplayList(value?: string) {
+  return value
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function getStepBadge(status: "finish" | "process" | "wait") {
+  if (status === "finish") return { badgeStatus: "success" as const, text: "已完结" };
+  if (status === "process") return { badgeStatus: "processing" as const, text: "演进中" };
+  return { badgeStatus: "default" as const, text: "未开始" };
+}
+
 export default function ImplementationGuide() {
   const { data: plan, isLoading, refetch } = useSuccessPlan();
   const transitionMutation = useTransitionSuccessStage();
@@ -51,7 +61,6 @@ export default function ImplementationGuide() {
   const currentStage = plan?.currentStage ?? "PREPARATION";
   const stepsConfig = getStepsConfig();
 
-  // 计算每个步骤的物理状态
   const getStepStatus = (stepStage: string, subStepIndex: number) => {
     const stageOrder = ["PREPARATION", "PILOT", "ACCEPTANCE", "PROMOTION", "RUNNING", "RENEWAL"];
     const currentOrderIndex = stageOrder.indexOf(currentStage);
@@ -69,7 +78,6 @@ export default function ImplementationGuide() {
       return "wait" as const;
     }
 
-    // 同一阶段内的步骤划分
     if (currentStage === "PREPARATION") {
       if (subStepIndex < 3) return "finish" as const;
       return "process" as const;
@@ -82,7 +90,6 @@ export default function ImplementationGuide() {
     return "process" as const;
   };
 
-  // 当前激活的 Steps 游标索引
   const getCurrentStepIndex = () => {
     switch (currentStage) {
       case "PREPARATION":
@@ -145,9 +152,10 @@ export default function ImplementationGuide() {
     );
   }
 
-  // 严格遵守 eslint medkernel/no-hardcoded-color，在 JS 中全部改用 CSS 变量
   const healthColor =
     (plan?.healthScore ?? 0) >= 80 ? "var(--ant-success-color)" : "var(--ant-warning-color)";
+  const activatedModules = splitDisplayList(plan?.activatedModules);
+  const activatedPathways = splitDisplayList(plan?.activatedPathways);
 
   return (
     <PageShell
@@ -201,11 +209,15 @@ export default function ImplementationGuide() {
                   <AppstoreOutlined className={styles.statIconBlue} />
                 </div>
                 <div>
-                  {plan?.activatedModules?.split(",").map((mod) => (
-                    <span key={mod} className={styles.badgeModule}>
-                      {mod}
-                    </span>
-                  )) ?? <Text type="secondary">暂无激活模块</Text>}
+                  {activatedModules.length > 0 ? (
+                    activatedModules.map((mod) => (
+                      <span key={mod} className={styles.badgeModule}>
+                        {mod}
+                      </span>
+                    ))
+                  ) : (
+                    <Text type="secondary">暂无激活模块</Text>
+                  )}
                 </div>
               </div>
             </Card>
@@ -219,11 +231,15 @@ export default function ImplementationGuide() {
                   <CompassOutlined className={styles.statIconPurple} />
                 </div>
                 <div>
-                  {plan?.activatedPathways?.split(",").map((path) => (
-                    <span key={path} className={styles.badgePathway}>
-                      {path}
-                    </span>
-                  )) ?? <Text type="secondary">暂无导入专病包</Text>}
+                  {activatedPathways.length > 0 ? (
+                    activatedPathways.map((path) => (
+                      <span key={path} className={styles.badgePathway}>
+                        {path}
+                      </span>
+                    ))
+                  ) : (
+                    <Text type="secondary">暂无导入专病包</Text>
+                  )}
                 </div>
               </div>
             </Card>
@@ -242,33 +258,23 @@ export default function ImplementationGuide() {
           <Steps
             direction="vertical"
             current={getCurrentStepIndex()}
-            items={stepsConfig.map((s) => ({
-              title: s.title,
-              status: getStepStatus(s.stage, s.subStep),
-              description: (
-                <div className={styles.stepDesc}>
-                  <Space size="middle">
-                    <Text type="secondary">负责人: {s.owner}</Text>
-                    <Badge
-                      status={
-                        getStepStatus(s.stage, s.subStep) === "finish"
-                          ? "success"
-                          : getStepStatus(s.stage, s.subStep) === "process"
-                            ? "processing"
-                            : "default"
-                      }
-                      text={
-                        getStepStatus(s.stage, s.subStep) === "finish"
-                          ? "已完结"
-                          : getStepStatus(s.stage, s.subStep) === "process"
-                            ? "演进中"
-                            : "未开始"
-                      }
-                    />
-                  </Space>
-                </div>
-              ),
-            }))}
+            items={stepsConfig.map((step) => {
+              const status = getStepStatus(step.stage, step.subStep);
+              const badge = getStepBadge(status);
+
+              return {
+                title: step.title,
+                status,
+                description: (
+                  <div className={styles.stepDesc}>
+                    <Space size="middle">
+                      <Text type="secondary">负责人: {step.owner}</Text>
+                      <Badge status={badge.badgeStatus} text={badge.text} />
+                    </Space>
+                  </div>
+                ),
+              };
+            })}
           />
         </Card>
       </div>

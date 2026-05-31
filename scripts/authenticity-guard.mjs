@@ -27,17 +27,20 @@ const FRONTEND_RULES = [
   {
     ruleId: "frontend.mock-import",
     message: "前端生产文件禁止引入 mock / fixture / MockAdapter。",
-    pattern: /\bMockAdapter\b|from\s+["'][^"']*(?:mock|mocks|fixture|fixtures)[^"']*["']/i,
+    pattern:
+      /\bMockAdapter\b|from\s+["'][^"']*(?:mock|mocks|fixture|fixtures)[^"']*["']/i,
   },
   {
     ruleId: "frontend.hardcoded-medical-constant",
     message: "前端生产文件禁止写死疾病、药品、编码等医学常量。",
-    pattern: /高血压|糖尿病|DRUG-001|I10|E11|J18|肺炎|心梗|脑卒中/,
+    pattern:
+      /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
   },
   {
     ruleId: "frontend.technical-object-visible",
     message: "客户面默认视图禁止裸露 JSON / font-mono 等技术对象。",
-    pattern: /font-mono|<pre\b[\s\S]{0,240}JSON\.stringify|JSON\.stringify[\s\S]{0,120}<\/pre>/m,
+    pattern:
+      /font-mono|<pre\b[\s\S]{0,240}JSON\.stringify|JSON\.stringify[\s\S]{0,120}<\/pre>/m,
   },
   {
     ruleId: "frontend.random-business-value",
@@ -47,25 +50,30 @@ const FRONTEND_RULES = [
   {
     ruleId: "frontend.fake-hash",
     message: "前端生产文件禁止伪造 hash 或证据指纹。",
-    pattern: /SHA-256-MOCK-HASH|fake(?:Hash|hash)|randHash|sha256-[^"'`+]*\s*\+\s*Math\.floor/i,
+    pattern:
+      /SHA-256-MOCK-HASH|fake(?:Hash|hash)|randHash|sha256-[^"'`+]*\s*\+\s*Math\.floor/i,
   },
   {
     ruleId: "frontend.catch-success",
-    message: "前端生产文件禁止 catch 后 message.success 或返回成功，失败必须诚实暴露。",
-    catchBlockPattern: /(?:message\.success|return\s+(?:success|ApiResult\.success|ResponseEntity\.ok))/m,
+    message:
+      "前端生产文件禁止 catch 后 message.success 或返回成功，失败必须诚实暴露。",
+    catchBlockPattern:
+      /(?:message\.success|return\s+(?:success|ApiResult\.success|ResponseEntity\.ok))/m,
   },
 ];
 
 const FRONTEND_SHARED_API_RULES = [
   {
     ruleId: "frontend.demo-snapshot-export",
-    message: "共享 API 层禁止导出演示/模拟快照供生产页面调用，页面必须读取真实接口或诚实空态。",
+    message:
+      "共享 API 层禁止导出演示/模拟快照供生产页面调用，页面必须读取真实接口或诚实空态。",
     pattern: /\b(?:DEMO|MOCK|FAKE)_?[A-Z0-9_]*\s*=\s*\[/,
   },
   {
     ruleId: "frontend.mock-import",
     message: "共享 API 层禁止引入 mock / fixture / MockAdapter。",
-    pattern: /\bMockAdapter\b|from\s+["'][^"']*(?:mock|mocks|fixture|fixtures)[^"']*["']/i,
+    pattern:
+      /\bMockAdapter\b|from\s+["'][^"']*(?:mock|mocks|fixture|fixtures)[^"']*["']/i,
   },
   {
     ruleId: "frontend.random-business-value",
@@ -82,7 +90,8 @@ const FRONTEND_CSS_RULES = [
   },
   {
     ruleId: "frontend.css-hardcoded-px-token",
-    message: "CSS Module 禁止字号/圆角 px token 硬编码，必须走设计 token 变量。",
+    message:
+      "CSS Module 禁止字号/圆角 px token 硬编码，必须走设计 token 变量。",
     pattern: /\b(?:border-radius|font-size)\s*:\s*\d+(?:\.\d+)?px\b/,
   },
 ];
@@ -90,18 +99,21 @@ const FRONTEND_CSS_RULES = [
 const BACKEND_RULES = [
   {
     ruleId: "backend.random-business-value",
-    message: "后端生产代码禁止使用 Math.random() 伪造业务值、RTT、健康分或重试结果。",
+    message:
+      "后端生产代码禁止使用 Math.random() 伪造业务值、RTT、健康分或重试结果。",
     pattern: /Math\.random\s*\(/,
   },
   {
     ruleId: "backend.hardcoded-medical-constant",
     message: "后端生产代码禁止写死疾病、药品、编码等医学常量。",
-    pattern: /高血压|糖尿病|DRUG-001|I10|E11|J18|肺炎|心梗|脑卒中/,
+    pattern:
+      /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
   },
   {
     ruleId: "backend.catch-success",
     message: "后端生产代码禁止 catch 后返回 success / ok 伪造成功。",
-    catchBlockPattern: /return\s+(?:ApiResult\.success|ResponseEntity\.ok|success)\b/m,
+    catchBlockPattern:
+      /return\s+(?:ApiResult\.success|ResponseEntity\.ok|success)\b/m,
   },
   {
     ruleId: "backend.uuid-as-hash",
@@ -118,7 +130,8 @@ const BACKEND_RULES = [
 
 function normalizePath(filePath, root = process.cwd()) {
   const normalized = filePath.replace(/\\/g, "/");
-  if (!normalized.startsWith("/") && !/^[A-Za-z]:\//.test(normalized)) return normalized;
+  if (!normalized.startsWith("/") && !/^[A-Za-z]:\//.test(normalized))
+    return normalized;
   return relative(root, normalized).replace(/\\/g, "/");
 }
 
@@ -127,8 +140,10 @@ function lineOf(content, index) {
 }
 
 function firstMatch(content, rule) {
-  if (rule.catchBlockPattern) return firstCatchBlockMatch(content, rule.catchBlockPattern);
-  if (rule.javadocBlockPattern) return firstJavadocBlockMatch(content, rule.javadocBlockPattern);
+  if (rule.catchBlockPattern)
+    return firstCatchBlockMatch(content, rule.catchBlockPattern);
+  if (rule.javadocBlockPattern)
+    return firstJavadocBlockMatch(content, rule.javadocBlockPattern);
   const match = rule.pattern.exec(content);
   if (!match) return null;
   return { index: match.index, text: match[0] };
@@ -155,7 +170,10 @@ function firstCatchBlockMatch(content, pattern) {
 
     const block = content.slice(openIndex + 1, closeIndex);
     if (pattern.test(block)) {
-      return { index: match.index, text: content.slice(match.index, closeIndex + 1) };
+      return {
+        index: match.index,
+        text: content.slice(match.index, closeIndex + 1),
+      };
     }
     catchPattern.lastIndex = closeIndex + 1;
   }
@@ -300,7 +318,8 @@ function listChangedFiles(root, base) {
 
 function resolveBase(root, explicitBase) {
   if (explicitBase) return explicitBase;
-  if (process.env.GITHUB_BASE_REF) return `origin/${process.env.GITHUB_BASE_REF}`;
+  if (process.env.GITHUB_BASE_REF)
+    return `origin/${process.env.GITHUB_BASE_REF}`;
   try {
     git(root, ["rev-parse", "--verify", "origin/main"]);
     return "origin/main";
@@ -312,7 +331,10 @@ function resolveBase(root, explicitBase) {
 function summarizeByRule(violations) {
   const groups = new Map();
   for (const violation of violations) {
-    const group = groups.get(violation.ruleId) ?? { count: 0, files: new Set() };
+    const group = groups.get(violation.ruleId) ?? {
+      count: 0,
+      files: new Set(),
+    };
     group.count += 1;
     group.files.add(violation.file);
     groups.set(violation.ruleId, group);
@@ -321,7 +343,9 @@ function summarizeByRule(violations) {
 }
 
 function printReport(report, { mode }) {
-  console.log(`真实性门禁扫描：mode=${mode}，扫描文件 ${report.scannedFiles.length} 个。`);
+  console.log(
+    `真实性门禁扫描：mode=${mode}，扫描文件 ${report.scannedFiles.length} 个。`,
+  );
 
   if (report.violations.length === 0) {
     console.log("真实性门禁通过：未发现阻断项。");
@@ -329,8 +353,13 @@ function printReport(report, { mode }) {
   }
 
   console.log(`真实性门禁发现 ${report.violations.length} 个阻断项：`);
-  for (const violation of report.violations.slice(0, mode === "inventory" ? 50 : undefined)) {
-    console.log(`${violation.file}:${violation.line} [${violation.ruleId}] ${violation.message}`);
+  for (const violation of report.violations.slice(
+    0,
+    mode === "inventory" ? 50 : undefined,
+  )) {
+    console.log(
+      `${violation.file}:${violation.line} [${violation.ruleId}] ${violation.message}`,
+    );
     if (process.env.GITHUB_ACTIONS && mode !== "inventory") {
       console.log(
         `::error file=${violation.file},line=${violation.line},title=${violation.ruleId}::${violation.message}`,
@@ -339,13 +368,16 @@ function printReport(report, { mode }) {
   }
 
   if (mode === "inventory" && report.violations.length > 50) {
-    console.log(`... 其余 ${report.violations.length - 50} 个阻断项省略，按规则汇总见下。`);
+    console.log(
+      `... 其余 ${report.violations.length - 50} 个阻断项省略，按规则汇总见下。`,
+    );
   }
 
   console.log("按规则汇总：");
   for (const [ruleId, group] of summarizeByRule(report.violations)) {
     const files = [...group.files].slice(0, 10).join(", ");
-    const suffix = group.files.size > 10 ? ` 等 ${group.files.size} 个文件` : "";
+    const suffix =
+      group.files.size > 10 ? ` 等 ${group.files.size} 个文件` : "";
     console.log(`- ${ruleId}: ${group.count} 项；${files}${suffix}`);
   }
 }

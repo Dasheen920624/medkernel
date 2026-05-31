@@ -15,8 +15,16 @@
 }
 
 .loaderContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   text-align: center;
   padding: 40px 0;
+}
+
+.loaderText {
+  display: block;
 }
 
 .stageTag {

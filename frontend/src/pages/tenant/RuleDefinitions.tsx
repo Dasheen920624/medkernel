@@ -18,6 +18,7 @@ import {
   Row,
   Col,
 } from "antd";
+import type { BadgeProps, TableProps } from "antd";
 import {
   PlusOutlined,
   PlayCircleOutlined,
@@ -35,46 +36,71 @@ import {
   useSimulateRule,
   usePublishRule,
 } from "@/shared/api/hooks";
-import type { RuleDefinition } from "@/shared/api/hooks";
+import type { RuleDefinition, RuleEvaluationItem } from "@/shared/api/hooks";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
-// 默认规则 DSL 引导模板
 const DEFAULT_DSL_TEMPLATE = `{
   "when": {
     "all": [
       {
-        "fact": "patient.age",
-        "operator": "gt",
-        "value": 65
-      },
-      {
-        "fact": "prescription.drug_code",
+        "fact": "context.field",
         "operator": "equals",
-        "value": "DRUG-CODE"
+        "value": "REPLACE_WITH_REAL_VALUE"
       }
     ]
   },
   "then": [
     {
-      "actionCode": "STRONG_REMINDER",
-      "severity": "HIGH",
-      "message": "老年患者使用本药物风险偏高，请确认肾功能指标是否正常",
+      "actionCode": "REVIEW_REQUIRED",
+      "severity": "LOW",
+      "message": "请依据已审核规则来源复核当前上下文",
       "requiresPhysicianConfirmation": true
     }
   ],
-  "explain": "65岁以上老年患者关键处方剂量审核规则"
+  "explain": "基于真实上下文快照与已审核来源生成提示"
 }`;
 
 const DEFAULT_EXPLAIN_TEMPLATE = `{
-  "template": "患者年龄为 \${patient.age} 岁，拟开具 \${prescription.drug_code}，触发高风险警示：\${message}",
+  "template": "上下文字段 \${context.field} 命中规则，处置动作：\${message}",
   "variables": {
-    "patient.age": "患者实际年龄",
-    "prescription.drug_code": "处方药物品规编码",
+    "context.field": "来自真实脱敏上下文快照的字段",
     "message": "命中提醒内容"
   }
 }`;
+
+type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null) return fallback;
+  const candidate = error as ApiErrorResponse;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
+
+function parseJsonInput(value: string, errorMessage: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    message.error(errorMessage);
+    return null;
+  }
+
+  try {
+    JSON.parse(normalized);
+    return normalized;
+  } catch {
+    message.error("JSON 格式不合法，请检查后再提交。");
+    return null;
+  }
+}
 
 export default function RuleDefinitions() {
   const [page, setPage] = useState(1);
@@ -94,11 +120,8 @@ export default function RuleDefinitions() {
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
 
-  // 仿真运行态
-  const [simulatePayload, setSimulatePayload] = useState<string>(
-    '{\n  "patient": {\n    "age": 70\n  },\n  "prescription": {\n    "drug_code": "DRUG-CODE"\n  }\n}',
-  );
-  const [simulateResult, setSimulateResult] = useState<any | null>(null);
+  const [simulatePayload, setSimulatePayload] = useState<string>("");
+  const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
 
   // 载入定义数据
   const {
@@ -130,14 +153,9 @@ export default function RuleDefinitions() {
   const handleCreateRule = async () => {
     try {
       const values = await createForm.validateFields();
-      // 简单验证 JSON 格式
-      try {
-        JSON.parse(values.dslJson);
-        JSON.parse(values.explanationJson);
-      } catch {
-        message.error("DSL 或解释模板的 JSON 格式不合法，请检查！");
-        return;
-      }
+      const dslJson = parseJsonInput(values.dslJson, "请输入确定性条件 JSON DSL");
+      const explanationJson = parseJsonInput(values.explanationJson, "请输入可解释追溯模板 JSON");
+      if (!dslJson || !explanationJson) return;
 
       await createRuleMutation.mutateAsync({
         ruleCode: values.ruleCode,
@@ -147,16 +165,16 @@ export default function RuleDefinitions() {
         riskLevel: values.riskLevel,
         sourceRef: values.sourceRef,
         changeSummary: values.changeSummary,
-        dslJson: values.dslJson,
-        explanationJson: values.explanationJson,
+        dslJson,
+        explanationJson,
       });
 
       message.success("新规则创建成功，状态为 DRAFT(草稿)");
       setCreateModalVisible(false);
       createForm.resetFields();
       refetchList();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "创建规则失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "创建规则失败"));
     }
   };
 
@@ -164,16 +182,12 @@ export default function RuleDefinitions() {
   const handleAddTestCase = async () => {
     try {
       const values = await caseForm.validateFields();
-      try {
-        JSON.parse(values.inputPayload);
-      } catch {
-        message.error("用例输入载荷 payload 的 JSON 格式不合法");
-        return;
-      }
+      const inputPayload = parseJsonInput(values.inputPayload, "请粘贴真实脱敏测试输入载荷 JSON");
+      if (!inputPayload) return;
 
       await addTestCaseMutation.mutateAsync({
         caseType: values.caseType,
-        inputPayload: values.inputPayload,
+        inputPayload,
         expectedHit: values.expectedHit,
         expectedSeverity: values.expectedSeverity,
         expectedActionCode: values.expectedActionCode,
@@ -183,33 +197,27 @@ export default function RuleDefinitions() {
       setCaseModalVisible(false);
       caseForm.resetFields();
       refetchDetail();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "添加用例失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "添加用例失败"));
     }
   };
 
-  // 触发仿真运行
   const handleSimulate = async () => {
     try {
-      try {
-        JSON.parse(simulatePayload);
-      } catch {
-        message.error("仿真输入 payload 的 JSON 格式不合法");
-        return;
-      }
+      const inputPayload = parseJsonInput(simulatePayload, "请先粘贴真实脱敏上下文快照 JSON");
+      if (!inputPayload) return;
 
       const result = await simulateMutation.mutateAsync({
-        inputPayload: simulatePayload,
+        inputPayload,
       });
       setSimulateResult(result);
-      message.success("规则仿真运行成功，已输出求值结果");
-      refetchDetail(); // 仿真也会刷新最后一次用例的状态
-    } catch (err: any) {
-      message.error(err.response?.data?.message || "规则仿真求值失败");
+      message.success("规则试运行成功，已返回求值结果");
+      refetchDetail();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "规则试运行失败"));
     }
   };
 
-  // 触发发布门禁并推进上线
   const handlePublish = async () => {
     if (!selectedRuleId) return;
     try {
@@ -217,18 +225,18 @@ export default function RuleDefinitions() {
       message.success("发布成功！所有门禁测试通过，规则已跃迁为 PUBLISHED");
       refetchDetail();
       refetchList();
-    } catch (err: any) {
-      // 包含测试用例不全等业务拒绝信息
+    } catch (error: unknown) {
       Modal.error({
         title: "规则发布门禁拒绝",
-        content:
-          err.response?.data?.message || "发布门禁校验未通过，请检查测试用例是否齐全且全部 PASS。",
+        content: getApiErrorMessage(
+          error,
+          "发布门禁校验未通过，请检查测试用例是否齐全且全部 PASS。",
+        ),
       });
     }
   };
 
-  // 表格列定义
-  const columns = [
+  const columns: TableProps<RuleDefinition>["columns"] = [
     {
       title: "规则编码",
       dataIndex: "ruleCode",
@@ -272,14 +280,14 @@ export default function RuleDefinitions() {
       dataIndex: "status",
       key: "status",
       render: (status: string) => {
-        const statusMap: Record<string, { text: string; color: string }> = {
-          DRAFT: { text: "草稿设计中", color: "warning" },
-          PUBLISHED: { text: "已上线运行", color: "success" },
-          OFFLINE: { text: "已下线封存", color: "default" },
-          ARCHIVED: { text: "已归档历史", color: "default" },
+        const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
+          DRAFT: { text: "草稿设计中", status: "warning" },
+          PUBLISHED: { text: "已上线运行", status: "success" },
+          OFFLINE: { text: "已下线封存", status: "default" },
+          ARCHIVED: { text: "已归档历史", status: "default" },
         };
-        const config = statusMap[status] || { text: status, color: "processing" };
-        return <Badge status={config.color as any} text={config.text} />;
+        const config = statusMap[status] || { text: status, status: "processing" };
+        return <Badge status={config.status} text={config.text} />;
       },
     },
     {
@@ -291,13 +299,13 @@ export default function RuleDefinitions() {
     {
       title: "操作",
       key: "action",
-      render: (_: any, record: RuleDefinition) => (
+      render: (_value: unknown, record: RuleDefinition) => (
         <Button
           type="link"
           onClick={() => setSelectedRuleId(record.ruleId)}
           className="text-indigo-600 hover:text-indigo-900 font-medium"
         >
-          查看配置 & 仿真
+          查看配置与试运行
         </Button>
       ),
     },
@@ -306,7 +314,7 @@ export default function RuleDefinitions() {
   return (
     <PageShell
       title="规则中枢"
-      description="管理合理用药、医保规范和临床质控核心规则资产，提供版本控制、仿真模拟以及门禁测试闭环。"
+      description="管理合理用药、医保规范和临床质控核心规则资产，提供版本控制、真实快照试运行以及门禁测试闭环。"
     >
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
         <Form layout="inline" className="flex flex-wrap gap-4 items-center">
@@ -498,11 +506,10 @@ export default function RuleDefinitions() {
                       icon={<PlusOutlined />}
                       onClick={() => {
                         caseForm.setFieldsValue({
-                          inputPayload:
-                            '{\n  "patient": {\n    "age": 70\n  },\n  "prescription": {\n    "drug_code": "DRUG-CODE"\n  }\n}',
+                          inputPayload: "",
                           expectedHit: true,
-                          expectedSeverity: "HIGH",
-                          expectedActionCode: "STRONG_REMINDER",
+                          expectedSeverity: "LOW",
+                          expectedActionCode: "REVIEW_REQUIRED",
                           caseType: "POSITIVE",
                         });
                         setCaseModalVisible(true);
@@ -568,18 +575,19 @@ export default function RuleDefinitions() {
               <Tabs.TabPane
                 tab={
                   <span>
-                    <PlayCircleOutlined /> 仿真运行校验
+                    <PlayCircleOutlined /> 真实快照试运行
                   </span>
                 }
                 key="simulate"
               >
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Card title="仿真输入 Payload (JSON)">
+                    <Card title="真实脱敏上下文快照 JSON">
                       <TextArea
                         rows={12}
                         value={simulatePayload}
                         onChange={(e) => setSimulatePayload(e.target.value)}
+                        placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、诊断或药品。"
                         className="font-normal text-xs"
                       />
                       <Button
@@ -589,12 +597,12 @@ export default function RuleDefinitions() {
                         loading={simulateMutation.isPending}
                         className="w-full mt-4"
                       >
-                        运行规则仿真求值
+                        运行规则试运行求值
                       </Button>
                     </Card>
                   </Col>
                   <Col span={12}>
-                    <Card title="仿真输出结果 (DSL Evaluation)">
+                    <Card title="规则求值结果">
                       {simulateResult ? (
                         <div className="bg-gray-50 p-4 rounded-lg min-h-64 overflow-auto max-h-96">
                           <Descriptions column={1} size="small" bordered className="mb-4">
@@ -626,7 +634,7 @@ export default function RuleDefinitions() {
                       ) : (
                         <div className="flex flex-col items-center justify-center min-h-64 text-gray-400">
                           <PlayCircleOutlined className="text-[48px] mb-4" />
-                          <span>在左侧填入上下文快照后，点击运行开始仿真</span>
+                          <span>粘贴真实脱敏上下文快照后，点击运行开始求值</span>
                         </div>
                       )}
                     </Card>
@@ -656,7 +664,7 @@ export default function RuleDefinitions() {
                 label="规则唯一业务编码 (Rule Code)"
                 rules={[{ required: true, message: "请输入编码，同租户下不可重复" }]}
               >
-                <Input placeholder="例如: DRUG-SAFETY-GERIATRIC" />
+                <Input placeholder="输入规则唯一业务编码" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -665,7 +673,7 @@ export default function RuleDefinitions() {
                 label="规则显示名称"
                 rules={[{ required: true, message: "请输入规则名称" }]}
               >
-                <Input placeholder="例如: 65岁以上老年患者剂量安全规则" />
+                <Input placeholder="输入规则显示名称" />
               </Form.Item>
             </Col>
           </Row>
@@ -694,7 +702,7 @@ export default function RuleDefinitions() {
                 label="医学依据/来源"
                 rules={[{ required: true, message: "请输入依据来源" }]}
               >
-                <Input placeholder="例如: 血压异常合理用药指南2025" />
+                <Input placeholder="输入已审核医学依据、院内制度或配置包来源" />
               </Form.Item>
             </Col>
           </Row>
@@ -745,12 +753,16 @@ export default function RuleDefinitions() {
           </Form.Item>
           <Form.Item
             name="inputPayload"
-            label="测试输入 payload JSON 快照"
+            label="真实脱敏测试输入 JSON 快照"
             rules={[{ required: true, message: "请输入快照" }]}
           >
-            <TextArea rows={8} className="font-normal text-xs" />
+            <TextArea
+              rows={8}
+              placeholder="粘贴真实脱敏上下文快照 JSON"
+              className="font-normal text-xs"
+            />
           </Form.Item>
-          <Form.Item name="expectedHit" label="期望求值结果" valuePropName="checked">
+          <Form.Item name="expectedHit" label="期望求值结果">
             <Select>
               <Option value={true}>应当触发规则命中</Option>
               <Option value={false}>不应当命中</Option>

@@ -85,6 +85,28 @@ test("前端测试与 Storybook 文件走白名单，不因测试 mock 被误杀
   );
 });
 
+test("前端页面触碰文件会阻断旧规则路径示例占位符回流", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/RulePathPage.tsx": `
+        export function RulePathPage() {
+          return <textarea defaultValue='{"drug_code":"DRUG-CODE","templateId":"PT-CAP-01"}' />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/RulePathPage.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.hardcoded-medical-constant",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {
@@ -124,7 +146,9 @@ test("前端生产文件禁止用规避门禁话术隐藏本地假数据闭环",
       `,
     },
     async (root) => {
-      const report = await scanFiles(root, ["frontend/src/pages/BypassPage.tsx"]);
+      const report = await scanFiles(root, [
+        "frontend/src/pages/BypassPage.tsx",
+      ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), ["frontend.mock-bypass-language"]);
@@ -142,7 +166,9 @@ test("共享 API 层禁止导出演示快照供生产页面调用", async () => 
       `,
     },
     async (root) => {
-      const report = await scanFiles(root, ["frontend/src/shared/api/hooks.ts"]);
+      const report = await scanFiles(root, [
+        "frontend/src/shared/api/hooks.ts",
+      ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), ["frontend.demo-snapshot-export"]);
@@ -163,7 +189,9 @@ test("CSS 触碰文件会阻断 hex/rgb/hsl 与字号圆角 px 硬编码", async
       `,
     },
     async (root) => {
-      const report = await scanFiles(root, ["frontend/src/pages/Login.module.css"]);
+      const report = await scanFiles(root, [
+        "frontend/src/pages/Login.module.css",
+      ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
@@ -175,7 +203,9 @@ test("CSS 触碰文件会阻断 hex/rgb/hsl 与字号圆角 px 硬编码", async
 });
 
 test("登录页 CSS 必须全部使用设计 token 变量", async () => {
-  const report = await scanFiles(process.cwd(), ["frontend/src/pages/Login.module.css"]);
+  const report = await scanFiles(process.cwd(), [
+    "frontend/src/pages/Login.module.css",
+  ]);
 
   assert.equal(hasBlockingViolations(report), false);
   assert.deepEqual(report.violations, []);
