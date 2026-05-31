@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 后端包同步真实性净化 PR6（无真实通道诚实 NOT_SYNCED）🚧
+### 线 1 · BASE-09 后端包影响分析真实性净化 PR7（去假科室 / 去吞错）🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-backend-hardcoded-clean
-- 目标：完成 BASE-09 第六批后端净化：清理包同步默认适配器的模拟离线同步和 `LNT-*` 时间戳摘要伪证据；无真实物理通道时诚实返回 / 落库 `NOT_SYNCED`，并补门禁阻断回流。
-- 状态：已基于 `origin/main@c480e47` 完成 PR6 本地实现与完整本地验证；新增 `docs/audit/BASE-09-backend-package-sync-cleanup-pr6.md`、`PackageSyncNotConnectedException`、V33 五方言迁移与同步降级测试；更新 `LenientPackageSyncAdapter`、`PackageEngineService`、发布计划 / 同步日志状态枚举、迁移契约测试和真实性门禁。当前已通过：目标后端测试、真实性门禁测试与 inventory、V33 五方言迁移规约、三类脚本门禁测试、`mvn -B -q test`（含 Docker Testcontainers PostgreSQL / Oracle 迁移烟测）、`git diff --check`、伪同步 grep 清零。
-- 下一步（精确到动作/命令）：1. `git status --short` 核对变更；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 剩余硬编码业务示例、包发布影响分析 / 回滚闭环残留和域级验收，D0 域级验收前不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 完成，不勾选全部 FR/AC；`NOT_SYNCED` 只表达“未接入真实同步通道”，不是普通失败；同步证据只能来自真实目标回执或真实被投影内容指纹，禁止时间戳 / 随机数 / UUID / 固定前缀伪造成功。后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
+- 分支：codex/base-09-package-impact-clean
+- 目标：完成 BASE-09 第七批后端净化：清理包发布“看影响”中的 `dept-default` 默认科室、模拟注释和 catch 吞错伪降级；只从真实资产字段返回责任组织 / 科室，并补门禁阻断回流。
+- 状态：已基于 `origin/main@e9911e2` 完成实现与完整本地验证：`PackageEngineService.calculateDiff` 对规则资产读取 `RuleDefinition.applicableOrgUnitId`、评估指标读取 `EvaluationIndicator.responsibleDepartmentId`、路径模板因当前无责任科室字段而诚实空缺；新增 `PackageEngineServiceTest` 影响科室与查库失败断言，新增 `backend.fake-impact-department` 真实性门禁和审计记录 `docs/audit/BASE-09-backend-package-impact-cleanup-pr7.md`。当前已通过目标后端测试、真实性 inventory、三类脚本门禁测试、`mvn -B -q test`（含 Docker Testcontainers PostgreSQL / Oracle 迁移烟测）、`git diff --check` 和生产路径伪科室 grep。
+- 下一步（精确到动作/命令）：1. `git status --short` 核对变更；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 包发布回滚闭环、影响范围导出、剩余硬编码业务示例和域级验收，D0 域级验收前不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 完成，不勾选全部 FR/AC；路径模板暂无真实责任科室字段时不能伪造默认科室，后续若要展示路径影响科室必须显式建模字段 / 关联查询；查询失败必须暴露错误，不能吞错成功。后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 后端包同步真实性净化 PR6 ✅（#199）：清理 `LenientPackageSyncAdapter` 模拟离线同步和 `LNT-*` 时间戳摘要伪证据；新增 `NOT_SYNCED` 发布计划 / 同步日志状态，无真实通道时写诚实失败、清空 `syncEvidence` 且不推进知识包状态；补 V33 五方言状态约束和真实性门禁 `backend.fake-sync-evidence`；本地后端全量、脚本门禁、真实性 / 配置边界 inventory、迁移规约、伪同步 grep 与远端 CI 8/8 通过并合入 `origin/main`（merge `e9911e2`）。下一步继续 BASE-09 包发布影响分析 / 回滚闭环残留和域级验收。
 - BASE-09 后端知识真实性净化 PR5 ✅（#198）：清理上下文幂等 `hashCode()` 摘要、来源版本时间戳伪哈希、知识导出 `memory://` 占位成功；新增知识导出 JSONL 真实文件与下载端点；承接 V22 已有 `source_fragment.content_hash` 列，补 V32 五方言唯一约束和注释强化；真实性门禁新增阻断后端时间戳伪哈希、`hashCode()` 摘要、占位导出 URI 与 `@RequestBody Map` 裸入参。本地后端全量、脚本门禁、真实性 / 配置边界 inventory、迁移规约、伪哈希 grep 与远端 CI 8/8 通过并合入 `origin/main`（merge `c480e47`）。下一步继续 BASE-09 后端包同步伪证据、硬编码业务示例和域级验收残留。
 - BASE-09 前端净化 PR4（规则 / 路径旧示例与假上下文清理）✅（#197）：清理 `RuleDefinitions`、`PathwayTemplates`、`RuleValidate`、`PatientPathways`、`AdapterHub`、`QcAlerts`、`CdssFatigue` 和 `ImplementationGuide` 中的固定患者、病种、药品、路径模板、假 trace、假入径台账、空上下文试运行和规避门禁注释；扩展真实性门禁阻断旧规则 / 路径占位符回流；同步清理废弃 Ant Design 用法与 `AdapterHub` 类型告警。本地前端 verify/build、T-GATE、浏览器 9 页复验与远端 CI 8/8 通过并合入 `origin/main`（merge `e06e308`）。下一步继续 BASE-09 后端 Map、硬编码、假证据 / 假同步清理。
 - BASE-09 前端净化 PR3（证据追溯 + 评估结果假闭环清理）✅（#196）：清理 `Provenance` 内置演示证据链、假 traceId、假审计日志、前端自校验沙箱和本地防伪导出；清理 `QcEvalResults` 固定 KPI 常量和 Mock 口径；补修后端 `menuKeys` 与前端路由授权断层。本地前端 verify/build、T-GATE、浏览器核验与远端 CI 8/8 通过并合入 `origin/main`（merge `345173d`）。下一步继续 BASE-09 规则 / 路径旧示例与假上下文清理。
@@ -85,4 +86,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-09 后端包同步真实性净化 PR6 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-05-31 · BASE-09 后端包影响分析真实性净化 PR7 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR

@@ -16,12 +16,17 @@ import java.util.Optional;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
+import com.medkernel.engine.evaluation.EvaluationSubjectType;
 import com.medkernel.engine.pathway.PathwayTemplate;
+import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
+import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
+import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.rule.RuleType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -215,6 +220,12 @@ class PackageEngineServiceTest {
 
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-base")).thenReturn(baseItems);
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(targetItems);
+        when(ruleRepository.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-1", null)));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-1", "tenant-A"))
+            .thenReturn(Optional.of(publishedPathway("pathway-1")));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-1", "tenant-A"))
+            .thenReturn(Optional.of(publishedIndicator("eval-1", null)));
 
         PackageDiffResponse response = service.calculateDiff("pkg-target", "pkg-base");
 
@@ -223,6 +234,47 @@ class PackageEngineServiceTest {
         assertThat(response.addedCount()).isEqualTo(1); // eval-1
         assertThat(response.updatedCount()).isEqualTo(1); // rule-1
         assertThat(response.removedCount()).isEqualTo(0); // pathway-1还在
+    }
+
+    @Test
+    void calculateDiffUsesOnlyRealAssetDepartments() {
+        KnowledgePackage targetPack = packageVersion("pkg-target", "2.0.0", KnowledgePackageStatus.DRAFT);
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
+            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-real", "2"),
+            packageItem(2L, "pkg-target", PackageItemAssetType.PATHWAY, "pathway-no-dept", "1"),
+            packageItem(3L, "pkg-target", PackageItemAssetType.EVALUATION, "eval-real", "1"),
+            packageItem(4L, "pkg-target", PackageItemAssetType.TERMINOLOGY, "term-1", "1")
+        ));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-real", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-real", "dept-rule")));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-no-dept", "tenant-A"))
+            .thenReturn(Optional.of(publishedPathway("pathway-no-dept")));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-real", "tenant-A"))
+            .thenReturn(Optional.of(publishedIndicator("eval-real", "dept-eval")));
+
+        PackageDiffResponse response = service.calculateDiff("pkg-target", null);
+
+        assertThat(response.affectedDepartments())
+            .containsExactlyInAnyOrder("dept-rule", "dept-eval")
+            .doesNotContain("dept-default");
+    }
+
+    @Test
+    void calculateDiffDoesNotForgeDepartmentWhenAssetLookupFails() {
+        KnowledgePackage targetPack = packageVersion("pkg-target", "2.0.0", KnowledgePackageStatus.DRAFT);
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
+            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-broken", "2")
+        ));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-broken", "tenant-A"))
+            .thenThrow(new IllegalStateException("规则资产查询失败"));
+
+        assertThatThrownBy(() -> service.calculateDiff("pkg-target", null))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("规则资产查询失败");
     }
 
     @Test
@@ -405,5 +457,52 @@ class PackageEngineServiceTest {
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).targetId()).isEqualTo("target-active");
+    }
+
+    private KnowledgePackage packageVersion(String packageId, String version, KnowledgePackageStatus status) {
+        return new KnowledgePackage(
+            1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
+            status, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private PackageItem packageItem(
+            long id,
+            String packageId,
+            PackageItemAssetType assetType,
+            String assetId,
+            String assetVersion) {
+        return new PackageItem(
+            id, "item-" + id, "tenant-A", packageId, assetType, assetId, assetVersion,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private RuleDefinition publishedRule(String ruleId, String applicableOrgUnitId) {
+        return new RuleDefinition(
+            1L, ruleId, "tenant-A", "RULE.TEST", "测试规则", RuleType.QUALITY,
+            RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, RuleDefinitionStatus.PUBLISHED,
+            "rule-version-1", "1.0.0", applicableOrgUnitId,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private PathwayTemplate publishedPathway(String templateId) {
+        return new PathwayTemplate(
+            1L, templateId, "tenant-A", "pathway-package", "PATH.TEST", "测试路径",
+            "DISEASE.TEST", 1, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
+            "start", "source-ref", "路径说明", "{}", "{}",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private EvaluationIndicator publishedIndicator(String indicatorId, String responsibleDepartmentId) {
+        return new EvaluationIndicator(
+            1L, indicatorId, "tenant-A", "EVAL.TEST", 1, "测试指标",
+            EvaluationSubjectType.DEPARTMENT, "denominator", "numerator", "exclusion",
+            "scoring", "P30D", "tenant", responsibleDepartmentId, "source-ref",
+            "1.0.0", EvaluationIndicatorStatus.PUBLISHED, Instant.now(), "tester",
+            Instant.now(), Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
     }
 }

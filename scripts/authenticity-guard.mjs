@@ -145,6 +145,12 @@ const BACKEND_RULES = [
       /(?:模拟|仿真|fake|mock)[\s\S]{0,120}(?:同步|sync)[\s\S]{0,240}(?:证据|evidence|摘要)|(?:LNT-|syncEvidence\s*(?:=|\(|:)|sync_evidence\s*(?:=|\(|:))[\s\S]{0,240}(?:Instant\.now\s*\(\s*\)|System\.currentTimeMillis\s*\(\s*\))/im,
   },
   {
+    ruleId: "backend.fake-impact-department",
+    message:
+      "后端生产代码禁止用默认科室伪造包影响分析；缺真实归属字段时必须诚实空缺或显式建模。",
+    pattern: /\bdept-default\b|模拟受影响的责任科室/im,
+  },
+  {
     ruleId: "backend.raw-request-body-map",
     message: "后端控制器禁止使用 @RequestBody Map 裸入参，必须定义 Record DTO + 校验。",
     pattern: /@RequestBody[\s\S]{0,120}\bMap\s*<[^>]+>/m,

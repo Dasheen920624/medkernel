@@ -224,7 +224,6 @@ public class PackageEngineService {
             } else if (!matchedBase.get().assetVersion().equals(target.assetVersion())) {
                 updated++;
             }
-            // 模拟受影响的责任科室分析
             String deptId = getAssetDepartment(tenantId, target.assetType(), target.assetId());
             if (deptId != null && !affectedDepts.contains(deptId)) {
                 affectedDepts.add(deptId);
@@ -508,26 +507,33 @@ public class PackageEngineService {
     }
 
     private String getAssetDepartment(String tenantId, PackageItemAssetType type, String assetId) {
-        try {
-            switch (type) {
-                case RULE -> {
-                    return ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
-                        .map(r -> "dept-default").orElse(null);
-                }
-                case PATHWAY -> {
-                    return pathwayRepository.findByTemplateIdAndTenantId(assetId, tenantId)
-                        .map(p -> "dept-default").orElse(null);
-                }
-                case EVALUATION -> {
-                    return evaluationRepository.findByIndicatorIdAndTenantId(assetId, tenantId)
-                        .map(EvaluationIndicator::responsibleDepartmentId).orElse(null);
-                }
-                default -> {
-                    return "dept-default";
-                }
+        switch (type) {
+            case RULE -> {
+                return ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
+                    .map(RuleDefinition::applicableOrgUnitId)
+                    .map(PackageEngineService::normalizeDepartmentId)
+                    .orElse(null);
             }
-        } catch (Exception e) {
-            return "dept-default";
+            case PATHWAY -> {
+                pathwayRepository.findByTemplateIdAndTenantId(assetId, tenantId);
+                return null;
+            }
+            case EVALUATION -> {
+                return evaluationRepository.findByIndicatorIdAndTenantId(assetId, tenantId)
+                    .map(EvaluationIndicator::responsibleDepartmentId)
+                    .map(PackageEngineService::normalizeDepartmentId)
+                    .orElse(null);
+            }
+            default -> {
+                return null;
+            }
         }
+    }
+
+    private static String normalizeDepartmentId(String departmentId) {
+        if (departmentId == null || departmentId.isBlank()) {
+            return null;
+        }
+        return departmentId.strip();
     }
 }
