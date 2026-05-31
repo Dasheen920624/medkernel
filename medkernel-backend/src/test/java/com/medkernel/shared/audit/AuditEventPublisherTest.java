@@ -23,7 +23,7 @@ class AuditEventPublisherTest {
     void publishCarriesContextSnapshotIntoEvent() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pub",
-            new OrgScope("t-1", "g-1", "h-1", null, null, "d-1", null, null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "d-1", null),
             "u-9"));
 
         List<AuditEvent> captured = new ArrayList<>();

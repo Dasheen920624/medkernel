@@ -36,7 +36,6 @@ export interface SecurityProfile {
     campusId: string | null;
     siteId: string | null;
     departmentId: string | null;
-    wardId: string | null;
     specialtyId: string | null;
   };
 }
@@ -1675,7 +1674,7 @@ export interface PackageDiffResponse {
 export interface PackageSyncRequest {
   targetOrgUnitId: string;
   strategy: "GRAYSCALE" | "FULL" | string;
-  scopeType: "ALL" | "CAMPUS" | "SITE" | "DEPARTMENT" | string;
+  scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "SPECIALTY" | string;
   scopeValue: string;
   targetIds: string[];
 }
@@ -2421,10 +2420,11 @@ export function useTransitionSuccessStage() {
 // 组织单元 · 试点准备（GA-SVC-PILOT-01）
 // ──────────────────────────────────────────
 export interface OrgUnit {
-  id?: number;
-  parentId?: number | null;
+  id?: string;
+  parentId?: string | null;
   tenantId?: string;
-  level: "TENANT" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "WARD";
+  orgPath?: string | null;
+  level: "TENANT" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "SPECIALTY";
   code: string;
   name: string;
   namePinyin?: string | null;

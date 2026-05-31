@@ -1,9 +1,7 @@
 package com.medkernel.engine.org;
 
 /**
- * 组织层级枚举。对应宪法 §6.3 / 详细规范 §4 的六级组织树。
- *
- * <p>注意 {@link #WARD} 在大多数医院作为可选层级出现（只有住院/重症等场景需要）。
+ * 组织层级枚举。对应核心 §9 的七层组织树。
  *
  * @see com.medkernel.shared.context.OrgScope
  */
@@ -20,6 +18,16 @@ public enum OrgLevel {
     SITE,
     /** 科室 */
     DEPARTMENT,
-    /** 病区（可选） */
-    WARD
+    /** 专病 / 专科维度 */
+    SPECIALTY;
+
+    /**
+     * 判断当前层级是否允许挂在指定父层级之下。
+     *
+     * @param parent 候选父组织层级
+     * @return 父层级在七层树中低于当前层级时返回 {@code true}
+     */
+    public boolean canHaveParent(OrgLevel parent) {
+        return parent != null && parent.ordinal() < ordinal();
+    }
 }

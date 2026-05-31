@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
+@Import(OrgUnitIdGenerator.class)
 @TestPropertySource(properties = {
     // DATABASE_TO_LOWER 让 H2 把所有标识符存为小写，匹配 Spring Data JDBC 默认带引号的 SQL（"org_unit"）
     "spring.datasource.url=jdbc:h2:mem:orgunit-repo-${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
@@ -106,13 +108,13 @@ class OrgUnitRepositoryTest {
 
     private OrgUnit newHospital(String tenantId, String code, String name) {
         Instant now = Instant.now();
-        return new OrgUnit(null, null, tenantId, OrgLevel.HOSPITAL, code, name, null, null,
+        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.HOSPITAL, code, name, null, null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
     }
 
     private OrgUnit newDepartment(String tenantId, String code, String name) {
         Instant now = Instant.now();
-        return new OrgUnit(null, null, tenantId, OrgLevel.DEPARTMENT, code, name, null, null,
+        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.DEPARTMENT, code, name, null, null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
     }
 }

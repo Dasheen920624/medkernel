@@ -100,7 +100,6 @@ public class AuditChainWriter {
                 null,
                 null,
                 record.departmentId(),
-                null,
                 null),
             record.outcome(),
             record.errorCode()

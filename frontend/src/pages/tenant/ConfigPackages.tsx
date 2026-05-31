@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Table,
   Button,
@@ -31,7 +31,6 @@ import {
   CheckCircleOutlined,
   WarningOutlined,
   InfoCircleOutlined,
-  DeleteOutlined,
   CompassOutlined,
   ArrowRightOutlined,
   DatabaseOutlined,
@@ -55,170 +54,35 @@ import {
   useTerminologyMappings,
 } from "@/shared/api/hooks";
 import type {
+  EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
-  SyncTarget,
-  PackageDiffResponse,
+  PathwayTemplate,
+  RuleDefinition,
   SyncLogResponse,
+  TermMapping,
 } from "@/shared/api/hooks";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
-// ────────────────────────────────────────────────────────
-// 顶级架构师设计：高保真医学配置包仿真数据集 (离线演示备用通道)
-// ────────────────────────────────────────────────────────
-const fallbackPackages: KnowledgePackage[] = [
-  {
-    packageId: "pkg-stroke-v1",
-    tenantId: "TENANT-001",
-    packageCode: "STROKE_DECISION",
-    packageVersion: "v1.0.0",
-    name: "急性神经事件多学科临床决策支持包",
-    description:
-      "集成 NIHSS 评分自动触发规则、急性脑梗死溶栓路径及 DNT 时间质控监控指标，实现卒中全流程智管。",
-    status: "ACTIVE",
-    createdAt: new Date(Date.now() - 3600000 * 240).toISOString(),
-    createdBy: "admin",
-    updatedAt: new Date(Date.now() - 3600000 * 230).toISOString(),
-    updatedBy: "admin",
-    traceId: "tr-stroke-init-90812",
-  },
-  {
-    packageId: "pkg-chestpain-v2",
-    tenantId: "TENANT-001",
-    packageCode: "CHEST_PAIN",
-    packageVersion: "v2.1.0",
-    name: "急性心肌梗死胸痛配置包",
-    description:
-      "覆盖心肌钙蛋白异常自动触发胸痛红线规则、PCI 手术快速入径及导管室时钟时间窗质控标准。",
-    status: "PUBLISHED",
-    createdAt: new Date(Date.now() - 3600000 * 120).toISOString(),
-    createdBy: "admin",
-    updatedAt: new Date(Date.now() - 3600000 * 115).toISOString(),
-    updatedBy: "admin",
-    traceId: "tr-chest-pub-71822",
-  },
-  {
-    packageId: "pkg-vte-v08",
-    tenantId: "TENANT-001",
-    packageCode: "VTE_PREVENTION",
-    packageVersion: "v0.8.0",
-    name: "静脉血栓栓塞症 (VTE) 智能评估包",
-    description: "配置 Caprini 量表评估规则、自动物理/药物预防推荐逻辑，保障围手术期出院安全。",
-    status: "DRAFT",
-    createdAt: new Date(Date.now() - 3600000 * 10).toISOString(),
-    createdBy: "sys_builder",
-    updatedAt: new Date(Date.now() - 3600000 * 10).toISOString(),
-    updatedBy: "sys_builder",
-    traceId: "tr-vte-draft-11239",
-  },
-];
-
-const fallbackItems: Record<string, PackageItem[]> = {
-  "pkg-stroke-v1": [
-    {
-      itemId: "pi-st-1",
-      tenantId: "TENANT-001",
-      packageId: "pkg-stroke-v1",
-      assetType: "RULE",
-      assetId: "rule-stroke-nihss",
-      assetVersion: "v1",
-      createdAt: new Date().toISOString(),
-      createdBy: "admin",
-    },
-    {
-      itemId: "pi-st-2",
-      tenantId: "TENANT-001",
-      packageId: "pkg-stroke-v1",
-      assetType: "PATHWAY",
-      assetId: "pathway-ischemic-stroke",
-      assetVersion: "v2",
-      createdAt: new Date().toISOString(),
-      createdBy: "admin",
-    },
-    {
-      itemId: "pi-st-3",
-      tenantId: "TENANT-001",
-      packageId: "pkg-stroke-v1",
-      assetType: "EVALUATION",
-      assetId: "eval-stroke-dnt",
-      assetVersion: "v1",
-      createdAt: new Date().toISOString(),
-      createdBy: "admin",
-    },
-  ],
-  "pkg-chestpain-v2": [
-    {
-      itemId: "pi-cp-1",
-      tenantId: "TENANT-001",
-      packageId: "pkg-chestpain-v2",
-      assetType: "RULE",
-      assetId: "rule-ami-troponin",
-      assetVersion: "v2",
-      createdAt: new Date().toISOString(),
-      createdBy: "admin",
-    },
-    {
-      itemId: "pi-cp-2",
-      tenantId: "TENANT-001",
-      packageId: "pkg-chestpain-v2",
-      assetType: "PATHWAY",
-      assetId: "pathway-pci-ami",
-      assetVersion: "v1",
-      createdAt: new Date().toISOString(),
-      createdBy: "admin",
-    },
-  ],
-  "pkg-vte-v08": [
-    {
-      itemId: "pi-vt-1",
-      tenantId: "TENANT-001",
-      packageId: "pkg-vte-v08",
-      assetType: "RULE",
-      assetId: "rule-vte-caprini",
-      assetVersion: "v1",
-      createdAt: new Date().toISOString(),
-      createdBy: "sys_builder",
-    },
-  ],
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
 };
 
-const fallbackSyncTargets: SyncTarget[] = [
-  {
-    id: 1,
-    targetId: "target-dify",
-    tenantId: "TENANT-001",
-    targetName: "大模型网关通道 (DIFY)",
-    targetType: "DIFY",
-    connectionConfig: "http://dify-gw.medkernel.local",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-    createdBy: "admin",
-  },
-  {
-    id: 2,
-    targetId: "target-his",
-    tenantId: "TENANT-001",
-    targetName: "核心 HIS 系统同步通道",
-    targetType: "BUSINESS_DB",
-    connectionConfig: "jdbc:postgresql://his-primary:5432/his_db",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-    createdBy: "admin",
-  },
-  {
-    id: 3,
-    targetId: "target-neo4j",
-    tenantId: "TENANT-001",
-    targetName: "医学知识图谱数据库 (NEO4J)",
-    targetType: "NEO4J",
-    connectionConfig: "bolt://neo4j-cluster:7687",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-    createdBy: "admin",
-  },
-];
+type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return fallback;
+  }
+  const messageText = (error as ApiErrorResponse).response?.data?.message;
+  return messageText && messageText.trim().length > 0 ? messageText : fallback;
+}
 
 export default function ConfigPackages() {
   const { token } = antdTheme.useToken();
@@ -228,29 +92,21 @@ export default function ConfigPackages() {
   const { data: apiPackagesData, refetch: refetchPackages } = usePackages(currentPage - 1, 10);
   const { data: apiSyncTargets } = useSyncTargets();
 
-  // 2. 仿真状态（提供极致 WOW 级闭环体验，保障在后端没有任何数据库记录时依然能呈现完整业务流）
-  const [localPackages] = useState<KnowledgePackage[]>(fallbackPackages);
-  const [localItems, setLocalItems] = useState<Record<string, PackageItem[]>>(fallbackItems);
   const [searchKeyword, setSearchKeyword] = useState<string>("");
 
-  // 合并后端与仿真逻辑
-  const displayPackages =
-    apiPackagesData?.items && apiPackagesData.items.length > 0
-      ? apiPackagesData.items
-      : localPackages.filter(
-          (p) =>
-            !searchKeyword ||
-            p.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-            p.packageCode.toLowerCase().includes(searchKeyword.toLowerCase()),
-        );
+  const apiPackages = apiPackagesData?.items ?? [];
+  const normalizedKeyword = searchKeyword.trim().toLowerCase();
+  const displayPackages = apiPackages.filter(
+    (p) =>
+      !normalizedKeyword ||
+      p.name.toLowerCase().includes(normalizedKeyword) ||
+      p.packageCode.toLowerCase().includes(normalizedKeyword),
+  );
 
   const totalPackagesCount =
-    apiPackagesData?.totalCount && apiPackagesData.totalCount > 0
-      ? apiPackagesData.totalCount
-      : displayPackages.length;
+    normalizedKeyword.length > 0 ? displayPackages.length : (apiPackagesData?.totalCount ?? 0);
 
-  const displayTargets =
-    apiSyncTargets && apiSyncTargets.length > 0 ? apiSyncTargets : fallbackSyncTargets;
+  const displayTargets = apiSyncTargets ?? [];
 
   // 3. UI 模态窗控制状态
   const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
@@ -282,45 +138,13 @@ export default function ConfigPackages() {
 
   // 选中包的详情与细项
   const selectedPackage = displayPackages.find((p) => p.packageId === selectedPackageId);
-  const { data: apiDetail } = usePackageDetail(selectedPackageId || "");
-  const currentItems =
-    selectedPackageId && localItems[selectedPackageId]
-      ? localItems[selectedPackageId]
-      : apiDetail?.items || [];
+  const { data: apiDetail, refetch: refetchPackageDetail } = usePackageDetail(
+    selectedPackageId || "",
+  );
+  const currentItems = apiDetail?.items || [];
 
   // 计算多版本差异 API
-  const { data: apiDiffData, refetch: refetchDiff } = useCalculateDiff(
-    selectedPackageId || "",
-    basePackageIdForDiff,
-  );
-
-  // 仿真差异计算
-  const [localDiff, setLocalDiff] = useState<PackageDiffResponse | null>(null);
-
-  useEffect(() => {
-    if (selectedPackageId && basePackageIdForDiff) {
-      if (apiPackagesData?.items && apiPackagesData.items.length > 0) {
-        refetchDiff();
-      } else {
-        // 仿真引擎差异比对
-        setLocalDiff({
-          packageId: selectedPackageId,
-          baseVersion:
-            localPackages.find((p) => p.packageId === basePackageIdForDiff)?.packageVersion ||
-            "v0.0.0",
-          targetVersion:
-            localPackages.find((p) => p.packageId === selectedPackageId)?.packageVersion ||
-            "v1.0.0",
-          addedCount: 2,
-          updatedCount: 1,
-          removedCount: 0,
-          affectedDepartments: ["dept-001-neurology", "dept-003-emergency"],
-        });
-      }
-    } else {
-      setLocalDiff(null);
-    }
-  }, [selectedPackageId, basePackageIdForDiff, apiPackagesData, refetchDiff, localPackages]);
+  const { data: apiDiffData } = useCalculateDiff(selectedPackageId || "", basePackageIdForDiff);
 
   // 6. 核心动作逻辑
 
@@ -339,8 +163,8 @@ export default function ConfigPackages() {
       setCreateModalVisible(false);
       createForm.resetFields();
       refetchPackages();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "配置包草稿创建失败，请检查接口状态后重试。");
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "配置包草稿创建失败，请检查接口状态后重试。"));
     }
   };
 
@@ -361,20 +185,11 @@ export default function ConfigPackages() {
 
       message.success("资产细项添加成功！");
       itemForm.resetFields(["assetId", "assetVersion"]);
+      refetchPackageDetail();
       refetchPackages();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "资产细项添加失败，请检查接口状态后重试。");
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "资产细项添加失败，请检查接口状态后重试。"));
     }
-  };
-
-  // C. 细项管理：删除资产条目
-  const handleDeleteItem = (itemId: string) => {
-    if (!selectedPackageId) return;
-    setLocalItems((prev) => {
-      const list = prev[selectedPackageId] || [];
-      return { ...prev, [selectedPackageId]: list.filter((i) => i.itemId !== itemId) };
-    });
-    message.info("资产细项已从包中移除");
   };
 
   // D. 多物理通道投影同步
@@ -393,7 +208,7 @@ export default function ConfigPackages() {
       const res = await syncPackageMutation.mutateAsync({
         packageId: selectedPackageId,
         request: {
-          targetOrgUnitId: values.targetOrgUnitId || "org-unit-campus-A",
+          targetOrgUnitId: values.targetOrgUnitId,
           strategy: values.strategy,
           scopeType: values.scopeType || "ALL",
           scopeValue: values.scopeValue || "",
@@ -406,11 +221,11 @@ export default function ConfigPackages() {
       setSyncExecuting(false);
       message.success("物理通道投影同步完成！");
       refetchPackages();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSyncExecuting(false);
       setSyncProgress(0);
       setSyncLogs([]);
-      message.error(err?.response?.data?.message || "投影同步失败，未生成同步证据。");
+      message.error(apiErrorMessage(err, "投影同步失败，未生成同步证据。"));
     }
   };
 
@@ -425,8 +240,8 @@ export default function ConfigPackages() {
       message.success("版本回滚成功！目标包已原子切换为 ACTIVE。");
       setRollbackModalVisible(false);
       refetchPackages();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "版本回滚失败，状态未在前端伪造切换。");
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换。"));
     }
   };
 
@@ -463,9 +278,16 @@ export default function ConfigPackages() {
     {
       title: "配置细项",
       key: "itemCount",
-      render: (_: any, record: KnowledgePackage) => {
-        const count = localItems[record.packageId]?.length || 0;
-        return <span className="font-normal font-medium">{count} 个资产</span>;
+      render: (_: unknown, record: KnowledgePackage) => {
+        const count =
+          record.packageId === selectedPackageId && apiDetail?.items
+            ? apiDetail.items.length
+            : null;
+        return (
+          <span className="font-normal font-medium">
+            {count === null ? "打开后查看" : `${count} 个资产`}
+          </span>
+        );
       },
     },
     {
@@ -473,20 +295,20 @@ export default function ConfigPackages() {
       dataIndex: "status",
       key: "status",
       render: (status: string) => {
-        const config: Record<string, { color: string; text: string }> = {
-          DRAFT: { color: "default", text: "草案 (DRAFT)" },
-          PUBLISHED: { color: "blue", text: "已发布 (PUBLISHED)" },
-          ACTIVE: { color: "green", text: "执行中 (ACTIVE)" },
-          OFFLINE: { color: "error", text: "已下线 (OFFLINE)" },
+        const config: Record<string, { status: BadgeStatus; text: string }> = {
+          DRAFT: { status: "default", text: "草案 (DRAFT)" },
+          PUBLISHED: { status: "processing", text: "已发布 (PUBLISHED)" },
+          ACTIVE: { status: "success", text: "执行中 (ACTIVE)" },
+          OFFLINE: { status: "error", text: "已下线 (OFFLINE)" },
         };
-        const current = config[status] || { color: "default", text: status };
-        return <Badge status={current.color as any} text={current.text} className="font-medium" />;
+        const current = config[status] || { status: "default", text: status };
+        return <Badge status={current.status} text={current.text} className="font-medium" />;
       },
     },
     {
       title: "创建人 / 创建日期",
       key: "creator",
-      render: (_: any, record: KnowledgePackage) => (
+      render: (_: unknown, record: KnowledgePackage) => (
         <div className="text-xs text-slate-500">
           <div>{record.createdBy}</div>
           <div className="font-normal text-[10px] text-slate-400">
@@ -498,7 +320,7 @@ export default function ConfigPackages() {
     {
       title: "操作",
       key: "actions",
-      render: (_: any, record: KnowledgePackage) => {
+      render: (_: unknown, record: KnowledgePackage) => {
         const isActive = record.status === "ACTIVE";
         return (
           <Space size="middle">
@@ -808,71 +630,34 @@ export default function ConfigPackages() {
                         rules={[{ required: true, message: "请选择有效资产" }]}
                       >
                         <Select
-                          placeholder="请选择或输入资产 ID"
+                          placeholder="请选择已发布资产"
                           showSearch
                           allowClear
                           className="rounded-lg"
                         >
                           {selectedAssetType === "RULE" &&
-                            (
-                              activeRules?.items || [
-                                {
-                                  ruleId: "rule-stroke-nihss",
-                                  name: "NIHSS 评分严重度自动触发规则",
-                                },
-                                {
-                                  ruleId: "rule-vte-caprini",
-                                  name: "VTE Caprini 血栓风险推荐规则",
-                                },
-                                {
-                                  ruleId: "rule-ami-troponin",
-                                  name: "Troponin 钙蛋白异常红线规则",
-                                },
-                              ]
-                            ).map((r: any) => (
+                            (activeRules?.items || []).map((r: RuleDefinition) => (
                               <Option key={r.ruleId} value={r.ruleId}>
                                 {r.name} ({r.ruleId})
                               </Option>
                             ))}
 
                           {selectedAssetType === "PATHWAY" &&
-                            (
-                              activePathways?.items || [
-                                {
-                                  templateId: "pathway-ischemic-stroke",
-                                  name: "急性脑梗死多学科溶栓路径",
-                                },
-                                {
-                                  templateId: "pathway-pci-ami",
-                                  name: "急性胸痛急症 PCI 手术绿色路径",
-                                },
-                              ]
-                            ).map((p: any) => (
+                            (activePathways?.items || []).map((p: PathwayTemplate) => (
                               <Option key={p.templateId} value={p.templateId}>
                                 {p.name} ({p.templateId})
                               </Option>
                             ))}
 
                           {selectedAssetType === "EVALUATION" &&
-                            (
-                              activeEvaluations?.items || [
-                                {
-                                  indicatorId: "eval-stroke-dnt",
-                                  name: "急性神经事件患者到院至溶栓(DNT)监控时间窗指标",
-                                },
-                              ]
-                            ).map((e: any) => (
+                            (activeEvaluations?.items || []).map((e: EvaluationIndicator) => (
                               <Option key={e.indicatorId} value={e.indicatorId}>
                                 {e.name} ({e.indicatorId})
                               </Option>
                             ))}
 
                           {selectedAssetType === "TERMINOLOGY" &&
-                            (
-                              activeTerminologies?.items || [
-                                { localTermId: 101, category: "ICD10脑梗死诊断标准字典映射" },
-                              ]
-                            ).map((t: any) => (
+                            (activeTerminologies?.items || []).map((t: TermMapping) => (
                               <Option
                                 key={t.localTermId || t.id}
                                 value={`term-map-${t.localTermId || t.id}`}
@@ -966,7 +751,7 @@ export default function ConfigPackages() {
                   {
                     title: "加入时间 / 操作人",
                     key: "time",
-                    render: (_: any, record: PackageItem) => (
+                    render: (_: unknown, record: PackageItem) => (
                       <span className="text-[11px] text-slate-400">
                         {record.createdBy} · {new Date(record.createdAt).toLocaleDateString()}
                       </span>
@@ -975,24 +760,11 @@ export default function ConfigPackages() {
                   {
                     title: "操作",
                     key: "action",
-                    render: (_: any, record: PackageItem) =>
-                      selectedPackage.status === "DRAFT" ? (
-                        <Popconfirm
-                          title="确定要从配置包中删除此项关联吗？"
-                          okText="删除"
-                          cancelText="取消"
-                          onConfirm={() => handleDeleteItem(record.itemId)}
-                        >
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            className="p-0 flex items-center justify-center"
-                          />
-                        </Popconfirm>
-                      ) : (
-                        <span className="text-xs text-slate-400">-</span>
-                      ),
+                    render: (_: unknown, record: PackageItem) => (
+                      <span className="text-xs text-slate-400" title={record.itemId}>
+                        已记录
+                      </span>
+                    ),
                   },
                 ]}
               />
@@ -1013,7 +785,6 @@ export default function ConfigPackages() {
         onCancel={() => {
           setDiffModalVisible(false);
           setBasePackageIdForDiff(undefined);
-          setLocalDiff(null);
         }}
         width={720}
         footer={null}
@@ -1024,7 +795,7 @@ export default function ConfigPackages() {
             <div className="font-medium text-indigo-900">
               当前比对目标版本:{" "}
               <Tag color="indigo" className="font-normal">
-                {selectedPackage?.packageVersion || "v1.0.0"}
+                {selectedPackage?.packageVersion || "未选择"}
               </Tag>
             </div>
             <div>
@@ -1046,7 +817,7 @@ export default function ConfigPackages() {
             </div>
           </div>
 
-          {localDiff || apiDiffData ? (
+          {apiDiffData ? (
             <div className="flex flex-col gap-6">
               {/* 比对数据 KPI Row */}
               <Row gutter={16}>
@@ -1054,7 +825,7 @@ export default function ConfigPackages() {
                   <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
                     <div className="text-xs text-slate-500 font-medium mb-1">新增引入资产</div>
                     <div className="text-2xl font-bold font-normal text-emerald-600">
-                      +{localDiff?.addedCount ?? apiDiffData?.addedCount}
+                      +{apiDiffData.addedCount}
                     </div>
                   </div>
                 </Col>
@@ -1062,7 +833,7 @@ export default function ConfigPackages() {
                   <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
                     <div className="text-xs text-slate-500 font-medium mb-1">升级改动资产</div>
                     <div className="text-2xl font-bold font-normal text-indigo-600">
-                      {localDiff?.updatedCount ?? apiDiffData?.updatedCount}
+                      {apiDiffData.updatedCount}
                     </div>
                   </div>
                 </Col>
@@ -1070,7 +841,7 @@ export default function ConfigPackages() {
                   <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
                     <div className="text-xs text-slate-500 font-medium mb-1">废弃移除资产</div>
                     <div className="text-2xl font-bold font-normal text-rose-600">
-                      -{localDiff?.removedCount ?? apiDiffData?.removedCount}
+                      -{apiDiffData.removedCount}
                     </div>
                   </div>
                 </Col>
@@ -1091,24 +862,11 @@ export default function ConfigPackages() {
                     依据该配置包中“规则/路径/指标”的绑定属性，系统智能计算出本次发布物理投影后，将直接或间接影响以下临床专科诊疗路径动作及指标核查：
                   </div>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {(localDiff?.affectedDepartments ?? apiDiffData?.affectedDepartments ?? []).map(
-                      (dept: string) => {
-                        const deptsMap: Record<string, string> = {
-                          "dept-001-neurology": "神经内科 (Neurology)",
-                          "dept-003-emergency": "急诊医学科 (Emergency)",
-                          "dept-default": "临床多学科协同中心",
-                        };
-                        return (
-                          <Tag
-                            color="geekblue"
-                            key={dept}
-                            className="py-1 px-3 rounded-md font-medium"
-                          >
-                            {deptsMap[dept] || dept}
-                          </Tag>
-                        );
-                      },
-                    )}
+                    {(apiDiffData.affectedDepartments ?? []).map((dept: string) => (
+                      <Tag color="geekblue" key={dept} className="py-1 px-3 rounded-md font-medium">
+                        {dept}
+                      </Tag>
+                    ))}
                   </div>
                 </div>
               </Card>
@@ -1119,7 +877,7 @@ export default function ConfigPackages() {
                   <AuditOutlined /> 审计诊断解释追踪凭证 traceId
                 </span>
                 <span className="font-normal bg-slate-200 px-2 py-0.5 rounded font-semibold">
-                  {selectedPackage?.traceId || "tr-default-diff-0018"}
+                  {selectedPackage?.traceId || "后端未返回审计追踪号"}
                 </span>
               </div>
             </div>
@@ -1189,7 +947,6 @@ export default function ConfigPackages() {
                 name="targetIds"
                 label="选择物理同步投影通道目标"
                 rules={[{ required: true, message: "请至少选择一个同步目标" }]}
-                initialValue={["target-dify", "target-his"]}
               >
                 <Select mode="multiple" placeholder="请选择同步目标通道" className="rounded-lg">
                   {displayTargets.map((t) => (
@@ -1228,6 +985,7 @@ export default function ConfigPackages() {
                           <Option value="CAMPUS">院区级别 (CAMPUS)</Option>
                           <Option value="SITE">院区站点 (SITE)</Option>
                           <Option value="DEPARTMENT">临床科室级 (DEPARTMENT)</Option>
+                          <Option value="SPECIALTY">专病维度 (SPECIALTY)</Option>
                         </Select>
                       </Form.Item>
                     </Col>
@@ -1236,10 +994,9 @@ export default function ConfigPackages() {
                         name="scopeValue"
                         label="物理过滤匹配值 (指定科室/院区ID)"
                         rules={[{ required: true, message: "灰度匹配过滤值不能为空" }]}
-                        initialValue="dept-001-neurology"
                       >
                         <Input
-                          placeholder="输入精准识别码，如 dept-001-neurology"
+                          placeholder="请输入真实组织单元 ID 或组织编码"
                           className="rounded-lg font-normal"
                         />
                       </Form.Item>
@@ -1253,10 +1010,9 @@ export default function ConfigPackages() {
           <Form.Item
             name="targetOrgUnitId"
             label="接收组织单元"
-            initialValue="org-unit-campus-A"
-            hidden
+            rules={[{ required: true, message: "请输入接收组织单元 ID" }]}
           >
-            <Input />
+            <Input placeholder="请输入真实组织单元 ID" className="rounded-lg font-normal" />
           </Form.Item>
 
           {/* 安全说明 Alert */}
@@ -1445,7 +1201,7 @@ export default function ConfigPackages() {
                   {
                     title: "操作",
                     key: "rollback",
-                    render: (_: any, record: KnowledgePackage) => (
+                    render: (_: unknown, record: KnowledgePackage) => (
                       <Popconfirm
                         title={`确定要瞬间原子回退激活到版本 ${record.packageVersion} 吗？`}
                         onConfirm={() => handleRollback(record.packageId)}

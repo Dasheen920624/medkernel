@@ -62,7 +62,7 @@ CREATE TABLE release_plan (
     trace_id          VARCHAR2(128),
     CONSTRAINT uk_release_plan_id UNIQUE (tenant_id, plan_id),
     CONSTRAINT ck_release_plan_strategy CHECK (strategy IN ('GRAYSCALE','FULL')),
-    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','DEPARTMENT','WARD','DOCTOR_TEAM')),
+    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
     CONSTRAINT ck_release_plan_status CHECK (status IN ('DRAFT','EXECUTING','SUCCESS','FAILED','ROLLBACKED'))
 );
 

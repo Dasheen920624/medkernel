@@ -78,7 +78,7 @@ class EffectivePermissionServiceTest {
         when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
             .thenReturn(List.of());
 
-        var cardiologyScope = new OrgScope("t-1", null, "hospital-1", null, null, "cardiology", null, null);
+        var cardiologyScope = new OrgScope("t-1", null, "hospital-1", null, null, "cardiology", null);
         var profile = service.resolve(auth(RoleCode.DOCTOR), cardiologyScope, "doctor-1");
 
         assertThat(profile.roleCodes()).doesNotContain(RoleCode.QA_MANAGER.code());

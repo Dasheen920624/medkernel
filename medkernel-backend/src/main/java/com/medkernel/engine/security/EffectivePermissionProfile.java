@@ -48,7 +48,6 @@ public record EffectivePermissionProfile(
         String campusId,
         String siteId,
         String departmentId,
-        String wardId,
         String specialtyId
     ) {
     }

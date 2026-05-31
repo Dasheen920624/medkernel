@@ -31,6 +31,7 @@
         <neo4j-driver.version>5.23.0</neo4j-driver.version>
         <ojdbc.version>23.5.0.24.07</ojdbc.version>
         <opentelemetry.version>1.41.0</opentelemetry.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>

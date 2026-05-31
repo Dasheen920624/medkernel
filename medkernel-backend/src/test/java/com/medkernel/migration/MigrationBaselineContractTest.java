@@ -56,7 +56,7 @@ class MigrationBaselineContractTest {
         "V27__platform_credential.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
-        "medkernel_meta", "org_unit", "audit_event", "source_document", "source_version",
+        "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "standard_term", "local_term",
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
@@ -83,7 +83,9 @@ class MigrationBaselineContractTest {
         "platform_credential"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
-        "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_audit_event_resource",
+        "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
+        "idx_org_closure_ancestor", "idx_org_closure_descendant",
+        "idx_audit_event_resource",
         "idx_audit_event_actor", "idx_audit_event_tenant", "idx_audit_event_trace",
         "idx_source_document_tenant_type", "idx_source_document_tenant_auth",
         "idx_source_version_tenant_doc", "idx_source_fragment_tenant_ver",
@@ -145,6 +147,8 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
+        "pk_org_closure", "fk_org_closure_ancestor", "fk_org_closure_descendant",
+        "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
         "uk_source_version_doc_no", "uk_source_fragment_version_anchor",
@@ -219,7 +223,7 @@ class MigrationBaselineContractTest {
         "ck_platform_credential_status", "ck_platform_credential_mustchg"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
-        "org_unit", "audit_event", "source_document", "source_version", "source_fragment",
+        "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "standard_term", "local_term", "term_mapping", "mapping_candidate",
         "mapping_conflict", "term_mapping_package", "term_mapping_package_item",
@@ -416,6 +420,25 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void v2ShouldDeclareSevenLayerOrgHierarchyAndClosure() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V2__org_audit_baseline.sql");
+            assertThat(ddl).as("%s 组织表必须带组织路径", dialect)
+                .contains("org_path");
+            assertThat(ddl).as("%s 组织层级必须包含专病层", dialect)
+                .contains("SPECIALTY")
+                .doesNotContain("WARD");
+            assertThat(ddl).as("%s 组织闭包表", dialect)
+                .contains("org_closure")
+                .contains("ancestor_id")
+                .contains("descendant_id")
+                .contains("ck_org_closure_depth")
+                .contains("idx_org_closure_ancestor")
+                .contains("idx_org_closure_descendant");
+        }
+    }
+
+    @Test
     void v9ShouldExistInAllFiveDialects() {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V9__audit_event_outcome.sql"))
@@ -581,6 +604,18 @@ class MigrationBaselineContractTest {
                 .as("%s 复核意见列必须避开 Oracle 保留字", dialect)
                 .contains("review_comment")
                 .doesNotContainPattern("(?m)^\\s*comment\\s+VARCHAR");
+        }
+    }
+
+    @Test
+    void v15ReleaseScopeMustFollowSevenLayerOrgScope() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V15__package_release_baseline.sql");
+            assertThat(ddl)
+                .as("%s 包发布作用域必须跟随七层组织口径", dialect)
+                .contains("SPECIALTY")
+                .doesNotContain("WARD")
+                .doesNotContain("DOCTOR_TEAM");
         }
     }
 

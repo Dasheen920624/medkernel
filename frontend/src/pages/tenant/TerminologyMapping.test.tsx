@@ -45,7 +45,6 @@ const profile: SecurityProfile = {
     campusId: null,
     siteId: null,
     departmentId: null,
-    wardId: null,
     specialtyId: null,
   },
 };

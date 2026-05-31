@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.org.OrgLevel;
+import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.engine.org.OrgUnitStatus;
@@ -42,6 +43,7 @@ public class TenantProvisioningService {
     private static final int TEMP_PWD_LEN = 12;
 
     private final OrgUnitRepository orgUnits;
+    private final OrgHierarchyRepository orgHierarchy;
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
     private final PasswordEncoder passwordEncoder;
@@ -49,12 +51,14 @@ public class TenantProvisioningService {
     private final IsolatedAuditPublisher isolatedAudit;
 
     public TenantProvisioningService(OrgUnitRepository orgUnits,
+                                     OrgHierarchyRepository orgHierarchy,
                                      PlatformCredentialRepository credentials,
                                      UserRoleAssignmentRepository roleAssignments,
                                      PasswordEncoder passwordEncoder,
                                      AuditEventPublisher auditPublisher,
                                      IsolatedAuditPublisher isolatedAudit) {
         this.orgUnits = orgUnits;
+        this.orgHierarchy = orgHierarchy;
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
@@ -83,9 +87,10 @@ public class TenantProvisioningService {
             throw new ApiException(ErrorCode.ENG_TENANT_001);
         }
         Instant now = Instant.now();
-        orgUnits.save(new OrgUnit(
-            null, null, tenantId, OrgLevel.TENANT, tenantId, req.tenantName(), null, null,
+        OrgUnit tenantRoot = orgUnits.save(new OrgUnit(
+            null, null, tenantId, "/" + tenantId, OrgLevel.TENANT, tenantId, req.tenantName(), null, null,
             OrgUnitStatus.ACTIVE, now, actor, now, actor));
+        orgHierarchy.insertClosureForNewNode(tenantId, tenantRoot.id(), null);
 
         String adminUserId = req.adminUsername();
         boolean generated = req.adminInitialPassword() == null || req.adminInitialPassword().isBlank();
