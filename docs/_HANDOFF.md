@@ -1,4 +1,4 @@
-# 会话接力交接（_HANDOFF）
+# 会话接力交接（\_HANDOFF）
 
 > **用途**：跨会话、跨工具的中断续接神谕。**任何 AI 工具（Claude Code / Codex / Cursor / Copilot / Gemini 等）或人类协作者**开工第一件事读本文件，直接拿到所有在途工作线的「现在到哪、下一步做什么」，**不要翻历史会话或 git 考古**（贵且慢）。适用一切跨会话工作：施工卡迁移、软件开发、运维、审计……
 > **这是中立的真相源**：纯 markdown、在版本库里、不依赖任何单一工具的私有记忆。配套规则见 [AGENTS.md](../AGENTS.md) §4（工作循环含接力）。
@@ -10,15 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-02 身份权限五维目录与角色基线 🚧
+### 线 1 · BASE-02 权限引擎与数据范围判定 🚧
+
 - 类型：软件开发
-- 分支：codex/base-02-permission-core
-- 目标：完成 BASE-02 PR1：五维权限点目录、13 角色目录实体、默认五维角色基线与五方言迁移，覆盖 AC-2 的角色与目录基础。
-- 状态：本地实现与验证已完成，待提交/推送/开 PR；已补齐 `PermissionDimension`、`sys_role/sys_permission` 目录实体、五维权限画像字段、菜单权限与动作权限分离、H2/五方言迁移契约红绿测试；Oracle 重复索引问题已用非冗余角色启用状态索引修正。
-- 下一步（精确到动作/命令）：1. `git add`/`git commit`/`git push -u origin codex/base-02-permission-core`；2. 开 PR，等 CI 全绿后 squash 合并；3. 从最新 `origin/main` 新开下一逻辑单元分支，继续 BASE-02 PR2 或下一张 D0 卡；4. D0 域级验收通过前不得启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-02.md`；`medkernel-backend/src/main/java/com/medkernel/engine/security/**`；`medkernel-backend/src/main/resources/db/migration/*/V6__security_permission_baseline.sql`；前端 `SecurityProfile.permissions` 已增加 `dimension/target`，旧 mock 必须同步字段；菜单可见性只看 `MENU_*` 权限，不再由动作权限隐式推导。验证证据：`mvn -q test`、`mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、`npm test`、`npm run typecheck`、`npm run build`、`npm run lint`、`npx prettier --check ...`、`node scripts/authenticity-guard.mjs --mode all`、`scripts/check-comment-zh.sh`。
+- 分支：codex/base-02-evaluator-engine
+- 目标：完成 BASE-02 PR2：统一 `PermissionEvaluator` 五维目标求值、`@RequirePermission` 方法级门禁、`DataScopeResolver` 数据行级范围判定，并以源码契约断言超管无旁路，覆盖 AC-1 / AC-3 / AC-5。
+- 状态：本地实现与验证已完成，待提交、推送、开 PR、等 CI 全绿并 squash 合并；已补齐 `PermissionEvaluator.can(dimension,target)`、`RequirePermission`/`RequirePermissionAspect`、`DataAccessLevel`/`ResolvedDataScope`/`DataScopeResolver`，并把脱敏访问与原始行级范围拆开，防止 `data.desensitized` 被误放大为跨院原始数据访问。
+- 下一步（精确到动作/命令）：1. `git add docs/_HANDOFF.md medkernel-backend/src/main/java/com/medkernel/engine/security medkernel-backend/src/test/java/com/medkernel/engine/security`；2. `git commit -m "feat: 补齐权限引擎与数据范围判定"`；3. `git push -u origin codex/base-02-evaluator-engine`；4. 开 PR，等 CI 全绿后 squash 合并；5. 从最新 `origin/main` 新开 BASE-02 PR3（环境维 + 应急权限 + 越权 ProblemDetail + 前端判定源对接）或按 backlog 继续 D0；D0 域级验收通过前不得启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：`docs/cards/D0/BASE-02.md`；`medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionEvaluator.java`；`DataScopeResolver.java`；`RequirePermission*.java`；测试 `PermissionEvaluatorTest` / `DataScopeResolverTest` / `RequirePermissionAspectTest` / `PermissionBypassContractTest`。验证证据：`mvn -q -Dtest=PermissionEvaluatorTest,DataScopeResolverTest,RequirePermissionAspectTest,PermissionBypassContractTest,EffectivePermissionServiceTest,SecurityMeControllerTest test`、`mvn -q test`、`git diff --check`、`node scripts/authenticity-guard.mjs --mode all`、`scripts/check-comment-zh.sh`、`npm run typecheck`、`npm run lint`、`npm test`、`npm run build`、`npm run format:check`。前端 lint 仍有既有 warning（退出码 0），本 PR 未触碰。
 
 ## 已归档工作线（最近完成，供回溯）
+
+- BASE-02 PR1 五维权限目录与 13 角色基线 ✅（#176）：`PermissionDimension`、13 角色目录、`sys_role/sys_permission` 五维迁移、默认五维角色基线、菜单权限与动作权限分离、H2/五方言迁移契约；远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-01 组织层级与闭包底座 ✅（#175）：七层组织枚举、`org_path`、闭包表、祖先/后代查询、防环重挂、Testcontainers 1.21.4 Docker Desktop 29 兼容修复；触碰到的配置包页面已清理本地演示兜底、假资产、假同步目标、假差异结果与假组织 ID；远端 CI 8/8 通过并合入 `origin/main`。
 - 登录页体验与真实性债务整治 ✅（#173）：补齐登录页主题切换、品牌上下文、表单可用性、统一身份待配置入口、浏览器桌面/暗黑/移动端验收；清理触碰文件真实性债务，真实性 inventory 清零；远端 CI 8/8 通过并合入 `origin/main`。本机 Docker Desktop 可用，但 Testcontainers 在本机 socket 下仍跳过 3 个多方言冒烟，远端 CI 已通过。
 - D0 登录域 28 卡 ✅（#152 + #153）
@@ -28,7 +31,7 @@
 - D4 质控改进 14 卡 ✅（#160：8 ID + 6 页面，整域一个 PR）
 - D5 合规运维 11 卡 ✅（#161：5 ID + 6 页面，整域一个 PR）
 - D6 高级工具 6 卡 ✅（#162：1 ID + 5 页面）—— 核心域收官
-- 间接引用→直链 sweep ✅（#163：32 处 / D2 五卡 + D3/_brief，零死链）
+- 间接引用→直链 sweep ✅（#163：32 处 / D2 五卡 + D3/\_brief，零死链）
 - GA 总验收 12 卡 ✅（#164：QA-01~08 + DEGRADE-01 + SYS-07 + INFRA-07 + INFRA-10，验收规格，pass 待 wave2）
 - 组织树七层一致性修复 ✅（#165：D2 SVC-PILOT-01/TENANT-01）
 - 覆盖矩阵卡级 §-锚点细化 ✅（#166：§3 已迁场景 18→68 卡级行；原线 2）
@@ -40,6 +43,7 @@
 - D0 登录第一闸真实性触碰文件门禁（#172）✅：新增 `scripts/authenticity-guard.mjs`，CI `guard-rules` 阻断新增/触碰文件中的 mock 绕门禁、随机造数、假 hash、吞错成功、CSS token 硬编码等，并输出 98 个存量真实性债务清单；存量归 BASE-09，登录页 token 归 BASE-10
 
 ## 通用约定（所有工作线 / 所有工具适用）
+
 - **分支与 PR**：禁直推 main；分支 → 推送 → PR → 合并 → 确认 origin/main 含合并提交。**squash 合并后必须从新 origin/main 重拉分支**再做下一单元（否则基点回退、重复带入）。一个逻辑单元一个 PR；大任务拆批、每批独立分支基于当时最新 main。分支前缀按工具使用（Codex 用 `codex/`，Claude Code 用 `claude/`）。
 - **核现状别信单次 read**：建卡/改代码前用 `grep`/`find`/`git diff` 对照真实仓库（`frontend/src`、`medkernel-backend/src`），曾因伪造 read 整批返工。
 - **软件开发**：遵循 TDD（先写失败测试再实现）；动手前跑现有测试建绿色基线；改动后跑测试 + 真实性门禁（T-GATE）再宣称完成——**证据优先，别空口说「已修复/已通过」**。
@@ -48,6 +52,7 @@
 - **语言**：文档/PR/注释简体中文（详见 AGENTS.md 语言要求）。
 
 ## 新开工作线模板（复制到「在途工作线」填写）
+
 ```
 ### 线 N · <一句话标题> 🚧
 - 类型：文档 / 软件开发 / 运维 / 审计
@@ -59,4 +64,5 @@
 ```
 
 ---
-> 末次更新：2026-05-31 · BASE-02 PR1 五维权限目录与 13 角色基线已完成本地验证，待提交推送开 PR；D0 域级验收前不得启动 D1 新功能 PR
+
+> 末次更新：2026-05-31 · BASE-02 PR2 权限引擎与数据范围判定已完成本地验证，待提交推送开 PR；D0 域级验收前不得启动 D1 新功能 PR
