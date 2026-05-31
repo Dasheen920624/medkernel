@@ -58,7 +58,8 @@ class MigrationBaselineContractTest {
         "V29__sys_idempotency.sql",
         "V30__audit_event_spine_contract.sql",
         "V31__configuration_center.sql",
-        "V32__source_fragment_content_hash.sql"
+        "V32__source_fragment_content_hash.sql",
+        "V33__package_sync_not_synced_status.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -497,6 +498,19 @@ class MigrationBaselineContractTest {
                 .contains("content_hash")
                 .contains("uk_source_fragment_version_hash")
                 .contains("COMMENT ON COLUMN source_fragment.content_hash");
+        }
+    }
+
+    @Test
+    void v33ShouldAddNotSyncedPackageSyncStatusForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V33__package_sync_not_synced_status.sql");
+            assertThat(ddl).as("%s 包同步 NOT_SYNCED 状态迁移", dialect)
+                .contains("ck_release_plan_status")
+                .contains("ck_sync_log_status")
+                .contains("NOT_SYNCED")
+                .contains("COMMENT ON COLUMN release_plan.status")
+                .contains("COMMENT ON COLUMN sync_log.status");
         }
     }
 

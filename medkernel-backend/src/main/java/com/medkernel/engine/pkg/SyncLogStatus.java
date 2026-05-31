@@ -10,6 +10,8 @@ public enum SyncLogStatus {
     SUCCESS,
     /** 失败 */
     FAILED,
+    /** 未接入真实同步通道 */
+    NOT_SYNCED,
     /** 重试中 */
     RETRYING
 }
