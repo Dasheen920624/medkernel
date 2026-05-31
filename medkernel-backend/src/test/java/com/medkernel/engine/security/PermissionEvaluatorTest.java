@@ -66,6 +66,24 @@ class PermissionEvaluatorTest {
     }
 
     @Test
+    void canEvaluatesDimensionAndTargetWithoutImplicitMenuShortcut() {
+        authenticate(RoleCode.DOCTOR);
+
+        assertThat(evaluator.can(PermissionDimension.MENU, "clinical-run")).isTrue();
+        assertThat(evaluator.can(PermissionDimension.MENU, "pilot-setup")).isFalse();
+        assertThat(evaluator.can(PermissionDimension.DATA, "department")).isTrue();
+        assertThat(evaluator.can(PermissionDimension.DATA, "hospital")).isFalse();
+    }
+
+    @Test
+    void platformAdminGetsEmergencyEnvironmentThroughPermissionSet() {
+        authenticate(RoleCode.PLATFORM_ADMIN);
+
+        assertThat(evaluator.can(PermissionDimension.ENVIRONMENT, "emergency")).isTrue();
+        assertThat(evaluator.effectivePermissions()).contains(PermissionCode.ENV_EMERGENCY);
+    }
+
+    @Test
     void multipleRolesUnion() {
         authenticate(RoleCode.DOCTOR, RoleCode.QA_MANAGER);
         assertThat(evaluator.has("recommendation.accept")).isTrue(); // DOCTOR
