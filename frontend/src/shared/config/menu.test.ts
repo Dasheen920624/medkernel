@@ -10,12 +10,14 @@ describe("menu config", () => {
   });
 
   it("matches CONSTITUTION §2.1 ordering", () => {
-    expect(menuSections[0].key).toBe("workbench");
-    expect(menuSections[1].label).toBe("试点准备");
-    expect(menuSections[2].label).toBe("临床运行");
-    expect(menuSections[3].label).toBe("质控改进");
-    expect(menuSections[4].label).toBe("合规运维");
-    expect(menuSections[5].label).toBe("高级工具");
+    expect(menuSections.map((section) => section.key)).toEqual([
+      "workbench",
+      "pilot-setup",
+      "clinical-run",
+      "quality-improve",
+      "compliance-ops",
+      "advanced-tools",
+    ]);
   });
 
   it("advanced tools section is hidden", () => {
@@ -41,9 +43,68 @@ describe("menu config", () => {
     });
   });
 
-  it("total customer-facing menu items <= 30 (per §2.2)", () => {
+  it("locks the exact 27 customer-facing items + 5 advanced tools from CONSTITUTION §2.2", () => {
     const visible = menuSections.filter((s) => !s.hidden);
-    const total = visible.reduce((sum, s) => sum + s.items.length, 0);
-    expect(total).toBeLessThanOrEqual(30);
+    const visibleTotal = visible.reduce((sum, s) => sum + s.items.length, 0);
+    const advanced = menuSections.find((s) => s.key === "advanced-tools");
+
+    expect(visibleTotal).toBe(27);
+    expect(advanced?.items).toHaveLength(5);
+    expect(visible.map((s) => [s.key, s.items.map((item) => item.key)])).toEqual([
+      ["workbench", ["workbench"]],
+      [
+        "pilot-setup",
+        [
+          "implementation-guide",
+          "tenant-onboarding",
+          "config-packages",
+          "pathway-templates",
+          "rule-definitions",
+          "terminology-mapping",
+          "adapter-hub",
+        ],
+      ],
+      [
+        "clinical-run",
+        [
+          "mpi",
+          "patient-pathways",
+          "cdss-fatigue",
+          "rule-validate",
+          "workflow-todos",
+          "notifications",
+          "clinical-followup",
+        ],
+      ],
+      [
+        "quality-improve",
+        [
+          "qc-dashboard",
+          "qc-alerts",
+          "insurance-audit",
+          "qc-eval-sets",
+          "qc-eval-results",
+          "aik-review",
+        ],
+      ],
+      [
+        "compliance-ops",
+        [
+          "admin-users",
+          "identity-bindings",
+          "admin-audit",
+          "security-baseline",
+          "system-providers",
+          "notification-settings",
+        ],
+      ],
+    ]);
+    expect(advanced?.items.map((item) => item.key)).toEqual([
+      "provenance",
+      "graph-explore",
+      "ai-workflows",
+      "domestic-check",
+      "dev-console",
+    ]);
   });
 });

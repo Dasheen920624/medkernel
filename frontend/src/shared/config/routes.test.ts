@@ -22,6 +22,25 @@ describe("route metadata", () => {
       });
   });
 
+  it("requires BASE-06 route authorization metadata for every authenticated route", () => {
+    routeMetas
+      .filter((route) => route.requireAuth)
+      .forEach((route) => {
+        expect(route.requiredPermissions, `${route.path} 缺少 requiredPermissions`).toBeDefined();
+        expect(route.requiredRoles, `${route.path} 缺少 requiredRoles`).toBeDefined();
+        expect(Array.isArray(route.requiredPermissions)).toBe(true);
+        expect(Array.isArray(route.requiredRoles)).toBe(true);
+      });
+  });
+
+  it("binds menu routes to the corresponding BASE-02 menu permission code", () => {
+    routeMetas
+      .filter((route) => route.requireAuth && route.sectionKey)
+      .forEach((route) => {
+        expect(route.requiredPermissions).toContain(`menu.${route.sectionKey}`);
+      });
+  });
+
   it("requires experience metadata for authenticated menu routes", () => {
     const menuRoutes = routeMetas.filter((route) => route.requireAuth && route.menuKey);
 
