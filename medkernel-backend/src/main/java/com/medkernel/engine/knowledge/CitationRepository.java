@@ -2,6 +2,7 @@ package com.medkernel.engine.knowledge;
 
 import java.util.List;
 
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -15,4 +16,12 @@ import org.springframework.stereotype.Repository;
 public interface CitationRepository extends ListCrudRepository<Citation, Long> {
 
     List<Citation> findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(String tenantId, Long assetVersionId);
+
+    @Query("""
+        SELECT * FROM citation
+        WHERE tenant_id = :tenantId
+        ORDER BY id ASC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<Citation> pageByTenantId(String tenantId, int offset, int limit);
 }

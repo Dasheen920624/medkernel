@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 前端净化 PR4（规则 / 路径旧示例与假上下文清理）🚧
+### 线 1 · BASE-09 后端知识真实性净化 PR5（伪哈希 / 占位导出 / 片段指纹清理）🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-rules-clean
-- 目标：完成 BASE-09 第四批前端净化：删除规则 / 路径相关页面中的固定患者、病种、药品、路径模板、假 trace、假入径台账、空上下文试运行和规避门禁注释，并扩展真实性门禁阻断旧占位符回流；触达页面同步清掉浏览器验收暴露的废弃组件用法。
-- 状态：已基于 `origin/main@345173d` 完成 PR4 本地实现与最终验证；新增 `frontend/src/pages/tenant/RulePathwayCleanliness.test.ts` 先红后绿，已清 `RuleDefinitions`、`PathwayTemplates`、`RuleValidate`、`PatientPathways`、`AdapterHub`、`QcAlerts`、`CdssFatigue`、`ImplementationGuide`，并更新 `scripts/authenticity-guard.mjs` / 测试。新增 `docs/audit/BASE-09-rule-path-cleanup-pr4.md`。浏览器验收发现的 `Tabs.TabPane`、`Spin tip`、`Progress width` 废弃用法已在触达页面同步清理；`AdapterHub` 存量 `any` 和嵌套三元告警已清。本地最终通过：`(frontend/) npm run verify`（32 文件 / 122 测试，lint 0 error、存量 warning 12 个）、`npm run build`、三项脚本门禁、真实性 inventory、旧占位词 grep、`git diff --check`、浏览器 9 页复验。
-- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 等远端 CI 全绿后合并；3. 回到最新 `origin/main`，继续 BASE-09 后端 Map、硬编码、假证据 / 假同步清理，D0 域级验收前不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 完成，不勾选 FR/AC；真实性门禁新增旧规则 / 路径占位符后，生产文件不得再写回 `DRUG-CODE`、`DX-CODE`、`PT-CAP-01`、固定患者 ID 或固定药品 / 病种示例；触达页面禁止继续使用 `Tabs.TabPane` 废弃写法。
+- 分支：codex/base-09-backend-clean
+- 目标：完成 BASE-09 第五批后端净化：清理知识 / 上下文链路中的时间戳伪哈希、`hashCode()` 摘要、`memory://` 占位导出成功和来源片段表缺内容指纹列；补门禁阻断后端裸 `@RequestBody Map` 回流。
+- 状态：已基于 `origin/main@e06e308` 完成 PR5 本地实现、根因修复与完整本地验证；新增 `docs/audit/BASE-09-backend-knowledge-cleanup-pr5.md`，更新 `scripts/authenticity-guard.mjs` / 测试、`ContextSnapshotService`、`KnowledgeIdentityService`、`KnowledgeExportService` / Controller、知识相关 Repository、V32 五方言迁移与对应测试。当前已通过：后端目标测试、`FlywayMultiDialectSmokeTest,H2BaselineMigrationTest`、`mvn -B -q test`、三类脚本门禁测试、真实性 / 配置边界 inventory、V32 五方言迁移规约、`git diff --check`、裸 `@RequestBody Map` 与伪哈希 grep 清零。
+- 下一步（精确到动作/命令）：1. `git status --short` 核对变更；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后合并；4. 回到最新 `origin/main`，继续 BASE-09 剩余硬编码业务示例、包同步证据和域级验收残留，D0 域级验收前不启动 D1 新功能 PR。
+- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 完成，不勾选全部 FR/AC；知识导出目前落本机 JSONL 并经 API 下载端点返回，未引入对象存储；`source_fragment.content_hash` 是 V22 已有列，本 PR 的 V32 只补同版本唯一约束和注释强化，Oracle / 达梦不能重复 `ADD` 列。裸 `@RequestBody Map` 当前生产核查为 0，本 PR 主要补防新增门禁。后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 前端净化 PR4（规则 / 路径旧示例与假上下文清理）✅（#197）：清理 `RuleDefinitions`、`PathwayTemplates`、`RuleValidate`、`PatientPathways`、`AdapterHub`、`QcAlerts`、`CdssFatigue` 和 `ImplementationGuide` 中的固定患者、病种、药品、路径模板、假 trace、假入径台账、空上下文试运行和规避门禁注释；扩展真实性门禁阻断旧规则 / 路径占位符回流；同步清理废弃 Ant Design 用法与 `AdapterHub` 类型告警。本地前端 verify/build、T-GATE、浏览器 9 页复验与远端 CI 8/8 通过并合入 `origin/main`（merge `e06e308`）。下一步继续 BASE-09 后端 Map、硬编码、假证据 / 假同步清理。
 - BASE-09 前端净化 PR3（证据追溯 + 评估结果假闭环清理）✅（#196）：清理 `Provenance` 内置演示证据链、假 traceId、假审计日志、前端自校验沙箱和本地防伪导出；清理 `QcEvalResults` 固定 KPI 常量和 Mock 口径；补修后端 `menuKeys` 与前端路由授权断层。本地前端 verify/build、T-GATE、浏览器核验与远端 CI 8/8 通过并合入 `origin/main`（merge `345173d`）。下一步继续 BASE-09 规则 / 路径旧示例与假上下文清理。
 - BASE-09 前端净化 PR2（临床随访 + 嵌入建议假闭环清理）✅（#195）：清理 `Followup` 本地随访计划、假任务结案、假 Trace 审计、硬编码租户/病种样例；清理 `EmbedLaunch` 备用推荐数据集、本地 traceId 和无患者上下文推荐查询；本地前端 verify/build、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `34e9763`）。下一步继续 BASE-09 证据追溯与评估结果假闭环清理。
 - BASE-09 前端净化 PR1（假闭环首批 + 门禁漏检补强）✅（#194）：清理通知、待办、身份源、安全基线、医保审核、质控驾驶舱 6 个本地假闭环页面；`QcEvalSets` 删除 `DEMO_SNAPSHOTS` 并按患者或就诊读取真实 `GET /engine/context/snapshots`；`AdminUsers` 清除硬编码默认租户 `t-1`；真实性门禁补强 `frontend.mock-bypass-language` / `frontend.demo-snapshot-export`；本地前端 verify/build、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`（merge `069cd7f`）。下一步继续 BASE-09 临床页假闭环清理。
@@ -83,4 +84,4 @@
 
 ---
 
-> 末次更新：2026-05-31 · BASE-09 前端净化 PR4 已完成本地最终验证，待提交 PR；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-05-31 · BASE-09 后端知识真实性净化 PR5 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR

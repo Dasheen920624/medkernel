@@ -165,10 +165,7 @@ public class KnowledgeIdentityService {
             throw new ApiException(ErrorCode.CONFLICT, "同来源文献下的版本 " + request.versionNo() + " 已存在");
         }
 
-        String hash = request.contentHash();
-        if (hash == null || hash.isBlank()) {
-            hash = sha256(request.versionNo() + "_" + Instant.now().toEpochMilli());
-        }
+        String hash = requireSourceContentHash(request.contentHash());
 
         SourceVersion version = new SourceVersion(
             null,
@@ -230,6 +227,13 @@ public class KnowledgeIdentityService {
         return RequestContext.currentUserId()
             .filter(s -> !s.isBlank())
             .orElse("system");
+    }
+
+    private String requireSourceContentHash(String contentHash) {
+        if (contentHash == null || contentHash.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "来源版本必须携带真实内容哈希，禁止用版本号或时间戳合成");
+        }
+        return contentHash.trim();
     }
 
     private String sha256(String text) {

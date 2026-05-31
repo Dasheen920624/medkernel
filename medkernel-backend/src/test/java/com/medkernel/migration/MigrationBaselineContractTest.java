@@ -57,7 +57,8 @@ class MigrationBaselineContractTest {
         "V28__emergency_permission_grant.sql",
         "V29__sys_idempotency.sql",
         "V30__audit_event_spine_contract.sql",
-        "V31__configuration_center.sql"
+        "V31__configuration_center.sql",
+        "V32__source_fragment_content_hash.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -164,7 +165,7 @@ class MigrationBaselineContractTest {
         "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
-        "uk_source_version_doc_no", "uk_source_fragment_version_anchor",
+        "uk_source_version_doc_no", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
         "uk_knowledge_asset_version", "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_knowledge_supersession_type",
@@ -486,6 +487,17 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("uk_audit_event_dedupe");
         assertThat(h2).contains("idx_audit_event_org_path");
         assertThat(h2).contains("idx_audit_event_env");
+    }
+
+    @Test
+    void v32ShouldAddSourceFragmentContentHashForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V32__source_fragment_content_hash.sql");
+            assertThat(ddl).as("%s source_fragment 内容指纹迁移", dialect)
+                .contains("content_hash")
+                .contains("uk_source_fragment_version_hash")
+                .contains("COMMENT ON COLUMN source_fragment.content_hash");
+        }
     }
 
     @Test

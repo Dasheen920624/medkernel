@@ -1,7 +1,11 @@
 package com.medkernel.engine.knowledge;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -56,6 +60,18 @@ public class KnowledgeExportController {
     @PreAuthorize("@perm.has('knowledge.export')")
     public ApiResult<KnowledgeExportJob> cancel(@PathVariable String jobCode) {
         return ApiResult.ok(exportService.cancel(jobCode));
+    }
+
+    @GetMapping("/{jobCode}/download")
+    @PreAuthorize("@perm.has('knowledge.export')")
+    public void download(@PathVariable String jobCode, HttpServletResponse response) throws IOException {
+        InputStream input = exportService.downloadFile(jobCode);
+        String safeJobCode = jobCode.replaceAll("[^A-Za-z0-9_.-]", "_");
+        response.setContentType("application/x-ndjson;charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"knowledge-export-" + safeJobCode + ".jsonl\"");
+        try (input; OutputStream output = response.getOutputStream()) {
+            input.transferTo(output);
+        }
     }
 
     /** 提交导出作业请求体。filterJson 是可选的 JSON 字符串，按 type 不同语义不同。 */
