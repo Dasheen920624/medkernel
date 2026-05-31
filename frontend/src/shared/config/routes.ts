@@ -35,11 +35,21 @@ export interface RouteMeta {
   hidden?: boolean;
   pageType?: PageType;
   stateMachine?: "config" | "change" | "todo" | "alert";
+  requiresSixStates: boolean;
+  requiresStepFlow: boolean;
   experience?: RouteExperience;
 }
 
-type RouteMetaInput = Omit<RouteMeta, "requiredRoles" | "requiredPermissions"> &
-  Partial<Pick<RouteMeta, "requiredRoles" | "requiredPermissions">>;
+type RouteMetaInput = Omit<
+  RouteMeta,
+  "requiredRoles" | "requiredPermissions" | "requiresSixStates" | "requiresStepFlow"
+> &
+  Partial<
+    Pick<
+      RouteMeta,
+      "requiredRoles" | "requiredPermissions" | "requiresSixStates" | "requiresStepFlow"
+    >
+  >;
 
 export interface RoutePermissionProfile {
   roles?: Array<{ code: string }>;
@@ -192,16 +202,6 @@ const routeMetaInputs: RouteMetaInput[] = [
     stateMachine: "config",
   },
   {
-    path: "/config/packages/demo",
-    title: "7 步流演示",
-    breadcrumb: ["试点准备", "配置包中心", "7 步流演示"],
-    requireAuth: true,
-    sectionKey: "pilot-setup",
-    hidden: true,
-    pageType: "configuration",
-    stateMachine: "change",
-  },
-  {
     path: "/pathway/templates",
     title: "路径配置",
     breadcrumb: ["试点准备", "路径配置"],
@@ -299,6 +299,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "规则校验",
     experience: readonlyExperience("临床医生", "核查规则提示的依据和状态", "最近提示", "large"),
     pageType: "configuration",
+    stateMachine: "config",
   },
   {
     path: "/workflow/todos",
@@ -476,6 +477,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "通知设置",
     experience: readonlyExperience("信息科", "核查通知策略配置状态", "当前配置"),
     pageType: "configuration",
+    stateMachine: "config",
   },
   {
     path: "/advanced/provenance",
@@ -568,6 +570,8 @@ function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
     ...route,
     requiredPermissions,
     requiredRoles: route.requiredRoles ?? [],
+    requiresSixStates: route.requiresSixStates ?? route.requireAuth,
+    requiresStepFlow: route.requiresStepFlow ?? route.pageType === "configuration",
   };
 }
 

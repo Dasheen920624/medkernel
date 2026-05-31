@@ -13,6 +13,11 @@ describe("route metadata", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
+  it("does not keep hidden demo-only routes in the production router metadata", () => {
+    expect(routeMetas.some((route) => route.path.includes("demo"))).toBe(false);
+    expect(routeMetas.some((route) => route.title.includes("演示"))).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)
@@ -54,6 +59,22 @@ describe("route metadata", () => {
       expect(route.experience?.interruptionLevel).toMatch(/^(none|info|weak|strong)$/);
       expect(route.experience?.dataScale.exportStrategy).toMatch(/^(none|disabled|async)$/);
       expect(route.experience?.defaultFilters.length ?? 0).toBeLessThanOrEqual(3);
+    });
+  });
+
+  it("marks every authenticated route as six-state capable", () => {
+    routeMetas.forEach((route) => {
+      expect(route.requiresSixStates).toBe(route.requireAuth);
+    });
+  });
+
+  it("requires configuration routes to use the 7-step flow and an approved state machine", () => {
+    const configurationRoutes = routeMetas.filter((route) => route.pageType === "configuration");
+
+    expect(configurationRoutes.length).toBeGreaterThan(0);
+    configurationRoutes.forEach((route) => {
+      expect(route.requiresStepFlow, `${route.path} 缺少 7 步流约束`).toBe(true);
+      expect(["config", "change"]).toContain(route.stateMachine);
     });
   });
 

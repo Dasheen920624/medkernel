@@ -1,13 +1,34 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { StepFlow, SEVEN_STEPS } from "./StepFlow";
+import { StepFlow } from "./StepFlow";
+import { SEVEN_STEPS, STEP_CHANGE_STATUS } from "./StepFlow.contract";
 
 describe("StepFlow", () => {
-  it("renders all 7 step titles", () => {
+  it("locks the exact 7-step configuration flow from the constitution", () => {
+    expect(SEVEN_STEPS.map((step) => step.title)).toEqual([
+      "选模板/导入",
+      "自动校验",
+      "看影响",
+      "提交审核",
+      "灰度发布",
+      "全量",
+      "留证据/可回滚",
+    ]);
+    expect(STEP_CHANGE_STATUS).toEqual({
+      select_template: "pending",
+      auto_validate: "pending",
+      impact_preview: "pending",
+      submit_review: "pending",
+      canary_release: "canary",
+      full_rollout: "rolled_out",
+      evidence_rollback: "rolled_back",
+    });
+
     render(<StepFlow currentStep="impact_preview" />);
     SEVEN_STEPS.forEach((s) => {
       expect(screen.getAllByText(s.title).length).toBeGreaterThan(0);
     });
+    expect(screen.getByText("待发布")).toBeInTheDocument();
   });
 
   it("renders the panel for current step", () => {
@@ -20,8 +41,10 @@ describe("StepFlow", () => {
     expect(screen.getByTestId("my-panel")).toBeInTheDocument();
   });
 
-  it("falls back to placeholder when no panel provided", () => {
+  it("uses clean generic guidance when no panel is provided", () => {
     render(<StepFlow currentStep="full_rollout" />);
-    expect(screen.getByText(/待 GA-TENANT-01/)).toBeInTheDocument();
+    expect(screen.getByText(/请在当前步骤展示真实/)).toBeInTheDocument();
+    expect(screen.queryByText(/GA-/)).toBeNull();
+    expect(screen.getAllByText("全量").length).toBeGreaterThan(0);
   });
 });

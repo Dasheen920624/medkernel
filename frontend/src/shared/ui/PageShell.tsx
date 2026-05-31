@@ -1,5 +1,8 @@
 import { Card, Space, Typography } from "antd";
 import type { ReactNode } from "react";
+import { PageState } from "./PageState";
+import type { PageStateProps } from "./PageState";
+import type { PageStateKind } from "./PageState.contract";
 
 const { Title, Text } = Typography;
 
@@ -18,10 +21,20 @@ interface PageShellProps {
   description?: string;
   primary?: ReactNode;
   extras?: ReactNode;
+  state?: PageStateKind;
+  stateProps?: Omit<PageStateProps, "state" | "children">;
   children: ReactNode;
 }
 
-export function PageShell({ title, description, primary, extras, children }: PageShellProps) {
+export function PageShell({
+  title,
+  description,
+  primary,
+  extras,
+  state = "ready",
+  stateProps,
+  children,
+}: PageShellProps) {
   return (
     <Space direction="vertical" size="large" className="mk-full-width">
       <Card bordered={false} className="mk-card-transparent mk-card-body-flush">
@@ -38,7 +51,7 @@ export function PageShell({ title, description, primary, extras, children }: Pag
           </Space>
         </Space>
       </Card>
-      {children}
+      {state === "ready" ? children : <PageState state={state} {...stateProps} />}
     </Space>
   );
 }

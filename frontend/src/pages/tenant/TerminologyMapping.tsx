@@ -9,7 +9,8 @@ import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
-import { PageState, type PageStateKind } from "@/shared/ui/PageState";
+import { PageState } from "@/shared/ui/PageState";
+import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { ServerDataTable } from "@/shared/ui/ServerDataTable";
 import type {
   ExperienceColumn,

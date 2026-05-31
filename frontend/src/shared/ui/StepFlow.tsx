@@ -1,5 +1,8 @@
 import { Steps, Card, Space, Typography } from "antd";
 import type { ReactNode } from "react";
+import { StatusBadge } from "./StatusBadge";
+import { SEVEN_STEPS, STEP_CHANGE_STATUS } from "./StepFlow.contract";
+import type { StepKey } from "./StepFlow.contract";
 
 const { Text } = Typography;
 
@@ -9,31 +12,6 @@ const { Text } = Typography;
  * 配置包、规则、路径、图谱、字典、适配器、评估指标 7 处全部复用此组件。
  * 任何配置类页面缺这 7 步即视为 PR 不通过。
  */
-
-export type StepKey =
-  | "select_template"
-  | "auto_validate"
-  | "impact_preview"
-  | "submit_review"
-  | "canary_release"
-  | "full_rollout"
-  | "evidence_rollback";
-
-export interface StepMeta {
-  key: StepKey;
-  title: string;
-  description: string;
-}
-
-export const SEVEN_STEPS: StepMeta[] = [
-  { key: "select_template", title: "选模板 / 导入", description: "从专病模板或文件开始" },
-  { key: "auto_validate", title: "自动校验", description: "字段格式 + 业务规则 + 来源核对" },
-  { key: "impact_preview", title: "看影响", description: "影响科室、患者、规则、风险" },
-  { key: "submit_review", title: "提交审核", description: "送给医务处 / 信息科主任" },
-  { key: "canary_release", title: "灰度发布", description: "默认 10% 床位 / 一个科室" },
-  { key: "full_rollout", title: "全量", description: "院级管理员确认后全院生效" },
-  { key: "evidence_rollback", title: "证据 / 回滚", description: "审计快照 + 一键回滚" },
-];
 
 interface StepFlowProps {
   currentStep: StepKey;
@@ -56,6 +34,11 @@ export function StepFlow({ currentStep, panelByStep = {}, status = "process" }: 
   const currentIdx = SEVEN_STEPS.findIndex((s) => s.key === currentStep);
   const currentMeta = SEVEN_STEPS[currentIdx];
   const currentPanel = panelByStep[currentStep];
+  const currentChangeStatus = STEP_CHANGE_STATUS[currentStep];
+
+  if (!currentMeta) {
+    throw new Error(`未注册 7 步流步骤：${String(currentStep)}`);
+  }
 
   return (
     <Space direction="vertical" size="large" className="mk-full-width">
@@ -66,12 +49,15 @@ export function StepFlow({ currentStep, panelByStep = {}, status = "process" }: 
       />
       <Card
         title={currentMeta.title}
-        extra={<Text type="secondary">{currentMeta.description}</Text>}
+        extra={
+          <Space size="small">
+            <StatusBadge machine="change" status={currentChangeStatus} />
+            <Text type="secondary">{currentMeta.description}</Text>
+          </Space>
+        }
       >
         {currentPanel ?? (
-          <Text type="secondary">
-            （此步骤待 GA-TENANT-01 / GA-CLINICAL-01 等业务域任务接入内容）
-          </Text>
+          <Text type="secondary">请在当前步骤展示真实校验、影响、审核、发布或回滚证据。</Text>
         )}
       </Card>
     </Space>
