@@ -53,7 +53,8 @@ class MigrationBaselineContractTest {
         "V24__mpi_patient_registry.sql",
         "V25__security_user_role_seed.sql",
         "V26__integration_adapter_health_states.sql",
-        "V27__platform_credential.sql"
+        "V27__platform_credential.sql",
+        "V28__emergency_permission_grant.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -80,7 +81,8 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential"
+        "platform_credential",
+        "emergency_permission_grant"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -144,7 +146,8 @@ class MigrationBaselineContractTest {
         "idx_large_list_job_tenant",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
-        "idx_platform_credential_login"
+        "idx_platform_credential_login",
+        "idx_emergency_permission_active", "idx_emergency_permission_expiry"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -223,7 +226,8 @@ class MigrationBaselineContractTest {
         "uk_tenant_branding", "uk_tenant_success_plan",
         "uk_mpi_patient_id",
         "uk_platform_credential_id", "uk_platform_credential_username",
-        "ck_platform_credential_status", "ck_platform_credential_mustchg"
+        "ck_platform_credential_status", "ck_platform_credential_mustchg",
+        "ck_emergency_permission_code", "ck_emergency_permission_active"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -248,7 +252,8 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential"
+        "platform_credential",
+        "emergency_permission_grant"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -270,7 +275,8 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential"
+        "platform_credential",
+        "emergency_permission_grant"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.of(
         "audit_event", Set.of("occurred_at", "actor_user_id", "created_at"),
@@ -337,7 +343,8 @@ class MigrationBaselineContractTest {
         Map.entry("integration_webhook_config", Set.of("status")),
         Map.entry("integration_message_log", Set.of("status", "direction")),
         Map.entry("tenant_success_plan", Set.of("current_stage")),
-        Map.entry("mpi_patient", Set.of("status"))
+        Map.entry("mpi_patient", Set.of("status")),
+        Map.entry("emergency_permission_grant", Set.of("active_flag"))
     );
 
     private static final Pattern TABLE_PATTERN =

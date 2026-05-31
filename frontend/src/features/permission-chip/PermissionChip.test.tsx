@@ -47,6 +47,7 @@ const securityProfileState = vi.hoisted(() => ({
         },
       ],
       menuKeys: ["compliance-ops"],
+      environmentKeys: ["production", "emergency"],
       dataScope: {
         tenantId: "tenant-a",
         hospitalId: "hospital-a",
@@ -87,6 +88,7 @@ describe("PermissionChip", () => {
     expect(screen.getByText("菜单与范围")).toBeInTheDocument();
     expect(screen.getByText("访问脱敏数据")).toBeInTheDocument();
     expect(screen.getByText("访问正式环境")).toBeInTheDocument();
+    expect(screen.getByText(/可用环境：正式环境 \/ 应急环境/)).toBeInTheDocument();
     expect(screen.getByText(/科室 quality/)).toBeInTheDocument();
   });
 

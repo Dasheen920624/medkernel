@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,6 +92,32 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.code").value("ENG-API-006"));
     }
 
+    @Test
+    void permissionDeniedExceptionReturnsProblemDetailWithScopeAndApplyEntry() throws Exception {
+        mvc.perform(get("/test/permission-denied"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.title").value("权限不足"))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.detail").value("权限不足：rule.publish"))
+            .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"))
+            .andExpect(jsonPath("$.requiredPermission").value("rule.publish"))
+            .andExpect(jsonPath("$.permissionScope").value("规则发布"))
+            .andExpect(jsonPath("$.applyUrl").value("/security/request-access"))
+            .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void accessDeniedExceptionReturnsGenericProblemDetailWithoutTargetExistence() throws Exception {
+        mvc.perform(get("/test/access-denied"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.title").value("权限不足"))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"))
+            .andExpect(jsonPath("$.requiredPermission").value("UNKNOWN"))
+            .andExpect(jsonPath("$.permissionScope").value("当前操作"))
+            .andExpect(jsonPath("$.applyUrl").value("/security/request-access"));
+    }
+
     public record Payload(@NotBlank String name, @Size(min = 2, max = 50) String severity) {
     }
 
@@ -111,6 +138,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom")
         public ApiResult<Void> boom() {
             throw new RuntimeException("internal SQL state - this should never leak");
+        }
+
+        @GetMapping("/permission-denied")
+        public ApiResult<Void> permissionDenied() {
+            throw new PermissionDeniedException("rule.publish", "规则发布", "/security/request-access");
+        }
+
+        @GetMapping("/access-denied")
+        public ApiResult<Void> accessDenied() {
+            throw new AccessDeniedException("secret resource exists");
         }
     }
 }

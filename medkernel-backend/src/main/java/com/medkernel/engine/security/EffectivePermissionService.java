@@ -1,5 +1,7 @@
 package com.medkernel.engine.security;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -10,6 +12,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -27,11 +30,29 @@ public class EffectivePermissionService {
 
     private final RolePermissionOverrideRepository rolePermissionRepository;
     private final UserRoleAssignmentRepository userRoleAssignmentRepository;
+    private final EmergencyPermissionGrantRepository emergencyGrantRepository;
+    private final Clock clock;
 
+    @Autowired
     public EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
-                                      UserRoleAssignmentRepository userRoleAssignmentRepository) {
+                                      UserRoleAssignmentRepository userRoleAssignmentRepository,
+                                      EmergencyPermissionGrantRepository emergencyGrantRepository) {
+        this(rolePermissionRepository, userRoleAssignmentRepository, emergencyGrantRepository, Clock.systemUTC());
+    }
+
+    EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
+                               UserRoleAssignmentRepository userRoleAssignmentRepository) {
+        this(rolePermissionRepository, userRoleAssignmentRepository, null, Clock.systemUTC());
+    }
+
+    EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
+                               UserRoleAssignmentRepository userRoleAssignmentRepository,
+                               EmergencyPermissionGrantRepository emergencyGrantRepository,
+                               Clock clock) {
         this.rolePermissionRepository = rolePermissionRepository;
         this.userRoleAssignmentRepository = userRoleAssignmentRepository;
+        this.emergencyGrantRepository = emergencyGrantRepository;
+        this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
     public EffectivePermissionProfile resolve(Authentication auth, OrgScope scope, String userId) {
@@ -45,6 +66,7 @@ public class EffectivePermissionService {
                 .ifPresent(role -> permissions.addAll(DefaultPermissionPolicy.permissionsOf(role)));
         }
         applyTenantOverrides(scope, roles.keySet(), permissions);
+        applyActiveEmergencyGrant(scope, userId, permissions);
 
         List<EffectivePermissionProfile.PermissionView> permissionViews = permissions.stream()
             .sorted(Comparator.comparing(PermissionCode::code))
@@ -61,6 +83,7 @@ public class EffectivePermissionService {
             List.copyOf(roles.values()),
             permissionViews,
             MenuPermissionCatalog.menuKeysFor(permissions),
+            environmentKeysFor(permissions),
             dataScope(scope)
         );
     }
@@ -172,6 +195,31 @@ public class EffectivePermissionService {
         }
         permissions.addAll(allowed);
         permissions.removeAll(denied);
+    }
+
+    private void applyActiveEmergencyGrant(OrgScope scope, String userId, EnumSet<PermissionCode> permissions) {
+        if (emergencyGrantRepository == null
+                || scope == null
+                || !scope.hasTenant()
+                || userId == null
+                || userId.isBlank()) {
+            return;
+        }
+        Instant now = clock.instant();
+        List<EmergencyPermissionGrant> grants =
+            emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
+                scope.tenantId(), userId, PermissionCode.ENV_EMERGENCY.code(), now);
+        if (grants != null && grants.stream().anyMatch(grant -> grant.activeAt(now))) {
+            permissions.add(PermissionCode.ENV_EMERGENCY);
+        }
+    }
+
+    private List<String> environmentKeysFor(EnumSet<PermissionCode> permissions) {
+        return permissions.stream()
+            .filter(permission -> permission.dimension() == PermissionDimension.ENVIRONMENT)
+            .sorted(Comparator.comparing(PermissionCode::code))
+            .map(PermissionCode::target)
+            .toList();
     }
 
     private EffectivePermissionProfile.DataScopeView dataScope(OrgScope scope) {

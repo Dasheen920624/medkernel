@@ -9,7 +9,7 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 
-import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.PermissionDeniedException;
 
 /**
  * MedKernel v1.0 GA · {@link RequirePermission} 切面。
@@ -42,7 +42,10 @@ public class RequirePermissionAspect {
         }
         PermissionCode permission = requirePermission.value();
         if (!permissionEvaluator.has(permission)) {
-            throw ApiException.forbidden("权限不足：" + permission.code());
+            throw new PermissionDeniedException(
+                permission.code(),
+                permission.displayName(),
+                "/security/request-access");
         }
     }
 

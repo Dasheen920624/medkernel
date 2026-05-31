@@ -32,6 +32,7 @@ class SecurityMeControllerTest {
 
     @AfterEach
     void clearAssignmentsAndOverrides() {
+        jdbcTemplate.update("DELETE FROM emergency_permission_grant");
         jdbcTemplate.update("DELETE FROM user_role_assignment");
         jdbcTemplate.update("DELETE FROM role_permission");
     }
@@ -58,6 +59,8 @@ class SecurityMeControllerTest {
             .andExpect(jsonPath("$.data.permissions[*].target", hasItem("recommendation")))
             .andExpect(jsonPath("$.data.permissions[*].code", not(hasItem(PermissionCode.RULE_PUBLISH.code()))))
             .andExpect(jsonPath("$.data.menuKeys", hasItem("clinical-run")))
+            .andExpect(jsonPath("$.data.environmentKeys", hasItem("production")))
+            .andExpect(jsonPath("$.data.environmentKeys", not(hasItem("emergency"))))
             .andExpect(jsonPath("$.data.dataScope.tenantId").value("t-1"))
             .andExpect(jsonPath("$.data.dataScope.hospitalId").value("h-1"))
             .andExpect(jsonPath("$.data.dataScope.departmentId").value("d-1"));
@@ -88,6 +91,34 @@ class SecurityMeControllerTest {
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.EVALUATION_PUBLISH.code())))
             .andExpect(jsonPath("$.data.permissions[*].code",
                 not(hasItem(PermissionCode.RECOMMENDATION_ACCEPT.code()))));
+    }
+
+    @Test
+    void currentUserReceivesActiveEmergencyGrantInPermissionProfile() throws Exception {
+        jdbcTemplate.update("""
+            INSERT INTO emergency_permission_grant
+                (tenant_id, user_id, permission_code, reason, granted_by, granted_at,
+                 expires_at, active_flag, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, DATEADD('HOUR', 1, CURRENT_TIMESTAMP), ?, ?, ?)
+            """,
+            "t-1",
+            "doctor-1",
+            PermissionCode.ENV_EMERGENCY.code(),
+            "抢救高危患者需要临时访问应急环境",
+            "chief-1",
+            "Y",
+            "chief-1",
+            "chief-1");
+
+        mvc.perform(get("/api/v1/security/me")
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.ENV_EMERGENCY.code())))
+            .andExpect(jsonPath("$.data.environmentKeys", hasItem("emergency")));
     }
 
     @Test

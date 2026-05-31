@@ -12,6 +12,7 @@ public record EffectivePermissionProfile(
     List<RoleView> roles,
     List<PermissionView> permissions,
     List<String> menuKeys,
+    List<String> environmentKeys,
     DataScopeView dataScope
 ) {
 

@@ -46,6 +46,7 @@ const profile: SecurityProfile = {
     },
   ],
   menuKeys: ["terminology-mapping", "advanced-tools"],
+  environmentKeys: ["production"],
   dataScope: {
     tenantId: "tenant-1",
     groupId: null,

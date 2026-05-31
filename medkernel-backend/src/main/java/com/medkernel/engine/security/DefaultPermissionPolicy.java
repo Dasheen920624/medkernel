@@ -76,14 +76,14 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKBENCH;
  *
  * <p>MedKernel v1.0 GA 默认角色与权限的关联规则基线映射。
  * 这是代码侧的默认权限授权策略。当前租户可通过 {@code role_permission} 表在默认策略基础上做局部增减，
- * 但任何医院不得授予未在 {@link PermissionCode} 中登记登记的权限。
+ * 但任何医院不得授予未在 {@link PermissionCode} 中登记的权限。
  *
  * <p>默认设计原则包括：
  * <ol>
  *   <li><b>最小授权</b>：临床医生只看本人病例和提醒，不能改规则；护理只看护理资产</li>
  *   <li><b>分权审核</b>：发布类（{@code *.publish}）严格限定给医务处 / 质控办 / 医院管理员</li>
  *   <li><b>审计独立</b>：合规审计仅有读 + 导出，不允许业务写</li>
- *   <li><b>平台 / 集团兜底</b>：平台和集团管理员拥有全部权限，便于一线兜底</li>
+ *   <li><b>平台 / 集团兜底</b>：平台和集团管理员拥有全部常规权限；应急权限必须另行时限授予</li>
  * </ol>
  */
 public final class DefaultPermissionPolicy {
@@ -93,12 +93,12 @@ public final class DefaultPermissionPolicy {
     static {
         EnumMap<RoleCode, Set<PermissionCode>> map = new EnumMap<>(RoleCode.class);
 
-        // 平台 / 集团管理员：全部权限
-        map.put(RoleCode.PLATFORM_ADMIN, EnumSet.allOf(PermissionCode.class));
-        map.put(RoleCode.GROUP_ADMIN, EnumSet.allOf(PermissionCode.class));
+        // 平台 / 集团管理员：除 break-glass 外的全部常规权限；应急权限必须走时限授予。
+        map.put(RoleCode.PLATFORM_ADMIN, allNonEmergencyPermissions());
+        map.put(RoleCode.GROUP_ADMIN, allNonEmergencyPermissions());
 
-        // 医院管理员：除平台运维外的全部权限
-        EnumSet<PermissionCode> hospitalAdmin = EnumSet.allOf(PermissionCode.class);
+        // 医院管理员：除平台运维和 break-glass 外的全部常规权限
+        EnumSet<PermissionCode> hospitalAdmin = allNonEmergencyPermissions();
         hospitalAdmin.remove(SYSTEM_MANAGE);
         map.put(RoleCode.HOSPITAL_ADMIN, hospitalAdmin);
 
@@ -272,6 +272,12 @@ public final class DefaultPermissionPolicy {
     }
 
     private DefaultPermissionPolicy() {
+    }
+
+    private static EnumSet<PermissionCode> allNonEmergencyPermissions() {
+        EnumSet<PermissionCode> permissions = EnumSet.allOf(PermissionCode.class);
+        permissions.remove(PermissionCode.ENV_EMERGENCY);
+        return permissions;
     }
 
     public static Set<PermissionCode> permissionsOf(RoleCode role) {

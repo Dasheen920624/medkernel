@@ -33,6 +33,7 @@ export interface SecurityProfile {
     risk: "LOW" | "MEDIUM" | "HIGH" | string;
   }>;
   menuKeys: string[];
+  environmentKeys: string[];
   dataScope: {
     tenantId: string | null;
     groupId: string | null;

@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,12 +23,13 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.medkernel.shared.api.ApiError;
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.context.RequestContext;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 
 /**
- * 全局异常 → {@link ApiResult} 翻译器。
+ * 全局异常响应翻译器。
  *
  * <p>映射策略：
  * <table>
@@ -39,7 +41,8 @@ import jakarta.validation.ConstraintViolationException;
  *   <tr><td>{@link MissingServletRequestParameterException}</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
  *   <tr><td>{@link MethodArgumentTypeMismatchException}</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
  *   <tr><td>{@link AuthenticationException}</td><td>{@link ErrorCode#UNAUTHORIZED}</td><td>401</td></tr>
- *   <tr><td>{@link AccessDeniedException}</td><td>{@link ErrorCode#FORBIDDEN}</td><td>403</td></tr>
+ *   <tr><td>{@link PermissionDeniedException}</td><td>PERMISSION_DENIED</td><td>403 ProblemDetail</td></tr>
+ *   <tr><td>{@link AccessDeniedException}</td><td>PERMISSION_DENIED</td><td>403 ProblemDetail</td></tr>
  *   <tr><td>{@link NoHandlerFoundException}</td><td>{@link ErrorCode#NOT_FOUND}</td><td>404</td></tr>
  *   <tr><td>{@link HttpRequestMethodNotSupportedException}</td><td>{@link ErrorCode#METHOD_NOT_ALLOWED}</td><td>405</td></tr>
  *   <tr><td>{@link HttpMediaTypeNotSupportedException}</td><td>{@link ErrorCode#UNSUPPORTED_MEDIA_TYPE}</td><td>415</td></tr>
@@ -108,11 +111,26 @@ public class GlobalExceptionHandler {
             .body(ApiResult.error(ErrorCode.UNAUTHORIZED, ErrorCode.UNAUTHORIZED.defaultMessage()));
     }
 
+    @ExceptionHandler(PermissionDeniedException.class)
+    public ResponseEntity<ProblemDetail> handlePermissionDenied(PermissionDeniedException ex) {
+        log.debug("PermissionDeniedException: requiredPermission={}", ex.requiredPermission());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(permissionDeniedProblem(
+                ex.getMessage(),
+                ex.requiredPermission(),
+                ex.permissionScope(),
+                ex.applyUrl()));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResult<Void>> handleAccessDenied(AccessDeniedException ex) {
+    public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex) {
         log.debug("AccessDeniedException: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(ApiResult.error(ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN.defaultMessage()));
+            .body(permissionDeniedProblem(
+                "权限不足：UNKNOWN",
+                "UNKNOWN",
+                "当前操作",
+                "/security/request-access"));
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
@@ -152,5 +170,21 @@ public class GlobalExceptionHandler {
                 ? cv.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName()
                 : "ConstraintViolation",
             cv.getMessage());
+    }
+
+    private ProblemDetail permissionDeniedProblem(
+            String detail,
+            String requiredPermission,
+            String permissionScope,
+            String applyUrl) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("权限不足");
+        problem.setDetail(detail);
+        problem.setProperty("code", "PERMISSION_DENIED");
+        problem.setProperty("requiredPermission", requiredPermission);
+        problem.setProperty("permissionScope", permissionScope);
+        problem.setProperty("applyUrl", applyUrl);
+        problem.setProperty("traceId", RequestContext.snapshot().traceId());
+        return problem;
     }
 }
