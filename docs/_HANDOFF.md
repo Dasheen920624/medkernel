@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-05 五方言迁移规约守卫 PR1 🚧
+### 线 1 · BASE-05 五方言迁移一致性与幂等回滚 PR2 🚧
 
 - 类型：软件开发
-- 分支：codex/base-05-migration-spine
-- 目标：完成 BASE-05 PR1：迁移框架规约守卫，阻断新增迁移缺中文注释、索引/约束命名不合规、带 `tenant_id` 但缺租户索引等问题，并接入 CI。
-- 状态：本地验证已完成，待提交 PR。新增 `scripts/migration-convention-guard.test.mjs` 红灯覆盖坏迁移，新增 `scripts/migration-convention-guard.mjs` 扫描脚本并接入 `.github/workflows/ci.yml` 的 `guard-rules`，阻断缺中文注释、表名不符合 `mk_<域>_<实体>`、索引/约束命名不合规、带 `tenant_id` 但缺租户索引，并在 CI always 输出历史迁移规约债务 inventory；已跑 `node --test scripts/authenticity-guard.test.mjs scripts/migration-convention-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=inventory`、`scripts/check-comment-zh.sh`、`git diff --check`、`mvn -q test`、`mvn -q -DskipTests package`、`npm run verify`、`npm run build`。本 PR 不大范围重写 30 个历史迁移，历史表名前缀 / COMMENT / 租户索引缺口仍由后续净化/对应业务卡治理；PR1 先保证后续新增迁移不可继续变坏。
-- 下一步（精确到动作/命令）：1. 提交并推 PR；2. 远端 CI 全绿后合并；3. 从最新 `origin/main` 新建下一分支继续 BASE-05 PR2（五方言一致性报告 / Oracle 小写 `flyway_schema_history` 排查固化 / 幂等回滚规约）。
-- 相关文件 / 测试 / 坑：`scripts/migration-convention-guard.mjs` 只对 changed/files 模式阻断，`inventory` 只盘点，避免把历史缺口一次性混进 PR1；新增 SQL 迁移必须在同一文件声明租户索引，否则后续 AI 会漏掉多租户性能/隔离基础。
+- 分支：codex/base-05-dialect-consistency
+- 目标：完成 BASE-05 PR2：补齐五方言动态表列一致性报告、Flyway 重复执行幂等证据、Oracle 小写 `flyway_schema_history` 断言，以及高风险迁移中文回滚/补偿说明门禁。
+- 状态：本地全量验证已完成，待提交 PR / CI / 合并。当前改动：`MigrationBaselineContractTest` 新增五方言表列一致性差异清单；`FlywayMultiDialectSmokeTest` 与 `H2BaselineMigrationTest` 断言重复 `migrate()` 不产生新迁移，并验证 Oracle 只生成小写 `flyway_schema_history`；`migration-convention-guard` 增加高风险 SQL 的中文 ROLLBACK/补偿说明阻断。已跑 `mvn -q -Dtest=MigrationBaselineContractTest,FlywayMultiDialectSmokeTest,H2BaselineMigrationTest test`、`node --test scripts/migration-convention-guard.test.mjs`、`node --test scripts/authenticity-guard.test.mjs scripts/migration-convention-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`、`mvn -q test`、`mvn -q -DskipTests package`、`npm run verify`、`npm run build`。
+- 下一步（精确到动作/命令）：1. 提交并推 PR；2. 远端 CI 全绿后合并；3. 基于最新 `origin/main` 继续 BASE-06。
+- 相关文件 / 测试 / 坑：不重写已发布历史迁移；一致性以动态表列报告 + 既有表/索引/约束合同证明，达梦/金仓运行环境仍由国产化矩阵执行，普通 CI 保持静态合同与 H2/Postgres/Oracle 真实执行。新增高风险迁移必须写中文 ROLLBACK 或补偿说明。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-05 五方言迁移规约守卫 PR1 ✅（#184）：新增 `scripts/migration-convention-guard.mjs` 与测试，CI 阻断新增迁移缺中文注释、表名不符合 `mk_<域>_<实体>`、索引/约束命名不合规、带 `tenant_id` 但缺租户索引，并输出历史迁移规约债务 inventory；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
 - BASE-04 审计失败降级与查询护栏 PR2 ✅（#183）：审计持久化失败 JSONL 降级留痕、fallback 指标、失败审计同步落库、成功审计提交后异步、组织/环境/结果/超管高亮过滤、审计高危配置关闭护栏；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
 - BASE-04 审计骨干 PR1 ✅（#182）：统一 `AuditRecorder`、完整审计事件模型、`audit_event` V30 五方言字段补齐、SM3 完整性哈希、`(traceId, action, target)` 幂等去重；旧 `AuditEventPublisher` 降级为兼容门面，运行时动作发布转交 `AuditRecorder`；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
 - BASE-03 PR2 标准 API 契约收官 ✅（#181）：Record DTO + Bean Validation 治理测试、traceId 一致性、平台级 `Idempotency-Key` 幂等过滤器与 `sys_idempotency` 五方言迁移；后端全量、前端 typecheck / test / build / lint / format:check、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
@@ -71,4 +72,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-05 PR1 五方言迁移规约守卫本地验证完成，待 PR/CI/合并；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-05 PR2 五方言迁移一致性与幂等回滚本地验证完成，待 PR/CI/合并；D0 域级验收前不得启动 D1 新功能 PR

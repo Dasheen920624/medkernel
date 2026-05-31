@@ -99,7 +99,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | BASE-02 | 身份权限（五维）| 菜单/动作/数据/资产/环境 + 13 角色矩阵 + 27 二级菜单粒度（详规 §7.3 + 宪法 §5）| 5d | done |
 | BASE-03 | 标准 API 契约 | ApiResult + ProblemDetail + Record DTO + Bean Validation + traceId + 幂等 | 4d | done |
 | BASE-04 | 审计骨干 | 写操作/审核/发布/运行/反馈/导出/回滚统一留痕；audit 异步或 fail-soft 不回滚业务 | 3d | done |
-| BASE-05 | 5 方言数据迁移骨架 | h2/postgres/oracle/dm/kingbase + 一致性测试 + 中文注释 + 索引约束 | 4d | pending |
+| BASE-05 | 5 方言数据迁移骨架 | h2/postgres/oracle/dm/kingbase + 一致性测试 + 中文注释 + 索引约束 | 4d | done |
 | BASE-06 | 5+1 菜单与前端骨架 | 路由元数据 + PageShell + 六态 + 状态机 Badge + 7 步流组件 + 命令面板 | 4d | pending |
 | BASE-07 | 运行底座 | Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）+ 监控 + 健康检查 + 备份恢复 + 国产化 profile | 3d | pending |
 | BASE-08 | 产品体验底座 | 一页一目标 + 角色默认视图 + 专家模式 + 服务端分页 + 详情抽屉 + 异步导出 + 保存视图 | 3d | pending |

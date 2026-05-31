@@ -9,6 +9,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.OracleContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -60,12 +61,23 @@ class FlywayMultiDialectSmokeTest {
     @Test
     @Tag("docker")
     void oracleFlywayBaselineMigrates() {
-        runFlyway(buildHikari(
+        DataSource ds = buildHikari(
                 oracle.getJdbcUrl(),
                 oracle.getUsername(),
                 oracle.getPassword(),
                 "oracle.jdbc.OracleDriver"
-        ), "classpath:db/migration/oracle", "Oracle");
+        );
+        runFlyway(ds, "classpath:db/migration/oracle", "Oracle");
+
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        Integer lowercaseHistory = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM user_tables WHERE table_name = 'flyway_schema_history'",
+            Integer.class);
+        Integer uppercaseHistory = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FLYWAY_SCHEMA_HISTORY'",
+            Integer.class);
+        assertThat(lowercaseHistory).as("Oracle Flyway 小写 schema history 表").isEqualTo(1);
+        assertThat(uppercaseHistory).as("Oracle 不应额外生成大写 schema history 表").isZero();
     }
 
     @Test
@@ -98,6 +110,10 @@ class FlywayMultiDialectSmokeTest {
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
             .as("%s 完整迁移版本序列", vendorName)
             .containsExactlyElementsOf(expectedVersions);
+
+        var repeated = flyway.migrate();
+        assertThat(repeated.success).as("%s 重复执行 migrate 成功", vendorName).isTrue();
+        assertThat(repeated.migrationsExecuted).as("%s 重复执行不产生新迁移", vendorName).isZero();
     }
 
     private DataSource buildHikari(String jdbcUrl, String username, String password, String driver) {

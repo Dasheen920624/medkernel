@@ -394,6 +394,28 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void schemaConsistencyReportHasNoTableColumnDiffsAcrossDialects() throws IOException {
+        Map<String, Set<String>> reference = tableColumns(combinedDdl("h2"));
+        Map<String, Object> diffs = new LinkedHashMap<>();
+
+        for (String dialect : DIALECTS) {
+            Map<String, Set<String>> current = tableColumns(combinedDdl(dialect));
+            for (String table : REQUIRED_TABLES) {
+                Set<String> expectedColumns = reference.getOrDefault(table, Set.of());
+                Set<String> actualColumns = current.getOrDefault(table, Set.of());
+                if (!expectedColumns.equals(actualColumns)) {
+                    diffs.put(dialect + "." + table, Map.of(
+                        "missing", difference(expectedColumns, actualColumns),
+                        "extra", difference(actualColumns, expectedColumns)
+                    ));
+                }
+            }
+        }
+
+        assertThat(diffs).as("五方言表/列一致性差异清单").isEmpty();
+    }
+
+    @Test
     void tenantIsolationAuditAndLifecycleColumnsRemainPresent() throws IOException {
         for (String dialect : DIALECTS) {
             Map<String, String> tables = tableBlocks(combinedDdl(dialect));
@@ -720,6 +742,40 @@ class MigrationBaselineContractTest {
             blocks.put(matcher.group(1).toLowerCase(Locale.ROOT), matcher.group(2));
         }
         return blocks;
+    }
+
+    private Map<String, Set<String>> tableColumns(String ddl) {
+        Map<String, Set<String>> columns = new LinkedHashMap<>();
+        tableBlocks(ddl).forEach((table, block) -> columns.put(table, columnNames(block)));
+        return columns;
+    }
+
+    private Set<String> columnNames(String tableBlock) {
+        LinkedHashSet<String> columns = new LinkedHashSet<>();
+        for (String line : tableBlock.split("\\R")) {
+            String trimmed = line.strip().replaceFirst(",\\s*$", "");
+            if (trimmed.isBlank()
+                || trimmed.startsWith("--")
+                || trimmed.startsWith("constraint ")
+                || trimmed.startsWith("primary key")
+                || trimmed.startsWith("unique ")
+                || trimmed.startsWith("foreign key")
+                || trimmed.startsWith("check ")) {
+                continue;
+            }
+
+            String name = trimmed.split("\\s+", 2)[0];
+            if (name.matches("[a-z][a-z0-9_]*")) {
+                columns.add(name);
+            }
+        }
+        return columns;
+    }
+
+    private Set<String> difference(Set<String> left, Set<String> right) {
+        LinkedHashSet<String> result = new LinkedHashSet<>(left);
+        result.removeAll(right);
+        return result;
     }
 
     private String readMigration(String dialect, String filename) {

@@ -9,6 +9,8 @@ const MIGRATION_SQL =
   /^medkernel-backend\/src\/main\/resources\/db\/migration\/(h2|postgres|oracle|dm|kingbase)\/(V\d+__[a-z0-9_]+\.sql)$/;
 const PRODUCTION_COMMENT_DIALECTS = new Set(["postgres", "oracle", "kingbase"]);
 const CJK = /[\u3400-\u9fff]/;
+const HIGH_RISK_SQL = /\b(DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE\s+TABLE|DELETE\s+FROM|ALTER\s+TABLE\s+[A-Za-z_][A-Za-z0-9_]*\s+DROP|RENAME\s+TO)\b/i;
+const ROLLBACK_NOTE = /(?:--|\/\*)\s*(?:ROLLBACK|COMPENSATION|回滚|补偿)\s*[:：][\s\S]*?[\u3400-\u9fff]/i;
 
 function normalizePath(filePath, root = process.cwd()) {
   const normalized = filePath.replace(/\\/g, "/");
@@ -74,6 +76,17 @@ function scanMigrationContent(file, dialect, content) {
   const violations = [];
   const tables = parseTables(content);
   const indexes = parseIndexes(content);
+
+  if (HIGH_RISK_SQL.test(content) && !ROLLBACK_NOTE.test(content)) {
+    addViolation(
+      violations,
+      file,
+      content,
+      HIGH_RISK_SQL.exec(content)?.index ?? 0,
+      "migration.rollback-plan",
+      "高风险迁移必须提供中文 ROLLBACK/补偿说明。",
+    );
+  }
 
   for (const table of tables) {
     if (!/^mk_[a-z][a-z0-9]*_[a-z][a-z0-9_]*$/.test(table.name)) {
