@@ -5,12 +5,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.security.auth.JwtIssuer;
 import com.medkernel.shared.runtime.RuntimeOperationsService;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
 
@@ -21,6 +27,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 验证 CONFIG-01 配置中心的存储、元数据与运行底座热生效合同。
@@ -37,6 +45,9 @@ class SystemConfigControllerTest {
     private static final String BACKUP_ENABLED_KEY = "medkernel.runtime.backup.enabled";
     private static final String BACKUP_RPO_KEY = "medkernel.runtime.backup.rpo";
     private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
+    private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
+    private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
+    private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
 
     @Autowired
     MockMvc mvc;
@@ -46,6 +57,12 @@ class SystemConfigControllerTest {
 
     @Autowired
     JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    JwtIssuer jwtIssuer;
+
+    @Autowired
+    LoggingSystem loggingSystem;
 
     @AfterEach
     void restoreSeededRuntimeFlags() {
@@ -78,6 +95,18 @@ class SystemConfigControllerTest {
             """, BACKUP_RPO_KEY, BACKUP_RTO_KEY);
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?)",
             BACKUP_ENABLED_KEY, BACKUP_RPO_KEY, BACKUP_RTO_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, JWT_TTL_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, LOG_LEVEL_KEY);
+        jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?)", JWT_TTL_KEY, LOG_LEVEL_KEY);
+        loggingSystem.setLogLevel("com.medkernel", LogLevel.DEBUG);
     }
 
     @Test
@@ -143,6 +172,30 @@ class SystemConfigControllerTest {
             BACKUP_RPO_KEY,
             BACKUP_RTO_KEY);
         assertThat(historyCount).isEqualTo(3);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void jwtTtlIsBackedByConfigCenterWithoutRestart() throws Exception {
+        patchHighRiskConfig(JWT_TTL_KEY, "120", "验证 JWT TTL 热生效");
+
+        JwtDecoder decoder = NimbusJwtDecoder
+            .withSecretKey(new SecretKeySpec(DEV_SECRET.getBytes(), "HmacSHA256"))
+            .build();
+        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("doctor")));
+
+        assertThat(jwt.getIssuedAt()).isNotNull();
+        assertThat(jwt.getExpiresAt()).isNotNull();
+        assertThat(jwt.getExpiresAt().getEpochSecond() - jwt.getIssuedAt().getEpochSecond()).isEqualTo(120);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void loggingLevelIsAppliedFromConfigCenterWithoutRestart() throws Exception {
+        patchConfig(LOG_LEVEL_KEY, "WARN", "验证日志级别热生效");
+
+        assertThat(loggingSystem.getLoggerConfiguration("com.medkernel").getConfiguredLevel())
+            .isEqualTo(LogLevel.WARN);
     }
 
     @Test

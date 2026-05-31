@@ -4,7 +4,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
 
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.api.error.ApiException;
@@ -31,7 +30,6 @@ public class ClinicalEventOutboxWorker {
         this.workerId = resolveWorkerId();
     }
 
-    @Scheduled(fixedDelayString = "${medkernel.events.worker.poll-interval-ms:200}")
     public void pollOnce() {
         Instant now = Instant.now();
         for (ClinicalEventOutbox row : outbox.findReadyToClaim(now, properties.workerBatchSize())) {

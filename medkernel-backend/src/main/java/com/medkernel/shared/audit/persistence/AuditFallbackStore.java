@@ -7,10 +7,10 @@ import java.time.Instant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.audit.AuditEvent;
+import com.medkernel.shared.config.SystemConfigService;
 
 /**
  * 审计持久化失败时的本地降级存储。
@@ -21,46 +21,63 @@ import com.medkernel.shared.audit.AuditEvent;
 @Component
 public class AuditFallbackStore {
 
-    private final Path fallbackPath;
+    private final AuditFallbackProperties properties;
+    private final SystemConfigService configService;
+    private final Path fixedFallbackPath;
     private final ObjectMapper objectMapper;
 
     @Autowired
     public AuditFallbackStore(
-            @Value("${medkernel.audit.fallback.path:}") String configuredPath,
+            AuditFallbackProperties properties,
+            SystemConfigService configService,
             ObjectMapper objectMapper) {
-        this(resolvePath(configuredPath), objectMapper);
+        this(properties, configService, objectMapper, null);
     }
 
     AuditFallbackStore(Path fallbackPath, ObjectMapper objectMapper) {
-        this.fallbackPath = fallbackPath;
+        this(new AuditFallbackProperties(fallbackPath.toString()), null, objectMapper, fallbackPath);
+    }
+
+    private AuditFallbackStore(AuditFallbackProperties properties,
+                               SystemConfigService configService,
+                               ObjectMapper objectMapper,
+                               Path fixedFallbackPath) {
+        this.properties = properties;
+        this.configService = configService;
         this.objectMapper = objectMapper.copy();
+        this.fixedFallbackPath = fixedFallbackPath;
     }
 
     public synchronized Path store(AuditEvent event, RuntimeException failure) throws IOException {
-        Path parent = fallbackPath.getParent();
+        Path path = fallbackPath();
+        Path parent = path.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
         FallbackAuditRecord record = FallbackAuditRecord.from(event, failure);
         String line = objectMapper.writeValueAsString(record) + System.lineSeparator();
-        Files.writeString(fallbackPath, line,
+        Files.writeString(path, line,
             java.nio.file.StandardOpenOption.CREATE,
             java.nio.file.StandardOpenOption.WRITE,
             java.nio.file.StandardOpenOption.APPEND);
-        return fallbackPath;
+        return path;
     }
 
     public Path fallbackPath() {
-        return fallbackPath;
+        if (fixedFallbackPath != null) {
+            return fixedFallbackPath;
+        }
+        String configuredPath = configService == null
+            ? properties.pathOrDefault()
+            : configService.runtimeAuditFallbackPath(properties);
+        return resolvePath(configuredPath);
     }
 
     private static Path resolvePath(String configuredPath) {
         if (configuredPath != null && !configuredPath.isBlank()) {
             return Path.of(configuredPath.trim()).toAbsolutePath().normalize();
         }
-        return Path.of(System.getProperty("user.dir"), "var", "audit-fallback", "audit-fallback.jsonl")
-            .toAbsolutePath()
-            .normalize();
+        return Path.of(AuditFallbackProperties.defaultPath());
     }
 
     private record FallbackAuditRecord(

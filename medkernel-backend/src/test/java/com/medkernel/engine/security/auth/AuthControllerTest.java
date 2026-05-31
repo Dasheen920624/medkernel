@@ -9,7 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,6 +24,9 @@ import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,10 +51,16 @@ class AuthControllerTest {
     @Autowired
     UserRoleAssignmentRepository roleAssignmentRepository;
 
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
     private static final String TENANT = "t-1";
     private static final String USERNAME = "doctor-test";
     private static final String USER_ID = "doctor-1";
     private static final String RAW_PASSWORD = "Mk@2026pw";
+    private static final String COOKIE_SECURE_KEY = "medkernel.auth.cookie.secure";
+    private static final String COOKIE_SAME_SITE_KEY = "medkernel.auth.cookie.same-site";
+    private static final String COOKIE_MAX_AGE_KEY = "medkernel.auth.cookie.max-age-seconds";
 
     @BeforeEach
     void setUp() {
@@ -85,6 +96,21 @@ class AuthControllerTest {
         List<UserRoleAssignment> assignments =
             roleAssignmentRepository.findActiveByTenantIdAndUserId(TENANT, USER_ID);
         roleAssignmentRepository.deleteAll(assignments);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, COOKIE_SECURE_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'Strict', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, COOKIE_SAME_SITE_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, COOKIE_MAX_AGE_KEY);
     }
 
     @Test
@@ -102,6 +128,25 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.userId").value(USER_ID))
             .andExpect(jsonPath("$.data.tenantId").value(TENANT))
             .andExpect(jsonPath("$.data.mustChangePwd").value(false));
+    }
+
+    @Test
+    void loginCookiePolicyComesFromConfigCenterWithoutRestart() throws Exception {
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = 'true' WHERE config_key = ?", COOKIE_SECURE_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = 'Lax' WHERE config_key = ?", COOKIE_SAME_SITE_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '120' WHERE config_key = ?", COOKIE_MAX_AGE_KEY);
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                containsString("Max-Age=120"),
+                containsString("SameSite=Lax"),
+                containsString("Secure"))));
     }
 
     @Test

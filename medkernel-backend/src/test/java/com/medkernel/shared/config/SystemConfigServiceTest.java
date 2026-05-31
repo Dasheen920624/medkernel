@@ -28,7 +28,9 @@ class SystemConfigServiceTest {
     private final SystemConfigRepository repository = mock(SystemConfigRepository.class);
     private final AuditSafetyGuard auditSafetyGuard = mock(AuditSafetyGuard.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
-    private final SystemConfigService service = new SystemConfigService(repository, auditSafetyGuard, auditRecorder);
+    private final RuntimeLogLevelManager logLevelManager = mock(RuntimeLogLevelManager.class);
+    private final SystemConfigService service = new SystemConfigService(
+        repository, auditSafetyGuard, auditRecorder, logLevelManager);
 
     @Test
     void runtimeFeatureFlagsFallBackToSafeDefaultWithHonestWarningWhenConfigStoreReadFails() {

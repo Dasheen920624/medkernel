@@ -122,6 +122,12 @@ jobs:
       - name: Block new touched-file migration convention debt
         run: node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main
 
+      - name: Test config boundary guard
+        run: node --test scripts/config-boundary-guard.test.mjs
+
+      - name: Block new direct medkernel config reads
+        run: node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main
+
       - name: Print migration convention debt inventory
         if: always()
         run: node scripts/migration-convention-guard.mjs --mode=inventory
@@ -129,6 +135,10 @@ jobs:
       - name: Print authenticity debt inventory
         if: always()
         run: node scripts/authenticity-guard.mjs --mode=inventory
+
+      - name: Print config boundary inventory
+        if: always()
+        run: node scripts/config-boundary-guard.mjs --mode=inventory
 
   # 前端骨架编译检查
   frontend-build-test:
