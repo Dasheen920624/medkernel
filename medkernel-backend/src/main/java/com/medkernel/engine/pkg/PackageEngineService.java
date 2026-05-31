@@ -383,8 +383,7 @@ public class PackageEngineService {
         }
 
         final ReleasePlanStatus finalStatus = allSuccess ? ReleasePlanStatus.SUCCESS
-            : (anySuccess ? ReleasePlanStatus.EXECUTING
-                : (anyNotSynced && !anyFailed ? ReleasePlanStatus.NOT_SYNCED : ReleasePlanStatus.FAILED));
+            : (anyNotSynced && !anySuccess && !anyFailed ? ReleasePlanStatus.NOT_SYNCED : ReleasePlanStatus.FAILED);
         final boolean finalAllSuccess = allSuccess;
 
         // 小事务3：最终原子包状态激活与旧版本隔离切换
@@ -401,8 +400,8 @@ public class PackageEngineService {
                 }
                 // 激活当前包
                 packageRepository.save(pack.withStatus(KnowledgePackageStatus.ACTIVE));
-            } else {
-                // 灰度发布仅更新包状态为已发布，不覆盖现有 active
+            } else if (finalAllSuccess) {
+                // 灰度发布全通道成功后才更新包状态，不覆盖现有 active。
                 if (pack.status() == KnowledgePackageStatus.DRAFT) {
                     packageRepository.save(pack.withStatus(KnowledgePackageStatus.PUBLISHED));
                 }
@@ -415,7 +414,7 @@ public class PackageEngineService {
                 "知识包发布并同步全量成功: " + pack.name() + " (" + pack.packageVersion() + ")");
         } else {
             auditPublisher.publish(AuditAction.PUBLISH, "knowledge_package", packageId, 
-                "知识包灰度发布计划执行完成, 状态为: " + finalStatus);
+                "知识包发布计划执行完成, 策略为: " + request.strategy() + ", 状态为: " + finalStatus);
         }
 
         return new PackageSyncResponse(savedPlan.planId(), packageId, finalStatus, logs);
