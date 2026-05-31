@@ -10,18 +10,19 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-06 PageShell 六态与状态组件 PR2 🚧
+### 线 1 · BASE-07 运行底座 PR1 🚧
 
 - 类型：软件开发
-- 分支：codex/base-06-shell-states
-- 目标：完成 BASE-06 PR2：PageShell 六态契约、4 状态机 Badge 严格枚举、7 步流组件约束、配置类路由 7 步流门禁与无权限/六态复核。
-- 状态：本地全量验证已完成，待提交 PR / CI / 合并。当前改动：`PageState` 锁定加载/空/错误/无权限/部分成功/正常六态并补部分成功失败明细；`PageShell` 直接承载六态渲染；`StatusBadge` 对未知状态抛错，不再渲染自创兜底文案，状态契约拆到 `.contract.ts` 保持组件文件干净；`StepFlow` 对齐核心 §4 文案并绑定变更状态机；`routes.ts` 增加 `requiresSixStates/requiresStepFlow` 规范化门禁；清理隐藏的 `StepFlowDemo` 路由和旧 `disabled` 第七页面态。已跑 `npm test -- --run src/shared/ui/PageState.test.tsx src/shared/ui/PageShell.test.tsx src/shared/ui/StatusBadge.test.tsx src/shared/ui/StepFlow.test.tsx src/shared/config/routes.test.ts src/pages/tenant/TerminologyMapping.test.tsx`、`npm run lint -- --max-warnings=999`（67 个既有 warning，无新增 touched-file warning）、`npm run verify`、`npm run build`、`scripts/check-comment-zh.sh`、`git diff --check`。
-- 下一步（精确到动作/命令）：1. 提交并推 PR；2. 远端 CI 全绿后合并；3. BASE-06 完整 AC 复核并决定是否更新 backlog/进入下一张 D0 卡。
-- 相关文件 / 测试 / 坑：六态只能是加载/空/错误/无权限/部分成功/正常；不得恢复 `disabled` 第七态或 demo 路由；配置类路由必须 `requiresStepFlow=true` 且状态机只能用 config/change；状态 Badge 不允许未知状态自创展示。
+- 分支：待创建（建议 `codex/base-07-runtime-foundation`，必须基于最新 `origin/main`）
+- 目标：领取 BASE-07 运行底座，交付 Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）、监控、健康检查、备份恢复、国产化 profile 的第一批可验证实现。
+- 状态：BASE-06 已由 #186/#187 合并完成；backlog 与 BASE-06 卡状态已在收官同步分支更新。D0 仍未完成，下一张卡按 backlog 顺序进入 BASE-07，不得启动 D1 新功能 PR。
+- 下一步（精确到动作/命令）：1. 合并本次 BASE-06 收官状态同步 PR；2. `git fetch origin main --prune`；3. `git checkout -B codex/base-07-runtime-foundation origin/main`；4. 读 `docs/cards/D0/BASE-07.md` + D0 简报 + 核心相关章节；5. 建绿基线、写红灯测试，再做 PR1。
+- 相关文件 / 测试 / 坑：BASE-07 必须避免把业务开关写死在 yml；配置中心未完成前只能保留启动引导/兜底，并明确真实降级状态；健康检查、备份恢复、国产化 profile 不得做假成功。
 
 ## 已归档工作线（最近完成，供回溯）
 
 - BASE-06 前端 IA 骨架 PR1 ✅（#186）：锁定 5+1 / 27+5 菜单 IA、路由 `requiredPermissions/requiredRoles`、权限码驱动菜单和直接访问判定、授权命令面板与 Ctrl/Cmd+K；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
+- BASE-06 PageShell 六态与状态组件 PR2 ✅（#187）：锁定加载/空/错误/无权限/部分成功/正常六态，移除 `disabled` 第七态和隐藏 `StepFlowDemo` 生产路由；`PageShell` 承载六态，`StatusBadge` 严格四状态机，`StepFlow` 对齐核心 §4 七步流，路由增加 `requiresSixStates/requiresStepFlow` 门禁；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-05 五方言迁移一致性与幂等回滚 PR2 ✅（#185）：新增五方言表列一致性报告、H2/PostgreSQL/Oracle 重复 `migrate()` 幂等断言、Oracle 小写 `flyway_schema_history` 断言、高风险迁移中文 ROLLBACK/补偿说明门禁；本地全量验证、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-05 五方言迁移规约守卫 PR1 ✅（#184）：新增 `scripts/migration-convention-guard.mjs` 与测试，CI 阻断新增迁移缺中文注释、表名不符合 `mk_<域>_<实体>`、索引/约束命名不合规、带 `tenant_id` 但缺租户索引，并输出历史迁移规约债务 inventory；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
 - BASE-04 审计失败降级与查询护栏 PR2 ✅（#183）：审计持久化失败 JSONL 降级留痕、fallback 指标、失败审计同步落库、成功审计提交后异步、组织/环境/结果/超管高亮过滤、审计高危配置关闭护栏；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
@@ -74,4 +75,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-06 PR2 PageShell 六态与状态组件本地全量验证完成，待 PR/CI/合并；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-06 两个 PR 已合并并完成收官状态同步；下一步基于最新 `origin/main` 领取 BASE-07，D0 域级验收前不得启动 D1 新功能 PR
