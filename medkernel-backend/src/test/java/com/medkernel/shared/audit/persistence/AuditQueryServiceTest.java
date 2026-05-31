@@ -77,6 +77,34 @@ class AuditQueryServiceTest {
     }
 
     @Test
+    void listPassesOrgEnvironmentOutcomeAndSuperAdminFiltersToRepository() {
+        AuditEventRepository repo = mock(AuditEventRepository.class);
+        when(repo.findPage(eq("t-1"), any(AuditEventQuery.class))).thenReturn(List.of());
+        RequestContext.restore(snapshot("t-1"));
+
+        AuditQueryService service = new AuditQueryService(repo);
+
+        service.list(new CursorRequest(null, 20),
+            "UPDATE",
+            "audit_config",
+            "system-super-admin",
+            " tenant:t-1/hospital:h-1/ ",
+            "prod",
+            "FAILED",
+            true,
+            null,
+            null);
+
+        ArgumentCaptor<AuditEventQuery> captor = ArgumentCaptor.forClass(AuditEventQuery.class);
+        verify(repo).findPage(eq("t-1"), captor.capture());
+        AuditEventQuery q = captor.getValue();
+        assertThat(q.orgPathPrefix()).isEqualTo("tenant:t-1/hospital:h-1");
+        assertThat(q.environmentKey()).isEqualTo("prod");
+        assertThat(q.outcome()).isEqualTo("FAILED");
+        assertThat(q.superAdminOnly()).isTrue();
+    }
+
+    @Test
     void truncatesAndEmitsNextCursorWhenRepositoryReturnsExtraRow() {
         AuditEventRepository repo = mock(AuditEventRepository.class);
         RequestContext.restore(snapshot("t-1"));

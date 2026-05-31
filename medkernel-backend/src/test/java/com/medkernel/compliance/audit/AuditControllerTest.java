@@ -1,18 +1,31 @@
 package com.medkernel.compliance.audit;
 
+import java.time.Instant;
+import java.util.List;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.shared.api.CursorResponse;
+import com.medkernel.shared.audit.AuditSafetyGuard;
+import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.audit.persistence.AuditQueryService;
 import com.medkernel.shared.context.RequestContext;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,6 +54,9 @@ class AuditControllerTest {
 
     @MockBean
     AuditQueryService queryService;
+
+    @MockBean
+    AuditSafetyGuard safetyGuard;
 
     @AfterEach
     void clearAll() {
@@ -82,5 +98,87 @@ class AuditControllerTest {
     void doctorCannotExportSnapshot() throws Exception {
         mvc.perform(post("/api/v1/compliance/audit/snapshot?reason=test"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void eventsExposeSpineFieldsAndSuperAdminHighlight() throws Exception {
+        AuditEventRecord record = new AuditEventRecord(
+            10L,
+            "evt-super-1",
+            "trace-1",
+            Instant.parse("2026-01-01T00:00:00Z"),
+            "system-super-admin",
+            "UPDATE",
+            "audit_config",
+            "medkernel.audit.persistence.enabled",
+            "拒绝关闭审计持久化",
+            "sm3:abc",
+            "t-1",
+            "h-1",
+            null,
+            null,
+            "GENESIS",
+            "sig-1",
+            "SIGNED",
+            "FAILED",
+            "ENG-AUDIT-001",
+            Instant.parse("2026-01-01T00:00:01Z"),
+            "ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_ADMIN",
+            "tenant:t-1/hospital:h-1",
+            "prod",
+            "{\"enabled\":true}",
+            "{\"enabled\":false}",
+            "sm3:dedupe");
+        when(queryService.list(any(), eq("UPDATE"), eq("audit_config"), eq("system-super-admin"),
+            eq("tenant:t-1/hospital:h-1"), eq("prod"), eq("FAILED"), eq(true),
+            any(), any()))
+            .thenReturn(CursorResponse.of(List.of(record), null));
+
+        mvc.perform(get("/api/v1/compliance/audit/events")
+                .param("action", "UPDATE")
+                .param("resourceType", "audit_config")
+                .param("actorUserId", "system-super-admin")
+                .param("orgPath", "tenant:t-1/hospital:h-1")
+                .param("environmentKey", "prod")
+                .param("outcome", "FAILED")
+                .param("superAdminOnly", "true")
+                .with(jwt().jwt(token -> token
+                    .subject("audit-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of("audit-compliance")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].eventId").value("evt-super-1"))
+            .andExpect(jsonPath("$.data.items[0].actorRoles").value("ROLE_SYSTEM_SUPERADMIN,ROLE_PLATFORM_ADMIN"))
+            .andExpect(jsonPath("$.data.items[0].orgPath").value("tenant:t-1/hospital:h-1"))
+            .andExpect(jsonPath("$.data.items[0].environmentKey").value("prod"))
+            .andExpect(jsonPath("$.data.items[0].outcome").value("FAILED"))
+            .andExpect(jsonPath("$.data.items[0].errorCode").value("ENG-AUDIT-001"))
+            .andExpect(jsonPath("$.data.items[0].payloadDigest").value("sm3:abc"))
+            .andExpect(jsonPath("$.data.items[0].superAdminAction").value(true));
+    }
+
+    @Test
+    void systemManagerCanValidateAuditSettingChangeThroughSafetyGuard() throws Exception {
+        String body = """
+            {
+              "key": "medkernel.audit.banner",
+              "value": "visible",
+              "reason": "更新审计页提示"
+            }
+            """;
+
+        mvc.perform(post("/api/v1/compliance/audit/settings/validate")
+                .with(jwt().jwt(token -> token
+                    .subject("platform-admin-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of("platform-admin")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.accepted").value(true));
+
+        verify(safetyGuard).assertChangeAllowed(any());
     }
 }

@@ -16,6 +16,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.shared.audit.AuditActorClassifier;
+
 /**
  * 审计事件持久化仓库（JDBC）。
  *
@@ -156,6 +158,26 @@ public class AuditEventRepository {
             params.add(query.actorUserId());
             types.add(Types.VARCHAR);
         }
+        if (query.orgPathPrefix() != null) {
+            sql.append(" AND (org_path = ? OR org_path LIKE ?) ");
+            params.add(query.orgPathPrefix());
+            params.add(query.orgPathPrefix() + "/%");
+            types.add(Types.VARCHAR);
+            types.add(Types.VARCHAR);
+        }
+        if (query.environmentKey() != null) {
+            sql.append(" AND environment_key = ? ");
+            params.add(query.environmentKey());
+            types.add(Types.VARCHAR);
+        }
+        if (query.outcome() != null) {
+            sql.append(" AND outcome = ? ");
+            params.add(query.outcome());
+            types.add(Types.VARCHAR);
+        }
+        if (query.superAdminOnly()) {
+            appendRoleTokenFilter(sql, params, types);
+        }
         if (query.from() != null) {
             sql.append(" AND occurred_at >= ? ");
             params.add(Timestamp.from(query.from()));
@@ -243,6 +265,28 @@ public class AuditEventRepository {
 
     private static Instant toInstant(Timestamp ts) {
         return ts == null ? null : ts.toInstant();
+    }
+
+    private static void appendRoleTokenFilter(StringBuilder sql, List<Object> params, List<Integer> types) {
+        List<String> conditions = new ArrayList<>();
+        for (String role : AuditActorClassifier.superAdminRoles()) {
+            conditions.add("actor_roles = ?");
+            params.add(role);
+            types.add(Types.VARCHAR);
+
+            conditions.add("actor_roles LIKE ?");
+            params.add(role + ",%");
+            types.add(Types.VARCHAR);
+
+            conditions.add("actor_roles LIKE ?");
+            params.add("%," + role + ",%");
+            types.add(Types.VARCHAR);
+
+            conditions.add("actor_roles LIKE ?");
+            params.add("%," + role);
+            types.add(Types.VARCHAR);
+        }
+        sql.append(" AND (").append(String.join(" OR ", conditions)).append(") ");
     }
 
     /** 链头快照。 */

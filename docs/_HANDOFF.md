@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-04 审计骨干 PR1 🚧
+### 线 1 · BASE-04 审计失败降级与查询护栏 PR2 🚧
 
 - 类型：软件开发
-- 分支：codex/base-04-audit-spine
-- 目标：完成 BASE-04 PR1：统一 `AuditRecorder`、完整审计事件模型、`audit_event` V30 五方言字段补齐、SM3 完整性哈希、`(traceId, action, target)` 幂等去重。
-- 状态：已完成红灯测试、核心实现与本地全量验证；`AuditRecorderTest`、`AuditChainWriterTest`、`AuditEventRepositoryTest`、审计查询 / fail-soft 相关测试、H2/Postgres/Oracle Flyway smoke、后端全量、前端 typecheck / test / build / lint / format:check、T-GATE 已转绿。旧 `AuditEventPublisher` 已降级为兼容门面，运行时动作发布转交 `AuditRecorder`，避免后续业务绕过完整字段。待提交 PR 与远端 CI。
-- 下一步（精确到动作/命令）：1. 提交并推送 `codex/base-04-audit-spine`；2. 创建 PR，等 CI 全绿后 squash 合并；3. 基于新 `origin/main` 继续 BASE-04 PR2。
-- 相关文件 / 测试 / 坑：`AuditRecorder.java` / `AuditRecordCommand.java` / `AuditEvent.java` / `AuditChainWriter.java` / `AuditEventRepository.java` / `V30__audit_event_spine_contract.sql`（h2/postgres/oracle/dm/kingbase）。卡片里的 `sys_audit_log` 已统一解释为现有 `audit_event` 权威表，禁止后续 AI 另建重复审计表。Oracle 会为唯一约束自动建索引，不能再额外创建同列 `idx_audit_event_dedupe`。
+- 分支：codex/base-04-fail-soft-query
+- 目标：完成 BASE-04 PR2：审计持久化失败不拖垮业务、失败 JSONL 降级留痕、审计查询补齐组织/环境/结果/超管高亮过滤、禁止从界面关闭审计持久化。
+- 状态：已完成 TDD 与本地验证。当前改动包括 `AuditFallbackStore`、`AuditPersistenceSink` after-commit 异步与失败同步留痕、fallback 指标、`AuditQueryService` / `AuditEventRepository` 过滤、`AuditActorClassifier` 超管高亮、`AuditSafetyGuard` 配置护栏、审计 API 响应字段补齐，并在 `.gitignore` 忽略运行时 `var/audit-fallback/`，避免降级审计记录误入库。
+- 下一步（精确到动作/命令）：1. 提交并推送 `codex/base-04-fail-soft-query`；2. 创建 PR，等待远端 CI 全绿后 squash 合并；3. 基于新 `origin/main` 继续 BASE-04 后续最小逻辑单元，禁止把 SUPERADMIN-01 完整实现混进本 PR。
+- 相关文件 / 测试 / 坑：本地通过 `mvn -q test`、`mvn -q -DskipTests package`、`npm run verify`、`npm run build`、`git diff --check`、`scripts/check-comment-zh.sh`、`node scripts/authenticity-guard.mjs --mode all`。超管过滤必须按逗号角色令牌精确匹配，不能把 `ROLE_SUPERADMIN_READONLY` 误判；组织路径过滤必须精确或 `prefix/%`，不能让 `hospital:h-1` 命中 `hospital:h-10`。BASE-04 只做审计高亮与护栏端口，内置超管创建 / MFA / 不可撤销约束仍归 SUPERADMIN-01。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-04 审计骨干 PR1 ✅（#182）：统一 `AuditRecorder`、完整审计事件模型、`audit_event` V30 五方言字段补齐、SM3 完整性哈希、`(traceId, action, target)` 幂等去重；旧 `AuditEventPublisher` 降级为兼容门面，运行时动作发布转交 `AuditRecorder`；本地全量验证、T-GATE 与远端 CI 通过并合入 `origin/main`。
 - BASE-03 PR2 标准 API 契约收官 ✅（#181）：Record DTO + Bean Validation 治理测试、traceId 一致性、平台级 `Idempotency-Key` 幂等过滤器与 `sys_idempotency` 五方言迁移；后端全量、前端 typecheck / test / build / lint / format:check、T-GATE 与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-03 PR1 标准 API 契约前半 ✅（#180）：失败响应统一 `ProblemDetail`，移除 `ApiResult.error` 旧失败包络，补齐 `GlobalExceptionHandler` 契约测试；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-02 PR3 环境维与应急权限闭环 ✅（#178）：`emergency_permission_grant` 五方言迁移、break-glass 授予服务、到期自动失效、`security/me.environmentKeys`、越权 403 ProblemDetail、前端权限指纹“可用环境”；平台 / 集团 / 医院管理员默认不再直接拥有 `env.emergency`；本地全量验证与远端 CI 8/8 通过并合入 `origin/main`。
@@ -69,4 +70,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-04 审计骨干 PR1 本地验证与 T-GATE 已通过，待 PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-04 PR2 审计失败降级与查询护栏本地验证已通过，待 PR / CI / 合并；D0 域级验收前不得启动 D1 新功能 PR

@@ -31,6 +31,8 @@ public class BusinessMetrics {
     private Counter cdssAlerts;
     private Counter auditChainSigned;
     private Counter auditPersistenceFailures;
+    private Counter auditFallbackWritten;
+    private Counter auditFallbackFailures;
 
     private final AtomicLong activePathways = new AtomicLong();
     private final AtomicLong openFindings = new AtomicLong();
@@ -57,6 +59,14 @@ public class BusinessMetrics {
             .description("合规运维：审计事件落库失败累计数（业务调用不受影响，但需要告警）")
             .register(registry);
 
+        this.auditFallbackWritten = Counter.builder("medkernel_audit_fallback_written_total")
+            .description("合规运维：审计落库失败后成功写入本地降级文件的累计数")
+            .register(registry);
+
+        this.auditFallbackFailures = Counter.builder("medkernel_audit_fallback_failures_total")
+            .description("合规运维：审计本地降级文件写入失败累计数")
+            .register(registry);
+
         Gauge.builder("medkernel_pathway_active", activePathways, AtomicLong::doubleValue)
             .description("临床运行：当前在径患者数")
             .register(registry);
@@ -70,6 +80,8 @@ public class BusinessMetrics {
     public void incCdssAlerts() { cdssAlerts.increment(); }
     public void incAuditChainSigned() { auditChainSigned.increment(); }
     public void incAuditPersistenceFailures() { auditPersistenceFailures.increment(); }
+    public void incAuditFallbackWritten() { auditFallbackWritten.increment(); }
+    public void incAuditFallbackFailures() { auditFallbackFailures.increment(); }
 
     public void setActivePathways(long n) { activePathways.set(n); }
     public void setOpenFindings(long n) { openFindings.set(n); }
