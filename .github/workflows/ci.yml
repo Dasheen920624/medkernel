@@ -116,6 +116,16 @@ jobs:
       - name: Block new touched-file authenticity debt
         run: node scripts/authenticity-guard.mjs --mode=changed --base=origin/main
 
+      - name: Test migration convention guard
+        run: node --test scripts/migration-convention-guard.test.mjs
+
+      - name: Block new touched-file migration convention debt
+        run: node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main
+
+      - name: Print migration convention debt inventory
+        if: always()
+        run: node scripts/migration-convention-guard.mjs --mode=inventory
+
       - name: Print authenticity debt inventory
         if: always()
         run: node scripts/authenticity-guard.mjs --mode=inventory
