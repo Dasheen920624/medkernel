@@ -345,6 +345,71 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void syncPackageDoesNotPublishDraftWhenAllTargetsAreNotSynced() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待同步草稿包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-draft", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+
+        SyncTarget target = new SyncTarget(
+            1L, "target-1", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, null,
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(target));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
+
+        PackageSyncResponse response = service.syncPackage("pkg-draft", new PackageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
+        assertThat(response.logs()).hasSize(1);
+        assertThat(response.logs().get(0).status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+    }
+
+    @Test
+    void syncPackageFailsPlanAndDoesNotPublishDraftWhenAnyTargetFails() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待灰度草稿包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-draft", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+
+        SyncTarget successTarget = new SyncTarget(
+            1L, "target-ok", "tenant-A", "规则库", SyncTargetType.CLINICAL_DB, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        SyncTarget failedTarget = new SyncTarget(
+            2L, "target-fail", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(targetRepository.findByTargetIdAndTenantId("target-ok", "tenant-A"))
+            .thenReturn(Optional.of(successTarget));
+        when(targetRepository.findByTargetIdAndTenantId("target-fail", "tenant-A"))
+            .thenReturn(Optional.of(failedTarget));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(successTarget)))
+            .thenReturn("EVIDENCE-OK");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(failedTarget)))
+            .thenThrow(new IllegalStateException("目标库写入失败"));
+
+        PackageSyncResponse response = service.syncPackage("pkg-draft", new PackageSyncRequest(
+            "dept-1", ReleaseStrategy.GRAYSCALE, ReleaseScopeType.DEPARTMENT, "dept-1",
+            List.of("target-ok", "target-fail")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.FAILED);
+        assertThat(response.logs()).extracting(SyncLogResponse::status)
+            .containsExactly(SyncLogStatus.SUCCESS, SyncLogStatus.FAILED);
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+    }
+
+    @Test
     void rollbackPackageSwitchesActiveStatusAndRecordsAudit() {
         KnowledgePackage currentActive = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
