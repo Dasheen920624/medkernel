@@ -54,6 +54,7 @@ type RouteMetaInput = Omit<
 export interface RoutePermissionProfile {
   roles?: Array<{ code: string }>;
   permissions?: Array<{ code: string }>;
+  menuKeys?: string[];
 }
 
 export interface RouteSectionMeta {
@@ -599,9 +600,12 @@ export function canAccessRoute(
   const grantedPermissions = new Set(
     profile.permissions?.map((permission) => permission.code) ?? [],
   );
+  const grantedMenuKeys = new Set(profile.menuKeys ?? []);
   const grantedRoles = new Set(profile.roles?.map((role) => role.code) ?? []);
-  const hasRequiredPermissions = route.requiredPermissions.every((permission) =>
-    grantedPermissions.has(permission),
+  const hasRequiredPermissions = route.requiredPermissions.every(
+    (permission) =>
+      grantedPermissions.has(permission) ||
+      (permission.startsWith("menu.") && grantedMenuKeys.has(permission.slice("menu.".length))),
   );
   const hasRequiredRole =
     route.requiredRoles.length === 0 || route.requiredRoles.some((role) => grantedRoles.has(role));

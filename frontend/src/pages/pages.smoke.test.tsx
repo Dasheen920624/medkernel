@@ -106,8 +106,8 @@ describe("page smoke coverage", () => {
   it("renders the advanced provenance audit console", () => {
     renderPage(<Provenance />);
     expect(screen.getByRole("heading", { name: "来源与临床证据追溯" })).toBeInTheDocument();
-    expect(screen.getByText(/数字生命周期全景存证条目/)).toBeInTheDocument();
-    expect(screen.getByText(/Isolated 子事务合规日志流/)).toBeInTheDocument();
+    expect(screen.getAllByText("真实证据快照").length).toBeGreaterThan(0);
+    expect(screen.getByText("真实审计事件")).toBeInTheDocument();
   });
 
   it("renders the dashboard workbench with tenant-lifecycle placeholder", () => {
@@ -140,7 +140,7 @@ describe("page smoke coverage", () => {
   it("renders the quality qc-eval-results console", () => {
     renderPage(<QcEvalResults />);
     expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
-    expect(screen.getByText(/总评估病例库/)).toBeInTheDocument();
+    expect(screen.getByText(/真实评估结果总数/)).toBeInTheDocument();
   });
 
   it("renders the quality qc-eval-sets scan with real snapshot filters", async () => {

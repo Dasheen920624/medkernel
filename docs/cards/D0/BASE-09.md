@@ -66,7 +66,10 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 
 - PR1（前端净化首批）：清理通知、待办、身份源、安全基线、医保审核、质控驾驶舱 6 个本地假闭环页面；`QcEvalSets` 删除 `DEMO_SNAPSHOTS` 并按患者或就诊读取真实 `context/snapshots`；补强真实性门禁 `frontend.mock-bypass-language` / `frontend.demo-snapshot-export`。记录见 [BASE-09 前端净化 PR1 记录](../../audit/BASE-09-frontend-cleanup-pr1.md)。本 PR 仍不勾选 FR/AC，残留项按报告继续下一批净化。
 - PR2（临床页净化）：清理 `Followup` 本地随访计划、假任务结案、假 Trace 审计和硬编码租户/病种样例；清理 `EmbedLaunch` 备用推荐数据集、本地 traceId 和无患者上下文推荐查询。记录见 [BASE-09 前端净化 PR2 记录](../../audit/BASE-09-clinical-cleanup-pr2.md)。本 PR 仍不勾选 FR/AC，继续清 `Provenance` / `QcEvalResults` / 规则路径页契约残留。
+- PR3（证据与评估结果净化）：清理 `Provenance` 内置演示证据链、假 traceId、假审计日志、前端自校验沙箱和本地防伪导出；清理 `QcEvalResults` 固定 KPI 常量和 Mock 口径，所有指标改由真实查询结果派生；补修浏览器核验发现的路由授权契约断层，使后端 `menuKeys` 能驱动菜单页访问。记录见 [BASE-09 前端净化 PR3 记录](../../audit/BASE-09-evidence-cleanup-pr3.md)。本 PR 仍不勾选 FR/AC，继续清 `RuleDefinitions` / `PathwayTemplates` / `ImplementationGuide` 以及后端 Map、硬编码和假证据残留。
 
-## 大卡工序（2d，存量重构，建议按"前端 mock / 后端 Map / 假证据"三组分 PR）
-- PR1：前端 mock 假闭环 + eslint-disable 清除 → AC-1。
-- PR2：后端裸 Map + 硬编码常量 + 假证据/假同步清除 + 报告 → AC-2/3/4/5。
+## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
+- 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。
+- 前端规则 / 路径 / 指南残留：继续清 `RuleDefinitions` / `PathwayTemplates` / `ImplementationGuide`，不得保留本地假验证、假同步、规避门禁注释或过时示例。
+- 后端契约与真实性清除：裸 `Map` 入参、硬编码业务示例、单病种硬编码、假哈希 / 假同步证据另起批次清零。
+- 完成全部 FR 后再统一勾选 AC，并补最终净化报告与 owner/reviewer 验收证据。

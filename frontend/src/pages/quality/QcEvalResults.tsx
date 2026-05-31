@@ -1,57 +1,72 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageShell } from "@/shared/ui/PageShell";
-import { Table, Button, Tag, Input, Select, Card, Progress, Tooltip } from "antd";
 import {
-  SearchOutlined,
-  ReloadOutlined,
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Progress,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
+import type { TableProps } from "antd";
+import {
   CheckCircleOutlined,
-  MinusCircleOutlined,
-  WarningOutlined,
   DatabaseOutlined,
+  MinusCircleOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { useEvaluationResults } from "@/shared/api/hooks";
 import type { EvaluationResult, EvaluationResultLevel } from "@/shared/api/hooks";
 
-const { Option } = Select;
-
 export default function QcEvalResults() {
-  const [filterCode, setFilterCode] = useState<string>("");
+  const [filterCode, setFilterCode] = useState("");
   const [filterLevel, setFilterLevel] = useState<EvaluationResultLevel | undefined>(undefined);
-  const [filterDept, setFilterDept] = useState<string>("");
+  const [filterDept, setFilterDept] = useState("");
 
-  // 查询所有的行级质控结果事实
   const {
     data: pageData,
     refetch,
     isLoading,
+    isError,
   } = useEvaluationResults({
-    indicatorCode: filterCode ? filterCode : undefined,
+    indicatorCode: filterCode.trim() || undefined,
     resultLevel: filterLevel,
-    responsibleDepartmentId: filterDept ? filterDept : undefined,
+    responsibleDepartmentId: filterDept.trim() || undefined,
     page: 1,
     size: 50,
   });
 
-  const handleRefresh = () => {
-    refetch();
-  };
+  const results = useMemo(() => pageData?.items ?? [], [pageData?.items]);
 
-  // 渲染得分 Tag
+  const metrics = useMemo(() => {
+    const currentPageTotal = results.length;
+    const passCount = results.filter((item) => item.resultLevel === "PASS").length;
+    const defectCount = results.filter((item) => item.resultLevel !== "PASS").length;
+    const complianceRate =
+      currentPageTotal > 0 ? Math.round((passCount / currentPageTotal) * 1000) / 10 : 0;
+    return {
+      totalResults: pageData?.total ?? currentPageTotal,
+      currentPageTotal,
+      complianceRate,
+      defectCount,
+    };
+  }, [pageData?.total, results]);
+
   const renderScoreTag = (score: number | undefined) => {
     if (score === undefined || score === null) {
       return <Tag color="default">不计分</Tag>;
     }
-    const isPass = score >= 90;
-    return (
-      <span
-        className={`font-normal font-bold text-sm ${isPass ? "text-emerald-500" : "text-rose-500"}`}
-      >
-        {score.toFixed(1)}分
-      </span>
-    );
+    const colorClass = score >= 90 ? "text-emerald-500" : "text-rose-500";
+    return <span className={`font-bold text-sm ${colorClass}`}>{score.toFixed(1)}分</span>;
   };
 
-  // 渲染严重度等级
   const renderLevelTag = (level: EvaluationResultLevel) => {
     switch (level) {
       case "PASS":
@@ -69,7 +84,7 @@ export default function QcEvalResults() {
     }
   };
 
-  const columns = [
+  const columns: TableProps<EvaluationResult>["columns"] = [
     {
       title: "指标编码",
       dataIndex: "indicatorCode",
@@ -80,7 +95,7 @@ export default function QcEvalResults() {
       title: "考核得分",
       dataIndex: "scoreValue",
       key: "scoreValue",
-      render: (score: number) => renderScoreTag(score),
+      render: (score: number | undefined) => renderScoreTag(score),
     },
     {
       title: "评估级别",
@@ -94,11 +109,11 @@ export default function QcEvalResults() {
       key: "hitFlag",
       render: (hit: boolean) =>
         hit ? (
-          <Tooltip title="病例质量完全符合要求">
+          <Tooltip title="评估项达标">
             <CheckCircleOutlined className="text-emerald-500 text-base" />
           </Tooltip>
         ) : (
-          <Tooltip title="未达标，已产生缺陷 Finding">
+          <Tooltip title="评估项未达标">
             <WarningOutlined className="text-rose-500 text-base" />
           </Tooltip>
         ),
@@ -113,7 +128,7 @@ export default function QcEvalResults() {
       title: "评估科室",
       dataIndex: "responsibleDepartmentId",
       key: "responsibleDepartmentId",
-      render: (dept: string) => (
+      render: (dept: string | undefined) => (
         <Tag className="border-slate-100 bg-slate-50 text-slate-500">{dept || "全院"}</Tag>
       ),
     },
@@ -121,139 +136,147 @@ export default function QcEvalResults() {
       title: "扫描计算时间",
       dataIndex: "createdAt",
       key: "createdAt",
-      render: (date: string) => (
-        <span className="text-slate-400 font-normal text-xs">
-          {date ? date.substring(0, 16) : "--"}
-        </span>
+      render: (date: string | undefined) => (
+        <span className="text-slate-400 text-xs">{date ? date.substring(0, 16) : "--"}</span>
       ),
     },
   ];
 
-  // 计算宏观 KPI 指标（Mock 以体现高设计感）
-  const totalCases = 485; // 历史累积病例
-  const enrolledCases = 152; // 入组病例
-  const complianceRate = 92.8; // 指标质量达标率
-  const activeDefects = 6; // 严重缺陷
-
   return (
     <PageShell
       title="评估结果"
-      description="汇总全院已扫描就诊的自动质控明细，透视临床路径与医保规范的宏观达标率及细粒度质量缺陷事实"
+      description="汇总真实质控扫描结果，顶部指标只按当前查询返回的数据计算。"
     >
-      <div className="space-y-6">
-        {/* 顶部宏观 KPI MetricGrid 看板，富有现代质感 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="rounded-2xl border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3">
-              <span className="p-3 rounded-xl bg-sky-500/10 text-sky-600 flex items-center justify-center">
-                <DatabaseOutlined className="text-xl" />
-              </span>
-              <div>
-                <div className="text-slate-400 text-xs font-semibold">总评估病例库</div>
-                <div className="text-2xl font-bold text-slate-800 mt-1">{totalCases} 例</div>
-              </div>
-            </div>
+      <Space direction="vertical" size="large" className="w-full">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <StatisticLine
+              icon={<DatabaseOutlined className="text-xl" />}
+              label="真实评估结果总数"
+              value={`${metrics.totalResults} 例`}
+            />
           </Card>
-
-          <Card className="rounded-2xl border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3">
-              <span className="p-3 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center">
-                <MinusCircleOutlined className="text-xl" />
-              </span>
-              <div>
-                <div className="text-slate-400 text-xs font-semibold">满足分母入组数</div>
-                <div className="text-2xl font-bold text-slate-800 mt-1">{enrolledCases} 例</div>
-              </div>
-            </div>
+          <Card>
+            <StatisticLine
+              icon={<MinusCircleOutlined className="text-xl" />}
+              label="当前页结果数"
+              value={`${metrics.currentPageTotal} 例`}
+            />
           </Card>
-
-          <Card className="rounded-2xl border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <Card>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-slate-400 text-xs font-semibold">临床综合质量达标率</div>
-                <span className="text-emerald-500 font-bold text-xs">{complianceRate}%</span>
+                <div className="text-slate-500 text-xs font-semibold">当前页达标率</div>
+                <span className="text-emerald-500 font-bold text-xs">
+                  {metrics.complianceRate}%
+                </span>
               </div>
-              <Progress percent={complianceRate} size="small" status="active" showInfo={false} />
+              <Progress percent={metrics.complianceRate} size="small" showInfo={false} />
             </div>
           </Card>
-
-          <Card className="rounded-2xl border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3">
-              <span className="p-3 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
-                <WarningOutlined className="text-xl" />
-              </span>
-              <div>
-                <div className="text-slate-400 text-xs font-semibold">未达标缺陷问题数</div>
-                <div className="text-2xl font-bold text-rose-500 mt-1">{activeDefects} 项</div>
-              </div>
-            </div>
+          <Card>
+            <StatisticLine
+              icon={<WarningOutlined className="text-xl" />}
+              label="当前页缺陷/红线"
+              value={`${metrics.defectCount} 项`}
+              danger
+            />
           </Card>
         </div>
 
-        {/* 高级过滤搜索栏 */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-100 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              placeholder="检索指标编码..."
-              prefix={<SearchOutlined className="text-slate-400" />}
-              className="w-48 rounded-lg"
-              value={filterCode}
-              onChange={(e) => setFilterCode(e.target.value)}
-              onPressEnter={() => refetch()}
-            />
-
-            <Select
-              placeholder="评估等级"
-              allowClear
-              className="w-36"
-              onChange={(v) => setFilterLevel(v)}
-            >
-              <Option value="PASS">通过达标</Option>
-              <Option value="ATTENTION">需关注</Option>
-              <Option value="NON_COMPLIANT">质控缺陷</Option>
-              <Option value="CRITICAL">严重红线</Option>
-            </Select>
-
-            <Input
-              placeholder="考核科室..."
-              className="w-48 rounded-lg"
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-              onPressEnter={() => refetch()}
-            />
-
-            <Button
-              type="primary"
-              className="bg-sky-600 hover:bg-sky-700 rounded-lg"
-              onClick={() => refetch()}
-            >
-              过滤查询
+        <Card>
+          <Space wrap className="w-full justify-between">
+            <Space wrap>
+              <Input
+                placeholder="检索指标编码"
+                prefix={<SearchOutlined className="text-slate-400" />}
+                className="w-48"
+                value={filterCode}
+                onChange={(event) => setFilterCode(event.target.value)}
+                onPressEnter={() => refetch()}
+              />
+              <Select
+                placeholder="评估等级"
+                allowClear
+                value={filterLevel}
+                className="w-40"
+                onChange={setFilterLevel}
+                options={[
+                  { value: "PASS", label: "通过达标" },
+                  { value: "ATTENTION", label: "需关注" },
+                  { value: "NON_COMPLIANT", label: "质控缺陷" },
+                  { value: "CRITICAL", label: "严重红线" },
+                ]}
+              />
+              <Input
+                placeholder="考核科室"
+                className="w-48"
+                value={filterDept}
+                onChange={(event) => setFilterDept(event.target.value)}
+                onPressEnter={() => refetch()}
+              />
+              <Button type="primary" onClick={() => refetch()}>
+                过滤查询
+              </Button>
+            </Space>
+            <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+              刷新
             </Button>
-          </div>
-          <Button
-            icon={<ReloadOutlined />}
-            className="border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-700 rounded-lg"
-            onClick={handleRefresh}
-          >
-            刷新数据事实
-          </Button>
-        </div>
+          </Space>
+        </Card>
 
-        {/* 扫描明细结果台账 */}
-        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        {isError && (
+          <Alert
+            type="error"
+            showIcon
+            message="评估结果接口读取失败"
+            description="请检查登录权限、租户上下文或评估服务状态。"
+          />
+        )}
+
+        <Card title="扫描明细结果台账">
           <Table
-            dataSource={pageData?.items || []}
+            dataSource={results}
             columns={columns}
-            rowKey={(r: EvaluationResult) => r.resultId}
+            rowKey={(record) => record.resultId}
             loading={isLoading}
+            locale={{ emptyText: <Empty description="暂无真实评估结果" /> }}
             pagination={{
-              total: pageData?.total || 0,
+              total: pageData?.total ?? 0,
               pageSize: 10,
               showSizeChanger: false,
             }}
           />
+        </Card>
+      </Space>
+    </PageShell>
+  );
+}
+
+function StatisticLine({
+  icon,
+  label,
+  value,
+  danger = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`flex items-center justify-center text-slate-600 ${danger ? "text-rose-600" : ""}`}
+      >
+        {icon}
+      </span>
+      <div>
+        <div className="text-slate-500 text-xs font-semibold">{label}</div>
+        <div className={`text-2xl font-bold mt-1 ${danger ? "text-rose-500" : "text-slate-800"}`}>
+          {value}
         </div>
       </div>
-    </PageShell>
+    </div>
   );
 }
