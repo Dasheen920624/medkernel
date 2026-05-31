@@ -12,6 +12,8 @@ public enum ReleasePlanStatus {
     SUCCESS,
     /** 发布失败 */
     FAILED,
+    /** 未接入真实同步通道 */
+    NOT_SYNCED,
     /** 已回滚 */
     ROLLBACKED
 }

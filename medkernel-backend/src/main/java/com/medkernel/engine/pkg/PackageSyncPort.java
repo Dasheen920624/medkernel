@@ -13,7 +13,8 @@ public interface PackageSyncPort {
      * @param tenantId 租户 ID
      * @param plan     发布计划
      * @param target   投影通道
-     * @return 同步执行数字签名/哈希存证
+     * @return 真实物理同步执行后的数字签名/哈希存证
+     * @throws PackageSyncNotConnectedException 未接入真实物理同步通道，必须诚实返回 NOT_SYNCED
      * @throws Exception 物理同步异常
      */
     String sync(String tenantId, ReleasePlan plan, SyncTarget target) throws Exception;

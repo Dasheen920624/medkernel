@@ -260,6 +260,39 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void syncPackageMarksNotSyncedWhenDefaultPortHasNoRealChannel() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+
+        SyncTarget target = new SyncTarget(
+            1L, "target-1", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, null,
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(target));
+
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
+
+        PackageSyncResponse response = service.syncPackage("pkg-1", new PackageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
+        assertThat(response.logs()).hasSize(1);
+        assertThat(response.logs().get(0).status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
+        assertThat(response.logs().get(0).errorCode()).isEqualTo("NOT_SYNCED");
+        assertThat(response.logs().get(0).errorMessage()).contains("未配置真实同步适配器");
+        assertThat(response.logs().get(0).syncEvidence()).isNull();
+
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+    }
+
+    @Test
     void rollbackPackageSwitchesActiveStatusAndRecordsAudit() {
         KnowledgePackage currentActive = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,

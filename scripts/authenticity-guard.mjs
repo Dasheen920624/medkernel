@@ -139,6 +139,12 @@ const BACKEND_RULES = [
     pattern: /memory:\/\/knowledge-export|resultUri\s*=\s*["']memory:\/\//,
   },
   {
+    ruleId: "backend.fake-sync-evidence",
+    message: "后端生产代码禁止用模拟同步或时间戳摘要伪造同步证据；无真实通道必须返回 NOT_SYNCED。",
+    pattern:
+      /(?:模拟|仿真|fake|mock)[\s\S]{0,120}(?:同步|sync)[\s\S]{0,240}(?:证据|evidence|摘要)|(?:LNT-|syncEvidence\s*(?:=|\(|:)|sync_evidence\s*(?:=|\(|:))[\s\S]{0,240}(?:Instant\.now\s*\(\s*\)|System\.currentTimeMillis\s*\(\s*\))/im,
+  },
+  {
     ruleId: "backend.raw-request-body-map",
     message: "后端控制器禁止使用 @RequestBody Map 裸入参，必须定义 Record DTO + 校验。",
     pattern: /@RequestBody[\s\S]{0,120}\bMap\s*<[^>]+>/m,

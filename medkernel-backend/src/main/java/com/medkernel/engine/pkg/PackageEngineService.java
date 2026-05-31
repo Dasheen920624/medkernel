@@ -289,6 +289,8 @@ public class PackageEngineService {
         List<SyncLogResponse> logs = new ArrayList<>();
         boolean anySuccess = false;
         boolean allSuccess = true;
+        boolean anyNotSynced = false;
+        boolean anyFailed = false;
 
         for (String targetId : request.targetIds()) {
             SyncTarget target = targetRepository.findByTargetIdAndTenantId(targetId, tenantId)
@@ -323,7 +325,7 @@ public class PackageEngineService {
             final String finalEvidence = evidence;
             final Exception finalError = syncError;
 
-            // 小事务2：更新同步成功或失败状态日志
+            // 小事务2：更新同步成功、失败或未接入状态日志
             SyncLog updatedLog = transactionTemplate.execute(status -> {
                 if (finalError == null) {
                     SyncLog successLog = new SyncLog(
@@ -337,6 +339,20 @@ public class PackageEngineService {
                         savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
                     );
                     return logRepository.save(successLog);
+                } else if (finalError instanceof PackageSyncNotConnectedException) {
+                    SyncLog notSyncedLog = new SyncLog(
+                        savedLog.id(),
+                        savedLog.logId(),
+                        tenantId,
+                        savedPlan.planId(),
+                        targetId,
+                        SyncLogStatus.NOT_SYNCED,
+                        PackageSyncNotConnectedException.CODE,
+                        finalError.getMessage(),
+                        0, null,
+                        savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
+                    );
+                    return logRepository.save(notSyncedLog);
                 } else {
                     SyncLog failedLog = new SyncLog(
                         savedLog.id(),
@@ -358,12 +374,18 @@ public class PackageEngineService {
                 anySuccess = true;
             } else {
                 allSuccess = false;
+                if (syncError instanceof PackageSyncNotConnectedException) {
+                    anyNotSynced = true;
+                } else {
+                    anyFailed = true;
+                }
             }
             logs.add(SyncLogResponse.from(updatedLog));
         }
 
-        final ReleasePlanStatus finalStatus = allSuccess ? ReleasePlanStatus.SUCCESS : 
-            (anySuccess ? ReleasePlanStatus.EXECUTING : ReleasePlanStatus.FAILED);
+        final ReleasePlanStatus finalStatus = allSuccess ? ReleasePlanStatus.SUCCESS
+            : (anySuccess ? ReleasePlanStatus.EXECUTING
+                : (anyNotSynced && !anyFailed ? ReleasePlanStatus.NOT_SYNCED : ReleasePlanStatus.FAILED));
         final boolean finalAllSuccess = allSuccess;
 
         // 小事务3：最终原子包状态激活与旧版本隔离切换
