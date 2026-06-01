@@ -3,6 +3,8 @@ package com.medkernel.engine.list;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,10 +12,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageQuery;
+import com.medkernel.shared.api.PageResult;
 import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -42,10 +47,22 @@ public class LargeListController {
      * @param request 检索过滤参数及游标定义
      * @return 列表分页记录、近似总行数及下一页游标回执
      */
-    @PostMapping("/query")
+    @GetMapping("/audit-events/list")
     @PreAuthorize("@perm.has('audit.read')")
-    public ApiResult<ListQueryResponse<AuditEventRecord>> queryList(@Valid @RequestBody ListQueryRequest request) {
-        return ApiResult.ok(service.queryList(request));
+    public ApiResult<PageResult<AuditEventRecord>> auditEvents(
+        @RequestParam(value = "cursor", required = false) String cursor,
+        @RequestParam(value = "size", required = false) Integer size,
+        @RequestParam(value = "offset", required = false) Long offset,
+        @RequestParam(value = "sort", required = false) String sort,
+        @RequestParam Map<String, String> params
+    ) {
+        return ApiResult.ok(service.queryAuditEvents(new PageQuery(
+            cursor,
+            size,
+            offset,
+            sort,
+            extractFilters(params)
+        )));
     }
 
     /**
@@ -97,5 +114,20 @@ public class LargeListController {
             }
             os.flush();
         }
+    }
+
+    private Map<String, String> extractFilters(Map<String, String> params) {
+        Map<String, String> filters = new LinkedHashMap<>();
+        params.forEach((key, value) -> {
+            if ("cursor".equals(key) || "size".equals(key) || "offset".equals(key) || "sort".equals(key)) {
+                return;
+            }
+            if (key.startsWith("filter.")) {
+                filters.put(key.substring("filter.".length()), value);
+                return;
+            }
+            filters.put(key, value);
+        });
+        return filters;
     }
 }

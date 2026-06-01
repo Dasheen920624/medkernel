@@ -3,6 +3,8 @@ import type { Key, ReactNode } from "react";
 export type InterruptionLevel = "none" | "info" | "weak" | "strong";
 export type PageRiskLevel = "low" | "medium" | "high";
 export type ExperiencePageSize = 20 | 50 | 100;
+export const EXPERIENCE_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+export const MAX_EXPERIENCE_PAGE_SIZE = 100;
 
 export interface ExperienceFilterOption {
   label: string;

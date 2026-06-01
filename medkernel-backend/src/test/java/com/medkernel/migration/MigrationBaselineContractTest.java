@@ -62,7 +62,8 @@ class MigrationBaselineContractTest {
         "V33__package_sync_not_synced_status.sql",
         "V34__experience_foundation_persistence.sql",
         "V35__experience_user_preference.sql",
-        "V36__bootstrap_init_token.sql"
+        "V36__bootstrap_init_token.sql",
+        "V37__large_list_audit_event_indexes.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -100,6 +101,8 @@ class MigrationBaselineContractTest {
         "idx_org_closure_ancestor", "idx_org_closure_descendant",
         "idx_audit_event_resource",
         "idx_audit_event_actor", "idx_audit_event_tenant", "idx_audit_event_trace",
+        "idx_audit_event_large_cursor", "idx_audit_event_large_action",
+        "idx_audit_event_large_resource", "idx_audit_event_large_actor",
         "idx_source_document_tenant_type", "idx_source_document_tenant_auth",
         "idx_source_version_tenant_doc", "idx_source_fragment_tenant_ver",
         "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",

@@ -138,8 +138,13 @@ public class AuditEventRepository {
         params.add(tenantId);
         types.add(Types.VARCHAR);
 
+        String sortField = query.safeSortField();
+        if (!"id".equalsIgnoreCase(sortField)) {
+            throw new IllegalArgumentException("审计事件大列表仅允许按 id 排序");
+        }
+        String sortDirection = query.safeSortDirection();
         if (query.cursor() != null) {
-            sql.append(" AND id < ? ");
+            sql.append(" AND id ").append("ASC".equals(sortDirection) ? ">" : "<").append(" ? ");
             params.add(query.cursor());
             types.add(Types.BIGINT);
         }
@@ -188,7 +193,12 @@ public class AuditEventRepository {
             params.add(Timestamp.from(query.to()));
             types.add(Types.TIMESTAMP);
         }
-        sql.append(" ORDER BY id DESC ");
+        sql.append(" ORDER BY id ").append(sortDirection).append(" ");
+        if (query.cursor() == null && query.safeOffset() > 0) {
+            sql.append(" OFFSET ? ROWS ");
+            params.add(query.safeOffset());
+            types.add(Types.BIGINT);
+        }
         sql.append(" FETCH FIRST ").append(query.size() + 1).append(" ROWS ONLY ");
 
         int[] typeArray = types.stream().mapToInt(Integer::intValue).toArray();

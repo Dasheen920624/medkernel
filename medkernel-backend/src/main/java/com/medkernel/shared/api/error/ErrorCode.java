@@ -113,6 +113,9 @@ public enum ErrorCode {
     ENG_LIST_002("ENG-LIST-002", 404, "异步导出任务不存在", ErrorClass.DATA, false),
     ENG_LIST_003("ENG-LIST-003", 409, "导出任务尚未完成，无法提供下载", ErrorClass.DATA, false),
     ENG_LIST_004("ENG-LIST-004", 500, "文件导出物理 IO 失败", ErrorClass.INTERNAL, false),
+    SORT_FIELD_NOT_ALLOWED("ENG-LIST-005", 400, "排序字段不在大规模列表白名单内", ErrorClass.INPUT, false),
+    PAGE_SIZE_EXCEEDED("ENG-LIST-006", 400, "请求页大小超过大规模列表上限", ErrorClass.INPUT, false),
+    FILTER_FIELD_NOT_ALLOWED("ENG-LIST-007", 400, "过滤字段不在大规模列表白名单内", ErrorClass.INPUT, false),
     
     ENG_INTEG_001("ENG-INTEG-001", 400, "集成适配器配置不合法", ErrorClass.INPUT, false),
     ENG_INTEG_002("ENG-INTEG-002", 404, "集成适配器不存在", ErrorClass.DATA, false),

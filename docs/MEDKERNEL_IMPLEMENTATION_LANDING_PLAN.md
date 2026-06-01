@@ -734,7 +734,7 @@ flowchart TB
 | 包发布 | `/api/v1/engine/packages`、`/api/v1/engine/packages/{packageId}/items`、`/api/v1/engine/packages/{packageId}/diff`、`/api/v1/engine/packages/{packageId}/sync`、`/api/v1/engine/packages/{packageId}/rollback` |
 | 嵌入 | `/api/v1/engine/embed/launch-tokens`、`/api/v1/engine/embed/launch`、`/api/v1/engine/embed/feedback`、`/api/v1/engine/embed/origins` |
 | 模型能力网关 | `/api/v1/model-capabilities/status`、`/api/v1/model-capabilities/tasks`、`/api/v1/model-capabilities/tasks/{id}`、`/api/v1/model-capabilities/tasks/{id}/retry`、`/api/v1/model-capabilities/policies/validate` |
-| 大规模列表 | `/api/v1/large-lists/query`、`/api/v1/large-lists/exports`、`/api/v1/large-lists/exports/{id}`、`/api/v1/large-lists/exports/{id}/download` |
+| 大规模列表 | `/api/v1/large-lists/audit-events/list`、`/api/v1/large-lists/exports`、`/api/v1/large-lists/exports/{id}`、`/api/v1/large-lists/exports/{id}/download` |
 
 护理专业、医技报告与知识服务、图谱高级查询、AI 候选审核和 E6 业务服务包装 API 仍按唯一详细规范的 `API 归类` 继续设计，落地时必须复用上表的上下文、事件、分页、审计、模型网关和包发布能力，不得另起平行接口体系。
 

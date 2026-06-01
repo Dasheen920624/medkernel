@@ -14,6 +14,7 @@ import type {
   ExperiencePartialResult,
   ExperienceViewSnapshot,
 } from "./experienceTypes";
+import { EXPERIENCE_PAGE_SIZE_OPTIONS, MAX_EXPERIENCE_PAGE_SIZE } from "./experienceTypes";
 
 const { Text } = Typography;
 
@@ -67,6 +68,10 @@ export function ServerDataTable<T extends object>({
   onViewSnapshotChange,
   onSelectionSnapshotChange,
 }: ServerDataTableProps<T>) {
+  if (request.pageSize > MAX_EXPERIENCE_PAGE_SIZE || query.pageSize > MAX_EXPERIENCE_PAGE_SIZE) {
+    throw new Error(`服务端分页每页最多 ${MAX_EXPERIENCE_PAGE_SIZE} 条`);
+  }
+
   const ordinaryColumns = columns.filter((column) => !column.expertOnly);
   if (ordinaryColumns.length + 1 > 8) {
     throw new Error("普通模式表格最多 8 列，技术字段应进入详情或专家模式");
@@ -196,7 +201,7 @@ export function ServerDataTable<T extends object>({
           pageSize: query.pageSize,
           total: query.totalEstimate,
           showSizeChanger: true,
-          pageSizeOptions: [20, 50, 100],
+          pageSizeOptions: [...EXPERIENCE_PAGE_SIZE_OPTIONS],
           onChange: (pageNumber, pageSize) =>
             onRequestChange({
               ...request,

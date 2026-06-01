@@ -479,6 +479,26 @@ test("后端控制器触碰文件会阻断 RequestBody Map 裸入参", async () 
   );
 });
 
+test("前端生产文件会阻断全量加载式大分页", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/BadListPage.tsx": `
+        export function BadListPage() {
+          return <ServerDataTable request={{ pageSize: 1000, filters: {} }} />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/BadListPage.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.full-list-load",
+      ]);
+    },
+  );
+});
+
 test("后端占位 Javadoc 门禁只检查 Javadoc 块内部", async () => {
   await withFixture(
     {

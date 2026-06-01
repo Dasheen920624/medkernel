@@ -25,13 +25,13 @@ CJK_HELPER="$ROOT/scripts/check-comment-zh/cjk-detect.pl"
 # ---- 工具：判断 Java 文件类级 Javadoc 是否含中文 ----
 javadoc_has_chinese() {
   # $1: java 文件路径
-  # 抓取第一个 public class/record/interface/enum 上方紧邻的 /** ... */ 块
+  # 抓取第一个 class/record/interface/enum 上方紧邻的 /** ... */ 块，覆盖包内可见类型。
   awk '
     BEGIN { in_doc=0; doc=""; pending=""; printed=0 }
     /^[[:space:]]*\/\*\*/ { in_doc=1; doc=$0; next }
     in_doc && /\*\// { doc=doc"\n"$0; in_doc=0; pending=doc; next }
     in_doc { doc=doc"\n"$0; next }
-    /^[[:space:]]*(@[A-Za-z]+(\([^)]*\))?[[:space:]]*)*public[[:space:]]+(final[[:space:]]+)?(class|record|interface|enum|@interface)/ && !printed {
+    /^[[:space:]]*(@[A-Za-z]+(\([^)]*\))?[[:space:]]*)*((public|protected|private)[[:space:]]+)?(abstract[[:space:]]+|final[[:space:]]+|sealed[[:space:]]+|non-sealed[[:space:]]+)*(class|record|interface|enum|@interface)/ && !printed {
       print pending; printed=1; exit
     }
   ' "$1" | perl "$CJK_HELPER" stream
@@ -141,10 +141,10 @@ case "$MODE" in
     fi
 
     if [ "$fail" -gt 0 ]; then
-      echo "::error::中文注释门禁 fail：$fail 处缺口（warn：$warn）"
+      echo "::error::中文注释门禁 fail：${fail} 处缺口（warn：${warn}）"
       exit 1
     fi
-    echo "中文注释门禁通过：0 fail，$warn warn"
+    echo "中文注释门禁通过：0 fail，${warn} warn"
     ;;
   full)
     echo "=== 全量扫描：engine/** 与 shared/** 各模块类级 Javadoc 中文覆盖率 ==="

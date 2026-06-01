@@ -55,6 +55,12 @@ const FRONTEND_RULES = [
     pattern: /Math\.random\s*\(/,
   },
   {
+    ruleId: "frontend.full-list-load",
+    message: "前端生产文件禁止写入超过 100 条的大分页，必须使用服务端分页和异步导出。",
+    pattern:
+      /\b(?:pageSize|size|limit)\s*[:=]\s*(?:1(?:0[1-9]|[1-9]\d)|[2-9]\d{2,}|\d{4,})\b/,
+  },
+  {
     ruleId: "frontend.fake-hash",
     message: "前端生产文件禁止伪造 hash 或证据指纹。",
     pattern:
@@ -86,6 +92,12 @@ const FRONTEND_SHARED_API_RULES = [
     ruleId: "frontend.random-business-value",
     message: "共享 API 层禁止使用 Math.random() 伪造业务值、trace 或指标。",
     pattern: /Math\.random\s*\(/,
+  },
+  {
+    ruleId: "frontend.full-list-load",
+    message: "共享 API 层禁止写入超过 100 条的大分页，必须使用服务端分页和异步导出。",
+    pattern:
+      /\b(?:pageSize|size|limit)\s*[:=]\s*(?:1(?:0[1-9]|[1-9]\d)|[2-9]\d{2,}|\d{4,})\b/,
   },
 ];
 
