@@ -44,9 +44,9 @@ class SystemSecurityCatalogRepositoryTest {
             permissionRepository.findByDimensionAndActiveFlag(PermissionDimension.MENU, "Y");
 
         assertThat(roles)
-            .hasSize(13)
+            .hasSize(14)
             .extracting(SystemRole::roleCode)
-            .contains("platform-admin", "doctor", "implementation-engineer");
+            .contains("system-superadmin", "platform-admin", "doctor", "implementation-engineer");
         assertThat(roles).allMatch(SystemRole::builtIn);
 
         assertThat(menuPermissions)

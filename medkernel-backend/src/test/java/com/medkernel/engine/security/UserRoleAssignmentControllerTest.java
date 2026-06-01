@@ -93,6 +93,26 @@ class UserRoleAssignmentControllerTest {
     }
 
     @Test
+    void cannotCreateSystemSuperAdminAssignmentThroughTenantUserManagement() throws Exception {
+        var request = new UserRoleAssignmentController.AssignmentCreateRequest(
+            "ops-1",
+            "system-superadmin",
+            "TENANT",
+            "t-1"
+        );
+
+        mvc.perform(post("/api/v1/compliance/user-roles")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().jwt(token -> token
+                    .subject("admin-1")
+                    .claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
+    }
+
+    @Test
     void createAssignmentWithInvalidRoleThrowsBadRequest() throws Exception {
         var request = new UserRoleAssignmentController.AssignmentCreateRequest(
             "nurse-1",
@@ -125,6 +145,22 @@ class UserRoleAssignmentControllerTest {
                     .claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void cannotDeleteSystemSuperAdminAssignment() throws Exception {
+        var saved = userRoleAssignmentRepository.save(new UserRoleAssignment(
+            null, "t-1", "system-superadmin-1", "system-superadmin", "TENANT", "t-1",
+            "Y", java.time.Instant.now(), "system", java.time.Instant.now(), "system"
+        ));
+
+        mvc.perform(delete("/api/v1/compliance/user-roles/{id}", saved.id())
+                .with(jwt().jwt(token -> token
+                    .subject("admin-1")
+                    .claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
     }
 
     @Test

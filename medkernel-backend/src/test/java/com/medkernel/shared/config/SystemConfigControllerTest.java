@@ -275,6 +275,25 @@ class SystemConfigControllerTest {
     }
 
     @Test
+    void systemSuperAdminStillRequiresMfaBeforeConfirmedHighRiskUpdate() throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(systemSuperAdmin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "true",
+                      "reason": "内置超管也必须先绑定 MFA",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-010"));
+
+        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void configRollbackRestoresPreviousValueAndWritesRollbackHistory() throws Exception {
         patchConfig(GRAPH_FLAG_KEY, "true", "验证配置回滚前置变更");
@@ -359,6 +378,27 @@ class SystemConfigControllerTest {
     }
 
     @Test
+    void systemSuperAdminCannotDisableAuditPersistenceFromConfigCenter() throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", AUDIT_FLAG_KEY)
+                .with(systemSuperAdmin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "false",
+                      "reason": "内置超管也不能关闭审计持久化"
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUDIT-001"));
+
+        String value = jdbcTemplate.queryForObject(
+            "SELECT config_value FROM mk_config_item WHERE tenant_id = 'SYSTEM' AND config_key = ?",
+            String.class,
+            AUDIT_FLAG_KEY);
+        assertThat(value).isEqualTo("true");
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void domesticCryptoFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", DOMESTIC_CRYPTO_FLAG_KEY)
@@ -430,6 +470,12 @@ class SystemConfigControllerTest {
 
     private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor itOpsWithoutMfa() {
         return jwtFor("it-ops-no-mfa");
+    }
+
+    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor systemSuperAdmin() {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+            .jwt(t -> t.subject("system-superadmin-1").claim("tenant_id", "t-1"))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
     }
 
     private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtFor(String userId) {

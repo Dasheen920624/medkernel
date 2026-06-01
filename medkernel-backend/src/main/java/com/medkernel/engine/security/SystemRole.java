@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 系统角色目录实体。
  *
- * <p>内置 13 角色以 {@code tenant_id = SYSTEM} 入库，租户级扩展角色后续仍按
+ * <p>内置 13 个业务角色与系统超管以 {@code tenant_id = SYSTEM} 入库，租户级扩展角色后续仍按
  * {@code (tenant_id, role_code)} 唯一约束隔离。
  */
 @Table("sys_role")

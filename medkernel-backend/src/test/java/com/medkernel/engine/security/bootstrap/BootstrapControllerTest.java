@@ -67,7 +67,7 @@ class BootstrapControllerTest {
     }
 
     @Test
-    void passwordCreatesFirstPlatformAdminAndConsumesToken() throws Exception {
+    void passwordCreatesFirstSystemSuperAdminAndConsumesToken() throws Exception {
         tokenService.registerDeploymentToken("mk-init-token", Duration.ofMinutes(15), "test", "trace-test");
 
         mvc.perform(post("/api/v1/bootstrap/password")
@@ -85,7 +85,7 @@ class BootstrapControllerTest {
             .andExpect(jsonPath("$.data.userId").value("platform-owner"))
             .andExpect(jsonPath("$.data.username").value("platform-owner"))
             .andExpect(jsonPath("$.data.tenantId").value("t-1"))
-            .andExpect(jsonPath("$.data.roles", contains(RoleCode.PLATFORM_ADMIN.code())))
+            .andExpect(jsonPath("$.data.roles", contains("system-superadmin")))
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
             .andExpect(jsonPath("$.data.passwordHash").doesNotExist());
 
@@ -95,7 +95,7 @@ class BootstrapControllerTest {
         assertThat(passwordEncoder.matches("StrongPwd@2026", credential.passwordHash())).isTrue();
         assertThat(roleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "platform-owner"))
             .extracting("roleCode")
-            .containsExactly(RoleCode.PLATFORM_ADMIN.code());
+            .containsExactly("system-superadmin");
 
         mvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -110,11 +110,11 @@ class BootstrapControllerTest {
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
             .andExpect(jsonPath("$.data.mfaRequired").value(true))
             .andExpect(jsonPath("$.data.mfaBound").value(false))
-            .andExpect(jsonPath("$.data.roles", contains(RoleCode.PLATFORM_ADMIN.code())));
+            .andExpect(jsonPath("$.data.roles", contains("system-superadmin")));
 
         mvc.perform(post("/api/v1/bootstrap/mfa")
                 .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"label\":\"首发管理员\"}"))
             .andExpect(status().isOk())

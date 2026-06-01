@@ -20,7 +20,7 @@ import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 
 /**
- * 首次部署身份接管服务：使用一次性 init token 创建首发平台管理员。
+ * 首次部署身份接管服务：使用一次性 init token 创建首发内置超级管理员。
  */
 @Service
 public class BootstrapIdentityService {
@@ -73,14 +73,14 @@ public class BootstrapIdentityService {
             passwordEncoder.encode(request.password()), "ACTIVE", "Y", null,
             now, ACTOR, now, ACTOR, TRACE_ID));
         if (roleAssignments.findActiveByTenantIdAndUserId(tenantId, username).stream()
-                .noneMatch(a -> RoleCode.PLATFORM_ADMIN.code().equals(a.roleCode()))) {
+                .noneMatch(a -> RoleCode.SYSTEM_SUPERADMIN.code().equals(a.roleCode()))) {
             roleAssignments.save(new UserRoleAssignment(
-                null, tenantId, username, RoleCode.PLATFORM_ADMIN.code(), "TENANT", tenantId, "Y",
+                null, tenantId, username, RoleCode.SYSTEM_SUPERADMIN.code(), "TENANT", tenantId, "Y",
                 now, ACTOR, now, ACTOR));
         }
         auditPublisher.publish(AuditAction.CREATE, "platform_credential", username,
-            "首次部署创建平台管理员 username=" + username);
+            "首次部署创建内置超级管理员 username=" + username);
         return new BootstrapPasswordResponse(
-            username, tenantId, username, List.of(RoleCode.PLATFORM_ADMIN.code()), true);
+            username, tenantId, username, List.of(RoleCode.SYSTEM_SUPERADMIN.code()), true);
     }
 }

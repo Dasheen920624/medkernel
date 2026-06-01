@@ -122,4 +122,22 @@ class MenuPermissionControllerTest {
             .hasFieldOrPropertyWithValue("permissionCode", "menu.admin-audit")
             .hasFieldOrPropertyWithValue("effect", PermissionEffect.ALLOW);
     }
+
+    @Test
+    void systemSuperAdminMenuOverrideIsRejectedAsImmutable() throws Exception {
+        var request = Map.of(
+            "roleCode", "system-superadmin",
+            "menuKey", "security-baseline",
+            "effect", PermissionEffect.DENY.name());
+
+        mvc.perform(patch("/api/v1/security/menu-permissions/overrides")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().jwt(token -> token
+                    .subject("admin-1")
+                    .claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
+    }
 }

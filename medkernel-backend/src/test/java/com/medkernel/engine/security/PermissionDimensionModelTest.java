@@ -40,7 +40,7 @@ class PermissionDimensionModelTest {
     void allThirteenRolesReceiveFiveDimensionalBaselinePermissions() throws Exception {
         Method dimensionMethod = PermissionCode.class.getMethod("dimension");
 
-        assertThat(RoleCode.values()).hasSize(13);
+        assertThat(Arrays.stream(RoleCode.values()).filter(RoleCode::customerAssignable).toList()).hasSize(13);
         for (RoleCode role : RoleCode.values()) {
             Set<String> dimensions = DefaultPermissionPolicy.permissionsOf(role).stream()
                 .map(permission -> invokeDimension(dimensionMethod, permission))
@@ -50,6 +50,19 @@ class PermissionDimensionModelTest {
                 .as("%s 必须拥有菜单、动作、数据、资产、环境五维基线权限", role.code())
                 .containsAll(Set.of("MENU", "ACTION", "DATA", "ASSET", "ENVIRONMENT"));
         }
+    }
+
+    @Test
+    void systemSuperAdminIsSeparateFromThirteenCustomerAssignableRoles() {
+        assertThat(RoleCode.fromCode("system-superadmin"))
+            .as("内置超级管理员必须是系统内置角色，而不是手工配置出来的普通角色")
+            .isPresent();
+
+        assertThat(Arrays.stream(RoleCode.values())
+                .filter(role -> !"system-superadmin".equals(role.code()))
+                .toList())
+            .as("13 个客户可分配业务角色矩阵不能被超管挤占")
+            .hasSize(13);
     }
 
     @Test

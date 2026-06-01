@@ -171,6 +171,9 @@ public class EffectivePermissionService {
         if (scope == null || !scope.hasTenant() || roleCodes == null || roleCodes.isEmpty()) {
             return;
         }
+        if (roleCodes.stream().anyMatch(SystemSuperAdminGuard::isSystemSuperAdminRole)) {
+            return;
+        }
         List<String> normalizedRoleCodes = roleCodes.stream()
             .filter(Objects::nonNull)
             .filter(code -> RoleCode.fromCode(code).isPresent())

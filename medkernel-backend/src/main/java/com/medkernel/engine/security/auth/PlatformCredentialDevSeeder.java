@@ -15,7 +15,7 @@ import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
 /**
- * 仅 dev profile：为 13 个角色各种一个可登录账号（username=角色码，默认密码 Mk@2026dev，须改密）。
+ * 仅 dev profile：为 13 个业务角色和内置超管各准备一个可登录账号（username=角色码，默认密码 Mk@2026dev，须改密）。
  * 幂等：已存在则跳过。生产 profile 不加载本 Bean（无默认口令账号）。
  */
 @Component
@@ -25,6 +25,7 @@ public class PlatformCredentialDevSeeder implements ApplicationRunner {
     private static final String TENANT = "t-1";
     private static final String DEV_PASSWORD = "Mk@2026dev";
     private static final Map<String, String[]> ACCOUNTS = Map.ofEntries(
+        Map.entry("system-superadmin", new String[]{"system-superadmin-1", "system-superadmin"}),
         Map.entry("platform-admin", new String[]{"platform-admin-1", "platform-admin"}),
         Map.entry("group-admin", new String[]{"group-admin-1", "group-admin"}),
         Map.entry("hospital-admin", new String[]{"admin-1", "hospital-admin"}),

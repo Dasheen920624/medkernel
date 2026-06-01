@@ -13,6 +13,8 @@ import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.SystemSuperAdminGuard;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -41,17 +43,20 @@ public class CredentialAdminService {
     private final PasswordEncoder passwordEncoder;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final SystemSuperAdminGuard superAdminGuard;
 
     public CredentialAdminService(PlatformCredentialRepository credentials,
                                   UserRoleAssignmentRepository roleAssignments,
                                   PasswordEncoder passwordEncoder,
                                   AuditEventPublisher auditPublisher,
-                                  IsolatedAuditPublisher isolatedAudit) {
+                                  IsolatedAuditPublisher isolatedAudit,
+                                  SystemSuperAdminGuard superAdminGuard) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
+        this.superAdminGuard = superAdminGuard;
     }
 
     /** 列出当前租户全部成员账号摘要（不含口令哈希），按登录名升序。 */
@@ -82,13 +87,13 @@ public class CredentialAdminService {
             null, "cred-" + userId, tenantId, userId, req.username(),
             passwordEncoder.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
-        if (req.roleCode() != null && !req.roleCode().isBlank()
-                && !hasRole(tenantId, userId, req.roleCode())) {
+        String roleCode = normalizedRoleCode(req.roleCode());
+        if (roleCode != null && !hasRole(tenantId, userId, roleCode)) {
             roleAssignments.save(new UserRoleAssignment(
-                null, tenantId, userId, req.roleCode(), "TENANT", tenantId, "Y", now, actor, now, actor));
+                null, tenantId, userId, roleCode, "TENANT", tenantId, "Y", now, actor, now, actor));
         }
         auditPublisher.publish(AuditAction.CREATE, "platform_credential", userId,
-            "开通成员 username=" + req.username() + " role=" + req.roleCode());
+            "开通成员 username=" + req.username() + " role=" + roleCode);
         return new CreateMemberResponse(userId, req.username(), generated ? rawPassword : null);
     }
 
@@ -96,6 +101,7 @@ public class CredentialAdminService {
     @Transactional
     public ResetPasswordResponse resetPassword(String userId) {
         PlatformCredential cred = find(userId);
+        superAdminGuard.assertCredentialMutableByTenantManagement(cred.tenantId(), cred.userId());
         String rawPassword = generatePassword();
         Instant now = Instant.now();
         credentials.save(rewrite(cred, passwordEncoder.encode(rawPassword), cred.status(), "Y", now, actor()));
@@ -107,9 +113,22 @@ public class CredentialAdminService {
     @Transactional
     public void setStatus(String userId, String status) {
         PlatformCredential cred = find(userId);
+        if (!"ACTIVE".equalsIgnoreCase(status)) {
+            superAdminGuard.assertCredentialMutableByTenantManagement(cred.tenantId(), cred.userId());
+        }
         Instant now = Instant.now();
         credentials.save(rewrite(cred, cred.passwordHash(), status, cred.mustChangePwd(), now, actor()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "更新账号状态 status=" + status);
+    }
+
+    private String normalizedRoleCode(String roleCode) {
+        if (roleCode == null || roleCode.isBlank()) {
+            return null;
+        }
+        RoleCode role = RoleCode.fromCode(roleCode)
+            .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + roleCode));
+        SystemSuperAdminGuard.assertTenantManagedRole(role.code());
+        return role.code();
     }
 
     private boolean hasRole(String tenantId, String userId, String roleCode) {

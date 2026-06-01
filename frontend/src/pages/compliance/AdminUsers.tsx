@@ -16,6 +16,9 @@ import { ROLE_OPTIONS, SCOPE_LEVEL_OPTIONS } from "@/shared/config/roleCatalog";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Compliance.module.css";
 
+const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
+const SYSTEM_SUPERADMIN_NAME = "内置超级管理员";
+
 export default function AdminUsers() {
   const { data: securityProfile } = useSecurityProfile();
   const { data: assignments, isLoading, refetch } = useUserRoleAssignments();
@@ -180,9 +183,20 @@ export default function AdminUsers() {
   };
 
   const getRoleName = (code: string) => {
+    if (code === SYSTEM_SUPERADMIN_ROLE) {
+      return SYSTEM_SUPERADMIN_NAME;
+    }
     const found = ROLE_OPTIONS.find((r) => r.code === code);
     return found ? found.name : code;
   };
+
+  const systemSuperAdminUserIds = new Set(
+    (assignments || [])
+      .filter((assignment) => assignment.roleCode === SYSTEM_SUPERADMIN_ROLE)
+      .map((assignment) => assignment.userId),
+  );
+
+  const isSystemSuperAdminUser = (uid: string) => systemSuperAdminUserIds.has(uid);
 
   const getStats = () => {
     const list = assignments || [];
@@ -440,20 +454,33 @@ export default function AdminUsers() {
                         {c.mustChangePwd ? <span className={styles.scopeTag}>待改密</span> : "—"}
                       </td>
                       <td>
-                        <button
-                          onClick={() => handleResetPassword(c.userId)}
-                          disabled={resetPwdMutation.isPending}
-                          className={styles.btnPrimary}
-                        >
-                          重置密码
-                        </button>{" "}
-                        <button
-                          onClick={() => handleToggleStatus(c.userId, c.status)}
-                          disabled={setStatusMutation.isPending}
-                          className={styles.btnDanger}
-                        >
-                          {c.status === "ACTIVE" ? "停用" : "启用"}
-                        </button>
+                        {isSystemSuperAdminUser(c.userId) ? (
+                          <button
+                            type="button"
+                            disabled
+                            title="内置超级管理员由系统保护，不能通过成员管理编辑"
+                            className={styles.btnPrimary}
+                          >
+                            系统内置
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleResetPassword(c.userId)}
+                              disabled={resetPwdMutation.isPending}
+                              className={styles.btnPrimary}
+                            >
+                              重置密码
+                            </button>{" "}
+                            <button
+                              onClick={() => handleToggleStatus(c.userId, c.status)}
+                              disabled={setStatusMutation.isPending}
+                              className={styles.btnDanger}
+                            >
+                              {c.status === "ACTIVE" ? "停用" : "启用"}
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -600,13 +627,24 @@ export default function AdminUsers() {
                       </td>
                       <td>{item.createdBy}</td>
                       <td>
-                        <button
-                          onClick={() => item.id && handleDelete(item.id)}
-                          disabled={deleteMutation.isPending}
-                          className={styles.btnDanger}
-                        >
-                          解除绑定
-                        </button>
+                        {item.roleCode === SYSTEM_SUPERADMIN_ROLE ? (
+                          <button
+                            type="button"
+                            disabled
+                            title="内置超级管理员由系统保护，不能解除角色绑定"
+                            className={styles.btnPrimary}
+                          >
+                            系统内置
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => item.id && handleDelete(item.id)}
+                            disabled={deleteMutation.isPending}
+                            className={styles.btnDanger}
+                          >
+                            解除绑定
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

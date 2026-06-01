@@ -68,16 +68,15 @@ public class UserRoleAssignmentController {
     public ApiResult<UserRoleAssignment> createAssignment(@Valid @RequestBody AssignmentCreateRequest request) {
         String tenantId = requireTenantId();
 
-        // 验证角色合法性
-        if (RoleCode.fromCode(request.roleCode()).isEmpty()) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + request.roleCode());
-        }
+        RoleCode role = RoleCode.fromCode(request.roleCode())
+            .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + request.roleCode()));
+        SystemSuperAdminGuard.assertTenantManagedRole(role.code());
 
         UserRoleAssignment toSave = new UserRoleAssignment(
             null,
             tenantId,
             request.userId(),
-            request.roleCode(),
+            role.code(),
             request.scopeLevel() == null ? "TENANT" : request.scopeLevel(),
             request.scopeCode() == null ? tenantId : request.scopeCode(),
             "Y",
@@ -106,6 +105,7 @@ public class UserRoleAssignmentController {
         if (!existing.tenantId().equals(tenantId)) {
             throw ApiException.forbidden("无权删除非本租户的用户角色分配记录");
         }
+        SystemSuperAdminGuard.assertAssignmentMutable(existing);
 
         repository.delete(existing);
         return ApiResult.empty();

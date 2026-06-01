@@ -31,13 +31,14 @@ class H2BaselineMigrationTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("H2 baseline migrations succeed").isTrue();
-        assertThat(result.migrationsExecuted).as("V1 至 V43 全部应用").isEqualTo(43);
+        assertThat(result.migrationsExecuted).as("V1 至 V44 全部应用").isEqualTo(44);
 
         var applied = flyway.info().applied();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
             .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
                 "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27",
-                "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43");
+                "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42",
+                "43", "44");
 
         var repeated = flyway.migrate();
         assertThat(repeated.success).as("H2 baseline repeated migrate succeeds").isTrue();
@@ -47,7 +48,7 @@ class H2BaselineMigrationTest {
         Integer assignmentCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM user_role_assignment WHERE tenant_id = 't-1' AND active_flag = 'Y'",
             Integer.class);
-        assertThat(assignmentCount).as("初始化用户角色绑定数量").isEqualTo(13);
+        assertThat(assignmentCount).as("初始化用户角色绑定数量").isEqualTo(14);
 
         List<String> seededUsers = jdbc.queryForList("""
             SELECT user_id FROM user_role_assignment
@@ -55,12 +56,13 @@ class H2BaselineMigrationTest {
             ORDER BY user_id
             """, String.class);
         assertThat(seededUsers)
-            .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1");
+            .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1",
+                "system-superadmin-1");
 
         Integer roleCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM sys_role WHERE tenant_id = 'SYSTEM' AND built_in_flag = 'Y'",
             Integer.class);
-        assertThat(roleCount).as("系统内置 13 角色目录").isEqualTo(13);
+        assertThat(roleCount).as("系统内置 14 角色目录").isEqualTo(14);
 
         List<String> dimensions = jdbc.queryForList("""
             SELECT DISTINCT dimension FROM sys_permission

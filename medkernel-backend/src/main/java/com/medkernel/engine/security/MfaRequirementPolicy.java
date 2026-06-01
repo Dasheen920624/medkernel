@@ -9,6 +9,7 @@ import java.util.Set;
 public final class MfaRequirementPolicy {
 
     private static final Set<String> HIGH_RISK_ROLES = Set.of(
+        RoleCode.SYSTEM_SUPERADMIN.code(),
         RoleCode.PLATFORM_ADMIN.code(),
         RoleCode.GROUP_ADMIN.code(),
         RoleCode.HOSPITAL_ADMIN.code(),
