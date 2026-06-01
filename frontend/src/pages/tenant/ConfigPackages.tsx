@@ -13,6 +13,7 @@ import {
   Badge,
   Alert,
   App as AntdApp,
+  Upload,
   Row,
   Col,
   Timeline,
@@ -39,6 +40,7 @@ import {
   FileProtectOutlined,
   SearchOutlined,
   DownloadOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
@@ -54,6 +56,7 @@ import {
   usePathwayTemplates,
   useEvaluationIndicators,
   useTerminologyMappings,
+  useImportOfflinePackage,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
 } from "@/shared/api/hooks";
@@ -120,7 +123,7 @@ export default function ConfigPackages() {
   );
 
   const totalPackagesCount =
-    normalizedKeyword.length > 0 ? displayPackages.length : (apiPackagesData?.totalCount ?? 0);
+    normalizedKeyword.length > 0 ? displayPackages.length : (apiPackagesData?.total ?? 0);
 
   const displayTargets = apiSyncTargets ?? [];
 
@@ -134,6 +137,8 @@ export default function ConfigPackages() {
 
   const [syncModalVisible, setSyncModalVisible] = useState<boolean>(false);
   const [rollbackModalVisible, setRollbackModalVisible] = useState<boolean>(false);
+  const [offlineImportModalVisible, setOfflineImportModalVisible] = useState<boolean>(false);
+  const [offlineImportContent, setOfflineImportContent] = useState<string>("");
   const [rollbackReason, setRollbackReason] = useState<string>("");
   const [rollbackConfirmed, setRollbackConfirmed] = useState<boolean>(false);
 
@@ -154,6 +159,7 @@ export default function ConfigPackages() {
   const addPackageItemMutation = useAddPackageItem();
   const syncPackageMutation = useSyncPackage();
   const rollbackPackageMutation = useRollbackPackage();
+  const importOfflinePackageMutation = useImportOfflinePackage();
 
   // 5. 表单定义
   const [createForm] = Form.useForm();
@@ -281,6 +287,37 @@ export default function ConfigPackages() {
       message.error(apiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
     } finally {
       setOfflineExportingId(null);
+    }
+  };
+
+  const closeOfflineImportModal = () => {
+    setOfflineImportModalVisible(false);
+    setOfflineImportContent("");
+  };
+
+  const handleOfflineImportFile = (file: File) => {
+    file
+      .text()
+      .then((content) => setOfflineImportContent(content))
+      .catch(() => message.error("离线包 JSON 文件读取失败，请重新选择文件。"));
+    return false;
+  };
+
+  const handleImportOfflinePackage = async () => {
+    const offlinePackageJson = offlineImportContent.trim();
+    if (!offlinePackageJson) {
+      message.error("请先选择或粘贴离线包 JSON。");
+      return;
+    }
+    try {
+      const imported = await importOfflinePackageMutation.mutateAsync(offlinePackageJson);
+      message.success(
+        `离线包已导入为草案：${imported.packageCode} / ${imported.packageVersion}，共 ${imported.itemCount} 个资产条目。`,
+      );
+      closeOfflineImportModal();
+      refetchPackages();
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "离线包导入失败，未通过完整性校验或发布门禁。"));
     }
   };
 
@@ -530,6 +567,15 @@ export default function ConfigPackages() {
           </Form.Item>
           <Form.Item className="ml-auto mb-0">
             <Button
+              icon={<UploadOutlined aria-hidden="true" />}
+              onClick={() => setOfflineImportModalVisible(true)}
+              className="rounded-lg font-medium flex items-center gap-1"
+            >
+              导入离线包
+            </Button>
+          </Form.Item>
+          <Form.Item className="mb-0">
+            <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setCreateModalVisible(true)}
@@ -622,6 +668,53 @@ export default function ConfigPackages() {
             className="rounded-lg border-sky-100 bg-sky-50 text-sky-900"
           />
         </Form>
+      </Modal>
+
+      {/* ────────────────── Modal: 导入离线配置包 ────────────────── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-cyan-700 font-semibold text-lg border-b border-slate-100 pb-3">
+            <UploadOutlined />
+            <span>导入离线包</span>
+          </div>
+        }
+        open={offlineImportModalVisible}
+        onOk={handleImportOfflinePackage}
+        onCancel={closeOfflineImportModal}
+        width={680}
+        confirmLoading={importOfflinePackageMutation.isPending}
+        destroyOnClose
+        okText="导入并校验"
+        cancelText="取消"
+      >
+        <div className="mt-4 flex flex-col gap-4">
+          <Alert
+            message="导入后保持草案状态"
+            description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
+            type="info"
+            showIcon
+            className="rounded-lg border-cyan-100 bg-cyan-50 text-cyan-900"
+          />
+          <Upload
+            accept=".json,application/json"
+            showUploadList={false}
+            beforeUpload={handleOfflineImportFile}
+          >
+            <Button icon={<UploadOutlined aria-hidden="true" />}>选择 JSON 文件</Button>
+          </Upload>
+          <Form layout="vertical">
+            <Form.Item label="离线包 JSON" htmlFor="offline-package-json" required>
+              <TextArea
+                id="offline-package-json"
+                rows={10}
+                value={offlineImportContent}
+                onChange={(event) => setOfflineImportContent(event.target.value)}
+                placeholder="粘贴离线包 JSON 内容"
+                className="rounded-lg font-normal"
+              />
+            </Form.Item>
+          </Form>
+        </div>
       </Modal>
 
       {/* ────────────────── Drawer: 办理包内资产细项 ────────────────── */}

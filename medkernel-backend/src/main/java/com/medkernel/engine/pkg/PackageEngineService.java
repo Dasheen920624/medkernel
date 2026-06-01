@@ -5,12 +5,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
@@ -410,6 +413,94 @@ public class PackageEngineService {
         return writeOfflineJson(export);
     }
 
+    /**
+     * 导入离线配置包，完成完整性验签后以本地草案落库。
+     *
+     * <p>离线包只携带逻辑业务标识；导入端必须生成新的本地包 ID 与条目 ID，且不能绕过本院发布流程直接激活。
+     */
+    @Transactional
+    public PackageOfflineImportResponse importOfflinePackage(PackageOfflineImportRequest request) {
+        String tenantId = currentTenantId();
+        String traceId = RequestContext.currentTraceId();
+        String actor = currentActor();
+
+        JsonNode root = parseOfflinePackage(request);
+        ensureOfflineFormat(root);
+        JsonNode manifest = requireObject(root, "manifest", "离线包缺少 manifest 清单");
+        JsonNode payload = requireObject(root, "payload", "离线包缺少 payload 内容");
+        JsonNode packageInfo = requireObject(payload, "packageInfo", "离线包缺少 packageInfo 包元信息");
+        JsonNode itemsNode = requireArray(payload, "items", "离线包缺少 items 资产条目列表");
+
+        String packageCode = requireText(packageInfo, "packageCode", "离线包缺少 packageCode");
+        String packageVersion = requireText(packageInfo, "packageVersion", "离线包缺少 packageVersion");
+        String sourcePackageId = requireText(packageInfo, "packageId", "离线包缺少源 packageId");
+        String sourceTenantId = requireText(packageInfo, "tenantId", "离线包缺少 tenantId");
+        String packageName = requireText(packageInfo, "name", "离线包缺少包名称");
+        String packageDescription = optionalText(packageInfo, "description");
+
+        String hashAlgorithm = requireText(manifest, "hashAlgorithm", "离线包缺少摘要算法");
+        if (!"SHA-256".equals(hashAlgorithm)) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "离线包摘要算法不受支持: " + hashAlgorithm);
+        }
+        String declaredSha256 = requireText(manifest, "payloadSha256", "离线包缺少 payloadSha256");
+        if (!declaredSha256.matches("[a-f0-9]{64}")) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "离线包 payloadSha256 格式不合法");
+        }
+        String actualSha256 = sha256Json(payload);
+        if (!declaredSha256.equals(actualSha256)) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "离线包 payloadSha256 与实际内容不一致");
+        }
+
+        validateManifestPayloadMatch(manifest, packageInfo, sourcePackageId, sourceTenantId, packageCode, packageVersion);
+        if (!tenantId.equals(sourceTenantId)) {
+            throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "离线包租户与当前租户不一致，禁止导入");
+        }
+
+        int itemCount = requireInt(manifest, "itemCount", "离线包 itemCount 不合法");
+        if (itemCount != itemsNode.size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 itemCount 与资产条目数量不一致");
+        }
+        if (packageRepository
+            .findByTenantIdAndPackageCodeAndPackageVersion(tenantId, packageCode, packageVersion)
+            .isPresent()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_004, "知识包版本在该租户内已存在: " + packageVersion);
+        }
+
+        Instant now = Instant.now();
+        KnowledgePackage importedPackage = new KnowledgePackage(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            packageCode,
+            packageVersion,
+            packageName,
+            packageDescription,
+            KnowledgePackageStatus.DRAFT,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        );
+        KnowledgePackage savedPackage = packageRepository.save(importedPackage);
+        List<PackageItem> importedItems = buildOfflineImportItems(
+            itemsNode, tenantId, savedPackage.packageId(), sourcePackageId, actor, traceId, now);
+        importedItems.forEach(itemRepository::save);
+
+        auditPublisher.publish(AuditAction.IMPORT, "knowledge_package", savedPackage.packageId(),
+            "导入配置包离线安装包为草案，版本: " + packageVersion
+                + "，资产条目数: " + importedItems.size()
+                + "，payloadSha256: " + actualSha256);
+        return new PackageOfflineImportResponse(
+            savedPackage.packageId(),
+            savedPackage.packageCode(),
+            savedPackage.packageVersion(),
+            savedPackage.status(),
+            importedItems.size(),
+            actualSha256
+        );
+    }
+
     private String writeOfflineJson(Object export) {
         try {
             return OFFLINE_EXPORT_MAPPER.writeValueAsString(export) + "\n";
@@ -426,6 +517,149 @@ public class PackageEngineService {
             throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包离线安装包摘要生成失败");
         } catch (NoSuchAlgorithmException e) {
             throw new ApiException(ErrorCode.INTERNAL_ERROR, "运行环境不支持 SHA-256 摘要算法");
+        }
+    }
+
+    private JsonNode parseOfflinePackage(PackageOfflineImportRequest request) {
+        if (request == null || request.offlinePackageJson() == null || request.offlinePackageJson().isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包 JSON 不能为空");
+        }
+        try {
+            JsonNode root = OFFLINE_EXPORT_MAPPER.readTree(request.offlinePackageJson());
+            if (root == null || !root.isObject()) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "离线包 JSON 根节点必须是对象");
+            }
+            return root;
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包 JSON 解析失败");
+        }
+    }
+
+    private void ensureOfflineFormat(JsonNode root) {
+        String format = requireText(root, "format", "离线包缺少 format 字段");
+        if (!OFFLINE_PACKAGE_FORMAT.equals(format)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包格式不受支持: " + format);
+        }
+    }
+
+    private void validateManifestPayloadMatch(
+            JsonNode manifest,
+            JsonNode packageInfo,
+            String sourcePackageId,
+            String sourceTenantId,
+            String packageCode,
+            String packageVersion) {
+        requireSameText(manifest, "packageId", sourcePackageId, "离线包 manifest.packageId 与 payload 不一致");
+        requireSameText(manifest, "tenantId", sourceTenantId, "离线包 manifest.tenantId 与 payload 不一致");
+        requireSameText(manifest, "packageCode", packageCode, "离线包 manifest.packageCode 与 payload 不一致");
+        requireSameText(manifest, "packageVersion", packageVersion, "离线包 manifest.packageVersion 与 payload 不一致");
+
+        String manifestStatus = optionalText(manifest, "status");
+        String payloadStatus = optionalText(packageInfo, "status");
+        if (manifestStatus != null && payloadStatus != null && !manifestStatus.equals(payloadStatus)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 manifest.status 与 payload 不一致");
+        }
+    }
+
+    private List<PackageItem> buildOfflineImportItems(
+            JsonNode itemsNode,
+            String tenantId,
+            String importedPackageId,
+            String sourcePackageId,
+            String actor,
+            String traceId,
+            Instant now) {
+        List<PackageItem> items = new ArrayList<>();
+        Set<String> uniqueAssets = new HashSet<>();
+        for (JsonNode itemNode : itemsNode) {
+            if (itemNode == null || !itemNode.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产条目必须是对象");
+            }
+            requireSameText(itemNode, "tenantId", tenantId, "离线包资产条目租户与当前租户不一致");
+            requireSameText(itemNode, "packageId", sourcePackageId, "离线包资产条目 packageId 与包元信息不一致");
+            PackageItemAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
+            String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
+            String assetKey = assetType.name() + ":" + assetId;
+            if (!uniqueAssets.add(assetKey)) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产条目: " + assetKey);
+            }
+            validateAssetStatus(tenantId, assetType, assetId);
+
+            items.add(new PackageItem(
+                null,
+                UUID.randomUUID().toString(),
+                tenantId,
+                importedPackageId,
+                assetType,
+                assetId,
+                assetVersion,
+                now,
+                actor,
+                now,
+                actor,
+                traceId
+            ));
+        }
+        return items;
+    }
+
+    private PackageItemAssetType parseAssetType(String assetType) {
+        try {
+            return PackageItemAssetType.valueOf(assetType);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产类型不受支持: " + assetType);
+        }
+    }
+
+    private JsonNode requireObject(JsonNode parent, String field, String message) {
+        JsonNode value = parent.path(field);
+        if (!value.isObject()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, message);
+        }
+        return value;
+    }
+
+    private JsonNode requireArray(JsonNode parent, String field, String message) {
+        JsonNode value = parent.path(field);
+        if (!value.isArray()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, message);
+        }
+        return value;
+    }
+
+    private String requireText(JsonNode parent, String field, String message) {
+        JsonNode value = parent.path(field);
+        if (!value.isTextual() || value.asText().isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, message);
+        }
+        return value.asText().trim();
+    }
+
+    private String optionalText(JsonNode parent, String field) {
+        JsonNode value = parent.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (!value.isTextual()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包字段类型不合法: " + field);
+        }
+        String text = value.asText().trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private int requireInt(JsonNode parent, String field, String message) {
+        JsonNode value = parent.path(field);
+        if (!value.canConvertToInt() || value.asInt() < 0) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, message);
+        }
+        return value.asInt();
+    }
+
+    private void requireSameText(JsonNode parent, String field, String expected, String message) {
+        String actual = requireText(parent, field, message);
+        if (!expected.equals(actual)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, message);
         }
     }
 

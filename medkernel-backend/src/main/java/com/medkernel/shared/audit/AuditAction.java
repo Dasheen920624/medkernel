@@ -15,6 +15,7 @@ public enum AuditAction {
     EXECUTE,
     FEEDBACK,
     EXPORT,
+    IMPORT,
     ROLLBACK,
     LOGIN,
     LOGOUT,

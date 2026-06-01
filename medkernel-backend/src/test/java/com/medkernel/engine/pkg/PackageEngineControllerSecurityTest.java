@@ -45,6 +45,10 @@ class PackageEngineControllerSecurityTest {
         }
         """;
 
+    private static final String OFFLINE_IMPORT_BODY = """
+        {"offlinePackageJson":"{\\"format\\":\\"MEDKERNEL_PACKAGE_OFFLINE_V1\\"}"}
+        """;
+
     private static final String SYNC_BODY = """
         {
           "targetOrgUnitId": "org-hosp-1",
@@ -98,6 +102,12 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
         mvc.perform(get("/api/v1/engine/packages/pkg-1/offline/export"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(post("/api/v1/engine/packages/offline/import")
+                .contentType("application/json")
+                .content(OFFLINE_IMPORT_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
@@ -169,5 +179,24 @@ class PackageEngineControllerSecurityTest {
             .andExpect(header().string("Content-Disposition", containsString("package-offline-pkg-1.json")))
             .andExpect(content().string(containsString("MEDKERNEL_PACKAGE_OFFLINE_V1")))
             .andExpect(content().string(containsString("payloadSha256")));
+    }
+
+    @Test
+    void authorizedUserCanImportOfflinePackageJson() throws Exception {
+        when(service.importOfflinePackage(new PackageOfflineImportRequest("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V1\"}")))
+            .thenReturn(new PackageOfflineImportResponse(
+                "pkg-imported", "PKG.IMPORT", "2026.06.01", KnowledgePackageStatus.DRAFT, 2, "a".repeat(64)));
+
+        mvc.perform(post("/api/v1/engine/packages/offline/import")
+                .contentType("application/json")
+                .content(OFFLINE_IMPORT_BODY)
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.packageId").value("pkg-imported"))
+            .andExpect(jsonPath("$.data.status").value("DRAFT"))
+            .andExpect(jsonPath("$.data.itemCount").value(2))
+            .andExpect(jsonPath("$.data.payloadSha256").value("a".repeat(64)));
     }
 }

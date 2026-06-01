@@ -143,6 +143,19 @@ public class PackageEngineController {
     }
 
     /**
+     * 导入离线配置包，验签后以本地草案落库。
+     *
+     * <p>权限：{@code package.publish}。
+     */
+    @PostMapping("/offline/import")
+    @PreAuthorize("@perm.has('package.publish')")
+    public ResponseEntity<ApiResult<PackageOfflineImportResponse>> importOfflinePackage(
+            @RequestBody @Valid PackageOfflineImportRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(service.importOfflinePackage(request)));
+    }
+
+    /**
      * 触发包灰度/全量投影同步与发布。
      *
      * <p>权限：{@code package.publish}。
