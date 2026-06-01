@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +47,7 @@ import jakarta.validation.ConstraintViolationException;
  *   <tr><td>{@link NoHandlerFoundException}</td><td>{@link ErrorCode#NOT_FOUND}</td><td>404</td></tr>
  *   <tr><td>{@link HttpRequestMethodNotSupportedException}</td><td>{@link ErrorCode#METHOD_NOT_ALLOWED}</td><td>405</td></tr>
  *   <tr><td>{@link HttpMediaTypeNotSupportedException}</td><td>{@link ErrorCode#UNSUPPORTED_MEDIA_TYPE}</td><td>415</td></tr>
+ *   <tr><td>{@link DataIntegrityViolationException}</td><td>{@link ErrorCode#CONFLICT}</td><td>409</td></tr>
  *   <tr><td>未捕获 {@link Throwable}</td><td>{@link ErrorCode#INTERNAL_ERROR}</td><td>500</td></tr>
  * </table>
  *
@@ -55,6 +57,8 @@ import jakarta.validation.ConstraintViolationException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String DATA_INTEGRITY_CONFLICT_MESSAGE =
+        "数据约束冲突，请检查唯一字段或引用关系后重试";
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApi(ApiException ex) {
@@ -145,6 +149,12 @@ public class GlobalExceptionHandler {
         return problemResponse(
             ErrorCode.UNSUPPORTED_MEDIA_TYPE,
             ErrorCode.UNSUPPORTED_MEDIA_TYPE.defaultMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.debug("DataIntegrityViolationException: {}", ex.getMessage());
+        return problemResponse(ErrorCode.CONFLICT, DATA_INTEGRITY_CONFLICT_MESSAGE);
     }
 
     @ExceptionHandler(Throwable.class)
