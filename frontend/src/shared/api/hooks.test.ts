@@ -7,6 +7,7 @@ import {
   changePassword,
   checkBootstrapInitToken,
   createBootstrapAdmin,
+  fetchDelegatedAuthStatus,
   fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
@@ -243,5 +244,29 @@ describe("bootstrap identity api helpers", () => {
       label: "值班安全终端",
     });
     expect(mfa.recoveryCode).toBe("RECOVERY-CODE-ONCE");
+  });
+});
+
+describe("auth identity api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("loads delegated auth status from the public auth endpoint", async () => {
+    const status = {
+      mode: "BOTH",
+      enabled: true,
+      status: "NOT_CONNECTED",
+      providers: ["OIDC", "CAS", "SAML", "国密CA"],
+      message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: status } });
+
+    const result = await fetchDelegatedAuthStatus();
+
+    expect(result).toBe(status);
+    expect(apiClient.get).toHaveBeenCalledWith("/auth/delegated/status");
   });
 });

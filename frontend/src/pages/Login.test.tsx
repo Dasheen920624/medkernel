@@ -1,21 +1,57 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const navigateMock = vi.fn();
 const mutateAsyncMock = vi.fn();
+let loginPending = false;
+let delegatedAuthStatusState: {
+  data?: {
+    mode: string;
+    enabled: boolean;
+    status: string;
+    providers: string[];
+    message: string;
+  };
+  isLoading: boolean;
+  isError: boolean;
+  error?: unknown;
+};
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigateMock }));
 vi.mock("@/shared/api/hooks", () => ({
-  useLogin: () => ({ mutateAsync: mutateAsyncMock, isPending: false }),
+  useLogin: () => ({ mutateAsync: mutateAsyncMock, isPending: loginPending }),
+  useDelegatedAuthStatus: () => delegatedAuthStatusState,
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import Login from "./Login";
 
+const readLoginCss = () =>
+  readFileSync(resolve(process.cwd(), "src/pages/Login.module.css"), "utf8");
+
+const cssBlock = (source: string, selector: string) => {
+  const escapedSelector = selector.replace(".", "\\.");
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`))?.groups?.body ?? "";
+};
+
 describe("Login", () => {
   beforeEach(() => {
     navigateMock.mockReset();
     mutateAsyncMock.mockReset();
+    loginPending = false;
+    delegatedAuthStatusState = {
+      data: {
+        mode: "BOTH",
+        enabled: true,
+        status: "NOT_CONNECTED",
+        providers: ["OIDC", "CAS", "SAML", "国密CA"],
+        message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+      },
+      isLoading: false,
+      isError: false,
+    };
   });
 
   it("登录成功跳转 /dashboard", async () => {
@@ -92,6 +128,24 @@ describe("Login", () => {
     expect(main?.style.getPropertyValue("--mk-login-text")).not.toBe("");
   });
 
+  it("登录页样式不保留系统色、currentColor 或硬编码颜色兜底", () => {
+    const loginCss = readLoginCss();
+
+    expect(loginCss).not.toMatch(/\b(?:Canvas|CanvasText|currentColor)\b/);
+    expect(loginCss).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it("主题入口和统一身份方式不覆盖或挤压登录卡片", () => {
+    const loginCss = readLoginCss();
+    const themeSwitcherCss = cssBlock(loginCss, ".themeSwitcher");
+    const providerGridCss = cssBlock(loginCss, ".providerGrid");
+
+    expect(loginCss).toMatch(/grid-template-areas:/);
+    expect(loginCss).toMatch(/grid-area:\s*theme/);
+    expect(themeSwitcherCss).not.toMatch(/position:\s*absolute/);
+    expect(providerGridCss).not.toMatch(/repeat\(2/);
+  });
+
   it("登录页控件尺寸由主题 token 驱动，支持老年医生模式放大", () => {
     const { container } = render(<Login />);
     const main = container.querySelector("main");
@@ -100,13 +154,28 @@ describe("Login", () => {
     expect(main?.style.getPropertyValue("--mk-login-control-height")).not.toBe("");
   });
 
+  it("提交加载时暴露页面级忙碌状态", () => {
+    loginPending = true;
+    render(<Login />);
+
+    expect(screen.getByRole("main", { name: "登录 MedKernel 工作台" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
   it("统一身份入口折叠展示待配置方式", async () => {
     render(<Login />);
 
     fireEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
-    expect(await screen.findByRole("button", { name: "CAS（待院方配置）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "OIDC（待院方配置）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "SAML（待院方配置）" })).toBeDisabled();
+    expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
+    expect(
+      screen.getByText("院方统一身份入口已开放，但当前未配置真实 IdP 连接器。"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "OIDC（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CAS（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "SAML（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "国密CA（NOT_CONNECTED）" })).toBeDisabled();
   });
 });

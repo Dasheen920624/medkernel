@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
-import { describe, expect, it } from "vitest";
+import type { AxiosAdapter } from "axios";
+import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { apiClient } from "@/shared/api/client";
 import ConfigPackages from "./tenant/ConfigPackages";
 import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
@@ -34,6 +36,35 @@ const testQueryClient = new QueryClient({
     },
   },
 });
+
+const originalApiAdapter = apiClient.defaults.adapter;
+
+afterEach(() => {
+  apiClient.defaults.adapter = originalApiAdapter;
+});
+
+function mockDelegatedAuthStatus() {
+  apiClient.defaults.adapter = (async (config) => {
+    if (config.url === "/auth/delegated/status") {
+      return {
+        data: {
+          data: {
+            mode: "BOTH",
+            enabled: true,
+            status: "NOT_CONNECTED",
+            providers: ["OIDC", "CAS", "SAML", "国密CA"],
+            message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+          },
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    }
+    throw new Error(`未预期的测试接口请求：${config.url ?? ""}`);
+  }) as AxiosAdapter;
+}
 
 function renderPage(page: React.ReactElement) {
   return render(
@@ -121,6 +152,7 @@ describe("page smoke coverage", () => {
   });
 
   it("renders the login page as a focused identity entry", async () => {
+    mockDelegatedAuthStatus();
     renderPage(
       <MemoryRouter>
         <Login />
@@ -137,8 +169,10 @@ describe("page smoke coverage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
-    expect(screen.getByRole("button", { name: "CAS（待院方配置）" })).toBeDisabled();
-    expect(screen.getByText(/统一身份由医院信息中心配置/)).toBeInTheDocument();
+    expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "OIDC（NOT_CONNECTED）" })).toBeDisabled();
+    expect(screen.getByText(/真实院方 IdP/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CAS（待院方配置）" })).not.toBeInTheDocument();
   });
 
   it("renders the quality qc-eval-results console", () => {
