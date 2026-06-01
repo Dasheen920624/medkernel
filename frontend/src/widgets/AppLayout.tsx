@@ -1,16 +1,42 @@
-import { useEffect, useState, useMemo } from "react";
-import { Breadcrumb, Drawer, Grid, Layout, Menu, Typography, Space, Button, Tooltip } from "antd";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
+  App as AntdApp,
+  Avatar,
+  Breadcrumb,
+  Drawer,
+  Dropdown,
+  Form,
+  Grid,
+  Input,
+  Layout,
+  Menu,
+  Modal,
+  Typography,
+  Space,
+  Button,
+  Tooltip,
+} from "antd";
+import {
+  LockOutlined,
+  LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SearchOutlined,
   ToolOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { getMenuSectionsForProfile } from "@/shared/config/menu";
 import { canAccessRoute, findRouteByPath, getRouteBreadcrumb } from "@/shared/config/routes";
-import { useSecurityProfile } from "@/shared/api/hooks";
+import {
+  useChangePassword,
+  useLogout,
+  useSecurityProfile,
+  type SecurityProfile,
+} from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { PageState } from "@/shared/ui/PageState";
 import { PermissionChip } from "@/features/permission-chip/PermissionChip";
 import { CommandPalette } from "@/features/command-palette/CommandPalette";
@@ -18,6 +44,39 @@ import { AuditSnapshotButton } from "@/features/audit-snapshot/AuditSnapshotButt
 import { ThemeSwitcher } from "@/features/theme-switcher/ThemeSwitcher";
 
 const { Header, Sider, Content } = Layout;
+
+type ChangePasswordValues = {
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+function userDisplayName(profile: SecurityProfile | undefined) {
+  return profile?.username || profile?.userId || "当前用户";
+}
+
+function primaryRoleName(profile: SecurityProfile | undefined) {
+  return profile?.roles[0]?.displayName || "未绑定角色";
+}
+
+function organizationSummary(profile: SecurityProfile | undefined) {
+  const scope = profile?.dataScope;
+  if (!scope) {
+    return "组织范围未配置";
+  }
+  const parts = [
+    ["租户", scope.tenantId],
+    ["集团", scope.groupId],
+    ["医院", scope.hospitalId],
+    ["院区", scope.campusId],
+    ["服务点", scope.siteId],
+    ["科室", scope.departmentId],
+    ["专病", scope.specialtyId],
+  ]
+    .filter(([, value]) => Boolean(value))
+    .map(([label, value]) => `${label} ${value}`);
+  return parts.length > 0 ? parts.join(" / ") : "组织范围未配置";
+}
 
 /**
  * 主布局：左侧 SideMenu + 顶部 Header。
@@ -29,6 +88,11 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [changePasswordForm] = Form.useForm<ChangePasswordValues>();
+  const { message } = AntdApp.useApp();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
@@ -36,6 +100,8 @@ export function AppLayout() {
   const currentRoute = findRouteByPath(location.pathname);
   const breadcrumb = getRouteBreadcrumb(location.pathname);
   const securityProfile = useSecurityProfile();
+  const changePassword = useChangePassword();
+  const logout = useLogout();
   const routeRequiresAuth = currentRoute?.requireAuth ?? true;
   const hasSecurityProfile = Boolean(securityProfile.data);
   const bootstrapSetupRequired = Boolean(
@@ -96,6 +162,40 @@ export function AppLayout() {
         : visibleMenuSections,
     [advancedItems, visibleMenuSections],
   );
+  const displayName = userDisplayName(securityProfile.data);
+  const roleName = primaryRoleName(securityProfile.data);
+  const orgText = organizationSummary(securityProfile.data);
+  const userMenuItems: MenuProps["items"] = useMemo(
+    () =>
+      securityProfile.data
+        ? [
+            {
+              key: "profile",
+              disabled: true,
+              label: (
+                <Space direction="vertical" size={0}>
+                  <Typography.Text strong>{displayName}</Typography.Text>
+                  <Typography.Text type="secondary">{roleName}</Typography.Text>
+                  <Typography.Text type="secondary">{orgText}</Typography.Text>
+                </Space>
+              ),
+            },
+            { type: "divider" },
+            {
+              key: "change-password",
+              icon: <LockOutlined />,
+              label: "修改密码",
+            },
+            {
+              key: "logout",
+              danger: true,
+              icon: <LogoutOutlined />,
+              label: "退出登录",
+            },
+          ]
+        : [],
+    [displayName, orgText, roleName, securityProfile.data],
+  );
   let mainLayoutClassName = "mk-layout-main mk-layout-main-mobile";
   if (isDesktop) {
     mainLayoutClassName = collapsed
@@ -114,6 +214,55 @@ export function AppLayout() {
     }
   };
 
+  const clearSessionAndReturnToLogin = useCallback(
+    (reason: "logout" | "expired") => {
+      queryClient.clear();
+      setPaletteOpen(false);
+      setMobileMenuOpen(false);
+      setLogoutConfirmOpen(false);
+      setChangePasswordOpen(false);
+      navigate("/login", { replace: true, state: { reason } });
+    },
+    [navigate, queryClient],
+  );
+
+  const handleUserMenuClick: MenuProps["onClick"] = ({ key }) => {
+    if (key === "change-password") {
+      setChangePasswordOpen(true);
+    }
+    if (key === "logout") {
+      setLogoutConfirmOpen(true);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      const values = await changePasswordForm.validateFields();
+      await changePassword.mutateAsync({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+      });
+      message.success("密码已更新");
+      setChangePasswordOpen(false);
+      changePasswordForm.resetFields();
+    } catch (error) {
+      if (error && typeof error === "object" && "errorFields" in error) {
+        return;
+      }
+      message.error(getApiErrorMessage(error, "修改密码失败，请检查当前密码后重试"));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout.mutateAsync();
+      message.success("已退出登录");
+      clearSessionAndReturnToLogin("logout");
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "退出登录失败，请稍后重试"));
+    }
+  };
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -124,6 +273,12 @@ export function AppLayout() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    const onAuthRequired = () => clearSessionAndReturnToLogin("expired");
+    window.addEventListener("medkernel:auth-required", onAuthRequired);
+    return () => window.removeEventListener("medkernel:auth-required", onAuthRequired);
+  }, [clearSessionAndReturnToLogin]);
 
   const renderContent = () => {
     if (routeRequiresAuth && !hasSecurityProfile) {
@@ -249,10 +404,87 @@ export function AppLayout() {
             <AuditSnapshotButton compact={!isDesktop} />
             <ThemeSwitcher compact={!isDesktop} />
             {isDesktop && <PermissionChip />}
+            {securityProfile.data && (
+              <Dropdown
+                menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+                placement="bottomRight"
+                trigger={["click"]}
+              >
+                <Button
+                  type="text"
+                  aria-label="当前用户菜单"
+                  icon={<Avatar size="small" icon={<UserOutlined />} />}
+                >
+                  {isDesktop ? displayName : null}
+                </Button>
+              </Dropdown>
+            )}
           </Space>
         </Header>
         <Content className="mk-app-content">{renderContent()}</Content>
       </Layout>
+      <Modal
+        title="修改密码"
+        open={changePasswordOpen}
+        okText="保存修改"
+        cancelText="取消"
+        confirmLoading={changePassword.isPending}
+        onOk={handleChangePassword}
+        onCancel={() => {
+          setChangePasswordOpen(false);
+          changePasswordForm.resetFields();
+        }}
+      >
+        <Form form={changePasswordForm} layout="vertical">
+          <Form.Item
+            name="oldPassword"
+            label="当前密码"
+            rules={[{ required: true, message: "请输入当前密码" }]}
+          >
+            <Input.Password autoComplete="current-password" placeholder="请输入当前密码" />
+          </Form.Item>
+          <Form.Item
+            name="newPassword"
+            label="新密码"
+            rules={[{ required: true, message: "请输入新密码" }]}
+          >
+            <Input.Password autoComplete="new-password" placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="确认新密码"
+            dependencies={["newPassword"]}
+            rules={[
+              { required: true, message: "请再次输入新密码" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue("newPassword") === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("两次输入的新密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password autoComplete="new-password" placeholder="再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="确认退出登录"
+        open={logoutConfirmOpen}
+        okText="确认退出"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        confirmLoading={logout.isPending}
+        onOk={handleLogout}
+        onCancel={() => setLogoutConfirmOpen(false)}
+      >
+        <Typography.Paragraph>
+          退出后将清除当前前端会话状态，并由后端清理 httpOnly 登录
+          Cookie；再次访问业务页面需要重新登录。
+        </Typography.Paragraph>
+      </Modal>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

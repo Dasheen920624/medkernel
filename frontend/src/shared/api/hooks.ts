@@ -24,6 +24,7 @@ export type PermissionDimension = "MENU" | "ACTION" | "DATA" | "ASSET" | "ENVIRO
 
 export interface SecurityProfile {
   userId: string;
+  username: string;
   roles: Array<{
     code: string;
     displayName: string;

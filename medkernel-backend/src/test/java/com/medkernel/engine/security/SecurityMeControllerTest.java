@@ -58,6 +58,7 @@ class SecurityMeControllerTest {
                     .authorities(new SimpleGrantedAuthority(RoleCode.DOCTOR.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("doctor-1"))
+            .andExpect(jsonPath("$.data.username").value("doctor-1"))
             .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.DOCTOR.code())))
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.RECOMMENDATION_READ.code())))
             .andExpect(jsonPath("$.data.permissions[*].dimension", hasItem(PermissionDimension.ACTION.name())))
@@ -91,6 +92,7 @@ class SecurityMeControllerTest {
                     .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_ADMIN.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("platform-owner"))
+            .andExpect(jsonPath("$.data.username").value("platform-owner"))
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
             .andExpect(jsonPath("$.data.mfaRequired").value(true))
             .andExpect(jsonPath("$.data.mfaBound").value(false));

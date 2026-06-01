@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { ConfigProvider } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -13,6 +13,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateBootstrapAdmin: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useChangePassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useBindBootstrapMfa: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useLogout: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -29,9 +30,11 @@ function renderRouter(initialPath: string) {
   return render(
     <QueryClientProvider client={client}>
       <ConfigProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <AppRouter />
-        </MemoryRouter>
+        <AntdApp>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <AppRouter />
+          </MemoryRouter>
+        </AntdApp>
       </ConfigProvider>
     </QueryClientProvider>,
   );

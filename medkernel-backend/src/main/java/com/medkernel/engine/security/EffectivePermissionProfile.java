@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  */
 public record EffectivePermissionProfile(
     String userId,
+    String username,
     List<RoleView> roles,
     List<PermissionView> permissions,
     List<String> menuKeys,
@@ -24,6 +25,20 @@ public record EffectivePermissionProfile(
         return roles.stream().map(RoleView::code).toList();
     }
 
+    public EffectivePermissionProfile withIdentity(String username) {
+        return new EffectivePermissionProfile(
+            userId,
+            username == null || username.isBlank() ? userId : username,
+            roles,
+            permissions,
+            menuKeys,
+            environmentKeys,
+            dataScope,
+            mustChangePwd,
+            mfaRequired,
+            mfaBound);
+    }
+
     @JsonIgnore
     public List<String> permissionCodes() {
         return permissions.stream().map(PermissionView::code).toList();
@@ -35,6 +50,7 @@ public record EffectivePermissionProfile(
             boolean mfaBound) {
         return new EffectivePermissionProfile(
             userId,
+            username,
             roles,
             permissions,
             menuKeys,

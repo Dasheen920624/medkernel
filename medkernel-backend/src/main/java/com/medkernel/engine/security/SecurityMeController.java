@@ -46,7 +46,8 @@ public class SecurityMeController {
         boolean mfaBound = credential != null
             && credential.mfaSecret() != null
             && !credential.mfaSecret().isBlank();
-        return ApiResult.ok(profile.withBootstrapSecurity(
+        String username = credential == null ? userId : credential.username();
+        return ApiResult.ok(profile.withIdentity(username).withBootstrapSecurity(
             mustChangePwd,
             MfaRequirementPolicy.requiresMfa(profile.roleCodes()),
             mfaBound));
