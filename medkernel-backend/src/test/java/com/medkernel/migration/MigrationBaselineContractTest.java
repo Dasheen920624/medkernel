@@ -63,7 +63,8 @@ class MigrationBaselineContractTest {
         "V34__experience_foundation_persistence.sql",
         "V35__experience_user_preference.sql",
         "V36__bootstrap_init_token.sql",
-        "V37__large_list_audit_event_indexes.sql"
+        "V37__large_list_audit_event_indexes.sql",
+        "V38__standard_clinical_model.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -94,7 +95,12 @@ class MigrationBaselineContractTest {
         "emergency_permission_grant",
         "sys_idempotency",
         "mk_security_bootstrap_init_token",
-        "mk_config_item", "mk_config_history"
+        "mk_config_item", "mk_config_history",
+        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
+        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
+        "mk_clinical_diagnostic_report", "mk_clinical_document",
+        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
+        "mk_clinical_follow_up", "mk_clinical_claim"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -168,7 +174,21 @@ class MigrationBaselineContractTest {
         "idx_bootstrap_init_token_expires",
         "idx_audit_event_org_path",
         "idx_audit_event_env",
-        "idx_config_item_tenant_key", "idx_config_history_tenant_key"
+        "idx_config_item_tenant_key", "idx_config_history_tenant_key",
+        "idx_mk_clinical_patient_org_path",
+        "idx_mk_clinical_encounter_patient", "idx_mk_clinical_encounter_org_path",
+        "idx_mk_clinical_condition_patient", "idx_mk_clinical_condition_org_path",
+        "idx_mk_clinical_condition_code", "idx_mk_clinical_observation_patient",
+        "idx_mk_clinical_observation_org_path", "idx_mk_clinical_observation_code",
+        "idx_mk_clinical_medication_patient", "idx_mk_clinical_medication_org_path",
+        "idx_mk_clinical_medication_code", "idx_mk_clinical_procedure_patient",
+        "idx_mk_clinical_procedure_org_path", "idx_mk_clinical_procedure_code",
+        "idx_mk_clinical_diagnostic_report_patient", "idx_mk_clinical_diagnostic_report_org_path",
+        "idx_mk_clinical_document_patient", "idx_mk_clinical_document_org_path",
+        "idx_mk_clinical_nursing_assessment_patient", "idx_mk_clinical_nursing_assessment_org_path",
+        "idx_mk_clinical_care_plan_patient", "idx_mk_clinical_care_plan_org_path",
+        "idx_mk_clinical_follow_up_patient", "idx_mk_clinical_follow_up_org_path",
+        "idx_mk_clinical_claim_patient", "idx_mk_clinical_claim_org_path"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -257,7 +277,13 @@ class MigrationBaselineContractTest {
         "uk_audit_event_dedupe",
         "pk_config_item", "uk_config_item_tenant_key", "ck_config_item_value_type",
         "ck_config_item_risk", "ck_config_item_source", "ck_config_item_protected",
-        "ck_config_item_active", "pk_config_history", "ck_config_history_change_type"
+        "ck_config_item_active", "pk_config_history", "ck_config_history_change_type",
+        "uk_mk_clinical_patient_source", "uk_mk_clinical_encounter_source",
+        "uk_mk_clinical_condition_source", "uk_mk_clinical_observation_source",
+        "uk_mk_clinical_medication_source", "uk_mk_clinical_procedure_source",
+        "uk_mk_clinical_diagnostic_report_source", "uk_mk_clinical_document_source",
+        "uk_mk_clinical_nursing_assessment_source", "uk_mk_clinical_care_plan_source",
+        "uk_mk_clinical_follow_up_source", "uk_mk_clinical_claim_source"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -285,7 +311,12 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
-        "mk_config_item", "mk_config_history"
+        "mk_config_item", "mk_config_history",
+        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
+        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
+        "mk_clinical_diagnostic_report", "mk_clinical_document",
+        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
+        "mk_clinical_follow_up", "mk_clinical_claim"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -309,7 +340,12 @@ class MigrationBaselineContractTest {
         "mpi_patient",
         "platform_credential",
         "emergency_permission_grant",
-        "mk_config_item"
+        "mk_config_item",
+        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
+        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
+        "mk_clinical_diagnostic_report", "mk_clinical_document",
+        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
+        "mk_clinical_follow_up", "mk_clinical_claim"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.of(
         "audit_event", Set.of("occurred_at", "actor_user_id", "created_at"),

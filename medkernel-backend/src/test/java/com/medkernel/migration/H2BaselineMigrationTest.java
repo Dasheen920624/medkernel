@@ -31,13 +31,13 @@ class H2BaselineMigrationTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("H2 baseline migrations succeed").isTrue();
-        assertThat(result.migrationsExecuted).as("V1 至 V37 全部应用").isEqualTo(37);
+        assertThat(result.migrationsExecuted).as("V1 至 V38 全部应用").isEqualTo(38);
 
         var applied = flyway.info().applied();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
             .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
                 "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27",
-                "28", "29", "30", "31", "32", "33", "34", "35", "36", "37");
+                "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38");
 
         var repeated = flyway.migrate();
         assertThat(repeated.success).as("H2 baseline repeated migrate succeeds").isTrue();

@@ -36,7 +36,8 @@
 N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 
 ## 数据与迁移
-- 表族：`clinical_patient` / `clinical_encounter` / `clinical_condition` / `clinical_observation` / `clinical_medication` / `clinical_procedure` / `clinical_diagnostic_report` / `clinical_document` / `nursing_assessment` / `clinical_care_plan` / `clinical_follow_up` / `insurance_claim`。
+- 表族：`mk_clinical_patient` / `mk_clinical_encounter` / `mk_clinical_condition` / `mk_clinical_observation` / `mk_clinical_medication` / `mk_clinical_procedure` / `mk_clinical_diagnostic_report` / `mk_clinical_document` / `mk_clinical_nursing_assessment` / `mk_clinical_care_plan` / `mk_clinical_follow_up` / `mk_clinical_claim`。
+- 命名说明：早期裸表名已被 [BASE-05](BASE-05.md) 的迁移规约门禁替换为 `mk_<域>_<实体>`，后续实现不得新增无 `mk_` 前缀的标准临床对象权威表。
 - 主键：ULID；唯一约束：`(tenant_id, source_system, source_id)`（外部来源去重）；索引：`patient_id`、`encounter_id`、`org_path`、编码字段。
 - 组织字段：全 12 表带 `tenant_id` + `org_path` + 审计字段；FHIR 资源 id 映射列。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释 + 编码字段索引。
@@ -77,3 +78,7 @@ N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 - PR1：12 标准对象类型 + 5 方言迁移 + 组织/敏感字段 → AC-1/5。
 - PR2：ClinicalEventContext + 事件驱动引擎入口 + 字典映射锚点 → AC-2/4。
 - PR3：关系库权威 + 投影解耦 + FHIR 映射 → AC-3。
+
+### PR1 进度证据（本 PR 不冒领整卡完成）
+- 覆盖范围：新增 12 类标准对象 Record、租户级 Repository、V38 五方言关系库权威表基础、跨租户读取测试、Patient 敏感字段密文 / 掩码字段；同步清理旧 `SYMPTOM` 口径，统一为 `NURSING_ASSESSMENT`。
+- 验收口径：仅作为 **AC-1 12 对象建模 / 持久化基础** 与 **AC-5 组织字段 / 敏感字段基础** 的 PR1 证据；AC-2、AC-3、AC-4 仍由 PR2 / PR3 承接，整卡 FR / AC 不在本 PR 勾选。
