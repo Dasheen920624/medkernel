@@ -65,7 +65,8 @@ class MigrationBaselineContractTest {
         "V36__bootstrap_init_token.sql",
         "V37__large_list_audit_event_indexes.sql",
         "V38__standard_clinical_model.sql",
-        "V39__clinical_event_context_scope.sql"
+        "V39__clinical_event_context_scope.sql",
+        "V40__projection_sync_baseline.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -101,7 +102,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim"
+        "mk_clinical_follow_up", "mk_clinical_claim",
+        "mk_projection_sync", "mk_projection_snapshot"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -189,7 +191,9 @@ class MigrationBaselineContractTest {
         "idx_mk_clinical_nursing_assessment_patient", "idx_mk_clinical_nursing_assessment_org_path",
         "idx_mk_clinical_care_plan_patient", "idx_mk_clinical_care_plan_org_path",
         "idx_mk_clinical_follow_up_patient", "idx_mk_clinical_follow_up_org_path",
-        "idx_mk_clinical_claim_patient", "idx_mk_clinical_claim_org_path"
+        "idx_mk_clinical_claim_patient", "idx_mk_clinical_claim_org_path",
+        "idx_mk_projection_sync_tenant_target_ts", "idx_mk_projection_sync_tenant_status",
+        "idx_mk_projection_snapshot_tenant_target"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -284,7 +288,10 @@ class MigrationBaselineContractTest {
         "uk_mk_clinical_medication_source", "uk_mk_clinical_procedure_source",
         "uk_mk_clinical_diagnostic_report_source", "uk_mk_clinical_document_source",
         "uk_mk_clinical_nursing_assessment_source", "uk_mk_clinical_care_plan_source",
-        "uk_mk_clinical_follow_up_source", "uk_mk_clinical_claim_source"
+        "uk_mk_clinical_follow_up_source", "uk_mk_clinical_claim_source",
+        "uk_mk_projection_sync_tenant_sync", "ck_mk_projection_sync_target",
+        "ck_mk_projection_sync_status", "uk_mk_projection_snapshot_fact",
+        "ck_mk_projection_snapshot_target", "ck_mk_projection_snapshot_kind"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -317,7 +324,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim"
+        "mk_clinical_follow_up", "mk_clinical_claim",
+        "mk_projection_sync", "mk_projection_snapshot"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -348,17 +356,19 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim"
     );
-    private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.of(
-        "audit_event", Set.of("occurred_at", "actor_user_id", "created_at"),
-        "mk_obs_state_transition", Set.of("occurred_at", "actor", "created_at", "created_by"),
-        "mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by"),
-        "knowledge_supersession", Set.of("transitioned_at", "transitioned_by"),
-        "knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at"),
-        "term_mapping_package_release", Set.of("created_at", "created_by"),
-        "audit_chain_head", Set.of("last_signature", "updated_at"),
-        "rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at"),
-        "specialty_package", Set.of("published_at", "published_by"),
-        "patient_pathway", Set.of("entered_at", "completed_at", "exited_at")
+    private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
+        Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
+        Map.entry("mk_obs_state_transition", Set.of("occurred_at", "actor", "created_at", "created_by")),
+        Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
+        Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
+        Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
+        Map.entry("term_mapping_package_release", Set.of("created_at", "created_by")),
+        Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
+        Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
+        Map.entry("specialty_package", Set.of("published_at", "published_by")),
+        Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
+        Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
+        Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id"))
     );
     private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.ofEntries(
         Map.entry("org_unit", Set.of("status")),
@@ -421,7 +431,9 @@ class MigrationBaselineContractTest {
         Map.entry("mpi_patient", Set.of("status")),
         Map.entry("emergency_permission_grant", Set.of("active_flag")),
         Map.entry("mk_config_item", Set.of("value_type", "risk_level", "source", "protected_flag", "active_flag", "version")),
-        Map.entry("mk_config_history", Set.of("change_type", "version"))
+        Map.entry("mk_config_history", Set.of("change_type", "version")),
+        Map.entry("mk_projection_sync", Set.of("target_type", "status")),
+        Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind"))
     );
 
     private static final Pattern TABLE_PATTERN =

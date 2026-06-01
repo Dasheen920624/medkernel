@@ -94,6 +94,8 @@ public enum PermissionCode {
     INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器连通性自检、Webhook 测试和死信重试"),
     MPI_READ("mpi.read", Risk.LOW, "查看患者主索引列表与统计"),
     MPI_WRITE("mpi.write", Risk.HIGH, "合并患者主索引"),
+    PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
+    PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
 
     // ─── 菜单维度（INFRA-05 细化到 27 二级菜单前的一级入口基线）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),

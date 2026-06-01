@@ -75,6 +75,8 @@ import static com.medkernel.engine.security.PermissionCode.MENU_QUALITY_IMPROVE;
 import static com.medkernel.engine.security.PermissionCode.MENU_WORKBENCH;
 import static com.medkernel.engine.security.PermissionCode.MPI_READ;
 import static com.medkernel.engine.security.PermissionCode.MPI_WRITE;
+import static com.medkernel.engine.security.PermissionCode.PROJECTION_READ;
+import static com.medkernel.engine.security.PermissionCode.PROJECTION_REBUILD;
 
 /**
  * 默认角色与动作权限的规则绑定策略类（Default Permission Policy）。
@@ -127,6 +129,7 @@ public final class DefaultPermissionPolicy {
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE,
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
+            PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
             LIST_EXPORT));
 
@@ -144,6 +147,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE,
+            PROJECTION_READ,
             MPI_READ, MPI_WRITE,
             AUDIT_READ, AUDIT_EXPORT,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
@@ -165,6 +169,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ,
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ,
+            PROJECTION_READ,
             MPI_READ,
             AUDIT_READ, AUDIT_EXPORT,
             FOLLOWUP_READ, EMBED_READ,
@@ -260,6 +265,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ,
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ,
+            PROJECTION_READ,
             FOLLOWUP_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT));
 
         // 实施工程师：试点准备阶段的接入与配置 + 临床上下文接入
@@ -280,6 +286,7 @@ public final class DefaultPermissionPolicy {
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE,
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
+            PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
             LIST_EXPORT));
 

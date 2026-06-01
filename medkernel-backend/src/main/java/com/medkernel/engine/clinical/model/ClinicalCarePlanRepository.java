@@ -11,5 +11,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ClinicalCarePlanRepository extends ListCrudRepository<ClinicalCarePlan, String> {
 
+    List<ClinicalCarePlan> findByTenantId(String tenantId);
+
     List<ClinicalCarePlan> findByTenantIdAndPatientId(String tenantId, String patientId);
 }
