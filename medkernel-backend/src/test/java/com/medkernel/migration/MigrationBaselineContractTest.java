@@ -60,7 +60,8 @@ class MigrationBaselineContractTest {
         "V31__configuration_center.sql",
         "V32__source_fragment_content_hash.sql",
         "V33__package_sync_not_synced_status.sql",
-        "V34__experience_foundation_persistence.sql"
+        "V34__experience_foundation_persistence.sql",
+        "V35__experience_user_preference.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -82,7 +83,7 @@ class MigrationBaselineContractTest {
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_task", "model_capability_policy",
-        "mk_experience_saved_view", "mk_experience_export_task",
+        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
@@ -151,7 +152,7 @@ class MigrationBaselineContractTest {
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
         "idx_followup_questionnaire_task", "idx_followup_event_plan",
         "idx_followup_event_type", "idx_embed_token_tenant", "idx_model_task_tenant",
-        "idx_saved_view_user_page", "idx_saved_view_default",
+        "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
@@ -232,6 +233,7 @@ class MigrationBaselineContractTest {
         "uk_embed_launch_token", "uk_embed_origin_tenant",
         "uk_model_task_id", "uk_model_policy_tenant",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
+        "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
         "pk_export_task", "uk_export_task_idempotency", "ck_export_task_scope", "ck_export_task_status",
         "uk_integration_adapter", "uk_integration_webhook", "uk_integration_message",
         "ck_integration_adapter_status", "ck_integration_adapter_health",
@@ -266,7 +268,7 @@ class MigrationBaselineContractTest {
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "model_capability_task", "model_capability_policy",
-        "mk_experience_saved_view", "mk_experience_export_task",
+        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
@@ -291,7 +293,7 @@ class MigrationBaselineContractTest {
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_task", "model_capability_policy",
-        "mk_experience_saved_view", "mk_experience_export_task",
+        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
@@ -362,6 +364,7 @@ class MigrationBaselineContractTest {
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
         Map.entry("mk_experience_export_task", Set.of("selected_scope", "status")),
+        Map.entry("mk_experience_user_pref", Set.of("version", "status")),
         Map.entry("integration_adapter", Set.of("status", "health_status")),
         Map.entry("integration_webhook_config", Set.of("status")),
         Map.entry("integration_message_log", Set.of("status", "direction")),
@@ -534,6 +537,20 @@ class MigrationBaselineContractTest {
                 .contains("uk_export_task_idempotency")
                 .contains("ck_export_task_status")
                 .doesNotContain("large_list_export_job");
+        }
+    }
+
+    @Test
+    void v35ShouldDeclareExperienceUserPreferenceForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V35__experience_user_preference.sql");
+            assertThat(ddl).as("%s 用户体验偏好持久化", dialect)
+                .contains("mk_experience_user_pref")
+                .contains("uk_user_pref_user_key")
+                .contains("idx_user_pref_user_key")
+                .contains("COMMENT ON TABLE mk_experience_user_pref")
+                .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_key")
+                .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_value");
         }
     }
 

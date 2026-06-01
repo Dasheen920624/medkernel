@@ -73,6 +73,8 @@ export default function Login() {
     "--mk-login-heading-2": `${token.fontSizeHeading2}px`,
     "--mk-login-font-lg": `${token.fontSizeLG}px`,
     "--mk-login-font-sm": `${token.fontSizeSM}px`,
+    "--mk-login-control-font": `${Math.max(token.fontSize, token.fontSizeLG)}px`,
+    "--mk-login-control-height": `${Math.max(token.controlHeight, token.controlHeightLG)}px`,
   } as CSSProperties;
 
   async function handleSubmit(values: { username: string; password: string; tenantId?: string }) {
@@ -97,7 +99,7 @@ export default function Login() {
   return (
     <main className={styles.page} style={loginThemeStyle}>
       <div className={styles.themeSwitcher}>
-        <ThemeSwitcher />
+        <ThemeSwitcher syncRemote={false} />
       </div>
 
       <section className={styles.contextPanel} aria-label="登录上下文">

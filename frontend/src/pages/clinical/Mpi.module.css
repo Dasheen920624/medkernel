@@ -1,23 +1,23 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
   width: 100%;
 }
 
 .statsRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: calc(var(--mk-unit) * 20);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 64em) {
   .statsRow {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 36em) {
   .statsRow {
     grid-template-columns: 1fr;
   }
@@ -25,18 +25,18 @@
 
 .statCard {
   background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-outer);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-outer);
   border-radius: var(--ant-border-radius-lg);
-  padding: 24px;
-  box-shadow: 0 4px 12px var(--ant-color-fill-quaternary);
+  padding: calc(var(--mk-unit) * 24);
+  box-shadow: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12) var(--ant-color-fill-quaternary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
 }
 
 .statCard:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px var(--ant-color-fill-secondary);
+  transform: translateY(calc(var(--mk-unit) * -4));
+  box-shadow: 0 calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 24) var(--ant-color-fill-secondary);
   border-color: var(--ant-color-primary-hover);
 }
 
@@ -46,7 +46,7 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
+  height: calc(var(--mk-unit) * 4);
   background: linear-gradient(90deg, var(--ant-color-primary), var(--ant-color-primary-active));
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -60,7 +60,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: calc(var(--mk-unit) * 12);
 }
 
 .statTitle {
@@ -80,7 +80,7 @@
   font-weight: 700;
   color: var(--ant-color-text);
   line-height: 1.2;
-  margin-bottom: 8px;
+  margin-bottom: calc(var(--mk-unit) * 8);
   font-family:
     "Outfit",
     -apple-system,
@@ -97,23 +97,23 @@
 
 .filterCard {
   background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-outer);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-outer);
   border-radius: var(--ant-border-radius-lg);
-  padding: 20px;
-  box-shadow: 0 4px 12px var(--ant-color-fill-quaternary);
+  padding: calc(var(--mk-unit) * 20);
+  box-shadow: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12) var(--ant-color-fill-quaternary);
 }
 
 .filterForm {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: calc(var(--mk-unit) * 16);
   align-items: center;
 }
 
 .filterItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(var(--mk-unit) * 8);
 }
 
 .filterLabel {
@@ -124,17 +124,17 @@
 
 .tableCard {
   background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-outer);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-outer);
   border-radius: var(--ant-border-radius-lg);
-  padding: 24px;
-  box-shadow: 0 4px 12px var(--ant-color-fill-quaternary);
+  padding: calc(var(--mk-unit) * 24);
+  box-shadow: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12) var(--ant-color-fill-quaternary);
 }
 
 .mpiBadge {
   font-family: monospace;
   background-color: var(--ant-color-fill-content);
-  border: 1px solid var(--ant-color-border-inner);
-  padding: 2px 8px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-inner);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-weight: 600;
   color: var(--ant-color-text-secondary);
@@ -142,20 +142,20 @@
 
 .warningBox {
   background-color: var(--ant-color-warning-bg);
-  border: 1px dashed var(--ant-color-warning-border);
-  padding: 16px;
+  border: calc(var(--mk-unit) * 1) dashed var(--ant-color-warning-border);
+  padding: calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius-lg);
-  margin-bottom: 24px;
+  margin-bottom: calc(var(--mk-unit) * 24);
 }
 
 .warningTitle {
   font-size: var(--ant-font-size);
   font-weight: 600;
   color: var(--ant-color-warning-text);
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--mk-unit) * 6);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(var(--mk-unit) * 8);
 }
 
 .warningText {
@@ -165,7 +165,7 @@
 }
 
 .modalFormItem {
-  margin-bottom: 20px;
+  margin-bottom: calc(var(--mk-unit) * 20);
 }
 
 .statIconSuccess {
@@ -183,7 +183,7 @@
 .ageUnit {
   font-size: var(--ant-font-size);
   font-weight: normal;
-  margin-left: 4px;
+  margin-left: calc(var(--mk-unit) * 4);
 }
 
 .genderValue {
@@ -195,11 +195,11 @@
 }
 
 .searchInput {
-  width: 240px;
+  width: calc(var(--mk-unit) * 240);
 }
 
 .statusSelect {
-  width: 160px;
+  width: calc(var(--mk-unit) * 160);
 }
 
 .badgeSuccess {

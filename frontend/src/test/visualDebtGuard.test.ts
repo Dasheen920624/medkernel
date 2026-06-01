@@ -11,6 +11,7 @@ const EXTERNAL_SERVICE_TARGET_PATTERN =
   /\b(?:baseURL\s*:\s*["'`]https?:\/\/|["'`](?:https?:\/\/[^"'`]*(?:dify|neo4j|openai|anthropic)|(?:bolt|neo4j):\/\/))/i;
 const FRONTEND_EXTERNAL_FEATURE_FLAG_PATTERN =
   /\bimport\.meta\.env\.VITE_[A-Z0-9_]*(?:DIFY|MODEL|PROVIDER|GRAPH|NEO4J|OPENAI|EXTERNAL)[A-Z0-9_]*/i;
+const CSS_LITERAL_PATTERN = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|\b\d+(?:\.\d+)?px\b/;
 
 const ALLOWED_DIRECT_STORAGE_FILES = new Set(["shared/lib/browserStorage.ts"]);
 const ALLOWED_NETWORK_CLIENT_FILES = new Set(["shared/api/client.ts"]);
@@ -24,6 +25,15 @@ function listSourceFiles(dir: string): string[] {
     if (!/\.(ts|tsx)$/.test(entry)) return [];
     if (IGNORED_FILE_PATTERN.test(entry)) return [];
     return [fullPath];
+  });
+}
+
+function listModuleCssFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const fullPath = join(dir, entry);
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) return listModuleCssFiles(fullPath);
+    return entry.endsWith(".module.css") ? [fullPath] : [];
   });
 }
 
@@ -63,5 +73,18 @@ describe("前端视觉债、存储与外部连接门禁", () => {
     for (const term of ["token", "patient", "idcard", "identity", "身份证", "患者"]) {
       expect(viewSource).toContain(term);
     }
+  });
+
+  it("CSS Modules 只能引用设计 token，不写硬编码颜色或 px", () => {
+    const violations = listModuleCssFiles(SRC_ROOT)
+      .map((file) => ({
+        file: relative(SRC_ROOT, file).replace(/\\/g, "/"),
+        content: readFileSync(file, "utf8"),
+      }))
+      .filter(({ content }) => CSS_LITERAL_PATTERN.test(content))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(violations).toEqual([]);
   });
 });

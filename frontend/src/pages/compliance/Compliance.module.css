@@ -3,41 +3,41 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .card {
   background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
-  padding: 24px;
-  box-shadow: 0 1px 3px 0 var(--ant-color-fill-tertiary);
+  padding: calc(var(--mk-unit) * 24);
+  box-shadow: 0 calc(var(--mk-unit) * 1) calc(var(--mk-unit) * 3) 0 var(--ant-color-fill-tertiary);
 }
 
 .title {
   font-size: var(--ant-font-size-xl);
   font-weight: 600;
   color: var(--ant-color-text);
-  margin-bottom: 16px;
+  margin-bottom: calc(var(--mk-unit) * 16);
 }
 
 .description {
   font-size: var(--ant-font-size);
   color: var(--ant-color-text-secondary);
-  margin-bottom: 24px;
+  margin-bottom: calc(var(--mk-unit) * 24);
 }
 
 /* 布局与网格 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 300), 1fr));
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .authGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 240), 1fr));
+  gap: calc(var(--mk-unit) * 20);
 }
 
 /* 辅助布局类，消灭 JSX inline style */
@@ -53,20 +53,20 @@
 
 .btnGroup {
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 16);
 }
 
 .minHeight110 {
-  min-height: 110px;
+  min-height: calc(var(--mk-unit) * 110);
   cursor: pointer;
 }
 
 .scoreCircle {
-  width: 90px;
-  height: 90px;
+  width: calc(var(--mk-unit) * 90);
+  height: calc(var(--mk-unit) * 90);
   border-radius: 50%;
-  border: 6px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 6) solid var(--ant-color-border-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -90,38 +90,38 @@
 
 /* 提示框 */
 .alertSuccess {
-  border: 1px solid var(--ant-color-success);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-success);
   background-color: var(--ant-color-success-bg);
   color: var(--ant-color-success-text);
-  padding: 12px 24px;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 24);
   border-radius: var(--ant-border-radius-lg);
 }
 
 .alertError {
-  border: 1px solid var(--ant-color-error);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-error);
   background-color: var(--ant-color-error-bg);
   color: var(--ant-color-error-text);
-  padding: 12px 24px;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 24);
   border-radius: var(--ant-border-radius-lg);
 }
 
 .connectionTestPass {
   background-color: var(--ant-color-success-bg);
-  border: 1px solid var(--ant-color-success-border);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-success-border);
   color: var(--ant-color-success-text);
-  padding: 16px;
-  margin-top: 16px;
-  margin-bottom: 16px;
+  padding: calc(var(--mk-unit) * 16);
+  margin-top: calc(var(--mk-unit) * 16);
+  margin-bottom: calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius-lg);
 }
 
 .connectionTestFail {
   background-color: var(--ant-color-error-bg);
-  border: 1px solid var(--ant-color-error-border);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-error-border);
   color: var(--ant-color-error-text);
-  padding: 16px;
-  margin-top: 16px;
-  margin-bottom: 16px;
+  padding: calc(var(--mk-unit) * 16);
+  margin-top: calc(var(--mk-unit) * 16);
+  margin-bottom: calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius-lg);
 }
 
@@ -129,7 +129,7 @@
 .btnPrimary {
   background-color: var(--ant-color-text);
   color: var(--ant-color-bg-container);
-  padding: 8px 16px;
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -144,7 +144,7 @@
 .btnDanger {
   background-color: var(--ant-color-error);
   color: var(--ant-color-bg-container);
-  padding: 6px 12px;
+  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -160,7 +160,7 @@
 /* 标签与徽章 */
 .scopeTag {
   display: inline-block;
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -170,7 +170,7 @@
 
 .roleTag {
   display: inline-block;
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -180,19 +180,20 @@
 
 /* 身份绑定卡片 */
 .authCard {
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
-  padding: 20px;
+  padding: calc(var(--mk-unit) * 20);
   transition: all 0.3s;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 180px;
+  min-height: calc(var(--mk-unit) * 180);
 }
 
 .authCard:hover {
   border-color: var(--ant-color-text-tertiary);
-  box-shadow: 0 4px 6px -1px var(--ant-color-fill-tertiary);
+  box-shadow: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 6) calc(var(--mk-unit) * -1)
+    var(--ant-color-fill-tertiary);
 }
 
 .authCardActive {
@@ -204,7 +205,7 @@
   display: flex;
   justify-content: space-between;
   align-items: start;
-  margin-bottom: 12px;
+  margin-bottom: calc(var(--mk-unit) * 12);
 }
 
 .authIcon {
@@ -215,7 +216,7 @@
   background-color: var(--ant-color-success-bg);
   color: var(--ant-color-success);
   font-size: var(--ant-font-size-sm);
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: 999em;
   font-weight: 500;
 }
@@ -224,7 +225,7 @@
   background-color: var(--ant-color-border-secondary);
   color: var(--ant-color-text-secondary);
   font-size: var(--ant-font-size-sm);
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: 999em;
   font-weight: 500;
 }
@@ -234,8 +235,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  padding: calc(var(--mk-unit) * 16) 0;
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
 .baselineItem:last-child {
@@ -245,7 +246,7 @@
 .baselineInfo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: calc(var(--mk-unit) * 4);
 }
 
 .baselineTitle {
@@ -261,8 +262,8 @@
 .baselineStatusPass {
   color: var(--ant-color-success);
   background-color: var(--ant-color-success-bg);
-  border: 1px solid var(--ant-color-success-border);
-  padding: 4px 12px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-success-border);
+  padding: calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -271,8 +272,8 @@
 .baselineStatusWarn {
   color: var(--ant-color-warning);
   background-color: var(--ant-color-warning-bg);
-  border: 1px solid var(--ant-color-warning-border);
-  padding: 4px 12px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-warning-border);
+  padding: calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -281,8 +282,8 @@
 .baselineStatusFail {
   color: var(--ant-color-error);
   background-color: var(--ant-color-error-bg);
-  border: 1px solid var(--ant-color-error-border);
-  padding: 4px 12px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-error-border);
+  padding: calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -292,8 +293,8 @@
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: calc(var(--mk-unit) * 8);
+  margin-bottom: calc(var(--mk-unit) * 16);
 }
 
 .formLabel {
@@ -303,8 +304,8 @@
 }
 
 .formInput {
-  padding: 8px 12px;
-  border: 1px solid var(--ant-color-border);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border);
   border-radius: var(--ant-border-radius);
   font-size: var(--ant-font-size);
   outline: none;
@@ -317,7 +318,7 @@
 
 .tableWrap {
   overflow-x: auto;
-  margin-top: 16px;
+  margin-top: calc(var(--mk-unit) * 16);
 }
 
 .table {
@@ -327,17 +328,17 @@
 }
 
 .table th {
-  padding: 12px 16px;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 16);
   background-color: var(--ant-color-bg-layout);
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   font-weight: 600;
   color: var(--ant-color-text-secondary);
   font-size: var(--ant-font-size-sm);
 }
 
 .table td {
-  padding: 16px;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  padding: calc(var(--mk-unit) * 16);
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   font-size: var(--ant-font-size);
   color: var(--ant-color-text);
 }
@@ -353,7 +354,7 @@
 .btnSuccess {
   background-color: var(--ant-color-success);
   color: var(--ant-color-bg-container);
-  padding: 8px 16px;
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -368,7 +369,7 @@
 .btnInfo {
   background-color: var(--ant-color-info);
   color: var(--ant-color-bg-container);
-  padding: 8px 16px;
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -388,12 +389,12 @@
 .flexAlign {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .flexRow {
   display: flex;
-  gap: 16px;
+  gap: calc(var(--mk-unit) * 16);
   align-items: center;
 }
 
@@ -404,9 +405,9 @@
 }
 
 .marginTop10 {
-  margin-top: 10px;
+  margin-top: calc(var(--mk-unit) * 10);
 }
 
 .marginTop12 {
-  margin-top: 12px;
+  margin-top: calc(var(--mk-unit) * 12);
 }

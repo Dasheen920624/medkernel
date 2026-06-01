@@ -1,7 +1,7 @@
 .card {
   border-radius: var(--ant-border-radius-lg);
   box-shadow: var(--ant-box-shadow-tertiary);
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
 .title {
@@ -18,9 +18,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: calc(var(--mk-unit) * 12);
   text-align: center;
-  padding: 40px 0;
+  padding: calc(var(--mk-unit) * 40) 0;
 }
 
 .loaderText {
@@ -29,15 +29,15 @@
 
 .stageTag {
   border-radius: var(--ant-border-radius-lg);
-  padding: 2px 10px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 10);
   font-weight: bold;
 }
 
 .stepsContainer {
   background: var(--ant-color-bg-layout);
-  padding: 24px 16px;
+  padding: calc(var(--mk-unit) * 24) calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius-lg);
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
 .stepDesc {
@@ -50,7 +50,7 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
-  padding: 12px 0;
+  padding: calc(var(--mk-unit) * 12) 0;
 }
 
 .progressFormat {
@@ -81,23 +81,23 @@
 }
 
 .cardBody {
-  min-height: 120px;
-  padding: 8px 4px;
+  min-height: calc(var(--mk-unit) * 120);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 4);
 }
 
 .tagGeekblue {
   border-radius: var(--ant-border-radius-sm);
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
 }
 
 .tagMagenta {
   border-radius: var(--ant-border-radius-sm);
-  padding: 2px 8px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
 }
 
 .cardDesc {
   font-size: var(--ant-font-size-sm);
-  margin-top: 16px;
+  margin-top: calc(var(--mk-unit) * 16);
   color: var(--ant-color-text-description);
 }
 
@@ -107,7 +107,7 @@
 }
 
 .divider {
-  margin: 12px 0;
+  margin: calc(var(--mk-unit) * 12) 0;
 }
 
 .transitionBtn {
@@ -118,6 +118,6 @@
   );
   border: none;
   border-radius: var(--ant-border-radius);
-  height: 38px;
+  height: calc(var(--mk-unit) * 38);
   box-shadow: var(--ant-box-shadow);
 }

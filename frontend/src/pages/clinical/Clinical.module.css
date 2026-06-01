@@ -3,42 +3,42 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .card {
   background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
-  padding: 24px;
-  box-shadow: 0 1px 3px 0 var(--ant-color-fill-tertiary);
+  padding: calc(var(--mk-unit) * 24);
+  box-shadow: 0 calc(var(--mk-unit) * 1) calc(var(--mk-unit) * 3) 0 var(--ant-color-fill-tertiary);
 }
 
 .title {
   font-size: var(--ant-font-size-xl);
   font-weight: 600;
   color: var(--ant-color-text);
-  margin-bottom: 16px;
+  margin-bottom: calc(var(--mk-unit) * 16);
 }
 
 .description {
   font-size: var(--ant-font-size);
   color: var(--ant-color-text-secondary);
-  margin-bottom: 24px;
+  margin-bottom: calc(var(--mk-unit) * 24);
 }
 
 /* 布局与网格 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 280), 1fr));
+  gap: calc(var(--mk-unit) * 24);
 }
 
 /* 按钮样式 */
 .btnPrimary {
   background-color: var(--ant-color-text);
   color: var(--ant-color-bg-container);
-  padding: 8px 16px;
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 16);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -53,7 +53,7 @@
 .btnDanger {
   background-color: var(--ant-color-error);
   color: var(--ant-color-bg-container);
-  padding: 6px 12px;
+  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
   border: none;
@@ -69,10 +69,10 @@
 .btnSecondary {
   background-color: var(--ant-color-border-secondary);
   color: var(--ant-color-text);
-  padding: 6px 12px;
+  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 12);
   border-radius: var(--ant-border-radius);
   font-weight: 500;
-  border: 1px solid var(--ant-color-border);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border);
   cursor: pointer;
   font-size: var(--ant-font-size-sm);
   transition: background-color 0.2s;
@@ -90,7 +90,7 @@
   }
   70% {
     transform: scale(1);
-    box-shadow: 0 0 0 8px transparent;
+    box-shadow: 0 0 0 calc(var(--mk-unit) * 8) transparent;
   }
   100% {
     transform: scale(0.95);
@@ -105,7 +105,7 @@
   }
   70% {
     transform: scale(1);
-    box-shadow: 0 0 0 8px transparent;
+    box-shadow: 0 0 0 calc(var(--mk-unit) * 8) transparent;
   }
   100% {
     transform: scale(0.95);
@@ -116,8 +116,8 @@
 .badgeP0 {
   background-color: var(--ant-color-error-bg);
   color: var(--ant-color-error);
-  border: 1px solid var(--ant-color-error-border);
-  padding: 2px 8px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-error-border);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 600;
@@ -128,8 +128,8 @@
 .badgeP1 {
   background-color: var(--ant-color-warning-bg);
   color: var(--ant-color-warning);
-  border: 1px solid var(--ant-color-warning-border);
-  padding: 2px 8px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-warning-border);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 600;
@@ -140,8 +140,8 @@
 .badgeP2 {
   background-color: var(--ant-color-info-bg);
   color: var(--ant-color-info-text);
-  border: 1px solid var(--ant-color-info-border);
-  padding: 2px 8px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-info-border);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -151,8 +151,8 @@
 .badgeP3 {
   background-color: var(--ant-color-border-secondary);
   color: var(--ant-color-text-secondary);
-  border: 1px solid var(--ant-color-border-secondary);
-  padding: 2px 8px;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   font-weight: 500;
@@ -161,10 +161,10 @@
 
 /* 提示框 */
 .alertSuccess {
-  border: 1px solid var(--ant-color-success);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-success);
   background-color: var(--ant-color-success-bg);
   color: var(--ant-color-success-text);
-  padding: 12px 24px;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 24);
   border-radius: var(--ant-border-radius-lg);
 }
 
@@ -180,17 +180,18 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(calc(var(--mk-unit) * 4));
 }
 
 .modalContent {
   background: var(--ant-color-bg-container);
   border-radius: var(--ant-border-radius-lg);
-  padding: 32px;
-  max-width: 500px;
+  padding: calc(var(--mk-unit) * 32);
+  max-width: calc(var(--mk-unit) * 500);
   width: 90%;
-  box-shadow: 0 25px 50px -12px var(--ant-color-fill);
-  border: 1px solid var(--ant-color-border-secondary);
+  box-shadow: 0 calc(var(--mk-unit) * 25) calc(var(--mk-unit) * 50) calc(var(--mk-unit) * -12)
+    var(--ant-color-fill);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
 /* 辅助排版与表单 */
@@ -215,8 +216,8 @@
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: calc(var(--mk-unit) * 8);
+  margin-bottom: calc(var(--mk-unit) * 16);
 }
 
 .formLabel {
@@ -226,8 +227,8 @@
 }
 
 .formInput {
-  padding: 8px 12px;
-  border: 1px solid var(--ant-color-border);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border);
   border-radius: var(--ant-border-radius);
   font-size: var(--ant-font-size);
   outline: none;
@@ -240,14 +241,14 @@
 
 .btnGroup {
   display: flex;
-  gap: 12px;
-  margin-top: 24px;
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 24);
 }
 
 /* 表格 */
 .tableWrap {
   overflow-x: auto;
-  margin-top: 16px;
+  margin-top: calc(var(--mk-unit) * 16);
 }
 
 .table {
@@ -257,17 +258,17 @@
 }
 
 .table th {
-  padding: 12px 16px;
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 16);
   background-color: var(--ant-color-bg-layout);
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   font-weight: 600;
   color: var(--ant-color-text-secondary);
   font-size: var(--ant-font-size-sm);
 }
 
 .table td {
-  padding: 16px;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  padding: calc(var(--mk-unit) * 16);
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   font-size: var(--ant-font-size);
   color: var(--ant-color-text);
 }
@@ -275,9 +276,9 @@
 /* 通知条目 */
 .notificationItem {
   display: flex;
-  gap: 16px;
-  padding: 16px;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
+  gap: calc(var(--mk-unit) * 16);
+  padding: calc(var(--mk-unit) * 16);
+  border-bottom: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   transition: background-color 0.2s;
 }
 
@@ -286,7 +287,7 @@
 }
 
 .notificationUnread {
-  border-left: 4px solid var(--ant-color-info);
+  border-left: calc(var(--mk-unit) * 4) solid var(--ant-color-info);
   background-color: var(--ant-color-info-bg);
 }
 
@@ -303,7 +304,7 @@
 .notificationTitle {
   font-weight: 600;
   color: var(--ant-color-text);
-  margin-bottom: 4px;
+  margin-bottom: calc(var(--mk-unit) * 4);
 }
 
 .notificationDesc {
@@ -315,7 +316,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
+  margin-top: calc(var(--mk-unit) * 8);
   font-size: var(--ant-font-size-sm);
   color: var(--ant-color-text-tertiary);
 }
@@ -324,15 +325,15 @@
 .filterRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: calc(var(--mk-unit) * 16);
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: calc(var(--mk-unit) * 24);
 }
 
 .flexAlignGap12 {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: calc(var(--mk-unit) * 12);
 }
 
 .marginLeftAuto {
@@ -340,34 +341,34 @@
 }
 
 .marginTop16 {
-  margin-top: 16px;
+  margin-top: calc(var(--mk-unit) * 16);
 }
 
 .marginBottom8 {
-  margin-bottom: 8px;
+  margin-bottom: calc(var(--mk-unit) * 8);
 }
 
 .marginBottom20 {
-  margin-bottom: 20px;
+  margin-bottom: calc(var(--mk-unit) * 20);
 }
 
-.pad4px8px {
-  padding: 4px 8px;
+.pad4pxcalc(var(--mk-unit) * 8) {
+  padding: calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 8);
 }
 
 .modalBodyText {
-  margin-bottom: 20px;
+  margin-bottom: calc(var(--mk-unit) * 20);
   font-size: var(--ant-font-size);
   color: var(--ant-color-text);
 }
 
 .opinionTextarea {
-  min-height: 80px;
+  min-height: calc(var(--mk-unit) * 80);
   font-family: sans-serif;
 }
 
-.padding6px12px {
-  padding: 6px 12px;
+.padding6pxcalc(var(--mk-unit) * 12) {
+  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 12);
 }
 
 .textSuccess {

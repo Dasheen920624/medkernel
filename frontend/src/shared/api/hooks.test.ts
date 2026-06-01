@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "./client";
 import {
   downloadPackageOfflineExport,
+  fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
+  saveThemePreference,
   saveExperienceViewSnapshot,
   submitLargeListExport,
 } from "./hooks";
@@ -137,5 +139,38 @@ describe("experience foundation api helpers", () => {
       }),
       { headers: { "Idempotency-Key": "idem-from-action" } },
     );
+  });
+
+  it("loads the authenticated user's theme preference", async () => {
+    const preference = {
+      mode: "elder",
+      version: 2,
+      updatedAt: "2026-06-01T00:00:00Z",
+      updatedBy: "doctor-1",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: preference } });
+
+    const result = await fetchThemePreference();
+
+    expect(result).toBe(preference);
+    expect(apiClient.get).toHaveBeenCalledWith("/experience/theme-preference");
+  });
+
+  it("saves only supported theme modes to the backend preference endpoint", async () => {
+    const preference = {
+      mode: "eye",
+      version: 3,
+      updatedAt: "2026-06-01T00:00:00Z",
+      updatedBy: "doctor-1",
+    };
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: preference } });
+
+    const result = await saveThemePreference("eye");
+
+    expect(result).toBe(preference);
+    expect(apiClient.put).toHaveBeenCalledWith("/experience/theme-preference", { mode: "eye" });
+
+    await expect(saveThemePreference("contrast" as never)).rejects.toThrow("主题模式");
+    expect(apiClient.put).toHaveBeenCalledTimes(1);
   });
 });
