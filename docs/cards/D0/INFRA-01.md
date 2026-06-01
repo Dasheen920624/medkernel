@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 no-page-mock 规则**：阻断 `MockAdapter`/`mock`/`fixture` 引入生产代码路径。
-- [ ] **FR-2 阻断绕门禁**：阻断模块顶 `/* eslint-disable medkernel/* */` + 函数包装绕 AST + camelCase 绕过（`Mock`→`mok`/`Demo`→`dem`）。
-- [ ] **FR-3 阻断写死医学常量**：字面量 `"高血压"/"糖尿病"/"DRUG-001"/"I10"/"E11"/"J18"/"肺炎"/"心梗"/"脑卒中"` 等（核心 #18）。
-- [ ] **FR-4 阻断技术对象裸露**：`font-mono` 类名 + `<pre>{JSON.stringify(...)}</pre>` 默认渲染 + 内联 `style={{color:'#xxx'}}`（核心 §14）。
-- [ ] **FR-5 stylelint 阻断**：`.module.css`/`.css` 含 hex/rgb/hsl 字面量 + `border-radius/font-size` px 字面量（与 [BASE-10](BASE-10.md) 联动）。
-- [ ] **FR-6 放行白名单**：静态 UI 文案常量 / 测试文件（`*.test.*`/`*.spec.*`）/ Storybook（`*.stories.*`）/ `theme.ts` 一处 token。
+- [x] **FR-1 no-page-mock 规则**：阻断 `MockAdapter`/`mock`/`fixture` 引入生产代码路径。
+- [x] **FR-2 阻断绕门禁**：阻断模块顶 `/* eslint-disable medkernel/* */` + 函数包装绕 AST + camelCase 绕过（`Mock`→`mok`/`Demo`→`dem`）。
+- [x] **FR-3 阻断写死医学常量**：字面量 `"高血压"/"糖尿病"/"DRUG-001"/"I10"/"E11"/"J18"/"肺炎"/"心梗"/"脑卒中"` 等（核心 #18）。
+- [x] **FR-4 阻断技术对象裸露**：`font-mono` 类名 + `<pre>{JSON.stringify(...)}</pre>` 默认渲染 + 内联 `style={{color:'#xxx'}}`（核心 §14）。
+- [x] **FR-5 stylelint 阻断**：`.module.css`/`.css` 含 hex/rgb/hsl 字面量 + `border-radius/font-size` px 字面量（与 [BASE-10](BASE-10.md) 联动）。
+- [x] **FR-6 放行白名单**：静态 UI 文案常量 / 测试文件（`*.test.*`/`*.spec.*`）/ Storybook（`*.stories.*`）/ `theme.ts` 一处 token。
 
 ## 接口契约 / 页面契约
 N·A —— 本卡是 ESLint/stylelint 规则 + CI 集成，无运行时接口/页面。
@@ -48,18 +48,20 @@ N·A —— 工程门禁不落库。
 - 本卡落点：可执行的 ESLint/stylelint 规则 + CI 阻断，把"前端不得假"从口号变成合不进去的硬墙。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：含 MockAdapter 或 `eslint-disable medkernel/no-page-mock` 的 PR 被 CI 拒；camelCase/函数包装绕过被捕获。
-- [ ] **AC-2（FR-3）**：写死 `"高血压"/"DRUG-001"` 的页面被拒。
-- [ ] **AC-3（FR-4）**：`<pre>{JSON.stringify}</pre>`/`font-mono`/内联 hex 被拒。
-- [ ] **AC-4（FR-5）**：`.module.css` 含 `#1565c0` 被 stylelint 拒。
-- [ ] **AC-5（FR-6）**：白名单（测试/storybook/静态文案/theme.ts）正常放行不误杀。
+- [x] **AC-1（FR-1/2）**：含 MockAdapter 或 `eslint-disable medkernel/no-page-mock` 的 PR 被 CI 拒；camelCase/函数包装绕过被捕获。
+- [x] **AC-2（FR-3）**：写死 `"高血压"/"DRUG-001"` 的页面被拒。
+- [x] **AC-3（FR-4）**：`<pre>{JSON.stringify}</pre>`/`font-mono`/内联 hex 被拒。
+- [x] **AC-4（FR-5）**：`.module.css` 含 `#1565c0` 被 stylelint 拒。
+- [x] **AC-5（FR-6）**：白名单（测试/storybook/静态文案/theme.ts）正常放行不误杀。
 - 关联 A1–A9：横切（所有页面真实性前提）。
 - T-GATE：本卡**即** T-GATE 前端半。
 - B0 验收：工程门禁，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`medkernel/no-page-mock` ESLint 规则 / stylelint 配置 / CI 集成 / 绕过用例测试。
-- 测试：阻断用例 + 绕过用例（eslint-disable/camelCase/函数包装）+ 白名单放行用例。
+- 代码 permalink：本 PR 覆盖 `frontend/eslint-rules/no-page-mock.js`、`frontend/eslint-rules/no-hardcoded-color.js`、`frontend/eslint-rules/no-page-mock.test.js`、`frontend/eslint-rules/no-visual-debt.test.js`、`frontend/stylelint.config.test.js`、`frontend/stylelint.config.mjs`、`frontend/package.json`、`.github/workflows/ci.yml`。
+- 测试：`cd frontend && npm run test:lint-rules` 通过，4/4；覆盖 mock/fixture/MockAdapter 引入、`eslint-disable medkernel/*` 绕门禁、`mok/demo/dem/fixture` 包装假数据、医学常量、`font-mono`、`<pre>{JSON.stringify(...)}</pre>`、JSX inline hex/style、stylelint hex/px 阻断和白名单放行。
+- 前端全量：`cd frontend && npm run verify` 通过；`36` 个 Vitest 文件、`157` 个测试通过；`npm run build` 通过。已有 React Router / Antd act / React Query / `vendor-antd` chunk 输出噪声登记为 [DEFER-003](../../audit/deferred-issues.md)，不写成已消除。
+- T-GATE：`node --test scripts/authenticity-guard.test.mjs` 20/20 通过；`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main` 通过；迁移规约测试 6/6 与 changed 扫描通过；配置边界测试 2/2 与 changed 扫描通过；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check origin/main...HEAD` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（2d，前端工程）
