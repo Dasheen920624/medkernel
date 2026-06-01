@@ -1,8 +1,17 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "antd";
 import { PageState } from "./PageState";
 import { PAGE_STATE_KINDS } from "./PageState.contract";
+
+const originalClipboard = navigator.clipboard;
+
+afterEach(() => {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: originalClipboard,
+  });
+});
 
 describe("PageState", () => {
   it("locks the exact six page states from the experience contract", () => {
@@ -29,8 +38,16 @@ describe("PageState", () => {
 
   it("renders error traceId and retry action", () => {
     const retry = vi.fn();
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: writeText.mockResolvedValue(undefined) },
+    });
+
     render(<PageState state="error" traceId="trace-001" onRetry={retry} />);
     expect(screen.getByText(/trace-001/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /复制 traceId/ }));
+    expect(writeText).toHaveBeenCalledWith("trace-001");
     screen.getByRole("button", { name: "重试" }).click();
     expect(retry).toHaveBeenCalledTimes(1);
   });

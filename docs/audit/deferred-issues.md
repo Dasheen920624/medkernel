@@ -25,7 +25,7 @@
 | ID | 问题 | 当前影响 | 当前是否阻塞 | 处理阶段 | 状态 | 关闭证据 |
 |---|---|---|---|---|---|---|
 | DEFER-001 | 达梦 / 人大金仓 + 国产 OS / JDK 真实运行环境适配 | 不影响当前 PostgreSQL + Oracle 范围、D0 收口和后续阶段领取；不得宣称国产化真实环境已通过 | 否 | D6 `DOMCHK-01` 页面真实探测；GA `QA-02` / `INFRA-10` 总验收 | open | 在真实国产化环境运行 `deploy/docker/scripts/govcloud-smoke.sh`，提交不含口令且 `status=PASS` 的 `govcloud-smoke-*.txt`、OS/JDK/JDBC 驱动 SHA-256、CI / 验收记录 |
-| DEFER-002 | 前端构建工具链依赖审计存在 7 个 moderate 级别告警（Vite / Vitest / esbuild 相关） | 不影响当前主线；本地测试、类型检查、lint、格式、构建和 T-GATE 需继续全绿。不得宣称依赖审计已清零 | 否 | INFRA 依赖治理专项；GA `INFRA-10` 总验收前 | open | 升级兼容的 `vite` / `vitest` / `@vitejs/plugin-react` / lockfile，重新提交 `npm audit --audit-level=moderate` 退出码 0、前端全量 `npm test` / `typecheck` / `lint` / `format:check` / `build` 证据 |
+| DEFER-002 | 前端构建工具链依赖审计存在 7 个告警（5 moderate + 2 critical，Vite / Vitest / esbuild 相关；`npm audit --audit-level=moderate` 复核） | 不影响当前主线；本地测试、类型检查、lint、格式、构建和 T-GATE 需继续全绿。不得宣称依赖审计已清零 | 否 | INFRA 依赖治理专项；GA `INFRA-10` 总验收前 | open | 升级兼容的 `vite` / `vitest` / `@vitejs/plugin-react` / lockfile，重新提交 `npm audit --audit-level=moderate` 退出码 0、前端全量 `npm test` / `typecheck` / `lint` / `format:check` / `build` 证据 |
 | DEFER-003 | 前端测试与构建输出存在非阻断噪声：React Router v7 future flag、Antd/rc-menu `act(...)`、React Query undefined 数据告警、`vendor-antd` chunk 大小提示 | 不影响当前主线；真实浏览器页面不得有运行时错误，当前告警不能被写成已消除 | 否 | INFRA-01 / SYS-07 / GA `INFRA-10` 体验与性能收口 | open | 启用或适配 Router future flags，修正测试 harness / React Query 默认数据，拆分或明确大 chunk 策略；前端全量测试与构建输出无该类告警，并附浏览器验收记录 |
 | DEFER-004 | 本机 in-app browser 截图能力调用 `Page.captureScreenshot` 超时 | 不影响当前 DOM / 交互 / 控制台验收；不得宣称已取得浏览器截图证据 | 否 | INFRA-10 工具链验收与本地浏览器插件核查 | open | 修复本机截图链路，或用 CI Playwright / 可复现浏览器截图命令提交 `/login`、`/bootstrap` 验收截图与命令日志 |
 

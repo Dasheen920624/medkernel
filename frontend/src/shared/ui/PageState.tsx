@@ -1,3 +1,4 @@
+import { CopyOutlined } from "@ant-design/icons";
 import { Button, Result, Space, Spin, Typography } from "antd";
 import type { ReactNode } from "react";
 import type { FailureDetail, NonReadyPageStateKind, PageStateKind } from "./PageState.contract";
@@ -40,6 +41,14 @@ const DEFAULT_DESCRIPTION: Record<NonReadyPageStateKind, ReactNode> = {
   forbidden: "该页面包含受控数据，请联系信息科主任调整角色或数据范围。",
   partial: "部分项目已完成，其余项目需要查看原因后重试或转人工处理。",
 };
+
+function copyTraceId(traceId: string) {
+  if (typeof navigator === "undefined") return;
+  const writeResult = navigator.clipboard?.writeText(traceId);
+  if (writeResult && typeof writeResult.catch === "function") {
+    void writeResult.catch(() => undefined);
+  }
+}
 
 export function PageState({
   state,
@@ -98,7 +107,20 @@ export function PageState({
         <>
           <div>{description ?? partialDescription ?? DEFAULT_DESCRIPTION[state]}</div>
           {partialDetails}
-          {traceId && <Text type="secondary">traceId: {traceId}</Text>}
+          {traceId && (
+            <Space size={8} wrap>
+              <Text type="secondary">traceId: {traceId}</Text>
+              <Button
+                aria-label={`复制 traceId ${traceId}`}
+                icon={<CopyOutlined />}
+                size="small"
+                type="link"
+                onClick={() => copyTraceId(traceId)}
+              >
+                复制 traceId
+              </Button>
+            </Space>
+          )}
         </>
       }
       extra={extra}
