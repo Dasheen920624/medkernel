@@ -1,6 +1,5 @@
 package com.medkernel.engine.security.auth;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
 
@@ -33,30 +32,31 @@ import com.medkernel.shared.context.RequestContext;
 @Profile({"dev", "test"})
 public class CredentialAdminService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final String PWD_ALPHABET =
-        "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#%";
-    private static final int TEMP_PWD_LEN = 12;
-
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
     private final PasswordEncoder passwordEncoder;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
     private final SystemSuperAdminGuard superAdminGuard;
+    private final PasswordPolicyService passwordPolicy;
+    private final LoginAttemptService loginAttempts;
 
     public CredentialAdminService(PlatformCredentialRepository credentials,
                                   UserRoleAssignmentRepository roleAssignments,
                                   PasswordEncoder passwordEncoder,
                                   AuditEventPublisher auditPublisher,
                                   IsolatedAuditPublisher isolatedAudit,
-                                  SystemSuperAdminGuard superAdminGuard) {
+                                  SystemSuperAdminGuard superAdminGuard,
+                                  PasswordPolicyService passwordPolicy,
+                                  LoginAttemptService loginAttempts) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
         this.superAdminGuard = superAdminGuard;
+        this.passwordPolicy = passwordPolicy;
+        this.loginAttempts = loginAttempts;
     }
 
     /** 列出当前租户全部成员账号摘要（不含口令哈希），按登录名升序。 */
@@ -81,7 +81,8 @@ public class CredentialAdminService {
         }
         String userId = req.userIdOrUsername();
         boolean generated = req.initialPassword() == null || req.initialPassword().isBlank();
-        String rawPassword = generated ? generatePassword() : req.initialPassword();
+        String rawPassword = generated ? passwordPolicy.generateTemporaryPassword() : req.initialPassword();
+        passwordPolicy.assertCompliant(rawPassword);
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
             null, "cred-" + userId, tenantId, userId, req.username(),
@@ -102,8 +103,9 @@ public class CredentialAdminService {
     public ResetPasswordResponse resetPassword(String userId) {
         PlatformCredential cred = find(userId);
         superAdminGuard.assertCredentialMutableByTenantManagement(cred.tenantId(), cred.userId());
-        String rawPassword = generatePassword();
+        String rawPassword = passwordPolicy.generateTemporaryPassword();
         Instant now = Instant.now();
+        loginAttempts.clearStateForCredential(cred, actor());
         credentials.save(rewrite(cred, passwordEncoder.encode(rawPassword), cred.status(), "Y", now, actor()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "重置成员密码");
         return new ResetPasswordResponse(rawPassword);
@@ -117,6 +119,7 @@ public class CredentialAdminService {
             superAdminGuard.assertCredentialMutableByTenantManagement(cred.tenantId(), cred.userId());
         }
         Instant now = Instant.now();
+        loginAttempts.clearStateForCredential(cred, actor());
         credentials.save(rewrite(cred, cred.passwordHash(), status, cred.mustChangePwd(), now, actor()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "更新账号状态 status=" + status);
     }
@@ -146,14 +149,6 @@ public class CredentialAdminService {
         return new PlatformCredential(
             c.id(), c.credentialId(), c.tenantId(), c.userId(), c.username(),
             hash, status, mustChangePwd, c.mfaSecret(), c.createdAt(), c.createdBy(), now, actor, c.traceId());
-    }
-
-    private String generatePassword() {
-        StringBuilder sb = new StringBuilder(TEMP_PWD_LEN);
-        for (int i = 0; i < TEMP_PWD_LEN; i++) {
-            sb.append(PWD_ALPHABET.charAt(RANDOM.nextInt(PWD_ALPHABET.length())));
-        }
-        return sb.toString();
     }
 
     private String tenantId() {

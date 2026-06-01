@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,6 +53,9 @@ class AuthControllerTest {
     PlatformCredentialRepository credentialRepository;
 
     @Autowired
+    LoginAttemptStateRepository loginAttemptRepository;
+
+    @Autowired
     UserRoleAssignmentRepository roleAssignmentRepository;
 
     @Autowired
@@ -72,12 +76,17 @@ class AuthControllerTest {
     private static final String SESSION_MAX_DURATION_KEY = "medkernel.auth.session.max-duration-seconds";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    private static final String LOGIN_MAX_FAILED_ATTEMPTS_KEY = "medkernel.auth.login.max-failed-attempts";
+    private static final String LOGIN_LOCKOUT_SECONDS_KEY = "medkernel.auth.login.lockout-seconds";
+    private static final String LOGIN_RATE_LIMIT_ATTEMPTS_KEY = "medkernel.auth.login.rate-limit-attempts";
+    private static final String LOGIN_RATE_LIMIT_WINDOW_SECONDS_KEY = "medkernel.auth.login.rate-limit-window-seconds";
     private static final String XSRF_COOKIE = "XSRF-TOKEN";
     private static final String XSRF_HEADER = "X-XSRF-TOKEN";
 
     @BeforeEach
     void setUp() {
         // 清理旧数据（保证幂等）
+        loginAttemptRepository.deleteAll();
         credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME)
             .ifPresent(c -> credentialRepository.delete(c));
 
@@ -103,6 +112,7 @@ class AuthControllerTest {
     @AfterEach
     void cleanUp() {
         // I2: 清理凭证
+        loginAttemptRepository.deleteAll();
         credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME)
             .ifPresent(c -> credentialRepository.delete(c));
         // I2: 对称清理角色分配
@@ -144,6 +154,10 @@ class AuthControllerTest {
                SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, JWT_TTL_KEY);
+        upsertConfig(LOGIN_MAX_FAILED_ATTEMPTS_KEY, "5");
+        upsertConfig(LOGIN_LOCKOUT_SECONDS_KEY, "900");
+        upsertConfig(LOGIN_RATE_LIMIT_ATTEMPTS_KEY, "10");
+        upsertConfig(LOGIN_RATE_LIMIT_WINDOW_SECONDS_KEY, "60");
         upsertAuthMode("PLATFORM");
     }
 
@@ -334,7 +348,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginDisabledCredentialUsesSameErrorCodeAsWrongPassword() throws Exception {
+    void loginDisabledCredentialReturnsAccountUnavailableError() throws Exception {
         PlatformCredential active = credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME).orElseThrow();
         credentialRepository.save(new PlatformCredential(
             active.id(), active.credentialId(), active.tenantId(), active.userId(), active.username(),
@@ -347,16 +361,93 @@ class AuthControllerTest {
         mvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-002"));
+    }
+
+    @Test
+    void loginWithMustChangePasswordCannotOpenBusinessApiBeforeChangingPassword() throws Exception {
+        PlatformCredential active = credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME).orElseThrow();
+        credentialRepository.save(new PlatformCredential(
+            active.id(), active.credentialId(), active.tenantId(), active.userId(), active.username(),
+            active.passwordHash(), active.status(), "Y", active.mfaSecret(),
+            active.createdAt(), active.createdBy(), Instant.now(), "test", active.traceId()));
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mustChangePwd").value(true))
+            .andReturn();
+
+        mvc.perform(get("/api/v1/security/menu-permissions/visible")
+                .cookie(login.getResponse().getCookie("mk_access")))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-015"));
+    }
+
+    @Test
+    void repeatedWrongPasswordLocksCredentialUsingConfigCenterThreshold() throws Exception {
+        upsertConfig(LOGIN_MAX_FAILED_ATTEMPTS_KEY, "2");
+        upsertConfig(LOGIN_LOCKOUT_SECONDS_KEY, "600");
+        upsertConfig(LOGIN_RATE_LIMIT_ATTEMPTS_KEY, "20");
+
+        var wrongPassword = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, "WrongPassword123", TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(wrongPassword))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("ENG-AUTH-001"));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(wrongPassword))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-002"));
+
+        assertThat(credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME).orElseThrow().status())
+            .isEqualTo("LOCKED");
+    }
+
+    @Test
+    void unknownUsernameFailuresAreRateLimitedWithoutCreatingCredential() throws Exception {
+        upsertConfig(LOGIN_MAX_FAILED_ATTEMPTS_KEY, "5");
+        upsertConfig(LOGIN_RATE_LIMIT_ATTEMPTS_KEY, "2");
+        upsertConfig(LOGIN_RATE_LIMIT_WINDOW_SECONDS_KEY, "60");
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest("nobody-xyz", "WrongPassword123", TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-001"));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code").value("ENG-API-008"));
+
+        assertThat(credentialRepository.findByTenantIdAndUsername(TENANT, "nobody-xyz")).isEmpty();
     }
 
     private void upsertAuthMode(String value) {
+        upsertConfig(AUTH_MODE_KEY, value);
+    }
+
+    private void upsertConfig(String key, String value) {
         int updated = jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = ?, source = 'YML_SEED', version = 1, updated_by = 'test'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
-            """, value, AUTH_MODE_KEY);
+            """, value, key);
         if (updated > 0) {
             return;
         }
@@ -366,10 +457,10 @@ class AuthControllerTest {
                 risk_level, owner, description, source, protected_flag, active_flag,
                 version, created_at, created_by, updated_at, updated_by
             ) VALUES (
-                'cfg-auth-mode-test', 'SYSTEM', ?, ?, 'STRING', '认证模式',
-                'HIGH', '安全组', '控制平台账号与院方统一身份认证模式。', 'YML_SEED', 'Y', 'Y',
+                ?, 'SYSTEM', ?, ?, 'STRING', '认证安全测试配置',
+                'HIGH', '安全组', '认证安全测试运行配置。', 'YML_SEED', 'Y', 'Y',
                 1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
             )
-            """, AUTH_MODE_KEY, value);
+            """, "cfg-test-" + key.replaceAll("[^a-zA-Z0-9]", "-"), key, value);
     }
 }

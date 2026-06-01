@@ -145,6 +145,41 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(sessionProperties.maxDurationSeconds()),
             "INTEGER", "最大会话时长", "HIGH", "安全组",
             "控制单次登录最多可滑动续期的总时长，超过后必须重新登录。", true, seededAt);
+        seedPasswordPolicy(seededAt);
+        seedLoginAttemptPolicy(seededAt);
+    }
+
+    private void seedPasswordPolicy(Instant seededAt) {
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "min-length", "12",
+            "INTEGER", "口令最小长度", "HIGH", "安全组",
+            "控制平台账号、自助改密和首发账号的最小口令长度。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-uppercase", "true",
+            "BOOLEAN", "口令必须包含大写字母", "HIGH", "安全组",
+            "控制平台账号口令是否必须包含至少一个大写字母。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-lowercase", "true",
+            "BOOLEAN", "口令必须包含小写字母", "HIGH", "安全组",
+            "控制平台账号口令是否必须包含至少一个小写字母。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-digit", "true",
+            "BOOLEAN", "口令必须包含数字", "HIGH", "安全组",
+            "控制平台账号口令是否必须包含至少一个数字。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-symbol", "true",
+            "BOOLEAN", "口令必须包含符号", "HIGH", "安全组",
+            "控制平台账号口令是否必须包含至少一个非字母数字符号。", true, seededAt);
+    }
+
+    private void seedLoginAttemptPolicy(Instant seededAt) {
+        seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "max-failed-attempts", "5",
+            "INTEGER", "连续失败锁定阈值", "HIGH", "安全组",
+            "控制同一平台凭证连续登录失败多少次后进入 LOCKED 状态。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "lockout-seconds", "900",
+            "INTEGER", "登录锁定窗口", "HIGH", "安全组",
+            "控制连续失败锁定的建议锁定秒数，解除需满足锁定窗口或管理员处理。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "rate-limit-attempts", "10",
+            "INTEGER", "登录限流阈值", "HIGH", "安全组",
+            "控制同一租户用户名在限流窗口内允许的失败次数，用于防爆破。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "rate-limit-window-seconds", "60",
+            "INTEGER", "登录限流窗口", "HIGH", "安全组",
+            "控制登录失败限流的统计时间窗口。", true, seededAt);
     }
 
     private void seedLoggingPolicy(Instant seededAt) {

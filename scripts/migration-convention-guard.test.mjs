@@ -113,6 +113,38 @@ test("SYS-05 系统任务表按权威卡允许使用 sys_task 表名", async () 
   );
 });
 
+test("AUTH-03 登录失败状态表按权威卡允许使用 sys_login_attempt 表名", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V45__credential_login_attempt.sql": `
+        CREATE TABLE sys_login_attempt (
+          id BIGSERIAL PRIMARY KEY,
+          attempt_id VARCHAR(64) NOT NULL,
+          tenant_id VARCHAR(64) NOT NULL,
+          username VARCHAR(128) NOT NULL,
+          failed_count INTEGER NOT NULL DEFAULT 0,
+          locked_until TIMESTAMPTZ,
+          CONSTRAINT uk_sys_login_attempt_tenant_user UNIQUE (tenant_id, username),
+          CONSTRAINT ck_sys_login_attempt_failed_count CHECK (failed_count >= 0)
+        );
+
+        CREATE INDEX idx_sys_login_attempt_locked_until
+          ON sys_login_attempt (tenant_id, locked_until);
+
+        COMMENT ON TABLE sys_login_attempt IS 'AUTH-03 登录失败计数与锁定限流状态表';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V45__credential_login_attempt.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
 test("DROP CONSTRAINT IF EXISTS 不会被误判为约束名 IF", async () => {
   await withFixture(
     {

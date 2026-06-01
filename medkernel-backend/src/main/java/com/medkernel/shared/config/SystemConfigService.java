@@ -41,6 +41,9 @@ public class SystemConfigService {
     public static final String AUTH_MODE_KEY = "medkernel.auth.mode";
     public static final String AUTH_COOKIE_PREFIX = "medkernel.auth.cookie.";
     public static final String AUTH_SESSION_PREFIX = "medkernel.auth.session.";
+    public static final String AUTH_PASSWORD_PREFIX = "medkernel.auth.password.";
+    private static final int MIN_STRONG_PASSWORD_LENGTH = 12;
+    public static final String AUTH_LOGIN_PREFIX = "medkernel.auth.login.";
     public static final String LOGGING_LEVEL_PREFIX = "medkernel.logging.level.";
     public static final String AUDIT_FALLBACK_PATH_KEY = "medkernel.audit.fallback.path";
     public static final String CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY =
@@ -179,6 +182,26 @@ public class SystemConfigService {
     public AuthMode runtimeAuthMode() {
         // 配置缺失时 readRuntimeStringConfig 返回 PLATFORM；若库内值被绕过 UI 写坏，解析失败按 DELEGATED 失败关闭。
         return AuthMode.parse(readRuntimeStringConfig(AUTH_MODE_KEY, AuthMode.PLATFORM.name()).value(), AuthMode.DELEGATED);
+    }
+
+    public AuthPasswordPolicy runtimeAuthPasswordPolicy() {
+        return new AuthPasswordPolicy(
+            safeMinInt(readRuntimeLongConfig(AUTH_PASSWORD_PREFIX + "min-length",
+                MIN_STRONG_PASSWORD_LENGTH).value(), MIN_STRONG_PASSWORD_LENGTH),
+            readRuntimeBooleanConfig(AUTH_PASSWORD_PREFIX + "require-uppercase", true).value(),
+            readRuntimeBooleanConfig(AUTH_PASSWORD_PREFIX + "require-lowercase", true).value(),
+            readRuntimeBooleanConfig(AUTH_PASSWORD_PREFIX + "require-digit", true).value(),
+            readRuntimeBooleanConfig(AUTH_PASSWORD_PREFIX + "require-symbol", true).value()
+        );
+    }
+
+    public AuthLoginPolicy runtimeAuthLoginPolicy() {
+        return new AuthLoginPolicy(
+            safeInt(readRuntimeLongConfig(AUTH_LOGIN_PREFIX + "max-failed-attempts", 5).value(), 5),
+            readRuntimeLongConfig(AUTH_LOGIN_PREFIX + "lockout-seconds", 900).value(),
+            safeInt(readRuntimeLongConfig(AUTH_LOGIN_PREFIX + "rate-limit-attempts", 10).value(), 10),
+            readRuntimeLongConfig(AUTH_LOGIN_PREFIX + "rate-limit-window-seconds", 60).value()
+        );
     }
 
     public AuthCookieProperties runtimeCookieProperties(AuthCookieProperties properties) {
@@ -323,6 +346,18 @@ public class SystemConfigService {
         }
         if (key != null && key.startsWith(LOGGING_LEVEL_PREFIX)) {
             RuntimeLogLevelManager.parseLogLevel(value);
+            return;
+        }
+        if (key != null && key.startsWith(AUTH_PASSWORD_PREFIX)) {
+            if (key.endsWith(".min-length")) {
+                validateMinLong(value, MIN_STRONG_PASSWORD_LENGTH, "密码最小长度不能低于 12 位");
+            } else {
+                validateBooleanText(value);
+            }
+            return;
+        }
+        if (key != null && key.startsWith(AUTH_LOGIN_PREFIX)) {
+            validatePositiveLong(value);
         }
     }
 
@@ -333,6 +368,13 @@ public class SystemConfigService {
             }
         } catch (NumberFormatException ex) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "数值配置必须是正整数");
+        }
+    }
+
+    private static void validateBooleanText(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!"true".equals(normalized) && !"false".equals(normalized)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "布尔配置仅允许 true 或 false");
         }
     }
 
@@ -492,6 +534,27 @@ public class SystemConfigService {
 
     private static String valueOrFallback(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static int safeInt(long value, int fallback) {
+        if (value <= 0 || value > Integer.MAX_VALUE) {
+            return fallback;
+        }
+        return (int) value;
+    }
+
+    private static int safeMinInt(long value, int minValue) {
+        if (value < minValue || value > Integer.MAX_VALUE) {
+            return minValue;
+        }
+        return (int) value;
+    }
+
+    private static void validateMinLong(String value, long minValue, String message) {
+        validatePositiveLong(value);
+        if (Long.parseLong(value.trim()) < minValue) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, message);
+        }
     }
 
     private void applyRuntimeSideEffect(SystemConfigItem item) {

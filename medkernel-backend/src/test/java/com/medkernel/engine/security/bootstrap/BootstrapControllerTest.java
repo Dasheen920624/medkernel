@@ -112,6 +112,18 @@ class BootstrapControllerTest {
             .andExpect(jsonPath("$.data.mfaBound").value(false))
             .andExpect(jsonPath("$.data.roles", contains("system-superadmin")));
 
+        mvc.perform(post("/api/v1/auth/change-password")
+                .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "oldPassword": "StrongPwd@2026",
+                      "newPassword": "StrongPwd@2026!"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
         mvc.perform(post("/api/v1/bootstrap/mfa")
                 .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
@@ -127,10 +139,11 @@ class BootstrapControllerTest {
                     {
                       "tenantId": "t-1",
                       "username": "platform-owner",
-                      "password": "StrongPwd@2026"
+                      "password": "StrongPwd@2026!"
                     }
                     """))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mustChangePwd").value(false))
             .andExpect(jsonPath("$.data.mfaRequired").value(true))
             .andExpect(jsonPath("$.data.mfaBound").value(true));
 
