@@ -271,6 +271,14 @@ export default function ConfigPackages() {
   const draftCount = displayPackages.filter((p) => p.status === "DRAFT").length;
   const offlineCount = displayPackages.filter((p) => p.status === "OFFLINE").length;
   const rollbackActionDisabled = !rollbackReason.trim() || !rollbackConfirmed;
+  const availableRollbackPackages = selectedPackage
+    ? displayPackages.filter(
+        (p) =>
+          p.packageId !== selectedPackageId &&
+          p.status === "OFFLINE" &&
+          p.packageCode === selectedPackage.packageCode,
+      )
+    : [];
 
   // 8. 表格列定义
   const columns = [
@@ -428,12 +436,12 @@ export default function ConfigPackages() {
         <Col span={6}>
           <div className="bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
             <Statistic
-              title={<span className="text-blue-600 font-medium">已发布离线 (PUBLISHED)</span>}
+              title={<span className="text-blue-600 font-medium">已发布待激活 (PUBLISHED)</span>}
               value={publishedCount}
               valueStyle={{ color: token.colorInfo, fontWeight: "bold", fontSize: "28px" }}
               prefix={<CloudSyncOutlined className="mr-2 text-blue-500" />}
             />
-            <div className="text-xs text-slate-400 mt-2">已投影成功，可供灰度或快速回退备用</div>
+            <div className="text-xs text-slate-400 mt-2">已投影成功，尚未成为历史回滚点</div>
           </div>
         </Col>
         <Col span={6}>
@@ -1172,7 +1180,7 @@ export default function ConfigPackages() {
                     历史版本点
                   </Tag>
                   <div className="text-xs text-slate-500 mt-2 font-medium">
-                    请在下方选择同一配置包编码下曾经成功发布过的版本
+                    请在下方选择同一配置包编码下曾经执行并已下线的历史版本
                   </div>
                 </Col>
               </Row>
@@ -1204,22 +1212,18 @@ export default function ConfigPackages() {
             <Card
               title={
                 <div className="font-semibold text-slate-700 text-xs">
-                  可供回退激活的发布历史版本库
+                  可供回退激活的已下线历史版本库
                 </div>
               }
               size="small"
               className="rounded-xl"
             >
               <Table
-                dataSource={displayPackages.filter(
-                  (p) =>
-                    p.packageId !== selectedPackageId &&
-                    p.status !== "DRAFT" &&
-                    p.packageCode === selectedPackage.packageCode,
-                )}
+                dataSource={availableRollbackPackages}
                 rowKey="packageId"
                 size="small"
                 pagination={false}
+                locale={{ emptyText: "暂无可回滚的已下线历史版本" }}
                 columns={[
                   {
                     title: "配置包版本",
@@ -1237,12 +1241,10 @@ export default function ConfigPackages() {
                     key: "name",
                   },
                   {
-                    title: "曾经状态",
+                    title: "历史状态",
                     dataIndex: "status",
                     key: "status",
-                    render: (status: string) => (
-                      <Tag color={status === "OFFLINE" ? "default" : "blue"}>{status}</Tag>
-                    ),
+                    render: () => <Tag color="default">已下线 (OFFLINE)</Tag>,
                   },
                   {
                     title: "操作",

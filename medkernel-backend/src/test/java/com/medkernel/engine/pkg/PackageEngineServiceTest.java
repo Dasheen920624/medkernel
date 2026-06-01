@@ -488,6 +488,32 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void rollbackPackageRejectsPublishedTargetAndKeepsStatus() {
+        KnowledgePackage currentActive = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        KnowledgePackage targetRollback = new KnowledgePackage(
+            2L, "pkg-2", "tenant-A", "PKG.COPD", "1.0.0", "从未激活的预发布包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+
+        PackageRollbackRequest request = new PackageRollbackRequest(
+            "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
+        );
+
+        assertThatThrownBy(() -> service.rollbackPackage("pkg-1", request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_002);
+
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+    }
+
+    @Test
     void rollbackPackageSwitchesActiveStatusAndRecordsAudit() {
         KnowledgePackage currentActive = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,

@@ -439,9 +439,8 @@ public class PackageEngineService {
 
         validateRollbackAssets(currentActive, targetRollback, rollbackRequest);
 
-        if (targetRollback.status() != KnowledgePackageStatus.PUBLISHED 
-            && targetRollback.status() != KnowledgePackageStatus.OFFLINE) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚目标包必须是曾经成功发布的包（PUBLISHED 或 OFFLINE）");
+        if (targetRollback.status() != KnowledgePackageStatus.OFFLINE) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚目标包必须是曾经执行并已下线的历史版本（OFFLINE）");
         }
 
         // 执行状态原子转换：隔离当前包，激活历史包
