@@ -1384,7 +1384,7 @@ flowchart TB
 | Patient | 主索引、人口学特征、特殊人群标记、过敏 | MPI、EMR、HIS |
 | Encounter | 就诊类型、入出院、科室、医生、床位 | HIS、EMR |
 | Condition | 诊断、疑似疾病、分期分型、主次诊断 | EMR、病案 |
-| Symptom/Sign | 症状、体征、严重程度、时间、否定语境 | 病历 NLP、结构化表单 |
+| NursingAssessment | 护理评估、风险等级、量表状态、评估时间 | 护理系统、结构化表单 |
 | Observation | 检验、生命体征、评分、危急值、单位 | LIS、监护、护理 |
 | DiagnosticReport | 检验、影像、超声、病理、内镜、心电/功能检查的已签发报告、结论、关键发现 | LIS、PACS/RIS、病理、内镜、心电系统 |
 | Medication | 用药、剂量、途径、频次、疗程、处方状态 | HIS、EMR、药事 |

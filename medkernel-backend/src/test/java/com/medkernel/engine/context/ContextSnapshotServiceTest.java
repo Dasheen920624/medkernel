@@ -3,6 +3,7 @@ package com.medkernel.engine.context;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -64,7 +65,7 @@ class ContextSnapshotServiceTest {
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         recorder = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
-        when(mapping.evaluate(anyString(), any())).thenReturn(Map.of());
+        when(mapping.evaluate(anyString(), anyList())).thenReturn(Map.of());
         ObjectMapper json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new ContextSnapshotService(snapshots, resources, idemRepo,
@@ -97,6 +98,27 @@ class ContextSnapshotServiceTest {
         verify(idemRepo, never()).save(any());
         verify(auditPublisher, times(1)).publish(
             eq(AuditAction.CREATE), eq("context_snapshot"), anyString(), anyString());
+    }
+
+    @Test
+    void shouldEvaluateTerminologyMappingWithTraceableCodeAnchors() {
+        when(mapping.evaluate(eq("tenant-A"), anyList()))
+            .thenReturn(Map.of("CONDITION:cond-1:code:I10", "UNKNOWN"));
+
+        ContextSnapshotResponse resp = service.create(requestWithCondition(), null);
+
+        assertThat(resp.mappingStatus()).containsEntry("CONDITION:cond-1:code:I10", "UNKNOWN");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ClinicalCodeMappingAnchor>> anchorsCap =
+            ArgumentCaptor.forClass((Class) List.class);
+        verify(mapping).evaluate(eq("tenant-A"), anchorsCap.capture());
+        assertThat(anchorsCap.getValue()).anySatisfy(anchor -> {
+            assertThat(anchor.resourceType()).isEqualTo(CanonicalResourceType.CONDITION);
+            assertThat(anchor.resourceId()).isEqualTo("cond-1");
+            assertThat(anchor.fieldName()).isEqualTo("code");
+            assertThat(anchor.localCode()).isEqualTo("I10");
+            assertThat(anchor.targetDictionaryKey()).isEqualTo("TERM.DIAGNOSIS");
+        });
     }
 
     @Test
@@ -295,6 +317,19 @@ class ContextSnapshotServiceTest {
 
     private ContextSnapshotRequest sampleRequest() {
         return ContextSnapshotServiceFixtures.sampleRequest();
+    }
+
+    private ContextSnapshotRequest requestWithCondition() {
+        var now = Instant.parse("2026-06-01T01:00:00Z");
+        var resources = new ContextSnapshotResources(
+            ContextSnapshotServiceFixtures.validResources().patient(),
+            ContextSnapshotServiceFixtures.validResources().encounters(),
+            List.of(new com.medkernel.engine.context.canonical.CanonicalCondition(
+                "cond-1", "I10", "ICD-10", "原发性高血压",
+                "ACTIVE", "HIGH", "HIS", "cond-rec-1", "v1", now, now, QualityStatus.VALID)),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        return new ContextSnapshotRequest("MPI-1", "ENC-1", "ORG-1",
+            "kpv-1", "rpv-1", "ppv-1", resources);
     }
 
     private ContextSnapshotResources validResources() {

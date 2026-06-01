@@ -27,17 +27,23 @@ public class ClinicalEventProcessor {
     private final AuditEventPublisher auditPublisher;
     private final StateTransitionRecorder transitions;
     private final ApplicationEventPublisher applicationEvents;
+    private final ClinicalEventContextFactory contextFactory;
+    private final ClinicalEventEngineDispatcher engineDispatcher;
 
     public ClinicalEventProcessor(ClinicalEventRepository events,
                                   ClinicalEventPayloadRepository payloads,
                                   AuditEventPublisher auditPublisher,
                                   StateTransitionRecorder transitions,
-                                  ApplicationEventPublisher applicationEvents) {
+                                  ApplicationEventPublisher applicationEvents,
+                                  ClinicalEventContextFactory contextFactory,
+                                  ClinicalEventEngineDispatcher engineDispatcher) {
         this.events = events;
         this.payloads = payloads;
         this.auditPublisher = auditPublisher;
         this.transitions = transitions;
         this.applicationEvents = applicationEvents;
+        this.contextFactory = contextFactory;
+        this.engineDispatcher = engineDispatcher;
     }
 
     @Transactional
@@ -45,7 +51,7 @@ public class ClinicalEventProcessor {
         ClinicalEvent event = events.findByEventIdAndTenantId(eventId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVENT_003,
                 "临床事件不存在: " + eventId));
-        payloads.findByEventIdAndTenantId(eventId, tenantId)
+        ClinicalEventPayload payload = payloads.findByEventIdAndTenantId(eventId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_OBS_001,
                 "事件 payload 不存在: " + eventId));
 
@@ -59,16 +65,19 @@ public class ClinicalEventProcessor {
             event.processingStatus().name(), ClinicalEventStatus.MAPPED.name(),
             "TERMINOLOGY_OK", null);
 
+        ClinicalEventContext context = contextFactory.from(mapped, payload);
+        engineDispatcher.dispatch(context);
+
         ClinicalEvent processed = withStatus(mapped, ClinicalEventStatus.PROCESSED);
         events.save(processed);
         transitions.record(ENTITY_TYPE, eventId,
             ClinicalEventStatus.MAPPED.name(), ClinicalEventStatus.PROCESSED.name(),
-            "RULES_OK", null);
+            "ENGINES_OK", null);
 
         auditPublisher.publish(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
             "处理临床事件成功 type=" + event.eventType());
         applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
-            eventId, tenantId, event.traceId()));
+            eventId, tenantId, event.traceId(), context));
     }
 
     @Transactional
@@ -77,6 +86,7 @@ public class ClinicalEventProcessor {
         events.findByEventIdAndTenantId(eventId, tenantId).ifPresent(event -> {
             ClinicalEvent failed = new ClinicalEvent(
                 event.id(), event.eventId(), event.tenantId(), event.eventType(),
+                event.orgScopeJson(),
                 event.patientId(), event.encounterId(), event.sourceSystem(), event.packageVersion(),
                 event.payloadDigest(), event.occurredAt(), event.receivedAt(), event.snapshotId(),
                 ClinicalEventStatus.FAILED, errorCode.code(), errorCode.errorClass().name(),
@@ -95,6 +105,7 @@ public class ClinicalEventProcessor {
     private ClinicalEvent withStatus(ClinicalEvent source, ClinicalEventStatus status) {
         return new ClinicalEvent(
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
+            source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             status, null, null, source.retryCount(), source.rootEventId(), source.traceId());

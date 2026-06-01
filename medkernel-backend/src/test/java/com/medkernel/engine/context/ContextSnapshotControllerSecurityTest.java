@@ -38,7 +38,7 @@ class ContextSnapshotControllerSecurityTest {
         + "\"knowledgePackageVersion\":\"kpv-1\",\"rulePackageVersion\":\"rpv-1\","
         + "\"pathwayPackageVersion\":\"ppv-1\","
         + "\"resources\":{\"patient\":null,\"encounters\":[],\"conditions\":[],"
-        + "\"symptoms\":[],\"observations\":[],\"diagnosticReports\":[],"
+        + "\"nursingAssessments\":[],\"observations\":[],\"diagnosticReports\":[],"
         + "\"medications\":[],\"procedures\":[],\"documents\":[],"
         + "\"carePlans\":[],\"followUps\":[],\"claims\":[]}}";
 

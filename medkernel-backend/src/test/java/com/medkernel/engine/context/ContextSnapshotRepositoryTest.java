@@ -138,6 +138,7 @@ class ContextSnapshotRepositoryTest {
     void shouldFindClinicalEventByEventIdAndTenant() {
         ClinicalEvent saved = events.save(new ClinicalEvent(
             null, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
+            "{\"tenantId\":\"tenant-A\"}",
             "patient-1", "enc-1", "HIS", "kpv-1", "digest-x", Instant.now(), Instant.now(), null,
             ClinicalEventStatus.RECEIVED, null, null, 0, null, "trace-1"));
         assertThat(saved.id()).isNotNull();

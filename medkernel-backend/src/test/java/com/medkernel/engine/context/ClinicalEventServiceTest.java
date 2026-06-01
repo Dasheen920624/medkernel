@@ -67,7 +67,9 @@ class ClinicalEventServiceTest {
         when(outbox.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-event", OrgScope.tenant("tenant-A"), "tester"));
+            "trace-event",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            "tester"));
     }
 
     @AfterEach
@@ -105,6 +107,8 @@ class ClinicalEventServiceTest {
         assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(eventCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(eventCap.getValue().encounterId()).isEqualTo("ENC-1");
+        assertThat(eventCap.getValue().orgScopeJson()).contains("\"tenantId\":\"tenant-A\"");
+        assertThat(eventCap.getValue().orgScopeJson()).contains("\"departmentId\":\"dept-A\"");
         assertThat(eventCap.getValue().processingStatus()).isEqualTo(ClinicalEventStatus.RECEIVED);
         assertThat(eventCap.getValue().traceId()).isEqualTo("trace-event");
 
@@ -233,6 +237,7 @@ class ClinicalEventServiceTest {
     private ClinicalEvent existingEvent(String eventId, ClinicalEventStatus status, String digest) {
         return new ClinicalEvent(
             1L, eventId, "tenant-A", ClinicalEventType.DIAGNOSIS,
+            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
             "MPI-1", "ENC-1", "HIS", "kpv-1", digest,
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-event");

@@ -64,7 +64,8 @@ class MigrationBaselineContractTest {
         "V35__experience_user_preference.sql",
         "V36__bootstrap_init_token.sql",
         "V37__large_list_audit_event_indexes.sql",
-        "V38__standard_clinical_model.sql"
+        "V38__standard_clinical_model.sql",
+        "V39__clinical_event_context_scope.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",

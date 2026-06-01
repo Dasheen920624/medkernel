@@ -6,5 +6,6 @@ package com.medkernel.engine.context;
 public record ClinicalEventProcessedEvent(
     String eventId,
     String tenantId,
-    String traceId
+    String traceId,
+    ClinicalEventContext context
 ) {}
