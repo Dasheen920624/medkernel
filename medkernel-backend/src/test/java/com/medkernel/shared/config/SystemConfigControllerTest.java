@@ -51,6 +51,7 @@ class SystemConfigControllerTest {
     private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    private static final String AUTH_PASSWORD_MIN_LENGTH_KEY = "medkernel.auth.password.min-length";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
@@ -127,6 +128,11 @@ class SystemConfigControllerTest {
                SET config_value = 'PLATFORM', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, AUTH_MODE_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '12', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, AUTH_PASSWORD_MIN_LENGTH_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -240,6 +246,23 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.code").value("ENG-API-002"));
 
         assertThat(configValue(AUTH_MODE_KEY)).isEqualTo("PLATFORM");
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void passwordMinLengthCannotBeWeakenedBelowStrongBaseline() throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", AUTH_PASSWORD_MIN_LENGTH_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "8",
+                      "reason": "验证强密码最小长度不能降级"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+
+        assertThat(configValue(AUTH_PASSWORD_MIN_LENGTH_KEY)).isEqualTo("12");
     }
 
     @Test

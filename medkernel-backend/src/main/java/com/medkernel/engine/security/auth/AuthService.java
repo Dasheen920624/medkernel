@@ -32,6 +32,8 @@ public class AuthService {
     private final IsolatedAuditPublisher isolatedAudit;
     private final AuditEventPublisher auditPublisher;
     private final SystemConfigService configService;
+    private final LoginAttemptService loginAttempts;
+    private final PasswordPolicyService passwordPolicy;
     private final String dummyHash;
 
     public AuthService(PlatformCredentialRepository credentials,
@@ -40,7 +42,9 @@ public class AuthService {
                        AuthSessionService sessionService,
                        IsolatedAuditPublisher isolatedAudit,
                        AuditEventPublisher auditPublisher,
-                       SystemConfigService configService) {
+                       SystemConfigService configService,
+                       LoginAttemptService loginAttempts,
+                       PasswordPolicyService passwordPolicy) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
@@ -48,6 +52,8 @@ public class AuthService {
         this.isolatedAudit = isolatedAudit;
         this.auditPublisher = auditPublisher;
         this.configService = configService;
+        this.loginAttempts = loginAttempts;
+        this.passwordPolicy = passwordPolicy;
         this.dummyHash = passwordEncoder.encode("__medkernel_dummy_account__");
     }
 
@@ -59,21 +65,31 @@ public class AuthService {
             throw new ApiException(ErrorCode.ENG_AUTH_013);
         }
         PlatformCredential cred = credentials.findByTenantIdAndUsername(tenantId, username).orElse(null);
+        if (cred != null) {
+            cred = loginAttempts.unlockExpiredAutoLock(cred);
+        }
         // C1: 无论用户是否存在都跑一次 BCrypt，拉平 timing 防枚举
         String hashToCompare = (cred != null) ? cred.passwordHash() : dummyHash;
         boolean passwordMatches = passwordEncoder.matches(rawPassword, hashToCompare);
         if (cred == null || !passwordMatches) {
+            LoginAttemptService.FailureOutcome outcome = loginAttempts.recordFailure(tenantId, username, cred);
+            ErrorCode errorCode = switch (outcome) {
+                case LOCKED -> ErrorCode.ENG_AUTH_002;
+                case RATE_LIMITED -> ErrorCode.TOO_MANY_REQUESTS;
+                case FAILED -> ErrorCode.ENG_AUTH_001;
+            };
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.LOGIN, "platform_credential", username,
-                ErrorCode.ENG_AUTH_001.code(), "登录失败：用户名或密码不正确 username=" + username));
-            throw new ApiException(ErrorCode.ENG_AUTH_001);
+                errorCode.code(), "登录失败：用户名或密码不正确 username=" + username));
+            throw new ApiException(errorCode);
         }
         if (!cred.active()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.LOGIN, "platform_credential", cred.userId(),
-                ErrorCode.ENG_AUTH_001.code(), "登录失败：账号不可用 userId=" + cred.userId()));
-            throw new ApiException(ErrorCode.ENG_AUTH_001);
+                ErrorCode.ENG_AUTH_002.code(), "登录失败：账号不可用 userId=" + cred.userId()));
+            throw new ApiException(ErrorCode.ENG_AUTH_002);
         }
+        loginAttempts.resetOnSuccess(tenantId, username);
         List<String> roles = roleAssignments
             .findActiveByTenantIdAndUserId(tenantId, cred.userId())
             .stream().map(UserRoleAssignment::roleCode).distinct().toList();
@@ -105,6 +121,7 @@ public class AuthService {
                 ErrorCode.ENG_AUTH_004.code(), "改密失败：原密码不正确 userId=" + userId));
             throw new ApiException(ErrorCode.ENG_AUTH_004);
         }
+        passwordPolicy.assertCompliant(newPassword);
         java.time.Instant now = java.time.Instant.now();
         credentials.save(new PlatformCredential(
             cred.id(), cred.credentialId(), cred.tenantId(), cred.userId(), cred.username(),

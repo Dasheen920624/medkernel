@@ -74,7 +74,7 @@ class TenantProvisioningControllerTest {
         mvc.perform(post("/api/v1/admin/tenants").with(platformAdmin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"tenantId\":\"t-hosp2\",\"tenantName\":\"测试医院2\","
-                    + "\"adminUsername\":\"hosp2admin\",\"adminInitialPassword\":\"Init@1234\"}"))
+                    + "\"adminUsername\":\"hosp2admin\",\"adminInitialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.tenantId").value("t-hosp2"))
             .andExpect(jsonPath("$.data.adminUsername").value("hosp2admin"));
@@ -88,7 +88,7 @@ class TenantProvisioningControllerTest {
         // 新租户管理员可在 t-hosp2 登录（验证跨租户链路 + 角色）
         mvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"hosp2admin\",\"password\":\"Init@1234\",\"tenantId\":\"t-hosp2\"}"))
+                .content("{\"username\":\"hosp2admin\",\"password\":\"Init@2026Pass!\",\"tenantId\":\"t-hosp2\"}"))
             .andExpect(status().isOk())
             .andExpect(cookie().httpOnly("mk_access", true))
             .andExpect(jsonPath("$.data.tenantId").value("t-hosp2"))

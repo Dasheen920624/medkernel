@@ -1,6 +1,5 @@
 package com.medkernel.engine.security.auth;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
 
@@ -9,7 +8,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
@@ -26,6 +24,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -38,11 +37,6 @@ import com.medkernel.shared.context.RequestContext;
 @Profile({"dev", "test"})
 public class TenantProvisioningService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final String PWD_ALPHABET =
-        "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#%";
-    private static final int TEMP_PWD_LEN = 12;
-
     private final OrgUnitRepository orgUnits;
     private final OrgHierarchyRepository orgHierarchy;
     private final PlatformCredentialRepository credentials;
@@ -51,6 +45,7 @@ public class TenantProvisioningService {
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
     private final MfaPolicyService mfaPolicyService;
+    private final PasswordPolicyService passwordPolicy;
 
     public TenantProvisioningService(OrgUnitRepository orgUnits,
                                      OrgHierarchyRepository orgHierarchy,
@@ -59,7 +54,8 @@ public class TenantProvisioningService {
                                      PasswordEncoder passwordEncoder,
                                      AuditEventPublisher auditPublisher,
                                      IsolatedAuditPublisher isolatedAudit,
-                                     MfaPolicyService mfaPolicyService) {
+                                     MfaPolicyService mfaPolicyService,
+                                     PasswordPolicyService passwordPolicy) {
         this.orgUnits = orgUnits;
         this.orgHierarchy = orgHierarchy;
         this.credentials = credentials;
@@ -68,6 +64,7 @@ public class TenantProvisioningService {
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
         this.mfaPolicyService = mfaPolicyService;
+        this.passwordPolicy = passwordPolicy;
     }
 
     /** 列出所有租户（根组织），平台视角。 */
@@ -99,7 +96,8 @@ public class TenantProvisioningService {
 
         String adminUserId = req.adminUsername();
         boolean generated = req.adminInitialPassword() == null || req.adminInitialPassword().isBlank();
-        String rawPassword = generated ? generatePassword() : req.adminInitialPassword();
+        String rawPassword = generated ? passwordPolicy.generateTemporaryPassword() : req.adminInitialPassword();
+        passwordPolicy.assertCompliant(rawPassword);
         credentials.save(new PlatformCredential(
             null, "cred-" + tenantId + "-" + adminUserId, tenantId, adminUserId, req.adminUsername(),
             passwordEncoder.encode(rawPassword), "ACTIVE", "Y", null,
@@ -112,14 +110,6 @@ public class TenantProvisioningService {
             "开通租户 " + tenantId + " 首个管理员 " + req.adminUsername());
         return new ProvisionTenantResponse(
             tenantId, adminUserId, req.adminUsername(), generated ? rawPassword : null);
-    }
-
-    private String generatePassword() {
-        StringBuilder sb = new StringBuilder(TEMP_PWD_LEN);
-        for (int i = 0; i < TEMP_PWD_LEN; i++) {
-            sb.append(PWD_ALPHABET.charAt(RANDOM.nextInt(PWD_ALPHABET.length())));
-        }
-        return sb.toString();
     }
 
     private String actor() {

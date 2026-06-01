@@ -70,7 +70,8 @@ class MigrationBaselineContractTest {
         "V41__runtime_task_framework.sql",
         "V42__runtime_task_retry_dead_letter.sql",
         "V43__menu_permission_granularity.sql",
-        "V44__system_superadmin_seed.sql"
+        "V44__system_superadmin_seed.sql",
+        "V45__credential_login_attempt.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -97,7 +98,7 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential",
+        "platform_credential", "sys_login_attempt",
         "emergency_permission_grant",
         "sys_idempotency",
         "sys_task", "sys_task_dead_letter",
@@ -176,7 +177,7 @@ class MigrationBaselineContractTest {
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
-        "idx_platform_credential_login",
+        "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
         "idx_sys_idempotency_expiry",
         "idx_sys_task_status_ts", "idx_sys_task_mode_ts", "idx_sys_task_org_ts",
@@ -284,6 +285,7 @@ class MigrationBaselineContractTest {
         "uk_mpi_patient_id",
         "uk_platform_credential_id", "uk_platform_credential_username",
         "ck_platform_credential_status", "ck_platform_credential_mustchg",
+        "uk_sys_login_attempt_id", "uk_sys_login_attempt_tenant_user", "ck_sys_login_attempt_failed_count",
         "ck_emergency_permission_code", "ck_emergency_permission_active",
         "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
         "uk_sys_task_tenant_task", "ck_sys_task_mode", "ck_sys_task_status",
@@ -326,7 +328,7 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential",
+        "platform_credential", "sys_login_attempt",
         "emergency_permission_grant",
         "sys_idempotency",
         "sys_task", "sys_task_dead_letter",
@@ -358,7 +360,7 @@ class MigrationBaselineContractTest {
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient",
-        "platform_credential",
+        "platform_credential", "sys_login_attempt",
         "emergency_permission_grant",
         "sys_task", "sys_task_dead_letter",
         "mk_config_item",
@@ -381,6 +383,7 @@ class MigrationBaselineContractTest {
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
         Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
         Map.entry("sys_task_dead_letter", Set.of("trace_id", "replayed_at")),
+        Map.entry("sys_login_attempt", Set.of("trace_id")),
         Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
         Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id"))
     );

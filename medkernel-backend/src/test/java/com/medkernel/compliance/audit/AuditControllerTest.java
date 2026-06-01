@@ -143,7 +143,7 @@ class AuditControllerTest {
                 .param("outcome", "FAILED")
                 .param("superAdminOnly", "true")
                 .with(jwt().jwt(token -> token
-                    .subject("audit-1")
+                    .subject("audit-controller-reader")
                     .claim("tenant_id", "t-1")
                     .claim("roles", List.of("audit-compliance")))
                     .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
@@ -170,7 +170,7 @@ class AuditControllerTest {
 
         mvc.perform(post("/api/v1/compliance/audit/settings/validate")
                 .with(jwt().jwt(token -> token
-                    .subject("platform-admin-1")
+                    .subject("audit-controller-platform-admin")
                     .claim("tenant_id", "t-1")
                     .claim("roles", List.of("platform-admin")))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))

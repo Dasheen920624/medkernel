@@ -16,6 +16,7 @@ import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -37,9 +38,11 @@ class CredentialAdminControllerTest {
     @Autowired MockMvc mvc;
     @Autowired PlatformCredentialRepository credentials;
     @Autowired UserRoleAssignmentRepository roleAssignments;
+    @Autowired LoginAttemptStateRepository loginAttempts;
 
     @AfterEach
     void cleanUp() {
+        loginAttempts.deleteAll();
         credentials.deleteAll();
         roleAssignments.deleteAll();
     }
@@ -88,7 +91,7 @@ class CredentialAdminControllerTest {
     void resetPassword_returnsNewTempPassword() throws Exception {
         mvc.perform(post("/api/v1/admin/credentials").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@1234\"}"))
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk());
 
         mvc.perform(post("/api/v1/admin/credentials/{userId}/reset-password", "drwang").with(admin()))
@@ -100,7 +103,7 @@ class CredentialAdminControllerTest {
     void setStatus_disablesAccount() throws Exception {
         mvc.perform(post("/api/v1/admin/credentials").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@1234\"}"))
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk());
 
         mvc.perform(patch("/api/v1/admin/credentials/{userId}/status", "drwang").with(admin())
@@ -109,6 +112,60 @@ class CredentialAdminControllerTest {
 
         mvc.perform(get("/api/v1/admin/credentials").with(admin()))
             .andExpect(jsonPath("$.data[0].status").value("DISABLED"));
+    }
+
+    @Test
+    void setStatusRejectsMissingStatusBeforePersistence() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/v1/admin/credentials/{userId}/status", "drwang").with(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+
+        assertThat(credentials.findByTenantIdAndUsername("t-1", "drwang").orElseThrow().status())
+            .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void manualLockedStatusIsNotAutoUnlockedByExpiredLoginAttemptState() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        var credential = credentials.findByTenantIdAndUsername("t-1", "drwang").orElseThrow();
+        Instant now = Instant.now();
+        loginAttempts.save(new LoginAttemptState(
+            null,
+            "lat-expired-manual-lock",
+            "t-1",
+            "drwang",
+            credential.credentialId(),
+            5,
+            now.minusSeconds(1),
+            now.minusSeconds(60),
+            now.minusSeconds(60),
+            "test",
+            now.minusSeconds(60),
+            "test",
+            "trace-manual-lock"));
+
+        mvc.perform(patch("/api/v1/admin/credentials/{userId}/status", "drwang").with(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"LOCKED\"}"))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":\"t-1\",\"username\":\"drwang\",\"password\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-002"));
+
+        assertThat(credentials.findByTenantIdAndUsername("t-1", "drwang").orElseThrow().status())
+            .isEqualTo("LOCKED");
     }
 
     @Test
@@ -124,7 +181,7 @@ class CredentialAdminControllerTest {
     void setStatusCannotDisableSystemSuperAdmin() throws Exception {
         mvc.perform(post("/api/v1/admin/credentials").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@1234\"}"))
+                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk());
         Instant now = Instant.now();
         roleAssignments.save(new UserRoleAssignment(
@@ -141,7 +198,7 @@ class CredentialAdminControllerTest {
     void resetPasswordCannotEditSystemSuperAdmin() throws Exception {
         mvc.perform(post("/api/v1/admin/credentials").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@1234\"}"))
+                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk());
         Instant now = Instant.now();
         roleAssignments.save(new UserRoleAssignment(
@@ -157,21 +214,38 @@ class CredentialAdminControllerTest {
     void changePassword_wrongOldRejected_thenSuccessClearsMustChange() throws Exception {
         mvc.perform(post("/api/v1/admin/credentials").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@1234\"}"))
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
             .andExpect(status().isOk());
 
         mvc.perform(post("/api/v1/auth/change-password").with(member("drwang"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"oldPassword\":\"WRONG\",\"newPassword\":\"NewPwd@123\"}"))
+                .content("{\"oldPassword\":\"WRONG\",\"newPassword\":\"NewPwd@2026!\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-AUTH-004"));
 
         mvc.perform(post("/api/v1/auth/change-password").with(member("drwang"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"oldPassword\":\"Init@1234\",\"newPassword\":\"NewPwd@123\"}"))
+                .content("{\"oldPassword\":\"Init@2026Pass!\",\"newPassword\":\"NewPwd@2026!\"}"))
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/admin/credentials").with(admin()))
             .andExpect(jsonPath("$.data[0].mustChangePwd").value(false));
+    }
+
+    @Test
+    void changePassword_rejectsWeakNewPasswordByRuntimePolicy() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/auth/change-password").with(member("drwang"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"oldPassword\":\"Init@2026Pass!\",\"newPassword\":\"weakpassword123\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("PWD_POLICY_VIOLATION"));
+
+        mvc.perform(get("/api/v1/admin/credentials").with(admin()))
+            .andExpect(jsonPath("$.data[0].mustChangePwd").value(true));
     }
 }

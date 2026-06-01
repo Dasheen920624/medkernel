@@ -12,6 +12,7 @@ import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.auth.PasswordPolicyService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -34,19 +35,22 @@ public class BootstrapIdentityService {
     private final PasswordEncoder passwordEncoder;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final PasswordPolicyService passwordPolicy;
 
     public BootstrapIdentityService(BootstrapInitTokenService tokenService,
                                     PlatformCredentialRepository credentials,
                                     UserRoleAssignmentRepository roleAssignments,
                                     PasswordEncoder passwordEncoder,
                                     AuditEventPublisher auditPublisher,
-                                    IsolatedAuditPublisher isolatedAudit) {
+                                    IsolatedAuditPublisher isolatedAudit,
+                                    PasswordPolicyService passwordPolicy) {
         this.tokenService = tokenService;
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
+        this.passwordPolicy = passwordPolicy;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +69,7 @@ public class BootstrapIdentityService {
                 ErrorCode.ENG_AUTH_006.code(), "首次接管失败：用户名已存在 " + username));
             throw new ApiException(ErrorCode.ENG_AUTH_006);
         }
+        passwordPolicy.assertCompliant(request.password());
 
         tokenService.consume(request.token(), username, TRACE_ID);
         Instant now = Instant.now();
