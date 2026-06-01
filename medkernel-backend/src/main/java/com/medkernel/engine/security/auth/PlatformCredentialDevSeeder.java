@@ -6,7 +6,6 @@ import java.util.Map;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.engine.security.PlatformCredential;
@@ -43,14 +42,14 @@ public class PlatformCredentialDevSeeder implements ApplicationRunner {
 
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
-    private final PasswordEncoder encoder;
+    private final CredentialPasswordService credentialPasswords;
 
     public PlatformCredentialDevSeeder(PlatformCredentialRepository credentials,
                                        UserRoleAssignmentRepository roleAssignments,
-                                       PasswordEncoder encoder) {
+                                       CredentialPasswordService credentialPasswords) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
-        this.encoder = encoder;
+        this.credentialPasswords = credentialPasswords;
     }
 
     @Override
@@ -61,7 +60,7 @@ public class PlatformCredentialDevSeeder implements ApplicationRunner {
             String roleCode = ur[1];
             if (credentials.findByTenantIdAndUsername(TENANT, username).isEmpty()) {
                 credentials.save(new PlatformCredential(null, "cred-" + userId, TENANT, userId, username,
-                    encoder.encode(DEV_PASSWORD), "ACTIVE", "Y", null,
+                    credentialPasswords.encode(DEV_PASSWORD), "ACTIVE", "Y", null,
                     now, "dev-seeder", now, "dev-seeder", "seed"));
             }
             boolean hasRole = roleAssignments.findActiveByTenantIdAndUserId(TENANT, userId)

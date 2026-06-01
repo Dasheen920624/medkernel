@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
@@ -43,6 +44,8 @@ class BootstrapControllerTest {
     @Autowired PlatformCredentialRepository credentialRepository;
     @Autowired UserRoleAssignmentRepository roleAssignmentRepository;
     @Autowired PasswordEncoder passwordEncoder;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired TotpService totpService;
 
     @AfterEach
     void cleanUp() {
@@ -124,11 +127,33 @@ class BootstrapControllerTest {
                     """))
             .andExpect(status().isOk());
 
-        mvc.perform(post("/api/v1/bootstrap/mfa")
+        var setup = mvc.perform(post("/api/v1/bootstrap/mfa")
                 .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"label\":\"首发管理员\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaBound").value(false))
+            .andExpect(jsonPath("$.data.secret").isNotEmpty())
+            .andExpect(jsonPath("$.data.otpauthUri").isNotEmpty())
+            .andExpect(jsonPath("$.data.recoveryCode").doesNotExist())
+            .andReturn();
+        String secret = objectMapper.readTree(setup.getResponse().getContentAsByteArray())
+            .at("/data/secret")
+            .asText();
+        String code = totpService.codeAt(secret, java.time.Instant.now());
+
+        mvc.perform(post("/api/v1/bootstrap/mfa")
+                .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "label": "首发管理员",
+                      "secret": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(secret, code)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mfaBound").value(true))
             .andExpect(jsonPath("$.data.recoveryCode").isNotEmpty());
@@ -170,6 +195,49 @@ class BootstrapControllerTest {
                 .content("{\"token\":\"expired-init-token\"}"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("ENG-AUTH-008"));
+    }
+
+    @Test
+    void authMfaEndpointsBindAndVerifyTotpCode() throws Exception {
+        java.time.Instant now = java.time.Instant.now();
+        credentialRepository.save(new PlatformCredential(
+            null, "cred-mfa-user", "t-1", "mfa-user", "mfa-user",
+            passwordEncoder.encode("StrongPwd@2026!"), "ACTIVE", "N", null,
+            now, "test", now, "test", "trace-mfa"));
+
+        var setup = mvc.perform(post("/api/v1/auth/mfa/bind")
+                .with(jwt().jwt(t -> t.subject("mfa-user").claim("tenant_id", "t-1")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"label\":\"mfa-user\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaBound").value(false))
+            .andExpect(jsonPath("$.data.secret").isNotEmpty())
+            .andReturn();
+        String secret = objectMapper.readTree(setup.getResponse().getContentAsByteArray())
+            .at("/data/secret")
+            .asText();
+        String code = totpService.codeAt(secret, java.time.Instant.now());
+
+        mvc.perform(post("/api/v1/auth/mfa/bind")
+                .with(jwt().jwt(t -> t.subject("mfa-user").claim("tenant_id", "t-1")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "label": "mfa-user",
+                      "secret": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(secret, code)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaBound").value(true))
+            .andExpect(jsonPath("$.data.recoveryCode").isNotEmpty());
+
+        mvc.perform(post("/api/v1/auth/mfa/verify")
+                .with(jwt().jwt(t -> t.subject("mfa-user").claim("tenant_id", "t-1")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"%s\"}".formatted(code)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.verified").value(true));
     }
 
     @Test

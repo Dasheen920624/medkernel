@@ -8,10 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
@@ -36,15 +38,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CredentialAdminControllerTest {
 
     @Autowired MockMvc mvc;
+    @Autowired ObjectMapper objectMapper;
+    @Autowired JdbcTemplate jdbcTemplate;
     @Autowired PlatformCredentialRepository credentials;
     @Autowired UserRoleAssignmentRepository roleAssignments;
     @Autowired LoginAttemptStateRepository loginAttempts;
+
+    private static final String PASSWORD_HASH_ALGORITHM_KEY = "medkernel.auth.password.hash-algorithm";
 
     @AfterEach
     void cleanUp() {
         loginAttempts.deleteAll();
         credentials.deleteAll();
         roleAssignments.deleteAll();
+        upsertConfig(PASSWORD_HASH_ALGORITHM_KEY, "BCRYPT");
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin() {
@@ -97,6 +104,68 @@ class CredentialAdminControllerTest {
         mvc.perform(post("/api/v1/admin/credentials/{userId}/reset-password", "drwang").with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.tempPassword", not(emptyOrNullString())));
+    }
+
+    @Test
+    void createMemberUsesSm3HashWhenConfiguredInConfigCenter() throws Exception {
+        upsertConfig(PASSWORD_HASH_ALGORITHM_KEY, "SM3");
+
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        assertThat(credentials.findByTenantIdAndUsername("t-1", "drwang").orElseThrow().passwordHash())
+            .startsWith("sm3:v1:");
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":\"t-1\",\"username\":\"drwang\",\"password\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mustChangePwd").value(true));
+    }
+
+    @Test
+    void resetPasswordTokenIsOneTimeAndForcesChangePassword() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"drwang\",\"initialPassword\":\"Init@2026Pass!\"}"))
+            .andExpect(status().isOk());
+
+        var issued = mvc.perform(post("/api/v1/admin/credentials/{userId}/reset-password-token", "drwang")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.resetToken", not(emptyOrNullString())))
+            .andExpect(jsonPath("$.data.expiresAt").exists())
+            .andReturn();
+        String token = objectMapper.readTree(issued.getResponse().getContentAsByteArray())
+            .at("/data/resetToken")
+            .asText();
+
+        String resetBody = """
+            {
+              "tenantId": "t-1",
+              "username": "drwang",
+              "token": "%s",
+              "newPassword": "ResetPwd@2026!"
+            }
+            """.formatted(token);
+        mvc.perform(post("/api/v1/auth/password-reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(resetBody))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/auth/password-reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(resetBody))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-016"));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":\"t-1\",\"username\":\"drwang\",\"password\":\"ResetPwd@2026!\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mustChangePwd").value(true));
     }
 
     @Test
@@ -247,5 +316,27 @@ class CredentialAdminControllerTest {
 
         mvc.perform(get("/api/v1/admin/credentials").with(admin()))
             .andExpect(jsonPath("$.data[0].mustChangePwd").value(true));
+    }
+
+    private void upsertConfig(String key, String value) {
+        int updated = jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?, source = 'YML_SEED', version = 1, updated_by = 'test'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, value, key);
+        if (updated > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, description, source, protected_flag, active_flag,
+                version, created_at, created_by, updated_at, updated_by
+            ) VALUES (
+                ?, 'SYSTEM', ?, ?, 'STRING', '口令哈希算法',
+                'HIGH', '安全组', '控制平台账号口令哈希算法。', 'YML_SEED', 'Y', 'Y',
+                1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
+            )
+            """, "cfg-test-" + key.replaceAll("[^a-zA-Z0-9]", "-"), key, value);
     }
 }

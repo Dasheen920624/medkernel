@@ -20,14 +20,14 @@
 
 - [x] **FR-1 首登强制改密**：`must_change_pwd=Y` → 强制改密才进系统（呼应 [BASE-11](BASE-11.md) 首发引导）。
 - [x] **FR-2 自助改密**：登入用户自助改本人密码（既有 #147）；强密码策略（长度/复杂度，经 [CONFIG-01](CONFIG-01.md) 配置外置）。
-- [ ] **FR-3 MFA 启用**：基于 [AUTH-01](AUTH-01.md) `mfa_secret` 机制，TOTP 绑定/校验；超管/种子身份**强制**（[SUPERADMIN-01](SUPERADMIN-01.md)/[BASE-11](BASE-11.md) 消费本机制，核心 #20）。
+- [x] **FR-3 MFA 启用**：基于 [AUTH-01](AUTH-01.md) `mfa_secret` 机制，TOTP 绑定/校验；超管/种子身份**强制**（[SUPERADMIN-01](SUPERADMIN-01.md)/[BASE-11](BASE-11.md) 消费本机制，核心 #20）。
 - [x] **FR-4 失败锁定 + 限流**：连续失败锁定凭证（status=LOCKED）+ 登录限流（防爆破），阈值配置外置（[CONFIG-01](CONFIG-01.md)）。
-- [ ] **FR-5 国密口令**：口令哈希支持国密 SM3（国产化合规，核心 #1）；BCrypt 为基线、国密为国产化形态可切。
-- [ ] **FR-6 忘记密码/重置**：受控重置（管理员重置或邮箱/短信验证，全程审计 [BASE-04](BASE-04.md)），重置后强制改密。
+- [x] **FR-5 国密口令**：口令哈希支持国密 SM3（国产化合规，核心 #1）；BCrypt 为基线、国密为国产化形态可切。
+- [x] **FR-6 忘记密码/重置**：受控重置（管理员重置或邮箱/短信验证，全程审计 [BASE-04](BASE-04.md)），重置后强制改密。
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：`POST /auth/change-password`（自助改密）· `POST /auth/mfa/bind` `POST /auth/mfa/verify`（MFA）· `POST /auth/password-reset`（受控重置）。
+- 端点：`POST /api/v1/auth/change-password`（自助改密）· `POST /api/v1/auth/mfa/bind` `POST /api/v1/auth/mfa/verify`（MFA）· `POST /api/v1/auth/password-reset`（受控重置）· `POST /api/v1/admin/credentials/{userId}/reset-password-token`（管理员签发一次性重置 token）。
 - DTO：改密/MFA/重置 Record + Bean Validation（强密码规则）。
 - 响应信封：`ApiResult` / `ProblemDetail`（`ENG-AUTH-LOCKED`/`PWD_POLICY_VIOLATION`）。
 - 状态机：N·A —— 凭证 status（ACTIVE/DISABLED/LOCKED）非四资产类。
@@ -38,7 +38,7 @@
 - 主按钮 ≤1：每步单主按钮。
 
 ## 数据与迁移
-- 表族：复用 [AUTH-01](AUTH-01.md) `platform_credential`（must_change_pwd/mfa_secret/status）；`sys_login_attempt`（失败计数/锁定/限流）。
+- 表族：复用 [AUTH-01](AUTH-01.md) `platform_credential`（must_change_pwd/mfa_secret/status）；`sys_login_attempt`（失败计数/锁定/限流）；`sys_password_reset_token`（一次性重置 token 摘要、过期、使用状态与审计）。
 - 主键：ULID；索引：`(tenant_id, username)`、`locked_until`。
 - 安全：MFA secret 加密；国密 SM3 口令哈希（国产化）；重置 token 一次性 hash 存。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释。
@@ -62,10 +62,10 @@
 
 ## 验收 + 验证
 - [x] **AC-1（FR-1/2）**：`must_change_pwd=Y` 用户登入强制改密才放行；自助改密生效，弱密码被强密码策略拒。
-- [ ] **AC-2（FR-3）**：MFA 绑定后校验生效；超管/种子未绑 MFA 不得执行高危动作（[SUPERADMIN-01](SUPERADMIN-01.md)/[BASE-11](BASE-11.md)）。
+- [x] **AC-2（FR-3）**：MFA 绑定后校验生效；超管/种子未绑 MFA 不得执行高危动作（[SUPERADMIN-01](SUPERADMIN-01.md)/[BASE-11](BASE-11.md)）。
 - [x] **AC-3（FR-4）**：连续失败达阈值 → 凭证 LOCKED + 限流；阈值从 [CONFIG-01](CONFIG-01.md) 改即生效。
-- [ ] **AC-4（FR-5）**：国产化形态下国密 SM3 口令哈希生效（可切 BCrypt/SM3）。
-- [ ] **AC-5（FR-6）**：受控重置走审计 + 重置后强制改密；重置 token 一次性。
+- [x] **AC-4（FR-5）**：国产化形态下国密 SM3 口令哈希生效（可切 BCrypt/SM3）。
+- [x] **AC-5（FR-6）**：受控重置走审计 + 重置后强制改密；重置 token 一次性。
 - 关联 A1–A9：A6 合规运维（口令安全 + 审计）。
 - T-GATE：后端门禁全绿（真实锁定/限流，无伪造）。
 - B0 验收：纯确定性，天然 B0。
@@ -74,6 +74,8 @@
 - 代码 permalink：自助改密/MFA/重置端点 · 失败锁定限流 · 国密 SM3 口令 · `sys_login_attempt` 迁移 · 审计。
 - 测试：首登改密拦截 · 强密码策略 · MFA 绑定校验 · 失败锁定限流 · 国密口令切换 · 重置受控审计。
 - PR1 证据：`AuthControllerTest` 覆盖首登强制改密、登录失败锁定与未知账号限流；`CredentialAdminControllerTest` 覆盖弱密码拒绝、手动锁定不被过期自动锁误解锁、状态空值后端校验；`SystemConfigControllerTest` 覆盖密码最小长度不可降到 12 以下；`FlywayMultiDialectSmokeTest` / 后端全量测试覆盖 H2 / PostgreSQL / Oracle 迁移到 V45。
+- PR2 本地证据：TDD 红灯先暴露旧恢复码假 MFA、SM3 配置未生效、重置 token 端点缺失；`MfaPolicyServiceTest` / `BootstrapControllerTest` / `CredentialAdminControllerTest` 覆盖 TOTP setup→verify、旧 `mfa_secret` 摘要拒绝、SM3 新哈希切换、一次性重置 token 消费后不可复用且强制改密；`MigrationBaselineContractTest` / `H2BaselineMigrationTest` 覆盖 V46 `sys_password_reset_token` 与索引约束；`mvn -B -q test` 退出 0，覆盖 H2 / PostgreSQL 15.18 / Oracle 21.3 到 V46 且重复迁移幂等。
+- PR2 T-GATE：`node --test scripts/authenticity-guard.test.mjs` 21/21、`node --test scripts/migration-convention-guard.test.mjs` 8/8、`node --test scripts/config-boundary-guard.test.mjs` 2/2、`scripts/check-comment-zh.sh --mode=full` 退出 0（V46 三个生产方言均 OK）、`git diff --check` 退出 0；工作区显式扫描与提交后 changed 扫描均 0 阻断（真实性 28 文件 / 迁移 5 文件 / 配置 29 文件）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（4d，后端 + 少量前端弹窗）

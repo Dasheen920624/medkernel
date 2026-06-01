@@ -15,6 +15,7 @@ import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -39,6 +40,7 @@ class TenantProvisioningControllerTest {
     @Autowired OrgUnitRepository orgUnits;
     @Autowired PlatformCredentialRepository credentials;
     @Autowired UserRoleAssignmentRepository roleAssignments;
+    @Autowired MfaSecretCodec mfaSecretCodec;
 
     @BeforeEach
     void seedPlatformAdminMfa() {
@@ -46,7 +48,7 @@ class TenantProvisioningControllerTest {
             java.time.Instant now = java.time.Instant.now();
             credentials.save(new PlatformCredential(
                 null, "cred-platform-admin-1", "t-1", "platform-admin-1", "platform-admin",
-                "$2a$10$hash", "ACTIVE", "N", "sha256-mfa-recovery-code",
+                "$2a$10$hash", "ACTIVE", "N", mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
                 now, "test", now, "test", "trace-test"));
         }
     }

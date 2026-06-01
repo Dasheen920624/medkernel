@@ -20,17 +20,26 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.crypto.SmCryptoService;
+import com.medkernel.shared.security.JwtSecretResolver;
 
 class MfaPolicyServiceTest {
 
     private PlatformCredentialRepository credentials;
     private MfaPolicyService service;
+    private TotpService totpService;
+    private MfaSecretCodec secretCodec;
     private AtomicReference<PlatformCredential> saved;
 
     @BeforeEach
     void setUp() {
         credentials = mock(PlatformCredentialRepository.class);
-        service = new MfaPolicyService(credentials);
+        totpService = new TotpService();
+        JwtSecretResolver secretResolver = mock(JwtSecretResolver.class);
+        when(secretResolver.resolve()).thenReturn("medkernel-test-secret-for-mfa-32-bytes");
+        SmCryptoService crypto = new SmCryptoService();
+        secretCodec = new MfaSecretCodec(crypto, secretResolver);
+        service = new MfaPolicyService(credentials, totpService, secretCodec);
         saved = new AtomicReference<>();
         when(credentials.save(any())).thenAnswer(inv -> {
             PlatformCredential credential = inv.getArgument(0);
@@ -57,23 +66,52 @@ class MfaPolicyServiceTest {
     }
 
     @Test
-    void highRiskActionAllowsCurrentUserWithMfa() {
+    void highRiskActionRejectsLegacyRecoveryHashWithoutTotpSecret() {
         when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
             .thenReturn(Optional.of(credential("sha256-mfa-recovery-code")));
+
+        assertThatThrownBy(() -> service.assertHighRiskAllowed("system_config", "medkernel.auth.jwt.ttl-seconds"))
+            .isInstanceOfSatisfying(ApiException.class, e ->
+                assertThat(e.errorCode()).isEqualTo(ErrorCode.ENG_AUTH_010));
+    }
+
+    @Test
+    void highRiskActionAllowsCurrentUserWithMfa() {
+        String secret = totpService.generateSecret();
+        String stored = secretCodec.encode(secret, "Recovery@2026");
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential(stored)));
 
         service.assertHighRiskAllowed("system_config", "medkernel.auth.jwt.ttl-seconds");
     }
 
     @Test
-    void bindForCurrentUserStoresOnlyRecoveryCodeHash() {
+    void bindForCurrentUserDoesNotMarkMfaBoundBeforeTotpCodeIsVerified() {
         when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
             .thenReturn(Optional.of(credential(null)));
 
         BootstrapMfaResponse response = service.bindForCurrentUser(new BootstrapMfaRequest("首发管理员"));
 
+        assertThat(response.mfaBound()).isFalse();
+        assertThat(response.recoveryCode()).isNull();
+        assertThat(saved.get()).isNull();
+    }
+
+    @Test
+    void bindForCurrentUserStoresEncryptedTotpSecretAfterVerifiedCode() {
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential(null)));
+        String secret = totpService.generateSecret();
+        String code = totpService.codeAt(secret, Instant.now());
+
+        BootstrapMfaResponse response =
+            service.bindForCurrentUser(new BootstrapMfaRequest("首发管理员", secret, code));
+
         assertThat(response.mfaBound()).isTrue();
         assertThat(response.recoveryCode()).isNotBlank();
-        assertThat(saved.get().mfaSecret()).hasSize(64).doesNotContain(response.recoveryCode());
+        assertThat(saved.get().mfaSecret()).startsWith("totp:v1:");
+        assertThat(saved.get().mfaSecret()).doesNotContain(secret, response.recoveryCode());
+        assertThat(secretCodec.decodeTotpSecret(saved.get().mfaSecret())).contains(secret);
     }
 
     private PlatformCredential credential(String mfaSecret) {

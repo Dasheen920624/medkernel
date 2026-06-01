@@ -144,6 +144,7 @@ public enum ErrorCode {
     ENG_AUTH_013("ENG-AUTH-013", 403, "当前认证模式不允许平台账号登录，请使用院方统一身份入口", ErrorClass.AUTH, false),
     ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份尚未接入，无法完成委托登录", ErrorClass.EXTERNAL, true),
     ENG_AUTH_015("ENG-AUTH-015", 403, "必须先完成初始密码修改", ErrorClass.AUTH, false),
+    ENG_AUTH_016("ENG-AUTH-016", 401, "密码重置 token 无效或已使用", ErrorClass.AUTH, false),
     PWD_POLICY_VIOLATION("PWD_POLICY_VIOLATION", 400, "新密码不符合强密码策略", ErrorClass.INPUT, false),
     SUPERADMIN_IMMUTABLE("SUPERADMIN_IMMUTABLE", 403, "内置超级管理员不可降权、删除或移出超管组", ErrorClass.AUTH, false),
     ENG_TENANT_001("ENG-TENANT-001", 409, "租户已存在，无法重复开通", ErrorClass.DATA, false),

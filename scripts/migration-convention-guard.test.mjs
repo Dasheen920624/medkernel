@@ -145,6 +145,40 @@ test("AUTH-03 登录失败状态表按权威卡允许使用 sys_login_attempt �
   );
 });
 
+test("AUTH-03 密码重置 token 表按权威卡允许使用 sys_password_reset_token 表名", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V46__auth_mfa_sm3_reset.sql": `
+        CREATE TABLE sys_password_reset_token (
+          id BIGSERIAL PRIMARY KEY,
+          reset_id VARCHAR(64) NOT NULL,
+          tenant_id VARCHAR(64) NOT NULL,
+          user_id VARCHAR(64) NOT NULL,
+          token_hash VARCHAR(128) NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT uk_password_reset_token_id UNIQUE (reset_id),
+          CONSTRAINT ck_password_reset_token_expiry CHECK (expires_at > created_at)
+        );
+
+        CREATE INDEX idx_pwd_reset_token_lookup
+          ON sys_password_reset_token (tenant_id, user_id, token_hash, used_at);
+
+        COMMENT ON TABLE sys_password_reset_token IS 'AUTH-03 受控密码重置一次性 token 表';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V46__auth_mfa_sm3_reset.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
 test("DROP CONSTRAINT IF EXISTS 不会被误判为约束名 IF", async () => {
   await withFixture(
     {

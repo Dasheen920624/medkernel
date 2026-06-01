@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +40,7 @@ public class TenantProvisioningService {
     private final OrgHierarchyRepository orgHierarchy;
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
-    private final PasswordEncoder passwordEncoder;
+    private final CredentialPasswordService credentialPasswords;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
     private final MfaPolicyService mfaPolicyService;
@@ -51,7 +50,7 @@ public class TenantProvisioningService {
                                      OrgHierarchyRepository orgHierarchy,
                                      PlatformCredentialRepository credentials,
                                      UserRoleAssignmentRepository roleAssignments,
-                                     PasswordEncoder passwordEncoder,
+                                     CredentialPasswordService credentialPasswords,
                                      AuditEventPublisher auditPublisher,
                                      IsolatedAuditPublisher isolatedAudit,
                                      MfaPolicyService mfaPolicyService,
@@ -60,7 +59,7 @@ public class TenantProvisioningService {
         this.orgHierarchy = orgHierarchy;
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
-        this.passwordEncoder = passwordEncoder;
+        this.credentialPasswords = credentialPasswords;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
         this.mfaPolicyService = mfaPolicyService;
@@ -100,7 +99,7 @@ public class TenantProvisioningService {
         passwordPolicy.assertCompliant(rawPassword);
         credentials.save(new PlatformCredential(
             null, "cred-" + tenantId + "-" + adminUserId, tenantId, adminUserId, req.adminUsername(),
-            passwordEncoder.encode(rawPassword), "ACTIVE", "Y", null,
+            credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
         roleAssignments.save(new UserRoleAssignment(
             null, tenantId, adminUserId, RoleCode.HOSPITAL_ADMIN.code(), "TENANT", tenantId, "Y",

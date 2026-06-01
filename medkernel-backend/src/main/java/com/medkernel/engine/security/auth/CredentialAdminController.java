@@ -56,6 +56,13 @@ public class CredentialAdminController {
         return ApiResult.ok(service.resetPassword(userId));
     }
 
+    /** 发放一次性受控重置 token（明文仅返回一次）。 */
+    @PostMapping("/{userId}/reset-password-token")
+    @PreAuthorize("@perm.has('org.write')")
+    public ApiResult<PasswordResetTokenResponse> issueResetToken(@PathVariable String userId) {
+        return ApiResult.ok(service.issueResetToken(userId));
+    }
+
     /** 启用 / 停用 / 锁定成员账号。 */
     @PatchMapping("/{userId}/status")
     @PreAuthorize("@perm.has('org.write')")

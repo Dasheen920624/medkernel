@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,29 +33,32 @@ public class CredentialAdminService {
 
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
-    private final PasswordEncoder passwordEncoder;
+    private final CredentialPasswordService credentialPasswords;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
     private final SystemSuperAdminGuard superAdminGuard;
     private final PasswordPolicyService passwordPolicy;
     private final LoginAttemptService loginAttempts;
+    private final PasswordResetService passwordResetService;
 
     public CredentialAdminService(PlatformCredentialRepository credentials,
                                   UserRoleAssignmentRepository roleAssignments,
-                                  PasswordEncoder passwordEncoder,
+                                  CredentialPasswordService credentialPasswords,
                                   AuditEventPublisher auditPublisher,
                                   IsolatedAuditPublisher isolatedAudit,
                                   SystemSuperAdminGuard superAdminGuard,
                                   PasswordPolicyService passwordPolicy,
-                                  LoginAttemptService loginAttempts) {
+                                  LoginAttemptService loginAttempts,
+                                  PasswordResetService passwordResetService) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
-        this.passwordEncoder = passwordEncoder;
+        this.credentialPasswords = credentialPasswords;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
         this.superAdminGuard = superAdminGuard;
         this.passwordPolicy = passwordPolicy;
         this.loginAttempts = loginAttempts;
+        this.passwordResetService = passwordResetService;
     }
 
     /** 列出当前租户全部成员账号摘要（不含口令哈希），按登录名升序。 */
@@ -86,7 +88,7 @@ public class CredentialAdminService {
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
             null, "cred-" + userId, tenantId, userId, req.username(),
-            passwordEncoder.encode(rawPassword), "ACTIVE", "Y", null,
+            credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
         String roleCode = normalizedRoleCode(req.roleCode());
         if (roleCode != null && !hasRole(tenantId, userId, roleCode)) {
@@ -106,9 +108,17 @@ public class CredentialAdminService {
         String rawPassword = passwordPolicy.generateTemporaryPassword();
         Instant now = Instant.now();
         loginAttempts.clearStateForCredential(cred, actor());
-        credentials.save(rewrite(cred, passwordEncoder.encode(rawPassword), cred.status(), "Y", now, actor()));
+        credentials.save(rewrite(cred, credentialPasswords.encode(rawPassword), cred.status(), "Y", now, actor()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "重置成员密码");
         return new ResetPasswordResponse(rawPassword);
+    }
+
+    /** 发放受控重置 token，token 明文仅本次返回。 */
+    @Transactional
+    public PasswordResetTokenResponse issueResetToken(String userId) {
+        PlatformCredential cred = find(userId);
+        superAdminGuard.assertCredentialMutableByTenantManagement(cred.tenantId(), cred.userId());
+        return passwordResetService.issue(cred, actor(), traceId());
     }
 
     /** 启用 / 停用 / 锁定成员账号。 */

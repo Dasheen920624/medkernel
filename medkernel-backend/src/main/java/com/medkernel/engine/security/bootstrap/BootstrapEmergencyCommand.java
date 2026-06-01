@@ -1,9 +1,7 @@
 package com.medkernel.engine.security.bootstrap;
 
 import java.io.PrintStream;
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
@@ -26,7 +24,6 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
 
     private static final String OPTION_COMMAND = "bootstrap-emergency";
     private static final String LOCAL_CONFIRM = "MEDKERNEL_LOCAL_CONSOLE";
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final PlatformCredentialRepository credentials;
     private final AuditEventPublisher auditPublisher;
@@ -69,16 +66,15 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
     private void resetMfa(ApplicationArguments args, String tenantId, String userId, String actor, String reason) {
         assertSecondConfirmed(args, "RESET_MFA:" + userId);
         PlatformCredential credential = find(tenantId, userId);
-        String recoveryCode = generateRecoveryCode();
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
             credential.id(), credential.credentialId(), credential.tenantId(), credential.userId(),
             credential.username(), credential.passwordHash(), credential.status(), credential.mustChangePwd(),
-            BootstrapInitTokenService.sha256(recoveryCode), credential.createdAt(), credential.createdBy(),
+            null, credential.createdAt(), credential.createdBy(),
             now, actor, credential.traceId()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId,
             "应急重置 MFA actor=" + actor + " reason=" + reason);
-        output.println("bootstrap-emergency=mfa-reset userId=" + userId + " recoveryCode=" + recoveryCode);
+        output.println("bootstrap-emergency=mfa-reset userId=" + userId + " mfaStatus=RESET_REQUIRED");
     }
 
     private void unlock(ApplicationArguments args, String tenantId, String userId, String actor, String reason) {
@@ -128,9 +124,4 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
         return values.get(0);
     }
 
-    private String generateRecoveryCode() {
-        byte[] bytes = new byte[18];
-        RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
 }
