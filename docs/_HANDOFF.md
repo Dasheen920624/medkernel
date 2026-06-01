@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 配置包离线资产内容迁移契约 PR16 🚧
+### 线 1 · BASE-09 最终净化报告与验收收口 PR17 🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-offline-asset-content
-- 目标：完成 BASE-09 第十六批净化：把 PR14/PR15 的离线配置包从“元数据 + 条目绑定”推进到真实资产内容快照契约，先覆盖规则与评估指标，导出时带内容摘要，导入时验签、落真实资产或校验本地一致性；未支持资产类型必须诚实拒绝，不做引用式假迁移。
-- 状态：基于 `origin/main@235f2ff` 开工。已完成绿色基线、后端 TDD 红绿、完整本地验证、T-GATE 与浏览器验收：`PackageEngineServiceTest` 先因缺少 `RuleVersionRepository` / `assetSnapshots` 能力失败，随后实现 `RULE` / `EVALUATION` 内容快照导出、`contentSha256` 校验、导入新资产落库、本地已有资产一致性校验、非法资产时间格式标准 API 错误；后端全量、前端目标 / 全量、typecheck、build、lint、format、真实性 inventory、脚本门禁和 `git diff --check` 均已通过；浏览器完成登录页暗黑主题切换、真实登录、配置包中心创建本地草案、导入弹窗空态提示、错误日志 0，并用本地接口补验离线导出 JSON 含 `assetSnapshots` 与 `assetSnapshotCount`。
-- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 远端 CI 8/8 通过后 squash 合并；3. 回到最新 `origin/main` 并清理 worktree / 分支；4. 继续 BASE-09 域级验收残留和最终净化报告。
-- 相关文件 / 测试 / 坑：本批只支持 `RULE` 与 `EVALUATION` 完整内容快照；`PATHWAY` / `TERMINOLOGY` / `KNOWLEDGE` / `FOLLOWUP` 暂无完整内容迁移契约时必须抛 `ENG_PACKAGE_002`，不得退回“只绑定条目”的假成功；后续 AI 继续遵守纯净代码原则，不得恢复引用式假迁移、旧 `totalCount` 兼容层、默认版本假填充、UUID / 时间戳伪 hash 或任何假同步证据。
+- 分支：codex/base-09-final-cleanup-report
+- 目标：完成 BASE-09 最终收口：补净化报告，勾选 BASE-09 FR/AC，把 backlog 中 BASE-09 标为 done；若最终扫描发现残留，则在同 PR 内清掉并补门禁。
+- 状态：基于 `origin/main@63af3ad` 开工。已完成 PR17 红绿：新增“默认临床病例文本回流”真实性门禁测试先红，随后移除 `AiWorkflows` 默认临床病例长文本并补门禁关键词后转绿；同步清理前端既有 11 条 lint warning 至 0 warning；后端全量、前端全量 test/typecheck/build/lint/format、真实性 inventory、脚本门禁、`git diff --check` 与 AC 生产路径 grep 均已通过，正在提交 PR。
+- 下一步（精确到动作/命令）：1. 提交、推送并创建 PR；2. 远端 CI 8/8 通过后 squash 合并；3. 回到最新 `origin/main` 并清理 worktree / 分支；4. 从最新 `origin/main` 领取 D0 下一项 BASE-07 / BASE-08 / BASE-10 等。
+- 相关文件 / 测试 / 坑：`AiWorkflows` 只能保留空态输入和真实后端返回，不得恢复固定病案默认值；`PATHWAY` / `TERMINOLOGY` / `KNOWLEDGE` / `FOLLOWUP` 离线资产内容迁移仍属后续资产契约任务，当前必须保持诚实拒绝，不得为了“BASE-09 done”伪造完整迁移。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 配置包离线资产内容迁移契约 PR16 ✅（#209）：离线导出 payload 新增 `assetSnapshots`，规则资产携带 `RuleDefinition` + 指定 `RuleVersion`，评估指标携带 `EvaluationIndicator`，每个快照写真实 `contentSha256`；离线导入先验 payload 与每个快照摘要，再落真实资产内容或校验本地一致性，最终仍只生成 `DRAFT` 草案；未支持资产类型诚实拒绝 `ENG_PACKAGE_002`。本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `63af3ad`）。下一步执行 BASE-09 最终净化报告与验收收口。
 - BASE-09 配置包离线导入验签与草案落库 PR15 ✅（#208）：新增 `offline/import` 离线包导入端点，校验格式、租户、manifest / payload 一致性和真实 SHA-256 摘要；导入成功只生成本地 `DRAFT` 草案、新本地 ID 与条目绑定，写 `IMPORT` 审计，不自动激活、不伪造资产内容；配置包中心新增粘贴 / 文件导入入口，并修复页面统计读取旧 `totalCount` 的分页契约错位。本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `235f2ff`）。下一步继续 BASE-09 离线资产内容迁移契约和域级验收残留。
 - BASE-09 配置包离线导出与完整性清单 PR14 ✅（#207）：新增 `offline/export` 离线包 JSON 下载端点，manifest 中 `payloadSha256` 基于 payload 真实字节计算；配置包中心页新增“导出离线包”操作，清理触碰表单中的旧医学示例和默认版本假填充，并接入 Ant Design 应用消息上下文消除动态主题告警；本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `d8dd851`）。下一步继续 BASE-09 离线包导入验签、安装落库和域级验收残留。
 - BASE-09 硬编码业务示例与工作台假闭环清理 PR13 ✅（#206）：清理 `WorkbenchPanel` 本地假待办、固定指标和客户验收剧本，改为真实生命周期 + 聚合 API 待接入空态；清理 `CdssFatigue` 证据等级 / 权威评分默认兜底、`ConfigPackages` 灰度医学示例、`AdapterHub` 新建表单假系统 / 假 URL / 危急值通道预填、`TenantOnboarding` 模拟注释，并删除未引用的 `DemoModeToggle` 演示模式空壳；真实性门禁扩展到 `widgets` 并阻断工作台本地 demo workflow 回流；本地完整验证、浏览器登录到 `/dashboard` 验收与远端 CI 8/8 通过并合入 `origin/main`（merge `cac078b`）。下一步继续 BASE-09 离线包导入 / 导出、包完整性校验和域级验收残留。
@@ -95,4 +96,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-09 PR15 已合入 `origin/main@235f2ff`；PR16 配置包离线资产内容迁移契约已完成后端 TDD 红绿、完整本地验证、T-GATE 与浏览器验收，待 PR / 远端 CI / 合并；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR
+> 末次更新：2026-06-01 · BASE-09 PR16 已合入 `origin/main@63af3ad`；PR17 最终净化报告与验收收口已完成红绿门禁补强、默认临床病例清理、lint warning 清零、本地完整验证和 AC 扫描，待 PR / 远端 CI / 合并；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR

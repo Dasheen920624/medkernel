@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 清前端 mock 假闭环**：移除生产路径 `MockAdapter`/假数据闭环 + 所有 `eslint-disable medkernel/no-page-mock`（核查实锤 ~25 页，含 RuleDefinitions/PathwayTemplates/CdssFatigue/Provenance 等）。
-- [ ] **FR-2 清后端裸 Map**：`@RequestBody Map<String,Object>` → Record DTO（核心 #7）。
-- [ ] **FR-3 清硬编码业务示例**：写死医学常量（"高血压/DRUG-001/I10/抗感染化疗"等）从生产路径清除（核心 #18）。
-- [ ] **FR-4 清单病种硬编码**：B0 链路通用化，不写死单一病种（核心 铁律#4 无模型可运行须通用）。
-- [ ] **FR-5 清假证据/假同步**：`SHA-256-MOCK-HASH`、UUID 充哈希、时间戳哈希充同步证据 → 真实 SHA-256/SM3 或诚实 `NOT_SYNCED`（核心 #18/§11）。
-- [ ] **FR-6 净化报告**：存量违反清单（文件 + 行 + 条款）+ 净化前后对比 + 残留豁免说明。
+- [x] **FR-1 清前端 mock 假闭环**：移除生产路径 `MockAdapter`/假数据闭环 + 所有 `eslint-disable medkernel/no-page-mock`（核查实锤 ~25 页，含 RuleDefinitions/PathwayTemplates/CdssFatigue/Provenance 等）。
+- [x] **FR-2 清后端裸 Map**：`@RequestBody Map<String,Object>` → Record DTO（核心 #7）。
+- [x] **FR-3 清硬编码业务示例**：写死医学常量（"高血压/DRUG-001/I10/抗感染化疗"等）从生产路径清除（核心 #18）。
+- [x] **FR-4 清单病种硬编码**：B0 链路通用化，不写死单一病种（核心 铁律#4 无模型可运行须通用）。
+- [x] **FR-5 清假证据/假同步**：`SHA-256-MOCK-HASH`、UUID 充哈希、时间戳哈希充同步证据 → 真实 SHA-256/SM3 或诚实 `NOT_SYNCED`（核心 #18/§11）。
+- [x] **FR-6 净化报告**：存量违反清单（文件 + 行 + 条款）+ 净化前后对比 + 残留豁免说明。
 
 ## 接口契约 / 页面契约
 N·A —— 本卡是存量重构，不新增接口/页面；改造点分散在既有前后端文件。
@@ -48,11 +48,11 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - 本卡落点：把核查暴露的存量违反逐条清除并出报告，使 INFRA-01/02 门禁开启后存量零阻塞。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：全仓 grep `eslint-disable medkernel/no-page-mock` 结果为 0；mock 假闭环清零。
-- [ ] **AC-2（FR-2）**：全仓 grep 生产路径 `Map<String,Object>` 入参为 0。
-- [ ] **AC-3（FR-3/4）**：门禁医学常量清单在生产路径 grep 为 0；B0 链路无单病种写死。
-- [ ] **AC-4（FR-5）**：无 `MOCK-HASH`/UUID 充哈希/假同步证据；同步未完成诚实返回 `NOT_SYNCED`。
-- [ ] **AC-5（FR-6）**：净化报告完整（清单 + 前后对比 + 豁免说明）。
+- [x] **AC-1（FR-1）**：全仓 grep `eslint-disable medkernel/no-page-mock` 结果为 0；mock 假闭环清零。
+- [x] **AC-2（FR-2）**：全仓 grep 生产路径 `Map<String,Object>` 入参为 0。
+- [x] **AC-3（FR-3/4）**：门禁医学常量清单在生产路径 grep 为 0；B0 链路无单病种写死。
+- [x] **AC-4（FR-5）**：无 `MOCK-HASH`/UUID 充哈希/假同步证据；同步未完成诚实返回 `NOT_SYNCED`。
+- [x] **AC-5（FR-6）**：净化报告完整（清单 + 前后对比 + 豁免说明）。
 - 关联 A1–A9：横切（净化后各剧本不含假闭环）。
 - T-GATE：净化完成后前后端门禁**零豁免全绿**（核心验收闸）。
 - B0 验收：净化使 B0 链路真实可用。
@@ -80,6 +80,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - PR14（配置包离线导出与完整性清单）：新增 `offline/export` 离线包 JSON 下载端点，manifest 中的 `payloadSha256` 基于 payload 真实字节计算；配置包中心页新增“导出离线包”操作，清理触碰表单中的旧医学示例和默认版本假填充，并接入 Ant Design 应用消息上下文以消除真实页面动态主题告警。记录见 [BASE-09 配置包离线导出与完整性清单 PR14 记录](../../audit/BASE-09-package-offline-export-pr14.md)。本 PR 仍不勾选全部 FR/AC，继续清离线包导入验签、安装落库和域级验收残留。
 - PR15（配置包离线导入验签与草案落库）：新增 `offline/import` 离线包导入端点，校验格式、租户、manifest / payload 一致性和真实 SHA-256 摘要；导入成功只生成本地 `DRAFT` 草案、新本地 ID 与条目绑定，写 `IMPORT` 审计，不自动激活、不伪造资产内容；配置包中心新增粘贴 / 文件导入入口，并修复页面统计读取旧 `totalCount` 的分页契约错位。记录见 [BASE-09 配置包离线导入验签与草案落库 PR15 记录](../../audit/BASE-09-package-offline-import-pr15.md)。本 PR 仍不勾选全部 FR/AC，继续清离线资产内容迁移契约和域级验收残留。
 - PR16（配置包离线资产内容迁移契约）：离线导出 payload 新增 `assetSnapshots`，对规则资产携带 `RuleDefinition` + 指定 `RuleVersion`，对评估指标携带 `EvaluationIndicator`，每个快照以真实 SHA-256 `contentSha256` 单独验签；离线导入要求 `assetSnapshotCount` 与条目一致，先验 payload 与每个内容快照摘要，再落真实资产内容或校验本地已有资产内容一致，最终仍只生成本地 `DRAFT` 配置包草案；暂无完整内容契约的资产类型诚实拒绝，不回退为引用式假迁移。记录见 [BASE-09 配置包离线资产内容迁移契约 PR16 记录](../../audit/BASE-09-package-offline-asset-content-pr16.md)。本 PR 仍不勾选全部 FR/AC，继续清域级验收残留和最终净化报告。
+- PR17（最终净化报告与验收收口）：移除 `AiWorkflows` 默认临床病例文本，补真实性门禁阻断固定病例回流，清理前端 lint 既有 warning，并以全仓扫描证据勾选 BASE-09 FR/AC。记录见 [BASE-09 最终净化报告与验收收口 PR17](../../audit/BASE-09-final-cleanup-report-pr17.md)。BASE-09 收口完成；D0 仍需继续 BASE-07 / BASE-08 / BASE-10 等后续任务。
 
 ## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
 - 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。

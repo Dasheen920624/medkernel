@@ -34,7 +34,7 @@ const FRONTEND_RULES = [
     ruleId: "frontend.hardcoded-medical-constant",
     message: "前端生产文件禁止写死疾病、药品、编码等医学常量。",
     pattern:
-      /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
+      /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|急性脑梗死|阿替普酶|静脉溶栓|突发左侧肢体无力|住院医师临床病历特征提取|患者李建国|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
   },
   {
     ruleId: "frontend.local-demo-workflow",

@@ -20,8 +20,7 @@ if (typeof window !== "undefined" && !window.matchMedia) {
 
 // ResizeObserver 在 Antd 5 + rc-* 里也常用，jsdom 不实现
 if (typeof window !== "undefined" && typeof window.ResizeObserver === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).ResizeObserver = class {
+  window.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
