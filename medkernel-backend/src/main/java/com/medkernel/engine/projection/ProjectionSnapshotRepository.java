@@ -15,6 +15,8 @@ public interface ProjectionSnapshotRepository extends ListCrudRepository<Project
 
     List<ProjectionSnapshot> findByTenantIdAndTargetType(String tenantId, ProjectionTargetType targetType);
 
+    long countByTenantIdAndTargetType(String tenantId, ProjectionTargetType targetType);
+
     @Modifying
     @Query("""
         DELETE FROM mk_projection_snapshot

@@ -11,5 +11,7 @@ public record ProjectionRebuildResponse(
     int projectionCount,
     String sourceHash,
     String projectionHash,
-    String traceId
+    String traceId,
+    ProjectionSyncStatus difyExecutionStatus,
+    String message
 ) {}
