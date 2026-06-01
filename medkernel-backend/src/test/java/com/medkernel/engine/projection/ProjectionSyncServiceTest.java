@@ -11,18 +11,31 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.shared.audit.AuditRecorder;
+
 class ProjectionSyncServiceTest {
 
     private final ClinicalGraphProjectionSource source = mock(ClinicalGraphProjectionSource.class);
     private final ProjectionSnapshotRepository snapshots = mock(ProjectionSnapshotRepository.class);
     private final ProjectionSyncRepository syncs = mock(ProjectionSyncRepository.class);
-    private final ProjectionSyncService service = new ProjectionSyncService(source, snapshots, syncs);
+    private final ProjectionRuntimePolicy policy = mock(ProjectionRuntimePolicy.class);
+    private final ProjectionExecutionPort executor = mock(ProjectionExecutionPort.class);
+    private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
+    private final ProjectionSyncService service = new ProjectionSyncService(
+        source,
+        snapshots,
+        syncs,
+        policy,
+        executor,
+        auditRecorder);
 
     @Test
     void rebuildClearsProjectionAndStoresRelationalFactsWithMatchingHashes() {
         List<ProjectionSnapshot> stored = new ArrayList<>();
         stored.add(ProjectionSnapshot.fromFact("tenant-A", fact("NODE:STALE:old"), now(), "trace-old"));
         wireSnapshotStore(stored);
+        when(policy.graphProjectionEnabled()).thenReturn(true);
+        when(policy.difyWorkflowEnabled()).thenReturn(false);
         when(syncs.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(source.factsForTenant("tenant-A")).thenReturn(List.of(
             fact("NODE:PATIENT:pat-1"),
@@ -46,6 +59,7 @@ class ProjectionSyncServiceTest {
         stored.add(snapshotWithHash(patient, "0".repeat(64)));
         stored.add(ProjectionSnapshot.fromFact("tenant-A", fact("NODE:CLAIM:claim-9"), now(), "trace-1"));
         wireSnapshotStore(stored);
+        when(policy.graphProjectionEnabled()).thenReturn(true);
         when(source.factsForTenant("tenant-A")).thenReturn(List.of(patient, observation));
 
         ProjectionConsistencyReport report = service.checkClinicalGraphConsistency("tenant-A");

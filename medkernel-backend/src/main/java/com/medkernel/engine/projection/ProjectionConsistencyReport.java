@@ -8,6 +8,8 @@ import java.util.List;
 public record ProjectionConsistencyReport(
     ProjectionTargetType targetType,
     String tenantId,
+    ProjectionSyncStatus status,
+    String message,
     boolean consistent,
     int sourceCount,
     int projectionCount,

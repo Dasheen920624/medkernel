@@ -38,6 +38,16 @@ public class ProjectionController {
     }
 
     /**
+     * 查询临床图投影运行状态。
+     */
+    @GetMapping("/status")
+    @PreAuthorize("@perm.has('projection.read')")
+    public ApiResult<ProjectionRuntimeStatusResponse> status() {
+        return ApiResult.ok(service.runtimeStatus(
+            RequestContext.snapshot().orgScope().tenantId()));
+    }
+
+    /**
      * 查询关系库权威源与临床图投影的一致性。
      */
     @GetMapping("/consistency")

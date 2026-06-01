@@ -19,9 +19,9 @@
 
 - [x] **FR-1 关系库唯一权威**：业务事实唯一权威源为院内关系库（核心 #5）；图/Dify/缓存不得成为唯一存储。
 - [x] **FR-2 图投影可重建**：图投影（Neo4j）由关系库**重放重建**；删除图库后可从关系库完整重投影。
-- [ ] **FR-3 Dify 仅执行器**：Dify 只作可选运行器，不存业务权威数据（核心 §11）。
-- [ ] **FR-4 投影可关闭 + 诚实降级**：关闭图/Dify 投影后，依赖图的功能诚实返回 `NOT_SYNCED`/降级到关系库直查，主链路不中断（核心 §11）。
-- [ ] **FR-5 同步可审计**：投影同步动作留真实审计（同步对象/版本/结果），**禁假同步证据**（核心 #18）。
+- [x] **FR-3 Dify 仅执行器**：Dify 只作可选运行器，不存业务权威数据（核心 §11）。
+- [x] **FR-4 投影可关闭 + 诚实降级**：关闭图/Dify 投影后，依赖图的功能诚实返回 `NOT_SYNCED`/降级到关系库直查，主链路不中断（核心 §11）。
+- [x] **FR-5 同步可审计**：投影同步动作留真实审计（同步对象/版本/结果），**禁假同步证据**（核心 #18）。
 - [x] **FR-6 一致性校验**：关系库 ↔ 投影 diff 可检测；不一致可重建对齐。
 
 ## 接口契约 / 页面契约
@@ -59,9 +59,9 @@ N·A —— 图谱查询页在 D6 高级工具消费；同步状态在 D5 运维
 
 ## 验收 + 验证
 - [x] **AC-1（FR-1/2）**：删除图库后从关系库重投影，数据完整一致。
-- [ ] **AC-2（FR-4）**：关闭图/Dify 投影 → 依赖功能返回 `NOT_SYNCED`/降级关系库直查，主链路不中断。
-- [ ] **AC-3（FR-3）**：断言 Dify 不存任何业务权威字段（仅执行器）。
-- [ ] **AC-4（FR-5）**：投影同步产真实审计（对象/版本/结果），无 UUID/时间戳充同步证据。
+- [x] **AC-2（FR-4）**：关闭图/Dify 投影 → 依赖功能返回 `NOT_SYNCED`/降级关系库直查，主链路不中断。
+- [x] **AC-3（FR-3）**：断言 Dify 不存任何业务权威字段（仅执行器）。
+- [x] **AC-4（FR-5）**：投影同步产真实审计（对象/版本/结果），无 UUID/时间戳充同步证据。
 - [x] **AC-5（FR-6）**：制造关系库↔投影不一致 → 一致性校验可检测并重建对齐。
 - 关联 A1–A9：A2 知识工厂（图投影）、A6 合规运维（降级）。
 - T-GATE：后端门禁全绿（无假同步证据）。
@@ -83,3 +83,10 @@ N·A —— 图谱查询页在 D6 高级工具消费；同步状态在 D5 运维
 - 权限与契约：新增 `projection.read` / `projection.rebuild`，并登记到 `ServiceContractCatalog`，避免新增裸接口；`DomainOwnershipCatalog` 登记 `engine-projection`，确保 `mk_projection_*` 表单一归属。
 - 迁移：新增 V40 五方言 `mk_projection_sync` / `mk_projection_snapshot`；当前真实运行保障仍按项目修正范围聚焦 PostgreSQL + Oracle，达梦 / 人大金仓真实环境证据继续登记 `DEFER-001`。
 - 本地证据：`ClinicalGraphProjectionSourceTest`、`ProjectionSyncServiceTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`DomainOwnershipContractTest` 已通过；`mvn -B -q test` 后端全量通过 744 tests，包含 PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V40。
+
+### PR2 进度证据
+- 投影关闭诚实降级：新增 `ProjectionRuntimePolicy` 统一读取配置中心 `graph-projection` / `dify-workflow` 运行开关；`graph-projection` 关闭时重建返回 `NOT_SYNCED`，不读取源事实、不清空或写入 `mk_projection_snapshot`，关系库权威主链路继续可用。
+- 运行状态端点：新增 `GET /api/v1/projections/clinical-graph/status`，返回图投影开关、Dify 开关、快照数量、临床投影状态与诚实说明；新增 `ProjectionClinicalStatusPort`，标准临床对象服务根据开关和快照数量返回 `UP` / `NOT_SYNCED`。
+- Dify 仅执行器：新增 `ProjectionExecutionPort` / `ProjectionExecutionCommand` / `NoopProjectionExecutionPort`，执行命令只携带 `tenantId`、`syncId`、`targetType`、`sourceCount`、`sourceHash`、`traceId` 等同步元数据，不携带临床事实、规范载荷或患者密文字段；未配置真实 Dify 执行器时返回 `NOT_SYNCED`。
+- 同步可审计：`ProjectionSyncService` 对成功、失败、投影关闭等终态统一调用 `AuditRecorder` 记录 `mk_projection_sync`，审计快照包含真实 `sourceHash` / `projectionHash` / `difyExecutionStatus` / traceId，不使用 UUID 或时间戳伪造同步证据。
+- 本地证据：`ProjectionRuntimeDegradeTest`、`ProjectionDifyExecutorBoundaryTest`、`ProjectionAuditTest` 红绿通过；聚焦回归 `ProjectionSyncServiceTest`、`ClinicalGraphProjectionSourceTest`、`StandardClinicalAuthorityServiceTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest` 已通过。
