@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,11 +31,19 @@ class SecurityMeControllerTest {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    PlatformCredentialRepository credentialRepository;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
     @AfterEach
     void clearAssignmentsAndOverrides() {
         jdbcTemplate.update("DELETE FROM emergency_permission_grant");
         jdbcTemplate.update("DELETE FROM user_role_assignment");
         jdbcTemplate.update("DELETE FROM role_permission");
+        credentialRepository.findByTenantIdAndUserId("t-1", "platform-owner")
+            .ifPresent(credentialRepository::delete);
     }
 
     @Test
@@ -64,6 +73,27 @@ class SecurityMeControllerTest {
             .andExpect(jsonPath("$.data.dataScope.tenantId").value("t-1"))
             .andExpect(jsonPath("$.data.dataScope.hospitalId").value("h-1"))
             .andExpect(jsonPath("$.data.dataScope.departmentId").value("d-1"));
+    }
+
+    @Test
+    void currentUserIncludesBootstrapSecurityCompletionFlags() throws Exception {
+        java.time.Instant now = java.time.Instant.parse("2026-06-01T08:00:00Z");
+        credentialRepository.save(new PlatformCredential(
+            null, "cred-platform-owner", "t-1", "platform-owner", "platform-owner",
+            passwordEncoder.encode("Init@2026pw"), "ACTIVE", "Y", null,
+            now, "test", now, "test", "trace-bootstrap"));
+
+        mvc.perform(get("/api/v1/security/me")
+                .with(jwt().jwt(token -> token
+                    .subject("platform-owner")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of(RoleCode.PLATFORM_ADMIN.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_ADMIN.authority()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.userId").value("platform-owner"))
+            .andExpect(jsonPath("$.data.mustChangePwd").value(true))
+            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaBound").value(false));
     }
 
     @Test

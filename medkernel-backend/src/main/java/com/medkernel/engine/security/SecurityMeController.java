@@ -22,19 +22,33 @@ import com.medkernel.shared.datascope.DataScope;
 public class SecurityMeController {
 
     private final EffectivePermissionService permissionService;
+    private final PlatformCredentialRepository credentials;
 
-    public SecurityMeController(EffectivePermissionService permissionService) {
+    public SecurityMeController(EffectivePermissionService permissionService,
+                                PlatformCredentialRepository credentials) {
         this.permissionService = permissionService;
+        this.credentials = credentials;
     }
 
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ApiResult<EffectivePermissionProfile> me(Authentication authentication) {
         String userId = RequestContext.currentUserId().orElse(authentication.getName());
-        return ApiResult.ok(permissionService.resolve(
+        EffectivePermissionProfile profile = permissionService.resolve(
             authentication,
             RequestContext.currentOrgScope(),
             userId
-        ));
+        );
+        PlatformCredential credential = credentials
+            .findByTenantIdAndUserId(RequestContext.currentOrgScope().tenantId(), userId)
+            .orElse(null);
+        boolean mustChangePwd = credential != null && "Y".equalsIgnoreCase(credential.mustChangePwd());
+        boolean mfaBound = credential != null
+            && credential.mfaSecret() != null
+            && !credential.mfaSecret().isBlank();
+        return ApiResult.ok(profile.withBootstrapSecurity(
+            mustChangePwd,
+            MfaRequirementPolicy.requiresMfa(profile.roleCodes()),
+            mfaBound));
     }
 }

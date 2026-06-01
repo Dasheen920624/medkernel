@@ -28,7 +28,6 @@ import {
   useCheckBootstrapInitToken,
   useCreateBootstrapAdmin,
   type BootstrapAdminResult,
-  type LoginResult,
 } from "@/shared/api/hooks";
 import styles from "./Bootstrap.module.css";
 
@@ -44,7 +43,13 @@ type BootstrapPhase =
 
 interface BootstrapLocationState {
   phase?: BootstrapPhase;
-  login?: LoginResult;
+  login?: {
+    userId?: string;
+    tenantId?: string;
+    mustChangePwd?: boolean;
+    mfaRequired?: boolean;
+    mfaBound?: boolean;
+  };
   username?: string;
   tenantId?: string;
 }

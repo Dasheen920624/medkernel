@@ -13,7 +13,10 @@ public record EffectivePermissionProfile(
     List<PermissionView> permissions,
     List<String> menuKeys,
     List<String> environmentKeys,
-    DataScopeView dataScope
+    DataScopeView dataScope,
+    boolean mustChangePwd,
+    boolean mfaRequired,
+    boolean mfaBound
 ) {
 
     @JsonIgnore
@@ -24,6 +27,22 @@ public record EffectivePermissionProfile(
     @JsonIgnore
     public List<String> permissionCodes() {
         return permissions.stream().map(PermissionView::code).toList();
+    }
+
+    public EffectivePermissionProfile withBootstrapSecurity(
+            boolean mustChangePwd,
+            boolean mfaRequired,
+            boolean mfaBound) {
+        return new EffectivePermissionProfile(
+            userId,
+            roles,
+            permissions,
+            menuKeys,
+            environmentKeys,
+            dataScope,
+            mustChangePwd,
+            mfaRequired,
+            mfaBound);
     }
 
     public record RoleView(

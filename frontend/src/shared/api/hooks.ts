@@ -49,6 +49,9 @@ export interface SecurityProfile {
     departmentId: string | null;
     specialtyId: string | null;
   };
+  mustChangePwd: boolean;
+  mfaRequired: boolean;
+  mfaBound: boolean;
 }
 
 type SecurityProfileEnvelope = {

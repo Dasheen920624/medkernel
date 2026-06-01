@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.security.MfaRequirementPolicy;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
@@ -72,7 +73,7 @@ public class AuthService {
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
             new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
-                requiresMfa(roles), cred.mfaSecret() != null && !cred.mfaSecret().isBlank()));
+                MfaRequirementPolicy.requiresMfa(roles), cred.mfaSecret() != null && !cred.mfaSecret().isBlank()));
     }
 
     public void logout(String userId) {
@@ -104,11 +105,4 @@ public class AuthService {
 
     public record AuthResult(String jwt, LoginResponse response) {}
 
-    private boolean requiresMfa(List<String> roles) {
-        return roles.stream().anyMatch(role ->
-            "platform-admin".equals(role)
-                || "group-admin".equals(role)
-                || "hospital-admin".equals(role)
-                || "it-ops".equals(role));
-    }
 }
