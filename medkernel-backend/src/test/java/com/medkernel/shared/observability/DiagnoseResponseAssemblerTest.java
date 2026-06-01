@@ -54,7 +54,7 @@ class DiagnoseResponseAssemblerTest {
         assertThat(resp.links().self())
             .isEqualTo("/api/v1/engine/clinical_event/evt-1/diagnose");
         assertThat(resp.links().traceTimeline())
-            .isEqualTo("/api/v1/engine/diagnose/trace/trace-x");
+            .isEqualTo("/api/v1/engine/diagnose/traces/trace-x");
     }
 
     @Test
@@ -63,7 +63,7 @@ class DiagnoseResponseAssemblerTest {
             .thenReturn(List.of());
 
         PayloadRef ref = new PayloadRef(PayloadRef.STORAGE_INLINE, "abc123",
-            "inmem://t/e/evt-1", 1024L);
+            "db://mk_obs_payload_store/pl-test", 1024L, "application/json");
 
         DiagnoseResponse resp = assembler.assemble(
             "clinical_event", "evt-1", "tenant-A", "PROCESSED",
@@ -77,6 +77,7 @@ class DiagnoseResponseAssemblerTest {
         assertThat(resp.payloadSummary()).isNotNull();
         assertThat(resp.payloadSummary().digest()).isEqualTo("abc123");
         assertThat(resp.payloadSummary().sizeBytes()).isEqualTo(1024L);
+        assertThat(resp.payloadSummary().contentType()).isEqualTo("application/json");
         assertThat(resp.payloadSummary().storageType()).isEqualTo("INLINE");
         assertThat(resp.links().fetchPayload())
             .isEqualTo("/api/v1/engine/clinical_event/evt-1/payload");
@@ -106,6 +107,38 @@ class DiagnoseResponseAssemblerTest {
         assertThat(entry.error().errorCode()).isEqualTo("ENG-CONTEXT-001");
         assertThat(entry.error().errorClass()).isEqualTo("INPUT");
         assertThat(entry.error().retryCount()).isEqualTo(2);
+    }
+
+    @Test
+    void includesExecutionSummaryWithRuleVersionDurationAndDegradationReason() {
+        Instant started = Instant.parse("2026-06-01T08:00:00Z");
+        Instant ended = started.plusMillis(250);
+        when(historyRepo.findByEntityTypeAndEntityIdOrderByOccurredAtAsc("rule_execution", "rex-1"))
+            .thenReturn(List.of(
+                new StateTransitionHistory(1L, "rule_execution", "rex-1", "tenant-A",
+                    null, "RUNNING", "START", "tester", "trace-rule",
+                    null, null, null, null, null, started),
+                new StateTransitionHistory(2L, "rule_execution", "rex-1", "tenant-A",
+                    "RUNNING", "DEGRADED", "MODEL_DISABLED", "tester", "trace-rule",
+                    "ENG-SYS-003", "EXTERNAL", "模型不可用，已降级到无模型基线",
+                    0, null, ended)
+            ));
+
+        DiagnoseResponse resp = assembler.assemble(
+            "rule_execution", "rex-1", "tenant-A", "DEGRADED",
+            new SampleEntity("rex-1", "DEGRADED"),
+            List.of(),
+            Map.of(),
+            null,
+            "trace-rule",
+            new DiagnoseResponse.ExecutionSummary("rule-1", "version-1", null, "MODEL_DISABLED")
+        );
+
+        assertThat(resp.executionSummary()).isNotNull();
+        assertThat(resp.executionSummary().matchedRuleId()).isEqualTo("rule-1");
+        assertThat(resp.executionSummary().matchedVersionId()).isEqualTo("version-1");
+        assertThat(resp.executionSummary().durationMs()).isEqualTo(250L);
+        assertThat(resp.executionSummary().degradationReason()).isEqualTo("MODEL_DISABLED");
     }
 
     record SampleEntity(String id, String status) {}

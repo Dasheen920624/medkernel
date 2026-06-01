@@ -1,5 +1,7 @@
 package com.medkernel.shared.observability;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.observability.DiagnoseResponse.AuditEventSummary;
 import com.medkernel.shared.observability.DiagnoseResponse.DiagnoseLinks;
+import com.medkernel.shared.observability.DiagnoseResponse.ExecutionSummary;
 import com.medkernel.shared.observability.DiagnoseResponse.PayloadSummary;
 import com.medkernel.shared.observability.DiagnoseResponse.StateTransitionEntry;
 
@@ -21,7 +24,7 @@ public class DiagnoseResponseAssembler {
 
     private static final String LINK_PATTERN_SELF       = "/api/v1/engine/%s/%s/diagnose";
     private static final String LINK_PATTERN_PAYLOAD    = "/api/v1/engine/%s/%s/payload";
-    private static final String LINK_PATTERN_TRACE      = "/api/v1/engine/diagnose/trace/%s";
+    private static final String LINK_PATTERN_TRACE      = "/api/v1/engine/diagnose/traces/%s";
 
     private final StateTransitionHistoryRepository historyRepository;
 
@@ -36,6 +39,19 @@ public class DiagnoseResponseAssembler {
             Map<String, List<String>> relatedEntities,
             PayloadRef payloadRef,
             String traceId) {
+        return assemble(
+            entityType, entityId, tenantId, currentStatus,
+            entity, auditEvents, relatedEntities, payloadRef, traceId, null);
+    }
+
+    public DiagnoseResponse assemble(
+            String entityType, String entityId, String tenantId, String currentStatus,
+            Object entity,
+            List<AuditEventSummary> auditEvents,
+            Map<String, List<String>> relatedEntities,
+            PayloadRef payloadRef,
+            String traceId,
+            ExecutionSummary executionSummary) {
 
         List<StateTransitionEntry> stateHistory =
             historyRepository.findByEntityTypeAndEntityIdOrderByOccurredAtAsc(entityType, entityId)
@@ -44,7 +60,7 @@ public class DiagnoseResponseAssembler {
                 .toList();
 
         PayloadSummary payloadSummary = payloadRef == null ? null : new PayloadSummary(
-            payloadRef.digest(), payloadRef.sizeBytes(), null,
+            payloadRef.digest(), payloadRef.sizeBytes(), payloadRef.contentType(),
             payloadRef.storageType(), payloadRef.uri()
         );
 
@@ -58,7 +74,8 @@ public class DiagnoseResponseAssembler {
             entityType, entityId, tenantId, currentStatus,
             entity, stateHistory, auditEvents, relatedEntities,
             payloadSummary, traceId,
-            new DiagnoseLinks(selfLink, payloadLink, traceLink)
+            new DiagnoseLinks(selfLink, payloadLink, traceLink),
+            withMeasuredDuration(stateHistory, executionSummary)
         );
     }
 
@@ -71,5 +88,33 @@ public class DiagnoseResponseAssembler {
             h.fromStatus(), h.toStatus(), h.reason(),
             h.actor(), h.traceId(), error, h.occurredAt()
         );
+    }
+
+    private ExecutionSummary withMeasuredDuration(
+            List<StateTransitionEntry> stateHistory,
+            ExecutionSummary summary) {
+        Long durationMs = measuredDuration(stateHistory);
+        if (summary == null) {
+            return durationMs == null ? null : new ExecutionSummary(null, null, durationMs, null);
+        }
+        Long effectiveDuration = summary.durationMs() == null ? durationMs : summary.durationMs();
+        return new ExecutionSummary(
+            summary.matchedRuleId(),
+            summary.matchedVersionId(),
+            effectiveDuration,
+            summary.degradationReason()
+        );
+    }
+
+    private Long measuredDuration(List<StateTransitionEntry> stateHistory) {
+        List<Instant> occurred = stateHistory.stream()
+            .map(StateTransitionEntry::occurredAt)
+            .filter(value -> value != null)
+            .sorted()
+            .toList();
+        if (occurred.size() < 2) {
+            return null;
+        }
+        return Duration.between(occurred.getFirst(), occurred.getLast()).toMillis();
     }
 }

@@ -100,7 +100,7 @@ class TenantPilotServiceTest {
         assertEquals(plan.id(), progressed.id());
         assertEquals(actor, progressed.updatedBy());
 
-        // 物理断言：同事务物理追溯 state_transition_history 表
+        // 物理断言：同事务物理追溯 mk_obs_state_transition 表
         List<StateTransitionHistory> historyList = transitionHistoryRepo
             .findByEntityTypeAndEntityIdOrderByOccurredAtAsc("tenant_success_plan", tenantId);
         

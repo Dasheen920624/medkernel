@@ -219,12 +219,21 @@ class RuleEngineServiceTest {
             execution, List.of(), List.of(), Map.of(), null, "trace-rule", null);
         when(executions.findByExecutionIdAndTenantId("rex-1", "tenant-A")).thenReturn(Optional.of(execution));
         when(diagnoseAssembler.assemble(eq("rule_execution"), eq("rex-1"), eq("tenant-A"),
-            eq("SUCCESS"), eq(execution), eq(List.of()), eq(Map.of()), any(), eq("trace-rule")))
+            eq("SUCCESS"), eq(execution), eq(List.of()), eq(Map.of()), any(), eq("trace-rule"),
+            any(DiagnoseResponse.ExecutionSummary.class)))
             .thenReturn(expected);
 
         DiagnoseResponse actual = service.diagnose("rex-1");
 
         assertThat(actual).isSameAs(expected);
+        ArgumentCaptor<DiagnoseResponse.ExecutionSummary> summaryCaptor =
+            ArgumentCaptor.forClass(DiagnoseResponse.ExecutionSummary.class);
+        verify(diagnoseAssembler).assemble(eq("rule_execution"), eq("rex-1"), eq("tenant-A"),
+            eq("SUCCESS"), eq(execution), eq(List.of()), eq(Map.of()), any(), eq("trace-rule"),
+            summaryCaptor.capture());
+        assertThat(summaryCaptor.getValue().matchedRuleId()).isEqualTo("rule-1");
+        assertThat(summaryCaptor.getValue().matchedVersionId()).isEqualTo("version-1");
+        assertThat(summaryCaptor.getValue().degradationReason()).isNull();
     }
 
     private RuleDefinition existingRule(RuleDefinitionStatus status) {

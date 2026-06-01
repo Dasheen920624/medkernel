@@ -29,7 +29,9 @@ class StateTransitionRecorderTest {
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         recorder = new StateTransitionRecorder(repository);
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-test", OrgScope.tenant("tenant-A"), "tester"));
+            "trace-test",
+            new OrgScope("tenant-A", "group-A", "hospital-A", null, null, "dept-A", null),
+            "tester"));
     }
 
     @AfterEach
@@ -47,9 +49,12 @@ class StateTransitionRecorderTest {
         assertThat(saved.entityType()).isEqualTo("context_snapshot");
         assertThat(saved.entityId()).isEqualTo("ctx-1");
         assertThat(saved.tenantId()).isEqualTo("tenant-A");
+        assertThat(saved.orgPath()).isEqualTo("tenant-A/group-A/hospital-A/dept-A");
         assertThat(saved.toStatus()).isEqualTo("ACTIVE");
         assertThat(saved.reason()).isEqualTo("INITIAL_CREATE");
         assertThat(saved.actor()).isEqualTo("tester");
+        assertThat(saved.createdBy()).isEqualTo("tester");
+        assertThat(saved.createdAt()).isNotNull();
         assertThat(saved.traceId()).isEqualTo("trace-test");
         assertThat(saved.errorCode()).isNull();
     }

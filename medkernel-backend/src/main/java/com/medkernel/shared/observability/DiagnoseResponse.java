@@ -21,8 +21,28 @@ public record DiagnoseResponse(
     Map<String, List<String>> relatedEntities,
     PayloadSummary payloadSummary,
     String traceId,
-    DiagnoseLinks links
+    DiagnoseLinks links,
+    ExecutionSummary executionSummary
 ) {
+
+    public DiagnoseResponse(
+            String entityType,
+            String entityId,
+            String tenantId,
+            String currentStatus,
+            Object entity,
+            List<StateTransitionEntry> stateHistory,
+            List<AuditEventSummary> auditEvents,
+            Map<String, List<String>> relatedEntities,
+            PayloadSummary payloadSummary,
+            String traceId,
+            DiagnoseLinks links) {
+        this(
+            entityType, entityId, tenantId, currentStatus,
+            entity, stateHistory, auditEvents, relatedEntities,
+            payloadSummary, traceId, links, null
+        );
+    }
 
     public record StateTransitionEntry(
         String fromStatus,
@@ -55,5 +75,12 @@ public record DiagnoseResponse(
         String self,
         String fetchPayload,
         String traceTimeline
+    ) {}
+
+    public record ExecutionSummary(
+        String matchedRuleId,
+        String matchedVersionId,
+        Long durationMs,
+        String degradationReason
     ) {}
 }
