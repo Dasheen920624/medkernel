@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -86,6 +89,22 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.code").value("ENG-SYS-001"))
             // 敏感细节不得泄露给客户端
             .andExpect(jsonPath("$.detail").value("服务内部错误"));
+    }
+
+    @Test
+    void dataIntegrityViolationReturnsConflictWithoutSqlDetails() throws Exception {
+        mvc.perform(post("/test/data-integrity"))
+            .andExpect(status().isConflict())
+            .andExpect(content().string(not(containsString("duplicate key"))))
+            .andExpect(content().string(not(containsString("users_email_key"))))
+            .andExpect(content().string(not(containsString("SQL"))))
+            .andExpect(jsonPath("$.title").value("资源冲突"))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.detail").value("数据约束冲突，请检查唯一字段或引用关系后重试"))
+            .andExpect(jsonPath("$.code").value("ENG-API-007"))
+            .andExpect(jsonPath("$.errorClass").value("DATA"))
+            .andExpect(jsonPath("$.retryable").value(false))
+            .andExpect(jsonPath("$.traceId").exists());
     }
 
     @Test
@@ -219,6 +238,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/boom")
         public ApiResult<Void> boom() {
             throw new RuntimeException("internal SQL state - this should never leak");
+        }
+
+        @PostMapping("/data-integrity")
+        public ApiResult<Void> dataIntegrity() {
+            throw new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"users_email_key\" SQL [insert into users]");
         }
 
         @GetMapping("/permission-denied")
