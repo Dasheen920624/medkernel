@@ -96,4 +96,5 @@
 - [x] 跑后端目标测试、前端目标测试、`npm run verify`、`npm run build`、`mvn -B -q test`。
 - [x] 跑 T-GATE：`git diff --check`、真实性 changed、配置边界 changed、迁移 changed、中文注释。
 - [x] 浏览器复验 `/login` 主题切换、首次部署入口、`/bootstrap` 单主按钮与空 token 字段错误；直接 `/dashboard` 在无权限服务时不展示业务内容。截图能力仍归 `DEFER-004`。
-- [ ] 推送 PR；远端 CI 通过并合并后，才能领取下一阶段。
+- [x] 推送 PR #216；远端 CI 8/8 通过。
+- [ ] 合并 PR #216 后，才能领取下一阶段。
