@@ -85,10 +85,14 @@ MEDKERNEL_GOV_DB_DRIVER=dm.jdbc.driver.DmDriver \
 MEDKERNEL_GOV_DB_USERNAME=... \
 MEDKERNEL_GOV_DB_PASSWORD=... \
 MEDKERNEL_GOV_JDBC_JAR=/path/to/DmJdbcDriver.jar \
+MEDKERNEL_GOV_EVIDENCE_DIR=/secure/evidence/medkernel-govcloud \
 ./deploy/docker/scripts/govcloud-smoke.sh
 ```
 
-脚本缺少任一连接条件会直接失败，不把“未连接”伪装成通过。
+脚本缺少任一连接条件会直接失败，不把“未连接”伪装成通过。执行后会在
+`MEDKERNEL_GOV_EVIDENCE_DIR`（未设置时为仓库 `runtime/govcloud-smoke/`）
+生成 `govcloud-smoke-<UTC时间>.txt` 证据文件，记录方言、驱动类、JDBC 驱动
+SHA-256、国密 smoke 与数据库 smoke 结果；证据文件不会写入口令。
 
 ## 迁移到服务器
 
