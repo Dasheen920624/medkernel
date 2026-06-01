@@ -17,8 +17,8 @@
 - 类型：软件开发 / 产品体验
 - 分支：`codex/base-10-design-token-system`（基于 `origin/main` b9f6f68）
 - 目标：按 [BASE-10](cards/D0/BASE-10.md) 收口设计 Token 系统：Antd token、5 主题模式、module.css 全部走 CSS var、stylelint 阻断 hex，并确保登录页主题切换继续可用。
-- 状态：BASE-10 本地实现、全量验证、最终 T-GATE 与中文 commit 已完成：`theme.ts` 成为主题配置入口，5 主题可切换，登录页 `syncRemote={false}` 且老年医生模式登录控件真实放大到 24px / 52px；新增用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 已 token 化并接入 stylelint / CI。
-- 下一步（精确到动作/命令）：1. 推送 `codex/base-10-design-token-system`；2. 创建 PR 并等远端 CI；3. 合并后从最新 `origin/main` 领取 BASE-11。
+- 状态：BASE-10 本地实现、全量验证、最终 T-GATE、中文 commit、推送与 PR #215 已完成：`theme.ts` 成为主题配置入口，5 主题可切换，登录页 `syncRemote={false}` 且老年医生模式登录控件真实放大到 24px / 52px；新增用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 已 token 化并接入 stylelint / CI。
+- 下一步（精确到动作/命令）：1. 等 PR #215 远端 CI；2. 合并后从最新 `origin/main` 领取 BASE-11。
 - 相关文件 / 测试 / 坑：本地 `npm run verify`（145 tests）、`npm run build`、`mvn -B -q test` 已通过；最终 T-GATE `git diff --check`、真实性 changed、配置边界 changed、迁移 changed、中文注释门禁均通过；浏览器验收 `http://127.0.0.1:5174/login` 5 主题真实点击通过，登录前无 `/theme-preference` 请求，elder 控件 24px / 52px，无运行时错误；Codex Browser 截图能力本机连续超时，未伪造截图证据；`vendor-antd` 大 chunk 和测试输出噪声仍登记在 `DEFER-003`，不写成已清除。
 
 ## 已归档工作线（最近完成，供回溯）
@@ -102,4 +102,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-10 本地实现、前后端全量验证、最终 T-GATE changed 与中文 commit 已完成，待 PR、CI、合并后从最新 `origin/main` 领取 BASE-11。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`；长期目标保持 active，外部阻塞只登记不阻断主线。
+> 末次更新：2026-06-01 · BASE-10 本地实现、前后端全量验证、最终 T-GATE changed、中文 commit、推送与 PR #215 已完成，待远端 CI、合并后从最新 `origin/main` 领取 BASE-11。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`；长期目标保持 active，外部阻塞只登记不阻断主线。
