@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const MIGRATION_SQL =
   /^medkernel-backend\/src\/main\/resources\/db\/migration\/(h2|postgres|oracle|dm|kingbase)\/(V\d+__[a-z0-9_]+\.sql)$/;
 const PRODUCTION_COMMENT_DIALECTS = new Set(["postgres", "oracle", "kingbase"]);
+const SYSTEM_TABLE_ALLOWLIST = new Set(["sys_task", "sys_task_dead_letter"]);
 const CJK = /[\u3400-\u9fff]/;
 const HIGH_RISK_SQL = /\b(DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE\s+TABLE|DELETE\s+FROM|ALTER\s+TABLE\s+[A-Za-z_][A-Za-z0-9_]*\s+DROP|RENAME\s+TO)\b/i;
 const ROLLBACK_NOTE = /(?:--|\/\*)\s*(?:ROLLBACK|COMPENSATION|回滚|补偿)\s*[:：][\s\S]*?[\u3400-\u9fff]/i;
@@ -89,7 +90,10 @@ function scanMigrationContent(file, dialect, content) {
   }
 
   for (const table of tables) {
-    if (!/^mk_[a-z][a-z0-9]*_[a-z][a-z0-9_]*$/.test(table.name)) {
+    if (
+      !/^mk_[a-z][a-z0-9]*_[a-z][a-z0-9_]*$/.test(table.name) &&
+      !SYSTEM_TABLE_ALLOWLIST.has(table.name.toLowerCase())
+    ) {
       addViolation(
         violations,
         file,

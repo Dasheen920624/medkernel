@@ -199,6 +199,12 @@ public final class ServiceContractCatalog {
             "com.medkernel.shared.runtime.RuntimeOperationsController", "/api/v1/system",
             permissions("system.read"),
             List.of()),
+        contract("runtime-task", "运行任务框架服务",
+            "com.medkernel.shared.runtime.task.RuntimeTaskController", "/api/v1/system/tasks",
+            permissions("system.read", "system.manage"),
+            audits(
+                audit(AuditAction.CREATE, "sys_task", "提交在线、异步或批量运行任务"),
+                audit(AuditAction.EXECUTE, "sys_task", "执行在线或批量运行任务"))),
         contract("health", "系统心跳服务",
             "com.medkernel.shared.web.HealthController", "/api/v1/system",
             List.of(),

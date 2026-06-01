@@ -16,6 +16,7 @@ public final class DomainOwnershipCatalog {
         module("shared-config", packages("com.medkernel.shared.config"), prefixes("mk_config_"), tables()),
         module("shared-idempotency", packages("com.medkernel.shared.idempotency"), prefixes(), tables("sys_idempotency")),
         module("shared-observability", packages("com.medkernel.shared.observability"), prefixes("mk_obs_"), tables()),
+        module("shared-runtime-task", packages("com.medkernel.shared.runtime.task"), prefixes(), tables("sys_task")),
         module("engine-security", packages("com.medkernel.engine.security"), prefixes("mk_security_"),
             tables("sys_role", "sys_permission", "role_permission", "user_role_assignment",
                 "platform_credential", "emergency_permission_grant")),

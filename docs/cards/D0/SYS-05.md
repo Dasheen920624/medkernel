@@ -17,9 +17,9 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 在线模式**：同步请求执行（实时 CDSS/规则校验等），超时不阻断主流程（核心 §10）。
-- [ ] **FR-2 异步模式**：任务队列 + 状态轮询（**待办类**状态机，核心 §3）；长任务异步化。
-- [ ] **FR-3 批量模式**：大规模批处理 + 进度 + **部分成功**（成功数/失败数/失败明细/可重试，呼应六态部分成功态）。
+- [x] **FR-1 在线模式**：同步请求执行（实时 CDSS/规则校验等），超时不阻断主流程（核心 §10）。PR1 已交付 `ONLINE` 模式，超时返回 `ESCALATED` + 诚实提示，不抛 5xx 阻断调用方。
+- [x] **FR-2 异步模式**：任务队列 + 状态轮询（**待办类**状态机，核心 §3）；长任务异步化。PR1 已交付 `ASYNC` 入队为 `UNREAD`，通过 `/api/v1/system/tasks/{taskId}` 轮询状态。
+- [x] **FR-3 批量模式**：大规模批处理 + 进度 + **部分成功**（成功数/失败数/失败明细/可重试，呼应六态部分成功态）。PR1 已交付 `BATCH` 结果计数、失败明细和可重试数量。
 - [ ] **FR-4 离线模式**：内网离线包 / 离线许可运行（核心 §12），无外网依赖主链路可用。
 - [ ] **FR-5 故障重试 + 死信 + 回放**：失败任务重试 → 死信队列 → 人工回放/补偿（核心 §10）。
 - [ ] **FR-6 四模式诚实降级**：外部依赖断开时诚实状态（`NOT_CONNECTED`/`NOT_SYNCED`），不伪造完成（核心 §11/#18）。
@@ -59,8 +59,8 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 - 本卡落点：四类运行模式 + 故障韧性框架，让引擎能力在高负载/弱网/内网离线下都真实可运行、失败诚实可补偿。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：在线 CDSS 超时 → 主流程不阻断 + 诚实降级提示。
-- [ ] **AC-2（FR-2/3）**：长任务异步化可轮询；批量返回部分成功（成功/失败/可重试明细）。
+- [x] **AC-1（FR-1）**：在线 CDSS 超时 → 主流程不阻断 + 诚实降级提示。PR1 `RuntimeTaskServiceTest.onlineTimeoutReturnsEscalatedWithoutThrowingAndAudits` 已红绿覆盖。
+- [x] **AC-2（FR-2/3）**：长任务异步化可轮询；批量返回部分成功（成功/失败/可重试明细）。PR1 `RuntimeTaskServiceTest.asyncSubmitPersistsUnreadTaskAndStatusCanBePolled` / `batchPartialSuccessPersistsCountsAndRetryableFailures` 已红绿覆盖。
 - [ ] **AC-3（FR-4）**：断外网/离线形态下主链路可运行（离线许可生效）。
 - [ ] **AC-4（FR-5）**：失败任务重试耗尽进死信 → 人工回放成功。
 - [ ] **AC-5（FR-6）**：外部依赖断开任务返回 `NOT_CONNECTED`，不伪造完成。
@@ -73,6 +73,12 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 - 测试：异步轮询测试 + 批量部分成功测试 + 离线运行测试 + 死信回放测试 + 断连诚实降级测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
+### PR1 证据（在线 / 异步 / 批量）
+- 代码范围：`com.medkernel.shared.runtime.task` 运行任务框架、`/api/v1/system/tasks` 提交/查询端点、V41 `sys_task` 五方言迁移、服务契约和领域 owner。
+- 测试：`RuntimeTaskServiceTest` 覆盖在线超时升级、异步入队轮询、批量部分成功、批量完成计数归一化；`RuntimeTaskMigrationContractTest` 覆盖 V41 五方言中文注释与关键索引。
+- 已运行：`mvn -B -q -Dtest=RuntimeTaskServiceTest,RuntimeTaskMigrationContractTest,MigrationBaselineContractTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`；`mvn -B -q test`（Surefire：`tests=756 failures=0 errors=0 skipped=0`，含 PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V41）。
+- T-GATE：提交后 changed 模式真实性 / 配置边界 / 迁移规约 / 中文注释 / 空白门禁均通过；`node --test scripts/migration-convention-guard.test.mjs` 5/5 通过。
+
 ## 大卡工序（4d，后端）
-- PR1：在线/异步/批量模式 + 待办状态机 + 部分成功 → AC-1/2。
+- PR1：在线/异步/批量模式 + 待办状态机 + 部分成功 → AC-1/2（已完成本地红绿与聚焦契约验证，待 PR/CI 合并）。
 - PR2：离线模式 + 重试/死信/回放 + 诚实降级 → AC-3/4/5。
