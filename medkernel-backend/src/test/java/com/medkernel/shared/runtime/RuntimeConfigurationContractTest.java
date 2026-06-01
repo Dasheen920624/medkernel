@@ -87,15 +87,25 @@ class RuntimeConfigurationContractTest {
     @Test
     void govcloudSmokeScriptFailsClosedWithoutRealDomesticConnection() throws IOException {
         String smoke = Files.readString(repoRoot.resolve("deploy/docker/scripts/govcloud-smoke.sh"));
+        String validator = Files.readString(repoRoot.resolve("deploy/docker/tests/validate-deployment-assets.sh"));
 
         assertThat(smoke)
             .contains("MEDKERNEL_GOV_DB_URL")
             .contains("MEDKERNEL_GOV_DB_DRIVER")
             .contains("MEDKERNEL_GOV_DATABASE_DIALECT")
+            .contains("MEDKERNEL_GOV_EVIDENCE_DIR")
+            .contains("govcloud smoke evidence")
+            .contains("status=PASS")
+            .contains("status=FAIL")
+            .contains("jdbc_jar_sha256")
             .contains("dm|kingbase")
             .contains("Domestic crypto smoke passed")
             .contains("mvn -q -Dtest=SmCryptoServiceTest test")
             .doesNotContain("|| true");
+        assertThat(validator)
+            .contains("MEDKERNEL_GOV_EVIDENCE_DIR")
+            .contains("govcloud smoke evidence")
+            .contains("jdbc_jar_sha256");
     }
 
     private Path backendResource(String file) {
