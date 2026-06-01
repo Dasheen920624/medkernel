@@ -15,10 +15,11 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json,md}\" \"*.{json,md}\"",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
+    "test:lint-rules": "node --test eslint-rules/*.test.js stylelint.config.test.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gen:types": "openapi-typescript http://localhost:18080/medkernel/v3/api-docs -o src/shared/api/generated-types.ts",
-    "verify": "npm run lint && npm run stylelint && npm run format:check && npm run typecheck && npm test",
+    "verify": "npm run lint && npm run stylelint && npm run test:lint-rules && npm run format:check && npm run typecheck && npm test",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report e2e-report"

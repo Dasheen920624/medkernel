@@ -195,6 +195,10 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      - name: ESLint/stylelint rule tests
+        working-directory: frontend
+        run: npm run test:lint-rules
+
       - name: Stylelint
         working-directory: frontend
         run: npm run stylelint

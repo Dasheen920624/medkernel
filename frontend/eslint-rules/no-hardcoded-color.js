@@ -41,6 +41,18 @@ function isTokenFile(filename) {
     normalized.endsWith('src/shared/config/theme.ts');
 }
 
+function isInsideJsxStyleObject(node) {
+  const property = node.parent;
+  const objectExpression = property?.parent;
+  const expressionContainer = objectExpression?.parent;
+  const attribute = expressionContainer?.parent;
+  return property?.type === 'Property' &&
+    objectExpression?.type === 'ObjectExpression' &&
+    expressionContainer?.type === 'JSXExpressionContainer' &&
+    attribute?.type === 'JSXAttribute' &&
+    attribute.name?.name === 'style';
+}
+
 export default {
   meta: {
     type: 'problem',
@@ -92,6 +104,7 @@ export default {
       // 检测普通字符串字面量
       Literal(node) {
         if (typeof node.value !== 'string') return;
+        if (isInsideJsxStyleObject(node)) return;
         // 跳过 import / require 路径
         const parent = node.parent;
         if (
