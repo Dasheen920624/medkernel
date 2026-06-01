@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
@@ -42,8 +44,6 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import java.util.function.Consumer;
-import static org.mockito.Mockito.doAnswer;
 
 class PackageEngineServiceTest {
 
@@ -514,7 +514,7 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void rollbackPackageSwitchesActiveStatusAndRecordsAudit() {
+    void rollbackPackageCreatesRollbackPlanAndSyncLogsBeforeSwitchingStatus() throws Exception {
         KnowledgePackage currentActive = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
             KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -526,6 +526,200 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
         when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenReturn("EVIDENCE-ROLLBACK");
+
+        PackageRollbackRequest request = new PackageRollbackRequest(
+            "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
+        );
+
+        PackageResponse response = service.rollbackPackage("pkg-1", request);
+
+        assertThat(response.packageId()).isEqualTo("pkg-2");
+        assertThat(response.status()).isEqualTo(KnowledgePackageStatus.ACTIVE);
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        assertThat(planCap.getAllValues()).anySatisfy(plan -> {
+            assertThat(plan.packageId()).isEqualTo("pkg-2");
+            assertThat(plan.status()).isEqualTo(ReleasePlanStatus.EXECUTING);
+            assertThat(plan.targetOrgUnitId()).isEqualTo("org-1");
+        });
+        assertThat(planCap.getAllValues()).anySatisfy(plan -> {
+            assertThat(plan.packageId()).isEqualTo("pkg-2");
+            assertThat(plan.status()).isEqualTo(ReleasePlanStatus.ROLLBACKED);
+        });
+
+        ArgumentCaptor<SyncLog> logCap = ArgumentCaptor.forClass(SyncLog.class);
+        verify(logRepository, org.mockito.Mockito.times(2)).save(logCap.capture());
+        assertThat(logCap.getAllValues()).anySatisfy(log -> {
+            assertThat(log.targetId()).isEqualTo("target-1");
+            assertThat(log.status()).isEqualTo(SyncLogStatus.RUNNING);
+        });
+        assertThat(logCap.getAllValues()).anySatisfy(log -> {
+            assertThat(log.targetId()).isEqualTo("target-1");
+            assertThat(log.status()).isEqualTo(SyncLogStatus.SUCCESS);
+            assertThat(log.syncEvidence()).isEqualTo("EVIDENCE-ROLLBACK");
+        });
+        verify(syncPort).sync(eq("tenant-A"), any(ReleasePlan.class), eq(target));
+    }
+
+    @Test
+    void rollbackPackageKeepsStatusAndMarksPlanNotSyncedWhenReverseProjectionNotConnected() throws Exception {
+        KnowledgePackage currentActive = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        KnowledgePackage targetRollback = new KnowledgePackage(
+            2L, "pkg-2", "tenant-A", "PKG.COPD", "1.0.0", "历史老包", null,
+            KnowledgePackageStatus.OFFLINE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
+
+        PackageRollbackRequest request = new PackageRollbackRequest(
+            "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
+        );
+
+        assertThatThrownBy(() -> service.rollbackPackage("pkg-1", request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_005);
+
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        assertThat(planCap.getAllValues()).anySatisfy(plan ->
+            assertThat(plan.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED));
+
+        ArgumentCaptor<SyncLog> logCap = ArgumentCaptor.forClass(SyncLog.class);
+        verify(logRepository, org.mockito.Mockito.times(2)).save(logCap.capture());
+        assertThat(logCap.getAllValues()).anySatisfy(log -> {
+            assertThat(log.status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
+            assertThat(log.errorCode()).isEqualTo("NOT_SYNCED");
+            assertThat(log.syncEvidence()).isNull();
+        });
+    }
+
+    @Test
+    void rollbackPackageMarksPlanFailedWhenOriginalSyncTargetMissing() {
+        KnowledgePackage currentActive = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        KnowledgePackage targetRollback = new KnowledgePackage(
+            2L, "pkg-2", "tenant-A", "PKG.COPD", "1.0.0", "历史老包", null,
+            KnowledgePackageStatus.OFFLINE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        ReleasePlan originalPlan = new ReleasePlan(
+            10L, "plan-current", "tenant-A", "pkg-1", "org-1",
+            ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, ReleasePlanStatus.SUCCESS,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        SyncLog originalSuccessLog = new SyncLog(
+            20L, "log-current", "tenant-A", "plan-current", "target-missing",
+            SyncLogStatus.SUCCESS, null, null, 0, "EVIDENCE-CURRENT",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+        when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
+            .thenReturn(List.of(originalPlan));
+        when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-current"))
+            .thenReturn(List.of(originalSuccessLog));
+        when(targetRepository.findByTargetIdAndTenantId("target-missing", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        PackageRollbackRequest request = new PackageRollbackRequest(
+            "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
+        );
+
+        assertThatThrownBy(() -> service.rollbackPackage("pkg-1", request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_005);
+
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        assertThat(planCap.getAllValues()).anySatisfy(plan ->
+            assertThat(plan.status()).isEqualTo(ReleasePlanStatus.FAILED));
+
+        ArgumentCaptor<SyncLog> logCap = ArgumentCaptor.forClass(SyncLog.class);
+        verify(logRepository, org.mockito.Mockito.times(2)).save(logCap.capture());
+        assertThat(logCap.getAllValues()).anySatisfy(log -> {
+            assertThat(log.status()).isEqualTo(SyncLogStatus.FAILED);
+            assertThat(log.errorCode()).isEqualTo("ENG-PACKAGE-001");
+            assertThat(log.targetId()).isEqualTo("target-missing");
+        });
+    }
+
+    @Test
+    void rollbackPackageMarksPlanFailedWhenReverseProjectionReturnsBlankEvidence() throws Exception {
+        KnowledgePackage currentActive = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        KnowledgePackage targetRollback = new KnowledgePackage(
+            2L, "pkg-2", "tenant-A", "PKG.COPD", "1.0.0", "历史老包", null,
+            KnowledgePackageStatus.OFFLINE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenReturn(" ");
+
+        PackageRollbackRequest request = new PackageRollbackRequest(
+            "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
+        );
+
+        assertThatThrownBy(() -> service.rollbackPackage("pkg-1", request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_005);
+
+        verify(packageRepository, org.mockito.Mockito.never()).save(any(KnowledgePackage.class));
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        assertThat(planCap.getAllValues()).anySatisfy(plan ->
+            assertThat(plan.status()).isEqualTo(ReleasePlanStatus.FAILED));
+
+        ArgumentCaptor<SyncLog> logCap = ArgumentCaptor.forClass(SyncLog.class);
+        verify(logRepository, org.mockito.Mockito.times(2)).save(logCap.capture());
+        assertThat(logCap.getAllValues()).anySatisfy(log -> {
+            assertThat(log.status()).isEqualTo(SyncLogStatus.FAILED);
+            assertThat(log.errorCode()).isEqualTo("ENG-PACKAGE-005");
+            assertThat(log.syncEvidence()).isNull();
+        });
+    }
+
+    @Test
+    void rollbackPackageSwitchesActiveStatusAndRecordsAudit() throws Exception {
+        KnowledgePackage currentActive = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
+            KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        KnowledgePackage targetRollback = new KnowledgePackage(
+            2L, "pkg-2", "tenant-A", "PKG.COPD", "1.0.0", "历史老包", null,
+            KnowledgePackageStatus.OFFLINE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
+        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenReturn("EVIDENCE-ROLLBACK");
 
         PackageRollbackRequest request = new PackageRollbackRequest(
             "pkg-2", "2.0.0", "1.0.0", "临床专家已确认回滚窗口", true
@@ -637,6 +831,35 @@ class PackageEngineServiceTest {
             1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
             status, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
+    }
+
+    private SyncTarget givenSuccessfulRollbackSource(
+            String currentPackageId,
+            String planId,
+            String targetId,
+            String targetOrgUnitId) {
+        ReleasePlan originalPlan = new ReleasePlan(
+            10L, planId, "tenant-A", currentPackageId, targetOrgUnitId,
+            ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, ReleasePlanStatus.SUCCESS,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        SyncLog originalSuccessLog = new SyncLog(
+            20L, "log-" + targetId, "tenant-A", planId, targetId,
+            SyncLogStatus.SUCCESS, null, null, 0, "EVIDENCE-CURRENT",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        SyncTarget target = new SyncTarget(
+            30L, targetId, "tenant-A", "图投影", SyncTargetType.GRAPH_DB, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+
+        when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", currentPackageId))
+            .thenReturn(List.of(originalPlan));
+        when(logRepository.findByTenantIdAndPlanId("tenant-A", planId))
+            .thenReturn(List.of(originalSuccessLog));
+        when(targetRepository.findByTargetIdAndTenantId(targetId, "tenant-A"))
+            .thenReturn(Optional.of(target));
+        return target;
     }
 
     private PackageItem packageItem(
