@@ -44,29 +44,49 @@ describe("route metadata", () => {
       });
   });
 
-  it("binds menu routes to the corresponding BASE-02 menu permission code", () => {
+  it("binds menu routes to the INFRA-05 second-level menu permission code", () => {
     routeMetas
-      .filter((route) => route.requireAuth && route.sectionKey)
+      .filter((route) => route.requireAuth && route.sectionKey && route.menuKey)
       .forEach((route) => {
-        expect(route.requiredPermissions).toContain(`menu.${route.sectionKey}`);
+        expect(route.requiredPermissions).toContain(`menu.${route.menuKey}`);
+        if (route.menuKey !== route.sectionKey) {
+          expect(route.requiredPermissions).not.toContain(`menu.${route.sectionKey}`);
+        }
       });
   });
 
-  it("accepts backend menuKeys as the route authorization source for menu sections", () => {
+  it("accepts backend menuKeys as the route authorization source for second-level menus", () => {
     expect(
       canAccessRoute(findRouteByPath("/qc/eval/results"), {
         roles: [{ code: "qa-manager" }],
         permissions: [],
-        menuKeys: ["quality-improve"],
+        menuKeys: ["qc-eval-results"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(findRouteByPath("/advanced/provenance"), {
         roles: [{ code: "audit-compliance" }],
         permissions: [],
-        menuKeys: ["advanced-tools"],
+        menuKeys: ["provenance"],
       }),
     ).toBe(true);
+  });
+
+  it("rejects legacy first-level section menuKeys for second-level routes", () => {
+    expect(
+      canAccessRoute(findRouteByPath("/terminology/mapping"), {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [],
+        menuKeys: ["pilot-setup"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(findRouteByPath("/qc/eval/results"), {
+        roles: [{ code: "qa-manager" }],
+        permissions: [],
+        menuKeys: ["quality-improve"],
+      }),
+    ).toBe(false);
   });
 
   it("requires experience metadata for authenticated menu routes", () => {

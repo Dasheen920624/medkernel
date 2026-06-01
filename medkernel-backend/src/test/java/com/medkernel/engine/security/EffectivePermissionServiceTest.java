@@ -41,7 +41,7 @@ class EffectivePermissionServiceTest {
             .thenReturn(List.of(
                 override("t-1", RoleCode.DOCTOR, PermissionCode.RECOMMENDATION_ACCEPT, PermissionEffect.DENY),
                 override("t-1", RoleCode.DOCTOR, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW),
-                override("t-1", RoleCode.DOCTOR, PermissionCode.MENU_COMPLIANCE_OPS, PermissionEffect.ALLOW)
+                override("t-1", RoleCode.DOCTOR, PermissionCode.MENU_ADMIN_AUDIT, PermissionEffect.ALLOW)
             ));
 
         var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
@@ -49,7 +49,7 @@ class EffectivePermissionServiceTest {
         assertThat(profile.permissionCodes())
             .contains(PermissionCode.RECOMMENDATION_READ.code(), PermissionCode.AUDIT_READ.code())
             .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code());
-        assertThat(profile.menuKeys()).contains("clinical-run", "compliance-ops");
+        assertThat(profile.menuKeys()).contains("rule-validate", "admin-audit");
     }
 
     @Test
@@ -106,8 +106,8 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.DOCTOR), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.menuKeys())
-            .contains("workbench", "clinical-run")
-            .doesNotContain("pilot-setup", "advanced-tools");
+            .contains("workbench", "mpi", "patient-pathways", "rule-validate")
+            .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
     }
 
     @Test
@@ -120,7 +120,7 @@ class EffectivePermissionServiceTest {
         var profile = service.resolve(auth(RoleCode.IT_OPS), OrgScope.tenant("t-1"), "doctor-1");
 
         assertThat(profile.permissionCodes()).contains(PermissionCode.EVALUATION_EXECUTE.code());
-        assertThat(profile.menuKeys()).contains("quality-improve");
+        assertThat(profile.menuKeys()).contains("qc-dashboard", "system-providers");
     }
 
     @Test

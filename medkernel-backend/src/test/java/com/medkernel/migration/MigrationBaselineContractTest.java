@@ -68,7 +68,8 @@ class MigrationBaselineContractTest {
         "V39__clinical_event_context_scope.sql",
         "V40__projection_sync_baseline.sql",
         "V41__runtime_task_framework.sql",
-        "V42__runtime_task_retry_dead_letter.sql"
+        "V42__runtime_task_retry_dead_letter.sql",
+        "V43__menu_permission_granularity.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",

@@ -90,6 +90,7 @@ export function AppLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [openMenuSectionKeys, setOpenMenuSectionKeys] = useState<string[]>([]);
   const [changePasswordForm] = Form.useForm<ChangePasswordValues>();
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
@@ -123,6 +124,14 @@ export function AppLayout() {
         .filter((s) => s.items.length > 0),
     [securityProfile.data],
   );
+  const defaultOpenMenuSectionKeys = useMemo(
+    () => visibleMenuSections.filter((s) => s.key !== "workbench").map((s) => s.key),
+    [visibleMenuSections],
+  );
+
+  useEffect(() => {
+    setOpenMenuSectionKeys(defaultOpenMenuSectionKeys);
+  }, [defaultOpenMenuSectionKeys]);
 
   const items: MenuProps["items"] = useMemo(
     () =>
@@ -336,7 +345,8 @@ export function AppLayout() {
         mode="inline"
         theme="light"
         selectedKeys={[location.pathname]}
-        defaultOpenKeys={visibleMenuSections.filter((s) => s.items.length > 1).map((s) => s.key)}
+        openKeys={isCollapsed ? [] : openMenuSectionKeys}
+        onOpenChange={(keys) => setOpenMenuSectionKeys(keys)}
         items={items}
         onClick={handleMenuClick}
         className="mk-menu-borderless"

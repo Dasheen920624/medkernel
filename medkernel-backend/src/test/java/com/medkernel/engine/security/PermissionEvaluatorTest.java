@@ -59,7 +59,8 @@ class PermissionEvaluatorTest {
     void platformAdminHasEveryNonEmergencyPermission() {
         authenticate(RoleCode.PLATFORM_ADMIN);
         for (PermissionCode perm : PermissionCode.values()) {
-            if (perm == PermissionCode.ENV_EMERGENCY) {
+            if (perm == PermissionCode.ENV_EMERGENCY
+                    || MenuPermissionCatalog.legacySectionPermissions().contains(perm)) {
                 continue;
             }
             assertThat(evaluator.has(perm.code()))
@@ -73,8 +74,8 @@ class PermissionEvaluatorTest {
     void canEvaluatesDimensionAndTargetWithoutImplicitMenuShortcut() {
         authenticate(RoleCode.DOCTOR);
 
-        assertThat(evaluator.can(PermissionDimension.MENU, "clinical-run")).isTrue();
-        assertThat(evaluator.can(PermissionDimension.MENU, "pilot-setup")).isFalse();
+        assertThat(evaluator.can(PermissionDimension.MENU, "rule-validate")).isTrue();
+        assertThat(evaluator.can(PermissionDimension.MENU, "clinical-run")).isFalse();
         assertThat(evaluator.can(PermissionDimension.DATA, "department")).isTrue();
         assertThat(evaluator.can(PermissionDimension.DATA, "hospital")).isFalse();
     }

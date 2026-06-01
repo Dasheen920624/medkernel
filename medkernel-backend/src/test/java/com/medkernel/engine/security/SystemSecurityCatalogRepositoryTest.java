@@ -51,13 +51,10 @@ class SystemSecurityCatalogRepositoryTest {
 
         assertThat(menuPermissions)
             .extracting(SystemPermission::permissionCode)
-            .containsExactlyInAnyOrder(
-                "menu.workbench",
-                "menu.pilot-setup",
-                "menu.clinical-run",
-                "menu.quality-improve",
-                "menu.compliance-ops",
-                "menu.advanced-tools");
+            .containsExactlyInAnyOrderElementsOf(
+                MenuPermissionCatalog.allMenus().stream()
+                    .map(menu -> menu.permission().code())
+                    .toList());
         assertThat(menuPermissions).allMatch(permission -> permission.dimension() == PermissionDimension.MENU);
     }
 }

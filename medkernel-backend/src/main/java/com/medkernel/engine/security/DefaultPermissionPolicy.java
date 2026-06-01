@@ -2,81 +2,11 @@ package com.medkernel.engine.security;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.medkernel.engine.security.PermissionCode.AUDIT_EXPORT;
-import static com.medkernel.engine.security.PermissionCode.AUDIT_READ;
-import static com.medkernel.engine.security.PermissionCode.ASSET_CONFIG_PACKAGE;
-import static com.medkernel.engine.security.PermissionCode.ASSET_DICTIONARY;
-import static com.medkernel.engine.security.PermissionCode.ASSET_KNOWLEDGE_PACKAGE;
-import static com.medkernel.engine.security.PermissionCode.ASSET_PATHWAY;
-import static com.medkernel.engine.security.PermissionCode.ASSET_RULE;
-import static com.medkernel.engine.security.PermissionCode.CONTEXT_READ;
-import static com.medkernel.engine.security.PermissionCode.CONTEXT_WRITE;
-import static com.medkernel.engine.security.PermissionCode.DATA_DEPARTMENT;
-import static com.medkernel.engine.security.PermissionCode.DATA_DESENSITIZED;
-import static com.medkernel.engine.security.PermissionCode.DATA_GROUP;
-import static com.medkernel.engine.security.PermissionCode.DATA_HOSPITAL;
-import static com.medkernel.engine.security.PermissionCode.EVENT_READ;
-import static com.medkernel.engine.security.PermissionCode.EVENT_WRITE;
-import static com.medkernel.engine.security.PermissionCode.ENV_PRODUCTION;
-import static com.medkernel.engine.security.PermissionCode.ENV_TEST;
-import static com.medkernel.engine.security.PermissionCode.ENV_TRIAL;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_EXECUTE;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_READ;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_REMEDIATE;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_REVIEW;
-import static com.medkernel.engine.security.PermissionCode.EVALUATION_WRITE;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_EXPORT;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_READ;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_REVIEW;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_WITHDRAW;
-import static com.medkernel.engine.security.PermissionCode.KNOWLEDGE_WRITE;
-import static com.medkernel.engine.security.PermissionCode.ORG_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.ORG_READ;
-import static com.medkernel.engine.security.PermissionCode.ORG_WRITE;
-import static com.medkernel.engine.security.PermissionCode.PACKAGE_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.PACKAGE_READ;
-import static com.medkernel.engine.security.PermissionCode.PACKAGE_ROLLBACK;
-import static com.medkernel.engine.security.PermissionCode.PATHWAY_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.PATHWAY_READ;
-import static com.medkernel.engine.security.PermissionCode.PATHWAY_WRITE;
-import static com.medkernel.engine.security.PermissionCode.RECOMMENDATION_ACCEPT;
-import static com.medkernel.engine.security.PermissionCode.RECOMMENDATION_READ;
-import static com.medkernel.engine.security.PermissionCode.RECOMMENDATION_WRITE;
-import static com.medkernel.engine.security.PermissionCode.RULE_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.RULE_READ;
-import static com.medkernel.engine.security.PermissionCode.RULE_WRITE;
-import static com.medkernel.engine.security.PermissionCode.SYSTEM_MANAGE;
-import static com.medkernel.engine.security.PermissionCode.SYSTEM_READ;
-import static com.medkernel.engine.security.PermissionCode.TENANT_READ;
-import static com.medkernel.engine.security.PermissionCode.TENANT_WRITE;
-import static com.medkernel.engine.security.PermissionCode.TERM_PUBLISH;
-import static com.medkernel.engine.security.PermissionCode.TERM_READ;
-import static com.medkernel.engine.security.PermissionCode.TERM_WRITE;
-import static com.medkernel.engine.security.PermissionCode.FOLLOWUP_READ;
-import static com.medkernel.engine.security.PermissionCode.FOLLOWUP_WRITE;
-import static com.medkernel.engine.security.PermissionCode.EMBED_READ;
-import static com.medkernel.engine.security.PermissionCode.EMBED_WRITE;
-import static com.medkernel.engine.security.PermissionCode.LLM_READ;
-import static com.medkernel.engine.security.PermissionCode.LLM_WRITE;
-import static com.medkernel.engine.security.PermissionCode.LIST_EXPORT;
-import static com.medkernel.engine.security.PermissionCode.INTEGRATION_EXECUTE;
-import static com.medkernel.engine.security.PermissionCode.INTEGRATION_READ;
-import static com.medkernel.engine.security.PermissionCode.INTEGRATION_WRITE;
-import static com.medkernel.engine.security.PermissionCode.MENU_ADVANCED_TOOLS;
-import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_RUN;
-import static com.medkernel.engine.security.PermissionCode.MENU_COMPLIANCE_OPS;
-import static com.medkernel.engine.security.PermissionCode.MENU_PILOT_SETUP;
-import static com.medkernel.engine.security.PermissionCode.MENU_QUALITY_IMPROVE;
-import static com.medkernel.engine.security.PermissionCode.MENU_WORKBENCH;
-import static com.medkernel.engine.security.PermissionCode.MPI_READ;
-import static com.medkernel.engine.security.PermissionCode.MPI_WRITE;
-import static com.medkernel.engine.security.PermissionCode.PROJECTION_READ;
-import static com.medkernel.engine.security.PermissionCode.PROJECTION_REBUILD;
+import static com.medkernel.engine.security.PermissionCode.*;
 
 /**
  * 默认角色与动作权限的规则绑定策略类（Default Permission Policy）。
@@ -110,8 +40,7 @@ public final class DefaultPermissionPolicy {
         map.put(RoleCode.HOSPITAL_ADMIN, hospitalAdmin);
 
         // 信息科：基础设施读写 + 运维 + 字典 + 配置包 + 临床上下文接入
-        map.put(RoleCode.IT_OPS, EnumSet.of(
-            MENU_WORKBENCH, MENU_PILOT_SETUP, MENU_QUALITY_IMPROVE, MENU_COMPLIANCE_OPS, MENU_ADVANCED_TOOLS,
+        map.put(RoleCode.IT_OPS, withMenus(EnumSet.of(
             DATA_GROUP,
             ASSET_CONFIG_PACKAGE, ASSET_DICTIONARY,
             ENV_TEST, ENV_TRIAL, ENV_PRODUCTION,
@@ -131,11 +60,28 @@ public final class DefaultPermissionPolicy {
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
-            LIST_EXPORT));
+            LIST_EXPORT),
+            MENU_WORKBENCH,
+            MENU_IMPLEMENTATION_GUIDE,
+            MENU_TENANT_ONBOARDING,
+            MENU_CONFIG_PACKAGES,
+            MENU_TERMINOLOGY_MAPPING,
+            MENU_ADAPTER_HUB,
+            MENU_QC_DASHBOARD,
+            MENU_QC_EVAL_RESULTS,
+            MENU_ADMIN_USERS,
+            MENU_IDENTITY_BINDINGS,
+            MENU_ADMIN_AUDIT,
+            MENU_SECURITY_BASELINE,
+            MENU_SYSTEM_PROVIDERS,
+            MENU_NOTIFICATION_SETTINGS,
+            MENU_PROVENANCE,
+            MENU_GRAPH_EXPLORE,
+            MENU_DOMESTIC_CHECK,
+            MENU_DEV_CONSOLE));
 
         // 医务处：知识/规则/路径审核与发布 + 上下文只读
-        map.put(RoleCode.MEDICAL_AFFAIRS, EnumSet.of(
-            MENU_WORKBENCH, MENU_PILOT_SETUP, MENU_CLINICAL_RUN, MENU_QUALITY_IMPROVE,
+        map.put(RoleCode.MEDICAL_AFFAIRS, withMenus(EnumSet.of(
             DATA_HOSPITAL,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_TRIAL, ENV_PRODUCTION,
@@ -153,11 +99,27 @@ public final class DefaultPermissionPolicy {
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE,
-            LIST_EXPORT));
+            LIST_EXPORT),
+            MENU_WORKBENCH,
+            MENU_PATHWAY_TEMPLATES,
+            MENU_RULE_DEFINITIONS,
+            MENU_TERMINOLOGY_MAPPING,
+            MENU_PATIENT_PATHWAYS,
+            MENU_CDSS_FATIGUE,
+            MENU_RULE_VALIDATE,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS,
+            MENU_CLINICAL_FOLLOWUP,
+            MENU_QC_DASHBOARD,
+            MENU_QC_ALERTS,
+            MENU_QC_EVAL_RESULTS,
+            MENU_AIK_REVIEW,
+            MENU_PROVENANCE,
+            MENU_GRAPH_EXPLORE,
+            MENU_AI_WORKFLOWS));
 
         // 质控办：评估指标审核发布 + 质控发现 + 上下文只读
-        map.put(RoleCode.QA_MANAGER, EnumSet.of(
-            MENU_WORKBENCH, MENU_QUALITY_IMPROVE, MENU_COMPLIANCE_OPS,
+        map.put(RoleCode.QA_MANAGER, withMenus(EnumSet.of(
             DATA_HOSPITAL,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_TRIAL, ENV_PRODUCTION,
@@ -173,11 +135,18 @@ public final class DefaultPermissionPolicy {
             MPI_READ,
             AUDIT_READ, AUDIT_EXPORT,
             FOLLOWUP_READ, EMBED_READ,
-            LLM_READ, LIST_EXPORT));
+            LLM_READ, LIST_EXPORT),
+            MENU_WORKBENCH,
+            MENU_QC_DASHBOARD,
+            MENU_QC_ALERTS,
+            MENU_QC_EVAL_SETS,
+            MENU_QC_EVAL_RESULTS,
+            MENU_AIK_REVIEW,
+            MENU_ADMIN_AUDIT,
+            MENU_PROVENANCE));
 
         // 医保办：医保规则维护（属于规则一类）+ 评估
-        map.put(RoleCode.INSURANCE_MANAGER, EnumSet.of(
-            MENU_WORKBENCH, MENU_QUALITY_IMPROVE,
+        map.put(RoleCode.INSURANCE_MANAGER, withMenus(EnumSet.of(
             DATA_HOSPITAL, DATA_DESENSITIZED,
             ASSET_RULE,
             ENV_PRODUCTION,
@@ -185,11 +154,14 @@ public final class DefaultPermissionPolicy {
             RULE_READ, RULE_WRITE,
             EVALUATION_READ,
             KNOWLEDGE_READ,
-            AUDIT_READ));
+            AUDIT_READ),
+            MENU_WORKBENCH,
+            MENU_INSURANCE_AUDIT,
+            MENU_QC_DASHBOARD,
+            MENU_QC_EVAL_RESULTS));
 
         // 科主任：本科室路径/规则审核 + 评估查看 + 上下文只读
-        map.put(RoleCode.DEPT_HEAD, EnumSet.of(
-            MENU_WORKBENCH, MENU_CLINICAL_RUN, MENU_QUALITY_IMPROVE,
+        map.put(RoleCode.DEPT_HEAD, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_PRODUCTION,
@@ -201,11 +173,23 @@ public final class DefaultPermissionPolicy {
             EVALUATION_READ, EVALUATION_REMEDIATE,
             RECOMMENDATION_READ,
             MPI_READ,
-            FOLLOWUP_READ));
+            FOLLOWUP_READ),
+            MENU_WORKBENCH,
+            MENU_PATHWAY_TEMPLATES,
+            MENU_RULE_DEFINITIONS,
+            MENU_MPI,
+            MENU_PATIENT_PATHWAYS,
+            MENU_CDSS_FATIGUE,
+            MENU_RULE_VALIDATE,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS,
+            MENU_CLINICAL_FOLLOWUP,
+            MENU_QC_DASHBOARD,
+            MENU_QC_ALERTS,
+            MENU_QC_EVAL_RESULTS));
 
         // 专科专家：知识/路径审核 + 上下文只读
-        map.put(RoleCode.SPECIALIST, EnumSet.of(
-            MENU_WORKBENCH, MENU_PILOT_SETUP, MENU_CLINICAL_RUN,
+        map.put(RoleCode.SPECIALIST, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_DICTIONARY, ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_TEST, ENV_PRODUCTION,
@@ -217,11 +201,19 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ,
             MPI_READ,
-            FOLLOWUP_READ));
+            FOLLOWUP_READ),
+            MENU_WORKBENCH,
+            MENU_PATHWAY_TEMPLATES,
+            MENU_RULE_DEFINITIONS,
+            MENU_TERMINOLOGY_MAPPING,
+            MENU_MPI,
+            MENU_PATIENT_PATHWAYS,
+            MENU_RULE_VALIDATE,
+            MENU_NOTIFICATIONS,
+            MENU_CLINICAL_FOLLOWUP));
 
         // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
-        map.put(RoleCode.DOCTOR, EnumSet.of(
-            MENU_WORKBENCH, MENU_CLINICAL_RUN,
+        map.put(RoleCode.DOCTOR, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_RULE, ASSET_PATHWAY,
             ENV_PRODUCTION,
@@ -234,11 +226,18 @@ public final class DefaultPermissionPolicy {
             MPI_READ,
             FOLLOWUP_READ,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE));
+            LLM_READ, LLM_WRITE),
+            MENU_WORKBENCH,
+            MENU_MPI,
+            MENU_PATIENT_PATHWAYS,
+            MENU_CDSS_FATIGUE,
+            MENU_RULE_VALIDATE,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS,
+            MENU_CLINICAL_FOLLOWUP));
 
         // 护理人员：护理决策与提醒 + 临床上下文只读
-        map.put(RoleCode.NURSE, EnumSet.of(
-            MENU_WORKBENCH, MENU_CLINICAL_RUN,
+        map.put(RoleCode.NURSE, withMenus(EnumSet.of(
             DATA_DEPARTMENT,
             ASSET_KNOWLEDGE_PACKAGE, ASSET_PATHWAY,
             ENV_PRODUCTION,
@@ -250,11 +249,16 @@ public final class DefaultPermissionPolicy {
             MPI_READ,
             FOLLOWUP_READ,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE));
+            LLM_READ, LLM_WRITE),
+            MENU_WORKBENCH,
+            MENU_MPI,
+            MENU_PATIENT_PATHWAYS,
+            MENU_WORKFLOW_TODOS,
+            MENU_NOTIFICATIONS,
+            MENU_CLINICAL_FOLLOWUP));
 
         // 合规审计：只读 + 导出，禁所有写
-        map.put(RoleCode.AUDIT_COMPLIANCE, EnumSet.of(
-            MENU_WORKBENCH, MENU_COMPLIANCE_OPS, MENU_ADVANCED_TOOLS,
+        map.put(RoleCode.AUDIT_COMPLIANCE, withMenus(EnumSet.of(
             DATA_GROUP, DATA_DESENSITIZED,
             ASSET_KNOWLEDGE_PACKAGE,
             ENV_PRODUCTION,
@@ -266,11 +270,18 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ,
             PROJECTION_READ,
-            FOLLOWUP_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT));
+            FOLLOWUP_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT),
+            MENU_WORKBENCH,
+            MENU_ADMIN_USERS,
+            MENU_IDENTITY_BINDINGS,
+            MENU_ADMIN_AUDIT,
+            MENU_SECURITY_BASELINE,
+            MENU_SYSTEM_PROVIDERS,
+            MENU_PROVENANCE,
+            MENU_GRAPH_EXPLORE));
 
         // 实施工程师：试点准备阶段的接入与配置 + 临床上下文接入
-        map.put(RoleCode.IMPLEMENTATION_ENGINEER, EnumSet.of(
-            MENU_WORKBENCH, MENU_PILOT_SETUP, MENU_COMPLIANCE_OPS,
+        map.put(RoleCode.IMPLEMENTATION_ENGINEER, withMenus(EnumSet.of(
             DATA_HOSPITAL,
             ASSET_CONFIG_PACKAGE, ASSET_DICTIONARY,
             ENV_TEST, ENV_TRIAL,
@@ -288,7 +299,22 @@ public final class DefaultPermissionPolicy {
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
-            LIST_EXPORT));
+            LIST_EXPORT),
+            MENU_WORKBENCH,
+            MENU_IMPLEMENTATION_GUIDE,
+            MENU_TENANT_ONBOARDING,
+            MENU_CONFIG_PACKAGES,
+            MENU_PATHWAY_TEMPLATES,
+            MENU_RULE_DEFINITIONS,
+            MENU_TERMINOLOGY_MAPPING,
+            MENU_ADAPTER_HUB,
+            MENU_ADMIN_AUDIT,
+            MENU_SYSTEM_PROVIDERS,
+            MENU_NOTIFICATION_SETTINGS,
+            MENU_PROVENANCE,
+            MENU_GRAPH_EXPLORE,
+            MENU_DOMESTIC_CHECK,
+            MENU_DEV_CONSOLE));
 
         POLICY = Map.copyOf(map);
     }
@@ -299,6 +325,14 @@ public final class DefaultPermissionPolicy {
     private static EnumSet<PermissionCode> allNonEmergencyPermissions() {
         EnumSet<PermissionCode> permissions = EnumSet.allOf(PermissionCode.class);
         permissions.remove(PermissionCode.ENV_EMERGENCY);
+        permissions.removeAll(MenuPermissionCatalog.legacySectionPermissions());
+        return permissions;
+    }
+
+    private static EnumSet<PermissionCode> withMenus(
+            EnumSet<PermissionCode> permissions,
+            PermissionCode... menuPermissions) {
+        permissions.addAll(List.of(menuPermissions));
         return permissions;
     }
 

@@ -97,12 +97,17 @@ public enum PermissionCode {
     PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
     PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
 
-    // ─── 菜单维度（INFRA-05 细化到 27 二级菜单前的一级入口基线）──────────────
+    // ─── 菜单维度（INFRA-05 前的一级入口遗留权限，仅保留枚举兼容，不再作为有效菜单矩阵）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),
+    @Deprecated(forRemoval = false)
     MENU_PILOT_SETUP("menu.pilot-setup", PermissionDimension.MENU, Risk.LOW, "查看试点准备入口"),
+    @Deprecated(forRemoval = false)
     MENU_CLINICAL_RUN("menu.clinical-run", PermissionDimension.MENU, Risk.LOW, "查看临床运行入口"),
+    @Deprecated(forRemoval = false)
     MENU_QUALITY_IMPROVE("menu.quality-improve", PermissionDimension.MENU, Risk.LOW, "查看质控改进入口"),
+    @Deprecated(forRemoval = false)
     MENU_COMPLIANCE_OPS("menu.compliance-ops", PermissionDimension.MENU, Risk.LOW, "查看合规运维入口"),
+    @Deprecated(forRemoval = false)
     MENU_ADVANCED_TOOLS("menu.advanced-tools", PermissionDimension.MENU, Risk.LOW, "查看高级工具入口"),
 
     // ─── 数据维度（BASE-01 orgPath 上的组织范围基线）──────────────────────
@@ -122,7 +127,40 @@ public enum PermissionCode {
     ENV_TEST("env.test", PermissionDimension.ENVIRONMENT, Risk.LOW, "访问测试环境"),
     ENV_TRIAL("env.trial", PermissionDimension.ENVIRONMENT, Risk.MEDIUM, "访问试运行环境"),
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
-    ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境");
+    ENV_EMERGENCY("env.emergency", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问应急环境"),
+
+    // ─── INFRA-05 菜单维度：27 二级菜单 + 5 高级工具粒度 ─────────────────────
+    MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看客户实施向导"),
+    MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看租户开通"),
+    MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包中心"),
+    MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看路径配置"),
+    MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看规则库"),
+    MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看字典映射"),
+    MENU_ADAPTER_HUB("menu.adapter-hub", PermissionDimension.MENU, Risk.LOW, "查看适配器中心"),
+    MENU_MPI("menu.mpi", PermissionDimension.MENU, Risk.LOW, "查看患者主索引"),
+    MENU_PATIENT_PATHWAYS("menu.patient-pathways", PermissionDimension.MENU, Risk.LOW, "查看患者路径"),
+    MENU_CDSS_FATIGUE("menu.cdss-fatigue", PermissionDimension.MENU, Risk.LOW, "查看临床提醒治理"),
+    MENU_RULE_VALIDATE("menu.rule-validate", PermissionDimension.MENU, Risk.LOW, "查看规则校验"),
+    MENU_WORKFLOW_TODOS("menu.workflow-todos", PermissionDimension.MENU, Risk.LOW, "查看待办中心"),
+    MENU_NOTIFICATIONS("menu.notifications", PermissionDimension.MENU, Risk.LOW, "查看通知中心"),
+    MENU_CLINICAL_FOLLOWUP("menu.clinical-followup", PermissionDimension.MENU, Risk.LOW, "查看智能随访"),
+    MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看院级质控驾驶舱"),
+    MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质控预警"),
+    MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保智能审核"),
+    MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评估指标库"),
+    MENU_QC_EVAL_RESULTS("menu.qc-eval-results", PermissionDimension.MENU, Risk.LOW, "查看评估结果"),
+    MENU_AIK_REVIEW("menu.aik-review", PermissionDimension.MENU, Risk.LOW, "查看 AI 知识审核"),
+    MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看用户管理"),
+    MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份绑定"),
+    MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计日志"),
+    MENU_SECURITY_BASELINE("menu.security-baseline", PermissionDimension.MENU, Risk.LOW, "查看安全基线与系统配置"),
+    MENU_SYSTEM_PROVIDERS("menu.system-providers", PermissionDimension.MENU, Risk.LOW, "查看 Provider 状态"),
+    MENU_NOTIFICATION_SETTINGS("menu.notification-settings", PermissionDimension.MENU, Risk.LOW, "查看通知设置"),
+    MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源追溯"),
+    MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看图谱查询"),
+    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看 AI 工作流"),
+    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化自检"),
+    MENU_DEV_CONSOLE("menu.dev-console", PermissionDimension.MENU, Risk.LOW, "查看开发者控制台");
 
     private final String code;
     private final PermissionDimension dimension;

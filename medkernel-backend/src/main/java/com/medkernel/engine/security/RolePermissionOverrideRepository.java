@@ -2,6 +2,7 @@ package com.medkernel.engine.security;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
@@ -23,4 +24,9 @@ public interface RolePermissionOverrideRepository extends ListCrudRepository<Rol
         ORDER BY role_code, permission_code
         """)
     List<RolePermissionOverride> findByTenantIdAndRoleCodes(String tenantId, Collection<String> roleCodes);
+
+    Optional<RolePermissionOverride> findByTenantIdAndRoleCodeAndPermissionCode(
+        String tenantId,
+        String roleCode,
+        String permissionCode);
 }

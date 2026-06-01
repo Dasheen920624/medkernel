@@ -12,20 +12,24 @@ class DefaultPermissionPolicyTest {
     void platformAdminHasAllNonEmergencyPermissions() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+            .doesNotContain(PermissionCode.ENV_EMERGENCY)
+            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
     }
 
     @Test
     void groupAdminHasAllNonEmergencyPermissions() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
+        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY);
+            .doesNotContain(PermissionCode.ENV_EMERGENCY)
+            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
     }
 
     @Test
@@ -193,5 +197,39 @@ class DefaultPermissionPolicyTest {
             .doesNotContain(
                 PermissionCode.EVALUATION_REMEDIATE,
                 PermissionCode.EVALUATION_REVIEW);
+    }
+
+    @Test
+    void everyRoleUsesOnlyInfrafiveSecondLevelMenuPermissions() {
+        for (RoleCode role : RoleCode.values()) {
+            var menuPermissions = DefaultPermissionPolicy.permissionsOf(role).stream()
+                .filter(permission -> permission.dimension() == PermissionDimension.MENU)
+                .toList();
+
+            assertThat(menuPermissions)
+                .as("%s 必须拥有至少一个二级菜单权限", role.code())
+                .isNotEmpty();
+            assertThat(menuPermissions)
+                .as("%s 不得继续使用一级 section 菜单权限", role.code())
+                .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            assertThat(menuPermissions)
+                .as("%s 菜单权限必须全部来自 INFRA-05 32 项目录", role.code())
+                .allMatch(MenuPermissionCatalog::isCatalogMenuPermission);
+        }
+    }
+
+    @Test
+    void doctorNavigationIsClinicalOnlyAtSecondLevelGranularity() {
+        assertThat(MenuPermissionCatalog.menuKeysFor(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR)))
+            .containsExactlyInAnyOrder(
+                "workbench",
+                "mpi",
+                "patient-pathways",
+                "cdss-fatigue",
+                "rule-validate",
+                "workflow-todos",
+                "notifications",
+                "clinical-followup")
+            .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
     }
 }
