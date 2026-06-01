@@ -35,6 +35,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import {
   useCreateRecommendationTrigger,
   useRecommendationCards,
@@ -57,30 +58,6 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 type RecommendationBadgeStatus = Exclude<BadgeProps["status"], undefined>;
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-  errorFields?: unknown;
-};
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as ApiErrorResponse;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
-
-function isFormValidationError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "errorFields" in error &&
-    Array.isArray((error as ApiErrorResponse).errorFields)
-  );
-}
 
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 async function sha256Hex(input: string): Promise<string> {
@@ -178,7 +155,7 @@ export default function CdssFatigue() {
       triggerForm.resetFields();
       refetchCards();
     } catch (error: unknown) {
-      if (isFormValidationError(error)) return;
+      if (applyApiFieldErrors(triggerForm, error)) return;
       message.error(getApiErrorMessage(error, "触发 CDSS 计算失败，请稍后重试"));
     }
   };
@@ -208,7 +185,7 @@ export default function CdssFatigue() {
       refetchFatigue();
       refetchDiagnose();
     } catch (error: unknown) {
-      if (isFormValidationError(error)) return;
+      if (applyApiFieldErrors(feedbackForm, error)) return;
       message.error(getApiErrorMessage(error, "反馈提交失败，卡片可能已过期或已处于终止态"));
     }
   };

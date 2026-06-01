@@ -21,7 +21,7 @@
 - [ ] **FR-2 Form.Item 字段级回显**：后端字段校验错误 → 对应 `Form.Item` 的 `validateStatus` + `help`（字段级，非全局 toast 一句）。
 - [ ] **FR-3 后端显式抛 ApiException**：后端校验/业务失败显式抛 `ApiException`（不吞错返回成功，与 [INFRA-02](INFRA-02.md) 门禁呼应）。
 - [x] **FR-4 DataIntegrityViolation handler**：DB 约束冲突（唯一/外键）→ 友好中文 `ProblemDetail`（非裸 SQL 异常）。PR1 已实现 `DataIntegrityViolationException` → 409 `ENG-API-007`，响应不泄露 SQL / 约束名。
-- [ ] **FR-5 traceId 复制**：错误态展示 traceId + 复制按钮（核心 §13 六态错误态要求）。
+- [x] **FR-5 traceId 复制**：错误态展示 traceId + 复制按钮（核心 §13 六态错误态要求）。PR2 已在共享 `PageState` 错误态提供 `复制 traceId` 控件。
 - [ ] **FR-6 全量一致**：存量全表单/全 mutation 改造到统一口径（12d 主要在此存量覆盖）。
 
 ## 接口契约 / 页面契约
@@ -60,7 +60,7 @@ N·A —— 错误处理为前后端逻辑 + 规约，不落业务表。
 - [ ] **AC-1（FR-1）**：任一 mutation 失败 → 统一 onError 中文提示 + traceId，无各页私吞。
 - [ ] **AC-2（FR-2）**：表单字段校验失败 → 对应 Form.Item 红框 + 字段级中文 help。
 - [x] **AC-3（FR-3/4）**：后端唯一约束冲突 → 友好中文 ProblemDetail（非裸 SQL/堆栈）。PR1 覆盖后端 DataIntegrityViolation；FR-3 存量业务显式 ApiException 继续由 PR2/PR3 批量改造收口。
-- [ ] **AC-4（FR-5）**：错误态展示 traceId 且可复制。
+- [x] **AC-4（FR-5）**：错误态展示 traceId 且可复制。PR2 已由 `PageState` 覆盖共享错误态。
 - [ ] **AC-5（FR-6）**：抽查存量 N 个表单/mutation 均符合统一口径。
 - 关联 A1–A9：横切（各域表单错误体验）。
 - T-GATE：前后端门禁全绿（无吞错伪造）。
@@ -70,9 +70,10 @@ N·A —— 错误处理为前后端逻辑 + 规约，不落业务表。
 - 代码 permalink：useMutation onError Hook / Form.Item 回显模式 / DataIntegrityViolation handler / traceId 复制 / 存量改造清单。
 - 测试：mutation 错误处理测试 + 字段级回显测试 + 约束冲突中文化测试 + traceId 回显测试。
   - PR1 本地证据：`GlobalExceptionHandlerTest#dataIntegrityViolationReturnsConflictWithoutSqlDetails` 已覆盖数据库约束冲突中文化和 SQL 细节不泄露；`mvn -B -q test` 761 tests / 0 failures / 0 errors / 0 skipped，PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V42；根目录 T-GATE 通过。
+  - PR2 本地证据：`frontend/src/shared/api/errors.test.ts` / `mutation.test.tsx` 先红灯确认缺少共享错误模块，再转绿覆盖 `ProblemDetail` 解析、traceId 中文消息、字段错误映射和 `useApiMutation` 表单回填；`PageState.test.tsx` 先红灯确认错误态缺少复制控件，再转绿覆盖 `复制 traceId`。最终 `npm run verify` 通过：lint / stylelint / 规则测试 / format / typecheck / 38 个前端测试文件、164 tests；`npm run build` 通过（`vendor-antd` 大 chunk 提示已登记 `DEFER-003`）；根目录真实性 / 迁移 / 配置 / 中文注释 / 空白门禁通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（12d，前后端 + 大量存量；建议分 PR）
 - PR1：后端 DataIntegrityViolation handler + 字段错误结构复核 → AC-3。（已完成 RED→GREEN；显式 ApiException 存量治理随 PR2/PR3 的 mutation / 表单改造继续收口。）
-- PR2：前端 useMutation 统一 onError + Form.Item 字段级回显 + traceId 复制组件 → AC-1/2/4。
-- PR3：存量全表单/全 mutation 批量改造到统一口径 → AC-5。
+- PR2：前端 `ProblemDetail` 解析、`useApiMutation` 统一 onError、Form 字段级回填底座、`PageState` traceId 复制、`AdapterHub` / `CdssFatigue` 样板接入 → AC-4 已完成；AC-1/2 获得共享实现但全量覆盖留 PR3。
+- PR3：存量全表单/全 mutation 批量改造到统一口径，清理页面局部 `getApiErrorMessage` / 自造 try-catch → AC-1/2/5。

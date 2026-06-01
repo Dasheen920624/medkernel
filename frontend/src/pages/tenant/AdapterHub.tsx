@@ -53,14 +53,9 @@ import {
   useDeleteMessage,
 } from "@/shared/api/hooks";
 import type { IntegrationAdapter, WebhookSignatureTestResult } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { Option } = Select;
-
-type ApiErrorLike = {
-  response?: { data?: { message?: string } };
-  message?: string;
-  errorFields?: unknown;
-};
 
 type EmbedMessageData = Record<string, unknown> & {
   source: "MEDKERNEL_CDSS_EMBED";
@@ -74,15 +69,6 @@ interface QualityDiagnosticReport {
   rttMs: number | null;
   lastHeartbeatAt?: string;
   errorMessage?: string;
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const apiError = error as ApiErrorLike;
-  return apiError.response?.data?.message || apiError.message || fallback;
-}
-
-function hasFormValidationError(error: unknown) {
-  return Boolean((error as ApiErrorLike).errorFields);
 }
 
 function isEmbedMessageData(data: unknown): data is EmbedMessageData {
@@ -258,6 +244,7 @@ export default function AdapterHub() {
       originForm.resetFields();
       refetchOrigins();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(originForm, error)) return;
       message.error(getApiErrorMessage(error, "跨域安全域名配置失败，请稍后重试"));
     }
   };
@@ -281,7 +268,7 @@ export default function AdapterHub() {
         setPostMessageLogs([]);
       }
     } catch (error: unknown) {
-      if (hasFormValidationError(error)) return; // 表单校验错误已在控件上提示
+      if (applyApiFieldErrors(tokenForm, error)) return;
       message.error(
         getApiErrorMessage(error, "生成 Launch Token 失败，请稍后重试或确认嵌入服务已就绪"),
       );
@@ -298,6 +285,7 @@ export default function AdapterHub() {
       adapterForm.resetFields();
       refetchAdapters();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(adapterForm, error)) return;
       message.error(getApiErrorMessage(error, "配置适配器失败，请检查参数"));
     }
   };
@@ -364,6 +352,7 @@ export default function AdapterHub() {
       webhookForm.resetFields();
       refetchWebhooks();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(webhookForm, error)) return;
       message.error(getApiErrorMessage(error, "创建 Webhook 订阅失败"));
     }
   };
