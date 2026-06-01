@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import {
   App as AntdApp,
   Avatar,
@@ -33,9 +33,16 @@ import { canAccessRoute, findRouteByPath, getRouteBreadcrumb } from "@/shared/co
 import {
   useChangePassword,
   useLogout,
+  useRenewSession,
+  useSessionStatus,
   useSecurityProfile,
   type SecurityProfile,
 } from "@/shared/api/hooks";
+import {
+  broadcastAuthSessionEvent,
+  subscribeAuthSessionEvent,
+  type AuthSessionEventReason,
+} from "@/shared/auth/sessionEvents";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { PageState } from "@/shared/ui/PageState";
 import { PermissionChip } from "@/features/permission-chip/PermissionChip";
@@ -91,6 +98,10 @@ export function AppLayout() {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [openMenuSectionKeys, setOpenMenuSectionKeys] = useState<string[]>([]);
+  const [sessionWarningOpen, setSessionWarningOpen] = useState(false);
+  const warningTimerRef = useRef<number | undefined>(undefined);
+  const logoutTimerRef = useRef<number | undefined>(undefined);
+  const lastRenewedAtRef = useRef(0);
   const [changePasswordForm] = Form.useForm<ChangePasswordValues>();
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
@@ -103,6 +114,8 @@ export function AppLayout() {
   const securityProfile = useSecurityProfile();
   const changePassword = useChangePassword();
   const logout = useLogout();
+  const sessionStatus = useSessionStatus();
+  const renewSession = useRenewSession();
   const routeRequiresAuth = currentRoute?.requireAuth ?? true;
   const hasSecurityProfile = Boolean(securityProfile.data);
   const bootstrapSetupRequired = Boolean(
@@ -223,17 +236,101 @@ export function AppLayout() {
     }
   };
 
+  const clearIdleTimers = useCallback(() => {
+    if (warningTimerRef.current !== undefined) {
+      window.clearTimeout(warningTimerRef.current);
+      warningTimerRef.current = undefined;
+    }
+    if (logoutTimerRef.current !== undefined) {
+      window.clearTimeout(logoutTimerRef.current);
+      logoutTimerRef.current = undefined;
+    }
+  }, []);
+
   const clearSessionAndReturnToLogin = useCallback(
-    (reason: "logout" | "expired") => {
+    (reason: AuthSessionEventReason, options: { broadcast?: boolean } = {}) => {
+      clearIdleTimers();
+      if (options.broadcast !== false) {
+        broadcastAuthSessionEvent(reason);
+      }
       queryClient.clear();
       setPaletteOpen(false);
       setMobileMenuOpen(false);
       setLogoutConfirmOpen(false);
       setChangePasswordOpen(false);
+      setSessionWarningOpen(false);
       navigate("/login", { replace: true, state: { reason } });
     },
-    [navigate, queryClient],
+    [clearIdleTimers, navigate, queryClient],
   );
+
+  const handleIdleLogout = useCallback(async () => {
+    try {
+      await logout.mutateAsync();
+    } finally {
+      clearSessionAndReturnToLogin("expired");
+    }
+  }, [clearSessionAndReturnToLogin, logout]);
+
+  const handleSessionWarningLogout = useCallback(async () => {
+    try {
+      await logout.mutateAsync();
+    } finally {
+      clearSessionAndReturnToLogin("logout");
+    }
+  }, [clearSessionAndReturnToLogin, logout]);
+
+  const maybeRenewOnActivity = useCallback(() => {
+    if (!hasSecurityProfile || !sessionStatus.data) {
+      return;
+    }
+    const idleWindowMs = sessionStatus.data.idleTimeoutSeconds * 1000;
+    const renewIntervalMs = Math.min(60_000, Math.max(10_000, idleWindowMs / 2));
+    const now = Date.now();
+    if (now - lastRenewedAtRef.current < renewIntervalMs) {
+      return;
+    }
+    lastRenewedAtRef.current = now;
+    void renewSession.mutateAsync().catch(() => clearSessionAndReturnToLogin("expired"));
+  }, [clearSessionAndReturnToLogin, hasSecurityProfile, renewSession, sessionStatus.data]);
+
+  const resetIdleTimers = useCallback(
+    (options: { renew?: boolean } = {}) => {
+      clearIdleTimers();
+      if (!hasSecurityProfile || !sessionStatus.data) {
+        return;
+      }
+      setSessionWarningOpen(false);
+      const idleWindowMs = sessionStatus.data.idleTimeoutSeconds * 1000;
+      const warningMs = sessionStatus.data.warningSeconds * 1000;
+      const warningDelay = Math.max(0, idleWindowMs - warningMs);
+      warningTimerRef.current = window.setTimeout(() => setSessionWarningOpen(true), warningDelay);
+      logoutTimerRef.current = window.setTimeout(() => {
+        void handleIdleLogout();
+      }, idleWindowMs);
+      if (options.renew) {
+        maybeRenewOnActivity();
+      }
+    },
+    [
+      clearIdleTimers,
+      handleIdleLogout,
+      hasSecurityProfile,
+      maybeRenewOnActivity,
+      sessionStatus.data,
+    ],
+  );
+
+  const handleRenewSession = async () => {
+    try {
+      await renewSession.mutateAsync();
+      message.success("会话已续期");
+      resetIdleTimers();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "会话续期失败，请重新登录"));
+      clearSessionAndReturnToLogin("expired");
+    }
+  };
 
   const handleUserMenuClick: MenuProps["onClick"] = ({ key }) => {
     if (key === "change-password") {
@@ -288,6 +385,31 @@ export function AppLayout() {
     window.addEventListener("medkernel:auth-required", onAuthRequired);
     return () => window.removeEventListener("medkernel:auth-required", onAuthRequired);
   }, [clearSessionAndReturnToLogin]);
+
+  useEffect(
+    () =>
+      subscribeAuthSessionEvent((reason) =>
+        clearSessionAndReturnToLogin(reason, { broadcast: false }),
+      ),
+    [clearSessionAndReturnToLogin],
+  );
+
+  useEffect(() => {
+    resetIdleTimers();
+    return clearIdleTimers;
+  }, [clearIdleTimers, resetIdleTimers]);
+
+  useEffect(() => {
+    if (!hasSecurityProfile || !sessionStatus.data) {
+      return undefined;
+    }
+    const onActivity = () => resetIdleTimers({ renew: true });
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
+    events.forEach((eventName) =>
+      window.addEventListener(eventName, onActivity, { passive: true }),
+    );
+    return () => events.forEach((eventName) => window.removeEventListener(eventName, onActivity));
+  }, [hasSecurityProfile, resetIdleTimers, sessionStatus.data]);
 
   const renderContent = () => {
     if (routeRequiresAuth && !hasSecurityProfile) {
@@ -493,6 +615,19 @@ export function AppLayout() {
         <Typography.Paragraph>
           退出后将清除当前前端会话状态，并由后端清理 httpOnly 登录
           Cookie；再次访问业务页面需要重新登录。
+        </Typography.Paragraph>
+      </Modal>
+      <Modal
+        title="会话即将超时"
+        open={sessionWarningOpen}
+        okText="继续使用"
+        cancelText="退出登录"
+        onOk={handleRenewSession}
+        onCancel={() => void handleSessionWarningLogout()}
+        confirmLoading={renewSession.isPending}
+      >
+        <Typography.Paragraph>
+          当前会话长时间无操作。继续使用会向服务端续期；不处理将自动退出登录。
         </Typography.Paragraph>
       </Modal>
       <CommandPalette

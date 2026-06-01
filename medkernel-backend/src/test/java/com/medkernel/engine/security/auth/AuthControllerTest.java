@@ -23,7 +23,10 @@ import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
+import jakarta.servlet.http.Cookie;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -54,6 +57,9 @@ class AuthControllerTest {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    JwtIssuer jwtIssuer;
+
     private static final String TENANT = "t-1";
     private static final String USERNAME = "doctor-test";
     private static final String USER_ID = "doctor-1";
@@ -61,6 +67,10 @@ class AuthControllerTest {
     private static final String COOKIE_SECURE_KEY = "medkernel.auth.cookie.secure";
     private static final String COOKIE_SAME_SITE_KEY = "medkernel.auth.cookie.same-site";
     private static final String COOKIE_MAX_AGE_KEY = "medkernel.auth.cookie.max-age-seconds";
+    private static final String SESSION_IDLE_TIMEOUT_KEY = "medkernel.auth.session.idle-timeout-seconds";
+    private static final String SESSION_WARNING_KEY = "medkernel.auth.session.warning-seconds";
+    private static final String SESSION_MAX_DURATION_KEY = "medkernel.auth.session.max-duration-seconds";
+    private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
 
     @BeforeEach
     void setUp() {
@@ -111,6 +121,26 @@ class AuthControllerTest {
                SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, COOKIE_MAX_AGE_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '1800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, SESSION_IDLE_TIMEOUT_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '120', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, SESSION_WARNING_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, SESSION_MAX_DURATION_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, JWT_TTL_KEY);
     }
 
     @Test
@@ -147,6 +177,61 @@ class AuthControllerTest {
                 containsString("Max-Age=120"),
                 containsString("SameSite=Lax"),
                 containsString("Secure"))));
+    }
+
+    @Test
+    void sessionStatusAndRenewUseConfigCenterPolicyWithoutRestart() throws Exception {
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '120' WHERE config_key = ?", JWT_TTL_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '30' WHERE config_key = ?", SESSION_IDLE_TIMEOUT_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '8' WHERE config_key = ?", SESSION_WARNING_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '300' WHERE config_key = ?", SESSION_MAX_DURATION_KEY);
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=30")))
+            .andExpect(jsonPath("$.data.session.idleTimeoutSeconds").value(30))
+            .andExpect(jsonPath("$.data.session.warningSeconds").value(8))
+            .andReturn();
+
+        var cookie = login.getResponse().getCookie("mk_access");
+
+        mvc.perform(get("/api/v1/auth/session").cookie(cookie))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.idleTimeoutSeconds").value(30))
+            .andExpect(jsonPath("$.data.warningSeconds").value(8))
+            .andExpect(jsonPath("$.data.maxSessionSeconds").value(300))
+            .andExpect(jsonPath("$.data.remainingSeconds").isNumber());
+
+        mvc.perform(post("/api/v1/auth/session/renew").cookie(cookie))
+            .andExpect(status().isOk())
+            .andExpect(cookie().exists("mk_access"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=30")))
+            .andExpect(jsonPath("$.data.idleTimeoutSeconds").value(30))
+            .andExpect(jsonPath("$.data.warningSeconds").value(8))
+            .andExpect(jsonPath("$.data.maxSessionRemainingSeconds").isNumber());
+    }
+
+    @Test
+    void protectedSessionRejectsJwtWhenRuntimeSessionPolicyIsShortened() throws Exception {
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '5' WHERE config_key = ?", SESSION_IDLE_TIMEOUT_KEY);
+        jdbcTemplate.update("UPDATE mk_config_item SET config_value = '300' WHERE config_key = ?", SESSION_MAX_DURATION_KEY);
+
+        Instant now = Instant.now();
+        JwtIssuer.IssuedJwt issued = jwtIssuer.issueSession(
+            USER_ID,
+            TENANT,
+            List.of(RoleCode.DOCTOR.code()),
+            now.minusSeconds(20),
+            now.minusSeconds(10),
+            now.plusSeconds(120));
+
+        mvc.perform(get("/api/v1/auth/session").cookie(new Cookie("mk_access", issued.token())))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

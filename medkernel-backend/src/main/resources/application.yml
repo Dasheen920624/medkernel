@@ -70,6 +70,10 @@ medkernel:
       same-site: Strict
       path: /medkernel
       max-age-seconds: 28800
+    session:
+      idle-timeout-seconds: 1800
+      warning-seconds: 120
+      max-duration-seconds: 28800
   runtime:
     environment: ${MEDKERNEL_RUNTIME_ENV:dev}
     deployment-mode: ${MEDKERNEL_DEPLOYMENT_MODE:local}

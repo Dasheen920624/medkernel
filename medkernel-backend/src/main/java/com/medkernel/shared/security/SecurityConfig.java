@@ -1,5 +1,6 @@
 package com.medkernel.shared.security;
 
+import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -19,12 +20,19 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.JwtClaimsResolver;
 import com.medkernel.shared.context.TenantContextEnricherFilter;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
@@ -53,7 +61,12 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
  */
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
-@EnableConfigurationProperties({AuthCookieProperties.class, AuthJwtProperties.class, AuditFallbackProperties.class})
+@EnableConfigurationProperties({
+    AuthCookieProperties.class,
+    AuthJwtProperties.class,
+    AuthSessionProperties.class,
+    AuditFallbackProperties.class
+})
 public class SecurityConfig {
 
     @Bean
@@ -130,9 +143,57 @@ public class SecurityConfig {
      * 本地 / 测试可使用 dev secret；生产必须显式配置 MEDKERNEL_AUTH_JWT_SECRET。
      */
     @Bean
-    JwtDecoder jwtDecoder(JwtSecretResolver secretResolver) {
+    JwtDecoder jwtDecoder(JwtSecretResolver secretResolver,
+                          SystemConfigService configService,
+                          AuthSessionProperties sessionProperties) {
         String secret = secretResolver.resolve();
         SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+            JwtValidators.createDefault(),
+            sessionPolicyValidator(configService, sessionProperties)
+        ));
+        return decoder;
+    }
+
+    private OAuth2TokenValidator<Jwt> sessionPolicyValidator(
+            SystemConfigService configService,
+            AuthSessionProperties sessionProperties) {
+        return jwt -> {
+            AuthSessionProperties policy = configService.runtimeSessionProperties(sessionProperties);
+            Instant now = Instant.now();
+            Instant issuedAt = jwt.getIssuedAt();
+            if (issuedAt != null && !issuedAt.plusSeconds(policy.idleTimeoutSeconds()).isAfter(now)) {
+                return sessionExpired();
+            }
+            Instant sessionStartedAt = sessionStartedAt(jwt, issuedAt);
+            if (sessionStartedAt != null && !sessionStartedAt.plusSeconds(policy.maxDurationSeconds()).isAfter(now)) {
+                return sessionExpired();
+            }
+            return OAuth2TokenValidatorResult.success();
+        };
+    }
+
+    private static OAuth2TokenValidatorResult sessionExpired() {
+        return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+            "invalid_token",
+            "会话已过期，请重新登录",
+            null
+        ));
+    }
+
+    private static Instant sessionStartedAt(Jwt jwt, Instant issuedAt) {
+        Object claim = jwt.getClaims().get(AuthSessionClaims.SESSION_STARTED_AT);
+        if (claim instanceof Number number) {
+            return Instant.ofEpochSecond(number.longValue());
+        }
+        if (claim instanceof String text && !text.isBlank()) {
+            try {
+                return Instant.ofEpochSecond(Long.parseLong(text.trim()));
+            } catch (NumberFormatException ignored) {
+                return issuedAt;
+            }
+        }
+        return issuedAt;
     }
 }

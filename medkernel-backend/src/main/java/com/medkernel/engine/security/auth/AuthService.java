@@ -27,7 +27,7 @@ public class AuthService {
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
     private final PasswordEncoder passwordEncoder;
-    private final JwtIssuer jwtIssuer;
+    private final AuthSessionService sessionService;
     private final IsolatedAuditPublisher isolatedAudit;
     private final AuditEventPublisher auditPublisher;
     private final String dummyHash;
@@ -35,13 +35,13 @@ public class AuthService {
     public AuthService(PlatformCredentialRepository credentials,
                        UserRoleAssignmentRepository roleAssignments,
                        PasswordEncoder passwordEncoder,
-                       JwtIssuer jwtIssuer,
+                       AuthSessionService sessionService,
                        IsolatedAuditPublisher isolatedAudit,
                        AuditEventPublisher auditPublisher) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
-        this.jwtIssuer = jwtIssuer;
+        this.sessionService = sessionService;
         this.isolatedAudit = isolatedAudit;
         this.auditPublisher = auditPublisher;
         this.dummyHash = passwordEncoder.encode("__medkernel_dummy_account__");
@@ -67,7 +67,7 @@ public class AuthService {
         List<String> roles = roleAssignments
             .findActiveByTenantIdAndUserId(tenantId, cred.userId())
             .stream().map(UserRoleAssignment::roleCode).distinct().toList();
-        String jwt = jwtIssuer.issue(cred.userId(), tenantId, roles);
+        JwtIssuer.IssuedJwt jwt = sessionService.issueInitialSession(cred.userId(), tenantId, roles);
         // I3: 成功路径用 AuditEventPublisher.publish
         auditPublisher.publish(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
@@ -103,6 +103,10 @@ public class AuthService {
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "自助修改密码成功");
     }
 
-    public record AuthResult(String jwt, LoginResponse response) {}
+    public record AuthResult(JwtIssuer.IssuedJwt issuedJwt, LoginResponse response) {
+        public String jwt() {
+            return issuedJwt.token();
+        }
+    }
 
 }

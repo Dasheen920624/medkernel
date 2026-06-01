@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { AUTH_SESSION_EVENT_STORAGE_KEY } from "@/shared/auth/sessionEvents";
 import { AppLayout } from "./AppLayout";
 
 const originalInnerWidth = window.innerWidth;
@@ -43,6 +44,19 @@ const securityProfileState = vi.hoisted(() => ({
 const authMutationState = vi.hoisted(() => ({
   logout: vi.fn(),
   changePassword: vi.fn(),
+  renewSession: vi.fn(),
+}));
+const sessionStatusState = vi.hoisted(() => ({
+  value: {
+    data: {
+      remainingSeconds: 120,
+      idleTimeoutSeconds: 60,
+      warningSeconds: 10,
+      maxSessionSeconds: 300,
+      maxSessionRemainingSeconds: 300,
+      serverTime: "2026-06-01T00:00:00Z",
+    },
+  },
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -50,6 +64,8 @@ vi.mock("@/shared/api/hooks", () => ({
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
   useChangePassword: () => ({ mutateAsync: authMutationState.changePassword, isPending: false }),
   useLogout: () => ({ mutateAsync: authMutationState.logout, isPending: false }),
+  useSessionStatus: () => sessionStatusState.value,
+  useRenewSession: () => ({ mutateAsync: authMutationState.renewSession, isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -175,8 +191,20 @@ const allMenuKeys = [
 beforeEach(() => {
   authMutationState.logout.mockReset();
   authMutationState.changePassword.mockReset();
+  authMutationState.renewSession.mockReset();
   authMutationState.logout.mockResolvedValue(undefined);
   authMutationState.changePassword.mockResolvedValue(undefined);
+  authMutationState.renewSession.mockResolvedValue(sessionStatusState.value.data);
+  sessionStatusState.value = {
+    data: {
+      remainingSeconds: 120,
+      idleTimeoutSeconds: 60,
+      warningSeconds: 10,
+      maxSessionSeconds: 300,
+      maxSessionRemainingSeconds: 300,
+      serverTime: "2026-06-01T00:00:00Z",
+    },
+  };
   securityProfileState.value = {
     data: permissionProfile(allMenuKeys),
   };
@@ -193,6 +221,7 @@ afterEach(() => {
     writable: true,
     value: originalMatchMedia,
   });
+  vi.useRealTimers();
 });
 
 describe("AppLayout", () => {
@@ -404,6 +433,84 @@ describe("AppLayout", () => {
     });
 
     await waitFor(() => expect(screen.getByText("登录页入口")).toBeInTheDocument());
+    expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
+  });
+
+  it("synchronizes logout from another tab through the approved storage event", async () => {
+    mockViewport(1280);
+    const { queryClient } = renderLayout("/dashboard");
+    queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: AUTH_SESSION_EVENT_STORAGE_KEY,
+          newValue: JSON.stringify({ reason: "logout", at: Date.now(), nonce: "tab-2" }),
+        }),
+      );
+    });
+
+    await waitFor(() => expect(screen.getByText("登录页入口")).toBeInTheDocument());
+    expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
+  });
+
+  it("shows an idle warning before timeout and renews the backend session", async () => {
+    vi.useFakeTimers();
+    mockViewport(1280);
+    renderLayout("/dashboard");
+
+    await act(async () => {
+      vi.advanceTimersByTime(50_000);
+    });
+
+    expect(screen.getByText("会话即将超时")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("继续使用"));
+      await Promise.resolve();
+    });
+    expect(authMutationState.renewSession).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "会话即将超时" })).toBeNull();
+  });
+
+  it("lets the user actively exit from the idle warning", async () => {
+    vi.useFakeTimers();
+    mockViewport(1280);
+    const { queryClient } = renderLayout("/dashboard");
+    queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
+
+    await act(async () => {
+      vi.advanceTimersByTime(50_000);
+    });
+
+    expect(screen.getByText("会话即将超时")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("退出登录"));
+      await Promise.resolve();
+    });
+
+    expect(authMutationState.logout).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("登录页入口")).toBeInTheDocument();
+    expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
+  });
+
+  it("automatically logs out when the configured idle timeout is reached", async () => {
+    vi.useFakeTimers();
+    mockViewport(1280);
+    const { queryClient } = renderLayout("/dashboard");
+    queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+      await Promise.resolve();
+    });
+
+    expect(authMutationState.logout).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("登录页入口")).toBeInTheDocument();
     expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
   });
 });

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.JwtClaimsResolver;
+import com.medkernel.shared.security.AuthSessionClaims;
 import com.medkernel.shared.security.AuthJwtProperties;
 import com.medkernel.shared.security.JwtSecretResolver;
 
@@ -26,6 +27,8 @@ import com.medkernel.shared.security.JwtSecretResolver;
  */
 @Component
 public class JwtIssuer {
+
+    public static final String CLAIM_SESSION_STARTED_AT = AuthSessionClaims.SESSION_STARTED_AT;
 
     private final byte[] secret;
     private final AuthJwtProperties properties;
@@ -48,18 +51,42 @@ public class JwtIssuer {
     }
 
     public String issue(String userId, String tenantId, List<String> roles) {
+        return issueSession(userId, tenantId, roles).token();
+    }
+
+    public IssuedJwt issueSession(String userId, String tenantId, List<String> roles) {
+        Instant now = Instant.now();
+        return issueSession(userId, tenantId, roles, now, now.plusSeconds(ttlSeconds()));
+    }
+
+    public IssuedJwt issueSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            Instant sessionStartedAt,
+            Instant expiresAt) {
+        return issueSession(userId, tenantId, roles, sessionStartedAt, Instant.now(), expiresAt);
+    }
+
+    public IssuedJwt issueSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            Instant sessionStartedAt,
+            Instant issuedAt,
+            Instant expiresAt) {
         try {
-            Instant now = Instant.now();
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(userId)
                 .claim(JwtClaimsResolver.CLAIM_TENANT_ID, tenantId)
                 .claim(JwtClaimsResolver.CLAIM_ROLES, roles)
-                .issueTime(Date.from(now))
-                .expirationTime(Date.from(now.plusSeconds(ttlSeconds())))
+                .claim(CLAIM_SESSION_STARTED_AT, sessionStartedAt.getEpochSecond())
+                .issueTime(Date.from(issuedAt))
+                .expirationTime(Date.from(expiresAt))
                 .build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
             jwt.sign(new MACSigner(secret));
-            return jwt.serialize();
+            return new IssuedJwt(jwt.serialize(), issuedAt, expiresAt, sessionStartedAt);
         } catch (JOSEException e) {
             throw new IllegalStateException("JWT 签发失败", e);
         }
@@ -68,4 +95,11 @@ public class JwtIssuer {
     public long ttlSeconds() {
         return configService == null ? properties.ttlSeconds() : configService.runtimeJwtTtlSeconds(properties);
     }
+
+    public record IssuedJwt(
+        String token,
+        Instant issuedAt,
+        Instant expiresAt,
+        Instant sessionStartedAt
+    ) {}
 }

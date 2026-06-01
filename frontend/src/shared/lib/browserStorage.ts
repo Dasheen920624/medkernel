@@ -1,4 +1,5 @@
-const ALLOWED_EXACT_KEYS = new Set(["medkernel.theme.mode"]);
+const AUTH_SESSION_EVENT_KEY = "medkernel.auth.event";
+const ALLOWED_EXACT_KEYS = new Set(["medkernel.theme.mode", AUTH_SESSION_EVENT_KEY]);
 const SENSITIVE_KEY_PATTERN =
   /(token|secret|password|passwd|api[-_.]?key|authorization|credential|patient|idcard|identity|身份证|患者)/i;
 
@@ -26,3 +27,10 @@ export function writeUiPreference(key: string, value: string) {
   assertUiPreferenceKey(key);
   getStorage()?.setItem(key, value);
 }
+
+export function writeAuthSessionEvent(value: string) {
+  assertUiPreferenceKey(AUTH_SESSION_EVENT_KEY);
+  getStorage()?.setItem(AUTH_SESSION_EVENT_KEY, value);
+}
+
+export { AUTH_SESSION_EVENT_KEY };

@@ -3035,6 +3035,16 @@ export interface LoginResult {
   mustChangePwd: boolean;
   mfaRequired: boolean;
   mfaBound: boolean;
+  session?: SessionStatus;
+}
+
+export interface SessionStatus {
+  remainingSeconds: number;
+  idleTimeoutSeconds: number;
+  warningSeconds: number;
+  maxSessionSeconds: number;
+  maxSessionRemainingSeconds: number;
+  serverTime: string;
 }
 
 export function useLogin() {
@@ -3050,6 +3060,27 @@ export function useLogout() {
   return useMutation({
     mutationFn: async () => {
       await apiClient.post("/auth/logout");
+    },
+  });
+}
+
+export function useSessionStatus() {
+  return useQuery({
+    queryKey: ["auth", "session"],
+    queryFn: async () => {
+      const resp = await apiClient.get<{ data: SessionStatus }>("/auth/session");
+      return resp.data.data;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useRenewSession() {
+  return useMutation({
+    mutationFn: async () => {
+      const resp = await apiClient.post<{ data: SessionStatus }>("/auth/session/renew");
+      return resp.data.data;
     },
   });
 }

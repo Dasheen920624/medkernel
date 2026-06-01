@@ -24,6 +24,7 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.AuthSessionProperties;
 
 /**
  * 配置中心应用服务，负责配置读写、变更历史和运行底座热生效。
@@ -37,6 +38,7 @@ public class SystemConfigService {
     static final String RUNTIME_BACKUP_PREFIX = "medkernel.runtime.backup.";
     public static final String AUTH_JWT_TTL_SECONDS_KEY = "medkernel.auth.jwt.ttl-seconds";
     public static final String AUTH_COOKIE_PREFIX = "medkernel.auth.cookie.";
+    public static final String AUTH_SESSION_PREFIX = "medkernel.auth.session.";
     public static final String LOGGING_LEVEL_PREFIX = "medkernel.logging.level.";
     public static final String AUDIT_FALLBACK_PATH_KEY = "medkernel.audit.fallback.path";
     public static final String CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY =
@@ -187,6 +189,16 @@ public class SystemConfigService {
             maxAge.value());
     }
 
+    public AuthSessionProperties runtimeSessionProperties(AuthSessionProperties properties) {
+        RuntimeLongRead idleTimeout = readRuntimeLongConfig(
+            AUTH_SESSION_PREFIX + "idle-timeout-seconds", properties.idleTimeoutSeconds());
+        RuntimeLongRead warning = readRuntimeLongConfig(
+            AUTH_SESSION_PREFIX + "warning-seconds", properties.warningSeconds());
+        RuntimeLongRead maxDuration = readRuntimeLongConfig(
+            AUTH_SESSION_PREFIX + "max-duration-seconds", properties.maxDurationSeconds());
+        return new AuthSessionProperties(idleTimeout.value(), warning.value(), maxDuration.value());
+    }
+
     public void applyRuntimeLogLevels() {
         repository.listActive(SYSTEM_TENANT, LOGGING_LEVEL_PREFIX).forEach(logLevelManager::apply);
     }
@@ -288,7 +300,8 @@ public class SystemConfigService {
     private static void validateRuntimePolicyValue(String key, String value) {
         if (AUTH_JWT_TTL_SECONDS_KEY.equals(key)
             || CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY.equals(key)
-            || (key != null && key.equals(AUTH_COOKIE_PREFIX + "max-age-seconds"))) {
+            || (key != null && key.equals(AUTH_COOKIE_PREFIX + "max-age-seconds"))
+            || (key != null && key.startsWith(AUTH_SESSION_PREFIX))) {
             validatePositiveLong(value);
             return;
         }

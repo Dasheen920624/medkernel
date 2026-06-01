@@ -11,5 +11,19 @@ public record LoginResponse(
     List<String> roles,
     boolean mustChangePwd,
     boolean mfaRequired,
-    boolean mfaBound
-) {}
+    boolean mfaBound,
+    SessionStatusResponse session
+) {
+    public LoginResponse(String userId,
+                         String tenantId,
+                         List<String> roles,
+                         boolean mustChangePwd,
+                         boolean mfaRequired,
+                         boolean mfaBound) {
+        this(userId, tenantId, roles, mustChangePwd, mfaRequired, mfaBound, null);
+    }
+
+    public LoginResponse withSession(SessionStatusResponse session) {
+        return new LoginResponse(userId, tenantId, roles, mustChangePwd, mfaRequired, mfaBound, session);
+    }
+}
