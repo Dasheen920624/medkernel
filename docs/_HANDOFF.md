@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · SYS-01 标准临床模型与事件上下文 PR2 🚧
+### 线 1 · SYS-01 标准临床模型与事件上下文 PR3 🚧
 
 - 类型：软件开发 / 后端平台契约
-- 分支：`codex/sys-01-event-context`（基于 `origin/main` cab3669）
-- 目标：按 [SYS-01](cards/D0/SYS-01.md) 大卡工序交付 PR2：`ClinicalEventContext` + 临床事件 → 规则 / 路径 / CDSS 三引擎同源入口 + 12 类对象编码字段字典映射锚点，为 AC-2 / AC-4 打底；不冒领 PR3 的关系库权威投影解耦 / FHIR 门面。
-- 状态：PR2 已完成 TDD 红绿主实现：新增 `ClinicalEventContext`、`ClinicalEventEngineDispatcher`、规则 / 路径 / CDSS 适配器、`ClinicalCodeMappingAnchor` / Registry、V39 五方言 `clinical_event.org_scope_json`，临床事件处理从旧的“状态写 RULES_OK 但无真实入口”改为构造同一个上下文并派发三引擎后再 `PROCESSED`；`ContextSnapshotService` 改用可追踪字典锚点调用 `TerminologyMappingPort`。目标红绿测试、迁移 / PostgreSQL + Oracle + H2 smoke 目标测试已通过；待全量后端、T-GATE、提交、PR、CI、合并。
-- 下一步（精确到动作/命令）：1. 复跑 `mvn -B -q test`；2. 复跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check origin/main...HEAD`；3. 提交 `完成 SYS-01 事件上下文 PR2`，推送并创建 PR；4. 远端 CI 全绿后合并到 `origin/main`，确认 merge 后清理分支 / worktree，再领取 SYS-01 PR3。
-- 相关文件 / 测试 / 坑：核心实现为 `medkernel-backend/src/main/java/com/medkernel/engine/context/ClinicalEvent*`、`ClinicalCodeMappingAnchor*`、`TerminologyMappingPort`、`PathwayEngineService.dispatchClinicalEvent`、`medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V39__clinical_event_context_scope.sql`；计划见 `docs/superpowers/plans/2026-06-01-sys-01-event-context-pr2.md`。当前阶段只保障 PostgreSQL + Oracle 真实运行；达梦 / 人大金仓真实环境保持 `DEFER-001`，新增外部阻塞必须登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线，不得写成已通过。
+- 分支：`codex/sys-01-pr3-fhir-projection`（基于 `origin/main` 7c4a57f）
+- 目标：按 [SYS-01](cards/D0/SYS-01.md) 大卡工序交付 PR3：关系库权威读取 + 图投影关闭不影响标准对象读取 + SYS-01 层 FHIR R4 映射锚点，收口 AC-3；不冒领 [OPT-01](cards/D2/OPT-01.md) 完整 FHIR 门面或 [SYS-03](cards/D0/SYS-03.md) 图投影重建。
+- 状态：PR3 已完成 TDD 红绿主实现：新增 `StandardClinicalFhirMappingRegistry` / `StandardClinicalFhirReference` 覆盖 12 类对象 FHIR R4 资源类型；新增 `StandardClinicalAuthorityService` 从 12 个 `mk_clinical_*` 关系库权威仓库按患者聚合，`ClinicalProjectionStatusPort` 只返回 `UP` / `NOT_SYNCED` 诚实状态，不参与事实读取。目标测试 `StandardClinicalAuthorityServiceTest`、`StandardClinicalFhirMappingRegistryTest`、`StandardClinicalModelRepositoryTest`、`StandardClinicalModelContractTest` 已通过；待全量后端、T-GATE、提交、PR、CI、合并。
+- 下一步（精确到动作/命令）：1. 复跑 `mvn -B -q test`；2. 复跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check origin/main...HEAD`；3. 提交 `完成 SYS-01 关系库权威与 FHIR 映射 PR3`，推送并创建 PR；4. 远端 CI 全绿后合并到 `origin/main`，确认 merge 后清理分支 / worktree，再从 backlog 领取下一张 pending 卡。
+- 相关文件 / 测试 / 坑：核心实现为 `medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/StandardClinical*`、`ClinicalProjectionStatus*`；计划见 `docs/superpowers/plans/2026-06-01-sys-01-pr3-fhir-projection.md`。本 PR 只做 SYS-01 层 FHIR 映射锚点，完整 FHIR R4/R5 端点、CapabilityStatement、受控 create 与 INTEG 总线接入仍由 D2 `OPT-01` 承接；图投影重建 / 一致性校验仍由 `SYS-03` 承接。达梦 / 人大金仓真实环境保持 `DEFER-001`，新增外部阻塞必须登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线，不得写成已通过。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- SYS-01 事件上下文 PR2 ✅（#220，merge `7c4a57f`）：新增 `ClinicalEventContext`、临床事件三引擎同源派发入口、`ClinicalCodeMappingAnchor` / Registry、V39 五方言 `clinical_event.org_scope_json`；临床事件处理从旧的“只推进状态”改为构造同一个上下文并派发规则 / 路径 / CDSS 后再 `PROCESSED`；默认字典映射对重复锚点稳定去重。本地红绿目标测试、后端全量、H2/PostgreSQL/Oracle 迁移、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - SYS-01 标准临床模型 PR1 ✅（#219，merge `cab3669`）：新增 `com.medkernel.engine.clinical.model` 12 类标准对象 / 租户级 Repository / V38 五方言迁移，Patient 敏感字段只保留密文与掩码；旧 `CanonicalSymptom` / `SYMPTOM` 口径替换为 `CanonicalNursingAssessment` / `NURSING_ASSESSMENT`。本地聚焦测试、后端全量、Flyway PostgreSQL + Oracle + H2 烟测、迁移规约、真实性 / 配置边界、中文注释、空白门禁与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - API-13 大规模列表 API ✅（#218，merge `6834af7`）：统一 `PageQuery` / `PageResult` 契约，删除旧 `ListQueryRequest` / `ListQueryResponse` 生产契约；新增 `GET /api/v1/large-lists/audit-events/list`，支持 cursor / offset / sort / filters / `total_estimate`，超大 size 诚实拒绝 `PAGE_SIZE_EXCEEDED`，排序与过滤字段白名单校验；V37 五方言审计事件大列表索引补齐；前端 `ServerDataTable` 与真实性门禁阻断 >100 的全量加载式分页。本地后端目标测试、`mvn -B -q test`、`mvn -B -q clean test`（Docker 可用，PostgreSQL + Oracle Testcontainers 迁移 smoke 已执行）、前端 `verify` / `build`、真实性 / 配置 / 迁移 / 中文注释 / 空白门禁与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - OBS-01 引擎可观测性骨干 ✅（#217，merge `34b2240`）：V8 五方言收敛到 `mk_obs_state_transition` / `mk_obs_payload_store`，默认 `PayloadStoragePort` 改为 DB 存储并删除旧 in-memory 实现；新增 `/api/v1/engine/diagnose/traces/{traceId}` 诊断端点，`DiagnoseResponse` 补执行摘要；`RuleEngineService` / 临床事件 / 路径引擎执行日志纳入 trace 诊断链路。本地目标测试、`mvn -B -q test`、`mvn -B -q clean test`、changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释 / 空白）与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 OBS worktree 已清理。
@@ -107,4 +108,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · SYS-01 PR1 已通过 #219 合入 `origin/main`（merge `cab3669`）并清理分支 / worktree；当前在 `codex/sys-01-event-context` 推进 SYS-01 PR2，已完成事件上下文、三引擎同源入口、字典锚点和 V39 组织上下文迁移的红绿目标测试，下一步全量后端、T-GATE、提交、PR、CI、合并。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
+> 末次更新：2026-06-01 · SYS-01 PR2 已通过 #220 合入 `origin/main`（merge `7c4a57f`）并清理分支 / worktree；当前在 `codex/sys-01-pr3-fhir-projection` 推进 SYS-01 PR3，已完成关系库权威读取、图投影 `NOT_SYNCED` 不阻断读取、12 类对象 FHIR R4 映射锚点的红绿目标测试，下一步全量后端、T-GATE、提交、PR、CI、合并。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
