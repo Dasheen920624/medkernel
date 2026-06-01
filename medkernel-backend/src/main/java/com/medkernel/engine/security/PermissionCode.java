@@ -89,6 +89,11 @@ public enum PermissionCode {
     LLM_READ("llm.read", Risk.LOW, "查看模型能力状态和调用记录"),
     LLM_WRITE("llm.write", Risk.MEDIUM, "管理配置路由策略和提交模型任务"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
+    INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
+    INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
+    INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器连通性自检、Webhook 测试和死信重试"),
+    MPI_READ("mpi.read", Risk.LOW, "查看患者主索引列表与统计"),
+    MPI_WRITE("mpi.write", Risk.HIGH, "合并患者主索引"),
 
     // ─── 菜单维度（INFRA-05 细化到 27 二级菜单前的一级入口基线）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),

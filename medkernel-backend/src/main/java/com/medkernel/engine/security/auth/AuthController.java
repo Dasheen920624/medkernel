@@ -3,6 +3,7 @@ package com.medkernel.engine.security.auth;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,6 +58,7 @@ public class AuthController {
 
     /** 自助改密（需登录态）：从 JWT 取当前用户与租户，校验原密码后设新密码。 */
     @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
     public ApiResult<Void> changePassword(@AuthenticationPrincipal Jwt jwt,
                                           @Valid @RequestBody ChangePasswordRequest req) {
         authService.changePassword(

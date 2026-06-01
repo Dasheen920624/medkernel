@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "clinical-event-processed.v1",
+  "title": "临床事件处理完成事件 v1",
+  "type": "object",
+  "x-medkernel-version": 1,
+  "required": [
+    "eventId",
+    "tenantId",
+    "traceId",
+    "context"
+  ],
+  "properties": {
+    "eventId": { "type": ["string", "null"] },
+    "tenantId": { "type": ["string", "null"] },
+    "traceId": { "type": ["string", "null"] },
+    "context": { "type": ["object", "null"] }
+  }
+}
