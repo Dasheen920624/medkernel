@@ -8,10 +8,8 @@ describe("browserStorage", () => {
 
   it("allows whitelisted UI preference keys", () => {
     writeUiPreference("medkernel.theme.mode", "elder");
-    writeUiPreference("medkernel.view.pathways", JSON.stringify({ visible: ["name"] }));
 
     expect(readUiPreference("medkernel.theme.mode")).toBe("elder");
-    expect(readUiPreference("medkernel.view.pathways")).toBe(JSON.stringify({ visible: ["name"] }));
   });
 
   it("rejects sensitive or unapproved keys", () => {

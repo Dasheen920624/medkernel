@@ -19,8 +19,11 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.relational.core.mapping.Table;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
@@ -39,7 +42,7 @@ class LargeListEngineServiceTest {
     private AuditEventPublisher auditPublisher;
     private IsolatedAuditPublisher isolatedAudit;
     private JdbcTemplate jdbc;
-    private Executor syncExecutor; // 单元测试中同步执行以方便验证
+    private Executor asyncExecutor;
 
     private LargeListEngineService service;
 
@@ -50,8 +53,8 @@ class LargeListEngineServiceTest {
         auditPublisher = mock(AuditEventPublisher.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         jdbc = mock(JdbcTemplate.class);
-        // 让异步 Executor 同步跑以通过 worker 内部测试
-        syncExecutor = Runnable::run;
+        asyncExecutor = command -> {
+        };
 
         service = new LargeListEngineService(
             jobRepo,
@@ -59,7 +62,7 @@ class LargeListEngineServiceTest {
             auditPublisher,
             isolatedAudit,
             jdbc,
-            syncExecutor
+            asyncExecutor
         );
 
         RequestContext.restore(new RequestContext.Snapshot("trace-123", OrgScope.tenant("tenant-1"), "IT-OPS-001"));
@@ -68,6 +71,14 @@ class LargeListEngineServiceTest {
     @AfterEach
     void tearDown() {
         RequestContext.clear();
+    }
+
+    @Test
+    void exportJobEntity_UsesSysExportTaskTable() {
+        Table table = LargeListExportJob.class.getAnnotation(Table.class);
+
+        assertNotNull(table);
+        assertEquals("mk_experience_export_task", table.value());
     }
 
     @Test
@@ -103,6 +114,19 @@ class LargeListEngineServiceTest {
     }
 
     @Test
+    void queryList_TotalEstimateUsesOracleCompatibleFetchFirst() {
+        when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of());
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(10L);
+
+        service.queryList(new ListQueryRequest("AUDIT_EVENT", 10, null, null, null, null, Map.of()));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForObject(sql.capture(), eq(Long.class), any(Object[].class));
+        assertFalse(sql.getValue().toUpperCase().contains(" LIMIT "));
+        assertTrue(sql.getValue().toUpperCase().contains("FETCH FIRST 10001 ROWS ONLY"));
+    }
+
+    @Test
     void queryList_InvalidCursorFormat_ThrowsBadRequest() {
         ListQueryRequest req = new ListQueryRequest("AUDIT_EVENT", 10, null, "invalid-base64", null, null, Map.of());
         ApiException ex = assertThrows(ApiException.class, () -> service.queryList(req));
@@ -114,8 +138,8 @@ class LargeListEngineServiceTest {
         ExportSubmitRequest req = new ExportSubmitRequest("AUDIT_EVENT", Map.of());
 
         LargeListExportJob pendingJob = new LargeListExportJob(
-            1L, "job-1", "tenant-1", "AUDIT_EVENT", "{}",
-            "PENDING", null, null, 0L, null, 0L, "trace-123",
+            "job-1", "tenant-1", "AUDIT_EVENT", "{\"filters\":{}}", "FILTERED_RESULT",
+            "PENDING", null, null, 0L, null, 0L, "trace-123", null, null,
             Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
         );
 
@@ -132,10 +156,102 @@ class LargeListEngineServiceTest {
     }
 
     @Test
+    void submitExportTask_PersistsStructuredJsonSnapshot() throws Exception {
+        when(jobRepo.save(any(LargeListExportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jobRepo.findByJobId(anyString())).thenReturn(Optional.empty());
+
+        service.submitExportTask(new ExportSubmitRequest("AUDIT_EVENT", Map.of(
+            "action", "LOGIN",
+            "resourceType", "USER",
+            "actorUserId", "doctor-1"
+        )));
+
+        ArgumentCaptor<LargeListExportJob> job = ArgumentCaptor.forClass(LargeListExportJob.class);
+        verify(jobRepo, atLeastOnce()).save(job.capture());
+        String snapshot = job.getAllValues().get(0).requestSnapshot();
+        assertEquals("LOGIN", new ObjectMapper().readTree(snapshot).path("filters").path("action").asText());
+    }
+
+    @Test
+    void submitExportTask_ReusesExistingJobWhenIdempotencyKeyAndSnapshotMatch() {
+        LargeListExportJob existingJob = new LargeListExportJob(
+            "job-existing", "tenant-1", "AUDIT_EVENT",
+            "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"LOGIN\"},\"selectedScope\":\"FILTERED_RESULT\"}",
+            "FILTERED_RESULT", "RUNNING", null, null, 0L, null, 0L, "trace-123", null, "idem-1",
+            Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
+        );
+        when(jobRepo.findByTenantIdAndIdempotencyKey("tenant-1", "idem-1"))
+            .thenReturn(Optional.of(existingJob));
+
+        ExportSubmitResponse response = service.submitExportTask(new ExportSubmitRequest(
+            "AUDIT_EVENT",
+            Map.of("action", "LOGIN"),
+            "FILTERED_RESULT",
+            "idem-1"
+        ));
+
+        assertEquals("job-existing", response.jobId());
+        assertEquals("RUNNING", response.status());
+        verify(jobRepo, never()).save(any(LargeListExportJob.class));
+    }
+
+    @Test
+    void submitExportTask_RejectsReusedIdempotencyKeyWithDifferentSnapshot() {
+        LargeListExportJob existingJob = new LargeListExportJob(
+            "job-existing", "tenant-1", "AUDIT_EVENT",
+            "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"LOGIN\"},\"selectedScope\":\"FILTERED_RESULT\"}",
+            "FILTERED_RESULT", "PENDING", null, null, 0L, null, 0L, "trace-123", null, "idem-1",
+            Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
+        );
+        when(jobRepo.findByTenantIdAndIdempotencyKey("tenant-1", "idem-1"))
+            .thenReturn(Optional.of(existingJob));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
+            new ExportSubmitRequest("AUDIT_EVENT", Map.of("action", "LOGOUT"), "FILTERED_RESULT", "idem-1")
+        ));
+
+        assertEquals("ENG-API-001", ex.errorCode().code());
+        verify(jobRepo, never()).save(any(LargeListExportJob.class));
+    }
+
+    @Test
+    void submitExportTask_AllowsTerminologyMappingExportResource() {
+        when(jobRepo.save(any(LargeListExportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExportSubmitResponse response = service.submitExportTask(new ExportSubmitRequest(
+            "TERMINOLOGY_MAPPING",
+            Map.of("status", "DRAFT", "sourceSystem", "HIS")
+        ));
+
+        assertNotNull(response.jobId());
+        assertEquals("PENDING", response.status());
+    }
+
+    @Test
+    void executeExport_UsesPersistedSnapshotFilters() throws Exception {
+        LargeListExportJob pendingJob = new LargeListExportJob(
+            "job-1", "tenant-1", "AUDIT_EVENT",
+            "{\"filters\":{\"action\":\"LOGIN\",\"resourceType\":\"USER\",\"actorUserId\":\"doctor-1\"}}",
+            "FILTERED_RESULT", "PENDING", null, null, 0L, null, 0L, "trace-123", null, null,
+            Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
+        );
+        when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(pendingJob));
+        when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of());
+
+        service.executeExport("job-1");
+
+        ArgumentCaptor<AuditEventQuery> query = ArgumentCaptor.forClass(AuditEventQuery.class);
+        verify(auditRepo).findPage(eq("tenant-1"), query.capture());
+        assertEquals("LOGIN", query.getValue().action());
+        assertEquals("USER", query.getValue().resourceType());
+        assertEquals("doctor-1", query.getValue().actorUserId());
+    }
+
+    @Test
     void downloadFile_JobNotFinished_ThrowsConflictException() {
         LargeListExportJob runningJob = new LargeListExportJob(
-            1L, "job-1", "tenant-1", "AUDIT_EVENT", "{}",
-            "RUNNING", null, null, 0L, null, 0L, "trace-123",
+            "job-1", "tenant-1", "AUDIT_EVENT", "{\"filters\":{}}", "FILTERED_RESULT",
+            "RUNNING", null, null, 0L, null, 0L, "trace-123", null, null,
             Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
         );
         when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(runningJob));
@@ -147,8 +263,8 @@ class LargeListEngineServiceTest {
     @Test
     void downloadFile_JobFailed_ThrowsInternalException() {
         LargeListExportJob failedJob = new LargeListExportJob(
-            1L, "job-1", "tenant-1", "AUDIT_EVENT", "{}",
-            "FAILED", null, null, 0L, "导出中磁盘占满", 0L, "trace-123",
+            "job-1", "tenant-1", "AUDIT_EVENT", "{\"filters\":{}}", "FILTERED_RESULT",
+            "FAILED", null, null, 0L, "导出中磁盘占满", 0L, "trace-123", null, null,
             Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
         );
         when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(failedJob));

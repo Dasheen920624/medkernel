@@ -91,6 +91,7 @@ export interface AsyncExportRequest {
   selectedScope: "currentPage" | "filteredResult";
   selectionSnapshot?: { selectedRowKeys: readonly Key[]; rowCount: number };
   reason: string;
+  idempotencyKey?: string;
 }
 
 export type ExportJobStatus =
@@ -120,4 +121,5 @@ export interface AsyncExportActionProps {
   request: AsyncExportRequest;
   onSubmit?: (request: AsyncExportRequest) => Promise<AsyncExportJob>;
   onPoll?: (jobId: string) => Promise<AsyncExportJob>;
+  pollDelayMs?: number;
 }

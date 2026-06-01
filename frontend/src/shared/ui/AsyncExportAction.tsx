@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import type { AsyncExportActionProps, AsyncExportJob } from "./experienceTypes";
 
 const { Text } = Typography;
+const DEFAULT_POLL_DELAY_MS = 2000;
+
+function shouldPoll(job: AsyncExportJob): boolean {
+  return job.status === "pending" || job.status === "running";
+}
 
 function jobStatusMessage(job: AsyncExportJob): string {
   switch (job.status) {
@@ -30,25 +35,47 @@ export function AsyncExportAction({
   request,
   onSubmit,
   onPoll,
+  pollDelayMs = DEFAULT_POLL_DELAY_MS,
 }: AsyncExportActionProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [job, setJob] = useState<AsyncExportJob>();
   const [failure, setFailure] = useState<string>();
-  const polledJobId = useRef<string>();
+  const pollingRef = useRef(false);
+  const activeRequestRef = useRef<AsyncExportActionProps["request"]>();
 
   useEffect(() => {
-    if (!job || job.status !== "running" || !onPoll || polledJobId.current === job.jobId) {
+    if (!job || !shouldPoll(job) || !onPoll) {
       return;
     }
 
-    polledJobId.current = job.jobId;
-    void onPoll(job.jobId)
-      .then((nextJob) => setJob(nextJob))
-      .catch((error: unknown) => {
-        setFailure(error instanceof Error ? error.message : "轮询导出任务失败");
-      });
-  }, [job, onPoll]);
+    let cancelled = false;
+    const poll = () => {
+      if (pollingRef.current) return;
+      pollingRef.current = true;
+      void onPoll(job.jobId)
+        .then((nextJob) => {
+          if (!cancelled) {
+            setJob(nextJob);
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setFailure(error instanceof Error ? error.message : "轮询导出任务失败");
+          }
+        })
+        .finally(() => {
+          pollingRef.current = false;
+        });
+    };
+
+    poll();
+    const timer = window.setInterval(poll, pollDelayMs);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [job, onPoll, pollDelayMs]);
 
   async function submitRequest() {
     if (!onSubmit) {
@@ -58,11 +85,19 @@ export function AsyncExportAction({
 
     setSubmitting(true);
     setFailure(undefined);
-    polledJobId.current = undefined;
+    pollingRef.current = false;
+    const submitRequestPayload =
+      activeRequestRef.current ??
+      ({
+        ...request,
+        idempotencyKey: request.idempotencyKey ?? crypto.randomUUID(),
+      } satisfies AsyncExportActionProps["request"]);
+    activeRequestRef.current = submitRequestPayload;
     try {
-      const nextJob = await onSubmit(request);
+      const nextJob = await onSubmit(submitRequestPayload);
       setJob(nextJob);
       setConfirmOpen(false);
+      activeRequestRef.current = undefined;
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "导出提交失败");
       setConfirmOpen(false);
@@ -95,7 +130,14 @@ export function AsyncExportAction({
 
   return (
     <Space direction="vertical" size="small">
-      <Button aria-label="导出" icon={<DownloadOutlined />} onClick={() => setConfirmOpen(true)}>
+      <Button
+        aria-label="导出"
+        icon={<DownloadOutlined />}
+        onClick={() => {
+          activeRequestRef.current = undefined;
+          setConfirmOpen(true);
+        }}
+      >
         导出
       </Button>
       <Modal

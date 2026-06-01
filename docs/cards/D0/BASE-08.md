@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 一页一目标**：页面骨架强制 ≤1 主按钮 / ≤3 默认筛选（核心 #6）；多同权主按钮被测试拒。
-- [ ] **FR-2 角色默认视图**：按角色渲染首屏与默认列；**专家模式**才显技术对象（JSON/DSL/trace/模型提示词，核心 §14）。
-- [ ] **FR-3 服务端分页**：大列表统一服务端分页组件（消费 [API-13](API-13.md)），**禁前端全量加载**（核心 #16）。
-- [ ] **FR-4 详情抽屉**：统一 Drawer 详情组件（列表→抽屉下钻，不跳页丢上下文）。
-- [ ] **FR-5 异步导出**：大数据导出走异步任务 + 下载中心（不阻塞、不前端拼大文件）。
-- [ ] **FR-6 保存视图**：用户自定义筛选/列视图可保存、可复用。
+- [x] **FR-1 一页一目标**：页面骨架强制 ≤1 主按钮 / ≤3 默认筛选（核心 #6）；多同权主按钮被测试拒。
+- [x] **FR-2 角色默认视图**：按角色渲染首屏与默认列；**专家模式**才显技术对象（JSON/DSL/trace/模型提示词，核心 §14）。
+- [x] **FR-3 服务端分页**：大列表统一服务端分页组件（消费 [API-13](API-13.md)），**禁前端全量加载**（核心 #16）。
+- [x] **FR-4 详情抽屉**：统一 Drawer 详情组件（列表→抽屉下钻，不跳页丢上下文）。
+- [x] **FR-5 异步导出**：大数据导出走异步任务 + 下载中心（不阻塞、不前端拼大文件）。
+- [x] **FR-6 保存视图**：用户自定义筛选/列视图可保存、可复用。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -38,7 +38,7 @@
 - 样式：仅引用核心 §5 token + 体验契约组件（禁硬编码）。
 
 ## 数据与迁移
-- 表族：`sys_saved_view`（用户视图）；`sys_export_task`（异步导出任务）。
+- 表族：`mk_experience_saved_view`（用户视图）；`mk_experience_export_task`（异步导出任务）。
 - 主键：ULID；唯一约束：`(user_id, view_name, page_key)`；索引：`user_id`、任务 `status`。
 - 组织字段：带 `tenant_id`；审计字段齐全。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释。
@@ -61,18 +61,20 @@
 - 本卡落点：一套分页/抽屉/导出/保存视图/专家模式组件 + 默认角色视图，让每页样式与交互只能从 token + 契约组件来，无处可乱编。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：页面出现第 2 个同权主按钮 / 第 4 个默认筛选 → 测试/评审拒。
-- [ ] **AC-2（FR-2）**：普通角色看不到 JSON/DSL/trace；切专家模式才显（断言默认隐藏）。
-- [ ] **AC-3（FR-3）**：万行列表请求仅取一页（服务端分页），前端全量加载被测试捕获拒绝。
-- [ ] **AC-4（FR-5）**：触发大导出 → 异步任务 + 下载中心取件 + 审计；重复触发幂等。
-- [ ] **AC-5（FR-6）**：保存自定义视图后重登可复用。
+- [x] **AC-1（FR-1）**：页面出现第 2 个同权主按钮 / 第 4 个默认筛选 → 测试/评审拒。
+- [x] **AC-2（FR-2）**：普通角色看不到 JSON/DSL/trace；切专家模式才显（断言默认隐藏）。
+- [x] **AC-3（FR-3）**：万行列表请求仅取一页（服务端分页），前端全量加载被测试捕获拒绝。
+- [x] **AC-4（FR-5）**：触发大导出 → 异步任务 + 下载中心取件 + 审计；重复触发幂等。
+- [x] **AC-5（FR-6）**：保存自定义视图后重登可复用。
 - 关联 A1–A9：横切（知识/质控/审计页均复用）。
 - T-GATE：前端门禁全绿（无前端全量加载 / 无 JSON 裸渲染 / 无技术词暴露）。
 - B0 验收：纯前端 + 确定性后端，天然 B0。
 
 ## 完工证据
-- 代码 permalink：分页表格 / 详情抽屉 / 异步导出 / 保存视图 / 专家模式开关 / `sys_saved_view`+`sys_export_task` 迁移。
-- 测试：一页一目标约束测试 + 专家模式隐藏测试 + 服务端分页测试 + 异步导出幂等测试。
+- 代码：分页表格 / 详情抽屉 / 异步导出 / 保存视图 / 专家模式开关；`/api/v1/experience/saved-views`；`/api/v1/large-lists/exports`；`mk_experience_saved_view` + `mk_experience_export_task` 五方言迁移。
+- 测试：`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、`SavedViewServiceTest`、`SavedViewControllerSecurityTest`、`LargeListEngineServiceTest`、`LargeListControllerSecurityTest`、`TerminologyMapping.test.tsx`、`experienceView.test.ts`、`visualDebtGuard.test.ts`。
+- 浏览器验收：登录页主题切换仍可渲染；使用 `hospital-admin` 真实登录后打开 `/terminology/mapping`，页面无权限误判已修复，保存视图、异步导出、专家模式和空态入口可见，浏览器运行时无错误。
+- 待处理登记：前端依赖审计与测试 / 构建输出噪声登记为 [DEFER-002](../../audit/deferred-issues.md) / [DEFER-003](../../audit/deferred-issues.md)，不伪造为已清零。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（3d，前端为主 + 后端导出）

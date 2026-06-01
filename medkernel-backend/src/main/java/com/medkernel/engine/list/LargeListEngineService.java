@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -49,6 +53,7 @@ public class LargeListEngineService {
     private final IsolatedAuditPublisher isolatedAudit;
     private final JdbcTemplate jdbc;
     private final Executor knowledgeExportExecutor;
+    private final ObjectMapper objectMapper;
 
     public LargeListEngineService(
         LargeListExportJobRepository jobRepository,
@@ -64,6 +69,7 @@ public class LargeListEngineService {
         this.isolatedAudit = isolatedAudit;
         this.jdbc = jdbc;
         this.knowledgeExportExecutor = knowledgeExportExecutor;
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -133,7 +139,7 @@ public class LargeListEngineService {
     }
 
     /**
-     * 近似总行数估算，使用 LIMIT 限制以提升海量数据 Count 性能。
+     * 近似总行数估算，使用 SQL 标准 FETCH FIRST 限制以兼容 PostgreSQL 与 Oracle。
      */
     private long estimateCount(String tenantId, String action, String resourceType, String actor) {
         StringBuilder sql = new StringBuilder("SELECT count(*) FROM (SELECT 1 FROM audit_event WHERE tenant_id = ?");
@@ -153,8 +159,8 @@ public class LargeListEngineService {
             params.add(actor);
         }
         
-        // 限制最多 Count 至 10001 条
-        sql.append(" LIMIT 10001) t");
+        // 限制最多 Count 至 10001 条。
+        sql.append(" FETCH FIRST 10001 ROWS ONLY) t");
 
         try {
             Long val = jdbc.queryForObject(sql.toString(), Long.class, params.toArray());
@@ -179,20 +185,26 @@ public class LargeListEngineService {
         String traceId = RequestContext.currentTraceId();
         String creator = currentActor();
 
-        // 资源类型强校验
-        if (!"AUDIT_EVENT".equalsIgnoreCase(request.resourceType())) {
-            throw new ApiException(ErrorCode.ENG_LIST_001, "仅支持对 AUDIT_EVENT 资源进行大规模异步导出");
+        String resourceType = normalizeExportResource(request.resourceType());
+
+        if (!"CURRENT_PAGE".equals(request.selectedScope()) && !"FILTERED_RESULT".equals(request.selectedScope())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出范围仅支持 CURRENT_PAGE 或 FILTERED_RESULT");
         }
 
-        // 解析并存储过滤参数 JSON 占位
-        String filterJson = request.filters() == null ? "{}" : request.filters().toString();
+        String requestSnapshot = buildRequestSnapshot(resourceType, request);
+        ExportSubmitResponse existingResponse = reuseExistingIdempotentJob(tenantId, request, requestSnapshot);
+        if (existingResponse != null) {
+            return existingResponse;
+        }
 
         LargeListExportJob job = LargeListExportJob.createPending(
             jobId,
             tenantId,
-            request.resourceType(),
-            filterJson,
+            resourceType,
+            requestSnapshot,
+            request.selectedScope(),
             traceId,
+            request.idempotencyKey(),
             creator
         );
 
@@ -224,6 +236,32 @@ public class LargeListEngineService {
         }
 
         return new ExportSubmitResponse(saved.jobId(), "PENDING", "导出任务已提交后台处理");
+    }
+
+    private ExportSubmitResponse reuseExistingIdempotentJob(
+        String tenantId,
+        ExportSubmitRequest request,
+        String requestSnapshot
+    ) {
+        if (request.idempotencyKey() == null) {
+            return null;
+        }
+        return jobRepository.findByTenantIdAndIdempotencyKey(tenantId, request.idempotencyKey())
+            .map(existing -> {
+                if (!sameRequestSnapshot(existing.requestSnapshot(), requestSnapshot)) {
+                    throw new ApiException(ErrorCode.BAD_REQUEST, "同一幂等键不能用于不同导出请求");
+                }
+                return new ExportSubmitResponse(existing.jobId(), existing.status(), "导出任务已存在，复用幂等结果");
+            })
+            .orElse(null);
+    }
+
+    private boolean sameRequestSnapshot(String existingSnapshot, String requestSnapshot) {
+        try {
+            return objectMapper.readTree(existingSnapshot).equals(objectMapper.readTree(requestSnapshot));
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照不是合法 JSON", e);
+        }
     }
 
     /**
@@ -258,11 +296,10 @@ public class LargeListEngineService {
         // 变更状态为 RUNNING
         updateJobStatus(job, "RUNNING", null, null, 0L, null);
 
-        // 提取过滤条件
-        Map<String, String> filterMap = Map.of();
-        String actionFilter = null;
-        String resourceTypeFilter = null;
-        String actorFilter = null;
+        Map<String, String> filterMap = extractFilters(job.requestSnapshot());
+        String actionFilter = filterValue(filterMap, "action");
+        String resourceTypeFilter = filterValue(filterMap, "resourceType");
+        String actorFilter = filterValue(filterMap, "actorUserId");
 
         // 生成本地临时文件
         File tempDir = new File(System.getProperty("java.io.tmpdir"), "medkernel-exports");
@@ -273,54 +310,13 @@ public class LargeListEngineService {
 
         long count = 0;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
-            // 写入 CSV 头部
             writer.write("\uFEFF"); // 写入 UTF-8 BOM，防止 Excel 乱码
-            writer.write("自增ID,事件ID,追踪ID,发生时间,操作人ID,操作动作,资源类型,资源ID,摘要, outcome,错误码\n");
-
-            Long cursorId = null;
-            boolean hasNext = true;
-            int batchSize = 500;
-
-            while (hasNext) {
-                AuditEventQuery query = new AuditEventQuery(
-                    actionFilter,
-                    resourceTypeFilter,
-                    actorFilter,
-                    null,
-                    null,
-                    cursorId,
-                    batchSize
-                );
-
-                List<AuditEventRecord> rows = auditRepository.findPage(tenantId, query);
-                if (rows.isEmpty()) {
-                    break;
-                }
-
-                List<AuditEventRecord> batchList = rows;
-                if (rows.size() > batchSize) {
-                    batchList = rows.subList(0, batchSize);
-                    cursorId = batchList.get(batchList.size() - 1).id();
-                } else {
-                    hasNext = false;
-                }
-
-                for (AuditEventRecord row : batchList) {
-                    writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
-                        row.id(),
-                        escapeCsv(row.eventId()),
-                        escapeCsv(row.traceId()),
-                        row.occurredAt() == null ? "" : row.occurredAt().toString(),
-                        escapeCsv(row.actorUserId()),
-                        row.action() == null ? "" : row.action(),
-                        escapeCsv(row.resourceType()),
-                        escapeCsv(row.resourceId()),
-                        escapeCsv(row.summary()),
-                        escapeCsv(row.outcome()),
-                        escapeCsv(row.errorCode())
-                    ));
-                    count++;
-                }
+            if ("AUDIT_EVENT".equals(job.resourceType())) {
+                count = writeAuditEventExport(writer, tenantId, actionFilter, resourceTypeFilter, actorFilter);
+            } else if ("TERMINOLOGY_MAPPING".equals(job.resourceType())) {
+                count = writeTerminologyMappingExport(writer, tenantId, filterMap);
+            } else {
+                throw new ApiException(ErrorCode.ENG_LIST_001, "不支持的异步导出资源类型: " + job.resourceType());
             }
             writer.flush();
         }
@@ -351,11 +347,11 @@ public class LargeListEngineService {
             // 写入失败时包含的具体堆栈错误描述
             LargeListExportJob refreshed = jobRepository.findByJobId(jobId).orElse(job);
             jobRepository.save(new LargeListExportJob(
-                refreshed.id(),
                 refreshed.jobId(),
                 refreshed.tenantId(),
                 refreshed.resourceType(),
-                refreshed.filterCriteria(),
+                refreshed.requestSnapshot(),
+                refreshed.selectedScope(),
                 "FAILED",
                 null,
                 null,
@@ -363,6 +359,8 @@ public class LargeListEngineService {
                 errorMsg == null ? "未知异常" : errorMsg.substring(0, Math.min(errorMsg.length(), 500)),
                 refreshed.timeCostMs(),
                 refreshed.traceId(),
+                refreshed.auditId(),
+                refreshed.idempotencyKey(),
                 refreshed.createdAt(),
                 refreshed.createdBy(),
                 Instant.now(),
@@ -421,11 +419,11 @@ public class LargeListEngineService {
     private void updateJobStatus(LargeListExportJob src, String newStatus, String fileName, String filePath, Long fileSize, Long costMs) {
         LargeListExportJob refreshed = jobRepository.findByJobId(src.jobId()).orElse(src);
         LargeListExportJob updated = new LargeListExportJob(
-            refreshed.id(),
             refreshed.jobId(),
             refreshed.tenantId(),
             refreshed.resourceType(),
-            refreshed.filterCriteria(),
+            refreshed.requestSnapshot(),
+            refreshed.selectedScope(),
             newStatus,
             fileName == null ? refreshed.fileName() : fileName,
             filePath == null ? refreshed.filePath() : filePath,
@@ -433,6 +431,8 @@ public class LargeListEngineService {
             refreshed.errorMessage(),
             costMs == null ? refreshed.timeCostMs() : costMs,
             refreshed.traceId(),
+            refreshed.auditId(),
+            refreshed.idempotencyKey(),
             refreshed.createdAt(),
             refreshed.createdBy(),
             Instant.now(),
@@ -453,6 +453,201 @@ public class LargeListEngineService {
         return RequestContext.currentUserId()
             .filter(s -> !s.isBlank())
             .orElse("system");
+    }
+
+    private String normalizeExportResource(String resourceType) {
+        String normalized = resourceType == null ? "" : resourceType.trim().toUpperCase();
+        if (!"AUDIT_EVENT".equals(normalized) && !"TERMINOLOGY_MAPPING".equals(normalized)) {
+            throw new ApiException(ErrorCode.ENG_LIST_001, "不支持的异步导出资源类型: " + resourceType);
+        }
+        return normalized;
+    }
+
+    private String buildRequestSnapshot(String resourceType, ExportSubmitRequest request) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("resourceType", resourceType);
+        snapshot.put("filters", request.filters());
+        snapshot.put("selectedScope", request.selectedScope());
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出请求快照无法序列化", e);
+        }
+    }
+
+    private Map<String, String> extractFilters(String requestSnapshot) {
+        try {
+            JsonNode filters = objectMapper.readTree(requestSnapshot).path("filters");
+            if (!filters.isObject()) {
+                return Map.of();
+            }
+            Map<String, String> parsed = new LinkedHashMap<>();
+            filters.fields().forEachRemaining(entry -> {
+                JsonNode value = entry.getValue();
+                if (value != null && !value.isNull()) {
+                    parsed.put(entry.getKey(), value.asText());
+                }
+            });
+            return parsed;
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照不是合法 JSON", e);
+        }
+    }
+
+    private String filterValue(Map<String, String> filters, String key) {
+        String value = filters.get(key);
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private long writeAuditEventExport(
+        BufferedWriter writer,
+        String tenantId,
+        String actionFilter,
+        String resourceTypeFilter,
+        String actorFilter
+    ) throws IOException {
+        writer.write("自增ID,事件ID,追踪ID,发生时间,操作人ID,操作动作,资源类型,资源ID,摘要,outcome,错误码\n");
+
+        Long cursorId = null;
+        boolean hasNext = true;
+        int batchSize = 500;
+        long count = 0;
+
+        while (hasNext) {
+            AuditEventQuery query = new AuditEventQuery(
+                actionFilter,
+                resourceTypeFilter,
+                actorFilter,
+                null,
+                null,
+                cursorId,
+                batchSize
+            );
+
+            List<AuditEventRecord> rows = auditRepository.findPage(tenantId, query);
+            if (rows.isEmpty()) {
+                break;
+            }
+
+            List<AuditEventRecord> batchList = rows;
+            if (rows.size() > batchSize) {
+                batchList = rows.subList(0, batchSize);
+                cursorId = batchList.get(batchList.size() - 1).id();
+            } else {
+                hasNext = false;
+            }
+
+            for (AuditEventRecord row : batchList) {
+                writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+                    row.id(),
+                    escapeCsv(row.eventId()),
+                    escapeCsv(row.traceId()),
+                    row.occurredAt() == null ? "" : row.occurredAt().toString(),
+                    escapeCsv(row.actorUserId()),
+                    row.action() == null ? "" : row.action(),
+                    escapeCsv(row.resourceType()),
+                    escapeCsv(row.resourceId()),
+                    escapeCsv(row.summary()),
+                    escapeCsv(row.outcome()),
+                    escapeCsv(row.errorCode())
+                ));
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private long writeTerminologyMappingExport(
+        BufferedWriter writer,
+        String tenantId,
+        Map<String, String> filters
+    ) throws IOException {
+        writer.write("映射ID,院内术语ID,标准术语ID,来源系统,类别,置信度,风险等级,状态,证据,确认人,确认时间,更新时间\n");
+
+        long count = 0;
+        int offset = 0;
+        int batchSize = 500;
+        while (true) {
+            java.util.List<Object> params = new java.util.ArrayList<>();
+            params.add(tenantId);
+            String sql = terminologyMappingExportSql(filters, params, offset, batchSize);
+            List<Map<String, Object>> rows = jdbc.queryForList(sql, params.toArray());
+            if (rows.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : rows) {
+                writer.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+                    escapeCsvValue(rowValue(row, "id")),
+                    escapeCsvValue(rowValue(row, "local_term_id")),
+                    escapeCsvValue(rowValue(row, "standard_term_id")),
+                    escapeCsvValue(rowValue(row, "source_system")),
+                    escapeCsvValue(rowValue(row, "category")),
+                    escapeCsvValue(rowValue(row, "confidence")),
+                    escapeCsvValue(rowValue(row, "risk_level")),
+                    escapeCsvValue(rowValue(row, "status")),
+                    escapeCsvValue(rowValue(row, "evidence_text")),
+                    escapeCsvValue(rowValue(row, "confirmed_by")),
+                    escapeCsvValue(rowValue(row, "confirmed_at")),
+                    escapeCsvValue(rowValue(row, "updated_at"))
+                ));
+                count++;
+            }
+            if (rows.size() < batchSize) {
+                break;
+            }
+            offset += batchSize;
+        }
+        return count;
+    }
+
+    private String terminologyMappingExportSql(
+        Map<String, String> filters,
+        java.util.List<Object> params,
+        int offset,
+        int batchSize
+    ) {
+        StringBuilder sql = new StringBuilder("""
+            SELECT id, local_term_id, standard_term_id, source_system, category, confidence,
+                   risk_level, status, evidence_text, confirmed_by, confirmed_at, updated_at
+            FROM term_mapping
+            WHERE tenant_id = ?
+            """);
+        String sourceSystem = filterValue(filters, "sourceSystem");
+        if (sourceSystem != null) {
+            sql.append(" AND source_system = ?");
+            params.add(sourceSystem);
+        }
+        String category = filterValue(filters, "category");
+        if (category != null) {
+            sql.append(" AND category = ?");
+            params.add(category);
+        }
+        String status = filterValue(filters, "status");
+        if (status != null) {
+            sql.append(" AND status = ?");
+            params.add(status);
+        }
+        String keyword = filterValue(filters, "keyword");
+        if (keyword != null) {
+            sql.append(" AND LOWER(COALESCE(evidence_text, '')) LIKE ?");
+            params.add("%" + keyword.toLowerCase(java.util.Locale.ROOT) + "%");
+        }
+        sql.append(" ORDER BY updated_at DESC, id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        params.add(offset);
+        params.add(batchSize);
+        return sql.toString();
+    }
+
+    private String escapeCsvValue(Object value) {
+        return escapeCsv(value == null ? null : value.toString());
+    }
+
+    private Object rowValue(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value != null) {
+            return value;
+        }
+        return row.get(key.toUpperCase(java.util.Locale.ROOT));
     }
 
     private String escapeCsv(String val) {

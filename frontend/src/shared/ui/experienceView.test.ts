@@ -1,11 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  buildAsyncExportRequest,
-  normalizePageResponse,
-  readExperienceView,
-  writeExperienceView,
-} from "./experienceView";
+import { buildAsyncExportRequest, normalizePageResponse } from "./experienceView";
 
 const snapshot = {
   viewKey: "terminology.mapping",
@@ -23,8 +18,6 @@ const snapshot = {
 } as const;
 
 describe("experienceView", () => {
-  beforeEach(() => window.localStorage.clear());
-
   it("normalizes current PageResponse into the experience pagination contract", () => {
     const result = normalizePageResponse({
       items: [{ id: 1 }],
@@ -46,30 +39,21 @@ describe("experienceView", () => {
     });
   });
 
-  it("stores reproducible UI view snapshots without sensitive content", () => {
-    writeExperienceView("terminology.mapping", snapshot);
-
-    expect(readExperienceView("terminology.mapping")?.visibleColumnKeys).toEqual([
-      "sourceSystem",
-      "status",
-    ]);
-    expect(readExperienceView("terminology.mapping")?.expertMode).toBe(false);
-    expect(window.localStorage.getItem("medkernel.view.terminology.mapping")).toContain(
-      "updatedAt",
-    );
-  });
-
-  it("rejects sensitive snapshot keys before writing local storage", () => {
+  it("rejects sensitive export snapshots before submitting", () => {
     expect(() =>
-      writeExperienceView("terminology.mapping", {
-        ...snapshot,
-        pageRequest: {
-          ...snapshot.pageRequest,
-          filters: { patientId: "p-1" },
+      buildAsyncExportRequest({
+        resourceType: "terminology.mapping",
+        requestSnapshot: {
+          ...snapshot,
+          pageRequest: {
+            ...snapshot.pageRequest,
+            filters: { patientId: "p-1" },
+          },
         },
+        selectedScope: "currentPage",
+        reason: "敏感快照拒绝提交",
       }),
     ).toThrow(/敏感/);
-    expect(window.localStorage.getItem("medkernel.view.terminology.mapping")).toBeNull();
   });
 
   it("builds auditable export requests from view and selection snapshots", () => {
