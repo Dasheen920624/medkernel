@@ -74,6 +74,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - PR8（后端包同步状态机净化）：收紧 `PackageEngineService.syncPackage` 的最终状态与包生命周期推进条件；全部未接入真实通道保持 `NOT_SYNCED` 且不发布草稿包，任一目标失败时发布计划落 `FAILED` 且不推进包状态；灰度包只有全通道成功才从 `DRAFT` 进入 `PUBLISHED`。记录见 [BASE-09 后端包同步状态机净化 PR8 记录](../../audit/BASE-09-backend-package-sync-state-cleanup-pr8.md)。本 PR 仍不勾选全部 FR/AC，继续清包发布回滚闭环、影响范围导出和剩余域级验收残留。
 - PR9（后端包回滚二次确认净化）：回滚端点从 query 参数改为 `PackageRollbackRequest` 请求体；服务层强制校验高危确认、审计原因、当前 / 目标版本确认、当前包 `ACTIVE` 与同一 `packageCode`，失败不保存状态；前端同步采集原因和确认，只展示同编码历史版本。记录见 [BASE-09 后端包回滚二次确认净化 PR9 记录](../../audit/BASE-09-backend-package-rollback-confirm-pr9.md)。本 PR 仍不勾选全部 FR/AC，继续清回滚反向投影、回滚 plan/log 证据链、影响范围导出和剩余域级验收残留。
 - PR10（后端包回滚目标状态净化）：回滚目标从 `PUBLISHED 或 OFFLINE` 收紧为仅允许 `OFFLINE`，防止从未激活的预发布版本绕过正式发布流程被直接激活；前端回滚弹窗只展示已下线历史版本，并清理 `PUBLISHED` 可快速回退的误导文案。记录见 [BASE-09 后端包回滚目标状态净化 PR10 记录](../../audit/BASE-09-backend-package-rollback-target-pr10.md)。本 PR 仍不勾选全部 FR/AC，继续清回滚反向投影、回滚 plan/log 证据链、影响范围导出和剩余域级验收残留。
+- PR11（后端包回滚计划与日志证据链净化）：回滚不再直接切换包状态；先复用当前在用包最近一次成功发布 / 回滚的真实同步目标，创建新的 `ReleasePlan`，逐目标写入 `RUNNING` → `SUCCESS` / `NOT_SYNCED` / `FAILED` 的 `SyncLog`，全量成功且返回非空同步证据才将历史包激活并把计划置为 `ROLLBACKED`；未接入、失败、目标缺失或空证据时包状态保持不变。记录见 [BASE-09 后端包回滚计划与日志证据链净化 PR11 记录](../../audit/BASE-09-backend-package-rollback-plan-log-pr11.md)。本 PR 仍不勾选全部 FR/AC，继续清影响范围导出、剩余硬编码业务示例、导入导出 / 离线安装能力和域级验收残留。
 
 ## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
 - 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。

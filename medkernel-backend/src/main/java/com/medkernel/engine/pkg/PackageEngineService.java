@@ -317,7 +317,11 @@ public class PackageEngineService {
                 // 事务外部安全执行：物理投影同步（包含长 IO）
                 evidence = syncPort.sync(tenantId, savedPlan, target);
             } catch (Exception e) {
-                log.error("物理同步失败, targetId: {}", targetId, e);
+                if (e instanceof PackageSyncNotConnectedException) {
+                    log.warn("物理同步未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                } else {
+                    log.error("物理同步失败, targetId: {}", targetId, e);
+                }
                 syncError = e;
             }
 
@@ -423,9 +427,9 @@ public class PackageEngineService {
     /**
      * 一键快速回滚包版本到指定历史点。
      */
-    @Transactional
     public PackageResponse rollbackPackage(String packageId, PackageRollbackRequest request) {
         String tenantId = currentTenantId();
+        String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
         PackageRollbackRequest rollbackRequest = requireRollbackRequest(request);
         String targetPackageId = requireRollbackText(rollbackRequest.targetPackageId(), "回滚目标包不能为空");
@@ -443,9 +447,46 @@ public class PackageEngineService {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "回滚目标包必须是曾经执行并已下线的历史版本（OFFLINE）");
         }
 
-        // 执行状态原子转换：隔离当前包，激活历史包
-        packageRepository.save(currentActive.withStatus(KnowledgePackageStatus.OFFLINE));
-        KnowledgePackage savedTarget = packageRepository.save(targetRollback.withStatus(KnowledgePackageStatus.ACTIVE));
+        RollbackSyncScope rollbackScope = resolveRollbackSyncScope(tenantId, currentActive);
+        ReleasePlan rollbackPlan = new ReleasePlan(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            targetPackageId,
+            rollbackScope.originalPlan().targetOrgUnitId(),
+            ReleaseStrategy.FULL,
+            ReleaseScopeType.ALL,
+            null,
+            ReleasePlanStatus.EXECUTING,
+            Instant.now(),
+            actor,
+            Instant.now(),
+            actor,
+            traceId
+        );
+        ReleasePlan savedPlan = transactionTemplate.execute(status -> planRepository.save(rollbackPlan));
+
+        RollbackProjectionResult projectionResult = projectRollbackToOriginalTargets(
+            tenantId, savedPlan, rollbackScope.targetIds(), actor, traceId);
+
+        final KnowledgePackage[] savedTargetHolder = new KnowledgePackage[1];
+        transactionTemplate.executeWithoutResult(status -> {
+            planRepository.save(savedPlan.withStatus(projectionResult.finalStatus()));
+            if (projectionResult.allSuccess()) {
+                packageRepository.save(currentActive.withStatus(KnowledgePackageStatus.OFFLINE));
+                savedTargetHolder[0] = packageRepository.save(targetRollback.withStatus(KnowledgePackageStatus.ACTIVE));
+            }
+        });
+
+        if (!projectionResult.allSuccess()) {
+            auditPublisher.publish(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
+                "一键回滚包版本从 " + currentActive.packageVersion()
+                    + " 回退到 " + targetRollback.packageVersion()
+                    + " 失败，发布计划状态: " + projectionResult.finalStatus()
+                    + "，原因: " + rollbackReason
+                    + "，操作人: " + actor);
+            throw new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚反向投影未全部成功，包状态未变更");
+        }
 
         // 异步发布回滚审计事实存证
         auditPublisher.publish(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
@@ -454,7 +495,7 @@ public class PackageEngineService {
                 + "，原因: " + rollbackReason
                 + "，操作人: " + actor);
 
-        return PackageResponse.from(savedTarget);
+        return PackageResponse.from(savedTargetHolder[0]);
     }
 
     /**
@@ -519,6 +560,143 @@ public class PackageEngineService {
         }
         return normalized;
     }
+
+    private RollbackSyncScope resolveRollbackSyncScope(String tenantId, KnowledgePackage currentActive) {
+        List<ReleasePlan> reusablePlans = planRepository
+            .findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, currentActive.packageId()).stream()
+            .filter(plan -> plan.status() == ReleasePlanStatus.SUCCESS || plan.status() == ReleasePlanStatus.ROLLBACKED)
+            .toList();
+
+        for (ReleasePlan plan : reusablePlans) {
+            List<String> targetIds = logRepository.findByTenantIdAndPlanId(tenantId, plan.planId()).stream()
+                .filter(syncLog -> syncLog.status() == SyncLogStatus.SUCCESS)
+                .map(SyncLog::targetId)
+                .distinct()
+                .toList();
+            if (!targetIds.isEmpty()) {
+                return new RollbackSyncScope(plan, targetIds);
+            }
+        }
+
+        throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前在用包缺少成功同步目标记录，不能执行回滚");
+    }
+
+    private RollbackProjectionResult projectRollbackToOriginalTargets(
+            String tenantId,
+            ReleasePlan savedPlan,
+            List<String> targetIds,
+            String actor,
+            String traceId) {
+        boolean anySuccess = false;
+        boolean allSuccess = true;
+        boolean anyNotSynced = false;
+        boolean anyFailed = false;
+
+        for (String targetId : targetIds) {
+            SyncLog savedLog = transactionTemplate.execute(status -> {
+                SyncLog syncLog = new SyncLog(
+                    null,
+                    UUID.randomUUID().toString(),
+                    tenantId,
+                    savedPlan.planId(),
+                    targetId,
+                    SyncLogStatus.RUNNING,
+                    null, null, 0, null,
+                    Instant.now(), actor, Instant.now(), actor, traceId
+                );
+                return logRepository.save(syncLog);
+            });
+
+            String evidence = null;
+            Exception syncError = null;
+            Optional<SyncTarget> target = targetRepository.findByTargetIdAndTenantId(targetId, tenantId);
+            if (target.isEmpty()) {
+                syncError = new ApiException(ErrorCode.ENG_PACKAGE_001, "回滚同步通道目标不存在: " + targetId);
+            } else {
+                try {
+                    evidence = syncPort.sync(tenantId, savedPlan, target.get());
+                    if (evidence == null || evidence.isBlank()) {
+                        syncError = new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚同步未返回同步证据: " + targetId);
+                    }
+                } catch (Exception e) {
+                    if (e instanceof PackageSyncNotConnectedException) {
+                        log.warn("回滚反向投影未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                    } else {
+                        log.error("回滚反向投影失败, targetId: {}", targetId, e);
+                    }
+                    syncError = e;
+                }
+            }
+
+            final String finalEvidence = evidence;
+            final Exception finalError = syncError;
+            transactionTemplate.execute(status -> {
+                if (finalError == null) {
+                    return logRepository.save(new SyncLog(
+                        savedLog.id(),
+                        savedLog.logId(),
+                        tenantId,
+                        savedPlan.planId(),
+                        targetId,
+                        SyncLogStatus.SUCCESS,
+                        null, null, 0, finalEvidence,
+                        savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
+                    ));
+                } else if (finalError instanceof PackageSyncNotConnectedException) {
+                    return logRepository.save(new SyncLog(
+                        savedLog.id(),
+                        savedLog.logId(),
+                        tenantId,
+                        savedPlan.planId(),
+                        targetId,
+                        SyncLogStatus.NOT_SYNCED,
+                        PackageSyncNotConnectedException.CODE,
+                        finalError.getMessage(),
+                        0, null,
+                        savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
+                    ));
+                }
+                return logRepository.save(new SyncLog(
+                    savedLog.id(),
+                    savedLog.logId(),
+                    tenantId,
+                    savedPlan.planId(),
+                    targetId,
+                    SyncLogStatus.FAILED,
+                    syncFailureCode(finalError),
+                    finalError.getMessage(),
+                    0, null,
+                    savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
+                ));
+            });
+
+            if (syncError == null) {
+                anySuccess = true;
+            } else {
+                allSuccess = false;
+                if (syncError instanceof PackageSyncNotConnectedException) {
+                    anyNotSynced = true;
+                } else {
+                    anyFailed = true;
+                }
+            }
+        }
+
+        ReleasePlanStatus finalStatus = allSuccess ? ReleasePlanStatus.ROLLBACKED
+            : (anyNotSynced && !anySuccess && !anyFailed ? ReleasePlanStatus.NOT_SYNCED : ReleasePlanStatus.FAILED);
+        return new RollbackProjectionResult(finalStatus, allSuccess);
+    }
+
+    private String syncFailureCode(Exception error) {
+        if (error instanceof ApiException apiException) {
+            return apiException.errorCode().code();
+        }
+        return ErrorCode.ENG_PACKAGE_005.code();
+    }
+
+    private record RollbackSyncScope(ReleasePlan originalPlan, List<String> targetIds) {}
+
+    private record RollbackProjectionResult(ReleasePlanStatus finalStatus, boolean allSuccess) {}
 
     private String currentTenantId() {
         return RequestContext.snapshot().orgScope().tenantId();
