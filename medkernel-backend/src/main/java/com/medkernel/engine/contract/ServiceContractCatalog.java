@@ -157,7 +157,11 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.LOGIN, "platform_credential", "账号登录"),
                 audit(AuditAction.LOGOUT, "platform_credential", "账号登出"),
                 audit(AuditAction.PERMISSION_CHANGE, "platform_credential", "自助修改密码")),
-            publicEndpoints("POST /api/v1/auth/login", "POST /api/v1/auth/logout")),
+            publicEndpoints(
+                "POST /api/v1/auth/login",
+                "GET /api/v1/auth/delegated/status",
+                "POST /api/v1/auth/delegated/callback",
+                "POST /api/v1/auth/logout")),
         contract("credential-admin", "凭证管理服务",
             "com.medkernel.engine.security.auth.CredentialAdminController", "/api/v1/admin/credentials",
             permissions("org.read", "org.write"),

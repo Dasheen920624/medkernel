@@ -47,9 +47,9 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
  * <ul>
  *   <li>JWT bearer token 由身份服务（OIDC / SAML / 国密 CA）签发；本应用作为 Resource Server 验签
  *   <li>无状态会话（不使用 HttpSession）
- *   <li>CSRF 关闭（前后端分离 + Bearer token）
+ *   <li>浏览器 cookie 会话走 CSRF 双提交；Bearer API 客户端不受影响
  *   <li>白名单：/api/v1/system/** + /actuator/health + /actuator/prometheus + Swagger
- *   <li>dev profile 用 HS256 + 共享密钥简化本地开发；prod 必须用 RS256 + JWKS
+ *   <li>dev/test 可用 HS256 本地密钥；生产禁止使用 dev 默认密钥
  * </ul>
  *
  * <p>GA-ENG-BASE-01 升级：
@@ -73,11 +73,12 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(HttpSecurity http,
                                     TenantContextEnricherFilter tenantEnricher,
                                     CookieBearerTokenResolver cookieResolver,
+                                    CsrfDoubleSubmitFilter csrfDoubleSubmitFilter,
                                     IdempotencyRepository idempotencyRepository,
                                     IdempotencyProperties idempotencyProperties,
                                     ObjectMapper objectMapper) throws Exception {
         http
-            // CSRF 关闭：前后端分离 + SameSite=Strict cookie，CSRF 双提交令牌方案列 Phase 2
+            // 标准 CSRF 会误伤 Bearer API；这里用自定义双提交过滤器保护 cookie 会话。
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
@@ -86,6 +87,8 @@ public class SecurityConfig {
                     "/api/v1/bootstrap/init-token",
                     "/api/v1/bootstrap/password",
                     "/api/v1/auth/login",
+                    "/api/v1/auth/delegated/status",
+                    "/api/v1/auth/delegated/callback",
                     "/api/v1/auth/logout",
                     "/actuator/health",
                     "/actuator/health/**",
@@ -101,12 +104,20 @@ public class SecurityConfig {
                 .bearerTokenResolver(cookieResolver)
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(buildJwtAuthenticationConverter()))
             )
-            .addFilterAfter(tenantEnricher, BearerTokenAuthenticationFilter.class)
+            .addFilterAfter(csrfDoubleSubmitFilter, BearerTokenAuthenticationFilter.class)
+            .addFilterAfter(tenantEnricher, CsrfDoubleSubmitFilter.class)
             .addFilterAfter(
                 new IdempotencyFilter(idempotencyRepository, idempotencyProperties, objectMapper),
                 TenantContextEnricherFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    CsrfDoubleSubmitFilter csrfDoubleSubmitFilter(AuthCookieProperties cookieProperties,
+                                                  SystemConfigService configService,
+                                                  ObjectMapper objectMapper) {
+        return new CsrfDoubleSubmitFilter(cookieProperties, configService, objectMapper);
     }
 
     @Bean

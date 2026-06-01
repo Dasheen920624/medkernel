@@ -111,6 +111,9 @@ public class SystemConfigSeeder implements ApplicationRunner {
     }
 
     private void seedAuthPolicy(Instant seededAt) {
+        seedConfigValue(SystemConfigService.AUTH_MODE_KEY, "PLATFORM",
+            "STRING", "认证模式", "HIGH", "安全组",
+            "控制平台账号、院方统一身份或双入口认证形态；运行时由配置中心切换。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_JWT_TTL_SECONDS_KEY, Long.toString(jwtProperties.ttlSeconds()),
             "INTEGER", "JWT 有效期", "HIGH", "安全组",
             "控制登录后新签发 JWT 的有效期，变更会影响后续登录会话。", true, seededAt);

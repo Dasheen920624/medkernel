@@ -50,6 +50,7 @@ class SystemConfigControllerTest {
     private static final String BACKUP_RPO_KEY = "medkernel.runtime.backup.rpo";
     private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
+    private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
@@ -121,6 +122,11 @@ class SystemConfigControllerTest {
                SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, JWT_TTL_KEY);
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'PLATFORM', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, AUTH_MODE_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -208,6 +214,32 @@ class SystemConfigControllerTest {
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(jwt.getExpiresAt()).isNotNull();
         assertThat(jwt.getExpiresAt().getEpochSecond() - jwt.getIssuedAt().getEpochSecond()).isEqualTo(120);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void authModeIsBackedByConfigCenterAndRejectsInvalidValue() throws Exception {
+        mvc.perform(get("/api/v1/system/configs")
+                .queryParam("prefix", "medkernel.auth."))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mode')].value").value(hasItem("PLATFORM")))
+            .andExpect(jsonPath("$.data[?(@.key=='medkernel.auth.mode')].protectedConfig").value(hasItem(true)));
+
+        mvc.perform(patch("/api/v1/system/configs/{key}", AUTH_MODE_KEY)
+                .with(itOpsWithMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "LEGACY",
+                      "reason": "验证认证模式枚举约束",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"));
+
+        assertThat(configValue(AUTH_MODE_KEY)).isEqualTo("PLATFORM");
     }
 
     @Test

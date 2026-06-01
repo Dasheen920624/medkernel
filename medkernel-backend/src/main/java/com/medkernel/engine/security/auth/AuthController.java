@@ -1,5 +1,9 @@
 package com.medkernel.engine.security.auth;
 
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -13,8 +17,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.security.AuthCookieProperties;
+import com.medkernel.shared.security.AuthMode;
+import com.medkernel.shared.security.CsrfDoubleSubmitFilter;
 
 import jakarta.validation.Valid;
 
@@ -25,6 +33,10 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
+
+    static final String XSRF_COOKIE = CsrfDoubleSubmitFilter.XSRF_COOKIE;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final List<String> DELEGATED_PROVIDERS = List.of("OIDC", "CAS", "SAML", "国密CA");
 
     private final AuthService authService;
     private final AuthSessionService sessionService;
@@ -48,17 +60,42 @@ public class AuthController {
         SessionStatusResponse status = sessionService.status(result.issuedJwt());
         ResponseCookie cookie = buildCookie(
             result.jwt(), runtimeCookie, sessionService.cookieMaxAgeSeconds(result.issuedJwt(), runtimeCookie));
+        ResponseCookie xsrf = buildXsrfCookie(
+            newXsrfToken(), runtimeCookie, sessionService.cookieMaxAgeSeconds(result.issuedJwt(), runtimeCookie));
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .header(HttpHeaders.SET_COOKIE, cookie.toString(), xsrf.toString())
             .body(ApiResult.ok(result.response().withSession(status)));
+    }
+
+    @GetMapping("/delegated/status")
+    public ApiResult<DelegatedAuthStatusResponse> delegatedStatus() {
+        AuthMode mode = configService.runtimeAuthMode();
+        boolean enabled = mode.allowsDelegatedLogin();
+        return ApiResult.ok(new DelegatedAuthStatusResponse(
+            mode.name(),
+            enabled,
+            enabled ? "NOT_CONNECTED" : "DISABLED",
+            DELEGATED_PROVIDERS,
+            enabled
+                ? "院方统一身份入口已按认证模式开放，但当前未配置真实 IdP 连接器。"
+                : "当前认证模式未开放院方统一身份入口。"));
+    }
+
+    @PostMapping("/delegated/callback")
+    public ApiResult<Void> delegatedCallback() {
+        if (!configService.runtimeAuthMode().allowsDelegatedLogin()) {
+            throw new ApiException(ErrorCode.ENG_AUTH_013, "当前认证模式未开放院方统一身份入口");
+        }
+        throw new ApiException(ErrorCode.ENG_AUTH_014);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResult<Void>> logout(@AuthenticationPrincipal Jwt jwt) {
         authService.logout(jwt == null ? null : jwt.getSubject());
         ResponseCookie cleared = buildCookie("", configService.runtimeCookieProperties(cookieProps), 0);
+        ResponseCookie xsrfCleared = buildXsrfCookie("", configService.runtimeCookieProperties(cookieProps), 0);
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, cleared.toString())
+            .header(HttpHeaders.SET_COOKIE, cleared.toString(), xsrfCleared.toString())
             .body(ApiResult.ok(null));
     }
 
@@ -102,5 +139,21 @@ public class AuthController {
             .path(runtimeCookie.path())
             .maxAge(maxAge)
             .build();
+    }
+
+    private ResponseCookie buildXsrfCookie(String value, AuthCookieProperties runtimeCookie, long maxAge) {
+        return ResponseCookie.from(XSRF_COOKIE, value)
+            .httpOnly(false)
+            .secure(runtimeCookie.secure())
+            .sameSite(runtimeCookie.sameSite())
+            .path("/")
+            .maxAge(maxAge)
+            .build();
+    }
+
+    private String newXsrfToken() {
+        byte[] random = new byte[32];
+        SECURE_RANDOM.nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 }

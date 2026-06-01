@@ -6,13 +6,15 @@ import axios from "axios";
  * baseURL 走 vite proxy → /medkernel/api → http://localhost:18080/medkernel/api
  * （vite.config.ts 已配 /medkernel → :18080）。
  *
- * 请求自动带 Bearer token（GA-CORE-02 OAuth2 接通后从 token store 读）。
+ * 登录态只放 httpOnly cookie；浏览器写操作通过 XSRF-TOKEN + X-XSRF-TOKEN 双提交防护。
  */
 export const apiClient = axios.create({
   baseURL: "/medkernel/api/v1",
   timeout: 30_000,
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
+  xsrfCookieName: "XSRF-TOKEN",
+  xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
 apiClient.interceptors.request.use((config) => {

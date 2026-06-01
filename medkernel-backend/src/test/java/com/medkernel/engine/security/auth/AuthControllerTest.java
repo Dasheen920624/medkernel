@@ -71,6 +71,9 @@ class AuthControllerTest {
     private static final String SESSION_WARNING_KEY = "medkernel.auth.session.warning-seconds";
     private static final String SESSION_MAX_DURATION_KEY = "medkernel.auth.session.max-duration-seconds";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
+    private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    private static final String XSRF_COOKIE = "XSRF-TOKEN";
+    private static final String XSRF_HEADER = "X-XSRF-TOKEN";
 
     @BeforeEach
     void setUp() {
@@ -141,10 +144,11 @@ class AuthControllerTest {
                SET config_value = '28800', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, JWT_TTL_KEY);
+        upsertAuthMode("PLATFORM");
     }
 
     @Test
-    void login_success_setsHttpOnlyCookie() throws Exception {
+    void login_success_setsHttpOnlyCookieAndXsrfToken() throws Exception {
         var body = objectMapper.writeValueAsString(
             new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
 
@@ -155,9 +159,61 @@ class AuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(cookie().exists("mk_access"))
             .andExpect(cookie().httpOnly("mk_access", true))
+            .andExpect(cookie().exists(XSRF_COOKIE))
+            .andExpect(cookie().httpOnly(XSRF_COOKIE, false))
             .andExpect(jsonPath("$.data.userId").value(USER_ID))
             .andExpect(jsonPath("$.data.tenantId").value(TENANT))
             .andExpect(jsonPath("$.data.mustChangePwd").value(false));
+    }
+
+    @Test
+    void loginDelegatedModeRejectsPlatformPasswordLogin() throws Exception {
+        upsertAuthMode("DELEGATED");
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-013"));
+    }
+
+    @Test
+    void invalidAuthModeFailsClosedForPlatformPasswordLogin() throws Exception {
+        upsertAuthMode("LEGACY");
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-013"));
+    }
+
+    @Test
+    void delegatedStatusReportsNotConnectedWithoutFakingLogin() throws Exception {
+        upsertAuthMode("BOTH");
+
+        mvc.perform(get("/api/v1/auth/delegated/status"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mode").value("BOTH"))
+            .andExpect(jsonPath("$.data.enabled").value(true))
+            .andExpect(jsonPath("$.data.status").value("NOT_CONNECTED"));
+    }
+
+    @Test
+    void delegatedCallbackReturnsNotConnectedWhenIdpIsUnconfigured() throws Exception {
+        upsertAuthMode("DELEGATED");
+
+        mvc.perform(post("/api/v1/auth/delegated/callback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-014"));
     }
 
     @Test
@@ -207,13 +263,35 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.maxSessionSeconds").value(300))
             .andExpect(jsonPath("$.data.remainingSeconds").isNumber());
 
-        mvc.perform(post("/api/v1/auth/session/renew").cookie(cookie))
+        Cookie xsrf = login.getResponse().getCookie(XSRF_COOKIE);
+        mvc.perform(post("/api/v1/auth/session/renew")
+                .cookie(cookie)
+                .cookie(xsrf)
+                .header(XSRF_HEADER, xsrf.getValue()))
             .andExpect(status().isOk())
             .andExpect(cookie().exists("mk_access"))
             .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=30")))
             .andExpect(jsonPath("$.data.idleTimeoutSeconds").value(30))
             .andExpect(jsonPath("$.data.warningSeconds").value(8))
             .andExpect(jsonPath("$.data.maxSessionRemainingSeconds").isNumber());
+    }
+
+    @Test
+    void cookieSessionRenewRejectsMissingXsrfHeader() throws Exception {
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        mvc.perform(post("/api/v1/auth/session/renew")
+                .cookie(login.getResponse().getCookie("mk_access"))
+                .cookie(new Cookie(XSRF_COOKIE, "xsrf-token-without-header")))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-API-004"));
     }
 
     @Test
@@ -253,5 +331,45 @@ class AuthControllerTest {
                 .content(noUser))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("ENG-AUTH-001"));
+    }
+
+    @Test
+    void loginDisabledCredentialUsesSameErrorCodeAsWrongPassword() throws Exception {
+        PlatformCredential active = credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME).orElseThrow();
+        credentialRepository.save(new PlatformCredential(
+            active.id(), active.credentialId(), active.tenantId(), active.userId(), active.username(),
+            active.passwordHash(), "DISABLED", active.mustChangePwd(), active.mfaSecret(),
+            active.createdAt(), active.createdBy(), Instant.now(), "test", active.traceId()));
+
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-001"));
+    }
+
+    private void upsertAuthMode(String value) {
+        int updated = jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?, source = 'YML_SEED', version = 1, updated_by = 'test'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, value, AUTH_MODE_KEY);
+        if (updated > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, description, source, protected_flag, active_flag,
+                version, created_at, created_by, updated_at, updated_by
+            ) VALUES (
+                'cfg-auth-mode-test', 'SYSTEM', ?, ?, 'STRING', '认证模式',
+                'HIGH', '安全组', '控制平台账号与院方统一身份认证模式。', 'YML_SEED', 'Y', 'Y',
+                1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
+            )
+            """, AUTH_MODE_KEY, value);
     }
 }
