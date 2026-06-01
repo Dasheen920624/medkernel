@@ -17,9 +17,9 @@
 - 类型：软件开发 / 安全运维
 - 分支：`codex/base-11-seed-identity`（基于 `origin/main` c64ad9d）
 - 目标：按 [BASE-11](cards/D0/BASE-11.md) 交付生产 init token、强制首次改密、MFA、CLI 应急与首次部署手册，解决全新生产环境无法安全接管的问题。
-- 状态：任务 1、任务 2 后端主链路、任务 3 MFA 最小闭环已完成：`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard，未绑定返回 `ENG-AUTH-010`。
-- 下一步（精确到动作/命令）：按计划 TDD 执行任务 4：先写 `BootstrapEmergencyCommandTest` 失败用例 → 实现本机 CLI 应急确认、审计与一次性恢复输出 → 更新首次部署运维手册。
-- 相关文件 / 测试 / 坑：任务 1/2/3 已跑 `BootstrapInitTokenServiceTest,BootstrapInitTokenSeederTest,BootstrapControllerTest,JwtSecretResolverTest,JwtIssuerTest,AuthControllerTest,CredentialAdminControllerTest,MfaPolicyServiceTest,SystemConfigControllerTest,TenantProvisioningControllerTest,SystemConfigServiceTest`；迁移基线与 PostgreSQL + Oracle `FlywayMultiDialectSmokeTest` 已通过。前端强制跳转与 `/bootstrap` 页面留任务 5。`npm ci` 仍提示 7 个 moderate 前端工具链告警，保持 `DEFER-002`；前端测试噪声保持 `DEFER-003`；当前只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行证据仍归 `DEFER-001`。
+- 状态：任务 1、任务 2 后端主链路、任务 3 MFA 最小闭环、任务 4 CLI 应急与首次部署手册已完成：`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard；`bootstrap-emergency.sh` 支持本机确认 + 二次确认的 MFA 重置 / 账号解锁并写审计。
+- 下一步（精确到动作/命令）：按计划 TDD 执行任务 5：先核查前端路由 / 登录页 / API hook 现状 → 写 `Bootstrap.test.tsx` 失败用例 → 实现 `/bootstrap` 页面、登录页入口、登录响应强制跳转 → 用浏览器验收 `/login` 与 `/bootstrap` 主题切换和页面可用性。
+- 相关文件 / 测试 / 坑：任务 1/2/3/4 已跑 `BootstrapInitTokenServiceTest,BootstrapInitTokenSeederTest,BootstrapControllerTest,JwtSecretResolverTest,JwtIssuerTest,AuthControllerTest,CredentialAdminControllerTest,MfaPolicyServiceTest,SystemConfigControllerTest,TenantProvisioningControllerTest,SystemConfigServiceTest,BootstrapEmergencyCommandTest`；迁移基线与 PostgreSQL + Oracle `FlywayMultiDialectSmokeTest` 已通过。前端强制跳转与 `/bootstrap` 页面留任务 5。`npm ci` 仍提示 7 个 moderate 前端工具链告警，保持 `DEFER-002`；前端测试噪声保持 `DEFER-003`；当前只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行证据仍归 `DEFER-001`。遇到外部环境 / 闭源资源 / 非当前阶段问题，登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线。
 
 ## 已归档工作线（最近完成，供回溯）
 

@@ -25,3 +25,9 @@
 | DEFER-001 | 达梦 / 人大金仓 + 国产 OS / JDK 真实运行环境适配 | 不阻塞当前 PostgreSQL + Oracle 范围、BASE-07 收口、BASE-08 / D1 领取；不得宣称国产化真实环境已通过 | D6 `DOMCHK-01` 页面真实探测；GA `QA-02` / `INFRA-10` 总验收 | open | 在真实国产化环境运行 `deploy/docker/scripts/govcloud-smoke.sh`，提交不含口令且 `status=PASS` 的 `govcloud-smoke-*.txt`、OS/JDK/JDBC 驱动 SHA-256、CI / 验收记录 |
 | DEFER-002 | 前端构建工具链依赖审计存在 7 个 moderate 级别告警（Vite / Vitest / esbuild 相关） | 不阻塞 BASE-08 当前业务闭环；本地测试、类型检查、lint、格式、构建和 T-GATE 需继续全绿。不得宣称依赖审计已清零 | INFRA 依赖治理专项；GA `INFRA-10` 总验收前 | open | 升级兼容的 `vite` / `vitest` / `@vitejs/plugin-react` / lockfile，重新提交 `npm audit --audit-level=moderate` 退出码 0、前端全量 `npm test` / `typecheck` / `lint` / `format:check` / `build` 证据 |
 | DEFER-003 | 前端测试与构建输出存在非阻断噪声：React Router v7 future flag、Antd/rc-menu `act(...)`、React Query undefined 数据告警、`vendor-antd` chunk 大小提示 | 不阻塞 BASE-08 主链路；真实浏览器页面不得有运行时错误，当前告警不能被写成已消除 | INFRA-01 / SYS-07 / GA `INFRA-10` 体验与性能收口 | open | 启用或适配 Router future flags，修正测试 harness / React Query 默认数据，拆分或明确大 chunk 策略；前端全量测试与构建输出无该类告警，并附浏览器验收记录 |
+
+## 新问题登记模板
+
+| ID | 问题 | 当前影响 | 处理阶段 | 状态 | 关闭证据 |
+|---|---|---|---|---|---|
+| DEFER-XXX | 用一句话写清不可由当前阶段真实解决的问题 | 写清为什么不阻塞当前主线，以及哪些红线仍不能延期 | 写清归属卡 / 阶段 | open | 写清未来必须提交的可验证证据，不能写“人工确认即可” |

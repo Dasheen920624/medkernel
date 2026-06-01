@@ -71,10 +71,10 @@
 - Modify: `docs/handbook/operations.md`
 - Create or modify: `deploy/docker/scripts/*bootstrap*`
 
-- [ ] 写失败测试：无本机确认 / 无二次确认时 CLI 拒绝；成功时只输出一次性恢复信息并写审计。
-- [ ] 实现 CLI：本机命令触发锁定解除 / MFA 重置，必须带确认短语、原因和操作者。
-- [ ] 运维手册补首次部署：生成 token、配置 env、首登、改密、绑 MFA、开通首个租户、销毁 token。
-- [ ] 文档明确当前只保障 PostgreSQL + Oracle，国产化真实环境证据仍归 `DEFER-001`。
+- [x] 写失败测试：无本机确认 / 无二次确认时 CLI 拒绝；成功时只输出一次性恢复信息并写审计。
+- [x] 实现 CLI：本机命令触发锁定解除 / MFA 重置，必须带确认短语、原因和操作者。
+- [x] 运维手册补首次部署：生成 token、配置 env、首登、改密、绑 MFA、开通首个租户、销毁 token。
+- [x] 文档明确当前只保障 PostgreSQL + Oracle，国产化真实环境证据仍归 `DEFER-001`。
 
 ## 任务 5：前端首次部署引导页
 
