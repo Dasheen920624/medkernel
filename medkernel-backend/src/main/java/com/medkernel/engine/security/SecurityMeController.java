@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
+import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 
 /**
  * 当前用户权限画像接口。
@@ -23,11 +24,14 @@ public class SecurityMeController {
 
     private final EffectivePermissionService permissionService;
     private final PlatformCredentialRepository credentials;
+    private final MfaSecretCodec mfaSecretCodec;
 
     public SecurityMeController(EffectivePermissionService permissionService,
-                                PlatformCredentialRepository credentials) {
+                                PlatformCredentialRepository credentials,
+                                MfaSecretCodec mfaSecretCodec) {
         this.permissionService = permissionService;
         this.credentials = credentials;
+        this.mfaSecretCodec = mfaSecretCodec;
     }
 
     @GetMapping("/me")
@@ -43,9 +47,7 @@ public class SecurityMeController {
             .findByTenantIdAndUserId(RequestContext.currentOrgScope().tenantId(), userId)
             .orElse(null);
         boolean mustChangePwd = credential != null && "Y".equalsIgnoreCase(credential.mustChangePwd());
-        boolean mfaBound = credential != null
-            && credential.mfaSecret() != null
-            && !credential.mfaSecret().isBlank();
+        boolean mfaBound = credential != null && mfaSecretCodec.isTotpBound(credential.mfaSecret());
         String username = credential == null ? userId : credential.username();
         return ApiResult.ok(profile.withIdentity(username).withBootstrapSecurity(
             mustChangePwd,

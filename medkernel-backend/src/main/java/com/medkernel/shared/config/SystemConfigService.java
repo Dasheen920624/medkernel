@@ -195,6 +195,16 @@ public class SystemConfigService {
         );
     }
 
+    public AuthPasswordHashAlgorithm runtimeAuthPasswordHashAlgorithm() {
+        return AuthPasswordHashAlgorithm.parse(
+            readRuntimeStringConfig(AUTH_PASSWORD_PREFIX + "hash-algorithm", AuthPasswordHashAlgorithm.BCRYPT.name())
+                .value());
+    }
+
+    public long runtimePasswordResetTokenTtlSeconds() {
+        return readRuntimeLongConfig(AUTH_PASSWORD_PREFIX + "reset-token-ttl-seconds", 900).value();
+    }
+
     public AuthLoginPolicy runtimeAuthLoginPolicy() {
         return new AuthLoginPolicy(
             safeInt(readRuntimeLongConfig(AUTH_LOGIN_PREFIX + "max-failed-attempts", 5).value(), 5),
@@ -351,6 +361,10 @@ public class SystemConfigService {
         if (key != null && key.startsWith(AUTH_PASSWORD_PREFIX)) {
             if (key.endsWith(".min-length")) {
                 validateMinLong(value, MIN_STRONG_PASSWORD_LENGTH, "密码最小长度不能低于 12 位");
+            } else if (key.endsWith(".hash-algorithm")) {
+                validateOption(value, Set.of("bcrypt", "sm3"), "口令哈希算法仅允许 BCRYPT/SM3");
+            } else if (key.endsWith(".reset-token-ttl-seconds")) {
+                validatePositiveLong(value);
             } else {
                 validateBooleanText(value);
             }

@@ -165,6 +165,12 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-symbol", "true",
             "BOOLEAN", "口令必须包含符号", "HIGH", "安全组",
             "控制平台账号口令是否必须包含至少一个非字母数字符号。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "hash-algorithm", "BCRYPT",
+            "STRING", "口令哈希算法", "HIGH", "安全组",
+            "控制平台账号口令哈希算法；默认 BCrypt，国产化形态可切换 SM3。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "reset-token-ttl-seconds", "900",
+            "INTEGER", "重置 token 有效期", "HIGH", "安全组",
+            "控制受控密码重置一次性 token 的有效秒数。", true, seededAt);
     }
 
     private void seedLoginAttemptPolicy(Instant seededAt) {

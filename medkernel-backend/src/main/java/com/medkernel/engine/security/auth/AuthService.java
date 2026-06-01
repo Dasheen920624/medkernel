@@ -2,7 +2,6 @@ package com.medkernel.engine.security.auth;
 
 import java.util.List;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.security.MfaRequirementPolicy;
@@ -10,6 +9,7 @@ import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -19,7 +19,7 @@ import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.SystemConfigService;
 
 /**
- * 平台账号登录服务：BCrypt 校验凭证 → 取激活角色 → 签发 JWT；成功/失败均留痕审计。
+ * 平台账号登录服务：校验平台凭证 → 取激活角色 → 签发 JWT；成功/失败均留痕审计。
  * 用户不存在与密码错误统一返回 ENG-AUTH-001（防用户名枚举，含 dummy hash 拉平耗时）。
  */
 @Service
@@ -27,34 +27,35 @@ public class AuthService {
 
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
-    private final PasswordEncoder passwordEncoder;
+    private final CredentialPasswordService credentialPasswords;
     private final AuthSessionService sessionService;
     private final IsolatedAuditPublisher isolatedAudit;
     private final AuditEventPublisher auditPublisher;
     private final SystemConfigService configService;
     private final LoginAttemptService loginAttempts;
     private final PasswordPolicyService passwordPolicy;
-    private final String dummyHash;
+    private final MfaSecretCodec mfaSecretCodec;
 
     public AuthService(PlatformCredentialRepository credentials,
                        UserRoleAssignmentRepository roleAssignments,
-                       PasswordEncoder passwordEncoder,
+                       CredentialPasswordService credentialPasswords,
                        AuthSessionService sessionService,
                        IsolatedAuditPublisher isolatedAudit,
                        AuditEventPublisher auditPublisher,
                        SystemConfigService configService,
                        LoginAttemptService loginAttempts,
-                       PasswordPolicyService passwordPolicy) {
+                       PasswordPolicyService passwordPolicy,
+                       MfaSecretCodec mfaSecretCodec) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
-        this.passwordEncoder = passwordEncoder;
+        this.credentialPasswords = credentialPasswords;
         this.sessionService = sessionService;
         this.isolatedAudit = isolatedAudit;
         this.auditPublisher = auditPublisher;
         this.configService = configService;
         this.loginAttempts = loginAttempts;
         this.passwordPolicy = passwordPolicy;
-        this.dummyHash = passwordEncoder.encode("__medkernel_dummy_account__");
+        this.mfaSecretCodec = mfaSecretCodec;
     }
 
     public AuthResult login(String tenantId, String username, String rawPassword) {
@@ -68,9 +69,10 @@ public class AuthService {
         if (cred != null) {
             cred = loginAttempts.unlockExpiredAutoLock(cred);
         }
-        // C1: 无论用户是否存在都跑一次 BCrypt，拉平 timing 防枚举
-        String hashToCompare = (cred != null) ? cred.passwordHash() : dummyHash;
-        boolean passwordMatches = passwordEncoder.matches(rawPassword, hashToCompare);
+        // C1: 无论用户是否存在都跑一次口令哈希校验，拉平 timing 防枚举
+        boolean passwordMatches = (cred != null)
+            ? credentialPasswords.matches(rawPassword, cred.passwordHash())
+            : credentialPasswords.matchesDummy(rawPassword);
         if (cred == null || !passwordMatches) {
             LoginAttemptService.FailureOutcome outcome = loginAttempts.recordFailure(tenantId, username, cred);
             ErrorCode errorCode = switch (outcome) {
@@ -99,7 +101,7 @@ public class AuthService {
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
             new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
-                MfaRequirementPolicy.requiresMfa(roles), cred.mfaSecret() != null && !cred.mfaSecret().isBlank()));
+                MfaRequirementPolicy.requiresMfa(roles), mfaSecretCodec.isTotpBound(cred.mfaSecret())));
     }
 
     public void logout(String userId) {
@@ -115,7 +117,7 @@ public class AuthService {
     public void changePassword(String tenantId, String userId, String oldPassword, String newPassword) {
         PlatformCredential cred = credentials.findByTenantIdAndUserId(tenantId, userId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_AUTH_005));
-        if (!passwordEncoder.matches(oldPassword, cred.passwordHash())) {
+        if (!credentialPasswords.matches(oldPassword, cred.passwordHash())) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.EXECUTE, "platform_credential", userId,
                 ErrorCode.ENG_AUTH_004.code(), "改密失败：原密码不正确 userId=" + userId));
@@ -125,7 +127,7 @@ public class AuthService {
         java.time.Instant now = java.time.Instant.now();
         credentials.save(new PlatformCredential(
             cred.id(), cred.credentialId(), cred.tenantId(), cred.userId(), cred.username(),
-            passwordEncoder.encode(newPassword), cred.status(), "N", cred.mfaSecret(),
+            credentialPasswords.encode(newPassword), cred.status(), "N", cred.mfaSecret(),
             cred.createdAt(), cred.createdBy(), now, userId, cred.traceId()));
         auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "自助修改密码成功");
     }

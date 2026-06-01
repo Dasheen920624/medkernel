@@ -3,7 +3,6 @@ package com.medkernel.engine.security.bootstrap;
 import java.time.Instant;
 import java.util.List;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +11,7 @@ import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.auth.CredentialPasswordService;
 import com.medkernel.engine.security.auth.PasswordPolicyService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -32,7 +32,7 @@ public class BootstrapIdentityService {
     private final BootstrapInitTokenService tokenService;
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
-    private final PasswordEncoder passwordEncoder;
+    private final CredentialPasswordService credentialPasswords;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
     private final PasswordPolicyService passwordPolicy;
@@ -40,14 +40,14 @@ public class BootstrapIdentityService {
     public BootstrapIdentityService(BootstrapInitTokenService tokenService,
                                     PlatformCredentialRepository credentials,
                                     UserRoleAssignmentRepository roleAssignments,
-                                    PasswordEncoder passwordEncoder,
+                                    CredentialPasswordService credentialPasswords,
                                     AuditEventPublisher auditPublisher,
                                     IsolatedAuditPublisher isolatedAudit,
                                     PasswordPolicyService passwordPolicy) {
         this.tokenService = tokenService;
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
-        this.passwordEncoder = passwordEncoder;
+        this.credentialPasswords = credentialPasswords;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
         this.passwordPolicy = passwordPolicy;
@@ -75,7 +75,7 @@ public class BootstrapIdentityService {
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
             null, "cred-" + username, tenantId, username, username,
-            passwordEncoder.encode(request.password()), "ACTIVE", "Y", null,
+            credentialPasswords.encode(request.password()), "ACTIVE", "Y", null,
             now, ACTOR, now, ACTOR, TRACE_ID));
         if (roleAssignments.findActiveByTenantIdAndUserId(tenantId, username).stream()
                 .noneMatch(a -> RoleCode.SYSTEM_SUPERADMIN.code().equals(a.roleCode()))) {

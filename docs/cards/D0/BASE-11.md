@@ -38,7 +38,7 @@
 - 主按钮 ≤1：每步单主按钮（核心 #6）；业务路由若 `mustChangePwd=true` 或 `mfaRequired=true && mfaBound=false`，必须显示“需要完成首次安全设置”并只能继续到 `/bootstrap`。
 
 ## 数据与迁移
-- 表族：`mk_security_bootstrap_init_token`（一次性 token：SHA-256 hash / 过期 / 已用标记 / 审计字段）；复用 `platform_credential` 首发平台凭证与 `mfa_secret` 恢复码摘要字段。
+- 表族：`mk_security_bootstrap_init_token`（一次性 token：SHA-256 hash / 过期 / 已用标记 / 审计字段）；复用 `platform_credential` 首发平台凭证与 `mfa_secret` TOTP 加密绑定记录。
 - 主键：数据库自增 ID + `token_id` 业务 ID；唯一约束：`token_hash` 唯一；索引：状态、过期时间、使用人。
 - 安全：init token 只存 SHA-256 hash（非明文）；密码 BCrypt；MFA 恢复码只存 SHA-256 摘要；生产 JWT secret 必须显式配置。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释；当前真实运行范围只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境证据登记 [DEFER-001](../../audit/deferred-issues.md) 到最终适配阶段关闭。

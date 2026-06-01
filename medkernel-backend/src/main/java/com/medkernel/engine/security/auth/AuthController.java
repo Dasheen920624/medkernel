@@ -20,6 +20,11 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.engine.security.bootstrap.BootstrapMfaRequest;
+import com.medkernel.engine.security.bootstrap.BootstrapMfaResponse;
+import com.medkernel.engine.security.bootstrap.BootstrapMfaVerifyRequest;
+import com.medkernel.engine.security.bootstrap.BootstrapMfaVerifyResponse;
+import com.medkernel.engine.security.bootstrap.MfaPolicyService;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthMode;
 import com.medkernel.shared.security.CsrfDoubleSubmitFilter;
@@ -42,15 +47,21 @@ public class AuthController {
     private final AuthSessionService sessionService;
     private final AuthCookieProperties cookieProps;
     private final SystemConfigService configService;
+    private final MfaPolicyService mfaPolicyService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(AuthService authService,
                           AuthSessionService sessionService,
                           AuthCookieProperties cookieProps,
-                          SystemConfigService configService) {
+                          SystemConfigService configService,
+                          MfaPolicyService mfaPolicyService,
+                          PasswordResetService passwordResetService) {
         this.authService = authService;
         this.sessionService = sessionService;
         this.cookieProps = cookieProps;
         this.configService = configService;
+        this.mfaPolicyService = mfaPolicyService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -128,6 +139,24 @@ public class AuthController {
                                           @Valid @RequestBody ChangePasswordRequest req) {
         authService.changePassword(
             jwt.getClaimAsString("tenant_id"), jwt.getSubject(), req.oldPassword(), req.newPassword());
+        return ApiResult.ok(null);
+    }
+
+    @PostMapping("/mfa/bind")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResult<BootstrapMfaResponse> bindMfa(@Valid @RequestBody BootstrapMfaRequest request) {
+        return ApiResult.ok(mfaPolicyService.bindForCurrentUser(request));
+    }
+
+    @PostMapping("/mfa/verify")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResult<BootstrapMfaVerifyResponse> verifyMfa(@Valid @RequestBody BootstrapMfaVerifyRequest request) {
+        return ApiResult.ok(mfaPolicyService.verifyForCurrentUser(request));
+    }
+
+    @PostMapping("/password-reset")
+    public ApiResult<Void> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        passwordResetService.consume(request);
         return ApiResult.ok(null);
     }
 

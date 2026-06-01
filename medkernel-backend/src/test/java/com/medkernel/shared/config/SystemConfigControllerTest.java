@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 import com.medkernel.engine.security.auth.JwtIssuer;
 import com.medkernel.shared.runtime.RuntimeOperationsService;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
@@ -72,6 +73,9 @@ class SystemConfigControllerTest {
     PlatformCredentialRepository credentialRepository;
 
     @Autowired
+    MfaSecretCodec mfaSecretCodec;
+
+    @Autowired
     LoggingSystem loggingSystem;
 
     @BeforeEach
@@ -80,7 +84,7 @@ class SystemConfigControllerTest {
             java.time.Instant now = java.time.Instant.now();
             credentialRepository.save(new PlatformCredential(
                 null, "cred-" + MFA_USER, "t-1", MFA_USER, MFA_USER,
-                "$2a$10$hash", "ACTIVE", "N", "sha256-mfa-recovery-code",
+                "$2a$10$hash", "ACTIVE", "N", mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
                 now, "test", now, "test", "trace-test"));
         }
     }

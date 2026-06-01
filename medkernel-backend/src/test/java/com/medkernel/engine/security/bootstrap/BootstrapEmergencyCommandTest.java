@@ -71,7 +71,7 @@ class BootstrapEmergencyCommandTest {
     }
 
     @Test
-    void mfaResetStoresOnlyRecoveryCodeHashAndPrintsOneTimeCode() throws Exception {
+    void mfaResetClearsTotpBindingAndRequiresRebind() throws Exception {
         when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
             .thenReturn(Optional.of(credential("LOCKED", "old-mfa-hash")));
 
@@ -85,9 +85,8 @@ class BootstrapEmergencyCommandTest {
             "--confirm=RESET_MFA:platform-owner"));
 
         String text = output.toString(StandardCharsets.UTF_8);
-        assertThat(text).contains("bootstrap-emergency=mfa-reset").contains("recoveryCode=");
-        String recoveryCode = text.substring(text.indexOf("recoveryCode=") + "recoveryCode=".length()).trim();
-        assertThat(saved.get().mfaSecret()).hasSize(64).doesNotContain(recoveryCode);
+        assertThat(text).contains("bootstrap-emergency=mfa-reset").contains("mfaStatus=RESET_REQUIRED");
+        assertThat(saved.get().mfaSecret()).isNull();
         verify(auditPublisher).publish(
             AuditAction.EXECUTE, "platform_credential", "platform-owner",
             "应急重置 MFA actor=ops reason=值班应急");
