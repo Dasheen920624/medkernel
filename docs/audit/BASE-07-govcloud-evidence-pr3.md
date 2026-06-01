@@ -2,11 +2,11 @@
 
 > 日期：2026-06-01
 > 分支：`codex/base-07-runtime-finalization`
-> 范围：BASE-07 第三批。只补国产化自托管验收证据门禁，不宣称达梦 / 人大金仓真实连通已在本机完成。
+> 范围：BASE-07 第三批。只补国产化自托管验收证据门禁，不宣称达梦 / 人大金仓真实连通已在本机完成；按当前阶段口径，真实国产化运行环境登记为 `DEFER-001`，不阻塞 PostgreSQL / Oracle 范围和 BASE-08。
 
 ## 目标
 
-BASE-07 的 FR-5 / AC-3 要求国产化 profile 在达梦 / 人大金仓真实环境下通过，并包含国密 SM2/SM3/SM4 smoke。PR2 已提供 fail-closed 的 `govcloud-smoke.sh`，但缺少统一证据文件；本批把内网执行结果固化成可归档的证据包，避免后续 AI 或执行人用“脚本跑过”替代真实证据。
+BASE-07 原 FR-5 / AC-3 曾要求国产化 profile 在达梦 / 人大金仓真实环境下通过，并包含国密 SM2/SM3/SM4 smoke。按当前项目节奏修正，BASE-07 当前阶段只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境进入 [待处理问题清单](deferred-issues.md) `DEFER-001`。PR2 已提供 fail-closed 的 `govcloud-smoke.sh`，本批把内网执行结果固化成可归档的证据包，避免后续 AI 或执行人用“脚本跑过”替代真实证据。
 
 ## 改动
 
@@ -28,4 +28,4 @@ BASE-07 的 FR-5 / AC-3 要求国产化 profile 在达梦 / 人大金仓真实�
 
 ## 诚实边界
 
-本机 Docker 镜像与仓库内未包含达梦 / 人大金仓闭源 JDBC 驱动，也没有真实国产库实例；因此本批不勾选 BASE-07 FR-5 / AC-3，不把 BASE-07 backlog 改为 done。AC-3 仍需在院内或自托管国产化环境中提供真实达梦 / 人大金仓连接证据。
+本机 Docker 镜像与仓库内未包含达梦 / 人大金仓闭源 JDBC 驱动，也没有真实国产库实例；因此不得宣称国产化真实环境已通过。按当前阶段修正，BASE-07 当前范围为 PostgreSQL + Oracle，可继续收口；达梦 / 人大金仓 AC 进入 `DEFER-001`，由 D6 `DOMCHK-01` 与 GA `QA-02` / `INFRA-10` 最终适配阶段提交真实连接证据后关闭。

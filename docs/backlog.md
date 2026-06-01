@@ -101,7 +101,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | BASE-04 | 审计骨干 | 写操作/审核/发布/运行/反馈/导出/回滚统一留痕；audit 异步或 fail-soft 不回滚业务 | 3d | done |
 | BASE-05 | 5 方言数据迁移骨架 | h2/postgres/oracle/dm/kingbase + 一致性测试 + 中文注释 + 索引约束 | 4d | done |
 | BASE-06 | 5+1 菜单与前端骨架 | 路由元数据 + PageShell + 六态 + 状态机 Badge + 7 步流组件 + 命令面板 | 4d | done |
-| BASE-07 | 运行底座 | Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）+ 监控 + 健康检查 + 备份恢复 + 国产化 profile | 3d | pending |
+| BASE-07 | 运行底座 | Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）+ 监控 + 健康检查 + 备份恢复 + 当前 PostgreSQL/Oracle 运行范围；国产化真实环境登记为最终适配项 | 3d | done |
 | BASE-08 | 产品体验底座 | 一页一目标 + 角色默认视图 + 专家模式 + 服务端分页 + 详情抽屉 + 异步导出 + 保存视图 | 3d | pending |
 | BASE-09 | 代码基线净化 | 无 mock 假闭环 + 无裸 Map + 无硬编码业务示例 + 无单病种硬编码 | 2d | done |
 | BASE-10 | 设计 Token 系统 | Antd token + 5 主题模式（default/elder/dark/eye/system）+ module.css 全部走 var + stylelint 阻断 hex | 4d | pending |

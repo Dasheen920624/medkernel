@@ -7,21 +7,24 @@
 ## 在途工作线
 
 > **当前长期目标：按阶段持续推进 MedKernel 重启研发与质量修复，当前阶段完成本地验证 / PR / CI / 合并 / 接力后，才能领取下一阶段任务；持续循环到 GA 总验收 INFRA-10 完成。**
+> 当前运行环境范围：只保障 PostgreSQL + Oracle；达梦 / 人大金仓等国产化真实运行环境放到 D6/GA 最终适配阶段，登记在 [待处理问题清单](audit/deferred-issues.md)，不阻塞当前主线。
+> 遇到外部环境、闭源驱动、客户现场资源等不可由当前阶段解决的问题：登记清单、写清关闭证据、继续后续任务；不得把未验证问题写成已通过。
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-07 FR-5 / AC-3 外部国产化实测待执行 🚧
+### 线 1 · BASE-08 产品体验底座待领取 🚧
 
-- 类型：运维 / 外部验收
-- 分支：N·A（需在院内或自托管国产化环境执行；若要提交证据再新建 `codex/` 分支）
-- 目标：在真实国产化环境完成 BASE-07 FR-5 / AC-3：达梦或人大金仓真实 JDBC 连通 + KAE / BiSheng JDK 21 环境核查 + 国密 SM2/SM3/SM4 smoke + `govcloud-smoke-<UTC时间>.txt` 证据归档。
-- 状态：PR #211 已合入 `origin/main@499e0e4`，`govcloud-smoke.sh` 已具备 fail-closed 与证据包门禁；本机 Docker 与仓库内仍无达梦 / 人大金仓实例及闭源 JDBC 驱动，因此 BASE-07 / backlog 仍保持 `pending`，不得领取 BASE-08 或 D1 新任务。
-- 下一步（精确到动作/命令）：1. 在真实达梦 / 人大金仓环境设置 `MEDKERNEL_GOV_DATABASE_DIALECT`、`MEDKERNEL_GOV_DB_URL`、`MEDKERNEL_GOV_DB_DRIVER`、`MEDKERNEL_GOV_DB_USERNAME`、`MEDKERNEL_GOV_DB_PASSWORD`、`MEDKERNEL_GOV_JDBC_JAR`、`MEDKERNEL_GOV_EVIDENCE_DIR`；2. 执行 `./deploy/docker/scripts/govcloud-smoke.sh`；3. 将不含口令的 `govcloud-smoke-*.txt` 证据、JDK/OS 信息和 CI 结果随 PR 提交；4. 只有真实证据通过后才能勾选 BASE-07 FR-5 / AC-3 并把 backlog 中 BASE-07 改 `done`。
-- 相关文件 / 测试 / 坑：`deploy/docker/README.md` 已写执行示例；`docs/audit/BASE-07-govcloud-evidence-pr3.md` 写明本地诚实边界；脚本会记录 JDBC jar 文件名和 SHA-256，但不记录口令；缺任一连接条件必须失败并留下 `status=FAIL`，不得改脚本绕过。
+- 类型：软件开发 / 产品体验
+- 分支：待创建 `codex/base-08-product-experience-foundation`
+- 目标：按 [BASE-08](cards/D0/BASE-08.md) 建立产品体验底座：一页一目标、角色默认视图、专家模式、服务端分页、详情抽屉、异步导出、保存视图，并同步体验契约与真实性门禁。
+- 状态：BASE-07 当前阶段按 PostgreSQL + Oracle 范围收口；达梦 / 人大金仓真实环境适配已登记为 [DEFER-001](audit/deferred-issues.md)，后续 D6/GA 最终适配处理，不阻塞 BASE-08。
+- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 新建 `codex/base-08-product-experience-foundation`；2. 读取 `docs/CONSTITUTION.md`、`docs/cards/D0/_brief.md`、`docs/EXPERIENCE_CONTRACT.md`、`docs/cards/D0/BASE-08.md`；3. 核查 `frontend/src` 中 PageShell、列表、抽屉、导出、视图保存现状；4. 先建绿色基线与失败测试，再按最小逻辑单元实现；5. 本地 T-GATE、PR、远端 CI 通过并合并后再领取下一阶段。
+- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；不能用外部环境缺失阻塞主线，必须登记到 `docs/audit/deferred-issues.md` 并继续下一可推进任务。
 
 ## 已归档工作线（最近完成，供回溯）
 
-- BASE-07 国产化 smoke 证据包门禁 PR3 ✅（#211）：`govcloud-smoke.sh` 新增 `MEDKERNEL_GOV_EVIDENCE_DIR`、证据文件、JDBC jar SHA-256 与 `status=PASS/FAIL`；部署资产校验和 `RuntimeConfigurationContractTest` 阻断证据口径退化；缺连接条件实跑生成 `status=FAIL` 证据。本地后端全量、前端全量 test/typecheck/build/lint/format、T-GATE、部署资产合同、空白检查和远端 CI 8/8 通过并合入 `origin/main`（merge `499e0e4`）。BASE-07 FR-5 / AC-3 仍需真实达梦 / 人大金仓环境执行，不得伪造完成。
+- BASE-07 当前范围收口与待处理清单 ✅：按用户 2026-06-01 修正，当前运行环境只保障 PostgreSQL + Oracle；达梦 / 人大金仓 + 国产 OS/JDK 真实适配登记为 [DEFER-001](audit/deferred-issues.md)，由 D6 `DOMCHK-01` 与 GA `QA-02` / `INFRA-10` 最终适配阶段关闭，不阻塞 BASE-08 / D1。`govcloud-smoke.sh` 继续保留为最终适配 fail-closed 证据门禁。
+- BASE-07 国产化 smoke 证据包门禁 PR3 ✅（#211）：`govcloud-smoke.sh` 新增 `MEDKERNEL_GOV_EVIDENCE_DIR`、证据文件、JDBC jar SHA-256 与 `status=PASS/FAIL`；部署资产校验和 `RuntimeConfigurationContractTest` 阻断证据口径退化；缺连接条件实跑生成 `status=FAIL` 证据。本地后端全量、前端全量 test/typecheck/build/lint/format、T-GATE、部署资产合同、空白检查和远端 CI 8/8 通过并合入 `origin/main`（merge `499e0e4`）。按当前范围，真实国产化环境证据归 `DEFER-001` 后续关闭，不伪造完成。
 - BASE-09 最终净化报告与验收收口 PR17 ✅（#210）：移除 `AiWorkflows` 默认临床病例文本，运行输入改为空态并要求已脱敏文本；新增真实性门禁阻断固定临床病例文本回流；清理前端 lint warning；补最终净化报告，勾选 BASE-09 FR/AC，并把 backlog 中 BASE-09 标为 done。本地后端全量、前端全量 test/typecheck/build/lint/format、T-GATE、AC 扫描和远端 CI 8/8 通过并合入 `origin/main`（merge `772ec24`）。下一步回到 BASE-07 处理国产化 AC-3 诚实收口。
 - BASE-09 配置包离线资产内容迁移契约 PR16 ✅（#209）：离线导出 payload 新增 `assetSnapshots`，规则资产携带 `RuleDefinition` + 指定 `RuleVersion`，评估指标携带 `EvaluationIndicator`，每个快照写真实 `contentSha256`；离线导入先验 payload 与每个快照摘要，再落真实资产内容或校验本地一致性，最终仍只生成 `DRAFT` 草案；未支持资产类型诚实拒绝 `ENG_PACKAGE_002`。本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `63af3ad`）。下一步执行 BASE-09 最终净化报告与验收收口。
 - BASE-09 配置包离线导入验签与草案落库 PR15 ✅（#208）：新增 `offline/import` 离线包导入端点，校验格式、租户、manifest / payload 一致性和真实 SHA-256 摘要；导入成功只生成本地 `DRAFT` 草案、新本地 ID 与条目绑定，写 `IMPORT` 审计，不自动激活、不伪造资产内容；配置包中心新增粘贴 / 文件导入入口，并修复页面统计读取旧 `totalCount` 的分页契约错位。本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `235f2ff`）。下一步继续 BASE-09 离线资产内容迁移契约和域级验收残留。
@@ -98,4 +101,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-07 PR3 已合入 `origin/main@499e0e4`；当前唯一未过闸点是 BASE-07 FR-5 / AC-3 的真实国产化环境实测，需达梦或人大金仓实例 + 闭源 JDBC 驱动 + 国产 JDK 环境证据；未取得真实证据前 BASE-07 保持 pending，BASE-08 / D1 不得启动
+> 末次更新：2026-06-01 · BASE-07 当前阶段范围修正为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境适配已登记 `DEFER-001`，不阻塞 BASE-08。下一步领取 BASE-08 产品体验底座，继续按“验证 / PR / CI / 合并 / 接力”节奏推进长期目标。
