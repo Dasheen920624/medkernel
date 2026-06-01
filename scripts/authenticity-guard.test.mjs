@@ -137,6 +137,28 @@ test("前端生产文件会阻断工作台本地假闭环和业务示例残留",
   );
 });
 
+test("前端生产文件会阻断默认临床病例文本回流", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/AiWorkflows.tsx": `
+        const defaultCaseInput = \`患者李建国，男，68岁，因“突发左侧肢体无力伴言语不清3小时”急诊入院。
+        拟诊：急性脑梗死。已通知急性神经事件中心会诊拟开具阿替普酶静脉溶栓。\`;
+        export function AiWorkflows() {
+          return <textarea defaultValue={defaultCaseInput} />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/AiWorkflows.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.hardcoded-medical-constant",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {

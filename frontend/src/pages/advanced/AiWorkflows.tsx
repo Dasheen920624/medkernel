@@ -43,6 +43,15 @@ import type { ModelCapabilityStatusResponse, ModelTaskResponse } from "@/shared/
 const { TextArea } = Input;
 const { Option } = Select;
 
+interface ApiErrorLike {
+  message?: string;
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
 // 稳定大模型能力的中文业务展示元数据（静态文案映射，非业务数据 mock）。
 interface CapabilityMeta {
   name: string;
@@ -93,13 +102,42 @@ const capabilityMetaMap: Record<string, CapabilityMeta> = {
   },
 };
 
-const defaultCaseInput = `【 MedKernel 住院医师临床病历特征提取 】
-患者李建国，男，68岁，因“突发左侧肢体无力伴言语不清3小时”急诊入院。
-联系人电话：13812345678，身份证号：440106196805120018。
-现病史：患者于今日上午9时左右在家中突发左侧肢体无力，行走困难，伴言语含糊，口角右歪。无头痛呕吐，无抽搐。
-体格检查：血压 185/105 mmHg，神志清楚，运动性失语。左侧鼻唇沟变浅，左侧肢体肌力2级，巴氏征阳性。
-辅助检查：急诊头颅 CT 未见明显出血灶，符合超早期急性缺血性急性神经事件指征。
-拟诊：急性脑梗死（急性神经事件）。已通知急性神经事件中心会诊拟开具阿替普酶静脉溶栓。`;
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object") {
+    return fallback;
+  }
+
+  const candidate = error as ApiErrorLike;
+  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
+}
+
+function getFallbackStatusText(result: ModelTaskResponse | null) {
+  if (!result) return "—";
+  return result.fallbackUsed ? "已降级 B0" : "未降级";
+}
+
+function renderSchemaValidationStatus(expectedSchema: string, result: ModelTaskResponse | null) {
+  if (!expectedSchema) {
+    return <span className="text-slate-400">未配置 Schema 约束</span>;
+  }
+
+  if (result) {
+    return <span className="text-emerald-600 font-medium">✓ 后端 JSON Schema 校验通过</span>;
+  }
+
+  return <span className="text-slate-500">已启用结构化 Schema 校验</span>;
+}
+
+function getTaskStatusView(status: string) {
+  switch (status) {
+    case "SUCCESS":
+      return { color: "green", text: "成功 (SUCCESS)" };
+    case "DEGRADED":
+      return { color: "orange", text: "平滑降级 (DEGRADED)" };
+    default:
+      return { color: "red", text: "失败 (FAILED)" };
+  }
+}
 
 export default function AiWorkflows() {
   const { token: themeToken } = theme.useToken();
@@ -169,7 +207,7 @@ export default function AiWorkflows() {
   const [activeConfigCap, setActiveConfigCap] = useState<string>("");
 
   // 沙箱输入状态
-  const [sandboxInput, setSandboxInput] = useState<string>(defaultCaseInput);
+  const [sandboxInput, setSandboxInput] = useState<string>("");
   const [expectedSchemaInput, setExpectedSchemaInput] = useState<string>(
     '{\n  "required": ["entity", "degree"]\n}',
   );
@@ -251,8 +289,8 @@ export default function AiWorkflows() {
         setExpectedSchemaInput(values.expectedSchema);
       }
       refetchStatus();
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "策略校验请求失败，请稍后重试");
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "策略校验请求失败，请稍后重试"));
     }
   };
 
@@ -301,8 +339,8 @@ export default function AiWorkflows() {
           message.success("网关推理完成，结构化输出 Schema 校验通过。");
         }
       }
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "网关推理请求失败，请稍后重试");
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "网关推理请求失败，请稍后重试"));
     }
   };
 
@@ -315,8 +353,8 @@ export default function AiWorkflows() {
         setSandboxResult(res);
         message.success("已按 B0 确定性基线重试，结果以后端真实返回为准。");
       }
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || "重试请求失败，请稍后重试");
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "重试请求失败，请稍后重试"));
     }
   };
 
@@ -325,6 +363,8 @@ export default function AiWorkflows() {
   const isB0Active = sandboxResult
     ? sandboxResult.fallbackUsed
     : activePolicy.routeStrategy === "BASEPLAY" || activePolicy.routeStrategy === "DISABLED";
+  const fallbackStatusText = getFallbackStatusText(sandboxResult);
+  const taskStatusView = sandboxResult ? getTaskStatusView(sandboxResult.status) : null;
 
   return (
     <PageShell
@@ -394,7 +434,7 @@ export default function AiWorkflows() {
                     <span>最近一次降级状态</span>
                   </span>
                 }
-                value={sandboxResult ? (sandboxResult.fallbackUsed ? "已降级 B0" : "未降级") : "—"}
+                value={fallbackStatusText}
                 valueStyle={{
                   color: themeToken.colorWarning,
                   fontSize: "16px",
@@ -575,15 +615,13 @@ export default function AiWorkflows() {
                     />
                   </Form.Item>
 
-                  <Form.Item
-                    label="测试病案事实输入 (含手机/身份证等敏感隐私数据)"
-                    className="mt-4"
-                  >
+                  <Form.Item label="运行输入（请使用已脱敏文本）" className="mt-4">
                     <TextArea
                       rows={6}
                       value={sandboxInput}
                       onChange={(e) => setSandboxInput(e.target.value)}
                       className="rounded-lg text-xs leading-relaxed"
+                      placeholder="粘贴已脱敏的运行文本；未填写时不会提交到网关。"
                     />
                   </Form.Item>
                 </Form>
@@ -592,6 +630,7 @@ export default function AiWorkflows() {
                   type="primary"
                   onClick={runSandbox}
                   loading={submitTaskMutation.isPending}
+                  disabled={!sandboxInput.trim()}
                   icon={<PlayCircleOutlined />}
                   className="w-full bg-indigo-600 border-indigo-600 hover:bg-indigo-700 py-5 rounded-lg font-semibold flex items-center justify-center gap-1"
                 >
@@ -679,17 +718,7 @@ export default function AiWorkflows() {
                     >
                       <div className="flex flex-col gap-0.5">
                         <span className="font-semibold text-slate-700">格式结构强约束</span>
-                        {expectedSchemaInput ? (
-                          sandboxResult ? (
-                            <span className="text-emerald-600 font-medium">
-                              ✓ 后端 JSON Schema 校验通过
-                            </span>
-                          ) : (
-                            <span className="text-slate-500">已启用结构化 Schema 校验</span>
-                          )
-                        ) : (
-                          <span className="text-slate-400">未配置 Schema 约束</span>
-                        )}
+                        {renderSchemaValidationStatus(expectedSchemaInput, sandboxResult)}
                       </div>
                     </Timeline.Item>
 
@@ -735,21 +764,8 @@ export default function AiWorkflows() {
 
                   <div>
                     <div className="text-xs text-slate-400 mb-1 font-medium">网关推理状态：</div>
-                    <Tag
-                      color={
-                        sandboxResult.status === "SUCCESS"
-                          ? "green"
-                          : sandboxResult.status === "DEGRADED"
-                            ? "orange"
-                            : "red"
-                      }
-                      className="m-0 text-xs font-bold"
-                    >
-                      {sandboxResult.status === "SUCCESS"
-                        ? "成功 (SUCCESS)"
-                        : sandboxResult.status === "DEGRADED"
-                          ? "平滑降级 (DEGRADED)"
-                          : "失败 (FAILED)"}
+                    <Tag color={taskStatusView?.color} className="m-0 text-xs font-bold">
+                      {taskStatusView?.text}
                     </Tag>
                   </div>
 
