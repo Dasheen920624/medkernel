@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +21,8 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
@@ -380,6 +383,57 @@ class PackageEngineServiceTest {
             .isEqualTo("pkg-offline");
         assertThat(root.path("payload").path("items")).hasSize(2);
         verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-offline"), any());
+    }
+
+    @Test
+    void importOfflinePackagePersistsDraftWithVerifiedPayloadAndNewLocalIds() throws Exception {
+        String offlineJson = offlinePackageJson("PKG.IMPORT", "2026.06.01");
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.IMPORT", "2026.06.01"))
+            .thenReturn(Optional.empty());
+
+        PackageOfflineImportResponse response = service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson));
+
+        assertThat(response.packageCode()).isEqualTo("PKG.IMPORT");
+        assertThat(response.packageVersion()).isEqualTo("2026.06.01");
+        assertThat(response.status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        assertThat(response.itemCount()).isEqualTo(2);
+        assertThat(response.payloadSha256()).matches("[a-f0-9]{64}");
+
+        ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
+        verify(packageRepository).save(packCap.capture());
+        KnowledgePackage importedPack = packCap.getValue();
+        assertThat(importedPack.packageId()).isNotEqualTo("pkg-source");
+        assertThat(importedPack.packageCode()).isEqualTo("PKG.IMPORT");
+        assertThat(importedPack.status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        assertThat(importedPack.tenantId()).isEqualTo("tenant-A");
+        assertThat(importedPack.createdBy()).isEqualTo("tester");
+
+        ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
+        verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());
+        assertThat(itemCap.getAllValues()).allSatisfy(item -> {
+            assertThat(item.packageId()).isEqualTo(importedPack.packageId());
+            assertThat(item.tenantId()).isEqualTo("tenant-A");
+            assertThat(item.itemId()).doesNotStartWith("source-item-");
+        });
+        assertThat(itemCap.getAllValues()).extracting(PackageItem::assetId)
+            .containsExactly("term-stable", "knowledge-stable");
+        verify(auditPublisher).publish(eq(AuditAction.IMPORT), eq("knowledge_package"), eq(importedPack.packageId()), any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsTamperedPayloadSha256BeforePersisting() throws Exception {
+        ObjectNode root = (ObjectNode) TEST_MAPPER.readTree(offlinePackageJson("PKG.TAMPER", "2026.06.01"));
+        ((ObjectNode) root.path("payload").path("packageInfo")).put("packageVersion", "2026.06.02");
+
+        assertThatThrownBy(() -> service.importOfflinePackage(
+            new PackageOfflineImportRequest(TEST_MAPPER.writeValueAsString(root))))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> assertThat(((ApiException) ex).errorCode()).isEqualTo(ErrorCode.ENG_EVID_002));
+
+        verify(packageRepository, never()).save(any());
+        verify(itemRepository, never()).save(any());
     }
 
     @Test
@@ -952,6 +1006,68 @@ class PackageEngineServiceTest {
             1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
             status, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
+    }
+
+    private String offlinePackageJson(String packageCode, String packageVersion) throws Exception {
+        ObjectNode packageInfo = TEST_MAPPER.createObjectNode();
+        packageInfo.put("packageId", "pkg-source");
+        packageInfo.put("tenantId", "tenant-A");
+        packageInfo.put("packageCode", packageCode);
+        packageInfo.put("packageVersion", packageVersion);
+        packageInfo.put("name", "离线导入配置包");
+        packageInfo.put("description", "真实离线包导入验收");
+        packageInfo.put("status", "PUBLISHED");
+        packageInfo.put("createdAt", "2026-06-01T00:00:00Z");
+        packageInfo.put("createdBy", "source-user");
+        packageInfo.put("updatedAt", "2026-06-01T00:00:00Z");
+        packageInfo.put("updatedBy", "source-user");
+        packageInfo.put("traceId", "trace-source");
+
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("source-item-1", "TERMINOLOGY", "term-stable", "1"));
+        items.add(offlineItem("source-item-2", "KNOWLEDGE", "knowledge-stable", "2"));
+
+        ObjectNode payload = TEST_MAPPER.createObjectNode();
+        payload.set("packageInfo", packageInfo);
+        payload.set("items", items);
+
+        String payloadSha256 = HexFormat.of().formatHex(
+            MessageDigest.getInstance("SHA-256")
+                .digest(TEST_MAPPER.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8)));
+
+        ObjectNode manifest = TEST_MAPPER.createObjectNode();
+        manifest.put("packageId", "pkg-source");
+        manifest.put("tenantId", "tenant-A");
+        manifest.put("packageCode", packageCode);
+        manifest.put("packageVersion", packageVersion);
+        manifest.put("status", "PUBLISHED");
+        manifest.put("itemCount", 2);
+        manifest.put("hashAlgorithm", "SHA-256");
+        manifest.put("payloadSha256", payloadSha256);
+        manifest.put("exportedAt", "2026-06-01T00:00:00Z");
+        manifest.put("traceId", "trace-source");
+
+        ObjectNode root = TEST_MAPPER.createObjectNode();
+        root.put("format", "MEDKERNEL_PACKAGE_OFFLINE_V1");
+        root.set("manifest", manifest);
+        root.set("payload", payload);
+        return TEST_MAPPER.writeValueAsString(root);
+    }
+
+    private ObjectNode offlineItem(String itemId, String assetType, String assetId, String assetVersion) {
+        ObjectNode item = TEST_MAPPER.createObjectNode();
+        item.put("itemId", itemId);
+        item.put("tenantId", "tenant-A");
+        item.put("packageId", "pkg-source");
+        item.put("assetType", assetType);
+        item.put("assetId", assetId);
+        item.put("assetVersion", assetVersion);
+        item.put("createdAt", "2026-06-01T00:00:00Z");
+        item.put("createdBy", "source-user");
+        item.put("updatedAt", "2026-06-01T00:00:00Z");
+        item.put("updatedBy", "source-user");
+        item.put("traceId", "trace-source");
+        return item;
     }
 
     private SyncTarget givenSuccessfulRollbackSource(

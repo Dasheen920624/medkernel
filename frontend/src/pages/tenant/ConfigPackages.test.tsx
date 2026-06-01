@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { downloadPackageOfflineExport } from "@/shared/api/hooks";
 
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
+  importOfflinePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
 }));
@@ -33,7 +34,11 @@ vi.mock("@/shared/api/hooks", () => ({
           traceId: "trace-test",
         },
       ],
-      totalCount: 1,
+      page: 1,
+      size: 10,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
     },
     refetch: apiMocks.refetchPackages,
   }),
@@ -45,6 +50,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useCalculateDiff: () => ({ data: null }),
   useSyncPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRollbackPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useImportOfflinePackage: () => ({ mutateAsync: apiMocks.importOfflinePackage, isPending: false }),
   useRuleDefinitions: () => ({ data: { items: [] } }),
   usePathwayTemplates: () => ({ data: { items: [] } }),
   useEvaluationIndicators: () => ({ data: { items: [] } }),
@@ -57,6 +63,15 @@ describe("ConfigPackages offline package export", () => {
   beforeEach(() => {
     apiMocks.downloadPackageOfflineExport.mockReset();
     apiMocks.downloadPackageOfflineExport.mockResolvedValue(new Blob(["offline-package"]));
+    apiMocks.importOfflinePackage.mockReset();
+    apiMocks.importOfflinePackage.mockResolvedValue({
+      packageId: "pkg-imported",
+      packageCode: "PKG.IMPORT",
+      packageVersion: "2026.06.01",
+      status: "DRAFT",
+      itemCount: 2,
+      payloadSha256: "a".repeat(64),
+    });
     Object.defineProperty(window.URL, "createObjectURL", {
       configurable: true,
       value: vi.fn(() => "blob:offline-package"),
@@ -81,6 +96,42 @@ describe("ConfigPackages offline package export", () => {
 
     await waitFor(() => {
       expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline");
+    });
+  });
+
+  it("uses the backend page total for the cumulative package statistic", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    const cumulativeStatistic = screen.getByText("总配置包版本 (累计)").closest(".ant-statistic");
+    expect(cumulativeStatistic).not.toBeNull();
+    expect(within(cumulativeStatistic as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("offers a clear offline package import flow", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "导入离线包" }));
+    fireEvent.change(screen.getByLabelText("离线包 JSON"), {
+      target: { value: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "导入并校验" }));
+
+    await waitFor(() => {
+      expect(apiMocks.importOfflinePackage).toHaveBeenCalledWith(
+        '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
+      );
     });
   });
 });

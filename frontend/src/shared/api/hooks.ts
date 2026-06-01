@@ -1719,6 +1719,15 @@ export interface PackageDiffChange {
   targetVersion: string | null;
 }
 
+export interface PackageOfflineImportResponse {
+  packageId: string;
+  packageCode: string;
+  packageVersion: string;
+  status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
+  itemCount: number;
+  payloadSha256: string;
+}
+
 export interface PackageSyncRequest {
   targetOrgUnitId: string;
   strategy: "GRAYSCALE" | "FULL" | string;
@@ -1778,10 +1787,20 @@ export function usePackages(page = 0, size = 10) {
   return useQuery({
     queryKey: ["packages", "list", page, size],
     queryFn: async () => {
-      const { data } = await apiClient.get<{
-        data: { items: KnowledgePackage[]; totalCount: number };
-      }>("/engine/packages", { params: { page, size } });
-      return data.data ?? { items: [], totalCount: 0 };
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
+        "/engine/packages",
+        { params: { page, size } },
+      );
+      return (
+        data.data ?? {
+          items: [],
+          page: page + 1,
+          size,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        }
+      );
     },
   });
 }
@@ -1843,6 +1862,20 @@ export async function downloadPackageOfflineExport(packageId: string) {
     responseType: "blob",
   });
   return data;
+}
+
+export async function importPackageOfflinePackage(offlinePackageJson: string) {
+  const { data } = await apiClient.post<{ data: PackageOfflineImportResponse }>(
+    "/engine/packages/offline/import",
+    { offlinePackageJson },
+  );
+  return data.data;
+}
+
+export function useImportOfflinePackage() {
+  return useMutation({
+    mutationFn: importPackageOfflinePackage,
+  });
 }
 
 // 7. 触发多通道物理投影同步发布
