@@ -12,5 +12,6 @@ public record PackageDiffResponse(
     int addedCount,
     int updatedCount,
     int removedCount,
-    List<String> affectedDepartments
+    List<String> affectedDepartments,
+    List<PackageDiffChange> changes
 ) {}

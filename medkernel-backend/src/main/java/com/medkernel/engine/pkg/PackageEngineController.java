@@ -1,11 +1,14 @@
 package com.medkernel.engine.pkg;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -98,6 +101,26 @@ public class PackageEngineController {
             @PathVariable String packageId,
             @RequestParam(required = false) String basePackageId) {
         return ApiResult.ok(service.calculateDiff(packageId, basePackageId));
+    }
+
+    /**
+     * 导出知识包差异与影响范围证据。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/{packageId}/diff/export")
+    @PreAuthorize("@perm.has('package.read')")
+    public void exportDiffEvidence(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String basePackageId,
+            HttpServletResponse response) throws IOException {
+        String evidence = service.exportDiffEvidence(packageId, basePackageId);
+        String safePackageId = packageId.replaceAll("[^A-Za-z0-9_.-]", "_");
+        response.setContentType("application/x-ndjson;charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"package-diff-" + safePackageId + ".jsonl\"");
+        try (OutputStream output = response.getOutputStream()) {
+            output.write(evidence.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
     }
 
     /**

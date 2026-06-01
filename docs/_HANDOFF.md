@@ -6,21 +6,22 @@
 
 ## 在途工作线
 
-> **当前阶段：卡体系迁移 100% 完成，已转入「执行开发」阶段。**
-> 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选 D0 第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
+> **当前长期目标：按阶段持续推进 MedKernel 重启研发与质量修复，当前阶段完成本地验证 / PR / CI / 合并 / 接力后，才能领取下一阶段任务；持续循环到 GA 总验收 INFRA-10 完成。**
+> 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 后端包回滚计划与日志证据链净化 PR11 🚧
+### 线 1 · BASE-09 配置包差异影响证据导出 PR12 🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-rollback-plan-log
-- 目标：完成 BASE-09 第十一批后端净化：配置包回滚必须先创建 `ReleasePlan`、写入逐目标 `SyncLog` 并完成反向投影，全成功且有非空同步证据才切换包状态；未接入 / 失败 / 目标缺失 / 空证据时诚实落状态，包状态不变。
-- 状态：已基于 `origin/main@03bdb76` 完成实现与完整本地验证：`PackageEngineService.rollbackPackage` 不再直接切包状态，而是复用当前在用包最近一次成功发布 / 回滚的真实同步目标，创建回滚计划，写入 `RUNNING` → `SUCCESS` / `NOT_SYNCED` / `FAILED` 日志；新增成功回滚、未接入不切状态、目标缺失失败留证、空证据失败留证四条测试；同步 / 回滚的未接入适配器日志降为告警，真实失败仍保留错误日志；新增审计记录 `docs/audit/BASE-09-backend-package-rollback-plan-log-pr11.md`，并更新 BASE-09 执行记录。已通过回滚目标用例组、`PackageEngineServiceTest` 全量、真实性 inventory、脚本门禁测试、`mvn -B -q test`（含 Docker Testcontainers PostgreSQL / Oracle 迁移烟测）、`git diff --check`。
-- 下一步（精确到动作/命令）：1. `git status --short` 与 diff 复核；2. 提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 影响范围导出、剩余硬编码业务示例、导入导出 / 离线安装能力和域级验收，D0 域级验收前不启动 D1 新功能 PR。
-- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 完成，不勾选全部 FR/AC；回滚计划成功终态使用 `ROLLBACKED`，发布成功终态仍是 `SUCCESS`，不要混用；后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
+- 分支：codex/base-09-package-diff-export
+- 目标：完成 BASE-09 第十二批净化：配置包差异影响支持真实证据导出，删除资产也纳入影响范围，前端下载后端生成的证据文件，禁止前端拼假证据。
+- 状态：已基于 `origin/main@fe5bcb4` 完成实现与本地完整验证：`PackageDiffResponse` 增加 `changes` 真实变更明细；`calculateDiff` 对 `REMOVED` 资产补真实责任科室；`PackageEngineService.exportDiffEvidence` 生成 NDJSON 摘要 / 影响科室 / 变更行并写 `EXPORT` 审计；`PackageEngineController` 新增 `GET /diff/export` 下载端点；`ConfigPackages` 差异弹窗新增“导出影响证据”按钮并调用后端下载。已通过服务红绿目标测试、控制器下载目标测试、`PackageEngineServiceTest` 全量、`PackageEngineControllerSecurityTest` 全量、前端 typecheck / format:check / build / test、后端全量 `mvn -B -q test`、真实性 inventory、脚本门禁和浏览器页面渲染核查；本地无配置包数据，差异弹窗未伪造点击证据。
+- 下一步（精确到动作/命令）：1. 运行提交前 `git diff --check` / `git status`；2. 如验证全绿则提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 剩余硬编码业务示例、离线包导入 / 导出、包完整性校验和域级验收；当前阶段验收前不启动下一阶段新功能 PR。
+- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 / CFGPKG-01 完成，不勾选全部 FR/AC；`diff/export` 是差异证据下载，不等价于离线包导出；后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 后端包回滚计划与日志证据链净化 PR11 ✅（#204）：配置包回滚先复用当前在用包最近一次成功发布 / 回滚的真实同步目标，创建 `ReleasePlan`，写逐目标 `RUNNING` → `SUCCESS` / `NOT_SYNCED` / `FAILED` 的 `SyncLog`；全成功且有非空同步证据才切换当前包 `OFFLINE`、历史包 `ACTIVE`，否则计划诚实落失败 / 未同步且包状态不变；本地后端全量、脚本门禁、真实性 inventory、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `fe5bcb4`）。下一步继续 BASE-09 影响范围导出、剩余硬编码业务示例、导入导出 / 离线安装能力和域级验收残留。
 - BASE-09 后端包回滚目标状态净化 PR10 ✅（#203）：配置包回滚目标只允许曾经执行并已下线的 `OFFLINE` 历史版本，禁止 `PUBLISHED` 预发布包绕过正式发布流程被直接激活；前端回滚弹窗只展示已下线历史版本并清理误导文案；本地后端红绿目标测试、`PackageEngineServiceTest` 全量、前端 typecheck/verify/build、真实性 inventory、脚本门禁、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `03bdb76`）。下一步继续 BASE-09 回滚反向投影、回滚 plan/log 证据链、影响范围导出和域级验收残留。
 - BASE-09 后端包回滚二次确认净化 PR9 ✅（#202）：回滚端点从 query 参数改为 `PackageRollbackRequest` 请求体；服务层强制校验高危确认、审计原因、当前 / 目标版本确认、当前包 `ACTIVE` 与同一 `packageCode`，失败不保存状态；前端同步采集原因和确认，只展示同编码历史版本；本地后端红绿目标测试、控制器权限回归、前端 verify/build、真实性 inventory、脚本门禁、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `02f18cf`）。下一步继续 BASE-09 回滚目标状态、回滚反向投影、回滚 plan/log 证据链和域级验收残留。
 - BASE-09 后端包同步状态机净化 PR8 ✅（#201）：收紧 `PackageEngineService.syncPackage` 的最终状态与包生命周期推进条件；全部未接入真实通道保持 `NOT_SYNCED` 且不发布草稿包，任一目标失败时发布计划落 `FAILED` 且不推进包状态；灰度包只有全通道成功才从 `DRAFT` 进入 `PUBLISHED`；本地后端全量、脚本门禁、真实性 inventory、迁移规约、`git diff --check` 与远端 CI 8/8 通过并合入 `origin/main`（merge `8f6b114`）。下一步继续 BASE-09 回滚二次确认、回滚反向投影、回滚 plan/log 证据链和域级验收残留。
@@ -90,4 +91,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-09 后端包回滚计划与日志证据链净化 PR11 已完成完整本地验证，待提交 / PR / 远端 CI；D0 域级验收前不得启动 D1 新功能 PR
+> 末次更新：2026-06-01 · BASE-09 配置包差异影响证据导出 PR12 已完成实现与本地完整验证，待提交 / PR / 远端 CI；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR

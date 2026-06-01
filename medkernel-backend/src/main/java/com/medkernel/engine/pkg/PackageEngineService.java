@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
@@ -35,6 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PackageEngineService {
 
     private static final Logger log = LoggerFactory.getLogger(PackageEngineService.class);
+    private static final ObjectMapper DIFF_EXPORT_MAPPER = new ObjectMapper();
 
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
@@ -213,6 +216,7 @@ public class PackageEngineService {
         int updated = 0;
         int removed = 0;
         List<String> affectedDepts = new ArrayList<>();
+        List<PackageDiffChange> changes = new ArrayList<>();
 
         for (PackageItem target : targetItems) {
             Optional<PackageItem> matchedBase = baseItems.stream()
@@ -221,13 +225,24 @@ public class PackageEngineService {
 
             if (matchedBase.isEmpty()) {
                 added++;
+                changes.add(new PackageDiffChange(
+                    PackageDiffChangeType.ADDED,
+                    target.assetType(),
+                    target.assetId(),
+                    null,
+                    target.assetVersion()
+                ));
             } else if (!matchedBase.get().assetVersion().equals(target.assetVersion())) {
                 updated++;
+                changes.add(new PackageDiffChange(
+                    PackageDiffChangeType.UPDATED,
+                    target.assetType(),
+                    target.assetId(),
+                    matchedBase.get().assetVersion(),
+                    target.assetVersion()
+                ));
             }
-            String deptId = getAssetDepartment(tenantId, target.assetType(), target.assetId());
-            if (deptId != null && !affectedDepts.contains(deptId)) {
-                affectedDepts.add(deptId);
-            }
+            addAffectedDepartment(affectedDepts, getAssetDepartment(tenantId, target.assetType(), target.assetId()));
         }
 
         for (PackageItem base : baseItems) {
@@ -235,6 +250,14 @@ public class PackageEngineService {
                 .anyMatch(t -> t.assetType() == base.assetType() && t.assetId().equals(base.assetId()));
             if (!existsInTarget) {
                 removed++;
+                changes.add(new PackageDiffChange(
+                    PackageDiffChangeType.REMOVED,
+                    base.assetType(),
+                    base.assetId(),
+                    base.assetVersion(),
+                    null
+                ));
+                addAffectedDepartment(affectedDepts, getAssetDepartment(tenantId, base.assetType(), base.assetId()));
             }
         }
 
@@ -245,9 +268,99 @@ public class PackageEngineService {
             added,
             updated,
             removed,
-            affectedDepts
+            affectedDepts,
+            changes
         );
     }
+
+    /**
+     * 导出配置包差异与影响范围证据。
+     */
+    public String exportDiffEvidence(String packageId, String basePackageId) {
+        String traceId = RequestContext.currentTraceId();
+        PackageDiffResponse diff = calculateDiff(packageId, basePackageId);
+        StringBuilder ndjson = new StringBuilder();
+
+        appendDiffExportLine(ndjson, new PackageDiffSummaryExportLine(
+            "PACKAGE_DIFF_SUMMARY",
+            diff.packageId(),
+            diff.baseVersion(),
+            diff.targetVersion(),
+            diff.addedCount(),
+            diff.updatedCount(),
+            diff.removedCount(),
+            traceId
+        ));
+        for (String departmentId : diff.affectedDepartments()) {
+            appendDiffExportLine(ndjson, new PackageDiffDepartmentExportLine(
+                "PACKAGE_DIFF_AFFECTED_DEPARTMENT",
+                diff.packageId(),
+                departmentId,
+                traceId
+            ));
+        }
+        for (PackageDiffChange change : diff.changes()) {
+            appendDiffExportLine(ndjson, new PackageDiffChangeExportLine(
+                "PACKAGE_DIFF_CHANGE",
+                diff.packageId(),
+                change.changeType(),
+                change.assetType(),
+                change.assetId(),
+                change.baseVersion(),
+                change.targetVersion(),
+                traceId
+            ));
+        }
+
+        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+            "导出配置包差异影响证据，基准版本: " + diff.baseVersion()
+                + "，目标版本: " + diff.targetVersion()
+                + "，变更资产数: " + diff.changes().size());
+        return ndjson.toString();
+    }
+
+    private void addAffectedDepartment(List<String> affectedDepartments, String departmentId) {
+        if (departmentId != null && !affectedDepartments.contains(departmentId)) {
+            affectedDepartments.add(departmentId);
+        }
+    }
+
+    private void appendDiffExportLine(StringBuilder builder, Object line) {
+        try {
+            builder.append(DIFF_EXPORT_MAPPER.writeValueAsString(line)).append('\n');
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包差异影响证据导出失败");
+        }
+    }
+
+    private record PackageDiffSummaryExportLine(
+        String event,
+        String packageId,
+        String baseVersion,
+        String targetVersion,
+        int addedCount,
+        int updatedCount,
+        int removedCount,
+        String traceId
+    ) {}
+
+    private record PackageDiffDepartmentExportLine(
+        String event,
+        String packageId,
+        String departmentId,
+        String traceId
+    ) {}
+
+    private record PackageDiffChangeExportLine(
+        String event,
+        String packageId,
+        PackageDiffChangeType changeType,
+        PackageItemAssetType assetType,
+        String assetId,
+        String baseVersion,
+        String targetVersion,
+        String traceId
+    ) {}
 
     /**
      * 触发包同步与发布执行（支持灰度、全量、回滚等多通道投影）。

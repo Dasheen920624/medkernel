@@ -1708,6 +1708,15 @@ export interface PackageDiffResponse {
   updatedCount: number;
   removedCount: number;
   affectedDepartments: string[];
+  changes: PackageDiffChange[];
+}
+
+export interface PackageDiffChange {
+  changeType: "ADDED" | "UPDATED" | "REMOVED" | string;
+  assetType: PackageItem["assetType"];
+  assetId: string;
+  baseVersion: string | null;
+  targetVersion: string | null;
 }
 
 export interface PackageSyncRequest {
@@ -1819,6 +1828,14 @@ export function useCalculateDiff(packageId: string, basePackageId?: string) {
     },
     enabled: !!packageId,
   });
+}
+
+export async function downloadPackageDiffExport(packageId: string, basePackageId?: string) {
+  const { data } = await apiClient.get<Blob>(`/engine/packages/${packageId}/diff/export`, {
+    params: { basePackageId },
+    responseType: "blob",
+  });
+  return data;
 }
 
 // 7. 触发多通道物理投影同步发布

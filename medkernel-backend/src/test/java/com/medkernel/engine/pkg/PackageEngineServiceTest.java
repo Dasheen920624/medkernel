@@ -262,6 +262,84 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void calculateDiffIncludesRemovedAssetImpactAndChangedRows() {
+        KnowledgePackage targetPack = packageVersion("pkg-target", "2.0.0", KnowledgePackageStatus.DRAFT);
+        KnowledgePackage basePack = packageVersion("pkg-base", "1.0.0", KnowledgePackageStatus.ACTIVE);
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
+        when(packageRepository.findByPackageIdAndTenantId("pkg-base", "tenant-A")).thenReturn(Optional.of(basePack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-base")).thenReturn(List.of(
+            packageItem(1L, "pkg-base", PackageItemAssetType.RULE, "rule-removed", "1"),
+            packageItem(2L, "pkg-base", PackageItemAssetType.EVALUATION, "eval-updated", "1")
+        ));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
+            packageItem(3L, "pkg-target", PackageItemAssetType.EVALUATION, "eval-updated", "2"),
+            packageItem(4L, "pkg-target", PackageItemAssetType.PATHWAY, "pathway-added", "1")
+        ));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-removed", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-removed", "dept-removed")));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-updated", "tenant-A"))
+            .thenReturn(Optional.of(publishedIndicator("eval-updated", "dept-eval")));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-added", "tenant-A"))
+            .thenReturn(Optional.of(publishedPathway("pathway-added")));
+
+        PackageDiffResponse response = service.calculateDiff("pkg-target", "pkg-base");
+
+        assertThat(response.addedCount()).isEqualTo(1);
+        assertThat(response.updatedCount()).isEqualTo(1);
+        assertThat(response.removedCount()).isEqualTo(1);
+        assertThat(response.affectedDepartments())
+            .containsExactlyInAnyOrder("dept-removed", "dept-eval");
+        assertThat(response.changes()).anySatisfy(change -> {
+            assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.REMOVED);
+            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.RULE);
+            assertThat(change.assetId()).isEqualTo("rule-removed");
+            assertThat(change.baseVersion()).isEqualTo("1");
+            assertThat(change.targetVersion()).isNull();
+        });
+        assertThat(response.changes()).anySatisfy(change -> {
+            assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.UPDATED);
+            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.EVALUATION);
+            assertThat(change.assetId()).isEqualTo("eval-updated");
+            assertThat(change.baseVersion()).isEqualTo("1");
+            assertThat(change.targetVersion()).isEqualTo("2");
+        });
+        assertThat(response.changes()).anySatisfy(change -> {
+            assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.ADDED);
+            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.PATHWAY);
+            assertThat(change.assetId()).isEqualTo("pathway-added");
+            assertThat(change.baseVersion()).isNull();
+            assertThat(change.targetVersion()).isEqualTo("1");
+        });
+    }
+
+    @Test
+    void exportDiffEvidenceReturnsNdjsonFromRealDiffAndPublishesAudit() {
+        KnowledgePackage targetPack = packageVersion("pkg-target", "2.0.0", KnowledgePackageStatus.DRAFT);
+
+        when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
+            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-added", "2")
+        ));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-added", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-added", "dept-rule")));
+
+        String ndjson = service.exportDiffEvidence("pkg-target", null);
+
+        assertThat(ndjson)
+            .contains("\"event\":\"PACKAGE_DIFF_SUMMARY\"")
+            .contains("\"packageId\":\"pkg-target\"")
+            .contains("\"targetVersion\":\"2.0.0\"")
+            .contains("\"addedCount\":1")
+            .contains("\"event\":\"PACKAGE_DIFF_AFFECTED_DEPARTMENT\"")
+            .contains("\"departmentId\":\"dept-rule\"")
+            .contains("\"event\":\"PACKAGE_DIFF_CHANGE\"")
+            .contains("\"changeType\":\"ADDED\"")
+            .contains("\"assetId\":\"rule-added\"");
+        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-target"), any());
+    }
+
+    @Test
     void calculateDiffDoesNotForgeDepartmentWhenAssetLookupFails() {
         KnowledgePackage targetPack = packageVersion("pkg-target", "2.0.0", KnowledgePackageStatus.DRAFT);
 
