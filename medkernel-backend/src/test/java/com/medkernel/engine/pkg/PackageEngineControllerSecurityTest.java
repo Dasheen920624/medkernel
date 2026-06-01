@@ -1,7 +1,12 @@
 package com.medkernel.engine.pkg;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -87,6 +93,10 @@ class PackageEngineControllerSecurityTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
+        mvc.perform(get("/api/v1/engine/packages/pkg-1/diff/export"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
         mvc.perform(post("/api/v1/engine/packages/pkg-1/items")
                 .contentType("application/json")
                 .content(ITEM_BODY))
@@ -123,5 +133,21 @@ class PackageEngineControllerSecurityTest {
     void guestCannotReadPackages() throws Exception {
         mvc.perform(get("/api/v1/engine/packages"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void authorizedUserCanDownloadDiffEvidenceNdjson() throws Exception {
+        when(service.exportDiffEvidence("pkg-1", "pkg-base"))
+            .thenReturn("{\"event\":\"PACKAGE_DIFF_SUMMARY\"}\n");
+
+        mvc.perform(get("/api/v1/engine/packages/pkg-1/diff/export")
+                .param("basePackageId", "pkg-base")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
+            .andExpect(header().string("Content-Disposition", containsString("package-diff-pkg-1.jsonl")))
+            .andExpect(content().string(containsString("PACKAGE_DIFF_SUMMARY")));
     }
 }

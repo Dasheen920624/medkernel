@@ -38,6 +38,7 @@ import {
   AuditOutlined,
   FileProtectOutlined,
   SearchOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
@@ -53,6 +54,7 @@ import {
   usePathwayTemplates,
   useEvaluationIndicators,
   useTerminologyMappings,
+  downloadPackageDiffExport,
 } from "@/shared/api/hooks";
 import type {
   EvaluationIndicator,
@@ -154,6 +156,7 @@ export default function ConfigPackages() {
 
   // 计算多版本差异 API
   const { data: apiDiffData } = useCalculateDiff(selectedPackageId || "", basePackageIdForDiff);
+  const [diffExporting, setDiffExporting] = useState<boolean>(false);
 
   // 6. 核心动作逻辑
 
@@ -235,6 +238,28 @@ export default function ConfigPackages() {
       setSyncProgress(0);
       setSyncLogs([]);
       message.error(apiErrorMessage(err, "投影同步失败，未生成同步证据。"));
+    }
+  };
+
+  const handleExportDiffEvidence = async () => {
+    if (!selectedPackageId || !apiDiffData) return;
+    setDiffExporting(true);
+    try {
+      const blob = await downloadPackageDiffExport(selectedPackageId, basePackageIdForDiff);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeName = (selectedPackage?.packageCode || selectedPackageId).replace(/[^\w.-]/g, "_");
+      link.href = url;
+      link.download = `package-diff-${safeName}.jsonl`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      message.success("影响范围证据已开始下载。");
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "影响范围证据导出失败，请稍后重试。"));
+    } finally {
+      setDiffExporting(false);
     }
   };
 
@@ -844,6 +869,14 @@ export default function ConfigPackages() {
                   ))}
               </Select>
             </div>
+            <Button
+              icon={<DownloadOutlined />}
+              disabled={!apiDiffData}
+              loading={diffExporting}
+              onClick={handleExportDiffEvidence}
+            >
+              导出影响证据
+            </Button>
           </div>
 
           {apiDiffData ? (
