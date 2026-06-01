@@ -25,4 +25,10 @@ public interface UserRoleAssignmentRepository extends ListCrudRepository<UserRol
         ORDER BY role_code, scope_level, scope_code
         """)
     List<UserRoleAssignment> findActiveByTenantIdAndUserId(String tenantId, String userId);
+
+    boolean existsByTenantIdAndUserIdAndRoleCodeAndActiveFlag(
+        String tenantId,
+        String userId,
+        String roleCode,
+        String activeFlag);
 }

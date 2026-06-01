@@ -80,6 +80,7 @@ public class MenuPermissionController {
         }
         RoleCode role = RoleCode.fromCode(request.roleCode())
             .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + request.roleCode()));
+        SystemSuperAdminGuard.assertTenantManagedRole(role.code());
         PermissionCode permission;
         try {
             permission = MenuPermissionCatalog.permissionForMenuKey(request.menuKey());

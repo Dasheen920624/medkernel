@@ -161,12 +161,37 @@ class EffectivePermissionServiceTest {
         assertThat(profile.environmentKeys()).contains("production").doesNotContain("emergency");
     }
 
+    @Test
+    void systemSuperAdminUsesRbacAndCannotBeDowngradedByTenantDenyOverrides() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "system-superadmin-1"))
+            .thenReturn(List.of());
+        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
+            .thenReturn(List.of(
+                override("t-1", "system-superadmin", PermissionCode.SYSTEM_MANAGE, PermissionEffect.DENY),
+                override("t-1", "system-superadmin", PermissionCode.MENU_SECURITY_BASELINE, PermissionEffect.DENY),
+                override("t-1", "system-superadmin", PermissionCode.ENV_EMERGENCY, PermissionEffect.DENY)
+            ));
+
+        var profile = service.resolve(
+            auth("system-superadmin-1", "ROLE_SYSTEM_SUPERADMIN"),
+            OrgScope.tenant("t-1"),
+            "system-superadmin-1");
+
+        assertThat(profile.roleCodes()).containsExactly("system-superadmin");
+        assertThat(profile.permissionCodes())
+            .contains(
+                PermissionCode.SYSTEM_MANAGE.code(),
+                PermissionCode.MENU_SECURITY_BASELINE.code(),
+                PermissionCode.ENV_EMERGENCY.code());
+        assertThat(profile.mfaRequired()).isTrue();
+    }
+
     private UsernamePasswordAuthenticationToken auth(RoleCode role) {
-        return new UsernamePasswordAuthenticationToken(
-            "doctor-1",
-            "n/a",
-            List.of(new SimpleGrantedAuthority(role.authority()))
-        );
+        return auth("doctor-1", role.authority());
+    }
+
+    private UsernamePasswordAuthenticationToken auth(String userId, String authority) {
+        return new UsernamePasswordAuthenticationToken(userId, "n/a", List.of(new SimpleGrantedAuthority(authority)));
     }
 
     private RolePermissionOverride override(
@@ -174,10 +199,18 @@ class EffectivePermissionServiceTest {
             RoleCode role,
             PermissionCode permission,
             PermissionEffect effect) {
+        return override(tenantId, role.code(), permission, effect);
+    }
+
+    private RolePermissionOverride override(
+            String tenantId,
+            String roleCode,
+            PermissionCode permission,
+            PermissionEffect effect) {
         return new RolePermissionOverride(
             null,
             tenantId,
-            role.code(),
+            roleCode,
             permission.code(),
             effect,
             null,

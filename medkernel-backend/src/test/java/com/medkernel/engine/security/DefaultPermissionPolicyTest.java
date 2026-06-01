@@ -33,6 +33,18 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void systemSuperAdminHasEveryRuntimePermissionIncludingEmergency() {
+        RoleCode systemSuperAdmin = RoleCode.fromCode("system-superadmin").orElseThrow();
+        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
+        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(systemSuperAdmin))
+            .containsAll(expected)
+            .contains(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY)
+            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+    }
+
+    @Test
     void hospitalAdminLacksPlatformOps() {
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
             .doesNotContain(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY)

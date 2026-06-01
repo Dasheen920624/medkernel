@@ -1,5 +1,7 @@
 package com.medkernel.engine.security.auth;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -106,6 +109,48 @@ class CredentialAdminControllerTest {
 
         mvc.perform(get("/api/v1/admin/credentials").with(admin()))
             .andExpect(jsonPath("$.data[0].status").value("DISABLED"));
+    }
+
+    @Test
+    void createMemberCannotAssignSystemSuperAdminRole() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"ops\",\"roleCode\":\"system-superadmin\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
+    }
+
+    @Test
+    void setStatusCannotDisableSystemSuperAdmin() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@1234\"}"))
+            .andExpect(status().isOk());
+        Instant now = Instant.now();
+        roleAssignments.save(new UserRoleAssignment(
+            null, "t-1", "root-admin", "system-superadmin", "TENANT", "t-1",
+            "Y", now, "test", now, "test"));
+
+        mvc.perform(patch("/api/v1/admin/credentials/{userId}/status", "root-admin").with(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DISABLED\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
+    }
+
+    @Test
+    void resetPasswordCannotEditSystemSuperAdmin() throws Exception {
+        mvc.perform(post("/api/v1/admin/credentials").with(admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"root-admin\",\"initialPassword\":\"Init@1234\"}"))
+            .andExpect(status().isOk());
+        Instant now = Instant.now();
+        roleAssignments.save(new UserRoleAssignment(
+            null, "t-1", "root-admin", "system-superadmin", "TENANT", "t-1",
+            "Y", now, "test", now, "test"));
+
+        mvc.perform(post("/api/v1/admin/credentials/{userId}/reset-password", "root-admin").with(admin()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("SUPERADMIN_IMMUTABLE"));
     }
 
     @Test

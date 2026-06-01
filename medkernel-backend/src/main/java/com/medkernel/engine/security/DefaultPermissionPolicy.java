@@ -30,6 +30,9 @@ public final class DefaultPermissionPolicy {
     static {
         EnumMap<RoleCode, Set<PermissionCode>> map = new EnumMap<>(RoleCode.class);
 
+        // 内置超级管理员：经 RBAC 拥有所有运行时权限，不通过 if 分支旁路。
+        map.put(RoleCode.SYSTEM_SUPERADMIN, allRuntimePermissions());
+
         // 平台 / 集团管理员：除 break-glass 外的全部常规权限；应急权限必须走时限授予。
         map.put(RoleCode.PLATFORM_ADMIN, allNonEmergencyPermissions());
         map.put(RoleCode.GROUP_ADMIN, allNonEmergencyPermissions());
@@ -323,8 +326,13 @@ public final class DefaultPermissionPolicy {
     }
 
     private static EnumSet<PermissionCode> allNonEmergencyPermissions() {
-        EnumSet<PermissionCode> permissions = EnumSet.allOf(PermissionCode.class);
+        EnumSet<PermissionCode> permissions = allRuntimePermissions();
         permissions.remove(PermissionCode.ENV_EMERGENCY);
+        return permissions;
+    }
+
+    private static EnumSet<PermissionCode> allRuntimePermissions() {
+        EnumSet<PermissionCode> permissions = EnumSet.allOf(PermissionCode.class);
         permissions.removeAll(MenuPermissionCatalog.legacySectionPermissions());
         return permissions;
     }

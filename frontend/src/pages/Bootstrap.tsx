@@ -224,7 +224,7 @@ export default function Bootstrap() {
           首次部署接管
         </Title>
         <Text className={styles.lead}>
-          用部署期一次性 token 创建首发平台管理员，再完成改密与 MFA，避免生产环境写死账号。
+          用部署期一次性 token 创建首发内置超级管理员，再完成改密与 MFA，避免生产环境写死账号。
         </Text>
         <div className={styles.guardRail}>
           <SafetyCertificateOutlined aria-hidden="true" />

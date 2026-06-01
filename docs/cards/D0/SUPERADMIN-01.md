@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 启动强制内置**：系统启动强制存在内置种子超管（承接 [BASE-11](BASE-11.md) 首发种子身份）；系统级约束，非配置可关。
-- [ ] **FR-2 自动授满**：超管自动获满五维权限（菜单/动作/数据/资产/环境）+ 系统配置中心访问（核心 #20），无需手配。
-- [ ] **FR-3 不可降权/删除/移出**：超管账号不可降权、不可删除、不可移出超管组（系统级约束，非配置可改），防被顶替。
-- [ ] **FR-4 不旁路**：超管仍走 [BASE-02](BASE-02.md) RBAC 引擎鉴权（权限被系统配满），**断言无** `if(isSuperadmin) return true` 旁路分支（核心 #20）。
-- [ ] **FR-5 独立高亮审计 + MFA**：超管所有操作独立高亮审计（[BASE-04](BASE-04.md)）+ 强制 MFA（[BASE-11](BASE-11.md)）。
-- [ ] **FR-6 高危护栏**：超管也**无法从 UI 关闭审计持久化**等高危项（核心 #19，呼应 [CONFIG-01](CONFIG-01.md)）。
+- [x] **FR-1 启动强制内置**：系统启动强制存在内置种子超管（承接 [BASE-11](BASE-11.md) 首发种子身份）；系统级约束，非配置可关。
+- [x] **FR-2 自动授满**：超管自动获满五维权限（菜单/动作/数据/资产/环境）+ 系统配置中心访问（核心 #20），无需手配。
+- [x] **FR-3 不可降权/删除/移出**：超管账号不可降权、不可删除、不可移出超管组（系统级约束，非配置可改），防被顶替。
+- [x] **FR-4 不旁路**：超管仍走 [BASE-02](BASE-02.md) RBAC 引擎鉴权（权限被系统配满），**断言无** `if(isSuperadmin) return true` 旁路分支（核心 #20）。
+- [x] **FR-5 独立高亮审计 + MFA**：超管所有操作独立高亮审计（[BASE-04](BASE-04.md)）+ 强制 MFA（[BASE-11](BASE-11.md)）。
+- [x] **FR-6 高危护栏**：超管也**无法从 UI 关闭审计持久化**等高危项（核心 #19，呼应 [CONFIG-01](CONFIG-01.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -33,12 +33,12 @@
 - 幂等 / 错误码 / traceId：`SUPERADMIN_IMMUTABLE`（拒绝降权/删除）；超管动作带高亮审计 traceId。
 
 ### 页面契约
-N·A —— 超管在用户管理页（D5）以系统内置不可编辑形态呈现；本卡为身份约束引擎。
+超管在用户管理页（D5 `AdminUsers`）以系统内置不可编辑形态呈现：角色名显示"内置超级管理员"，凭证与角色绑定行均只显示禁用态"系统内置"，不暴露停用、重置密码、解除绑定等租户管理操作。
 
 ## 数据与迁移
-- 表族：复用 `sys_user` / `sys_role` / `user_role`；超管组系统内置标记列（`is_system_superadmin`，不可改）。
-- 唯一约束：超管组系统唯一；约束：DB/应用层双重保证不可删除/降权。
-- 5 方言迁移：超管组种子（与 [BASE-11](BASE-11.md) 协同初始化）+ 中文注释。
+- 表族：复用 `platform_credential` / `sys_role` / `user_role_assignment`，不新增过时 `sys_user` / `user_role` / `is_system_superadmin` 模型。
+- 唯一约束：沿用 `sys_role(tenant_id, role_code)` 与 `user_role_assignment(tenant_id, user_id, role_code, scope_level, scope_code)` 唯一约束；不可删除、降权、移出由 `SystemSuperAdminGuard` 在租户管理入口统一拒绝。
+- 5 方言迁移：V44 `system_superadmin_seed` 在 H2 / PostgreSQL / Oracle / 达梦 / 人大金仓保持同名种子 SQL；当前真实运行范围按长期目标保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境适配登记到 GA 最终处理清单。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：超管是"系统可被完整维护"的保证；消除手配漏配缺陷。
@@ -58,20 +58,22 @@ N·A —— 超管在用户管理页（D5）以系统内置不可编辑形态呈
 - 本卡落点：系统内置不可撤销满权超管组 + 走 RBAC 引擎注入满权（非 if 后门）+ 强制 MFA + 高亮审计，让"维护全部功能"不靠手配、且无旁路黑洞。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：启动后超管存在且自动满五维 + 系统配置中心可达（无需手配）。
-- [ ] **AC-2（FR-3）**：尝试降权/删除/移出超管 → `SUPERADMIN_IMMUTABLE` 拒绝。
-- [ ] **AC-3（FR-4）**：代码断言**无** `if(isSuperadmin)` 旁路；超管鉴权走 [BASE-02](BASE-02.md) 引擎（覆盖测试证明）。
-- [ ] **AC-4（FR-5）**：超管动作独立高亮审计可筛出；未绑 MFA 不得执行高危动作。
-- [ ] **AC-5（FR-6）**：超管尝试从 UI 关闭审计持久化 → 被高危护栏拦截（核心 #19）。
+- [x] **AC-1（FR-1/2）**：启动后超管存在且自动满五维 + 系统配置中心可达（无需手配）。
+- [x] **AC-2（FR-3）**：尝试降权/删除/移出超管 → `SUPERADMIN_IMMUTABLE` 拒绝。
+- [x] **AC-3（FR-4）**：代码断言**无** `if(isSuperadmin)` 旁路；超管鉴权走 [BASE-02](BASE-02.md) 引擎（覆盖测试证明）。
+- [x] **AC-4（FR-5）**：超管动作独立高亮审计可筛出；未绑 MFA 不得执行高危动作。
+- [x] **AC-5（FR-6）**：超管尝试从 UI 关闭审计持久化 → 被高危护栏拦截（核心 #19）。
 - 关联 A1–A9：A6 合规运维（超管 + 审计）。
 - T-GATE：后端门禁全绿（无旁路黑洞）。
 - B0 验收：纯确定性身份约束，天然 B0。
 
 ## 完工证据
-- 代码 permalink：超管组系统约束 / 满权经引擎注入 / 不可删除约束 / 高亮审计 / 旁路缺失断言测试。
-- 测试：超管满权测试 + 不可降权/删除测试 + 无旁路断言测试 + MFA 强制测试 + 审计高亮测试。
+- 代码 permalink：PR 合并后补充；本地分支落点为 `RoleCode.SYSTEM_SUPERADMIN`、`DefaultPermissionPolicy`、`EffectivePermissionService`、`SystemSuperAdminGuard`、`CredentialAdminService`、`UserRoleAssignmentController`、`MenuPermissionController`、V44 五方言迁移、`AdminUsers`。
+- 测试：`PermissionDimensionModelTest` / `DefaultPermissionPolicyTest` / `EffectivePermissionServiceTest` / `MfaRequirementPolicyTest` / `UserRoleAssignmentControllerTest` / `MenuPermissionControllerTest` / `CredentialAdminControllerTest` / `BootstrapControllerTest` / `SystemConfigControllerTest` / `MigrationBaselineContractTest` / `H2BaselineMigrationTest` / `FlywayMultiDialectSmokeTest` / `AdminUsers.test.tsx`。
+- 本地验证：后端全量 `mvn test` 784 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 39 files / 176 tests 通过，`npm run build` 通过；PostgreSQL 15 / Oracle 21 / H2 迁移均至 V44；T-GATE 测试套件通过，提交后需重新跑 changed 门禁生成最终提交差异证据。
+- 浏览器证据：in-app browser 当前不可用，已登记 `DEFER-004`；用项目 Playwright 打开 `/admin/users` 验证超管显示为"内置超级管理员"且两处"系统内置"不可编辑，截图 `/tmp/medkernel-superadmin-01-admin-users.png`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer，高风险双签）。
 
 ## 大卡工序（3d，后端）
-- PR1：超管组系统约束 + 满权经引擎 + 不可降权/删除 → AC-1/2/3。
-- PR2：强制 MFA + 高亮审计 + 高危护栏（不可关审计）→ AC-4/5。
+- PR1：超管组系统约束 + 满权经引擎 + 不可降权/删除 → AC-1/2/3。✅
+- PR2：强制 MFA + 高亮审计 + 高危护栏（不可关审计）→ AC-4/5。✅（与 PR1 合并为一个逻辑单元提交）

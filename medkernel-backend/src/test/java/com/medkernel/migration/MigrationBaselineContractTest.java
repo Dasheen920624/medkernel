@@ -69,7 +69,8 @@ class MigrationBaselineContractTest {
         "V40__projection_sync_baseline.sql",
         "V41__runtime_task_framework.sql",
         "V42__runtime_task_retry_dead_letter.sql",
-        "V43__menu_permission_granularity.sql"
+        "V43__menu_permission_granularity.sql",
+        "V44__system_superadmin_seed.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -646,6 +647,19 @@ class MigrationBaselineContractTest {
                 .contains("idx_bootstrap_init_token_expires")
                 .contains("COMMENT ON TABLE mk_security_bootstrap_init_token")
                 .contains("COMMENT ON COLUMN mk_security_bootstrap_init_token.token_hash");
+        }
+    }
+
+    @Test
+    void v44ShouldSeedSystemSuperAdminForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V44__system_superadmin_seed.sql");
+            assertThat(ddl).as("%s 内置超级管理员种子", dialect)
+                .contains("system-superadmin")
+                .contains("内置超级管理员")
+                .contains("sys_role")
+                .contains("user_role_assignment")
+                .contains("system-superadmin-1");
         }
     }
 

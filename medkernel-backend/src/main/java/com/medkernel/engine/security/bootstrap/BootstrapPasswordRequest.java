@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 首发平台管理员密码设置入参。
+ * 首发内置超级管理员密码设置入参。
  */
 public record BootstrapPasswordRequest(
     @NotBlank String token,
