@@ -1,0 +1,105 @@
+package com.medkernel.shared.architecture;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
+
+/**
+ * MedKernel 领域实体和持久化表的单一 owner 目录。
+ */
+public final class DomainOwnershipCatalog {
+    private static final List<DomainModule> MODULES = List.of(
+        module("shared-audit", packages("com.medkernel.shared.audit"), prefixes(), tables("audit_event", "audit_chain_head")),
+        module("shared-config", packages("com.medkernel.shared.config"), prefixes("mk_config_"), tables()),
+        module("shared-idempotency", packages("com.medkernel.shared.idempotency"), prefixes(), tables("sys_idempotency")),
+        module("shared-observability", packages("com.medkernel.shared.observability"), prefixes("mk_obs_"), tables()),
+        module("engine-security", packages("com.medkernel.engine.security"), prefixes("mk_security_"),
+            tables("sys_role", "sys_permission", "role_permission", "user_role_assignment",
+                "platform_credential", "emergency_permission_grant")),
+        module("engine-org", packages("com.medkernel.engine.org"), prefixes("org_"), tables()),
+        module("engine-context", packages("com.medkernel.engine.context"), prefixes("context_", "clinical_event"),
+            tables("canonical_resource")),
+        module("engine-clinical", packages("com.medkernel.engine.clinical"), prefixes("mk_clinical_"), tables()),
+        module("engine-rule", packages("com.medkernel.engine.rule"), prefixes("rule_"), tables()),
+        module("engine-pathway", packages("com.medkernel.engine.pathway"), prefixes("pathway_", "specialty_"),
+            tables("patient_pathway", "clinical_clock")),
+        module("engine-knowledge", packages("com.medkernel.engine.knowledge"),
+            prefixes("knowledge_asset_", "knowledge_export_", "source_"),
+            tables("knowledge_identity", "knowledge_supersession", "citation")),
+        module("engine-package", packages("com.medkernel.engine.pkg"), prefixes(),
+            tables("knowledge_package", "package_item", "release_plan", "sync_target", "sync_log")),
+        module("engine-evaluation", packages("com.medkernel.engine.evaluation"),
+            prefixes("evaluation_", "rectification_"), tables("quality_finding")),
+        module("engine-terminology", packages("com.medkernel.engine.terminology"),
+            prefixes("term_", "mapping_"), tables("standard_term", "local_term")),
+        module("engine-experience",
+            packages("com.medkernel.engine.experience", "com.medkernel.engine.list"),
+            prefixes("mk_experience_"), tables()),
+        module("engine-followup", packages("com.medkernel.engine.followup"), prefixes("followup_"), tables()),
+        module("engine-integration", packages("com.medkernel.engine.integration"), prefixes("integration_"), tables()),
+        module("engine-mpi", packages("com.medkernel.engine.mpi"), prefixes("mpi_"), tables()),
+        module("engine-recommendation", packages("com.medkernel.engine.recommendation"), prefixes("recommendation_"), tables()),
+        module("engine-llm", packages("com.medkernel.engine.llm"), prefixes("model_capability_"), tables()),
+        module("engine-embed", packages("com.medkernel.engine.embed"), prefixes("embed_"), tables()),
+        module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes("tenant_"), tables()),
+        module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables())
+    );
+
+    private DomainOwnershipCatalog() {
+    }
+
+    public static List<DomainModule> modules() {
+        return MODULES;
+    }
+
+    public static Optional<DomainModule> ownerOfTable(String tableName) {
+        String normalized = normalize(tableName);
+        List<DomainModule> owners = MODULES.stream()
+            .filter(module -> module.ownsTable(normalized))
+            .toList();
+        if (owners.size() > 1) {
+            throw new IllegalStateException("表 " + normalized + " 存在多个 owner: "
+                + owners.stream().map(DomainModule::id).toList());
+        }
+        return owners.stream().findFirst();
+    }
+
+    public static Set<String> tableOwnershipTokens() {
+        Set<String> tokens = new LinkedHashSet<>();
+        MODULES.forEach(module -> {
+            module.tablePrefixes().forEach(tokens::add);
+            module.tableNames().forEach(tokens::add);
+        });
+        return Set.copyOf(tokens);
+    }
+
+    private static DomainModule module(String id, Set<String> packages, Set<String> prefixes, Set<String> tables) {
+        return new DomainModule(id, packages, prefixes, tables);
+    }
+
+    private static Set<String> packages(String... values) {
+        return Set.of(values);
+    }
+
+    private static Set<String> prefixes(String... values) {
+        return normalizeSet(values);
+    }
+
+    private static Set<String> tables(String... values) {
+        return normalizeSet(values);
+    }
+
+    private static Set<String> normalizeSet(String... values) {
+        return Stream.of(values)
+            .map(DomainOwnershipCatalog::normalize)
+            .filter(value -> !value.isBlank())
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+}

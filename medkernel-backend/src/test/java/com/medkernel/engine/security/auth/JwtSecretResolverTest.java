@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.JwtSecretResolver;
 
 class JwtSecretResolverTest {
 

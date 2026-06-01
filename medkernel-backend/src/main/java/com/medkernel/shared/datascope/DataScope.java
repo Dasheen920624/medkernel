@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import com.medkernel.engine.org.OrgLevel;
+import com.medkernel.shared.context.OrgLevel;
 
 /**
  * MedKernel v1.0 GA · GA-ENG-BASE-02 数据范围声明。

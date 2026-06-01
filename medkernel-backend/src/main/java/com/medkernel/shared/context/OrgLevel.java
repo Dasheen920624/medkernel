@@ -1,9 +1,9 @@
-package com.medkernel.engine.org;
+package com.medkernel.shared.context;
 
 /**
  * 组织层级枚举。对应核心 §9 的七层组织树。
  *
- * @see com.medkernel.shared.context.OrgScope
+ * @see OrgScope
  */
 public enum OrgLevel {
     /** 平台租户根 */

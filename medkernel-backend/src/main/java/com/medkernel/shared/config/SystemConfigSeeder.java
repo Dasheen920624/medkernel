@@ -7,7 +7,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
-import com.medkernel.engine.context.ClinicalEventProperties;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
@@ -23,7 +22,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private final AuthJwtProperties jwtProperties;
     private final AuthCookieProperties cookieProperties;
     private final AuditFallbackProperties auditFallbackProperties;
-    private final ClinicalEventProperties clinicalEventProperties;
+    private final ClinicalEventWorkerSettings clinicalEventProperties;
     private final Environment environment;
     private final SystemConfigService service;
 
@@ -31,7 +30,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
                               AuthJwtProperties jwtProperties,
                               AuthCookieProperties cookieProperties,
                               AuditFallbackProperties auditFallbackProperties,
-                              ClinicalEventProperties clinicalEventProperties,
+                              ClinicalEventWorkerSettings clinicalEventProperties,
                               Environment environment,
                               SystemConfigService service) {
         this.runtimeProperties = runtimeProperties;

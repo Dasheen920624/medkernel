@@ -6,6 +6,8 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import com.medkernel.shared.config.ClinicalEventWorkerSettings;
+
 /**
  * 临床事件处理配置。
  */
@@ -18,7 +20,7 @@ public record ClinicalEventProperties(
     int maxRetries,
     List<Long> backoffSeconds,
     long workerPollIntervalMs
-) {
+) implements ClinicalEventWorkerSettings {
 
     public ClinicalEventProperties {
         if (maxPayloadSizeBytes <= 0) {

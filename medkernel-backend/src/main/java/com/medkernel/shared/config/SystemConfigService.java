@@ -10,8 +10,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.context.ClinicalEventProperties;
-import com.medkernel.engine.security.bootstrap.MfaPolicyService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -51,18 +49,18 @@ public class SystemConfigService {
     private final AuditSafetyGuard auditSafetyGuard;
     private final AuditRecorder auditRecorder;
     private final RuntimeLogLevelManager logLevelManager;
-    private final MfaPolicyService mfaPolicyService;
+    private final HighRiskChangeGuard highRiskChangeGuard;
 
     public SystemConfigService(SystemConfigRepository repository,
                                AuditSafetyGuard auditSafetyGuard,
                                AuditRecorder auditRecorder,
                                RuntimeLogLevelManager logLevelManager,
-                               MfaPolicyService mfaPolicyService) {
+                               HighRiskChangeGuard highRiskChangeGuard) {
         this.repository = repository;
         this.auditSafetyGuard = auditSafetyGuard;
         this.auditRecorder = auditRecorder;
         this.logLevelManager = logLevelManager;
-        this.mfaPolicyService = mfaPolicyService;
+        this.highRiskChangeGuard = highRiskChangeGuard;
     }
 
     public List<SystemConfigItemResponse> list(String prefix) {
@@ -197,7 +195,7 @@ public class SystemConfigService {
         return readRuntimeStringConfig(AUDIT_FALLBACK_PATH_KEY, properties.pathOrDefault()).value();
     }
 
-    public long runtimeClinicalEventWorkerPollIntervalMs(ClinicalEventProperties properties) {
+    public long runtimeClinicalEventWorkerPollIntervalMs(ClinicalEventWorkerSettings properties) {
         return readRuntimeLongConfig(
             CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY,
             properties.workerPollIntervalMs()).value();
@@ -413,7 +411,7 @@ public class SystemConfigService {
 
     private void assertHighRiskMfaBound(SystemConfigItem item) {
         if (isHighRisk(item)) {
-            mfaPolicyService.assertHighRiskAllowed("system_config", item.key());
+            highRiskChangeGuard.assertHighRiskAllowed("system_config", item.key());
         }
     }
 

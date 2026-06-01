@@ -26,7 +26,6 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
-import com.medkernel.engine.security.auth.JwtSecretResolver;
 import com.medkernel.shared.context.TenantContextEnricherFilter;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.idempotency.IdempotencyFilter;

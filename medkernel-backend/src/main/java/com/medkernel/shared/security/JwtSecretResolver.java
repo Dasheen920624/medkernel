@@ -1,4 +1,4 @@
-package com.medkernel.engine.security.auth;
+package com.medkernel.shared.security;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -6,8 +6,6 @@ import java.util.Set;
 
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
-
-import com.medkernel.shared.security.AuthJwtProperties;
 
 /**
  * JWT 密钥解析器：生产必须显式提供部署密钥，dev/test 才允许使用本地默认密钥。

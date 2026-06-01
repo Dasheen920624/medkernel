@@ -11,13 +11,14 @@ import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.RequestContext;
 
 /**
  * 高危操作 MFA 策略：当前用户必须已绑定 MFA，恢复码只保存 SHA-256 摘要。
  */
 @Service
-public class MfaPolicyService {
+public class MfaPolicyService implements HighRiskChangeGuard {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -28,6 +29,7 @@ public class MfaPolicyService {
     }
 
     @Transactional(readOnly = true)
+    @Override
     public void assertHighRiskAllowed(String resourceType, String resourceId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         String userId = RequestContext.currentUserId().orElse(null);

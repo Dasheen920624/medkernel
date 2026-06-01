@@ -6,6 +6,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import com.medkernel.shared.context.OrgLevel;
+
 /**
  * 组织单元实体（对应 {@code org_unit} 表，5 方言一致）。
  *
