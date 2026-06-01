@@ -72,7 +72,7 @@ class MigrationBaselineContractTest {
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
-        "state_transition_history", "clinical_event_payload", "clinical_event_outbox",
+        "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
@@ -120,7 +120,8 @@ class MigrationBaselineContractTest {
         "idx_context_snapshot_status", "idx_canonical_resource_snapshot",
         "idx_canonical_resource_tenant_type", "idx_clinical_event_tenant_received",
         "idx_clinical_event_snapshot", "idx_context_idempotency_expires",
-        "idx_sth_entity", "idx_sth_tenant_time", "idx_sth_trace", "idx_sth_failed",
+        "idx_most_entity", "idx_most_tenant_time", "idx_most_trace", "idx_most_failed",
+        "idx_mops_trace", "idx_mops_entity", "idx_mops_tenant_time",
         "idx_canonical_resource_trace",
         "idx_audit_event_outcome",
         "idx_cep_tenant_time", "idx_outbox_pending", "idx_outbox_tenant",
@@ -192,7 +193,8 @@ class MigrationBaselineContractTest {
         "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
         "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
         "uk_context_idempotency_tenant_key",
-        "ck_sth_error_class",
+        "ck_most_error_class",
+        "uk_mops_payload_id", "ck_mops_storage_type",
         "ck_audit_event_outcome",
         "uk_event_payload", "ck_storage_type",
         "uk_outbox_event_id", "ck_outbox_status",
@@ -261,7 +263,7 @@ class MigrationBaselineContractTest {
         "mapping_conflict", "term_mapping_package", "term_mapping_package_item",
         "term_mapping_package_release", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
-        "state_transition_history", "clinical_event_payload", "clinical_event_outbox",
+        "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
@@ -308,6 +310,8 @@ class MigrationBaselineContractTest {
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.of(
         "audit_event", Set.of("occurred_at", "actor_user_id", "created_at"),
+        "mk_obs_state_transition", Set.of("occurred_at", "actor", "created_at", "created_by"),
+        "mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by"),
         "knowledge_supersession", Set.of("transitioned_at", "transitioned_by"),
         "knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at"),
         "term_mapping_package_release", Set.of("created_at", "created_by"),
@@ -460,11 +464,15 @@ class MigrationBaselineContractTest {
     @Test
     void v8ShouldDeclareObservabilityBaseline() {
         String h2 = readMigration("h2", "V8__observability_baseline.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS state_transition_history");
+        assertThat(h2).contains(
+            "CREATE TABLE IF NOT EXISTS mk_obs_state_transition",
+            "CREATE TABLE IF NOT EXISTS mk_obs_payload_store",
+            "org_path",
+            "payload_base64",
+            "deleted_at");
         assertThat(h2).contains("ALTER TABLE canonical_resource ADD COLUMN IF NOT EXISTS trace_id");
-        assertThat(h2).contains("ck_sth_error_class");
-        assertThat(h2).contains("idx_sth_entity");
-        assertThat(h2).contains("idx_sth_trace");
+        assertThat(h2).contains("ck_most_error_class", "ck_mops_storage_type", "uk_mops_payload_id");
+        assertThat(h2).contains("idx_most_entity", "idx_most_trace", "idx_mops_trace");
     }
 
     @Test

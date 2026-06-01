@@ -409,7 +409,7 @@ public class PathwayEngineService {
         PatientPathway runtime = findPatientPathway(patientPathwayId, tenantId);
         PayloadRef payloadRef = new PayloadRef(
             PayloadRef.STORAGE_INLINE, digest(runtime.patientPathwayId() + ":" + runtime.status()),
-            "db://patient_pathway/" + runtime.patientPathwayId(), 0L);
+            "db://patient_pathway/" + runtime.patientPathwayId(), 0L, "application/json");
         return diagnoseAssembler.assemble(
             PATIENT_PATHWAY_ENTITY, runtime.patientPathwayId(), tenantId, runtime.status().name(),
             runtime, List.of(), Map.of("template", List.of(runtime.templateId())),

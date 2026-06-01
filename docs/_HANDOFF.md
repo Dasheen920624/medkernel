@@ -17,9 +17,9 @@
 - 类型：软件开发 / 后端平台脊柱
 - 分支：`codex/obs-01-observability-spine`（基于 `origin/main` a9a0304）
 - 目标：按 [OBS-01](cards/D0/OBS-01.md) 交付 TraceIdPropagator + MDC + StateTransitionRecorder + PayloadStoragePort + ErrorCode + DiagnoseResponse，让引擎执行可按 traceId 还原输入、版本、输出、耗时和降级原因。
-- 状态：已从最新 `origin/main` 创建分支并完成权威卡 / 现状核查；发现已有 `shared.observability` 半成品，但默认 payload 仍是 in-memory，状态表仍是旧 `state_transition_history` 口径，缺通用 trace 诊断端点。已写实施计划 [2026-06-01-obs-01-observability-spine.md](superpowers/plans/2026-06-01-obs-01-observability-spine.md)，下一步进入 TDD 红灯。
-- 下一步（精确到动作/命令）：1. 写迁移契约红灯测试并跑失败；2. 收敛 V8 五方言到 `mk_obs_state_transition` / `mk_obs_payload_store`；3. 实现 DB `PayloadStoragePort` 与 trace 诊断端点；4. 目标测试、后端全量、T-GATE、PR、CI、合并后再领取 `API-13`。
-- 相关文件 / 测试 / 坑：当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实环境仍归 `DEFER-001`。open deferred issue 不阻塞 OBS-01；但当前卡主链路、登录可用、权限隔离、真实性门禁和医疗安全红线不得延期。旧 in-memory payload 与旧状态表口径不得继续当完成证据。
+- 状态：本分支已按 TDD 完成 OBS-01 本地实现与文档收口：V8 五方言收敛到 `mk_obs_state_transition` / `mk_obs_payload_store`，默认 `PayloadStoragePort` 改为 DB 存储并删除旧 in-memory 实现，新增 `/api/v1/engine/diagnose/traces/{traceId}` 诊断端点，`DiagnoseResponse` 补执行摘要。
+- 下一步（精确到动作/命令）：1. 提交当前改动；2. 提交后重跑 changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释）；3. 推送 PR，等待 CI 8/8；4. 合并后确认 `origin/main` 含合并提交，再从最新 `origin/main` 领取 `API-13`。
+- 相关文件 / 测试 / 坑：本地已通过 `mvn -B -q -Dtest=MigrationBaselineContractTest,DbPayloadStorageTest,StateTransitionHistoryRepositoryTest,StateTransitionRecorderTest,DiagnoseResponseAssemblerTest,ObservabilityDiagnoseServiceTest,ObservabilityDiagnoseControllerTest,TraceIdPropagatorTest,MdcEnrichmentFilterTest,RuleEngineServiceTest#diagnoseAssemblesFromExecutionLog,ContextSnapshotTraceEndToEndTest test` 与 `mvn -B -q test`（含 PostgreSQL / Oracle Testcontainers 迁移）。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实环境仍归 `DEFER-001`。open deferred issue 不阻塞后续主线；但当前卡主链路、登录可用、权限隔离、真实性门禁和医疗安全红线不得延期。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -104,4 +104,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-11 已 PR #216 / CI 8/8 / merge `a9a0304` 合入 `origin/main`；OBS-01 已从最新 `origin/main` 新建分支 `codex/obs-01-observability-spine` 并进入 TDD。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，外部阻塞只登记不阻断主线。
+> 末次更新：2026-06-01 · OBS-01 本地实现与后端全量验证完成，当前分支待提交 / PR / CI / 合并；合并后下一阶段领取 `API-13`。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，外部阻塞只登记不阻断主线。

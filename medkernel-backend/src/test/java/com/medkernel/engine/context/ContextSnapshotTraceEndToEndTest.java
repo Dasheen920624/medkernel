@@ -21,7 +21,7 @@ import com.medkernel.shared.observability.DiagnoseResponse;
  * <p>覆盖 spec 表头六项验收的核心三项（其余三项在单测：失败 audit / 子事务 /
  * PackageVersionPort 已覆盖）：
  * <ol>
- *   <li>state_transition_history 写入 INITIAL_CREATE 一行</li>
+ *   <li>mk_obs_state_transition 写入 INITIAL_CREATE 一行</li>
  *   <li>canonical_resource 持久化当前 trace_id</li>
  *   <li>diagnose 端点装配 entity + state_history + traceId + self link</li>
  * </ol>
@@ -40,7 +40,7 @@ class ContextSnapshotTraceEndToEndTest {
 
     @BeforeEach
     void cleanDb() {
-        jdbc.update("DELETE FROM state_transition_history");
+        jdbc.update("DELETE FROM mk_obs_state_transition");
         jdbc.update("DELETE FROM canonical_resource");
         jdbc.update("DELETE FROM context_snapshot");
         RequestContext.clear();
@@ -60,14 +60,14 @@ class ContextSnapshotTraceEndToEndTest {
         ContextSnapshotResponse resp = service.create(ContextSnapshotServiceFixtures.sampleRequest(), null);
         assertThat(resp.snapshotId()).startsWith("ctx-");
 
-        // 验收 1：state_transition_history 写入一行
+        // 验收 1：mk_obs_state_transition 写入一行
         Integer stateRows = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM state_transition_history WHERE entity_id = ? AND to_status = 'ACTIVE'",
+            "SELECT COUNT(*) FROM mk_obs_state_transition WHERE entity_id = ? AND to_status = 'ACTIVE'",
             Integer.class, resp.snapshotId());
         assertThat(stateRows).as("INITIAL_CREATE 状态历史").isEqualTo(1);
 
         String reason = jdbc.queryForObject(
-            "SELECT reason FROM state_transition_history WHERE entity_id = ?",
+            "SELECT reason FROM mk_obs_state_transition WHERE entity_id = ?",
             String.class, resp.snapshotId());
         assertThat(reason).isEqualTo("INITIAL_CREATE");
 

@@ -1,6 +1,7 @@
 package com.medkernel.shared.observability;
 
 import java.time.Instant;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,16 +51,19 @@ public class StateTransitionRecorder {
             String tenantId = scope != null ? scope.tenantId() : null;
             String actor = RequestContext.currentUserId().orElse(null);
             String traceId = RequestContext.currentTraceId();
+            Instant now = Instant.now();
 
             StateTransitionHistory entry = new StateTransitionHistory(
-                null, entityType, entityId, tenantId,
+                null, entityType, entityId, tenantId, orgPath(scope),
                 fromStatus, toStatus, reason, actor, traceId,
                 error == null ? null : error.errorCode(),
                 error == null ? null : error.errorClass(),
                 error == null ? null : error.message(),
                 error == null ? null : error.retryCount(),
                 error == null ? null : error.nextRetryAt(),
-                Instant.now()
+                now,
+                now,
+                actor
             );
             repository.save(entry);
         } catch (DataAccessException e) {
@@ -70,5 +74,18 @@ public class StateTransitionRecorder {
             log.warn("STATE_TRANSITION_RECORDER_FAILED entityType={} entityId={} reason={} cause={}",
                 entityType, entityId, reason, e.toString());
         }
+    }
+
+    private static String orgPath(OrgScope scope) {
+        if (scope == null) {
+            return null;
+        }
+        String path = Stream.of(
+                scope.tenantId(), scope.groupId(), scope.hospitalId(), scope.campusId(),
+                scope.siteId(), scope.departmentId(), scope.specialtyId())
+            .filter(value -> value != null && !value.isBlank())
+            .reduce((left, right) -> left + "/" + right)
+            .orElse(null);
+        return path == null || path.isBlank() ? null : path;
     }
 }

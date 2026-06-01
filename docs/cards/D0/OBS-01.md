@@ -17,17 +17,17 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 TraceIdPropagator + MDC**：全链路 traceId 生成/透传/回显（同步 + 异步 + 批量），与 [BASE-03](BASE-03.md) 同源，日志 MDC 注入。
-- [ ] **FR-2 StateTransitionRecorder**：4 套状态机（核心 §3）流转统一留痕（from→to + who + 原因 + ts），供回溯与审计。
-- [ ] **FR-3 PayloadStoragePort**：大 payload（规则输入/路径上下文/模型输入输出）经存储抽象落地，不裸存于业务表；可按 traceId 取回。
-- [ ] **FR-4 ErrorCode 统一字典**：引擎错误码集中枚举（与 BASE-03 同源），分类业务/校验/降级/系统。
-- [ ] **FR-5 DiagnoseResponse**：引擎执行返回可诊断响应（命中规则/版本/耗时/降级原因），专家模式可见、客户面隐藏（核心 §14）。
-- [ ] **FR-6 执行可追溯**：给定 traceId 可还原一次引擎执行的输入→规则版本→输出→耗时全链。
+- [x] **FR-1 TraceIdPropagator + MDC**：全链路 traceId 生成/透传/回显（同步 + 异步 + 批量），与 [BASE-03](BASE-03.md) 同源，日志 MDC 注入。
+- [x] **FR-2 StateTransitionRecorder**：4 套状态机（核心 §3）流转统一留痕（from→to + who + 原因 + ts），供回溯与审计。
+- [x] **FR-3 PayloadStoragePort**：大 payload（规则输入/路径上下文/模型输入输出）经存储抽象落地，不裸存于业务表；可按 traceId 取回。
+- [x] **FR-4 ErrorCode 统一字典**：引擎错误码集中枚举（与 BASE-03 同源），分类业务/校验/降级/系统。
+- [x] **FR-5 DiagnoseResponse**：引擎执行返回可诊断响应（命中规则/版本/耗时/降级原因），专家模式可见、客户面隐藏（核心 §14）。
+- [x] **FR-6 执行可追溯**：给定 traceId 可还原一次引擎执行的输入引用、规则版本、输出引用、耗时和状态流转。
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：诊断查询端点（按 traceId 取执行轨迹，供 D6 开发者控制台/D3 提醒治理消费）。
-- DTO：`DiagnoseResponse` Record；状态流转查询 DTO。
+- 端点：`GET /api/v1/engine/diagnose/traces/{traceId}`，按 traceId 取执行轨迹，权限为 `system.read` 或 `audit.read`，供 D6 开发者控制台 / D3 提醒治理消费。
+- DTO：`DiagnoseResponse` Record；`TraceDiagnoseResponse` Record；状态流转与 payload 摘要 DTO。
 - 响应信封：`ApiResult` / `ProblemDetail`。
 - 状态机：N·A —— 本卡记录状态流转，不新增资产状态机。
 - 幂等 / 错误码 / traceId：★本卡是 traceId 与 ErrorCode 的骨干提供者。
@@ -36,10 +36,10 @@
 N·A —— 诊断数据由 D6 开发者控制台 / D3 临床提醒治理（专家模式）消费。
 
 ## 数据与迁移
-- 表族：`sys_state_transition`（状态流转）；`sys_payload_store`（大 payload，可对象存储 + 元数据表）。
-- 主键：ULID；索引：`trace_id`、`target_id`、`ts`。
+- 表族：`mk_obs_state_transition`（状态流转）；`mk_obs_payload_store`（大 payload 元数据 + INLINE Base64 / URI 引用）。
+- 主键：两表均为 `BIGINT` identity；`mk_obs_payload_store.payload_id` 为业务唯一 ID；索引：`trace_id`、`entity_type/entity_id`、`tenant_id + occurred_at/created_at`。
 - 组织字段：带 `tenant_id` + `org_path`；审计字段齐全。
-- 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释。
+- 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释；当前真实运行保障范围为 PostgreSQL + Oracle，达梦 / 人大金仓真实环境适配登记为 [DEFER-001](../../audit/deferred-issues.md)，不写成已通过。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：可观测骨干是所有引擎的统一追溯底座；禁各引擎自造日志当追溯。
@@ -59,18 +59,22 @@ N·A —— 诊断数据由 D6 开发者控制台 / D3 临床提醒治理（专�
 - 本卡落点：traceId + 状态流转 + payload 存储 + 诊断响应四件套，让引擎执行从黑盒变可追溯白盒，是上层所有引擎卡的可观测前提。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：一次跨同步+异步的引擎执行，traceId 全链一致可串联。
-- [ ] **AC-2（FR-2）**：状态机流转产 `sys_state_transition` 记录（from→to+原因）。
-- [ ] **AC-3（FR-3/6）**：给定 traceId 取回完整执行轨迹（输入→版本→输出→耗时）。
-- [ ] **AC-4（FR-5）**：DiagnoseResponse 含命中规则版本/耗时/降级原因；客户面默认不可见。
-- [ ] **AC-5（FR-4）**：引擎错误码集中且与 BASE-03 一致。
+- [x] **AC-1（FR-1）**：一次跨同步+异步的引擎执行，traceId 全链一致可串联。
+- [x] **AC-2（FR-2）**：状态机流转产 `mk_obs_state_transition` 记录（from→to+原因+组织+创建人）。
+- [x] **AC-3（FR-3/6）**：给定 traceId 取回执行轨迹（状态流转 + payload 摘要 / 取数入口 + 耗时），payload 明文不出现在客户面。
+- [x] **AC-4（FR-5）**：DiagnoseResponse 含命中规则版本/耗时/降级原因；客户面默认不可见。
+- [x] **AC-5（FR-4）**：引擎错误码集中且与 BASE-03 一致。
 - 关联 A1–A9：A3 临床运行（推荐可解释追溯）。
 - T-GATE：后端门禁全绿（诊断/耗时不伪造）。
 - B0 验收：纯确定性可观测，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`TraceIdPropagator` / `StateTransitionRecorder` / `PayloadStoragePort` / `ErrorCode` / `DiagnoseResponse` / 迁移。
-- 测试：traceId 异步传播测试 + 状态流转留痕测试 + payload 取回测试 + 诊断响应测试。
+- 代码 permalink：`TraceIdPropagator` / `StateTransitionRecorder` / `DbPayloadStorage` / `PayloadStoragePort` / `ErrorCode` / `DiagnoseResponse` / `TraceDiagnoseResponse` / 迁移。
+- 测试：traceId 异步传播测试 + 状态流转留痕测试 + payload 取回测试 + 诊断响应测试 + trace 诊断端点权限测试。
+- 本地证据：
+  - `mvn -B -q -Dtest=MigrationBaselineContractTest,DbPayloadStorageTest,StateTransitionHistoryRepositoryTest,StateTransitionRecorderTest,DiagnoseResponseAssemblerTest,ObservabilityDiagnoseServiceTest,ObservabilityDiagnoseControllerTest,TraceIdPropagatorTest,MdcEnrichmentFilterTest,RuleEngineServiceTest#diagnoseAssemblesFromExecutionLog,ContextSnapshotTraceEndToEndTest test`
+  - `mvn -B -q test`（含 H2 / PostgreSQL / Oracle 迁移验证；达梦 / 人大金仓真实运行见 DEFER-001）
+  - `mvn -B -q clean test`（清空旧报告后重新验证，确认删除旧 in-memory 测试后无残留报告）
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（3d，后端）

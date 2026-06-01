@@ -163,7 +163,7 @@ public class ClinicalEventService {
             .map(payload -> new PayloadRef(
                 payload.storageType(), payload.digest(),
                 "db://clinical_event_payload/" + payload.eventId(),
-                payload.sizeBytes()))
+                payload.sizeBytes(), payload.contentType()))
             .orElse(null);
         return diagnoseAssembler.assemble(
             ENTITY_TYPE, event.eventId(), event.tenantId(),

@@ -270,10 +270,16 @@ public class RuleEngineService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则执行记录不存在: " + executionId));
         PayloadRef payloadRef = new PayloadRef(
             PayloadRef.STORAGE_INLINE, execution.inputDigest(),
-            "db://rule_execution_log/" + execution.executionId(), 0L);
+            "db://rule_execution_log/" + execution.executionId(), 0L, "application/json");
         return diagnoseAssembler.assemble(
             EXECUTION_ENTITY, execution.executionId(), tenantId, execution.status().name(),
-            execution, List.of(), Map.of(), payloadRef, execution.traceId());
+            execution, List.of(), Map.of(), payloadRef, execution.traceId(),
+            new DiagnoseResponse.ExecutionSummary(
+                execution.ruleId(),
+                execution.versionId(),
+                null,
+                execution.errorCode()
+            ));
     }
 
     private RuleTestCaseResult runTestCase(RuleVersion version, RuleTestCase testCase) {
