@@ -85,6 +85,30 @@ test("前端测试与 Storybook 文件走白名单，不因测试 mock 被误杀
   );
 });
 
+test("前端 E2E 验收脚本禁止使用 mock 或固定医学剧本冒充真实验收", async () => {
+  await withFixture(
+    {
+      "frontend/e2e/scenarios/fake-acceptance.spec.ts": `
+        import { test } from "@playwright/test";
+
+        test("固定 AMI 演示路径", async ({ page }) => {
+          // 必含 3 条 mock 提醒
+          await page.goto("/cdss/fatigue");
+          await page.locator("text=胸痛 AMI 急诊路径").click();
+        });
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/e2e/scenarios/fake-acceptance.spec.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.e2e-fake-acceptance"]);
+    },
+  );
+});
+
 test("前端页面触碰文件会阻断旧规则路径示例占位符回流", async () => {
   await withFixture(
     {

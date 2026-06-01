@@ -535,7 +535,6 @@ export function AppLayout() {
             </Tooltip>
             <AuditSnapshotButton compact={!isDesktop} />
             <ThemeSwitcher compact={!isDesktop} />
-            {isDesktop && <PermissionChip />}
             {securityProfile.data && (
               <Dropdown
                 menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
@@ -551,6 +550,7 @@ export function AppLayout() {
                 </Button>
               </Dropdown>
             )}
+            {isDesktop && <PermissionChip />}
           </Space>
         </Header>
         <Content className="mk-app-content">{renderContent()}</Content>

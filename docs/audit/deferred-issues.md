@@ -36,6 +36,7 @@
 | DEFER-003 | 前端测试与构建输出存在非阻断噪声：React Router v7 future flag、Antd/rc-menu `act(...)`、React Query undefined 数据告警、`vendor-antd` chunk 大小提示 | 不影响当前主线；真实浏览器页面不得有运行时错误，当前告警不能被写成已消除 | 否 | INFRA-01 / SYS-07 / GA `INFRA-10` 体验与性能收口 | open | 启用或适配 Router future flags，修正测试 harness / React Query 默认数据，拆分或明确大 chunk 策略；前端全量测试与构建输出无该类告警，并附浏览器验收记录 |
 | DEFER-004 | 本机 in-app browser 连接 / 截图能力不可稳定使用（曾出现 `Page.captureScreenshot` 超时；2026-06-02 本轮 Browser 插件返回无可用 `iab` 实例） | 不影响当前 DOM / 交互 / 控制台验收；已用项目 Playwright 对本地页面做可复现核查。不得宣称已取得 in-app browser 截图证据 | 否 | INFRA-10 工具链验收与本地浏览器插件核查 | open | 修复本机 in-app browser 连接与截图链路，或用 CI Playwright / 可复现浏览器截图命令提交 `/login`、`/bootstrap`、登入后 Header 用户菜单验收截图与命令日志 |
 | DEFER-005 | 真实院方 IdP（OIDC/CAS/SAML/国密 CA）连接器、JWKS/证书链与非对称生产验签环境缺失 | AUTH-01 已交付 `auth.mode` 配置中心切换、委托登录状态 / 回调挂点与 `NOT_CONNECTED` 诚实降级；不影响平台账号登录、httpOnly+CSRF、审计和当前 PostgreSQL/Oracle 主线。不得宣称院方 IdP 已真实登录成功 | 否 | AUTH-03 凭证安全强化、D5 `IDBIND-01` 身份绑定 / Provider 运维、GA `INFRA-10` 总验收 | open | 在真实或院方认可的 IdP 沙箱完成 OIDC/CAS/SAML/国密 CA 回调，提交不含密钥的配置、JWKS/证书指纹、同一 Resource Server 验签证据、登录成功/失败审计、端到端截图和 CI/验收记录 |
+| DEFER-006 | 历史迁移中文 COMMENT 覆盖缺口：`check-comment-zh.sh --mode=full` 暴露 oracle/postgres/kingbase 的 V1/V3/V7/V10 存量 GAP | 本轮未新增或修改迁移，不影响 D0 登录域主链路、PostgreSQL/Oracle 当前运行验证和 T-GATE changed 门禁；不得宣称历史迁移 COMMENT 全量清零，也不得直接改旧迁移破坏 Flyway checksum | 否 | BASE-05 迁移治理专项；GA `INFRA-10` 总验收前 | open | 制定不破坏已部署 checksum 的修复方案：通过新补偿迁移或经批准的基线重建补齐中文 COMMENT；提交 H2/PostgreSQL/Oracle 迁移验证、`scripts/check-comment-zh.sh --mode=full` 无 GAP 或有批准豁免记录、迁移规约门禁和 CI 证据 |
 
 ## 新问题登记模板
 

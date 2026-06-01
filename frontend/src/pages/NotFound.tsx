@@ -7,7 +7,7 @@ export default function NotFound() {
     <Result
       status="info"
       title="此功能待 W3 业务域任务实装"
-      subTitle="点击下方按钮回到工作台，查看当前可用的演示路径。"
+      subTitle="点击下方按钮回到工作台，查看当前已授权的可用页面。"
       extra={
         <Button type="primary" onClick={() => navigate("/dashboard")}>
           返回工作台

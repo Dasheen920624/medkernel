@@ -104,9 +104,16 @@ describe("Bootstrap", () => {
     });
   });
 
-  it("登录后强制流程先改密再绑定 MFA，恢复码只在结果页展示", async () => {
+  it("登录后强制流程先改密，再按密钥生成和验证码校验绑定 MFA", async () => {
     apiMocks.changePassword.mockResolvedValue(undefined);
-    apiMocks.bindMfa.mockResolvedValue({ mfaBound: true, recoveryCode: "RECOVERY-CODE-ONCE" });
+    apiMocks.bindMfa
+      .mockResolvedValueOnce({
+        mfaBound: false,
+        secret: "JBSWY3DPEHPK3PXP",
+        otpauthUri:
+          "otpauth://totp/MedKernel:platform-owner?secret=JBSWY3DPEHPK3PXP&issuer=MedKernel",
+      })
+      .mockResolvedValueOnce({ mfaBound: true, recoveryCode: "RECOVERY-CODE-ONCE" });
     renderBootstrap({
       phase: "change-password",
       login: {
@@ -126,13 +133,23 @@ describe("Bootstrap", () => {
 
     expect(await screen.findByRole("heading", { name: "绑定 MFA" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("设备名称"), { target: { value: "值班安全终端" } });
-    fireEvent.click(screen.getByRole("button", { name: "生成一次性恢复码" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成 MFA 密钥" }));
+
+    expect(await screen.findByText("JBSWY3DPEHPK3PXP")).toBeInTheDocument();
+    expect(screen.getByText(/请在认证器中录入密钥/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("动态验证码"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "验证并绑定 MFA" }));
 
     expect(await screen.findByText("RECOVERY-CODE-ONCE")).toBeInTheDocument();
     expect(apiMocks.changePassword).toHaveBeenCalledWith({
       oldPassword: "Init@2026pw",
       newPassword: "Owner@2026pw",
     });
-    expect(apiMocks.bindMfa).toHaveBeenCalledWith({ label: "值班安全终端" });
+    expect(apiMocks.bindMfa).toHaveBeenNthCalledWith(1, { label: "值班安全终端" });
+    expect(apiMocks.bindMfa).toHaveBeenNthCalledWith(2, {
+      label: "值班安全终端",
+      secret: "JBSWY3DPEHPK3PXP",
+      code: "123456",
+    });
   });
 });

@@ -743,7 +743,7 @@ export default function CdssFatigue() {
         {diagnoseData ? (
           <div>
             <Alert
-              message="决策解释追溯数据提取自底座 StateTransitionRecorder 物理事件留痕，保证 100% 透明及非假 MOCK 审计线索。"
+              message="决策解释追溯数据提取自底座 StateTransitionRecorder 物理事件留痕，保证透明、可复核、可审计。"
               type="info"
               showIcon
               className="mb-6 rounded-lg"

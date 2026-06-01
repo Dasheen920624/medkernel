@@ -114,7 +114,7 @@ function buildDelegatedAlert({
  * 与 docs/CONSTITUTION.md §1 第 6 条对齐：
  * - 默认只有账号密码 1 个主动作
  * - 统一身份认证（CAS/OIDC/SAML）作为次级折叠区
- * - MFA / 国密 / 演示账号 不让用户手动选，由系统按医院策略
+ * - MFA / 国密策略不让用户手动选，由系统按医院策略
  * - ICP/公安备案、用户协议、隐私政策必须保留
  */
 export default function Login() {

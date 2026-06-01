@@ -44,7 +44,7 @@ import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 const { TextArea } = Input;
 const { Option } = Select;
 
-// 稳定大模型能力的中文业务展示元数据（静态文案映射，非业务数据 mock）。
+// 稳定大模型能力的中文业务展示元数据，仅用于能力名称与说明映射。
 interface CapabilityMeta {
   name: string;
   desc: string;

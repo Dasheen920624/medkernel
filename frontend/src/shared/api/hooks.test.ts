@@ -230,11 +230,31 @@ describe("bootstrap identity api helpers", () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({ data: { data: null } })
       .mockResolvedValueOnce({
-        data: { data: { mfaBound: true, recoveryCode: "RECOVERY-CODE-ONCE" } },
+        data: {
+          data: {
+            mfaBound: false,
+            secret: "JBSWY3DPEHPK3PXP",
+            otpauthUri:
+              "otpauth://totp/MedKernel:platform-owner?secret=JBSWY3DPEHPK3PXP&issuer=MedKernel",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            mfaBound: true,
+            recoveryCode: "RECOVERY-CODE-ONCE",
+          },
+        },
       });
 
     await changePassword({ oldPassword: "Init@2026pw", newPassword: "Owner@2026pw" });
-    const mfa = await bindBootstrapMfa({ label: "值班安全终端" });
+    const setup = await bindBootstrapMfa({ label: "值班安全终端" });
+    const mfa = await bindBootstrapMfa({
+      label: "值班安全终端",
+      secret: "JBSWY3DPEHPK3PXP",
+      code: "123456",
+    });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/auth/change-password", {
       oldPassword: "Init@2026pw",
@@ -243,6 +263,13 @@ describe("bootstrap identity api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/bootstrap/mfa", {
       label: "值班安全终端",
     });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/bootstrap/mfa", {
+      label: "值班安全终端",
+      secret: "JBSWY3DPEHPK3PXP",
+      code: "123456",
+    });
+    expect(setup.mfaBound).toBe(false);
+    expect(setup.secret).toBe("JBSWY3DPEHPK3PXP");
     expect(mfa.recoveryCode).toBe("RECOVERY-CODE-ONCE");
   });
 });

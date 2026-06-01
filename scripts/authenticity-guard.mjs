@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
+const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const FRONTEND_ALLOWLIST =
   /\.(?:test|spec|stories)\.(?:ts|tsx)$|^frontend\/src\/(?:test|mocks)\//;
@@ -112,6 +113,16 @@ const FRONTEND_CSS_RULES = [
     message:
       "CSS Module 禁止字号/圆角 px token 硬编码，必须走设计 token 变量。",
     pattern: /\b(?:border-radius|font-size)\s*:\s*\d+(?:\.\d+)?px\b/,
+  },
+];
+
+const FRONTEND_E2E_RULES = [
+  {
+    ruleId: "frontend.e2e-fake-acceptance",
+    message:
+      "前端 E2E 验收脚本禁止使用 mock、固定医学剧本或演示路径冒充真实验收。",
+    pattern:
+      /\bmock\b|\bMock\b|固定(?:医学|病例|剧本|路径)|演示路径|演示验收|胸痛\s*AMI|头孢|医务处张三/i,
   },
 ];
 
@@ -315,6 +326,7 @@ function isBackendDevProfileBean(content) {
 }
 
 function rulesForFile(file) {
+  if (FRONTEND_E2E.test(file)) return FRONTEND_E2E_RULES;
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
