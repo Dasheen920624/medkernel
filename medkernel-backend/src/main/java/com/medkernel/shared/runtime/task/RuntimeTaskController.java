@@ -25,7 +25,7 @@ public class RuntimeTaskController {
     }
 
     /**
-     * 提交在线、异步或批量运行任务。
+     * 提交在线、异步、批量或离线运行任务。
      *
      * @param request 任务请求
      * @return 当前任务状态
@@ -46,5 +46,29 @@ public class RuntimeTaskController {
     @PreAuthorize("@perm.has('system.read')")
     public ApiResult<RuntimeTaskResponse> get(@PathVariable String taskId) {
         return ApiResult.ok(service.getTask(taskId));
+    }
+
+    /**
+     * 人工重试失败任务。
+     *
+     * @param taskId 任务 ID
+     * @return 重试后的任务状态
+     */
+    @PostMapping("/{taskId}/retry")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<RuntimeTaskResponse> retry(@PathVariable String taskId) {
+        return ApiResult.ok(service.retryTask(taskId));
+    }
+
+    /**
+     * 人工回放死信任务。
+     *
+     * @param deadLetterId 死信 ID
+     * @return 新回放任务状态
+     */
+    @PostMapping("/dead-letters/{deadLetterId}/replay")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<RuntimeTaskResponse> replayDeadLetter(@PathVariable String deadLetterId) {
+        return ApiResult.ok(service.replayDeadLetter(deadLetterId));
     }
 }

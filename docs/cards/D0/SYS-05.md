@@ -20,9 +20,9 @@
 - [x] **FR-1 在线模式**：同步请求执行（实时 CDSS/规则校验等），超时不阻断主流程（核心 §10）。PR1 已交付 `ONLINE` 模式，超时返回 `ESCALATED` + 诚实提示，不抛 5xx 阻断调用方。
 - [x] **FR-2 异步模式**：任务队列 + 状态轮询（**待办类**状态机，核心 §3）；长任务异步化。PR1 已交付 `ASYNC` 入队为 `UNREAD`，通过 `/api/v1/system/tasks/{taskId}` 轮询状态。
 - [x] **FR-3 批量模式**：大规模批处理 + 进度 + **部分成功**（成功数/失败数/失败明细/可重试，呼应六态部分成功态）。PR1 已交付 `BATCH` 结果计数、失败明细和可重试数量。
-- [ ] **FR-4 离线模式**：内网离线包 / 离线许可运行（核心 §12），无外网依赖主链路可用。
-- [ ] **FR-5 故障重试 + 死信 + 回放**：失败任务重试 → 死信队列 → 人工回放/补偿（核心 §10）。
-- [ ] **FR-6 四模式诚实降级**：外部依赖断开时诚实状态（`NOT_CONNECTED`/`NOT_SYNCED`），不伪造完成（核心 §11/#18）。
+- [x] **FR-4 离线模式**：内网离线包 / 离线许可运行（核心 §12），无外网依赖主链路可用。PR2 已交付 `OFFLINE` 模式，使用本地 payload 引用 + 本地执行器运行，不依赖外网；平台许可服务由 D5 `SVC-COMPLIANCE-02` 承接，本卡收口运行框架。
+- [x] **FR-5 故障重试 + 死信 + 回放**：失败任务重试 → 死信队列 → 人工回放/补偿（核心 §10）。PR2 已交付 `retryTask`、`replayDeadLetter`、`sys_task_dead_letter` 和审计链路。
+- [x] **FR-6 四模式诚实降级**：外部依赖断开时诚实状态（`NOT_CONNECTED`/`NOT_SYNCED`），不伪造完成（核心 §11/#18）。PR2 已交付 `NOT_CONNECTED` 终态，成功数保持 0、错误码可追踪。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -61,9 +61,9 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 ## 验收 + 验证
 - [x] **AC-1（FR-1）**：在线 CDSS 超时 → 主流程不阻断 + 诚实降级提示。PR1 `RuntimeTaskServiceTest.onlineTimeoutReturnsEscalatedWithoutThrowingAndAudits` 已红绿覆盖。
 - [x] **AC-2（FR-2/3）**：长任务异步化可轮询；批量返回部分成功（成功/失败/可重试明细）。PR1 `RuntimeTaskServiceTest.asyncSubmitPersistsUnreadTaskAndStatusCanBePolled` / `batchPartialSuccessPersistsCountsAndRetryableFailures` 已红绿覆盖。
-- [ ] **AC-3（FR-4）**：断外网/离线形态下主链路可运行（离线许可生效）。
-- [ ] **AC-4（FR-5）**：失败任务重试耗尽进死信 → 人工回放成功。
-- [ ] **AC-5（FR-6）**：外部依赖断开任务返回 `NOT_CONNECTED`，不伪造完成。
+- [x] **AC-3（FR-4）**：断外网/离线形态下主链路可运行（离线许可生效）。PR2 `RuntimeTaskServiceTest.offlineModeRunsWithLocalExecutorAndNoExternalDependency` 已覆盖离线运行框架。
+- [x] **AC-4（FR-5）**：失败任务重试耗尽进死信 → 人工回放成功。PR2 `RuntimeTaskServiceTest.retryExhaustionMovesTaskToDeadLetterAndReplayCreatesNewCompletedTask` 已覆盖。
+- [x] **AC-5（FR-6）**：外部依赖断开任务返回 `NOT_CONNECTED`，不伪造完成。PR2 `RuntimeTaskServiceTest.notConnectedResultIsPersistedHonestlyWithoutSuccess` 已覆盖。
 - 关联 A1–A9：A2 知识工厂（批量）、A6 合规运维（离线/降级）。
 - T-GATE：后端门禁全绿（失败不伪造成功）。
 - B0 验收：★离线 + 关闭模型/外部后四模式主链路真实通过。
@@ -79,6 +79,13 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 - 已运行：`mvn -B -q -Dtest=RuntimeTaskServiceTest,RuntimeTaskMigrationContractTest,MigrationBaselineContractTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`；`mvn -B -q test`（Surefire：`tests=756 failures=0 errors=0 skipped=0`，含 PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V41）。
 - T-GATE：提交后 changed 模式真实性 / 配置边界 / 迁移规约 / 中文注释 / 空白门禁均通过；`node --test scripts/migration-convention-guard.test.mjs` 5/5 通过。
 
+### PR2 证据（离线 / 重试 / 死信 / 回放 / 断连诚实）
+- 代码范围：`RuntimeTaskMode.OFFLINE`、`RuntimeTaskStatus.NOT_CONNECTED/DEAD_LETTER`、`RuntimeTaskService.retryTask`、`RuntimeTaskService.replayDeadLetter`、`/api/v1/system/tasks/{taskId}/retry`、`/api/v1/system/tasks/dead-letters/{deadLetterId}/replay`、V42 `sys_task` 重试字段与 `sys_task_dead_letter` 五方言迁移。
+- 测试：`RuntimeTaskServiceTest` 覆盖离线本地执行、断连诚实终态、重试耗尽入死信与人工回放；`RuntimeTaskMigrationContractTest` 覆盖 V42 五方言、`OFFLINE`、`NOT_CONNECTED`、`DEAD_LETTER` 和中文注释；`MigrationBaselineContractTest` 覆盖 V42 权威序列、表/索引/约束一致性。
+- 已运行：`mvn -B -q -Dtest=RuntimeTaskServiceTest,RuntimeTaskMigrationContractTest test`；`mvn -B -q -Dtest=RuntimeTaskServiceTest,RuntimeTaskMigrationContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`（H2 已应用 V1–V42 且重复 migrate 为 0）；`mvn -B -q -Dtest=FlywayMultiDialectSmokeTest,MigrationBaselineContractTest,RuntimeTaskMigrationContractTest test`（PostgreSQL / H2 / Oracle 均迁移至 V42 且重复 migrate 为 0）；`mvn -B -q test`（Surefire：`tests=760 failures=0 errors=0 skipped=0`，含 PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V42）。
+- 迁移修复证据：首次全量暴露 Oracle `ORA-01408` 重复索引问题，根因为 `uk_sys_task_dead_task (tenant_id, task_id)` 已隐式建索引；已将五方言 `idx_sys_task_dead_task` 调整为 `(task_id, tenant_id)`，避免冗余索引并保留按任务 ID 查死信能力。
+- T-GATE：`node --test scripts/authenticity-guard.test.mjs` 20/20 pass；真实性 changed 扫描 12 个文件无阻断项；`node --test scripts/config-boundary-guard.test.mjs` 2/2 pass；配置边界 changed 扫描 12 个 Java 文件无阻断项；`node --test scripts/migration-convention-guard.test.mjs` 6/6 pass；迁移规约 changed 扫描 5 个 V42 文件无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check origin/main...HEAD` 通过。
+
 ## 大卡工序（4d，后端）
-- PR1：在线/异步/批量模式 + 待办状态机 + 部分成功 → AC-1/2（已完成本地红绿与聚焦契约验证，待 PR/CI 合并）。
-- PR2：离线模式 + 重试/死信/回放 + 诚实降级 → AC-3/4/5。
+- PR1：在线/异步/批量模式 + 待办状态机 + 部分成功 → AC-1/2（#226 已合入）。
+- PR2：离线模式 + 重试/死信/回放 + 诚实降级 → AC-3/4/5（本地红绿、聚焦契约、后端全量、PostgreSQL / Oracle V42 迁移与本地 T-GATE 已通过，待 PR/CI）。

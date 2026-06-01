@@ -113,6 +113,28 @@ test("SYS-05 系统任务表按权威卡允许使用 sys_task 表名", async () 
   );
 });
 
+test("DROP CONSTRAINT IF EXISTS 不会被误判为约束名 IF", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/h2/V42__runtime_task_retry_dead_letter.sql": `
+        -- ROLLBACK: 如需回滚，先恢复旧约束，再删除新增列。
+        ALTER TABLE sys_task DROP CONSTRAINT IF EXISTS ck_sys_task_mode;
+        ALTER TABLE sys_task DROP CONSTRAINT IF EXISTS ck_sys_task_status;
+        ALTER TABLE sys_task ADD CONSTRAINT ck_sys_task_mode CHECK (task_mode IN ('ONLINE','OFFLINE'));
+        ALTER TABLE sys_task ADD CONSTRAINT ck_sys_task_status CHECK (status IN ('COMPLETED','NOT_CONNECTED'));
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/h2/V42__runtime_task_retry_dead_letter.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
 test("高风险迁移缺少中文回滚或补偿说明会被阻断", async () => {
   await withFixture(
     {
