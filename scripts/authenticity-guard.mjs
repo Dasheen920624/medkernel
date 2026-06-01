@@ -309,6 +309,11 @@ function addRuleViolations(violations, file, content, rules) {
   }
 }
 
+function isBackendDevProfileBean(content) {
+  return /@Profile\s*\(\s*(?:["']dev["']|\{[\s\S]*?["']dev["'][\s\S]*?\})\s*\)/.test(content) &&
+    /@(Configuration|Component|Bean)\b/.test(content);
+}
+
 function rulesForFile(file) {
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
@@ -331,6 +336,10 @@ export async function scanFiles(root, files) {
     if (!existsSync(fullPath)) continue;
 
     const content = readFileSync(fullPath, "utf8");
+    if (BACKEND_JAVA.test(file) && isBackendDevProfileBean(content)) {
+      continue;
+    }
+
     scannedFiles.push(file);
     addRuleViolations(violations, file, content, rules);
   }

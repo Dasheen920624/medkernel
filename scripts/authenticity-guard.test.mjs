@@ -530,3 +530,50 @@ test("后端占位 Javadoc 门禁只检查 Javadoc 块内部", async () => {
     },
   );
 });
+
+test("后端真实性门禁放行测试目录、迁移 SQL 与 dev profile bean", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/test/java/com/medkernel/engine/BadServiceTest.java": `
+        package com.medkernel.engine;
+
+        /** 演示测试服务，占位实现。 */
+        class BadServiceTest {
+          double randomScore() {
+            return Math.random();
+          }
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V99__demo.sql": `
+        COMMENT ON TABLE demo_table IS '演示迁移占位';
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/dev/DevOnlyConfig.java": `
+        package com.medkernel.engine.dev;
+
+        import org.springframework.context.annotation.Bean;
+        import org.springframework.context.annotation.Configuration;
+        import org.springframework.context.annotation.Profile;
+
+        /** dev profile 演示配置，仅本地开发使用。 */
+        @Configuration
+        @Profile("dev")
+        public class DevOnlyConfig {
+          @Bean
+          String localHealthValue() {
+            return "dev-" + Math.random();
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/test/java/com/medkernel/engine/BadServiceTest.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V99__demo.sql",
+        "medkernel-backend/src/main/java/com/medkernel/engine/dev/DevOnlyConfig.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});

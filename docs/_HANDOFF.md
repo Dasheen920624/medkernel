@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · INFRA-01 前端真实性门禁 🚧
+### 线 1 · INFRA-02 后端真实性门禁 🚧
 
-- 类型：软件开发 / 前端工程门禁
-- 分支：`codex/infra-01-frontend-authenticity`（基于 `origin/main` 6a52117）
-- 目标：按 [INFRA-01](cards/D0/INFRA-01.md) 交付 `medkernel/no-page-mock` + stylelint 前端真实性门禁，阻断生产前端 mock/fixture 引入、`eslint-disable medkernel/*` 绕门禁、包装式假数据、写死医学常量、`font-mono`/`JSON.stringify` 技术对象裸露和 hex/px 样式字面量，收口 FR-1~FR-6 与 AC-1~AC-5。
-- 状态：已写计划 `docs/superpowers/plans/2026-06-01-infra-01-frontend-authenticity.md`；已建立前端 `lint` / `stylelint` / 真实性脚本基线；已先写 RED 测试 `frontend/eslint-rules/no-page-mock.test.js` 与 `frontend/stylelint.config.test.js`，并实现规则覆盖；已补 `eslint-disable medkernel/*` 防绕过测试、`frontend/eslint-rules/no-visual-debt.test.js` 视觉债规则测试，并修正 `no-hardcoded-color` 对同一 JSX inline hex 重复报错的问题。当前本地验证已通过：`npm run test:lint-rules` 4/4、`npm run verify`、`npm run build`、真实性 20/20、迁移规约 6/6、配置边界 2/2、中文注释 0 fail/0 warn、空白检查通过。待处理问题统一登记在 [待处理问题清单](audit/deferred-issues.md)，open 项不阻塞长期主线，但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。
-- 下一步（精确到动作/命令）：1. 提交 `codex/infra-01-frontend-authenticity`；2. 推送并创建 PR；3. 等远端 CI 8/8 全绿后合并并清理 worktree；4. 再从 [backlog](backlog.md) 领取下一张 D0 pending 卡（当前下一张是 [INFRA-02](cards/D0/INFRA-02.md)）。
-- 相关文件 / 测试 / 坑：`frontend/eslint-rules/no-page-mock.js` 只作用于 `src/pages/**`、`src/features/**`、`src/widgets/**` 生产 `.ts/.tsx`，白名单为测试、Storybook、`src/test/**`、`src/mocks/**`；stylelint 配置继续作为 token 样式门禁。不得用脚本已有覆盖替代 ESLint/stylelint 规则级证据；不得把 `docs/audit/deferred-issues.md` 的 open 项写成已通过。
+- 类型：软件开发 / 后端工程门禁
+- 分支：`codex/infra-02-backend-authenticity`（基于 `origin/main` 37a8907）
+- 目标：按 [INFRA-02](cards/D0/INFRA-02.md) 收口 `scripts/authenticity-guard.mjs` 后端真实性门禁，阻断生产后端 `Math.random()`、写死医学常量、catch 吞错返回成功、UUID 充 hash、占位 Javadoc，并放行测试目录、迁移 SQL 和明确 `@Profile("dev")` 的 dev profile bean，收口 FR-1~FR-6 与 AC-1~AC-5。
+- 状态：已写计划 `docs/superpowers/plans/2026-06-01-infra-02-backend-authenticity.md`；已建立基线：真实性脚本测试 20/20、inventory 扫描 712 个受控文件通过、changed 扫描通过；已按 TDD 补 `scripts/authenticity-guard.test.mjs` 白名单 RED 测试，确认 dev profile bean 被旧规则误伤；已在 `scripts/authenticity-guard.mjs` 增加 dev profile bean allowlist，当前 `node --test scripts/authenticity-guard.test.mjs` 21/21 通过，inventory 扫描 711 个受控文件通过，changed 扫描通过。待处理问题统一登记在 [待处理问题清单](audit/deferred-issues.md)，open 项不阻塞长期主线，但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。
+- 下一步（精确到动作/命令）：1. 跑根目录 T-GATE：`node --test scripts/migration-convention-guard.test.mjs`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`node --test scripts/config-boundary-guard.test.mjs`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`；2. 提交 `codex/infra-02-backend-authenticity`；3. 推送并创建 PR，远端 CI 8/8 全绿后合并并清理 worktree；4. 再从 [backlog](backlog.md) 领取下一张 D0 pending 卡（当前下一张是 [INFRA-03](cards/D0/INFRA-03.md)）。
+- 相关文件 / 测试 / 坑：`scripts/authenticity-guard.mjs` 是前后端真实性总门禁，INFRA-02 只改后端 dev profile 白名单；禁止为了放行本地开发配置而放宽生产路径规则。合法业务 ID 生成中的 `UUID.randomUUID()` 不属于“UUID 充 hash”，现有 regex 只在 hash/digest 语境附近阻断。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- INFRA-01 前端真实性门禁 ✅（#228，merge `37a8907`）：增强 `medkernel/no-page-mock`，阻断生产前端 mock/fixture/MockAdapter 引入、`eslint-disable medkernel/*` 绕门禁、包装式假数据、医学常量、`font-mono` 与 `<pre>{JSON.stringify(...)}</pre>` 技术对象裸露；新增 `test:lint-rules` 并接入 `frontend-lint` CI；补 `no-visual-debt` 规则测试并修正 `no-hardcoded-color` 对同一 JSX inline hex 重复报错。本地 `npm run test:lint-rules` 4/4、前端 `verify` / `build`、真实性 / 迁移 / 配置 / 中文注释 / 空白门禁通过；远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。
 - SYS-05 重试死信与离线运行 PR2 ✅（#227，merge `6a52117`）：交付 `OFFLINE` 离线运行模式、`NOT_CONNECTED` 诚实断连终态、失败任务人工重试、重试耗尽入 `sys_task_dead_letter`、死信人工回放和 V42 五方言迁移；补服务契约、领域 owner、文档与 backlog。后端全量 `mvn -B -q test` 通过，Surefire `tests=760 failures=0 errors=0 skipped=0`，PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V42；本地 T-GATE（真实性 / 配置边界 / 迁移规约 / 中文注释 / 空白）与远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。Oracle 重复索引根因已修正为 `(task_id, tenant_id)`；迁移门禁 `DROP CONSTRAINT IF EXISTS` 误判已补测试修正。
 - SYS-05 运行模式框架 PR1 ✅（#226，merge `2747c4f`）：新增 `com.medkernel.shared.runtime.task` 运行任务框架、`RuntimeTaskMode.ONLINE/ASYNC/BATCH`、`RuntimeTaskStatus.UNREAD/PROCESSING/COMPLETED/PARTIAL_SUCCESS/FAILED/ESCALATED`、`RuntimeTaskService`、`RuntimeTaskController` `/api/v1/system/tasks` 提交/查询端点、V41 `sys_task` 五方言迁移、服务契约和领域 owner；覆盖在线超时升级、异步入队轮询、批量部分成功、批量完成计数归一化。后端全量 756 tests、PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V41、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - SYS-03 投影同步 PR2 ✅（#225，merge `8e6063a`）：新增 `ProjectionRuntimePolicy` 统一读取配置中心 `graph-projection` / `dify-workflow` 运行开关；新增 `/api/v1/projections/clinical-graph/status`、`ProjectionRuntimeStatusResponse` 与 `ProjectionClinicalStatusPort`，图投影关闭时临床主链路诚实返回 `NOT_SYNCED`；新增 `ProjectionExecutionPort` / `ProjectionExecutionCommand` / `NoopProjectionExecutionPort`，Dify 只接收 syncId/sourceHash/count/traceId 等元数据，未接真实执行器时返回 `NOT_SYNCED`；`ProjectionSyncService` 在成功、失败、关闭等终态调用 `AuditRecorder` 记录 `mk_projection_sync` 真实结果。本地红绿目标测试、后端全量 751 tests、PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V40、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
@@ -115,4 +116,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · SYS-05 PR2 已通过 #227 合入 `origin/main`（merge `6a52117`）并清理分支 / worktree；当前在 `codex/infra-01-frontend-authenticity` 推进 INFRA-01，本地验证已完成：`npm run test:lint-rules` 4/4、前端 `verify` / `build`、真实性 / 迁移 / 配置 / 中文注释 / 空白门禁均通过，下一步提交 PR 并等待远端 CI。长期目标保持 active；达梦 / 人大金仓真实环境适配保持 `DEFER-001`，其他 open 待处理问题只登记不阻塞主线，但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。
+> 末次更新：2026-06-01 · INFRA-01 已通过 #228 合入 `origin/main`（merge `37a8907`）并清理分支 / worktree；当前在 `codex/infra-02-backend-authenticity` 推进 INFRA-02，后端真实性门禁 dev profile 白名单已完成 RED→GREEN，`node --test scripts/authenticity-guard.test.mjs` 21/21、inventory 711 文件和 changed 扫描均通过，下一步跑根目录 T-GATE 后提交 PR。长期目标保持 active；达梦 / 人大金仓真实环境适配保持 `DEFER-001`，其他 open 待处理问题只登记不阻塞主线，但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。

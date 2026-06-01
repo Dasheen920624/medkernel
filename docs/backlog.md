@@ -113,7 +113,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | SYS-03 | 关系库权威源与投影同步 | 图谱/Dify 投影可关闭可重建可审计可降级 | 4d | done |
 | SYS-05 | 在线/异步/批量/离线运行框架 | 四类运行模式 + 故障重试 | 4d | done |
 | INFRA-01 | 前端真实性门禁 | ESLint medkernel/no-page-mock 阻断 mock/eslint-disable/写死医学常量/font-mono/JSON 裸渲染 + stylelint 阻断 hex | 2d | done |
-| INFRA-02 | 后端真实性门禁 | CI 阻断 Math.random/写死医学常量/catch 吞错返回成功/UUID 充哈希/占位 Javadoc 于生产路径 | 2d | pending |
+| INFRA-02 | 后端真实性门禁 | CI 阻断 Math.random/写死医学常量/catch 吞错返回成功/UUID 充哈希/占位 Javadoc 于生产路径 | 2d | done |
 | INFRA-03 | 错误处理与表单反馈一致性 | useMutation 统一 onError + Form.Item 字段级回显 + 后端显式抛 ApiException + DataIntegrityViolation handler + traceId 复制 | 12d | pending |
 | INFRA-04 | 退出登录 UI | AppLayout Header Avatar Dropdown（当前用户/修改密码/退出登录）+ useLogout + 401 自动跳登录 | 3d | pending |
 | INFRA-05 | 27 二级菜单粒度权限模型 | 后端 MenuPermissionCatalog 到二级菜单粒度 + DefaultPermissionPolicy 13 角色×N 菜单矩阵 + 前端 routes.ts requiredPermissions/requiredRoles | 10d | pending |
