@@ -1,5 +1,6 @@
 package com.medkernel.engine.security.bootstrap;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +36,7 @@ public class BootstrapController {
     }
 
     @PostMapping("/mfa")
+    @PreAuthorize("isAuthenticated()")
     public ApiResult<BootstrapMfaResponse> bindMfa(@Valid @RequestBody BootstrapMfaRequest request) {
         return ApiResult.ok(mfaPolicyService.bindForCurrentUser(request));
     }

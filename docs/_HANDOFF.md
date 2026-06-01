@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · SYS-02 模块边界与领域所有权 PR1 🚧
+### 线 1 · SYS-02 服务契约 PR2 🚧
 
 - 类型：软件开发 / 后端架构契约
-- 分支：`codex/sys-02-service-contracts`（基于 `origin/main` ebea3f0）
-- 目标：按 [SYS-02](cards/D0/SYS-02.md) 大卡工序交付 PR1：模块依赖单向 + 包级无环 + 领域所有权目录 + 跨模块直写他域表门禁，收口 AC-1 / AC-5；不冒领 PR2 的 OpenAPI、事件 schema、权限审计声明。
-- 状态：已完成 TDD 红绿主实现：新增 `ModuleBoundaryArchTest` 和 ArchUnit test scope 依赖，阻断 engine/shared 依赖 compliance、shared 反向依赖 engine、顶层包循环；新增 `DomainModule` / `DomainOwnershipCatalog` / `DomainOwnershipContractTest`，扫描所有 `@Table` owner 与源码 SQL 写操作，阻断跨 owner 直写。实现过程中清理了 shared 反向依赖 engine 的旧设计：`OrgLevel`、`JwtSecretResolver` 下沉 shared，高危配置 MFA guard 与临床事件 worker 设置改为 shared 端口。本地目标架构测试、相关回归、后端全量 `mvn -B -q test`、提交前 T-GATE 与空白检查均已通过；待提交、提交后 changed T-GATE、PR、CI、合并。
-- 下一步（精确到动作/命令）：1. 提交 `完成 SYS-02 模块边界与领域所有权 PR1`；2. 提交后复跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check origin/main...HEAD`；3. 推送并创建 PR；4. 远端 CI 全绿后合并到 `origin/main`，确认 merge 后清理分支 / worktree，再继续 SYS-02 PR2。
-- 相关文件 / 测试 / 坑：计划见 `docs/superpowers/plans/2026-06-01-sys-02-service-boundary-pr1.md`。核心实现为 `medkernel-backend/src/test/java/com/medkernel/architecture/*`、`medkernel-backend/src/main/java/com/medkernel/shared/architecture/*`、`OrgLevel` / `JwtSecretResolver` 下沉与 `HighRiskChangeGuard` / `ClinicalEventWorkerSettings` shared 端口。当前阶段只做 PR1；FR-2/3/4/6 与 AC-2/3/4 留给 SYS-02 PR2。新增外部阻塞必须登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线；若触及当前卡主链路、登录可用、权限隔离、真实性门禁或医疗安全红线，则即时处理。
+- 分支：`codex/sys-02-service-contracts-pr2`（基于 `origin/main` 9c42086）
+- 目标：按 [SYS-02](cards/D0/SYS-02.md) 大卡工序交付 PR2：OpenAPI 服务契约目录 + 事件 schema 版本化 + 服务权限 / 审计声明 + 契约测试，收口 AC-2 / AC-3 / AC-4。
+- 状态：已完成 TDD 红绿主实现：新增 `ServiceContractCatalog` / `OpenApiContractConfiguration`，目录覆盖 35 个 `/api/v1` 控制器并由测试阻断漏登记、裸接口、未登记权限码和非 GET 服务缺审计点；新增 `DomainEventSchemaCatalog` 与 5 个 `docs/contracts/events/*.json`，用 `DomainEventSchemaContractTest` 锁住事件 record 字段与 schema 版本。同步修复真实权限缺口：`IntegrationController` 补 `@PreAuthorize`，新增 `integration.read/write/execute` 与 `mpi.read/write` 权限码并纳入默认角色策略，`AuthController.changePassword` 与 `BootstrapController.bindMfa` 明确登录态要求。聚焦架构测试、后端全量 `mvn -B -q test`、changed T-GATE 与空白检查已通过；`SYS-02` 已在 backlog 标为 `done`；待推送、PR、CI、合并。
+- 下一步（精确到动作/命令）：1. 推送 `codex/sys-02-service-contracts-pr2` 并创建 PR；2. 远端 CI 全绿后合并到 `origin/main`；3. 确认 merge 后清理分支 / worktree；4. 领取下一张 D0 pending 卡（当前 backlog 下一项为 `SYS-03`）。
+- 相关文件 / 测试 / 坑：计划见 `docs/superpowers/plans/2026-06-01-sys-02-service-contracts-pr2.md`。核心实现为 `medkernel-backend/src/main/java/com/medkernel/engine/contract/*`、`medkernel-backend/src/test/java/com/medkernel/architecture/ServiceContractGovernanceTest.java`、`OpenApiContractConfigurationTest.java`、`DomainEventSchemaContractTest.java`、`docs/contracts/events/*.json`、`IntegrationController`、`PermissionCode`、`DefaultPermissionPolicy`。契约目录不能放 shared 后再依赖 engine，否则会破坏 SYS-02 PR1 的 shared 底层边界。新增外部阻塞必须登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线；若触及当前卡主链路、登录可用、权限隔离、真实性门禁或医疗安全红线，则即时处理。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- SYS-02 模块边界与领域所有权 PR1 ✅（#222，merge `9c42086`）：新增 `ModuleBoundaryArchTest` 和 ArchUnit test scope 依赖，阻断 engine/shared 依赖 compliance、shared 反向依赖 engine、顶层包循环；新增 `DomainModule` / `DomainOwnershipCatalog` / `DomainOwnershipContractTest`，扫描所有 `@Table` owner 与源码 SQL 写操作，阻断跨 owner 直写。实现过程中清理 shared 反向依赖 engine 的旧设计：`OrgLevel`、`JwtSecretResolver` 下沉 shared，高危配置 MFA guard 与临床事件 worker 设置改为 shared 端口。本地目标架构测试、相关回归、后端全量、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - SYS-01 关系库权威与 FHIR 映射 PR3 ✅（#221，merge `ebea3f0`）：新增 `StandardClinicalFhirMappingRegistry` / `StandardClinicalFhirReference` 覆盖 12 类对象 FHIR R4 映射；新增 `ClinicalProjectionStatusPort` / `NoopClinicalProjectionStatusPort` 与 `StandardClinicalAuthorityService`，以 12 个 `mk_clinical_*` 关系库仓库作为权威源聚合患者标准对象，图投影未同步时返回 `NOT_SYNCED` 但不影响事实读取。本地红绿目标测试、后端全量、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。完整 FHIR R4/R5 端点、CapabilityStatement、受控 create 由 D2 `OPT-01` 承接，图投影重建 / 一致性校验由 `SYS-03` 承接。
 - SYS-01 事件上下文 PR2 ✅（#220，merge `7c4a57f`）：新增 `ClinicalEventContext`、临床事件三引擎同源派发入口、`ClinicalCodeMappingAnchor` / Registry、V39 五方言 `clinical_event.org_scope_json`；临床事件处理从旧的“只推进状态”改为构造同一个上下文并派发规则 / 路径 / CDSS 后再 `PROCESSED`；默认字典映射对重复锚点稳定去重。本地红绿目标测试、后端全量、H2/PostgreSQL/Oracle 迁移、T-GATE 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - SYS-01 标准临床模型 PR1 ✅（#219，merge `cab3669`）：新增 `com.medkernel.engine.clinical.model` 12 类标准对象 / 租户级 Repository / V38 五方言迁移，Patient 敏感字段只保留密文与掩码；旧 `CanonicalSymptom` / `SYMPTOM` 口径替换为 `CanonicalNursingAssessment` / `NURSING_ASSESSMENT`。本地聚焦测试、后端全量、Flyway PostgreSQL + Oracle + H2 烟测、迁移规约、真实性 / 配置边界、中文注释、空白门禁与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
@@ -109,4 +110,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · SYS-02 PR1 正在 `codex/sys-02-service-contracts` 收尾：本地架构目标测试、相关回归、后端全量、提交前 T-GATE 与空白检查已通过，下一步提交后复跑 changed T-GATE、推送 PR、等远端 CI 后合并。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
+> 末次更新：2026-06-01 · SYS-02 PR1 已通过 #222 合入 `origin/main`（merge `9c42086`）并清理分支 / worktree；当前在 `codex/sys-02-service-contracts-pr2` 推进 SYS-02 PR2，服务契约目录、OpenAPI group、事件 schema 契约、权限 / 审计声明与真实权限缺口修复已完成聚焦测试、后端全量、T-GATE 和提交，下一步推送 PR、等远端 CI 后合并。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。

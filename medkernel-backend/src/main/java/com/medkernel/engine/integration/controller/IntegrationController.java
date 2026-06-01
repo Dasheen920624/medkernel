@@ -3,6 +3,7 @@ package com.medkernel.engine.integration.controller;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,6 +48,7 @@ public class IntegrationController {
      * @return 包含适配器列表的统一 API 返回实体
      */
     @GetMapping("/adapters")
+    @PreAuthorize("@perm.has('integration.read')")
     public ApiResult<List<IntegrationAdapter>> getAdapters() {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         return ApiResult.ok(integrationService.getAdapters(tenantId));
@@ -62,6 +64,7 @@ public class IntegrationController {
      * @return 创建后的适配器实体对象
      */
     @PostMapping("/adapters")
+    @PreAuthorize("@perm.has('integration.write')")
     public ApiResult<IntegrationAdapter> createAdapter(@Validated @RequestBody AdapterCreateDto dto) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -95,6 +98,7 @@ public class IntegrationController {
      * @return 更新后的适配器实体对象
      */
     @PutMapping("/adapters/{id}")
+    @PreAuthorize("@perm.has('integration.write')")
     public ApiResult<IntegrationAdapter> updateAdapter(@PathVariable("id") String adapterId,
                                                        @Validated @RequestBody AdapterUpdateDto dto) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
@@ -126,6 +130,7 @@ public class IntegrationController {
      * @return 包含最新 RTT 时延与状态的适配器实体
      */
     @PostMapping("/adapters/{id}/ping")
+    @PreAuthorize("@perm.has('integration.execute')")
     public ApiResult<IntegrationAdapter> pingAdapter(@PathVariable("id") String adapterId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -155,6 +160,7 @@ public class IntegrationController {
      * @return Webhook 订阅配置列表
      */
     @GetMapping("/webhooks")
+    @PreAuthorize("@perm.has('integration.read')")
     public ApiResult<List<IntegrationWebhookConfig>> getWebhooks() {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         return ApiResult.ok(integrationService.getWebhooks(tenantId));
@@ -167,6 +173,7 @@ public class IntegrationController {
      * @return 创建后的 Webhook 订阅实体
      */
     @PostMapping("/webhooks")
+    @PreAuthorize("@perm.has('integration.write')")
     public ApiResult<IntegrationWebhookConfig> createWebhook(@Validated @RequestBody WebhookCreateDto dto) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -197,6 +204,7 @@ public class IntegrationController {
      * @return 包含推导签名结果及通断状态的键值对 Map 响应体
      */
     @PostMapping("/webhooks/test")
+    @PreAuthorize("@perm.has('integration.execute')")
     public ApiResult<WebhookTestResultDto> testWebhookSignature(@Validated @RequestBody WebhookTestDto dto) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -228,6 +236,7 @@ public class IntegrationController {
      * @return 分页消息审计日志响应体
      */
     @GetMapping("/logs")
+    @PreAuthorize("@perm.has('integration.read')")
     public ApiResult<PageResponse<IntegrationMessageLog>> getMessageLogs(@RequestParam(value = "page", defaultValue = "1") int page,
                                                                          @RequestParam(value = "size", defaultValue = "20") int size) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
@@ -245,6 +254,7 @@ public class IntegrationController {
      * @return 重新投递后的流日志实体
      */
     @PostMapping("/logs/{id}/retry")
+    @PreAuthorize("@perm.has('integration.execute')")
     public ApiResult<IntegrationMessageLog> retryMessage(@PathVariable("id") String messageId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -275,6 +285,7 @@ public class IntegrationController {
      * @return 空返回实体
      */
     @DeleteMapping("/logs/{id}")
+    @PreAuthorize("@perm.has('integration.execute')")
     public ApiResult<Void> deleteMessage(@PathVariable("id") String messageId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
@@ -298,4 +309,3 @@ public class IntegrationController {
         }
     }
 }
-

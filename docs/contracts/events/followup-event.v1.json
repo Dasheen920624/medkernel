@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "followup-event.v1",
+  "title": "随访回流事件 v1",
+  "type": "object",
+  "x-medkernel-version": 1,
+  "required": [
+    "id",
+    "eventId",
+    "tenantId",
+    "planId",
+    "eventType",
+    "payload",
+    "triggeredBy",
+    "createdAt",
+    "createdBy",
+    "updatedAt",
+    "updatedBy",
+    "traceId"
+  ],
+  "properties": {
+    "id": { "type": ["integer", "null"] },
+    "eventId": { "type": ["string", "null"] },
+    "tenantId": { "type": ["string", "null"] },
+    "planId": { "type": ["string", "null"] },
+    "eventType": { "type": ["string", "null"] },
+    "payload": { "type": ["string", "null"] },
+    "triggeredBy": { "type": ["string", "null"] },
+    "createdAt": { "type": ["string", "null"], "format": "date-time" },
+    "createdBy": { "type": ["string", "null"] },
+    "updatedAt": { "type": ["string", "null"], "format": "date-time" },
+    "updatedBy": { "type": ["string", "null"] },
+    "traceId": { "type": ["string", "null"] }
+  }
+}

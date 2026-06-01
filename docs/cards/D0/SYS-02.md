@@ -18,11 +18,11 @@
 ## 功能要求（原子可测条目）
 
 - [x] **FR-1 模块依赖单向**：依赖方向 业务包 → 引擎核心（单向）；引擎核心**不依赖**业务包；依赖图**无环**（ArchUnit/门禁校验）。
-- [ ] **FR-2 OpenAPI 契约**：每引擎服务暴露 OpenAPI 文档（契约即文档）。
-- [ ] **FR-3 事件契约**：引擎间领域事件 schema 标准化（版本化、向后兼容）。
-- [ ] **FR-4 权限审计要求**：每服务声明所需五维权限（[BASE-02](BASE-02.md)）+ 审计点（[BASE-04](BASE-04.md)）。
+- [x] **FR-2 OpenAPI 契约**：每引擎服务暴露 OpenAPI 文档（契约即文档）。
+- [x] **FR-3 事件契约**：引擎间领域事件 schema 标准化（版本化、向后兼容）。
+- [x] **FR-4 权限审计要求**：每服务声明所需五维权限（[BASE-02](BASE-02.md)）+ 审计点（[BASE-04](BASE-04.md)）。
 - [x] **FR-5 领域所有权**：每实体单一 owner 模块；禁跨模块直写他域表（经服务契约/事件）。
-- [ ] **FR-6 契约测试**：服务契约 + 事件契约被契约测试守护，破坏即 CI 红。
+- [x] **FR-6 契约测试**：服务契约 + 事件契约被契约测试守护，破坏即 CI 红。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -57,9 +57,9 @@ N·A —— 架构契约不落业务表（依赖校验/契约测试在 CI）。
 
 ## 验收 + 验证
 - [x] **AC-1（FR-1）**：引擎核心依赖业务包的写法被 ArchUnit/门禁拒；依赖图无环。
-- [ ] **AC-2（FR-2）**：每引擎服务有 OpenAPI 且与实现一致（契约测试）。
-- [ ] **AC-3（FR-3/6）**：领域事件 schema 破坏性变更被契约测试捕获红。
-- [ ] **AC-4（FR-4）**：每服务声明五维权限 + 审计点；缺声明被校验。
+- [x] **AC-2（FR-2）**：每引擎服务有 OpenAPI 且与实现一致（契约测试）。
+- [x] **AC-3（FR-3/6）**：领域事件 schema 破坏性变更被契约测试捕获红。
+- [x] **AC-4（FR-4）**：每服务声明五维权限 + 审计点；缺声明被校验。
 - [x] **AC-5（FR-5）**：跨模块直写他域表的写法被拒（经服务/事件）。
 - 关联 A1–A9：横切（架构守护各剧本）。
 - T-GATE：CI 依赖校验 + 契约测试全绿。
@@ -68,7 +68,9 @@ N·A —— 架构契约不落业务表（依赖校验/契约测试在 CI）。
 ## 完工证据
 - PR1 代码 permalink：`ModuleBoundaryArchTest` / `DomainOwnershipCatalog` / `DomainOwnershipContractTest`；同时将 `OrgLevel`、`JwtSecretResolver`、高危变更 guard、临床事件 worker 配置读取契约下沉到 shared，清除 shared 反向依赖 engine 的旧边界问题。
 - PR1 测试：`mvn -B -q -Dtest=ModuleBoundaryArchTest,DomainOwnershipContractTest test` 已通过，覆盖引擎 / shared 不依赖业务包、shared 不依赖 engine、顶层包无环、`@Table` 单一 owner、源码 SQL 直写只能发生在 owner 包内。
-- PR2 待补证据：OpenAPI 配置 / 事件 schema 规范 / 权限审计声明与契约测试。
+- PR2 代码 permalink：`ServiceContractCatalog` / `OpenApiContractConfiguration` / `DomainEventSchemaCatalog` / `docs/contracts/events/*.json`；服务契约目录覆盖 35 个 `/api/v1` 控制器，OpenAPI 统一 group `medkernel-service-contracts` 从目录生成路径，事件 schema 用 5 个版本化 JSON 契约锁住 record 字段。
+- PR2 真实缺口修复：为 `IntegrationController` 补齐方法级 `@PreAuthorize`，新增 `integration.read/write/execute` 与 `mpi.read/write` 权限码并纳入默认角色策略；`AuthController.changePassword` 与 `BootstrapController.bindMfa` 明确登录态要求。
+- PR2 测试：`mvn -B -q -Dtest=ModuleBoundaryArchTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainEventSchemaContractTest test` 已通过，覆盖服务目录 / OpenAPI 路径 / 公开端点 / 权限码 / 审计点 / 领域事件 schema 破坏性变更门禁。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（4d，后端/架构）

@@ -109,7 +109,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | OBS-01 | 引擎可观测性骨干 | StateTransitionRecorder/PayloadStoragePort/ErrorCode/DiagnoseResponse/MDC/TraceIdPropagator | 3d | done |
 | API-13 | 大规模列表 API | 统一分页/游标/排序/过滤/total_estimate/异步导出 | 3d | done |
 | SYS-01 | 标准临床模型与事件上下文 | 12 类标准对象 Patient/Encounter/Condition/Observation/Medication/Procedure/DiagnosticReport/Document/NursingAssessment/CarePlan/FollowUp/Claim | 5d | done |
-| SYS-02 | 引擎领域边界与服务契约 | 模块依赖单向 + OpenAPI + 事件契约 + 权限审计要求 | 4d | pending |
+| SYS-02 | 引擎领域边界与服务契约 | 模块依赖单向 + OpenAPI + 事件契约 + 权限审计要求 | 4d | done |
 | SYS-03 | 关系库权威源与投影同步 | 图谱/Dify 投影可关闭可重建可审计可降级 | 4d | pending |
 | SYS-05 | 在线/异步/批量/离线运行框架 | 四类运行模式 + 故障重试 | 4d | pending |
 | INFRA-01 | 前端真实性门禁 | ESLint medkernel/no-page-mock 阻断 mock/eslint-disable/写死医学常量/font-mono/JSON 裸渲染 + stylelint 阻断 hex | 2d | pending |

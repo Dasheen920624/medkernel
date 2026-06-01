@@ -64,12 +64,17 @@ import static com.medkernel.engine.security.PermissionCode.EMBED_WRITE;
 import static com.medkernel.engine.security.PermissionCode.LLM_READ;
 import static com.medkernel.engine.security.PermissionCode.LLM_WRITE;
 import static com.medkernel.engine.security.PermissionCode.LIST_EXPORT;
+import static com.medkernel.engine.security.PermissionCode.INTEGRATION_EXECUTE;
+import static com.medkernel.engine.security.PermissionCode.INTEGRATION_READ;
+import static com.medkernel.engine.security.PermissionCode.INTEGRATION_WRITE;
 import static com.medkernel.engine.security.PermissionCode.MENU_ADVANCED_TOOLS;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_RUN;
 import static com.medkernel.engine.security.PermissionCode.MENU_COMPLIANCE_OPS;
 import static com.medkernel.engine.security.PermissionCode.MENU_PILOT_SETUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_QUALITY_IMPROVE;
 import static com.medkernel.engine.security.PermissionCode.MENU_WORKBENCH;
+import static com.medkernel.engine.security.PermissionCode.MPI_READ;
+import static com.medkernel.engine.security.PermissionCode.MPI_WRITE;
 
 /**
  * 默认角色与动作权限的规则绑定策略类（Default Permission Policy）。
@@ -121,6 +126,8 @@ public final class DefaultPermissionPolicy {
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE,
+            INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
+            MPI_READ,
             LIST_EXPORT));
 
         // 医务处：知识/规则/路径审核与发布 + 上下文只读
@@ -137,6 +144,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE,
+            MPI_READ, MPI_WRITE,
             AUDIT_READ, AUDIT_EXPORT,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             EMBED_READ, EMBED_WRITE,
@@ -157,6 +165,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ,
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ,
+            MPI_READ,
             AUDIT_READ, AUDIT_EXPORT,
             FOLLOWUP_READ, EMBED_READ,
             LLM_READ, LIST_EXPORT));
@@ -186,6 +195,7 @@ public final class DefaultPermissionPolicy {
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ, EVALUATION_REMEDIATE,
             RECOMMENDATION_READ,
+            MPI_READ,
             FOLLOWUP_READ));
 
         // 专科专家：知识/路径审核 + 上下文只读
@@ -201,6 +211,7 @@ public final class DefaultPermissionPolicy {
             TERM_READ, TERM_WRITE,
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ,
+            MPI_READ,
             FOLLOWUP_READ));
 
         // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
@@ -215,6 +226,7 @@ public final class DefaultPermissionPolicy {
             RULE_READ,
             CONTEXT_READ, EVENT_READ,
             KNOWLEDGE_READ,
+            MPI_READ,
             FOLLOWUP_READ,
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE));
@@ -230,6 +242,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ,
             CONTEXT_READ, EVENT_READ,
             KNOWLEDGE_READ,
+            MPI_READ,
             FOLLOWUP_READ,
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE));
@@ -247,7 +260,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ,
             CONTEXT_READ, EVENT_READ,
             EVALUATION_READ,
-            FOLLOWUP_READ, LIST_EXPORT));
+            FOLLOWUP_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT));
 
         // 实施工程师：试点准备阶段的接入与配置 + 临床上下文接入
         map.put(RoleCode.IMPLEMENTATION_ENGINEER, EnumSet.of(
@@ -266,6 +279,8 @@ public final class DefaultPermissionPolicy {
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             EMBED_READ, EMBED_WRITE,
             LLM_READ, LLM_WRITE,
+            INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
+            MPI_READ,
             LIST_EXPORT));
 
         POLICY = Map.copyOf(map);
