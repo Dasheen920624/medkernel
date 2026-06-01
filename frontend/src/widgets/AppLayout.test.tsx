@@ -29,6 +29,8 @@ const securityProfileState = vi.hoisted(() => ({
 vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => securityProfileState.value,
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
+  useThemePreference: () => ({ data: undefined }),
+  useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
 
 function mockViewport(width: number) {

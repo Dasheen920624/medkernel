@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 Antd token 定义**：医蓝 `#1565c0` 等 token 仅在 `theme.ts` 一处定义（核心 §5）；其余代码引用 CSS 变量。
-- [ ] **FR-2 5 主题模式**：default / elder（老年医生 ≥16pt）/ dark / eye（护眼）/ system（跟随系统）可切换并持久化。
-- [ ] **FR-3 module.css 走 var**：所有 `.module.css` 颜色/字号/圆角走 `var(--ant-*)` / `var(--mk-*)`，零 hex 字面量。
-- [ ] **FR-4 stylelint 阻断**：CI stylelint 阻断 `.module.css` 内 hex/rgb/hsl/px 字面量（放行 `theme.ts` 一处 + `var()` 引用）；与 [INFRA-01](INFRA-01.md) 门禁联动。
-- [ ] **FR-5 老年/无障碍**：elder 模式字号 ≥16pt、对比度达标、命中区放大（核心 §5、无障碍）。
-- [ ] **FR-6 token 切换器 + 文档**：主题切换器 UI + token 清单文档。
+- [x] **FR-1 Antd token 定义**：医蓝 `#1565c0` 等 token 仅在 `theme.ts` 一处定义（核心 §5）；其余代码引用 CSS 变量。
+- [x] **FR-2 5 主题模式**：default / elder（老年医生 ≥16pt）/ dark / eye（护眼）/ system（跟随系统）可切换并持久化。
+- [x] **FR-3 module.css 走 var**：所有 `.module.css` 颜色/字号/圆角走 `var(--ant-*)` / `var(--mk-*)`，零 hex 字面量。
+- [x] **FR-4 stylelint 阻断**：CI stylelint 阻断 `.module.css` 内 hex/rgb/hsl/px 字面量（放行 `theme.ts` 一处 + `var()` 引用）；与 [INFRA-01](INFRA-01.md) 门禁联动。
+- [x] **FR-5 老年/无障碍**：elder 模式字号 ≥16pt、对比度达标、命中区放大（核心 §5、无障碍）。
+- [x] **FR-6 token 切换器 + 文档**：主题切换器 UI + token 清单文档。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -35,7 +35,7 @@
 - 样式：本卡**即** token 的唯一定义者；其它卡只能 `var()` 引用，禁硬编码（核心 §5、门禁 FR-4）。
 
 ## 数据与迁移
-- 表族：`sys_user_pref`（主题偏好，可与 BASE-08 保存视图合表）。
+- 表族：`mk_experience_user_pref`（主题偏好，按租户 + 用户 + 偏好键隔离）。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释。
 
 ## 视角清单（11 视角逐条）
@@ -56,18 +56,19 @@
 - 本卡落点：`theme.ts` 单一 hex 源 + 全量 `var()` 引用 + stylelint 阻断，让视觉硬编码物理上无法合入。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/3）**：全仓 `.module.css` grep hex 字面量为 0（除 `theme.ts`）；颜色全走 `var()`。
-- [ ] **AC-2（FR-2/5）**：5 主题切换生效；elder 模式字号 ≥16pt 且持久化。
-- [ ] **AC-3（FR-4）**：在 `.module.css` 写入 `#1565c0` 的 PR 被 stylelint 拒。
-- [ ] **AC-4（FR-6）**：主题切换器可用；token 清单文档与 `theme.ts` 一致。
-- [ ] **AC-5**：内联 `style={{color:'#xxx'}}` 被门禁捕获（与 INFRA-01 联动）。
+- [x] **AC-1（FR-1/3）**：全仓 `.module.css` grep hex 字面量为 0（除 `theme.ts`）；颜色全走 `var()`。
+- [x] **AC-2（FR-2/5）**：5 主题切换生效；elder 模式字号 ≥16pt 且持久化。
+- [x] **AC-3（FR-4）**：在 `.module.css` 写入 `#1565c0` 的 PR 被 stylelint 拒。
+- [x] **AC-4（FR-6）**：主题切换器可用；token 清单文档与 `theme.ts` 一致。
+- [x] **AC-5**：内联 `style={{color:'#xxx'}}` 被门禁捕获（与 INFRA-01 联动）。
 - 关联 A1–A9：横切（全页面视觉一致）。
 - T-GATE：stylelint 全绿（零 hex 字面量）。
 - B0 验收：纯前端，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`theme.ts` / ConfigProvider / 主题切换器 / stylelint 规则 / `sys_user_pref` 迁移。
-- 测试：stylelint 阻断测试 + 5 主题切换测试 + elder 字号测试 + hex grep 清零报告。
+- 代码 permalink：`theme.ts` / ConfigProvider / 主题切换器 / stylelint 规则 / `mk_experience_user_pref` 迁移。
+- 测试：`npm run verify`、`npm run build`、`mvn -B -q test`、stylelint 阻断测试、5 主题切换测试、elder 字号测试、`.module.css` 硬编码 grep 清零、PostgreSQL / Oracle Testcontainers 迁移冒烟。
+- 浏览器：`http://127.0.0.1:5174/login` 真实点击 5 主题；登录前无 `/theme-preference` 请求；elder 登录控件 24px / 52px；无运行时错误。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（4d，前端）

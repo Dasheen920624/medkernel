@@ -6,6 +6,8 @@ const mutateAsyncMock = vi.fn();
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigateMock }));
 vi.mock("@/shared/api/hooks", () => ({
   useLogin: () => ({ mutateAsync: mutateAsyncMock, isPending: false }),
+  useThemePreference: () => ({ data: undefined }),
+  useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import Login from "./Login";
@@ -54,6 +56,14 @@ describe("Login", () => {
 
     expect(main?.style.getPropertyValue("--mk-login-page-bg")).toContain("linear-gradient");
     expect(main?.style.getPropertyValue("--mk-login-text")).not.toBe("");
+  });
+
+  it("登录页控件尺寸由主题 token 驱动，支持老年医生模式放大", () => {
+    const { container } = render(<Login />);
+    const main = container.querySelector("main");
+
+    expect(main?.style.getPropertyValue("--mk-login-control-font")).not.toBe("");
+    expect(main?.style.getPropertyValue("--mk-login-control-height")).not.toBe("");
   });
 
   it("统一身份入口折叠展示待配置方式", async () => {

@@ -9,6 +9,8 @@ vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({ data: undefined, isError: true }),
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
   useLogin: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useThemePreference: () => ({ data: undefined }),
+  useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock("@/pages/Dashboard", () => ({

@@ -3,12 +3,12 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .loaderWrap {
   text-align: center;
-  padding: 100px 0;
+  padding: calc(var(--mk-unit) * 100) 0;
 }
 
 .loaderIcon {
@@ -16,23 +16,25 @@
 }
 
 .loaderText {
-  margin-top: 16px;
+  margin-top: calc(var(--mk-unit) * 16);
 }
 
 .statCard {
   display: flex;
   align-items: center;
-  min-height: 130px;
+  min-height: calc(var(--mk-unit) * 130);
   border-radius: var(--ant-border-radius-lg);
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: var(--ant-color-bg-container);
 }
 
 .statCard:hover {
   box-shadow:
-    0 10px 15px -3px var(--ant-color-fill-tertiary),
-    0 4px 6px -2px var(--ant-color-fill-tertiary);
+    0 calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 15) calc(var(--mk-unit) * -3)
+      var(--ant-color-fill-tertiary),
+    0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 6) calc(var(--mk-unit) * -2)
+      var(--ant-color-fill-tertiary);
   border-color: var(--ant-color-border-secondary);
 }
 
@@ -44,7 +46,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: calc(var(--mk-unit) * 8);
 }
 
 .statTitle {
@@ -65,9 +67,9 @@
 .badgeModule {
   background-color: var(--ant-color-info-bg);
   color: var(--ant-color-info-text);
-  margin-right: 6px;
-  margin-bottom: 6px;
-  padding: 2px 8px;
+  margin-right: calc(var(--mk-unit) * 6);
+  margin-bottom: calc(var(--mk-unit) * 6);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   display: inline-block;
@@ -76,23 +78,23 @@
 .badgePathway {
   background-color: var(--ant-purple-1);
   color: var(--ant-purple-6);
-  margin-right: 6px;
-  margin-bottom: 6px;
-  padding: 2px 8px;
+  margin-right: calc(var(--mk-unit) * 6);
+  margin-bottom: calc(var(--mk-unit) * 6);
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
   border-radius: var(--ant-border-radius-sm);
   font-size: var(--ant-font-size-sm);
   display: inline-block;
 }
 
 .stepDesc {
-  margin-top: 4px;
-  margin-bottom: 12px;
+  margin-top: calc(var(--mk-unit) * 4);
+  margin-bottom: calc(var(--mk-unit) * 12);
 }
 
 /* 品牌定制沙箱样式 */
 .sandboxLayout {
   display: flex;
-  gap: 24px;
+  gap: calc(var(--mk-unit) * 24);
 }
 
 .sandboxForm {
@@ -103,53 +105,55 @@
 .sandboxPreview {
   flex: 1;
   background: var(--ant-color-bg-layout);
-  border: 1px dashed var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) dashed var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
-  padding: 24px;
+  padding: calc(var(--mk-unit) * 24);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 350px;
+  min-height: calc(var(--mk-unit) * 350);
 }
 
 .sandboxPreviewTitle {
-  margin-bottom: 16px !important;
+  margin-bottom: calc(var(--mk-unit) * 16) !important;
 }
 
 .previewContainer {
   background: var(--ant-color-bg-container);
   border-radius: var(--ant-border-radius-lg);
   box-shadow:
-    0 20px 25px -5px var(--ant-color-fill-tertiary),
-    0 10px 10px -5px var(--ant-color-fill-quaternary);
+    0 calc(var(--mk-unit) * 20) calc(var(--mk-unit) * 25) calc(var(--mk-unit) * -5)
+      var(--ant-color-fill-tertiary),
+    0 calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 10) calc(var(--mk-unit) * -5)
+      var(--ant-color-fill-quaternary);
   width: 100%;
-  max-width: 380px;
+  max-width: calc(var(--mk-unit) * 380);
   overflow: hidden;
-  border: 1px solid var(--ant-color-border-secondary);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
 .previewHeader {
   color: var(--ant-color-bg-container);
-  padding: 20px;
+  padding: calc(var(--mk-unit) * 20);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: calc(var(--mk-unit) * 12);
   transition: background-color 0.3s ease;
 }
 
 .previewLogo {
-  width: 32px;
-  height: 32px;
+  width: calc(var(--mk-unit) * 32);
+  height: calc(var(--mk-unit) * 32);
   object-fit: cover;
   border-radius: var(--ant-border-radius);
   background: var(--ant-color-bg-container);
-  padding: 2px;
+  padding: calc(var(--mk-unit) * 2);
 }
 
 .previewLogoPlaceholder {
-  width: 32px;
-  height: 32px;
+  width: calc(var(--mk-unit) * 32);
+  height: calc(var(--mk-unit) * 32);
   border-radius: var(--ant-border-radius);
   background: var(--ant-color-fill-secondary);
   display: flex;
@@ -167,21 +171,21 @@
 }
 
 .previewBody {
-  padding: 20px;
+  padding: calc(var(--mk-unit) * 20);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: calc(var(--mk-unit) * 12);
 }
 
 .previewPlaceholderBar {
-  height: 8px;
+  height: calc(var(--mk-unit) * 8);
   background: var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-sm);
   width: 100%;
 }
 
 .previewPlaceholderBarShort {
-  height: 8px;
+  height: calc(var(--mk-unit) * 8);
   background: var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-sm);
   width: 60%;
@@ -189,30 +193,30 @@
 
 .themeSelectorWrap {
   display: flex;
-  gap: 12px;
-  margin-top: 8px;
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 8);
 }
 
 .themeDot {
-  width: 24px;
-  height: 24px;
+  width: calc(var(--mk-unit) * 24);
+  height: calc(var(--mk-unit) * 24);
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid transparent;
+  border: calc(var(--mk-unit) * 2) solid transparent;
   transition: all 0.2s;
 }
 
 .themeDotActive {
   transform: scale(1.15);
   border-color: var(--ant-color-text-secondary);
-  box-shadow: 0 0 0 2px var(--ant-color-fill-secondary);
+  box-shadow: 0 0 0 calc(var(--mk-unit) * 2) var(--ant-color-fill-secondary);
 }
 
 .badgeMpi {
   font-family: monospace;
   background-color: var(--ant-color-border-secondary);
   color: var(--ant-color-text);
-  padding: 2px 6px;
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 6);
   border-radius: var(--ant-border-radius-sm);
   font-weight: 600;
 }
@@ -237,7 +241,7 @@
   background-color: var(--ant-color-warning) !important;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .sandboxLayout {
     flex-direction: column;
   }

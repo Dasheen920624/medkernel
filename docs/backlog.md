@@ -104,7 +104,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | BASE-07 | 运行底座 | Feature Flag（消费 CONFIG-01 配置存储，yml 仅启动引导/兜底）+ 监控 + 健康检查 + 备份恢复 + 当前 PostgreSQL/Oracle 运行范围；国产化真实环境登记为最终适配项 | 3d | done |
 | BASE-08 | 产品体验底座 | 一页一目标 + 角色默认视图 + 专家模式 + 服务端分页 + 详情抽屉 + 异步导出 + 保存视图 | 3d | done |
 | BASE-09 | 代码基线净化 | 无 mock 假闭环 + 无裸 Map + 无硬编码业务示例 + 无单病种硬编码 | 2d | done |
-| BASE-10 | 设计 Token 系统 | Antd token + 5 主题模式（default/elder/dark/eye/system）+ module.css 全部走 var + stylelint 阻断 hex | 4d | pending |
+| BASE-10 | 设计 Token 系统 | Antd token + 5 主题模式（default/elder/dark/eye/system）+ module.css 全部走 var + stylelint 阻断 hex | 4d | done |
 | BASE-11 | 平台首发种子身份 | 生产环境 init token + 强制改密 + MFA + CLI 应急 + 运维手册首次部署步骤 | 3d | pending |
 | OBS-01 | 引擎可观测性骨干 | StateTransitionRecorder/PayloadStoragePort/ErrorCode/DiagnoseResponse/MDC/TraceIdPropagator | 3d | pending |
 | API-13 | 大规模列表 API | 统一分页/游标/排序/过滤/total_estimate/异步导出 | 3d | pending |

@@ -2,31 +2,35 @@
   min-height: 100vh;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  grid-template-columns: minmax(0, 1fr) minmax(
+      calc(var(--mk-unit) * 360),
+      calc(var(--mk-unit) * 440)
+    );
   align-items: center;
-  gap: 32px;
-  padding: 48px clamp(24px, 6vw, 72px);
+  gap: calc(var(--mk-unit) * 32);
+  padding: calc(var(--mk-unit) * 48)
+    clamp(calc(var(--mk-unit) * 24), 6vw, calc(var(--mk-unit) * 72));
   color: var(--mk-login-text, CanvasText);
   background: var(--mk-login-page-bg, Canvas);
 }
 
 .themeSwitcher {
   position: absolute;
-  top: 24px;
-  right: clamp(16px, 6vw, 72px);
+  top: calc(var(--mk-unit) * 24);
+  right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
   z-index: 1;
-  padding: 4px;
-  border: 1px solid var(--mk-login-border, currentColor);
+  padding: calc(var(--mk-unit) * 4);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-surface, Canvas);
   box-shadow: var(--mk-login-shadow);
 }
 
 .contextPanel {
-  max-width: 680px;
+  max-width: calc(var(--mk-unit) * 680);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: calc(var(--mk-unit) * 20);
 }
 
 .kicker {
@@ -42,17 +46,17 @@
 }
 
 .primaryGoal {
-  max-width: 520px;
+  max-width: calc(var(--mk-unit) * 520);
   font-size: var(--mk-login-font-lg);
   font-weight: 700;
   color: var(--mk-login-text);
 }
 
 .signalList {
-  width: min(100%, 560px);
+  width: min(100%, calc(var(--mk-unit) * 560));
   display: grid;
-  gap: 10px;
-  margin: 8px 0 0;
+  gap: calc(var(--mk-unit) * 10);
+  margin: calc(var(--mk-unit) * 8) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -60,17 +64,17 @@
 .signalItem {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: calc(var(--mk-unit) * 12);
   align-items: center;
-  padding: 14px 16px;
-  border: 1px solid var(--mk-login-primary-border, currentColor);
+  padding: calc(var(--mk-unit) * 14) calc(var(--mk-unit) * 16);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border, currentColor);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-surface);
 }
 
 .signalIcon {
-  width: 32px;
-  height: 32px;
+  width: calc(var(--mk-unit) * 32);
+  height: calc(var(--mk-unit) * 32);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -83,7 +87,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: calc(var(--mk-unit) * 2);
 }
 
 .signalText span {
@@ -97,31 +101,53 @@
 }
 
 .safetyCopy {
-  max-width: 560px;
+  max-width: calc(var(--mk-unit) * 560);
   color: var(--mk-login-text-muted);
 }
 
 .loginCard {
   width: 100%;
-  border: 1px solid var(--mk-login-primary-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border, currentColor);
   border-radius: var(--mk-login-radius);
   box-shadow: var(--mk-login-shadow);
 }
 
 .loginCard :global(.ant-card-body) {
-  padding: 28px;
+  padding: calc(var(--mk-unit) * 28);
+}
+
+.page :global(.ant-form-item-label > label),
+.page :global(.ant-input),
+.page :global(.ant-input-affix-wrapper),
+.page :global(.ant-btn) {
+  font-size: var(--mk-login-control-font);
+}
+
+.page :global(.ant-input),
+.page :global(.ant-input-affix-wrapper),
+.page :global(.ant-btn-lg) {
+  min-height: var(--mk-login-control-height);
+}
+
+.page :global(.ant-input-affix-wrapper .ant-input) {
+  min-height: auto;
+}
+
+.page :global(.ant-form-item-extra),
+.page :global(.ant-form-item-explain-error) {
+  font-size: var(--mk-login-font-sm);
 }
 
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: calc(var(--mk-unit) * 20);
 }
 
 .cardHeader {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: calc(var(--mk-unit) * 4);
 }
 
 .cardTitle {
@@ -130,22 +156,22 @@
 
 .policyStrip {
   display: flex;
-  gap: 8px;
+  gap: calc(var(--mk-unit) * 8);
   align-items: flex-start;
-  padding: 10px 12px;
-  border: 1px solid var(--mk-login-border, currentColor);
+  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
   background: var(--mk-login-layout);
 }
 
 .policyStrip :global(.anticon) {
-  margin-top: 3px;
+  margin-top: calc(var(--mk-unit) * 3);
   color: var(--mk-login-primary);
 }
 
 .divider {
-  margin: 4px 0;
+  margin: calc(var(--mk-unit) * 4) 0;
 }
 
 .ssoToggle {
@@ -157,21 +183,21 @@
 .ssoStack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(var(--mk-unit) * 8);
 }
 
 .helpList {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--mk-login-border, currentColor);
+  gap: calc(var(--mk-unit) * 8);
+  padding: calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-fill);
 }
 
 .helpItem {
   display: grid;
-  gap: 2px;
+  gap: calc(var(--mk-unit) * 2);
 }
 
 .helperText {
@@ -182,20 +208,20 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: calc(var(--mk-unit) * 2);
   text-align: center;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 53.75em) {
   .page {
     grid-template-columns: 1fr;
     align-items: start;
-    padding: 72px 16px 28px;
+    padding: calc(var(--mk-unit) * 72) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
   }
 
   .themeSwitcher {
-    top: 16px;
-    right: 16px;
+    top: calc(var(--mk-unit) * 16);
+    right: calc(var(--mk-unit) * 16);
   }
 
   .contextPanel {
@@ -207,17 +233,17 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 32.5em) {
   .page {
-    gap: 20px;
+    gap: calc(var(--mk-unit) * 20);
   }
 
   .signalItem {
     grid-template-columns: 1fr;
-    gap: 4px;
+    gap: calc(var(--mk-unit) * 4);
   }
 
   .loginCard :global(.ant-card-body) {
-    padding: 22px;
+    padding: calc(var(--mk-unit) * 22);
   }
 }

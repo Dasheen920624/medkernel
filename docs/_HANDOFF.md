@@ -12,26 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-08 产品体验底座 PR / CI / 合并收口 🚧
+### 线 1 · BASE-10 设计 Token 系统本地收口中 🚧
 
 - 类型：软件开发 / 产品体验
-- 分支：`codex/base-08-product-experience-foundation`
-- 目标：把 BASE-08 本地实现、验证证据、待处理登记通过 PR / CI / 合并正式落入 `origin/main`，合并后才能领取 BASE-10。
-- 状态：本地实现与验收已完成；后端全量、前端全量、T-GATE、旧代码残留扫描和浏览器真实登录验收通过。PR #214 已创建，等待远端 CI / 合并。
-- 下一步（精确到动作/命令）：1. 等 PR #214 远端 CI 通过；2. squash merge；3. 确认 `origin/main` 含 BASE-08 合并提交；4. 从最新 `origin/main` 新建 BASE-10 分支。
-- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；非当前阶段依赖审计与测试 / 构建输出噪声已登记为 DEFER-002 / DEFER-003；不得把待处理登记写成已关闭。
-
-### 线 2 · BASE-10 设计 Token 系统待领取 🚧
-
-- 类型：软件开发 / 产品体验
-- 分支：BASE-08 合并后从最新 `origin/main` 新建 `codex/base-10-design-token-system`
+- 分支：`codex/base-10-design-token-system`（基于 `origin/main` b9f6f68）
 - 目标：按 [BASE-10](cards/D0/BASE-10.md) 收口设计 Token 系统：Antd token、5 主题模式、module.css 全部走 CSS var、stylelint 阻断 hex，并确保登录页主题切换继续可用。
-- 状态：BASE-08 合并后领取；合并前不得领取 BASE-10。
-- 下一步（精确到动作/命令）：1. 推送并创建 BASE-08 PR；2. 等远端 CI 通过并 squash merge；3. 确认 `origin/main` 含 BASE-08 合并提交；4. 从新 `origin/main` 新建 BASE-10 分支；5. 读取 `docs/CONSTITUTION.md`、`docs/cards/D0/_brief.md`、`docs/EXPERIENCE_CONTRACT.md`、`docs/cards/D0/BASE-10.md`，先做绿色基线和红灯测试再实现。
-- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；不能用外部环境缺失阻塞主线，必须登记到 `docs/audit/deferred-issues.md` 并继续下一可推进任务；非当前阶段依赖审计与测试 / 构建输出噪声已登记为 DEFER-002 / DEFER-003。
+- 状态：BASE-10 本地实现、全量验证、最终 T-GATE、中文 commit、推送与 PR #215 已完成：`theme.ts` 成为主题配置入口，5 主题可切换，登录页 `syncRemote={false}` 且老年医生模式登录控件真实放大到 24px / 52px；新增用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 已 token 化并接入 stylelint / CI。
+- 下一步（精确到动作/命令）：1. 等 PR #215 远端 CI；2. 合并后从最新 `origin/main` 领取 BASE-11。
+- 相关文件 / 测试 / 坑：本地 `npm run verify`（145 tests）、`npm run build`、`mvn -B -q test` 已通过；最终 T-GATE `git diff --check`、真实性 changed、配置边界 changed、迁移 changed、中文注释门禁均通过；浏览器验收 `http://127.0.0.1:5174/login` 5 主题真实点击通过，登录前无 `/theme-preference` 请求，elder 控件 24px / 52px，无运行时错误；Codex Browser 截图能力本机连续超时，未伪造截图证据；`vendor-antd` 大 chunk 和测试输出噪声仍登记在 `DEFER-003`，不写成已清除。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-08 产品体验底座 ✅（#214，merge `b9f6f68`）：新增 `mk_experience_saved_view` 与 `mk_experience_export_task` 五方言持久化，保存视图端点按租户 + 用户隔离并拒绝敏感快照；大列表导出统一到真实异步任务、幂等键、审计快照和 Oracle 兼容分页估算；字典映射页接入后端默认视图、保存视图、异步导出轮询、专家模式与服务端分页；清理旧本地视图存储、未引用 `ColumnManager` 和 2026-05-26 旧 BASE-08 计划 / 设计文档。本地后端全量、前端全量、T-GATE、changed 迁移门禁、浏览器真实登录 `/terminology/mapping` 验收通过；远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-07 当前范围收口与待处理清单 ✅：按用户 2026-06-01 修正，当前运行环境只保障 PostgreSQL + Oracle；达梦 / 人大金仓 + 国产 OS/JDK 真实适配登记为 [DEFER-001](audit/deferred-issues.md)，由 D6 `DOMCHK-01` 与 GA `QA-02` / `INFRA-10` 最终适配阶段关闭，不阻塞 BASE-08 / D1。`govcloud-smoke.sh` 继续保留为最终适配 fail-closed 证据门禁。
 - BASE-07 国产化 smoke 证据包门禁 PR3 ✅（#211）：`govcloud-smoke.sh` 新增 `MEDKERNEL_GOV_EVIDENCE_DIR`、证据文件、JDBC jar SHA-256 与 `status=PASS/FAIL`；部署资产校验和 `RuntimeConfigurationContractTest` 阻断证据口径退化；缺连接条件实跑生成 `status=FAIL` 证据。本地后端全量、前端全量 test/typecheck/build/lint/format、T-GATE、部署资产合同、空白检查和远端 CI 8/8 通过并合入 `origin/main`（merge `499e0e4`）。按当前范围，真实国产化环境证据归 `DEFER-001` 后续关闭，不伪造完成。
 - BASE-09 最终净化报告与验收收口 PR17 ✅（#210）：移除 `AiWorkflows` 默认临床病例文本，运行输入改为空态并要求已脱敏文本；新增真实性门禁阻断固定临床病例文本回流；清理前端 lint warning；补最终净化报告，勾选 BASE-09 FR/AC，并把 backlog 中 BASE-09 标为 done。本地后端全量、前端全量 test/typecheck/build/lint/format、T-GATE、AC 扫描和远端 CI 8/8 通过并合入 `origin/main`（merge `772ec24`）。下一步回到 BASE-07 处理国产化 AC-3 诚实收口。
@@ -110,4 +102,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-08 本地实现与验收收口完成，待 PR / CI / 合并；达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`。BASE-08 合并后领取 BASE-10，继续按“验证 / PR / CI / 合并 / 接力”节奏推进长期目标。
+> 末次更新：2026-06-01 · BASE-10 本地实现、前后端全量验证、最终 T-GATE changed、中文 commit、推送与 PR #215 已完成，待远端 CI、合并后从最新 `origin/main` 领取 BASE-11。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`；长期目标保持 active，外部阻塞只登记不阻断主线。

@@ -1,10 +1,20 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --mk-unit: 0.0625rem;
+  --mk-line-width: var(--mk-unit);
+  --mk-radius-pill: 999em;
+  --mk-shadow-ambient: 0 calc(var(--mk-unit) * 1) calc(var(--mk-unit) * 3) 0
+    var(--ant-color-fill-tertiary);
+  --mk-shadow-raised: 0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 12)
+    var(--ant-color-fill-quaternary);
+  --mk-shadow-overlay: 0 calc(var(--mk-unit) * 25) calc(var(--mk-unit) * 50)
+    calc(var(--mk-unit) * -12) var(--ant-color-fill);
+  --mk-blur-overlay: blur(calc(var(--mk-unit) * 4));
 }
 
 html,

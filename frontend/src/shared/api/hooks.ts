@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "./client";
+import { isThemeMode, type ThemeMode } from "@/shared/config/theme";
 import type {
   AsyncExportJob,
   AsyncExportRequest,
@@ -279,6 +280,17 @@ type SavedViewEnvelope = {
   data: SavedExperienceView;
 };
 
+export interface ThemePreferenceResponse {
+  mode: ThemeMode;
+  version: number;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+type ThemePreferenceEnvelope = {
+  data: ThemePreferenceResponse;
+};
+
 type LargeListExportSubmitEnvelope = {
   data: {
     jobId: string;
@@ -318,6 +330,21 @@ export async function saveExperienceViewSnapshot(
   return data.data;
 }
 
+export async function fetchThemePreference(): Promise<ThemePreferenceResponse> {
+  const { data } = await apiClient.get<ThemePreferenceEnvelope>("/experience/theme-preference");
+  return data.data;
+}
+
+export async function saveThemePreference(mode: ThemeMode): Promise<ThemePreferenceResponse> {
+  if (!isThemeMode(mode)) {
+    throw new Error("不支持的主题模式");
+  }
+  const { data } = await apiClient.put<ThemePreferenceEnvelope>("/experience/theme-preference", {
+    mode,
+  });
+  return data.data;
+}
+
 export function parseSavedExperienceView(
   view?: SavedExperienceView,
 ): ExperienceViewSnapshot | null {
@@ -346,6 +373,25 @@ export function useSaveView() {
       void queryClient.invalidateQueries({
         queryKey: ["experience", "saved-views", view.pageKey],
       });
+    },
+  });
+}
+
+export function useThemePreference(enabled = true) {
+  return useQuery({
+    queryKey: ["experience", "theme-preference"],
+    queryFn: fetchThemePreference,
+    enabled,
+    retry: false,
+  });
+}
+
+export function useSaveThemePreference() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveThemePreference,
+    onSuccess: (preference) => {
+      queryClient.setQueryData(["experience", "theme-preference"], preference);
     },
   });
 }
