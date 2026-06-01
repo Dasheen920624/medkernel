@@ -23,6 +23,7 @@ import {
 } from "@ant-design/icons";
 import { useSuccessPlan, useTransitionSuccessStage } from "@/shared/api/hooks";
 import { tenantLifecycleStages } from "@/shared/config/tenantLifecycleStages";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./TenantLifecyclePanel.module.css";
 
 const { Text, Paragraph } = Typography;
@@ -83,10 +84,7 @@ export function TenantLifecyclePanel() {
         refetch();
       },
       onError: (err: unknown) => {
-        const axiosError = err as { message?: string; response?: { data?: { message?: string } } };
-        const errMsg =
-          axiosError.response?.data?.message || axiosError.message || "请求物理变迁失败";
-        message.error(`推进生命周期失败: ${errMsg}`);
+        message.error(`推进生命周期失败: ${getApiErrorMessage(err, "请求物理变迁失败")}`);
       },
     });
   };

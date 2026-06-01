@@ -37,6 +37,7 @@ import {
   usePublishRule,
 } from "@/shared/api/hooks";
 import type { RuleDefinition, RuleEvaluationItem } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -71,20 +72,6 @@ const DEFAULT_EXPLAIN_TEMPLATE = `{
 }`;
 
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-};
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as ApiErrorResponse;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
 
 function parseJsonInput(value: string, errorMessage: string) {
   const normalized = value.trim();
@@ -174,6 +161,7 @@ export default function RuleDefinitions() {
       createForm.resetFields();
       refetchList();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(createForm, error)) return;
       message.error(getApiErrorMessage(error, "创建规则失败"));
     }
   };
@@ -198,6 +186,7 @@ export default function RuleDefinitions() {
       caseForm.resetFields();
       refetchDetail();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(caseForm, error)) return;
       message.error(getApiErrorMessage(error, "添加用例失败"));
     }
   };

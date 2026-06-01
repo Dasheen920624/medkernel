@@ -39,6 +39,7 @@ import type {
   QualityFindingSeverity,
   QualityFindingStatus,
 } from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 
 const { Option } = Select;
 
@@ -119,8 +120,8 @@ export default function QcAlerts() {
       message.success("科室整改反馈成功提交，已推至质控复核中心");
       refetch();
       refetchDetail();
-    } catch {
-      message.error("提交整改失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "提交整改失败"));
     }
   };
 
@@ -172,10 +173,8 @@ export default function QcAlerts() {
       message.success(`复核完毕，结论已判定为：${decisionText}`);
       refetch();
       refetchDetail();
-    } catch (err) {
-      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data
-        ?.message;
-      message.error(errorMsg || "复核操作提交失败");
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "复核操作提交失败"));
     }
   };
 

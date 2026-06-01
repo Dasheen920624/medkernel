@@ -13,18 +13,8 @@ import {
   useProvisionTenant,
 } from "@/shared/api/hooks";
 import { ROLE_OPTIONS, SCOPE_LEVEL_OPTIONS } from "@/shared/config/roleCatalog";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Compliance.module.css";
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const candidate = error as {
-    response?: { data?: { message?: unknown } };
-    message?: unknown;
-  };
-  const responseMessage = candidate.response?.data?.message;
-  if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
-  if (typeof candidate.message === "string" && candidate.message.trim()) return candidate.message;
-  return fallback;
-}
 
 export default function AdminUsers() {
   const { data: securityProfile } = useSecurityProfile();

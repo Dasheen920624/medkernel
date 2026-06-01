@@ -23,6 +23,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { useOrgUnits, useCreateOrgUnit, useBranding, useUpdateBranding } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Tenant.module.css";
 
 const { Option } = Select;
@@ -156,9 +157,8 @@ export default function TenantOnboarding() {
       form.resetFields();
       refetchOrgs();
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      const errorMsg = err?.response?.data?.message || err?.message || "创建失败";
-      message.error(`创建组织失败：${errorMsg}`);
+      if (applyApiFieldErrors(form, error)) return;
+      message.error(getApiErrorMessage(error, "创建组织失败"));
     }
   };
 
@@ -175,8 +175,9 @@ export default function TenantOnboarding() {
 
       message.success("平台品牌定制个性化保存成功！已动态实时渲染。");
       refetchBranding();
-    } catch {
-      message.error("品牌配置保存失败。");
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(brandForm, error)) return;
+      message.error(getApiErrorMessage(error, "品牌配置保存失败。"));
     }
   };
 

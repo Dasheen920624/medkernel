@@ -12,6 +12,7 @@ import { useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/features/theme-switcher/ThemeSwitcher";
 import { useLogin } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Login.module.css";
 
 const { Title, Text } = Typography;
@@ -52,6 +53,11 @@ const helpItems = [
 export default function Login() {
   const [showSso, setShowSso] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loginForm] = Form.useForm<{
+    username: string;
+    password: string;
+    tenantId?: string;
+  }>();
   const navigate = useNavigate();
   const login = useLogin();
   const { token } = theme.useToken();
@@ -99,12 +105,11 @@ export default function Login() {
       }
       navigate("/dashboard");
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
-      setErrorMsg(
-        axiosErr.response?.data?.detail ??
-          axiosErr.response?.data?.message ??
-          "登录失败：用户名或密码不正确",
-      );
+      if (applyApiFieldErrors(loginForm, err)) {
+        setErrorMsg(getApiErrorMessage(err, "登录失败：用户名或密码不正确"));
+        return;
+      }
+      setErrorMsg(getApiErrorMessage(err, "登录失败：用户名或密码不正确"));
     }
   }
 
@@ -163,7 +168,7 @@ export default function Login() {
 
           {errorMsg && <Alert type="error" showIcon message="登录失败" description={errorMsg} />}
 
-          <Form layout="vertical" requiredMark={false} onFinish={handleSubmit}>
+          <Form form={loginForm} layout="vertical" requiredMark={false} onFinish={handleSubmit}>
             <Form.Item
               label="工号 / 账号"
               name="username"

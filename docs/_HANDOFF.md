@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · INFRA-03 错误处理与表单反馈一致性 PR2 🚧
+### 线 1 · INFRA-03 错误处理与表单反馈一致性 PR3 🚧
 
 - 类型：软件开发 / 平台错误体验
-- 分支：`codex/infra-03-frontend-error-feedback`（基于 `origin/main` 732fdb6）
-- 目标：按 [INFRA-03](cards/D0/INFRA-03.md) PR2 收口前端统一错误处理底座：解析 `ProblemDetail` → 中文消息 + traceId，后端字段错误 → Ant Design Form 字段错误，新增统一 `useApiMutation` onError 包装，`PageState` 错误态提供 traceId 复制，并以 `AdapterHub` / `CdssFatigue` 两处真实表单接入样板。
-- 状态：INFRA-03 PR1 已通过 #230 合入 `origin/main`（merge `732fdb6`）；PR2 已写 RED 测试并确认缺少 `errors` / `mutation` 模块失败；已新增 `frontend/src/shared/api/errors.ts`、`mutation.ts` 及 7 个测试；`PageState` 已补 `复制 traceId` 控件并由测试先红后绿覆盖；`AdapterHub` / `CdssFatigue` 已删除局部重复错误解析，改用共享 `applyApiFieldErrors` + `getApiErrorMessage`。本地最终验证：`npm run verify` 通过 lint / stylelint / 规则测试 / format / typecheck / 38 个前端测试文件、164 tests；`npm run build` 通过；根目录真实性 / 迁移 / 配置 / 中文注释 / 空白门禁通过。因 `npm ci` 复核发现前端依赖审计仍有 5 moderate + 2 critical，已同步更新 [待处理问题清单](audit/deferred-issues.md) 的 `DEFER-002`，不阻塞当前主线但不得宣称审计清零。
-- 下一步（精确到动作/命令）：1. 提交 `codex/infra-03-frontend-error-feedback`；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后合并并清理 worktree；4. 再基于最新 `origin/main` 领取 INFRA-03 PR3（存量 mutation / 表单批量改造、页面局部错误解析清理）。
-- 相关文件 / 测试 / 坑：`frontend/src/shared/api/errors.ts`、`frontend/src/shared/api/mutation.ts`、`frontend/src/shared/ui/PageState.tsx`、`frontend/src/pages/tenant/AdapterHub.tsx`、`frontend/src/pages/clinical/CdssFatigue.tsx`。PR2 提供统一口径、共享错误态复制和样板接入；全量页面 `try/catch`、页面局部 `getApiErrorMessage`、存量 `useMutation` 替换留 PR3，不得提前写成全部完成。
+- 分支：`codex/infra-03-full-error-consistency`（基于 `origin/main` 661afe9）
+- 目标：按 [INFRA-03](cards/D0/INFRA-03.md) PR3 收口存量页面错误体验：清理页面局部 `getApiErrorMessage` / `ApiErrorLike` / 直接读取 `response.data.detail/message`，把表单字段错误统一接入 `applyApiFieldErrors`，并新增守卫测试防止旧低质口径回流。
+- 状态：INFRA-03 PR1/PR2 已合入 `origin/main`（PR1 #230 merge `732fdb6`，PR2 #231 merge `661afe9`）。PR3 已新增 `frontend/src/test/errorFeedbackGuard.test.ts`，先红灯发现 39 处存量页面 / feature 局部错误解析与直接读取 ProblemDetail，再清理为共享 `getApiErrorMessage` / `applyApiFieldErrors` 后转绿；`Login`、`Bootstrap`、`AiWorkflows`、`Followup`、`Mpi`、`PatientPathways`、`QcEvalSets`、`ConfigPackages`、`PathwayTemplates`、`RuleDefinitions`、`TenantOnboarding` 等真实表单已接入字段级回填；`ApiFormLike` 已改为运行时守卫以兼容 Ant Design typed `FormInstance`。本地最终验证：前端 `npm run verify` 通过 lint / stylelint / 规则测试 / format / typecheck / 39 个测试文件、165 tests；`npm run build` 通过；根目录真实性 inventory 713 文件、迁移规约、配置边界、中文注释和空白门禁通过。`DEFER-002` 依赖审计与 `DEFER-003` 测试 / 构建噪声仍登记为 open，不阻塞当前主线且不得写成已清零。
+- 下一步（精确到动作/命令）：1. 提交 `codex/infra-03-full-error-consistency`；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后合并并清理 worktree；4. 基于最新 `origin/main` 领取 D0 下一项 [INFRA-04](cards/D0/INFRA-04.md)，继续“退出登录 UI / 401 自动跳登录”。
+- 相关文件 / 测试 / 坑：`frontend/src/test/errorFeedbackGuard.test.ts` 是防旧错误处理回流守卫；`frontend/src/shared/api/errors.ts` 是错误解析和字段回填唯一共享入口；`docs/audit/deferred-issues.md` 是长期目标待处理问题清单。遇到非当前阶段外部依赖 / 工具链问题时登记后继续，不得阻塞 D0→D1 主线；但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- INFRA-03 错误处理 PR2 ✅（#231，merge `661afe9`）：新增 `frontend/src/shared/api/errors.ts` / `mutation.ts`，统一解析 `ProblemDetail` 中文消息、traceId 与字段错误；`PageState` 错误态补 `复制 traceId`；`AdapterHub` / `CdssFatigue` 两处真实表单接入共享 `applyApiFieldErrors` + `getApiErrorMessage`。本地 `npm run verify`、`npm run build`、根目录 T-GATE 通过，远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。前端依赖审计 7 个告警同步登记为 `DEFER-002`，未写成通过。
 - INFRA-03 错误处理 PR1 ✅（#230，merge `732fdb6`）：后端 `DataIntegrityViolationException` 统一映射为 409 中文 `ProblemDetail`，保留 `ENG-API-007`、`errorClass=DATA`、`retryable=false`、`traceId`，响应体不泄露 SQL、约束名或堆栈；补 `GlobalExceptionHandlerTest#dataIntegrityViolationReturnsConflictWithoutSqlDetails`，本地后端全量 761 tests、PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V42、根目录 T-GATE 与远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。
 - INFRA-02 后端真实性门禁 ✅（#229，merge `e388a7c`）：增强 `scripts/authenticity-guard.mjs` 后端真实性门禁，阻断生产后端 `Math.random()`、写死医学常量、catch 吞错返回成功、UUID 充 hash、占位 Javadoc；放行测试目录、迁移 SQL 和明确 `@Profile("dev")` 的 dev profile bean。已补 RED→GREEN 测试，`node --test scripts/authenticity-guard.test.mjs` 21/21、inventory 711 文件、changed 扫描、迁移 / 配置 / 中文注释 / 空白门禁通过；远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。
 - INFRA-01 前端真实性门禁 ✅（#228，merge `37a8907`）：增强 `medkernel/no-page-mock`，阻断生产前端 mock/fixture/MockAdapter 引入、`eslint-disable medkernel/*` 绕门禁、包装式假数据、医学常量、`font-mono` 与 `<pre>{JSON.stringify(...)}</pre>` 技术对象裸露；新增 `test:lint-rules` 并接入 `frontend-lint` CI；补 `no-visual-debt` 规则测试并修正 `no-hardcoded-color` 对同一 JSX inline hex 重复报错。本地 `npm run test:lint-rules` 4/4、前端 `verify` / `build`、真实性 / 迁移 / 配置 / 中文注释 / 空白门禁通过；远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。
@@ -118,4 +119,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · INFRA-03 PR1 已通过 #230 合入 `origin/main`（merge `732fdb6`）并清理分支 / worktree；当前在 `codex/infra-03-frontend-error-feedback` 推进 INFRA-03 PR2，前端共享错误解析、字段错误回填、`useApiMutation` 统一 onError、`PageState` traceId 复制和 `AdapterHub` / `CdssFatigue` 样板接入已完成 RED→GREEN；本地 `npm run verify`、`npm run build`、根目录 T-GATE 已通过，下一步提交 PR。长期目标保持 active；达梦 / 人大金仓真实环境适配保持 `DEFER-001`，依赖审计 `DEFER-002` 已更新为 5 moderate + 2 critical，其他 open 待处理问题只登记不阻塞主线，但登录可用、权限隔离、真实性门禁、医疗安全和当前卡主链路缺陷不得延期。
+> 末次更新：2026-06-01 · INFRA-03 PR2 已通过 #231 合入 `origin/main`（merge `661afe9`）并清理分支 / worktree；当前在 `codex/infra-03-full-error-consistency` 推进 INFRA-03 PR3，已用 `errorFeedbackGuard.test.ts` 先红后绿清理 39 处页面 / feature 局部错误解析和直接读取 ProblemDetail，前端 `npm run verify`、`npm run build`、根目录 T-GATE 已通过，下一步提交 PR 并等待远端 CI。长期目标保持 active；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，达梦 / 人大金仓真实环境适配保持 `DEFER-001`，依赖审计 `DEFER-002` 和前端测试 / 构建噪声 `DEFER-003` 仍 open，不阻塞主线但不得宣称清零。

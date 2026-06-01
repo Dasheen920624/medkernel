@@ -37,6 +37,7 @@ import {
   useReportFollowupAbnormal,
 } from "@/shared/api/hooks";
 import type { FollowupPlanDetailResponse, FollowupPlanStatus } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 
@@ -54,17 +55,6 @@ const taskTypeOptions = [
   { value: "LAB", label: "检验报告跟踪" },
   { value: "OUTPATIENT", label: "门诊复诊" },
 ];
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const candidate = error as {
-    response?: { data?: { message?: unknown } };
-    message?: unknown;
-  };
-  const responseMessage = candidate.response?.data?.message;
-  if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
-  if (typeof candidate.message === "string" && candidate.message.trim()) return candidate.message;
-  return fallback;
-}
 
 export default function Followup() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -125,6 +115,7 @@ export default function Followup() {
       setSelectedPlanId(response.planId);
       await refetchPlans();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(generateForm, error)) return;
       message.error(getApiErrorMessage(error, "随访计划生成失败"));
     }
   };
@@ -150,6 +141,7 @@ export default function Followup() {
       setSelectedTaskId(null);
       await refetchPlans();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(questionnaireForm, error)) return;
       message.error(getApiErrorMessage(error, "问卷提交失败"));
     }
   };
@@ -173,6 +165,7 @@ export default function Followup() {
       abnormalForm.resetFields();
       await refetchPlans();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(abnormalForm, error)) return;
       message.error(getApiErrorMessage(error, "异常上报失败"));
     }
   };

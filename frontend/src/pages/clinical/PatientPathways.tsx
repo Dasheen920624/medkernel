@@ -41,25 +41,12 @@ import {
   usePatientPathwayDiagnose,
 } from "@/shared/api/hooks";
 import type { PathwayTemplate, PatientPathway, PatientPathwayStatus } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-};
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as ApiErrorResponse;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
 
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
@@ -133,6 +120,7 @@ export default function PatientPathways() {
         message.warning("入径请求已提交，但接口未返回路径实例，列表未新增。");
       }
     } catch (error: unknown) {
+      if (applyApiFieldErrors(enterForm, error)) return;
       message.error(getApiErrorMessage(error, "办理患者入径失败"));
     }
   };
@@ -168,6 +156,7 @@ export default function PatientPathways() {
       refetchClocks();
       refetchDiagnose();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(advanceForm, error)) return;
       message.error(getApiErrorMessage(error, "节点流转失败"));
     }
   };
@@ -206,6 +195,7 @@ export default function PatientPathways() {
       refetchClocks();
       refetchDiagnose();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(varianceForm, error)) return;
       message.error(getApiErrorMessage(error, "变异登记流转失败"));
     }
   };
@@ -240,6 +230,7 @@ export default function PatientPathways() {
       refetchClocks();
       refetchDiagnose();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(exitForm, error)) return;
       message.error(getApiErrorMessage(error, "路径退径失败"));
     }
   };
