@@ -4,10 +4,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -21,6 +24,8 @@ import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
+import com.medkernel.engine.rule.RuleVersion;
+import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
@@ -57,6 +62,7 @@ public class PackageEngineService {
     private final RuleDefinitionRepository ruleRepository;
     private final PathwayTemplateRepository pathwayRepository;
     private final EvaluationIndicatorRepository evaluationRepository;
+    private final RuleVersionRepository ruleVersionRepository;
 
     private final PackageSyncPort syncPort;
     private final AuditEventPublisher auditPublisher;
@@ -69,6 +75,7 @@ public class PackageEngineService {
             SyncTargetRepository targetRepository,
             SyncLogRepository logRepository,
             RuleDefinitionRepository ruleRepository,
+            RuleVersionRepository ruleVersionRepository,
             PathwayTemplateRepository pathwayRepository,
             EvaluationIndicatorRepository evaluationRepository,
             PackageSyncPort syncPort,
@@ -80,6 +87,7 @@ public class PackageEngineService {
         this.targetRepository = targetRepository;
         this.logRepository = logRepository;
         this.ruleRepository = ruleRepository;
+        this.ruleVersionRepository = ruleVersionRepository;
         this.pathwayRepository = pathwayRepository;
         this.evaluationRepository = evaluationRepository;
         this.syncPort = syncPort;
@@ -374,8 +382,8 @@ public class PackageEngineService {
     /**
      * 导出可离线传递的配置包 JSON。
      *
-     * <p>导出文件只包含逻辑业务标识，不包含数据库自增主键；完整性摘要基于 payload 的真实字节生成，
-     * 供后续离线导入验签使用。
+     * <p>导出文件包含逻辑业务标识和当前支持资产的内容快照，不包含数据库自增主键；
+     * 完整性摘要基于 payload 的真实字节生成，供后续离线导入验签使用。
      */
     public String exportOfflinePackage(String packageId) {
         String tenantId = currentTenantId();
@@ -384,9 +392,11 @@ public class PackageEngineService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
         List<PackageItem> items = itemRepository.findByTenantIdAndPackageId(tenantId, packageId);
 
+        List<PackageOfflineAssetSnapshot> assetSnapshots = buildOfflineAssetSnapshots(tenantId, items);
         PackageOfflinePayload payload = new PackageOfflinePayload(
             PackageOfflinePackageInfo.from(pack),
-            items.stream().map(PackageOfflineItem::from).toList()
+            items.stream().map(PackageOfflineItem::from).toList(),
+            assetSnapshots
         );
         String payloadSha256 = sha256Json(payload);
         PackageOfflineExport export = new PackageOfflineExport(
@@ -398,6 +408,7 @@ public class PackageEngineService {
                 pack.packageVersion(),
                 pack.status(),
                 items.size(),
+                assetSnapshots.size(),
                 "SHA-256",
                 payloadSha256,
                 Instant.now().toString(),
@@ -416,7 +427,8 @@ public class PackageEngineService {
     /**
      * 导入离线配置包，完成完整性验签后以本地草案落库。
      *
-     * <p>离线包只携带逻辑业务标识；导入端必须生成新的本地包 ID 与条目 ID，且不能绕过本院发布流程直接激活。
+     * <p>离线包携带逻辑业务标识和资产内容快照；导入端必须生成新的本地包 ID 与条目 ID，
+     * 且不能绕过本院发布流程直接激活。
      */
     @Transactional
     public PackageOfflineImportResponse importOfflinePackage(PackageOfflineImportRequest request) {
@@ -430,6 +442,7 @@ public class PackageEngineService {
         JsonNode payload = requireObject(root, "payload", "离线包缺少 payload 内容");
         JsonNode packageInfo = requireObject(payload, "packageInfo", "离线包缺少 packageInfo 包元信息");
         JsonNode itemsNode = requireArray(payload, "items", "离线包缺少 items 资产条目列表");
+        JsonNode assetSnapshotsNode = requireArray(payload, "assetSnapshots", "离线包缺少 assetSnapshots 资产内容快照");
 
         String packageCode = requireText(packageInfo, "packageCode", "离线包缺少 packageCode");
         String packageVersion = requireText(packageInfo, "packageVersion", "离线包缺少 packageVersion");
@@ -460,6 +473,10 @@ public class PackageEngineService {
         if (itemCount != itemsNode.size()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 itemCount 与资产条目数量不一致");
         }
+        int assetSnapshotCount = requireInt(manifest, "assetSnapshotCount", "离线包 assetSnapshotCount 不合法");
+        if (assetSnapshotCount != assetSnapshotsNode.size() || assetSnapshotCount != itemsNode.size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照数量与资产条目数量不一致");
+        }
         if (packageRepository
             .findByTenantIdAndPackageCodeAndPackageVersion(tenantId, packageCode, packageVersion)
             .isPresent()) {
@@ -467,6 +484,7 @@ public class PackageEngineService {
         }
 
         Instant now = Instant.now();
+        importOfflineAssetSnapshots(assetSnapshotsNode, itemsNode, tenantId, actor, traceId, now);
         KnowledgePackage importedPackage = new KnowledgePackage(
             null,
             UUID.randomUUID().toString(),
@@ -499,6 +517,286 @@ public class PackageEngineService {
             importedItems.size(),
             actualSha256
         );
+    }
+
+    private List<PackageOfflineAssetSnapshot> buildOfflineAssetSnapshots(String tenantId, List<PackageItem> items) {
+        return items.stream()
+            .map(item -> buildOfflineAssetSnapshot(tenantId, item))
+            .toList();
+    }
+
+    private PackageOfflineAssetSnapshot buildOfflineAssetSnapshot(String tenantId, PackageItem item) {
+        JsonNode content = switch (item.assetType()) {
+            case RULE -> buildRuleAssetContent(
+                ruleRepository.findByRuleIdAndTenantId(item.assetId(), tenantId)
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "离线导出规则不存在: " + item.assetId())),
+                ruleVersionRepository.findByRuleIdAndTenantIdAndVersionNo(
+                    item.assetId(), tenantId, parseAssetVersionNo(item.assetVersion()))
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "离线导出规则版本不存在: " + item.assetId() + "@" + item.assetVersion()))
+            );
+            case EVALUATION -> buildEvaluationAssetContent(
+                evaluationRepository.findByIndicatorIdAndTenantId(item.assetId(), tenantId)
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_002, "离线导出评估指标不存在: " + item.assetId()))
+            );
+            default -> throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "离线包暂不支持完整资产内容迁移: " + item.assetType());
+        };
+        return new PackageOfflineAssetSnapshot(
+            item.assetType(),
+            item.assetId(),
+            item.assetVersion(),
+            sha256Json(content),
+            content
+        );
+    }
+
+    private JsonNode buildRuleAssetContent(RuleDefinition rule, RuleVersion version) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineRuleContent(
+            new PackageOfflineRuleDefinition(
+                rule.ruleId(),
+                rule.ruleCode(),
+                rule.name(),
+                enumName(rule.ruleType()),
+                enumName(rule.authoringMode()),
+                enumName(rule.riskLevel()),
+                enumName(rule.status()),
+                rule.activeVersionId(),
+                rule.packageVersion(),
+                rule.applicableOrgUnitId()
+            ),
+            new PackageOfflineRuleVersion(
+                version.versionId(),
+                version.versionNo(),
+                version.sourceRef(),
+                version.changeSummary(),
+                version.dslJson(),
+                version.explanationJson(),
+                enumName(version.status()),
+                instantText(version.publishedAt()),
+                version.publishedBy(),
+                version.rollbackVersionId()
+            )
+        ));
+    }
+
+    private JsonNode buildEvaluationAssetContent(EvaluationIndicator indicator) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineEvaluationContent(
+            new PackageOfflineEvaluationIndicator(
+                indicator.indicatorId(),
+                indicator.indicatorCode(),
+                indicator.versionNo(),
+                indicator.name(),
+                enumName(indicator.subjectType()),
+                indicator.denominatorDefinition(),
+                indicator.numeratorDefinition(),
+                indicator.exclusionDefinition(),
+                indicator.scoringDefinition(),
+                indicator.timeWindow(),
+                indicator.organizationScope(),
+                indicator.responsibleDepartmentId(),
+                indicator.sourceRef(),
+                indicator.packageVersion(),
+                enumName(indicator.status()),
+                instantText(indicator.publishedAt()),
+                indicator.publishedBy(),
+                instantText(indicator.activatedAt())
+            )
+        ));
+    }
+
+    private void importOfflineAssetSnapshots(
+            JsonNode assetSnapshotsNode,
+            JsonNode itemsNode,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        Map<String, JsonNode> snapshotsByKey = new HashMap<>();
+        for (JsonNode snapshotNode : assetSnapshotsNode) {
+            if (snapshotNode == null || !snapshotNode.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照必须是对象");
+            }
+            PackageItemAssetType assetType = parseAssetType(requireText(snapshotNode, "assetType", "离线包资产快照缺少 assetType"));
+            String assetId = requireText(snapshotNode, "assetId", "离线包资产快照缺少 assetId");
+            String assetVersion = requireText(snapshotNode, "assetVersion", "离线包资产快照缺少 assetVersion");
+            String contentSha256 = requireText(snapshotNode, "contentSha256", "离线包资产快照缺少 contentSha256");
+            if (!contentSha256.matches("[a-f0-9]{64}")) {
+                throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产内容摘要格式不合法");
+            }
+            JsonNode content = requireObject(snapshotNode, "content", "离线包资产快照缺少 content 内容");
+            String actualSha256 = sha256Json(content);
+            if (!contentSha256.equals(actualSha256)) {
+                throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产内容摘要与实际内容不一致");
+            }
+            String key = offlineAssetKey(assetType, assetId, assetVersion);
+            if (snapshotsByKey.putIfAbsent(key, snapshotNode) != null) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产内容快照: " + key);
+            }
+        }
+
+        for (JsonNode itemNode : itemsNode) {
+            PackageItemAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
+            String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
+            String key = offlineAssetKey(assetType, assetId, assetVersion);
+            JsonNode snapshot = snapshotsByKey.get(key);
+            if (snapshot == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包缺少资产内容快照: " + key);
+            }
+            importOfflineAssetSnapshot(assetType, assetId, assetVersion, snapshot, tenantId, actor, traceId, now);
+        }
+    }
+
+    private void importOfflineAssetSnapshot(
+            PackageItemAssetType assetType,
+            String assetId,
+            String assetVersion,
+            JsonNode snapshot,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        JsonNode content = requireObject(snapshot, "content", "离线包资产快照缺少 content 内容");
+        switch (assetType) {
+            case RULE -> importOfflineRuleSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
+            case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
+            default -> throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "离线包暂不支持完整资产内容迁移: " + assetType);
+        }
+    }
+
+    private void importOfflineRuleSnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        PackageOfflineRuleContent ruleContent = readOfflineContent(content, PackageOfflineRuleContent.class);
+        if (!assetId.equals(ruleContent.rule().ruleId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包规则快照 ruleId 与资产条目不一致");
+        }
+        if (!Integer.valueOf(parseAssetVersionNo(assetVersion)).equals(ruleContent.version().versionNo())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包规则快照 versionNo 与资产条目不一致");
+        }
+
+        Optional<RuleDefinition> existingRule = ruleRepository.findByRuleIdAndTenantId(assetId, tenantId);
+        if (existingRule.isPresent()) {
+            RuleVersion existingVersion = ruleVersionRepository
+                .findByRuleIdAndTenantIdAndVersionNo(assetId, tenantId, parseAssetVersionNo(assetVersion))
+                .orElseThrow(() -> new ApiException(ErrorCode.CONFLICT, "本地规则存在但缺少离线包要求的版本: " + assetId + "@" + assetVersion));
+            ensureLocalSnapshotMatches("规则", assetId, content, buildRuleAssetContent(existingRule.get(), existingVersion));
+            return;
+        }
+
+        ruleVersionRepository.save(new RuleVersion(
+            null,
+            ruleContent.version().versionId(),
+            tenantId,
+            assetId,
+            ruleContent.version().versionNo(),
+            ruleContent.version().sourceRef(),
+            ruleContent.version().changeSummary(),
+            ruleContent.version().dslJson(),
+            ruleContent.version().explanationJson(),
+            parseEnum(com.medkernel.engine.rule.RuleVersionStatus.class, ruleContent.version().status(), "规则版本状态"),
+            parseInstant(ruleContent.version().publishedAt()),
+            ruleContent.version().publishedBy(),
+            ruleContent.version().rollbackVersionId(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+        ruleRepository.save(new RuleDefinition(
+            null,
+            ruleContent.rule().ruleId(),
+            tenantId,
+            ruleContent.rule().ruleCode(),
+            ruleContent.rule().name(),
+            parseEnum(com.medkernel.engine.rule.RuleType.class, ruleContent.rule().ruleType(), "规则类型"),
+            parseEnum(com.medkernel.engine.rule.RuleAuthoringMode.class, ruleContent.rule().authoringMode(), "规则编写模式"),
+            parseEnum(com.medkernel.engine.rule.RuleRiskLevel.class, ruleContent.rule().riskLevel(), "规则风险级别"),
+            parseEnum(com.medkernel.engine.rule.RuleDefinitionStatus.class, ruleContent.rule().status(), "规则状态"),
+            ruleContent.rule().activeVersionId(),
+            ruleContent.rule().packageVersion(),
+            ruleContent.rule().applicableOrgUnitId(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+    }
+
+    private void importOfflineEvaluationSnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        PackageOfflineEvaluationContent evaluationContent = readOfflineContent(content, PackageOfflineEvaluationContent.class);
+        PackageOfflineEvaluationIndicator indicator = evaluationContent.indicator();
+        if (!assetId.equals(indicator.indicatorId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包评估指标快照 indicatorId 与资产条目不一致");
+        }
+        if (!Integer.toString(indicator.versionNo()).equals(assetVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包评估指标快照 versionNo 与资产条目不一致");
+        }
+
+        Optional<EvaluationIndicator> existingIndicator = evaluationRepository.findByIndicatorIdAndTenantId(assetId, tenantId);
+        if (existingIndicator.isPresent()) {
+            ensureLocalSnapshotMatches("评估指标", assetId, content, buildEvaluationAssetContent(existingIndicator.get()));
+            return;
+        }
+
+        evaluationRepository.save(new EvaluationIndicator(
+            null,
+            indicator.indicatorId(),
+            tenantId,
+            indicator.indicatorCode(),
+            indicator.versionNo(),
+            indicator.name(),
+            parseEnum(com.medkernel.engine.evaluation.EvaluationSubjectType.class, indicator.subjectType(), "评估主体类型"),
+            indicator.denominatorDefinition(),
+            indicator.numeratorDefinition(),
+            indicator.exclusionDefinition(),
+            indicator.scoringDefinition(),
+            indicator.timeWindow(),
+            indicator.organizationScope(),
+            indicator.responsibleDepartmentId(),
+            indicator.sourceRef(),
+            indicator.packageVersion(),
+            parseEnum(com.medkernel.engine.evaluation.EvaluationIndicatorStatus.class, indicator.status(), "评估指标状态"),
+            parseInstant(indicator.publishedAt()),
+            indicator.publishedBy(),
+            parseInstant(indicator.activatedAt()),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+    }
+
+    private <T> T readOfflineContent(JsonNode content, Class<T> type) {
+        try {
+            return OFFLINE_EXPORT_MAPPER.treeToValue(content, type);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包资产内容结构不合法");
+        }
+    }
+
+    private void ensureLocalSnapshotMatches(String assetName, String assetId, JsonNode importedContent, JsonNode localContent) {
+        if (!sha256Json(importedContent).equals(sha256Json(localContent))) {
+            throw new ApiException(ErrorCode.CONFLICT, "本地" + assetName + "与离线包内容不一致: " + assetId);
+        }
     }
 
     private String writeOfflineJson(Object export) {
@@ -612,6 +910,44 @@ public class PackageEngineService {
         }
     }
 
+    private int parseAssetVersionNo(String assetVersion) {
+        try {
+            return Integer.parseInt(assetVersion);
+        } catch (NumberFormatException e) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产版本号必须是整数: " + assetVersion);
+        }
+    }
+
+    private String offlineAssetKey(PackageItemAssetType assetType, String assetId, String assetVersion) {
+        return assetType.name() + ":" + assetId + ":" + assetVersion;
+    }
+
+    private static String enumName(Enum<?> value) {
+        return value == null ? null : value.name();
+    }
+
+    private static Instant parseInstant(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包时间格式不合法: " + value, e);
+        }
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value, String label) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包缺少" + label);
+        }
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包" + label + "不合法: " + value);
+        }
+    }
+
     private JsonNode requireObject(JsonNode parent, String field, String message) {
         JsonNode value = parent.path(field);
         if (!value.isObject()) {
@@ -676,6 +1012,7 @@ public class PackageEngineService {
         String packageVersion,
         KnowledgePackageStatus status,
         int itemCount,
+        int assetSnapshotCount,
         String hashAlgorithm,
         String payloadSha256,
         String exportedAt,
@@ -684,7 +1021,16 @@ public class PackageEngineService {
 
     private record PackageOfflinePayload(
         PackageOfflinePackageInfo packageInfo,
-        List<PackageOfflineItem> items
+        List<PackageOfflineItem> items,
+        List<PackageOfflineAssetSnapshot> assetSnapshots
+    ) {}
+
+    private record PackageOfflineAssetSnapshot(
+        PackageItemAssetType assetType,
+        String assetId,
+        String assetVersion,
+        String contentSha256,
+        JsonNode content
     ) {}
 
     private record PackageOfflinePackageInfo(
@@ -752,6 +1098,62 @@ public class PackageEngineService {
     private static String instantText(Instant instant) {
         return instant == null ? null : instant.toString();
     }
+
+    private record PackageOfflineRuleContent(
+        PackageOfflineRuleDefinition rule,
+        PackageOfflineRuleVersion version
+    ) {}
+
+    private record PackageOfflineRuleDefinition(
+        String ruleId,
+        String ruleCode,
+        String name,
+        String ruleType,
+        String authoringMode,
+        String riskLevel,
+        String status,
+        String activeVersionId,
+        String packageVersion,
+        String applicableOrgUnitId
+    ) {}
+
+    private record PackageOfflineRuleVersion(
+        String versionId,
+        Integer versionNo,
+        String sourceRef,
+        String changeSummary,
+        String dslJson,
+        String explanationJson,
+        String status,
+        String publishedAt,
+        String publishedBy,
+        String rollbackVersionId
+    ) {}
+
+    private record PackageOfflineEvaluationContent(
+        PackageOfflineEvaluationIndicator indicator
+    ) {}
+
+    private record PackageOfflineEvaluationIndicator(
+        String indicatorId,
+        String indicatorCode,
+        int versionNo,
+        String name,
+        String subjectType,
+        String denominatorDefinition,
+        String numeratorDefinition,
+        String exclusionDefinition,
+        String scoringDefinition,
+        String timeWindow,
+        String organizationScope,
+        String responsibleDepartmentId,
+        String sourceRef,
+        String packageVersion,
+        String status,
+        String publishedAt,
+        String publishedBy,
+        String activatedAt
+    ) {}
 
     /**
      * 触发包同步与发布执行（支持灰度、全量、回滚等多通道投影）。
