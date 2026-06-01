@@ -6,11 +6,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +26,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.api.PageQuery;
 import com.medkernel.shared.audit.persistence.AuditEventQuery;
 import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.audit.persistence.AuditEventRepository;
@@ -82,14 +80,82 @@ class LargeListEngineServiceTest {
     }
 
     @Test
-    void queryList_InvalidResourceType_ThrowsException() {
-        ListQueryRequest req = new ListQueryRequest("INVALID_TYPE", 10, null, null, null, null, Map.of());
-        ApiException ex = assertThrows(ApiException.class, () -> service.queryList(req));
-        assertEquals("ENG-LIST-001", ex.errorCode().code());
+    void queryAuditEvents_PageSizeAboveMax_ThrowsPageSizeExceeded() {
+        PageQuery req = new PageQuery(null, 501, null, "id,desc", Map.of());
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.queryAuditEvents(req));
+
+        assertEquals("ENG-LIST-006", ex.errorCode().code());
+        verifyNoInteractions(auditRepo);
     }
 
     @Test
-    void queryList_ValidQuery_PerformsCursorMappingAndReturnsEstimate() {
+    void queryAuditEvents_UnknownSort_ThrowsSortFieldNotAllowed() {
+        PageQuery req = new PageQuery(null, 20, null, "summary,desc", Map.of());
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.queryAuditEvents(req));
+
+        assertEquals("ENG-LIST-005", ex.errorCode().code());
+        verifyNoInteractions(auditRepo);
+    }
+
+    @Test
+    void queryAuditEvents_UnknownFilter_ThrowsFilterFieldNotAllowed() {
+        PageQuery req = new PageQuery(null, 20, null, "id,desc", Map.of("payloadDigest", "sha256"));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.queryAuditEvents(req));
+
+        assertEquals("ENG-LIST-007", ex.errorCode().code());
+        verifyNoInteractions(auditRepo);
+    }
+
+    @Test
+    void queryAuditEvents_ValidWhitelistFilters_PropagatesToAuditQuery() {
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(42L);
+        when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of());
+
+        PageQuery req = new PageQuery(null, 20, 0L, "id,desc", Map.of(
+            "action", "LOGIN",
+            "resourceType", "USER",
+            "actorUserId", "doctor-1",
+            "outcome", "SUCCESS",
+            "environmentKey", "prod",
+            "orgPathPrefix", "tenant-1/hospital-1",
+            "from", "2026-01-01T00:00:00Z",
+            "to", "2026-01-02T00:00:00Z",
+            "superAdminOnly", "true"
+        ));
+
+        service.queryAuditEvents(req);
+
+        ArgumentCaptor<AuditEventQuery> query = ArgumentCaptor.forClass(AuditEventQuery.class);
+        verify(auditRepo).findPage(eq("tenant-1"), query.capture());
+        assertEquals("LOGIN", query.getValue().action());
+        assertEquals("USER", query.getValue().resourceType());
+        assertEquals("doctor-1", query.getValue().actorUserId());
+        assertEquals("SUCCESS", query.getValue().outcome());
+        assertEquals("prod", query.getValue().environmentKey());
+        assertEquals("tenant-1/hospital-1", query.getValue().orgPathPrefix());
+        assertTrue(query.getValue().superAdminOnly());
+        assertEquals(20, query.getValue().size());
+    }
+
+    @Test
+    void queryAuditEvents_OffsetAndAscendingSort_PropagatesToAuditQuery() {
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+        when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of());
+
+        service.queryAuditEvents(new PageQuery(null, 20, 75L, "id,asc", Map.of()));
+
+        ArgumentCaptor<AuditEventQuery> query = ArgumentCaptor.forClass(AuditEventQuery.class);
+        verify(auditRepo).findPage(eq("tenant-1"), query.capture());
+        assertEquals(75L, query.getValue().offset());
+        assertEquals("id", query.getValue().sortField());
+        assertEquals("ASC", query.getValue().sortDirection());
+    }
+
+    @Test
+    void queryAuditEvents_ValidQuery_PerformsCursorMappingAndReturnsEstimate() {
         // 模拟 queryForObject 运行估算 count，返回 15000 条数据
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(15000L);
 
@@ -100,11 +166,11 @@ class LargeListEngineServiceTest {
         when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class)))
             .thenReturn(List.of(rec1, rec2, rec3));
 
-        ListQueryRequest req = new ListQueryRequest("AUDIT_EVENT", 2, null, null, null, null, Map.of());
-        ListQueryResponse<AuditEventRecord> resp = service.queryList(req);
+        PageQuery req = new PageQuery(null, 2, null, "id,desc", Map.of());
+        var resp = service.queryAuditEvents(req);
 
         assertNotNull(resp);
-        assertEquals(2, resp.records().size());
+        assertEquals(2, resp.items().size());
         assertTrue(resp.hasMore());
         assertEquals(10000L, resp.totalEstimate()); // 15000L 被截断为 10000L
 
@@ -114,11 +180,11 @@ class LargeListEngineServiceTest {
     }
 
     @Test
-    void queryList_TotalEstimateUsesOracleCompatibleFetchFirst() {
+    void queryAuditEvents_TotalEstimateUsesOracleCompatibleFetchFirst() {
         when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of());
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(10L);
 
-        service.queryList(new ListQueryRequest("AUDIT_EVENT", 10, null, null, null, null, Map.of()));
+        service.queryAuditEvents(new PageQuery(null, 10, null, "id,desc", Map.of()));
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).queryForObject(sql.capture(), eq(Long.class), any(Object[].class));
@@ -127,9 +193,9 @@ class LargeListEngineServiceTest {
     }
 
     @Test
-    void queryList_InvalidCursorFormat_ThrowsBadRequest() {
-        ListQueryRequest req = new ListQueryRequest("AUDIT_EVENT", 10, null, "invalid-base64", null, null, Map.of());
-        ApiException ex = assertThrows(ApiException.class, () -> service.queryList(req));
+    void queryAuditEvents_InvalidCursorFormat_ThrowsBadRequest() {
+        PageQuery req = new PageQuery("invalid-base64", 10, null, "id,desc", Map.of());
+        ApiException ex = assertThrows(ApiException.class, () -> service.queryAuditEvents(req));
         assertEquals("ENG-API-001", ex.errorCode().code());
     }
 

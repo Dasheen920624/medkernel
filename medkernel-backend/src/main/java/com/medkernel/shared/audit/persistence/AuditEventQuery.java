@@ -18,7 +18,10 @@ import java.time.Instant;
  * @param from         起始时间（含）；null 表示不限
  * @param to           结束时间（不含）；null 表示不限
  * @param cursor       上一页末行的 id；null 表示首次请求
- * @param size         请求页大小；由 {@link com.medkernel.shared.api.CursorRequest} 规约
+ * @param size         请求页大小；由调用方在进入仓库前完成上限校验
+ * @param offset       浅分页偏移量；深翻页应使用 cursor
+ * @param sortField    白名单排序字段
+ * @param sortDirection 排序方向：ASC 或 DESC
  */
 public record AuditEventQuery(
     String action,
@@ -31,8 +34,26 @@ public record AuditEventQuery(
     Instant from,
     Instant to,
     Long cursor,
-    int size
+    int size,
+    Long offset,
+    String sortField,
+    String sortDirection
 ) {
+
+    public AuditEventQuery(String action,
+                           String resourceType,
+                           String actorUserId,
+                           String orgPathPrefix,
+                           String environmentKey,
+                           String outcome,
+                           boolean superAdminOnly,
+                           Instant from,
+                           Instant to,
+                           Long cursor,
+                           int size) {
+        this(action, resourceType, actorUserId, orgPathPrefix, environmentKey, outcome,
+            superAdminOnly, from, to, cursor, size, 0L, "id", "DESC");
+    }
 
     public AuditEventQuery(String action,
                            String resourceType,
@@ -42,5 +63,17 @@ public record AuditEventQuery(
                            Long cursor,
                            int size) {
         this(action, resourceType, actorUserId, null, null, null, false, from, to, cursor, size);
+    }
+
+    long safeOffset() {
+        return offset == null || offset < 0 ? 0L : offset;
+    }
+
+    String safeSortField() {
+        return sortField == null || sortField.isBlank() ? "id" : sortField.trim();
+    }
+
+    String safeSortDirection() {
+        return "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
     }
 }

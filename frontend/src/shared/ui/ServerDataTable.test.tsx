@@ -77,6 +77,18 @@ describe("ServerDataTable", () => {
     expect(onRequestChange).not.toHaveBeenCalled();
   });
 
+  it("rejects oversized page size before rendering", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(() =>
+      renderTable({
+        request: { ...request, pageSize: 500 as never },
+        query: { ...query, pageSize: 500 },
+      }),
+    ).toThrow(/每页最多 100 条/);
+    vi.restoreAllMocks();
+  });
+
   it("reports partial failures, column snapshots, and current-page selection", async () => {
     const onViewSnapshotChange = vi.fn();
     const onSelectionSnapshotChange = vi.fn();

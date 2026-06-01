@@ -23,7 +23,7 @@
 - 指针（按需查，不通读）：[_HANDOFF](docs/_HANDOFF.md) 接力 / [backlog](docs/backlog.md) 任务 / [_index](docs/cards/_index.md) 找卡 / [覆盖矩阵](docs/cards/_coverage-matrix.md) / [质量基线](docs/audit/质量基线.md) 验收 / [glossary](docs/glossary.md) 名词。
 
 ## §4 工作循环（含会话接力）
-读 [_HANDOFF](docs/_HANDOFF.md) 续接 → **核查现状**（grep / find / git diff 比对 `frontend/src`、`medkernel-backend/src`，不信单次 read、不臆造）→ 创作类**先设计后码** → 按 §3 权威序读最少做 → **自检留证**（测试 + T-GATE，不空口说「已通过」）→ **收尾更新 _HANDOFF**（状态 / 下一步 / 归档，新线套末尾模板）。中断后用 `git worktree list` + `git status` + `git log origin/main` 找散落改动。
+读 [_HANDOFF](docs/_HANDOFF.md) 续接 → **核查现状**（grep / find / git diff 比对 `frontend/src`、`medkernel-backend/src`，不信单次 read、不臆造）→ 创作类**先设计后码** → 按 §3 权威序读最少做 → **自检留证**（测试 + T-GATE，不空口说「已通过」）→ **收尾更新 _HANDOFF**（状态 / 下一步 / 归档，新线套末尾模板）。遇到非当前阶段可真实解决的外部环境 / 闭源驱动 / 客户现场资源问题，写入 [待处理问题清单](docs/audit/deferred-issues.md) 后继续主线，不得停在等待状态，也不得伪造通过。中断后用 `git worktree list` + `git status` + `git log origin/main` 找散落改动。
 
 ## §5 分场景规约（一行一规则 + 指针）
 

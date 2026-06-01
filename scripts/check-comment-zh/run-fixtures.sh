@@ -12,7 +12,7 @@ javadoc_has_chinese() {
     /^[[:space:]]*\/\*\*/ { in_doc=1; doc=$0; next }
     in_doc && /\*\// { doc=doc"\n"$0; in_doc=0; pending=doc; next }
     in_doc { doc=doc"\n"$0; next }
-    /^[[:space:]]*(@[A-Za-z]+(\([^)]*\))?[[:space:]]*)*public[[:space:]]+(class|record|interface|enum|@interface)/ && !printed {
+    /^[[:space:]]*(@[A-Za-z]+(\([^)]*\))?[[:space:]]*)*((public|protected|private)[[:space:]]+)?(abstract[[:space:]]+|final[[:space:]]+|sealed[[:space:]]+|non-sealed[[:space:]]+)*(class|record|interface|enum|@interface)/ && !printed {
       print pending; printed=1; exit
     }
   ' "$1" | perl "$CJK_HELPER" stream
@@ -44,6 +44,7 @@ check() {
 
 a=""
 javadoc_has_chinese "$FIX/good-class.java"      && a=yes || a=no; check good-class yes "$a"
+javadoc_has_chinese "$FIX/good-package-record.java" && a=yes || a=no; check good-package-record yes "$a"
 javadoc_has_chinese "$FIX/missing-javadoc.java" && a=yes || a=no; check missing-javadoc no "$a"
 javadoc_has_chinese "$FIX/english-only.java"    && a=yes || a=no; check english-only no "$a"
 sql_table_has_comment "$FIX/good-table.sql"     && a=yes || a=no; check good-table yes "$a"

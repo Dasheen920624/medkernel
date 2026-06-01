@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,9 +27,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.shared.api.PageQuery;
+import com.medkernel.shared.api.PageResult;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditActorClassifier;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
@@ -82,84 +87,102 @@ public class LargeListEngineService {
      * @return 统一列表检索出参
      */
     @Transactional(readOnly = true)
-    public ListQueryResponse<AuditEventRecord> queryList(ListQueryRequest request) {
+    public PageResult<AuditEventRecord> queryAuditEvents(PageQuery request) {
         String tenantId = requireCurrentTenant();
-        ListQueryRequest norm = request.normalize();
+        PageQuery norm = request == null ? PageQuery.first() : request;
+        int pageSize = norm.validatedSize();
+        LargeListResourceDefinition definition = LargeListResourceDefinition.auditEvents();
+        LargeListResourceDefinition.SortSpec sort = definition.validateSort(norm.sort());
+        Map<String, String> filters = definition.validateFilters(norm.filters());
+        Long cursorId = decodeCursor(norm.cursor());
 
-        // 仅当资源类型为 AUDIT_EVENT 或为空时允许检索
-        if (!"AUDIT_EVENT".equalsIgnoreCase(norm.resourceType()) && !norm.resourceType().isBlank()) {
-            throw new ApiException(ErrorCode.ENG_LIST_001, "不支持的列表检索资源类型: " + norm.resourceType());
-        }
-
-        // 解析 Base64 游标
-        Long cursorId = null;
-        if (norm.cursor() != null && !norm.cursor().isBlank()) {
-            try {
-                String decoded = new String(Base64.getDecoder().decode(norm.cursor()));
-                cursorId = Long.parseLong(decoded);
-            } catch (Exception e) {
-                throw new ApiException(ErrorCode.BAD_REQUEST, "非法的 Base64 列表游标格式");
-            }
-        }
-
-        // 构造底座标准的审计过滤条件
-        String actionFilter = norm.filters().get("action");
-        String resourceTypeFilter = norm.filters().get("resourceType");
-        String actorFilter = norm.filters().get("actorUserId");
-        
         AuditEventQuery query = new AuditEventQuery(
-            actionFilter,
-            resourceTypeFilter,
-            actorFilter,
-            null,
-            null,
+            filterValue(filters, "action"),
+            filterValue(filters, "resourceType"),
+            filterValue(filters, "actorUserId"),
+            filterValue(filters, "orgPathPrefix"),
+            filterValue(filters, "environmentKey"),
+            filterValue(filters, "outcome"),
+            Boolean.parseBoolean(filterValue(filters, "superAdminOnly")),
+            parseInstantFilter(filters, "from"),
+            parseInstantFilter(filters, "to"),
             cursorId,
-            norm.pageSize()
+            pageSize,
+            norm.safeOffset(),
+            sort.field(),
+            sort.direction()
         );
 
-        // findPage 会查出 pageSize + 1 条，以便判断 hasMore
         List<AuditEventRecord> rows = auditRepository.findPage(tenantId, query);
 
         boolean hasMore = false;
         String nextCursor = null;
         List<AuditEventRecord> records = rows;
 
-        if (rows.size() > norm.pageSize()) {
+        if (rows.size() > pageSize) {
             hasMore = true;
-            records = rows.subList(0, norm.pageSize());
-            // 取最后一条的实际物理 ID 编码为游标
+            records = rows.subList(0, pageSize);
             AuditEventRecord last = records.get(records.size() - 1);
-            nextCursor = Base64.getEncoder().encodeToString(String.valueOf(last.id()).getBytes());
+            nextCursor = encodeCursor(last.id());
         }
 
-        // 计算 Total Estimate 近似总行数 (限流 10000 条以防 count(*) 全表扫描)
-        long totalEstimate = estimateCount(tenantId, actionFilter, resourceTypeFilter, actorFilter);
+        long totalEstimate = estimateCount(tenantId, filters);
 
-        return new ListQueryResponse<>(nextCursor, records, totalEstimate, hasMore);
+        return new PageResult<>(records, nextCursor, totalEstimate, true, hasMore);
     }
 
     /**
      * 近似总行数估算，使用 SQL 标准 FETCH FIRST 限制以兼容 PostgreSQL 与 Oracle。
      */
-    private long estimateCount(String tenantId, String action, String resourceType, String actor) {
+    private long estimateCount(String tenantId, Map<String, String> filters) {
         StringBuilder sql = new StringBuilder("SELECT count(*) FROM (SELECT 1 FROM audit_event WHERE tenant_id = ?");
-        java.util.List<Object> params = new java.util.ArrayList<>();
+        List<Object> params = new ArrayList<>();
         params.add(tenantId);
 
+        String action = filterValue(filters, "action");
         if (action != null && !action.isBlank()) {
             sql.append(" AND action = ?");
             params.add(action);
         }
+        String resourceType = filterValue(filters, "resourceType");
         if (resourceType != null && !resourceType.isBlank()) {
             sql.append(" AND resource_type = ?");
             params.add(resourceType);
         }
+        String actor = filterValue(filters, "actorUserId");
         if (actor != null && !actor.isBlank()) {
             sql.append(" AND actor_user_id = ?");
             params.add(actor);
         }
-        
-        // 限制最多 Count 至 10001 条。
+        String orgPathPrefix = filterValue(filters, "orgPathPrefix");
+        if (orgPathPrefix != null) {
+            sql.append(" AND (org_path = ? OR org_path LIKE ?)");
+            params.add(orgPathPrefix);
+            params.add(orgPathPrefix + "/%");
+        }
+        String environmentKey = filterValue(filters, "environmentKey");
+        if (environmentKey != null) {
+            sql.append(" AND environment_key = ?");
+            params.add(environmentKey);
+        }
+        String outcome = filterValue(filters, "outcome");
+        if (outcome != null) {
+            sql.append(" AND outcome = ?");
+            params.add(outcome);
+        }
+        Instant from = parseInstantFilter(filters, "from");
+        if (from != null) {
+            sql.append(" AND occurred_at >= ?");
+            params.add(java.sql.Timestamp.from(from));
+        }
+        Instant to = parseInstantFilter(filters, "to");
+        if (to != null) {
+            sql.append(" AND occurred_at < ?");
+            params.add(java.sql.Timestamp.from(to));
+        }
+        if (Boolean.parseBoolean(filterValue(filters, "superAdminOnly"))) {
+            appendSuperAdminRoleFilter(sql, params);
+        }
         sql.append(" FETCH FIRST 10001 ROWS ONLY) t");
 
         try {
@@ -170,6 +193,49 @@ public class LargeListEngineService {
             log.warn("Total estimate count failed, fallback to 0", e);
             return 0L;
         }
+    }
+
+    private Long decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            String decoded = new String(Base64.getDecoder().decode(cursor), StandardCharsets.UTF_8);
+            return Long.parseLong(decoded);
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "非法的 Base64 列表游标格式");
+        }
+    }
+
+    private String encodeCursor(Long id) {
+        return Base64.getEncoder().encodeToString(String.valueOf(id).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Instant parseInstantFilter(Map<String, String> filters, String key) {
+        String value = filterValue(filters, key);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "时间过滤条件必须使用 ISO-8601 格式: " + key);
+        }
+    }
+
+    private void appendSuperAdminRoleFilter(StringBuilder sql, List<Object> params) {
+        List<String> conditions = new ArrayList<>();
+        for (String role : AuditActorClassifier.superAdminRoles()) {
+            conditions.add("actor_roles = ?");
+            params.add(role);
+            conditions.add("actor_roles LIKE ?");
+            params.add(role + ",%");
+            conditions.add("actor_roles LIKE ?");
+            params.add("%," + role + ",%");
+            conditions.add("actor_roles LIKE ?");
+            params.add("%," + role);
+        }
+        sql.append(" AND (").append(String.join(" OR ", conditions)).append(")");
     }
 
     /**

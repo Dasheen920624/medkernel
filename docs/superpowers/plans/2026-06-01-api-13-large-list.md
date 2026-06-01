@@ -45,7 +45,7 @@
 - Modify: `medkernel-backend/src/test/java/com/medkernel/engine/list/LargeListControllerSecurityTest.java`
 - Add: `medkernel-backend/src/test/java/com/medkernel/engine/list/LargeListAuditEventRepositoryTest.java`
 
-- [ ] **Step 1: Add failing service tests**
+- [x] **Step 1: Add failing service tests**
 
 Add tests proving:
 - `size=501` throws `PAGE_SIZE_EXCEEDED` and never calls `auditRepo.findPage`.
@@ -54,14 +54,14 @@ Add tests proving:
 - valid filters `action/resourceType/actorUserId/outcome/environmentKey/orgPathPrefix/from/to` pass into `AuditEventQuery`.
 - `totalEstimate` SQL contains `FETCH FIRST 10001 ROWS ONLY`.
 
-- [ ] **Step 2: Add failing controller tests**
+- [x] **Step 2: Add failing controller tests**
 
 Add tests for `GET /api/v1/large-lists/audit-events/list`:
 - authorized `qa-manager` gets 200 and calls service.
 - `size=10000` returns code `ENG-LIST-006`.
 - missing tenant still returns `ENG-BASE-001`.
 
-- [ ] **Step 3: Add failing repository performance contract**
+- [x] **Step 3: Add failing repository performance contract**
 
 Create an H2-backed test that:
 - migrates H2 schema,
@@ -70,7 +70,7 @@ Create an H2-backed test that:
 - asserts returned IDs are strictly descending, no duplicate, and query duration is below a loose local threshold,
 - asserts generated SQL uses `id < ?` with `FETCH FIRST ? ROWS ONLY` rather than deep `OFFSET`.
 
-- [ ] **Step 4: Run red backend tests**
+- [x] **Step 4: Run red backend tests**
 
 Run:
 
@@ -95,34 +95,34 @@ Expected: FAIL because `PageQuery` / `PageResult` / new error codes / GET endpoi
 - Delete: `medkernel-backend/src/main/java/com/medkernel/engine/list/ListQueryRequest.java`
 - Delete: `medkernel-backend/src/main/java/com/medkernel/engine/list/ListQueryResponse.java`
 
-- [ ] **Step 1: Add API-13 DTOs**
+- [x] **Step 1: Add API-13 DTOs**
 
 Implement `PageQuery` with `DEFAULT_SIZE=50` and `MAX_SIZE=500`; `validatedSize()` returns default for null / non-positive, throws `PAGE_SIZE_EXCEEDED` for values above max. Implement `PageResult<T>` with immutable copied `items`.
 
-- [ ] **Step 2: Add explicit error codes**
+- [x] **Step 2: Add explicit error codes**
 
 Add:
 - `SORT_FIELD_NOT_ALLOWED("ENG-LIST-005", 400, "排序字段不在大规模列表白名单内", INPUT, false)`
 - `PAGE_SIZE_EXCEEDED("ENG-LIST-006", 400, "请求页大小超过大规模列表上限", INPUT, false)`
 - `FILTER_FIELD_NOT_ALLOWED("ENG-LIST-007", 400, "过滤字段不在大规模列表白名单内", INPUT, false)`
 
-- [ ] **Step 3: Add resource definition**
+- [x] **Step 3: Add resource definition**
 
 Define one current resource: audit events. Allowed sort field is `id`; allowed filters are `action`、`resourceType`、`actorUserId`、`outcome`、`environmentKey`、`orgPathPrefix`、`from`、`to`、`superAdminOnly`。Unknown sort/filter throws the new explicit error.
 
-- [ ] **Step 4: Replace query service contract**
+- [x] **Step 4: Replace query service contract**
 
 Change service query method to `queryAuditEvents(PageQuery query)` and return `PageResult<AuditEventRecord>`. Keep export methods unchanged, but reuse the same filter validation for audit export snapshots where possible.
 
-- [ ] **Step 5: Replace controller query endpoint**
+- [x] **Step 5: Replace controller query endpoint**
 
 Add `GET /api/v1/large-lists/audit-events/list` with query params `cursor`、`size`、`offset`、`sort` plus filter params. Keep `@DataScope(requireTenant = true)` and `@PreAuthorize("@perm.has('audit.read')")`.
 
-- [ ] **Step 6: Remove old request/response classes**
+- [x] **Step 6: Remove old request/response classes**
 
 Delete `ListQueryRequest.java` and `ListQueryResponse.java`; update imports/tests so no production or test code references them.
 
-- [ ] **Step 7: Run backend contract tests**
+- [x] **Step 7: Run backend contract tests**
 
 Run:
 
@@ -149,11 +149,11 @@ Expected: PASS for service/controller tests or fail only on repository behavior 
 - Modify: `medkernel-backend/src/test/java/com/medkernel/migration/H2BaselineMigrationTest.java`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/migration/FlywayMultiDialectSmokeTest.java`
 
-- [ ] **Step 1: Extend AuditEventQuery**
+- [x] **Step 1: Extend AuditEventQuery**
 
 Add `offset`、`sortField`、`sortDirection` to the record while preserving existing convenience constructor defaults for current callers.
 
-- [ ] **Step 2: Generate safe SQL in repository**
+- [x] **Step 2: Generate safe SQL in repository**
 
 For audit events:
 - if cursor is present and sort is `id,DESC`, append `AND id < ?`;
@@ -161,7 +161,7 @@ For audit events:
 - always append `ORDER BY id DESC FETCH FIRST ? ROWS ONLY`;
 - bind values through `JdbcTemplate` params / types only, never string-concatenate user input.
 
-- [ ] **Step 3: Add V37 indexes**
+- [x] **Step 3: Add V37 indexes**
 
 Add indexes:
 - `idx_audit_event_large_cursor` on `(tenant_id, id)`
@@ -171,11 +171,11 @@ Add indexes:
 
 For Oracle / DM omit `IF NOT EXISTS` if the dialect does not support it, consistent with existing migrations.
 
-- [ ] **Step 4: Update migration tests**
+- [x] **Step 4: Update migration tests**
 
 Update expected migrations from V36 to V37 and required index list with the four new indexes.
 
-- [ ] **Step 5: Run repository/migration tests**
+- [x] **Step 5: Run repository/migration tests**
 
 Run:
 
@@ -197,15 +197,15 @@ Expected: PASS.
 - Modify: `scripts/authenticity-guard.mjs`
 - Modify: `scripts/authenticity-guard.test.mjs`
 
-- [ ] **Step 1: Add failing UI runtime test**
+- [x] **Step 1: Add failing UI runtime test**
 
 Add a `ServerDataTable` test that casts an invalid request with `pageSize: 500` and expects an error matching `服务端分页每页最多 100 条`.
 
-- [ ] **Step 2: Add failing guard test**
+- [x] **Step 2: Add failing guard test**
 
 Add an `authenticity-guard` fixture in a production frontend page with `pageSize: 1000` and expect rule id `frontend.full-list-load`.
 
-- [ ] **Step 3: Run red frontend tests**
+- [x] **Step 3: Run red frontend tests**
 
 Run:
 
@@ -216,15 +216,15 @@ node --test scripts/authenticity-guard.test.mjs
 
 Expected: FAIL before guard implementation.
 
-- [ ] **Step 4: Implement runtime guard**
+- [x] **Step 4: Implement runtime guard**
 
 Export `EXPERIENCE_PAGE_SIZE_OPTIONS = [20, 50, 100]` and `MAX_EXPERIENCE_PAGE_SIZE = 100` from `experienceTypes.ts`; `ServerDataTable` throws if request/query page size exceeds 100.
 
-- [ ] **Step 5: Implement static guard**
+- [x] **Step 5: Implement static guard**
 
 Add `frontend.full-list-load` to frontend page/shared API scan rules; block `pageSize` / `size` / `limit` literals above 100 in production frontend source.
 
-- [ ] **Step 6: Run frontend tests**
+- [x] **Step 6: Run frontend tests**
 
 Run:
 
@@ -244,7 +244,7 @@ Expected: PASS.
 - Modify: `docs/backlog.md`
 - Modify: `docs/_HANDOFF.md`
 
-- [ ] **Step 1: Search for old contract references**
+- [x] **Step 1: Search for old contract references**
 
 Run:
 
@@ -254,15 +254,15 @@ rg -n "ListQueryRequest|ListQueryResponse|/large-lists/query|pageSize\\s*[:=]\\s
 
 Expected: no production references to old query contract or oversized frontend page size.
 
-- [ ] **Step 2: Update API-13 card**
+- [x] **Step 2: Update API-13 card**
 
 Mark FR/AC complete only after tests pass; include concrete evidence commands, not unverifiable claims.
 
-- [ ] **Step 3: Update handoff**
+- [x] **Step 3: Update handoff**
 
 When local verification is complete, set API-13 state to ready for PR; preserve open deferred issues as non-blocking.
 
-- [ ] **Step 4: Run full target verification**
+- [x] **Step 4: Run full target verification**
 
 Run:
 

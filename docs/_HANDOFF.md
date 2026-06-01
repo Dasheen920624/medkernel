@@ -17,9 +17,9 @@
 - 类型：软件开发 / 后端平台契约
 - 分支：`codex/api-13-large-list`（基于 `origin/main` 34b2240）
 - 目标：按 [API-13](cards/D0/API-13.md) 收口大规模列表统一契约：服务端分页、cursor/offset、排序过滤白名单、`total_estimate`、异步导出、100k 级性能与前端全量加载防回流。
-- 状态：已从最新 `origin/main` 创建分支；OBS-01 已合并并确认 `origin/main` 含 merge `34b2240`。API-13 现状核查完成，实施计划已写入 [2026-06-01-api-13-large-list.md](superpowers/plans/2026-06-01-api-13-large-list.md)；目标绿色基线已通过 `LargeListEngineServiceTest,LargeListControllerSecurityTest,PageResponseTest,MigrationBaselineContractTest,H2BaselineMigrationTest`。
-- 下一步（精确到动作/命令）：1. 按计划 Task 1 先补 oversize page、排序 / 过滤白名单、cursor 稳定性、100k keyset 与前端全量加载红灯测试；2. 观察红灯；3. 实现 `PageQuery` / `PageResult`、白名单、V37 索引和前端门禁；4. 跑后端目标测试、前端目标测试、全量验证与 T-GATE；5. PR / CI / 合并后确认 `origin/main` 再领取下一卡。
-- 相关文件 / 测试 / 坑：现状初查显示 `ListQueryRequest.normalize()` 对超大 `pageSize` 静默截断为 1000，需改为 `PAGE_SIZE_EXCEEDED` 诚实拒绝；排序字段未按白名单生效；未知过滤项被忽略；旧 `ListQueryRequest` / `ListQueryResponse` 与卡要求的 `PageQuery` / `PageResult` 不一致。这些属于 API-13 当前主链路，不得登记延期，必须本卡内处理。当前运行环境仍只保障 PostgreSQL + Oracle；达梦 / 人大金仓归 `DEFER-001` 后续关闭。
+- 状态：本地实现与清理完成，待提交 / PR / CI / 合并。已删除旧 `ListQueryRequest` / `ListQueryResponse` 生产契约，改为 `PageQuery` / `PageResult`；`GET /api/v1/large-lists/audit-events/list` 支持 cursor / offset / sort / filters，超大 size 诚实拒绝 `PAGE_SIZE_EXCEEDED`，排序 / 过滤白名单拒绝非法字段；V37 五方言索引已补齐；前端 `ServerDataTable` 与真实性门禁阻断 >100 的全量加载式分页。
+- 下一步（精确到动作/命令）：1. 重新跑最新改动后的目标测试与门禁；2. `git add` 后用 `node scripts/authenticity-guard.mjs --mode=all` 覆盖新增文件，再提交；3. 提交后跑 changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释 / 空白）；4. 推送 `codex/api-13-large-list`、开 PR、等待 CI 全绿、squash merge；5. 确认 `origin/main` 含 API-13 merge 后清理分支 / worktree，再从 backlog 领取 `SYS-01`。
+- 相关文件 / 测试 / 坑：核心改动在 `medkernel-backend/src/main/java/com/medkernel/shared/api/PageQuery.java`、`PageResult.java`、`medkernel-backend/src/main/java/com/medkernel/engine/list/*`、`medkernel-backend/src/main/java/com/medkernel/shared/audit/persistence/*`、`frontend/src/shared/ui/ServerDataTable.tsx`、`scripts/authenticity-guard.mjs` 与 V37 迁移。已跑目标后端、后端全量 `mvn -B -q test`、后端 `mvn -B -q clean test`（Docker 可用，PostgreSQL + Oracle Testcontainers 迁移 smoke 已执行）、前端 `verify` / `build`、门禁测试、中文注释和空白检查；`DEFER-001`–`DEFER-004` 继续登记不阻塞，不能写成已关闭。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -105,4 +105,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · OBS-01 已通过 #217 合并到 `origin/main`（merge `34b2240`），远端 CI 8/8 通过并已清理分支 / worktree；当前已从最新主线领取 `API-13` 大规模列表 API。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
+> 末次更新：2026-06-01 · API-13 本地实现与验证完成，正在进入提交 / PR / CI / 合并闭环；下一卡为 `SYS-01`，必须等 API-13 merge 进入 `origin/main` 后领取。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
