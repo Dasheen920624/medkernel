@@ -67,7 +67,8 @@ class MigrationBaselineContractTest {
         "V38__standard_clinical_model.sql",
         "V39__clinical_event_context_scope.sql",
         "V40__projection_sync_baseline.sql",
-        "V41__runtime_task_framework.sql"
+        "V41__runtime_task_framework.sql",
+        "V42__runtime_task_retry_dead_letter.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -97,7 +98,7 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
-        "sys_task",
+        "sys_task", "sys_task_dead_letter",
         "mk_security_bootstrap_init_token",
         "mk_config_item", "mk_config_history",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
@@ -177,6 +178,8 @@ class MigrationBaselineContractTest {
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
         "idx_sys_idempotency_expiry",
         "idx_sys_task_status_ts", "idx_sys_task_mode_ts", "idx_sys_task_org_ts",
+        "idx_sys_task_retry_ts", "idx_sys_task_dead_letter",
+        "idx_sys_task_dead_tenant_ts", "idx_sys_task_dead_task",
         "idx_bootstrap_init_token_expires",
         "idx_audit_event_org_path",
         "idx_audit_event_env",
@@ -282,6 +285,7 @@ class MigrationBaselineContractTest {
         "ck_emergency_permission_code", "ck_emergency_permission_active",
         "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
         "uk_sys_task_tenant_task", "ck_sys_task_mode", "ck_sys_task_status",
+        "uk_sys_task_dead_letter", "uk_sys_task_dead_task", "ck_sys_task_dead_mode",
         "uk_bootstrap_init_token_id", "uk_bootstrap_init_token_hash", "ck_bootstrap_init_token_status",
         "uk_audit_event_dedupe",
         "pk_config_item", "uk_config_item_tenant_key", "ck_config_item_value_type",
@@ -323,7 +327,7 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
-        "sys_task",
+        "sys_task", "sys_task_dead_letter",
         "mk_config_item", "mk_config_history",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
@@ -354,7 +358,7 @@ class MigrationBaselineContractTest {
         "mpi_patient",
         "platform_credential",
         "emergency_permission_grant",
-        "sys_task",
+        "sys_task", "sys_task_dead_letter",
         "mk_config_item",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
@@ -374,6 +378,7 @@ class MigrationBaselineContractTest {
         Map.entry("specialty_package", Set.of("published_at", "published_by")),
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
         Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
+        Map.entry("sys_task_dead_letter", Set.of("trace_id", "replayed_at")),
         Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
         Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id"))
     );
@@ -438,6 +443,7 @@ class MigrationBaselineContractTest {
         Map.entry("mpi_patient", Set.of("status")),
         Map.entry("emergency_permission_grant", Set.of("active_flag")),
         Map.entry("sys_task", Set.of("task_mode", "status")),
+        Map.entry("sys_task_dead_letter", Set.of("task_mode")),
         Map.entry("mk_config_item", Set.of("value_type", "risk_level", "source", "protected_flag", "active_flag", "version")),
         Map.entry("mk_config_history", Set.of("change_type", "version")),
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),
@@ -451,7 +457,7 @@ class MigrationBaselineContractTest {
     private static final Pattern INDEX_PATTERN = Pattern.compile(
         "(?i)CREATE\\s+(?:UNIQUE\\s+)?INDEX(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
     private static final Pattern CONSTRAINT_PATTERN =
-        Pattern.compile("(?i)CONSTRAINT\\s+([a-z0-9_]+)");
+        Pattern.compile("(?i)(?<!DROP\\s)CONSTRAINT\\s+([a-z0-9_]+)");
 
     @Test
     void everyDialectPublishesTheSameAuthoritativeMigrationSequence() throws IOException {

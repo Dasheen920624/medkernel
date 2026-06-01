@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,11 +32,14 @@ class RuntimeTaskServiceTest {
 
     private final PayloadStoragePort payloadStorage = mock(PayloadStoragePort.class);
     private final RuntimeTaskRepository repository = mock(RuntimeTaskRepository.class);
+    private final RuntimeTaskDeadLetterRepository deadLetterRepository = mock(RuntimeTaskDeadLetterRepository.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final StateTransitionRecorder transitions = mock(StateTransitionRecorder.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicReference<RuntimeTaskRecord> latestRecord = new AtomicReference<>();
+    private final AtomicReference<RuntimeTaskDeadLetterRecord> latestDeadLetter = new AtomicReference<>();
     private final AtomicLong idSequence = new AtomicLong(1);
+    private final AtomicLong deadLetterIdSequence = new AtomicLong(1);
 
     @BeforeEach
     void setUp() {
@@ -64,6 +68,25 @@ class RuntimeTaskServiceTest {
             String tenantId = invocation.getArgument(0);
             String taskId = invocation.getArgument(1);
             return record.tenantId().equals(tenantId) && record.taskId().equals(taskId)
+                ? Optional.of(record)
+                : Optional.empty();
+        });
+        when(deadLetterRepository.save(any(RuntimeTaskDeadLetterRecord.class))).thenAnswer(invocation -> {
+            RuntimeTaskDeadLetterRecord record = invocation.getArgument(0);
+            RuntimeTaskDeadLetterRecord saved = record.id() == null
+                ? record.withId(deadLetterIdSequence.getAndIncrement())
+                : record;
+            latestDeadLetter.set(saved);
+            return saved;
+        });
+        when(deadLetterRepository.findByTenantIdAndDeadLetterId(any(), any())).thenAnswer(invocation -> {
+            RuntimeTaskDeadLetterRecord record = latestDeadLetter.get();
+            if (record == null) {
+                return Optional.empty();
+            }
+            String tenantId = invocation.getArgument(0);
+            String deadLetterId = invocation.getArgument(1);
+            return record.tenantId().equals(tenantId) && record.deadLetterId().equals(deadLetterId)
                 ? Optional.of(record)
                 : Optional.empty();
         });
@@ -173,7 +196,75 @@ class RuntimeTaskServiceTest {
         assertThat(response.retryableCount()).isZero();
     }
 
+    @Test
+    void offlineModeRunsWithLocalExecutorAndNoExternalDependency() {
+        RuntimeTaskService service = serviceWith(command -> RuntimeTaskExecutionResult.completed("离线任务本地完成"));
+
+        RuntimeTaskResponse response = service.submit(new RuntimeTaskSubmitRequest(
+            RuntimeTaskMode.OFFLINE,
+            "RUNTIME_SELF_CHECK",
+            "{\"source\":\"offline\"}",
+            List.of()
+        ));
+
+        assertThat(response.mode()).isEqualTo(RuntimeTaskMode.OFFLINE);
+        assertThat(response.status()).isEqualTo(RuntimeTaskStatus.COMPLETED);
+        assertThat(response.message()).contains("离线任务本地完成");
+        verify(auditRecorder).record(argThat(command ->
+            command.action() == AuditAction.EXECUTE
+                && command.targetType().equals("sys_task")
+                && String.valueOf(command.after()).contains("OFFLINE")));
+    }
+
+    @Test
+    void notConnectedResultIsPersistedHonestlyWithoutSuccess() {
+        RuntimeTaskService service = serviceWith(command ->
+            RuntimeTaskExecutionResult.notConnected("NOT_CONNECTED", "外部执行器未连接，任务未执行"));
+
+        RuntimeTaskResponse response = service.submit(new RuntimeTaskSubmitRequest(
+            RuntimeTaskMode.ONLINE,
+            "EXTERNAL_SYNC",
+            "{\"source\":\"unit\"}",
+            List.of()
+        ));
+
+        assertThat(response.status()).isEqualTo(RuntimeTaskStatus.NOT_CONNECTED);
+        assertThat(response.successCount()).isZero();
+        assertThat(response.failureCount()).isEqualTo(1);
+        assertThat(response.errorCode()).isEqualTo("NOT_CONNECTED");
+        assertThat(response.message()).contains("未连接");
+    }
+
+    @Test
+    void retryExhaustionMovesTaskToDeadLetterAndReplayCreatesNewCompletedTask() {
+        AtomicInteger attempts = new AtomicInteger();
+        RuntimeTaskService service = serviceWith(command -> attempts.incrementAndGet() < 3
+            ? RuntimeTaskExecutionResult.failed("DOWNSTREAM_FAILED", "下游失败")
+            : RuntimeTaskExecutionResult.completed("人工回放成功"));
+
+        RuntimeTaskResponse failed = service.submit(new RuntimeTaskSubmitRequest(
+            RuntimeTaskMode.ONLINE,
+            "EXTERNAL_SYNC",
+            "{\"source\":\"unit\"}",
+            List.of(),
+            1
+        ));
+        RuntimeTaskResponse dead = service.retryTask(failed.taskId());
+        RuntimeTaskResponse replayed = service.replayDeadLetter(dead.deadLetterId());
+
+        assertThat(failed.status()).isEqualTo(RuntimeTaskStatus.FAILED);
+        assertThat(dead.status()).isEqualTo(RuntimeTaskStatus.DEAD_LETTER);
+        assertThat(dead.retryCount()).isEqualTo(1);
+        assertThat(dead.deadLetterId()).isNotBlank();
+        assertThat(replayed.status()).isEqualTo(RuntimeTaskStatus.COMPLETED);
+        assertThat(replayed.replayedFromTaskId()).isEqualTo(failed.taskId());
+        verify(deadLetterRepository).save(argThat(record ->
+            record.deadLetterId().equals(dead.deadLetterId())
+                && replayed.taskId().equals(record.replayTaskId())));
+    }
+
     private RuntimeTaskService serviceWith(RuntimeTaskExecutorPort executor) {
-        return new RuntimeTaskService(repository, payloadStorage, executor, auditRecorder, transitions, objectMapper);
+        return new RuntimeTaskService(repository, deadLetterRepository, payloadStorage, executor,
+            auditRecorder, transitions, objectMapper);
     }
 }

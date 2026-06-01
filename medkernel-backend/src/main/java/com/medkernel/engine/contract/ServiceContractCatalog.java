@@ -203,8 +203,11 @@ public final class ServiceContractCatalog {
             "com.medkernel.shared.runtime.task.RuntimeTaskController", "/api/v1/system/tasks",
             permissions("system.read", "system.manage"),
             audits(
-                audit(AuditAction.CREATE, "sys_task", "提交在线、异步或批量运行任务"),
-                audit(AuditAction.EXECUTE, "sys_task", "执行在线或批量运行任务"))),
+                audit(AuditAction.CREATE, "sys_task", "提交在线、异步、批量、离线或死信回放任务"),
+                audit(AuditAction.UPDATE, "sys_task", "人工重试或重试耗尽进入死信"),
+                audit(AuditAction.EXECUTE, "sys_task", "执行在线、离线、批量或回放运行任务"),
+                audit(AuditAction.CREATE, "sys_task_dead_letter", "创建运行任务死信"),
+                audit(AuditAction.UPDATE, "sys_task_dead_letter", "记录死信人工回放任务"))),
         contract("health", "系统心跳服务",
             "com.medkernel.shared.web.HealthController", "/api/v1/system",
             List.of(),

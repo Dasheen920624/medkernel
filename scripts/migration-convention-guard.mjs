@@ -145,7 +145,7 @@ function scanMigrationContent(file, dialect, content) {
     }
   }
 
-  const constraintPattern = /\bCONSTRAINT\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+  const constraintPattern = /(?<!DROP\s)\bCONSTRAINT\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
   let constraintMatch;
   while ((constraintMatch = constraintPattern.exec(content))) {
     const name = constraintMatch[1];

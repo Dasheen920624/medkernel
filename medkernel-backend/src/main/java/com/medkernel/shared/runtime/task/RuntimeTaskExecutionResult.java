@@ -40,6 +40,11 @@ public record RuntimeTaskExecutionResult(
         return new RuntimeTaskExecutionResult(RuntimeTaskStatus.ESCALATED, message, errorCode, 1, 0, 1, 1, List.of());
     }
 
+    public static RuntimeTaskExecutionResult notConnected(String errorCode, String message) {
+        return new RuntimeTaskExecutionResult(RuntimeTaskStatus.NOT_CONNECTED, message, errorCode, 1, 0, 1, 1,
+            List.of());
+    }
+
     public static RuntimeTaskExecutionResult partialSuccess(String message,
                                                             int totalCount,
                                                             int successCount,
