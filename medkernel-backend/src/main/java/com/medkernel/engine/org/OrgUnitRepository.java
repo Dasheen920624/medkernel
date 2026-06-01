@@ -7,6 +7,8 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
+import com.medkernel.shared.context.OrgLevel;
+
 /**
  * 组织单元 Spring Data JDBC 仓库。
  *

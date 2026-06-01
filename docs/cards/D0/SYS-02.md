@@ -17,11 +17,11 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 模块依赖单向**：依赖方向 业务包 → 引擎核心（单向）；引擎核心**不依赖**业务包；依赖图**无环**（ArchUnit/门禁校验）。
+- [x] **FR-1 模块依赖单向**：依赖方向 业务包 → 引擎核心（单向）；引擎核心**不依赖**业务包；依赖图**无环**（ArchUnit/门禁校验）。
 - [ ] **FR-2 OpenAPI 契约**：每引擎服务暴露 OpenAPI 文档（契约即文档）。
 - [ ] **FR-3 事件契约**：引擎间领域事件 schema 标准化（版本化、向后兼容）。
 - [ ] **FR-4 权限审计要求**：每服务声明所需五维权限（[BASE-02](BASE-02.md)）+ 审计点（[BASE-04](BASE-04.md)）。
-- [ ] **FR-5 领域所有权**：每实体单一 owner 模块；禁跨模块直写他域表（经服务契约/事件）。
+- [x] **FR-5 领域所有权**：每实体单一 owner 模块；禁跨模块直写他域表（经服务契约/事件）。
 - [ ] **FR-6 契约测试**：服务契约 + 事件契约被契约测试守护，破坏即 CI 红。
 
 ## 接口契约 / 页面契约
@@ -56,18 +56,19 @@ N·A —— 架构契约不落业务表（依赖校验/契约测试在 CI）。
 - 本卡落点：单向依赖 + OpenAPI + 事件契约 + 每服务权限审计声明，把两层架构边界做成 CI 可验证的硬约束。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：引擎核心依赖业务包的写法被 ArchUnit/门禁拒；依赖图无环。
+- [x] **AC-1（FR-1）**：引擎核心依赖业务包的写法被 ArchUnit/门禁拒；依赖图无环。
 - [ ] **AC-2（FR-2）**：每引擎服务有 OpenAPI 且与实现一致（契约测试）。
 - [ ] **AC-3（FR-3/6）**：领域事件 schema 破坏性变更被契约测试捕获红。
 - [ ] **AC-4（FR-4）**：每服务声明五维权限 + 审计点；缺声明被校验。
-- [ ] **AC-5（FR-5）**：跨模块直写他域表的写法被拒（经服务/事件）。
+- [x] **AC-5（FR-5）**：跨模块直写他域表的写法被拒（经服务/事件）。
 - 关联 A1–A9：横切（架构守护各剧本）。
 - T-GATE：CI 依赖校验 + 契约测试全绿。
 - B0 验收：架构契约，天然 B0。
 
 ## 完工证据
-- 代码 permalink：ArchUnit 依赖规则 / OpenAPI 配置 / 事件 schema 规范 / 契约测试。
-- 测试：依赖无环测试 + OpenAPI 契约测试 + 事件契约兼容测试 + 跨域直写拒绝测试。
+- PR1 代码 permalink：`ModuleBoundaryArchTest` / `DomainOwnershipCatalog` / `DomainOwnershipContractTest`；同时将 `OrgLevel`、`JwtSecretResolver`、高危变更 guard、临床事件 worker 配置读取契约下沉到 shared，清除 shared 反向依赖 engine 的旧边界问题。
+- PR1 测试：`mvn -B -q -Dtest=ModuleBoundaryArchTest,DomainOwnershipContractTest test` 已通过，覆盖引擎 / shared 不依赖业务包、shared 不依赖 engine、顶层包无环、`@Table` 单一 owner、源码 SQL 直写只能发生在 owner 包内。
+- PR2 待补证据：OpenAPI 配置 / 事件 schema 规范 / 权限审计声明与契约测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（4d，后端/架构）

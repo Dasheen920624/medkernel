@@ -9,6 +9,8 @@ import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import com.medkernel.shared.context.OrgLevel;
+
 /**
  * 组织闭包表仓储。
  *

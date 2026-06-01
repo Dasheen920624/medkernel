@@ -15,6 +15,8 @@ import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import com.medkernel.shared.context.OrgLevel;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**

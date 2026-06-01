@@ -16,9 +16,10 @@ import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.medkernel.shared.context.JwtClaimsResolver;
 import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.context.JwtClaimsResolver;
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.JwtSecretResolver;
 
 /**
  * 平台 JWT 签发器（HS256，复用 medkernel.jwt.dev-secret，与 devJwtDecoder 对称验签）。

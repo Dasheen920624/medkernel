@@ -9,7 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.org.OrgLevel;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
