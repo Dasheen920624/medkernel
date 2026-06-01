@@ -15,7 +15,7 @@
 - **工作台 UI** = `frontend/src/widgets/WorkbenchPanel.tsx`，经 `frontend/src/pages/Dashboard.tsx`（仅 `return <WorkbenchPanel/>`）挂载于路由 `/dashboard`（登入默认落点，路由表 `frontend/src/app/router.tsx`）。WorkbenchPanel 已组合 `TenantLifecyclePanel`（`features/tenant-lifecycle`）/`MetricGrid`/`PageState`/`StatusBadge`——即**租户生命周期面板、指标网格、页面态已有雏形**，但数据全是硬编码 mock（`todoMock`/静态指标/静态演示按钮）、不调后端；六态是否齐全、是否默认角色视图、是否可下钻待 [WORKBENCH-01](WORKBENCH-01.md) 核验补全。
 - **数据源**：后端当前**无 workbench REST 端点**（全仓 `workbench` 仅 `MenuPermissionCatalog` 菜单权限键 + 其测试，非接口）；WorkbenchPanel 现以硬编码 mock 呈现。按详规 S0 口径，工作台须**复用现有 API**（健康/审计/待办/大列表/引擎状态）渲染真实数据，未建域诚实降级，**不得伪造或 dangling**。
 - **演示模式**：`features/demo-mode/DemoModeToggle.tsx` 已有，[WORKBENCH-02](WORKBENCH-02.md) 在其上做"演示与校验"。
-- **演示页（待清）** `frontend/src/pages/StepFlowDemo.tsx`（路由 `config/packages/demo`，定义于 `app/router.tsx`）：纯 7 步流 UI 演示、无真实数据（其注释自述"真实业务由域任务接入"），挂在生产路由违真实性，由 [INFRA-09](INFRA-09.md) 清理；`StepFlow` 组件（`shared/ui/StepFlow.tsx`）保留。
+- **演示页（已清）** 原 `frontend/src/pages/StepFlowDemo.tsx` 与生产路由 `config/packages/demo` 已由 [INFRA-09](INFRA-09.md) 清出生产；`StepFlow` 组件（`shared/ui/StepFlow.tsx`）保留供 D2 配置类页面复用，生产 router 已加门禁防 `*Demo` / demo 路径回流。
 - **演示与校验页**：作为独立路由/页面**尚不存在**（`app/router.tsx` 无该路由；StepFlowDemo ≠ 演示与校验），由 [WORKBENCH-02](WORKBENCH-02.md) 新建。
 
 ## 登入 / 使用角色（13 角色矩阵的本域子集，全量矩阵见 [质量基线 §9](../../audit/质量基线.md)）

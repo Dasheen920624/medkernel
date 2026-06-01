@@ -9,6 +9,7 @@ const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|t
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
+const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const FRONTEND_ALLOWLIST =
   /\.(?:test|spec|stories)\.(?:ts|tsx)$|^frontend\/src\/(?:test|mocks)\//;
@@ -123,6 +124,15 @@ const FRONTEND_E2E_RULES = [
       "前端 E2E 验收脚本禁止使用 mock、固定医学剧本或演示路径冒充真实验收。",
     pattern:
       /\bmock\b|\bMock\b|固定(?:医学|病例|剧本|路径)|演示路径|演示验收|胸痛\s*AMI|头孢|医务处张三/i,
+  },
+];
+
+const FRONTEND_ROUTER_RULES = [
+  {
+    ruleId: "frontend.production-demo-route",
+    message: "生产路由禁止注册 *Demo 演示页或 demo 路径，组件演示必须留在 Storybook。",
+    pattern:
+      /(?:\b[A-Za-z0-9_]*Demo\b|import\s*\(\s*["'][^"']*Demo[^"']*["']\s*\)|path\s*=\s*["'][^"']*demo[^"']*["'])/i,
   },
 ];
 
@@ -327,6 +337,7 @@ function isBackendDevProfileBean(content) {
 
 function rulesForFile(file) {
   if (FRONTEND_E2E.test(file)) return FRONTEND_E2E_RULES;
+  if (FRONTEND_ROUTER.test(file)) return FRONTEND_ROUTER_RULES;
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;

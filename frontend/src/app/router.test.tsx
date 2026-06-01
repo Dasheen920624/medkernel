@@ -5,8 +5,48 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { AppRouter } from "./router";
 
+const securityProfileState = vi.hoisted(() => ({
+  value: {
+    data: undefined as
+      | {
+          userId: string;
+          username: string;
+          roles: Array<{
+            code: string;
+            displayName: string;
+            source: string;
+            scopeLevel: string | null;
+            scopeCode: string | null;
+          }>;
+          permissions: Array<{
+            code: string;
+            dimension: string;
+            target: string;
+            displayName: string;
+            risk: string;
+          }>;
+          menuKeys: string[];
+          environmentKeys: string[];
+          dataScope: {
+            tenantId: string | null;
+            groupId: string | null;
+            hospitalId: string | null;
+            campusId: string | null;
+            siteId: string | null;
+            departmentId: string | null;
+            specialtyId: string | null;
+          };
+          mustChangePwd: boolean;
+          mfaRequired: boolean;
+          mfaBound: boolean;
+        }
+      | undefined,
+    isError: true,
+  },
+}));
+
 vi.mock("@/shared/api/hooks", () => ({
-  useSecurityProfile: () => ({ data: undefined, isError: true }),
+  useSecurityProfile: () => securityProfileState.value,
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
   useLogin: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDelegatedAuthStatus: () => ({
@@ -30,6 +70,45 @@ vi.mock("@/shared/api/hooks", () => ({
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
+
+function authenticatedProfile() {
+  return {
+    userId: "implementation-1",
+    username: "implementation.engineer",
+    roles: [
+      {
+        code: "implementation-engineer",
+        displayName: "实施工程师",
+        source: "DEFAULT",
+        scopeLevel: null,
+        scopeCode: null,
+      },
+    ],
+    permissions: [
+      {
+        code: "menu.workbench",
+        dimension: "MENU",
+        target: "workbench",
+        displayName: "查看工作台",
+        risk: "LOW",
+      },
+    ],
+    menuKeys: ["workbench"],
+    environmentKeys: ["production"],
+    dataScope: {
+      tenantId: "t-1",
+      groupId: null,
+      hospitalId: "h-1",
+      campusId: null,
+      siteId: null,
+      departmentId: null,
+      specialtyId: null,
+    },
+    mustChangePwd: false,
+    mfaRequired: false,
+    mfaBound: true,
+  };
+}
 
 vi.mock("@/pages/Dashboard", () => ({
   default: () => <div>本周建议动作</div>,
@@ -69,9 +148,18 @@ describe("AppRouter", () => {
   });
 
   it("blocks direct workbench entry before an effective permission profile is available", async () => {
+    securityProfileState.value = { data: undefined, isError: true };
     renderRouter("/dashboard");
 
     expect(await screen.findByText("暂时无法核验权限")).toBeInTheDocument();
     expect(screen.queryByText("本周建议动作")).toBeNull();
+  });
+
+  it("routes the removed StepFlow demo URL to the 404 fallback for authenticated users", async () => {
+    securityProfileState.value = { data: authenticatedProfile(), isError: false };
+    renderRouter("/config/packages/demo");
+
+    expect(await screen.findByText("此功能待 W3 业务域任务实装")).toBeInTheDocument();
+    expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 });
