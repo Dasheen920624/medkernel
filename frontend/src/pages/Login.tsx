@@ -4,6 +4,7 @@ import {
   AuditOutlined,
   LockOutlined,
   LoginOutlined,
+  RocketOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -80,11 +81,22 @@ export default function Login() {
   async function handleSubmit(values: { username: string; password: string; tenantId?: string }) {
     setErrorMsg(null);
     try {
-      await login.mutateAsync({
+      const result = await login.mutateAsync({
         username: values.username,
         password: values.password,
         tenantId: values.tenantId?.trim() || undefined,
       });
+      if (result.mustChangePwd || (result.mfaRequired && !result.mfaBound)) {
+        navigate("/bootstrap", {
+          state: {
+            phase: result.mustChangePwd ? "change-password" : "mfa",
+            login: result,
+            username: values.username,
+            tenantId: result.tenantId,
+          },
+        });
+        return;
+      }
       navigate("/dashboard");
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string; message?: string } } };
@@ -130,6 +142,14 @@ export default function Login() {
         <Text className={styles.safetyCopy}>
           登录只确认身份；发布、回滚、临床建议等高风险动作仍会在业务页面内二次确认并留痕。
         </Text>
+        <Button
+          aria-label="首次部署接管"
+          className={styles.bootstrapEntry}
+          icon={<RocketOutlined />}
+          onClick={() => navigate("/bootstrap")}
+        >
+          首次部署接管
+        </Button>
       </section>
 
       <Card className={styles.loginCard} bordered={false}>

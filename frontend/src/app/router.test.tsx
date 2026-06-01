@@ -9,6 +9,10 @@ vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({ data: undefined, isError: true }),
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
   useLogin: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCheckBootstrapInitToken: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateBootstrapAdmin: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useChangePassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBindBootstrapMfa: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -39,6 +43,13 @@ describe("AppRouter", () => {
 
     expect(await screen.findByRole("heading", { name: "集团医疗智能中枢" })).toBeInTheDocument();
     expect(screen.queryByText("本周建议动作")).toBeNull();
+  });
+
+  it("registers the first deployment bootstrap route outside the business layout", async () => {
+    renderRouter("/bootstrap");
+
+    expect(await screen.findByRole("heading", { name: "首次部署接管" })).toBeInTheDocument();
+    expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 
   it("blocks direct workbench entry before an effective permission profile is available", async () => {

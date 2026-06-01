@@ -2934,6 +2934,88 @@ export function useDeleteUserRoleAssignment() {
 }
 
 // ──────────────────────────────────────────
+// 首次部署 · 平台种子身份
+// ──────────────────────────────────────────
+export interface BootstrapStartResult {
+  valid: boolean;
+  expiresAt: string;
+}
+
+export interface BootstrapAdminPayload {
+  token: string;
+  tenantId?: string;
+  username: string;
+  password: string;
+}
+
+export interface BootstrapAdminResult {
+  userId: string;
+  tenantId: string;
+  username: string;
+  roles: string[];
+  mustChangePwd: boolean;
+}
+
+export interface ChangePasswordPayload {
+  oldPassword: string;
+  newPassword: string;
+}
+
+export interface BootstrapMfaPayload {
+  label: string;
+}
+
+export interface BootstrapMfaResult {
+  mfaBound: boolean;
+  recoveryCode: string;
+}
+
+export async function checkBootstrapInitToken(token: string) {
+  const resp = await apiClient.post<{ data: BootstrapStartResult }>("/bootstrap/init-token", {
+    token,
+  });
+  return resp.data.data;
+}
+
+export function useCheckBootstrapInitToken() {
+  return useMutation({
+    mutationFn: checkBootstrapInitToken,
+  });
+}
+
+export async function createBootstrapAdmin(payload: BootstrapAdminPayload) {
+  const resp = await apiClient.post<{ data: BootstrapAdminResult }>("/bootstrap/password", payload);
+  return resp.data.data;
+}
+
+export function useCreateBootstrapAdmin() {
+  return useMutation({
+    mutationFn: createBootstrapAdmin,
+  });
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  await apiClient.post<{ data: void }>("/auth/change-password", payload);
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: changePassword,
+  });
+}
+
+export async function bindBootstrapMfa(payload: BootstrapMfaPayload) {
+  const resp = await apiClient.post<{ data: BootstrapMfaResult }>("/bootstrap/mfa", payload);
+  return resp.data.data;
+}
+
+export function useBindBootstrapMfa() {
+  return useMutation({
+    mutationFn: bindBootstrapMfa,
+  });
+}
+
+// ──────────────────────────────────────────
 // 鉴权 · 登录 / 登出
 // ──────────────────────────────────────────
 export interface LoginPayload {
@@ -2947,6 +3029,8 @@ export interface LoginResult {
   tenantId: string;
   roles: string[];
   mustChangePwd: boolean;
+  mfaRequired: boolean;
+  mfaBound: boolean;
 }
 
 export function useLogin() {

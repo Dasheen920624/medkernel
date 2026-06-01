@@ -139,6 +139,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     pageType: "auth",
   },
   {
+    path: "/bootstrap",
+    title: "首次部署接管",
+    breadcrumb: ["首次部署接管"],
+    requireAuth: false,
+    hidden: true,
+    pageType: "auth",
+  },
+  {
     path: "/",
     title: "工作台",
     breadcrumb: ["工作台"],

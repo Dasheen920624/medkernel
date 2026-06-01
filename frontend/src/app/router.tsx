@@ -5,6 +5,7 @@ import { AppLayout } from "@/widgets/AppLayout";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
+const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const EmbedLaunch = lazy(() => import("@/pages/clinical/EmbedLaunch"));
 
@@ -55,6 +56,7 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/bootstrap" element={<Bootstrap />} />
         <Route path="/embed/launch" element={<EmbedLaunch />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />

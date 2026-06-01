@@ -85,10 +85,10 @@
 - Modify: `frontend/src/shared/api/hooks.ts`
 - Modify: `frontend/src/pages/Login.tsx`
 
-- [ ] 写失败测试：登录页可进入首次部署引导；每步只有一个主按钮；错误按字段回显。
-- [ ] 新增 `/bootstrap` 页面：init token → 设置首发账号密码 → 绑定 MFA，复用 BASE-10 token，不写硬编码颜色/px。
-- [ ] 登录成功后按 `mustChangePwd/mfaRequired` 跳转强制步骤，不允许进入 `/dashboard`。
-- [ ] 浏览器验收 `/login` 与 `/bootstrap`，确保主题切换不破、页面不崩。
+- [x] 写失败测试：登录页可进入首次部署引导；每步只有一个主按钮；错误按字段回显。
+- [x] 新增 `/bootstrap` 页面：init token → 设置首发账号密码 → 绑定 MFA，复用 BASE-10 token，不写硬编码颜色/px。
+- [x] 登录成功后按 `mustChangePwd/mfaRequired` 跳转强制步骤，不允许进入 `/dashboard`。
+- [x] 浏览器验收 `/login` 与 `/bootstrap`，确保主题切换不破、页面不崩。
 
 ## 任务 6：验收、门禁、PR
 

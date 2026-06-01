@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "./client";
 import {
   downloadPackageOfflineExport,
+  bindBootstrapMfa,
+  changePassword,
+  checkBootstrapInitToken,
+  createBootstrapAdmin,
   fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
@@ -172,5 +176,72 @@ describe("experience foundation api helpers", () => {
 
     await expect(saveThemePreference("contrast" as never)).rejects.toThrow("主题模式");
     expect(apiClient.put).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("bootstrap identity api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("checks the init token without creating a login session", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { valid: true, expiresAt: "2026-06-01T09:00:00Z" } },
+    });
+
+    const result = await checkBootstrapInitToken("raw-init-token");
+
+    expect(result.valid).toBe(true);
+    expect(apiClient.post).toHaveBeenCalledWith("/bootstrap/init-token", {
+      token: "raw-init-token",
+    });
+  });
+
+  it("creates the first platform admin from the password step", async () => {
+    const response = {
+      userId: "platform-owner",
+      tenantId: "t-1",
+      username: "platform-owner",
+      roles: ["platform-admin"],
+      mustChangePwd: true,
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const result = await createBootstrapAdmin({
+      token: "raw-init-token",
+      tenantId: "t-1",
+      username: "platform-owner",
+      password: "Init@2026pw",
+    });
+
+    expect(result).toBe(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/bootstrap/password", {
+      token: "raw-init-token",
+      tenantId: "t-1",
+      username: "platform-owner",
+      password: "Init@2026pw",
+    });
+  });
+
+  it("changes password and binds MFA through authenticated bootstrap continuation", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: null } })
+      .mockResolvedValueOnce({
+        data: { data: { mfaBound: true, recoveryCode: "RECOVERY-CODE-ONCE" } },
+      });
+
+    await changePassword({ oldPassword: "Init@2026pw", newPassword: "Owner@2026pw" });
+    const mfa = await bindBootstrapMfa({ label: "值班安全终端" });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/auth/change-password", {
+      oldPassword: "Init@2026pw",
+      newPassword: "Owner@2026pw",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/bootstrap/mfa", {
+      label: "值班安全终端",
+    });
+    expect(mfa.recoveryCode).toBe("RECOVERY-CODE-ONCE");
   });
 });
