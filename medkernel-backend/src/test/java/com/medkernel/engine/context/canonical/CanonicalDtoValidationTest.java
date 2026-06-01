@@ -54,4 +54,13 @@ class CanonicalDtoValidationTest {
         assertThat(violations).extracting(v -> v.getPropertyPath().toString())
             .contains("medicationId", "code", "displayName");
     }
+
+    @Test
+    void canonicalNursingAssessmentRequiresIdentityAndType() {
+        var invalid = new CanonicalNursingAssessment(null, null, null, null,
+            "NIS", "REC-5", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
+        Set<ConstraintViolation<CanonicalNursingAssessment>> violations = validator.validate(invalid);
+        assertThat(violations).extracting(v -> v.getPropertyPath().toString())
+            .contains("assessmentId", "assessmentType");
+    }
 }

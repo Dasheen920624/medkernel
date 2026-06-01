@@ -10,10 +10,10 @@ import com.medkernel.engine.context.canonical.CanonicalDocument;
 import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
 import com.medkernel.engine.context.canonical.CanonicalMedication;
+import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.context.canonical.CanonicalProcedure;
-import com.medkernel.engine.context.canonical.CanonicalSymptom;
 
 import jakarta.validation.Valid;
 
@@ -24,7 +24,7 @@ public record ContextSnapshotResources(
     @Valid CanonicalPatient patient,
     @Valid List<CanonicalEncounter> encounters,
     @Valid List<CanonicalCondition> conditions,
-    @Valid List<CanonicalSymptom> symptoms,
+    @Valid List<CanonicalNursingAssessment> nursingAssessments,
     @Valid List<CanonicalObservation> observations,
     @Valid List<CanonicalDiagnosticReport> diagnosticReports,
     @Valid List<CanonicalMedication> medications,

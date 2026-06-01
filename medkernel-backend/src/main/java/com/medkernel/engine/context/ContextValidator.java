@@ -78,7 +78,7 @@ public class ContextValidator {
         }
         r.encounters().forEach(e -> all.add(e.qualityStatus()));
         r.conditions().forEach(e -> all.add(e.qualityStatus()));
-        r.symptoms().forEach(e -> all.add(e.qualityStatus()));
+        r.nursingAssessments().forEach(e -> all.add(e.qualityStatus()));
         r.observations().forEach(e -> all.add(e.qualityStatus()));
         r.diagnosticReports().forEach(e -> all.add(e.qualityStatus()));
         r.medications().forEach(e -> all.add(e.qualityStatus()));

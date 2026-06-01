@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · API-13 大规模列表 API 🚧
+### 线 1 · SYS-01 标准临床模型与事件上下文 PR1 🚧
 
 - 类型：软件开发 / 后端平台契约
-- 分支：`codex/api-13-large-list`（基于 `origin/main` 34b2240）
-- 目标：按 [API-13](cards/D0/API-13.md) 收口大规模列表统一契约：服务端分页、cursor/offset、排序过滤白名单、`total_estimate`、异步导出、100k 级性能与前端全量加载防回流。
-- 状态：本地实现与清理完成，待提交 / PR / CI / 合并。已删除旧 `ListQueryRequest` / `ListQueryResponse` 生产契约，改为 `PageQuery` / `PageResult`；`GET /api/v1/large-lists/audit-events/list` 支持 cursor / offset / sort / filters，超大 size 诚实拒绝 `PAGE_SIZE_EXCEEDED`，排序 / 过滤白名单拒绝非法字段；V37 五方言索引已补齐；前端 `ServerDataTable` 与真实性门禁阻断 >100 的全量加载式分页。
-- 下一步（精确到动作/命令）：1. 重新跑最新改动后的目标测试与门禁；2. `git add` 后用 `node scripts/authenticity-guard.mjs --mode=all` 覆盖新增文件，再提交；3. 提交后跑 changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释 / 空白）；4. 推送 `codex/api-13-large-list`、开 PR、等待 CI 全绿、squash merge；5. 确认 `origin/main` 含 API-13 merge 后清理分支 / worktree，再从 backlog 领取 `SYS-01`。
-- 相关文件 / 测试 / 坑：核心改动在 `medkernel-backend/src/main/java/com/medkernel/shared/api/PageQuery.java`、`PageResult.java`、`medkernel-backend/src/main/java/com/medkernel/engine/list/*`、`medkernel-backend/src/main/java/com/medkernel/shared/audit/persistence/*`、`frontend/src/shared/ui/ServerDataTable.tsx`、`scripts/authenticity-guard.mjs` 与 V37 迁移。已跑目标后端、后端全量 `mvn -B -q test`、后端 `mvn -B -q clean test`（Docker 可用，PostgreSQL + Oracle Testcontainers 迁移 smoke 已执行）、前端 `verify` / `build`、门禁测试、中文注释和空白检查；`DEFER-001`–`DEFER-004` 继续登记不阻塞，不能写成已关闭。
+- 分支：`codex/sys-01-clinical-model`（基于 `origin/main` 6834af7）
+- 目标：按 [SYS-01](cards/D0/SYS-01.md) 的大卡工序先交付 PR1：12 类标准临床对象类型 + 5 方言迁移 + `tenant_id` / `org_path` / 审计字段 / 敏感字段，为后续 API-01、D3 临床运行、规则/路径/CDSS 同源上下文打底。
+- 状态：PR1 已完成本地实现与提交前验证：新增 `com.medkernel.engine.clinical.model` 12 类标准对象 / 租户级 Repository / V38 五方言迁移，Patient 敏感字段只保留密文与掩码；旧 `CanonicalSymptom` / `SYMPTOM` 口径已替换为 `CanonicalNursingAssessment` / `NURSING_ASSESSMENT`。本地聚焦测试、后端全量、Flyway PostgreSQL + Oracle + H2 烟测、迁移规约、真实性 / 配置边界工作树扫描、中文注释与空白检查已执行；待提交、推送、PR、远端 CI、合并。
+- 下一步（精确到动作/命令）：1. `git add` PR1 相关文件并提交 `完成 SYS-01 标准临床模型 PR1`；2. 提交后复跑 `node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check origin/main...HEAD`；3. 推送 `codex/sys-01-clinical-model` 并创建 PR；4. 远端 CI 全绿后合并到 `origin/main`，确认 merge 后再领取 SYS-01 PR2。
+- 相关文件 / 测试 / 坑：核心实现为 `medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/*`、`medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V38__standard_clinical_model.sql`、`medkernel-backend/src/test/java/com/medkernel/engine/clinical/model/*`；接力计划见 `docs/superpowers/plans/2026-06-01-sys-01-clinical-model-pr1.md`。Oracle 会因唯一约束自动生成同列索引，PR1 已删除重复 `idx_mk_clinical_patient_source`，保留 `uk_mk_clinical_patient_source` 支撑来源去重。当前阶段只保障 PostgreSQL + Oracle 真实运行；达梦 / 人大金仓真实环境保持 `DEFER-001`，新增外部阻塞必须登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线，不得写成已通过。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- API-13 大规模列表 API ✅（#218，merge `6834af7`）：统一 `PageQuery` / `PageResult` 契约，删除旧 `ListQueryRequest` / `ListQueryResponse` 生产契约；新增 `GET /api/v1/large-lists/audit-events/list`，支持 cursor / offset / sort / filters / `total_estimate`，超大 size 诚实拒绝 `PAGE_SIZE_EXCEEDED`，排序与过滤字段白名单校验；V37 五方言审计事件大列表索引补齐；前端 `ServerDataTable` 与真实性门禁阻断 >100 的全量加载式分页。本地后端目标测试、`mvn -B -q test`、`mvn -B -q clean test`（Docker 可用，PostgreSQL + Oracle Testcontainers 迁移 smoke 已执行）、前端 `verify` / `build`、真实性 / 配置 / 迁移 / 中文注释 / 空白门禁与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - OBS-01 引擎可观测性骨干 ✅（#217，merge `34b2240`）：V8 五方言收敛到 `mk_obs_state_transition` / `mk_obs_payload_store`，默认 `PayloadStoragePort` 改为 DB 存储并删除旧 in-memory 实现；新增 `/api/v1/engine/diagnose/traces/{traceId}` 诊断端点，`DiagnoseResponse` 补执行摘要；`RuleEngineService` / 临床事件 / 路径引擎执行日志纳入 trace 诊断链路。本地目标测试、`mvn -B -q test`、`mvn -B -q clean test`、changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释 / 空白）与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 OBS worktree 已清理。
 - BASE-11 平台首发种子身份 ✅（#216，merge `a9a0304`）：交付生产 init token、强制首次改密、MFA、CLI 应急和首次部署前端引导；补 `GET /api/v1/security/me` 的 `mustChangePwd/mfaRequired/mfaBound` 状态与业务路由全局拦截，避免直接访问 `/dashboard` 绕过首次改密 / MFA；`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard；`bootstrap-emergency.sh` 支持本机确认 + 二次确认的 MFA 重置 / 账号解锁并写审计；`/bootstrap` 支持 init token、首发管理员、首次改密、MFA 引导，登录页可进入并按状态强制跳转。本地后端全量、前端全量 verify/build、T-GATE、浏览器交互验收与远端 CI 8/8 通过后合入 `origin/main`。
 - BASE-10 设计 Token 系统 ✅（#215，merge `c64ad9d`）：收口 `theme.ts` / Ant Design token、5 主题、登录页登录前主题切换、老年医生模式 24px / 52px 控件、用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 全量 token 化并接入 stylelint / CI。本地前端 verify/build、后端全量、T-GATE、浏览器真实点击 5 主题和远端 CI 8/8 通过后合入 `origin/main`；截图能力本机超时已如实登记，未伪造证据。
@@ -105,4 +106,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · API-13 本地实现与验证完成，正在进入提交 / PR / CI / 合并闭环；下一卡为 `SYS-01`，必须等 API-13 merge 进入 `origin/main` 后领取。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
+> 末次更新：2026-06-01 · SYS-01 PR1 本地实现与提交前验证完成：12 标准对象、V38 五方言迁移、旧 `SYMPTOM` 口径清理已落地；下一步提交、PR、CI、合并，合并后继续 SYS-01 PR2。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。

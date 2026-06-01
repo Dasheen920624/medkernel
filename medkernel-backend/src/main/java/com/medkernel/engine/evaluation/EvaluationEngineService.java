@@ -248,7 +248,7 @@ public class EvaluationEngineService {
         
         ArrayNode encounters = json.createArrayNode();
         ArrayNode conditions = json.createArrayNode();
-        ArrayNode symptoms = json.createArrayNode();
+        ArrayNode nursingAssessments = json.createArrayNode();
         ArrayNode observations = json.createArrayNode();
         ArrayNode diagnosticReports = json.createArrayNode();
         ArrayNode medications = json.createArrayNode();
@@ -265,7 +265,7 @@ public class EvaluationEngineService {
                     case PATIENT -> contextJson.set("patient", dataNode);
                     case ENCOUNTER -> encounters.add(dataNode);
                     case CONDITION -> conditions.add(dataNode);
-                    case SYMPTOM -> symptoms.add(dataNode);
+                    case NURSING_ASSESSMENT -> nursingAssessments.add(dataNode);
                     case OBSERVATION -> observations.add(dataNode);
                     case DIAGNOSTIC_REPORT -> diagnosticReports.add(dataNode);
                     case MEDICATION -> medications.add(dataNode);
@@ -281,7 +281,7 @@ public class EvaluationEngineService {
         }
         contextJson.set("encounters", encounters);
         contextJson.set("conditions", conditions);
-        contextJson.set("symptoms", symptoms);
+        contextJson.set("nursingAssessments", nursingAssessments);
         contextJson.set("observations", observations);
         contextJson.set("diagnosticReports", diagnosticReports);
         contextJson.set("medications", medications);

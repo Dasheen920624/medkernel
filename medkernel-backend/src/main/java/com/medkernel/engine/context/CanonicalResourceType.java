@@ -9,7 +9,7 @@ public enum CanonicalResourceType {
     PATIENT,
     ENCOUNTER,
     CONDITION,
-    SYMPTOM,
+    NURSING_ASSESSMENT,
     OBSERVATION,
     DIAGNOSTIC_REPORT,
     MEDICATION,

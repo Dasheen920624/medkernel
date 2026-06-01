@@ -8,14 +8,13 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 标准症状/体征。对齐 detail spec §7.4 Symptom/Sign。
+ * 标准护理评估。对齐 SYS-01 NursingAssessment。
  */
-public record CanonicalSymptom(
-    @NotBlank String symptomId,
-    @NotBlank String name,
-    String severity,
-    String negation,
-    Instant observedAt,
+public record CanonicalNursingAssessment(
+    @NotBlank String assessmentId,
+    @NotBlank String assessmentType,
+    String riskLevel,
+    String status,
     String sourceSystem,
     String sourceRecordId,
     String mappedVersion,

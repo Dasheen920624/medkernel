@@ -30,9 +30,9 @@ import com.medkernel.engine.context.canonical.CanonicalDocument;
 import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
 import com.medkernel.engine.context.canonical.CanonicalMedication;
+import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalProcedure;
-import com.medkernel.engine.context.canonical.CanonicalSymptom;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -238,8 +238,9 @@ public class ContextSnapshotService {
         for (CanonicalCondition c : safeList(r.conditions())) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.CONDITION, c, c.qualityStatus(), seq);
         }
-        for (CanonicalSymptom s : safeList(r.symptoms())) {
-            seq = persistOne(snapshotId, tenantId, CanonicalResourceType.SYMPTOM, s, s.qualityStatus(), seq);
+        for (CanonicalNursingAssessment n : safeList(r.nursingAssessments())) {
+            seq = persistOne(snapshotId, tenantId, CanonicalResourceType.NURSING_ASSESSMENT,
+                n, n.qualityStatus(), seq);
         }
         for (CanonicalObservation o : safeList(r.observations())) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.OBSERVATION, o, o.qualityStatus(), seq);
