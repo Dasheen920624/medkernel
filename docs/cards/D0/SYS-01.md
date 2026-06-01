@@ -17,12 +17,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 12 类标准对象**：定义 Patient / Encounter / Condition / Observation / Medication / Procedure / DiagnosticReport / Document / NursingAssessment / CarePlan / FollowUp / Claim 标准对象，FHIR R4 兼容字段口径。
-- [ ] **FR-2 标准事件上下文**：定义临床事件触发引擎的统一上下文 `ClinicalEventContext`（患者 + 就诊 + 组织 + 时间 + 触发源），供规则/路径/CDSS 同源消费。
-- [ ] **FR-3 关系库权威**：12 对象唯一权威源为院内关系库（核心 #5）；图/Dify 仅投影，可重建（[SYS-03](SYS-03.md)）。
-- [ ] **FR-4 字典映射锚点**：12 对象的编码字段（诊断/检验/药品…）提供标准↔院内字典映射锚点（D2 TERM 卡消费）。
-- [ ] **FR-5 组织/版本字段**：12 对象带 `tenant_id` + `org_path` + 审计字段（呼应 [BASE-01](BASE-01.md)）。
-- [ ] **FR-6 事件驱动**：临床事件 → `ClinicalEventContext` → 引擎入口（规则/路径/CDSS/质控）取同一上下文。
+- [x] **FR-1 12 类标准对象**：定义 Patient / Encounter / Condition / Observation / Medication / Procedure / DiagnosticReport / Document / NursingAssessment / CarePlan / FollowUp / Claim 标准对象，FHIR R4 兼容字段口径。
+- [x] **FR-2 标准事件上下文**：定义临床事件触发引擎的统一上下文 `ClinicalEventContext`（患者 + 就诊 + 组织 + 时间 + 触发源），供规则/路径/CDSS 同源消费。
+- [x] **FR-3 关系库权威**：12 对象唯一权威源为院内关系库（核心 #5）；图/Dify 仅投影，可重建（[SYS-03](SYS-03.md)）。
+- [x] **FR-4 字典映射锚点**：12 对象的编码字段（诊断/检验/药品…）提供标准↔院内字典映射锚点（D2 TERM 卡消费）。
+- [x] **FR-5 组织/版本字段**：12 对象带 `tenant_id` + `org_path` + 审计字段（呼应 [BASE-01](BASE-01.md)）。
+- [x] **FR-6 事件驱动**：临床事件 → `ClinicalEventContext` → 引擎入口（规则/路径/CDSS/质控）取同一上下文。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -60,11 +60,11 @@ N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 - 本卡落点：12 标准对象 + `ClinicalEventContext` 一次立骨，使 D3+ 所有临床能力消费同一类型与事件上下文，零平行模型。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：12 标准对象建模完整、FHIR R4 关键字段可映射；持久化往返一致。
-- [ ] **AC-2（FR-2/6）**：构造一次临床事件 → `ClinicalEventContext` → 规则/路径/CDSS 三引擎入口取到同一上下文。
-- [ ] **AC-3（FR-3）**：12 对象权威源为关系库；图投影关闭后对象读取不受影响（核心 #5）。
-- [ ] **AC-4（FR-4）**：编码字段挂字典映射锚点，未映射项可追踪（指向 TERM 卡）。
-- [ ] **AC-5（FR-5）**：12 对象跨租户隔离 + 敏感字段脱敏/加密生效。
+- [x] **AC-1（FR-1）**：12 标准对象建模完整、FHIR R4 关键字段可映射；持久化往返一致。
+- [x] **AC-2（FR-2/6）**：构造一次临床事件 → `ClinicalEventContext` → 规则/路径/CDSS 三引擎入口取到同一上下文。
+- [x] **AC-3（FR-3）**：12 对象权威源为关系库；图投影关闭后对象读取不受影响（核心 #5）。
+- [x] **AC-4（FR-4）**：编码字段挂字典映射锚点，未映射项可追踪（指向 TERM 卡）。
+- [x] **AC-5（FR-5）**：12 对象跨租户隔离 + 敏感字段脱敏/加密生效。
 - 关联 A1–A9：A3 临床运行（标准对象驱动入径/推荐）、A8 护理/报告。
 - T-GATE：后端门禁全绿（无 mock 患者/无写死编码）。
 - B0 验收：标准模型纯确定性，无模型依赖，天然 B0。
@@ -87,3 +87,8 @@ N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 - 覆盖范围：新增 `ClinicalEventContext`、`ClinicalEventEngineDispatcher`、规则 / 路径 / CDSS 三个真实适配入口、`clinical_event.org_scope_json` V39 五方言迁移；临床事件处理从“只推进状态”调整为先构造同一个事件上下文，再派发给三类引擎，成功后才进入 `PROCESSED`。
 - 字典锚点：新增 `ClinicalCodeMappingAnchor` / `ClinicalCodeMappingAnchorRegistry`，12 类标准对象的编码字段均可生成 `anchor.key()`，`TerminologyMappingPort` 改为按锚点评估，未映射项以 `UNKNOWN` 可追踪返回。
 - 验收口径：作为 **AC-2 事件上下文三引擎同源入口基础** 与 **AC-4 编码字段映射锚点基础** 的 PR2 证据；AC-3 关系库权威 / 图投影关闭 / FHIR 门面仍由 PR3 承接，整卡 FR / AC 不在本 PR 勾选。
+
+### PR3 进度证据（SYS-01 收口，不冒领 OPT-01 / SYS-03）
+- 关系库权威：新增 `StandardClinicalAuthorityService`，按 `tenantId + patientId` 从 12 个 `mk_clinical_*` 关系库权威仓库聚合标准对象；`ClinicalProjectionStatusPort` 只返回图投影诚实状态，不参与业务事实读取，投影 `NOT_SYNCED` 时仍返回 `authoritySource=RELATIONAL_DATABASE`。
+- FHIR 映射：新增 `StandardClinicalFhirMappingRegistry` / `StandardClinicalFhirReference`，12 类标准对象均有 FHIR R4 资源类型锚点；已有 `fhir_resource_id` 时解析 `ResourceType/id`，缺失时以本地权威主键 fallback 并标记 `LOCAL_AUTHORITY_FALLBACK`，不伪造外部 FHIR id。
+- 验收口径：本 PR 收口 **AC-3 关系库权威 / 图投影关闭不影响读取**，并补足 SYS-01 层面的 FHIR R4 映射锚点；完整 FHIR R4/R5 端点、CapabilityStatement、受控 create 与 INTEG 总线接入仍由 D2 [OPT-01](../D2/OPT-01.md) 承接，图投影重建 / 一致性校验仍由 [SYS-03](SYS-03.md) 承接。
