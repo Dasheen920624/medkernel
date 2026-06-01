@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ConfigProvider, theme as antdTheme } from "antd";
+import { App as AntdApp, ConfigProvider, theme as antdTheme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -48,11 +48,13 @@ export default function App() {
 
   return (
     <ConfigProvider locale={zhCN} theme={themeConfig}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AppRouter />
-        </BrowserRouter>
-      </QueryClientProvider>
+      <AntdApp>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AppRouter />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </AntdApp>
     </ConfigProvider>
   );
 }

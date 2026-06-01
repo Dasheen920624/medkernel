@@ -9,12 +9,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
@@ -46,6 +51,8 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class PackageEngineServiceTest {
+
+    private static final ObjectMapper TEST_MAPPER = new ObjectMapper();
 
     private KnowledgePackageRepository packageRepository;
     private PackageItemRepository itemRepository;
@@ -337,6 +344,42 @@ class PackageEngineServiceTest {
             .contains("\"changeType\":\"ADDED\"")
             .contains("\"assetId\":\"rule-added\"");
         verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-target"), any());
+    }
+
+    @Test
+    void exportOfflinePackageReturnsPayloadWithPhysicalSha256AndPublishesAudit() throws Exception {
+        KnowledgePackage pack = packageVersion("pkg-offline", "3.0.0", KnowledgePackageStatus.PUBLISHED);
+        List<PackageItem> items = List.of(
+            packageItem(1L, "pkg-offline", PackageItemAssetType.RULE, "rule-stable", "2"),
+            packageItem(2L, "pkg-offline", PackageItemAssetType.TERMINOLOGY, "term-stable", "1")
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-offline", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-offline"))
+            .thenReturn(items);
+
+        String exportJson = service.exportOfflinePackage("pkg-offline");
+
+        JsonNode root = TEST_MAPPER.readTree(exportJson);
+        assertThat(root.path("format").asText()).isEqualTo("MEDKERNEL_PACKAGE_OFFLINE_V1");
+        assertThat(root.path("manifest").path("packageId").asText()).isEqualTo("pkg-offline");
+        assertThat(root.path("manifest").path("tenantId").asText()).isEqualTo("tenant-A");
+        assertThat(root.path("manifest").path("packageCode").asText()).isEqualTo("PKG.TEST");
+        assertThat(root.path("manifest").path("packageVersion").asText()).isEqualTo("3.0.0");
+        assertThat(root.path("manifest").path("itemCount").asInt()).isEqualTo(2);
+        assertThat(root.path("manifest").path("traceId").asText()).isEqualTo("trace-pkg");
+        assertThat(root.path("manifest").path("exportedAt").asText()).isNotBlank();
+
+        String payloadJson = TEST_MAPPER.writeValueAsString(root.path("payload"));
+        String expectedSha256 = HexFormat.of().formatHex(
+            MessageDigest.getInstance("SHA-256").digest(payloadJson.getBytes(StandardCharsets.UTF_8)));
+        assertThat(root.path("manifest").path("payloadSha256").asText())
+            .matches("[a-f0-9]{64}")
+            .isEqualTo(expectedSha256);
+        assertThat(root.path("payload").path("packageInfo").path("packageId").asText())
+            .isEqualTo("pkg-offline");
+        assertThat(root.path("payload").path("items")).hasSize(2);
+        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-offline"), any());
     }
 
     @Test

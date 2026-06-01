@@ -1838,6 +1838,13 @@ export async function downloadPackageDiffExport(packageId: string, basePackageId
   return data;
 }
 
+export async function downloadPackageOfflineExport(packageId: string) {
+  const { data } = await apiClient.get<Blob>(`/engine/packages/${packageId}/offline/export`, {
+    responseType: "blob",
+  });
+  return data;
+}
+
 // 7. 触发多通道物理投影同步发布
 export function useSyncPackage() {
   return useMutation({
