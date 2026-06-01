@@ -39,18 +39,10 @@ import {
   useValidateModelPolicy,
 } from "@/shared/api/hooks";
 import type { ModelCapabilityStatusResponse, ModelTaskResponse } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
-
-interface ApiErrorLike {
-  message?: string;
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-}
 
 // 稳定大模型能力的中文业务展示元数据（静态文案映射，非业务数据 mock）。
 interface CapabilityMeta {
@@ -101,15 +93,6 @@ const capabilityMetaMap: Record<string, CapabilityMeta> = {
     category: "智能随访",
   },
 };
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (!error || typeof error !== "object") {
-    return fallback;
-  }
-
-  const candidate = error as ApiErrorLike;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
 
 function getFallbackStatusText(result: ModelTaskResponse | null) {
   if (!result) return "—";
@@ -290,6 +273,7 @@ export default function AiWorkflows() {
       }
       refetchStatus();
     } catch (err: unknown) {
+      if (applyApiFieldErrors(policyForm, err)) return;
       message.error(getApiErrorMessage(err, "策略校验请求失败，请稍后重试"));
     }
   };

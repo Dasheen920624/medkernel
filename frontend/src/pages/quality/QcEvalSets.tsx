@@ -38,6 +38,7 @@ import type {
   EvaluationSubjectType,
   EvaluationRunResponse,
 } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { Option } = Select;
 
@@ -127,8 +128,9 @@ export default function QcEvalSets() {
       setIsCreateModalOpen(false);
       form.resetFields();
       refetch();
-    } catch {
-      message.error("创建失败：指标编码与版本号不能重复");
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(form, error)) return;
+      message.error(getApiErrorMessage(error, "创建失败：指标编码与版本号不能重复"));
     }
   };
 
@@ -138,8 +140,8 @@ export default function QcEvalSets() {
       message.success("指标成功提交送审");
       refetch();
       setIsDetailOpen(false);
-    } catch {
-      message.error("流转送审失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "流转送审失败"));
     }
   };
 
@@ -149,8 +151,8 @@ export default function QcEvalSets() {
       message.success("指标成功发布通过");
       refetch();
       setIsDetailOpen(false);
-    } catch {
-      message.error("发布失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "发布失败"));
     }
   };
 
@@ -160,8 +162,8 @@ export default function QcEvalSets() {
       message.success("指标激活成功，同编码旧 ACTIVE 版本已自动 Offline 下线");
       refetch();
       setIsDetailOpen(false);
-    } catch {
-      message.error("激活失败");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "激活失败"));
     }
   };
 
@@ -178,10 +180,10 @@ export default function QcEvalSets() {
       });
       setScanResult(res);
       message.success("质控规则自动扫描求值完成");
-    } catch (err) {
-      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data
-        ?.message;
-      message.error(errorMsg || "扫描计算失败：病例不符合分母入组规则或缺少 ACTIVE 指标");
+    } catch (err: unknown) {
+      message.error(
+        getApiErrorMessage(err, "扫描计算失败：病例不符合分母入组规则或缺少 ACTIVE 指标"),
+      );
     }
   };
 

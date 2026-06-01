@@ -24,23 +24,9 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import { useEvaluateRules, useRuleExecutionDiagnose } from "@/shared/api/hooks";
 import type { RuleEvaluationItem, RuleEvaluateResponse } from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
-
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-};
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as ApiErrorResponse;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
 
 export default function RuleValidate() {
   const [contextJson, setContextJson] = useState<string>("");

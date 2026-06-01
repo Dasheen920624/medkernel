@@ -44,6 +44,7 @@ import type {
   PathwayTemplateStatus,
   SpecialtyPackage,
 } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -81,20 +82,6 @@ type PathwayEdgeDraft = {
   conditionJson?: string;
   priority: number;
 };
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-};
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as ApiErrorResponse;
-  return candidate.response?.data?.message?.trim() || candidate.message?.trim() || fallback;
-}
 
 function parseJsonInput(value: string, errorMessage: string) {
   const normalized = value.trim();
@@ -165,6 +152,7 @@ export default function PathwayTemplates() {
       packageForm.resetFields();
       refetchPackages();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(packageForm, error)) return;
       message.error(getApiErrorMessage(error, "创建专病包失败，请检查参数"));
     }
   };
@@ -195,6 +183,7 @@ export default function PathwayTemplates() {
       templateForm.resetFields();
       refetchList();
     } catch (error: unknown) {
+      if (applyApiFieldErrors(templateForm, error)) return;
       message.error(getApiErrorMessage(error, "创建路径模板失败"));
     }
   };

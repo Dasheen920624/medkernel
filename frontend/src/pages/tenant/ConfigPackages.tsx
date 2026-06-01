@@ -69,27 +69,12 @@ import type {
   SyncLogResponse,
   TermMapping,
 } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
-type ApiErrorResponse = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-};
-
 type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
-
-function apiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || error === null || !("response" in error)) {
-    return fallback;
-  }
-  const messageText = (error as ApiErrorResponse).response?.data?.message;
-  return messageText && messageText.trim().length > 0 ? messageText : fallback;
-}
 
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -196,7 +181,8 @@ export default function ConfigPackages() {
       createForm.resetFields();
       refetchPackages();
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "配置包草稿创建失败，请检查接口状态后重试。"));
+      if (applyApiFieldErrors(createForm, err)) return;
+      message.error(getApiErrorMessage(err, "配置包草稿创建失败，请检查接口状态后重试。"));
     }
   };
 
@@ -220,7 +206,8 @@ export default function ConfigPackages() {
       refetchPackageDetail();
       refetchPackages();
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "资产细项添加失败，请检查接口状态后重试。"));
+      if (applyApiFieldErrors(itemForm, err)) return;
+      message.error(getApiErrorMessage(err, "资产细项添加失败，请检查接口状态后重试。"));
     }
   };
 
@@ -257,7 +244,8 @@ export default function ConfigPackages() {
       setSyncExecuting(false);
       setSyncProgress(0);
       setSyncLogs([]);
-      message.error(apiErrorMessage(err, "投影同步失败，未生成同步证据。"));
+      if (applyApiFieldErrors(syncForm, err)) return;
+      message.error(getApiErrorMessage(err, "投影同步失败，未生成同步证据。"));
     }
   };
 
@@ -270,7 +258,7 @@ export default function ConfigPackages() {
       triggerBlobDownload(blob, `package-diff-${safeName}.jsonl`);
       message.success("影响范围证据已开始下载。");
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "影响范围证据导出失败，请稍后重试。"));
+      message.error(getApiErrorMessage(err, "影响范围证据导出失败，请稍后重试。"));
     } finally {
       setDiffExporting(false);
     }
@@ -284,7 +272,7 @@ export default function ConfigPackages() {
       triggerBlobDownload(blob, `package-offline-${safeName}.json`);
       message.success("离线包已开始下载，文件内包含完整性摘要。");
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
+      message.error(getApiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
     } finally {
       setOfflineExportingId(null);
     }
@@ -317,7 +305,7 @@ export default function ConfigPackages() {
       closeOfflineImportModal();
       refetchPackages();
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "离线包导入失败，未通过完整性校验或发布门禁。"));
+      message.error(getApiErrorMessage(err, "离线包导入失败，未通过完整性校验或发布门禁。"));
     }
   };
 
@@ -344,7 +332,7 @@ export default function ConfigPackages() {
       closeRollbackModal();
       refetchPackages();
     } catch (err: unknown) {
-      message.error(apiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换。"));
+      message.error(getApiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换。"));
     }
   };
 

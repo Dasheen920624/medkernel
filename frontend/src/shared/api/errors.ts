@@ -14,7 +14,7 @@ export interface ParsedApiError {
 }
 
 export interface ApiFormLike {
-  setFields(fields: Array<{ name: ApiFieldName; errors: string[] }>): void;
+  setFields: unknown;
 }
 
 export interface ApiFieldErrorOptions {
@@ -88,6 +88,9 @@ export function applyApiFieldErrors(
 ): boolean {
   const fields = apiFieldErrorsToFormFields(error, options);
   if (fields.length === 0) {
+    return false;
+  }
+  if (typeof form.setFields !== "function") {
     return false;
   }
   form.setFields(fields);

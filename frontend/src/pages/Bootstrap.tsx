@@ -29,6 +29,7 @@ import {
   useCreateBootstrapAdmin,
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -54,19 +55,8 @@ interface BootstrapLocationState {
   tenantId?: string;
 }
 
-interface ApiErrorLike {
-  response?: { data?: { detail?: string; message?: string } };
-  message?: string;
-}
-
-function apiErrorMessage(error: unknown, fallback: string) {
-  const apiError = error as ApiErrorLike;
-  return (
-    apiError.response?.data?.detail ||
-    apiError.response?.data?.message ||
-    apiError.message ||
-    fallback
-  );
+function mapBootstrapField(field: string) {
+  return field === "initToken" ? "token" : field;
 }
 
 function normalizePhase(value: unknown): BootstrapPhase {
@@ -145,9 +135,11 @@ export default function Bootstrap() {
       setExpiresAt(result.expiresAt);
       setPhase("password");
     } catch (err) {
-      const message = apiErrorMessage(err, "init token 校验失败");
-      tokenForm.setFields([{ name: "token", errors: [message] }]);
-      setGlobalError(message);
+      const errorMessage = getApiErrorMessage(err, "init token 校验失败");
+      if (!applyApiFieldErrors(tokenForm, err, { fieldNameMap: mapBootstrapField })) {
+        tokenForm.setFields([{ name: "token", errors: [errorMessage] }]);
+      }
+      setGlobalError(errorMessage);
     }
   }
 
@@ -168,9 +160,11 @@ export default function Bootstrap() {
       setAdmin(result);
       setPhase("login-required");
     } catch (err) {
-      const message = apiErrorMessage(err, "首发管理员创建失败");
-      adminForm.setFields([{ name: "username", errors: [message] }]);
-      setGlobalError(message);
+      const errorMessage = getApiErrorMessage(err, "首发管理员创建失败");
+      if (!applyApiFieldErrors(adminForm, err)) {
+        adminForm.setFields([{ name: "username", errors: [errorMessage] }]);
+      }
+      setGlobalError(errorMessage);
     }
   }
 
@@ -191,9 +185,11 @@ export default function Bootstrap() {
         setPhase("done");
       }
     } catch (err) {
-      const message = apiErrorMessage(err, "首次改密失败");
-      passwordForm.setFields([{ name: "oldPassword", errors: [message] }]);
-      setGlobalError(message);
+      const errorMessage = getApiErrorMessage(err, "首次改密失败");
+      if (!applyApiFieldErrors(passwordForm, err)) {
+        passwordForm.setFields([{ name: "oldPassword", errors: [errorMessage] }]);
+      }
+      setGlobalError(errorMessage);
     }
   }
 
@@ -204,9 +200,11 @@ export default function Bootstrap() {
       setRecoveryCode(result.recoveryCode);
       setPhase("done");
     } catch (err) {
-      const message = apiErrorMessage(err, "MFA 绑定失败");
-      mfaForm.setFields([{ name: "label", errors: [message] }]);
-      setGlobalError(message);
+      const errorMessage = getApiErrorMessage(err, "MFA 绑定失败");
+      if (!applyApiFieldErrors(mfaForm, err)) {
+        mfaForm.setFields([{ name: "label", errors: [errorMessage] }]);
+      }
+      setGlobalError(errorMessage);
     }
   }
 

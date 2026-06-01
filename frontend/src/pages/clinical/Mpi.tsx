@@ -29,6 +29,7 @@ import {
   useMergeMpiPatients,
   type MpiPatient,
 } from "@/shared/api/hooks";
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;
@@ -117,10 +118,8 @@ export default function Mpi() {
       refetchList();
       refetchStats();
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "合并失败，请检查主索引ID是否正确";
-      message.error(`合并失败：${errorMsg}`);
+      if (applyApiFieldErrors(form, error)) return;
+      message.error(getApiErrorMessage(error, "合并失败，请检查主索引ID是否正确"));
     }
   };
 

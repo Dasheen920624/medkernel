@@ -39,6 +39,7 @@ import type {
   EvidenceSnapshot,
   EvidenceVerifyResult,
 } from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 
 const { Text } = Typography;
 
@@ -62,17 +63,6 @@ function shortHash(value?: string) {
   if (!value) return "未返回";
   if (value.length <= 24) return value;
   return `${value.slice(0, 16)}...${value.slice(-8)}`;
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  const candidate = error as {
-    response?: { data?: { message?: unknown } };
-    message?: unknown;
-  };
-  const responseMessage = candidate.response?.data?.message;
-  if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
-  if (typeof candidate.message === "string" && candidate.message.trim()) return candidate.message;
-  return fallback;
 }
 
 function AuditEventList({ events }: { events: AuditEventRow[] }) {
