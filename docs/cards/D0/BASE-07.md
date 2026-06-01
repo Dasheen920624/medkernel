@@ -70,8 +70,8 @@ N·A —— 「国产化自检」页在 D6 高级工具消费本卡探活/smoke 
 - PR1 本地证据：`RuntimeOperationsControllerTest` 覆盖 liveness/readiness 与 `NOT_CONNECTED`/`MODEL_DISABLED` 诚实状态；`BusinessMetricsTest` 与运行快照覆盖 Micrometer 业务指标；前端 `SystemProviders.test.tsx` 覆盖中文状态展示且不裸露旧 `DISABLED`。
 - PR2 本地证据：`SystemConfigControllerTest.backupPolicyIsBackedByConfigCenterWithoutRestart` 覆盖备份启用/RPO/RTO 从配置中心热生效并写历史；`RuntimeConfigurationContractTest` 覆盖容器 profile 不再使用旧 `graph-enabled/dify-enabled` 口径、备份恢复演练脚本、国产化真实连接 smoke 脚本；本机 Docker 已执行 `backup-restore-drill.sh`，恢复证据 `restore-drill-20260601-031730.txt` 显示隔离库恢复成功并校验 `flyway_schema_history`。
 - PR2 诚实边界：`govcloud-smoke.sh` 会先跑国密 SM2/SM3/SM4 smoke，再要求达梦/人大金仓真实 JDBC URL、驱动类、账号、密码和 JDBC jar；缺少条件即失败，不把国产化数据库未连接伪装成通过。
-- PR3 本地证据：`govcloud-smoke.sh` 新增 `MEDKERNEL_GOV_EVIDENCE_DIR` 与 `govcloud-smoke-<UTC时间>.txt` 证据包，记录方言、驱动类、JDBC jar SHA-256、国密 smoke、数据库 smoke 与 `status=PASS/FAIL`；`RuntimeConfigurationContractTest.govcloudSmokeScriptFailsClosedWithoutRealDomesticConnection` 和 `validate-deployment-assets.sh` 阻断证据口径退化；未提供真实国产库连接时实跑生成 `status=FAIL` 证据。记录见 [BASE-07 国产化 smoke 证据包门禁 PR3](../../audit/BASE-07-govcloud-evidence-pr3.md)。本 PR 仍不勾选 FR-5 / AC-3，待院内或自托管国产化环境提供真实达梦 / 人大金仓连接证据。
-- 代码 permalink：健康探活 / 国产化 profile / Feature Flag 接入 / 备份恢复脚本 / 国密 smoke（PR 合并后回填）。
+- PR3 证据（#211，merge `499e0e4`）：`govcloud-smoke.sh` 新增 `MEDKERNEL_GOV_EVIDENCE_DIR` 与 `govcloud-smoke-<UTC时间>.txt` 证据包，记录方言、驱动类、JDBC jar SHA-256、国密 smoke、数据库 smoke 与 `status=PASS/FAIL`；`RuntimeConfigurationContractTest.govcloudSmokeScriptFailsClosedWithoutRealDomesticConnection` 和 `validate-deployment-assets.sh` 阻断证据口径退化；未提供真实国产库连接时实跑生成 `status=FAIL` 证据。记录见 [BASE-07 国产化 smoke 证据包门禁 PR3](../../audit/BASE-07-govcloud-evidence-pr3.md)。此证据包门禁仍不勾选 FR-5 / AC-3，待院内或自托管国产化环境提供真实达梦 / 人大金仓连接证据。
+- 代码证据：PR1 #189、PR2 #191、PR3 #211 已归档；FR-5 / AC-3 真实国产库连通证据待院内或自托管环境执行通过后随最终收口 PR 回填。
 - 测试：依赖断开诚实状态测试 + 国产化 smoke + 备份恢复演练记录 + 配置中心开关生效测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
