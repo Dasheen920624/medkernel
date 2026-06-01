@@ -117,7 +117,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | INFRA-03 | 错误处理与表单反馈一致性 | useMutation 统一 onError + Form.Item 字段级回显 + 后端显式抛 ApiException + DataIntegrityViolation handler + traceId 复制 | 12d | done |
 | INFRA-04 | 退出登录 UI | AppLayout Header Avatar Dropdown（当前用户/修改密码/退出登录）+ useLogout + 401 自动跳登录 | 3d | done |
 | INFRA-05 | 27 二级菜单粒度权限模型 | 后端 MenuPermissionCatalog 到二级菜单粒度 + DefaultPermissionPolicy 13 角色×N 菜单矩阵 + 前端 routes.ts requiredPermissions/requiredRoles | 10d | done |
-| INFRA-08 | 会话超时与多 tab 同步 | token 过期自动跳登录 + 多 tab storage event 同步 + 长时间无操作自动登出 | 3d | pending |
+| INFRA-08 | 会话超时与多 tab 同步 | token 过期自动跳登录 + 多 tab storage event 同步 + 长时间无操作自动登出 | 3d | done |
 | SUPERADMIN-01 | 内置超级管理员 | 启动强制内置 + 自动授满五维 + 系统配置中心；不可降权/删除/移出 + 不旁路（走 RBAC）+ 独立高亮审计 + 强制 MFA（宪法 #20）| 3d | pending |
 | CONFIG-01 | 配置中心引擎 | DB 配置存储 key/value + 元数据 + 热生效 + 变更审计 + 可回滚 + 高危二次确认；启动只读 DB/端口/profile/迁移/密钥，其余 medkernel.* 从配置存储；高危护栏审计持久化不可关（宪法 #19）| 5d | pending |
 | AUTH-01 | 双模身份与登录闭环 | 内网委托 IdP（OIDC/CAS/SAML/国密CA）+ 外网平台账号 BCrypt→JWT；httpOnly cookie + CSRF；登录审计；错误不泄露存在性；platform_credential 五方言 + MFA 机制（#146 MVP 已建，收编分期项）| 5d | pending |

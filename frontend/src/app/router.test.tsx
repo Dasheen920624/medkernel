@@ -14,6 +14,8 @@ vi.mock("@/shared/api/hooks", () => ({
   useChangePassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useBindBootstrapMfa: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useLogout: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSessionStatus: () => ({ data: undefined }),
+  useRenewSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));

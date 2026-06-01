@@ -11,6 +11,7 @@ import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.AuthSessionProperties;
 
 /**
  * 启动期把 YAML 默认配置导入关系库配置中心。
@@ -21,6 +22,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private final RuntimeProperties runtimeProperties;
     private final AuthJwtProperties jwtProperties;
     private final AuthCookieProperties cookieProperties;
+    private final AuthSessionProperties sessionProperties;
     private final AuditFallbackProperties auditFallbackProperties;
     private final ClinicalEventWorkerSettings clinicalEventProperties;
     private final Environment environment;
@@ -29,6 +31,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     public SystemConfigSeeder(RuntimeProperties runtimeProperties,
                               AuthJwtProperties jwtProperties,
                               AuthCookieProperties cookieProperties,
+                              AuthSessionProperties sessionProperties,
                               AuditFallbackProperties auditFallbackProperties,
                               ClinicalEventWorkerSettings clinicalEventProperties,
                               Environment environment,
@@ -36,6 +39,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         this.runtimeProperties = runtimeProperties;
         this.jwtProperties = jwtProperties;
         this.cookieProperties = cookieProperties;
+        this.sessionProperties = sessionProperties;
         this.auditFallbackProperties = auditFallbackProperties;
         this.clinicalEventProperties = clinicalEventProperties;
         this.environment = environment;
@@ -126,6 +130,18 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(cookieProperties.maxAgeSeconds()),
             "INTEGER", "Cookie 有效期", "HIGH", "安全组",
             "控制登录态 Cookie 的浏览器保存时长。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_SESSION_PREFIX + "idle-timeout-seconds",
+            Long.toString(sessionProperties.idleTimeoutSeconds()),
+            "INTEGER", "无操作自动登出窗口", "HIGH", "安全组",
+            "控制登录后前端无操作自动登出的窗口，变更后对后续会话检查热生效。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_SESSION_PREFIX + "warning-seconds",
+            Long.toString(sessionProperties.warningSeconds()),
+            "INTEGER", "会话超时提醒窗口", "MEDIUM", "安全组",
+            "控制无操作自动登出前提前提醒用户续期的秒数。", false, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_SESSION_PREFIX + "max-duration-seconds",
+            Long.toString(sessionProperties.maxDurationSeconds()),
+            "INTEGER", "最大会话时长", "HIGH", "安全组",
+            "控制单次登录最多可滑动续期的总时长，超过后必须重新登录。", true, seededAt);
     }
 
     private void seedLoggingPolicy(Instant seededAt) {
