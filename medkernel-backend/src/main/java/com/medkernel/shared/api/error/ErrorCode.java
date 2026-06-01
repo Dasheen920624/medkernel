@@ -141,6 +141,8 @@ public enum ErrorCode {
     ENG_AUTH_010("ENG-AUTH-010", 403, "高危操作需要先绑定 MFA", ErrorClass.AUTH, false),
     ENG_AUTH_011("ENG-AUTH-011", 400, "应急命令缺少确认短语", ErrorClass.AUTH, false),
     ENG_AUTH_012("ENG-AUTH-012", 401, "会话已过期，请重新登录", ErrorClass.AUTH, false),
+    ENG_AUTH_013("ENG-AUTH-013", 403, "当前认证模式不允许平台账号登录，请使用院方统一身份入口", ErrorClass.AUTH, false),
+    ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份尚未接入，无法完成委托登录", ErrorClass.EXTERNAL, true),
     SUPERADMIN_IMMUTABLE("SUPERADMIN_IMMUTABLE", 403, "内置超级管理员不可降权、删除或移出超管组", ErrorClass.AUTH, false),
     ENG_TENANT_001("ENG-TENANT-001", 409, "租户已存在，无法重复开通", ErrorClass.DATA, false),
     ENG_CONFIG_001("ENG-CONFIG-001", 403, "高危运行配置禁止从界面关闭", ErrorClass.AUTH, false),

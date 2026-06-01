@@ -16,6 +16,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.config.SystemConfigService;
 
 /**
  * 平台账号登录服务：BCrypt 校验凭证 → 取激活角色 → 签发 JWT；成功/失败均留痕审计。
@@ -30,6 +31,7 @@ public class AuthService {
     private final AuthSessionService sessionService;
     private final IsolatedAuditPublisher isolatedAudit;
     private final AuditEventPublisher auditPublisher;
+    private final SystemConfigService configService;
     private final String dummyHash;
 
     public AuthService(PlatformCredentialRepository credentials,
@@ -37,17 +39,25 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        AuthSessionService sessionService,
                        IsolatedAuditPublisher isolatedAudit,
-                       AuditEventPublisher auditPublisher) {
+                       AuditEventPublisher auditPublisher,
+                       SystemConfigService configService) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.passwordEncoder = passwordEncoder;
         this.sessionService = sessionService;
         this.isolatedAudit = isolatedAudit;
         this.auditPublisher = auditPublisher;
+        this.configService = configService;
         this.dummyHash = passwordEncoder.encode("__medkernel_dummy_account__");
     }
 
     public AuthResult login(String tenantId, String username, String rawPassword) {
+        if (!configService.runtimeAuthMode().allowsPlatformLogin()) {
+            isolatedAudit.publishInNewTx(AuditEvent.failure(
+                AuditAction.LOGIN, "platform_credential", username,
+                ErrorCode.ENG_AUTH_013.code(), "登录失败：当前认证模式不允许平台账号登录 username=" + username));
+            throw new ApiException(ErrorCode.ENG_AUTH_013);
+        }
         PlatformCredential cred = credentials.findByTenantIdAndUsername(tenantId, username).orElse(null);
         // C1: 无论用户是否存在都跑一次 BCrypt，拉平 timing 防枚举
         String hashToCompare = (cred != null) ? cred.passwordHash() : dummyHash;
@@ -61,8 +71,8 @@ public class AuthService {
         if (!cred.active()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.LOGIN, "platform_credential", cred.userId(),
-                ErrorCode.ENG_AUTH_002.code(), "登录失败：账号禁用/锁定 status=" + cred.status()));
-            throw new ApiException(ErrorCode.ENG_AUTH_002);
+                ErrorCode.ENG_AUTH_001.code(), "登录失败：账号不可用 userId=" + cred.userId()));
+            throw new ApiException(ErrorCode.ENG_AUTH_001);
         }
         List<String> roles = roleAssignments
             .findActiveByTenantIdAndUserId(tenantId, cred.userId())

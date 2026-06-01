@@ -24,6 +24,7 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.AuthMode;
 import com.medkernel.shared.security.AuthSessionProperties;
 
 /**
@@ -37,6 +38,7 @@ public class SystemConfigService {
     static final String RUNTIME_FLAG_SUFFIX = ".enabled";
     static final String RUNTIME_BACKUP_PREFIX = "medkernel.runtime.backup.";
     public static final String AUTH_JWT_TTL_SECONDS_KEY = "medkernel.auth.jwt.ttl-seconds";
+    public static final String AUTH_MODE_KEY = "medkernel.auth.mode";
     public static final String AUTH_COOKIE_PREFIX = "medkernel.auth.cookie.";
     public static final String AUTH_SESSION_PREFIX = "medkernel.auth.session.";
     public static final String LOGGING_LEVEL_PREFIX = "medkernel.logging.level.";
@@ -174,6 +176,11 @@ public class SystemConfigService {
         return readRuntimeLongConfig(AUTH_JWT_TTL_SECONDS_KEY, properties.ttlSeconds()).value();
     }
 
+    public AuthMode runtimeAuthMode() {
+        // 配置缺失时 readRuntimeStringConfig 返回 PLATFORM；若库内值被绕过 UI 写坏，解析失败按 DELEGATED 失败关闭。
+        return AuthMode.parse(readRuntimeStringConfig(AUTH_MODE_KEY, AuthMode.PLATFORM.name()).value(), AuthMode.DELEGATED);
+    }
+
     public AuthCookieProperties runtimeCookieProperties(AuthCookieProperties properties) {
         RuntimeStringRead name = readRuntimeStringConfig(AUTH_COOKIE_PREFIX + "name", properties.name());
         RuntimeBooleanRead secure = readRuntimeBooleanConfig(AUTH_COOKIE_PREFIX + "secure", properties.secure());
@@ -307,6 +314,11 @@ public class SystemConfigService {
         }
         if (key != null && key.equals(AUTH_COOKIE_PREFIX + "same-site")) {
             validateOption(value, Set.of("strict", "lax", "none"), "Cookie SameSite 仅允许 Strict/Lax/None");
+            return;
+        }
+        if (AUTH_MODE_KEY.equals(key)) {
+            validateOption(value, Set.of("platform", "delegated", "both"),
+                "认证模式仅允许 PLATFORM/DELEGATED/BOTH");
             return;
         }
         if (key != null && key.startsWith(LOGGING_LEVEL_PREFIX)) {

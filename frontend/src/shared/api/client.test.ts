@@ -10,6 +10,12 @@ afterEach(() => {
 });
 
 describe("apiClient", () => {
+  it("uses double-submit CSRF cookie and header names", () => {
+    expect(apiClient.defaults.xsrfCookieName).toBe("XSRF-TOKEN");
+    expect(apiClient.defaults.xsrfHeaderName).toBe("X-XSRF-TOKEN");
+    expect(apiClient.defaults.withCredentials).toBe(true);
+  });
+
   it("does not read token from localStorage when preparing requests", async () => {
     const getItem = vi.spyOn(window.localStorage.__proto__, "getItem").mockImplementation(() => {
       throw new Error("localStorage token read is forbidden");

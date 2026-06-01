@@ -1,7 +1,7 @@
 # 用户与双模鉴权设计（方案 A · 分期）
 
 > 日期：2026-05-29 · 作者：Claude（与用户 brainstorming 定稿）
-> 状态：设计已批准，待写实现计划
+> 状态：历史设计材料，当前实现权威以 [AUTH-01](../../cards/D0/AUTH-01.md) 为准；本轮已收口为 V27 `platform_credential`、配置中心 `auth.mode` 和自定义 CSRF 双提交。
 > 触发：PR #139「收紧登录入口」后系统 100% 锁死（无任何发证途径）；登录页显示失明；内外网身份/注册/角色功能需重新梳理。
 
 ---
@@ -53,7 +53,7 @@
 - **登录成功**：后端 `Set-Cookie: mk_access=<JWT>; HttpOnly; Secure; SameSite=Strict; Path=/medkernel; Max-Age=<expSeconds>`。JS 读不到，规避 XSS 窃取，也满足 BASE-10「禁止 token 写 localStorage」。
 - **请求携带**：浏览器自动带 cookie；前端 `apiClient` 设 `withCredentials: true`，不再手工附 `Authorization`。
 - **Resource Server 读 cookie**：自定义 `CookieBearerTokenResolver` —— 优先从 `mk_access` cookie 取 JWT，回退 `Authorization: Bearer`（兼容 embed launch / 纯 API 客户端），接入 `oauth2ResourceServer(... .bearerTokenResolver(...))`。
-- **CSRF 防护**（cookie 鉴权必须）：开启 Spring Security CSRF，用 `CookieCsrfTokenRepository.withHttpOnlyFalse()` 下发 `XSRF-TOKEN`（非 httpOnly，供 JS 读）；前端 axios 自动把其值放入 `X-XSRF-TOKEN` 头随写操作提交；叠加 `SameSite=Strict` 双重防护。`/auth/login` 与只读 GET 豁免 CSRF。
+- **CSRF 防护**（cookie 鉴权必须）：当前实现采用自定义 `CsrfDoubleSubmitFilter`，仅保护带 `mk_access` cookie 的写操作；登录成功下发非 httpOnly `XSRF-TOKEN`，前端 axios 自动把其值放入 `X-XSRF-TOKEN` 头随写操作提交。Bearer API / embed 客户端不受 CSRF 过滤影响，避免全局 Spring CSRF 误伤非浏览器调用。
 - **登出**：`POST /auth/logout` → `Set-Cookie mk_access=; Max-Age=0` 清除 + 留痕。
 - **401 处理**：`client.ts` 拦截 401 → 派发 `medkernel:auth-required` → 跳 `/login`（无客户端 token 可清，cookie 由服务端/过期失效）。
 - 同源性：dev 下 vite 代理 `/medkernel`→`:18080`，浏览器视为同源，cookie 直接生效；生产前端与 API 同源（或经网关同域）部署。
@@ -62,7 +62,7 @@
 
 **复用**：`org_unit`（租户/组织）、`user_role_assignment`（V25 已种 9 账号）、`@DataScope` 数据范围、13 个 `RoleCode`（平台/集团/医院管理员、信息科、医务处、质控办、医保办、科主任、专科专家、医生、护理、合规审计、实施工程师）。
 
-**新增表 `platform_credential`（五方言迁移 V26）**：
+**新增表 `platform_credential`（五方言迁移 V27）**：
 
 | 列 | 类型 | 说明 |
 |---|---|---|
@@ -79,12 +79,12 @@
 
 唯一约束 `(tenant_id, username)`；避免保留字（不用 USER/PASSWORD 裸列名）。
 
-**开通链（设计，本轮仅种子 + 基础建号）**：平台管理员建租户 + 首个租户管理员 → 租户管理员邀请/开通成员并授角色。本轮用 V26 种子 + 复用 `UserRoleAssignmentController` + 新增建凭证端点；向导/邀请 UI 进 Phase 2。
+**开通链（设计，本轮仅种子 + 基础建号）**：平台管理员建租户 + 首个租户管理员 → 租户管理员邀请/开通成员并授角色。本轮用 V27 种子 + 复用 `UserRoleAssignmentController` + 新增建凭证端点；向导/邀请 UI 进 Phase 2。
 
 ## 6. 本轮 MVP 交付清单
 
 ### 后端
-1. `platform_credential` 表 + **V26 五方言迁移**；**种子**：为 13 个角色各建 1 个可登录账号（如 `doctor` / `qa-manager` / `platform-admin`…），默认密码（统一 dev 密码，`must_change_pwd=Y`），关联 `user_role_assignment`（补齐 V25 未覆盖的 doctor/nurse/specialist/audit-compliance）。
+1. `platform_credential` 表 + **V27 五方言迁移**；**种子**：为 13 个角色各建 1 个可登录账号（如 `doctor` / `qa-manager` / `platform-admin`…），默认密码（统一 dev 密码，`must_change_pwd=Y`），关联 `user_role_assignment`（补齐 V25 未覆盖的 doctor/nurse/specialist/audit-compliance）。
 2. `AuthController`：
    - `POST /api/v1/auth/login`（Record DTO：username, password）→ BCrypt 校验 → 签发 JWT（claims sub/tenant_id/roles）→ Set-Cookie httpOnly。
    - `POST /api/v1/auth/logout` → 清 cookie + 审计。
@@ -129,4 +129,4 @@
 - 登录页左右两侧文字在深/浅色环境均清晰可读。
 - token 仅存 httpOnly cookie（DevTools 中 JS 读不到）；写操作带 CSRF 头。
 - 登录成功/失败有 audit_event；密码错不泄露用户是否存在。
-- 后端 + 前端新增测试全绿；`npm run verify`/`build` 与后端 `mvn test` 通过；五方言 V26 迁移烟测通过。
+- 后端 + 前端新增测试全绿；`npm run verify`/`build` 与后端 `mvn test` 通过；五方言 V27 迁移烟测通过。
