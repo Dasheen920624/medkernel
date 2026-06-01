@@ -2,6 +2,8 @@ import { Alert, Card, Form, Input, Button, Typography, Divider, Space, Tag, them
 import {
   ApartmentOutlined,
   AuditOutlined,
+  DownOutlined,
+  IdcardOutlined,
   LockOutlined,
   LoginOutlined,
   RocketOutlined,
@@ -11,7 +13,7 @@ import {
 import { useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/features/theme-switcher/ThemeSwitcher";
-import { useLogin } from "@/shared/api/hooks";
+import { useDelegatedAuthStatus, useLogin, type DelegatedAuthStatus } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import styles from "./Login.module.css";
 
@@ -38,8 +40,73 @@ const entrySignals = [
 const helpItems = [
   { label: "首次登录", value: "使用管理员开通的账号进入，首次登录后按医院策略改密。" },
   { label: "忘记密码", value: "请联系本院管理员重置密码，重置操作会进入审计留痕。" },
-  { label: "统一身份", value: "CAS / OIDC / SAML 接入后会在此入口启用。" },
+  { label: "统一身份", value: "接入状态由后端实时返回；未接入时页面只展示状态，不伪造入口。" },
 ];
+
+const fallbackDelegatedProviders = ["OIDC", "CAS", "SAML", "国密CA"];
+
+type DelegatedAlert = {
+  type: "info" | "error" | "success" | "warning";
+  message: string;
+  description: string;
+};
+
+function buildDelegatedAlert({
+  status,
+  state,
+  isLoading,
+  isError,
+  error,
+}: {
+  status?: DelegatedAuthStatus;
+  state: string;
+  isLoading: boolean;
+  isError: boolean;
+  error?: unknown;
+}): DelegatedAlert {
+  if (isLoading) {
+    return {
+      type: "info",
+      message: "正在读取统一身份状态",
+      description: "请稍候，系统正在确认院方统一身份认证的接入状态。",
+    };
+  }
+
+  if (isError) {
+    return {
+      type: "error",
+      message: "统一身份状态读取失败",
+      description: getApiErrorMessage(
+        error,
+        "暂时无法读取统一身份状态，请先使用医院账号密码登录。",
+      ),
+    };
+  }
+
+  if (!status?.enabled) {
+    return {
+      type: "info",
+      message: "统一身份未开放",
+      description: status?.message || "当前登录模式未开放统一身份入口，请使用医院账号密码登录。",
+    };
+  }
+
+  if (state === "READY") {
+    return {
+      type: "success",
+      message: "统一身份已接入",
+      description:
+        status.message || "统一身份由医院信息中心配置；MFA、国密与国产 CA 由系统按策略自动选择。",
+    };
+  }
+
+  return {
+    type: "warning",
+    message: "统一身份暂未接入",
+    description:
+      status.message || "统一身份由医院信息中心配置；MFA、国密与国产 CA 由系统按策略自动选择。",
+  };
+}
 
 /**
  * 默认登录路径 + MFA/SSO 折叠区。
@@ -60,6 +127,7 @@ export default function Login() {
   }>();
   const navigate = useNavigate();
   const login = useLogin();
+  const delegatedAuthStatus = useDelegatedAuthStatus(showSso);
   const { token } = theme.useToken();
 
   const loginThemeStyle = {
@@ -113,8 +181,27 @@ export default function Login() {
     }
   }
 
+  const delegatedStatus = delegatedAuthStatus.data;
+  const delegatedProviders =
+    delegatedStatus?.providers && delegatedStatus.providers.length > 0
+      ? delegatedStatus.providers
+      : fallbackDelegatedProviders;
+  const delegatedState = delegatedStatus?.status ?? "NOT_CONNECTED";
+  const delegatedAlert = buildDelegatedAlert({
+    status: delegatedStatus,
+    state: delegatedState,
+    isLoading: delegatedAuthStatus.isLoading,
+    isError: delegatedAuthStatus.isError,
+    error: delegatedAuthStatus.error,
+  });
+
   return (
-    <main className={styles.page} style={loginThemeStyle}>
+    <main
+      aria-busy={login.isPending}
+      aria-label="登录 MedKernel 工作台"
+      className={styles.page}
+      style={loginThemeStyle}
+    >
       <div className={styles.themeSwitcher}>
         <ThemeSwitcher syncRemote={false} />
       </div>
@@ -168,7 +255,13 @@ export default function Login() {
 
           {errorMsg && <Alert type="error" showIcon message="登录失败" description={errorMsg} />}
 
-          <Form form={loginForm} layout="vertical" requiredMark={false} onFinish={handleSubmit}>
+          <Form
+            disabled={login.isPending}
+            form={loginForm}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={handleSubmit}
+          >
             <Form.Item
               label="工号 / 账号"
               name="username"
@@ -229,24 +322,43 @@ export default function Login() {
                 type="link"
                 size="small"
                 className={styles.ssoToggle}
+                aria-controls="delegated-auth-panel"
+                aria-expanded={showSso}
+                aria-label={showSso ? "收起统一身份认证" : "院方统一身份认证"}
                 onClick={() => setShowSso(!showSso)}
               >
-                {showSso ? "收起" : "院方统一身份认证"}
+                <IdcardOutlined aria-hidden="true" />
+                {showSso ? "收起统一身份认证" : "院方统一身份认证"}
+                <DownOutlined
+                  aria-hidden="true"
+                  className={showSso ? styles.toggleIconOpen : styles.toggleIcon}
+                />
               </Button>
             </Divider>
             {showSso && (
-              <div className={styles.ssoStack}>
-                <Button block disabled>
-                  CAS（待院方配置）
-                </Button>
-                <Button block disabled>
-                  OIDC（待院方配置）
-                </Button>
-                <Button block disabled>
-                  SAML（待院方配置）
-                </Button>
+              <div id="delegated-auth-panel" className={styles.ssoStack}>
+                <Alert
+                  className={styles.ssoStatus}
+                  type={delegatedAlert.type}
+                  showIcon
+                  message={delegatedAlert.message}
+                  description={delegatedAlert.description}
+                />
+                <div className={styles.providerGrid} aria-label="统一身份方式">
+                  {delegatedProviders.map((provider) => (
+                    <Button
+                      block
+                      disabled
+                      className={styles.providerButton}
+                      key={provider}
+                      loading={delegatedAuthStatus.isLoading}
+                    >
+                      {provider}（{delegatedState}）
+                    </Button>
+                  ))}
+                </div>
                 <Text type="secondary" className={styles.helperText}>
-                  统一身份由医院信息中心配置。MFA / 国密 / 国产 CA 由系统按策略自动选择。
+                  当前页只展示已配置状态；真实院方 IdP、证书链和回调地址完成配置后才会开放跳转。
                 </Text>
               </div>
             )}

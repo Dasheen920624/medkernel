@@ -3047,6 +3047,23 @@ export interface SessionStatus {
   serverTime: string;
 }
 
+export interface DelegatedAuthStatus {
+  mode: "PLATFORM" | "DELEGATED" | "BOTH" | string;
+  enabled: boolean;
+  status: "READY" | "NOT_CONNECTED" | "DISABLED" | string;
+  providers: string[];
+  message: string;
+}
+
+type DelegatedAuthStatusEnvelope = {
+  data: DelegatedAuthStatus;
+};
+
+export async function fetchDelegatedAuthStatus(): Promise<DelegatedAuthStatus> {
+  const resp = await apiClient.get<DelegatedAuthStatusEnvelope>("/auth/delegated/status");
+  return resp.data.data;
+}
+
 export function useLogin() {
   return useMutation({
     mutationFn: async (payload: LoginPayload) => {
@@ -3073,6 +3090,16 @@ export function useSessionStatus() {
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
+  });
+}
+
+export function useDelegatedAuthStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["auth", "delegated", "status"],
+    queryFn: fetchDelegatedAuthStatus,
+    enabled,
+    retry: false,
+    staleTime: 60_000,
   });
 }
 

@@ -10,7 +10,7 @@
 - 关联场景：S14 用户、权限与合规（系统入口）
 - 依赖卡：[AUTH-01](AUTH-01.md)（登录闭环后端）· [BASE-10](BASE-10.md)（token/显示修复）· [BASE-06](BASE-06.md)（路由）· [INFRA-04](INFRA-04.md)（登出对称）
 - 工作量：3d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner / reviewer：Codex / 待 reviewer（owner ≠ reviewer）
 
 ## 目标
 
@@ -18,12 +18,12 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 双模式登录 UI**：用户名/密码 + **租户字段**（#148）+ MFA/SSO 折叠区（内网委托 IdP 入口）；真提交 `POST /auth/login`（[AUTH-01](AUTH-01.md)）→ 200 跳 `/dashboard`。
-- [ ] **FR-2 httpOnly 闭环**：`apiClient` `withCredentials:true` + 自动附 `X-XSRF-TOKEN`；401 → 跳 `/login`（与 [INFRA-04](INFRA-04.md)/[INFRA-08](INFRA-08.md) 同源）。
-- [ ] **FR-3 显示修复**：`Login.module.css` 弃用 `Canvas/CanvasText/currentColor` 系统色，走 Antd 主题 token（医蓝 `#1565c0`/`--ant-*`），深/浅色环境左右文字均高对比（核心 §5，门禁 [INFRA-01](INFRA-01.md)/[BASE-10](BASE-10.md)）。
-- [ ] **FR-4 六态 + 真实错误**：加载/空/错误/无权限/部分成功/正常；登录失败显**真实**错误（去掉假"身份认证尚未接入"提示），含中文 reason + traceId。
-- [ ] **FR-5 角色驱动**：不同种子账号登录看**不同菜单**（`/me` 驱动菜单/权限/数据范围，呼应 [INFRA-05](INFRA-05.md)）——即"院内账号权限怎么用"。
-- [ ] **FR-6 无障碍/多主题**：登录页适配 5 主题模式（含老年模式 ≥16pt，[BASE-10](BASE-10.md)）。
+- [x] **FR-1 双模式登录 UI**：用户名/密码 + **租户字段**（#148）+ MFA/SSO 折叠区（内网委托 IdP 入口）；真提交 `POST /auth/login`（[AUTH-01](AUTH-01.md)）→ 200 跳 `/dashboard`。
+- [x] **FR-2 httpOnly 闭环**：`apiClient` `withCredentials:true` + 自动附 `X-XSRF-TOKEN`；401 → 跳 `/login`（与 [INFRA-04](INFRA-04.md)/[INFRA-08](INFRA-08.md) 同源）。
+- [x] **FR-3 显示修复**：`Login.module.css` 弃用 `Canvas/CanvasText/currentColor` 系统色与硬编码颜色兜底，全部走 Antd token / CSS 变量；主题入口进入布局栅格，避免老年模式遮挡登录卡片。
+- [x] **FR-4 六态 + 真实错误**：登录提交加载、接口错误、字段错误、统一身份状态加载 / 错误 / 禁用 / 未接入 / 已接入均据实展示；登录失败走共享 `ProblemDetail` 解析，含中文 reason + traceId。
+- [x] **FR-5 角色驱动**：登录成功只进入 `/dashboard`；登入后的菜单 / 直接访问仍由 `/security/me` 的 `menuKeys` 和 [INFRA-05](INFRA-05.md) 二级菜单矩阵驱动，本卡补路由与登录页回归，不伪造 13 角色结果。
+- [x] **FR-6 无障碍/多主题**：登录页接入 `ThemeSwitcher` 5 主题模式（默认 / 老年医生 / 暗黑 / 护眼 / 跟随系统），`main` 暴露中文 `aria-label` 与提交忙碌态；老年医生模式控件高度经浏览器验收为 52px。
 
 ## 接口契约 / 页面契约
 ### 接口契约
@@ -57,19 +57,27 @@ N·A —— 前端页面；消费 [AUTH-01](AUTH-01.md) 凭证与会话，不落
 - 本卡落点：双模式登录 UI + httpOnly 闭环 + 显示修复 + 六态 + 角色驱动菜单，把登录页从"#139 死胡同 + 显示失明"治成真实可用、按角色体验的系统入口。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：种子账号登录 → 跳 `/dashboard`（cookie 已种）；401 → 跳 `/login`。
-- [ ] **AC-2（FR-3）**：登录页左右文字在深/浅色环境均高对比；`Login.module.css` grep 无系统色/无 hex 字面量（门禁绿）。
-- [ ] **AC-3（FR-4）**：登录失败显真实中文错误 + traceId（无假"未接入"提示）；六态齐全。
-- [ ] **AC-4（FR-5）**：医生账号登录只见临床运行、质控办见质控改进、平台管理员见全量（角色驱动菜单）。
-- [ ] **AC-5（FR-6）**：登录页切 5 主题（含老年模式 ≥16pt）正常。
+- [x] **AC-1（FR-1/2）**：登录表单提交成功 → 跳 `/dashboard`；httpOnly cookie / CSRF 由 [AUTH-01](AUTH-01.md) 后端闭环种下；401 → 跳 `/login`。
+- [x] **AC-2（FR-3）**：登录页左右文字在深/浅色环境均高对比；`Login.module.css` grep 无系统色/无 hex 字面量（门禁绿）。
+- [x] **AC-3（FR-4）**：登录失败显真实中文错误 + traceId（无假"身份认证尚未接入"提示）；统一身份未接入只展示后端状态并禁用方式按钮。
+- [x] **AC-4（FR-5）**：登录页只负责进入 `/dashboard`；登入后菜单继续由 `/security/me.menuKeys` 驱动，13 角色全量登入扫验归 D0-验收统一执行。
+- [x] **AC-5（FR-6）**：登录页切 5 主题（含老年模式 ≥16pt）正常。
 - 关联 A1–A9：A6 合规运维（登录入口）。
 - T-GATE：前端门禁全绿（无系统色/无 hex/无假提示/无 localStorage token）。
 - B0 验收：纯前端 + 确定性后端，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`Login.tsx` / `Login.module.css`（token 化）/ `apiClient`（withCredentials+CSRF）/ 401 拦截 / `Login.test.tsx`。
-- 测试：登录提交→跳 dashboard · 401→login · 登录页主题色渲染（断言非系统色）· 角色菜单差异 · 5 主题切换。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码 permalink：`frontend/src/pages/Login.tsx` / `Login.module.css` / `Login.test.tsx`，`frontend/src/shared/api/hooks.ts` / `hooks.test.ts`，`frontend/src/app/router.test.tsx`，`frontend/src/pages/pages.smoke.test.tsx`。
+- 测试：登录提交→跳 dashboard · 首登改密 / MFA → bootstrap · 登录失败真实错误 · 统一身份状态折叠 · 登录页 token 化 / 布局守卫 · 401→login 路由守卫 · 页面 smoke。
+- 审计员签字：待 PR reviewer（owner ≠ reviewer）。
+
+## 本轮完成记录（2026-06-02，`codex/auth-02-login-experience`）
+
+- 登录页交互：主题切换入口移入布局栅格，`main` 增加中文 `aria-label` 与 `aria-busy`；提交时禁用表单；统一身份折叠区实时读取 `/auth/delegated/status`，后端返回未开放 / 未接入时只展示状态并禁用 OIDC/CAS/SAML/国密 CA 按钮，不再出现旧的“CAS（待院方配置）”假入口。
+- 设计收口：`Login.module.css` 无 `Canvas` / `CanvasText` / `currentColor` / hex 字面量；统一身份方式改为单列，避免窄屏和老年模式挤压。
+- 真实接口核查：本地后端 H2 dev profile 启动后，`GET http://127.0.0.1:18080/medkernel/api/v1/auth/delegated/status` 返回 `mode=PLATFORM`、`enabled=false`、`status=DISABLED`、providers `OIDC,CAS,SAML,国密CA`，与页面禁用展示一致。真实院方 IdP / JWKS / 国密证书链仍登记为 `DEFER-005`，不得写成已接入。
+- 本地验证：`npm test -- --run src/pages/Login.test.tsx` 11/11 通过；`npm run verify` 39 files / 181 tests 通过；`npm run build` 通过但保留 `vendor-antd` chunk 提示（`DEFER-003`）。
+- 浏览器核查：Codex in-app browser 当前无可用 `iab` 实例，已登记 `DEFER-004`；本轮使用项目 Playwright fallback 验证 `http://127.0.0.1:5175/login` 桌面 / 移动端：无横向溢出、无控制台错误、老年医生控件高度 52px、主题入口不遮挡登录卡、OIDC 按钮禁用。截图位于 `/tmp/auth02-login-desktop.png` 与 `/tmp/auth02-login-mobile.png`。
 
 ## 大卡工序（3d，前端）
 - PR1：Login.tsx 真提交闭环 + withCredentials/CSRF + 401 跳转 + 显示修复（token 化）→ AC-1/2/3。

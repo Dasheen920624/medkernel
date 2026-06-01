@@ -9,6 +9,17 @@ vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({ data: undefined, isError: true }),
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
   useLogin: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDelegatedAuthStatus: () => ({
+    data: {
+      mode: "BOTH",
+      enabled: true,
+      status: "NOT_CONNECTED",
+      providers: ["OIDC", "CAS", "SAML", "国密CA"],
+      message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+    },
+    isLoading: false,
+    isError: false,
+  }),
   useCheckBootstrapInitToken: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateBootstrapAdmin: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useChangePassword: () => ({ mutateAsync: vi.fn(), isPending: false }),

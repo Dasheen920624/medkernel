@@ -6,27 +6,31 @@
       calc(var(--mk-unit) * 360),
       calc(var(--mk-unit) * 440)
     );
+  grid-template-areas:
+    "theme theme"
+    "context login";
+  grid-template-rows: auto minmax(0, 1fr);
   align-items: center;
-  gap: calc(var(--mk-unit) * 32);
-  padding: calc(var(--mk-unit) * 48)
+  gap: calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 32);
+  padding: calc(var(--mk-unit) * 24)
     clamp(calc(var(--mk-unit) * 24), 6vw, calc(var(--mk-unit) * 72));
-  color: var(--mk-login-text, CanvasText);
-  background: var(--mk-login-page-bg, Canvas);
+  color: var(--mk-login-text);
+  background: var(--mk-login-page-bg);
 }
 
 .themeSwitcher {
-  position: absolute;
-  top: calc(var(--mk-unit) * 24);
-  right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
+  grid-area: theme;
+  justify-self: end;
   z-index: 1;
   padding: calc(var(--mk-unit) * 4);
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
-  background: var(--mk-login-surface, Canvas);
+  background: var(--mk-login-surface);
   box-shadow: var(--mk-login-shadow);
 }
 
 .contextPanel {
+  grid-area: context;
   max-width: calc(var(--mk-unit) * 680);
   display: flex;
   flex-direction: column;
@@ -67,7 +71,7 @@
   gap: calc(var(--mk-unit) * 12);
   align-items: center;
   padding: calc(var(--mk-unit) * 14) calc(var(--mk-unit) * 16);
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-surface);
 }
@@ -107,14 +111,15 @@
 
 .bootstrapEntry {
   width: fit-content;
-  border-color: var(--mk-login-primary-border, currentColor);
+  border-color: var(--mk-login-primary-border);
   color: var(--mk-login-primary);
   background: var(--mk-login-surface);
 }
 
 .loginCard {
+  grid-area: login;
   width: 100%;
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
   border-radius: var(--mk-login-radius);
   box-shadow: var(--mk-login-shadow);
 }
@@ -166,7 +171,7 @@
   gap: calc(var(--mk-unit) * 8);
   align-items: flex-start;
   padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
   background: var(--mk-login-layout);
@@ -185,6 +190,18 @@
   height: auto;
   padding: 0;
   font-size: var(--mk-login-font-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--mk-unit) * 6);
+}
+
+.toggleIcon {
+  transition: transform 0.16s ease;
+}
+
+.toggleIconOpen {
+  transform: rotate(180deg);
+  transition: transform 0.16s ease;
 }
 
 .ssoStack {
@@ -193,11 +210,26 @@
   gap: calc(var(--mk-unit) * 8);
 }
 
+.ssoStatus {
+  border-color: var(--mk-login-primary-border);
+}
+
+.providerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.providerButton {
+  min-width: 0;
+  white-space: normal;
+}
+
 .helpList {
   display: grid;
   gap: calc(var(--mk-unit) * 8);
   padding: calc(var(--mk-unit) * 12);
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border, currentColor);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   background: var(--mk-login-fill);
 }
@@ -222,13 +254,17 @@
 @media (max-width: 53.75em) {
   .page {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "theme"
+      "context"
+      "login";
+    grid-template-rows: auto auto auto;
     align-items: start;
-    padding: calc(var(--mk-unit) * 72) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
+    padding: calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
   }
 
   .themeSwitcher {
-    top: calc(var(--mk-unit) * 16);
-    right: calc(var(--mk-unit) * 16);
+    justify-self: end;
   }
 
   .contextPanel {
