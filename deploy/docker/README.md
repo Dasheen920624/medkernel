@@ -76,7 +76,10 @@
 校验 `flyway_schema_history` 后删除演练库并生成恢复证据，不会覆盖主库。停止操作不会
 删除持久化目录。
 
-国产化数据库烟测必须在具备达梦或人大金仓真实实例与闭源 JDBC 驱动的内网环境执行：
+当前阶段运行环境只保障 PostgreSQL 与 Oracle。达梦 / 人大金仓等国产化真实运行环境
+登记在 [待处理问题清单](../../docs/audit/deferred-issues.md) `DEFER-001`，由 D6/GA
+最终适配阶段统一关闭，不阻塞当前开发部署与 BASE-08 领取。国产化数据库烟测脚本保留为
+最终适配证据门禁，必须在具备达梦或人大金仓真实实例与闭源 JDBC 驱动的内网环境执行：
 
 ```bash
 MEDKERNEL_GOV_DATABASE_DIALECT=dm \
