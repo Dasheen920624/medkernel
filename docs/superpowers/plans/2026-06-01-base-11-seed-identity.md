@@ -4,7 +4,7 @@
 
 **目标：** 让全新生产环境不依赖 dev 账号也能通过一次性 init token 安全接管，完成首发超管凭证、强制改密、MFA 绑定、CLI 应急与首次部署手册闭环。
 
-**架构：** 后端新增 `sys_bootstrap_init_token` 持久化和 `bootstrap` 服务族；生产只接受部署期提供的一次性 token，DB 只存 SHA-256 hash，不落明文。登录成功后按账号状态强制进入改密 / MFA 步骤，未完成不得进入业务页；CLI 仅本机执行并写审计。
+**架构：** 后端新增 `mk_security_bootstrap_init_token` 持久化和 `bootstrap` 服务族；生产只接受部署期提供的一次性 token，DB 只存 SHA-256 hash，不落明文。登录成功后按账号状态强制进入改密 / MFA 步骤，未完成不得进入业务页；CLI 仅本机执行并写审计。
 
 **Tech Stack：** Spring Boot 3、Spring Data JDBC、Flyway 五方言、BCrypt、JWT Cookie、React + Ant Design、Vitest、JUnit / MockMvc。
 
@@ -29,11 +29,11 @@
 - Create: `medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V36__bootstrap_init_token.sql`
 - Modify: `medkernel-backend/src/test/java/com/medkernel/migration/*`
 
-- [ ] 写失败测试：无明文 token 落库、hash 唯一、过期和已用 token 拒绝、有效 token 可一次性消费。
-- [ ] 写 V36 五方言迁移：`sys_bootstrap_init_token` 含 token hash、状态、过期、使用人、审计字段和中文 COMMENT。
-- [ ] 实现 token hash / 过期 / 单次消费服务；使用 SHA-256，不使用 UUID/时间戳伪 hash。
-- [ ] 实现启动种子：仅当部署显式提供 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 时写入 hash；不创建账号，不打印明文 token。
-- [ ] 更新迁移基线测试到 V36，并单跑迁移规约。
+- [x] 写失败测试：无明文 token 落库、hash 唯一、过期和已用 token 拒绝、有效 token 可一次性消费。
+- [x] 写 V36 五方言迁移：`mk_security_bootstrap_init_token` 含 token hash、状态、过期、使用人、审计字段和中文 COMMENT。
+- [x] 实现 token hash / 过期 / 单次消费服务；使用 SHA-256，不使用 UUID/时间戳伪 hash。
+- [x] 实现启动种子：仅当部署显式提供 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 时写入 hash；不创建账号，不打印明文 token。
+- [x] 更新迁移基线测试到 V36，并单跑迁移规约。
 
 ## 任务 2：首发超管引导端点与强制改密
 

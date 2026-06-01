@@ -61,7 +61,8 @@ class MigrationBaselineContractTest {
         "V32__source_fragment_content_hash.sql",
         "V33__package_sync_not_synced_status.sql",
         "V34__experience_foundation_persistence.sql",
-        "V35__experience_user_preference.sql"
+        "V35__experience_user_preference.sql",
+        "V36__bootstrap_init_token.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -91,6 +92,7 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
+        "mk_security_bootstrap_init_token",
         "mk_config_item", "mk_config_history"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
@@ -159,6 +161,7 @@ class MigrationBaselineContractTest {
         "idx_platform_credential_login",
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
         "idx_sys_idempotency_expiry",
+        "idx_bootstrap_init_token_expires",
         "idx_audit_event_org_path",
         "idx_audit_event_env",
         "idx_config_item_tenant_key", "idx_config_history_tenant_key"
@@ -245,6 +248,7 @@ class MigrationBaselineContractTest {
         "ck_platform_credential_status", "ck_platform_credential_mustchg",
         "ck_emergency_permission_code", "ck_emergency_permission_active",
         "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
+        "uk_bootstrap_init_token_id", "uk_bootstrap_init_token_hash", "ck_bootstrap_init_token_status",
         "uk_audit_event_dedupe",
         "pk_config_item", "uk_config_item_tenant_key", "ck_config_item_value_type",
         "ck_config_item_risk", "ck_config_item_source", "ck_config_item_protected",
@@ -327,6 +331,7 @@ class MigrationBaselineContractTest {
         Map.entry("term_mapping_package", Set.of("package_version", "status")),
         Map.entry("sys_role", Set.of("active_flag")),
         Map.entry("sys_permission", Set.of("dimension", "active_flag")),
+        Map.entry("mk_security_bootstrap_init_token", Set.of("status")),
         Map.entry("context_snapshot", Set.of("status", "quality_status")),
         Map.entry("clinical_event", Set.of("processing_status")),
         Map.entry("clinical_event_outbox", Set.of("claim_status")),
@@ -551,6 +556,21 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_experience_user_pref")
                 .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_key")
                 .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_value");
+        }
+    }
+
+    @Test
+    void v36ShouldDeclareBootstrapInitTokenForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V36__bootstrap_init_token.sql");
+            assertThat(ddl).as("%s 首发 init token 持久化", dialect)
+                .contains("mk_security_bootstrap_init_token")
+                .contains("token_hash")
+                .contains("expires_at")
+                .contains("uk_bootstrap_init_token_hash")
+                .contains("idx_bootstrap_init_token_expires")
+                .contains("COMMENT ON TABLE mk_security_bootstrap_init_token")
+                .contains("COMMENT ON COLUMN mk_security_bootstrap_init_token.token_hash");
         }
     }
 
