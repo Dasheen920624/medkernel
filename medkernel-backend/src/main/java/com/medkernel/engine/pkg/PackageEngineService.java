@@ -1,7 +1,11 @@
 package com.medkernel.engine.pkg;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +42,8 @@ public class PackageEngineService {
 
     private static final Logger log = LoggerFactory.getLogger(PackageEngineService.class);
     private static final ObjectMapper DIFF_EXPORT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OFFLINE_EXPORT_MAPPER = new ObjectMapper();
+    private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V1";
 
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
@@ -361,6 +367,157 @@ public class PackageEngineService {
         String targetVersion,
         String traceId
     ) {}
+
+    /**
+     * 导出可离线传递的配置包 JSON。
+     *
+     * <p>导出文件只包含逻辑业务标识，不包含数据库自增主键；完整性摘要基于 payload 的真实字节生成，
+     * 供后续离线导入验签使用。
+     */
+    public String exportOfflinePackage(String packageId) {
+        String tenantId = currentTenantId();
+        String traceId = RequestContext.currentTraceId();
+        KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
+        List<PackageItem> items = itemRepository.findByTenantIdAndPackageId(tenantId, packageId);
+
+        PackageOfflinePayload payload = new PackageOfflinePayload(
+            PackageOfflinePackageInfo.from(pack),
+            items.stream().map(PackageOfflineItem::from).toList()
+        );
+        String payloadSha256 = sha256Json(payload);
+        PackageOfflineExport export = new PackageOfflineExport(
+            OFFLINE_PACKAGE_FORMAT,
+            new PackageOfflineManifest(
+                packageId,
+                tenantId,
+                pack.packageCode(),
+                pack.packageVersion(),
+                pack.status(),
+                items.size(),
+                "SHA-256",
+                payloadSha256,
+                Instant.now().toString(),
+                traceId
+            ),
+            payload
+        );
+
+        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+            "导出配置包离线安装包，版本: " + pack.packageVersion()
+                + "，资产条目数: " + items.size()
+                + "，payloadSha256: " + payloadSha256);
+        return writeOfflineJson(export);
+    }
+
+    private String writeOfflineJson(Object export) {
+        try {
+            return OFFLINE_EXPORT_MAPPER.writeValueAsString(export) + "\n";
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包离线安装包导出失败");
+        }
+    }
+
+    private String sha256Json(Object payload) {
+        try {
+            byte[] bytes = OFFLINE_EXPORT_MAPPER.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包离线安装包摘要生成失败");
+        } catch (NoSuchAlgorithmException e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "运行环境不支持 SHA-256 摘要算法");
+        }
+    }
+
+    private record PackageOfflineExport(
+        String format,
+        PackageOfflineManifest manifest,
+        PackageOfflinePayload payload
+    ) {}
+
+    private record PackageOfflineManifest(
+        String packageId,
+        String tenantId,
+        String packageCode,
+        String packageVersion,
+        KnowledgePackageStatus status,
+        int itemCount,
+        String hashAlgorithm,
+        String payloadSha256,
+        String exportedAt,
+        String traceId
+    ) {}
+
+    private record PackageOfflinePayload(
+        PackageOfflinePackageInfo packageInfo,
+        List<PackageOfflineItem> items
+    ) {}
+
+    private record PackageOfflinePackageInfo(
+        String packageId,
+        String tenantId,
+        String packageCode,
+        String packageVersion,
+        String name,
+        String description,
+        KnowledgePackageStatus status,
+        String createdAt,
+        String createdBy,
+        String updatedAt,
+        String updatedBy,
+        String traceId
+    ) {
+        static PackageOfflinePackageInfo from(KnowledgePackage pack) {
+            return new PackageOfflinePackageInfo(
+                pack.packageId(),
+                pack.tenantId(),
+                pack.packageCode(),
+                pack.packageVersion(),
+                pack.name(),
+                pack.description(),
+                pack.status(),
+                instantText(pack.createdAt()),
+                pack.createdBy(),
+                instantText(pack.updatedAt()),
+                pack.updatedBy(),
+                pack.traceId()
+            );
+        }
+    }
+
+    private record PackageOfflineItem(
+        String itemId,
+        String tenantId,
+        String packageId,
+        PackageItemAssetType assetType,
+        String assetId,
+        String assetVersion,
+        String createdAt,
+        String createdBy,
+        String updatedAt,
+        String updatedBy,
+        String traceId
+    ) {
+        static PackageOfflineItem from(PackageItem item) {
+            return new PackageOfflineItem(
+                item.itemId(),
+                item.tenantId(),
+                item.packageId(),
+                item.assetType(),
+                item.assetId(),
+                item.assetVersion(),
+                instantText(item.createdAt()),
+                item.createdBy(),
+                instantText(item.updatedAt()),
+                item.updatedBy(),
+                item.traceId()
+            );
+        }
+    }
+
+    private static String instantText(Instant instant) {
+        return instant == null ? null : instant.toString();
+    }
 
     /**
      * 触发包同步与发布执行（支持灰度、全量、回滚等多通道投影）。

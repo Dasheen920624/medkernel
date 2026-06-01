@@ -97,6 +97,10 @@ class PackageEngineControllerSecurityTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
+        mvc.perform(get("/api/v1/engine/packages/pkg-1/offline/export"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
         mvc.perform(post("/api/v1/engine/packages/pkg-1/items")
                 .contentType("application/json")
                 .content(ITEM_BODY))
@@ -149,5 +153,21 @@ class PackageEngineControllerSecurityTest {
             .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-diff-pkg-1.jsonl")))
             .andExpect(content().string(containsString("PACKAGE_DIFF_SUMMARY")));
+    }
+
+    @Test
+    void authorizedUserCanDownloadOfflinePackageJson() throws Exception {
+        when(service.exportOfflinePackage("pkg-1"))
+            .thenReturn("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V1\",\"manifest\":{\"payloadSha256\":\"abc\"}}\n");
+
+        mvc.perform(get("/api/v1/engine/packages/pkg-1/offline/export")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("application/json;charset=utf-8"))
+            .andExpect(header().string("Content-Disposition", containsString("package-offline-pkg-1.json")))
+            .andExpect(content().string(containsString("MEDKERNEL_PACKAGE_OFFLINE_V1")))
+            .andExpect(content().string(containsString("payloadSha256")));
     }
 }

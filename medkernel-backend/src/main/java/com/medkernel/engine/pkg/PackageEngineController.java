@@ -124,6 +124,25 @@ public class PackageEngineController {
     }
 
     /**
+     * 导出可离线安装的完整知识包。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/{packageId}/offline/export")
+    @PreAuthorize("@perm.has('package.read')")
+    public void exportOfflinePackage(
+            @PathVariable String packageId,
+            HttpServletResponse response) throws IOException {
+        String exportedPackage = service.exportOfflinePackage(packageId);
+        String safePackageId = packageId.replaceAll("[^A-Za-z0-9_.-]", "_");
+        response.setContentType("application/json;charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"package-offline-" + safePackageId + ".json\"");
+        try (OutputStream output = response.getOutputStream()) {
+            output.write(exportedPackage.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
      * 触发包灰度/全量投影同步与发布。
      *
      * <p>权限：{@code package.publish}。

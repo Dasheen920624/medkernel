@@ -12,7 +12,7 @@ import {
   Descriptions,
   Badge,
   Alert,
-  message,
+  App as AntdApp,
   Row,
   Col,
   Timeline,
@@ -55,6 +55,7 @@ import {
   useEvaluationIndicators,
   useTerminologyMappings,
   downloadPackageDiffExport,
+  downloadPackageOfflineExport,
 } from "@/shared/api/hooks";
 import type {
   EvaluationIndicator,
@@ -87,8 +88,20 @@ function apiErrorMessage(error: unknown, fallback: string) {
   return messageText && messageText.trim().length > 0 ? messageText : fallback;
 }
 
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export default function ConfigPackages() {
   const { token } = antdTheme.useToken();
+  const { message } = AntdApp.useApp();
 
   // 1. API 数据拉取
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -157,6 +170,7 @@ export default function ConfigPackages() {
   // 计算多版本差异 API
   const { data: apiDiffData } = useCalculateDiff(selectedPackageId || "", basePackageIdForDiff);
   const [diffExporting, setDiffExporting] = useState<boolean>(false);
+  const [offlineExportingId, setOfflineExportingId] = useState<string | null>(null);
 
   // 6. 核心动作逻辑
 
@@ -191,7 +205,7 @@ export default function ConfigPackages() {
         request: {
           assetType: values.assetType,
           assetId: values.assetId,
-          assetVersion: values.assetVersion || "v1",
+          assetVersion: values.assetVersion,
         },
       });
 
@@ -246,20 +260,27 @@ export default function ConfigPackages() {
     setDiffExporting(true);
     try {
       const blob = await downloadPackageDiffExport(selectedPackageId, basePackageIdForDiff);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
       const safeName = (selectedPackage?.packageCode || selectedPackageId).replace(/[^\w.-]/g, "_");
-      link.href = url;
-      link.download = `package-diff-${safeName}.jsonl`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, `package-diff-${safeName}.jsonl`);
       message.success("影响范围证据已开始下载。");
     } catch (err: unknown) {
       message.error(apiErrorMessage(err, "影响范围证据导出失败，请稍后重试。"));
     } finally {
       setDiffExporting(false);
+    }
+  };
+
+  const handleExportOfflinePackage = async (record: KnowledgePackage) => {
+    setOfflineExportingId(record.packageId);
+    try {
+      const blob = await downloadPackageOfflineExport(record.packageId);
+      const safeName = (record.packageCode || record.packageId).replace(/[^\w.-]/g, "_");
+      triggerBlobDownload(blob, `package-offline-${safeName}.json`);
+      message.success("离线包已开始下载，文件内包含完整性摘要。");
+    } catch (err: unknown) {
+      message.error(apiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
+    } finally {
+      setOfflineExportingId(null);
     }
   };
 
@@ -400,6 +421,16 @@ export default function ConfigPackages() {
             </Button>
             <Button
               type="link"
+              icon={<DownloadOutlined aria-hidden="true" />}
+              aria-label="导出离线包"
+              loading={offlineExportingId === record.packageId}
+              onClick={() => handleExportOfflinePackage(record)}
+              className="p-0 font-semibold text-cyan-700 hover:text-cyan-900"
+            >
+              导出离线包
+            </Button>
+            <Button
+              type="link"
               onClick={() => {
                 setSelectedPackageId(record.packageId);
                 setSyncModalVisible(true);
@@ -521,7 +552,7 @@ export default function ConfigPackages() {
             pageSize: 10,
             total: totalPackagesCount,
             onChange: (page) => setCurrentPage(page),
-            showTotal: (total) => `共 ${total} 个专病医学配置包版本`,
+            showTotal: (total) => `共 ${total} 个配置包版本`,
           }}
           className="medkernel-table"
         />
@@ -532,7 +563,7 @@ export default function ConfigPackages() {
         title={
           <div className="flex items-center gap-2 text-sky-700 font-semibold text-lg border-b border-slate-100 pb-3">
             <PlusOutlined />
-            <span>新建专病医学配置包草案</span>
+            <span>新建配置包草案</span>
           </div>
         }
         open={createModalVisible}
@@ -550,10 +581,10 @@ export default function ConfigPackages() {
             <Col span={12}>
               <Form.Item
                 name="packageCode"
-                label="专病包全局唯一编码 (Package Code)"
+                label="配置包全局唯一编码 (Package Code)"
                 rules={[{ required: true, message: "请输入配置包唯一识别编码" }]}
               >
-                <Input placeholder="例如 STROKE_DECISION" className="rounded-lg" />
+                <Input placeholder="请输入全局唯一编码" className="rounded-lg" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -561,19 +592,18 @@ export default function ConfigPackages() {
                 name="packageVersion"
                 label="发布版本号 (Package Version)"
                 rules={[{ required: true, message: "请输入版本号" }]}
-                initialValue="v1.0.0"
               >
-                <Input placeholder="例如 v1.0.0" className="rounded-lg font-normal" />
+                <Input placeholder="请输入版本号" className="rounded-lg font-normal" />
               </Form.Item>
             </Col>
           </Row>
 
           <Form.Item
             name="name"
-            label="专病配置包名称"
-            rules={[{ required: true, message: "请输入专病配置包名称" }]}
+            label="配置包名称"
+            rules={[{ required: true, message: "请输入配置包名称" }]}
           >
-            <Input placeholder="例如 缺血性急性神经事件静脉溶栓决策推荐包" className="rounded-lg" />
+            <Input placeholder="请输入配置包名称" className="rounded-lg" />
           </Form.Item>
 
           <Form.Item name="description" label="包核心资产及发布范围描述">
@@ -727,9 +757,11 @@ export default function ConfigPackages() {
                         name="assetVersion"
                         label="资产快照版本"
                         rules={[{ required: true }]}
-                        initialValue="v1.0"
                       >
-                        <Input placeholder="版本号, 例如 v1.0" className="rounded-lg font-normal" />
+                        <Input
+                          placeholder="请输入资产快照版本"
+                          className="rounded-lg font-normal"
+                        />
                       </Form.Item>
                     </Col>
                   </Row>
