@@ -66,7 +66,8 @@ class MigrationBaselineContractTest {
         "V37__large_list_audit_event_indexes.sql",
         "V38__standard_clinical_model.sql",
         "V39__clinical_event_context_scope.sql",
-        "V40__projection_sync_baseline.sql"
+        "V40__projection_sync_baseline.sql",
+        "V41__runtime_task_framework.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -96,6 +97,7 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
+        "sys_task",
         "mk_security_bootstrap_init_token",
         "mk_config_item", "mk_config_history",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
@@ -174,6 +176,7 @@ class MigrationBaselineContractTest {
         "idx_platform_credential_login",
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
         "idx_sys_idempotency_expiry",
+        "idx_sys_task_status_ts", "idx_sys_task_mode_ts", "idx_sys_task_org_ts",
         "idx_bootstrap_init_token_expires",
         "idx_audit_event_org_path",
         "idx_audit_event_env",
@@ -278,6 +281,7 @@ class MigrationBaselineContractTest {
         "ck_platform_credential_status", "ck_platform_credential_mustchg",
         "ck_emergency_permission_code", "ck_emergency_permission_active",
         "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
+        "uk_sys_task_tenant_task", "ck_sys_task_mode", "ck_sys_task_status",
         "uk_bootstrap_init_token_id", "uk_bootstrap_init_token_hash", "ck_bootstrap_init_token_status",
         "uk_audit_event_dedupe",
         "pk_config_item", "uk_config_item_tenant_key", "ck_config_item_value_type",
@@ -319,6 +323,7 @@ class MigrationBaselineContractTest {
         "platform_credential",
         "emergency_permission_grant",
         "sys_idempotency",
+        "sys_task",
         "mk_config_item", "mk_config_history",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
@@ -349,6 +354,7 @@ class MigrationBaselineContractTest {
         "mpi_patient",
         "platform_credential",
         "emergency_permission_grant",
+        "sys_task",
         "mk_config_item",
         "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
@@ -367,6 +373,7 @@ class MigrationBaselineContractTest {
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
         Map.entry("specialty_package", Set.of("published_at", "published_by")),
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
+        Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
         Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
         Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id"))
     );
@@ -430,6 +437,7 @@ class MigrationBaselineContractTest {
         Map.entry("tenant_success_plan", Set.of("current_stage")),
         Map.entry("mpi_patient", Set.of("status")),
         Map.entry("emergency_permission_grant", Set.of("active_flag")),
+        Map.entry("sys_task", Set.of("task_mode", "status")),
         Map.entry("mk_config_item", Set.of("value_type", "risk_level", "source", "protected_flag", "active_flag", "version")),
         Map.entry("mk_config_history", Set.of("change_type", "version")),
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),

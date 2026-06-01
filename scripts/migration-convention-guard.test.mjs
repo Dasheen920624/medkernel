@@ -84,6 +84,35 @@ test("合规迁移通过中文注释、命名规约和租户索引门禁", async
   );
 });
 
+test("SYS-05 系统任务表按权威卡允许使用 sys_task 表名", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V41__runtime_task_framework.sql": `
+        CREATE TABLE sys_task (
+          id BIGSERIAL PRIMARY KEY,
+          task_id VARCHAR(64) NOT NULL,
+          tenant_id VARCHAR(64) NOT NULL,
+          status VARCHAR(32) NOT NULL,
+          CONSTRAINT uk_sys_task_tenant_task UNIQUE (tenant_id, task_id),
+          CONSTRAINT ck_sys_task_status CHECK (status IN ('UNREAD'))
+        );
+
+        CREATE INDEX idx_sys_task_status_ts ON sys_task(tenant_id, status);
+
+        COMMENT ON TABLE sys_task IS '任务运行框架表';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V41__runtime_task_framework.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
 test("高风险迁移缺少中文回滚或补偿说明会被阻断", async () => {
   await withFixture(
     {
