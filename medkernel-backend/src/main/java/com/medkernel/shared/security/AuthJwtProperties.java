@@ -7,7 +7,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "medkernel.auth.jwt")
 public record AuthJwtProperties(
-    long ttlSeconds
+    long ttlSeconds,
+    String secret
 ) {
     public AuthJwtProperties {
         if (ttlSeconds <= 0) {

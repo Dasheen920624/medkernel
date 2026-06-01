@@ -63,6 +63,7 @@ medkernel:
   auth:
     jwt:
       ttl-seconds: 28800
+      secret: ${MEDKERNEL_AUTH_JWT_SECRET:}
     cookie:
       name: mk_access
       secure: false   # 生产/govcloud profile 覆盖为 true

@@ -1,6 +1,5 @@
 package com.medkernel.engine.security.auth;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +22,6 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/v1/auth")
-@Profile({"dev", "test"})
 public class AuthController {
 
     private final AuthService authService;

@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ public class BootstrapInitTokenService {
     private final BootstrapInitTokenRepository tokens;
     private final Clock clock;
 
+    @Autowired
     public BootstrapInitTokenService(BootstrapInitTokenRepository tokens) {
         this(tokens, Clock.systemUTC());
     }
@@ -61,7 +63,7 @@ public class BootstrapInitTokenService {
     }
 
     @Transactional
-    public BootstrapInitToken consume(String rawToken, String usedBy, String traceId) {
+    public BootstrapInitToken validate(String rawToken) {
         Instant now = Instant.now(clock);
         BootstrapInitToken token = tokens.findFirstByTokenHashOrderByCreatedAtDesc(sha256(requireToken(rawToken)))
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_AUTH_007));
@@ -71,6 +73,13 @@ public class BootstrapInitTokenService {
         if (!token.expiresAt().isAfter(now)) {
             throw new ApiException(ErrorCode.ENG_AUTH_008);
         }
+        return token;
+    }
+
+    @Transactional
+    public BootstrapInitToken consume(String rawToken, String usedBy, String traceId) {
+        Instant now = Instant.now(clock);
+        BootstrapInitToken token = validate(rawToken);
         return tokens.save(token.withStatus(BootstrapInitTokenStatus.USED, now, usedBy, traceId));
     }
 

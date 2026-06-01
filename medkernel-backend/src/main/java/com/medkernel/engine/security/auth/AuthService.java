@@ -2,7 +2,6 @@ package com.medkernel.engine.security.auth;
 
 import java.util.List;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +21,6 @@ import com.medkernel.shared.audit.IsolatedAuditPublisher;
  * 用户不存在与密码错误统一返回 ENG-AUTH-001（防用户名枚举，含 dummy hash 拉平耗时）。
  */
 @Service
-@Profile({"dev", "test"})
 public class AuthService {
 
     private final PlatformCredentialRepository credentials;

@@ -44,11 +44,11 @@
 - Create: `medkernel-backend/src/test/java/com/medkernel/engine/security/bootstrap/BootstrapControllerTest.java`
 - Modify: `AuthService.java`、`AuthController.java`、`JwtIssuer.java`、`SecurityConfig.java`、`LoginResponse.java`
 
-- [ ] 写失败测试：生产 profile 无 dev seeder 账号；init token 可创建首发账号；重复/过期 token 返回 `INIT_TOKEN_USED/EXPIRED`。
-- [ ] 放开平台账号登录服务到生产，但生产 JWT secret 未显式配置时启动失败，避免 dev 默认密钥进生产。
-- [ ] `POST /api/v1/bootstrap/init-token` 校验 token 后返回引导状态，不签发业务 JWT。
-- [ ] `POST /api/v1/bootstrap/password` 消费 token、创建首发账号、授 `platform-admin` 基础接管角色，账号 `must_change_pwd=Y`。
-- [ ] 登录响应包含 `mustChangePwd`，前端登录后若为 true 强制跳转改密页，不得进入业务页。
+- [x] 写失败测试：生产 profile 无 dev seeder 账号；init token 可创建首发账号；重复/过期 token 返回 `INIT_TOKEN_USED/EXPIRED`。
+- [x] 放开平台账号登录服务到生产，但生产 JWT secret 未显式配置时启动失败，避免 dev 默认密钥进生产。
+- [x] `POST /api/v1/bootstrap/init-token` 校验 token 后返回引导状态，不签发业务 JWT。
+- [x] `POST /api/v1/bootstrap/password` 消费 token、创建首发账号、授 `platform-admin` 基础接管角色，账号 `must_change_pwd=Y`。
+- [x] 登录响应包含 `mustChangePwd`；前端强制跳转在任务 5 与 `/bootstrap` 页面一并验收。
 
 ## 任务 3：MFA 绑定与高危拦截最小闭环
 

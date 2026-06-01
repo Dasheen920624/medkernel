@@ -17,9 +17,9 @@
 - 类型：软件开发 / 安全运维
 - 分支：`codex/base-11-seed-identity`（基于 `origin/main` c64ad9d）
 - 目标：按 [BASE-11](cards/D0/BASE-11.md) 交付生产 init token、强制首次改密、MFA、CLI 应急与首次部署手册，解决全新生产环境无法安全接管的问题。
-- 状态：任务 1 已完成：新增一次性 init token 持久化、SHA-256 hash 服务、启动期显式 token 种子和 V36 五方言迁移；迁移表名已按门禁统一为 `mk_security_bootstrap_init_token`。
-- 下一步（精确到动作/命令）：按计划 TDD 执行任务 2：先写 `BootstrapControllerTest` 失败用例 → 放开平台账号登录主链路到生产安全口径 → 实现 init-token / password 引导端点与首发账号创建。
-- 相关文件 / 测试 / 坑：任务 1 已跑 `BootstrapInitTokenServiceTest,BootstrapInitTokenSeederTest,MigrationBaselineContractTest,H2BaselineMigrationTest`；`FlywayMultiDialectSmokeTest` 在本机 Docker 上通过 PostgreSQL + Oracle；`node scripts/migration-convention-guard.mjs --mode=files ...V36...` 通过。`npm ci` 仍提示 7 个 moderate 前端工具链告警，保持 `DEFER-002`；前端测试噪声保持 `DEFER-003`；当前只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行证据仍归 `DEFER-001`。
+- 状态：任务 1 与任务 2 后端主链路已完成：一次性 init token 持久化 / 启动种子 / V36 迁移已落地；新增 `/api/v1/bootstrap/init-token` 与 `/api/v1/bootstrap/password`，首发账号授 `platform-admin` 且 `must_change_pwd=Y`；平台账号登录服务已放开到生产安全口径，生产缺 `MEDKERNEL_AUTH_JWT_SECRET` 会失败启动。
+- 下一步（精确到动作/命令）：按计划 TDD 执行任务 3：先写 `MfaPolicyServiceTest` 失败用例 → 实现首发账号 MFA 绑定状态与高危动作 guard → 验证未绑定 MFA 时高危操作被拒。
+- 相关文件 / 测试 / 坑：任务 1/2 已跑 `BootstrapInitTokenServiceTest,BootstrapInitTokenSeederTest,BootstrapControllerTest,JwtSecretResolverTest,JwtIssuerTest,AuthControllerTest,CredentialAdminControllerTest`；迁移基线与 PostgreSQL + Oracle `FlywayMultiDialectSmokeTest` 已通过。前端强制跳转与 `/bootstrap` 页面留任务 5。`npm ci` 仍提示 7 个 moderate 前端工具链告警，保持 `DEFER-002`；前端测试噪声保持 `DEFER-003`；当前只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行证据仍归 `DEFER-001`。
 
 ## 已归档工作线（最近完成，供回溯）
 

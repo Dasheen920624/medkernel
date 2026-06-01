@@ -14,8 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
@@ -26,7 +24,6 @@ import com.medkernel.shared.security.AuthJwtProperties;
  * 平台 JWT 签发器（HS256，复用 medkernel.jwt.dev-secret，与 devJwtDecoder 对称验签）。
  */
 @Component
-@Profile({"dev", "test"})
 public class JwtIssuer {
 
     private final byte[] secret;
@@ -35,17 +32,17 @@ public class JwtIssuer {
 
     @Autowired
     public JwtIssuer(
-            @Value("${medkernel.jwt.dev-secret:medkernel-dev-secret-please-change-at-least-32-bytes}") String secret,
+            JwtSecretResolver secretResolver,
             AuthJwtProperties properties,
             SystemConfigService configService) {
-        this.secret = secret.getBytes(StandardCharsets.UTF_8);
+        this.secret = secretResolver.resolve().getBytes(StandardCharsets.UTF_8);
         this.properties = properties;
         this.configService = configService;
     }
 
     JwtIssuer(String secret, long ttlSeconds) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
-        this.properties = new AuthJwtProperties(ttlSeconds);
+        this.properties = new AuthJwtProperties(ttlSeconds, null);
         this.configService = null;
     }
 
