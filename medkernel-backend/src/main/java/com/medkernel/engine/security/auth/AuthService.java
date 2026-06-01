@@ -2,10 +2,10 @@ package com.medkernel.engine.security.auth;
 
 import java.util.List;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.medkernel.engine.security.MfaRequirementPolicy;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
@@ -22,7 +22,6 @@ import com.medkernel.shared.audit.IsolatedAuditPublisher;
  * 用户不存在与密码错误统一返回 ENG-AUTH-001（防用户名枚举，含 dummy hash 拉平耗时）。
  */
 @Service
-@Profile({"dev", "test"})
 public class AuthService {
 
     private final PlatformCredentialRepository credentials;
@@ -73,7 +72,8 @@ public class AuthService {
         auditPublisher.publish(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
-            new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd())));
+            new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
+                MfaRequirementPolicy.requiresMfa(roles), cred.mfaSecret() != null && !cred.mfaSecret().isBlank()));
     }
 
     public void logout(String userId) {
@@ -104,4 +104,5 @@ public class AuthService {
     }
 
     public record AuthResult(String jwt, LoginResponse response) {}
+
 }

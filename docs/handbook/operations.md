@@ -37,10 +37,69 @@
 - 指标：`/actuator/prometheus`
 - 备份脚本：`deploy/docker/scripts/backup.sh` + `restore.sh`（SHA-256 摘要校验）
 - 国产化配置：`application-govcloud.yml`
+- 首次部署接管：`MEDKERNEL_BOOTSTRAP_INIT_TOKEN` + `/api/v1/bootstrap/*`
+- 应急命令：`deploy/docker/scripts/bootstrap-emergency.sh`
 
 ---
 
-## 4. 数据库运维注意（Oracle 标识符大小写）
+## 4. 首次部署接管流程
+
+当前运行保障范围为 **PostgreSQL + Oracle**。达梦 / 人大金仓与国产 OS / JDK 的真实运行证据登记在 [待处理问题清单](../audit/deferred-issues.md) 的 `DEFER-001`，由 D6/GA 最终适配阶段关闭；当前阶段不得宣称国产化真实环境已通过。
+
+上线前由值班运维在安全终端生成一次性 init token，长度建议不少于 32 位，并只通过部署密钥系统注入：
+
+```bash
+export MEDKERNEL_BOOTSTRAP_INIT_TOKEN='<一次性强随机 token>'
+export MEDKERNEL_BOOTSTRAP_INIT_TOKEN_TTL_MINUTES=60
+export MEDKERNEL_AUTH_JWT_SECRET='<生产 JWT 强随机密钥，至少 32 位>'
+```
+
+启动后按顺序完成：
+
+1. 打开 `/bootstrap`，输入 init token，确认 token 未过期。
+2. 设置首发平台管理员账号和密码；系统只消费一次 token，账号授予 `platform-admin`，并强制 `must_change_pwd=Y`。
+3. 使用首发账号登录，立即完成首次改密。
+4. 绑定 MFA；恢复码只展示一次，数据库仅保存 SHA-256 摘要。
+5. 绑定 MFA 后开通首个租户；未绑定 MFA 时，高危配置变更与租户开通会返回 `ENG-AUTH-010`。
+6. 销毁部署环境中的 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN`，保留审计记录，不保留明文 token。
+
+---
+
+## 5. 首发身份应急命令
+
+应急命令只允许在本机控制台执行，必须同时提供本机确认、二次确认、操作者和原因。缺任一项会拒绝执行，且不得把拒绝写成成功。
+
+MFA 重置：
+
+```bash
+deploy/docker/scripts/bootstrap-emergency.sh \
+  --bootstrap-emergency=mfa-reset \
+  --tenant-id=t-1 \
+  --user-id=platform-owner \
+  --actor='<值班人员工号>' \
+  --reason='<应急原因>' \
+  --local-confirm=MEDKERNEL_LOCAL_CONSOLE \
+  --confirm=RESET_MFA:platform-owner
+```
+
+账号解锁：
+
+```bash
+deploy/docker/scripts/bootstrap-emergency.sh \
+  --bootstrap-emergency=unlock \
+  --tenant-id=t-1 \
+  --user-id=platform-owner \
+  --actor='<值班人员工号>' \
+  --reason='<应急原因>' \
+  --local-confirm=MEDKERNEL_LOCAL_CONSOLE \
+  --confirm=UNLOCK:platform-owner
+```
+
+MFA 重置成功时只输出一次性恢复码；恢复码不得截图进工单，不得写入日志，不得提交到仓库。工单仅登记操作者、原因、时间、目标用户和审计 trace。
+
+---
+
+## 6. 数据库运维注意（Oracle 标识符大小写）
 
 业务表由 Flyway 迁移脚本以**不加双引号**方式创建，Oracle 按默认规则折叠为**大写**（如 `PLATFORM_CREDENTIAL`、`ORG_UNIT`）；运行时 Spring Data JDBC 已通过 `JdbcIdentifierPolicyConfig`（`forceQuote=false`）对齐，查询正常。
 
@@ -60,7 +119,7 @@ PostgreSQL / Kingbase / 达梦 / H2 不受影响（不区分大小写或同为�
 
 ---
 
-## 5. 关联文档
+## 7. 关联文档
 
 - [产品宪法](../CONSTITUTION.md)
 - [基础底座与引擎服务能力总览](../MEDKERNEL_FOUNDATION_AND_SERVICES.md)

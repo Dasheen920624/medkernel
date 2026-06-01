@@ -21,6 +21,9 @@ const securityProfileState = vi.hoisted(() => ({
           }>;
           environmentKeys: string[];
           dataScope: Record<string, string | null>;
+          mustChangePwd?: boolean;
+          mfaRequired?: boolean;
+          mfaBound?: boolean;
         }
       | undefined,
   },
@@ -201,6 +204,23 @@ describe("AppLayout", () => {
 
     expect(screen.queryByText("工作台内容")).toBeNull();
     expect(screen.getByText("正在核验权限")).toBeInTheDocument();
+  });
+
+  it("blocks direct business route entry until first password and MFA setup are complete", () => {
+    securityProfileState.value = {
+      data: {
+        ...permissionProfile(["workbench"]),
+        mustChangePwd: true,
+        mfaRequired: true,
+        mfaBound: false,
+      },
+    };
+    mockViewport(1280);
+    renderLayout("/dashboard");
+
+    expect(screen.queryByText("工作台内容")).toBeNull();
+    expect(screen.getByText("需要完成首次安全设置")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "继续设置" })).toBeInTheDocument();
   });
 
   it("blocks direct entry to a page outside the granted menu scope", () => {

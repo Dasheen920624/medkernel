@@ -1,0 +1,86 @@
+package com.medkernel.engine.security.bootstrap;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.medkernel.engine.security.PlatformCredential;
+import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
+
+class MfaPolicyServiceTest {
+
+    private PlatformCredentialRepository credentials;
+    private MfaPolicyService service;
+    private AtomicReference<PlatformCredential> saved;
+
+    @BeforeEach
+    void setUp() {
+        credentials = mock(PlatformCredentialRepository.class);
+        service = new MfaPolicyService(credentials);
+        saved = new AtomicReference<>();
+        when(credentials.save(any())).thenAnswer(inv -> {
+            PlatformCredential credential = inv.getArgument(0);
+            saved.set(credential);
+            return credential;
+        });
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-mfa", new OrgScope("t-1", null, null, null, null, null, null), "platform-owner"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        RequestContext.clear();
+    }
+
+    @Test
+    void highRiskActionRejectsCurrentUserWithoutMfa() {
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential(null)));
+
+        assertThatThrownBy(() -> service.assertHighRiskAllowed("system_config", "medkernel.auth.jwt.ttl-seconds"))
+            .isInstanceOfSatisfying(ApiException.class, e ->
+                assertThat(e.errorCode()).isEqualTo(ErrorCode.ENG_AUTH_010));
+    }
+
+    @Test
+    void highRiskActionAllowsCurrentUserWithMfa() {
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential("sha256-mfa-recovery-code")));
+
+        service.assertHighRiskAllowed("system_config", "medkernel.auth.jwt.ttl-seconds");
+    }
+
+    @Test
+    void bindForCurrentUserStoresOnlyRecoveryCodeHash() {
+        when(credentials.findByTenantIdAndUserId("t-1", "platform-owner"))
+            .thenReturn(Optional.of(credential(null)));
+
+        BootstrapMfaResponse response = service.bindForCurrentUser(new BootstrapMfaRequest("首发管理员"));
+
+        assertThat(response.mfaBound()).isTrue();
+        assertThat(response.recoveryCode()).isNotBlank();
+        assertThat(saved.get().mfaSecret()).hasSize(64).doesNotContain(response.recoveryCode());
+    }
+
+    private PlatformCredential credential(String mfaSecret) {
+        Instant now = Instant.parse("2026-06-01T08:00:00Z");
+        return new PlatformCredential(
+            1L, "cred-platform-owner", "t-1", "platform-owner", "platform-owner",
+            "$2a$10$hash", "ACTIVE", "Y", mfaSecret,
+            now, "test", now, "test", "trace-test");
+    }
+}

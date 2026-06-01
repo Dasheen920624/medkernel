@@ -8,11 +8,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -28,6 +26,7 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.medkernel.shared.context.JwtClaimsResolver;
+import com.medkernel.engine.security.auth.JwtSecretResolver;
 import com.medkernel.shared.context.TenantContextEnricherFilter;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.idempotency.IdempotencyFilter;
@@ -72,6 +71,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/v1/system/**",
+                    "/api/v1/bootstrap/init-token",
+                    "/api/v1/bootstrap/password",
                     "/api/v1/auth/login",
                     "/api/v1/auth/logout",
                     "/actuator/health",
@@ -127,12 +128,11 @@ public class SecurityConfig {
     }
 
     /**
-     * dev profile：用 HS256 + 配置文件密钥，便于本地不依赖外部 OIDC。
-     * prod 必须替换为基于 JWKS 的 RS256 / ES256（GA-CORE-02 详细实装时补）。
+     * 本地 / 测试可使用 dev secret；生产必须显式配置 MEDKERNEL_AUTH_JWT_SECRET。
      */
     @Bean
-    @Profile({"dev", "test"})
-    JwtDecoder devJwtDecoder(@Value("${medkernel.jwt.dev-secret:medkernel-dev-secret-please-change-at-least-32-bytes}") String secret) {
+    JwtDecoder jwtDecoder(JwtSecretResolver secretResolver) {
+        String secret = secretResolver.resolve();
         SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key).build();
     }

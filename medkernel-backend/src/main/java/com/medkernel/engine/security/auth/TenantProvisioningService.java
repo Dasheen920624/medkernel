@@ -19,6 +19,7 @@ import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.bootstrap.MfaPolicyService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -49,6 +50,7 @@ public class TenantProvisioningService {
     private final PasswordEncoder passwordEncoder;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final MfaPolicyService mfaPolicyService;
 
     public TenantProvisioningService(OrgUnitRepository orgUnits,
                                      OrgHierarchyRepository orgHierarchy,
@@ -56,7 +58,8 @@ public class TenantProvisioningService {
                                      UserRoleAssignmentRepository roleAssignments,
                                      PasswordEncoder passwordEncoder,
                                      AuditEventPublisher auditPublisher,
-                                     IsolatedAuditPublisher isolatedAudit) {
+                                     IsolatedAuditPublisher isolatedAudit,
+                                     MfaPolicyService mfaPolicyService) {
         this.orgUnits = orgUnits;
         this.orgHierarchy = orgHierarchy;
         this.credentials = credentials;
@@ -64,6 +67,7 @@ public class TenantProvisioningService {
         this.passwordEncoder = passwordEncoder;
         this.auditPublisher = auditPublisher;
         this.isolatedAudit = isolatedAudit;
+        this.mfaPolicyService = mfaPolicyService;
     }
 
     /** 列出所有租户（根组织），平台视角。 */
@@ -79,6 +83,7 @@ public class TenantProvisioningService {
     public ProvisionTenantResponse provisionTenant(ProvisionTenantRequest req) {
         String tenantId = req.tenantId();
         String actor = actor();
+        mfaPolicyService.assertHighRiskAllowed("platform_tenant", tenantId);
         if (orgUnits.countByTenantId(tenantId) > 0
                 || credentials.findByTenantIdAndUsername(tenantId, req.adminUsername()).isPresent()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(

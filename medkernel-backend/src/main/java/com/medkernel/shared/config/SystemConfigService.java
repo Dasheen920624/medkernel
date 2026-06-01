@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.context.ClinicalEventProperties;
+import com.medkernel.engine.security.bootstrap.MfaPolicyService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -50,15 +51,18 @@ public class SystemConfigService {
     private final AuditSafetyGuard auditSafetyGuard;
     private final AuditRecorder auditRecorder;
     private final RuntimeLogLevelManager logLevelManager;
+    private final MfaPolicyService mfaPolicyService;
 
     public SystemConfigService(SystemConfigRepository repository,
                                AuditSafetyGuard auditSafetyGuard,
                                AuditRecorder auditRecorder,
-                               RuntimeLogLevelManager logLevelManager) {
+                               RuntimeLogLevelManager logLevelManager,
+                               MfaPolicyService mfaPolicyService) {
         this.repository = repository;
         this.auditSafetyGuard = auditSafetyGuard;
         this.auditRecorder = auditRecorder;
         this.logLevelManager = logLevelManager;
+        this.mfaPolicyService = mfaPolicyService;
     }
 
     public List<SystemConfigItemResponse> list(String prefix) {
@@ -78,6 +82,7 @@ public class SystemConfigService {
             new AuditConfigChangeCommand(normalizedKey, before.value(), value, request.reason()));
         assertProtectedRuntimeDisableAllowed(before, value, request.reason());
         assertHighRiskChangeConfirmed(before, request.reason(), request.confirmedHighRisk());
+        assertHighRiskMfaBound(before);
         SystemConfigItem after = repository.updateValue(
             SYSTEM_TENANT, normalizedKey, value, actor, request.reason(), request.expectedVersion());
         auditRecorder.record(new AuditRecordCommand(
@@ -106,6 +111,7 @@ public class SystemConfigService {
             new AuditConfigChangeCommand(normalizedKey, before.value(), targetValue, reason));
         assertProtectedRuntimeDisableAllowed(before, targetValue, reason);
         assertHighRiskChangeConfirmed(before, reason, request.confirmedHighRisk());
+        assertHighRiskMfaBound(before);
         SystemConfigItem after = repository.rollbackValue(SYSTEM_TENANT, normalizedKey, targetValue, actor, reason);
         auditRecorder.record(new AuditRecordCommand(
             AuditAction.ROLLBACK,
@@ -403,6 +409,12 @@ public class SystemConfigService {
 
     private static boolean isHighRisk(SystemConfigItem item) {
         return item.protectedConfig() || "HIGH".equalsIgnoreCase(item.risk());
+    }
+
+    private void assertHighRiskMfaBound(SystemConfigItem item) {
+        if (isHighRisk(item)) {
+            mfaPolicyService.assertHighRiskAllowed("system_config", item.key());
+        }
     }
 
     private RuntimeBooleanRead readRuntimeBooleanConfig(String configKey, boolean fallback) {

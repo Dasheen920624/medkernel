@@ -24,12 +24,38 @@ describe("Login", () => {
       tenantId: "t-1",
       roles: ["doctor"],
       mustChangePwd: false,
+      mfaRequired: false,
+      mfaBound: false,
     });
     render(<Login />);
     fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "doctor" } });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("登录成功后若仍需改密或 MFA，强制进入首次部署引导", async () => {
+    mutateAsyncMock.mockResolvedValue({
+      userId: "platform-owner",
+      tenantId: "t-1",
+      roles: ["platform-admin"],
+      mustChangePwd: true,
+      mfaRequired: true,
+      mfaBound: false,
+    });
+    render(<Login />);
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "platform-owner" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Init@2026pw" } });
+    fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith(
+        "/bootstrap",
+        expect.objectContaining({
+          state: expect.objectContaining({ phase: "change-password" }),
+        }),
+      ),
+    );
   });
 
   it("登录失败显示错误且不跳转", async () => {
@@ -48,6 +74,14 @@ describe("Login", () => {
     render(<Login />);
 
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
+  });
+
+  it("登录页提供首次部署接管入口", () => {
+    render(<Login />);
+
+    fireEvent.click(screen.getByRole("button", { name: "首次部署接管" }));
+
+    expect(navigateMock).toHaveBeenCalledWith("/bootstrap");
   });
 
   it("登录页根容器注入主题 token，避免背景和文字失效", () => {

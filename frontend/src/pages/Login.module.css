@@ -105,6 +105,13 @@
   color: var(--mk-login-text-muted);
 }
 
+.bootstrapEntry {
+  width: fit-content;
+  border-color: var(--mk-login-primary-border, currentColor);
+  color: var(--mk-login-primary);
+  background: var(--mk-login-surface);
+}
+
 .loginCard {
   width: 100%;
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border, currentColor);

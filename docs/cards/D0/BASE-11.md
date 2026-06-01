@@ -17,30 +17,31 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 生产 init token**：首次部署用**一次性 init token**（部署时生成、有效期短、单次使用）引导内置超管首登；**禁**生产写死账号/密码（核心 #18/#20）。
-- [ ] **FR-2 强制首次改密**：init token 登入后**强制**改密（不改不得进入系统）。
-- [ ] **FR-3 强制 MFA**：超管强制绑定 MFA（核心 #20）；未绑不得执行高危动作。
-- [ ] **FR-4 CLI 应急工具**：超管锁定/MFA 丢失时的应急重置 CLI（受控：需服务器本地访问 + 审计 + 二次确认）。
-- [ ] **FR-5 诚实种子**：无 `@Profile("dev")` 账号泄入生产；生产种子只走 init token 路径（核心 #18）。
-- [ ] **FR-6 运维手册首次部署步骤**：生成 init token → 首登 → 改密 → 绑 MFA → 种子完成 → 开通首个租户 全流程文档化。
+- [x] **FR-1 生产 init token**：首次部署用**一次性 init token**（部署时生成、有效期短、单次使用）引导内置超管首登；**禁**生产写死账号/密码（核心 #18/#20）。
+- [x] **FR-2 强制首次改密**：init token 登入后**强制**改密（不改不得进入系统）。
+- [x] **FR-3 强制 MFA**：超管强制绑定 MFA（核心 #20）；未绑不得执行高危动作。
+- [x] **FR-4 CLI 应急工具**：超管锁定/MFA 丢失时的应急重置 CLI（受控：需服务器本地访问 + 审计 + 二次确认）。
+- [x] **FR-5 诚实种子**：无 `@Profile("dev")` 账号泄入生产；生产种子只走 init token 路径（核心 #18）。
+- [x] **FR-6 运维手册首次部署步骤**：生成 init token → 首登 → 改密 → 绑 MFA → 种子完成 → 开通首个租户 全流程文档化。
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：init token 校验登入端点 + 首次改密端点 + MFA 绑定端点。
-- DTO：init token / 改密 / MFA 绑定 Record DTO + Bean Validation（强密码策略）。
+- 端点：`POST /api/v1/bootstrap/init-token` 校验一次性 token；`POST /api/v1/bootstrap/password` 消费 token 并创建首发 `platform-admin`；`POST /api/v1/auth/change-password` 完成首次改密；`POST /api/v1/bootstrap/mfa` 绑定 MFA 恢复码；`GET /api/v1/security/me` 返回业务页强制拦截所需安全完成状态。
+- DTO：init token / 首发账号密码 / 改密 / MFA 绑定均为 Record DTO + Bean Validation（强密码策略、确认字段、恢复码保护）。
 - 响应信封：`ApiResult` / `ProblemDetail`（init token 失效/过期诚实报错）。
 - 状态机：种子身份引导状态（init→待改密→待 MFA→就绪），非四资产类（一次性引导流）。
-- 幂等 / 错误码 / traceId：init token 单次使用（用后失效）；`INIT_TOKEN_EXPIRED`/`INIT_TOKEN_USED`；全程审计 traceId。
+- 幂等 / 错误码 / traceId：init token 单次使用（用后失效）；`ENG-AUTH-008` 过期、`ENG-AUTH-009` 已用/撤销、`ENG-AUTH-010` MFA 未完成；全程审计 traceId。
 
 ### 页面契约（页面卡）
-- 结构：首次部署引导页（init token 输入 → 强制改密 → MFA 绑定）；六态 + 强密码校验回显。
-- 主按钮 ≤1：每步单主按钮（核心 #6）。
+- 结构：登录页保留登录前主题切换，并提供“首次部署接管”入口；首次部署引导页（init token 输入 → 首发管理员与密码 → 首次改密 → MFA 绑定）支持明暗 / 老年医生等主题。
+- 六态：字段级错误、接口错误、空 token / 空密码、处理中、成功恢复码、完成跳转均有中文回显。
+- 主按钮 ≤1：每步单主按钮（核心 #6）；业务路由若 `mustChangePwd=true` 或 `mfaRequired=true && mfaBound=false`，必须显示“需要完成首次安全设置”并只能继续到 `/bootstrap`。
 
 ## 数据与迁移
-- 表族：`sys_init_token`（一次性 token：hash / 过期 / 已用标记）；复用 `sys_user`（超管）+ MFA 绑定表。
-- 主键：ULID；唯一约束：token hash 唯一；索引：过期时间（清理）。
-- 安全：init token 存 hash（非明文）；强密码 + MFA secret 加密存储（核心 §8）。
-- 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释。
+- 表族：`mk_security_bootstrap_init_token`（一次性 token：SHA-256 hash / 过期 / 已用标记 / 审计字段）；复用 `platform_credential` 首发平台凭证与 `mfa_secret` 恢复码摘要字段。
+- 主键：数据库自增 ID + `token_id` 业务 ID；唯一约束：`token_hash` 唯一；索引：状态、过期时间、使用人。
+- 安全：init token 只存 SHA-256 hash（非明文）；密码 BCrypt；MFA 恢复码只存 SHA-256 摘要；生产 JWT secret 必须显式配置。
+- 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释；当前真实运行范围只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境证据登记 [DEFER-001](../../audit/deferred-issues.md) 到最终适配阶段关闭。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：首发身份是"系统可被接管"的起点；无种子=死系统。
@@ -60,19 +61,21 @@
 - 本卡落点：init token 一次性引导 + 强制改密 + MFA + CLI 应急 + 手册，让全新生产环境**可安全产生**第一个超管，无写死后门。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/5）**：生产 profile 全新部署，无任何预置账号；用 init token 引导出超管；`@Profile("dev")` 账号确认不入生产。
-- [ ] **AC-2（FR-2）**：init token 登入后未改密无法进入任何业务页（强制改密生效）。
-- [ ] **AC-3（FR-3）**：超管未绑 MFA 时执行高危动作被拒；绑定后可执行。
-- [ ] **AC-4（FR-1）**：init token 用后失效；过期/重用返回诚实错误（`INIT_TOKEN_USED/EXPIRED`）。
-- [ ] **AC-5（FR-4/6）**：CLI 应急重置可用且受控审计；运维手册首次部署步骤可照做走通。
+- [x] **AC-1（FR-1/5）**：生产 profile 全新部署，无任何预置账号；用 init token 引导出超管；`@Profile("dev")` 账号确认不入生产。
+- [x] **AC-2（FR-2）**：init token 登入后未改密无法进入任何业务页（强制改密生效）。
+- [x] **AC-3（FR-3）**：超管未绑 MFA 时执行高危动作被拒；绑定后可执行。
+- [x] **AC-4（FR-1）**：init token 用后失效；过期/重用返回诚实错误（`ENG-AUTH-008/009`）。
+- [x] **AC-5（FR-4/6）**：CLI 应急重置可用且受控审计；运维手册首次部署步骤可照做走通。
 - 关联 A1–A9：A6 合规运维（身份 + 审计）。
 - T-GATE：后端门禁全绿（无生产写死账号/密码）。
 - B0 验收：纯确定性身份引导，天然 B0。
 
 ## 完工证据
-- 代码 permalink：init token 服务 / 强制改密 / MFA 绑定 / CLI 应急工具 / `sys_init_token` 迁移 / 运维手册首次部署章节。
-- 测试：生产无预置账号测试 + init token 单次失效测试 + 强制改密拦截测试 + MFA 拦截测试 + CLI 应急受控测试。
-- 审计员签字：@<reviewer>（owner ≠ reviewer，高风险建议双签）。
+- 代码：`BootstrapInitTokenService` / `BootstrapInitTokenSeeder` / `BootstrapController` / `BootstrapIdentityService` / `MfaPolicyService` / `BootstrapEmergencyCommand` / `SecurityMeController` / `/bootstrap` 页面 / `mk_security_bootstrap_init_token` V36 五方言迁移 / 运维手册首次部署章节。
+- 测试：`BootstrapInitTokenServiceTest`、`BootstrapInitTokenSeederTest`、`BootstrapControllerTest`、`AuthControllerTest`、`SecurityMeControllerTest`、`MfaPolicyServiceTest`、`SystemConfigControllerTest`、`TenantProvisioningControllerTest`、`BootstrapEmergencyCommandTest`、`Bootstrap.test.tsx`、`Login.test.tsx`、`AppLayout.test.tsx`、`router.test.tsx`、`hooks.test.ts`。
+- 验收：本分支已用浏览器核验 `/login` → `/bootstrap`、主题切换、字段错误回显、控制台无 error；本机截图能力超时登记 `DEFER-004`，不伪造截图证据。
+- 待处理：当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实运行证据登记 `DEFER-001`，不阻塞本卡但不得写成已通过。
+- 审计员签字：PR review（owner ≠ reviewer，高风险建议双签）。
 
 ## 大卡工序（3d，后端 + 少量前端引导页）
 - PR1：init token 机制 + 强制改密 + 种子幂等 + 迁移 → AC-1/2/4。

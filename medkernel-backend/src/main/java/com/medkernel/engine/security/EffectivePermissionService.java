@@ -84,7 +84,10 @@ public class EffectivePermissionService {
             permissionViews,
             MenuPermissionCatalog.menuKeysFor(permissions),
             environmentKeysFor(permissions),
-            dataScope(scope)
+            dataScope(scope),
+            false,
+            MfaRequirementPolicy.requiresMfa(roles.keySet()),
+            false
         );
     }
 

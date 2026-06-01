@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 
+import com.medkernel.engine.security.bootstrap.MfaPolicyService;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.AuditSafetyGuard;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
@@ -29,8 +30,9 @@ class SystemConfigServiceTest {
     private final AuditSafetyGuard auditSafetyGuard = mock(AuditSafetyGuard.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final RuntimeLogLevelManager logLevelManager = mock(RuntimeLogLevelManager.class);
+    private final MfaPolicyService mfaPolicyService = mock(MfaPolicyService.class);
     private final SystemConfigService service = new SystemConfigService(
-        repository, auditSafetyGuard, auditRecorder, logLevelManager);
+        repository, auditSafetyGuard, auditRecorder, logLevelManager, mfaPolicyService);
 
     @Test
     void runtimeFeatureFlagsFallBackToSafeDefaultWithHonestWarningWhenConfigStoreReadFails() {

@@ -38,9 +38,17 @@ export function AppLayout() {
   const securityProfile = useSecurityProfile();
   const routeRequiresAuth = currentRoute?.requireAuth ?? true;
   const hasSecurityProfile = Boolean(securityProfile.data);
+  const bootstrapSetupRequired = Boolean(
+    routeRequiresAuth &&
+      securityProfile.data &&
+      (securityProfile.data.mustChangePwd ||
+        (securityProfile.data.mfaRequired && !securityProfile.data.mfaBound)),
+  );
   const canViewCurrentRoute =
     !routeRequiresAuth ||
-    (hasSecurityProfile && canAccessRoute(currentRoute, securityProfile.data));
+    (hasSecurityProfile &&
+      !bootstrapSetupRequired &&
+      canAccessRoute(currentRoute, securityProfile.data));
 
   const visibleMenuSections = useMemo(
     () =>
@@ -130,6 +138,31 @@ export function AppLayout() {
           state="loading"
           title="正在核验权限"
           description="正在确认当前角色与数据范围。"
+        />
+      );
+    }
+    if (bootstrapSetupRequired) {
+      return (
+        <PageState
+          state="forbidden"
+          title="需要完成首次安全设置"
+          description="当前账号仍需完成首次改密或 MFA 绑定，完成前不能进入业务页面。"
+          action={
+            <Button
+              type="primary"
+              aria-label="继续设置"
+              onClick={() =>
+                navigate("/bootstrap", {
+                  state: {
+                    phase: securityProfile.data?.mustChangePwd ? "change-password" : "mfa",
+                    login: securityProfile.data,
+                  },
+                })
+              }
+            >
+              继续设置
+            </Button>
+          }
         />
       );
     }

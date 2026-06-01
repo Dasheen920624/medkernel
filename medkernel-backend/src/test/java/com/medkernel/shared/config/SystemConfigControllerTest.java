@@ -1,6 +1,7 @@
 package com.medkernel.shared.config;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -13,9 +14,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.medkernel.engine.security.PlatformCredential;
+import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.auth.JwtIssuer;
 import com.medkernel.shared.runtime.RuntimeOperationsService;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
@@ -48,6 +52,7 @@ class SystemConfigControllerTest {
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
+    private static final String MFA_USER = "it-ops-1";
 
     @Autowired
     MockMvc mvc;
@@ -62,10 +67,26 @@ class SystemConfigControllerTest {
     JwtIssuer jwtIssuer;
 
     @Autowired
+    PlatformCredentialRepository credentialRepository;
+
+    @Autowired
     LoggingSystem loggingSystem;
+
+    @BeforeEach
+    void seedMfaCredential() {
+        if (credentialRepository.findByTenantIdAndUserId("t-1", MFA_USER).isEmpty()) {
+            java.time.Instant now = java.time.Instant.now();
+            credentialRepository.save(new PlatformCredential(
+                null, "cred-" + MFA_USER, "t-1", MFA_USER, MFA_USER,
+                "$2a$10$hash", "ACTIVE", "N", "sha256-mfa-recovery-code",
+                now, "test", now, "test", "trace-test"));
+        }
+    }
 
     @AfterEach
     void restoreSeededRuntimeFlags() {
+        credentialRepository.findByTenantIdAndUserId("t-1", MFA_USER)
+            .ifPresent(credentialRepository::delete);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -202,6 +223,7 @@ class SystemConfigControllerTest {
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void highRiskFeatureFlagRequiresSecondConfirmationBeforeUpdate() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -216,6 +238,7 @@ class SystemConfigControllerTest {
         assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
 
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -230,6 +253,25 @@ class SystemConfigControllerTest {
             .andExpect(jsonPath("$.data.key").value(EXTERNAL_PROVIDER_FLAG_KEY))
             .andExpect(jsonPath("$.data.value").value("true"))
             .andExpect(jsonPath("$.data.version").value(2));
+    }
+
+    @Test
+    void highRiskConfirmedUpdateRequiresMfaBoundUser() throws Exception {
+        mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(itOpsWithoutMfa())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "value": "true",
+                      "reason": "已确认高危配置影响但未绑定 MFA",
+                      "expectedVersion": 1,
+                      "confirmedHighRisk": true
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-010"));
+
+        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
     }
 
     @Test
@@ -269,6 +311,7 @@ class SystemConfigControllerTest {
         patchHighRiskConfig(EXTERNAL_PROVIDER_FLAG_KEY, "true", "先开启高危配置以验证回滚确认");
 
         mvc.perform(post("/api/v1/system/configs/{key}/rollback", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -281,6 +324,7 @@ class SystemConfigControllerTest {
         assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("true");
 
         mvc.perform(post("/api/v1/system/configs/{key}/rollback", EXTERNAL_PROVIDER_FLAG_KEY)
+                .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -367,6 +411,7 @@ class SystemConfigControllerTest {
 
     private void patchHighRiskConfig(String key, String value, String reason) throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", key)
+                .with(itOpsWithMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -377,5 +422,19 @@ class SystemConfigControllerTest {
                     """.formatted(value, reason)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
+    }
+
+    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor itOpsWithMfa() {
+        return jwtFor(MFA_USER);
+    }
+
+    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor itOpsWithoutMfa() {
+        return jwtFor("it-ops-no-mfa");
+    }
+
+    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtFor(String userId) {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+            .jwt(t -> t.subject(userId).claim("tenant_id", "t-1"))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_IT_OPS"));
     }
 }
