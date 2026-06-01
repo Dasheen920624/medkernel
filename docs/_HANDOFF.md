@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · OBS-01 引擎可观测性骨干 🚧
+### 线 1 · API-13 大规模列表 API 🚧
 
-- 类型：软件开发 / 后端平台脊柱
-- 分支：`codex/obs-01-observability-spine`（基于 `origin/main` a9a0304）
-- 目标：按 [OBS-01](cards/D0/OBS-01.md) 交付 TraceIdPropagator + MDC + StateTransitionRecorder + PayloadStoragePort + ErrorCode + DiagnoseResponse，让引擎执行可按 traceId 还原输入、版本、输出、耗时和降级原因。
-- 状态：本分支已按 TDD 完成 OBS-01 本地实现与文档收口：V8 五方言收敛到 `mk_obs_state_transition` / `mk_obs_payload_store`，默认 `PayloadStoragePort` 改为 DB 存储并删除旧 in-memory 实现，新增 `/api/v1/engine/diagnose/traces/{traceId}` 诊断端点，`DiagnoseResponse` 补执行摘要。
-- 下一步（精确到动作/命令）：1. 提交当前改动；2. 提交后重跑 changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释）；3. 推送 PR，等待 CI 8/8；4. 合并后确认 `origin/main` 含合并提交，再从最新 `origin/main` 领取 `API-13`。
-- 相关文件 / 测试 / 坑：本地已通过 `mvn -B -q -Dtest=MigrationBaselineContractTest,DbPayloadStorageTest,StateTransitionHistoryRepositoryTest,StateTransitionRecorderTest,DiagnoseResponseAssemblerTest,ObservabilityDiagnoseServiceTest,ObservabilityDiagnoseControllerTest,TraceIdPropagatorTest,MdcEnrichmentFilterTest,RuleEngineServiceTest#diagnoseAssemblesFromExecutionLog,ContextSnapshotTraceEndToEndTest test` 与 `mvn -B -q test`（含 PostgreSQL / Oracle Testcontainers 迁移）。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实环境仍归 `DEFER-001`。open deferred issue 不阻塞后续主线；但当前卡主链路、登录可用、权限隔离、真实性门禁和医疗安全红线不得延期。
+- 类型：软件开发 / 后端平台契约
+- 分支：`codex/api-13-large-list`（基于 `origin/main` 34b2240）
+- 目标：按 [API-13](cards/D0/API-13.md) 收口大规模列表统一契约：服务端分页、cursor/offset、排序过滤白名单、`total_estimate`、异步导出、100k 级性能与前端全量加载防回流。
+- 状态：已从最新 `origin/main` 创建分支；OBS-01 已合并并确认 `origin/main` 含 merge `34b2240`。API-13 现状核查完成，实施计划已写入 [2026-06-01-api-13-large-list.md](superpowers/plans/2026-06-01-api-13-large-list.md)；目标绿色基线已通过 `LargeListEngineServiceTest,LargeListControllerSecurityTest,PageResponseTest,MigrationBaselineContractTest,H2BaselineMigrationTest`。
+- 下一步（精确到动作/命令）：1. 按计划 Task 1 先补 oversize page、排序 / 过滤白名单、cursor 稳定性、100k keyset 与前端全量加载红灯测试；2. 观察红灯；3. 实现 `PageQuery` / `PageResult`、白名单、V37 索引和前端门禁；4. 跑后端目标测试、前端目标测试、全量验证与 T-GATE；5. PR / CI / 合并后确认 `origin/main` 再领取下一卡。
+- 相关文件 / 测试 / 坑：现状初查显示 `ListQueryRequest.normalize()` 对超大 `pageSize` 静默截断为 1000，需改为 `PAGE_SIZE_EXCEEDED` 诚实拒绝；排序字段未按白名单生效；未知过滤项被忽略；旧 `ListQueryRequest` / `ListQueryResponse` 与卡要求的 `PageQuery` / `PageResult` 不一致。这些属于 API-13 当前主链路，不得登记延期，必须本卡内处理。当前运行环境仍只保障 PostgreSQL + Oracle；达梦 / 人大金仓归 `DEFER-001` 后续关闭。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- OBS-01 引擎可观测性骨干 ✅（#217，merge `34b2240`）：V8 五方言收敛到 `mk_obs_state_transition` / `mk_obs_payload_store`，默认 `PayloadStoragePort` 改为 DB 存储并删除旧 in-memory 实现；新增 `/api/v1/engine/diagnose/traces/{traceId}` 诊断端点，`DiagnoseResponse` 补执行摘要；`RuleEngineService` / 临床事件 / 路径引擎执行日志纳入 trace 诊断链路。本地目标测试、`mvn -B -q test`、`mvn -B -q clean test`、changed T-GATE（真实性 / 配置边界 / 迁移 / 中文注释 / 空白）与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 OBS worktree 已清理。
 - BASE-11 平台首发种子身份 ✅（#216，merge `a9a0304`）：交付生产 init token、强制首次改密、MFA、CLI 应急和首次部署前端引导；补 `GET /api/v1/security/me` 的 `mustChangePwd/mfaRequired/mfaBound` 状态与业务路由全局拦截，避免直接访问 `/dashboard` 绕过首次改密 / MFA；`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard；`bootstrap-emergency.sh` 支持本机确认 + 二次确认的 MFA 重置 / 账号解锁并写审计；`/bootstrap` 支持 init token、首发管理员、首次改密、MFA 引导，登录页可进入并按状态强制跳转。本地后端全量、前端全量 verify/build、T-GATE、浏览器交互验收与远端 CI 8/8 通过后合入 `origin/main`。
 - BASE-10 设计 Token 系统 ✅（#215，merge `c64ad9d`）：收口 `theme.ts` / Ant Design token、5 主题、登录页登录前主题切换、老年医生模式 24px / 52px 控件、用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 全量 token 化并接入 stylelint / CI。本地前端 verify/build、后端全量、T-GATE、浏览器真实点击 5 主题和远端 CI 8/8 通过后合入 `origin/main`；截图能力本机超时已如实登记，未伪造证据。
 - BASE-08 产品体验底座 ✅（#214，merge `b9f6f68`）：新增 `mk_experience_saved_view` 与 `mk_experience_export_task` 五方言持久化，保存视图端点按租户 + 用户隔离并拒绝敏感快照；大列表导出统一到真实异步任务、幂等键、审计快照和 Oracle 兼容分页估算；字典映射页接入后端默认视图、保存视图、异步导出轮询、专家模式与服务端分页；清理旧本地视图存储、未引用 `ColumnManager` 和 2026-05-26 旧 BASE-08 计划 / 设计文档。本地后端全量、前端全量、T-GATE、changed 迁移门禁、浏览器真实登录 `/terminology/mapping` 验收通过；远端 CI 8/8 通过并合入 `origin/main`。
@@ -104,4 +105,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · OBS-01 本地实现与后端全量验证完成，当前分支待提交 / PR / CI / 合并；合并后下一阶段领取 `API-13`。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，外部阻塞只登记不阻断主线。
+> 末次更新：2026-06-01 · OBS-01 已通过 #217 合并到 `origin/main`（merge `34b2240`），远端 CI 8/8 通过并已清理分支 / worktree；当前已从最新主线领取 `API-13` 大规模列表 API。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，open 待处理问题只登记不阻断主线。
