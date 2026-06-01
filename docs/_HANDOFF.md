@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-11 平台首发种子身份 🚧
+### 线 1 · OBS-01 引擎可观测性骨干 🚧
 
-- 类型：软件开发 / 安全运维
-- 分支：`codex/base-11-seed-identity`（基于 `origin/main` c64ad9d）
-- 目标：按 [BASE-11](cards/D0/BASE-11.md) 交付生产 init token、强制首次改密、MFA、CLI 应急与首次部署手册，解决全新生产环境无法安全接管的问题。
-- 状态：BASE-11 本地实现与验收已完成，PR [#216](https://github.com/Dasheen920624/medkernel/pull/216) 已提交且远端 CI 8/8 通过，待合并。已补 `GET /api/v1/security/me` 的 `mustChangePwd/mfaRequired/mfaBound` 状态与业务路由全局拦截，避免直接访问 `/dashboard` 绕过首次改密 / MFA。`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard；`bootstrap-emergency.sh` 支持本机确认 + 二次确认的 MFA 重置 / 账号解锁并写审计；`/bootstrap` 支持 init token、首发管理员、首次改密、MFA 引导，登录页可进入并按状态强制跳转。
-- 下一步（精确到动作/命令）：合并 PR #216 → 从最新 `origin/main` 新建下一工作线分支 → 更新本文件归档 BASE-11 → 继续领取 D0 下一张 `OBS-01`，不得跳过 PR/CI/合并闸。
-- 相关文件 / 测试 / 坑：任务 1/2/3/4 已跑 `BootstrapInitTokenServiceTest,BootstrapInitTokenSeederTest,BootstrapControllerTest,JwtSecretResolverTest,JwtIssuerTest,AuthControllerTest,CredentialAdminControllerTest,MfaPolicyServiceTest,SystemConfigControllerTest,TenantProvisioningControllerTest,SystemConfigServiceTest,BootstrapEmergencyCommandTest`；任务 5 已跑 `npm test -- Bootstrap.test.tsx Login.test.tsx router.test.tsx hooks.test.ts`、`npm run typecheck`、`npm run stylelint`、`npm run format:check`、`npm run lint`、`npm run build`，并用当前分支 `http://127.0.0.1:5174` 浏览器验收 `/login` → `/bootstrap`、主题切换、空 token 字段回显、控制台无 error。任务 6 新增拦截目标回归已跑 `mvn -B -q -Dtest=SecurityMeControllerTest,AuthControllerTest,BootstrapControllerTest test`、`npm test -- AppLayout.test.tsx Bootstrap.test.tsx Login.test.tsx router.test.tsx hooks.test.ts`、`npm run typecheck`；全量已跑 `npm run verify`（36 files / 156 tests）、`npm run build`、`mvn -B -q test`（含 PostgreSQL + Oracle Testcontainers）、`git diff --check`、真实性 changed、配置边界 changed、迁移 changed、中文注释门禁。浏览器复验 `/login` 主题切换、首次部署入口、`/bootstrap` 单主按钮与空 token 字段错误；直接 `/dashboard` 在无权限服务时不展示业务内容。`npm ci` 仍提示 7 个 moderate 前端工具链告警，保持 `DEFER-002`；React Router future flag、rc-menu `act(...)`、React Query 测试噪声与 vendor-antd chunk 大小提示保持 `DEFER-003`；本机浏览器截图 CDP 超时登记 `DEFER-004`；当前只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行证据仍归 `DEFER-001`。遇到外部环境 / 闭源资源 / 非当前阶段问题，登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线；但当前卡主链路、登录可用、权限隔离、真实性门禁、医疗安全红线不得延期。
+- 类型：软件开发 / 后端平台脊柱
+- 分支：`codex/obs-01-observability-spine`（基于 `origin/main` a9a0304）
+- 目标：按 [OBS-01](cards/D0/OBS-01.md) 交付 TraceIdPropagator + MDC + StateTransitionRecorder + PayloadStoragePort + ErrorCode + DiagnoseResponse，让引擎执行可按 traceId 还原输入、版本、输出、耗时和降级原因。
+- 状态：已从最新 `origin/main` 创建分支并完成权威卡 / 现状核查；发现已有 `shared.observability` 半成品，但默认 payload 仍是 in-memory，状态表仍是旧 `state_transition_history` 口径，缺通用 trace 诊断端点。已写实施计划 [2026-06-01-obs-01-observability-spine.md](superpowers/plans/2026-06-01-obs-01-observability-spine.md)，下一步进入 TDD 红灯。
+- 下一步（精确到动作/命令）：1. 写迁移契约红灯测试并跑失败；2. 收敛 V8 五方言到 `mk_obs_state_transition` / `mk_obs_payload_store`；3. 实现 DB `PayloadStoragePort` 与 trace 诊断端点；4. 目标测试、后端全量、T-GATE、PR、CI、合并后再领取 `API-13`。
+- 相关文件 / 测试 / 坑：当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实环境仍归 `DEFER-001`。open deferred issue 不阻塞 OBS-01；但当前卡主链路、登录可用、权限隔离、真实性门禁和医疗安全红线不得延期。旧 in-memory payload 与旧状态表口径不得继续当完成证据。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-11 平台首发种子身份 ✅（#216，merge `a9a0304`）：交付生产 init token、强制首次改密、MFA、CLI 应急和首次部署前端引导；补 `GET /api/v1/security/me` 的 `mustChangePwd/mfaRequired/mfaBound` 状态与业务路由全局拦截，避免直接访问 `/dashboard` 绕过首次改密 / MFA；`/api/v1/bootstrap/mfa` 绑定恢复码并只存 SHA-256 摘要；登录响应包含 `mfaRequired/mfaBound`；配置中心高危变更与租户开通入口已加 MFA guard；`bootstrap-emergency.sh` 支持本机确认 + 二次确认的 MFA 重置 / 账号解锁并写审计；`/bootstrap` 支持 init token、首发管理员、首次改密、MFA 引导，登录页可进入并按状态强制跳转。本地后端全量、前端全量 verify/build、T-GATE、浏览器交互验收与远端 CI 8/8 通过后合入 `origin/main`。
 - BASE-10 设计 Token 系统 ✅（#215，merge `c64ad9d`）：收口 `theme.ts` / Ant Design token、5 主题、登录页登录前主题切换、老年医生模式 24px / 52px 控件、用户级主题偏好端点与 `mk_experience_user_pref` V35 五方言迁移；`.module.css` 全量 token 化并接入 stylelint / CI。本地前端 verify/build、后端全量、T-GATE、浏览器真实点击 5 主题和远端 CI 8/8 通过后合入 `origin/main`；截图能力本机超时已如实登记，未伪造证据。
 - BASE-08 产品体验底座 ✅（#214，merge `b9f6f68`）：新增 `mk_experience_saved_view` 与 `mk_experience_export_task` 五方言持久化，保存视图端点按租户 + 用户隔离并拒绝敏感快照；大列表导出统一到真实异步任务、幂等键、审计快照和 Oracle 兼容分页估算；字典映射页接入后端默认视图、保存视图、异步导出轮询、专家模式与服务端分页；清理旧本地视图存储、未引用 `ColumnManager` 和 2026-05-26 旧 BASE-08 计划 / 设计文档。本地后端全量、前端全量、T-GATE、changed 迁移门禁、浏览器真实登录 `/terminology/mapping` 验收通过；远端 CI 8/8 通过并合入 `origin/main`。
 - BASE-07 当前范围收口与待处理清单 ✅：按用户 2026-06-01 修正，当前运行环境只保障 PostgreSQL + Oracle；达梦 / 人大金仓 + 国产 OS/JDK 真实适配登记为 [DEFER-001](audit/deferred-issues.md)，由 D6 `DOMCHK-01` 与 GA `QA-02` / `INFRA-10` 最终适配阶段关闭，不阻塞 BASE-08 / D1。`govcloud-smoke.sh` 继续保留为最终适配 fail-closed 证据门禁。
@@ -103,4 +104,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-11 已提交 PR #216 且远端 CI 8/8 通过，待合并后从最新 `origin/main` 领取 D0 下一张 `OBS-01`。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，外部阻塞只登记不阻断主线。
+> 末次更新：2026-06-01 · BASE-11 已 PR #216 / CI 8/8 / merge `a9a0304` 合入 `origin/main`；OBS-01 已从最新 `origin/main` 新建分支 `codex/obs-01-observability-spine` 并进入 TDD。达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`，本机浏览器截图超时登记 `DEFER-004`；长期目标保持 active，外部阻塞只登记不阻断主线。
