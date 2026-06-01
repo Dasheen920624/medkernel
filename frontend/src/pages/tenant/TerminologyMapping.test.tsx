@@ -46,6 +46,7 @@ const mapping: TermMapping = {
 
 const profile: SecurityProfile = {
   userId: "user-1",
+  username: "tenant.viewer",
   roles: [],
   mustChangePwd: false,
   mfaRequired: false,

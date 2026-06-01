@@ -80,6 +80,7 @@ public class EffectivePermissionService {
 
         return new EffectivePermissionProfile(
             userId,
+            userId,
             List.copyOf(roles.values()),
             permissionViews,
             MenuPermissionCatalog.menuKeysFor(permissions),

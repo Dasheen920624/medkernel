@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { ConfigProvider } from "antd";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { App as AntdApp, ConfigProvider } from "antd";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./AppLayout";
@@ -10,6 +12,8 @@ const securityProfileState = vi.hoisted(() => ({
   value: {
     data: undefined as
       | {
+          userId: string;
+          username?: string;
           menuKeys: string[];
           roles: Array<{ code: string; displayName: string }>;
           permissions: Array<{
@@ -20,7 +24,15 @@ const securityProfileState = vi.hoisted(() => ({
             risk: string;
           }>;
           environmentKeys: string[];
-          dataScope: Record<string, string | null>;
+          dataScope: {
+            tenantId: string | null;
+            groupId?: string | null;
+            hospitalId?: string | null;
+            campusId?: string | null;
+            siteId?: string | null;
+            departmentId?: string | null;
+            specialtyId?: string | null;
+          };
           mustChangePwd?: boolean;
           mfaRequired?: boolean;
           mfaBound?: boolean;
@@ -28,10 +40,16 @@ const securityProfileState = vi.hoisted(() => ({
       | undefined,
   },
 }));
+const authMutationState = vi.hoisted(() => ({
+  logout: vi.fn(),
+  changePassword: vi.fn(),
+}));
 
 vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => securityProfileState.value,
   useAuditSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
+  useChangePassword: () => ({ mutateAsync: authMutationState.changePassword, isPending: false }),
+  useLogout: () => ({ mutateAsync: authMutationState.logout, isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -72,19 +90,28 @@ function matchesMediaQuery(query: string, width: number) {
 }
 
 function renderLayout(initialPath = "/terminology/mapping") {
-  return render(
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const view = render(
     <ConfigProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<div>工作台内容</div>} />
-            <Route path="/terminology/mapping" element={<div>字典映射内容</div>} />
-            <Route path="/qc/dashboard" element={<div>质控驾驶舱内容</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <AntdApp>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route path="/login" element={<div>登录页入口</div>} />
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<div>工作台内容</div>} />
+                <Route path="/terminology/mapping" element={<div>字典映射内容</div>} />
+                <Route path="/qc/dashboard" element={<div>质控驾驶舱内容</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AntdApp>
     </ConfigProvider>,
   );
+  return { ...view, queryClient };
 }
 
 function menuPermission(code: string) {
@@ -99,15 +126,21 @@ function menuPermission(code: string) {
 
 function permissionProfile(menuKeys: string[]) {
   return {
+    userId: "doctor-1",
+    username: "chen.ming",
     menuKeys,
-    roles: [],
+    roles: [{ code: "doctor", displayName: "临床医生" }],
     permissions: menuKeys.map(menuPermission),
     environmentKeys: ["production"],
-    dataScope: {},
+    dataScope: { tenantId: "t-1", hospitalId: "h-1", departmentId: "d-1" },
   };
 }
 
 beforeEach(() => {
+  authMutationState.logout.mockReset();
+  authMutationState.changePassword.mockReset();
+  authMutationState.logout.mockResolvedValue(undefined);
+  authMutationState.changePassword.mockResolvedValue(undefined);
   securityProfileState.value = {
     data: permissionProfile([
       "workbench",
@@ -255,5 +288,71 @@ describe("AppLayout", () => {
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
+  });
+
+  it("shows the authenticated user, role and organization in a header menu", async () => {
+    mockViewport(1280);
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
+
+    await screen.findByRole("menuitem", { name: /修改密码/ });
+    expect(screen.getAllByText("chen.ming").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("临床医生").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("租户 t-1 / 医院 h-1 / 科室 d-1")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /修改密码/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /退出登录/ })).toBeInTheDocument();
+  });
+
+  it("changes password from the user menu through the authenticated self-service endpoint", async () => {
+    mockViewport(1280);
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /修改密码/ }));
+    fireEvent.change(screen.getByPlaceholderText("请输入当前密码"), {
+      target: { value: "Old@2026pw" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("请输入新密码"), {
+      target: { value: "New@2026pw" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("再次输入新密码"), {
+      target: { value: "New@2026pw" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() =>
+      expect(authMutationState.changePassword).toHaveBeenCalledWith({
+        oldPassword: "Old@2026pw",
+        newPassword: "New@2026pw",
+      }),
+    );
+  });
+
+  it("confirms logout, calls the backend logout endpoint, clears cached state and returns to login", async () => {
+    mockViewport(1280);
+    const { queryClient } = renderLayout("/dashboard");
+    queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
+
+    fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /退出登录/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认退出" }));
+
+    await waitFor(() => expect(authMutationState.logout).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText("登录页入口")).toBeInTheDocument());
+    expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
+  });
+
+  it("redirects to login and clears cached state when any API request reports 401", async () => {
+    mockViewport(1280);
+    const { queryClient } = renderLayout("/dashboard");
+    queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("medkernel:auth-required"));
+    });
+
+    await waitFor(() => expect(screen.getByText("登录页入口")).toBeInTheDocument());
+    expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
   });
 });
