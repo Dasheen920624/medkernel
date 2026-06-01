@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 配置包离线导入验签与草案落库 PR15 🚧
+### 线 1 · BASE-09 配置包离线资产内容迁移契约 PR16 🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-package-offline-import
-- 目标：完成 BASE-09 第十五批净化：补齐配置包离线导入验签、租户校验、重复版本冲突、草案落库、条目绑定、导入审计与前端导入入口，并继续清理触碰范围内旧分页契约错位。
-- 状态：已基于 `origin/main@d8dd851` 完成 TDD 红绿、完整本地验证、T-GATE 与浏览器验收：后端新增 `POST /api/v1/engine/packages/offline/import` 与 `PackageOfflineImportRequest/Response`，导入时校验 `MEDKERNEL_PACKAGE_OFFLINE_V1`、manifest / payload 一致性、租户、真实 SHA-256 摘要、重复版本和资产条目，成功后只生成本地 `DRAFT` 草案、新本地 ID 与条目绑定并写 `IMPORT` 审计；前端配置包中心新增“导入离线包”弹窗，支持粘贴 JSON / 选择 JSON 文件；浏览器验收发现 `ConfigPackages` 总数仍读旧 `totalCount`，已改回统一 `PageResponse.total` 并补红灯测试。已通过后端全量 `mvn -B -q test`（Docker/Testcontainers 覆盖 H2、PostgreSQL 15、Oracle 21 迁移烟测）、前端目标测试、前端全量 `npm test`（34 files / 127 tests）、typecheck、build、lint、format:check、真实性 inventory、脚本门禁、`git diff --check`、生产代码旧 `totalCount` grep 清零和真实浏览器验收（导入后总数=2、草案=2、分页=2、控制台错误 0）；待提交、PR、远端 CI 与合并。
-- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 远端 CI 8/8 通过后 squash 合并；3. 回到最新 `origin/main` 并清理 worktree / 分支；4. 继续 BASE-09 离线资产内容迁移契约和域级验收残留。
-- 相关文件 / 测试 / 坑：本 PR 只导入离线包元数据和条目绑定，不把离线 JSON 当成完整资产内容仓库，不自动激活、不伪造资产内容；后续如需完整离线迁移资产内容，必须先补资产内容导出 / 导入契约和真实存储校验。后续 AI 继续遵守纯净代码原则，不得恢复旧 `totalCount` 兼容层、旧表单示例、默认版本假填充、UUID / 时间戳伪 hash 或任何假同步证据。
+- 分支：codex/base-09-offline-asset-content
+- 目标：完成 BASE-09 第十六批净化：把 PR14/PR15 的离线配置包从“元数据 + 条目绑定”推进到真实资产内容快照契约，先覆盖规则与评估指标，导出时带内容摘要，导入时验签、落真实资产或校验本地一致性；未支持资产类型必须诚实拒绝，不做引用式假迁移。
+- 状态：基于 `origin/main@235f2ff` 开工。已完成绿色基线、后端 TDD 红绿、完整本地验证、T-GATE 与浏览器验收：`PackageEngineServiceTest` 先因缺少 `RuleVersionRepository` / `assetSnapshots` 能力失败，随后实现 `RULE` / `EVALUATION` 内容快照导出、`contentSha256` 校验、导入新资产落库、本地已有资产一致性校验、非法资产时间格式标准 API 错误；后端全量、前端目标 / 全量、typecheck、build、lint、format、真实性 inventory、脚本门禁和 `git diff --check` 均已通过；浏览器完成登录页暗黑主题切换、真实登录、配置包中心创建本地草案、导入弹窗空态提示、错误日志 0，并用本地接口补验离线导出 JSON 含 `assetSnapshots` 与 `assetSnapshotCount`。
+- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 远端 CI 8/8 通过后 squash 合并；3. 回到最新 `origin/main` 并清理 worktree / 分支；4. 继续 BASE-09 域级验收残留和最终净化报告。
+- 相关文件 / 测试 / 坑：本批只支持 `RULE` 与 `EVALUATION` 完整内容快照；`PATHWAY` / `TERMINOLOGY` / `KNOWLEDGE` / `FOLLOWUP` 暂无完整内容迁移契约时必须抛 `ENG_PACKAGE_002`，不得退回“只绑定条目”的假成功；后续 AI 继续遵守纯净代码原则，不得恢复引用式假迁移、旧 `totalCount` 兼容层、默认版本假填充、UUID / 时间戳伪 hash 或任何假同步证据。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 配置包离线导入验签与草案落库 PR15 ✅（#208）：新增 `offline/import` 离线包导入端点，校验格式、租户、manifest / payload 一致性和真实 SHA-256 摘要；导入成功只生成本地 `DRAFT` 草案、新本地 ID 与条目绑定，写 `IMPORT` 审计，不自动激活、不伪造资产内容；配置包中心新增粘贴 / 文件导入入口，并修复页面统计读取旧 `totalCount` 的分页契约错位。本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `235f2ff`）。下一步继续 BASE-09 离线资产内容迁移契约和域级验收残留。
 - BASE-09 配置包离线导出与完整性清单 PR14 ✅（#207）：新增 `offline/export` 离线包 JSON 下载端点，manifest 中 `payloadSha256` 基于 payload 真实字节计算；配置包中心页新增“导出离线包”操作，清理触碰表单中的旧医学示例和默认版本假填充，并接入 Ant Design 应用消息上下文消除动态主题告警；本地完整验证、浏览器验收、真实性 / 脚本门禁与远端 CI 8/8 通过并合入 `origin/main`（merge `d8dd851`）。下一步继续 BASE-09 离线包导入验签、安装落库和域级验收残留。
 - BASE-09 硬编码业务示例与工作台假闭环清理 PR13 ✅（#206）：清理 `WorkbenchPanel` 本地假待办、固定指标和客户验收剧本，改为真实生命周期 + 聚合 API 待接入空态；清理 `CdssFatigue` 证据等级 / 权威评分默认兜底、`ConfigPackages` 灰度医学示例、`AdapterHub` 新建表单假系统 / 假 URL / 危急值通道预填、`TenantOnboarding` 模拟注释，并删除未引用的 `DemoModeToggle` 演示模式空壳；真实性门禁扩展到 `widgets` 并阻断工作台本地 demo workflow 回流；本地完整验证、浏览器登录到 `/dashboard` 验收与远端 CI 8/8 通过并合入 `origin/main`（merge `cac078b`）。下一步继续 BASE-09 离线包导入 / 导出、包完整性校验和域级验收残留。
 - BASE-09 配置包差异影响证据导出 PR12 ✅（#205）：差异响应新增真实资产变更明细；删除资产也按真实归属纳入影响科室；新增 `diff/export` NDJSON 证据下载端点并写 `EXPORT` 审计；配置包中心页接后端证据下载入口；本地服务 / 控制器目标测试、前端 typecheck / format:check / build / test、后端全量 `mvn -B -q test`、真实性 inventory、脚本门禁、浏览器渲染核查与远端 CI 8/8 通过并合入 `origin/main`（merge `760c3c9`）。下一步继续 BASE-09 剩余硬编码业务示例、离线包导入 / 导出、包完整性校验和域级验收残留。
@@ -94,4 +95,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-09 PR14 已合入 `origin/main@d8dd851`；PR15 配置包离线导入验签与草案落库已完成红绿、完整本地验证、T-GATE 与浏览器验收，待 PR / 远端 CI / 合并；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR
+> 末次更新：2026-06-01 · BASE-09 PR15 已合入 `origin/main@235f2ff`；PR16 配置包离线资产内容迁移契约已完成后端 TDD 红绿、完整本地验证、T-GATE 与浏览器验收，待 PR / 远端 CI / 合并；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR

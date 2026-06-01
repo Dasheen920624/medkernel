@@ -37,6 +37,9 @@ import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
+import com.medkernel.engine.rule.RuleVersion;
+import com.medkernel.engine.rule.RuleVersionRepository;
+import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -65,6 +68,7 @@ class PackageEngineServiceTest {
     private TransactionTemplate transactionTemplate;
 
     private RuleDefinitionRepository ruleRepository;
+    private RuleVersionRepository ruleVersionRepository;
     private PathwayTemplateRepository pathwayRepository;
     private EvaluationIndicatorRepository evaluationRepository;
 
@@ -82,6 +86,7 @@ class PackageEngineServiceTest {
         logRepository = mock(SyncLogRepository.class);
 
         ruleRepository = mock(RuleDefinitionRepository.class);
+        ruleVersionRepository = mock(RuleVersionRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
         evaluationRepository = mock(EvaluationIndicatorRepository.class);
 
@@ -102,7 +107,7 @@ class PackageEngineServiceTest {
 
         service = new PackageEngineService(
             packageRepository, itemRepository, planRepository, targetRepository, logRepository,
-            ruleRepository, pathwayRepository, evaluationRepository, syncPort, auditPublisher,
+            ruleRepository, ruleVersionRepository, pathwayRepository, evaluationRepository, syncPort, auditPublisher,
             transactionTemplate
         );
 
@@ -354,12 +359,18 @@ class PackageEngineServiceTest {
         KnowledgePackage pack = packageVersion("pkg-offline", "3.0.0", KnowledgePackageStatus.PUBLISHED);
         List<PackageItem> items = List.of(
             packageItem(1L, "pkg-offline", PackageItemAssetType.RULE, "rule-stable", "2"),
-            packageItem(2L, "pkg-offline", PackageItemAssetType.TERMINOLOGY, "term-stable", "1")
+            packageItem(2L, "pkg-offline", PackageItemAssetType.EVALUATION, "eval-stable", "1")
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-offline", "tenant-A"))
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-offline"))
             .thenReturn(items);
+        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
+        when(ruleVersionRepository.findByRuleIdAndTenantIdAndVersionNo("rule-stable", "tenant-A", 2))
+            .thenReturn(Optional.of(publishedRuleVersion("rule-stable", "rule-version-2", 2)));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
+            .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
 
         String exportJson = service.exportOfflinePackage("pkg-offline");
 
@@ -370,6 +381,7 @@ class PackageEngineServiceTest {
         assertThat(root.path("manifest").path("packageCode").asText()).isEqualTo("PKG.TEST");
         assertThat(root.path("manifest").path("packageVersion").asText()).isEqualTo("3.0.0");
         assertThat(root.path("manifest").path("itemCount").asInt()).isEqualTo(2);
+        assertThat(root.path("manifest").path("assetSnapshotCount").asInt()).isEqualTo(2);
         assertThat(root.path("manifest").path("traceId").asText()).isEqualTo("trace-pkg");
         assertThat(root.path("manifest").path("exportedAt").asText()).isNotBlank();
 
@@ -382,6 +394,25 @@ class PackageEngineServiceTest {
         assertThat(root.path("payload").path("packageInfo").path("packageId").asText())
             .isEqualTo("pkg-offline");
         assertThat(root.path("payload").path("items")).hasSize(2);
+        JsonNode snapshots = root.path("payload").path("assetSnapshots");
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots).anySatisfy(snapshot -> {
+            assertThat(snapshot.path("assetType").asText()).isEqualTo("RULE");
+            assertThat(snapshot.path("assetId").asText()).isEqualTo("rule-stable");
+            assertThat(snapshot.path("assetVersion").asText()).isEqualTo("2");
+            assertThat(snapshot.path("content").path("version").path("dslJson").asText()).contains("rule-stable");
+            assertThat(snapshot.path("contentSha256").asText())
+                .isEqualTo(sha256Node(snapshot.path("content")));
+        });
+        assertThat(snapshots).anySatisfy(snapshot -> {
+            assertThat(snapshot.path("assetType").asText()).isEqualTo("EVALUATION");
+            assertThat(snapshot.path("assetId").asText()).isEqualTo("eval-stable");
+            assertThat(snapshot.path("assetVersion").asText()).isEqualTo("1");
+            assertThat(snapshot.path("content").path("indicator").path("denominatorDefinition").asText())
+                .isEqualTo("denominator");
+            assertThat(snapshot.path("contentSha256").asText())
+                .isEqualTo(sha256Node(snapshot.path("content")));
+        });
         verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-offline"), any());
     }
 
@@ -391,6 +422,12 @@ class PackageEngineServiceTest {
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
             "tenant-A", "PKG.IMPORT", "2026.06.01"))
             .thenReturn(Optional.empty());
+        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
 
         PackageOfflineImportResponse response = service.importOfflinePackage(
             new PackageOfflineImportRequest(offlineJson));
@@ -418,7 +455,25 @@ class PackageEngineServiceTest {
             assertThat(item.itemId()).doesNotStartWith("source-item-");
         });
         assertThat(itemCap.getAllValues()).extracting(PackageItem::assetId)
-            .containsExactly("term-stable", "knowledge-stable");
+            .containsExactly("rule-stable", "eval-stable");
+
+        ArgumentCaptor<RuleDefinition> ruleCap = ArgumentCaptor.forClass(RuleDefinition.class);
+        verify(ruleRepository).save(ruleCap.capture());
+        assertThat(ruleCap.getValue().ruleId()).isEqualTo("rule-stable");
+        assertThat(ruleCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(ruleCap.getValue().status()).isEqualTo(RuleDefinitionStatus.PUBLISHED);
+
+        ArgumentCaptor<RuleVersion> versionCap = ArgumentCaptor.forClass(RuleVersion.class);
+        verify(ruleVersionRepository).save(versionCap.capture());
+        assertThat(versionCap.getValue().ruleId()).isEqualTo("rule-stable");
+        assertThat(versionCap.getValue().versionNo()).isEqualTo(2);
+        assertThat(versionCap.getValue().dslJson()).contains("rule-stable");
+
+        ArgumentCaptor<EvaluationIndicator> indicatorCap = ArgumentCaptor.forClass(EvaluationIndicator.class);
+        verify(evaluationRepository).save(indicatorCap.capture());
+        assertThat(indicatorCap.getValue().indicatorId()).isEqualTo("eval-stable");
+        assertThat(indicatorCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(indicatorCap.getValue().denominatorDefinition()).isEqualTo("denominator");
         verify(auditPublisher).publish(eq(AuditAction.IMPORT), eq("knowledge_package"), eq(importedPack.packageId()), any());
     }
 
@@ -431,6 +486,34 @@ class PackageEngineServiceTest {
             new PackageOfflineImportRequest(TEST_MAPPER.writeValueAsString(root))))
             .isInstanceOf(ApiException.class)
             .satisfies(ex -> assertThat(((ApiException) ex).errorCode()).isEqualTo(ErrorCode.ENG_EVID_002));
+
+        verify(packageRepository, never()).save(any());
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsMalformedAssetTimestampAsApiError() throws Exception {
+        ObjectNode root = (ObjectNode) TEST_MAPPER.readTree(offlinePackageJson("PKG.BAD_TIME", "2026.06.01"));
+        ObjectNode ruleSnapshot = (ObjectNode) root.path("payload").path("assetSnapshots").get(0);
+        ObjectNode ruleContent = (ObjectNode) ruleSnapshot.path("content");
+        ((ObjectNode) ruleContent.path("version")).put("publishedAt", "bad-time");
+        ruleSnapshot.put("contentSha256", sha256Node(ruleContent));
+        ((ObjectNode) root.path("manifest")).put("payloadSha256", sha256Node(root.path("payload")));
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD_TIME", "2026.06.01"))
+            .thenReturn(Optional.empty());
+        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.importOfflinePackage(
+            new PackageOfflineImportRequest(TEST_MAPPER.writeValueAsString(root))))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+                assertThat(api.getMessage()).contains("离线包时间格式不合法");
+            });
 
         verify(packageRepository, never()).save(any());
         verify(itemRepository, never()).save(any());
@@ -1024,12 +1107,17 @@ class PackageEngineServiceTest {
         packageInfo.put("traceId", "trace-source");
 
         ArrayNode items = TEST_MAPPER.createArrayNode();
-        items.add(offlineItem("source-item-1", "TERMINOLOGY", "term-stable", "1"));
-        items.add(offlineItem("source-item-2", "KNOWLEDGE", "knowledge-stable", "2"));
+        items.add(offlineItem("source-item-1", "RULE", "rule-stable", "2"));
+        items.add(offlineItem("source-item-2", "EVALUATION", "eval-stable", "1"));
+
+        ArrayNode assetSnapshots = TEST_MAPPER.createArrayNode();
+        assetSnapshots.add(offlineSnapshot("RULE", "rule-stable", "2", offlineRuleContent("rule-stable", "rule-version-2", 2)));
+        assetSnapshots.add(offlineSnapshot("EVALUATION", "eval-stable", "1", offlineEvaluationContent("eval-stable")));
 
         ObjectNode payload = TEST_MAPPER.createObjectNode();
         payload.set("packageInfo", packageInfo);
         payload.set("items", items);
+        payload.set("assetSnapshots", assetSnapshots);
 
         String payloadSha256 = HexFormat.of().formatHex(
             MessageDigest.getInstance("SHA-256")
@@ -1042,6 +1130,7 @@ class PackageEngineServiceTest {
         manifest.put("packageVersion", packageVersion);
         manifest.put("status", "PUBLISHED");
         manifest.put("itemCount", 2);
+        manifest.put("assetSnapshotCount", 2);
         manifest.put("hashAlgorithm", "SHA-256");
         manifest.put("payloadSha256", payloadSha256);
         manifest.put("exportedAt", "2026-06-01T00:00:00Z");
@@ -1052,6 +1141,78 @@ class PackageEngineServiceTest {
         root.set("manifest", manifest);
         root.set("payload", payload);
         return TEST_MAPPER.writeValueAsString(root);
+    }
+
+    private ObjectNode offlineSnapshot(String assetType, String assetId, String assetVersion, ObjectNode content) throws Exception {
+        ObjectNode snapshot = TEST_MAPPER.createObjectNode();
+        snapshot.put("assetType", assetType);
+        snapshot.put("assetId", assetId);
+        snapshot.put("assetVersion", assetVersion);
+        snapshot.put("contentSha256", sha256Node(content));
+        snapshot.set("content", content);
+        return snapshot;
+    }
+
+    private ObjectNode offlineRuleContent(String ruleId, String versionId, int versionNo) {
+        ObjectNode rule = TEST_MAPPER.createObjectNode();
+        rule.put("ruleId", ruleId);
+        rule.put("ruleCode", "RULE.TEST");
+        rule.put("name", "测试规则");
+        rule.put("ruleType", "QUALITY");
+        rule.put("authoringMode", "DSL");
+        rule.put("riskLevel", "MEDIUM");
+        rule.put("status", "PUBLISHED");
+        rule.put("activeVersionId", versionId);
+        rule.put("packageVersion", "1.0.0");
+        rule.put("applicableOrgUnitId", "dept-rule");
+
+        ObjectNode version = TEST_MAPPER.createObjectNode();
+        version.put("versionId", versionId);
+        version.put("versionNo", versionNo);
+        version.put("sourceRef", "source-ref");
+        version.put("changeSummary", "离线迁移规则版本");
+        version.put("dslJson", "{\"ruleId\":\"" + ruleId + "\",\"condition\":\"age >= 18\"}");
+        version.put("explanationJson", "{\"message\":\"成人规则\"}");
+        version.put("status", "PUBLISHED");
+        version.put("publishedAt", "2026-06-01T00:00:00Z");
+        version.put("publishedBy", "source-user");
+
+        ObjectNode content = TEST_MAPPER.createObjectNode();
+        content.set("rule", rule);
+        content.set("version", version);
+        return content;
+    }
+
+    private ObjectNode offlineEvaluationContent(String indicatorId) {
+        ObjectNode indicator = TEST_MAPPER.createObjectNode();
+        indicator.put("indicatorId", indicatorId);
+        indicator.put("indicatorCode", "EVAL.TEST");
+        indicator.put("versionNo", 1);
+        indicator.put("name", "测试指标");
+        indicator.put("subjectType", "DEPARTMENT");
+        indicator.put("denominatorDefinition", "denominator");
+        indicator.put("numeratorDefinition", "numerator");
+        indicator.put("exclusionDefinition", "exclusion");
+        indicator.put("scoringDefinition", "scoring");
+        indicator.put("timeWindow", "P30D");
+        indicator.put("organizationScope", "tenant");
+        indicator.put("responsibleDepartmentId", "dept-eval");
+        indicator.put("sourceRef", "source-ref");
+        indicator.put("packageVersion", "1.0.0");
+        indicator.put("status", "PUBLISHED");
+        indicator.put("publishedAt", "2026-06-01T00:00:00Z");
+        indicator.put("publishedBy", "source-user");
+        indicator.put("activatedAt", "2026-06-01T00:00:00Z");
+
+        ObjectNode content = TEST_MAPPER.createObjectNode();
+        content.set("indicator", indicator);
+        return content;
+    }
+
+    private String sha256Node(JsonNode node) throws Exception {
+        return HexFormat.of().formatHex(
+            MessageDigest.getInstance("SHA-256")
+                .digest(TEST_MAPPER.writeValueAsString(node).getBytes(StandardCharsets.UTF_8)));
     }
 
     private ObjectNode offlineItem(String itemId, String assetType, String assetId, String assetVersion) {
@@ -1116,6 +1277,16 @@ class PackageEngineServiceTest {
             1L, ruleId, "tenant-A", "RULE.TEST", "测试规则", RuleType.QUALITY,
             RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, RuleDefinitionStatus.PUBLISHED,
             "rule-version-1", "1.0.0", applicableOrgUnitId,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private RuleVersion publishedRuleVersion(String ruleId, String versionId, int versionNo) {
+        return new RuleVersion(
+            1L, versionId, "tenant-A", ruleId, versionNo, "source-ref",
+            "离线迁移规则版本", "{\"ruleId\":\"" + ruleId + "\",\"condition\":\"age >= 18\"}",
+            "{\"message\":\"成人规则\"}", RuleVersionStatus.PUBLISHED,
+            Instant.parse("2026-06-01T00:00:00Z"), "source-user", null,
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
     }
