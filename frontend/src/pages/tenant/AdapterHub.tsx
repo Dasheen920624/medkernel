@@ -1258,18 +1258,16 @@ export default function AdapterHub() {
             name="adapterId"
             label="适配器系统唯一标识 (Adapter ID)"
             rules={[{ required: true, message: "请输入适配器系统标识" }]}
-            initialValue="sys-lis-new"
           >
-            <Input placeholder="例如 sys-lis-new" className="rounded-lg" />
+            <Input placeholder="请输入真实适配器系统标识" className="rounded-lg" />
           </Form.Item>
 
           <Form.Item
             name="name"
             label="系统对接中文名称"
             rules={[{ required: true, message: "请输入中文名称" }]}
-            initialValue="院内检验二期系统"
           >
-            <Input placeholder="例如 院内检验二期系统" className="rounded-lg" />
+            <Input placeholder="请输入真实系统对接名称" className="rounded-lg" />
           </Form.Item>
 
           <Form.Item
@@ -1287,12 +1285,12 @@ export default function AdapterHub() {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="configJson"
-            label="连接字段映射规则配制 JSON (Config JSON)"
-            initialValue={`{\n  "baseUrl": "http://lis.hospital.local",\n  "timeoutMs": 5000\n}`}
-          >
-            <Input.TextArea rows={4} className="font-normal text-xs rounded-lg" />
+          <Form.Item name="configJson" label="连接字段映射规则配制 JSON (Config JSON)">
+            <Input.TextArea
+              rows={4}
+              placeholder="请输入真实连接配置 JSON"
+              className="font-normal text-xs rounded-lg"
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -1312,18 +1310,16 @@ export default function AdapterHub() {
             name="webhookId"
             label="Webhook 订阅唯一标识"
             rules={[{ required: true, message: "请输入订阅标识" }]}
-            initialValue="whk-clinical-alarm"
           >
-            <Input placeholder="例如 whk-clinical-alarm" className="rounded-lg" />
+            <Input placeholder="请输入真实订阅标识" className="rounded-lg" />
           </Form.Item>
 
           <Form.Item
             name="name"
             label="订阅通道中文名称"
             rules={[{ required: true, message: "请输入订阅中文名称" }]}
-            initialValue="临床危急值回调报警"
           >
-            <Input placeholder="例如 临床危急值回调报警" className="rounded-lg" />
+            <Input placeholder="请输入真实订阅通道名称" className="rounded-lg" />
           </Form.Item>
 
           <Form.Item
@@ -1336,12 +1332,8 @@ export default function AdapterHub() {
                 message: "请输入以 http:// 或 https:// 开头的合法地址",
               },
             ]}
-            initialValue="http://thirdparty.alarm.local:8080/webhook/recv"
           >
-            <Input
-              placeholder="输入以 http:// 或 https:// 开头的回调地址"
-              className="rounded-lg font-normal"
-            />
+            <Input placeholder="请输入真实回调地址" className="rounded-lg font-normal" />
           </Form.Item>
 
           <Form.Item

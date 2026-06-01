@@ -1087,7 +1087,7 @@ export default function ConfigPackages() {
                   description={
                     isFull
                       ? "全量物理同步投影成功后，当前配置包将被彻底激活为 ACTIVE 运行实体。同编码（packageCode）的旧版 ACTIVE 包将被原子降级 OFFLINE 隔离，从而平滑安全切换决策树。"
-                      : "灰度同步投影仅会将配置包封存发布为已就绪(PUBLISHED)状态，不覆盖主运行流。只有当患者的临床事实命中上方指定的灰度物理过滤值（如神经内科）时，才会小流量执行该配置包规则。"
+                      : "灰度同步投影仅会将配置包封存发布为已就绪(PUBLISHED)状态，不覆盖主运行流。只有当患者的临床事实命中上方指定的灰度物理过滤值时，才会小流量执行该配置包规则。"
                   }
                   type={isFull ? "error" : "info"}
                   showIcon

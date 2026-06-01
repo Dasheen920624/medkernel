@@ -76,6 +76,7 @@ N·A —— 不改 schema（如净化触及假数据表，记入报告）。
 - PR10（后端包回滚目标状态净化）：回滚目标从 `PUBLISHED 或 OFFLINE` 收紧为仅允许 `OFFLINE`，防止从未激活的预发布版本绕过正式发布流程被直接激活；前端回滚弹窗只展示已下线历史版本，并清理 `PUBLISHED` 可快速回退的误导文案。记录见 [BASE-09 后端包回滚目标状态净化 PR10 记录](../../audit/BASE-09-backend-package-rollback-target-pr10.md)。本 PR 仍不勾选全部 FR/AC，继续清回滚反向投影、回滚 plan/log 证据链、影响范围导出和剩余域级验收残留。
 - PR11（后端包回滚计划与日志证据链净化）：回滚不再直接切换包状态；先复用当前在用包最近一次成功发布 / 回滚的真实同步目标，创建新的 `ReleasePlan`，逐目标写入 `RUNNING` → `SUCCESS` / `NOT_SYNCED` / `FAILED` 的 `SyncLog`，全量成功且返回非空同步证据才将历史包激活并把计划置为 `ROLLBACKED`；未接入、失败、目标缺失或空证据时包状态保持不变。记录见 [BASE-09 后端包回滚计划与日志证据链净化 PR11 记录](../../audit/BASE-09-backend-package-rollback-plan-log-pr11.md)。本 PR 仍不勾选全部 FR/AC，继续清影响范围导出、剩余硬编码业务示例、导入导出 / 离线安装能力和域级验收残留。
 - PR12（配置包差异影响证据导出）：差异响应新增真实资产变更明细；删除资产也按真实归属纳入影响科室；新增 `diff/export` NDJSON 证据下载端点并写 `EXPORT` 审计；配置包中心页接后端证据下载入口。记录见 [BASE-09 配置包差异影响证据导出 PR12 记录](../../audit/BASE-09-package-diff-impact-export-pr12.md)。本 PR 仍不勾选全部 FR/AC，继续清剩余硬编码业务示例、离线包导入 / 导出、包完整性校验和域级验收残留。
+- PR13（硬编码业务示例与工作台假闭环清理）：清理 `WorkbenchPanel` 本地假待办、固定指标和客户验收剧本，改为真实生命周期 + 聚合 API 待接入空态；清理 `CdssFatigue` 证据等级 / 权威评分默认兜底、`ConfigPackages` 灰度医学示例、`AdapterHub` 新建表单假系统 / 假 URL / 危急值通道预填、`TenantOnboarding` 模拟注释，并删除未引用的 `DemoModeToggle` 演示模式空壳；真实性门禁扩展到 `widgets` 并阻断工作台本地 demo workflow 回流。记录见 [BASE-09 硬编码业务示例与工作台假闭环清理 PR13 记录](../../audit/BASE-09-hardcoded-business-example-cleanup-pr13.md)。本 PR 仍不勾选全部 FR/AC，继续清离线包导入 / 导出、包完整性校验和域级验收残留。
 
 ## 大卡工序（存量重构，按一逻辑单元一 PR 分批）
 - 前端假闭环清除：按页面簇拆批，每批必须补红绿测试、净化报告和真实性门禁证据。

@@ -360,7 +360,7 @@ export default function TenantOnboarding() {
                     {watchHospitalName}
                   </Title>
                 </div>
-                {/* 模拟页面主体 */}
+                {/* 主题预览主体 */}
                 <div className={styles.previewBody}>
                   <div className={styles.previewPlaceholderBar} />
                   <div className={styles.previewPlaceholderBarShort} />

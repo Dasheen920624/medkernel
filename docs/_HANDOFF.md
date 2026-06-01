@@ -10,17 +10,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-09 配置包差异影响证据导出 PR12 🚧
+### 线 1 · BASE-09 硬编码业务示例与工作台假闭环清理 PR13 🚧
 
 - 类型：软件开发
-- 分支：codex/base-09-package-diff-export
-- 目标：完成 BASE-09 第十二批净化：配置包差异影响支持真实证据导出，删除资产也纳入影响范围，前端下载后端生成的证据文件，禁止前端拼假证据。
-- 状态：已基于 `origin/main@fe5bcb4` 完成实现与本地完整验证：`PackageDiffResponse` 增加 `changes` 真实变更明细；`calculateDiff` 对 `REMOVED` 资产补真实责任科室；`PackageEngineService.exportDiffEvidence` 生成 NDJSON 摘要 / 影响科室 / 变更行并写 `EXPORT` 审计；`PackageEngineController` 新增 `GET /diff/export` 下载端点；`ConfigPackages` 差异弹窗新增“导出影响证据”按钮并调用后端下载。已通过服务红绿目标测试、控制器下载目标测试、`PackageEngineServiceTest` 全量、`PackageEngineControllerSecurityTest` 全量、前端 typecheck / format:check / build / test、后端全量 `mvn -B -q test`、真实性 inventory、脚本门禁和浏览器页面渲染核查；本地无配置包数据，差异弹窗未伪造点击证据。
-- 下一步（精确到动作/命令）：1. 运行提交前 `git diff --check` / `git status`；2. 如验证全绿则提交、推送、创建 PR；3. 等远端 CI 全绿后 squash 合并；4. 回到最新 `origin/main`，继续 BASE-09 剩余硬编码业务示例、离线包导入 / 导出、包完整性校验和域级验收；当前阶段验收前不启动下一阶段新功能 PR。
-- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 / PKG-01 / CFGPKG-01 完成，不勾选全部 FR/AC；`diff/export` 是差异证据下载，不等价于离线包导出；后续 AI 必须继续遵守纯净代码原则：发现假成功、旧占位、死代码或临时兼容层，能删则删，不能删必须写清风险和删除点。
+- 分支：codex/base-09-hardcoded-example-cleanup
+- 目标：完成 BASE-09 第十三批净化：清理工作台本地假待办 / 验收剧本 / 固定指标、医学证据默认值和前端表单业务示例残留；删除未引用演示模式空壳，并扩展真实性门禁防回流。
+- 状态：已基于 `origin/main@760c3c9` 完成 TDD 红绿与本地完整验证：新增真实性门禁红灯覆盖 `todoMock`、演示验收剧本、`Class I`、危急值等残留；`WorkbenchPanel` 只保留真实租户生命周期，未接入聚合 API 的试点 / 今日提醒 / 质控 / 合规指标改为诚实空态；`CdssFatigue` 不再默认 `90` 分或 `Class I`；`AdapterHub` 新建适配器 / Webhook 表单删除预填假系统、假 URL 和危急值通道；`ConfigPackages` 删除灰度发布医学示例；`TenantOnboarding` 清理“模拟页面”注释；未引用的 `DemoModeToggle` 已删除。已通过目标红绿测试、真实性 inventory、前端 lint / format:check / typecheck / build / 全量 test、脚本门禁、后端全量 `mvn -B -q test`、生产路径残留 grep、`git diff --check`，以及真实 dev 登录到 `/dashboard` 的浏览器验收（旧“本周建议动作 / 演示与校验 / 试点准备固定指标”均为 0，控制台无错误）。
+- 下一步（精确到动作/命令）：1. 提交、推送、创建 PR；2. 等远端 CI 8/8 通过后 squash 合并；3. 回到最新 `origin/main`，继续 BASE-09 离线包导入 / 导出、包完整性校验和域级验收残留。
+- 相关文件 / 测试 / 坑：本 PR 仍不宣称 BASE-09 完成，不勾选全部 FR/AC；浏览器验收依赖 dev 后端种子账号 `hospital-admin / Mk@2026dev / t-1`，生产 profile 不加载该种子；后续 AI 必须继续遵守纯净代码原则，发现假成功、旧占位、死代码或临时兼容层时优先删除，不得恢复 demo-mode / fixture 注入空壳。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- BASE-09 配置包差异影响证据导出 PR12 ✅（#205）：差异响应新增真实资产变更明细；删除资产也按真实归属纳入影响科室；新增 `diff/export` NDJSON 证据下载端点并写 `EXPORT` 审计；配置包中心页接后端证据下载入口；本地服务 / 控制器目标测试、前端 typecheck / format:check / build / test、后端全量 `mvn -B -q test`、真实性 inventory、脚本门禁、浏览器渲染核查与远端 CI 8/8 通过并合入 `origin/main`（merge `760c3c9`）。下一步继续 BASE-09 剩余硬编码业务示例、离线包导入 / 导出、包完整性校验和域级验收残留。
 - BASE-09 后端包回滚计划与日志证据链净化 PR11 ✅（#204）：配置包回滚先复用当前在用包最近一次成功发布 / 回滚的真实同步目标，创建 `ReleasePlan`，写逐目标 `RUNNING` → `SUCCESS` / `NOT_SYNCED` / `FAILED` 的 `SyncLog`；全成功且有非空同步证据才切换当前包 `OFFLINE`、历史包 `ACTIVE`，否则计划诚实落失败 / 未同步且包状态不变；本地后端全量、脚本门禁、真实性 inventory、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `fe5bcb4`）。下一步继续 BASE-09 影响范围导出、剩余硬编码业务示例、导入导出 / 离线安装能力和域级验收残留。
 - BASE-09 后端包回滚目标状态净化 PR10 ✅（#203）：配置包回滚目标只允许曾经执行并已下线的 `OFFLINE` 历史版本，禁止 `PUBLISHED` 预发布包绕过正式发布流程被直接激活；前端回滚弹窗只展示已下线历史版本并清理误导文案；本地后端红绿目标测试、`PackageEngineServiceTest` 全量、前端 typecheck/verify/build、真实性 inventory、脚本门禁、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `03bdb76`）。下一步继续 BASE-09 回滚反向投影、回滚 plan/log 证据链、影响范围导出和域级验收残留。
 - BASE-09 后端包回滚二次确认净化 PR9 ✅（#202）：回滚端点从 query 参数改为 `PackageRollbackRequest` 请求体；服务层强制校验高危确认、审计原因、当前 / 目标版本确认、当前包 `ACTIVE` 与同一 `packageCode`，失败不保存状态；前端同步采集原因和确认，只展示同编码历史版本；本地后端红绿目标测试、控制器权限回归、前端 verify/build、真实性 inventory、脚本门禁、`mvn -B -q test` 与远端 CI 8/8 通过并合入 `origin/main`（merge `02f18cf`）。下一步继续 BASE-09 回滚目标状态、回滚反向投影、回滚 plan/log 证据链和域级验收残留。
@@ -91,4 +92,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-09 配置包差异影响证据导出 PR12 已完成实现与本地完整验证，待提交 / PR / 远端 CI；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR
+> 末次更新：2026-06-01 · BASE-09 PR12 已合入；PR13 硬编码业务示例与工作台假闭环清理已完成本地完整验证，待提交 / PR / 远端 CI；长期目标按阶段推进到 GA 总验收 INFRA-10，当前阶段验收前不得启动下一阶段新功能 PR
