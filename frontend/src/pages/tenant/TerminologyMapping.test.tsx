@@ -67,7 +67,7 @@ const profile: SecurityProfile = {
       risk: "MEDIUM",
     },
   ],
-  menuKeys: ["pilot-setup", "advanced-tools"],
+  menuKeys: ["terminology-mapping", "provenance"],
   environmentKeys: ["production"],
   dataScope: {
     tenantId: "tenant-1",

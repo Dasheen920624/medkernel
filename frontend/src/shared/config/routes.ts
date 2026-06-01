@@ -566,14 +566,16 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
 ];
 
-export function sectionPermissionCode(sectionKey: RouteSectionKey): string {
-  return `menu.${sectionKey}`;
+export function menuPermissionCode(menuKey: string): string {
+  return `menu.${menuKey}`;
 }
 
 function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
   const requiredPermissions =
     route.requiredPermissions ??
-    (route.requireAuth ? [sectionPermissionCode(route.sectionKey ?? "workbench")] : []);
+    (route.requireAuth
+      ? [menuPermissionCode(route.menuKey ?? route.sectionKey ?? "workbench")]
+      : []);
 
   return {
     ...route,

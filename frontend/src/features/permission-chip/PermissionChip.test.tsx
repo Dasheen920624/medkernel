@@ -46,7 +46,7 @@ const securityProfileState = vi.hoisted(() => ({
           risk: "HIGH",
         },
       ],
-      menuKeys: ["compliance-ops"],
+      menuKeys: ["admin-audit"],
       environmentKeys: ["production", "emergency"],
       dataScope: {
         tenantId: "tenant-a",

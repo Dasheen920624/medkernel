@@ -17,16 +17,16 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 MenuPermissionCatalog**：后端定义 27 二级 + 5 高级 全部菜单的权限点目录（菜单 key → 权限点），单一权威。
-- [ ] **FR-2 DefaultPermissionPolicy**：13 角色（质量基线 §9）× 32 菜单 默认可见性矩阵，内置初始化。
-- [ ] **FR-3 前端 routes.ts 全覆盖**：每路由声明 `requiredPermissions` + `requiredRoles`（[BASE-06](BASE-06.md) 元数据 schema），无遗漏。
-- [ ] **FR-4 13 角色菜单呈现**：13 角色逐个登入，菜单按矩阵正确呈现（无越权可见、无应见缺失）。
-- [ ] **FR-5 粒度可定制**：租户/角色可在默认矩阵上局部覆盖（核心 §9 继承覆盖）。
-- [ ] **FR-6 前后端同源**：菜单可见性前端渲染与后端 `PermissionEvaluator`（[BASE-02](BASE-02.md)）判定一致，无"前端藏后端不校验"。
+- [x] **FR-1 MenuPermissionCatalog**：后端定义 27 二级 + 5 高级 全部菜单的权限点目录（菜单 key → 权限点），单一权威。
+- [x] **FR-2 DefaultPermissionPolicy**：13 角色（质量基线 §9）× 32 菜单 默认可见性矩阵，内置初始化。
+- [x] **FR-3 前端 routes.ts 全覆盖**：每路由声明 `requiredPermissions` + `requiredRoles`（[BASE-06](BASE-06.md) 元数据 schema），无遗漏。
+- [x] **FR-4 13 角色菜单呈现**：13 角色逐个登入，菜单按矩阵正确呈现（无越权可见、无应见缺失）。
+- [x] **FR-5 粒度可定制**：租户/角色可在默认矩阵上局部覆盖（核心 §9 继承覆盖）。
+- [x] **FR-6 前后端同源**：菜单可见性前端渲染与后端 `PermissionEvaluator`（[BASE-02](BASE-02.md)）判定一致，无"前端藏后端不校验"。
 
 ## 接口契约 / 页面契约
 ### 接口契约
-- 端点：当前用户可见菜单查询端点（按五维返回可见菜单树）；菜单权限矩阵管理端点（D5 用户管理消费）。
+- 端点：`GET /api/v1/security/menu-permissions/visible`（按五维返回可见菜单树）；`GET /api/v1/security/menu-permissions/catalog`（32 菜单目录 + 13 角色默认矩阵）；`PATCH /api/v1/security/menu-permissions/overrides`（D5 用户管理消费的租户级角色菜单覆盖）。
 - DTO：菜单权限矩阵 Record；可见菜单树 Record。
 - 响应信封：`ApiResult`。
 - 状态机：N·A —— 权限矩阵是治理主数据。
@@ -36,10 +36,10 @@
 N·A —— 矩阵管理 UI 在 D5「用户管理」；菜单渲染在 [BASE-06](BASE-06.md)。
 
 ## 数据与迁移
-- 表族：`sys_menu_permission`（菜单权限点目录）；`sys_role_menu`（角色×菜单矩阵 + 覆盖）。
-- 主键：ULID；唯一约束：`(tenant_id, role_id, menu_key)`；索引：`role_id`、`menu_key`。
-- 组织字段：带 `tenant_id` + `org_path`（租户覆盖）；审计字段。
-- 5 方言迁移：h2/postgres/oracle/dm/kingbase + 中文注释 + 默认矩阵种子。
+- 采用既有五维权限权威表族，避免重复建并行权限表：`sys_permission` 保存菜单权限点目录，`role_permission` 保存租户级角色覆盖；默认 13×32 矩阵由 `DefaultPermissionPolicy` 单一初始化。
+- 主键 / 唯一约束：沿用 `role_permission` 既有约束；覆盖粒度为 `(tenant_id, role_code, permission_code)`，菜单 key 由 `MenuPermissionCatalog` 映射为权限码。
+- 组织字段：`role_permission.tenant_id` 承载租户覆盖；审计上下文由 `AuditRecorder` 从请求上下文补齐组织路径 / traceId / actor。
+- 5 方言迁移：h2/postgres/oracle/dm/kingbase 新增 V43，将旧一级菜单权限停用，并种子 31 个新增二级 / 高级菜单权限点；`menu.workbench` 继续复用既有权限码。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：菜单权限点目录单一源；32 菜单粒度锁定（核心 §2.2）。
@@ -59,18 +59,20 @@ N·A —— 矩阵管理 UI 在 D5「用户管理」；菜单渲染在 [BASE-06]
 - 本卡落点：MenuPermissionCatalog + DefaultPermissionPolicy + routes.ts 全覆盖 + 前后端同源，让"菜单维权限"从一级 sectionKey 真正下沉到 27+5 二级粒度。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：32 菜单权限点目录完整；13 角色默认矩阵初始化与质量基线 §9 一致。
-- [ ] **AC-2（FR-3）**：每路由有 requiredPermissions/requiredRoles，无遗漏（构建校验）。
-- [ ] **AC-3（FR-4）**：13 角色逐个登入截图，菜单按矩阵呈现（无越权/无缺失）。
-- [ ] **AC-4（FR-5）**：租户局部覆盖某角色某菜单可见性生效。
-- [ ] **AC-5（FR-6）**：前端藏菜单但后端未校验的不一致用例被捕获（前后端同源）。
+- [x] **AC-1（FR-1/2）**：32 菜单权限点目录完整；13 角色默认矩阵初始化与质量基线 §9 一致。
+- [x] **AC-2（FR-3）**：每路由有 requiredPermissions/requiredRoles，无遗漏（构建校验）。
+- [x] **AC-3（FR-4）**：13 角色逐个登入截图，菜单按矩阵呈现（无越权/无缺失）。
+- [x] **AC-4（FR-5）**：租户局部覆盖某角色某菜单可见性生效。
+- [x] **AC-5（FR-6）**：前端藏菜单但后端未校验的不一致用例被捕获（前后端同源）。
 - 关联 A1–A9：A6 合规运维（权限矩阵）。
 - T-GATE：前后端门禁全绿。
 - B0 验收：纯确定性权限，天然 B0。
 
 ## 完工证据
-- 代码 permalink：`MenuPermissionCatalog` / `DefaultPermissionPolicy` / `routes.ts` / 可见菜单端点 / 矩阵迁移 + 种子。
-- 测试：32 菜单目录测试 + 13 角色矩阵测试 + 前后端同源测试 + **13 角色登入菜单截图**。
+- 代码 permalink：`MenuPermissionCatalog` / `DefaultPermissionPolicy` / `routes.ts` / `AppLayout` / 菜单权限端点 / V43 迁移 + 种子。
+- 测试：`MenuPermissionCatalogTest` + `DefaultPermissionPolicyTest` + `EffectivePermissionServiceTest` + `SystemSecurityCatalogRepositoryTest` + `PermissionEvaluatorTest` + `MenuPermissionControllerTest` + `MigrationBaselineContractTest` + `ServiceContractGovernanceTest` + `OpenApiContractConfigurationTest` + `routes.test.ts` / `AppLayout.test.tsx` 前端路由授权测试。
+- 全量验证：后端 `mvn -B -q test` 通过，Surefire 汇总 152 报告 / 769 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 通过 39 files / 171 tests，`npm run build` 通过；真实性门禁、V43 迁移规约、配置边界、中文注释和空白检查通过。
+- 角色截图：本机 in-app browser 当前不可用（见 `DEFER-004`），已用项目 Playwright 生成 13 角色菜单截图与 `summary.json`，路径 `/tmp/medkernel-infra05-role-menu-screenshots`；脚本断言 13 角色均无越权、无应见缺失、无浏览器控制台错误。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（10d，后端为主 + 前端 routes）

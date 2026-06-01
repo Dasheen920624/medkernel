@@ -27,7 +27,7 @@ const expertProfile = {
       risk: "LOW",
     },
   ],
-  menuKeys: ["advanced-tools"],
+  menuKeys: ["provenance"],
 };
 const normalProfile = { permissions: [], menuKeys: [] };
 

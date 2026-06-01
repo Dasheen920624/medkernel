@@ -93,7 +93,7 @@ function renderLayout(initialPath = "/terminology/mapping") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const view = render(
+  const createUi = () => (
     <ConfigProvider>
       <AntdApp>
         <QueryClientProvider client={queryClient}>
@@ -109,9 +109,10 @@ function renderLayout(initialPath = "/terminology/mapping") {
           </MemoryRouter>
         </QueryClientProvider>
       </AntdApp>
-    </ConfigProvider>,
+    </ConfigProvider>
   );
-  return { ...view, queryClient };
+  const view = render(createUi());
+  return { ...view, queryClient, rerenderLayout: () => view.rerender(createUi()) };
 }
 
 function menuPermission(code: string) {
@@ -136,20 +137,48 @@ function permissionProfile(menuKeys: string[]) {
   };
 }
 
+const allMenuKeys = [
+  "workbench",
+  "implementation-guide",
+  "tenant-onboarding",
+  "config-packages",
+  "pathway-templates",
+  "rule-definitions",
+  "terminology-mapping",
+  "adapter-hub",
+  "mpi",
+  "patient-pathways",
+  "cdss-fatigue",
+  "rule-validate",
+  "workflow-todos",
+  "notifications",
+  "clinical-followup",
+  "qc-dashboard",
+  "qc-alerts",
+  "insurance-audit",
+  "qc-eval-sets",
+  "qc-eval-results",
+  "aik-review",
+  "admin-users",
+  "identity-bindings",
+  "admin-audit",
+  "security-baseline",
+  "system-providers",
+  "notification-settings",
+  "provenance",
+  "graph-explore",
+  "ai-workflows",
+  "domestic-check",
+  "dev-console",
+];
+
 beforeEach(() => {
   authMutationState.logout.mockReset();
   authMutationState.changePassword.mockReset();
   authMutationState.logout.mockResolvedValue(undefined);
   authMutationState.changePassword.mockResolvedValue(undefined);
   securityProfileState.value = {
-    data: permissionProfile([
-      "workbench",
-      "pilot-setup",
-      "clinical-run",
-      "quality-improve",
-      "compliance-ops",
-      "advanced-tools",
-    ]),
+    data: permissionProfile(allMenuKeys),
   };
 });
 
@@ -202,7 +231,7 @@ describe("AppLayout", () => {
 
   it("filters primary menus by granted menu permission codes", () => {
     securityProfileState.value = {
-      data: permissionProfile(["quality-improve"]),
+      data: permissionProfile(["qc-dashboard"]),
     };
     mockViewport(1280);
     renderLayout("/qc/dashboard");
@@ -228,6 +257,28 @@ describe("AppLayout", () => {
     expect(navigation).not.toBeNull();
     expect(within(navigation as HTMLElement).queryByText("试点准备")).toBeNull();
     expect(within(navigation as HTMLElement).queryByText("工作台")).toBeNull();
+  });
+
+  it("expands second-level menus after the security profile arrives asynchronously", async () => {
+    securityProfileState.value = { data: undefined };
+    mockViewport(1280);
+    const { rerenderLayout } = renderLayout("/dashboard");
+
+    expect(screen.queryByText("字典映射")).toBeNull();
+
+    securityProfileState.value = {
+      data: permissionProfile(["workbench", "terminology-mapping"]),
+    };
+    act(() => {
+      rerenderLayout();
+    });
+
+    const navigation = document.querySelector(".ant-layout-sider .ant-menu");
+    expect(navigation).not.toBeNull();
+    await waitFor(() =>
+      expect(within(navigation as HTMLElement).getByText("试点准备")).toBeInTheDocument(),
+    );
+    expect(within(navigation as HTMLElement).getByText("字典映射")).toBeInTheDocument();
   });
 
   it("does not render the workbench before an effective permission profile is available", () => {
@@ -258,7 +309,7 @@ describe("AppLayout", () => {
 
   it("blocks direct entry to a page outside the granted menu scope", () => {
     securityProfileState.value = {
-      data: permissionProfile(["clinical-run"]),
+      data: permissionProfile(["workbench", "mpi", "patient-pathways"]),
     };
     mockViewport(1280);
     renderLayout();
@@ -267,10 +318,10 @@ describe("AppLayout", () => {
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("uses backend menuKeys to authorize direct entry to the granted menu section", () => {
+  it("uses backend menuKeys to authorize direct entry to the granted second-level menu", () => {
     securityProfileState.value = {
       data: {
-        ...permissionProfile(["pilot-setup"]),
+        ...permissionProfile(["terminology-mapping"]),
         permissions: [],
       },
     };

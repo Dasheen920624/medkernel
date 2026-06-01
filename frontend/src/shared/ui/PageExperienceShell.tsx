@@ -8,6 +8,13 @@ import type { RouteExperience } from "./experienceTypes";
 
 const { Text } = Typography;
 const EXPERT_PERMISSIONS = new Set(["advanced.read", "system.debug"]);
+const EXPERT_MENU_KEYS = new Set([
+  "provenance",
+  "graph-explore",
+  "ai-workflows",
+  "domestic-check",
+  "dev-console",
+]);
 
 interface PageExperienceShellProps {
   meta: { title: string; experience: RouteExperience };
@@ -31,7 +38,7 @@ export function PageExperienceShell({
   const mayUseExpertMode =
     meta.experience.expertContent.length > 0 &&
     !!securityProfile &&
-    (securityProfile.menuKeys.includes("advanced-tools") ||
+    (securityProfile.menuKeys.some((menuKey) => EXPERT_MENU_KEYS.has(menuKey)) ||
       securityProfile.permissions.some((permission) => EXPERT_PERMISSIONS.has(permission.code)));
 
   const expertControl = mayUseExpertMode ? (
