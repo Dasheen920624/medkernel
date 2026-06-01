@@ -109,6 +109,29 @@ test("前端 E2E 验收脚本禁止使用 mock 或固定医学剧本冒充真实
   );
 });
 
+test("生产路由禁止注册 Demo 演示页", async () => {
+  await withFixture(
+    {
+      "frontend/src/app/router.tsx": `
+        import { lazy } from "react";
+        import { Route } from "react-router-dom";
+
+        const StepFlowDemo = lazy(() => import("@/pages/StepFlowDemo"));
+
+        export function AppRouter() {
+          return <Route path="/config/packages/demo" element={<StepFlowDemo />} />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/app/router.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.production-demo-route"]);
+    },
+  );
+});
+
 test("前端页面触碰文件会阻断旧规则路径示例占位符回流", async () => {
   await withFixture(
     {
