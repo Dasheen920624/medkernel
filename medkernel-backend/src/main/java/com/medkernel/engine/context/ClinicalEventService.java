@@ -108,6 +108,7 @@ public class ClinicalEventService {
 
         ClinicalEvent saved = events.save(new ClinicalEvent(
             null, req.eventId(), tenantId, req.eventType(),
+            writeOrgScope(),
             req.patientId(), req.encounterId(), req.sourceSystem(), req.packageVersion(),
             digest, req.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, null, traceId
@@ -205,6 +206,7 @@ public class ClinicalEventService {
         events.save(copyWithStatus(source, ClinicalEventStatus.SUPERSEDED));
         events.save(new ClinicalEvent(
             null, newEventId, tenantId, source.eventType(),
+            source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             payload.digest(), source.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, source.eventId(), RequestContext.currentTraceId()
@@ -257,6 +259,7 @@ public class ClinicalEventService {
     private ClinicalEvent copyWithStatus(ClinicalEvent source, ClinicalEventStatus status) {
         return new ClinicalEvent(
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
+            source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             status, source.errorCode(), source.errorClass(), source.retryCount(),
@@ -275,6 +278,14 @@ public class ClinicalEventService {
             return json.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.ENG_EVENT_001, "事件 payload 无法序列化", exception);
+        }
+    }
+
+    private String writeOrgScope() {
+        try {
+            return json.writeValueAsString(RequestContext.currentOrgScope());
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_EVENT_001, "组织上下文无法序列化", exception);
         }
     }
 

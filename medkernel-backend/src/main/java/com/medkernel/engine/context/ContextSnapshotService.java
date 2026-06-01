@@ -3,7 +3,6 @@ package com.medkernel.engine.context;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -119,8 +118,8 @@ public class ContextSnapshotService {
             throw new ApiException(ErrorCode.ENG_CONTEXT_003, "INVALID quality 拒绝创建");
         }
 
-        Map<CanonicalResourceType, List<String>> summary = summarizeForMapping(req.resources());
-        Map<String, String> mappingStatus = mapping.evaluate(tenantId, summary);
+        List<ClinicalCodeMappingAnchor> anchors = ClinicalCodeMappingAnchorRegistry.fromResources(req.resources());
+        Map<String, String> mappingStatus = mapping.evaluate(tenantId, anchors);
 
         String snapshotId = "ctx-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -281,23 +280,6 @@ public class ContextSnapshotService {
 
     private static <T> List<T> safeList(List<T> in) {
         return in == null ? List.of() : in;
-    }
-
-    private Map<CanonicalResourceType, List<String>> summarizeForMapping(ContextSnapshotResources r) {
-        Map<CanonicalResourceType, List<String>> map = new HashMap<>();
-        if (r.medications() != null && !r.medications().isEmpty()) {
-            map.put(CanonicalResourceType.MEDICATION,
-                r.medications().stream().map(CanonicalMedication::code).toList());
-        }
-        if (r.conditions() != null && !r.conditions().isEmpty()) {
-            map.put(CanonicalResourceType.CONDITION,
-                r.conditions().stream().map(CanonicalCondition::code).toList());
-        }
-        if (r.observations() != null && !r.observations().isEmpty()) {
-            map.put(CanonicalResourceType.OBSERVATION,
-                r.observations().stream().map(CanonicalObservation::code).toList());
-        }
-        return map;
     }
 
     private ContextSnapshotResponse toResponse(ContextSnapshot snap,

@@ -14,6 +14,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ClinicalEventContext;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -315,6 +316,24 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         findPatientPathway(patientPathwayId, tenantId);
         return clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId);
+    }
+
+    /**
+     * 接收临床事件统一上下文，作为路径引擎后续入径/推进监听的稳定入口。
+     *
+     * <p>D0 只建立上下文入口，不在这里自动创建患者路径实例；D3 路径业务卡会基于该入口补充匹配规则。
+     */
+    @Transactional(readOnly = true)
+    public PathwayEventDispatchResponse dispatchClinicalEvent(ClinicalEventContext context) {
+        if (context == null || isBlank(context.patientId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001, "临床事件上下文缺少患者标识");
+        }
+        String tenantId = requireCurrentTenant();
+        if (!tenantId.equals(context.tenantId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001, "临床事件上下文租户不匹配");
+        }
+        return new PathwayEventDispatchResponse(
+            context.eventId(), context.patientId(), context.encounterId(), context.traceId());
     }
 
     /**

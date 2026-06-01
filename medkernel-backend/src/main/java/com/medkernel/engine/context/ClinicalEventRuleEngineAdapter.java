@@ -1,0 +1,61 @@
+package com.medkernel.engine.context;
+
+import java.util.List;
+
+import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.rule.RuleEngineService;
+import com.medkernel.engine.rule.RuleEvaluateRequest;
+import com.medkernel.engine.rule.RuleEvaluateResponse;
+
+/**
+ * 临床事件到规则引擎真实执行入口的适配器。
+ */
+@Component
+public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapter {
+
+    private final RuleEngineService rules;
+    private final ObjectMapper json;
+
+    public ClinicalEventRuleEngineAdapter(RuleEngineService rules, ObjectMapper json) {
+        this.rules = rules;
+        this.json = json;
+    }
+
+    @Override
+    public ClinicalEventEngine engine() {
+        return ClinicalEventEngine.RULE;
+    }
+
+    @Override
+    public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
+        RuleEvaluateResponse response = rules.evaluate(new RuleEvaluateRequest(
+            context.triggerPoint(),
+            toRuleContext(context),
+            context.eventId(),
+            List.of()
+        ));
+        return ClinicalEventEngineDispatchResult.dispatched(
+            engine(), response.requestId(), "规则引擎已接收临床事件上下文");
+    }
+
+    private ObjectNode toRuleContext(ClinicalEventContext context) {
+        ObjectNode root = json.createObjectNode();
+        ObjectNode event = root.putObject("event");
+        event.put("eventId", context.eventId());
+        event.put("eventType", context.eventType().name());
+        event.put("sourceSystem", context.sourceSystem());
+        event.put("triggerSource", context.triggerSource());
+        event.put("occurredAt", context.occurredAt().toString());
+        event.put("payloadDigest", context.payloadDigest());
+        ObjectNode patient = root.putObject("patient");
+        patient.put("patientId", context.patientId());
+        patient.put("encounterId", context.encounterId());
+        root.set("orgScope", json.valueToTree(context.orgScope()));
+        root.set("payload", context.payload());
+        root.set("codeMappingAnchors", json.valueToTree(context.codeMappingAnchors()));
+        return root;
+    }
+}

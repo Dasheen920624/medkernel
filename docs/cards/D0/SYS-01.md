@@ -82,3 +82,8 @@ N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 ### PR1 进度证据（本 PR 不冒领整卡完成）
 - 覆盖范围：新增 12 类标准对象 Record、租户级 Repository、V38 五方言关系库权威表基础、跨租户读取测试、Patient 敏感字段密文 / 掩码字段；同步清理旧 `SYMPTOM` 口径，统一为 `NURSING_ASSESSMENT`。
 - 验收口径：仅作为 **AC-1 12 对象建模 / 持久化基础** 与 **AC-5 组织字段 / 敏感字段基础** 的 PR1 证据；AC-2、AC-3、AC-4 仍由 PR2 / PR3 承接，整卡 FR / AC 不在本 PR 勾选。
+
+### PR2 进度证据（本 PR 不冒领整卡完成）
+- 覆盖范围：新增 `ClinicalEventContext`、`ClinicalEventEngineDispatcher`、规则 / 路径 / CDSS 三个真实适配入口、`clinical_event.org_scope_json` V39 五方言迁移；临床事件处理从“只推进状态”调整为先构造同一个事件上下文，再派发给三类引擎，成功后才进入 `PROCESSED`。
+- 字典锚点：新增 `ClinicalCodeMappingAnchor` / `ClinicalCodeMappingAnchorRegistry`，12 类标准对象的编码字段均可生成 `anchor.key()`，`TerminologyMappingPort` 改为按锚点评估，未映射项以 `UNKNOWN` 可追踪返回。
+- 验收口径：作为 **AC-2 事件上下文三引擎同源入口基础** 与 **AC-4 编码字段映射锚点基础** 的 PR2 证据；AC-3 关系库权威 / 图投影关闭 / FHIR 门面仍由 PR3 承接，整卡 FR / AC 不在本 PR 勾选。

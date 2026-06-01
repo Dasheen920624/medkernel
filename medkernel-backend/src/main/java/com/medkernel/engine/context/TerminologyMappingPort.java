@@ -18,8 +18,8 @@ public interface TerminologyMappingPort {
      * 评估 snapshot 中各资源类型的映射状态。
      *
      * @param tenantId          租户
-     * @param snapshotSummary   每个资源类型的 code 列表（按 {@link CanonicalResourceType} 分组）
-     * @return                  resource_type.field → "VALID" / "PARTIAL" / "UNKNOWN"
+     * @param anchors           每个标准资源编码字段的可追踪锚点
+     * @return                  anchor.key → "VALID" / "PARTIAL" / "UNKNOWN"
      */
-    Map<String, String> evaluate(String tenantId, Map<CanonicalResourceType, List<String>> snapshotSummary);
+    Map<String, String> evaluate(String tenantId, List<ClinicalCodeMappingAnchor> anchors);
 }

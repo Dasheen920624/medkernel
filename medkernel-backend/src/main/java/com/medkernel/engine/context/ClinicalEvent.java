@@ -15,6 +15,7 @@ public record ClinicalEvent(
     @Column("event_id") String eventId,
     @Column("tenant_id") String tenantId,
     @Column("event_type") ClinicalEventType eventType,
+    @Column("org_scope_json") String orgScopeJson,
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
     @Column("source_system") String sourceSystem,
