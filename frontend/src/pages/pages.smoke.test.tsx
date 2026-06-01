@@ -113,7 +113,9 @@ describe("page smoke coverage", () => {
   it("renders the dashboard workbench with tenant-lifecycle placeholder", () => {
     renderPage(<Dashboard />);
     expect(screen.getByText(/租户.*生命周期/)).toBeInTheDocument();
-    expect(screen.getByText("本周建议动作")).toBeInTheDocument();
+    expect(screen.getByText("真实工作台聚合数据待接入")).toBeInTheDocument();
+    expect(screen.queryByText("本周建议动作")).toBeNull();
+    expect(screen.queryByText("演示与校验")).toBeNull();
   });
 
   it("renders the login page as a focused identity entry", async () => {

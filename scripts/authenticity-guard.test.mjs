@@ -107,6 +107,36 @@ test("前端页面触碰文件会阻断旧规则路径示例占位符回流", as
   );
 });
 
+test("前端生产文件会阻断工作台本地假闭环和业务示例残留", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/Dashboard.tsx": `
+        export function Dashboard() {
+          const todoMock = [{ title: "神经内科卒中路径还差 2 节点" }];
+          return (
+            <section>
+              <h2>演示与校验</h2>
+              <p>6 大客户验收剧本</p>
+              <span>{todoMock[0].title}</span>
+              <span>{source.evidenceLevel || "Class I"}</span>
+              <input defaultValue="临床危急值回调报警" />
+            </section>
+          );
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/pages/Dashboard.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.hardcoded-medical-constant",
+        "frontend.local-demo-workflow",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {

@@ -513,8 +513,14 @@ export default function CdssFatigue() {
                                 <span className="font-semibold text-gray-800 text-xs">
                                   {source.title}
                                 </span>
-                                <Tag color="purple">
-                                  权威度评分: {source.authorityScore || 90}分
+                                <Tag
+                                  color={
+                                    typeof source.authorityScore === "number" ? "purple" : "default"
+                                  }
+                                >
+                                  {typeof source.authorityScore === "number"
+                                    ? `权威度评分: ${source.authorityScore}分`
+                                    : "权威度评分未提供"}
                                 </Tag>
                               </div>
                             }
@@ -534,7 +540,11 @@ export default function CdssFatigue() {
                                 </span>
                               </Descriptions.Item>
                               <Descriptions.Item label="证据级别">
-                                <Tag color="cyan">{source.evidenceLevel || "Class I"}</Tag>
+                                {source.evidenceLevel ? (
+                                  <Tag color="cyan">{source.evidenceLevel}</Tag>
+                                ) : (
+                                  <Tag>未提供</Tag>
+                                )}
                               </Descriptions.Item>
                             </Descriptions>
                           </Card>
