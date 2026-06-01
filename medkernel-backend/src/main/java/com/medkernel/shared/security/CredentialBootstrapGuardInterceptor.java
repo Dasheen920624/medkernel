@@ -47,7 +47,7 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (isAllowed(request.getRequestURI())) {
+        if (isAllowed(applicationPath(request))) {
             return true;
         }
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -82,6 +82,20 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
             }
             return uri.equals(prefix) || uri.startsWith(prefix + "/");
         });
+    }
+
+    private static String applicationPath(HttpServletRequest request) {
+        String servletPath = request.getServletPath();
+        String pathInfo = request.getPathInfo();
+        if (servletPath != null && !servletPath.isBlank()) {
+            return pathInfo == null ? servletPath : servletPath + pathInfo;
+        }
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (uri != null && contextPath != null && !contextPath.isBlank() && uri.startsWith(contextPath)) {
+            return uri.substring(contextPath.length());
+        }
+        return uri;
     }
 
     private static Jwt resolveJwt(Authentication authentication) {

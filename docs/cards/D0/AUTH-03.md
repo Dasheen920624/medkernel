@@ -76,6 +76,7 @@
 - PR1 证据：`AuthControllerTest` 覆盖首登强制改密、登录失败锁定与未知账号限流；`CredentialAdminControllerTest` 覆盖弱密码拒绝、手动锁定不被过期自动锁误解锁、状态空值后端校验；`SystemConfigControllerTest` 覆盖密码最小长度不可降到 12 以下；`FlywayMultiDialectSmokeTest` / 后端全量测试覆盖 H2 / PostgreSQL / Oracle 迁移到 V45。
 - PR2 本地证据：TDD 红灯先暴露旧恢复码假 MFA、SM3 配置未生效、重置 token 端点缺失；`MfaPolicyServiceTest` / `BootstrapControllerTest` / `CredentialAdminControllerTest` 覆盖 TOTP setup→verify、旧 `mfa_secret` 摘要拒绝、SM3 新哈希切换、一次性重置 token 消费后不可复用且强制改密；`MigrationBaselineContractTest` / `H2BaselineMigrationTest` 覆盖 V46 `sys_password_reset_token` 与索引约束；`mvn -B -q test` 退出 0，覆盖 H2 / PostgreSQL 15.18 / Oracle 21.3 到 V46 且重复迁移幂等。
 - PR2 T-GATE：`node --test scripts/authenticity-guard.test.mjs` 21/21、`node --test scripts/migration-convention-guard.test.mjs` 8/8、`node --test scripts/config-boundary-guard.test.mjs` 2/2、`scripts/check-comment-zh.sh --mode=full` 退出 0（V46 三个生产方言均 OK）、`git diff --check` 退出 0；工作区显式扫描与提交后 changed 扫描均 0 阻断（真实性 28 文件 / 迁移 5 文件 / 配置 29 文件）。
+- PR2 合并证据：[#240](https://github.com/Dasheen920624/medkernel/pull/240) 已通过远端 CI 8/8 并合入 `origin/main`，merge `5439efe9b3356c25acf4e0e211104abcbaa77232`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（4d，后端 + 少量前端弹窗）

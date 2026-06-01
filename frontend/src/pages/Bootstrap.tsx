@@ -79,6 +79,11 @@ export default function Bootstrap() {
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [admin, setAdmin] = useState<BootstrapAdminResult | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [mfaSetup, setMfaSetup] = useState<{
+    label: string;
+    secret: string;
+    otpauthUri?: string;
+  } | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [tokenForm] = Form.useForm<{ token: string }>();
   const [adminForm] = Form.useForm<{
@@ -92,7 +97,7 @@ export default function Bootstrap() {
     newPassword: string;
     confirmPassword: string;
   }>();
-  const [mfaForm] = Form.useForm<{ label: string }>();
+  const [mfaForm] = Form.useForm<{ label: string; code?: string }>();
   const checkToken = useCheckBootstrapInitToken();
   const createAdmin = useCreateBootstrapAdmin();
   const changePassword = useChangePassword();
@@ -193,16 +198,48 @@ export default function Bootstrap() {
     }
   }
 
-  async function submitMfa(values: { label: string }) {
+  async function submitMfa(values: { label: string; code?: string }) {
     setGlobalError(null);
     try {
-      const result = await bindMfa.mutateAsync({ label: values.label.trim() });
+      const label = (mfaSetup?.label ?? values.label).trim();
+      if (!mfaSetup) {
+        const result = await bindMfa.mutateAsync({ label });
+        if (result.mfaBound && result.recoveryCode) {
+          setRecoveryCode(result.recoveryCode);
+          setPhase("done");
+          return;
+        }
+        if (!result.secret) {
+          throw new Error("MFA 密钥生成失败，请重试。");
+        }
+        setMfaSetup({
+          label,
+          secret: result.secret,
+          otpauthUri: result.otpauthUri,
+        });
+        mfaForm.setFieldsValue({ label, code: "" });
+        return;
+      }
+
+      const code = values.code?.trim();
+      if (!code) {
+        mfaForm.setFields([{ name: "code", errors: ["请输入认证器中的动态验证码"] }]);
+        return;
+      }
+      const result = await bindMfa.mutateAsync({
+        label,
+        secret: mfaSetup.secret,
+        code,
+      });
+      if (!result.mfaBound || !result.recoveryCode) {
+        throw new Error("MFA 验证未完成，请重新输入验证码。");
+      }
       setRecoveryCode(result.recoveryCode);
       setPhase("done");
     } catch (err) {
       const errorMessage = getApiErrorMessage(err, "MFA 绑定失败");
       if (!applyApiFieldErrors(mfaForm, err)) {
-        mfaForm.setFields([{ name: "label", errors: [errorMessage] }]);
+        mfaForm.setFields([{ name: mfaSetup ? "code" : "label", errors: [errorMessage] }]);
       }
       setGlobalError(errorMessage);
     }
@@ -454,8 +491,21 @@ export default function Bootstrap() {
                 绑定 MFA
               </Title>
               <Paragraph type="secondary">
-                首发管理员必须绑定 MFA 后才能执行高危配置、租户开通和应急操作。
+                首发管理员必须完成 MFA 验证后才能执行高危配置、租户开通和应急操作。
               </Paragraph>
+              {mfaSetup && (
+                <div className={styles.recoveryBox}>
+                  <Text type="secondary">请在认证器中录入密钥，再输入 6 位动态验证码。</Text>
+                  <Text strong copyable className={styles.recoveryCode}>
+                    {mfaSetup.secret}
+                  </Text>
+                  {mfaSetup.otpauthUri && (
+                    <Text type="secondary" copyable>
+                      {mfaSetup.otpauthUri}
+                    </Text>
+                  )}
+                </div>
+              )}
               <Form
                 form={mfaForm}
                 layout="vertical"
@@ -468,11 +518,32 @@ export default function Bootstrap() {
                   name="label"
                   rules={[{ required: true, message: "请输入 MFA 设备名称" }]}
                 >
-                  <Input prefix={<SafetyCertificateOutlined />} size="large" />
+                  <Input
+                    prefix={<SafetyCertificateOutlined />}
+                    size="large"
+                    disabled={Boolean(mfaSetup)}
+                  />
                 </Form.Item>
+                {mfaSetup && (
+                  <Form.Item
+                    label="动态验证码"
+                    name="code"
+                    rules={[
+                      { required: true, message: "请输入认证器中的动态验证码" },
+                      { pattern: /^\d{6}$/, message: "动态验证码为 6 位数字" },
+                    ]}
+                  >
+                    <Input
+                      prefix={<SafetyCertificateOutlined />}
+                      size="large"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                    />
+                  </Form.Item>
+                )}
                 <Form.Item className={styles.lastItem}>
                   <Button
-                    aria-label="生成一次性恢复码"
+                    aria-label={mfaSetup ? "验证并绑定 MFA" : "生成 MFA 密钥"}
                     type="primary"
                     htmlType="submit"
                     block
@@ -480,7 +551,7 @@ export default function Bootstrap() {
                     loading={bindMfa.isPending}
                     icon={<SafetyCertificateOutlined />}
                   >
-                    生成一次性恢复码
+                    {mfaSetup ? "验证并绑定 MFA" : "生成 MFA 密钥"}
                   </Button>
                 </Form.Item>
               </Form>

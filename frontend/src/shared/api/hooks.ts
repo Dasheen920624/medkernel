@@ -2967,11 +2967,15 @@ export interface ChangePasswordPayload {
 
 export interface BootstrapMfaPayload {
   label: string;
+  secret?: string;
+  code?: string;
 }
 
 export interface BootstrapMfaResult {
   mfaBound: boolean;
-  recoveryCode: string;
+  secret?: string;
+  otpauthUri?: string;
+  recoveryCode?: string;
 }
 
 export async function checkBootstrapInitToken(token: string) {
