@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import type { ComponentProps } from "react";
@@ -61,27 +61,15 @@ describe("AsyncExportAction", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("polls a running export and displays audit evidence after completion", async () => {
-    let finishPoll: ((value: AsyncExportJob) => void) | undefined;
+  it("polls a pending export until completion and displays audit evidence", async () => {
     const onSubmit = vi.fn().mockResolvedValue({
       jobId: "job-1",
-      status: "running",
+      status: "pending",
       submittedAt: "2026-05-26T01:00:00.000Z",
       submittedBy: "tester",
       traceId: "trace-1",
     });
-    const onPoll = vi.fn().mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finishPoll = resolve;
-        }),
-    );
-    renderAction({ onSubmit, onPoll });
-
-    await submitExport();
-    expect(await screen.findByText("导出任务运行中")).toBeInTheDocument();
-
-    finishPoll?.({
+    const succeededJob: AsyncExportJob = {
       jobId: "job-1",
       status: "succeeded",
       submittedAt: "2026-05-26T01:00:00.000Z",
@@ -89,7 +77,19 @@ describe("AsyncExportAction", () => {
       traceId: "trace-1",
       auditId: "audit-1",
       downloadUrl: "/exports/job-1",
-    });
+    };
+    const onPoll = vi.fn().mockResolvedValueOnce({
+      jobId: "job-1",
+      status: "running",
+      submittedAt: "2026-05-26T01:00:00.000Z",
+      submittedBy: "tester",
+      traceId: "trace-1",
+    } satisfies AsyncExportJob);
+    onPoll.mockResolvedValue(succeededJob);
+    renderAction({ onSubmit, onPoll, pollDelayMs: 1 });
+
+    await submitExport();
+    await waitFor(() => expect(onPoll.mock.calls.length).toBeGreaterThanOrEqual(2));
 
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
     expect(screen.getByText(/job-1/)).toBeInTheDocument();
@@ -115,7 +115,9 @@ describe("AsyncExportAction", () => {
     await userEvent.click(screen.getByRole("button", { name: "重试导出" }));
 
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
-    expect(onSubmit).toHaveBeenNthCalledWith(1, request);
-    expect(onSubmit).toHaveBeenNthCalledWith(2, request);
+    expect(onSubmit).toHaveBeenNthCalledWith(1, expect.objectContaining(request));
+    expect(onSubmit).toHaveBeenNthCalledWith(2, expect.objectContaining(request));
+    expect(onSubmit.mock.calls[0][0].idempotencyKey).toBeDefined();
+    expect(onSubmit.mock.calls[1][0].idempotencyKey).toBe(onSubmit.mock.calls[0][0].idempotencyKey);
   });
 });

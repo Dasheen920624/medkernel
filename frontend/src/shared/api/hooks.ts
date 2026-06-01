@@ -1,6 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "./client";
+import type {
+  AsyncExportJob,
+  AsyncExportRequest,
+  ExperienceViewSnapshot,
+} from "@/shared/ui/experienceTypes";
 
 /**
  * MedKernel v1.0 GA · React Query hooks（按业务域分组）。
@@ -243,6 +248,183 @@ export function useTerminologyMappings(params?: TerminologyMappingsParams) {
       return data.data;
     },
   });
+}
+
+// ──────────────────────────────────────────
+// 产品体验底座 · 保存视图与异步导出（BASE-08）
+// ──────────────────────────────────────────
+export interface SavedExperienceView {
+  savedViewId: string;
+  pageKey: string;
+  viewName: string;
+  definitionJson: string;
+  defaultView: boolean;
+  version: number;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface SaveExperienceViewPayload {
+  pageKey: string;
+  viewName: string;
+  snapshot: ExperienceViewSnapshot;
+  defaultView: boolean;
+}
+
+type SavedViewsEnvelope = {
+  data: SavedExperienceView[];
+};
+
+type SavedViewEnvelope = {
+  data: SavedExperienceView;
+};
+
+type LargeListExportSubmitEnvelope = {
+  data: {
+    jobId: string;
+    status: string;
+    message: string;
+  };
+};
+
+type LargeListExportJobEnvelope = {
+  data: {
+    jobId: string;
+    status: string;
+    createdAt: string;
+    createdBy: string;
+    traceId?: string | null;
+    auditId?: string | null;
+    errorMessage?: string | null;
+  };
+};
+
+export async function fetchSavedViews(pageKey: string): Promise<SavedExperienceView[]> {
+  const { data } = await apiClient.get<SavedViewsEnvelope>("/experience/saved-views", {
+    params: { pageKey },
+  });
+  return data.data ?? [];
+}
+
+export async function saveExperienceViewSnapshot(
+  payload: SaveExperienceViewPayload,
+): Promise<SavedExperienceView> {
+  const { data } = await apiClient.put<SavedViewEnvelope>("/experience/saved-views", {
+    pageKey: payload.pageKey,
+    viewName: payload.viewName,
+    definitionJson: JSON.stringify(payload.snapshot),
+    defaultView: payload.defaultView,
+  });
+  return data.data;
+}
+
+export function parseSavedExperienceView(
+  view?: SavedExperienceView,
+): ExperienceViewSnapshot | null {
+  if (!view) return null;
+  try {
+    return JSON.parse(view.definitionJson) as ExperienceViewSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export function useSavedViews(pageKey: string) {
+  return useQuery({
+    queryKey: ["experience", "saved-views", pageKey],
+    queryFn: () => fetchSavedViews(pageKey),
+    enabled: Boolean(pageKey),
+    retry: false,
+  });
+}
+
+export function useSaveView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveExperienceViewSnapshot,
+    onSuccess: (view) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["experience", "saved-views", view.pageKey],
+      });
+    },
+  });
+}
+
+export async function submitLargeListExport(request: AsyncExportRequest): Promise<AsyncExportJob> {
+  const idempotencyKey = request.idempotencyKey ?? crypto.randomUUID();
+  const { data } = await apiClient.post<LargeListExportSubmitEnvelope>(
+    "/large-lists/exports",
+    {
+      resourceType: request.resourceType,
+      filters: exportFilters(request),
+      selectedScope: toBackendExportScope(request.selectedScope),
+      idempotencyKey,
+    },
+    { headers: { "Idempotency-Key": idempotencyKey } },
+  );
+  return {
+    jobId: data.data.jobId,
+    status: toExportJobStatus(data.data.status),
+    submittedAt: new Date().toISOString(),
+    submittedBy: "",
+  };
+}
+
+export async function fetchLargeListExportJob(jobId: string): Promise<AsyncExportJob> {
+  const { data } = await apiClient.get<LargeListExportJobEnvelope>(`/large-lists/exports/${jobId}`);
+  const job = data.data;
+  return {
+    jobId: job.jobId,
+    status: toExportJobStatus(job.status),
+    submittedAt: job.createdAt,
+    submittedBy: job.createdBy,
+    traceId: job.traceId ?? undefined,
+    auditId: job.auditId ?? undefined,
+    failureReason: job.errorMessage ?? undefined,
+    downloadUrl:
+      job.status === "SUCCESS"
+        ? `/medkernel/api/v1/large-lists/exports/${job.jobId}/download`
+        : undefined,
+  };
+}
+
+export function useSubmitLargeListExport() {
+  return useMutation({ mutationFn: submitLargeListExport });
+}
+
+export function useLargeListExportJob() {
+  return useMutation({ mutationFn: fetchLargeListExportJob });
+}
+
+function exportFilters(request: AsyncExportRequest): Record<string, string> {
+  const fromRequest = Object.entries(request.requestSnapshot.pageRequest.filters ?? {})
+    .filter(([, value]) => typeof value === "string" && value.length > 0)
+    .map(([key, value]) => [key, value as string]);
+  const fromFilterBar = request.requestSnapshot.filters
+    .filter((filter) => typeof filter.value === "string" && filter.value.length > 0)
+    .map((filter) => [filter.key, filter.value as string]);
+  return Object.fromEntries([...fromRequest, ...fromFilterBar]);
+}
+
+function toBackendExportScope(scope: AsyncExportRequest["selectedScope"]) {
+  return scope === "currentPage" ? "CURRENT_PAGE" : "FILTERED_RESULT";
+}
+
+function toExportJobStatus(status: string): AsyncExportJob["status"] {
+  switch (status) {
+    case "PENDING":
+      return "pending";
+    case "RUNNING":
+      return "running";
+    case "SUCCESS":
+      return "succeeded";
+    case "FAILED":
+      return "failed";
+    case "EXPIRED":
+      return "expired";
+    default:
+      return "failed";
+  }
 }
 
 // ──────────────────────────────────────────

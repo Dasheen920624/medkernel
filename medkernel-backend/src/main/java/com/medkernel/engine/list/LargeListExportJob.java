@@ -10,20 +10,24 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>用于存储后台 CSV 异步导出任务的进度、文件路径及元数据。
  */
-@Table("large_list_export_job")
+@Table("mk_experience_export_task")
 public record LargeListExportJob(
-    @Id Long id,
-    @Column("job_id") String jobId,
+    @Id
+    @Column("task_id")
+    String jobId,
     @Column("tenant_id") String tenantId,
     @Column("resource_type") String resourceType,
-    @Column("filter_criteria") String filterCriteria,
-    String status,
+    @Column("request_snapshot") String requestSnapshot,
+    @Column("selected_scope") String selectedScope,
+    @Column("status") String status,
     @Column("file_name") String fileName,
     @Column("file_path") String filePath,
     @Column("file_size") Long fileSize,
     @Column("error_message") String errorMessage,
     @Column("time_cost_ms") Long timeCostMs,
     @Column("trace_id") String traceId,
+    @Column("audit_id") String auditId,
+    @Column("idempotency_key") String idempotencyKey,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
@@ -35,19 +39,30 @@ public record LargeListExportJob(
      * @param jobId 异步导出任务全局唯一ID
      * @param tenantId 租户ID
      * @param resourceType 导出的列表资源类型
-     * @param filterCriteria 导出筛选条件
+     * @param requestSnapshot 导出请求快照 JSON
+     * @param selectedScope 导出范围
      * @param traceId 请求链路追踪ID
+     * @param idempotencyKey 幂等键
      * @param creator 创建人账号或系统标识
      * @return 初始的导出任务实体
      */
-    public static LargeListExportJob createPending(String jobId, String tenantId, String resourceType, String filterCriteria, String traceId, String creator) {
+    public static LargeListExportJob createPending(
+        String jobId,
+        String tenantId,
+        String resourceType,
+        String requestSnapshot,
+        String selectedScope,
+        String traceId,
+        String idempotencyKey,
+        String creator
+    ) {
         Instant now = Instant.now();
         return new LargeListExportJob(
-            null,
             jobId,
             tenantId,
             resourceType,
-            filterCriteria,
+            requestSnapshot,
+            selectedScope,
             "PENDING",
             null,
             null,
@@ -55,6 +70,8 @@ public record LargeListExportJob(
             null,
             0L,
             traceId,
+            null,
+            idempotencyKey,
             now,
             creator,
             now,

@@ -56,10 +56,10 @@ describe("前端视觉债、存储与外部连接门禁", () => {
     expect(findViolations(FRONTEND_EXTERNAL_FEATURE_FLAG_PATTERN)).toEqual([]);
   });
 
-  it("体验视图在写入受控存储前校验敏感内容", () => {
+  it("体验视图在异步导出前校验敏感内容", () => {
     const viewSource = readFileSync(join(SRC_ROOT, "shared/ui/experienceView.ts"), "utf8");
 
-    expect(viewSource).toContain("assertNoSensitiveSnapshotContent(snapshot)");
+    expect(viewSource).toContain("assertNoSensitiveSnapshotContent(request)");
     for (const term of ["token", "patient", "idcard", "identity", "身份证", "患者"]) {
       expect(viewSource).toContain(term);
     }

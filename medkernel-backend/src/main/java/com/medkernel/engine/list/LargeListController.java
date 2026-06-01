@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -55,8 +56,11 @@ public class LargeListController {
      */
     @PostMapping("/exports")
     @PreAuthorize("@perm.has('list.export')")
-    public ApiResult<ExportSubmitResponse> submitExportTask(@Valid @RequestBody ExportSubmitRequest request) {
-        return ApiResult.ok(service.submitExportTask(request));
+    public ApiResult<ExportSubmitResponse> submitExportTask(
+        @Valid @RequestBody ExportSubmitRequest request,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+    ) {
+        return ApiResult.ok(service.submitExportTask(request.withIdempotencyKey(idempotencyKey)));
     }
 
     /**

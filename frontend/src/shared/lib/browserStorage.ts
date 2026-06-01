@@ -1,5 +1,4 @@
 const ALLOWED_EXACT_KEYS = new Set(["medkernel.theme.mode"]);
-const ALLOWED_PREFIXES = ["medkernel.view."];
 const SENSITIVE_KEY_PATTERN =
   /(token|secret|password|passwd|api[-_.]?key|authorization|credential|patient|idcard|identity|身份证|患者)/i;
 
@@ -13,9 +12,7 @@ function assertUiPreferenceKey(key: string) {
     throw new Error(`敏感键禁止写入浏览器本地存储：${key}`);
   }
 
-  const allowed =
-    ALLOWED_EXACT_KEYS.has(key) || ALLOWED_PREFIXES.some((prefix) => key.startsWith(prefix));
-  if (!allowed) {
+  if (!ALLOWED_EXACT_KEYS.has(key)) {
     throw new Error(`只允许写入已批准的 UI 偏好键：${key}`);
   }
 }

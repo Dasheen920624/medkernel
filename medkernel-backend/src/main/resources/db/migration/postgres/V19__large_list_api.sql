@@ -1,41 +1,42 @@
 -- MedKernel v1.0 GA · GA-ENG-API-13 大规模列表 API（PostgreSQL）
+-- BASE-08 对齐：异步导出任务统一落 mk_experience_export_task。
 
-CREATE TABLE IF NOT EXISTS large_list_export_job (
-    id                        BIGSERIAL PRIMARY KEY,
-    job_id                    VARCHAR(64)   NOT NULL,
-    tenant_id                 VARCHAR(64)   NOT NULL,
-    resource_type             VARCHAR(64)   NOT NULL,
-    filter_criteria           TEXT          NULL,
-    status                    VARCHAR(32)   NOT NULL DEFAULT 'PENDING',
-    file_name                 VARCHAR(255)  NULL,
-    file_path                 VARCHAR(512)  NULL,
-    file_size                 BIGINT        NOT NULL DEFAULT 0,
-    error_message             VARCHAR(512)  NULL,
-    time_cost_ms              BIGINT        NOT NULL DEFAULT 0,
-    trace_id                  VARCHAR(128)  NULL,
-    created_at                TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    created_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
-    updated_at                TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_by                VARCHAR(64)   NOT NULL DEFAULT 'system',
-    CONSTRAINT uk_large_list_job UNIQUE (job_id)
+CREATE TABLE IF NOT EXISTS mk_experience_export_task (
+    task_id          VARCHAR(80)   NOT NULL,
+    tenant_id        VARCHAR(64)   NOT NULL,
+    resource_type    VARCHAR(64)   NOT NULL,
+    request_snapshot TEXT          NOT NULL,
+    selected_scope   VARCHAR(32)   NOT NULL DEFAULT 'FILTERED_RESULT',
+    status           VARCHAR(32)   NOT NULL DEFAULT 'PENDING',
+    file_name        VARCHAR(255),
+    file_path        VARCHAR(512),
+    file_size        BIGINT        NOT NULL DEFAULT 0,
+    error_message    VARCHAR(512),
+    time_cost_ms     BIGINT        NOT NULL DEFAULT 0,
+    trace_id         VARCHAR(128),
+    audit_id         VARCHAR(128),
+    idempotency_key  VARCHAR(128),
+    created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    created_by       VARCHAR(64)   NOT NULL DEFAULT 'system',
+    updated_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_by       VARCHAR(64)   NOT NULL DEFAULT 'system',
+    CONSTRAINT pk_export_task PRIMARY KEY (task_id),
+    CONSTRAINT uk_export_task_idempotency UNIQUE (tenant_id, idempotency_key),
+    CONSTRAINT ck_export_task_scope CHECK (selected_scope IN ('CURRENT_PAGE','FILTERED_RESULT')),
+    CONSTRAINT ck_export_task_status CHECK (status IN ('PENDING','RUNNING','SUCCESS','FAILED','EXPIRED'))
 );
 
-CREATE INDEX idx_large_list_job_tenant ON large_list_export_job (tenant_id, resource_type);
+CREATE INDEX IF NOT EXISTS idx_export_task_status
+    ON mk_experience_export_task (tenant_id, status, created_at);
 
-COMMENT ON TABLE large_list_export_job IS '大规模数据异步导出任务表';
-COMMENT ON COLUMN large_list_export_job.id IS '自增主键';
-COMMENT ON COLUMN large_list_export_job.job_id IS '异步导出任务全局唯一ID';
-COMMENT ON COLUMN large_list_export_job.tenant_id IS '租户ID';
-COMMENT ON COLUMN large_list_export_job.resource_type IS '导出的列表资源类型(如AUDIT_LOG等)';
-COMMENT ON COLUMN large_list_export_job.filter_criteria IS '导出时提交的过滤筛选条件Json结构';
-COMMENT ON COLUMN large_list_export_job.status IS '任务状态(PENDING,RUNNING,SUCCESS,FAILED)';
-COMMENT ON COLUMN large_list_export_job.file_name IS '导出的物理文件名称';
-COMMENT ON COLUMN large_list_export_job.file_path IS '物理存储路径或文件相对Key';
-COMMENT ON COLUMN large_list_export_job.file_size IS '文件大小(字节)';
-COMMENT ON COLUMN large_list_export_job.error_message IS '失败时存储的错误堆栈或异常描述';
-COMMENT ON COLUMN large_list_export_job.time_cost_ms IS '导出耗时(毫秒)';
-COMMENT ON COLUMN large_list_export_job.trace_id IS '请求链路追踪ID';
-COMMENT ON COLUMN large_list_export_job.created_at IS '创建时间';
-COMMENT ON COLUMN large_list_export_job.created_by IS '创建人账户或系统标识';
-COMMENT ON COLUMN large_list_export_job.updated_at IS '最后更新时间';
-COMMENT ON COLUMN large_list_export_job.updated_by IS '最后修改人账户或系统标识';
+CREATE INDEX IF NOT EXISTS idx_export_task_resource
+    ON mk_experience_export_task (tenant_id, resource_type, created_at);
+
+COMMENT ON TABLE mk_experience_export_task IS '系统异步导出任务表：保存大规模列表导出任务、视图快照、物理文件与审计线索';
+COMMENT ON COLUMN mk_experience_export_task.task_id IS '异步导出任务全局唯一 ID';
+COMMENT ON COLUMN mk_experience_export_task.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_experience_export_task.resource_type IS '导出的列表资源类型';
+COMMENT ON COLUMN mk_experience_export_task.request_snapshot IS '导出时的页面视图、筛选、列和选择范围快照 JSON';
+COMMENT ON COLUMN mk_experience_export_task.selected_scope IS '导出范围：CURRENT_PAGE 当前页 / FILTERED_RESULT 筛选结果';
+COMMENT ON COLUMN mk_experience_export_task.status IS '任务状态：PENDING 待处理 / RUNNING 处理中 / SUCCESS 已完成 / FAILED 失败 / EXPIRED 已过期';
+COMMENT ON COLUMN mk_experience_export_task.idempotency_key IS '幂等键，防止重复提交同一导出任务';

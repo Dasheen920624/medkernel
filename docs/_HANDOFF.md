@@ -12,14 +12,23 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · BASE-08 产品体验底座待领取 🚧
+### 线 1 · BASE-08 产品体验底座 PR / CI / 合并收口 🚧
 
 - 类型：软件开发 / 产品体验
-- 分支：待创建 `codex/base-08-product-experience-foundation`
-- 目标：按 [BASE-08](cards/D0/BASE-08.md) 建立产品体验底座：一页一目标、角色默认视图、专家模式、服务端分页、详情抽屉、异步导出、保存视图，并同步体验契约与真实性门禁。
-- 状态：BASE-07 当前阶段按 PostgreSQL + Oracle 范围收口；达梦 / 人大金仓真实环境适配已登记为 [DEFER-001](audit/deferred-issues.md)，后续 D6/GA 最终适配处理，不阻塞 BASE-08。
-- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 新建 `codex/base-08-product-experience-foundation`；2. 读取 `docs/CONSTITUTION.md`、`docs/cards/D0/_brief.md`、`docs/EXPERIENCE_CONTRACT.md`、`docs/cards/D0/BASE-08.md`；3. 核查 `frontend/src` 中 PageShell、列表、抽屉、导出、视图保存现状；4. 先建绿色基线与失败测试，再按最小逻辑单元实现；5. 本地 T-GATE、PR、远端 CI 通过并合并后再领取下一阶段。
-- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；不能用外部环境缺失阻塞主线，必须登记到 `docs/audit/deferred-issues.md` 并继续下一可推进任务。
+- 分支：`codex/base-08-product-experience-foundation`
+- 目标：把 BASE-08 本地实现、验证证据、待处理登记通过 PR / CI / 合并正式落入 `origin/main`，合并后才能领取 BASE-10。
+- 状态：本地实现与验收已完成；后端全量、前端全量、T-GATE、旧代码残留扫描和浏览器真实登录验收通过。PR #214 已创建，等待远端 CI / 合并。
+- 下一步（精确到动作/命令）：1. 等 PR #214 远端 CI 通过；2. squash merge；3. 确认 `origin/main` 含 BASE-08 合并提交；4. 从最新 `origin/main` 新建 BASE-10 分支。
+- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；非当前阶段依赖审计与测试 / 构建输出噪声已登记为 DEFER-002 / DEFER-003；不得把待处理登记写成已关闭。
+
+### 线 2 · BASE-10 设计 Token 系统待领取 🚧
+
+- 类型：软件开发 / 产品体验
+- 分支：BASE-08 合并后从最新 `origin/main` 新建 `codex/base-10-design-token-system`
+- 目标：按 [BASE-10](cards/D0/BASE-10.md) 收口设计 Token 系统：Antd token、5 主题模式、module.css 全部走 CSS var、stylelint 阻断 hex，并确保登录页主题切换继续可用。
+- 状态：BASE-08 合并后领取；合并前不得领取 BASE-10。
+- 下一步（精确到动作/命令）：1. 推送并创建 BASE-08 PR；2. 等远端 CI 通过并 squash merge；3. 确认 `origin/main` 含 BASE-08 合并提交；4. 从新 `origin/main` 新建 BASE-10 分支；5. 读取 `docs/CONSTITUTION.md`、`docs/cards/D0/_brief.md`、`docs/EXPERIENCE_CONTRACT.md`、`docs/cards/D0/BASE-10.md`，先做绿色基线和红灯测试再实现。
+- 相关文件 / 测试 / 坑：旧代码、无用代码和临时兼容层发现即清理；不能用外部环境缺失阻塞主线，必须登记到 `docs/audit/deferred-issues.md` 并继续下一可推进任务；非当前阶段依赖审计与测试 / 构建输出噪声已登记为 DEFER-002 / DEFER-003。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -101,4 +110,4 @@
 
 ---
 
-> 末次更新：2026-06-01 · BASE-07 当前阶段范围修正为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境适配已登记 `DEFER-001`，不阻塞 BASE-08。下一步领取 BASE-08 产品体验底座，继续按“验证 / PR / CI / 合并 / 接力”节奏推进长期目标。
+> 末次更新：2026-06-01 · BASE-08 本地实现与验收收口完成，待 PR / CI / 合并；达梦 / 人大金仓真实环境适配保持 `DEFER-001`，前端依赖审计与非阻断输出噪声登记 `DEFER-002` / `DEFER-003`。BASE-08 合并后领取 BASE-10，继续按“验证 / PR / CI / 合并 / 接力”节奏推进长期目标。

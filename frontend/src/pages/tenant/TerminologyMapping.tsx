@@ -1,10 +1,19 @@
 import type { Key } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Tag } from "antd";
 
-import { useSecurityProfile, useTerminologyMappings, type TermMapping } from "@/shared/api/hooks";
-import { findRouteByPath } from "@/shared/config/routes";
+import {
+  parseSavedExperienceView,
+  useLargeListExportJob,
+  useSaveView,
+  useSavedViews,
+  useSecurityProfile,
+  useSubmitLargeListExport,
+  useTerminologyMappings,
+  type TermMapping,
+} from "@/shared/api/hooks";
+import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
@@ -19,12 +28,7 @@ import type {
   ExperienceViewSnapshot,
   RouteExperience,
 } from "@/shared/ui/experienceTypes";
-import {
-  buildAsyncExportRequest,
-  normalizePageResponse,
-  readExperienceView,
-  writeExperienceView,
-} from "@/shared/ui/experienceView";
+import { buildAsyncExportRequest, normalizePageResponse } from "@/shared/ui/experienceView";
 
 const VIEW_KEY = "terminology.mapping";
 const PAGE_SIZE = 20;
@@ -157,17 +161,16 @@ function detailSections(mapping?: TermMapping): EvidenceDetailSection[] {
 }
 
 export default function TerminologyMapping() {
-  const [initialView] = useState(() => readExperienceView(VIEW_KEY));
-  const [filters, setFilters] = useState<ExperienceFilterValue[]>(() =>
-    initialView ? [...initialView.filters] : [],
-  );
-  const [request, setRequest] = useState<ExperiencePageRequest>(
-    () => initialView?.pageRequest ?? DEFAULT_REQUEST,
-  );
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState<readonly string[]>(
-    () => initialView?.visibleColumnKeys ?? DEFAULT_VISIBLE_COLUMNS,
-  );
-  const [expertMode, setExpertMode] = useState(() => initialView?.expertMode ?? false);
+  const savedViews = useSavedViews(VIEW_KEY);
+  const saveView = useSaveView();
+  const submitExport = useSubmitLargeListExport();
+  const pollExport = useLargeListExportJob();
+  const savedViewApplied = useRef(false);
+  const [filters, setFilters] = useState<ExperienceFilterValue[]>([]);
+  const [request, setRequest] = useState<ExperiencePageRequest>(DEFAULT_REQUEST);
+  const [visibleColumnKeys, setVisibleColumnKeys] =
+    useState<readonly string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [expertMode, setExpertMode] = useState(false);
   const [selectionSnapshot, setSelectionSnapshot] = useState<{
     selectedRowKeys: Key[];
     rowCount: number;
@@ -184,6 +187,24 @@ export default function TerminologyMapping() {
     sourceSystem: getFilterValue(filters, "sourceSystem"),
     keyword: getFilterValue(filters, "keyword"),
   });
+
+  useEffect(() => {
+    if (savedViewApplied.current || !savedViews.data || savedViews.data.length === 0) {
+      return;
+    }
+    const savedSnapshot = parseSavedExperienceView(
+      savedViews.data.find((view) => view.defaultView) ?? savedViews.data[0],
+    );
+    if (!savedSnapshot) {
+      savedViewApplied.current = true;
+      return;
+    }
+    setFilters([...savedSnapshot.filters]);
+    setRequest(savedSnapshot.pageRequest);
+    setVisibleColumnKeys(savedSnapshot.visibleColumnKeys);
+    setExpertMode(savedSnapshot.expertMode);
+    savedViewApplied.current = true;
+  }, [savedViews.data]);
 
   function snapshot(
     nextFilters = filters,
@@ -217,18 +238,24 @@ export default function TerminologyMapping() {
 
   function updateExpertMode(enabled: boolean) {
     setExpertMode(enabled);
-    writeExperienceView(VIEW_KEY, snapshot(filters, request, visibleColumnKeys, enabled));
   }
 
   function updateColumns(nextSnapshot: ExperienceViewSnapshot) {
     setVisibleColumnKeys(nextSnapshot.visibleColumnKeys);
-    writeExperienceView(
-      VIEW_KEY,
-      snapshot(filters, request, nextSnapshot.visibleColumnKeys, expertMode),
-    );
   }
 
-  const hasPermission = !security.data || security.data.menuKeys.includes("terminology-mapping");
+  function saveCurrentView() {
+    void saveView.mutateAsync({
+      pageKey: VIEW_KEY,
+      viewName: "默认视图",
+      snapshot: snapshot(),
+      defaultView: true,
+    });
+  }
+
+  const hasPermission = !security.data || canAccessRoute(route, security.data);
+  const canExport =
+    security.data?.permissions.some((permission) => permission.code === "list.export") ?? false;
   const items = query.data?.items ?? [];
   let pageState: PageStateKind = "ready";
   if (!hasPermission) pageState = "forbidden";
@@ -237,7 +264,7 @@ export default function TerminologyMapping() {
   else if (items.length === 0) pageState = "empty";
 
   const exportRequest = buildAsyncExportRequest({
-    resourceType: VIEW_KEY,
+    resourceType: "TERMINOLOGY_MAPPING",
     requestSnapshot: snapshot(),
     selectedScope: "currentPage",
     selectionSnapshot,
@@ -252,10 +279,11 @@ export default function TerminologyMapping() {
       onExpertModeChange={updateExpertMode}
       extras={
         <AsyncExportAction
-          enabled={false}
-          disabledReason="导出任务接口待引擎包发布任务接入"
-          permissionGranted={false}
+          enabled
+          permissionGranted={canExport}
           request={exportRequest}
+          onSubmit={submitExport.mutateAsync}
+          onPoll={pollExport.mutateAsync}
         />
       }
     >
@@ -263,7 +291,7 @@ export default function TerminologyMapping() {
         filters={PAGE_META.experience.defaultFilters}
         value={filters}
         onChange={updateFilters}
-        onSaveView={() => writeExperienceView(VIEW_KEY, snapshot())}
+        onSaveView={saveCurrentView}
       />
       <PageState
         state={pageState}
