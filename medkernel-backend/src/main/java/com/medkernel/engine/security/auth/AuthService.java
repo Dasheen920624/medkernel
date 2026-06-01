@@ -71,7 +71,8 @@ public class AuthService {
         auditPublisher.publish(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
-            new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd())));
+            new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
+                requiresMfa(roles), cred.mfaSecret() != null && !cred.mfaSecret().isBlank()));
     }
 
     public void logout(String userId) {
@@ -102,4 +103,12 @@ public class AuthService {
     }
 
     public record AuthResult(String jwt, LoginResponse response) {}
+
+    private boolean requiresMfa(List<String> roles) {
+        return roles.stream().anyMatch(role ->
+            "platform-admin".equals(role)
+                || "group-admin".equals(role)
+                || "hospital-admin".equals(role)
+                || "it-ops".equals(role));
+    }
 }

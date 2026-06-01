@@ -71,7 +71,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/v1/system/**",
-                    "/api/v1/bootstrap/**",
+                    "/api/v1/bootstrap/init-token",
+                    "/api/v1/bootstrap/password",
                     "/api/v1/auth/login",
                     "/api/v1/auth/logout",
                     "/actuator/health",

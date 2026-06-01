@@ -58,10 +58,10 @@
 - Create: `medkernel-backend/src/test/java/com/medkernel/engine/security/bootstrap/MfaPolicyServiceTest.java`
 - Modify: `PlatformCredential.java`、`AuthService.java`、高危配置 / 租户开通入口的 guard
 
-- [ ] 写失败测试：首发账号未绑定 MFA 时，高危动作被拒；绑定后放行。
-- [ ] 实现最小 MFA 绑定：服务端生成一次性恢复码摘要 / 或 TOTP secret 保护存储，绑定动作写审计。
-- [ ] 登录响应暴露 `mfaRequired/mfaBound`，业务页 guard 能识别 MFA 未完成状态。
-- [ ] 给配置中心高危变更和租户开通入口加 MFA guard，避免超管未绑 MFA 做高危动作。
+- [x] 写失败测试：首发账号未绑定 MFA 时，高危动作被拒；绑定后放行。
+- [x] 实现最小 MFA 绑定：服务端生成一次性恢复码摘要 / 或 TOTP secret 保护存储，绑定动作写审计。
+- [x] 登录响应暴露 `mfaRequired/mfaBound`，业务页 guard 能识别 MFA 未完成状态。
+- [x] 给配置中心高危变更和租户开通入口加 MFA guard，避免超管未绑 MFA 做高危动作。
 
 ## 任务 4：CLI 应急与首次部署手册
 

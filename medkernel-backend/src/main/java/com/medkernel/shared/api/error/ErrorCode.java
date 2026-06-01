@@ -135,6 +135,7 @@ public enum ErrorCode {
     ENG_AUTH_007("ENG-AUTH-007", 401, "初始化 token 无效", ErrorClass.AUTH, false),
     ENG_AUTH_008("ENG-AUTH-008", 401, "初始化 token 已过期", ErrorClass.AUTH, false),
     ENG_AUTH_009("ENG-AUTH-009", 409, "初始化 token 已使用或已撤销", ErrorClass.AUTH, false),
+    ENG_AUTH_010("ENG-AUTH-010", 403, "高危操作需要先绑定 MFA", ErrorClass.AUTH, false),
     ENG_TENANT_001("ENG-TENANT-001", 409, "租户已存在，无法重复开通", ErrorClass.DATA, false),
     ENG_CONFIG_001("ENG-CONFIG-001", 403, "高危运行配置禁止从界面关闭", ErrorClass.AUTH, false),
     ENG_CONFIG_002("ENG-CONFIG-002", 409, "高危配置变更需要二次确认和变更原因", ErrorClass.AUTH, false),

@@ -17,9 +17,11 @@ import jakarta.validation.Valid;
 public class BootstrapController {
 
     private final BootstrapIdentityService service;
+    private final MfaPolicyService mfaPolicyService;
 
-    public BootstrapController(BootstrapIdentityService service) {
+    public BootstrapController(BootstrapIdentityService service, MfaPolicyService mfaPolicyService) {
         this.service = service;
+        this.mfaPolicyService = mfaPolicyService;
     }
 
     @PostMapping("/init-token")
@@ -30,5 +32,10 @@ public class BootstrapController {
     @PostMapping("/password")
     public ApiResult<BootstrapPasswordResponse> createFirstAdmin(@Valid @RequestBody BootstrapPasswordRequest request) {
         return ApiResult.ok(service.createFirstAdmin(request));
+    }
+
+    @PostMapping("/mfa")
+    public ApiResult<BootstrapMfaResponse> bindMfa(@Valid @RequestBody BootstrapMfaRequest request) {
+        return ApiResult.ok(mfaPolicyService.bindForCurrentUser(request));
     }
 }

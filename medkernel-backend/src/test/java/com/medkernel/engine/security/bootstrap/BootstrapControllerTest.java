@@ -2,6 +2,7 @@ package com.medkernel.engine.security.bootstrap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -106,7 +108,31 @@ class BootstrapControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
+            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaBound").value(false))
             .andExpect(jsonPath("$.data.roles", contains(RoleCode.PLATFORM_ADMIN.code())));
+
+        mvc.perform(post("/api/v1/bootstrap/mfa")
+                .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"label\":\"首发管理员\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaBound").value(true))
+            .andExpect(jsonPath("$.data.recoveryCode").isNotEmpty());
+
+        mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tenantId": "t-1",
+                      "username": "platform-owner",
+                      "password": "StrongPwd@2026"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaBound").value(true));
 
         mvc.perform(post("/api/v1/bootstrap/password")
                 .contentType(MediaType.APPLICATION_JSON)
