@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
  *   <li>来源文献、版本及锚点片段登记</li>
  *   <li>引用锚点 SHA-256 摘要签名计算与幂等防重</li>
  *   <li>待审草稿版本创建（初始为 UNDER_REVIEW）</li>
- *   <li>基于内容哈希 SHA-256 指纹的历史版本碰撞物理去重（ENG-KNOW-002）</li>
+ *   <li>基于内容哈希 SHA-256 指纹的历史版本碰撞去重（ENG-KNOW-002）</li>
  * </ul>
  */
 class KnowledgeEngineTest {
@@ -43,6 +43,7 @@ class KnowledgeEngineTest {
     private SourceDocumentRepository sourceDocRepo;
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
+    private CitationRepository citationRepo;
 
     private KnowledgeIdentityService identityService;
     private KnowledgeVersionService versionService;
@@ -55,13 +56,14 @@ class KnowledgeEngineTest {
         sourceDocRepo = Mockito.mock(SourceDocumentRepository.class);
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
+        citationRepo = Mockito.mock(CitationRepository.class);
 
         identityService = new KnowledgeIdentityService(
-            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo
+            identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
         );
 
         versionService = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo
+            identityRepo, versionRepo, supersessionRepo, citationRepo
         );
 
         // 初始化租户与用户上下文环境

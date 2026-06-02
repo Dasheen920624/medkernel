@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -41,6 +43,7 @@ public class KnowledgeExportController {
     @PostMapping
     @PreAuthorize("@perm.has('knowledge.export')")
     public ApiResult<KnowledgeExportJob> submit(@Valid @RequestBody SubmitExportRequest req) {
+        req.context().validateTenant(RequestContext.currentOrgScope().tenantId());
         return ApiResult.ok(exportService.submit(req.type(), req.filterJson()));
     }
 
@@ -76,7 +79,31 @@ public class KnowledgeExportController {
 
     /** 提交导出作业请求体。filterJson 是可选的 JSON 字符串，按 type 不同语义不同。 */
     public record SubmitExportRequest(
+        @JsonAlias("request_id") String requestId,
+        @JsonAlias("trace_id") String traceId,
+        @JsonAlias("tenant_id") String tenantId,
+        @JsonAlias("group_id") String groupId,
+        @JsonAlias("hospital_id") String hospitalId,
+        @JsonAlias("campus_id") String campusId,
+        @JsonAlias("site_id") String siteId,
+        @JsonAlias("department_id") String departmentId,
+        @JsonAlias("specialty_id") String specialtyId,
+        @JsonAlias("user_id") String userId,
+        @JsonAlias("role_codes") List<String> roleCodes,
+        @JsonAlias("package_version") String packageVersion,
         @NotNull ExportType type,
-        @Size(max = 2000) String filterJson
-    ) {}
+        @JsonAlias("filter_json") @Size(max = 2000) String filterJson
+    ) {
+
+        public SubmitExportRequest {
+            roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        }
+
+        KnowledgeApiContext context() {
+            return KnowledgeApiContext.from(
+                requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+                departmentId, specialtyId, userId, roleCodes, packageVersion
+            );
+        }
+    }
 }

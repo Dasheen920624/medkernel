@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 API-01 标准上下文 API 🚧
+### 线 1 · D2 API-03 标准知识资产 API 🚧
 
 - 类型：软件开发 / 后端 API / 迁移 / 文档
-- 分支：`codex/d2-api-01-standard-context-api`（基于 `origin/main` b7326940，D1 域级验收 #246 已合并）
-- 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-01](cards/D2/API-01.md) 收口标准上下文 API：对齐 §1.4 统一入参、`request_id` 幂等、12 类 `CanonicalResource` 往返、`packageVersion` 快照绑定、缺失/映射诚实读回、组织作用域拒绝与 diagnose 追溯；补 V48 快照头字段与索引。
-- 状态：在途，本地实现与验证已完成，待提交 PR。已写 [实施计划](superpowers/plans/2026-06-02-api-01-standard-context-api.md)；已按 TDD 补红灯测试并实现 `ContextSnapshotRequest/Response/Service/Repository`、`ORG_SCOPE_DENIED`、V48 五方言结构迁移，并补 snake_case 标准请求 JSON 绑定回归。已通过聚焦回归、后端全量 `mvn -q test`（816 tests，failures=0/errors=0/skipped=0，含 PostgreSQL 15 + Oracle 21 Testcontainers 迁移至 V48）、T-GATE 规则测试 34/34、真实性全仓扫描 747 文件、中文注释全量扫描（V48 OK，历史 GAP 仍归 `DEFER-006`）与 `git diff --check`。`DEFER-008` 已登记：全局缺上下文错误码仍沿用 `ENG-BASE-001/TENANT_CONTEXT_MISSING`，`CONTEXT_MISSING` 命名别名放到错误码治理阶段，不阻塞本卡主链路。
-- 下一步（精确到动作/命令）：1. `git diff --stat` / `git status` 终检；2. 提交、推送、建 PR；3. CI 8/8 通过后 squash 合并、确认 `origin/main`；4. 清理远端分支、本地分支和 worktree；5. 从最新 `origin/main` 继续 D2 下一张 pending 卡（当前为 `API-03`）。
-- 相关文件 / 测试 / 坑：关键文件为 `medkernel-backend/src/main/java/com/medkernel/engine/context/*`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/main/resources/db/migration/*/V48__context_snapshot_standard_contract.sql`、`docs/cards/D2/API-01.md`、`docs/audit/deferred-issues.md`。本阶段真实运行范围仍是 PostgreSQL + Oracle；达梦 / 金仓真实环境不作为当前阻塞，继续登记 `DEFER-001`。
+- 分支：`codex/d2-api-03-knowledge-asset-api`（基于 `origin/main` b4f157e9，D2 API-01 #247 已合并）
+- 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-03](cards/D2/API-03.md) 收口知识资产 API：来源登记、资产版本、引用锚点、提交 / 激活 / 撤回、lineage、历史重放、候选 / 审核契约、大列表分页与异步导出；所有新写端点对齐标准请求上下文、真实权限与诚实降级。
+- 状态：在途，本地实现与全量验证已完成；已补统一知识资产客户面、候选诚实 B0、历史重放、导出统一上下文、旧入口清理，以及无来源引用禁止激活门禁。下一步提交 PR、等待 CI、合并清理，再领取 API-04。
+- 下一步（精确到动作/命令）：1. `git status --short`；2. `git add ...` 后跑 `git diff --cached --check`；3. `git commit -m "D2 API-03 标准知识资产 API 收口"`；4. push + PR；5. 等 CI 8/8 通过后 squash merge；6. 确认 `origin/main` 含合并提交，删除远端/本地分支和 worktree；7. 基于最新 `origin/main` 领取 API-04。
+- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/test/java/com/medkernel/engine/knowledge/**`、`docs/cards/D2/API-03.md`、`docs/audit/deferred-issues.md`。已通过 API-03 聚焦回归、`mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、后端全量 `mvn -q test`、T-GATE 脚本 34/34、真实性全仓扫描 747 文件、中文注释全量扫描、`git diff --check`；历史迁移 COMMENT GAP 仍归 `DEFER-006`，达梦 / 金仓真实环境归 `DEFER-001`，真实 10 万级知识资产压测归 `DEFER-009`，均不阻塞 API-03 PR，但不得宣称已清零。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 API-01 标准上下文 API ✅（#247，merge `b4f157e9`）：收口标准上下文 API 12 字段统一入参、`request_id` 幂等、12 类 `CanonicalResource` 往返、`packageVersion` 快照绑定、缺失 / 映射诚实读回、组织作用域拒绝与 diagnose 追溯；补 V48 快照头字段、索引与 PostgreSQL / Oracle / H2 迁移。后端全量 `mvn -q test` 816 tests、PostgreSQL 15 + Oracle 21 迁移至 V48、T-GATE 34/34、真实性全仓扫描 747 文件、中文注释扫描（历史 GAP 仍归 `DEFER-006`）、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D1 工作台域级验收 ✅（#246，merge `b7326940`）：新增 `/dashboard` 显式 13 角色路由约束，补 `routes.test.ts` 与 `WorkbenchPanel.test.tsx` 13 角色默认首屏验收，新增 [D1 工作台域级验收报告](audit/D1-domain-acceptance.md)，将 `WORKBENCH-01` / `WORKBENCH-02` / `D1-验收` 同步为 done。D1 聚焦 5 文件 / 46 测试、前端 `npm run verify` 41 文件 / 205 测试、`npm run build`、T-GATE 规则测试 34/34、全仓真实性扫描 747 文件、中文注释扫描、Playwright fallback 验证与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D1 WORKBENCH-02 演示与校验页面 ✅（#245，merge `07f8f77f`）：新增 `/workbench/demo-validation` 页面、路由、同槽 Tab、只读自检、六态、中文阻塞原因与修复去处；后端新增 `workbench:demo:view` 动作权限和五方言 V47 权限迁移。前端 `npm run verify` 41 文件 / 203 测试、`npm run build`、后端权限 / 迁移目标测试、H2 / PostgreSQL / Oracle V47 迁移基线、真实性全仓扫描、T-GATE 34/34、中文注释扫描与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。Playwright fallback 验收 `/workbench/demo-validation` 标题 / 真实计数 / 3 个筛选 / 单主按钮 / 无 `/api/v1/workbench/*`。
 - D1 WORKBENCH-01 PR2 ✅（#244，merge `99290b6f`）：补齐 1 个页头主按钮“继续处理待办”、3 个默认筛选、现有路由下钻、未建域诚实详情抽屉、平台/院管治理切片与本周建议动作；`TenantLifecyclePanel` 内部推进按钮降为普通动作，避免平台视图多个同权主按钮。前端 `WorkbenchPanel` 聚焦 11/11、`npm run verify` 40 文件 / 193 测试、`npm run build`、真实性全仓扫描 745 文件、T-GATE 33/33、`git diff --check` 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。Browser 插件无可用 `iab` 保持 `DEFER-004`，Playwright fallback 证实 `/dashboard` 非白屏、诚实权限失败态、无旧占位、无 `/api/v1/workbench/*`。
@@ -133,4 +134,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；D1 域级验收已通过 #246 合入，当前在途为 D2 `API-01` 标准上下文 API `codex/d2-api-01-standard-context-api`。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-008` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；D2 API-01 已通过 #247 合入，当前在途为 D2 `API-03` 标准知识资产 API `codex/d2-api-03-knowledge-asset-api`，本地实现与全量门禁已完成，待 PR / CI / 合并。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-009` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

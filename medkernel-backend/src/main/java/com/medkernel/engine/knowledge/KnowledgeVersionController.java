@@ -9,11 +9,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -39,10 +41,56 @@ public class KnowledgeVersionController {
         return ApiResult.ok(versionService.listByIdentity(identityId));
     }
 
+    @PostMapping("/identities/{identityId}/versions")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<KnowledgeAssetVersion> createVersion(@PathVariable Long identityId,
+                                                          @Valid @RequestBody KnowledgeVersionCreateRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(versionService.createDraftVersion(identityId, request));
+    }
+
     @GetMapping("/versions/{versionId}")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeAssetVersion> get(@PathVariable Long versionId) {
         return ApiResult.ok(versionService.getVersion(versionId));
+    }
+
+    @PostMapping("/identities/{identityId}/versions/{versionId}/submit")
+    @PreAuthorize("@perm.has('knowledge.review')")
+    public ApiResult<KnowledgeAssetVersion> submit(@PathVariable Long identityId,
+                                                   @PathVariable Long versionId,
+                                                   @Valid @RequestBody KnowledgeActionRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(versionService.submit(identityId, versionId, request));
+    }
+
+    @GetMapping("/identities/{identityId}/versions/{versionId}/replay")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeReplayResponse> replay(@PathVariable Long identityId,
+                                                     @PathVariable Long versionId,
+                                                     @RequestParam(required = false) String packageVersion,
+                                                     @RequestParam(required = false) String snapshotId) {
+        return ApiResult.ok(versionService.replayVersion(identityId, versionId, packageVersion, snapshotId));
+    }
+
+    @GetMapping("/identities/{identityId}/candidates")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeCandidateResponse> candidates(@PathVariable Long identityId) {
+        return ApiResult.ok(versionService.listCandidates(identityId));
+    }
+
+    @PostMapping("/candidates/{candidateId}/review")
+    @PreAuthorize("@perm.has('knowledge.review')")
+    public ApiResult<KnowledgeCandidateResponse> reviewCandidate(@PathVariable Long candidateId,
+                                                                 @Valid @RequestBody KnowledgeCandidateReviewRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(versionService.reviewCandidate(candidateId, request));
+    }
+
+    @GetMapping("/candidates/{candidateId}/diff")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeCandidateResponse> diffCandidate(@PathVariable Long candidateId) {
+        return ApiResult.ok(versionService.diffCandidate(candidateId));
     }
 
     /**
@@ -69,18 +117,6 @@ public class KnowledgeVersionController {
                                                      @PathVariable Long versionId,
                                                      @Valid @RequestBody WithdrawVersionRequest req) {
         return ApiResult.ok(versionService.withdraw(identityId, versionId, req.reason()));
-    }
-
-    /**
-     * 创建待审版本草稿。
-     *
-     * @param request 创建请求
-     * @return 创建的版本草稿实体
-     */
-    @PostMapping("/versions/draft")
-    @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<KnowledgeAssetVersion> createDraftVersion(@Valid @RequestBody DraftVersionCreateRequest request) {
-        return ApiResult.ok(versionService.createDraftVersion(request));
     }
 
     /** 版本激活请求体。reason 是激活说明，高风险必填，常风险可空。 */
