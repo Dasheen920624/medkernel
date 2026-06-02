@@ -12,12 +12,13 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
 import jakarta.validation.Valid;
 
 /**
- * GA-ENG-API-04 术语映射 API（标准/本地术语查询、候选确认、冲突处置、术语包构建/发布/回滚）。
+ * GA-ENG-API-04 字典映射 API（标准/院内字典查询、候选生成、高危确认、冲突处置、映射包发布/回滚）。
  *
  * <p>所有接口要求当前请求上下文携带租户（{@link DataScope#requireTenant}），
  * 读接口需要 {@code term.read}，写接口需要 {@code term.write}，
@@ -35,9 +36,9 @@ public class TerminologyController {
     }
 
     /**
-     * 分页查询当前租户的标准术语，支持按 standardSystem / category / status / keyword 过滤。
+     * 分页查询当前租户的标准字典，支持按 standardSystem / category / status / keyword 过滤。
      */
-    @GetMapping("/standard-terms")
+    @GetMapping("/terms/standard")
     @PreAuthorize("@perm.has('term.read')")
     public ApiResult<PageResponse<StandardTerm>> standardTerms(
             @RequestParam(required = false) Integer page,
@@ -54,9 +55,9 @@ public class TerminologyController {
     }
 
     /**
-     * 分页查询当前租户的本地术语，支持按 sourceSystem / category / status / keyword 过滤。
+     * 分页查询当前租户的院内字典，支持按 sourceSystem / category / status / keyword 过滤。
      */
-    @GetMapping("/local-terms")
+    @GetMapping("/terms/local")
     @PreAuthorize("@perm.has('term.read')")
     public ApiResult<PageResponse<LocalTerm>> localTerms(
             @RequestParam(required = false) Integer page,
@@ -94,25 +95,41 @@ public class TerminologyController {
     /**
      * 分页查询当前租户的候选映射，支持按 status / riskLevel / conflictFlag 过滤。
      */
-    @GetMapping("/candidates")
+    @GetMapping("/mappings/candidates")
     @PreAuthorize("@perm.has('term.read')")
-    public ApiResult<PageResponse<MappingCandidate>> candidates(
+    public ApiResult<PageResponse<TerminologyCandidateResponse>> candidates(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) MappingCandidateStatus status,
             @RequestParam(required = false) TermRiskLevel riskLevel,
             @RequestParam(required = false) Boolean conflictFlag) {
-        return ApiResult.ok(service.pageCandidates(
-            new PageRequest(page, size, sort),
+        PageRequest request = new PageRequest(page, size, sort);
+        PageResponse<MappingCandidate> pageResult = service.pageCandidates(
+            request,
             new CandidateFilter(status, riskLevel, conflictFlag)
+        );
+        return ApiResult.ok(new PageResponse<>(
+            pageResult.items().stream().map(TerminologyCandidateResponse::from).toList(),
+            pageResult.page(), pageResult.size(), pageResult.total(), pageResult.hasNext(), pageResult.totalEstimated()
         ));
+    }
+
+    /**
+     * 生成指定来源系统的确定性 B0 映射候选。
+     */
+    @PostMapping("/mappings/candidates")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<TerminologyCandidateGenerationResponse> generateCandidates(
+            @Valid @RequestBody TerminologyCandidateGenerationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.generateCandidates(request));
     }
 
     /**
      * 分页查询当前租户的映射冲突，支持按 status / riskLevel / conflictType 过滤。
      */
-    @GetMapping("/conflicts")
+    @GetMapping("/mappings/conflicts")
     @PreAuthorize("@perm.has('term.read')")
     public ApiResult<PageResponse<MappingConflict>> conflicts(
             @RequestParam(required = false) Integer page,
@@ -128,31 +145,42 @@ public class TerminologyController {
     }
 
     /**
-     * 确认指定候选映射，把它升级为 CONFIRMED 状态的正式 {@link TermMapping}。
-     *
-     * <p>候选必须存在且处于 PENDING 状态；本地与标准术语分类不一致时拒绝。
+     * 确认指定候选映射，高危候选必须逐条二次确认。
      */
-    @PostMapping("/candidates/{id}/confirm")
+    @PostMapping("/mappings/{id}/confirm")
     @PreAuthorize("@perm.has('term.write')")
     public ApiResult<TermMapping> confirmCandidate(@PathVariable Long id,
-                                                   @Valid @RequestBody ConfirmMappingRequest request) {
+                                                   @Valid @RequestBody TerminologyCandidateConfirmRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.confirmCandidate(id, request));
+    }
+
+    /**
+     * 批量确认普通候选；任何高危候选都会被服务层拒绝。
+     */
+    @PostMapping("/mappings/batch-confirm")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<TerminologyBatchConfirmResponse> batchConfirmCandidates(
+            @Valid @RequestBody TerminologyCandidateBatchConfirmRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.batchConfirmCandidates(request));
     }
 
     /**
      * 处置指定冲突记录，要求冲突当前处于 OPEN 状态。
      */
-    @PostMapping("/conflicts/{id}/resolve")
+    @PostMapping("/mappings/conflicts/{id}/resolve")
     @PreAuthorize("@perm.has('term.write')")
     public ApiResult<MappingConflict> resolveConflict(@PathVariable Long id,
                                                       @Valid @RequestBody ResolveConflictRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.resolveConflict(id, request));
     }
 
     /**
-     * 分页查询当前租户的术语映射包，支持按 packageCode / status / scopeLevel / scopeCode 过滤。
+     * 分页查询当前租户的映射包，支持按 packageCode / status / scopeLevel / scopeCode 过滤。
      */
-    @GetMapping("/packages")
+    @GetMapping("/mapping-packages")
     @PreAuthorize("@perm.has('term.read')")
     public ApiResult<PageResponse<TermMappingPackage>> packages(
             @RequestParam(required = false) Integer page,
@@ -169,13 +197,14 @@ public class TerminologyController {
     }
 
     /**
-     * 基于给定范围内的全部 CONFIRMED 映射构建一个新的 DRAFT 状态术语映射包。
+     * 基于给定范围内的全部 CONFIRMED 映射构建一个新的 DRAFT 状态映射包。
      *
      * <p>范围内若无任何已确认映射则拒绝构包。
      */
-    @PostMapping("/packages")
+    @PostMapping("/mapping-packages")
     @PreAuthorize("@perm.has('term.write')")
     public ApiResult<TermMappingPackage> buildPackage(@Valid @RequestBody BuildTerminologyPackageRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.buildPackage(request));
     }
 
@@ -185,10 +214,11 @@ public class TerminologyController {
      * <p>FULL 模式发布时，会把同 (packageCode + scope) 下旧 PUBLISHED 包置为 SUPERSEDED；
      * 同步写入一条 PUBLISH 发布事件流水。
      */
-    @PostMapping("/packages/{id}/publish")
+    @PostMapping("/mapping-packages/{id}/publish")
     @PreAuthorize("@perm.has('term.publish')")
     public ApiResult<TermMappingPackage> publishPackage(@PathVariable Long id,
                                                         @Valid @RequestBody PublishTerminologyPackageRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.publishPackage(id, request));
     }
 
@@ -197,19 +227,15 @@ public class TerminologyController {
      *
      * <p>目标包必须与当前包同 (packageCode + scope)，且处于 PUBLISHED 或 SUPERSEDED 状态。
      */
-    @PostMapping("/packages/{id}/rollback")
+    @PostMapping("/mapping-packages/{id}/rollback")
     @PreAuthorize("@perm.has('package.rollback')")
     public ApiResult<TermMappingPackage> rollbackPackage(@PathVariable Long id,
                                                          @Valid @RequestBody RollbackTerminologyPackageRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.rollbackPackage(id, request));
     }
 
-    /**
-     * 智能匹配推荐：一键为指定来源系统的未映射词条自动推荐标准候选词。
-     */
-    @PostMapping("/candidates/auto-recommend")
-    @PreAuthorize("@perm.has('term.write')")
-    public ApiResult<Integer> autoRecommend(@RequestParam String sourceSystem) {
-        return ApiResult.ok(service.autoRecommendCandidates(sourceSystem));
+    private void validateContext(TerminologyContextRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
     }
 }

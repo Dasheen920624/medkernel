@@ -43,7 +43,7 @@ class TerminologyControllerSecurityTest {
         when(terminologyService.pageLocalTerms(any(PageRequest.class), any(LocalTermFilter.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
-        mvc.perform(get("/api/v1/engine/terminology/local-terms"))
+        mvc.perform(get("/api/v1/engine/terminology/terms/local"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -51,16 +51,16 @@ class TerminologyControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestRoleIsForbiddenFromReadingTerminology() throws Exception {
-        mvc.perform(get("/api/v1/engine/terminology/local-terms"))
+        mvc.perform(get("/api/v1/engine/terminology/terms/local"))
             .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanReachCandidateConfirmationButStillNeedsTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/terminology/candidates/10/confirm")
+        mvc.perform(post("/api/v1/engine/terminology/mappings/10/confirm")
                 .contentType("application/json")
-                .content("{\"reviewNote\":\"专家确认\"}"))
+                .content("{\"reviewNote\":\"专家确认\",\"highRiskAcknowledged\":true,\"highRiskReason\":\"已逐条核对\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -68,7 +68,7 @@ class TerminologyControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void itOpsCanReachPackagePublishButStillNeedsTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/terminology/packages/30/publish")
+        mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/publish")
                 .contentType("application/json")
                 .content("{\"releaseMode\":\"FULL\",\"reason\":\"全量发布\"}"))
             .andExpect(status().isBadRequest())
@@ -78,7 +78,7 @@ class TerminologyControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void itOpsCanReachPackageRollbackButStillNeedsTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/terminology/packages/30/rollback")
+        mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/rollback")
                 .contentType("application/json")
                 .content("{\"targetPackageId\":29,\"reason\":\"发现映射异常\"}"))
             .andExpect(status().isBadRequest())

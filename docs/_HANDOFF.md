@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 API-03 标准知识资产 API 🚧
+### 线 1 · D2 API-04 字典映射 API 🚧
 
 - 类型：软件开发 / 后端 API / 迁移 / 文档
-- 分支：`codex/d2-api-03-knowledge-asset-api`（基于 `origin/main` b4f157e9，D2 API-01 #247 已合并）
-- 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-03](cards/D2/API-03.md) 收口知识资产 API：来源登记、资产版本、引用锚点、提交 / 激活 / 撤回、lineage、历史重放、候选 / 审核契约、大列表分页与异步导出；所有新写端点对齐标准请求上下文、真实权限与诚实降级。
-- 状态：在途，本地实现与全量验证已完成；已补统一知识资产客户面、候选诚实 B0、历史重放、导出统一上下文、旧入口清理，以及无来源引用禁止激活门禁。下一步提交 PR、等待 CI、合并清理，再领取 API-04。
-- 下一步（精确到动作/命令）：1. `git status --short`；2. `git add ...` 后跑 `git diff --cached --check`；3. `git commit -m "D2 API-03 标准知识资产 API 收口"`；4. push + PR；5. 等 CI 8/8 通过后 squash merge；6. 确认 `origin/main` 含合并提交，删除远端/本地分支和 worktree；7. 基于最新 `origin/main` 领取 API-04。
-- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/test/java/com/medkernel/engine/knowledge/**`、`docs/cards/D2/API-03.md`、`docs/audit/deferred-issues.md`。已通过 API-03 聚焦回归、`mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、后端全量 `mvn -q test`、T-GATE 脚本 34/34、真实性全仓扫描 747 文件、中文注释全量扫描、`git diff --check`；历史迁移 COMMENT GAP 仍归 `DEFER-006`，达梦 / 金仓真实环境归 `DEFER-001`，真实 10 万级知识资产压测归 `DEFER-009`，均不阻塞 API-03 PR，但不得宣称已清零。
+- 分支：`codex/d2-api-04-dictionary-mapping-api`（基于 `origin/main` 86a01727，D2 API-03 #248 已合并）
+- 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-04](cards/D2/API-04.md) 收口字典映射 API：标准 / 院内字典查询、确定性候选生成、高危标注、禁批量确认、逐条二次确认、冲突列举、映射包发布 / 回滚与 12 字段统一入参。
+- 状态：本地实现与验证已完成，等待提交 PR、远端 CI 与合并；已按 TDD 补 API-04 契约测试，清理旧 `auto-recommend` / `standard-terms` / `local-terms` / `packages/**` / `candidates/{id}/confirm` 客户面入口，并实现 12 字段上下文、高危批量拒绝、批量重复候选去重与逐条二次确认。
+- 下一步（精确到动作/命令）：1. 最后跑 `git diff --check` 与 staged diff 检查；2. 提交 `D2 API-04 字典映射 API 收口`；3. 推送 `codex/d2-api-04-dictionary-mapping-api` 并建 PR；4. 等待远端 CI 8/8 全绿；5. squash 合并、确认 `origin/main` 含合并提交、删除远端分支并清理 worktree；6. 从最新 `origin/main` 领取下一张 D2 卡。
+- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/terminology/**`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/test/java/com/medkernel/engine/terminology/**`、`docs/cards/D2/API-04.md`、`docs/superpowers/plans/2026-06-02-api-04-dictionary-mapping-api.md`。本地已跑：术语基线、API-04 红绿聚焦、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描、中文注释全量扫描与 diff 检查。真实 10 万级字典压测归 `DEFER-010`；当前 PostgreSQL + Oracle 为真实保障范围，国产化真实环境继续归 `DEFER-001`，历史 COMMENT GAP 归 `DEFER-006`，GitHub Actions Node.js 20 弃用提醒归 `DEFER-011`，非当前阶段阻塞登记后继续主线。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 API-03 标准知识资产 API ✅（#248，merge `86a01727`）：收口 `/api/v1/engine/knowledge/**` 统一客户面，交付来源登记、资产版本、引用锚点、提交 / 激活 / 撤回、lineage、历史重放、异步导出、标准上下文与候选诚实 B0；新增无来源引用禁止激活门禁 `KNOWLEDGE_CITATION_REQUIRED`，清理 API-03 触碰范围旧入口和不自然“物理”表述。本地聚焦回归、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描 747 文件、中文注释扫描、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001`、`DEFER-006`、`DEFER-009` 保持 open，不阻塞主线但不得宣称清零。
 - D2 API-01 标准上下文 API ✅（#247，merge `b4f157e9`）：收口标准上下文 API 12 字段统一入参、`request_id` 幂等、12 类 `CanonicalResource` 往返、`packageVersion` 快照绑定、缺失 / 映射诚实读回、组织作用域拒绝与 diagnose 追溯；补 V48 快照头字段、索引与 PostgreSQL / Oracle / H2 迁移。后端全量 `mvn -q test` 816 tests、PostgreSQL 15 + Oracle 21 迁移至 V48、T-GATE 34/34、真实性全仓扫描 747 文件、中文注释扫描（历史 GAP 仍归 `DEFER-006`）、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D1 工作台域级验收 ✅（#246，merge `b7326940`）：新增 `/dashboard` 显式 13 角色路由约束，补 `routes.test.ts` 与 `WorkbenchPanel.test.tsx` 13 角色默认首屏验收，新增 [D1 工作台域级验收报告](audit/D1-domain-acceptance.md)，将 `WORKBENCH-01` / `WORKBENCH-02` / `D1-验收` 同步为 done。D1 聚焦 5 文件 / 46 测试、前端 `npm run verify` 41 文件 / 205 测试、`npm run build`、T-GATE 规则测试 34/34、全仓真实性扫描 747 文件、中文注释扫描、Playwright fallback 验证与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D1 WORKBENCH-02 演示与校验页面 ✅（#245，merge `07f8f77f`）：新增 `/workbench/demo-validation` 页面、路由、同槽 Tab、只读自检、六态、中文阻塞原因与修复去处；后端新增 `workbench:demo:view` 动作权限和五方言 V47 权限迁移。前端 `npm run verify` 41 文件 / 203 测试、`npm run build`、后端权限 / 迁移目标测试、H2 / PostgreSQL / Oracle V47 迁移基线、真实性全仓扫描、T-GATE 34/34、中文注释扫描与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。Playwright fallback 验收 `/workbench/demo-validation` 标题 / 真实计数 / 3 个筛选 / 单主按钮 / 无 `/api/v1/workbench/*`。
@@ -134,4 +135,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；D2 API-01 已通过 #247 合入，当前在途为 D2 `API-03` 标准知识资产 API `codex/d2-api-03-knowledge-asset-api`，本地实现与全量门禁已完成，待 PR / CI / 合并。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-009` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；D2 API-04 字典映射 API本地实现与验证已完成，当前分支为 `codex/d2-api-04-dictionary-mapping-api`，下一步提交 PR、等待 CI、合并清理后领取下一卡。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-011` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
