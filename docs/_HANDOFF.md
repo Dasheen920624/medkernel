@@ -12,16 +12,17 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 SYS-04 PR2 继承解析 🚧
+### 线 1 · D2 SYS-04 PR3 发布流 / 回滚 / 历史重放 🚧
 - 类型：软件开发
-- 分支：`codex/d2-sys-04-pr2-inheritance-resolver`
-- 目标：完成 SYS-04 PR2：在 PR1 `AssetVersion` 地基上实现 `InheritanceResolver` 七层组织继承解析、局部覆盖差异可解释、安全红线不可被下级静默关闭，对齐 AC-2。
-- 状态：PR2 本地实现已完成并进入最终验证 / 提交 / PR 阶段：已新增七层继承解析、局部替换覆盖解释、`safety_policy` 与 `INHERITANCE_SAFETY_DENIED`；普通 `DISABLE` 关闭继承在 PR2 诚实拒绝，留待 PR3 发布流具备审核 / 证据链 / 解析消费后开放。当前真实运行范围仍为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境继续登记在 `DEFER-001`，不阻塞 PR2。
-- 下一步（精确到动作/命令）：1. 跑聚焦测试、后端全量、T-GATE、中文注释和空白检查；2. 提交 `SYS-04 PR2 继承解析与安全红线`；3. 提交后重跑 changed T-GATE，推送并创建 PR；4. 等远端 CI 通过后 squash 合并；5. 从最新 `origin/main` 领取 SYS-04 PR3 发布流 / 回滚 / 历史重放。
-- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`docs/cards/D0/BASE-01.md`、`medkernel-backend/src/main/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/java/com/medkernel/engine/org`、`medkernel-backend/src/test/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/resources/db/migration/*/V55__version_inheritance_override.sql`；PR2 只做继承解析和替换覆盖解释，不提前做 PR3 的完整发布流、回滚、历史重放和发布证据；新增迁移须确认 PostgreSQL + Oracle 可真实运行，DM / Kingbase 只做静态一致性维护。
+- 分支：`codex/d2-sys-04-pr3-release-flow`
+- 目标：完成 SYS-04 PR3：在 `engine.versioning` 抽取通用 `ReleasePort` 与 `ReplayPort`，交付变更类发布流（待发布 / 灰度 / 全量 / 回滚）、发布证据、回滚安全门禁、历史重放绑定和新事件只解析当前 ACTIVE 的隔离语义，对齐 AC-3/4/5。
+- 状态：PR2 已通过 #285 squash 合并（merge `13261cee`，远端 CI 8/8 通过），PR3 本地实现已完成：新增通用 `ReleasePort` / `ReplayPort`、`VersionReleaseService`、`VersionReplayService`、`mk_version_release_plan` / `mk_version_activation_transaction` / `mk_version_replay_binding` V56 五方言迁移，补齐激活 / 回滚幂等重试短路与激活事务唯一约束，并明确不复用包域 `release_plan` 旧表。当前真实运行范围仍为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境继续登记在 `DEFER-001`，不阻塞 PR3。
+- 下一步（精确到动作/命令）：1. 提交前跑门禁：真实性 / 配置边界 / 迁移规约 / 中文注释 / `git diff --check`；2. 提交并推送 `codex/d2-sys-04-pr3-release-flow`；3. 创建 PR3，等待远端 CI 8/8 通过；4. squash 合并到 `origin/main` 并确认 merge commit 后，再从最新 `origin/main` 领取下一阶段。
+- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`docs/cards/D2/_brief.md`、`docs/CONSTITUTION.md`、`medkernel-backend/src/main/java/com/medkernel/engine/versioning`、`medkernel-backend/src/test/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/resources/db/migration/*`、`medkernel-backend/src/main/java/com/medkernel/engine/pkg`；PR3 不新增客户面端点，不把包域 `release_plan` 直接当通用表；高危回滚必须有安全校验和授权确认，历史旧版只用于重放解释，不混入新推荐。本地验证已通过：`mvn -q -Dtest=VersionReleaseServiceTest,VersionReplayServiceTest test`、`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test`、`mvn -q -Dtest=FlywayMultiDialectSmokeTest,MigrationBaselineContractTest test`、`mvn -q test`；Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 均迁移至 V56，Oracle arm64 模拟运行仅性能提醒。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 SYS-04 PR2 继承解析 ✅（#285，merge `13261cee`）：在 `AssetVersion` 地基上新增 `InheritanceResolver` 七层组织回退解析、`mk_version_inheritance_override` 局部替换覆盖解释、`safety_policy` 和 `INHERITANCE_SAFETY_DENIED`；普通 `DISABLE` 关闭继承在 PR2 诚实拒绝，留待 PR3 发布证据链。验证：红灯测试先证明普通关闭会被错误放行，修正后聚焦套件通过；后端全量 `mvn -q test`，Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 迁移至 V55；changed 真实性 / 配置边界 / 迁移规约 / 中文注释 / `git diff --check` 本地通过；远端 CI 8/8 通过后 squash 合并。PR3 发布流 / 回滚 / 历史重放未冒领，`DEFER-001` 国产化真实环境仍 open。
 - D2 SYS-04 PR1 不可变版本框架 ✅（#283，merge `0d9f1d7`）：新增 `engine.versioning` 通用 `AssetVersion` / `VersionedAssetPort` / `AssetVersionService` / `AssetVersionRepository`，共享 `Sha256ContentHash` 与 `Ulid`，V54 五方言 `mk_version_asset_version` 迁移，`version_id=av-<ULID>`、`org_path`、稳定 `content_hash`、状态机和同一生效域 ACTIVE 唯一约束；补 `engine-versioning` 单一 owner。验证：后端聚焦 / 全量 `mvn -q test`，Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 迁移至 V54；changed 真实性 / 配置边界 / 迁移规约 / 中文注释 / `git diff --check` 本地通过；远端 CI 8/8 通过后 squash 合并。PR2 继承解析与 PR3 发布流 / 回滚 / 历史重放未冒领，`DEFER-001` 国产化真实环境仍 open。
 - D2 PKG-01 PR3 同步证据 / 失败站点 / 导出 ✅（#281，merge `8ab7b2a1`）：新增 `PackageEngineService.exportSyncEvidence` 与 `GET /engine/pkg/packages/{packageId}/sync-logs/export`，NDJSON 导出发布计划、同步目标、失败 / 未接入站点和审计摘要；配置包中心显示 `FAILED` / `NOT_SYNCED` 站点、逐站点原因和“导出同步证据”入口。后端聚焦 / 全量、前端目标 / typecheck / verify / build、生产依赖审计、T-GATE、真实性全仓、配置边界、迁移 changed、中文注释、`git diff --check`、项目 Playwright `/config/packages` 和远端 CI 8/8 通过后合入。PKG-01 现已覆盖 AC-1/2/3；`DEFER-019` 随访模板资产化仍 open，不冒领。
 - D2 PKG-01 PR2 灰度 / 全量 / 回滚发布闸 ✅（#280，merge `a0a13416`）：配置包灰度默认生成 10% 床位范围快照且不覆盖 ACTIVE；直接全量必须由院级管理员 / 等价院级管理角色确认；回滚继续保持高危确认、成功同步证据和失败不切状态；配置包中心默认灰度、非院级角色禁用全量，清理触碰范围旧 Ant Design 废弃用法。后端聚焦 / 全量、前端目标 / verify / build、生产依赖审计、T-GATE、真实性全仓、配置边界、迁移 changed、中文注释、`git diff --check`、项目 Playwright `/config/packages` 和远端 CI 8/8 通过后合入。未冒领 PR3 同步证据导出和失败站点。
@@ -158,4 +159,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；当前推进 SYS-04 PR2 继承解析，PR2 本地实现进入最终验证 / 提交 / PR 阶段，完成后才领取 SYS-04 PR3。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；SYS-04 PR3 本地实现与后端全量验证已完成，正在进入提交 / PR / CI / 合并阶段，合并后才领取下一阶段。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

@@ -81,7 +81,8 @@ class MigrationBaselineContractTest {
         "V52__knowledge_candidate_workflow.sql",
         "V53__terminology_high_risk_rules.sql",
         "V54__asset_version_framework.sql",
-        "V55__version_inheritance_override.sql"
+        "V55__version_inheritance_override.sql",
+        "V56__version_release_replay.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -121,7 +122,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version", "mk_version_inheritance_override"
+        "mk_version_asset_version", "mk_version_inheritance_override",
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -224,7 +226,9 @@ class MigrationBaselineContractTest {
         "idx_mk_projection_snapshot_tenant_target",
         "idx_mk_version_asset_version_tenant_status", "idx_mk_version_asset_version_identity",
         "idx_mk_version_asset_version_active_scope",
-        "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version"
+        "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
+        "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
+        "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -336,7 +340,13 @@ class MigrationBaselineContractTest {
         "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash",
         "ck_mk_version_asset_safety_policy",
         "uk_mk_version_inheritance_override_id", "uk_mk_version_inheritance_override_active",
-        "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode"
+        "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode",
+        "uk_mk_version_release_plan_id", "ck_mk_version_release_plan_type",
+        "ck_mk_version_release_plan_scope", "ck_mk_version_release_plan_status",
+        "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
+        "ck_mk_version_activation_transaction_type", "ck_mk_version_activation_transaction_action",
+        "uk_mk_version_replay_binding_id", "uk_mk_version_replay_binding_event",
+        "ck_mk_version_replay_binding_type", "ck_mk_version_replay_binding_hash"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -373,7 +383,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version", "mk_version_inheritance_override"
+        "mk_version_asset_version", "mk_version_inheritance_override",
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -405,7 +416,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_version_asset_version", "mk_version_inheritance_override"
+        "mk_version_asset_version", "mk_version_inheritance_override",
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
         Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
@@ -495,7 +507,10 @@ class MigrationBaselineContractTest {
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),
         Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind")),
         Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status")),
-        Map.entry("mk_version_inheritance_override", Set.of("override_mode"))
+        Map.entry("mk_version_inheritance_override", Set.of("override_mode")),
+        Map.entry("mk_version_release_plan", Set.of("scope_type", "status")),
+        Map.entry("mk_version_activation_transaction", Set.of("action")),
+        Map.entry("mk_version_replay_binding", Set.of("result_hash"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -771,6 +786,33 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON COLUMN mk_version_inheritance_override.diff_summary")
                 .contains("COMMENT ON COLUMN mk_version_inheritance_override.override_reason")
                 .contains("COMMENT ON COLUMN mk_version_inheritance_override.impact_scope");
+        }
+    }
+
+    @Test
+    void v56ShouldDeclareVersionReleaseReplayForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V56__version_release_replay.sql");
+            assertThat(ddl).as("%s 发布流与历史重放迁移", dialect)
+                .contains("WITHDRAWN")
+                .contains("mk_version_release_plan")
+                .contains("mk_version_activation_transaction")
+                .contains("mk_version_replay_binding")
+                .contains("BED_PERCENT")
+                .contains("ROLLBACKED")
+                .contains("FULL_ACTIVATE")
+                .contains("ck_mk_version_release_plan_scope")
+                .contains("ck_mk_version_release_plan_status")
+                .contains("uk_mk_version_activation_transaction_idem")
+                .contains("ck_mk_version_activation_transaction_action")
+                .contains("ck_mk_version_replay_binding_hash")
+                .contains("idx_mk_version_release_plan_asset")
+                .contains("idx_mk_version_activation_transaction_asset")
+                .contains("idx_mk_version_replay_binding_version")
+                .contains("COMMENT ON TABLE mk_version_release_plan")
+                .contains("COMMENT ON TABLE mk_version_activation_transaction")
+                .contains("COMMENT ON TABLE mk_version_replay_binding")
+                .contains("COMMENT ON COLUMN mk_version_asset_version.status");
         }
     }
 
