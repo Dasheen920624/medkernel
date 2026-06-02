@@ -12,13 +12,13 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 KNOW-02 知识版本候选识别与审核去重工作流 🚧
+### 线 1 · D2 TERM-01 字典确定性语义候选 PR1 🚧
 - 类型：软件开发
-- 分支：`codex/d2-know-02-candidate-workflow`
-- 目标：完成 [KNOW-02](cards/D2/KNOW-02.md) 范围：候选进入后按 `content_hash` / `knowledge_identity` / 适用域判定新建、同身份新版、重复、冲突；重复不新增待办，冲突生成对照审核视图，候选 `PENDING_REPLACEMENT_REVIEW` 仅供比较不参与临床执行；审核通过只调用 [SYS-08](cards/D2/SYS-08.md) 原子替换，不在本卡重造替换事务。
-- 状态：主体实现已提交在当前分支，待 PR / CI / 合并；已清理旧 `DraftVersionCreateRequest` / 版本草稿创建服务口径，新增候选分类与审核分派持久化、`PENDING_REPLACEMENT_REVIEW` 状态、V52 五方言迁移、API 契约和服务层红绿测试。聚焦套件已绿；最新后端全量 `mvn -q test` 已绿，含 H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V52；changed T-GATE、中文注释和 diff 检查已绿。CI 通过并合并后才能把 `origin/main` 视为完成。
-- 下一步（精确到动作/命令）：1. 推送分支并创建 PR；2. 等待远端 CI 8/8，通过后合并到 `origin/main`；3. 合并并确认后才领取 [backlog](backlog.md) 下一卡 `TERM-01`。
-- 相关文件 / 测试 / 坑：触碰 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`KnowledgeVersionService`、`KnowledgeVersionController`、`ServiceContractCatalog`、`KnowledgeVersionServiceTest`、`KnowledgeEngineTest`、`KnowledgeAssetApiContractTest`、迁移契约测试与 V52 五方言迁移。严禁把候选写成 ACTIVE 或参与临床执行；严禁本卡自行重造 SYS-08 完整紧急失效 / 影响病例任务；AI 自动分类属于 wave2，B0 必须人工可跑通。`DEFER-001` 至 `DEFER-012` 仍 open 但均非本卡当前主链路阻塞。
+- 分支：`codex/d2-term-01-semantic-candidates`
+- 目标：完成 [TERM-01](cards/D2/TERM-01.md) PR1：把候选生成从旧字面相似度改为确定性语义候选，依据仅来自精确编码、标准化同义词/缩写别名和编码族；候选证据可解释，B0 无模型可运行，不冒领 PR2 高危近似判别器或 PR3 映射包发布降级。
+- 状态：已从最新 `origin/main` 新建 worktree；已读核心 / D2 简报 / TERM-01 / API-04 / 待处理问题清单；已按 TDD 补红测并移除旧 `calculateSimilarity` 生产实现，新增 `SemanticTermMatcher`，端到端样例改为真实别名命中。单测红测曾按预期失败在“精确编码被别名降级”和“编码族无候选”；实现后 `TerminologyServiceTest` 已绿，聚焦套件 `TerminologyServiceTest,TerminologyApiContractTest,TerminologyControllerSecurityTest,EngineEndToEndIntegrationTest` 已绿。尚未跑后端全量、changed T-GATE、PR / CI / 合并。
+- 下一步（精确到动作/命令）：1. 复核代码与文档 diff；2. 跑后端全量 `mvn -q test`；3. 跑 `git diff --check origin/main...HEAD`、changed T-GATE、中文注释门禁；4. 中文 commit、推送、创建 PR，等 CI 8/8；5. 合并并确认 `origin/main` 后继续 TERM-01 PR2 高危近似判别器。
+- 相关文件 / 测试 / 坑：触碰 `TerminologyService`、新增 `SemanticTermMatcher`、`TerminologyServiceTest`、`EngineEndToEndIntegrationTest` 和本卡文档。不得恢复字符相似度 / 编辑距离作为医学语义依据；不得把钾钠、肌钙蛋白 T/I、左右、剂量量级等高危近似在本 PR 写成已完成；不得把 `DEFER-010` 10 万级字典压测或 `DEFER-001` 国产化真实环境写成已通过。
 
 ### 线 2 · 平台主源与租户覆盖层治理 🚧
 
@@ -41,6 +41,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 KNOW-02 知识版本候选识别与审核去重工作流 ✅（#261，merge `3ab23bce`）：新增知识候选分类与审核分派，按 `content_hash` / `knowledge_identity` / 适用域判定新建、同身份新版、重复、冲突；重复不新增待办，冲突生成对照审核视图，候选 `PENDING_REPLACEMENT_REVIEW` 仅供比较不参与临床执行；清理旧草稿创建口径，补 V52 五方言迁移、API 契约和服务层测试。验证：聚焦套件、后端全量 `mvn -q test`（含 H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V52）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D2 KNOW-01 PR3 图/搜索投影刷新与降级 ✅（#258，merge `902104e6`）：新增 `KNOWLEDGE_GRAPH` / `KNOWLEDGE_SEARCH` 投影目标、`KnowledgeProjectionSource`、`KnowledgeProjectionRefreshPort`、资产发布后刷新知识图与搜索投影、知识投影重建 / 一致性 API、`search-projection` 运行开关与 V51 五方言投影目标约束扩展；搜索投影为关系库可重建派生快照，未冒领 SYS-08 紧急失效 / D6 图谱页面 / 真实外部搜索引擎探活。本地验证：聚焦红绿套件、后端全量 `mvn -q test`、changed T-GATE、中文注释、diff 检查；远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001` 国产化真实环境仍 open，不阻塞 PostgreSQL + Oracle 当前主线。
 - D2 KNOW-01 PR2 可信分级与冲突仲裁 ✅（#256，merge `416cce14`）：补来源 A/B/C/D/E 可信分级、分级依据、资产版本 `authority_level` / `grade_quality` / `grade_strength` / `conflict_arbitration` 快照、低阶覆盖高阶 `AUTHORITY_OVERRIDE_DENIED` 门禁、冲突裁决摘要与 V50 五方言迁移；未冒领图/搜索投影。验证：服务层 / API 契约聚焦套件、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D2 KNOW-01 PR1 来源内容指纹与引用锚点 ✅（#255，merge `afd9be1d`）：补来源版本 / 来源片段 / 知识资产版本真实 `content_hash` 生成与校验、重复来源版本同 hash 幂等、引用锚点 `citation.start_offset/end_offset`、`source_version(source_document_id, content_hash)` 去重约束与 V49 五方言迁移；清理触碰范围旧口径，未冒领可信分级或图/搜索投影。验证：`mvn -q -Dtest=KnowledgeIdentityServiceTest test`、聚焦套件、`H2BaselineMigrationTest`、后端全量 `mvn -q test`（895 tests，PostgreSQL 15.18 / Oracle 21.3 / H2 均迁移至 V49）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`。
@@ -161,4 +162,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260。当前在 `codex/d2-know-02-candidate-workflow` 推进 D2 `KNOW-02`，主体实现已落地并创建 PR #261，变基到最新 `origin/main` 后待远端 CI 8/8 与合并；合并并确认后才领取下一卡 `TERM-01`。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-02`（#261，merge `3ab23bce`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260。当前在 `codex/d2-term-01-semantic-candidates` 推进 D2 `TERM-01` PR1 确定性语义候选，已完成红绿单测与聚焦套件，待后端全量、changed T-GATE、PR / CI / 合并；合并并确认后继续 TERM-01 PR2 高危近似判别器。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

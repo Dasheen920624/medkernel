@@ -38,7 +38,7 @@ import com.medkernel.shared.context.RequestContext;
  * MedKernel 顶级引擎全能力端到端集成验证测试（E2E）。
  *
  * <p>本类设定于 com.medkernel.engine.terminology 包内，以访问术语模块包私有枚举（TerminologyEnums）。
- * 覆盖知识去重、DP LCS 术语字典映射、诊断决策 CDSS 双向反馈、时序随访分发、网关安全自愈降级以及合规证据对账验签的全生命周期。
+ * 覆盖知识去重、确定性语义术语映射、诊断决策 CDSS 双向反馈、时序随访分发、网关安全自愈降级以及合规证据对账验签的全生命周期。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -124,19 +124,18 @@ class EngineEndToEndIntegrationTest {
         }, "相同数据重复录入触发哈希冲突防线");
 
 
-        System.out.println("====== [2. 临床字典术语 DP 最长公共子序列 (LCS) 确定性映射] ======");
+        System.out.println("====== [2. 临床字典术语确定性语义别名映射] ======");
         // 建立测试字典环境，使用已打通的包私有枚举
         StandardTerm standard = standardTermRepo.save(new StandardTerm(
-            null, tenantId, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "nao geng si",
+            null, tenantId, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "naogengsi|卒中脑梗",
             "2025", StandardTermStatus.ACTIVE, null, "诊断依据", Instant.now(), "system", Instant.now(), "system"
         ));
         LocalTerm local = localTermRepo.save(new LocalTerm(
-            null, tenantId, "HIS", "loc-stroke-99", TermCategory.DIAGNOSIS, "卒中脑梗", "cu zhong nao geng",
+            null, tenantId, "HIS", "loc-stroke-99", TermCategory.DIAGNOSIS, "卒中脑梗", "卒中脑梗",
             "DEPT-01", LocalTermStatus.UNMAPPED, Instant.now(), Instant.now(), Instant.now(), "system", Instant.now(), "system"
         ));
 
-        // 触发确定性候选生成计算 (calculateSimilarity)
-        // "卒中脑梗" 有 4 字，"脑梗死" 有 3 字，最长公共子序列是 "脑梗" (2字)，经典 LCS 相似度 = 2 * 2 / (4 + 3) = 0.57 >= 0.2
+        // 触发确定性候选生成：标准字典 normalized_name 提供真实别名，禁止靠字符相似度误配。
         TerminologyCandidateGenerationResponse generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
             "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
             "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",

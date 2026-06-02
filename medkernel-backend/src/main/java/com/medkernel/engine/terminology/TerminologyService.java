@@ -428,10 +428,10 @@ public class TerminologyService {
     }
 
     /**
-     * 确定性候选生成。
+     * 确定性语义候选生成。
      *
-     * <p>扫描指定来源系统下的所有未映射院内词条，基于 LCS 相似度生成候选，
-     * 分级设定置信度、风险评级并幂等写入 PENDING 候选列表。
+     * <p>扫描指定来源系统下的所有未映射院内词条，只基于真实字典字段中的精确编码、
+     * 同义词/缩写别名和编码族生成候选，并幂等写入 PENDING 候选列表。
      */
     @Transactional
     public TerminologyCandidateGenerationResponse generateCandidates(TerminologyCandidateGenerationRequest request) {
@@ -459,17 +459,9 @@ public class TerminologyService {
                     continue;
                 }
 
-                double sim = calculateSimilarity(local.localName(), standard.displayName());
-                if (sim >= threshold) {
-                    TermRiskLevel risk = TermRiskLevel.HIGH;
-                    if (sim >= 0.9) {
-                        risk = TermRiskLevel.LOW;
-                    } else if (sim >= 0.5) {
-                        risk = TermRiskLevel.MEDIUM;
-                    }
-
-                    String evidence = String.format("确定性 LCS 相似度 %.2f，院内词：%s，标准词：%s",
-                        sim, local.localName(), standard.displayName());
+                Optional<SemanticTermMatch> match = SemanticTermMatcher.match(local, standard);
+                if (match.isPresent() && match.get().score() >= threshold) {
+                    SemanticTermMatch semantic = match.get();
 
                     Optional<MappingCandidate> existingOpt = candidateRepository
                         .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
@@ -479,15 +471,15 @@ public class TerminologyService {
                     if (existingOpt.isPresent()) {
                         MappingCandidate existing = existingOpt.get();
                         saved = candidateRepository.save(new MappingCandidate(
-                            existing.id(), tenantId, local.id(), standard.id(), sim, MappingCandidateSource.RULE,
-                            risk, evidence, false, MappingCandidateStatus.PENDING,
+                            existing.id(), tenantId, local.id(), standard.id(), semantic.score(), MappingCandidateSource.RULE,
+                            semantic.riskLevel(), semantic.evidence(), false, MappingCandidateStatus.PENDING,
                             existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
                             existing.createdAt(), existing.createdBy(), now, userId
                         ));
                     } else {
                         saved = candidateRepository.save(new MappingCandidate(
-                            null, tenantId, local.id(), standard.id(), sim, MappingCandidateSource.RULE,
-                            risk, evidence, false, MappingCandidateStatus.PENDING,
+                            null, tenantId, local.id(), standard.id(), semantic.score(), MappingCandidateSource.RULE,
+                            semantic.riskLevel(), semantic.evidence(), false, MappingCandidateStatus.PENDING,
                             null, null, null, now, userId, now, userId
                         ));
                     }
@@ -496,30 +488,5 @@ public class TerminologyService {
             }
         }
         return new TerminologyCandidateGenerationResponse(generated.size(), generated);
-    }
-
-    private double calculateSimilarity(String s1, String s2) {
-        if (s1 == null || s2 == null) return 0.0;
-        s1 = s1.trim().toLowerCase();
-        s2 = s2.trim().toLowerCase();
-        if (s1.equals(s2)) return 1.0;
-
-        int m = s1.length();
-        int n = s2.length();
-        if (m == 0 || n == 0) return 0.0;
-
-        int[][] dp = new int[m + 1][n + 1];
-        for (int i = 1; i <= m; i++) {
-            for (int j = 1; j <= n; j++) {
-                if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
-                    dp[i][j] = dp[i - 1][j - 1] + 1;
-                } else {
-                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-                }
-            }
-        }
-        int lcsLength = dp[m][n];
-        // 经典 LCS 相似度公式：2 * LCS(s1, s2) / (len(s1) + len(s2))
-        return (double) 2 * lcsLength / (m + n);
     }
 }
