@@ -19,7 +19,7 @@
 - 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-04](cards/D2/API-04.md) 收口字典映射 API：标准 / 院内字典查询、确定性候选生成、高危标注、禁批量确认、逐条二次确认、冲突列举、映射包发布 / 回滚与 12 字段统一入参。
 - 状态：本地实现与验证已完成，等待提交 PR、远端 CI 与合并；已按 TDD 补 API-04 契约测试，清理旧 `auto-recommend` / `standard-terms` / `local-terms` / `packages/**` / `candidates/{id}/confirm` 客户面入口，并实现 12 字段上下文、高危批量拒绝、批量重复候选去重与逐条二次确认。
 - 下一步（精确到动作/命令）：1. 最后跑 `git diff --check` 与 staged diff 检查；2. 提交 `D2 API-04 字典映射 API 收口`；3. 推送 `codex/d2-api-04-dictionary-mapping-api` 并建 PR；4. 等待远端 CI 8/8 全绿；5. squash 合并、确认 `origin/main` 含合并提交、删除远端分支并清理 worktree；6. 从最新 `origin/main` 领取下一张 D2 卡。
-- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/terminology/**`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/test/java/com/medkernel/engine/terminology/**`、`docs/cards/D2/API-04.md`、`docs/superpowers/plans/2026-06-02-api-04-dictionary-mapping-api.md`。本地已跑：术语基线、API-04 红绿聚焦、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描、中文注释全量扫描与 diff 检查。真实 10 万级字典压测归 `DEFER-010`；当前 PostgreSQL + Oracle 为真实保障范围，国产化真实环境继续归 `DEFER-001`，历史 COMMENT GAP 归 `DEFER-006`，非当前阶段阻塞登记后继续主线。
+- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/terminology/**`、`medkernel-backend/src/main/java/com/medkernel/shared/api/error/ErrorCode.java`、`medkernel-backend/src/test/java/com/medkernel/engine/terminology/**`、`docs/cards/D2/API-04.md`、`docs/superpowers/plans/2026-06-02-api-04-dictionary-mapping-api.md`。本地已跑：术语基线、API-04 红绿聚焦、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描、中文注释全量扫描与 diff 检查。真实 10 万级字典压测归 `DEFER-010`；当前 PostgreSQL + Oracle 为真实保障范围，国产化真实环境继续归 `DEFER-001`，历史 COMMENT GAP 归 `DEFER-006`，GitHub Actions Node.js 20 弃用提醒归 `DEFER-011`，非当前阶段阻塞登记后继续主线。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -135,4 +135,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；D2 API-04 字典映射 API本地实现与验证已完成，当前分支为 `codex/d2-api-04-dictionary-mapping-api`，下一步提交 PR、等待 CI、合并清理后领取下一卡。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-010` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；D2 API-04 字典映射 API本地实现与验证已完成，当前分支为 `codex/d2-api-04-dictionary-mapping-api`，下一步提交 PR、等待 CI、合并清理后领取下一卡。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-011` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

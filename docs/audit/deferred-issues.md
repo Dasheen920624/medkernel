@@ -41,6 +41,7 @@
 | DEFER-008 | 全局缺上下文错误码命名别名未统一：D2 API-01 卡写 `CONTEXT_MISSING`，现有平台脊柱仍返回 `ENG-BASE-001 / TENANT_CONTEXT_MISSING` | 不影响当前 API-01 主链路：无租户上下文仍诚实返回 ProblemDetail，跨组织拒绝已新增 `ORG_SCOPE_DENIED / ENG-BASE-004`；不得宣称 `CONTEXT_MISSING` 别名已完成 | 否 | BASE-03 错误码契约治理；GA `INFRA-10` 总验收前 | open | 统一错误码命名策略并补兼容映射：提交 `CONTEXT_MISSING`/`CONTEXT_VALIDATION_FAILED` 与既有 `ENG-BASE-*`/`ENG-CONTEXT-*` 的规范、全局异常处理测试、前后端错误文案回归和 API 契约文档 |
 | DEFER-009 | API-03 知识资产列表真实 10 万级规模压测证据未在本地生成 | API-03 已验证服务端分页/筛选契约与异步导出真实任务，不伪造 10 万条计数或压测结果；不影响当前 PostgreSQL + Oracle API 合同收口。不得宣称知识资产 10 万级真实压测已通过 | 否 | D0 `API-13` 大列表治理、GA `SYS-07` NFR 与 `INFRA-10` 总验收 | open | 在 PostgreSQL + Oracle 环境构造或导入 10 万级知识资产/引用数据，提交分页 P95、筛选、异步导出提交→轮询→下载、资源占用和 CI/验收日志；若纳入专项压测，应附数据生成脚本与可复现命令 |
 | DEFER-010 | API-04 字典映射真实 10 万级标准 / 院内字典压测证据未在本地生成 | API-04 已验证服务端分页/筛选合同、标准路径、高危候选门禁和 PostgreSQL + Oracle 当前运行范围；不伪造 10 万条字典计数或压测结果。不得宣称大字典 10 万级真实压测已通过 | 否 | D0 `API-13` 大列表治理、GA `SYS-07` NFR 与 `INFRA-10` 总验收 | open | 在 PostgreSQL + Oracle 环境构造或导入 10 万级标准 / 院内字典和映射候选数据，提交分页 P95、筛选、候选生成、冲突列举、资源占用和 CI/验收日志；附数据生成脚本与可复现命令 |
+| DEFER-011 | GitHub Actions 仍提示 Node.js 20 actions 弃用，2026-09-16 后将从 runner 移除 | 不影响当前 PR：CI 8/8 已通过；但后续若不升级 action 运行时，可能在 2026-09-16 后形成 CI 阻塞。不得宣称 CI 工具链弃用风险已清零 | 否 | INFRA CI 工具链治理；GA `INFRA-10` 总验收前，且最晚 2026-09-16 前 | open | 升级或替换 `.github/workflows` 中触发 Node.js 20 提醒的 actions，或验证 GitHub runner 默认 Node.js 24 后仍 8/8 通过；提交 CI 8/8 通过记录和无 Node.js 20 deprecation annotation 的 run 链接 |
 
 ## 新问题登记模板
 
