@@ -17,15 +17,9 @@ final class SemanticTermMatcher {
     }
 
     static Optional<SemanticTermMatch> match(LocalTerm local, StandardTerm standard) {
-        String localCode = canonical(local.localCode());
-        String standardCode = canonical(standard.termCode());
-        if (!localCode.isBlank() && localCode.equals(standardCode)) {
-            return Optional.of(new SemanticTermMatch(
-                1.0,
-                TermRiskLevel.LOW,
-                "确定性语义匹配：精确编码命中，院内码=" + local.localCode()
-                    + "，标准码=" + standard.termCode()
-            ));
+        Optional<SemanticTermMatch> exactCode = matchExactCode(local, standard);
+        if (exactCode.isPresent()) {
+            return exactCode;
         }
 
         Set<String> localAliases = aliases(local.localName(), local.normalizedName(), local.localCode());
@@ -41,6 +35,8 @@ final class SemanticTermMatcher {
             }
         }
 
+        String localCode = canonical(local.localCode());
+        String standardCode = canonical(standard.termCode());
         if (sameCodeFamily(localCode, standardCode)) {
             return Optional.of(new SemanticTermMatch(
                 0.82,
@@ -50,6 +46,20 @@ final class SemanticTermMatcher {
             ));
         }
 
+        return Optional.empty();
+    }
+
+    static Optional<SemanticTermMatch> matchExactCode(LocalTerm local, StandardTerm standard) {
+        String localCode = canonical(local.localCode());
+        String standardCode = canonical(standard.termCode());
+        if (!localCode.isBlank() && localCode.equals(standardCode)) {
+            return Optional.of(new SemanticTermMatch(
+                1.0,
+                TermRiskLevel.LOW,
+                "确定性语义匹配：精确编码命中，院内码=" + local.localCode()
+                    + "，标准码=" + standard.termCode()
+            ));
+        }
         return Optional.empty();
     }
 

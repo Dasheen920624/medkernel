@@ -139,7 +139,7 @@ class EngineEndToEndIntegrationTest {
         TerminologyCandidateGenerationResponse generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
             "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
             "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",
-            "HIS", null
+            "HIS", null, null
         ));
         assertEquals(1, generation.generatedCount(), "字典规则引擎发现了 1 个候选映射");
 
