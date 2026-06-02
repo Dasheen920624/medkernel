@@ -10,9 +10,29 @@ import java.util.Map;
 public record ContextSnapshotResponse(
     String snapshotId,
     ContextSnapshotStatus status,
+    ContextSnapshotResources resources,
+    String packageVersion,
+    String knowledgePackageVersion,
+    String rulePackageVersion,
+    String pathwayPackageVersion,
     QualityStatus qualityStatus,
     List<MissingFieldEntry> missingFields,
     Map<String, String> mappingStatus,
     Instant createdAt,
     String traceId
-) {}
+) {
+
+    public ContextSnapshotResponse(
+            String snapshotId,
+            ContextSnapshotStatus status,
+            QualityStatus qualityStatus,
+            List<MissingFieldEntry> missingFields,
+            Map<String, String> mappingStatus,
+            Instant createdAt,
+            String traceId) {
+        this(
+            snapshotId, status, null, null, null, null, null,
+            qualityStatus, missingFields, mappingStatus, createdAt, traceId
+        );
+    }
+}

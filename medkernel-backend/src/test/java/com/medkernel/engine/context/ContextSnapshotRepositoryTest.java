@@ -60,6 +60,26 @@ class ContextSnapshotRepositoryTest {
     }
 
     @Test
+    void shouldPersistStandardContractSnapshotFields() {
+        String snapshotId = "ctx-" + UUID.randomUUID();
+        ContextSnapshot saved = snapshots.save(new ContextSnapshot(
+            null, snapshotId, "tenant-A", "ORG-1",
+            "req-ctx-1", "group-1/hospital-1/campus-1/site-1/DEPT-A/stroke", "pkg-2026.06",
+            "MPI-100", "ENC-1",
+            "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
+            ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            QualityStatus.VALID, "trace", null, Instant.now(), "tester"
+        ));
+
+        Optional<ContextSnapshot> found = snapshots.findBySnapshotIdAndTenantId(saved.snapshotId(), "tenant-A");
+
+        assertThat(found).isPresent();
+        assertThat(found.get().requestId()).isEqualTo("req-ctx-1");
+        assertThat(found.get().orgPath()).isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/stroke");
+        assertThat(found.get().packageVersion()).isEqualTo("pkg-2026.06");
+    }
+
+    @Test
     void shouldNotLeakSnapshotAcrossTenants() {
         String snapshotId = "ctx-" + UUID.randomUUID();
         snapshots.save(newSnapshot(snapshotId, "tenant-A", "MPI-1", null,
@@ -112,6 +132,11 @@ class ContextSnapshotRepositoryTest {
 
         List<CanonicalResource> list = resources.findBySnapshotIdOrderBySeqNoAsc(snapshotId);
         assertThat(list).extracting(CanonicalResource::resourceType)
+            .containsExactly(CanonicalResourceType.PATIENT, CanonicalResourceType.MEDICATION);
+
+        List<CanonicalResource> tenantScoped = resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc(
+            snapshotId, "tenant-A");
+        assertThat(tenantScoped).extracting(CanonicalResource::resourceType)
             .containsExactly(CanonicalResourceType.PATIENT, CanonicalResourceType.MEDICATION);
     }
 
