@@ -17,7 +17,7 @@ class OpenApiContractConfigurationTest {
         assertThat(api).isNotNull();
         assertThat(ServiceContractCatalog.openApiPaths())
             .contains("/api/v1/engine/events/**")
-            .contains("/api/v1/engine/rules/**")
+            .contains("/api/v1/engine/rule/**")
             .contains("/api/v1/engine/pathways/**");
     }
 }

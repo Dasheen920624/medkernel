@@ -191,7 +191,7 @@ MedKernel 中文产品名固定为 **集团医疗智能中枢**。本产品不�
 | 上下文 | `POST /api/v1/engine/context/snapshots` | 患者、就诊、诊断、医嘱、检验、检查、组织 | 标准上下文 ID、缺失字段、映射状态 |
 | 临床事件 | `POST /api/v1/engine/events` | 诊断、医嘱、报告、出院、随访事件 | 受理结果、traceId、任务 |
 | 字典映射 | `GET /api/v1/engine/terminology/mappings`、`POST /api/v1/engine/terminology/candidates/{id}/confirm` | 本地码、系统、科室、上下文 | 标准码候选、冲突、确认要求 |
-| 规则执行 | `POST /api/v1/engine/rules/evaluate` | 上下文、规则集、触发点 | 命中、风险级别、解释、动作 |
+| 规则执行 | `POST /api/v1/engine/rule/rules/evaluate` | 上下文、规则集、触发点 | 命中、风险级别、解释、动作 |
 | 路径运行 | `POST /api/v1/engine/pathways/advance` | 患者路径、节点、事件 | 下一步、变异、随访接续 |
 | 专病路径仿真 | `POST /api/v1/engine/pathways/templates/{templateId}/simulate` | 专病包版本、样例病例、组织范围 | 节点轨迹、时间窗、规则命中、质控结果 |
 | 专病关键时钟 | `GET /api/v1/engine/pathways/{patientPathwayId}/clocks` | 患者路径、关键节点 | 起止时间、超时/缺数、质控指标关联 |
@@ -204,7 +204,7 @@ MedKernel 中文产品名固定为 **集团医疗智能中枢**。本产品不�
 | 报告解读 | 后续 E6：`POST /api/v1/engine/reports/interpret` | 检验/影像/病理/功能检查报告、患者上下文 | 异常摘要、趋势、临床关联、处置提示、来源 |
 | 床旁知识查阅 | 后续 E6：`POST /api/v1/engine/knowledge/search` | 查询词、患者/场景、角色、组织 | 当前权威说明书/指南/制度/路径条款、版本与引用 |
 | 随访计划 | `POST /api/v1/engine/followup/plans/generate` | 出院、病种、风险、路径 | 计划、任务、问卷、异常规则 |
-| 解释追溯 | 当前使用各引擎诊断端点，如 `GET /api/v1/engine/rules/executions/{executionId}/diagnose`、`GET /api/v1/engine/recommendations/triggers/{triggerId}/diagnose` | traceId / 推荐 / 规则 ID | 来源、规则、路径、图谱、审计 |
+| 解释追溯 | 当前使用各引擎诊断端点，如 `GET /api/v1/engine/rule/rules/executions/{executionId}/explain`、`GET /api/v1/engine/recommendations/triggers/{triggerId}/diagnose` | traceId / 推荐 / 规则 ID | 来源、规则、路径、图谱、审计 |
 | 权威知识解析 | `GET /api/v1/engine/knowledge/identities/{id}/active`、`GET /api/v1/engine/knowledge/identities/{id}/lineage` | 知识身份、组织、适用条件、事件时间 | 唯一有效版本、来源、核验时点、替代链 |
 | 包同步 | `POST /api/v1/engine/packages/{packageId}/sync` | 包版本、组织、策略 | 进度、失败项、回滚点 |
 
@@ -527,7 +527,7 @@ S0-S40 是业务能力场景，不等于 41 组独立后端服务。当前 0 业
 | 主流程 | 选模板 → 配条件 → 配动作 → 加解释 → 加测试病例 → 看影响 → 审核发布 |
 | 三种模式 | 模板模式、可视化条件模式、专家 DSL 模式 |
 | 触发点 | 诊断保存、医嘱签署、检验回报、检查报告、病历提交、出院签署、随访异常 |
-| API 归类 | 当前引擎 API：`/api/v1/engine/rules`、`/api/v1/engine/rules/{ruleId}/simulate`、`/api/v1/engine/rules/evaluate` |
+| API 归类 | 当前引擎 API：`/api/v1/engine/rule/rules`、`/api/v1/engine/rule/rules/{ruleId}/simulate`、`/api/v1/engine/rule/rules/evaluate` |
 | 验收 | 每条规则必须有阳性、阴性、边界、冲突测试病例 |
 
 ### S6 路径引擎配置

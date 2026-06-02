@@ -10,8 +10,18 @@ public record RulePublishResponse(
     String versionId,
     RuleDefinitionStatus status,
     String traceId,
-    List<RuleTestCaseResult> results
+    List<RuleTestCaseResult> results,
+    String impactDigest,
+    String impactStatus
 ) {
+    public RulePublishResponse(String ruleId,
+                               String versionId,
+                               RuleDefinitionStatus status,
+                               String traceId,
+                               List<RuleTestCaseResult> results) {
+        this(ruleId, versionId, status, traceId, results, null, null);
+    }
+
     public RulePublishResponse {
         results = results == null ? List.of() : List.copyOf(results);
     }

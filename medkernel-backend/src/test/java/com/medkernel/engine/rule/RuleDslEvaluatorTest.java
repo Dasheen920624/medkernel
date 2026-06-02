@@ -128,7 +128,7 @@ class RuleDslEvaluatorTest {
         assertThatThrownBy(() -> evaluator.evaluate(dsl, read("{}")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
-            .isEqualTo(ErrorCode.ENG_RULE_001);
+            .isEqualTo(ErrorCode.RULE_DSL_INVALID);
     }
 
     private JsonNode read(String source) throws Exception {

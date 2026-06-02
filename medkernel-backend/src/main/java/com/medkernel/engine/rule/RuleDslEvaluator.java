@@ -241,6 +241,6 @@ public class RuleDslEvaluator {
     }
 
     private ApiException invalid(String message) {
-        return new ApiException(ErrorCode.ENG_RULE_001, message);
+        return new ApiException(ErrorCode.RULE_DSL_INVALID, message);
     }
 }

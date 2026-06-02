@@ -156,6 +156,12 @@ public enum ErrorCode {
     ENG_CONFIG_002("ENG-CONFIG-002", 409, "高危配置变更需要二次确认和变更原因", ErrorClass.AUTH, false),
     ENG_AUDIT_001("ENG-AUDIT-001", 403, "审计持久化为高危配置，禁止从界面关闭", ErrorClass.AUTH, false);
 
+    /** API-05 业务语义别名，保持对外错误码与既有 {@code ENG-RULE-001} 单一真相一致。 */
+    public static final ErrorCode RULE_DSL_INVALID = ENG_RULE_001;
+
+    /** API-05 业务语义别名，保持对外错误码与既有 {@code ENG-RULE-004} 单一真相一致。 */
+    public static final ErrorCode RULE_PUBLISH_GATE_DENIED = ENG_RULE_004;
+
     private final String code;
     private final int httpStatus;
     private final String defaultMessage;

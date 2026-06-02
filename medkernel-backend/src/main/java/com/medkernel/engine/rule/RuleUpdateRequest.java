@@ -9,12 +9,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 创建规则的入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules}）。
+ * 更新草稿规则的入参。
  *
- * <p>字段语义见规则引擎 API 设计文档：{@code ruleCode}/{@code name}/{@code sourceRef}/{@code dsl} 为必填，
- * {@code authoringMode}/{@code riskLevel} 缺省由服务端兜底（默认 DSL / MEDIUM）。
+ * <p>仅允许更新 DRAFT 状态规则；不会伪造版本递增能力，完整多版本发布由 SYS-04 承接。
  */
-public record RuleCreateRequest(
+public record RuleUpdateRequest(
     @JsonAlias("request_id") String requestId,
     @JsonAlias("trace_id") String traceId,
     @JsonAlias("tenant_id") String tenantId,
@@ -38,24 +37,8 @@ public record RuleCreateRequest(
     @NotNull JsonNode dsl,
     JsonNode explanation
 ) implements RuleContextRequest {
-    public RuleCreateRequest {
+    public RuleUpdateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-    }
-
-    public RuleCreateRequest(String ruleCode,
-                             String name,
-                             RuleType ruleType,
-                             RuleAuthoringMode authoringMode,
-                             RuleRiskLevel riskLevel,
-                             String packageVersion,
-                             String applicableOrgUnitId,
-                             String sourceRef,
-                             String changeSummary,
-                             JsonNode dsl,
-                             JsonNode explanation) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
-            ruleCode, name, ruleType, authoringMode, riskLevel, applicableOrgUnitId,
-            sourceRef, changeSummary, dsl, explanation);
     }
 
     public RuleApiContext apiContext() {

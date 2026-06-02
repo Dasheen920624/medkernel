@@ -98,6 +98,7 @@ public class RuleEngineService {
         String actor = RequestContext.currentUserId().orElse("system");
         Instant now = Instant.now();
         validateDsl(request.dsl());
+        ensureRuleCodeAvailable(tenantId, request.ruleCode(), null);
 
         String ruleId = "rule-" + UUID.randomUUID();
         String versionId = "rv-" + UUID.randomUUID();
@@ -117,6 +118,45 @@ public class RuleEngineService {
         transitions.record(RULE_ENTITY, ruleId, null, RuleDefinitionStatus.DRAFT.name(), "CREATE_RULE", null);
         auditPublisher.publish(AuditAction.CREATE, RULE_ENTITY, ruleId, "创建规则 " + request.ruleCode());
         return new RuleCreateResponse(ruleId, versionId, RuleDefinitionStatus.DRAFT, traceId);
+    }
+
+    /**
+     * 更新草稿规则定义和当前草稿版本。
+     *
+     * <p>本卡只收口 API 合同与草稿修改，不伪造多版本能力；完整版本递增、灰度和回滚由 SYS-04 承接。
+     */
+    @Transactional
+    public RuleDetailResponse updateRule(String ruleId, RuleUpdateRequest request) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        ensureDraft(rule);
+        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        validateDsl(request.dsl());
+        ensureRuleCodeAvailable(tenantId, request.ruleCode(), ruleId);
+
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        RuleDefinition updatedRule = new RuleDefinition(
+            rule.id(), rule.ruleId(), rule.tenantId(), request.ruleCode(), request.name(),
+            request.ruleType(), request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode(),
+            request.riskLevel() == null ? RuleRiskLevel.MEDIUM : request.riskLevel(),
+            RuleDefinitionStatus.DRAFT, rule.activeVersionId(), request.packageVersion(),
+            request.applicableOrgUnitId(), rule.createdAt(), rule.createdBy(), now, actor,
+            RequestContext.currentTraceId());
+        RuleVersion updatedVersion = new RuleVersion(
+            version.id(), version.versionId(), version.tenantId(), version.ruleId(), version.versionNo(),
+            request.sourceRef(), request.changeSummary(), writeJson(request.dsl()), writeJson(request.explanation()),
+            RuleVersionStatus.DRAFT, version.publishedAt(), version.publishedBy(), version.rollbackVersionId(),
+            version.createdAt(), version.createdBy(), now, actor, RequestContext.currentTraceId());
+
+        definitions.save(updatedRule);
+        versions.save(updatedVersion);
+        transitions.record(RULE_ENTITY, ruleId, rule.status().name(), RuleDefinitionStatus.DRAFT.name(),
+            "UPDATE_RULE", null);
+        auditPublisher.publish(AuditAction.UPDATE, RULE_ENTITY, ruleId, "更新规则 " + request.ruleCode());
+        return new RuleDetailResponse(
+            updatedRule, updatedVersion,
+            testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId));
     }
 
     /**
@@ -177,6 +217,21 @@ public class RuleEngineService {
     }
 
     /**
+     * 执行当前版本全部测试用例并回写结果，不推进发布状态。
+     */
+    @Transactional
+    public RuleTestRunResponse runTests(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        List<RuleTestCaseResult> results = runTestCases(version, tenantId);
+        boolean allPassed = !results.isEmpty()
+            && results.stream().allMatch(result -> result.status() == RuleTestCaseStatus.PASS);
+        return new RuleTestRunResponse(
+            ruleId, version.versionId(), allPassed, results, RequestContext.currentTraceId());
+    }
+
+    /**
      * 用指定上下文试运行执行规则当前版本，并写入执行日志与状态迁移。
      *
      * <p>触发点取自 DSL 的 {@code trigger}（缺省 {@code SIMULATE}）；
@@ -199,12 +254,27 @@ public class RuleEngineService {
      */
     @Transactional
     public RulePublishResponse publish(String ruleId) {
+        return publish(ruleId, new RulePublishRequest(null, null));
+    }
+
+    /**
+     * 执行规则发布门禁并把状态从 {@code DRAFT} 推进到 {@code PUBLISHED}。
+     *
+     * <p>高危规则必须携带当前影响分析摘要；发布仍要求测试用例覆盖完整且全部通过。
+     */
+    @Transactional
+    public RulePublishResponse publish(String ruleId, RulePublishRequest request) {
         String tenantId = requireCurrentTenant();
         RuleDefinition rule = findRule(ruleId, tenantId);
         ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
         List<RuleTestCase> cases = testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
         ensureCoverage(cases);
+        RuleImpactResponse impact = impactFor(rule, version);
+        if (requiresImpact(rule) && (request == null || request.impactDigest() == null
+                || !request.impactDigest().equals(impact.impactDigest()))) {
+            throw new ApiException(ErrorCode.RULE_PUBLISH_GATE_DENIED, "高危规则发布前必须提交当前影响分析摘要");
+        }
 
         List<RuleTestCaseResult> results = cases.stream()
             .map(testCase -> runTestCase(version, testCase))
@@ -227,7 +297,18 @@ public class RuleEngineService {
         auditPublisher.publish(AuditAction.PUBLISH, RULE_ENTITY, ruleId, "发布规则版本 " + version.versionId());
         return new RulePublishResponse(
             ruleId, version.versionId(), RuleDefinitionStatus.PUBLISHED,
-            RequestContext.currentTraceId(), results);
+            RequestContext.currentTraceId(), results, impact.impactDigest(), impact.analysisStatus());
+    }
+
+    /**
+     * 计算发布前影响分析，只返回当前关系库可真实证明的对象。
+     */
+    @Transactional(readOnly = true)
+    public RuleImpactResponse impact(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        return impactFor(rule, version);
     }
 
     /**
@@ -280,6 +361,27 @@ public class RuleEngineService {
                 null,
                 execution.errorCode()
             ));
+    }
+
+    /**
+     * 返回客户面解释响应，直接读取执行日志快照。
+     */
+    @Transactional(readOnly = true)
+    public RuleExplanationResponse explain(String executionId) {
+        String tenantId = requireCurrentTenant();
+        RuleExecutionLog execution = executions.findByExecutionIdAndTenantId(executionId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则执行记录不存在: " + executionId));
+        return new RuleExplanationResponse(
+            execution.executionId(), execution.ruleId(), execution.versionId(), execution.triggerPoint(),
+            execution.eventId(), execution.inputDigest(), Boolean.TRUE.equals(execution.hit()), execution.severity(),
+            readJsonOrArray(execution.actionsJson()), readJsonOrObject(execution.explanationJson()),
+            execution.status(), execution.traceId());
+    }
+
+    private List<RuleTestCaseResult> runTestCases(RuleVersion version, String tenantId) {
+        return testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId).stream()
+            .map(testCase -> runTestCase(version, testCase))
+            .toList();
     }
 
     private RuleTestCaseResult runTestCase(RuleVersion version, RuleTestCase testCase) {
@@ -345,6 +447,32 @@ public class RuleEngineService {
         }
     }
 
+    private RuleImpactResponse impactFor(RuleDefinition rule, RuleVersion version) {
+        List<String> unavailable = List.of(
+            "PATHWAY_TEMPLATE: 当前缺少规则到路径模板的真实反向索引，未伪造路径影响",
+            "PATIENT_PATHWAY: 当前缺少规则到在径患者的真实反向索引，未伪造患者影响",
+            "SYNC_TARGET: 当前缺少 SYS-04 发布同步目标关联，未伪造同步目标"
+        );
+        List<RuleImpactObject> affectedRules = List.of(new RuleImpactObject(
+            "RULE_DEFINITION", rule.ruleId(), rule.name(), "当前规则版本将被发布或替换"));
+        String status = "PARTIAL";
+        String digest = impactDigest(rule, version, status, unavailable);
+        return new RuleImpactResponse(
+            rule.ruleId(), version.versionId(), rule.riskLevel(), status, digest,
+            affectedRules, List.of(), List.of(), List.of(), unavailable,
+            RequestContext.currentTraceId());
+    }
+
+    private String impactDigest(RuleDefinition rule, RuleVersion version, String status, List<String> unavailable) {
+        return digestText(String.join("|",
+            rule.tenantId(), rule.ruleId(), version.versionId(), rule.riskLevel().name(), status,
+            String.join(";", unavailable)));
+    }
+
+    private boolean requiresImpact(RuleDefinition rule) {
+        return rule.riskLevel() == RuleRiskLevel.HIGH || rule.riskLevel() == RuleRiskLevel.CRITICAL;
+    }
+
     private void ensureDraft(RuleDefinition rule) {
         if (rule.status() != RuleDefinitionStatus.DRAFT) {
             throw new ApiException(ErrorCode.ENG_RULE_006, "仅草稿规则允许当前操作: " + rule.ruleId());
@@ -359,10 +487,18 @@ public class RuleEngineService {
     private void validateDsl(JsonNode dsl) {
         evaluator.evaluate(dsl, json.createObjectNode());
         if (dsl.path("trigger").asText(null) == null || dsl.path("trigger").asText().isBlank()) {
-            throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 trigger");
+            throw new ApiException(ErrorCode.RULE_DSL_INVALID, "规则 DSL 缺少 trigger");
         }
         if (!dsl.has("then") || !dsl.has("explain")) {
-            throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 then 或 explain");
+            throw new ApiException(ErrorCode.RULE_DSL_INVALID, "规则 DSL 缺少 then 或 explain");
+        }
+    }
+
+    private void ensureRuleCodeAvailable(String tenantId, String ruleCode, String currentRuleId) {
+        var existing = definitions.findByTenantIdAndRuleCode(tenantId, ruleCode);
+        if (existing != null && existing.isPresent()
+                && (currentRuleId == null || !currentRuleId.equals(existing.get().ruleId()))) {
+            throw new ApiException(ErrorCode.CONFLICT, "同租户下规则编码已存在: " + ruleCode);
         }
     }
 
@@ -395,6 +531,20 @@ public class RuleEngineService {
         }
     }
 
+    private JsonNode readJsonOrArray(String source) {
+        if (source == null || source.isBlank()) {
+            return json.createArrayNode();
+        }
+        return readJson(source);
+    }
+
+    private JsonNode readJsonOrObject(String source) {
+        if (source == null || source.isBlank()) {
+            return json.createObjectNode();
+        }
+        return readJson(source);
+    }
+
     private String writeJson(JsonNode node) {
         if (node == null || node.isMissingNode()) {
             return null;
@@ -411,8 +561,11 @@ public class RuleEngineService {
     }
 
     private String digest(JsonNode context) {
+        return digestText(writeJson(context));
+    }
+
+    private String digestText(String payload) {
         try {
-            String payload = writeJson(context);
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             return "sha256:" + HexFormat.of().formatHex(md.digest(payload.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {

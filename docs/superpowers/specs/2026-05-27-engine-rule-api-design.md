@@ -65,14 +65,16 @@
 
 | API | 权限 | 用途 |
 |---|---|---|
-| `POST /api/v1/engine/rules` | `rule.write` | 创建规则定义和初始草稿版本 |
-| `GET /api/v1/engine/rules` | `rule.read` | 按状态、类型、风险级别分页查询 |
-| `GET /api/v1/engine/rules/{ruleId}` | `rule.read` | 查看规则定义、当前版本和测试覆盖 |
-| `POST /api/v1/engine/rules/{ruleId}/test-cases` | `rule.write` | 新增规则测试用例 |
-| `POST /api/v1/engine/rules/{ruleId}/simulate` | `rule.write` | 对指定上下文或测试用例仿真 |
-| `POST /api/v1/engine/rules/{ruleId}/publish` | `rule.publish` | 执行发布门禁并发布 |
-| `POST /api/v1/engine/rules/evaluate` | `rule.read` | 按触发点和上下文执行已发布规则 |
-| `GET /api/v1/engine/rules/executions/{executionId}/diagnose` | `rule.read` | 查看一次执行的可解释诊断 |
+| `POST /api/v1/engine/rule/rules` | `rule.write` | 创建规则定义和初始草稿版本 |
+| `GET /api/v1/engine/rule/rules` | `rule.read` | 按状态、类型、风险级别分页查询 |
+| `GET /api/v1/engine/rule/rules/{ruleId}` | `rule.read` | 查看规则定义、当前版本和测试覆盖 |
+| `POST /api/v1/engine/rule/rules/{ruleId}/test-cases` | `rule.write` | 新增规则测试用例 |
+| `POST /api/v1/engine/rule/rules/{ruleId}/test` | `rule.write` | 执行当前版本全部测试用例 |
+| `POST /api/v1/engine/rule/rules/{ruleId}/simulate` | `rule.write` | 对指定上下文或测试用例仿真 |
+| `GET /api/v1/engine/rule/rules/{ruleId}/impact` | `rule.read` | 查看发布前影响分析 |
+| `POST /api/v1/engine/rule/rules/{ruleId}/publish` | `rule.publish` | 执行发布门禁并发布 |
+| `POST /api/v1/engine/rule/rules/evaluate` | `rule.read` | 按触发点和上下文执行已发布规则 |
+| `GET /api/v1/engine/rule/rules/executions/{executionId}/explain` | `rule.read` | 查看一次执行的客户面解释 |
 
 ## 6. 数据模型
 
@@ -163,4 +165,3 @@
 - MockMvc 安全测试覆盖读、写、发布权限。
 - `mvn -f medkernel-backend/pom.xml test` 通过；无 Docker 环境下已有数据库烟测可按既有机制跳过。
 - `docs/backlog.md` 将 `GA-ENG-API-05` 标记为完成，并保留 `GA-ENG-RULE-01` 为后续可视化规则任务。
-
