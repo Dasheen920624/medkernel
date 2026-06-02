@@ -2,7 +2,7 @@
   min-height: 100vh;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, calc(var(--mk-unit) * 430));
+  grid-template-columns: minmax(0, calc(var(--mk-unit) * 480));
   place-items: center;
   justify-content: center;
   gap: calc(var(--mk-unit) * 16);
@@ -66,7 +66,7 @@
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 16);
+  gap: calc(var(--mk-unit) * 12);
 }
 
 .cardHeader {
@@ -75,8 +75,66 @@
   gap: calc(var(--mk-unit) * 4);
 }
 
-.kickerTags {
-  margin-bottom: calc(var(--mk-unit) * 2);
+.brandLockup {
+  display: grid;
+  grid-template-columns: calc(var(--mk-unit) * 38) minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 10);
+  align-items: center;
+  margin-bottom: calc(var(--mk-unit) * 4);
+}
+
+.brandMark {
+  display: grid;
+  width: calc(var(--mk-unit) * 38);
+  height: calc(var(--mk-unit) * 38);
+  place-items: center;
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
+  border-radius: var(--mk-login-radius);
+  color: var(--mk-login-primary);
+  font-weight: 800;
+  background: var(--mk-login-surface-tint);
+}
+
+.brandCopy {
+  display: grid;
+  gap: calc(var(--mk-unit) * 1);
+}
+
+.brandName {
+  font-size: var(--mk-login-font-lg);
+  line-height: 1.15;
+}
+
+.brandSubtitle {
+  font-size: var(--mk-login-font-sm);
+  line-height: 1.2;
+}
+
+.loginModeSwitch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--mk-unit) * 4);
+  padding: calc(var(--mk-unit) * 4);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
+  border-radius: var(--mk-login-radius);
+  background: var(--mk-login-fill);
+}
+
+.loginModeButton,
+.loginModeButtonActive {
+  min-height: calc(var(--mk-unit) * 34);
+  border: 0;
+  box-shadow: none;
+}
+
+.loginModeButton {
+  color: var(--mk-login-text-secondary);
+  background: transparent;
+}
+
+.loginModeButtonActive {
+  color: var(--mk-login-primary);
+  background: var(--mk-login-surface);
 }
 
 .cardTitle {
@@ -106,21 +164,81 @@
   background: var(--mk-login-surface);
 }
 
-.tenantLayer {
+.tenantChoiceSection {
   display: grid;
-  gap: calc(var(--mk-unit) * 4);
-  margin-top: calc(var(--mk-unit) * -6);
+  gap: calc(var(--mk-unit) * 8);
+  margin-bottom: calc(var(--mk-unit) * 16);
 }
 
-.tenantLayerButton {
-  width: fit-content;
+.fieldLabel {
+  font-size: var(--mk-login-control-font);
+}
+
+.tenantChoiceGroup {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 138), 1fr));
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.tenantChoice,
+.tenantChoiceActive {
   height: auto;
-  padding: 0;
-  font-size: var(--mk-login-font-sm);
+  min-height: calc(var(--mk-unit) * 48);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
+  white-space: normal;
 }
 
-.divider {
-  margin: calc(var(--mk-unit) * 4) 0;
+.tenantChoiceActive {
+  border-color: var(--mk-login-primary-border);
+  color: var(--mk-login-primary);
+  background: var(--mk-login-surface-tint);
+}
+
+.tenantChoiceName,
+.tenantChoiceMeta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tenantChoiceName {
+  font-weight: 700;
+}
+
+.tenantChoiceMeta {
+  font-size: var(--mk-login-font-sm);
+  color: var(--mk-login-text-muted);
+}
+
+.platformContext {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 10);
+  align-items: start;
+  margin-bottom: calc(var(--mk-unit) * 16);
+  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
+  border-radius: var(--mk-login-radius);
+  color: var(--mk-login-text-secondary);
+  background: var(--mk-login-fill);
+}
+
+.platformContext :global(.anticon) {
+  margin-top: calc(var(--mk-unit) * 3);
+  color: var(--mk-login-primary);
+}
+
+.platformContext div {
+  display: grid;
+  gap: calc(var(--mk-unit) * 2);
+}
+
+.utilityRow {
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--mk-unit) * 16);
+  padding-top: calc(var(--mk-unit) * 2);
+  border-top: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
 }
 
 .ssoToggle,

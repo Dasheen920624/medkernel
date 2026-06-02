@@ -41,9 +41,10 @@ const originalApiAdapter = apiClient.defaults.adapter;
 
 afterEach(() => {
   apiClient.defaults.adapter = originalApiAdapter;
+  testQueryClient.clear();
 });
 
-function mockDelegatedAuthStatus() {
+function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
   apiClient.defaults.adapter = (async (config) => {
     if (config.url === "/auth/delegated/status") {
       return {
@@ -63,12 +64,15 @@ function mockDelegatedAuthStatus() {
       };
     }
     if (config.url === "/auth/login-tenants") {
+      const hasCustomerTenants = options?.hasCustomerTenants ?? false;
       return {
         data: {
           data: {
-            primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
+            primaryTenants: hasCustomerTenants
+              ? [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }]
+              : [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
             platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
-            hasCustomerTenants: false,
+            hasCustomerTenants,
           },
         },
         status: 200,
@@ -197,14 +201,38 @@ describe("page smoke coverage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
-    expect(screen.getByText("使用医院账号或统一身份继续")).toBeInTheDocument();
+    expect(screen.getByText("MedKernel")).toBeInTheDocument();
+    expect(screen.getByText("使用平台账号继续")).toBeInTheDocument();
+    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
     expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录帮助" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
     expect(screen.queryByText("首次登录")).toBeNull();
+  });
 
+  it("renders delegated identity only for customer tenant login", async () => {
+    mockDelegatedAuthStatus({ hasCustomerTenants: true });
+    renderPage(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByLabelText("登录类型切换")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "集团/院内户" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(await screen.findByRole("button", { name: /集团总院/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
     expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();

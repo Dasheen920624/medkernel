@@ -153,14 +153,15 @@ describe("Login", () => {
     expect(screen.queryByText("安全审计已开启")).not.toBeInTheDocument();
   });
 
-  it("租户标识使用字典下拉，默认选择平台主租户", () => {
+  it("平台唯一租户登录恢复 MedKernel 品牌，不显示租户下拉和院方入口", () => {
     render(<Login />);
 
-    expect(screen.getByLabelText("租户标识")).toHaveAttribute("role", "combobox");
-    expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
-    expect(
-      screen.getByText("全局医疗知识和标准包的源租户；客户租户进入工作台后分配。"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("MedKernel")).toBeInTheDocument();
+    expect(screen.getByText("集团医疗智能中枢")).toBeInTheDocument();
+    expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
+    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
   it("已有客户租户时优先显示客户或集团租户，平台主租户退居第二层", async () => {
@@ -183,10 +184,25 @@ describe("Login", () => {
     });
     render(<Login />);
 
-    expect(screen.getByLabelText("客户 / 集团租户")).toHaveAttribute("role", "combobox");
-    expect(await screen.findByText("集团总院")).toBeInTheDocument();
+    const modeSwitch = screen.getByLabelText("登录类型切换");
+    expect(modeSwitch).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "集团/院内户" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(await screen.findByRole("button", { name: /集团总院/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByRole("combobox", { name: /客户|集团|租户/ })).not.toBeInTheDocument();
     expect(screen.queryByText("平台主租户（唯一内置）")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "平台主租户登录" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "主平台户" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
+    expect(screen.queryByText("统一身份暂未接入")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -211,11 +227,24 @@ describe("Login", () => {
     };
     render(<Login />);
 
-    fireEvent.click(screen.getByRole("button", { name: "平台主租户登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "主平台户" }));
 
     expect(await screen.findByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
     expect(screen.getByText(/仅平台开发者和运维人员管理全局知识源时使用/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "返回客户/集团登录" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "主平台户" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "集团/院内户" }));
+
+    expect(await screen.findByRole("button", { name: /集团总院/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
   });
 
   it("登录帮助默认收起，避免登录卡片首屏过长", () => {
@@ -253,7 +282,7 @@ describe("Login", () => {
 
     expect(loginCss).toMatch(/place-items:\s*center/);
     expect(loginCss).toMatch(
-      /grid-template-columns:\s*minmax\(0,\s*calc\(var\(--mk-unit\) \* 430\)\)/,
+      /grid-template-columns:\s*minmax\(0,\s*calc\(var\(--mk-unit\) \* 480\)\)/,
     );
     expect(themeSwitcherCss).toMatch(/position:\s*absolute/);
     expect(providerGridCss).not.toMatch(/repeat\(2/);
@@ -263,7 +292,7 @@ describe("Login", () => {
     const loginCss = readLoginCss();
     const cardStackCss = cssBlock(loginCss, ".cardStack");
 
-    expect(cardStackCss).toContain("gap: calc(var(--mk-unit) * 16)");
+    expect(cardStackCss).toContain("gap: calc(var(--mk-unit) * 12)");
     expect(loginCss).toContain(".helpToggle");
     expect(loginCss).toContain(".compactFooter");
   });
@@ -274,7 +303,7 @@ describe("Login", () => {
 
     expect(pageCss).toContain("place-items: center");
     expect(pageCss).toContain("justify-content: center");
-    expect(pageCss).toContain("grid-template-columns: minmax(0, calc(var(--mk-unit) * 430))");
+    expect(pageCss).toContain("grid-template-columns: minmax(0, calc(var(--mk-unit) * 480))");
     expect(pageCss).not.toContain("grid-template-columns: minmax(0, 1fr)");
     expect(loginCss).toContain(".secondaryEntry");
   });
@@ -298,6 +327,15 @@ describe("Login", () => {
   });
 
   it("统一身份入口折叠展示待配置方式", async () => {
+    loginTenantDirectoryState = {
+      data: {
+        primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
+        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        hasCustomerTenants: true,
+      },
+      isLoading: false,
+      isError: false,
+    };
     render(<Login />);
 
     fireEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
