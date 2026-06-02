@@ -1009,6 +1009,25 @@ export interface PathwayTemplateDetailResponse {
 export interface PathwayTemplatePublishResponse {
   templateId: string;
   status: PathwayTemplateStatus;
+  releaseStep: string;
+  canaryPercent: number;
+  impactDigest?: string | null;
+  analysisStatus?: string | null;
+  releaseEvidence: string[];
+  traceId: string;
+}
+
+export interface PathwayTemplateImpactResponse {
+  templateId: string;
+  analysisStatus: "COMPLETE" | "PARTIAL" | string;
+  affectedPatientPathways: number;
+  nodeCount: number;
+  edgeCount: number;
+  timedNodeCount: number;
+  terminalNodeCount: number;
+  canaryPercent: number;
+  impactDigest: string;
+  releaseEvidence: string[];
   traceId: string;
 }
 
@@ -1089,6 +1108,9 @@ export interface PathwayAdvanceResponse {
   mappingStatus?: Record<string, string>;
   contextResourceCounts?: Record<string, number>;
   decisionEvidence?: Record<string, unknown>;
+  followupPlanId?: string | null;
+  followupTaskCount?: number;
+  followupHandoffStatus?: string | null;
   traceId: string;
 }
 
@@ -1127,16 +1149,23 @@ export function useCreateSpecialtyPackage() {
 }
 
 // 2. PathwayTemplate Hooks
-export function usePathwayTemplates(params?: {
-  status?: PathwayTemplateStatus;
-  diseaseCode?: string;
-  packageId?: string;
-  page?: number;
-  size?: number;
-  sort?: string;
-}) {
+export function usePathwayTemplates(
+  params?: {
+    status?: PathwayTemplateStatus;
+    diseaseCode?: string;
+    packageId?: string;
+    templateCode?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
   return useQuery({
     queryKey: ["pathways", "templates", params ?? {}],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<PathwayTemplate> }>(
         "/engine/pathway/pathway-templates",
@@ -1158,6 +1187,24 @@ export function usePathwayTemplateDetail(templateId: string) {
       return data.data;
     },
     enabled: !!templateId,
+  });
+}
+
+export function usePathwayTemplateImpact(
+  templateId: string,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["pathways", "template-impact", templateId],
+    enabled: (options?.enabled ?? true) && !!templateId,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PathwayTemplateImpactResponse }>(
+        `/engine/pathway/pathway-templates/${templateId}/impact`,
+      );
+      return data.data;
+    },
   });
 }
 
@@ -1214,10 +1261,79 @@ export function useCreatePathwayTemplate() {
 export function usePublishPathwayTemplate() {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { templateId: string; packageVersion: string }) => {
+    mutationFn: async (payload: {
+      templateId: string;
+      packageVersion: string;
+      impactDigest?: string;
+      reason?: string;
+    }) => {
       const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
         `/engine/pathway/pathway-templates/${payload.templateId}/publish`,
-        withStandardApiContext({}, security.data, payload.packageVersion),
+        withStandardApiContext(
+          {
+            impactDigest: payload.impactDigest,
+            reason: payload.reason,
+            releaseStep: "submit_review",
+            directFullRollout: false,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useFullRolloutPathwayTemplate() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: {
+      templateId: string;
+      packageVersion: string;
+      impactDigest?: string;
+      reason?: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
+        `/engine/pathway/pathway-templates/${payload.templateId}/rollout/full`,
+        withStandardApiContext(
+          {
+            impactDigest: payload.impactDigest,
+            reason: payload.reason,
+            releaseStep: "full_rollout",
+            directFullRollout: true,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRollbackPathwayTemplate() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: {
+      templateId: string;
+      packageVersion: string;
+      rollbackTargetTemplateId: string;
+      impactDigest?: string;
+      reason?: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
+        `/engine/pathway/pathway-templates/${payload.templateId}/rollback`,
+        withStandardApiContext(
+          {
+            impactDigest: payload.impactDigest,
+            reason: payload.reason,
+            releaseStep: "evidence_rollback",
+            rollbackTargetTemplateId: payload.rollbackTargetTemplateId,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
       );
       return data.data;
     },

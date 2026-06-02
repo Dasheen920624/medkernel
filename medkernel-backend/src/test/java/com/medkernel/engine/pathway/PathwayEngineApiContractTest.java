@@ -89,6 +89,14 @@ class PathwayEngineApiContractTest {
     }
 
     @Test
+    void templateImpactEndpointUsesCustomerRouteAndTenantScope() throws Exception {
+        mvc.perform(get("/api/v1/engine/pathway/pathway-templates/pt-1/impact")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
     void oldPluralRootAndDiagnoseRouteAreRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/pathways/packages")
                 .with(writeJwt())

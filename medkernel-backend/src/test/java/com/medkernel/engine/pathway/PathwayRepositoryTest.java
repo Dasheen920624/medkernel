@@ -121,12 +121,17 @@ class PathwayRepositoryTest {
         templates.save(sampleTemplate("pt-c", "tenant-A", "sp-b", "STROKE"));
         templates.save(sampleTemplate("pt-d", "tenant-B", "sp-a", "COPD"));
 
-        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a");
-        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", "sp-a", 0, 10);
+        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null);
+        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, 0, 10);
+        long codeTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a");
+        List<PathwayTemplate> codeRows = templates.pageByFilter(
+            "tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", 0, 10);
 
         assertThat(total).isEqualTo(2);
         assertThat(rows).extracting(PathwayTemplate::tenantId).containsOnly("tenant-A");
         assertThat(rows).extracting(PathwayTemplate::diseaseCode).containsOnly("COPD");
+        assertThat(codeTotal).isEqualTo(1);
+        assertThat(codeRows).extracting(PathwayTemplate::templateId).containsExactly("pt-a");
     }
 
     private SpecialtyPackage samplePackage(String packageId, String tenantId, String diseaseCode) {

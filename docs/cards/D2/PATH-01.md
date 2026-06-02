@@ -24,6 +24,7 @@
 - 缺口（本卡补）：① **三层前端**（L1 模板 / L2 节点画布 X6/G6 / L3 DSL）；② **仿真**接 [API-01](API-01.md) 真实快照；③ 发布 **7 步流 + §3 状态机** 接 [SYS-04](SYS-04.md)；④ **关键时钟绑定质控**（[SYS-04](SYS-04.md)/D4 评估消费）；⑤ **随访接续**（出径 → 随访计划交接 D3 FOLLOW）。
 - 2026-06-02 PR1 进展（`codex/d2-path-01-backend-contracts`）：后端仿真与实时推进新增 `snapshotId`，通过 `ContextSnapshotService.findById` 消费 [API-01](API-01.md) 真实快照，返回 `contextQualityStatus`、`missingFields`、`mappingStatus`、`contextResourceCounts`；`PathwayProgressor` 支持从快照事实评估 `condition_json`（如检验值条件），默认边仅作 fallback，不再抢走已满足条件边；`PathwayProgressDecision` / `PathwayAdvanceResponse` 携带命中边与事实证据；有时窗节点发布时必须绑定质控指标，缺失返回 `PATHWAY_CLOCK_MISSING`，入径 / 推进创建的 `ClinicalClock.metricCode` 来自真实 `SpecialtyMetricBinding`。未冒领三层前端、7 步发布、随访接续和 D4 超时信号闭环。
 - 2026-06-02 PR2 进展（`codex/d2-path-01-pr2-frontend`）：`PathwayTemplates` 已清理旧 `DEFAULT_NODES_JSON` / `DEFAULT_EDGES_JSON` 与粘贴式快照入口，改为 L1 模板、L2 结构化节点画布、L3 DSL 三层编辑；L2 可同步生成 L3 DSL，L3 可回填到 L2，三层产出同一 `PathwayTemplate` 请求体；详情抽屉展示 L1 / L2 / L3 与真实快照试运行，仿真从 [API-01](API-01.md) ACTIVE 快照列表 / 详情选择 `snapshotId`，展示后端返回的快照质量、映射状态和节点轨迹。当前未引入真实 X6/G6 拖拽图引擎，已登记 `DEFER-017`，不得冒领拖拽式图编辑完成。
+- 2026-06-03 PR3 进展（`codex/d2-path-01-pr3-release-followup`）：路径发布前新增真实影响摘要接口 `GET /pathway-templates/{templateId}/impact`，摘要只来自路径拓扑、关键时钟绑定和患者路径实例事实，不把生命周期状态写入 digest，确保灰度后可基于同一影响摘要继续全量确认；草稿发布必须携带当前 `impactDigest` 与审核说明，进入 `canary_release` 默认 10% 灰度；已发布模板支持院级管理员 `full_rollout` 全量确认；当前已发布模板可回滚到同编码 `OFFLINE` 历史版本，当前版本下线、目标版本恢复发布并写 `ROLLBACK` 审计；列表接口补 `templateCode` 过滤，前端回滚候选来自同编码历史版本查询，不再依赖当前分页。患者路径 `COMPLETED` 后通过路径→随访端口生成 / 复用随访计划，`PathwayAdvanceResponse` 返回 `followupPlanId`、`followupTaskCount` 和交接状态。前端 `PathwayTemplates` 新增“7 步流发布”页签，标题栏按钮只跳页签，不再绕过影响摘要；页签展示 digest、灰度、全量和回滚操作。未冒领通用 SYS-04 泛化 `ReleasePort/ReplayPort`。
 
 ## 功能要求（原子可测条目）
 
@@ -31,8 +32,8 @@
 - [ ] **FR-2 患者入径与推进**：患者入径 `PatientPathway` → `PathwayProgressor` 按上下文/规则推进节点；产 `PathwayProgressDecision` 可解释。
 - [ ] **FR-3 变异管理**：偏离路径记 `PathwayVariance`（原因/节点/时点），不静默跳过。
 - [ ] **FR-4 关键时钟**：节点绑 `ClinicalClock`（如"术后 24h 内 X"）；超时触发待办/质控信号（D4 消费）。
-- [ ] **FR-5 仿真 + 7 步流**：仿真选真实快照走路径（不写库）；发布走 7 步流（[SYS-04](SYS-04.md)）。
-- [ ] **FR-6 随访接续**：患者出径 → 生成随访计划交接 D3 随访（FOLLOW），不断链。
+- [x] **FR-5 仿真 + 7 步流**：仿真选真实快照走路径（不写库）；发布走 7 步流（[SYS-04](SYS-04.md)）。
+- [x] **FR-6 随访接续**：患者出径 → 生成随访计划交接 D3 随访（FOLLOW），不断链。
 
 ## 接口契约 / 页面契约
 
@@ -81,7 +82,7 @@
 - [x] **AC-1（FR-1）**：L2 节点画布编辑 ↔ L3 DSL 互转无损，产出同一模板；本轮为 B0 结构化画布，X6/G6 拖拽增强登记 `DEFER-017`。
 - [ ] **AC-2（FR-2/3）**：患者入径推进节点、解释正确；偏离记 `PathwayVariance` 不静默。
 - [ ] **AC-3（FR-4）**：节点绑关键时钟，超时触发待办/质控信号；未配时钟的超时节点发布 → `PATHWAY_CLOCK_MISSING` 告警。
-- [ ] **AC-4（FR-5/6）**：仿真不写库；7 步流灰度→全量→回滚；出径生成随访计划交接 D3。
+- [x] **AC-4（FR-5/6）**：仿真不写库；7 步流灰度→全量→回滚；出径生成随访计划交接 D3。
 - 关联 A1–A9 剧本：A3 路径配置、A4 发布回滚、A7 随访接续。
 - T-GATE：前后端真实性门禁全绿（仿真/时钟真实、无写死流程）。
 - B0 验收：三层配置 + 确定性推进，**天然 B0**；关模型行为不变。
@@ -92,6 +93,7 @@
 - 测试：三层互转 + 推进/变异 + 关键时钟超时 + 仿真真实快照 + 随访接续 + 灰度回滚 E2E。
 - 当前 PR1 本地证据：红灯测试先失败于缺 `ContextSnapshotService` 依赖、`snapshotId` 仿真 / 实时推进合同、快照证据响应、条件事实证据和 `PATHWAY_CLOCK_MISSING` 错误码；默认边 fallback 红灯先失败于旧逻辑返回 `PLAN` 而非满足条件的 `FOLLOWUP`。随后聚焦后端 `mvn -q -Dtest=PathwayProgressorTest,PathwayEngineServiceTest,PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,PathwayRepositoryTest,ErrorCodeTest test` 通过；后端全量 `mvn -q test` 通过，含 H2、PostgreSQL 15.18、Oracle 21.3 迁移至 V53；前端 `npm run verify`（43 文件 / 226 测试）与 `npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`authenticity-guard --mode=all` 扫描 791 文件通过，配置边界 inventory 扫描 733 文件通过，changed 迁移扫描 0 文件通过，`scripts/check-comment-zh.sh --mode=full` 引擎 / shared Javadoc 100% 且历史 COMMENT gap 继续归 `DEFER-006`，`git diff --check` 通过。`DEFER-003` 前端测试 / 构建噪声、`DEFER-006` 历史迁移 COMMENT gap、`DEFER-016` 历史迁移 inventory 债务保持 open，不冒领清零。PR1 仅覆盖后端真实快照仿真 / 推进、条件推进证据、变异 / 时钟基础和发布关键时钟门禁，不勾选整卡完成。
 - 当前 PR2 本地证据：红灯测试先失败于 `PathwayTemplates` 缺 L2→L3 同步 / L3→L2 回填，随后新增 B0 结构化画布、可编辑 L3 DSL、双向同步、详情 L2 画布预览和真实快照选择仿真。目标测试 `npm test -- src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RulePathwayCleanliness.test.ts` 通过 2 文件 / 6 测试；`npm run typecheck`、`npm test -- src/pages/pages.smoke.test.tsx` 22/22、`npm run verify` 44 文件 / 229 测试、`npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`node scripts/authenticity-guard.mjs --mode=all` 扫描 791 文件通过，配置边界 inventory 扫描 733 文件通过，`scripts/check-comment-zh.sh` 0 fail / 0 warn，`git diff --check` 通过。Browser 插件仍无可用 `iab`，按 `DEFER-004` 改用项目 Playwright 访问 `http://127.0.0.1:5175/pathway/templates` 验证 L2→L3、L3→L2、真实快照 `snapshotId=ctx-path-001` 仿真、无粘贴式上下文、失败响应 0 / 非预期控制台 0，截图 `/tmp/medkernel-pathway-pr2-final-rerun.png`。`DEFER-015` 已关闭；`DEFER-014` 收窄到 `TenantOnboarding`；真实 X6/G6 拖拽图引擎登记 `DEFER-017`，不冒领。
+- 当前 PR3 本地证据：红灯测试先失败于缺 `PathwayTemplateImpactResponse` / `templateImpact` / 发布 digest 合同、缺结径随访交接口、缺前端“7 步流发布”页签，随后补真实影响摘要、`impactDigest + reason` 门禁、`canary_release` 10% 灰度、`full_rollout` 院级确认、`evidence_rollback` 回滚到同编码已下线版本、路径结径随访交接端口和前端发布页签。新增红灯再暴露全量 / 回滚缺服务合同后已补齐；提交前评审又补 `templateImpactDigestIgnoresLifecycleStatusChanges` 红绿回归，防止生命周期状态改变导致灰度后全量确认 digest 失配；本轮审查发现回滚候选依赖当前分页的体验缺口，已补 `templateCode` 列表过滤和前端同编码历史版本查询。验证：聚焦后端 `mvn -q -Dtest=PathwayEngineServiceTest,PathwayRepositoryTest,PathwayEngineApiContractTest,FollowupEngineServiceTest test` 通过；后端全量 `mvn -q test` 通过，含 PostgreSQL 15.18 与 Oracle 21.3 迁移至 V53；前端目标测试 `npm test -- src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RulePathwayCleanliness.test.ts` 通过 2 文件 / 8 测试；`npm run typecheck`、`npm run verify`（44 文件 / 231 测试）、`npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`node scripts/authenticity-guard.mjs --mode=all` 扫描 791 文件通过，配置边界 inventory 扫描 733 文件通过，`scripts/check-comment-zh.sh` 0 fail / 0 warn，`git diff --check` 通过。生产依赖 `npm audit --omit=dev` 为 0 漏洞，开发工具链 Vite / Vitest 审计项继续归 `DEFER-002`，不冒领清零。Browser 插件仍无可用 `iab`，按 `DEFER-004` 改用项目 Playwright 访问 `http://127.0.0.1:5175/pathway/templates` 验证发布页签展示 `impactDigest`、灰度发布 / 全量确认 / 回滚三类请求体均携带 `impactDigest`、审核说明、`releaseStep` 与标准上下文，同编码历史查询 `status=OFFLINE&templateCode=PATH.CARDIO.REVIEW&page=1&size=100`，非预期控制台错误 0，截图 `/tmp/medkernel-pathway-pr3-release-rerun.png`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（16d，后端 + 三层前端；按 PR 拆分）

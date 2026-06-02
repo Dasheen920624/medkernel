@@ -9,7 +9,8 @@ import com.medkernel.engine.context.QualityStatus;
 /**
  * 患者路径推进响应。
  *
- * <p>返回上一个节点、下一节点、推进后状态、命中边、上下文快照和事实证据，便于前端回放执行轨迹。
+ * <p>返回上一个节点、下一节点、推进后状态、命中边、上下文快照、事实证据和结径随访交接结果，
+ * 便于前端回放执行轨迹并接续 D3 随访。
  */
 public record PathwayAdvanceResponse(
     String patientPathwayId,
@@ -25,6 +26,9 @@ public record PathwayAdvanceResponse(
     Map<String, String> mappingStatus,
     Map<String, Integer> contextResourceCounts,
     Map<String, Object> decisionEvidence,
+    String followupPlanId,
+    int followupTaskCount,
+    String followupHandoffStatus,
     String traceId
 ) {
 
@@ -43,6 +47,6 @@ public record PathwayAdvanceResponse(
             String varianceId,
             String traceId) {
         this(patientPathwayId, previousNodeCode, nextNodeCode, status, varianceId,
-            null, null, null, null, List.of(), Map.of(), Map.of(), Map.of(), traceId);
+            null, null, null, null, List.of(), Map.of(), Map.of(), Map.of(), null, 0, null, traceId);
     }
 }
