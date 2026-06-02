@@ -44,6 +44,7 @@
 | DEFER-011 | GitHub Actions 仍提示 Node.js 20 actions 弃用，2026-09-16 后将从 runner 移除 | 不影响当前 PR：CI 8/8 已通过；但后续若不升级 action 运行时，可能在 2026-09-16 后形成 CI 阻塞。不得宣称 CI 工具链弃用风险已清零 | 否 | INFRA CI 工具链治理；GA `INFRA-10` 总验收前，且最晚 2026-09-16 前 | open | 升级或替换 `.github/workflows` 中触发 Node.js 20 提醒的 actions，或验证 GitHub runner 默认 Node.js 24 后仍 8/8 通过；提交 CI 8/8 通过记录和无 Node.js 20 deprecation annotation 的 run 链接 |
 | DEFER-012 | 规则影响分析缺少真实跨域反向索引：规则 ↔ 路径模板、规则 ↔ 在径患者、规则 ↔ 发布同步目标尚未建立统一关联 | API-05 当前只能返回规则自身、版本、测试覆盖和已知不可用范围；不得伪造受影响路径、患者或同步目标。当前 API 契约可继续推进，但不得宣称跨域影响分析已全量闭环 | 否 | D2 `RULE-01` / `SYS-04` 发布框架；D2 域级验收与 GA `INFRA-10` 总验收前 | open | 建立真实规则引用索引或发布影响任务来源，至少覆盖规则引用的路径模板、在径患者、同步目标；提交 PostgreSQL + Oracle 查询验证、影响分析接口返回真实非伪造对象、发布门禁回归和域级 E2E 证据 |
 | DEFER-013 | OpenSpec 旧变更 `engine-authenticity-remediation` 仍显示 17 项未完成，与当前卡体系 / 已合并 PR 进度不同步 | 不影响当前 `RULE-01` 主线；当前权威仍为 CONSTITUTION、`_HANDOFF`、backlog、域简报和施工卡。不得把 OpenSpec 旧任务勾选状态当成当前真实进度，也不得为追平勾选而伪造完成证据 | 否 | OpenSpec 归档 / 协作流程治理；GA `INFRA-10` 总验收前 | open | 对照已合并 PR、`_HANDOFF` 与 backlog，归档或重写该 OpenSpec 变更；提交 `openspec list --json` 不再误导当前主线、相关文档指针一致、CI / 文档门禁通过的证据 |
+| DEFER-014 | 非当前触碰范围仍存在旧 Ant Design `Tabs.TabPane` 用法：`TenantOnboarding`、`PathwayTemplates` 等页面尚未统一为 `Tabs items` | `RULE-01` 规则库页已清理并通过浏览器验收；相邻页面旧用法不影响当前三层编辑主链路，但不得宣称租户域前端旧 API 已全量清零 | 否 | 对应页面卡再次触碰时同步清理；最晚 GA `INFRA-10` 前端净化收口 | open | 将 `frontend/src/pages/tenant` 中仍使用的 `Tabs.TabPane` 迁移为 `Tabs items`，提交相关页面 smoke / 目标测试、`npm run verify`、`npm run build` 和浏览器验收记录；全仓 `rg -n "Tabs\\.TabPane" frontend/src/pages/tenant` 无遗留或有批准豁免 |
 
 ## 新问题登记模板
 
