@@ -16,6 +16,36 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useSecurityProfile: () => ({
+    data: {
+      userId: "implementation-1",
+      username: "implementation.engineer",
+      roles: [
+        {
+          code: "implementation-engineer",
+          displayName: "实施工程师",
+          source: "tenant",
+          scopeLevel: "HOSPITAL",
+          scopeCode: "hospital-1",
+        },
+      ],
+      permissions: [],
+      menuKeys: [],
+      environmentKeys: [],
+      dataScope: {
+        tenantId: "tenant-A",
+        groupId: "group-1",
+        hospitalId: "hospital-1",
+        campusId: null,
+        siteId: null,
+        departmentId: null,
+        specialtyId: null,
+      },
+      mustChangePwd: false,
+      mfaRequired: false,
+      mfaBound: true,
+    },
+  }),
   useSyncTargets: () => ({
     data: [{ targetId: "target-his", targetName: "院内 HIS 同步通道" }],
   }),
@@ -201,6 +231,55 @@ describe("ConfigPackages offline package export", () => {
     expect(screen.getByText("院内同步发布中心")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeInTheDocument();
     expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
+  });
+
+  it("defaults package release to grayscale rollout instead of direct full rollout", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+    expect(screen.getByLabelText("灰度发布 (GRAYSCALE)")).toBeChecked();
+    expect(screen.getByLabelText("全量发布 (FULL)")).toBeDisabled();
+    expect(screen.getByText(/默认按接收组织内 10% 床位进入灰度/)).toBeInTheDocument();
+  });
+
+  it("submits the default release request as grayscale rollout", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+    fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
+    await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
+    fireEvent.change(screen.getByLabelText("接收组织单元"), {
+      target: { value: "hospital-1" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
+
+    await waitFor(() => {
+      expect(apiMocks.releasePackage).toHaveBeenCalledWith({
+        packageId: "pkg-offline",
+        request: {
+          targetOrgUnitId: "hospital-1",
+          strategy: "GRAYSCALE",
+          scopeType: "ALL",
+          scopeValue: "",
+          targetIds: ["target-his"],
+          packageVersion: "3.0.0",
+        },
+      });
+    });
   });
 
   it("adds terminology package assets with the stable package scope key", async () => {

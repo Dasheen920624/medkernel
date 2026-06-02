@@ -58,6 +58,7 @@ import {
   useEvaluationIndicators,
   useTerminologyPackages,
   useImportOfflinePackage,
+  useSecurityProfile,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
 } from "@/shared/api/hooks";
@@ -77,6 +78,18 @@ const { Option } = Select;
 
 type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
 
+function hasHospitalAdminRole(roles: Array<{ code?: string }> | undefined) {
+  return (roles ?? []).some((role) => {
+    const normalized = (role.code ?? "").trim().toUpperCase().replace(/[-.]/g, "_");
+    return (
+      normalized === "HOSPITAL_ADMIN" ||
+      normalized === "ROLE_HOSPITAL_ADMIN" ||
+      normalized === "TENANT_ADMIN" ||
+      normalized === "ROLE_TENANT_ADMIN"
+    );
+  });
+}
+
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -94,8 +107,10 @@ export default function ConfigPackages() {
 
   // 1. API 数据拉取
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const { data: securityProfile } = useSecurityProfile();
   const { data: apiPackagesData, refetch: refetchPackages } = usePackages(currentPage - 1, 10);
   const { data: apiSyncTargets } = useSyncTargets();
+  const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
 
   const [searchKeyword, setSearchKeyword] = useState<string>("");
 
@@ -229,6 +244,11 @@ export default function ConfigPackages() {
     if (!selectedPackageId) return;
     try {
       const values = await syncForm.validateFields();
+      const strategy = values.strategy || "GRAYSCALE";
+      if (strategy === "FULL" && !canDirectFullRelease) {
+        message.error("只有院级管理员可直接全量发布，请先走默认 10% 灰度。");
+        return;
+      }
       setSyncExecuting(true);
       setSyncProgress(20);
 
@@ -236,9 +256,9 @@ export default function ConfigPackages() {
         packageId: selectedPackageId,
         request: {
           targetOrgUnitId: values.targetOrgUnitId,
-          strategy: values.strategy,
-          scopeType: values.scopeType || "ALL",
-          scopeValue: values.scopeValue || "",
+          strategy,
+          scopeType: strategy === "GRAYSCALE" ? values.scopeType || "ALL" : "ALL",
+          scopeValue: strategy === "GRAYSCALE" ? values.scopeValue || "" : "",
           targetIds: values.targetIds,
           packageVersion: selectedPackage?.packageVersion || "",
         },
@@ -1147,20 +1167,21 @@ export default function ConfigPackages() {
                 name="strategy"
                 label="发布投放策略"
                 rules={[{ required: true, message: "请选择同步发布策略" }]}
-                initialValue="FULL"
+                initialValue="GRAYSCALE"
               >
                 <Radio.Group className="w-full">
-                  <Radio.Button
-                    value="FULL"
-                    className="w-1/2 text-center py-1.5 h-auto font-semibold"
-                  >
-                    全量发布 (FULL)
-                  </Radio.Button>
                   <Radio.Button
                     value="GRAYSCALE"
                     className="w-1/2 text-center py-1.5 h-auto font-semibold"
                   >
                     灰度发布 (GRAYSCALE)
+                  </Radio.Button>
+                  <Radio.Button
+                    value="FULL"
+                    disabled={!canDirectFullRelease}
+                    className="w-1/2 text-center py-1.5 h-auto font-semibold"
+                  >
+                    全量发布 (FULL)
                   </Radio.Button>
                 </Radio.Group>
               </Form.Item>
@@ -1182,50 +1203,17 @@ export default function ConfigPackages() {
             </Col>
           </Row>
 
-          {/* 灰度发布下的作用域约束和门禁字段 */}
+          {/* 灰度发布下的默认门禁 */}
           <Form.Item noStyle shouldUpdate={(prev, curr) => prev.strategy !== curr.strategy}>
             {({ getFieldValue }) =>
               getFieldValue("strategy") === "GRAYSCALE" ? (
-                <Card
-                  title={
-                    <div className="text-xs font-semibold text-amber-700 flex items-center gap-1">
-                      <WarningOutlined />
-                      <span>灰度作用域门禁</span>
-                    </div>
-                  }
-                  size="small"
-                  className="bg-amber-50/20 border-amber-100 mb-4 rounded-xl"
-                >
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Item
-                        name="scopeType"
-                        label="灰度作用域级别"
-                        rules={[{ required: true, message: "灰度发布必须选择作用域" }]}
-                        initialValue="DEPARTMENT"
-                      >
-                        <Select className="rounded-lg">
-                          <Option value="CAMPUS">院区级别 (CAMPUS)</Option>
-                          <Option value="SITE">院区站点 (SITE)</Option>
-                          <Option value="DEPARTMENT">临床科室级 (DEPARTMENT)</Option>
-                          <Option value="SPECIALTY">专病维度 (SPECIALTY)</Option>
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item
-                        name="scopeValue"
-                        label="灰度匹配值（指定科室 / 院区 ID）"
-                        rules={[{ required: true, message: "灰度匹配过滤值不能为空" }]}
-                      >
-                        <Input
-                          placeholder="请输入真实组织单元 ID 或组织编码"
-                          className="rounded-lg font-normal"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                </Card>
+                <Alert
+                  message="默认灰度策略"
+                  description="默认按接收组织内 10% 床位进入灰度，不覆盖当前 ACTIVE 版本；需要直接全量时必须由院级管理员确认。"
+                  type="info"
+                  showIcon
+                  className="mb-4 rounded-lg"
+                />
               ) : null
             }
           </Form.Item>
@@ -1248,7 +1236,7 @@ export default function ConfigPackages() {
                   description={
                     isFull
                       ? "全量同步发布成功后，当前配置包将激活为 ACTIVE。同编码 packageCode 的旧版 ACTIVE 包会原子降级为 OFFLINE，确保版本切换可追溯。"
-                      : "灰度发布成功后，配置包进入 PUBLISHED 状态，不覆盖主运行版本。只有命中上方灰度匹配值的场景才会使用该配置包。"
+                      : "灰度发布成功后，配置包进入 PUBLISHED 状态，不覆盖主运行版本；后端会写入 10% 床位灰度范围快照。"
                   }
                   type={isFull ? "error" : "info"}
                   showIcon
@@ -1279,9 +1267,12 @@ export default function ConfigPackages() {
                     <FileProtectOutlined className="text-emerald-600" />
                     <span>多通道同步证据链</span>
                   </div>
-                  <Timeline className="ml-2">
-                    {visibleSyncLogs.map((log) => (
-                      <Timeline.Item key={log.logId} color={syncLogStatusColor(log.status)}>
+                  <Timeline
+                    className="ml-2"
+                    items={visibleSyncLogs.map((log) => ({
+                      key: log.logId,
+                      color: syncLogStatusColor(log.status),
+                      children: (
                         <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex flex-col gap-1.5">
                           <div className="flex justify-between items-center text-xs font-semibold">
                             <span className="text-slate-800">
@@ -1307,9 +1298,9 @@ export default function ConfigPackages() {
                             </div>
                           )}
                         </div>
-                      </Timeline.Item>
-                    ))}
-                  </Timeline>
+                      ),
+                    }))}
+                  />
                 </div>
               )}
             </div>

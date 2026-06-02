@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
@@ -71,6 +73,8 @@ public class PackageEngineService {
     private static final ObjectMapper DIFF_EXPORT_MAPPER = new ObjectMapper();
     private static final ObjectMapper OFFLINE_EXPORT_MAPPER = new ObjectMapper();
     private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V1";
+    private static final String DEFAULT_GRAY_SCOPE_STRATEGY = "BED_PERCENT";
+    private static final int DEFAULT_GRAY_SCOPE_PERCENTAGE = 10;
 
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
@@ -1796,15 +1800,13 @@ public class PackageEngineService {
         String tenantId = currentTenantId();
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
+        PackageSyncRequest releaseRequest = requireSyncRequest(request);
+        validateReleaseAuthorization(releaseRequest);
+        ReleaseScope normalizedScope = normalizeReleaseScope(releaseRequest);
 
         KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
 
-        // 灰度与全量发布策略的基本参数及签名规则校验
-        if (request.strategy() == ReleaseStrategy.GRAYSCALE 
-            && (request.scopeType() == ReleaseScopeType.ALL || request.scopeValue() == null || request.scopeValue().isBlank())) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_003, "灰度发布时必须指定有效的作用域范围和具体过滤值");
-        }
         assertPackageReadyForRelease(packageId);
 
         // 创建发布计划（独立小事务中写库）
@@ -1813,10 +1815,10 @@ public class PackageEngineService {
             UUID.randomUUID().toString(),
             tenantId,
             packageId,
-            request.targetOrgUnitId(),
-            request.strategy(),
-            request.scopeType(),
-            request.scopeValue(),
+            releaseRequest.targetOrgUnitId(),
+            releaseRequest.strategy(),
+            normalizedScope.scopeType(),
+            normalizedScope.scopeValue(),
             ReleasePlanStatus.EXECUTING,
             Instant.now(),
             actor,
@@ -1935,7 +1937,7 @@ public class PackageEngineService {
         transactionTemplate.executeWithoutResult(status -> {
             planRepository.save(savedPlan.withStatus(finalStatus));
 
-            if (request.strategy() == ReleaseStrategy.FULL && finalAllSuccess) {
+            if (releaseRequest.strategy() == ReleaseStrategy.FULL && finalAllSuccess) {
                 // 原子切换：仅失效相同 packageCode 的 ACTIVE 知识包，不污染其他病种包
                 List<KnowledgePackage> activePacks = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId).stream()
                     .filter(p -> p.status() == KnowledgePackageStatus.ACTIVE && p.packageCode().equals(pack.packageCode()))
@@ -1954,16 +1956,78 @@ public class PackageEngineService {
         });
 
         // 事务外部：发布审计事实日志，确保子事务安全
-        if (request.strategy() == ReleaseStrategy.FULL && allSuccess) {
+        if (releaseRequest.strategy() == ReleaseStrategy.FULL && allSuccess) {
             auditPublisher.publish(AuditAction.PUBLISH, "knowledge_package", packageId, 
                 "知识包发布并同步全量成功: " + pack.name() + " (" + pack.packageVersion() + ")");
         } else {
             auditPublisher.publish(AuditAction.PUBLISH, "knowledge_package", packageId, 
-                "知识包发布计划执行完成, 策略为: " + request.strategy() + ", 状态为: " + finalStatus);
+                "知识包发布计划执行完成, 策略为: " + releaseRequest.strategy()
+                    + ", 作用域为: " + normalizedScope.scopeType()
+                    + ", 状态为: " + finalStatus);
         }
 
         return new PackageSyncResponse(savedPlan.planId(), packageId, finalStatus, logs);
     }
+
+    private PackageSyncRequest requireSyncRequest(PackageSyncRequest request) {
+        if (request == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "发布请求不能为空");
+        }
+        if (request.strategy() == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "发布策略不能为空");
+        }
+        if (request.targetOrgUnitId() == null || request.targetOrgUnitId().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "目标组织 ID 不能为空");
+        }
+        return request;
+    }
+
+    private void validateReleaseAuthorization(PackageSyncRequest request) {
+        if (request.strategy() == ReleaseStrategy.FULL && !hasHospitalAdminRole(request.roleCodes())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "配置包直接全量发布必须由院级管理员确认");
+        }
+    }
+
+    private ReleaseScope normalizeReleaseScope(PackageSyncRequest request) {
+        if (request.strategy() != ReleaseStrategy.GRAYSCALE) {
+            return new ReleaseScope(request.scopeType(), normalizedText(request.scopeValue()));
+        }
+        ReleaseScopeType requestedScopeType = request.scopeType();
+        String requestedScopeValue = normalizedText(request.scopeValue());
+        if (requestedScopeType == null || requestedScopeType == ReleaseScopeType.ALL) {
+            return defaultGrayScope(request.targetOrgUnitId());
+        }
+        if (requestedScopeValue == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_003, "指定灰度发布作用域时必须填写作用域值");
+        }
+        return new ReleaseScope(requestedScopeType, requestedScopeValue);
+    }
+
+    private ReleaseScope defaultGrayScope(String targetOrgUnitId) {
+        String scopeCode = normalizedText(targetOrgUnitId);
+        ObjectNode scope = DIFF_EXPORT_MAPPER.createObjectNode();
+        scope.put("strategy", DEFAULT_GRAY_SCOPE_STRATEGY);
+        scope.put("percentage", DEFAULT_GRAY_SCOPE_PERCENTAGE);
+        scope.put("scopeCode", scopeCode);
+        return new ReleaseScope(ReleaseScopeType.HOSPITAL, scope.toString());
+    }
+
+    private boolean hasHospitalAdminRole(List<String> roleCodes) {
+        return roleCodes == null ? false : roleCodes.stream()
+            .map(role -> role == null ? "" : role.trim().toUpperCase(Locale.ROOT)
+                .replace('-', '_').replace('.', '_'))
+            .anyMatch(role -> role.equals("HOSPITAL_ADMIN")
+                || role.equals("ROLE_HOSPITAL_ADMIN")
+                || role.equals("TENANT_ADMIN")
+                || role.equals("ROLE_TENANT_ADMIN"));
+    }
+
+    private String normalizedText(String value) {
+        String normalized = value == null ? "" : value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private record ReleaseScope(ReleaseScopeType scopeType, String scopeValue) {}
 
     private void assertPackageReadyForRelease(String packageId) {
         PackageValidateResponse validation = validatePackage(packageId);
