@@ -25,9 +25,10 @@ public record KnowledgeSourceVersionCreateRequest(
     @JsonAlias("package_version") String packageVersion,
     @JsonAlias("version_no") @NotBlank String versionNo,
     @JsonAlias("published_at") Instant publishedAt,
-    @JsonAlias("content_hash") @NotBlank String contentHash,
+    @JsonAlias("content_hash") String contentHash,
     @JsonAlias("file_uri") @NotBlank String fileUri,
-    String language
+    String language,
+    String content
 ) {
 
     public KnowledgeSourceVersionCreateRequest {
@@ -42,6 +43,6 @@ public record KnowledgeSourceVersionCreateRequest(
     }
 
     SourceVersionRegisterRequest toSourceVersionRegisterRequest(Long sourceDocumentId) {
-        return new SourceVersionRegisterRequest(sourceDocumentId, versionNo, publishedAt, contentHash, fileUri, language);
+        return new SourceVersionRegisterRequest(sourceDocumentId, versionNo, publishedAt, contentHash, fileUri, language, content);
     }
 }

@@ -122,7 +122,7 @@ class KnowledgeEngineTest {
     @Test
     void registerSourceVersionSavesVersionWhenNotExists() {
         SourceVersionRegisterRequest req = new SourceVersionRegisterRequest(
-            1L, "v1.0", Instant.now(), "my-content-hash", "http://file", "zh-CN"
+            1L, "v1.0", Instant.now(), sha256("中华骨科指南 2026 版原文"), "http://file", "zh-CN", null
         );
 
         SourceDocument doc = new SourceDocument(
@@ -138,14 +138,14 @@ class KnowledgeEngineTest {
 
         assertThat(saved).isNotNull();
         assertThat(saved.versionNo()).isEqualTo("v1.0");
-        assertThat(saved.contentHash()).isEqualTo("my-content-hash");
+        assertThat(saved.contentHash()).isEqualTo(sha256("中华骨科指南 2026 版原文"));
         verify(sourceVerRepo, times(1)).save(any(SourceVersion.class));
     }
 
     @Test
     void registerSourceVersionRejectsIfDocumentDoesNotExist() {
         SourceVersionRegisterRequest req = new SourceVersionRegisterRequest(
-            999L, "v1.0", Instant.now(), "hash", "http://file", "zh-CN"
+            999L, "v1.0", Instant.now(), sha256("不存在来源文献原文"), "http://file", "zh-CN", null
         );
 
         when(sourceDocRepo.findByTenantIdAndId("t-1", 999L)).thenReturn(Optional.empty());
@@ -163,7 +163,7 @@ class KnowledgeEngineTest {
         );
 
         SourceVersion version = new SourceVersion(
-            10L, "t-1", 1L, "v1.0", Instant.now(), "hash", "http", "zh-CN", Instant.now(), "system"
+            10L, "t-1", 1L, "v1.0", Instant.now(), sha256("来源版本原文"), "http", "zh-CN", Instant.now(), "system"
         );
 
         when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(version));
@@ -189,7 +189,7 @@ class KnowledgeEngineTest {
         );
 
         SourceVersion version = new SourceVersion(
-            10L, "t-1", 1L, "v1.0", Instant.now(), "hash", "http", "zh-CN", Instant.now(), "system"
+            10L, "t-1", 1L, "v1.0", Instant.now(), sha256("来源版本原文"), "http", "zh-CN", Instant.now(), "system"
         );
 
         when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(version));
@@ -212,7 +212,7 @@ class KnowledgeEngineTest {
         );
 
         SourceVersion version = new SourceVersion(
-            10L, "t-1", 1L, "v1.0", Instant.now(), "hash", "http", "zh-CN", Instant.now(), "system"
+            10L, "t-1", 1L, "v1.0", Instant.now(), sha256("来源版本原文"), "http", "zh-CN", Instant.now(), "system"
         );
 
         when(sourceVerRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(version));

@@ -371,11 +371,7 @@ public class KnowledgeVersionService {
         }
 
         // 3) 计算内容哈希 SHA-256
-        String content = request.content();
-        if (content == null) {
-            content = "";
-        }
-        String contentHash = sha256(content);
+        String contentHash = ContentHash.sha256(request.content());
 
         // 4) 扫描同 Identity 下的所有既有版本，若 contentHash 与之匹配则抛出 ENG_KNOW_002 冲突异常
         List<KnowledgeAssetVersion> existingVersions = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, request.identityId());
@@ -405,22 +401,4 @@ public class KnowledgeVersionService {
         return versionRepository.save(draft);
     }
 
-    private String sha256(String text) {
-        if (text == null) {
-            return "";
-        }
-        try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
 }

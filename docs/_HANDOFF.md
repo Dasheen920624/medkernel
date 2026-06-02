@@ -12,7 +12,13 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-（暂无未归档短线；下一步按 backlog 当前第一闸继续领取：D2 `KNOW-01` 知识资产引擎。领取前先读 [D2 域简报](cards/D2/_brief.md) 与 [KNOW-01](cards/D2/KNOW-01.md)，并复核 [待处理问题清单](audit/deferred-issues.md)。）
+### 线 1 · D2 KNOW-01 PR1 来源内容指纹与引用锚点 🚧
+- 类型：软件开发
+- 分支：`codex/d2-know-01-source-content-hash`
+- 目标：完成 [KNOW-01](cards/D2/KNOW-01.md) PR1 范围：来源版本 / 来源片段 / 知识资产版本真实 `content_hash` 生成与校验、引用锚点偏移字段、5 方言增量迁移与触碰范围旧口径清理；PR1 不冒领可信分级 FR-5、投影降级 FR-6 或整卡 done。
+- 状态：PR1 代码与文档已完成本地验证：TDD 红灯覆盖来源版本 hash、正文与外部 hash 不一致、同版本同 hash 幂等、资产版本空内容拒绝、V49 迁移缺失；实现 `ContentHash`、来源版本 `content` 计算/外部 SHA-256 校验、重复来源 hash 返回已有版本、资产版本真实 SHA-256、`citation.start_offset/end_offset` 与 `source_version` 内容 hash 唯一约束。已通过 `mvn -q -Dtest=KnowledgeIdentityServiceTest test`、聚焦套件 `mvn -q -Dtest=KnowledgeAssetApiContractTest,KnowledgeIdentityServiceTest,KnowledgeVersionServiceTest,KnowledgeEngineTest,KnowledgeIdentityRepositoryTest,MigrationBaselineContractTest,FlywayMultiDialectSmokeTest test`、`mvn -q -Dtest=H2BaselineMigrationTest test`、后端全量 `mvn -q test`（895 tests，PostgreSQL 15.18 / Oracle 21.3 / H2 均迁移至 V49）。计划见 [KNOW-01 PR1 实施计划](superpowers/plans/2026-06-02-know-01-source-content-hash.md)。
+- 下一步（精确到动作/命令）：1. 正式 stage 全部 PR1 文件；2. 运行 `git diff --cached --check`；3. 提交中文 commit；4. 提交后重跑 changed T-GATE（`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`）；5. 推送 PR，等待 CI 8/8，通过后 squash merge；6. 合并后从最新 `origin/main` 继续 `KNOW-01` PR2 可信分级，不领取其他卡。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/test/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V49__knowledge_citation_anchor_offsets.sql`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`；`changed` T-GATE 当前未提交时会扫描 0 文件，不能当通过证据，必须提交后重跑；当前运行环境只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境仍归 `DEFER-001`，不阻塞本线。
 
 ## 已归档工作线（最近完成，供回溯）
 

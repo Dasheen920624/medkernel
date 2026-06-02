@@ -3,8 +3,6 @@ package com.medkernel.engine.knowledge;
 import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
-import java.security.MessageDigest;
-import java.nio.charset.StandardCharsets;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.shared.api.PageRequest;
@@ -228,12 +226,21 @@ public class KnowledgeIdentityService {
         sourceDocumentRepository.findByTenantIdAndId(tenantId, request.sourceDocumentId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_KNOW_001, "来源文献不存在 id=" + request.sourceDocumentId()));
 
+        String hash = ContentHash.resolve(request.content(), request.contentHash());
         Optional<SourceVersion> existingOpt = sourceVersionRepository.findBySourceDocumentIdAndVersionNo(request.sourceDocumentId(), request.versionNo());
         if (existingOpt.isPresent()) {
-            throw new ApiException(ErrorCode.CONFLICT, "同来源文献下的版本 " + request.versionNo() + " 已存在");
+            SourceVersion existing = existingOpt.get();
+            if (existing.contentHash() != null && existing.contentHash().equalsIgnoreCase(hash)) {
+                return existing;
+            }
+            throw new ApiException(ErrorCode.CONFLICT, "同来源文献下的版本 " + request.versionNo() + " 已存在且内容指纹不一致");
         }
 
-        String hash = requireSourceContentHash(request.contentHash());
+        Optional<SourceVersion> existingHashOpt =
+            sourceVersionRepository.findBySourceDocumentIdAndContentHash(request.sourceDocumentId(), hash);
+        if (existingHashOpt.isPresent()) {
+            return existingHashOpt.get();
+        }
 
         SourceVersion version = new SourceVersion(
             null,
@@ -271,7 +278,7 @@ public class KnowledgeIdentityService {
             throw new ApiException(ErrorCode.CONFLICT, "锚点路径 " + request.anchorPath() + " 已在当前版本下被占用");
         }
 
-        String contentHash = sha256(request.textExcerpt());
+        String contentHash = ContentHash.sha256(request.textExcerpt());
 
         Optional<SourceFragment> existingHashOpt = sourceFragmentRepository.findBySourceVersionIdAndContentHash(request.sourceVersionId(), contentHash);
         if (existingHashOpt.isPresent()) {
@@ -308,29 +315,4 @@ public class KnowledgeIdentityService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private String requireSourceContentHash(String contentHash) {
-        if (contentHash == null || contentHash.isBlank()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "来源版本必须携带真实内容哈希，禁止用版本号或时间戳合成");
-        }
-        return contentHash.trim();
-    }
-
-    private String sha256(String text) {
-        if (text == null) {
-            return "";
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
 }

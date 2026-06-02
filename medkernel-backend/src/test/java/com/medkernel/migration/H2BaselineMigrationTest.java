@@ -1,6 +1,7 @@
 package com.medkernel.migration;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 import javax.sql.DataSource;
 
@@ -20,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
+    private static final int LATEST_MIGRATION_VERSION = 49;
+
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
         DataSource ds = new HikariDataSource(hikari());
@@ -31,14 +34,13 @@ class H2BaselineMigrationTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("H2 baseline migrations succeed").isTrue();
-        assertThat(result.migrationsExecuted).as("V1 至 V48 全部应用").isEqualTo(48);
+        assertThat(result.migrationsExecuted).as("V1 至 V49 全部应用").isEqualTo(LATEST_MIGRATION_VERSION);
 
         var applied = flyway.info().applied();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
-            .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
-                "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27",
-                "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42",
-                "43", "44", "45", "46", "47", "48");
+            .containsExactlyElementsOf(IntStream.rangeClosed(1, LATEST_MIGRATION_VERSION)
+                .mapToObj(String::valueOf)
+                .toList());
 
         var repeated = flyway.migrate();
         assertThat(repeated.success).as("H2 baseline repeated migrate succeeds").isTrue();
