@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D1 WORKBENCH-02 演示与校验页面 🚧
+### 线 1 · D1 工作台域级验收 🚧
 
-- 类型：软件开发 / D1 工作台演示就绪度
-- 分支：`codex/d1-workbench-02-demo-validation`（基于 `origin/main` 99290b6f，`WORKBENCH-01` PR2 #244 已合并）
-- 目标：按 [D1 域简报](cards/D1/_brief.md) 与 [WORKBENCH-02](cards/D1/WORKBENCH-02.md) 新建“演示与校验”生产验收页：与工作台共用一级菜单槽、页面内 Tab 切换；复用现有 `/security/me` 与 `/system/operations` 等状态来源；展示可演示 / 阻塞 / 未启用的真实计数、中文阻塞原因和修复去处；只读自检，不新增 `/api/v1/workbench/*`，不假绿。
-- 状态：TDD 已完成。新增 `/workbench/demo-validation` 页面、路由、同槽 Tab、只读自检、六态、中文阻塞原因与修复去处；后端新增 `workbench:demo:view` 动作权限和五方言 V47 权限迁移。已确认不新增 `/api/v1/workbench/*`。本地验证：前端 `npm run verify` 41 文件 / 203 测试通过，`npm run build` 通过；后端目标 `mvn -q -Dtest=DefaultPermissionPolicyTest,PermissionDimensionModelTest,SystemSecurityCatalogRepositoryTest,H2BaselineMigrationTest test` 通过并应用 47 个 H2 迁移；CI 初跑暴露 `FlywayMultiDialectSmokeTest` / `MigrationBaselineContractTest` 仍停在 V46，已修正并本地 `mvn -q -Dtest=FlywayMultiDialectSmokeTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过，覆盖 H2 / PostgreSQL / Oracle 迁移到 V47；全仓真实性扫描 745 文件通过；T-GATE 脚本 34/34 通过；`scripts/check-comment-zh.sh --mode=full` 本轮 V47 OK（历史 GAP 继续见 `DEFER-006`）；`git diff --check` 通过。Playwright fallback 验收 `http://127.0.0.1:5175/workbench/demo-validation`：标题 / 真实计数 / 3 个筛选 / 单主按钮“重新自检”可见，网络请求仅 `/security/me`、`/experience/theme-preference`、`/auth/session`、`/system/operations`，截图 `/tmp/medkernel-workbench02-demo-validation.png`。`DEFER-001` 至 `DEFER-007` 仍 open；遇到新的非当前主链路阻塞先登记 [待处理问题清单](audit/deferred-issues.md) 后继续。
-- 下一步（精确到动作/命令）：1. 复核 diff / 状态，必要时补格式或文档遗漏；2. 提交分支并推送；3. 创建 PR，等待 CI 8/8；4. 远端 squash 合并后确认 `origin/main` 含合并提交；5. 清理远端分支 / 本地 worktree；6. 从最新 `origin/main` 继续 D1 下一张卡 / 域级验收，不跳阶段。
-- 相关文件 / 测试 / 坑：关键文件为 `frontend/src/pages/workbench/DemoValidation.tsx`、`frontend/src/widgets/WorkbenchTabs.tsx`、`frontend/src/app/router.tsx`、`frontend/src/shared/config/routes.ts`、`frontend/src/shared/config/menu.ts`、`scripts/authenticity-guard.mjs`、`medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java`、`DefaultPermissionPolicy.java`、`db/migration/*/V47__workbench_demo_validation_permission.sql`。`frontend.production-demo-route` 门禁继续阻断 `*Demo` / 旧 demo-only 路由，只放行 WORKBENCH-02 明确生产验收页；不得新增 `/api/v1/workbench/*` 或前端假快照。
+- 类型：软件开发 / 文档 / 域级验收
+- 分支：`codex/d1-domain-acceptance`（基于 `origin/main` 07f8f77f，`WORKBENCH-02` #245 已合并）
+- 目标：按 [D1 域简报](cards/D1/_brief.md) 与 [质量基线 §2.3](audit/质量基线.md) 收口 D1：确认 `INFRA-09` / `WORKBENCH-01` / `WORKBENCH-02` 均已完成并有证据，补齐 `/dashboard` 13 角色显式路由约束与 13 角色工作台首屏自动化验收，更新 backlog / 卡 / handoff / 验收报告，确保下一阶段可从 D2 领取。
+- 状态：本轮已新增 `/dashboard` 显式 13 角色路由约束（由 `ROLE_OPTIONS` 派生），补 `routes.test.ts` 逐角色可访问 `/dashboard`，补 `WorkbenchPanel.test.tsx` 逐 13 角色渲染默认首屏标题与默认卡片；新增 [D1 工作台域级验收报告](audit/D1-domain-acceptance.md)。已更新 backlog 将 `WORKBENCH-01` / `WORKBENCH-02` / `D1-验收` 对齐为 done，D1 简报与 WORKBENCH 卡状态同步。本地验证已完成：D1 聚焦 5 文件 / 46 测试通过，前端 `npm run verify` 41 文件 / 205 测试通过，`npm run build` 通过；T-GATE 规则测试 34/34、全仓真实性扫描 747 文件、`git diff --check` 通过；中文注释扫描退出 0（历史 GAP 见 `DEFER-006`）；Playwright fallback 验证 `/dashboard` 与 `/workbench/demo-validation` 可见、控制台错误 `[]`、页面错误 `[]`、无 `/medkernel/api/v1/workbench/*`。`DEFER-001` 至 `DEFER-007` 仍 open，均非 D1 当前主链路阻塞。
+- 下一步（精确到动作/命令）：1. 复核 diff / 状态；2. 提交分支并推送；3. 创建 PR，等待 CI 8/8；4. 远端 squash 合并后确认 `origin/main` 含合并提交；5. 清理远端分支 / 本地 worktree；6. 从最新 `origin/main` 继续 D2 第一张 pending 卡，不跳阶段。
+- 相关文件 / 测试 / 坑：关键文件为 `frontend/src/shared/config/routes.ts`、`frontend/src/shared/config/routes.test.ts`、`frontend/src/widgets/WorkbenchPanel.test.tsx`、`docs/audit/D1-domain-acceptance.md`、`docs/backlog.md`、`docs/cards/D1/_brief.md`、`docs/cards/D1/WORKBENCH-01.md`、`docs/cards/D1/WORKBENCH-02.md`。遇到新的非当前主链路阻塞先登记 [待处理问题清单](audit/deferred-issues.md) 后继续；不得把 `DEFER-*` 写成已通过。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D1 WORKBENCH-02 演示与校验页面 ✅（#245，merge `07f8f77f`）：新增 `/workbench/demo-validation` 页面、路由、同槽 Tab、只读自检、六态、中文阻塞原因与修复去处；后端新增 `workbench:demo:view` 动作权限和五方言 V47 权限迁移。前端 `npm run verify` 41 文件 / 203 测试、`npm run build`、后端权限 / 迁移目标测试、H2 / PostgreSQL / Oracle V47 迁移基线、真实性全仓扫描、T-GATE 34/34、中文注释扫描与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。Playwright fallback 验收 `/workbench/demo-validation` 标题 / 真实计数 / 3 个筛选 / 单主按钮 / 无 `/api/v1/workbench/*`。
 - D1 WORKBENCH-01 PR2 ✅（#244，merge `99290b6f`）：补齐 1 个页头主按钮“继续处理待办”、3 个默认筛选、现有路由下钻、未建域诚实详情抽屉、平台/院管治理切片与本周建议动作；`TenantLifecyclePanel` 内部推进按钮降为普通动作，避免平台视图多个同权主按钮。前端 `WorkbenchPanel` 聚焦 11/11、`npm run verify` 40 文件 / 193 测试、`npm run build`、真实性全仓扫描 745 文件、T-GATE 33/33、`git diff --check` 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。Browser 插件无可用 `iab` 保持 `DEFER-004`，Playwright fallback 证实 `/dashboard` 非白屏、诚实权限失败态、无旧占位、无 `/api/v1/workbench/*`。
 - D1 WORKBENCH-01 PR1 ✅（#243，merge `4a89ec1c`）：工作台移除旧“等待真实聚合 API”占位，复用 `/security/me`、`/system/operations`、`/compliance/audit/events`、`/platform/success/lifecycle`；补信息科 / 临床 / 医务质控 / 审计 / 院管默认视图、无权限态、部分来源降级、未建域诚实态，并确保权限未核验前不请求运行状态 / 审计 / 生命周期来源。完整前端 verify 40 文件 / 189 测试、build、真实性全仓扫描 745 文件、T-GATE 33/33 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001` 至 `DEFER-007` 保持 open，不阻塞主线但不得宣称清零。
 - D0 登录域级验收 ✅（#241，merge `4be225c7`）：清理旧假 E2E 与 fixture，新增真实 D0 Playwright 验收覆盖 13 角色登录、首登改密、MFA setup→verify、权限画像、菜单隔离与退出；修复 `/medkernel` context-path 下首登改密守卫误挡、Bootstrap MFA 两步绑定和 Header 用户菜单可达性；真实性门禁扩展到前端 E2E。远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 D0 worktree 已清理。`DEFER-001` 至 `DEFER-006` 保持 open，不阻塞主线但不得宣称清零。
@@ -131,4 +132,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`WORKBENCH-02` 已完成本地实现与验证，待 PR / CI / 合并。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-007` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`WORKBENCH-02` 已通过 #245 合入，当前在途为 D1 工作台域级验收 `codex/d1-domain-acceptance`。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-007` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

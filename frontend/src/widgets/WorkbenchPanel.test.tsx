@@ -11,6 +11,7 @@ import type {
   SecurityProfile,
   SuccessPlan,
 } from "@/shared/api/hooks";
+import { ROLE_OPTIONS } from "@/shared/config/roleCatalog";
 
 const hookState = vi.hoisted(() => ({
   security: {} as Record<string, unknown>,
@@ -204,6 +205,22 @@ function setLoadedState(roleCode = "it-ops", displayName = "信息科") {
   };
 }
 
+function expectedLandingFor(roleCode: string, displayName: string) {
+  if (roleCode === "it-ops") {
+    return { heading: "信息科工作台", marker: "系统健康" };
+  }
+  if (["doctor", "nurse", "specialist", "dept-head"].includes(roleCode)) {
+    return { heading: `${displayName}工作台`, marker: "我的待办" };
+  }
+  if (["medical-affairs", "qa-manager", "insurance-manager"].includes(roleCode)) {
+    return { heading: `${displayName}工作台`, marker: "价值指标" };
+  }
+  if (roleCode === "audit-compliance") {
+    return { heading: "合规审计工作台", marker: "最近变化" };
+  }
+  return { heading: `${displayName}工作台`, marker: "治理切片" };
+}
+
 describe("WorkbenchPanel", () => {
   beforeEach(() => {
     setLoadedState();
@@ -227,6 +244,23 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
     expect(screen.queryByText("真实工作台聚合数据待接入")).not.toBeInTheDocument();
     expect(screen.queryByText("等待真实聚合 API")).not.toBeInTheDocument();
+  });
+
+  it("renders an explicit default landing view for all 13 customer roles", () => {
+    ROLE_OPTIONS.forEach(({ code, name }) => {
+      setLoadedState(code, name);
+
+      const { unmount } = renderWorkbench();
+      const expected = expectedLandingFor(code, name);
+
+      expect(screen.getByRole("heading", { name: expected.heading })).toBeInTheDocument();
+      expect(screen.getAllByText(expected.marker).length).toBeGreaterThan(0);
+      expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+      expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
+      expect(hookState.auditEnabledCalls.at(-1)).toBe(true);
+
+      unmount();
+    });
   });
 
   it("prioritizes my todo state for clinical users without fabricating task counts", () => {

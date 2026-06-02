@@ -16,7 +16,8 @@
 - **数据源**：后端当前**无 workbench REST 端点**（全仓 `workbench` 仅 `MenuPermissionCatalog` 菜单权限键 + 其测试，非接口）；PR1/PR2 均坚持复用现有 API（健康/审计/待办/大列表/引擎状态）渲染真实数据，未建域诚实降级，**不得伪造或 dangling**，不得回退到 `todoMock`、静态指标或不存在的 `/api/v1/workbench/*`。
 - **演示模式**：`features/demo-mode/DemoModeToggle.tsx` 已有，[WORKBENCH-02](WORKBENCH-02.md) 在其上做"演示与校验"。
 - **演示页（已清）** 原 `frontend/src/pages/StepFlowDemo.tsx` 与生产路由 `config/packages/demo` 已由 [INFRA-09](INFRA-09.md) 清出生产；`StepFlow` 组件（`shared/ui/StepFlow.tsx`）保留供 D2 配置类页面复用，生产 router 已加门禁防 `*Demo` / demo 路径回流。
-- **演示与校验页**：2026-06-02 本轮在 `codex/d1-workbench-02-demo-validation` 新建 `/workbench/demo-validation`，与工作台页面内 Tab 合并；复用 `/security/me`、`/auth/session`、`/experience/theme-preference`、`/system/operations`，展示可演示 / 阻塞 / 未启用真实计数、中文阻塞原因和修复去处；不新增 `/api/v1/workbench/*`。合并前以后续 PR / CI / merge 证据为准。
+- **演示与校验页**：WORKBENCH-02 已通过 #245 合入 `origin/main`（merge `07f8f77f`）。生产路由 `/workbench/demo-validation` 与工作台页面内 Tab 合并；复用 `/security/me`、`/auth/session`、`/experience/theme-preference`、`/system/operations`，展示可演示 / 阻塞 / 未启用真实计数、中文阻塞原因和修复去处；不新增 `/api/v1/workbench/*`。
+- **域级验收**：2026-06-02 本轮在 `codex/d1-domain-acceptance` 收口 D1 验收，新增 `/dashboard` 显式 13 角色路由约束与 13 角色工作台首屏组件测试；证据见 [D1 工作台域级验收报告](../../audit/D1-domain-acceptance.md)。
 
 ## 登入 / 使用角色（13 角色矩阵的本域子集，全量矩阵见 [质量基线 §9](../../audit/质量基线.md)）
 

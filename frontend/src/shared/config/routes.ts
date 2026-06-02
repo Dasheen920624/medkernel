@@ -3,6 +3,7 @@
  * AppLayout + router + 菜单 + 面包屑 + 权限元数据全部读这里。
  */
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
+import { ROLE_OPTIONS } from "./roleCatalog";
 
 export type RouteSectionKey =
   | "workbench"
@@ -71,6 +72,8 @@ export const routeSections: RouteSectionMeta[] = [
   { key: "compliance-ops", label: "合规运维" },
   { key: "advanced-tools", label: "高级工具", hidden: true },
 ];
+
+const CUSTOMER_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
 
 function readonlyExperience(
   primaryRole: string,
@@ -162,6 +165,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "workbench",
     menuKey: "workbench",
     menuLabel: "工作台",
+    requiredRoles: CUSTOMER_ROLE_CODES,
     experience: readonlyExperience(
       "医院管理者",
       "查看当前运行状态和需要跟进的事项",

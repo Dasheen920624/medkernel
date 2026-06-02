@@ -2,7 +2,7 @@
 
 > 读卡前置：[核心 CONSTITUTION](../../CONSTITUTION.md) + [D1 域简报](_brief.md) + [体验契约](../../EXPERIENCE_CONTRACT.md)。
 > 迁移来源（覆盖矩阵锚点）：详规 S0 工作台与总览（"试点是否可验收"，L466）· 落地规划 §16 AI 全面验证与验收 / A1–A9 剧本 · 体验规范 §13 验收清单 · 宪法 §2 菜单 IA（工作台一级"工作台 · 演示与校验"合并 Tab）。
-> 现状：2026-06-02 本轮在 `codex/d1-workbench-02-demo-validation` 新建生产路由 `/workbench/demo-validation` 与页面；`StepFlowDemo`（7 步流 UI 演示）**不是**本页，已由 [INFRA-09](INFRA-09.md) 清出生产。页面复用 `/security/me`、`/auth/session`、`/experience/theme-preference`、`/system/operations` 等现有底座，不新增 `/api/v1/workbench/*`。
+> 现状：WORKBENCH-02 已通过 #245 合入 `origin/main`（merge `07f8f77f`），生产路由 `/workbench/demo-validation` 与页面已上线到当前基线；`StepFlowDemo`（7 步流 UI 演示）**不是**本页，已由 [INFRA-09](INFRA-09.md) 清出生产。页面复用 `/security/me`、`/auth/session`、`/experience/theme-preference`、`/system/operations` 等现有底座，不新增 `/api/v1/workbench/*`。
 > 卡 ID 说明：`WORKBENCH-02` 为 D1 域搬迁按"逐域回填卡 ID"规则新指派的页面卡 ID（backlog 原行 `D1-PAGE-演示校验`）。
 
 ## 身份
