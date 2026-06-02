@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 同步执行日志实体。
  *
- * <p>保存投影执行状态、错误码、重试与加密签名存证。
+ * <p>保存同步执行状态、错误码、重试与加密签名存证。
  */
 @Table("sync_log")
 public record SyncLog(

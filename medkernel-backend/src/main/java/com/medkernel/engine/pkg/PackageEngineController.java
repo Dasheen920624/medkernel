@@ -7,6 +7,7 @@ import java.util.List;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -24,11 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 知识包发布与同步 REST 控制器。
  *
- * <p>承担知识包创建、资产条目添加、差异计算与影响分析、多通道物理同步及回滚终点。
+ * <p>承担知识包创建、资产条目添加、差异计算与影响分析、多通道同步及回滚终点。
  * 权限分拆为 {@code package.read} / {@code package.publish} / {@code package.rollback}。
  */
 @RestController
-@RequestMapping("/api/v1/engine/packages")
+@RequestMapping("/api/v1/engine/pkg/packages")
 @DataScope(requireTenant = true)
 public class PackageEngineController {
 
@@ -47,6 +48,7 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.publish')")
     public ResponseEntity<ApiResult<PackageResponse>> createPackage(
             @RequestBody @Valid PackageCreateRequest request) {
+        validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.createPackage(request)));
     }
@@ -86,6 +88,7 @@ public class PackageEngineController {
     public ResponseEntity<ApiResult<PackageItemResponse>> addPackageItem(
             @PathVariable String packageId,
             @RequestBody @Valid PackageItemRequest request) {
+        validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.addPackageItem(packageId, request)));
     }
@@ -101,6 +104,20 @@ public class PackageEngineController {
             @PathVariable String packageId,
             @RequestParam(required = false) String basePackageId) {
         return ApiResult.ok(service.calculateDiff(packageId, basePackageId));
+    }
+
+    /**
+     * 校验包是否满足发布前门禁。
+     *
+     * <p>权限：{@code package.publish}。
+     */
+    @PostMapping("/{packageId}/validate")
+    @PreAuthorize("@perm.has('package.publish')")
+    public ApiResult<PackageValidateResponse> validatePackage(
+            @PathVariable String packageId,
+            @RequestBody @Valid PackageOperationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.validatePackage(packageId));
     }
 
     /**
@@ -156,7 +173,7 @@ public class PackageEngineController {
     }
 
     /**
-     * 触发包灰度/全量投影同步与发布。
+     * 触发包灰度/全量同步发布。
      *
      * <p>权限：{@code package.publish}。
      */
@@ -165,7 +182,33 @@ public class PackageEngineController {
     public ApiResult<PackageSyncResponse> syncPackage(
             @PathVariable String packageId,
             @RequestBody @Valid PackageSyncRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.syncPackage(packageId, request));
+    }
+
+    /**
+     * 触发包灰度或全量发布，复用真实同步状态机。
+     *
+     * <p>权限：{@code package.publish}。
+     */
+    @PostMapping("/{packageId}/release")
+    @PreAuthorize("@perm.has('package.publish')")
+    public ApiResult<PackageSyncResponse> releasePackage(
+            @PathVariable String packageId,
+            @RequestBody @Valid PackageSyncRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.releasePackage(packageId, request));
+    }
+
+    /**
+     * 查询包发布同步日志。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/{packageId}/sync-logs")
+    @PreAuthorize("@perm.has('package.read')")
+    public ApiResult<List<SyncLogResponse>> listSyncLogs(@PathVariable String packageId) {
+        return ApiResult.ok(service.listSyncLogs(packageId));
     }
 
     /**
@@ -178,6 +221,7 @@ public class PackageEngineController {
     public ApiResult<PackageResponse> rollbackPackage(
             @PathVariable String packageId,
             @RequestBody @Valid PackageRollbackRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.rollbackPackage(packageId, request));
     }
 
@@ -192,5 +236,9 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.read')")
     public ApiResult<List<SyncTarget>> listSyncTargets() {
         return ApiResult.ok(service.listSyncTargets());
+    }
+
+    private void validateContext(PackageContextRequest request) {
+        request.apiContext().validateTenant(RequestContext.currentOrgScope().tenantId());
     }
 }

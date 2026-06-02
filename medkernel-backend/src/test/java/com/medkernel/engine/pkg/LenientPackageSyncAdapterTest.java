@@ -31,7 +31,7 @@ class LenientPackageSyncAdapterTest {
             1L,
             "target-1",
             "tenant-A",
-            "图投影",
+            "图谱同步",
             SyncTargetType.GRAPH_DB,
             null,
             SyncTargetStatus.ACTIVE,

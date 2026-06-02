@@ -50,7 +50,8 @@ import {
   usePackageDetail,
   useAddPackageItem,
   useCalculateDiff,
-  useSyncPackage,
+  useReleasePackage,
+  usePackageSyncLogs,
   useRollbackPackage,
   useRuleDefinitions,
   usePathwayTemplates,
@@ -133,7 +134,7 @@ export default function ConfigPackages() {
     setRollbackConfirmed(false);
   };
 
-  // 物理添加细项的库选项（RULE/PATHWAY/EVALUATION/TERMINOLOGY）
+  // 资产入包选项（RULE/PATHWAY/EVALUATION/TERMINOLOGY）
   const { data: activeRules } = useRuleDefinitions({ size: 100 });
   const { data: activePathways } = usePathwayTemplates({ size: 100 });
   const { data: activeEvaluations } = useEvaluationIndicators({ size: 100 });
@@ -142,7 +143,7 @@ export default function ConfigPackages() {
   // 4. API 突变 Hooks
   const createPackageMutation = useCreatePackage();
   const addPackageItemMutation = useAddPackageItem();
-  const syncPackageMutation = useSyncPackage();
+  const releasePackageMutation = useReleasePackage();
   const rollbackPackageMutation = useRollbackPackage();
   const importOfflinePackageMutation = useImportOfflinePackage();
 
@@ -156,6 +157,7 @@ export default function ConfigPackages() {
   const { data: apiDetail, refetch: refetchPackageDetail } = usePackageDetail(
     selectedPackageId || "",
   );
+  const { data: persistedSyncLogs } = usePackageSyncLogs(selectedPackageId || "");
   const currentItems = apiDetail?.items || [];
 
   // 计算多版本差异 API
@@ -198,6 +200,7 @@ export default function ConfigPackages() {
           assetType: values.assetType,
           assetId: values.assetId,
           assetVersion: values.assetVersion,
+          packageVersion: selectedPackage?.packageVersion || values.assetVersion,
         },
       });
 
@@ -211,7 +214,7 @@ export default function ConfigPackages() {
     }
   };
 
-  // D. 多物理通道投影同步
+  // D. 院内同步发布
   const [syncProgress, setSyncProgress] = useState<number>(0);
   const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
   const [syncExecuting, setSyncExecuting] = useState<boolean>(false);
@@ -223,8 +226,7 @@ export default function ConfigPackages() {
       setSyncExecuting(true);
       setSyncProgress(20);
 
-      // 发起后端同步
-      const res = await syncPackageMutation.mutateAsync({
+      const res = await releasePackageMutation.mutateAsync({
         packageId: selectedPackageId,
         request: {
           targetOrgUnitId: values.targetOrgUnitId,
@@ -232,20 +234,28 @@ export default function ConfigPackages() {
           scopeType: values.scopeType || "ALL",
           scopeValue: values.scopeValue || "",
           targetIds: values.targetIds,
+          packageVersion: selectedPackage?.packageVersion || "",
         },
       });
 
       setSyncProgress(100);
       setSyncLogs(res?.logs || []);
       setSyncExecuting(false);
-      message.success("物理通道投影同步完成！");
+      const hasNotConnectedTarget =
+        res?.status === "NOT_SYNCED" ||
+        (res?.logs || []).some((log) => log.status === "NOT_SYNCED");
+      if (hasNotConnectedTarget) {
+        message.warning("发布计划已记录，当前未接入真实同步通道。");
+      } else {
+        message.success("院内同步发布完成。");
+      }
       refetchPackages();
     } catch (err: unknown) {
       setSyncExecuting(false);
       setSyncProgress(0);
       setSyncLogs([]);
       if (applyApiFieldErrors(syncForm, err)) return;
-      message.error(getApiErrorMessage(err, "投影同步失败，未生成同步证据。"));
+      message.error(getApiErrorMessage(err, "同步发布失败，未生成同步证据。"));
     }
   };
 
@@ -326,6 +336,7 @@ export default function ConfigPackages() {
           confirmedTargetVersion: targetPackage.packageVersion,
           reason,
           confirmedHighRisk: rollbackConfirmed,
+          packageVersion: selectedPackage.packageVersion,
         },
       });
       message.success("版本回滚成功，目标版本已启用，当前版本已下线。");
@@ -350,6 +361,18 @@ export default function ConfigPackages() {
           p.packageCode === selectedPackage.packageCode,
       )
     : [];
+  const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
+  const syncLogStatusColor = (status: string) => {
+    if (status === "SUCCESS") return "green";
+    if (status === "NOT_SYNCED") return "orange";
+    return "red";
+  };
+  const syncLogStatusText = (status: string) => {
+    if (status === "NOT_SYNCED") return "未接入";
+    if (status === "SUCCESS") return "成功";
+    if (status === "FAILED") return "失败";
+    return status;
+  };
 
   // 8. 表格列定义
   const columns = [
@@ -462,7 +485,7 @@ export default function ConfigPackages() {
               }}
               className="p-0 font-semibold text-emerald-600 hover:text-emerald-800"
             >
-              物理投影同步
+              院内同步发布
             </Button>
             {isActive && (
               <Button
@@ -486,7 +509,7 @@ export default function ConfigPackages() {
   return (
     <PageShell
       title="配置包中心"
-      description="提供全租户专病智能发布引擎工作台。支持医疗资产（规则、路径、指标、术语字典）统一打包封存、多版本变动科室影响度分析、多物理通道（HIS、Dify等）全量与灰度发布投影及一键回滚存证审计。"
+      description="提供配置包发布工作台。支持规则、路径、指标、术语字典统一打包、版本差异影响分析、院内同步、灰度 / 全量发布和高危回滚审计。"
     >
       {/* 1. 顶端宏观数据 Metric 看板 Grid */}
       <Row gutter={16} className="mb-6">
@@ -498,7 +521,7 @@ export default function ConfigPackages() {
               valueStyle={{ color: token.colorPrimary, fontWeight: "bold", fontSize: "28px" }}
               prefix={<DatabaseOutlined className="mr-2 text-slate-500" />}
             />
-            <div className="text-xs text-slate-400 mt-2">基于多租户物理安全隔离的版本快照</div>
+            <div className="text-xs text-slate-400 mt-2">基于多租户权限隔离的版本快照</div>
           </div>
         </Col>
         <Col span={6}>
@@ -522,7 +545,7 @@ export default function ConfigPackages() {
               valueStyle={{ color: token.colorInfo, fontWeight: "bold", fontSize: "28px" }}
               prefix={<CloudSyncOutlined className="mr-2 text-blue-500" />}
             />
-            <div className="text-xs text-slate-400 mt-2">已投影成功，尚未成为历史回滚点</div>
+            <div className="text-xs text-slate-400 mt-2">已完成发布，尚未成为历史回滚点</div>
           </div>
         </Col>
         <Col span={6}>
@@ -650,7 +673,7 @@ export default function ConfigPackages() {
 
           <Alert
             message="安全审计约束规范"
-            description="新创建的配置包版本默认置为 DRAFT (草案) 状态。只有加入并关联经过临床审核通过的医疗资产，方可触发物理通道投影发布。"
+            description="新创建的配置包版本默认置为 DRAFT (草案) 状态。只有加入并关联经过临床审核通过的医疗资产，方可触发发布。"
             type="info"
             showIcon
             className="rounded-lg border-sky-100 bg-sky-50 text-sky-900"
@@ -762,7 +785,7 @@ export default function ConfigPackages() {
                 title={
                   <div className="flex items-center gap-2 text-sky-600 font-semibold text-xs">
                     <PlusOutlined />
-                    <span>物理追加临床资产细项入包</span>
+                    <span>追加临床资产细项入包</span>
                   </div>
                 }
                 size="small"
@@ -859,7 +882,7 @@ export default function ConfigPackages() {
             ) : (
               <Alert
                 message="编辑权限受限说明"
-                description="当前配置包已处于发布/激活生命周期中，资产条目已物理锁存（Read-Only），无法进行追加或删除修改。如需修改资产，请创建新的配置包草稿版本。"
+                description="当前配置包已处于发布/激活生命周期中，资产条目已版本锁定，无法进行追加或删除修改。如需修改资产，请创建新的配置包草稿版本。"
                 type="warning"
                 showIcon
                 className="rounded-lg"
@@ -1034,7 +1057,7 @@ export default function ConfigPackages() {
               >
                 <div className="flex flex-col gap-3">
                   <div className="text-xs text-slate-500 leading-relaxed">
-                    依据该配置包中“规则/路径/指标”的绑定属性，系统智能计算出本次发布物理投影后，将直接或间接影响以下临床专科诊疗路径动作及指标核查：
+                    依据该配置包中“规则/路径/指标”的绑定属性，系统计算本次同步发布后，将直接或间接影响以下临床专科诊疗路径动作及指标核查：
                   </div>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {(apiDiffData.affectedDepartments ?? []).map((dept: string) => (
@@ -1065,12 +1088,12 @@ export default function ConfigPackages() {
         </div>
       </Modal>
 
-      {/* ────────────────── Modal: 物理投影发布同步中心 ────────────────── */}
+      {/* ────────────────── Modal: 院内同步发布中心 ────────────────── */}
       <Modal
         title={
           <div className="flex items-center gap-2 text-emerald-700 font-semibold text-lg border-b border-slate-100 pb-3">
             <CloudSyncOutlined />
-            <span>物理投影与多通道同步发布中心</span>
+            <span>院内同步发布中心</span>
           </div>
         }
         open={syncModalVisible}
@@ -1085,7 +1108,7 @@ export default function ConfigPackages() {
         destroyOnClose
       >
         <Form form={syncForm} layout="vertical" className="mt-4" onFinish={handleSyncPackage}>
-          {/* 基本物理 facts 对照 */}
+          {/* 基本发布事实对照 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between mb-4 text-xs font-semibold text-slate-600">
             <div>包名称: {selectedPackage?.name}</div>
             <div>
@@ -1120,7 +1143,7 @@ export default function ConfigPackages() {
             <Col span={12}>
               <Form.Item
                 name="targetIds"
-                label="选择物理同步投影通道目标"
+                label="选择同步通道目标"
                 rules={[{ required: true, message: "请至少选择一个同步目标" }]}
               >
                 <Select mode="multiple" placeholder="请选择同步目标通道" className="rounded-lg">
@@ -1134,7 +1157,7 @@ export default function ConfigPackages() {
             </Col>
           </Row>
 
-          {/* 灰度发布下的物理约束和门禁字段 */}
+          {/* 灰度发布下的作用域约束和门禁字段 */}
           <Form.Item noStyle shouldUpdate={(prev, curr) => prev.strategy !== curr.strategy}>
             {({ getFieldValue }) =>
               getFieldValue("strategy") === "GRAYSCALE" ? (
@@ -1142,7 +1165,7 @@ export default function ConfigPackages() {
                   title={
                     <div className="text-xs font-semibold text-amber-700 flex items-center gap-1">
                       <WarningOutlined />
-                      <span>物理作用域灰度拦截门禁</span>
+                      <span>灰度作用域门禁</span>
                     </div>
                   }
                   size="small"
@@ -1152,8 +1175,8 @@ export default function ConfigPackages() {
                     <Col span={12}>
                       <Form.Item
                         name="scopeType"
-                        label="灰度物理作用域级别"
-                        rules={[{ required: true, message: "灰度发布必须选择物理作用域" }]}
+                        label="灰度作用域级别"
+                        rules={[{ required: true, message: "灰度发布必须选择作用域" }]}
                         initialValue="DEPARTMENT"
                       >
                         <Select className="rounded-lg">
@@ -1167,7 +1190,7 @@ export default function ConfigPackages() {
                     <Col span={12}>
                       <Form.Item
                         name="scopeValue"
-                        label="物理过滤匹配值 (指定科室/院区ID)"
+                        label="灰度匹配值（指定科室 / 院区 ID）"
                         rules={[{ required: true, message: "灰度匹配过滤值不能为空" }]}
                       >
                         <Input
@@ -1199,8 +1222,8 @@ export default function ConfigPackages() {
                   message={isFull ? "【强安全提醒】全量发布" : "灰度发布策略"}
                   description={
                     isFull
-                      ? "全量物理同步投影成功后，当前配置包将被彻底激活为 ACTIVE 运行实体。同编码（packageCode）的旧版 ACTIVE 包将被原子降级 OFFLINE 隔离，从而平滑安全切换决策树。"
-                      : "灰度同步投影仅会将配置包封存发布为已就绪(PUBLISHED)状态，不覆盖主运行流。只有当患者的临床事实命中上方指定的灰度物理过滤值时，才会小流量执行该配置包规则。"
+                      ? "全量同步发布成功后，当前配置包将激活为 ACTIVE。同编码 packageCode 的旧版 ACTIVE 包会原子降级为 OFFLINE，确保版本切换可追溯。"
+                      : "灰度发布成功后，配置包进入 PUBLISHED 状态，不覆盖主运行版本。只有命中上方灰度匹配值的场景才会使用该配置包。"
                   }
                   type={isFull ? "error" : "info"}
                   showIcon
@@ -1211,7 +1234,7 @@ export default function ConfigPackages() {
           </Form.Item>
 
           {/* 实时同步执行进度 & 证据链渲染 */}
-          {(syncExecuting || syncProgress > 0) && (
+          {(syncExecuting || syncProgress > 0 || visibleSyncLogs.length > 0) && (
             <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div className="flex justify-between items-center mb-2">
                 <span className="font-semibold text-slate-700 text-xs">同步发布执行进度:</span>
@@ -1225,18 +1248,15 @@ export default function ConfigPackages() {
               />
 
               {/* 实时同步证据 Timeline */}
-              {syncLogs.length > 0 && (
+              {visibleSyncLogs.length > 0 && (
                 <div className="mt-4">
                   <div className="font-semibold text-slate-700 text-xs mb-3 flex items-center gap-1">
                     <FileProtectOutlined className="text-emerald-600" />
-                    <span>多通道物理发布存证证据链 (Evidence Trace Chain)</span>
+                    <span>多通道同步证据链</span>
                   </div>
                   <Timeline className="ml-2">
-                    {syncLogs.map((log) => (
-                      <Timeline.Item
-                        key={log.logId}
-                        color={log.status === "SUCCESS" ? "green" : "red"}
-                      >
+                    {visibleSyncLogs.map((log) => (
+                      <Timeline.Item key={log.logId} color={syncLogStatusColor(log.status)}>
                         <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex flex-col gap-1.5">
                           <div className="flex justify-between items-center text-xs font-semibold">
                             <span className="text-slate-800">
@@ -1244,14 +1264,17 @@ export default function ConfigPackages() {
                               {displayTargets.find((t) => t.targetId === log.targetId)
                                 ?.targetName || log.targetId}
                             </span>
-                            <Tag color="green" className="m-0 text-[10px]">
-                              {log.status}
+                            <Tag color={syncLogStatusColor(log.status)} className="m-0 text-[10px]">
+                              {syncLogStatusText(log.status)}
                             </Tag>
                           </div>
+                          {log.errorMessage && (
+                            <div className="text-[10px] text-slate-500">{log.errorMessage}</div>
+                          )}
                           {log.syncEvidence && (
                             <div className="flex items-center justify-between gap-4 mt-1 bg-slate-50 p-2 rounded border border-slate-200">
                               <span className="text-[10px] text-slate-400 font-normal flex items-center gap-1">
-                                <AuditOutlined /> 物理存证证据:
+                                <AuditOutlined /> 同步证据:
                               </span>
                               <span className="font-normal text-[10px] text-emerald-700 font-bold break-all bg-emerald-50 px-1 py-0.5 rounded">
                                 {log.syncEvidence}
@@ -1274,9 +1297,7 @@ export default function ConfigPackages() {
             icon={<CloudSyncOutlined />}
             className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700 rounded-lg py-5 font-semibold text-center flex items-center justify-center gap-1 mt-2"
           >
-            {syncExecuting
-              ? "正在物理长链接投影及写入证据存证..."
-              : "开始发起物理投影多通道同步发布"}
+            {syncExecuting ? "正在执行同步并写入证据..." : "开始同步发布"}
           </Button>
         </Form>
       </Modal>

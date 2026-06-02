@@ -1,5 +1,9 @@
 package com.medkernel.engine.pkg;
 
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,6 +18,19 @@ import jakarta.validation.constraints.Size;
  * @param confirmedHighRisk 高危回滚影响二次确认
  */
 public record PackageRollbackRequest(
+    @JsonAlias("request_id") String requestId,
+    @JsonAlias("trace_id") String traceId,
+    @JsonAlias("tenant_id") String tenantId,
+    @JsonAlias("group_id") String groupId,
+    @JsonAlias("hospital_id") String hospitalId,
+    @JsonAlias("campus_id") String campusId,
+    @JsonAlias("site_id") String siteId,
+    @JsonAlias("department_id") String departmentId,
+    @JsonAlias("specialty_id") String specialtyId,
+    @JsonAlias("user_id") String userId,
+    @JsonAlias("role_codes") List<String> roleCodes,
+    @JsonAlias("package_version") String packageVersion,
+
     @NotBlank(message = "回滚目标包不能为空")
     String targetPackageId,
 
@@ -29,4 +46,25 @@ public record PackageRollbackRequest(
 
     @NotNull(message = "高危回滚确认不能为空")
     Boolean confirmedHighRisk
-) {}
+) implements PackageContextRequest {
+    public PackageRollbackRequest {
+        roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+    }
+
+    public PackageRollbackRequest(
+            String targetPackageId,
+            String confirmedCurrentVersion,
+            String confirmedTargetVersion,
+            String reason,
+            Boolean confirmedHighRisk) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            targetPackageId, confirmedCurrentVersion, confirmedTargetVersion, reason, confirmedHighRisk);
+    }
+
+    public PackageApiContext apiContext() {
+        return new PackageApiContext(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion
+        );
+    }
+}

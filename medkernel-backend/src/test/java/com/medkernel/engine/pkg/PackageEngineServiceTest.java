@@ -160,6 +160,52 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void validatePackageReturnsBlockingIssueWhenPackageHasNoItems() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-empty", "tenant-A", "PKG.EMPTY", "1.0.0", "空配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-empty", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-empty"))
+            .thenReturn(List.of());
+
+        PackageValidateResponse response = service.validatePackage("pkg-empty");
+
+        assertThat(response.packageId()).isEqualTo("pkg-empty");
+        assertThat(response.valid()).isFalse();
+        assertThat(response.itemCount()).isZero();
+        assertThat(response.issues()).anySatisfy(issue -> {
+            assertThat(issue.field()).isEqualTo("items");
+            assertThat(issue.severity()).isEqualTo("BLOCKING");
+            assertThat(issue.message()).contains("至少包含一个已审核资产");
+        });
+    }
+
+    @Test
+    void validatePackageReturnsValidWhenPackageHasRealItems() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem item = new PackageItem(
+            10L, "item-1", "tenant-A", "pkg-1", PackageItemAssetType.RULE, "rule-1", "1",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-1"))
+            .thenReturn(List.of(item));
+
+        PackageValidateResponse response = service.validatePackage("pkg-1");
+
+        assertThat(response.packageId()).isEqualTo("pkg-1");
+        assertThat(response.valid()).isTrue();
+        assertThat(response.itemCount()).isEqualTo(1);
+        assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
     void addPackageItemFailsWhenAssetNotPublished() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
@@ -607,7 +653,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
 
         SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "投影目标", SyncTargetType.DIFY, "config",
+            1L, "target-1", "tenant-A", "同步目标", SyncTargetType.DIFY, "config",
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
@@ -641,7 +687,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
 
         SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, null,
+            1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
@@ -665,6 +711,63 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void releasePackageUsesExistingSyncStateMachine() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+
+        SyncTarget target = new SyncTarget(
+            1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(target));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenReturn("EVIDENCE-RELEASE-001");
+
+        PackageSyncResponse response = service.releasePackage("pkg-1", new PackageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
+        assertThat(response.logs()).hasSize(1);
+        assertThat(response.logs().get(0).syncEvidence()).isEqualTo("EVIDENCE-RELEASE-001");
+    }
+
+    @Test
+    void listSyncLogsReturnsOnlyPersistedLogsForPackageReleasePlans() {
+        ReleasePlan plan = new ReleasePlan(
+            10L, "plan-1", "tenant-A", "pkg-1", "org-1",
+            ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, ReleasePlanStatus.NOT_SYNCED,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        SyncLog log = new SyncLog(
+            20L, "log-1", "tenant-A", "plan-1", "target-1",
+            SyncLogStatus.NOT_SYNCED, "NOT_SYNCED", "未配置真实同步适配器", 0, null,
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(new KnowledgePackage(
+                1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "配置包", null,
+                KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
+        when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
+            .thenReturn(List.of(plan));
+        when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-1"))
+            .thenReturn(List.of(log));
+
+        List<SyncLogResponse> response = service.listSyncLogs("pkg-1");
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).planId()).isEqualTo("plan-1");
+        assertThat(response.get(0).status()).isEqualTo(SyncLogStatus.NOT_SYNCED);
+        assertThat(response.get(0).syncEvidence()).isNull();
+    }
+
+    @Test
     void syncPackageDoesNotPublishDraftWhenAllTargetsAreNotSynced() throws Exception {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待同步草稿包", null,
@@ -674,7 +777,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
 
         SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, null,
+            1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
@@ -706,7 +809,7 @@ class PackageEngineServiceTest {
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         SyncTarget failedTarget = new SyncTarget(
-            2L, "target-fail", "tenant-A", "图投影", SyncTargetType.GRAPH_DB, "config",
+            2L, "target-fail", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, "config",
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(targetRepository.findByTargetIdAndTenantId("target-ok", "tenant-A"))
@@ -1093,7 +1196,7 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(oldCopd, stroke));
 
         SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "投影目标", SyncTargetType.DIFY, "config",
+            1L, "target-1", "tenant-A", "同步目标", SyncTargetType.DIFY, "config",
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
@@ -1313,7 +1416,7 @@ class PackageEngineServiceTest {
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         SyncTarget target = new SyncTarget(
-            30L, targetId, "tenant-A", "图投影", SyncTargetType.GRAPH_DB, "config",
+            30L, targetId, "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, "config",
             SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
 

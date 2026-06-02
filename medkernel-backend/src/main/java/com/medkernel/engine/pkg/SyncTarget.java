@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 同步投影目标实体。
+ * 同步发布目标实体。
  *
  * <p>保存 Dify、Neo4j、医院业务库等各种环境的同步通道信息。
  */
