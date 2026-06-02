@@ -258,7 +258,6 @@ export function TenantLifecyclePanel() {
           <Col>
             {hasNext && nextStage ? (
               <Button
-                type="primary"
                 icon={<ArrowRightOutlined />}
                 loading={transitionMutation.isPending}
                 onClick={handleTransition}

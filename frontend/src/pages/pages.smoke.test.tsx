@@ -144,7 +144,11 @@ describe("page smoke coverage", () => {
   });
 
   it("renders the dashboard workbench without the old aggregation-api placeholder", () => {
-    renderPage(<Dashboard />);
+    renderPage(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Dashboard />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByText("正在确认当前角色")).toBeInTheDocument();
     expect(screen.queryByText("真实工作台聚合数据待接入")).toBeNull();

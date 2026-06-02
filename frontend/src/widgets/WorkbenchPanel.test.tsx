@@ -1,6 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigProvider } from "antd";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { MemoryRouter } from "react-router-dom";
+import type * as ReactRouterDom from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkbenchPanel } from "./WorkbenchPanel";
 import type {
@@ -37,11 +39,23 @@ vi.mock("@/shared/api/hooks", () => ({
   useTransitionSuccessStage: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+const navigateSpy = vi.fn();
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof ReactRouterDom>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => navigateSpy,
+  };
+});
+
 function renderWorkbench() {
   return render(
-    <ConfigProvider>
-      <WorkbenchPanel />
-    </ConfigProvider>,
+    <MemoryRouter>
+      <ConfigProvider>
+        <WorkbenchPanel />
+      </ConfigProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -196,6 +210,11 @@ describe("WorkbenchPanel", () => {
     hookState.runtimeEnabledCalls = [];
     hookState.auditEnabledCalls = [];
     hookState.successPlanEnabledCalls = [];
+    navigateSpy.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the information-technology default view from existing source APIs", () => {
@@ -301,5 +320,76 @@ describe("WorkbenchPanel", () => {
     const qualityCard = screen.getByTestId("workbench-card-quality");
     expect(within(qualityCard).getAllByText("该域未启用").length).toBeGreaterThan(0);
     expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
+  });
+
+  it("renders one primary action and three default filters", () => {
+    renderWorkbench();
+
+    expect(screen.getByRole("button", { name: /继续处理待办/ })).toHaveClass("ant-btn-primary");
+    expect(document.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
+    expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
+    expect(screen.getByText("组织范围")).toBeInTheDocument();
+    expect(screen.getByText("病种")).toBeInTheDocument();
+    expect(screen.getByText("时间")).toBeInTheDocument();
+  });
+
+  it("applies the time filter to recent audit changes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
+    hookState.audit = {
+      data: [
+        {
+          ...auditEvents[0],
+          id: "audit-today",
+          action: "今日权限复核",
+          occurredAt: "2026-06-02T08:00:00Z",
+        },
+        {
+          ...auditEvents[0],
+          id: "audit-yesterday",
+          action: "昨日配置核验",
+          occurredAt: "2026-06-01T08:00:00Z",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    };
+
+    renderWorkbench();
+
+    expect(screen.getByText("今日权限复核")).toBeInTheDocument();
+    expect(screen.getByText("昨日配置核验")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("今日"));
+
+    expect(screen.getByText("今日权限复核")).toBeInTheDocument();
+    expect(screen.queryByText("昨日配置核验")).not.toBeInTheDocument();
+  });
+
+  it("offers drilldowns for built source cards and an honest detail panel for unavailable domains", () => {
+    setLoadedState("medical-affairs", "医务处");
+
+    renderWorkbench();
+
+    fireEvent.click(within(screen.getByTestId("workbench-card-audit")).getByText("查看最近变化"));
+    expect(navigateSpy).toHaveBeenCalledWith("/admin/audit");
+
+    fireEvent.click(within(screen.getByTestId("workbench-card-quality")).getByText("查看接入状态"));
+    expect(screen.getByText("质控整改接入状态")).toBeInTheDocument();
+    expect(screen.getAllByText("该域未启用").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
+  });
+
+  it("shows lifecycle governance slices and weekly suggestions for platform users", () => {
+    setLoadedState("platform-admin", "平台管理员");
+
+    renderWorkbench();
+
+    expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
+    expect(screen.getByText("治理切片")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^workbench-governance-slice-/)).toHaveLength(3);
+    expect(screen.getByText("本周建议动作")).toBeInTheDocument();
+    expect(screen.getByText("核对实施进度")).toBeInTheDocument();
+    expect(hookState.successPlanEnabledCalls).toContain(true);
   });
 });

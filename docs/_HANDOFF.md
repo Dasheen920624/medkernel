@@ -12,17 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D1 WORKBENCH-01 工作台真实化 PR1 🚧
+### 线 1 · D1 WORKBENCH-01 工作台真实化 PR2 🚧
 
 - 类型：软件开发 / D1 工作台真实化
-- 分支：`codex/d1-workbench-01-realization`（基于 `origin/main` d17f375f，D1 `INFRA-09` #242 已合并）
-- 目标：按 [D1 域简报](cards/D1/_brief.md) 与 [WORKBENCH-01](cards/D1/WORKBENCH-01.md) 先交付 PR1：核清工作台真实数据源，移除 `todoMock` / 固定指标 / 独立 workbench API 口径，建立默认角色视图与六态诚实降级基础；不新增 `/api/v1/workbench/*`。
-- 状态：PR1 本地实现与验证已完成：`WorkbenchPanel` 不再等待独立聚合 API，改为复用 `useSecurityProfile` / `useRuntimeOperations` / `useAuditEvents` / `useSuccessPlan`；补信息科 / 临床 / 医务质控 / 审计 / 院管默认视图、无权限态、部分来源降级、未建域“该域未启用”诚实态；`TenantLifecyclePanel` 触碰范围用户文案已去技术化；`useRuntimeOperations(enabled)` / `useAuditEvents(enabled)` / `useSuccessPlan(enabled)` 仅在确认有工作台权限后启用来源请求，避免未授权或角色未确认时的无意义请求。已新增 `frontend/src/widgets/WorkbenchPanel.test.tsx`，TDD 红灯曾 6/6 fail；本轮新增来源请求启用约束红灯曾 2/7 fail，当前聚焦绿灯 18/18。完整前端 `npm run verify` 40 文件 / 189 测试通过，`npm run build` 通过，真实性全仓扫描 745 文件通过，T-GATE 脚本 33/33 通过，`git diff --check` 通过；浏览器 fallback 打开 `http://127.0.0.1:5175/dashboard` 确认非白屏、无旧“等待真实聚合 API”占位、权限未核验前无 `/system/operations` / `/compliance/audit/events` / `/platform/success/lifecycle` 请求，但因本机 18080 后端未监听，只能诚实停在权限核验失败态。非当前卡历史技术化文案残留已登记 `DEFER-007`。
-- 下一步（精确到动作/命令）：1. 复核 staged diff；2. 提交 `WORKBENCH-01` PR1；3. 推送、开 PR、等 CI 8/8；4. squash 合并并清理分支 / worktree；5. 基于最新 `origin/main` 继续领取 `WORKBENCH-01` PR2（主按钮 / 筛选 / 下钻 / 本周建议 / 性能无障碍），不得跳到 WORKBENCH-02 或 D2。
+- 分支：`codex/d1-workbench-01-pr2-experience`（基于 `origin/main` 4a89ec1c，`WORKBENCH-01` PR1 #243 已合并）
+- 目标：按 [D1 域简报](cards/D1/_brief.md) 与 [WORKBENCH-01](cards/D1/WORKBENCH-01.md) 交付 PR2：主按钮 / 默认筛选 / 卡片下钻 / 未建域诚实详情 / 租户治理切片 / 本周建议动作 / 基础性能与无障碍，关闭 AC-4/5/6；仍不新增 `/api/v1/workbench/*`。
+- 状态：PR2 本地实现与完整验证已完成，待提交 PR：`WorkbenchPanel` 已新增 1 个页头主按钮“继续处理待办”、3 个默认筛选（组织范围 / 病种 / 时间，时间筛选真实作用于最近变化审计来源）、已建来源卡片下钻到现有路由、未建域页内“该域未启用”详情抽屉、平台/院管治理切片（默认 3 维）与“本周建议动作”；`TenantLifecyclePanel` 内部推进按钮降为普通动作，避免平台视图出现多个同权主按钮。TDD 红灯曾 3/10 fail；当前完整前端 `npm run verify` 40 文件 / 193 测试通过，`npm run build` 通过，真实性全仓扫描 745 文件通过，T-GATE 脚本 33/33 通过，`scripts/check-comment-zh.sh --mode=full` 退出码 0 但仍报告历史迁移 COMMENT GAP（`DEFER-006`），`git diff --check` 通过。Browser 插件仍无可用 `iab`（`DEFER-004`）；Playwright fallback 打开 `http://127.0.0.1:5175/dashboard`，确认非白屏、诚实权限核验失败态、无旧占位、无 `/api/v1/workbench/*`、权限未核验前无 `/system/operations` / `/compliance/audit/events` / `/platform/success/lifecycle` 请求；本机后端未监听导致 `/security/me`、`/auth/session`、`/experience/theme-preference` 返回 500，属浏览器兜底环境限制，截图 `/tmp/medkernel-workbench-pr2-dashboard.png`。
+- 下一步（精确到动作/命令）：1. 复核 diff；2. 提交 `WORKBENCH-01` PR2；3. 推送、开 PR、等 CI 8/8；4. squash 合并并清理分支 / worktree；5. 只有合并后才继续领取下一任务（预计 `WORKBENCH-02`，不得跳 D2）。
 - 相关文件 / 测试 / 坑：重点文件为 `frontend/src/widgets/WorkbenchPanel.tsx`、`frontend/src/widgets/WorkbenchPanel.test.tsx`、`frontend/src/shared/api/hooks.ts`、`frontend/src/features/tenant-lifecycle/TenantLifecyclePanel.tsx`、`frontend/src/pages/pages.smoke.test.tsx`、`docs/cards/D1/WORKBENCH-01.md`、`docs/cards/D1/_brief.md`、`docs/audit/deferred-issues.md`。`DEFER-001` 至 `DEFER-007` 仍 open，不阻塞当前 PostgreSQL + Oracle 范围，但不得写成已清零；`DEFER-003` 解释 verify/build 输出噪声，`DEFER-004` 解释 in-app browser 不可用。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D1 WORKBENCH-01 PR1 ✅（#243，merge `4a89ec1c`）：工作台移除旧“等待真实聚合 API”占位，复用 `/security/me`、`/system/operations`、`/compliance/audit/events`、`/platform/success/lifecycle`；补信息科 / 临床 / 医务质控 / 审计 / 院管默认视图、无权限态、部分来源降级、未建域诚实态，并确保权限未核验前不请求运行状态 / 审计 / 生命周期来源。完整前端 verify 40 文件 / 189 测试、build、真实性全仓扫描 745 文件、T-GATE 33/33 与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001` 至 `DEFER-007` 保持 open，不阻塞主线但不得宣称清零。
 - D0 登录域级验收 ✅（#241，merge `4be225c7`）：清理旧假 E2E 与 fixture，新增真实 D0 Playwright 验收覆盖 13 角色登录、首登改密、MFA setup→verify、权限画像、菜单隔离与退出；修复 `/medkernel` context-path 下首登改密守卫误挡、Bootstrap MFA 两步绑定和 Header 用户菜单可达性；真实性门禁扩展到前端 E2E。远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 D0 worktree 已清理。`DEFER-001` 至 `DEFER-006` 保持 open，不阻塞主线但不得宣称清零。
 - D1 INFRA-09 StepFlowDemo 处理 ✅（#242，merge `d17f375f`）：最新 main 已无 `frontend/src/pages/StepFlowDemo.tsx`、无 `StepFlow.stories.tsx`、生产路由无 `/config/packages/demo`；补真实性门禁 `frontend.production-demo-route`，阻断 `router.tsx` 再注册 `*Demo` 或 demo 路径，并补已登录访问 `/config/packages/demo` 落 404 兜底回归。本地真实性门禁、前端聚焦、`npm run verify`、`npm run build`、迁移规约、配置边界、中文注释扫描、全仓真实性扫描和空白检查通过，远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。
 - AUTH-03 凭证自助与口令安全 ✅（#240，merge `5439efe9`）：PR2 交付 MFA TOTP setup→verify 两步绑定/校验、SM3 新哈希切换、管理员受控一次性重置 token、V46 `sys_password_reset_token` 五方言迁移、服务契约/领域 owner/迁移治理目录同步；旧恢复码摘要不再被当成有效 MFA，重置 token 仅存 SM3 摘要且消费后强制改密。本地后端全量、迁移契约、治理契约、真实性 / 迁移 / 配置 / 中文注释 / 空白门禁和远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。`DEFER-001` 国产化真实环境、`DEFER-002` 依赖审计、`DEFER-003` 前端输出噪声、`DEFER-004` in-app browser、`DEFER-005` 真实院方 IdP 保持 open。
@@ -129,4 +130,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；当前在 `codex/d1-workbench-01-realization` 执行 D1 `WORKBENCH-01` PR1，本地实现和验证已完成，下一步提交 PR、等 CI、合并后继续 `WORKBENCH-01` PR2，不得越阶段。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-007` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；当前在 `codex/d1-workbench-01-pr2-experience` 执行 D1 `WORKBENCH-01` PR2，本地实现与完整验证已完成，下一步提交 PR、等 CI、合并；只有合并并更新接力后才继续领取 `WORKBENCH-02`，不得越阶段。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-007` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
