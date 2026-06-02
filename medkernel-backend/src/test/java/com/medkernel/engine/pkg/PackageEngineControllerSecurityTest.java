@@ -278,7 +278,7 @@ class PackageEngineControllerSecurityTest {
     void authorizedUserCanValidateReleaseAndReadPersistedSyncLogs() throws Exception {
         when(service.validatePackage("pkg-1"))
             .thenReturn(new PackageValidateResponse(
-                "pkg-1", KnowledgePackageStatus.DRAFT, 1, true, List.of()));
+                "pkg-1", KnowledgePackageStatus.DRAFT, 1, "a".repeat(64), true, List.of()));
         when(service.releasePackage(eq("pkg-1"), any(PackageSyncRequest.class)))
             .thenReturn(new PackageSyncResponse(
                 "plan-1", "pkg-1", ReleasePlanStatus.NOT_SYNCED,

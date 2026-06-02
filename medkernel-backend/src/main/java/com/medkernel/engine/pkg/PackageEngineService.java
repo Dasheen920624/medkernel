@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -225,8 +226,69 @@ public class PackageEngineService {
                 "配置包至少包含一个已审核资产后才能发布"
             ));
         }
+        issues.addAll(validatePackageItemDependencies(tenantId, items));
         boolean valid = issues.stream().noneMatch(issue -> "BLOCKING".equals(issue.severity()));
-        return new PackageValidateResponse(packageId, pack.status(), items.size(), valid, issues);
+        return new PackageValidateResponse(
+            packageId,
+            pack.status(),
+            items.size(),
+            packageContentSha256(pack, items),
+            valid,
+            issues
+        );
+    }
+
+    private List<PackageValidateIssue> validatePackageItemDependencies(String tenantId, List<PackageItem> items) {
+        List<PackageValidateIssue> issues = new ArrayList<>();
+        for (PackageItem item : items) {
+            if (requiresDomainDependencyValidation(item.assetType())) {
+                try {
+                    validateAssetStatus(tenantId, item.assetType(), item.assetId());
+                } catch (ApiException ex) {
+                    issues.add(new PackageValidateIssue(
+                        itemField(item),
+                        "BLOCKING",
+                        ex.getMessage()
+                    ));
+                }
+                continue;
+            }
+            issues.add(new PackageValidateIssue(
+                itemField(item),
+                "BLOCKING",
+                "该资产类型尚未接入统一依赖适配器，发布前不能跳过依赖校验: " + item.assetType()
+            ));
+        }
+        return issues;
+    }
+
+    private boolean requiresDomainDependencyValidation(PackageItemAssetType assetType) {
+        return assetType == PackageItemAssetType.RULE
+            || assetType == PackageItemAssetType.PATHWAY
+            || assetType == PackageItemAssetType.EVALUATION;
+    }
+
+    private String itemField(PackageItem item) {
+        return "items[" + item.assetType() + ":" + item.assetId() + "]";
+    }
+
+    private String packageContentSha256(KnowledgePackage pack, List<PackageItem> items) {
+        List<PackageContentDigestItem> digestItems = items.stream()
+            .map(item -> new PackageContentDigestItem(
+                item.assetType(),
+                item.assetId(),
+                item.assetVersion()
+            ))
+            .sorted(Comparator
+                .comparing((PackageContentDigestItem item) -> item.assetType().name())
+                .thenComparing(PackageContentDigestItem::assetId)
+                .thenComparing(PackageContentDigestItem::assetVersion))
+            .toList();
+        return sha256Json(new PackageContentDigest(
+            pack.packageCode(),
+            pack.packageVersion(),
+            digestItems
+        ));
     }
 
     /**
@@ -1105,6 +1167,18 @@ public class PackageEngineService {
         }
     }
 
+    private record PackageContentDigest(
+        String packageCode,
+        String packageVersion,
+        List<PackageContentDigestItem> items
+    ) {}
+
+    private record PackageContentDigestItem(
+        PackageItemAssetType assetType,
+        String assetId,
+        String assetVersion
+    ) {}
+
     private record PackageOfflineExport(
         String format,
         PackageOfflineManifest manifest,
@@ -1277,6 +1351,7 @@ public class PackageEngineService {
             && (request.scopeType() == ReleaseScopeType.ALL || request.scopeValue() == null || request.scopeValue().isBlank())) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_003, "灰度发布时必须指定有效的作用域范围和具体过滤值");
         }
+        assertPackageReadyForRelease(packageId);
 
         // 创建发布计划（独立小事务中写库）
         ReleasePlan plan = new ReleasePlan(
@@ -1434,6 +1509,21 @@ public class PackageEngineService {
         }
 
         return new PackageSyncResponse(savedPlan.planId(), packageId, finalStatus, logs);
+    }
+
+    private void assertPackageReadyForRelease(String packageId) {
+        PackageValidateResponse validation = validatePackage(packageId);
+        if (validation.valid()) {
+            return;
+        }
+        List<String> blockingIssues = validation.issues().stream()
+            .filter(issue -> "BLOCKING".equals(issue.severity()))
+            .map(issue -> issue.field() + "：" + issue.message())
+            .toList();
+        throw new ApiException(
+            ErrorCode.ENG_PACKAGE_002,
+            "配置包发布前校验未通过: " + String.join("；", blockingIssues)
+        );
     }
 
     /**

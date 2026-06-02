@@ -9,6 +9,7 @@ public record PackageValidateResponse(
     String packageId,
     KnowledgePackageStatus status,
     int itemCount,
+    String contentSha256,
     boolean valid,
     List<PackageValidateIssue> issues
 ) {
