@@ -264,11 +264,19 @@ class RuleEngineServiceTest {
         RuleEvaluationItem item = response.items().getFirst();
         assertThat(item.hit()).isTrue();
         assertThat(item.explanation().get("title").asText()).isEqualTo("抗凝风险提示");
+        assertThat(item.explanation().path("conditionEvidence")).hasSize(2);
+        assertThat(item.explanation().path("conditionEvidence").get(0).path("fact").asText())
+            .isEqualTo("patient.age");
+        assertThat(item.explanation().path("conditionEvidence").get(0).path("actual").asInt())
+            .isEqualTo(72);
 
         ArgumentCaptor<RuleExecutionLog> executionCap = ArgumentCaptor.forClass(RuleExecutionLog.class);
         verify(executions).save(executionCap.capture());
         assertThat(executionCap.getValue().inputDigest()).startsWith("sha256:");
         assertThat(executionCap.getValue().actionsJson()).contains("STRONG_REMINDER");
+        assertThat(executionCap.getValue().explanationJson())
+            .contains("\"conditionEvidence\"")
+            .contains("\"sourcePath\":\"$.patient.age\"");
         verify(auditPublisher).publish(AuditAction.EXECUTE, "rule_execution", item.executionId(), "执行规则 rule-1");
     }
 

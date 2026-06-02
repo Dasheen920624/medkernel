@@ -53,6 +53,19 @@ class RuleDslEvaluatorTest {
         assertThat(result.actions().getFirst().actionCode()).isEqualTo("STRONG_REMINDER");
         assertThat(result.actions().getFirst().requiresPhysicianConfirmation()).isTrue();
         assertThat(result.explanation().get("title").asText()).isEqualTo("抗凝风险提示");
+        JsonNode evidence = result.explanation().path("conditionEvidence");
+        assertThat(evidence).hasSize(3);
+        assertThat(evidence.get(0).path("fact").asText()).isEqualTo("patient.age");
+        assertThat(evidence.get(0).path("sourcePath").asText()).isEqualTo("$.patient.age");
+        assertThat(evidence.get(0).path("operator").asText()).isEqualTo("gte");
+        assertThat(evidence.get(0).path("expected").asInt()).isEqualTo(18);
+        assertThat(evidence.get(0).path("actual").asInt()).isEqualTo(72);
+        assertThat(evidence.get(0).path("matched").asBoolean()).isTrue();
+        assertThat(evidence.get(0).path("missing").asBoolean()).isFalse();
+        assertThat(evidence.get(1).path("fact").asText()).isEqualTo("order.drugClass");
+        assertThat(evidence.get(2).path("actual")).hasSize(2);
+        assertThat(evidence.get(2).path("actual").get(0).asText()).isEqualTo("AF");
+        assertThat(evidence.get(2).path("actual").get(1).asText()).isEqualTo("HTN");
     }
 
     @Test
@@ -95,6 +108,13 @@ class RuleDslEvaluatorTest {
         assertThat(result.hit()).isFalse();
         assertThat(result.actions()).isEmpty();
         assertThat(result.severity()).isNull();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("fact").asText()).isEqualTo("report.criticalFlag");
+        assertThat(evidence.path("sourcePath").asText()).isEqualTo("$.report.criticalFlag");
+        assertThat(evidence.path("operator").asText()).isEqualTo("exists");
+        assertThat(evidence.path("actual").isNull()).isTrue();
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
     }
 
     @Test

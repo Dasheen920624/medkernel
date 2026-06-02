@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 RULE-01 规则引擎三层配置与规则库页 🚧
 - 类型：软件开发
-- 分支：`codex/d2-rule-01-engine-ui`（待从最新 `origin/main` 新建）
+- 分支：`codex/d2-rule-01-engine-ui`
 - 目标：按 [RULE-01](cards/D2/RULE-01.md) 实施规则引擎后端 + 三层前端：L1 模板、L2 可视化条件树、L3 DSL、7 步流、测试病例与仿真；消费已完成的 [API-05](cards/D2/API-05.md)，不得伪造跨域影响对象。
-- 状态：D2 `TERM-01` PR4 已合入 `origin/main`（#268，merge `45ce8841`）；待领取 `RULE-01`，先读 D2 `_brief`、`RULE-01`、`API-05`、`MED-C2`、`SYS-04` 和 `DEFER-012`，再按 TDD 建基线。
-- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 创建 `codex/d2-rule-01-engine-ui` worktree；2. 跑规则相关后端 / 前端基线测试；3. 先写失败测试锁住 RULE-01 最小主链路；4. 分小 PR 推进，PR 通过本地验证 + CI 8/8 后合并再领下一单元。
-- 相关文件 / 测试 / 坑：重点核查 `medkernel-backend/src/main/java/com/medkernel/engine/rule`、`frontend/src/pages` / `frontend/src/features` 中规则库相关实现、`docs/cards/D2/RULE-01.md`、`docs/audit/deferred-issues.md`。`DEFER-012` 真实跨域反向索引仍 open，RULE-01 若触及发布影响分析必须要么真实补索引并关闭，要么继续诚实暴露不可用范围，不得造受影响患者 / 路径 / 同步目标。
+- 状态：PR1 后端解释证据切片待 PR：`RuleDslEvaluator` 已把实际求值条件的 `fact/sourcePath/operator/expected/actual/matched/missing` 附加到执行解释；服务层执行日志、`/evaluate` 与 `/explain` REST 响应均已加测试锁定。本地目标测试、后端全量与 changed T-GATE 已通过。OpenSpec 旧变更进度不同步已登记 `DEFER-013`，不阻塞主线。
+- 下一步（精确到动作/命令）：1. 提交并推送 PR1；2. 等待 CI 8/8；3. 合并后更新本文件并清理 worktree；4. 继续 RULE-01 PR2：L1/L2/L3 三层前端（条件树画布 + DSL 编辑器，六态）+ 互转无损。
+- 相关文件 / 测试 / 坑：本切片已触碰 `medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleDslEvaluator.java`、`RuleDslEvaluatorTest`、`RuleEngineServiceTest`、`RuleEngineApiContractTest` 与 `docs/audit/deferred-issues.md`；验证：`mvn -q -Dtest=RuleDslEvaluatorTest,RuleEngineServiceTest,RuleEngineApiContractTest test`、`mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、changed T-GATE、中文注释和 diff 检查均通过。`DEFER-012` 真实跨域反向索引仍 open，RULE-01 若触及发布影响分析必须要么真实补索引并关闭，要么继续诚实暴露不可用范围，不得造受影响患者 / 路径 / 同步目标。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -149,4 +149,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `TERM-01` PR4 来源追溯与冲突待裁 #268（merge `45ce8841`）、D2 `TERM-01` PR3 映射包发布与 B0 降级 #266、平台主源与租户覆盖层治理 #265、D2 `TERM-01` PR2 #264、登录模式入口文案 #263、D2 `TERM-01` PR1 #262、D2 `KNOW-02` #261、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260；登录前端和主源后端均已发布到 192.168.8.191 并通过 HTTPS / Oracle 复核。下一步领取 D2 `RULE-01`，从最新 `origin/main` 新建 `codex/d2-rule-01-engine-ui`，按 TDD 分小 PR 实施规则引擎后端 + 三层前端。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；当前在 `codex/d2-rule-01-engine-ui` 推进 D2 `RULE-01` PR1 后端解释证据切片，本地验证已通过，下一步 PR / CI / 合并后继续 PR2 三层前端。`origin/main` 已包含 D2 `TERM-01` PR4 来源追溯与冲突待裁 #268（merge `45ce8841`）及此前 D2/D1/D0 已归档工作线。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-013` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
