@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
@@ -47,30 +49,34 @@ public class RuleDslEvaluator {
         if (when == null || !when.isObject()) {
             throw invalid("规则 DSL 缺少 when 条件");
         }
-        boolean hit = evaluateConditionNode(when, context == null ? json.createObjectNode() : context);
-        if (!hit) {
-            return new RuleDslEvaluation(false, null, List.of(), dsl.path("explain"));
+        ConditionEvaluation condition = evaluateConditionNode(when, context == null ? json.createObjectNode() : context);
+        JsonNode explanation = buildExplanation(dsl.path("explain"), condition.evidence());
+        if (!condition.matched()) {
+            return new RuleDslEvaluation(false, null, List.of(), explanation);
         }
 
         List<RuleActionResult> actions = parseActions(dsl.path("then"));
         RuleRiskLevel highest = actions.stream()
             .map(RuleActionResult::severity)
             .reduce(null, RuleRiskLevel::max);
-        return new RuleDslEvaluation(true, highest, actions, dsl.path("explain"));
+        return new RuleDslEvaluation(true, highest, actions, explanation);
     }
 
-    private boolean evaluateConditionNode(JsonNode node, JsonNode context) {
+    private ConditionEvaluation evaluateConditionNode(JsonNode node, JsonNode context) {
         JsonNode all = node.get("all");
         if (all != null) {
             if (!all.isArray()) {
                 throw invalid("when.all 必须是数组");
             }
+            List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : all) {
-                if (!evaluateConditionNode(child, context)) {
-                    return false;
+                ConditionEvaluation result = evaluateConditionNode(child, context);
+                evidence.addAll(result.evidence());
+                if (!result.matched()) {
+                    return new ConditionEvaluation(false, List.copyOf(evidence));
                 }
             }
-            return true;
+            return new ConditionEvaluation(true, List.copyOf(evidence));
         }
 
         JsonNode any = node.get("any");
@@ -78,24 +84,27 @@ public class RuleDslEvaluator {
             if (!any.isArray()) {
                 throw invalid("when.any 必须是数组");
             }
+            List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : any) {
-                if (evaluateConditionNode(child, context)) {
-                    return true;
+                ConditionEvaluation result = evaluateConditionNode(child, context);
+                evidence.addAll(result.evidence());
+                if (result.matched()) {
+                    return new ConditionEvaluation(true, List.copyOf(evidence));
                 }
             }
-            return false;
+            return new ConditionEvaluation(false, List.copyOf(evidence));
         }
 
         return evaluateLeaf(node, context);
     }
 
-    private boolean evaluateLeaf(JsonNode node, JsonNode context) {
+    private ConditionEvaluation evaluateLeaf(JsonNode node, JsonNode context) {
         String fact = requiredText(node, "fact");
         String operator = requiredText(node, "operator").toLowerCase(Locale.ROOT);
         JsonNode actual = findPath(context, fact);
         JsonNode expected = node.get("value");
 
-        return switch (operator) {
+        boolean matched = switch (operator) {
             case "exists" -> exists(actual);
             case "equals" -> exists(actual) && valuesEqual(actual, expected);
             case "not_equals" -> !exists(actual) || !valuesEqual(actual, expected);
@@ -108,6 +117,10 @@ public class RuleDslEvaluator {
             case "not_in" -> !in(actual, expected);
             default -> throw invalid("不支持的规则算子: " + operator);
         };
+        return new ConditionEvaluation(
+            matched,
+            List.of(new ConditionEvidence(
+                fact, "$." + fact, operator, expected, actual, matched, !exists(actual))));
     }
 
     private List<RuleActionResult> parseActions(JsonNode then) {
@@ -138,6 +151,40 @@ public class RuleDslEvaluator {
             current = current.path(segment);
         }
         return current == null ? json.missingNode() : current;
+    }
+
+    private JsonNode buildExplanation(JsonNode source, List<ConditionEvidence> evidence) {
+        ObjectNode explanation;
+        if (source != null && source.isObject()) {
+            explanation = source.deepCopy();
+        } else {
+            explanation = json.createObjectNode();
+            if (source != null && !source.isMissingNode() && !source.isNull()) {
+                explanation.set("summary", safeNode(source));
+            }
+        }
+
+        ArrayNode conditionEvidence = json.createArrayNode();
+        for (ConditionEvidence item : evidence) {
+            ObjectNode entry = json.createObjectNode();
+            entry.put("fact", item.fact());
+            entry.put("sourcePath", item.sourcePath());
+            entry.put("operator", item.operator());
+            entry.set("expected", safeNode(item.expected()));
+            entry.set("actual", safeNode(item.actual()));
+            entry.put("matched", item.matched());
+            entry.put("missing", item.missing());
+            conditionEvidence.add(entry);
+        }
+        explanation.set("conditionEvidence", conditionEvidence);
+        return explanation;
+    }
+
+    private JsonNode safeNode(JsonNode node) {
+        if (node == null || node.isMissingNode()) {
+            return json.nullNode();
+        }
+        return node.deepCopy();
     }
 
     private boolean exists(JsonNode actual) {
@@ -242,5 +289,18 @@ public class RuleDslEvaluator {
 
     private ApiException invalid(String message) {
         return new ApiException(ErrorCode.RULE_DSL_INVALID, message);
+    }
+
+    private record ConditionEvaluation(boolean matched, List<ConditionEvidence> evidence) {
+    }
+
+    private record ConditionEvidence(
+        String fact,
+        String sourcePath,
+        String operator,
+        JsonNode expected,
+        JsonNode actual,
+        boolean matched,
+        boolean missing) {
     }
 }
