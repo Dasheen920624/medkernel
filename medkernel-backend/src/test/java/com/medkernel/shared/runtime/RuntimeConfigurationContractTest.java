@@ -50,6 +50,7 @@ class RuntimeConfigurationContractTest {
         assertThat(container)
             .contains("feature-flags:")
             .contains("graph-projection:")
+            .contains("search-projection:")
             .contains("dify-workflow:")
             .contains("external-provider:")
             .doesNotContain("graph-enabled:")

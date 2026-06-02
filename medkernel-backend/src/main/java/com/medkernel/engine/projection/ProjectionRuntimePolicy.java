@@ -12,6 +12,7 @@ import com.medkernel.shared.runtime.RuntimeProperties;
 public class ProjectionRuntimePolicy {
 
     static final String GRAPH_PROJECTION = "graph-projection";
+    static final String SEARCH_PROJECTION = "search-projection";
     static final String DIFY_WORKFLOW = "dify-workflow";
 
     private final RuntimeProperties properties;
@@ -24,6 +25,10 @@ public class ProjectionRuntimePolicy {
 
     public boolean graphProjectionEnabled() {
         return configService.runtimeFeatureFlagEnabled(properties, GRAPH_PROJECTION);
+    }
+
+    public boolean searchProjectionEnabled() {
+        return configService.runtimeFeatureFlagEnabled(properties, SEARCH_PROJECTION);
     }
 
     public boolean difyWorkflowEnabled() {

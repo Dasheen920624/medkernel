@@ -20,6 +20,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 class ProjectionAuditTest {
 
     private final ClinicalGraphProjectionSource source = mock(ClinicalGraphProjectionSource.class);
+    private final KnowledgeProjectionSource knowledgeSource = mock(KnowledgeProjectionSource.class);
     private final ProjectionSnapshotRepository snapshots = mock(ProjectionSnapshotRepository.class);
     private final ProjectionSyncRepository syncs = mock(ProjectionSyncRepository.class);
     private final ProjectionRuntimePolicy policy = mock(ProjectionRuntimePolicy.class);
@@ -27,6 +28,7 @@ class ProjectionAuditTest {
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final ProjectionSyncService service = new ProjectionSyncService(
         source,
+        knowledgeSource,
         snapshots,
         syncs,
         policy,

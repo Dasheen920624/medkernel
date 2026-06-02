@@ -39,6 +39,8 @@ medkernel:
         enabled: true
       graph-projection:
         enabled: ${MEDKERNEL_GRAPH_ENABLED:false}
+      search-projection:
+        enabled: ${MEDKERNEL_SEARCH_ENABLED:false}
       dify-workflow:
         enabled: ${MEDKERNEL_DIFY_ENABLED:false}
     backup:

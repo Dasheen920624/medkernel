@@ -41,17 +41,20 @@ public class KnowledgeVersionService {
     private final KnowledgeSupersessionRepository supersessionRepository;
     private final CitationRepository citationRepository;
     private final SourceDocumentRepository sourceDocumentRepository;
+    private final KnowledgeProjectionRefreshPort projectionRefreshPort;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
                                    KnowledgeSupersessionRepository supersessionRepository,
                                    CitationRepository citationRepository,
-                                   SourceDocumentRepository sourceDocumentRepository) {
+                                   SourceDocumentRepository sourceDocumentRepository,
+                                   KnowledgeProjectionRefreshPort projectionRefreshPort) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
         this.citationRepository = citationRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
+        this.projectionRefreshPort = projectionRefreshPort;
     }
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
@@ -265,6 +268,12 @@ public class KnowledgeVersionService {
             now, actor
         );
         supersessionRepository.save(transition);
+        projectionRefreshPort.refreshPublishedVersion(
+            tenantId,
+            identityId,
+            saved.id(),
+            actor,
+            RequestContext.currentTraceId());
 
         return saved;
     }

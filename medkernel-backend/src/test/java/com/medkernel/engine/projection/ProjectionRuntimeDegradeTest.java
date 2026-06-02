@@ -17,6 +17,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 class ProjectionRuntimeDegradeTest {
 
     private final ClinicalGraphProjectionSource source = mock(ClinicalGraphProjectionSource.class);
+    private final KnowledgeProjectionSource knowledgeSource = mock(KnowledgeProjectionSource.class);
     private final ProjectionSnapshotRepository snapshots = mock(ProjectionSnapshotRepository.class);
     private final ProjectionSyncRepository syncs = mock(ProjectionSyncRepository.class);
     private final ProjectionRuntimePolicy policy = mock(ProjectionRuntimePolicy.class);
@@ -24,6 +25,7 @@ class ProjectionRuntimeDegradeTest {
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final ProjectionSyncService service = new ProjectionSyncService(
         source,
+        knowledgeSource,
         snapshots,
         syncs,
         policy,
@@ -62,5 +64,33 @@ class ProjectionRuntimeDegradeTest {
         ProjectionClinicalStatusPort port = new ProjectionClinicalStatusPort(policy, snapshots);
 
         assertThat(port.status("tenant-A")).isEqualTo(ClinicalProjectionStatus.UP);
+    }
+
+    @Test
+    void disabledKnowledgeGraphProjectionReturnsNotSyncedWithoutMutatingSnapshots() {
+        when(policy.graphProjectionEnabled()).thenReturn(false);
+        when(syncs.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProjectionRebuildResponse response = service.rebuildKnowledgeGraph("tenant-A", "tester", "trace-1");
+
+        assertThat(response.status()).isEqualTo(ProjectionSyncStatus.NOT_SYNCED);
+        assertThat(response.targetType()).isEqualTo(ProjectionTargetType.KNOWLEDGE_GRAPH);
+        verify(knowledgeSource, never()).graphFactsForTenant(anyString());
+        verify(snapshots, never()).deleteByTenantIdAndTargetType(anyString(), any());
+        verify(snapshots, never()).saveAll(anyIterable());
+    }
+
+    @Test
+    void disabledKnowledgeSearchProjectionReturnsNotSyncedWithoutMutatingSnapshots() {
+        when(policy.searchProjectionEnabled()).thenReturn(false);
+        when(syncs.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProjectionRebuildResponse response = service.rebuildKnowledgeSearch("tenant-A", "tester", "trace-1");
+
+        assertThat(response.status()).isEqualTo(ProjectionSyncStatus.NOT_SYNCED);
+        assertThat(response.targetType()).isEqualTo(ProjectionTargetType.KNOWLEDGE_SEARCH);
+        verify(knowledgeSource, never()).searchFactsForTenant(anyString());
+        verify(snapshots, never()).deleteByTenantIdAndTargetType(anyString(), any());
+        verify(snapshots, never()).saveAll(anyIterable());
     }
 }
