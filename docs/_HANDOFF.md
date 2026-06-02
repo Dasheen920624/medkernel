@@ -12,13 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 PATH-01 路径引擎 PR1 后端契约与真实推进 🚧
+### 线 1 · D2 PATH-01 路径引擎 PR2 三层前端与页面净化 🚧
+
 - 类型：软件开发
-- 分支：`codex/d2-path-01-backend-contracts`
-- 目标：按 [PATH-01](cards/D2/PATH-01.md) PR1 范围交付后端契约、患者路径推进 / 变异 / 关键时钟、仿真消费 [API-01](cards/D2/API-01.md) 真实快照，覆盖 AC-2 / AC-3；不冒领三层前端、7 步发布和随访接续。
-- 状态：PR1 后端实现已完成本地红绿和完整验证：仿真和实时推进可用 `snapshotId` 消费 API-01 真实快照，条件边按快照事实选择，默认边仅作 fallback，推进响应返回命中边和事实证据；关键时钟发布门禁和 `metricCode` 绑定已补。聚焦后端套件、后端全量 `mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、前端 `npm run verify`（43 文件 / 226 测试）、`npm run build`、T-GATE、中文注释与 `git diff --check` 已通过；`DEFER-003` 前端测试 / 构建噪声、`DEFER-006` 历史迁移 COMMENT gap、`DEFER-016` 历史迁移规约 inventory 债务保持 open，不阻塞当前 PR。
-- 下一步（精确到动作/命令）：1. 复核 diff 与文档；2. 提交分支、推送 PR，等待 CI 通过后 squash 合并；3. 确认 `origin/main` 含合并提交并清理分支 / worktree；4. 再领取 PATH-01 PR2（三层前端 + 页面净化，关闭 `DEFER-015`）。
-- 相关文件 / 测试 / 坑：重点看 `medkernel-backend/src/main/java/com/medkernel/engine/pathway`、`medkernel-backend/src/test/java/**/pathway`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/PATH-01.md`、`docs/cards/D2/API-06.md`、`docs/cards/D2/API-01.md`、`docs/cards/D2/SYS-04.md`、[体验契约](EXPERIENCE_CONTRACT.md)。`DEFER-001` 国产化真实环境、`DEFER-003` 前端测试 / 构建噪声、`DEFER-004` in-app browser、`DEFER-014` `PathwayTemplates` 旧 `Tabs.TabPane`、`DEFER-015` 路径配置页硬编码 JSON / 粘贴式快照入口、`DEFER-016` 历史迁移 inventory 债务等仍 open；只有当前卡主链路、登录可用性、权限隔离、真实性门禁或医疗安全红线才即时处理，其余登记后继续主线。
+- 分支：`codex/d2-path-01-pr2-frontend`
+- 目标：按 [PATH-01](cards/D2/PATH-01.md) PR2 范围交付路径配置页 L1 / L2 / L3 三层前端、旧硬编码拓扑与粘贴式快照入口净化、真实 API-01 快照选择仿真，覆盖 AC-1；不冒领 PR3 的 7 步发布和随访接续。
+- 状态：PR2 本地实现与验证已完成：`PathwayTemplates` 删除 `DEFAULT_NODES_JSON` / `DEFAULT_EDGES_JSON` 和旧 `Tabs.TabPane`，新增 L2 结构化节点画布、L3 可编辑 DSL、L2→L3 同步、L3→L2 回填、详情 L2 画布预览和真实快照试运行；仿真请求发送 `snapshotId`，展示快照质量、映射状态和节点轨迹。目标测试 2 文件 / 6 测试、`npm run typecheck`、页面 smoke 22/22、`npm run verify` 44 文件 / 229 测试、`npm run build`、T-GATE 34/34、全仓真实性、配置边界、中文注释、`git diff --check` 均通过；项目 Playwright 对 `http://127.0.0.1:5175/pathway/templates` 验收 L2↔L3、真实快照仿真、失败响应 0 / 非预期控制台 0，截图 `/tmp/medkernel-pathway-pr2-final-rerun.png`。`DEFER-015` 已关闭，`DEFER-014` 收窄到 `TenantOnboarding`，真实 X6/G6 拖拽图引擎登记 `DEFER-017`，不阻塞主线但不得冒领。
+- 下一步（精确到动作/命令）：1. 复核 diff；2. 提交分支、推送 PR，等待 CI 通过后 squash 合并；3. 确认 `origin/main` 含合并提交并清理分支 / worktree；4. 再领取 PATH-01 PR3（7 步发布 + 随访接续，高危门禁），不得跳阶段。
+- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/PathwayTemplates.tsx`、`frontend/src/pages/tenant/PathwayTemplates.test.tsx`、`frontend/src/pages/tenant/RulePathwayCleanliness.test.ts`、`docs/cards/D2/PATH-01.md`、[待处理问题清单](audit/deferred-issues.md)、[体验契约](EXPERIENCE_CONTRACT.md)。`DEFER-003` 前端测试 / 构建噪声、`DEFER-004` in-app browser、`DEFER-014` `TenantOnboarding` 旧 `Tabs.TabPane`、`DEFER-017` X6/G6 拖拽图引擎增强、`DEFER-016` 历史迁移 inventory 债务等仍 open；只有当前卡主链路、登录可用性、权限隔离、真实性门禁或医疗安全红线才即时处理，其余登记后继续主线。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -151,4 +152,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；当前分支 `codex/d2-path-01-backend-contracts` 正在收口 [PATH-01](cards/D2/PATH-01.md) PR1：后端契约、真实推进 / 变异 / 关键时钟、仿真接 [API-01](cards/D2/API-01.md) 真实快照；本地完整验证已通过，下一步提交 PR、等待 CI 并合入后领取 PATH-01 PR2。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-016` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；当前分支 `codex/d2-path-01-pr2-frontend` 正在收口 [PATH-01](cards/D2/PATH-01.md) PR2：三层前端、页面净化、真实 API-01 快照试运行；本地完整验证已通过，下一步提交 PR、等待 CI 并合入后领取 PATH-01 PR3。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-017` 中 open 项不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

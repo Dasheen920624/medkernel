@@ -72,4 +72,14 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).toContain("/engine/pathway/pathway-templates");
     expect(hooksSource).toContain("/engine/pathway/patient-pathways");
   });
+
+  it("does not keep pathway hard-coded topology defaults or paste-style snapshot simulation", () => {
+    const pathwaySource = readSource("src/pages/tenant/PathwayTemplates.tsx");
+
+    expect(pathwaySource).not.toContain("DEFAULT_NODES_JSON");
+    expect(pathwaySource).not.toContain("DEFAULT_EDGES_JSON");
+    expect(pathwaySource).not.toContain("Tabs.TabPane");
+    expect(pathwaySource).not.toContain("真实脱敏路径上下文快照 JSON");
+    expect(pathwaySource).not.toContain("粘贴由上下文快照接口返回");
+  });
 });
