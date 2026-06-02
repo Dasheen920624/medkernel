@@ -20,6 +20,15 @@
 - 下一步（精确到动作/命令）：1. 跑 PR2 全量验证：`mvn -q test`、`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`；2. stage 全部 PR2 文件并运行 `git diff --cached --check`；3. 中文 commit、推送 PR、等待 CI 8/8；4. CI 通过后 squash merge；5. 合并后从最新 `origin/main` 继续 `KNOW-01` PR3 图/搜索投影刷新与降级，不领取其他卡。
 - 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/test/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V50__knowledge_trust_grading.sql`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`；`changed` T-GATE 未提交时可能扫描不到新增文件，提交后必须重跑；当前运行环境只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实运行仍归 `DEFER-001`，本 PR 仅做静态方言一致与脚本保留，不伪造真实国产化证据。
 
+### 线 2 · 平台主源与租户覆盖层治理 🚧
+- 类型：软件开发 / 架构治理
+- 分支：codex/platform-tenant-overlay
+- 目标：把知识、规则、路径等医疗资产从“当前租户硬查 / 全量同步副本”统一改为“平台主源 `t-1` + 租户覆盖层 Overlay”：平台主源只能更新 / 同步平台主源本身；客户 / 集团 / 医院默认订阅或授权使用平台发布版本，不再把平台资产物理同步成客户主源副本；本地新增或修改同一 canonical key 时生成本租户覆盖副本并优先生效；平台更新自动影响未覆盖资产，已覆盖资产不得被覆盖，后续进入人工合并 / 回退流程。
+- 状态：已固化设计与实施计划到 `docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`、`docs/superpowers/plans/2026-06-02-platform-tenant-overlay-plan.md`；本次先把协作红线同步给所有并行 AI，代码实现仍在 `codex/platform-tenant-overlay` 分支按 TDD 推进，未完成前不得把 main 视为已具备完整 Overlay 运行能力。
+- 下一步（精确到动作/命令）：1. 给路径模板补 RED 测试，锁定客户租户可基于平台已发布模板入径、本地同 `template_code + template_version` 优先；2. 实现路径模板 / 节点 / 边按解析来源租户读取、患者路径事实仍写当前租户；3. 给知识身份 / 版本补平台身份回退与本地同 `identity_code` 覆盖测试；4. 跑 `mvn -B -q "-Dtest=KnowledgeVersionServiceTest,RuleEngineServiceTest,PathwayEngineServiceTest" test` 和后端全量验证。
+- 协作红线：其它 AI 或人类同步改造时必须以本线为最新语义，不得再按“客户租户完整同步平台资产副本后各自维护”的旧模式设计；不得把平台主源同步为客户主源，平台发布给客户只能是只读发布版本 / 离线快照 / 订阅引用；不得让客户 / 集团 / 医院资产反写污染平台主租户 `t-1`；不得把 `SYSTEM` 或历史 `medkernel-basic` 当医疗知识业务租户。
+- 相关文件 / 测试 / 坑：核心不变量见 `docs/CONSTITUTION.md` §8 平台源知识不可污染 / 平台主租户唯一；业务键第一阶段使用 `knowledge_identity.identity_code`、`rule_definition.rule_code`、`pathway_template.template_code + template_version`、`specialty_package.package_code + package_version`；第二阶段再补覆盖关系表记录 `base_platform_version_id` / 合并状态 / rebase 任务。
+
 ## 已归档工作线（最近完成，供回溯）
 
 - D2 KNOW-01 PR1 来源内容指纹与引用锚点 ✅（#255，merge `afd9be1d`）：补来源版本 / 来源片段 / 知识资产版本真实 `content_hash` 生成与校验、重复来源版本同 hash 幂等、引用锚点 `citation.start_offset/end_offset`、`source_version(source_document_id, content_hash)` 去重约束与 V49 五方言迁移；清理触碰范围旧口径，未冒领可信分级或图/搜索投影。验证：`mvn -q -Dtest=KnowledgeIdentityServiceTest test`、聚焦套件、`H2BaselineMigrationTest`、后端全量 `mvn -q test`（895 tests，PostgreSQL 15.18 / Oracle 21.3 / H2 均迁移至 V49）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`。
