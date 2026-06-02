@@ -76,7 +76,8 @@ class MigrationBaselineContractTest {
         "V47__workbench_demo_validation_permission.sql",
         "V48__context_snapshot_standard_contract.sql",
         "V49__knowledge_citation_anchor_offsets.sql",
-        "V50__knowledge_trust_grading.sql"
+        "V50__knowledge_trust_grading.sql",
+        "V51__knowledge_projection_targets.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -616,6 +617,20 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON COLUMN knowledge_asset_version.grade_quality")
                 .contains("COMMENT ON COLUMN knowledge_asset_version.grade_strength")
                 .contains("COMMENT ON COLUMN knowledge_asset_version.conflict_arbitration");
+        }
+    }
+
+    @Test
+    void v51ShouldAllowKnowledgeGraphAndSearchProjectionTargetsForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V51__knowledge_projection_targets.sql");
+            assertThat(ddl).as("%s 知识图与搜索投影目标迁移", dialect)
+                .contains("ck_mk_projection_sync_target")
+                .contains("ck_mk_projection_snapshot_target")
+                .contains("KNOWLEDGE_GRAPH")
+                .contains("KNOWLEDGE_SEARCH")
+                .contains("COMMENT ON COLUMN mk_projection_sync.target_type")
+                .contains("COMMENT ON COLUMN mk_projection_snapshot.target_type");
         }
     }
 

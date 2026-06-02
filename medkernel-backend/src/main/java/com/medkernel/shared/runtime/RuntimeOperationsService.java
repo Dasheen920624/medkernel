@@ -115,6 +115,7 @@ public class RuntimeOperationsService {
     private List<RuntimeDependencyStatus> dependencies(String healthStatus) {
         boolean prometheusReady = meterRegistry.find("medkernel_tenant_onboarding_total").counter() != null;
         boolean graphEnabled = flagEnabled("graph-projection");
+        boolean searchEnabled = flagEnabled("search-projection");
         boolean difyEnabled = flagEnabled("dify-workflow");
         boolean externalProviderEnabled = flagEnabled("external-provider");
         RuntimeBackupReadiness backup = backupReadiness();
@@ -144,6 +145,12 @@ public class RuntimeOperationsService {
                 "知识图谱投影",
                 graphEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
                 graphEnabled ? "Feature Flag 已开启；真实图谱探活未接入，不标记 UP" : "Feature Flag 关闭，未连接图谱投影"
+            ),
+            new RuntimeDependencyStatus(
+                "search-projection",
+                "知识搜索投影",
+                searchEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
+                searchEnabled ? "Feature Flag 已开启；真实搜索探活未接入，不标记 UP" : "Feature Flag 关闭，未连接搜索投影"
             ),
             new RuntimeDependencyStatus(
                 "dify-workflow",

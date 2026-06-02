@@ -43,8 +43,13 @@ public record ProjectionFact(
     }
 
     public static ProjectionFact node(String objectType, String objectId, String payload, Instant updatedAt) {
+        return node(ProjectionTargetType.CLINICAL_GRAPH, objectType, objectId, payload, updatedAt);
+    }
+
+    public static ProjectionFact node(ProjectionTargetType targetType, String objectType, String objectId,
+            String payload, Instant updatedAt) {
         return new ProjectionFact(
-            ProjectionTargetType.CLINICAL_GRAPH,
+            targetType,
             ProjectionFactKind.NODE,
             objectType,
             objectId,
@@ -58,8 +63,13 @@ public record ProjectionFact(
 
     public static ProjectionFact edge(String subjectKey, String predicate, String objectKey, String payload,
             Instant updatedAt) {
+        return edge(ProjectionTargetType.CLINICAL_GRAPH, subjectKey, predicate, objectKey, payload, updatedAt);
+    }
+
+    public static ProjectionFact edge(ProjectionTargetType targetType, String subjectKey, String predicate,
+            String objectKey, String payload, Instant updatedAt) {
         return new ProjectionFact(
-            ProjectionTargetType.CLINICAL_GRAPH,
+            targetType,
             ProjectionFactKind.EDGE,
             "RELATION",
             subjectKey + ":" + predicate + ":" + objectKey,

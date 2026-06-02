@@ -55,6 +55,7 @@ class RuntimeOperationsControllerTest {
             .andExpect(jsonPath("$.data.healthStatus").value("UP"))
             .andExpect(jsonPath("$.data.featureFlags[*].key", hasItems(
                 "graph-projection",
+                "search-projection",
                 "dify-workflow",
                 "audit-persistence",
                 "external-provider",
@@ -65,11 +66,13 @@ class RuntimeOperationsControllerTest {
                 "prometheus",
                 "backup-restore",
                 "graph-projection",
+                "search-projection",
                 "dify-workflow",
                 "model-gateway",
                 "external-provider"
             )))
             .andExpect(jsonPath("$.data.dependencies[?(@.key=='graph-projection')].status", hasItem("NOT_CONNECTED")))
+            .andExpect(jsonPath("$.data.dependencies[?(@.key=='search-projection')].status", hasItem("NOT_CONNECTED")))
             .andExpect(jsonPath("$.data.dependencies[?(@.key=='dify-workflow')].status", hasItem("MODEL_DISABLED")))
             .andExpect(jsonPath("$.data.dependencies[?(@.key=='model-gateway')].status", hasItem("MODEL_DISABLED")))
             .andExpect(jsonPath("$.data.dependencies[?(@.key=='external-provider')].status", hasItem("NOT_CONNECTED")))

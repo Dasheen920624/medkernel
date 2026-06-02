@@ -33,6 +33,7 @@ class ProjectionDifyExecutorBoundaryTest {
     @Test
     void difyExecutorReceivesOnlyAggregateHashWhenEnabled() {
         ClinicalGraphProjectionSource source = mock(ClinicalGraphProjectionSource.class);
+        KnowledgeProjectionSource knowledgeSource = mock(KnowledgeProjectionSource.class);
         ProjectionSnapshotRepository snapshots = mock(ProjectionSnapshotRepository.class);
         ProjectionSyncRepository syncs = mock(ProjectionSyncRepository.class);
         ProjectionRuntimePolicy policy = mock(ProjectionRuntimePolicy.class);
@@ -40,6 +41,7 @@ class ProjectionDifyExecutorBoundaryTest {
         AuditRecorder auditRecorder = mock(AuditRecorder.class);
         ProjectionSyncService service = new ProjectionSyncService(
             source,
+            knowledgeSource,
             snapshots,
             syncs,
             policy,

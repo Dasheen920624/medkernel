@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,8 @@ import com.medkernel.shared.audit.AuditRecorder;
 @Service
 public class ProjectionSyncService {
 
-    private final ClinicalGraphProjectionSource source;
+    private final ClinicalGraphProjectionSource clinicalSource;
+    private final KnowledgeProjectionSource knowledgeSource;
     private final ProjectionSnapshotRepository snapshots;
     private final ProjectionSyncRepository syncs;
     private final ProjectionRuntimePolicy policy;
@@ -34,13 +36,15 @@ public class ProjectionSyncService {
     private final AuditRecorder auditRecorder;
 
     public ProjectionSyncService(
-            ClinicalGraphProjectionSource source,
+            ClinicalGraphProjectionSource clinicalSource,
+            KnowledgeProjectionSource knowledgeSource,
             ProjectionSnapshotRepository snapshots,
             ProjectionSyncRepository syncs,
             ProjectionRuntimePolicy policy,
             ProjectionExecutionPort executor,
             AuditRecorder auditRecorder) {
-        this.source = source;
+        this.clinicalSource = clinicalSource;
+        this.knowledgeSource = knowledgeSource;
         this.snapshots = snapshots;
         this.syncs = syncs;
         this.policy = policy;
@@ -50,40 +54,132 @@ public class ProjectionSyncService {
 
     @Transactional
     public ProjectionRebuildResponse rebuildClinicalGraph(String tenantId, String requestedBy, String traceId) {
+        return rebuildTarget(
+            tenantId,
+            ProjectionTargetType.CLINICAL_GRAPH,
+            () -> clinicalSource.factsForTenant(tenantId),
+            policy.graphProjectionEnabled(),
+            "graph-projection",
+            "图投影",
+            requestedBy,
+            traceId);
+    }
+
+    @Transactional
+    public ProjectionRebuildResponse rebuildKnowledgeGraph(String tenantId, String requestedBy, String traceId) {
+        return rebuildTarget(
+            tenantId,
+            ProjectionTargetType.KNOWLEDGE_GRAPH,
+            () -> knowledgeSource.graphFactsForTenant(tenantId),
+            policy.graphProjectionEnabled(),
+            "graph-projection",
+            "知识图投影",
+            requestedBy,
+            traceId);
+    }
+
+    @Transactional
+    public ProjectionRebuildResponse rebuildKnowledgeSearch(String tenantId, String requestedBy, String traceId) {
+        return rebuildTarget(
+            tenantId,
+            ProjectionTargetType.KNOWLEDGE_SEARCH,
+            () -> knowledgeSource.searchFactsForTenant(tenantId),
+            policy.searchProjectionEnabled(),
+            "search-projection",
+            "知识搜索投影",
+            requestedBy,
+            traceId);
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectionConsistencyReport checkClinicalGraphConsistency(String tenantId) {
+        return checkTargetConsistency(
+            tenantId,
+            ProjectionTargetType.CLINICAL_GRAPH,
+            () -> clinicalSource.factsForTenant(tenantId),
+            policy.graphProjectionEnabled(),
+            "graph-projection");
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectionConsistencyReport checkKnowledgeGraphConsistency(String tenantId) {
+        return checkTargetConsistency(
+            tenantId,
+            ProjectionTargetType.KNOWLEDGE_GRAPH,
+            () -> knowledgeSource.graphFactsForTenant(tenantId),
+            policy.graphProjectionEnabled(),
+            "graph-projection");
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectionConsistencyReport checkKnowledgeSearchConsistency(String tenantId) {
+        return checkTargetConsistency(
+            tenantId,
+            ProjectionTargetType.KNOWLEDGE_SEARCH,
+            () -> knowledgeSource.searchFactsForTenant(tenantId),
+            policy.searchProjectionEnabled(),
+            "search-projection");
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectionRuntimeStatusResponse runtimeStatus(String tenantId) {
+        boolean graphEnabled = policy.graphProjectionEnabled();
+        boolean difyEnabled = policy.difyWorkflowEnabled();
+        long snapshotCount = graphEnabled
+            ? snapshots.countByTenantIdAndTargetType(tenantId, ProjectionTargetType.CLINICAL_GRAPH)
+            : 0L;
+        ClinicalProjectionStatus status = graphEnabled && snapshotCount > 0
+            ? ClinicalProjectionStatus.UP
+            : ClinicalProjectionStatus.NOT_SYNCED;
+        return new ProjectionRuntimeStatusResponse(
+            ProjectionTargetType.CLINICAL_GRAPH,
+            tenantId,
+            graphEnabled,
+            difyEnabled,
+            status,
+            ProjectionSyncStatus.NOT_SYNCED,
+            snapshotCount,
+            graphEnabled
+                ? "图投影开关已开启；状态由快照数量与同步结果决定"
+                : "graph-projection Feature Flag 关闭，关系库权威主链路保持可用");
+    }
+
+    private ProjectionRebuildResponse rebuildTarget(String tenantId, ProjectionTargetType targetType,
+            Supplier<List<ProjectionFact>> sourceSupplier, boolean enabled, String flagName, String displayName,
+            String requestedBy, String traceId) {
         Instant startedAt = Instant.now();
         ProjectionSync running = syncs.save(ProjectionSync.running(
             tenantId,
-            ProjectionTargetType.CLINICAL_GRAPH,
+            targetType,
             requestedBy,
             traceId,
             startedAt));
         try {
-            if (!policy.graphProjectionEnabled()) {
+            if (!enabled) {
                 ProjectionSync finished = syncs.save(running.finish(
                     ProjectionSyncStatus.NOT_SYNCED,
                     0,
                     0,
                     null,
                     null,
-                    "graph-projection Feature Flag 关闭，未执行图投影重建",
+                    flagName + " Feature Flag 关闭，未执行" + displayName + "重建",
                     Instant.now()));
                 recordSyncAudit(finished, ProjectionSyncStatus.NOT_SYNCED);
                 return responseFrom(
                     finished,
                     ProjectionSyncStatus.NOT_SYNCED,
-                    "graph-projection Feature Flag 关闭，关系库权威主链路保持可用");
+                    flagName + " Feature Flag 关闭，关系库权威主链路保持可用");
             }
 
-            List<ProjectionFact> sourceFacts = source.factsForTenant(tenantId);
+            List<ProjectionFact> sourceFacts = sourceSupplier.get();
+            assertTargetType(targetType, sourceFacts);
             Instant syncedAt = Instant.now();
-            snapshots.deleteByTenantIdAndTargetType(tenantId, ProjectionTargetType.CLINICAL_GRAPH);
+            snapshots.deleteByTenantIdAndTargetType(tenantId, targetType);
             List<ProjectionSnapshot> rows = sourceFacts.stream()
                 .map(fact -> ProjectionSnapshot.fromFact(tenantId, fact, syncedAt, traceId))
                 .toList();
             snapshots.saveAll(rows);
-            List<ProjectionSnapshot> projectionRows = snapshots.findByTenantIdAndTargetType(
-                tenantId,
-                ProjectionTargetType.CLINICAL_GRAPH);
+            List<ProjectionSnapshot> projectionRows = snapshots.findByTenantIdAndTargetType(tenantId, targetType);
             String sourceHash = aggregateHashFromFacts(sourceFacts);
             String projectionHash = aggregateHashFromSnapshots(projectionRows);
             ProjectionSyncStatus status = sourceHash.equals(projectionHash)
@@ -95,7 +191,7 @@ public class ProjectionSyncService {
                 projectionRows.size(),
                 sourceHash,
                 projectionHash,
-                status == ProjectionSyncStatus.SUCCESS ? "投影重建完成" : "投影重建后校验不一致",
+                status == ProjectionSyncStatus.SUCCESS ? displayName + "重建完成" : displayName + "重建后校验不一致",
                 Instant.now()));
             ProjectionExecutionResult difyResult = externalExecutionResult(
                 tenantId,
@@ -112,21 +208,21 @@ public class ProjectionSyncService {
                 0,
                 null,
                 null,
-                "投影重建失败: " + exception.getMessage(),
+                displayName + "重建失败: " + exception.getMessage(),
                 Instant.now()));
             recordSyncAudit(failed, ProjectionSyncStatus.NOT_SYNCED);
             throw exception;
         }
     }
 
-    @Transactional(readOnly = true)
-    public ProjectionConsistencyReport checkClinicalGraphConsistency(String tenantId) {
-        if (!policy.graphProjectionEnabled()) {
+    private ProjectionConsistencyReport checkTargetConsistency(String tenantId, ProjectionTargetType targetType,
+            Supplier<List<ProjectionFact>> sourceSupplier, boolean enabled, String flagName) {
+        if (!enabled) {
             return new ProjectionConsistencyReport(
-                ProjectionTargetType.CLINICAL_GRAPH,
+                targetType,
                 tenantId,
                 ProjectionSyncStatus.NOT_SYNCED,
-                "graph-projection Feature Flag 关闭，未执行投影一致性校验",
+                flagName + " Feature Flag 关闭，未执行投影一致性校验",
                 false,
                 0,
                 0,
@@ -136,10 +232,9 @@ public class ProjectionSyncService {
                 List.of(),
                 List.of());
         }
-        List<ProjectionFact> sourceFacts = source.factsForTenant(tenantId);
-        List<ProjectionSnapshot> projectionRows = snapshots.findByTenantIdAndTargetType(
-            tenantId,
-            ProjectionTargetType.CLINICAL_GRAPH);
+        List<ProjectionFact> sourceFacts = sourceSupplier.get();
+        assertTargetType(targetType, sourceFacts);
+        List<ProjectionSnapshot> projectionRows = snapshots.findByTenantIdAndTargetType(tenantId, targetType);
         Map<String, ProjectionFact> sourceByKey = sourceByKey(sourceFacts);
         Map<String, ProjectionSnapshot> projectionByKey = projectionByKey(projectionRows);
 
@@ -171,7 +266,7 @@ public class ProjectionSyncService {
             && changed.isEmpty()
             && sourceHash.equals(projectionHash);
         return new ProjectionConsistencyReport(
-            ProjectionTargetType.CLINICAL_GRAPH,
+            targetType,
             tenantId,
             consistent ? ProjectionSyncStatus.SUCCESS : ProjectionSyncStatus.FAILED,
             consistent ? "投影快照与关系库权威源一致" : "投影快照与关系库权威源不一致",
@@ -185,29 +280,6 @@ public class ProjectionSyncService {
             changed);
     }
 
-    @Transactional(readOnly = true)
-    public ProjectionRuntimeStatusResponse runtimeStatus(String tenantId) {
-        boolean graphEnabled = policy.graphProjectionEnabled();
-        boolean difyEnabled = policy.difyWorkflowEnabled();
-        long snapshotCount = graphEnabled
-            ? snapshots.countByTenantIdAndTargetType(tenantId, ProjectionTargetType.CLINICAL_GRAPH)
-            : 0L;
-        ClinicalProjectionStatus status = graphEnabled && snapshotCount > 0
-            ? ClinicalProjectionStatus.UP
-            : ClinicalProjectionStatus.NOT_SYNCED;
-        return new ProjectionRuntimeStatusResponse(
-            ProjectionTargetType.CLINICAL_GRAPH,
-            tenantId,
-            graphEnabled,
-            difyEnabled,
-            status,
-            ProjectionSyncStatus.NOT_SYNCED,
-            snapshotCount,
-            graphEnabled
-                ? "图投影开关已开启；状态由快照数量与同步结果决定"
-                : "graph-projection Feature Flag 关闭，关系库权威主链路保持可用");
-    }
-
     private ProjectionExecutionResult externalExecutionResult(String tenantId, ProjectionSync finished,
             int sourceCount, String sourceHash, String traceId) {
         if (!policy.difyWorkflowEnabled()) {
@@ -216,7 +288,7 @@ public class ProjectionSyncService {
         return executor.execute(new ProjectionExecutionCommand(
             tenantId,
             finished.syncId(),
-            ProjectionTargetType.CLINICAL_GRAPH,
+            finished.targetType(),
             sourceCount,
             sourceHash,
             traceId));
@@ -226,7 +298,7 @@ public class ProjectionSyncService {
             String message) {
         return new ProjectionRebuildResponse(
             sync.syncId(),
-            ProjectionTargetType.CLINICAL_GRAPH,
+            sync.targetType(),
             sync.status(),
             sync.sourceCount(),
             sync.projectionCount(),
@@ -267,6 +339,14 @@ public class ProjectionSyncService {
             return syncMessage;
         }
         return syncMessage + "；" + externalMessage;
+    }
+
+    private void assertTargetType(ProjectionTargetType targetType, List<ProjectionFact> facts) {
+        for (ProjectionFact fact : facts) {
+            if (fact.targetType() != targetType) {
+                throw new IllegalStateException("投影事实目标类型不一致: " + fact.factKey());
+            }
+        }
     }
 
     private Map<String, ProjectionFact> sourceByKey(List<ProjectionFact> facts) {

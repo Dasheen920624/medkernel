@@ -86,6 +86,12 @@ medkernel:
         risk: MEDIUM
         owner: 信息科 / 架构组
         description: 控制 Neo4j 图谱投影和图谱查询能力是否参与运行。
+      search-projection:
+        display-name: 知识搜索投影
+        enabled: ${MEDKERNEL_SEARCH_ENABLED:false}
+        risk: MEDIUM
+        owner: 信息科 / 架构组
+        description: 控制知识搜索索引投影是否参与运行，关闭时关系库权威主链路保持可用。
       dify-workflow:
         display-name: Dify 工作流
         enabled: ${MEDKERNEL_DIFY_ENABLED:false}

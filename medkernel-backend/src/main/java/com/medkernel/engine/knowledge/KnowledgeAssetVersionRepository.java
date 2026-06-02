@@ -23,6 +23,11 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
 
     List<KnowledgeAssetVersion> findByTenantIdAndIdentityIdOrderByCreatedAtDesc(String tenantId, Long identityId);
 
+    List<KnowledgeAssetVersion> findByTenantIdAndStatusOrderByUpdatedAtDescIdDesc(
+        String tenantId,
+        KnowledgeVersionStatus status
+    );
+
     @Query("""
         SELECT * FROM knowledge_asset_version
         WHERE tenant_id = :tenantId AND identity_id = :identityId AND status = 'ACTIVE'

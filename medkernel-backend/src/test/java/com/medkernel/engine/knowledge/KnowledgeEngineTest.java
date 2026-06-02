@@ -44,6 +44,7 @@ class KnowledgeEngineTest {
     private SourceVersionRepository sourceVerRepo;
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
+    private KnowledgeProjectionRefreshPort projectionRefreshPort;
 
     private KnowledgeIdentityService identityService;
     private KnowledgeVersionService versionService;
@@ -57,13 +58,14 @@ class KnowledgeEngineTest {
         sourceVerRepo = Mockito.mock(SourceVersionRepository.class);
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
         );
 
         versionService = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort
         );
 
         // 初始化租户与用户上下文环境

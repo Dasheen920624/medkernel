@@ -33,6 +33,7 @@ class KnowledgeVersionServiceTest {
     private KnowledgeSupersessionRepository supersessionRepo;
     private CitationRepository citationRepo;
     private SourceDocumentRepository sourceDocRepo;
+    private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -42,7 +43,9 @@ class KnowledgeVersionServiceTest {
         supersessionRepo = Mockito.mock(KnowledgeSupersessionRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
         sourceDocRepo = Mockito.mock(SourceDocumentRepository.class);
-        service = new KnowledgeVersionService(identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo);
+        projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
+        service = new KnowledgeVersionService(
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
@@ -90,6 +93,7 @@ class KnowledgeVersionServiceTest {
         assertThat(spCap.getValue().oldVersionId()).isNull();
         assertThat(spCap.getValue().newVersionId()).isEqualTo(10L);
         assertThat(spCap.getValue().transitionedBy()).isEqualTo("u-99");
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 10L, "u-99", "trace");
     }
 
     @Test
@@ -128,6 +132,24 @@ class KnowledgeVersionServiceTest {
         assertThat(spCap.getValue().oldVersionId()).isEqualTo(5L);
         assertThat(spCap.getValue().newVersionId()).isEqualTo(11L);
         assertThat(spCap.getValue().transitionReason()).isEqualTo("新版指南更新");
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 11L, "u-99", "trace");
+    }
+
+    @Test
+    void activateRefreshesKnowledgeGraphAndSearchProjectionAfterPublication() {
+        KnowledgeIdentity identity = identity(1L, null);
+        KnowledgeAssetVersion candidate = version(10L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 10L))
+            .thenReturn(List.of(citation(10L)));
+
+        KnowledgeAssetVersion activated = service.activate(1L, 10L, "发布新版知识资产");
+
+        assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 10L, "u-99", "trace");
     }
 
     @Test
@@ -176,6 +198,7 @@ class KnowledgeVersionServiceTest {
             .isEqualTo(ErrorCode.AUTHORITY_OVERRIDE_DENIED);
         verify(versionRepo, never()).save(any());
         verify(supersessionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -217,6 +240,7 @@ class KnowledgeVersionServiceTest {
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
         verify(versionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
 
     @Test
