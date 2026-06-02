@@ -69,7 +69,6 @@ class PathwayEngineControllerSecurityTest {
 
     private static final String ADVANCE_BODY = """
         {
-          "patientPathwayId": "pp-1",
           "eventType": "COMPLETE",
           "eventId": "evt-1"
         }
@@ -89,15 +88,19 @@ class PathwayEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanReadPathwayButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/pathways/templates/pt-1"))
+        mvc.perform(get("/api/v1/engine/pathway/pathway-templates/pt-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(get("/api/v1/engine/pathways/patients/pp-1"))
+        mvc.perform(get("/api/v1/engine/pathway/patient-pathways/pp-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(get("/api/v1/engine/pathways/pp-1/clocks"))
+        mvc.perform(get("/api/v1/engine/pathway/patient-pathways/pp-1/variances"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(get("/api/v1/engine/pathway/patient-pathways/pp-1/clocks"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -105,25 +108,25 @@ class PathwayEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanWritePathwayButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/pathways/packages")
+        mvc.perform(post("/api/v1/engine/pathway/specialty-packages")
                 .contentType("application/json")
                 .content(PACKAGE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/pathways/templates")
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates")
                 .contentType("application/json")
                 .content(TEMPLATE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/pathways/patients")
+        mvc.perform(post("/api/v1/engine/pathway/patient-pathways/enter")
                 .contentType("application/json")
                 .content(ENTER_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/pathways/advance")
+        mvc.perform(post("/api/v1/engine/pathway/patient-pathways/pp-1/advance")
                 .contentType("application/json")
                 .content(ADVANCE_BODY))
             .andExpect(status().isBadRequest())
@@ -133,7 +136,9 @@ class PathwayEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
     void medicalAffairsCanPublishButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/pathways/templates/pt-1/publish"))
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
+                .contentType("application/json")
+                .content("{}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -141,14 +146,16 @@ class PathwayEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotPublishPathwayTemplate() throws Exception {
-        mvc.perform(post("/api/v1/engine/pathways/templates/pt-1/publish"))
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
+                .contentType("application/json")
+                .content("{}"))
             .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadPathways() throws Exception {
-        mvc.perform(get("/api/v1/engine/pathways/templates"))
+        mvc.perform(get("/api/v1/engine/pathway/pathway-templates"))
             .andExpect(status().isForbidden());
     }
 }

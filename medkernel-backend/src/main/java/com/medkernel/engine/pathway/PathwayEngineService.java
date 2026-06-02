@@ -307,6 +307,18 @@ public class PathwayEngineService {
     }
 
     /**
+     * 查询指定患者路径实例的变异事实。
+     *
+     * <p>先校验患者路径属于当前租户，再按创建时间返回变异记录，避免跨租户直接枚举变异。
+     */
+    @Transactional(readOnly = true)
+    public List<PathwayVariance> variances(String patientPathwayId) {
+        String tenantId = requireCurrentTenant();
+        findPatientPathway(patientPathwayId, tenantId);
+        return variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc(patientPathwayId, tenantId);
+    }
+
+    /**
      * 查询指定患者路径实例的关键时钟。
      *
      * <p>先校验患者路径属于当前租户，再按启动时间返回节点时钟事实。

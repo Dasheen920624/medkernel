@@ -192,9 +192,9 @@ MedKernel 中文产品名固定为 **集团医疗智能中枢**。本产品不�
 | 临床事件 | `POST /api/v1/engine/events` | 诊断、医嘱、报告、出院、随访事件 | 受理结果、traceId、任务 |
 | 字典映射 | `GET /api/v1/engine/terminology/mappings`、`POST /api/v1/engine/terminology/candidates/{id}/confirm` | 本地码、系统、科室、上下文 | 标准码候选、冲突、确认要求 |
 | 规则执行 | `POST /api/v1/engine/rule/rules/evaluate` | 上下文、规则集、触发点 | 命中、风险级别、解释、动作 |
-| 路径运行 | `POST /api/v1/engine/pathways/advance` | 患者路径、节点、事件 | 下一步、变异、随访接续 |
-| 专病路径仿真 | `POST /api/v1/engine/pathways/templates/{templateId}/simulate` | 专病包版本、样例病例、组织范围 | 节点轨迹、时间窗、规则命中、质控结果 |
-| 专病关键时钟 | `GET /api/v1/engine/pathways/{patientPathwayId}/clocks` | 患者路径、关键节点 | 起止时间、超时/缺数、质控指标关联 |
+| 路径运行 | `POST /api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance` | 患者路径、节点、事件 | 下一步、变异、随访接续 |
+| 专病路径仿真 | `POST /api/v1/engine/pathway/pathway-templates/{templateId}/simulate` | 专病包版本、样例病例、组织范围 | 节点轨迹、时间窗、规则命中、质控结果 |
+| 专病关键时钟 | `GET /api/v1/engine/pathway/patient-pathways/{patientPathwayId}/clocks` | 患者路径、关键节点 | 起止时间、超时/缺数、质控指标关联 |
 | 辅助诊疗 | 后续 E6：`POST /api/v1/engine/diagnosis/assist` | 患者标准上下文 | 疾病候选、鉴别诊断、证据缺口 |
 | 治疗推荐 | 后续 E6：`POST /api/v1/engine/treatment/recommend` | 疾病候选、风险、知识包 | 方案候选、禁忌、替代方案 |
 | CDSS | `POST /api/v1/engine/recommendations/triggers`、`GET /api/v1/engine/recommendations/cards` | 触发点、上下文、知识包版本 | 提醒卡片、推荐、来源、动作 |
@@ -538,7 +538,7 @@ S0-S40 是业务能力场景，不等于 41 组独立后端服务。当前 0 业
 | 主流程 | 选专病模板 → 配入径条件 → 配节点 → 配分支 → 配变异 → 配随访 → 仿真 → 发布 |
 | 节点类型 | 筛查、评估、检查、检验、用药、手术、护理、康复、出院、随访、质控 |
 | 分支 | 条件分支、风险分层、患者选择、资源不可用、医生决策、异常回退 |
-| API 归类 | 当前引擎 API：`/api/v1/engine/pathways/templates`、`/api/v1/engine/pathways/templates/{templateId}/simulate`、`/api/v1/engine/pathways/advance` |
+| API 归类 | 当前引擎 API：`/api/v1/engine/pathway/specialty-packages`、`/api/v1/engine/pathway/pathway-templates`、`/api/v1/engine/pathway/pathway-templates/{templateId}/simulate`、`/api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance` |
 | 验收 | 路径必须能表达入径、退径、变异、超时、出院、随访和结局评估 |
 
 ### S7 图谱与来源追溯

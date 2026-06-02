@@ -98,18 +98,18 @@
 
 | API | 权限 | 用途 |
 |---|---|---|
-| `POST /api/v1/engine/pathways/packages` | `pathway.write` | 创建专病包和专病画像 |
-| `GET /api/v1/engine/pathways/packages` | `pathway.read` | 查询专病包 |
-| `POST /api/v1/engine/pathways/templates` | `pathway.write` | 创建路径模板、节点和边 |
-| `GET /api/v1/engine/pathways/templates` | `pathway.read` | 按状态、病种、专病包分页查询模板 |
-| `GET /api/v1/engine/pathways/templates/{templateId}` | `pathway.read` | 查看模板详情、节点和边 |
-| `POST /api/v1/engine/pathways/templates/{templateId}/publish` | `pathway.publish` | 执行发布门禁并发布模板 |
-| `POST /api/v1/engine/pathways/templates/{templateId}/simulate` | `pathway.write` | 使用示例事件仿真节点轨迹 |
-| `POST /api/v1/engine/pathways/patients` | `pathway.write` | 为患者创建路径实例 |
-| `GET /api/v1/engine/pathways/patients/{patientPathwayId}` | `pathway.read` | 查看患者路径详情、当前节点、变异和时钟 |
-| `POST /api/v1/engine/pathways/advance` | `pathway.write` | 推进节点、登记变异、完成或退出路径 |
-| `GET /api/v1/engine/pathways/{patientPathwayId}/clocks` | `pathway.read` | 查询关键时钟 |
-| `GET /api/v1/engine/pathways/patients/{patientPathwayId}/diagnose` | `pathway.read` | 查看路径实例诊断解释 |
+| `POST /api/v1/engine/pathway/specialty-packages` | `pathway.write` | 创建专病包和专病画像 |
+| `GET /api/v1/engine/pathway/specialty-packages` | `pathway.read` | 查询专病包 |
+| `POST /api/v1/engine/pathway/pathway-templates` | `pathway.write` | 创建路径模板、节点和边 |
+| `GET /api/v1/engine/pathway/pathway-templates` | `pathway.read` | 按状态、病种、专病包分页查询模板 |
+| `GET /api/v1/engine/pathway/pathway-templates/{templateId}` | `pathway.read` | 查看模板详情、节点和边 |
+| `POST /api/v1/engine/pathway/pathway-templates/{templateId}/publish` | `pathway.publish` | 执行发布门禁并发布模板 |
+| `POST /api/v1/engine/pathway/pathway-templates/{templateId}/simulate` | `pathway.write` | 使用示例事件仿真节点轨迹 |
+| `POST /api/v1/engine/pathway/patient-pathways/enter` | `pathway.write` | 为患者创建路径实例 |
+| `GET /api/v1/engine/pathway/patient-pathways/{patientPathwayId}` | `pathway.read` | 查看患者路径详情、当前节点、变异和时钟 |
+| `POST /api/v1/engine/pathway/patient-pathways/{patientPathwayId}/advance` | `pathway.write` | 推进节点、登记变异、完成或退出路径 |
+| `GET /api/v1/engine/pathway/patient-pathways/{patientPathwayId}/variances` | `pathway.read` | 查询变异事实 |
+| `GET /api/v1/engine/pathway/patient-pathways/{patientPathwayId}/clocks` | `pathway.read` | 查询关键时钟 |
 
 ## 6. 数据模型
 

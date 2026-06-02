@@ -275,6 +275,20 @@ class PathwayEngineServiceTest {
         assertThat(actual).isSameAs(expected);
     }
 
+    @Test
+    void variancesOnlyReturnsTenantScopedRuntimeFacts() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.VARIANCE, "ASSESS");
+        PathwayVariance variance = variance("pv-1", VarianceType.DOCTOR_CHOICE);
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(variance));
+
+        List<PathwayVariance> actual = service.variances("pp-1");
+
+        assertThat(actual).containsExactly(variance);
+    }
+
     private PathwayTemplateCreateRequest templateRequest() {
         return new PathwayTemplateCreateRequest(
             "sp-1", "TPL.COPD", "稳定期随访路径", "COPD", 1,
@@ -341,6 +355,14 @@ class PathwayEngineServiceTest {
             1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
             now.minusSeconds(60), now.plusSeconds(3600), null, status,
             now.minusSeconds(60), "tester", now.minusSeconds(60), "tester", "trace-pathway");
+    }
+
+    private PathwayVariance variance(String varianceId, VarianceType type) {
+        Instant now = Instant.now();
+        return new PathwayVariance(
+            1L, varianceId, "tenant-A", "pp-1", "ASSESS", type,
+            "医生根据患者情况调整节点", "人工确认后继续", "FOLLOWUP",
+            now.minusSeconds(30), "tester", now.minusSeconds(30), "tester", "trace-pathway");
     }
 
     private JsonNode json(String source) {

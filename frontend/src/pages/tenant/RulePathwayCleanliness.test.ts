@@ -60,4 +60,16 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(patientPathwaysSource).not.toContain("Date.now()");
     expect(patientPathwaysSource).not.toMatch(/\|\|\s*\(\s*<Option/);
   });
+
+  it("uses the current rule and pathway customer API roots", () => {
+    const hooksSource = readSource("src/shared/api/hooks.ts");
+
+    expect(hooksSource).not.toContain('"/engine/rules');
+    expect(hooksSource).not.toContain("`/engine/rules");
+    expect(hooksSource).not.toContain('"/engine/pathways');
+    expect(hooksSource).not.toContain("`/engine/pathways");
+    expect(hooksSource).toContain("/engine/rule/rules");
+    expect(hooksSource).toContain("/engine/pathway/pathway-templates");
+    expect(hooksSource).toContain("/engine/pathway/patient-pathways");
+  });
 });
