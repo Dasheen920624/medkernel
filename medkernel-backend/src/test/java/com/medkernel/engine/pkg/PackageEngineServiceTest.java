@@ -3,6 +3,7 @@ package com.medkernel.engine.pkg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -975,8 +976,9 @@ class PackageEngineServiceTest {
         when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
             .thenReturn("EVIDENCE-DIFY-001");
 
-        PackageSyncResponse response = service.syncPackage("pkg-1", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
@@ -1010,8 +1012,9 @@ class PackageEngineServiceTest {
         when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
             .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
 
-        PackageSyncResponse response = service.syncPackage("pkg-1", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
@@ -1043,13 +1046,84 @@ class PackageEngineServiceTest {
         when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
             .thenReturn("EVIDENCE-RELEASE-001");
 
-        PackageSyncResponse response = service.releasePackage("pkg-1", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        PackageSyncResponse response = service.releasePackage("pkg-1", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
         assertThat(response.logs()).hasSize(1);
         assertThat(response.logs().get(0).syncEvidence()).isEqualTo("EVIDENCE-RELEASE-001");
+    }
+
+    @Test
+    void releasePackageRejectsDirectFullForNonHospitalAdminRole() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-full-denied", "tenant-A", "PKG.COPD", "1.0.0", "待全量包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-full-denied", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-full-denied");
+
+        PackageSyncRequest request = packageSyncRequest(
+            "org-1",
+            ReleaseStrategy.FULL,
+            ReleaseScopeType.ALL,
+            null,
+            List.of("target-1"),
+            List.of("implementation-engineer")
+        );
+
+        assertThatThrownBy(() -> service.releasePackage("pkg-full-denied", request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_002);
+
+        verify(planRepository, never()).save(any(ReleasePlan.class));
+        verify(syncPort, never()).sync(any(), any(), any());
+    }
+
+    @Test
+    void releasePackageDefaultsGrayscaleToTenPercentBedScopeWhenNoScopeProvided() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-gray-default", "tenant-A", "PKG.COPD", "1.0.0", "灰度包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-gray-default", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-gray-default");
+
+        SyncTarget target = new SyncTarget(
+            1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(target));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+            .thenReturn("EVIDENCE-GRAY-001");
+
+        PackageSyncResponse response = service.releasePackage("pkg-gray-default", packageSyncRequest(
+            "hospital-1",
+            ReleaseStrategy.GRAYSCALE,
+            ReleaseScopeType.ALL,
+            null,
+            List.of("target-1"),
+            List.of("implementation-engineer")
+        ));
+
+        assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
+
+        ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
+        verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
+        ReleasePlan executingPlan = planCap.getAllValues().get(0);
+        assertThat(executingPlan.scopeType()).isEqualTo(ReleaseScopeType.HOSPITAL);
+        assertThat(executingPlan.scopeValue())
+            .contains("\"strategy\":\"BED_PERCENT\"")
+            .contains("\"percentage\":10")
+            .contains("\"scopeCode\":\"hospital-1\"");
+        verify(packageRepository).save(argThat(saved ->
+            saved.packageId().equals("pkg-gray-default") && saved.status() == KnowledgePackageStatus.PUBLISHED));
     }
 
     @Test
@@ -1072,8 +1146,9 @@ class PackageEngineServiceTest {
                 SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
             )));
 
-        assertThatThrownBy(() -> service.releasePackage("pkg-bad", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        assertThatThrownBy(() -> service.releasePackage("pkg-bad", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("配置包发布前校验未通过")
@@ -1131,8 +1206,9 @@ class PackageEngineServiceTest {
         when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
             .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
 
-        PackageSyncResponse response = service.syncPackage("pkg-draft", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        PackageSyncResponse response = service.syncPackage("pkg-draft", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.NOT_SYNCED);
@@ -1552,8 +1628,9 @@ class PackageEngineServiceTest {
         when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
             .thenReturn("EVIDENCE-001");
 
-        PackageSyncResponse response = service.syncPackage("pkg-copd-v2", new PackageSyncRequest(
-            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        PackageSyncResponse response = service.syncPackage("pkg-copd-v2", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
@@ -1853,6 +1930,20 @@ class PackageEngineServiceTest {
         when(targetRepository.findByTargetIdAndTenantId(targetId, "tenant-A"))
             .thenReturn(Optional.of(target));
         return target;
+    }
+
+    private PackageSyncRequest packageSyncRequest(
+            String targetOrgUnitId,
+            ReleaseStrategy strategy,
+            ReleaseScopeType scopeType,
+            String scopeValue,
+            List<String> targetIds,
+            List<String> roleCodes) {
+        return new PackageSyncRequest(
+            "req-pkg-release", "trace-pkg-release", "tenant-A", null, "hospital-1", null,
+            null, null, null, "tester", roleCodes, "pkg-ctx",
+            targetOrgUnitId, strategy, scopeType, scopeValue, targetIds
+        );
     }
 
     private void stubPackageReadyForRelease(String packageId) {
