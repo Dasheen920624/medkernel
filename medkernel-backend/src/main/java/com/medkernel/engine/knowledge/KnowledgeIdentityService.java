@@ -1,5 +1,6 @@
 package com.medkernel.engine.knowledge;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
@@ -10,6 +11,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -61,44 +63,89 @@ public class KnowledgeIdentityService {
         String status = filter.status() == null ? null : filter.status().name();
         String keyword = normalizeKeyword(filter.keyword());
 
-        long total = identityRepository.countByFilter(tenantId, domain, filter.specialtyId(), status, keyword);
-        if (total == 0) {
-            return PageResponse.empty(request);
-        }
-        List<KnowledgeIdentity> items = identityRepository.pageByFilter(
-            tenantId, domain, filter.specialtyId(), status, keyword, offset, size);
+        List<KnowledgeIdentity> effectiveRows =
+            effectiveIdentitiesByFilter(tenantId, domain, filter.specialtyId(), status, keyword);
+        long total = effectiveRows.size();
+        List<KnowledgeIdentity> items = slice(effectiveRows, offset, size);
         return PageResponse.of(items, request, total);
     }
 
     public KnowledgeIdentity get(Long id) {
         String tenantId = requireCurrentTenant();
-        return identityRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + id));
+        return findEffectiveIdentity(id, tenantId).identity();
     }
 
     public KnowledgeIdentity getByCode(String identityCode) {
         String tenantId = requireCurrentTenant();
         return identityRepository.findByTenantIdAndIdentityCode(tenantId, identityCode)
+            .or(() -> findPlatformIdentityByCodeForTenant(identityCode, tenantId))
             .orElseThrow(() -> ApiException.notFound("知识身份 code=" + identityCode));
     }
 
     public KnowledgeAssetVersion getActiveVersion(Long identityId) {
         String tenantId = requireCurrentTenant();
-        // 先校验身份存在 + 同租户
-        identityRepository.findByTenantIdAndId(tenantId, identityId)
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        return versionRepository.findActiveByIdentity(tenantId, identityId)
+        EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
+        return versionRepository.findActiveByIdentity(effective.sourceTenantId(), effective.identity().id())
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId + " 当前无 ACTIVE 版本"));
     }
 
     public KnowledgeLineage getLineage(Long identityId) {
         String tenantId = requireCurrentTenant();
-        KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, identityId)
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        List<KnowledgeAssetVersion> versions = versionRepository.listByIdentity(tenantId, identityId);
+        EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
+        KnowledgeIdentity identity = effective.identity();
+        List<KnowledgeAssetVersion> versions = versionRepository.listByIdentity(effective.sourceTenantId(), identity.id());
         List<KnowledgeSupersession> supersessions =
-            supersessionRepository.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(tenantId, identityId);
+            supersessionRepository.findByTenantIdAndIdentityIdOrderByTransitionedAtAsc(
+                effective.sourceTenantId(), identity.id());
         return new KnowledgeLineage(identity, versions, supersessions);
+    }
+
+    private EffectiveKnowledgeIdentity findEffectiveIdentity(Long identityId, String tenantId) {
+        Optional<KnowledgeIdentity> local = identityRepository.findByTenantIdAndId(tenantId, identityId);
+        if (local.isPresent()) {
+            return new EffectiveKnowledgeIdentity(local.get(), tenantId);
+        }
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            throw ApiException.notFound("知识身份 id=" + identityId);
+        }
+        KnowledgeIdentity platform = identityRepository.findByTenantIdAndId(PlatformTenant.ID, identityId)
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
+        return identityRepository.findByTenantIdAndIdentityCode(tenantId, platform.identityCode())
+            .map(override -> new EffectiveKnowledgeIdentity(override, tenantId))
+            .orElseGet(() -> new EffectiveKnowledgeIdentity(platform, PlatformTenant.ID));
+    }
+
+    private Optional<KnowledgeIdentity> findPlatformIdentityByCodeForTenant(String identityCode, String tenantId) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return Optional.empty();
+        }
+        return identityRepository.findByTenantIdAndIdentityCode(PlatformTenant.ID, identityCode);
+    }
+
+    private List<KnowledgeIdentity> effectiveIdentitiesByFilter(String tenantId, String domain,
+                                                                String specialtyId, String status, String keyword) {
+        LinkedHashMap<String, KnowledgeIdentity> byCode = new LinkedHashMap<>();
+        identityRepository.listByFilter(tenantId, domain, specialtyId, status, keyword)
+            .forEach(identity -> byCode.put(identity.identityCode(), identity));
+        if (!PlatformTenant.isPlatformTenant(tenantId)) {
+            String platformStatus = status == null ? KnowledgeIdentityStatus.ACTIVE.name() : status;
+            if (KnowledgeIdentityStatus.ACTIVE.name().equals(platformStatus)) {
+                identityRepository.listByFilter(PlatformTenant.ID, domain, specialtyId, platformStatus, keyword)
+                    .forEach(identity -> byCode.putIfAbsent(identity.identityCode(), identity));
+            }
+        }
+        return List.copyOf(byCode.values());
+    }
+
+    private List<KnowledgeIdentity> slice(List<KnowledgeIdentity> rows, int offset, int limit) {
+        if (rows.isEmpty() || offset >= rows.size()) {
+            return List.of();
+        }
+        int end = Math.min(rows.size(), offset + limit);
+        return rows.subList(offset, end);
+    }
+
+    private record EffectiveKnowledgeIdentity(KnowledgeIdentity identity, String sourceTenantId) {
     }
 
     private String requireCurrentTenant() {

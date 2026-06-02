@@ -5,9 +5,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,6 +23,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -233,10 +236,9 @@ public class PathwayEngineService {
         String status = filter == null || filter.status() == null ? null : filter.status().name();
         String diseaseCode = filter == null ? null : filter.diseaseCode();
         String packageId = filter == null ? null : filter.packageId();
-        long total = templates.countByFilter(tenantId, status, diseaseCode, packageId);
-        List<PathwayTemplate> rows = total == 0 ? List.of()
-            : templates.pageByFilter(tenantId, status, diseaseCode, packageId,
-                safePage.offset(), safePage.safeSize());
+        List<PathwayTemplate> effectiveRows = effectiveTemplatesByFilter(tenantId, status, diseaseCode, packageId);
+        long total = effectiveRows.size();
+        List<PathwayTemplate> rows = slice(effectiveRows, safePage.offset(), safePage.safeSize());
         return PageResponse.of(rows, safePage, total);
     }
 
@@ -248,12 +250,13 @@ public class PathwayEngineService {
     @Transactional(readOnly = true)
     public PathwayTemplateDetailResponse templateDetail(String templateId) {
         String tenantId = requireCurrentTenant();
-        PathwayTemplate template = findTemplate(templateId, tenantId);
+        EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
+        PathwayTemplate template = effective.template();
         return new PathwayTemplateDetailResponse(
             template,
-            nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId),
-            edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId),
-            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId),
+            nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), effective.sourceTenantId()),
+            edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), effective.sourceTenantId()),
+            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(template.templateId(), effective.sourceTenantId()),
             RequestContext.currentTraceId());
     }
 
@@ -265,12 +268,14 @@ public class PathwayEngineService {
     @Transactional
     public PatientPathwayDetailResponse enterPatientPathway(PatientPathwayEnterRequest request) {
         String tenantId = requireCurrentTenant();
-        PathwayTemplate template = findTemplate(request.templateId(), tenantId);
+        EffectivePathwayTemplate effective = findEffectiveTemplate(request.templateId(), tenantId);
+        PathwayTemplate template = effective.template();
         if (template.status() != PathwayTemplateStatus.PUBLISHED) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_005, "路径模板未发布，不能入径");
         }
         String startNodeCode = isBlank(request.startNodeCode()) ? template.startNodeCode() : request.startNodeCode();
-        PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(template.templateId(), tenantId, startNodeCode)
+        PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(
+                template.templateId(), effective.sourceTenantId(), startNodeCode)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_006,
                 "入径起始节点不存在: " + startNodeCode));
         String traceId = RequestContext.currentTraceId();
@@ -356,9 +361,12 @@ public class PathwayEngineService {
     @Transactional(readOnly = true)
     public PathwaySimulationResponse simulate(String templateId, PathwaySimulateRequest request) {
         String tenantId = requireCurrentTenant();
-        PathwayTemplate template = findTemplate(templateId, tenantId);
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
+        EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
+        PathwayTemplate template = effective.template();
+        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            template.templateId(), effective.sourceTenantId());
+        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
+            template.templateId(), effective.sourceTenantId());
         String currentNode = request == null || isBlank(request.startNodeCode())
             ? template.startNodeCode() : request.startNodeCode();
         List<String> requestedTargets = request == null ? List.of() : request.requestedNextNodeCodes();
@@ -394,8 +402,11 @@ public class PathwayEngineService {
         String currentNodeCode = isBlank(request.currentNodeCode())
             ? runtime.currentNodeCode() : request.currentNodeCode();
         validateVarianceRequest(request);
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(runtime.templateId(), tenantId);
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(runtime.templateId(), tenantId);
+        EffectivePathwayTemplate effective = findEffectiveTemplate(runtime.templateId(), tenantId);
+        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            effective.template().templateId(), effective.sourceTenantId());
+        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
+            effective.template().templateId(), effective.sourceTenantId());
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
             new PathwayGraph(graphNodes, graphEdges), currentNodeCode,
             request.eventType(), request.requestedNextNodeCode()));
@@ -544,6 +555,50 @@ public class PathwayEngineService {
                 "路径模板不存在: " + templateId));
     }
 
+    private EffectivePathwayTemplate findEffectiveTemplate(String templateId, String tenantId) {
+        Optional<PathwayTemplate> local = templates.findByTemplateIdAndTenantId(templateId, tenantId);
+        if (local.isPresent()) {
+            return new EffectivePathwayTemplate(local.get(), tenantId);
+        }
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "路径模板不存在: " + templateId);
+        }
+        PathwayTemplate platform = templates.findByTemplateIdAndTenantId(templateId, PlatformTenant.ID)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_002,
+                "路径模板不存在: " + templateId));
+        return templates.findByTenantIdAndTemplateCodeAndTemplateVersion(
+                tenantId, platform.templateCode(), platform.templateVersion())
+            .map(override -> new EffectivePathwayTemplate(override, tenantId))
+            .orElseGet(() -> new EffectivePathwayTemplate(platform, PlatformTenant.ID));
+    }
+
+    private List<PathwayTemplate> effectiveTemplatesByFilter(String tenantId, String status,
+                                                             String diseaseCode, String packageId) {
+        LinkedHashMap<String, PathwayTemplate> byCodeAndVersion = new LinkedHashMap<>();
+        templates.listByFilter(tenantId, status, diseaseCode, packageId)
+            .forEach(template -> byCodeAndVersion.put(templateKey(template), template));
+        if (!PlatformTenant.isPlatformTenant(tenantId)) {
+            String platformStatus = status == null ? PathwayTemplateStatus.PUBLISHED.name() : status;
+            if (PathwayTemplateStatus.PUBLISHED.name().equals(platformStatus)) {
+                templates.listByFilter(PlatformTenant.ID, platformStatus, diseaseCode, null)
+                    .forEach(template -> byCodeAndVersion.putIfAbsent(templateKey(template), template));
+            }
+        }
+        return List.copyOf(byCodeAndVersion.values());
+    }
+
+    private String templateKey(PathwayTemplate template) {
+        return template.templateCode() + "#" + template.templateVersion();
+    }
+
+    private <T> List<T> slice(List<T> rows, int offset, int limit) {
+        if (rows.isEmpty() || offset >= rows.size()) {
+            return List.of();
+        }
+        int end = Math.min(rows.size(), offset + limit);
+        return rows.subList(offset, end);
+    }
+
     private PatientPathway findPatientPathway(String patientPathwayId, String tenantId) {
         return patientPathways.findByPatientPathwayIdAndTenantId(patientPathwayId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_003,
@@ -624,5 +679,8 @@ public class PathwayEngineService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private record EffectivePathwayTemplate(PathwayTemplate template, String sourceTenantId) {
     }
 }

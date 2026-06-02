@@ -6,8 +6,10 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -185,9 +188,9 @@ public class RuleEngineService {
         String status = filter == null || filter.status() == null ? null : filter.status().name();
         String type = filter == null || filter.ruleType() == null ? null : filter.ruleType().name();
         String risk = filter == null || filter.riskLevel() == null ? null : filter.riskLevel().name();
-        long total = definitions.countByFilter(tenantId, status, type, risk);
-        List<RuleDefinition> rows = total == 0 ? List.of()
-            : definitions.pageByFilter(tenantId, status, type, risk, page.offset(), page.safeSize());
+        List<RuleDefinition> effectiveRows = effectiveRulesByFilter(tenantId, status, type, risk);
+        long total = effectiveRows.size();
+        List<RuleDefinition> rows = slice(effectiveRows, page.offset(), page.safeSize());
         return PageResponse.of(rows, page, total);
     }
 
@@ -243,7 +246,7 @@ public class RuleEngineService {
         RuleDefinition rule = findRule(ruleId, tenantId);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
         String trigger = readJson(version.dslJson()).path("trigger").asText("SIMULATE");
-        return evaluateAndLog(rule, version, request.context(), trigger, null);
+        return evaluateAndLog(rule, version, tenantId, request.context(), trigger, null);
     }
 
     /**
@@ -321,15 +324,15 @@ public class RuleEngineService {
     public RuleEvaluateResponse evaluate(RuleEvaluateRequest request) {
         String tenantId = requireCurrentTenant();
         List<RuleDefinition> candidates = request.ruleIds().isEmpty()
-            ? definitions.findPublishedByTenantId(tenantId)
-            : request.ruleIds().stream().map(ruleId -> findRule(ruleId, tenantId)).toList();
+            ? effectivePublishedRules(tenantId)
+            : request.ruleIds().stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
         List<RuleEvaluationItem> items = candidates.stream()
             .filter(rule -> rule.status() == RuleDefinitionStatus.PUBLISHED)
-            .map(rule -> Map.entry(rule, findVersion(rule.activeVersionId(), tenantId)))
+            .map(rule -> Map.entry(rule, findVersion(rule.activeVersionId(), rule.tenantId())))
             .filter(entry -> entry.getValue().status() == RuleVersionStatus.PUBLISHED)
             .filter(entry -> triggerMatches(entry.getValue(), request.triggerPoint()))
-            .map(entry -> evaluateAndLog(entry.getKey(), entry.getValue(),
+            .map(entry -> evaluateAndLog(entry.getKey(), entry.getValue(), tenantId,
                 request.context(), request.triggerPoint(), request.eventId()))
             .toList();
         RuleRiskLevel highest = items.stream()
@@ -402,13 +405,13 @@ public class RuleEngineService {
         }
     }
 
-    private RuleEvaluationItem evaluateAndLog(RuleDefinition rule, RuleVersion version,
+    private RuleEvaluationItem evaluateAndLog(RuleDefinition rule, RuleVersion version, String executionTenantId,
                                               JsonNode context, String triggerPoint, String eventId) {
         RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), context);
         String executionId = "rex-" + UUID.randomUUID();
         RuleExecutionStatus status = evaluation.hit() ? RuleExecutionStatus.SUCCESS : RuleExecutionStatus.MISS;
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
-            null, executionId, rule.tenantId(), rule.ruleId(), version.versionId(),
+            null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
             triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
             digest(context), evaluation.hit(), evaluation.severity(), writeObject(evaluation.actions()),
             writeJson(evaluation.explanation()), status, null, null,
@@ -505,6 +508,53 @@ public class RuleEngineService {
     private RuleDefinition findRule(String ruleId, String tenantId) {
         return definitions.findByRuleIdAndTenantId(ruleId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则不存在: " + ruleId));
+    }
+
+    private RuleDefinition findEffectiveRule(String ruleId, String tenantId) {
+        return definitions.findByRuleIdAndTenantId(ruleId, tenantId)
+            .or(() -> findPlatformRuleForTenant(ruleId, tenantId))
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则不存在: " + ruleId));
+    }
+
+    private Optional<RuleDefinition> findPlatformRuleForTenant(String ruleId, String tenantId) {
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            return Optional.empty();
+        }
+        return definitions.findByRuleIdAndTenantId(ruleId, PlatformTenant.ID)
+            .map(platformRule -> definitions.findByTenantIdAndRuleCode(tenantId, platformRule.ruleCode())
+                .orElse(platformRule));
+    }
+
+    private List<RuleDefinition> effectivePublishedRules(String tenantId) {
+        LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
+        definitions.findPublishedByTenantId(tenantId).forEach(rule -> byCode.put(rule.ruleCode(), rule));
+        if (!PlatformTenant.isPlatformTenant(tenantId)) {
+            definitions.findPublishedByTenantId(PlatformTenant.ID)
+                .forEach(rule -> byCode.putIfAbsent(rule.ruleCode(), rule));
+        }
+        return List.copyOf(byCode.values());
+    }
+
+    private List<RuleDefinition> effectiveRulesByFilter(String tenantId, String status, String ruleType, String riskLevel) {
+        LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
+        definitions.listByFilter(tenantId, status, ruleType, riskLevel)
+            .forEach(rule -> byCode.put(rule.ruleCode(), rule));
+        if (!PlatformTenant.isPlatformTenant(tenantId)) {
+            String platformStatus = status == null ? RuleDefinitionStatus.PUBLISHED.name() : status;
+            if (RuleDefinitionStatus.PUBLISHED.name().equals(platformStatus)) {
+                definitions.listByFilter(PlatformTenant.ID, platformStatus, ruleType, riskLevel)
+                    .forEach(rule -> byCode.putIfAbsent(rule.ruleCode(), rule));
+            }
+        }
+        return List.copyOf(byCode.values());
+    }
+
+    private List<RuleDefinition> slice(List<RuleDefinition> rows, int offset, int limit) {
+        if (rows.isEmpty() || offset >= rows.size()) {
+            return List.of();
+        }
+        int end = Math.min(rows.size(), offset + limit);
+        return rows.subList(offset, end);
     }
 
     private RuleVersion findVersion(String versionId, String tenantId) {

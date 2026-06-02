@@ -11,6 +11,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -66,9 +67,9 @@ public class KnowledgeVersionService {
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
         String tenantId = requireCurrentTenant();
-        identityRepository.findByTenantIdAndId(tenantId, identityId)
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        return versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId);
+        EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
+        return versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(
+            effective.sourceTenantId(), effective.identity().id());
     }
 
     public KnowledgeAssetVersion getVersion(Long versionId) {
@@ -693,4 +694,21 @@ public class KnowledgeVersionService {
         }
     }
 
+    private EffectiveKnowledgeIdentity findEffectiveIdentity(Long identityId, String tenantId) {
+        Optional<KnowledgeIdentity> local = identityRepository.findByTenantIdAndId(tenantId, identityId);
+        if (local.isPresent()) {
+            return new EffectiveKnowledgeIdentity(local.get(), tenantId);
+        }
+        if (PlatformTenant.isPlatformTenant(tenantId)) {
+            throw ApiException.notFound("知识身份 id=" + identityId);
+        }
+        KnowledgeIdentity platform = identityRepository.findByTenantIdAndId(PlatformTenant.ID, identityId)
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
+        return identityRepository.findByTenantIdAndIdentityCode(tenantId, platform.identityCode())
+            .map(override -> new EffectiveKnowledgeIdentity(override, tenantId))
+            .orElseGet(() -> new EffectiveKnowledgeIdentity(platform, PlatformTenant.ID));
+    }
+
+    private record EffectiveKnowledgeIdentity(KnowledgeIdentity identity, String sourceTenantId) {
+    }
 }

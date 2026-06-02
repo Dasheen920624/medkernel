@@ -524,17 +524,11 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void importOfflinePackageAllowsPlatformSourceIntoCustomerTenantAsLocalDraft() throws Exception {
+    void importOfflinePackageKeepsPlatformSourceAsReferenceWithoutCreatingCustomerAssetRows() throws Exception {
         String offlineJson = offlinePackageJson("PKG.PLATFORM", "2026.06.01", "t-1");
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
             "tenant-A", "PKG.PLATFORM", "2026.06.01"))
             .thenReturn(Optional.empty());
-        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
-            .thenReturn(Optional.empty())
-            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
-        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
-            .thenReturn(Optional.empty())
-            .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
 
         PackageOfflineImportResponse response = service.importOfflinePackage(
             new PackageOfflineImportRequest(offlineJson));
@@ -549,8 +543,29 @@ class PackageEngineServiceTest {
         verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());
         assertThat(itemCap.getAllValues()).allSatisfy(item ->
             assertThat(item.tenantId()).isEqualTo("tenant-A"));
-        verify(ruleRepository, never()).findByRuleIdAndTenantId("rule-stable", "t-1");
-        verify(evaluationRepository, never()).findByIndicatorIdAndTenantId("eval-stable", "t-1");
+        verify(ruleRepository, never()).save(any());
+        verify(ruleVersionRepository, never()).save(any());
+        verify(evaluationRepository, never()).save(any());
+        verify(ruleRepository, never()).findByRuleIdAndTenantId("rule-stable", "tenant-A");
+        verify(evaluationRepository, never()).findByIndicatorIdAndTenantId("eval-stable", "tenant-A");
+    }
+
+    @Test
+    void importOfflinePackageDoesNotOverwriteCustomerLocalOverrideFromPlatformSource() throws Exception {
+        String offlineJson = offlinePackageJson("PKG.PLATFORM.OVERRIDE", "2026.06.01", "t-1");
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.PLATFORM.OVERRIDE", "2026.06.01"))
+            .thenReturn(Optional.empty());
+
+        PackageOfflineImportResponse response = service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson));
+
+        assertThat(response.status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        verify(ruleRepository, never()).save(any());
+        verify(ruleVersionRepository, never()).save(any());
+        verify(evaluationRepository, never()).save(any());
+        verify(ruleRepository, never()).findByRuleIdAndTenantId("rule-stable", "tenant-A");
+        verify(evaluationRepository, never()).findByIndicatorIdAndTenantId("eval-stable", "tenant-A");
     }
 
     @Test

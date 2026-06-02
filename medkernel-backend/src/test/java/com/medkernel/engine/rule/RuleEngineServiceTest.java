@@ -273,6 +273,55 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void evaluateWithoutExplicitRuleIdsFallsBackToPlatformPublishedRules() {
+        RuleDefinition platformRule = existingRule(
+            "rule-platform", "t-1", "RULE.PLATFORM.ANTICOAG", "平台抗凝风险提示",
+            "version-platform", RuleDefinitionStatus.PUBLISHED);
+        RuleVersion platformVersion = existingVersion(
+            "version-platform", "t-1", "rule-platform", RuleVersionStatus.PUBLISHED);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of());
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRule));
+        when(versions.findByVersionIdAndTenantId("version-platform", "t-1")).thenReturn(Optional.of(platformVersion));
+
+        RuleEvaluateResponse response = service.evaluate(new RuleEvaluateRequest(
+            "ORDER_SIGN", hitContext(), "evt-platform", List.of()));
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
+            .containsExactly("rule-platform");
+        ArgumentCaptor<RuleExecutionLog> executionCap = ArgumentCaptor.forClass(RuleExecutionLog.class);
+        verify(executions).save(executionCap.capture());
+        assertThat(executionCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(executionCap.getValue().ruleId()).isEqualTo("rule-platform");
+    }
+
+    @Test
+    void evaluateMergesLocalOverridesWithNonOverriddenPlatformRules() {
+        RuleDefinition localOverride = existingRule(
+            "rule-local", "tenant-A", "RULE.ANTICOAG", "院内抗凝风险提示",
+            "version-local", RuleDefinitionStatus.PUBLISHED);
+        RuleDefinition platformShadowed = existingRule(
+            "rule-platform-shadowed", "t-1", "RULE.ANTICOAG", "平台抗凝风险提示",
+            "version-platform-shadowed", RuleDefinitionStatus.PUBLISHED);
+        RuleDefinition platformOnly = existingRule(
+            "rule-platform-dvt", "t-1", "RULE.DVT", "平台 DVT 风险提示",
+            "version-platform-dvt", RuleDefinitionStatus.PUBLISHED);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(localOverride));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformShadowed, platformOnly));
+        when(versions.findByVersionIdAndTenantId("version-local", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion("version-local", "tenant-A", "rule-local", RuleVersionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-platform-dvt", "t-1"))
+            .thenReturn(Optional.of(existingVersion("version-platform-dvt", "t-1", "rule-platform-dvt", RuleVersionStatus.PUBLISHED)));
+
+        RuleEvaluateResponse response = service.evaluate(new RuleEvaluateRequest(
+            "ORDER_SIGN", hitContext(), "evt-merge", List.of()));
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
+            .containsExactly("rule-local", "rule-platform-dvt");
+        verify(versions, org.mockito.Mockito.never())
+            .findByVersionIdAndTenantId("version-platform-shadowed", "t-1");
+    }
+
+    @Test
     void diagnoseAssemblesFromExecutionLog() {
         RuleExecutionLog execution = new RuleExecutionLog(
             1L, "rex-1", "tenant-A", "rule-1", "version-1", "ORDER_SIGN",
@@ -320,17 +369,26 @@ class RuleEngineServiceTest {
     }
 
     private RuleDefinition existingRule(RuleDefinitionStatus status) {
+        return existingRule("rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示", "version-1", status);
+    }
+
+    private RuleDefinition existingRule(String ruleId, String tenantId, String ruleCode, String name,
+                                        String versionId, RuleDefinitionStatus status) {
         Instant now = Instant.now();
         return new RuleDefinition(
-            1L, "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示", RuleType.ORDER,
-            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, status, "version-1",
+            1L, ruleId, tenantId, ruleCode, name, RuleType.ORDER,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, status, versionId,
             "rpv-1", "dept-1", now, "tester", now, "tester", "trace-rule");
     }
 
     private RuleVersion existingVersion(RuleVersionStatus status) {
+        return existingVersion("version-1", "tenant-A", "rule-1", status);
+    }
+
+    private RuleVersion existingVersion(String versionId, String tenantId, String ruleId, RuleVersionStatus status) {
         Instant now = Instant.now();
         return new RuleVersion(
-            1L, "version-1", "tenant-A", "rule-1", 1, "院内抗凝用药管理规范 2026",
+            1L, versionId, tenantId, ruleId, 1, "院内抗凝用药管理规范 2026",
             "初始版本", dsl().toString(), dsl().path("explain").toString(), status,
             null, null, null, now, "tester", now, "tester", "trace-rule");
     }

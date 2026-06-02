@@ -51,6 +51,19 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
                                       String riskLevel, int offset, int limit);
 
     /**
+     * 与分页查询同口径的完整列表，用于平台主源与当前租户覆盖层的有效资产合并。
+     */
+    @Query("""
+        SELECT * FROM rule_definition
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:ruleType IS NULL OR rule_type = :ruleType)
+          AND (:riskLevel IS NULL OR risk_level = :riskLevel)
+        ORDER BY updated_at DESC, id DESC
+        """)
+    List<RuleDefinition> listByFilter(String tenantId, String status, String ruleType, String riskLevel);
+
+    /**
      * 与 {@link #pageByFilter} 同口径的总数查询，用于分页响应的 total 字段。
      */
     @Query("""
