@@ -18,12 +18,13 @@
 `engine/terminology` **映射基础设施已建**，本卡＝**补语义匹配 + 高危判别 + 发布版本化**：
 - 已有：`LocalTerm`/`StandardTerm`、`TermMapping`、`MappingCandidate`、`MappingConflict`、`TermMappingPackage`(+`Item`/`Release`/各 Repository)、`TerminologyService`/`TerminologyController`、`TerminologyEnums`/`Filters`/`Requests`。
 - 缺口（本卡补）：① **医学语义匹配**辅助候选（同义词/缩写/编码族，确定性词典 + 规则，非模型）；② **高危近似负样本判别器**（MED-C1：强制 HIGH + 禁批量/禁自动确认）；③ 映射包**版本与发布**复用 [SYS-04](SYS-04.md)（灰度/全量/回滚）；④ 标准字典来源接 [OPT-07](OPT-07.md) 分级。
-- 进度（2026-06-02 PR1）：候选生成已从旧字面相似度切换为确定性语义候选，依据只来自精确编码、同义词/缩写别名、编码族，证据文本可解释；高危近似判别器和映射包发布闭环仍属于 PR2 / PR3，未完成前不得标 done。
+- 进度（2026-06-02 PR1）：候选生成已从旧字面相似度切换为确定性语义候选，依据只来自精确编码、同义词/缩写别名、编码族，证据文本可解释。
+- 进度（2026-06-02 PR2）：高危近似判别器已改为数据库规则集 `mk_term_high_risk_rule` + V53 五方言种子；命中钾/钠、肌钙蛋白 T/I、左/右、剂量 10 倍、胰岛素 U/mL 时候选强制 `risk=HIGH`，沿用既有禁批量确认和逐条二次确认门禁；映射包发布闭环仍属于 PR3，未完成前不得标 done。
 
 ## 功能要求（原子可测条目）
 - [ ] **FR-1 标准/院内字典**：维护 ICD-10 / ICD-9-CM-3 / 药品本位码 / LOINC 标准字典 + 院内 `LocalTerm`；标准字典来源可溯、版本化。
 - [x] **FR-2 候选 + 语义匹配**：给定院内术语 → 生成标准候选（精确码 + 同义词/缩写/编码族**确定性**匹配打分）；候选可解释（命中依据）。
-- [ ] **FR-3 高危近似判别（MED-C1）**：候选命中**高危近似规则集**（钾 K⁺/钠 Na⁺、肌钙蛋白 T/I、左/右、剂量量级 10×、胰岛素单位 U/mL）→ **强制 `risk=HIGH`**、**禁批量确认**、**禁自动确认**、必须人工逐条复核 + 二次确认。
+- [x] **FR-3 高危近似判别（MED-C1）**：候选命中**高危近似规则集**（钾 K⁺/钠 Na⁺、肌钙蛋白 T/I、左/右、剂量量级 10×、胰岛素单位 U/mL）→ **强制 `risk=HIGH`**、**禁批量确认**、**禁自动确认**、必须人工逐条复核 + 二次确认。
 - [ ] **FR-4 冲突**：一对多/多对一/跨标准冲突 → `MappingConflict` 待裁决，不自动选取。
 - [ ] **FR-5 映射包发布**：映射成 `TermMappingPackage` 经 [SYS-04](SYS-04.md) **草稿→审核→灰度→全量→回滚**发布；已发布映射不可原地改，只能新版。
 - [ ] **FR-6 诚实降级**：无语义词典/无模型时仍可**精确码匹配 + 人工映射**（B0）；语义辅助关闭返回确定性候选，不伪造智能。
@@ -39,7 +40,7 @@
 N·A —— 本卡无页面。字典映射工作台在 **D2 字典映射页**呈现（高危行红标 + 禁批量 UI）；本卡供引擎与判别。
 
 ## 数据与迁移
-- 表族（已有 + 补）：`local_term`/`standard_term`/`term_mapping`/`mapping_candidate`/`mapping_conflict`/`term_mapping_package`(+`item`/`release`)；新增 `high_risk_rule`（高危近似规则集）· 映射增 `risk_level`/`high_risk_flag`。
+- 表族（已有 + 补）：`local_term`/`standard_term`/`term_mapping`/`mapping_candidate`/`mapping_conflict`/`term_mapping_package`(+`item`/`release`)；新增 `mk_term_high_risk_rule`（高危近似规则集）· 映射增 `risk_level`/`high_risk_flag`。
 - 主键 ULID；唯一约束：`(local_term, standard_system, package_version)`；索引：`standard_code`、`risk_level`、`org_path`。
 - 组织字段：`tenant_id` + `org_path` + 审计；5 方言迁移一致 + 中文注释。
 
@@ -61,7 +62,7 @@ N·A —— 本卡无页面。字典映射工作台在 **D2 字典映射页**呈
 - 本卡落点：把字典映射做成**确定性候选 + 强制高危人工复核 + 版本化发布**，错映在发布前被人工拦截。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-2/3）**：输入"钾/钠""肌钙蛋白 T/I" → 候选标 `HIGH`、批量确认被拒（`MAPPING_HIGH_RISK_BATCH_DENIED`）、必须逐条人工二次确认。
+- [x] **AC-1（FR-2/3）**：输入"钾/钠""肌钙蛋白 T/I" → 候选标 `HIGH`、批量确认被拒（`MAPPING_HIGH_RISK_BATCH_DENIED`）、必须逐条人工二次确认。
 - [ ] **AC-2（FR-1/4）**：一院内诊断映射到两个 ICD-10 → `MappingConflict` 待裁、不自动取一。
 - [ ] **AC-3（FR-5）**：映射包草稿→审核→灰度 10%→全量→回滚，回滚后旧映射恢复、审计完整（[SYS-04](SYS-04.md)）。
 - [ ] **AC-4（FR-6）**：关闭语义辅助/模型 → 仍可精确码匹配 + 人工映射（B0），无伪造候选。
@@ -70,7 +71,7 @@ N·A —— 本卡无页面。字典映射工作台在 **D2 字典映射页**呈
 - B0 验收：精确码 + 人工映射纯确定性，**天然 B0**；关模型行为不变。
 
 ## 完工证据
-- 代码 permalink：`SemanticMatchScore` + `HighRiskFlag` + `high_risk_rule` + 映射包发布接 [SYS-04](SYS-04.md) + 5 方言迁移。
+- 代码 permalink：`SemanticMatchScore` + `HighRiskFlag` + `mk_term_high_risk_rule` + 映射包发布接 [SYS-04](SYS-04.md) + 5 方言迁移。
 - 测试：高危近似负样本判别测试（钾钠/肌钙蛋白/左右/剂量量级）+ 禁批量/禁自动确认测试 + 冲突待裁测试 + 映射包发布回滚测试 + 关模型降级测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 

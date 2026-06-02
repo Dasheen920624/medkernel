@@ -4,8 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class TerminologyService {
     private final TermMappingPackageRepository packageRepository;
     private final TermMappingPackageItemRepository packageItemRepository;
     private final TermMappingPackageReleaseRepository packageReleaseRepository;
+    private final HighRiskRuleRepository highRiskRuleRepository;
 
     public TerminologyService(StandardTermRepository standardTermRepository,
                               LocalTermRepository localTermRepository,
@@ -44,7 +47,8 @@ public class TerminologyService {
                               MappingConflictRepository conflictRepository,
                               TermMappingPackageRepository packageRepository,
                               TermMappingPackageItemRepository packageItemRepository,
-                              TermMappingPackageReleaseRepository packageReleaseRepository) {
+                              TermMappingPackageReleaseRepository packageReleaseRepository,
+                              HighRiskRuleRepository highRiskRuleRepository) {
         this.standardTermRepository = standardTermRepository;
         this.localTermRepository = localTermRepository;
         this.mappingRepository = mappingRepository;
@@ -53,6 +57,7 @@ public class TerminologyService {
         this.packageRepository = packageRepository;
         this.packageItemRepository = packageItemRepository;
         this.packageReleaseRepository = packageReleaseRepository;
+        this.highRiskRuleRepository = highRiskRuleRepository;
     }
 
     /**
@@ -453,15 +458,21 @@ public class TerminologyService {
 
         double threshold = request.minimumScore() == null ? 0.2 : request.minimumScore();
         List<TerminologyCandidateResponse> generated = new java.util.ArrayList<>();
+        Map<TermCategory, List<HighRiskRule>> highRiskRulesByCategory = new HashMap<>();
         for (LocalTerm local : unmapped) {
+            List<HighRiskRule> highRiskRules = highRiskRulesByCategory.computeIfAbsent(
+                local.category(),
+                category -> highRiskRuleRepository.findActiveByTenantIdAndCategory(tenantId, category)
+            );
             for (StandardTerm standard : standardTerms) {
                 if (local.category() != null && standard.category() != null && local.category() != standard.category()) {
                     continue;
                 }
 
+                Optional<HighRiskTermMatch> highRisk = HighRiskTermDetector.detect(local, standard, highRiskRules);
                 Optional<SemanticTermMatch> match = SemanticTermMatcher.match(local, standard);
-                if (match.isPresent() && match.get().score() >= threshold) {
-                    SemanticTermMatch semantic = match.get();
+                if (highRisk.isPresent() || (match.isPresent() && match.get().score() >= threshold)) {
+                    CandidateDecision decision = candidateDecision(highRisk, match);
 
                     Optional<MappingCandidate> existingOpt = candidateRepository
                         .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
@@ -471,15 +482,15 @@ public class TerminologyService {
                     if (existingOpt.isPresent()) {
                         MappingCandidate existing = existingOpt.get();
                         saved = candidateRepository.save(new MappingCandidate(
-                            existing.id(), tenantId, local.id(), standard.id(), semantic.score(), MappingCandidateSource.RULE,
-                            semantic.riskLevel(), semantic.evidence(), false, MappingCandidateStatus.PENDING,
+                            existing.id(), tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                            decision.riskLevel(), decision.evidence(), false, MappingCandidateStatus.PENDING,
                             existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
                             existing.createdAt(), existing.createdBy(), now, userId
                         ));
                     } else {
                         saved = candidateRepository.save(new MappingCandidate(
-                            null, tenantId, local.id(), standard.id(), semantic.score(), MappingCandidateSource.RULE,
-                            semantic.riskLevel(), semantic.evidence(), false, MappingCandidateStatus.PENDING,
+                            null, tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                            decision.riskLevel(), decision.evidence(), false, MappingCandidateStatus.PENDING,
                             null, null, null, now, userId, now, userId
                         ));
                     }
@@ -488,5 +499,25 @@ public class TerminologyService {
             }
         }
         return new TerminologyCandidateGenerationResponse(generated.size(), generated);
+    }
+
+    private CandidateDecision candidateDecision(Optional<HighRiskTermMatch> highRisk,
+                                                Optional<SemanticTermMatch> semantic) {
+        if (highRisk.isEmpty()) {
+            SemanticTermMatch match = semantic.orElseThrow();
+            return new CandidateDecision(match.score(), match.riskLevel(), match.evidence());
+        }
+        HighRiskTermMatch risk = highRisk.get();
+        double score = semantic.map(SemanticTermMatch::score).orElse(risk.score());
+        String evidence = risk.evidence()
+            + semantic.map(match -> "；原候选依据：" + match.evidence()).orElse("");
+        return new CandidateDecision(score, TermRiskLevel.HIGH, evidence);
+    }
+
+    private record CandidateDecision(
+        double score,
+        TermRiskLevel riskLevel,
+        String evidence
+    ) {
     }
 }

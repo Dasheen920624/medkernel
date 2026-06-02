@@ -36,6 +36,19 @@ enum TermRiskLevel {
     HIGH
 }
 
+/** 高危近似规则类型：互斥词组 / 剂量量级 / 单位强度。 */
+enum HighRiskRuleType {
+    MUTUALLY_EXCLUSIVE_TERMS,
+    DOSE_MAGNITUDE,
+    UNIT_STRENGTH
+}
+
+/** 高危近似规则状态：ACTIVE 可用 / DISABLED 已停用。 */
+enum HighRiskRuleStatus {
+    ACTIVE,
+    DISABLED
+}
+
 /** 标准术语状态：ACTIVE 可被引用 / DISABLED 已禁用。 */
 enum StandardTermStatus {
     ACTIVE,

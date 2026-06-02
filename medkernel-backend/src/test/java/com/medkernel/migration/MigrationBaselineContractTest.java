@@ -78,13 +78,14 @@ class MigrationBaselineContractTest {
         "V49__knowledge_citation_anchor_offsets.sql",
         "V50__knowledge_trust_grading.sql",
         "V51__knowledge_projection_targets.sql",
-        "V52__knowledge_candidate_workflow.sql"
+        "V52__knowledge_candidate_workflow.sql",
+        "V53__terminology_high_risk_rules.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "standard_term", "local_term",
+        "standard_term", "local_term", "mk_term_high_risk_rule",
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment",
@@ -138,6 +139,7 @@ class MigrationBaselineContractTest {
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
         "idx_review_assignment_status", "idx_review_assignment_candidate",
         "idx_standard_term_tenant_category", "idx_standard_term_tenant_updated",
+        "idx_mk_term_high_risk_rule_tenant_status", "idx_mk_term_high_risk_rule_category",
         "idx_local_term_tenant_source", "idx_local_term_department",
         "idx_term_mapping_tenant_status", "idx_term_mapping_local_standard",
         "idx_mapping_candidate_tenant_status", "idx_mapping_conflict_tenant_status",
@@ -233,6 +235,7 @@ class MigrationBaselineContractTest {
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
+        "uk_mk_term_high_risk_rule_code", "ck_mk_term_high_risk_rule_type", "ck_mk_term_high_risk_rule_category", "ck_mk_term_high_risk_rule_status",
         "uk_local_term_code", "ck_local_term_category", "ck_local_term_status",
         "ck_term_mapping_status", "ck_term_mapping_risk",
         "ck_mapping_candidate_status", "ck_mapping_candidate_source", "ck_mapping_candidate_risk",
@@ -327,7 +330,7 @@ class MigrationBaselineContractTest {
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
         "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "standard_term", "local_term", "term_mapping", "mapping_candidate",
+        "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
         "mapping_conflict", "term_mapping_package", "term_mapping_package_item",
         "term_mapping_package_release", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
@@ -362,7 +365,7 @@ class MigrationBaselineContractTest {
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "standard_term", "local_term", "term_mapping", "mapping_candidate", "mapping_conflict",
+        "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
         "term_mapping_package", "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_test_case",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
@@ -418,6 +421,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),
         Map.entry("standard_term", Set.of("version_no", "status")),
+        Map.entry("mk_term_high_risk_rule", Set.of("rule_type", "status")),
         Map.entry("local_term", Set.of("status")),
         Map.entry("term_mapping", Set.of("status")),
         Map.entry("mapping_candidate", Set.of("status")),
@@ -676,6 +680,30 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.org_path")
                 .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary")
                 .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.reason");
+        }
+    }
+
+    @Test
+    void v53ShouldSeedTerminologyHighRiskRulesForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V53__terminology_high_risk_rules.sql");
+            assertThat(ddl).as("%s 术语高危近似规则迁移", dialect)
+                .contains("mk_term_high_risk_rule")
+                .contains("MED-C1-TROPONIN-TI")
+                .contains("MED-C1-K-NA")
+                .contains("MED-C1-LEFT-RIGHT")
+                .contains("MED-C1-DOSE-10X")
+                .contains("MED-C1-INSULIN-UML")
+                .contains("MUTUALLY_EXCLUSIVE_TERMS")
+                .contains("DOSE_MAGNITUDE")
+                .contains("UNIT_STRENGTH")
+                .contains("ck_mk_term_high_risk_rule_type")
+                .contains("ck_mk_term_high_risk_rule_category")
+                .contains("ck_mk_term_high_risk_rule_status")
+                .contains("idx_mk_term_high_risk_rule_tenant_status")
+                .contains("idx_mk_term_high_risk_rule_category")
+                .contains("COMMENT ON TABLE mk_term_high_risk_rule")
+                .contains("COMMENT ON COLUMN mk_term_high_risk_rule.evidence_text");
         }
     }
 
