@@ -4,13 +4,10 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-
 /**
- * 知识包添加子项资产请求 DTO。
+ * 包发布校验等无业务载荷操作的统一上下文请求。
  */
-public record PackageItemRequest(
+public record PackageOperationRequest(
     @JsonAlias("request_id") String requestId,
     @JsonAlias("trace_id") String traceId,
     @JsonAlias("tenant_id") String tenantId,
@@ -22,27 +19,10 @@ public record PackageItemRequest(
     @JsonAlias("specialty_id") String specialtyId,
     @JsonAlias("user_id") String userId,
     @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
-
-    @NotNull(message = "资产类型不能为空")
-    PackageItemAssetType assetType,
-
-    @NotBlank(message = "资产 ID 不能为空")
-    String assetId,
-
-    @NotBlank(message = "资产版本号不能为空")
-    String assetVersion
+    @JsonAlias("package_version") String packageVersion
 ) implements PackageContextRequest {
-    public PackageItemRequest {
+    public PackageOperationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-    }
-
-    public PackageItemRequest(
-            PackageItemAssetType assetType,
-            String assetId,
-            String assetVersion) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            assetType, assetId, assetVersion);
     }
 
     public PackageApiContext apiContext() {

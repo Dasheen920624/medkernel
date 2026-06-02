@@ -44,7 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 知识包发布同步核心应用服务。
  *
- * <p>提供资产打包、差异比对、发布灰度校验、多物理通道投影以及快速一键回滚的完整应用层实现。
+ * <p>提供资产打包、差异比对、发布灰度校验、多通道同步发布以及快速一键回滚的完整应用层实现。
  */
 @Service
 public class PackageEngineService {
@@ -206,6 +206,27 @@ public class PackageEngineService {
         auditPublisher.publish(AuditAction.UPDATE, "knowledge_package", packageId,
             "向知识包添加资产条目 (" + request.assetType() + "): " + request.assetId());
         return PackageItemResponse.from(saved);
+    }
+
+    /**
+     * 校验包是否满足发布前基础门禁。
+     */
+    @Transactional(readOnly = true)
+    public PackageValidateResponse validatePackage(String packageId) {
+        String tenantId = currentTenantId();
+        KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
+        List<PackageItem> items = itemRepository.findByTenantIdAndPackageId(tenantId, packageId);
+        List<PackageValidateIssue> issues = new ArrayList<>();
+        if (items.isEmpty()) {
+            issues.add(new PackageValidateIssue(
+                "items",
+                "BLOCKING",
+                "配置包至少包含一个已审核资产后才能发布"
+            ));
+        }
+        boolean valid = issues.stream().noneMatch(issue -> "BLOCKING".equals(issue.severity()));
+        return new PackageValidateResponse(packageId, pack.status(), items.size(), valid, issues);
     }
 
     /**
@@ -1175,7 +1196,7 @@ public class PackageEngineService {
     ) {}
 
     /**
-     * 触发包同步与发布执行（支持灰度、全量、回滚等多通道投影）。
+     * 触发包同步与发布执行（支持灰度、全量、回滚等多通道同步发布）。
      */
     public PackageSyncResponse syncPackage(String packageId, PackageSyncRequest request) {
         String tenantId = currentTenantId();
@@ -1239,13 +1260,13 @@ public class PackageEngineService {
             Exception syncError = null;
 
             try {
-                // 事务外部安全执行：物理投影同步（包含长 IO）
+                // 事务外部安全执行：同步发布（包含长 IO）
                 evidence = syncPort.sync(tenantId, savedPlan, target);
             } catch (Exception e) {
                 if (e instanceof PackageSyncNotConnectedException) {
-                    log.warn("物理同步未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                    log.warn("同步发布未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
                 } else {
-                    log.error("物理同步失败, targetId: {}", targetId, e);
+                    log.error("同步发布失败, targetId: {}", targetId, e);
                 }
                 syncError = e;
             }
@@ -1350,6 +1371,27 @@ public class PackageEngineService {
     }
 
     /**
+     * 按 API-10 发布入口执行灰度或全量发布。
+     */
+    public PackageSyncResponse releasePackage(String packageId, PackageSyncRequest request) {
+        return syncPackage(packageId, request);
+    }
+
+    /**
+     * 查询包关联发布计划的真实同步日志。
+     */
+    @Transactional(readOnly = true)
+    public List<SyncLogResponse> listSyncLogs(String packageId) {
+        String tenantId = currentTenantId();
+        packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
+        return planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId).stream()
+            .flatMap(plan -> logRepository.findByTenantIdAndPlanId(tenantId, plan.planId()).stream())
+            .map(SyncLogResponse::from)
+            .toList();
+    }
+
+    /**
      * 一键快速回滚包版本到指定历史点。
      */
     public PackageResponse rollbackPackage(String packageId, PackageRollbackRequest request) {
@@ -1410,7 +1452,7 @@ public class PackageEngineService {
                     + " 失败，发布计划状态: " + projectionResult.finalStatus()
                     + "，原因: " + rollbackReason
                     + "，操作人: " + actor);
-            throw new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚反向投影未全部成功，包状态未变更");
+            throw new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚同步发布未全部成功，包状态未变更");
         }
 
         // 异步发布回滚审计事实存证
@@ -1545,9 +1587,9 @@ public class PackageEngineService {
                     }
                 } catch (Exception e) {
                     if (e instanceof PackageSyncNotConnectedException) {
-                        log.warn("回滚反向投影未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                        log.warn("回滚同步发布未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
                     } else {
-                        log.error("回滚反向投影失败, targetId: {}", targetId, e);
+                        log.error("回滚同步发布失败, targetId: {}", targetId, e);
                     }
                     syncError = e;
                 }

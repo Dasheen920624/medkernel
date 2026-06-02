@@ -1,7 +1,7 @@
 package com.medkernel.engine.pkg;
 
 /**
- * 同步投影目标类型枚举。
+ * 同步发布目标类型枚举。
  */
 public enum SyncTargetType {
     /** 业务数据库 */

@@ -7,7 +7,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 同步投影目标 Repository 接口。
+ * 同步发布目标 Repository 接口。
  */
 @Repository
 public interface SyncTargetRepository extends ListCrudRepository<SyncTarget, Long> {

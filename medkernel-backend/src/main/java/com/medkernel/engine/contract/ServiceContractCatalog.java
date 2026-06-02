@@ -114,7 +114,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.PUBLISH, "pathway_template", "发布路径模板"),
                 audit(AuditAction.EXECUTE, "patient_pathway", "推进患者路径"))),
         contract("package", "配置包服务",
-            "com.medkernel.engine.pkg.PackageEngineController", "/api/v1/engine/packages",
+            "com.medkernel.engine.pkg.PackageEngineController", "/api/v1/engine/pkg/packages",
             permissions("package.publish", "package.read", "package.rollback"),
             audits(
                 audit(AuditAction.CREATE, "knowledge_package", "创建配置包和包条目"),

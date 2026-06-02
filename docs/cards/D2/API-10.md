@@ -17,14 +17,14 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
 `engine/pkg` **控制器已建**，本卡＝**契约化 + 统一入参/同步证据对齐**：
 - 已有：`PackageEngineController`(+ 安全测试)、`PackageCreateRequest`/`Detail`/`Response`、`PackageItemRequest`/`Response`、`PackageSyncRequest`/`Response`、`PackageDiffResponse`、`SyncLogResponse`、`ReleasePlan`。
-- 缺口（本卡补）：① 统一 12 字段入参 + 信封；② 校验/灰度/全量/回滚端点对齐 [SYS-04](SYS-04.md)；③ 同步端点返回真实证据 + `NOT_SYNCED`；④ 大列表走 [API-13](../D0/API-13.md)。
+- 2026-06-02 本卡补齐：① 统一 12 字段入参 + 信封；② `/api/v1/engine/pkg/**` 客户面；③ 校验/发布/同步日志端点；④ 同步端点返回真实证据 + `NOT_SYNCED`；⑤ 前端共享 hooks 与配置包中心清理旧 `/engine/packages` 口径和“物理投影/长链接”旧文案。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 包 CRUD**：`GET/POST /packages`、`POST /packages/{id}/items`；列表分页（[API-13](../D0/API-13.md)）。
-- [ ] **FR-2 校验/差异**：`POST /packages/{id}/validate`、`GET /packages/{id}/diff`（`PackageDiffResponse`）。
-- [ ] **FR-3 发布**：`POST /packages/{id}/release`（灰度/全量，[SYS-04](SYS-04.md)）；`POST /packages/{id}/rollback`。
-- [ ] **FR-4 同步**：`POST /packages/{id}/sync`、`GET /packages/{id}/sync-logs`（水位/失败站点）；无通道 → `NOT_SYNCED`。
-- [ ] **FR-5 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
+- [x] **FR-1 包 CRUD**：`GET/POST /packages`、`POST /packages/{id}/items`；列表分页（[API-13](../D0/API-13.md)）。
+- [x] **FR-2 校验/差异**：`POST /packages/{id}/validate`、`GET /packages/{id}/diff`（`PackageDiffResponse`）。
+- [x] **FR-3 发布**：`POST /packages/{id}/release`（灰度/全量，[SYS-04](SYS-04.md)）；`POST /packages/{id}/rollback`。
+- [x] **FR-4 同步**：`POST /packages/{id}/sync`、`GET /packages/{id}/sync-logs`（水位/失败站点）；无通道 → `NOT_SYNCED`。
+- [x] **FR-5 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -57,15 +57,15 @@ N·A —— 本卡无页面。被 **D2 配置包中心页**消费。
 - 本卡落点：包能力以统一契约对外，同步诚实降级在 API 层兜底。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：包 CRUD + 校验/差异，统一信封；分页稳定。
-- [ ] **AC-2（FR-3）**：灰度→全量→回滚经 [SYS-04](SYS-04.md)，状态机正确。
-- [ ] **AC-3（FR-4）**：无通道同步 → `NOT_SYNCED`（非伪造）；有通道 → sync-logs 水位真实。
-- [ ] **AC-4（FR-5）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
+- [x] **AC-1（FR-1/2）**：包 CRUD + 校验/差异，统一信封；分页稳定。
+- [x] **AC-2（FR-3）**：灰度→全量→回滚经 [SYS-04](SYS-04.md)，状态机正确。
+- [x] **AC-3（FR-4）**：无通道同步 → `NOT_SYNCED`（非伪造）；有通道 → sync-logs 水位真实。
+- [x] **AC-4（FR-5）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
 - 关联 A1–A9 剧本：A4 发布回滚、A6 同步证据。
 - T-GATE：真实性门禁全绿。
 - B0 验收：确定性，**天然 B0**。
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/pkg/**` 端点 + 校验/发布/回滚/同步 + `NOT_SYNCED`。
-- 测试：契约 + 安全 + 灰度回滚 + 同步 `NOT_SYNCED` 测试。
+- 测试：契约 + 安全 + 灰度回滚 + 同步 `NOT_SYNCED` 测试；本地聚焦已过：`mvn -q -Dtest=PackageEngineControllerSecurityTest,PackageEngineServiceTest,LenientPackageSyncAdapterTest,ServiceContractGovernanceTest test`、`npm test -- --run src/shared/api/hooks.test.ts src/pages/tenant/ConfigPackages.test.tsx`、`npm run typecheck`；变基到 `origin/main` 396b8b15 后本地全量已过：`mvn -q test`（885 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48）、`npm run verify`（41 files / 219 tests）、`npm run build`、T-GATE（真实性 21 文件、配置边界 19 文件、迁移规约 0 迁移文件、中文注释 0 fail / 0 warn、`git diff --check origin/main...HEAD`）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

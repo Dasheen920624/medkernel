@@ -9,12 +9,15 @@ import { downloadPackageOfflineExport } from "@/shared/api/hooks";
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
   importOfflinePackage: vi.fn(),
+  releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
-  useSyncTargets: () => ({ data: [] }),
+  useSyncTargets: () => ({
+    data: [{ targetId: "target-his", targetName: "院内 HIS 同步通道" }],
+  }),
   useCreatePackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePackages: () => ({
     data: {
@@ -49,6 +52,8 @@ vi.mock("@/shared/api/hooks", () => ({
   useAddPackageItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCalculateDiff: () => ({ data: null }),
   useSyncPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReleasePackage: () => ({ mutateAsync: apiMocks.releasePackage, isPending: false }),
+  usePackageSyncLogs: () => ({ data: [] }),
   useRollbackPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useImportOfflinePackage: () => ({ mutateAsync: apiMocks.importOfflinePackage, isPending: false }),
   useRuleDefinitions: () => ({ data: { items: [] } }),
@@ -71,6 +76,21 @@ describe("ConfigPackages offline package export", () => {
       status: "DRAFT",
       itemCount: 2,
       payloadSha256: "a".repeat(64),
+    });
+    apiMocks.releasePackage.mockReset();
+    apiMocks.releasePackage.mockResolvedValue({
+      status: "NOT_SYNCED",
+      logs: [
+        {
+          logId: "log-1",
+          planId: "plan-1",
+          targetId: "target-his",
+          status: "NOT_SYNCED",
+          errorMessage: "未接入真实同步通道",
+          syncEvidence: "",
+          createdAt: "2026-06-01T00:00:00Z",
+        },
+      ],
     });
     Object.defineProperty(window.URL, "createObjectURL", {
       configurable: true,
@@ -133,5 +153,23 @@ describe("ConfigPackages offline package export", () => {
         '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
       );
     });
+  });
+
+  it("uses clear in-hospital release wording and removes old projection copy", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+    expect(screen.getByText("院内同步发布中心")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeInTheDocument();
+    expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
   });
 });

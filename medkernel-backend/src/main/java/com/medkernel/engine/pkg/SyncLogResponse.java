@@ -1,7 +1,7 @@
 package com.medkernel.engine.pkg;
 
 /**
- * 知识包同步投影日志响应 DTO。
+ * 知识包同步发布日志响应 DTO。
  */
 public record SyncLogResponse(
     String logId,

@@ -1,3 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "./client";
@@ -14,6 +17,9 @@ import {
   saveThemePreference,
   saveExperienceViewSnapshot,
   submitLargeListExport,
+  useCreatePackage,
+  usePackageSyncLogs,
+  useSyncPackage,
 } from "./hooks";
 
 vi.mock("./client", () => ({
@@ -23,6 +29,50 @@ vi.mock("./client", () => ({
     put: vi.fn(),
   },
 }));
+
+function securityProfile() {
+  return {
+    userId: "user-1",
+    username: "it-ops",
+    roles: [
+      {
+        code: "it-ops",
+        displayName: "信息科",
+        source: "DEFAULT",
+        scopeLevel: null,
+        scopeCode: null,
+      },
+    ],
+    permissions: [],
+    menuKeys: [],
+    environmentKeys: [],
+    dataScope: {
+      tenantId: "tenant-A",
+      groupId: "group-A",
+      hospitalId: "hospital-A",
+      campusId: "campus-A",
+      siteId: "site-A",
+      departmentId: "dept-A",
+      specialtyId: "specialty-A",
+    },
+    mustChangePwd: false,
+    mfaRequired: false,
+    mfaBound: true,
+  };
+}
+
+function renderApiHook<T>(hook: () => T) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["security", "me"], securityProfile());
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+  return renderHook(hook, { wrapper });
+}
 
 describe("package export api helpers", () => {
   beforeEach(() => {
@@ -38,7 +88,7 @@ describe("package export api helpers", () => {
     const result = await downloadPackageOfflineExport("pkg-1");
 
     expect(result).toBe(offlineBlob);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/packages/pkg-1/offline/export", {
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/offline/export", {
       responseType: "blob",
     });
   });
@@ -57,9 +107,84 @@ describe("package export api helpers", () => {
     const result = await importPackageOfflinePackage('{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}');
 
     expect(result).toBe(response);
-    expect(apiClient.post).toHaveBeenCalledWith("/engine/packages/offline/import", {
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/pkg/packages/offline/import", {
       offlinePackageJson: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
     });
+  });
+
+  it("creates a package through the API-10 root with standard context fields", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000001");
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { packageId: "pkg-1", packageCode: "PKG.COPD" } },
+    });
+
+    const { result } = renderApiHook(() => useCreatePackage());
+
+    await result.current.mutateAsync({
+      packageCode: "PKG.COPD",
+      packageVersion: "1.0.0",
+      name: "配置包",
+      description: "真实资产集合",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pkg/packages",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000001",
+        trace_id: "00000000-0000-4000-8000-000000000001",
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "1.0.0",
+        packageCode: "PKG.COPD",
+      }),
+    );
+  });
+
+  it("syncs a package through the API-10 root with standard context fields", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000002");
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { planId: "plan-1", packageId: "pkg-1", status: "NOT_SYNCED", logs: [] } },
+    });
+
+    const { result } = renderApiHook(() => useSyncPackage());
+
+    await result.current.mutateAsync({
+      packageId: "pkg-1",
+      request: {
+        packageVersion: "1.0.0",
+        targetOrgUnitId: "org-1",
+        strategy: "GRAYSCALE",
+        scopeType: "DEPARTMENT",
+        scopeValue: "dept-A",
+        targetIds: ["target-1"],
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pkg/packages/pkg-1/sync",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000002",
+        trace_id: "00000000-0000-4000-8000-000000000002",
+        tenant_id: "tenant-A",
+        package_version: "1.0.0",
+        targetIds: ["target-1"],
+      }),
+    );
+  });
+
+  it("loads persisted sync logs from the API-10 sync-log endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: [{ logId: "log-1", status: "NOT_SYNCED", syncEvidence: null }] },
+    });
+
+    const { result } = renderApiHook(() => usePackageSyncLogs("pkg-1"));
+
+    await waitFor(() =>
+      expect(result.current.data).toEqual([
+        { logId: "log-1", status: "NOT_SYNCED", syncEvidence: null },
+      ]),
+    );
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
   });
 });
 

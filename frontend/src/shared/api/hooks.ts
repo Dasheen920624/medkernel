@@ -115,7 +115,7 @@ function standardApiContext(
   };
 }
 
-function withStandardApiContext<T extends Record<string, unknown>>(
+function withStandardApiContext<T extends object>(
   payload: T,
   profile: SecurityProfile | undefined,
   packageVersion: string | undefined,
@@ -2011,6 +2011,8 @@ export function useReportFollowupAbnormal() {
 // 智能包发布与同步引擎 (GA-ENG-PKG-01)
 // ──────────────────────────────────────────
 
+const PACKAGE_API_ROOT = "/engine/pkg/packages";
+
 export interface SyncTarget {
   id: number;
   targetId: string;
@@ -2079,6 +2081,7 @@ export interface PackageDetailResponse {
 }
 
 export interface PackageItemRequest {
+  packageVersion: string;
   assetType: "RULE" | "PATHWAY" | "EVALUATION" | "TERMINOLOGY" | "KNOWLEDGE" | "FOLLOWUP" | string;
   assetId: string;
   assetVersion: string;
@@ -2121,6 +2124,7 @@ export interface PackageOfflineImportResponse {
 }
 
 export interface PackageSyncRequest {
+  packageVersion: string;
   targetOrgUnitId: string;
   strategy: "GRAYSCALE" | "FULL" | string;
   scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "SPECIALTY" | string;
@@ -2129,11 +2133,26 @@ export interface PackageSyncRequest {
 }
 
 export interface PackageRollbackRequest {
+  packageVersion: string;
   targetPackageId: string;
   confirmedCurrentVersion: string;
   confirmedTargetVersion: string;
   reason: string;
   confirmedHighRisk: boolean;
+}
+
+export interface PackageValidateIssue {
+  field: string;
+  severity: "BLOCKING" | "WARNING" | "INFO" | string;
+  message: string;
+}
+
+export interface PackageValidateResponse {
+  packageId: string;
+  status: KnowledgePackage["status"];
+  itemCount: number;
+  valid: boolean;
+  issues: PackageValidateIssue[];
 }
 
 export interface SyncLogResponse {
@@ -2158,7 +2177,9 @@ export function useSyncTargets() {
   return useQuery({
     queryKey: ["packages", "sync-targets"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: SyncTarget[] }>("/engine/packages/sync-targets");
+      const { data } = await apiClient.get<{ data: SyncTarget[] }>(
+        `${PACKAGE_API_ROOT}/sync-targets`,
+      );
       return data.data ?? [];
     },
   });
@@ -2166,9 +2187,13 @@ export function useSyncTargets() {
 
 // 2. 创建知识包草稿
 export function useCreatePackage() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: PackageCreateRequest) => {
-      const { data } = await apiClient.post<{ data: PackageResponse }>("/engine/packages", payload);
+      const { data } = await apiClient.post<{ data: PackageResponse }>(
+        PACKAGE_API_ROOT,
+        withStandardApiContext(payload, security.data, payload.packageVersion),
+      );
       return data.data;
     },
   });
@@ -2180,7 +2205,7 @@ export function usePackages(page = 0, size = 10) {
     queryKey: ["packages", "list", page, size],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
-        "/engine/packages",
+        PACKAGE_API_ROOT,
         { params: { page, size } },
       );
       return (
@@ -2204,7 +2229,7 @@ export function usePackageDetail(packageId: string) {
     queryFn: async () => {
       if (!packageId) return null;
       const { data } = await apiClient.get<{ data: PackageDetailResponse }>(
-        `/engine/packages/${packageId}`,
+        `${PACKAGE_API_ROOT}/${packageId}`,
       );
       return data.data;
     },
@@ -2214,11 +2239,13 @@ export function usePackageDetail(packageId: string) {
 
 // 5. 添加资产条目到草稿
 export function useAddPackageItem() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: { packageId: string; request: PackageItemRequest }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
       const { data } = await apiClient.post<{ data: PackageItemResponse }>(
-        `/engine/packages/${payload.packageId}/items`,
-        payload.request,
+        `${PACKAGE_API_ROOT}/${payload.packageId}/items`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -2232,7 +2259,7 @@ export function useCalculateDiff(packageId: string, basePackageId?: string) {
     queryFn: async () => {
       if (!packageId) return null;
       const { data } = await apiClient.get<{ data: PackageDiffResponse }>(
-        `/engine/packages/${packageId}/diff`,
+        `${PACKAGE_API_ROOT}/${packageId}/diff`,
         { params: { basePackageId } },
       );
       return data.data;
@@ -2242,7 +2269,7 @@ export function useCalculateDiff(packageId: string, basePackageId?: string) {
 }
 
 export async function downloadPackageDiffExport(packageId: string, basePackageId?: string) {
-  const { data } = await apiClient.get<Blob>(`/engine/packages/${packageId}/diff/export`, {
+  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/diff/export`, {
     params: { basePackageId },
     responseType: "blob",
   });
@@ -2250,7 +2277,7 @@ export async function downloadPackageDiffExport(packageId: string, basePackageId
 }
 
 export async function downloadPackageOfflineExport(packageId: string) {
-  const { data } = await apiClient.get<Blob>(`/engine/packages/${packageId}/offline/export`, {
+  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/offline/export`, {
     responseType: "blob",
   });
   return data;
@@ -2258,7 +2285,7 @@ export async function downloadPackageOfflineExport(packageId: string) {
 
 export async function importPackageOfflinePackage(offlinePackageJson: string) {
   const { data } = await apiClient.post<{ data: PackageOfflineImportResponse }>(
-    "/engine/packages/offline/import",
+    `${PACKAGE_API_ROOT}/offline/import`,
     { offlinePackageJson },
   );
   return data.data;
@@ -2272,24 +2299,69 @@ export function useImportOfflinePackage() {
 
 // 7. 触发多通道真实同步发布
 export function useSyncPackage() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: { packageId: string; request: PackageSyncRequest }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
       const { data } = await apiClient.post<{ data: PackageSyncResponse }>(
-        `/engine/packages/${payload.packageId}/sync`,
-        payload.request,
+        `${PACKAGE_API_ROOT}/${payload.packageId}/sync`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
       );
       return data.data;
     },
   });
 }
 
+export function useReleasePackage() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: { packageId: string; request: PackageSyncRequest }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: PackageSyncResponse }>(
+        `${PACKAGE_API_ROOT}/${payload.packageId}/release`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useValidatePackage() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: { packageId: string; packageVersion: string }) => {
+      const { data } = await apiClient.post<{ data: PackageValidateResponse }>(
+        `${PACKAGE_API_ROOT}/${payload.packageId}/validate`,
+        withStandardApiContext({}, security.data, payload.packageVersion),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function usePackageSyncLogs(packageId: string) {
+  return useQuery({
+    queryKey: ["packages", "sync-logs", packageId],
+    queryFn: async () => {
+      if (!packageId) return [];
+      const { data } = await apiClient.get<{ data: SyncLogResponse[] }>(
+        `${PACKAGE_API_ROOT}/${packageId}/sync-logs`,
+      );
+      return data.data ?? [];
+    },
+    enabled: !!packageId,
+  });
+}
+
 // 8. 一键快速回滚在用包版本至历史点
 export function useRollbackPackage() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: { packageId: string; request: PackageRollbackRequest }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
       const { data } = await apiClient.post<{ data: PackageResponse }>(
-        `/engine/packages/${payload.packageId}/rollback`,
-        payload.request,
+        `${PACKAGE_API_ROOT}/${payload.packageId}/rollback`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
       );
       return data.data;
     },

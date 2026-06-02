@@ -18,7 +18,7 @@ import com.medkernel.shared.observability.StateTransitionHistory;
 import com.medkernel.shared.observability.StateTransitionHistoryRepository;
 
 /**
- * 租户个性定制与生命周期客户成功物理集成测试。
+ * 租户个性定制与生命周期客户成功真实集成测试。
  *
  * <p>100% 去 Mock，直连内存数据库，测试事务提交/回滚与审计状态变迁留痕。
  */
