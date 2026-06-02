@@ -43,6 +43,13 @@ describe("menu config", () => {
     });
   });
 
+  it("keeps the demo-validation page inside the workbench tab instead of adding a second menu item", () => {
+    const workbench = menuSections.find((section) => section.key === "workbench");
+
+    expect(routeMetas.map((route) => route.path)).toContain("/workbench/demo-validation");
+    expect(workbench?.items).toEqual([{ key: "workbench", label: "工作台", path: "/dashboard" }]);
+  });
+
   it("locks the exact 27 customer-facing items + 5 advanced tools from CONSTITUTION §2.2", () => {
     const visible = menuSections.filter((s) => !s.hidden);
     const visibleTotal = visible.reduce((sum, s) => sum + s.items.length, 0);

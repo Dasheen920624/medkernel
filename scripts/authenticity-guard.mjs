@@ -43,7 +43,7 @@ const FRONTEND_RULES = [
     message:
       "前端生产文件禁止用本地待办、演示验收剧本或 demo workflow 冒充真实工作台闭环。",
     pattern:
-      /\btodoMock\b|演示与校验|客户验收剧本|dataSource=\{todoMock\}/i,
+      /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}/i,
   },
   {
     ruleId: "frontend.technical-object-visible",
@@ -131,8 +131,7 @@ const FRONTEND_ROUTER_RULES = [
   {
     ruleId: "frontend.production-demo-route",
     message: "生产路由禁止注册 *Demo 演示页或 demo 路径，组件演示必须留在 Storybook。",
-    pattern:
-      /(?:\b[A-Za-z0-9_]*Demo\b|import\s*\(\s*["'][^"']*Demo[^"']*["']\s*\)|path\s*=\s*["'][^"']*demo[^"']*["'])/i,
+    customMatch: firstProductionDemoRouteMatch,
   },
 ];
 
@@ -214,6 +213,8 @@ function lineOf(content, index) {
 }
 
 function firstMatch(content, rule) {
+  if (rule.customMatch)
+    return rule.customMatch(content);
   if (rule.catchBlockPattern)
     return firstCatchBlockMatch(content, rule.catchBlockPattern);
   if (rule.javadocBlockPattern)
@@ -221,6 +222,26 @@ function firstMatch(content, rule) {
   const match = rule.pattern.exec(content);
   if (!match) return null;
   return { index: match.index, text: match[0] };
+}
+
+function firstProductionDemoRouteMatch(content) {
+  const lines = content.split(/\r?\n/);
+  let offset = 0;
+  for (const line of lines) {
+    const badDemoComponent = /\b[A-Za-z0-9_]*Demo\b/.test(line) && !/\bDemoValidation\b/.test(line);
+    const badDemoImport =
+      /import\s*\(\s*["'][^"']*Demo[^"']*["']\s*\)/.test(line) &&
+      !/import\s*\(\s*["']@\/pages\/workbench\/DemoValidation["']\s*\)/.test(line);
+    const badDemoPath =
+      /path\s*=\s*["'][^"']*demo[^"']*["']/i.test(line) &&
+      !/path\s*=\s*["']\/workbench\/demo-validation["']/.test(line);
+    if (badDemoComponent || badDemoImport || badDemoPath) {
+      const localIndex = line.search(/Demo|demo/);
+      return { index: offset + Math.max(localIndex, 0), text: line };
+    }
+    offset += line.length + 1;
+  }
+  return null;
 }
 
 function firstJavadocBlockMatch(content, pattern) {

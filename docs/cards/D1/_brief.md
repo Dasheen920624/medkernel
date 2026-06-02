@@ -12,11 +12,11 @@
 
 ## 现状（搬迁时核查，2026-05-30；前端代码请以仓库为准复核）
 
-- **工作台 UI** = `frontend/src/widgets/WorkbenchPanel.tsx`，经 `frontend/src/pages/Dashboard.tsx`（仅 `return <WorkbenchPanel/>`）挂载于路由 `/dashboard`（登入默认落点，路由表 `frontend/src/app/router.tsx`）。WORKBENCH-01 PR1 已清理旧“等待真实聚合 API”空态，先读取 `/security/me` 权限画像；确认有工作台权限后再并行读取现有来源：`/system/operations` 运行状态、`/compliance/audit/events` 最近变化、`/platform/success/lifecycle` 租户生命周期；按角色切换信息科 / 临床 / 医务质控 / 审计 / 院管视图，补无权限与部分来源降级。PR2 已本地补齐 1 个主按钮、3 个默认筛选、现有路由下钻、未建域诚实详情、治理切片与本周建议动作，待 PR / CI / 合并后关闭。
+- **工作台 UI** = `frontend/src/widgets/WorkbenchPanel.tsx`，经 `frontend/src/pages/Dashboard.tsx`（仅 `return <WorkbenchPanel/>`）挂载于路由 `/dashboard`（登入默认落点，路由表 `frontend/src/app/router.tsx`）。WORKBENCH-01 PR1 已清理旧“等待真实聚合 API”空态，先读取 `/security/me` 权限画像；确认有工作台权限后再并行读取现有来源：`/system/operations` 运行状态、`/compliance/audit/events` 最近变化、`/platform/success/lifecycle` 租户生命周期；按角色切换信息科 / 临床 / 医务质控 / 审计 / 院管视图，补无权限与部分来源降级。WORKBENCH-01 PR2 已通过 #244 合入 `origin/main`（merge `99290b6f`），补齐 1 个主按钮、3 个默认筛选、现有路由下钻、未建域诚实详情、治理切片与本周建议动作。
 - **数据源**：后端当前**无 workbench REST 端点**（全仓 `workbench` 仅 `MenuPermissionCatalog` 菜单权限键 + 其测试，非接口）；PR1/PR2 均坚持复用现有 API（健康/审计/待办/大列表/引擎状态）渲染真实数据，未建域诚实降级，**不得伪造或 dangling**，不得回退到 `todoMock`、静态指标或不存在的 `/api/v1/workbench/*`。
 - **演示模式**：`features/demo-mode/DemoModeToggle.tsx` 已有，[WORKBENCH-02](WORKBENCH-02.md) 在其上做"演示与校验"。
 - **演示页（已清）** 原 `frontend/src/pages/StepFlowDemo.tsx` 与生产路由 `config/packages/demo` 已由 [INFRA-09](INFRA-09.md) 清出生产；`StepFlow` 组件（`shared/ui/StepFlow.tsx`）保留供 D2 配置类页面复用，生产 router 已加门禁防 `*Demo` / demo 路径回流。
-- **演示与校验页**：作为独立路由/页面**尚不存在**（`app/router.tsx` 无该路由；StepFlowDemo ≠ 演示与校验），由 [WORKBENCH-02](WORKBENCH-02.md) 新建。
+- **演示与校验页**：2026-06-02 本轮在 `codex/d1-workbench-02-demo-validation` 新建 `/workbench/demo-validation`，与工作台页面内 Tab 合并；复用 `/security/me`、`/auth/session`、`/experience/theme-preference`、`/system/operations`，展示可演示 / 阻塞 / 未启用真实计数、中文阻塞原因和修复去处；不新增 `/api/v1/workbench/*`。合并前以后续 PR / CI / merge 证据为准。
 
 ## 登入 / 使用角色（13 角色矩阵的本域子集，全量矩阵见 [质量基线 §9](../../audit/质量基线.md)）
 

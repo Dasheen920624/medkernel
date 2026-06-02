@@ -132,6 +132,29 @@ test("生产路由禁止注册 Demo 演示页", async () => {
   );
 });
 
+test("生产路由允许 WORKBENCH-02 演示与校验验收页", async () => {
+  await withFixture(
+    {
+      "frontend/src/app/router.tsx": `
+        import { lazy } from "react";
+        import { Route } from "react-router-dom";
+
+        const DemoValidation = lazy(() => import("@/pages/workbench/DemoValidation"));
+
+        export function AppRouter() {
+          return <Route path="/workbench/demo-validation" element={<DemoValidation />} />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["frontend/src/app/router.tsx"]);
+
+      assert.equal(hasBlockingViolations(report), false);
+    },
+  );
+});
+
+
 test("前端页面触碰文件会阻断旧规则路径示例占位符回流", async () => {
   await withFixture(
     {

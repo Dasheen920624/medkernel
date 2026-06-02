@@ -17,6 +17,7 @@ import { ArrowRightOutlined } from "@ant-design/icons";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { TenantLifecyclePanel } from "@/features/tenant-lifecycle/TenantLifecyclePanel";
+import { WorkbenchTabs } from "@/widgets/WorkbenchTabs";
 import {
   useAuditEvents,
   useRuntimeOperations,
@@ -181,6 +182,7 @@ export function WorkbenchPanel() {
       }
     >
       <Space direction="vertical" size="large" className="mk-full-width">
+        <WorkbenchTabs />
         {sourceFailures.length > 0 ? <PartialSourceAlert failures={sourceFailures} /> : null}
         <WorkbenchFilters
           profile={profile}
