@@ -72,7 +72,8 @@ class MigrationBaselineContractTest {
         "V43__menu_permission_granularity.sql",
         "V44__system_superadmin_seed.sql",
         "V45__credential_login_attempt.sql",
-        "V46__auth_mfa_sm3_reset.sql"
+        "V46__auth_mfa_sm3_reset.sql",
+        "V47__workbench_demo_validation_permission.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
