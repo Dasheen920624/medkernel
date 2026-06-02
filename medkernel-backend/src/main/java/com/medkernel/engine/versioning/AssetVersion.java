@@ -87,4 +87,18 @@ public record AssetVersion(
             effectiveFrom, effectiveTo, createdAt, createdBy, now, actor, traceId
         );
     }
+
+    public AssetVersion withStatusAndWindow(
+            AssetVersionStatus newStatus,
+            String newActiveScopeKey,
+            Instant newEffectiveFrom,
+            Instant newEffectiveTo,
+            Instant now,
+            String actor) {
+        return new AssetVersion(
+            id, versionId, tenantId, assetType, assetIdentity, versionNo,
+            organizationScope, applicableScope, contentHash, safetyPolicy, newStatus, newActiveScopeKey, sourceRef,
+            newEffectiveFrom, newEffectiveTo, createdAt, createdBy, now, actor, traceId
+        );
+    }
 }

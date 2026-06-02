@@ -25,19 +25,19 @@
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 版本不可变**：已发布的知识/规则/路径/包**不可原地修改**，只能生成新版本（版本号单调 + 内容 `content_hash`）；已发布版本只读，旧内容不得删除。
-- [ ] **FR-2 唯一权威生效域**：以 `asset_identity + org_path + applicable_population/context + effective_time` 判定生效域，每域**最多一个** `ACTIVE` 版本（框架提供约束与解析；权威知识的并发激活拒绝/原子替换专项在 [SYS-08](SYS-08.md)）。
-- [ ] **FR-3 七层组织继承覆盖**：平台 → 集团 → 医院 → 院区 → 社区站点 → 科室 → 专病；提供继承解析（给定组织节点 + 资产身份 → 生效版本）；**局部覆盖必须说明差异/来源/原因/影响范围**（覆盖可解释）；**安全红线（高风险禁忌、法定规则）不可被下级静默关闭**。
-- [ ] **FR-4 发布流（变更类状态机 + 7 步流）**：草稿 → 审核 → 静默观察 → 灰度（默认 10% 床位）→ 全量 → 下线/回滚，复用核心 §3 变更类状态机 + §4 七步流（含"看影响"）；**仅院级管理员可"直接全量"**。
-- [ ] **FR-5 回滚**：回滚**不丢审计、不破坏历史推荐解释**；被撤回的高风险版本**不得一键回滚**，回滚目标须过当前安全校验与授权确认。
-- [ ] **FR-6 历史重放 + 运行解析隔离**：运行结果绑定**当时的患者快照 + 资产包版本**，支持事后复现；新事件**仅解析生效中权威版本**，历史旧版仅用于既往结果解释/审计/合规重放，**不混入新推荐**。
-- [ ] **FR-7 发布证据**：每次审核/灰度/全量/回滚生成证据（范围/影响分析/审核结论/激活事务/同步结果），可导出（[BASE-04](../D0/BASE-04.md) 审计链）。
+- [x] **FR-1 版本不可变**：已发布的知识/规则/路径/包**不可原地修改**，只能生成新版本（版本号单调 + 内容 `content_hash`）；已发布版本只读，旧内容不得删除。
+- [x] **FR-2 唯一权威生效域**：以 `asset_identity + org_path + applicable_population/context + effective_time` 判定生效域，每域**最多一个** `ACTIVE` 版本（框架提供约束与解析；权威知识的并发激活拒绝/原子替换专项在 [SYS-08](SYS-08.md)）。
+- [x] **FR-3 七层组织继承覆盖**：平台 → 集团 → 医院 → 院区 → 社区站点 → 科室 → 专病；提供继承解析（给定组织节点 + 资产身份 → 生效版本）；**局部覆盖必须说明差异/来源/原因/影响范围**（覆盖可解释）；**安全红线（高风险禁忌、法定规则）不可被下级静默关闭**。
+- [x] **FR-4 发布流（变更类状态机 + 7 步流）**：草稿 → 审核 → 静默观察 → 灰度（默认 10% 床位）→ 全量 → 下线/回滚，复用核心 §3 变更类状态机 + §4 七步流（含"看影响"）；**仅院级管理员可"直接全量"**。
+- [x] **FR-5 回滚**：回滚**不丢审计、不破坏历史推荐解释**；被撤回的高风险版本**不得一键回滚**，回滚目标须过当前安全校验与授权确认。
+- [x] **FR-6 历史重放 + 运行解析隔离**：运行结果绑定**当时的患者快照 + 资产包版本**，支持事后复现；新事件**仅解析生效中权威版本**，历史旧版仅用于既往结果解释/审计/合规重放，**不混入新推荐**。
+- [x] **FR-7 发布证据**：每次审核/灰度/全量/回滚生成证据（范围/影响分析/审核结论/激活事务/同步结果），可导出（[BASE-04](../D0/BASE-04.md) 审计链）。
 
 ## 接口契约 / 页面契约
 
 ### 接口契约（引擎/框架卡）
 - 端点：本卡交付**框架契约（Port/SPI）**供各引擎复用，不新增客户面端点：`VersionedAssetPort`（不可变版本读写）· `InheritanceResolver`（七层继承解析）· `ReleasePort`（草稿→灰度→全量→回滚）· `ReplayPort`（历史重放）。REST 发布端点在 [API-10](API-10.md) 包发布 API 承接。
-- DTO：`AssetVersion`（不可变 Record：`assetIdentity`/`versionNo`/`contentHash`/`status`/`effectiveScope`/`effectiveTime`）· `ReleasePlan`（范围/灰度水位/回滚目标/状态，复用并泛化 `engine/pkg` 现有 `ReleasePlan`）· `InheritanceOverride`（覆盖差异说明）。
+- DTO：`AssetVersion`（不可变 Record：`assetIdentity`/`versionNo`/`contentHash`/`status`/`effectiveScope`/`effectiveTime`）· `VersionReleasePlan`（范围/灰度水位/回滚目标/状态，通用表 `mk_version_release_plan`，不复用包域 `release_plan` 旧模型）· `InheritanceOverride`（覆盖差异说明）。
 - 响应信封：`ApiResult` / `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 - 状态机：★复用核心 §3 两套——**配置类**（草稿→待审核→已发布→生效中→已下线→已归档）+ **变更类**（待发布→灰度→全量→回滚）；**禁自创**。
 - 幂等 / 错误码 / traceId：激活/回滚事务按 `(asset_identity, version_no, scope)` 幂等；下级关安全红线 → `INHERITANCE_SAFETY_DENIED`；高危回滚未过校验 → `ROLLBACK_SAFETY_DENIED`；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -46,7 +46,7 @@
 N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步流组件，呈现在各配置页与 **D2 配置包中心页**；本卡只立框架。
 
 ## 数据与迁移
-- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/`safety_policy`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `release_plan`（范围/灰度水位/回滚目标/状态）· `activation_transaction`（激活/失效原子事务记录）· `mk_version_inheritance_override`（局部替换覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
+- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/`safety_policy`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `mk_version_release_plan`（范围/灰度水位/回滚目标/状态）· `mk_version_activation_transaction`（激活/失效原子事务记录）· `mk_version_replay_binding`（历史运行结果绑定当时患者快照与版本）· `mk_version_inheritance_override`（局部替换覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
 - 业务版本 ID：`version_id` 使用 `av-<ULID>`；物理 `id` 仅作 JDBC 持久化主键。唯一约束：**`(asset_identity, org_path, applicable, effective)` 上 `ACTIVE` 唯一**（框架级保证 FR-2）；索引：`org_path`、`status`、`effective_time`、`asset_identity`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段；继承解析依赖 [BASE-01](../D0/BASE-01.md) 的 `org_closure`。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释；`ACTIVE` 唯一约束按方言实现（部分唯一索引或发布事务校验）。
@@ -69,17 +69,17 @@ N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步
 - 本卡落点：把"版本不可变 + 七层继承解析 + 变更类发布流 + 灰度/回滚/历史重放"抽成**一套被所有配置引擎复用的框架**，资产再多也只有一套版本与发布语义；[SYS-08](SYS-08.md) 在其上加"权威知识"专项约束。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：发布资产 v1（ACTIVE）后再改 → 拒绝原地改、强制生成 v2；同一生效域并发激活第二个 ACTIVE → 框架拒绝或事务内替换（仅留一个 ACTIVE）。
-- [ ] **AC-2（FR-3）**：集团发布 v1，医院本地覆盖 v1'（带差异说明）→ 该院解析到 v1'、其他院解析到 v1；下级试图关集团"高风险禁忌红线" → `INHERITANCE_SAFETY_DENIED`。
-- [ ] **AC-3（FR-4）**：走变更类状态机：草稿→审核→静默观察→灰度（10% 床位）→全量；非院级角色点"直接全量" → 拒绝，仅可走灰度。
-- [ ] **AC-4（FR-5）**：全量后回滚到 v1 → 审计与历史解释完整保留；对已 `WITHDRAWN` 的高危版本一键回滚 → `ROLLBACK_SAFETY_DENIED`。
-- [ ] **AC-5（FR-6）**：旧事件按当时绑定的 v1 + 患者快照重放结果一致；新事件只解析当前 ACTIVE v2，旧版不混入新推荐。
+- [x] **AC-1（FR-1/2）**：发布资产 v1（ACTIVE）后再改 → 拒绝原地改、强制生成 v2；同一生效域并发激活第二个 ACTIVE → 框架拒绝或事务内替换（仅留一个 ACTIVE）。
+- [x] **AC-2（FR-3）**：集团发布 v1，医院本地覆盖 v1'（带差异说明）→ 该院解析到 v1'、其他院解析到 v1；下级试图关集团"高风险禁忌红线" → `INHERITANCE_SAFETY_DENIED`。
+- [x] **AC-3（FR-4）**：走变更类状态机：草稿→审核→静默观察→灰度（10% 床位）→全量；非院级角色点"直接全量" → 拒绝，仅可走灰度。
+- [x] **AC-4（FR-5）**：全量后回滚到 v1 → 审计与历史解释完整保留；对已 `WITHDRAWN` 的高危版本一键回滚 → `ROLLBACK_SAFETY_DENIED`。
+- [x] **AC-5（FR-6）**：旧事件按当时绑定的 v1 + 患者快照重放结果一致；新事件只解析当前 ACTIVE v2，旧版不混入新推荐。
 - 关联 A1–A9 剧本：A5 集团复用（继承下发/局部覆盖）、A4 发布回滚（灰度→全量→回滚证据）。
 - T-GATE：前后端真实性门禁全绿（无伪造灰度/同步哈希；迁移 5 方言一致 + ACTIVE 唯一约束生效）。
 - B0 验收：框架纯确定性、无模型依赖，**天然 B0**（关闭全部模型后版本与发布行为不变）。
 
 ## 完工证据
-- 代码 permalink：`VersionedAssetPort`/`InheritanceResolver`/`ReleasePort`/`ReplayPort` + `AssetVersion`/`ReleasePlan`/`InheritanceOverride` + `activation_transaction` + `mk_version_asset_version` 迁移（×5 方言，ACTIVE 唯一约束）。
+- 代码 permalink：`VersionedAssetPort`/`InheritanceResolver`/`ReleasePort`/`ReplayPort` + `AssetVersion`/`VersionReleasePlan`/`InheritanceOverride` + `mk_version_activation_transaction` + `mk_version_replay_binding` + `mk_version_asset_version` 迁移（×5 方言，ACTIVE 唯一约束）。
 - 测试：版本不可变测试 + 七层继承解析测试 + 安全红线不可下级关测试 + 灰度/全量/回滚状态机测试 + 历史重放一致性测试 + ACTIVE 唯一约束并发测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 - PR 拆分证据口径：PR2 只交付 `InheritanceResolver`、替换式 `InheritanceOverride` 解释与 `INHERITANCE_SAFETY_DENIED`；普通 `DISABLE` 关闭继承必须等 PR3 发布流具备审核 / 证据链 / 解析消费后再开放，不允许先落一个运行时不会执行的关闭记录。
@@ -87,4 +87,4 @@ N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步
 ## 大卡工序（5d，后端框架；按 PR 拆分）
 - PR1：`AssetVersion` 不可变版本 + `content_hash` + `mk_version_asset_version` 5 方言迁移 + ACTIVE 唯一约束 → AC-1。
 - PR2：`InheritanceResolver` 七层继承解析 + 局部替换覆盖可解释 + 安全红线不可下级关；普通关闭继承在 PR2 诚实拒绝并留待 PR3 发布证据链 → AC-2。
-- PR3：`ReleasePort` 变更类发布流（灰度/全量/回滚）+ `ReplayPort` 历史重放 + 运行解析隔离 + 发布证据 → AC-3/4/5。
+- PR3：`ReleasePort` 变更类发布流（审核 / 静默观察 / 灰度默认 10% / 院级管理员全量 / 高危撤回回滚拒绝 / 激活与回滚幂等重试）+ `ReplayPort` 历史重放绑定 + 运行解析隔离 + 发布证据，新增 `mk_version_release_plan` / `mk_version_activation_transaction` / `mk_version_replay_binding` V56 五方言迁移，激活事务以 `(tenant_id, asset_type, asset_identity, to_version_id, action, active_scope_key)` 唯一约束兜底 → AC-3/4/5。本地证据：`VersionReleaseServiceTest`、`VersionReplayServiceTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test` 均通过；PostgreSQL 15.18 与 Oracle 21.3 迁移至 V56。
