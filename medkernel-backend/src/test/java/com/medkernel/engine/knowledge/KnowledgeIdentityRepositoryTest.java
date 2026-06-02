@@ -124,14 +124,15 @@ class KnowledgeIdentityRepositoryTest {
             "来源文件", "发布机构", "LICENSE", "zh-CN", now, "tester", now, "tester"
         ));
         SourceVersion version = sourceVersionRepository.save(new SourceVersion(
-            null, "t-1", document.id(), "v1", now, "source-hash", "file://source.pdf", "zh-CN", now, "tester"
+            null, "t-1", document.id(), "v1", now, sha256("来源文件原文"), "file://source.pdf", "zh-CN", now, "tester"
         ));
+        String fragmentHash = sha256("真实来源片段");
         SourceFragment fragment = sourceFragmentRepository.save(new SourceFragment(
-            null, "t-1", version.id(), "§1", "第一节", "真实来源片段", "fragment-hash", now
+            null, "t-1", version.id(), "§1", "第一节", "真实来源片段", fragmentHash, now
         ));
 
         assertThat(fragment.id()).isNotNull();
-        assertThat(sourceFragmentRepository.findBySourceVersionIdAndContentHash(version.id(), "fragment-hash"))
+        assertThat(sourceFragmentRepository.findBySourceVersionIdAndContentHash(version.id(), fragmentHash))
             .isPresent()
             .get()
             .extracting(SourceFragment::anchorPath)
@@ -145,5 +146,23 @@ class KnowledgeIdentityRepositoryTest {
             KnowledgeIdentityStatus.ACTIVE, null,
             now, "tester", now, "tester"
         );
+    }
+
+    private String sha256(String text) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

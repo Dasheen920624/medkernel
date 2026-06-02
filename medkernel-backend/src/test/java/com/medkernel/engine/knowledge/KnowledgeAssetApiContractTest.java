@@ -112,7 +112,7 @@ class KnowledgeAssetApiContractTest {
                       "role_codes": ["medical-affairs"],
                       "package_version": "pkg-2026.06",
                       "version_no": "2026",
-                      "content_hash": "sha256-real-source",
+                      "content": "瑞舒伐他汀说明书来源原文",
                       "file_uri": "file://controlled/source.pdf"
                     }
                     """))

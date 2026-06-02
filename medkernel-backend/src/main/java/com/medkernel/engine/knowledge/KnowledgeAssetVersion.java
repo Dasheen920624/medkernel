@@ -11,8 +11,8 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>关键不变量（由 Service 层事务保证）：同一 {@code identityId} 同时刻 {@link KnowledgeVersionStatus#ACTIVE} ≤ 1。
  *
- * <p>{@code anchors} 是 JSON 字符串（VARCHAR 2048），描述该版本与来源文件的章节/条款锚点对应关系；
- * 详细解析后续 GA-ENG-KNOW-01 引擎实施时升级为独立表。
+ * <p>{@code anchors} 保留版本级来源摘要；逐条断言的精确来源以 {@link Citation} 指向
+ * {@link SourceFragment} 及片段内偏移为准。
  */
 @Table("knowledge_asset_version")
 public record KnowledgeAssetVersion(

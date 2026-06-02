@@ -20,10 +20,10 @@
 - 缺口（本卡补）：① 来源**内容指纹 `content_hash`** + 重复来源识别基座（去重工作流归 [KNOW-02](KNOW-02.md)）；② **引用锚点**精确到 SourceFragment 偏移；③ **可信分级**接 [OPT-07](OPT-07.md) 的 A/B/C/D/E + GRADE；④ **图/搜索投影**随资产发布失效或重建（关系库权威，无图可降级）。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 来源登记**：登记法规/指南/共识/文献/院内/反馈来源 → `SourceDocument` + `SourceVersion`（版本化、不可变、留原文/出处/发布机构/时点）。
-- [ ] **FR-2 解析 + 片段**：来源解析为 `SourceFragment`（章节/条款锚点 + 偏移），每片段可被引用。
-- [ ] **FR-3 内容指纹**：来源版本与资产版本生成 `content_hash`；同指纹重复登记**不产生新可发布候选**（去重判定基座，工作流在 [KNOW-02](KNOW-02.md)）。
-- [ ] **FR-4 引用锚点**：知识资产的每条断言**必须**绑定 ≥1 `Citation` → SourceFragment；无来源的断言不得标 `ACTIVE`（核心 §7 来源可溯）。
+- [x] **FR-1 来源登记**：登记法规/指南/共识/文献/院内/反馈来源 → `SourceDocument` + `SourceVersion`（版本化、不可变、留原文/出处/发布机构/时点）。
+- [x] **FR-2 解析 + 片段**：来源解析为 `SourceFragment`（章节/条款锚点 + 偏移），每片段可被引用。
+- [x] **FR-3 内容指纹**：来源版本与资产版本生成 `content_hash`；同指纹重复登记**不产生新可发布候选**（去重判定基座，工作流在 [KNOW-02](KNOW-02.md)）。
+- [x] **FR-4 引用锚点**：知识资产的每条断言**必须**绑定 ≥1 `Citation` → SourceFragment；无来源的断言不得标 `ACTIVE`（核心 §7 来源可溯）。
 - [ ] **FR-5 可信分级**：资产/来源按 [OPT-07](OPT-07.md) 分级（A 法规 > B 国家指南 > C 共识文献 > D 院内 > E 反馈），分级随资产存储、参与冲突仲裁与展示。
 - [ ] **FR-6 关系库权威 + 投影**：资产权威源在关系库；图谱/搜索为投影，资产发布/替换时**随之失效或重建**；**无图/无搜索可降级**（核心 §7 / 铁律 #5、SYS-03）。
 
@@ -41,7 +41,7 @@ N·A —— 本卡无页面。知识资产管理/来源追溯呈现在 **D6 来�
 - 表族（已有 V3 基线 + 本卡补字段）：`source_document`/`source_fragment`/`source_version`(+`content_hash`)、`knowledge_identity`/`knowledge_asset_version`(+`content_hash`)、`citation`/`citation_relation`、`knowledge_lineage`。
 - 主键 ULID；唯一约束：来源 `(source_type, external_id, version)`；索引：`content_hash`、`authority_level`、`knowledge_domain`、`org_path`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段（[BASE-04](../D0/BASE-04.md)）。
-- 5 方言迁移：在现有 `V3__knowledge_asset_baseline` 上增量 `content_hash`/分级字段，h2/postgres/oracle/dm/kingbase 一致 + 中文注释。
+- 5 方言迁移：在现有 `V3__knowledge_asset_baseline` 上增量 `content_hash`/分级字段，h2/postgres/oracle/dm/kingbase 一致 + 中文注释。PR1 已补 `V49__knowledge_citation_anchor_offsets.sql`：`source_version(source_document_id, content_hash)` 去重约束、`citation.start_offset/end_offset` 精确偏移、非负与区间顺序校验、中文 COMMENT；可信分级字段留 PR2。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：知识资产的**确定性沉淀层**（来源→片段→资产→引用），是 AI 工厂（第二波）与 D3 临床消费的料源。
@@ -61,8 +61,8 @@ N·A —— 本卡无页面。知识资产管理/来源追溯呈现在 **D6 来�
 - 本卡落点：把来源→片段→资产→引用→分级做成**确定性、可溯、可投影**的知识料源，AI 增强在其上叠加而非取代。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2/4）**：登记一份指南来源 → 解析出片段 → 创建资产并绑定 ≥1 引用 → 可激活；删去引用再激活 → `KNOWLEDGE_CITATION_REQUIRED`。
-- [ ] **AC-2（FR-3）**：重复登记同一来源版本（同 content_hash）→ 不新增可发布候选（去重基座；工作流 [KNOW-02](KNOW-02.md)）。
+- [x] **AC-1（FR-1/2/4）**：登记一份指南来源 → 解析出片段 → 创建资产并绑定 ≥1 引用 → 可激活；删去引用再激活 → `KNOWLEDGE_CITATION_REQUIRED`。
+- [x] **AC-2（FR-3）**：重复登记同一来源版本（同 content_hash）→ 不新增可发布候选（去重基座；工作流 [KNOW-02](KNOW-02.md)）。
 - [ ] **AC-3（FR-5）**：A 法规与 D 院内对同一主题冲突 → 仲裁默认取高阶（[OPT-07](OPT-07.md)），分级随资产展示。
 - [ ] **AC-4（FR-6）**：资产发布 → 图/搜索投影更新；删图重建后查询一致；关图谱 → 引擎仍可登记/查询（降级）。
 - 关联 A1–A9 剧本：A2 知识沉淀、A6 合规运维（来源证据导出）。
@@ -71,10 +71,10 @@ N·A —— 本卡无页面。知识资产管理/来源追溯呈现在 **D6 来�
 
 ## 完工证据
 - 代码 permalink：`SourceDocument/Fragment/Version` + `content_hash` + `Citation(Anchor)` + `knowledge_identity/asset_version` 分级字段 + 投影刷新挂点 + 5 方言增量迁移。
-- 测试：来源登记/解析/引用必填测试 + content_hash 去重基座测试 + 分级仲裁测试 + 投影失效重建一致性测试 + 关图降级测试。
+- 测试：来源登记/解析/引用必填测试 + content_hash 去重基座测试 + 分级仲裁测试 + 投影失效重建一致性测试 + 关图降级测试。PR1 证据已覆盖来源/片段/引用锚点、内容指纹、重复来源版本幂等、正文与外部 hash 一致性、无引用激活门禁、V49 五方言静态合同与 PostgreSQL/Oracle/H2 迁移烟测；分级仲裁与投影降级仍留 PR2/PR3。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（6d，后端引擎；按 PR 拆分）
-- PR1：content_hash + 来源/片段/引用锚点补全 + 5 方言增量迁移 → AC-1/2。
+- PR1：content_hash + 来源/片段/引用锚点补全 + 5 方言增量迁移 → AC-1/2。2026-06-02 已本地验证聚焦套件与 PostgreSQL/Oracle/H2 V49 迁移烟测。
 - PR2：可信分级接 [OPT-07](OPT-07.md) + 冲突仲裁基座 → AC-3。
 - PR3：图/搜索投影刷新 + 关系库权威一致 + 降级 → AC-4。

@@ -148,7 +148,7 @@ class KnowledgeIdentityServiceTest {
     @Test
     void registerSourceVersionRejectsBlankContentHashInsteadOfSynthesizingTimestampHash() {
         SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
-            1L, "v1", Instant.now(), " ", "s3://bucket/source.pdf", "zh-CN");
+            1L, "v1", Instant.now(), " ", "s3://bucket/source.pdf", "zh-CN", null);
         when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
         when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.empty());
 
@@ -156,6 +156,113 @@ class KnowledgeIdentityServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceVersionRejectsNonSha256ContentHash() {
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), "not-a-sha256-source-hash", "s3://bucket/source.pdf", "zh-CN", null);
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.registerSourceVersion(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceVersionComputesHashFromContentWhenContentHashMissing() {
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), null, "s3://bucket/source.pdf", "zh-CN", "真实指南原文");
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.empty());
+
+        SourceVersion created = service.registerSourceVersion(request);
+
+        assertThat(created.contentHash()).isEqualTo(sha256("真实指南原文"));
+    }
+
+    @Test
+    void registerSourceVersionRejectsMismatchedContentAndHash() {
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), sha256("另一份来源原文"), "s3://bucket/source.pdf", "zh-CN", "真实指南原文");
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+
+        assertThatThrownBy(() -> service.registerSourceVersion(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceVersionNormalizesUppercaseSha256() {
+        String upperHash = sha256("真实指南原文").toUpperCase();
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), upperHash, "s3://bucket/source.pdf", "zh-CN", null);
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.empty());
+
+        SourceVersion created = service.registerSourceVersion(request);
+
+        assertThat(created.contentHash()).isEqualTo(upperHash.toLowerCase());
+    }
+
+    @Test
+    void registerSourceVersionReturnsExistingWhenVersionNoAndContentHashMatch() {
+        String contentHash = sha256("真实指南原文");
+        SourceVersion existing = new SourceVersion(
+            8L, "t-1", 1L, "v1", Instant.now(), contentHash, "s3://bucket/source-v1.pdf", "zh-CN",
+            Instant.now(), "u-99"
+        );
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), contentHash.toUpperCase(), "s3://bucket/source-v1.pdf", "zh-CN", null);
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.of(existing));
+
+        SourceVersion created = service.registerSourceVersion(request);
+
+        assertThat(created).isSameAs(existing);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceVersionRejectsSameVersionNoWithDifferentContentHash() {
+        SourceVersion existing = new SourceVersion(
+            8L, "t-1", 1L, "v1", Instant.now(), sha256("真实指南原文"), "s3://bucket/source-v1.pdf", "zh-CN",
+            Instant.now(), "u-99"
+        );
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v1", Instant.now(), sha256("另一份来源原文"), "s3://bucket/source-v1.pdf", "zh-CN", null);
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v1")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.registerSourceVersion(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+        Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceVersionReturnsExistingWhenContentHashAlreadyRegistered() {
+        String contentHash = sha256("真实指南原文");
+        SourceVersion existing = new SourceVersion(
+            8L, "t-1", 1L, "v1", Instant.now(), contentHash, "s3://bucket/source-v1.pdf", "zh-CN",
+            Instant.now(), "u-99"
+        );
+        SourceVersionRegisterRequest request = new SourceVersionRegisterRequest(
+            1L, "v2", Instant.now(), contentHash, "s3://bucket/source-v2.pdf", "zh-CN", null);
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identitySourceDocument()));
+        when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(1L, "v2")).thenReturn(Optional.empty());
+        when(sourceVerRepo.findBySourceDocumentIdAndContentHash(1L, contentHash)).thenReturn(Optional.of(existing));
+
+        SourceVersion created = service.registerSourceVersion(request);
+
+        assertThat(created).isSameAs(existing);
         Mockito.verify(sourceVerRepo, Mockito.never()).save(any());
     }
 
@@ -191,7 +298,8 @@ class KnowledgeIdentityServiceTest {
         KnowledgeSourceVersionCreateRequest request = new KnowledgeSourceVersionCreateRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
             "u-99", List.of("knowledge.write"), "pkg-2026.06",
-            "v1", Instant.parse("2026-06-01T00:00:00Z"), " abc123 ", "s3://bucket/source.pdf", null
+            "v1", Instant.parse("2026-06-01T00:00:00Z"), sha256("真实指南原文"), "s3://bucket/source.pdf", null,
+            null
         );
         when(sourceDocRepo.findByTenantIdAndId("t-1", 42L)).thenReturn(Optional.of(identitySourceDocument()));
         when(sourceVerRepo.findBySourceDocumentIdAndVersionNo(42L, "v1")).thenReturn(Optional.empty());
@@ -199,7 +307,7 @@ class KnowledgeIdentityServiceTest {
         SourceVersion created = service.registerSourceVersion(42L, request);
 
         assertThat(created.sourceDocumentId()).isEqualTo(42L);
-        assertThat(created.contentHash()).isEqualTo("abc123");
+        assertThat(created.contentHash()).isEqualTo(sha256("真实指南原文"));
         assertThat(created.language()).isEqualTo("zh-CN");
     }
 
@@ -256,7 +364,7 @@ class KnowledgeIdentityServiceTest {
         Instant now = Instant.now();
         return new KnowledgeAssetVersion(
             id, "t-1", identityId, "v1", "label",
-            null, null, "deadbeef", null,
+            null, null, sha256("知识版本夹具内容-" + id), null,
             status, KnowledgeRiskLevel.LOW,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
@@ -267,7 +375,25 @@ class KnowledgeIdentityServiceTest {
 
     private Citation citation(Long id, Long assetVersionId, int weight) {
         return new Citation(
-            id, "t-1", assetVersionId, 100L, CitationRelation.DERIVED_FROM, weight, Instant.now(), "u"
+            id, "t-1", assetVersionId, 100L, CitationRelation.DERIVED_FROM, weight, null, null, Instant.now(), "u"
         );
+    }
+
+    private String sha256(String text) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

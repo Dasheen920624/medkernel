@@ -268,6 +268,29 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void createDraftVersionStoresCanonicalSha256() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
+
+        KnowledgeAssetVersion created = service.createDraftVersion(draftRequest(1L, "v2", "真实指南内容"));
+
+        assertThat(created.contentHash()).isEqualTo(sha256("真实指南内容"));
+        assertThat(created.contentHash()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void createDraftVersionRejectsBlankContentInsteadOfHashingEmptyString() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.createDraftVersion(draftRequest(1L, "v2", "   ")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        verify(versionRepo, never()).save(any());
+    }
+
+    @Test
     void submitDraftTransitionsToUnderReviewAndKeepsVersionFields() {
         KnowledgeAssetVersion draft = version(10L, 1L, KnowledgeVersionStatus.DRAFT, KnowledgeRiskLevel.HIGH);
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
@@ -417,7 +440,7 @@ class KnowledgeVersionServiceTest {
         Instant now = Instant.now();
         return new KnowledgeAssetVersion(
             id, "t-1", identityId, "v1", "label",
-            null, null, "deadbeef", null,
+            null, null, sha256("知识版本夹具内容-" + id), null,
             status, risk,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
@@ -427,7 +450,7 @@ class KnowledgeVersionServiceTest {
     }
 
     private Citation citation(Long versionId) {
-        return new Citation(1L, "t-1", versionId, 100L, CitationRelation.SUPPORTS, 100, Instant.now(), "init");
+        return new Citation(1L, "t-1", versionId, 100L, CitationRelation.SUPPORTS, 100, null, null, Instant.now(), "init");
     }
 
     private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo) {
@@ -456,6 +479,24 @@ class KnowledgeVersionServiceTest {
     private DraftVersionCreateRequest draftRequest(Long identityId, String versionNo, String content) {
         return new DraftVersionCreateRequest(
             identityId, versionNo, "医院定制版本", 10L, 20L, content, null, KnowledgeRiskLevel.MEDIUM);
+    }
+
+    private String sha256(String text) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @SuppressWarnings("unused")

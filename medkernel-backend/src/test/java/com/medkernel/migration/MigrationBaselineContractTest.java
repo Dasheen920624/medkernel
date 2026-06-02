@@ -74,7 +74,8 @@ class MigrationBaselineContractTest {
         "V45__credential_login_attempt.sql",
         "V46__auth_mfa_sm3_reset.sql",
         "V47__workbench_demo_validation_permission.sql",
-        "V48__context_snapshot_standard_contract.sql"
+        "V48__context_snapshot_standard_contract.sql",
+        "V49__knowledge_citation_anchor_offsets.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -216,10 +217,10 @@ class MigrationBaselineContractTest {
         "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
-        "uk_source_version_doc_no", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
+        "uk_source_version_doc_no", "uk_source_version_doc_hash", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
         "uk_knowledge_asset_version", "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
-        "uk_citation_av_fragment", "ck_citation_relation", "ck_knowledge_supersession_type",
+        "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
         "uk_local_term_code", "ck_local_term_category", "ck_local_term_status",
@@ -576,6 +577,20 @@ class MigrationBaselineContractTest {
                     "idx_context_snapshot_org_path",
                     "idx_context_snapshot_package_version"
                 );
+        }
+    }
+
+    @Test
+    void v49ShouldAddCitationAnchorOffsetsForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V49__knowledge_citation_anchor_offsets.sql");
+            assertThat(ddl).as("%s 引用锚点偏移字段", dialect)
+                .contains("uk_source_version_doc_hash")
+                .contains("start_offset")
+                .contains("end_offset")
+                .contains("ck_citation_anchor_offsets")
+                .contains("COMMENT ON COLUMN citation.start_offset")
+                .contains("COMMENT ON COLUMN citation.end_offset");
         }
     }
 
