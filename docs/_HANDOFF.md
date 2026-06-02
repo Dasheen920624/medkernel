@@ -12,13 +12,13 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 KNOW-01 PR3 图/搜索投影刷新与降级 🚧
+### 线 1 · D2 KNOW-02 知识版本候选识别与审核去重工作流 🚧
 - 类型：软件开发
-- 分支：`codex/d2-know-01-graph-projection`
-- 目标：完成 [KNOW-01](cards/D2/KNOW-01.md) PR3 范围：关系库权威知识资产发布后刷新知识图与搜索投影、投影可删后从关系库重建一致、图/搜索关闭时诚实 `NOT_SYNCED` 且知识登记/查询主链路继续可用；不冒领 [SYS-08](cards/D2/SYS-08.md) 紧急失效 / 影响病例任务，也不冒领 D6 图谱页面。
-- 状态：PR2 已通过 #256 合入 `origin/main`（merge `416cce14`，远端 CI 8/8）。PR3 已完成 TDD 红绿闭环：红灯覆盖知识投影源、知识图 / 搜索投影重建、图/搜索关闭降级、发布激活后刷新端口、V51 投影目标迁移与运维开关；实现 `KNOWLEDGE_GRAPH` / `KNOWLEDGE_SEARCH` 投影目标、`KnowledgeProjectionSource`、`KnowledgeProjectionRefreshPort`、知识发布后刷新挂点、`search-projection` 运行开关、知识投影重建 / 一致性 API 与 V51 五方言约束扩展。已通过聚焦验证：`mvn -q -Dtest=KnowledgeProjectionSourceTest,ProjectionSyncServiceTest,ProjectionRuntimeDegradeTest,ProjectionAuditTest,ProjectionDifyExecutorBoundaryTest,KnowledgeVersionServiceTest,KnowledgeEngineTest,MigrationBaselineContractTest,H2BaselineMigrationTest,RuntimeConfigurationContractTest,RuntimeOperationsControllerTest test`；已通过后端全量 `mvn -q test`，PostgreSQL / Oracle / H2 迁移均到 V51。
-- 下一步（精确到动作/命令）：1. 跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`；2. stage 全部 PR3 文件并运行 `git diff --cached --check`；3. 中文 commit、推送 PR、等待 CI 8/8；4. CI 通过后 squash merge；5. 合并后从最新 `origin/main` 继续领取 `KNOW-02` 或 backlog 当前阶段下一卡。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/projection/**`、`medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`medkernel-backend/src/main/resources/db/migration/{h2,postgres,oracle,dm,kingbase}/V51__knowledge_projection_targets.sql`、`RuntimeOperationsService`、`application*.yml`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`。搜索投影当前是关系库可重建派生快照，不伪造真实外部搜索引擎；真实 Neo4j / 搜索引擎探活未接入时只能返回 `NOT_SYNCED` / `DEGRADED`。达梦 / 人大金仓真实运行仍归 `DEFER-001`，不作为当前 PR 阻塞。
+- 分支：待建 `codex/d2-know-02-candidate-workflow`
+- 目标：完成 [KNOW-02](cards/D2/KNOW-02.md) 范围：候选进入后按 `content_hash` / `knowledge_identity` / 适用域判定新建、同身份新版、重复、冲突；重复不新增待办，冲突生成对照审核视图，候选 `PENDING_REPLACEMENT_REVIEW` 仅供比较不参与临床执行；审核通过只调用 [SYS-08](cards/D2/SYS-08.md) 原子替换，不在本卡重造替换事务。
+- 状态：待开工；`KNOW-01` 已通过 #258 合入 `origin/main`（merge `902104e6`，远端 CI 8/8），可作为来源 / 内容指纹 / 可信分级 / 图搜索投影基础。已核查 [backlog](backlog.md) 当前下一卡为 `KNOW-02`，`DEFER-001` 至 `DEFER-012` 仍 open 但均非本卡当前主链路阻塞。
+- 下一步（精确到动作/命令）：1. 基于最新 `origin/main` 创建隔离 worktree / 分支 `codex/d2-know-02-candidate-workflow`；2. 读 [CONSTITUTION](CONSTITUTION.md)、[D2 域简报](cards/D2/_brief.md)、[KNOW-02](cards/D2/KNOW-02.md)、[待处理问题清单](audit/deferred-issues.md)；3. 建绿色基线，优先跑 `mvn -q -Dtest=KnowledgeVersionServiceTest,KnowledgeEngineTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；4. 先写红灯测试锁定候选四分类、重复去重不建待办、冲突对照、候选不参与执行、审核通过转交替换端口；5. 实现最小闭环后跑后端全量、changed T-GATE、PR、CI 8/8、合并，再领取下一卡。
+- 相关文件 / 测试 / 坑：预计触碰 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`KnowledgeVersionService`、`KnowledgeIdentityService`、`KnowledgeAssetVersionRepository`、新增候选分类 / 审核分派表与五方言迁移。严禁把候选写成 ACTIVE 或参与临床执行；严禁本卡自行重造 SYS-08 唯一有效约束 / 紧急失效 / 影响病例任务；AI 自动分类属于 wave2，B0 必须人工可跑通。
 
 ### 线 2 · 平台主源与租户覆盖层治理 🚧
 - 类型：软件开发 / 架构治理
@@ -31,6 +31,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 KNOW-01 PR3 图/搜索投影刷新与降级 ✅（#258，merge `902104e6`）：新增 `KNOWLEDGE_GRAPH` / `KNOWLEDGE_SEARCH` 投影目标、`KnowledgeProjectionSource`、`KnowledgeProjectionRefreshPort`、资产发布后刷新知识图与搜索投影、知识投影重建 / 一致性 API、`search-projection` 运行开关与 V51 五方言投影目标约束扩展；搜索投影为关系库可重建派生快照，未冒领 SYS-08 紧急失效 / D6 图谱页面 / 真实外部搜索引擎探活。本地验证：聚焦红绿套件、后端全量 `mvn -q test`、changed T-GATE、中文注释、diff 检查；远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001` 国产化真实环境仍 open，不阻塞 PostgreSQL + Oracle 当前主线。
 - D2 KNOW-01 PR2 可信分级与冲突仲裁 ✅（#256，merge `416cce14`）：补来源 A/B/C/D/E 可信分级、分级依据、资产版本 `authority_level` / `grade_quality` / `grade_strength` / `conflict_arbitration` 快照、低阶覆盖高阶 `AUTHORITY_OVERRIDE_DENIED` 门禁、冲突裁决摘要与 V50 五方言迁移；未冒领图/搜索投影。验证：服务层 / API 契约聚焦套件、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
 - D2 KNOW-01 PR1 来源内容指纹与引用锚点 ✅（#255，merge `afd9be1d`）：补来源版本 / 来源片段 / 知识资产版本真实 `content_hash` 生成与校验、重复来源版本同 hash 幂等、引用锚点 `citation.start_offset/end_offset`、`source_version(source_document_id, content_hash)` 去重约束与 V49 五方言迁移；清理触碰范围旧口径，未冒领可信分级或图/搜索投影。验证：`mvn -q -Dtest=KnowledgeIdentityServiceTest test`、聚焦套件、`H2BaselineMigrationTest`、后端全量 `mvn -q test`（895 tests，PostgreSQL 15.18 / Oracle 21.3 / H2 均迁移至 V49）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`。
 - D2 API-10 包发布 API ✅（#253，merge `255f78a3`）：收口 `/api/v1/engine/pkg/packages/**` 客户面，补包 CRUD / 校验 / 差异 / 发布 / 同步 / 回滚 / 同步日志合同；写入类请求补 12 字段统一上下文，旧 `/api/v1/engine/packages` 客户面入口 404；新增 validate / release / sync-logs；服务目录同步新根路径；前端共享 hooks 改到 `/engine/pkg/packages` 并注入标准上下文，配置包中心改用“院内同步发布”口径、显示真实 `NOT_SYNCED` 与持久同步日志；触碰范围旧“物理投影/长链接”表述已清理。本地变基后验证：后端 `mvn -q test` 885 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48；前端 `npm run verify` 41 files / 219 tests、`npm run build`；changed T-GATE（真实性 21 文件、配置边界 19 文件、迁移规约 0 文件）、中文注释 0 fail / 0 warn、`git diff --check` 通过；远端 CI 8/8 通过后合入 `origin/main`，远端分支和本地 worktree 已清理。`DEFER-002` / `DEFER-003` 仍 open，不得宣称已清零。
@@ -150,4 +151,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR2 可信分级与冲突仲裁（#256，merge `416cce14`）。当前在途线为 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（分支 `codex/d2-know-01-graph-projection`），已完成聚焦红绿测试与后端全量 `mvn -q test`，仍需 T-GATE / PR / CI / 合并 / 接力后，才能领取下一阶段任务。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`，远端 CI 8/8），`KNOW-01` 已完成并归档。当前下一主线为 D2 `KNOW-02` 知识版本候选识别与审核去重工作流，需基于最新 `origin/main` 新建 `codex/d2-know-02-candidate-workflow` 后按 TDD 开工。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
