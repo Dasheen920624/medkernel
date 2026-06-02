@@ -9,6 +9,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,9 @@ import com.medkernel.shared.context.RequestContext;
  */
 @Service
 public class TerminologyService {
+
+    private static final String DEFAULT_GRAY_SCOPE_JSON = "{\"strategy\":\"BED_PERCENT\",\"percentage\":10}";
+    private static final String HOSPITAL_ADMIN_ROLE = "hospital-admin";
 
     private final StandardTermRepository standardTermRepository;
     private final LocalTermRepository localTermRepository;
@@ -292,7 +296,8 @@ public class TerminologyService {
      */
     @Transactional
     public TermMappingPackage publishPackage(Long packageId, PublishTerminologyPackageRequest request) {
-        String tenantId = requireValidatedTenant(request.context());
+        TerminologyApiContext context = request.context();
+        String tenantId = requireValidatedTenant(context);
         String userId = currentUserId();
         Instant now = Instant.now();
         TermMappingPackage pkg = packageRepository.findByTenantIdAndId(tenantId, packageId)
@@ -300,14 +305,16 @@ public class TerminologyService {
         if (pkg.status() == TermMappingPackageStatus.ROLLED_BACK || pkg.status() == TermMappingPackageStatus.ARCHIVED) {
             throw ApiException.conflict("映射包 id=" + packageId + " 已不可发布");
         }
-        TermMappingPackage next = pkg.withGrayScope(request.grayScopeJson())
+        ensurePublishTransition(pkg, request, context);
+        String grayScopeJson = normalizedGrayScope(request);
+        TermMappingPackage next = pkg.withGrayScope(grayScopeJson)
             .withStatus(request.releaseMode() == PackageReleaseMode.FULL
                 ? TermMappingPackageStatus.PUBLISHED
                 : TermMappingPackageStatus.GRAY, userId, now);
         if (request.releaseMode() == PackageReleaseMode.FULL) {
             for (TermMappingPackage active : packageRepository.findActiveByTenantIdAndPackageCodeAndScope(
                     tenantId, pkg.packageCode(), pkg.scopeLevel(), pkg.scopeCode())) {
-                if (!active.id().equals(pkg.id())) {
+                if (!Objects.equals(active.id(), pkg.id())) {
                     packageRepository.save(active.withStatus(TermMappingPackageStatus.SUPERSEDED, userId, now));
                 }
             }
@@ -315,7 +322,7 @@ public class TerminologyService {
         TermMappingPackage saved = packageRepository.save(next);
         packageReleaseRepository.save(new TermMappingPackageRelease(
             null, tenantId, pkg.id(), null, TermPackageReleaseEventType.PUBLISH,
-            request.releaseMode(), request.reason(), request.grayScopeJson(), now, userId
+            request.releaseMode(), request.reason(), grayScopeJson, now, userId
         ));
         return saved;
     }
@@ -345,7 +352,7 @@ public class TerminologyService {
             throw ApiException.conflict("目标映射包不是可回滚发布点");
         }
         packageRepository.save(current.rolledBack(userId, now));
-        TermMappingPackage restored = packageRepository.save(target.withStatus(TermMappingPackageStatus.PUBLISHED, userId, now));
+        TermMappingPackage restored = packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
         packageReleaseRepository.save(new TermMappingPackageRelease(
             null, tenantId, current.id(), target.id(), TermPackageReleaseEventType.ROLLBACK,
             PackageReleaseMode.FULL, request.reason(), null, now, userId
@@ -406,6 +413,36 @@ public class TerminologyService {
             && current.scopeCode().equals(target.scopeCode());
     }
 
+    private void ensurePublishTransition(TermMappingPackage pkg,
+                                         PublishTerminologyPackageRequest request,
+                                         TerminologyApiContext context) {
+        if (pkg.status() != TermMappingPackageStatus.DRAFT && pkg.status() != TermMappingPackageStatus.GRAY) {
+            throw ApiException.conflict("映射包必须处于草稿或灰度状态，才能继续发布");
+        }
+        if (request.releaseMode() == PackageReleaseMode.FULL
+                && pkg.status() == TermMappingPackageStatus.DRAFT
+                && !hasHospitalAdminRole(context)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "只有医院管理员可跳过灰度直接全量发布");
+        }
+    }
+
+    private boolean hasHospitalAdminRole(TerminologyApiContext context) {
+        return context.roleCodes().stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .anyMatch(HOSPITAL_ADMIN_ROLE::equals);
+    }
+
+    private String normalizedGrayScope(PublishTerminologyPackageRequest request) {
+        if (request.releaseMode() != PackageReleaseMode.GRAY) {
+            return null;
+        }
+        if (request.grayScopeJson() == null || request.grayScopeJson().isBlank()) {
+            return DEFAULT_GRAY_SCOPE_JSON;
+        }
+        return request.grayScopeJson().trim();
+    }
+
     private String hashMappings(BuildTerminologyPackageRequest request, List<TermMapping> mappings) {
         StringBuilder payload = new StringBuilder()
             .append(request.packageCode()).append('|')
@@ -457,20 +494,27 @@ public class TerminologyService {
         }
 
         double threshold = request.minimumScore() == null ? 0.2 : request.minimumScore();
+        boolean semanticAssistEnabled = !Boolean.FALSE.equals(request.semanticAssistEnabled());
         List<TerminologyCandidateResponse> generated = new java.util.ArrayList<>();
         Map<TermCategory, List<HighRiskRule>> highRiskRulesByCategory = new HashMap<>();
         for (LocalTerm local : unmapped) {
-            List<HighRiskRule> highRiskRules = highRiskRulesByCategory.computeIfAbsent(
-                local.category(),
-                category -> highRiskRuleRepository.findActiveByTenantIdAndCategory(tenantId, category)
-            );
+            List<HighRiskRule> highRiskRules = semanticAssistEnabled
+                ? highRiskRulesByCategory.computeIfAbsent(
+                    local.category(),
+                    category -> highRiskRuleRepository.findActiveByTenantIdAndCategory(tenantId, category)
+                )
+                : List.of();
             for (StandardTerm standard : standardTerms) {
                 if (local.category() != null && standard.category() != null && local.category() != standard.category()) {
                     continue;
                 }
 
-                Optional<HighRiskTermMatch> highRisk = HighRiskTermDetector.detect(local, standard, highRiskRules);
-                Optional<SemanticTermMatch> match = SemanticTermMatcher.match(local, standard);
+                Optional<HighRiskTermMatch> highRisk = semanticAssistEnabled
+                    ? HighRiskTermDetector.detect(local, standard, highRiskRules)
+                    : Optional.empty();
+                Optional<SemanticTermMatch> match = semanticAssistEnabled
+                    ? SemanticTermMatcher.match(local, standard)
+                    : SemanticTermMatcher.matchExactCode(local, standard);
                 if (highRisk.isPresent() || (match.isPresent() && match.get().score() >= threshold)) {
                     CandidateDecision decision = candidateDecision(highRisk, match);
 

@@ -60,4 +60,12 @@ public record TermMappingPackage(
             publishedBy, publishedAt, rollbackFromPackageId, createdAt, createdBy, now, userId
         );
     }
+
+    TermMappingPackage restoredFromRollback(Long sourcePackageId, String userId, Instant now) {
+        return new TermMappingPackage(
+            id, tenantId, packageCode, packageVersion, displayName, scopeLevel, scopeCode,
+            TermMappingPackageStatus.PUBLISHED, mappingCount, contentHash, null,
+            userId, now, sourcePackageId, createdAt, createdBy, now, userId
+        );
+    }
 }

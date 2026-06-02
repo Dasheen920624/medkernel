@@ -108,7 +108,8 @@ record TerminologyCandidateGenerationRequest(
     @JsonAlias("role_codes") List<String> roleCodes,
     @JsonAlias("package_version") String packageVersion,
     @NotBlank @Size(max = 64) String sourceSystem,
-    Double minimumScore
+    Double minimumScore,
+    @JsonAlias("semantic_assist_enabled") Boolean semanticAssistEnabled
 ) implements TerminologyContextRequest {
     TerminologyCandidateGenerationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);

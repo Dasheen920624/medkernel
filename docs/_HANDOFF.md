@@ -12,26 +12,18 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 TERM-01 高危近似判别 PR2 🚧
+### 线 1 · D2 TERM-01 映射包发布与 B0 降级 PR3 🚧
 - 类型：软件开发
-- 分支：`codex/d2-term-01-high-risk-detector`
-- 目标：完成 [TERM-01](cards/D2/TERM-01.md) PR2：用数据库规则集识别 MED-C1 高危近似负样本（钾/钠、肌钙蛋白 T/I、左/右、剂量 10 倍、胰岛素 U/mL），候选强制 `risk=HIGH`，沿用既有批量拒绝与逐条二次确认门禁；规则必须在迁移中种子化，不把临床常量散落在业务代码里，不冒领 PR3 映射包发布降级。
-- 状态：已变基到 #263 merge `f2612a14` 的最新 `origin/main`；已按 TDD 补高危近似参数化红测，红测曾按预期编译失败在缺少 `HighRiskRule*` 规则模型；已新增 `mk_term_high_risk_rule` 规则表、`HighRiskRuleRepository`、`HighRiskTermDetector`、V53 五方言迁移与 SYSTEM 规则种子，候选生成命中高危规则后强制 HIGH，并补短英文片段误报反例避免 `k/na` 误伤普通药名。验证已通过：`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test`（Flyway H2 应用 53 个迁移至 v53）、`mvn -q -Dtest=TerminologyServiceTest,TerminologyApiContractTest,TerminologyControllerSecurityTest,EngineEndToEndIntegrationTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`、`mvn -q -Dtest=TerminologyServiceTest test`、`mvn -q -Dtest=TerminologyServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,DomainOwnershipContractTest test`、后端全量 `mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移并校验至 V53）、变基后 `git diff --check origin/main...HEAD`、changed T-GATE、迁移规约与中文注释门禁。尚未 PR / CI / 合并。
-- 下一步（精确到动作/命令）：1. 推送 `codex/d2-term-01-high-risk-detector`；2. 创建 PR，等 CI 8/8；3. 合并并确认 `origin/main` 后继续 TERM-01 PR3 映射包发布接 SYS-04 与关模型降级。
-- 相关文件 / 测试 / 坑：触碰 `TerminologyService`、新增 `HighRiskRule` / `HighRiskRuleRepository` / `HighRiskTermDetector`、V53 五方言迁移、`TerminologyServiceTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest` 和本卡文档。不得恢复字符相似度 / 编辑距离作为医学语义依据；不得把 PR3 灰度/回滚发布或 `DEFER-010` 10 万级字典压测写成已完成；`DEFER-001` 国产化真实环境仍 open，不阻塞当前 PostgreSQL + Oracle 主线但不得宣称清零。
-
-### 线 2 · 平台主源与租户覆盖层治理 🚧
-
-- 类型：软件开发 / 架构治理
-- 分支：`codex/platform-tenant-overlay-impl`
-- 目标：把知识、规则、路径等医疗资产从“当前租户硬查 / 全量同步副本”统一改为“平台主源 `t-1` + 租户覆盖层 Overlay”：平台主源只能更新 / 同步平台主源本身；客户 / 集团 / 医院默认订阅或授权使用平台发布版本，不再把平台资产物理同步成客户主源副本；本地新增或修改同一 canonical key 时生成本租户覆盖副本并优先生效；平台更新自动影响未覆盖资产，已覆盖资产不得被覆盖，后续进入人工合并 / 回退流程。
-- 状态：登录 / 首次部署体验修复已通过 #260 合入并发布到 192.168.8.191，线 2 已恢复实施。当前从最新 `origin/main` 新建 `codex/platform-tenant-overlay-impl`，应用并整理旧 stash 草稿；已实现知识身份 / 版本、规则定义 / 执行、路径模板 / 入径的“本租户覆盖优先，未覆盖回退平台主源”有效读取；规则执行日志与患者路径事实仍写当前客户租户；平台源离线包导入客户租户只保存包 / 条目引用，不再物理写入客户资产主表；`docs/CONSTITUTION.md` 与 `docs/glossary.md` 已同步为“订阅 / 只读快照 / 覆盖层”口径。
-- 下一步（精确到动作/命令）：1. 继续跑后端全量 `mvn -B -q test`；2. 跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`；3. 中文 commit、推送 `codex/platform-tenant-overlay-impl`、创建 PR 并等待远端 CI 8/8；4. CI 通过后合并 `main`，再发布到 192.168.8.191 并验证 `/medkernel/actuator/health/readiness` 与核心 API；5. 发布完成后再领取 D2 `KNOW-02`。
-- 协作红线：其它 AI 或人类同步改造时必须以本线为最新语义，不得再按“客户租户完整同步平台资产副本后各自维护”的旧模式设计；不得把平台主源同步为客户主源，平台发布给客户只能是只读发布版本 / 离线快照 / 订阅引用；不得让客户 / 集团 / 医院资产反写污染平台主租户 `t-1`；不得把 `SYSTEM` 或历史 `medkernel-basic` 当医疗知识业务租户。
-- 相关文件 / 测试 / 坑：核心不变量见 `docs/CONSTITUTION.md` §8 平台源知识不可污染 / 平台主租户唯一；业务键第一阶段使用 `knowledge_identity.identity_code`、`rule_definition.rule_code`、`pathway_template.template_code + template_version`、`specialty_package.package_code + package_version`；第二阶段再补覆盖关系表记录 `base_platform_version_id` / 合并状态 / rebase 任务。
+- 分支：`codex/d2-term-01-package-release`
+- 目标：完成 [TERM-01](cards/D2/TERM-01.md) PR3：在术语映射包子流内对齐 [SYS-04](cards/D2/SYS-04.md) 的灰度 / 全量 / 回滚语义，灰度默认 10% 床位范围，普通实施 / 信息科不得绕过灰度直接全量，仅医院管理员可直接全量；回滚必须保留来源包证据；关闭语义辅助 / 模型时只保留精确编码候选 + 人工映射 B0，不伪造别名 / 编码族 / 高危规则候选。
+- 状态：已从 #264 merge `86bffa98` 的 `origin/main` 新建分支，后因平台主源覆盖层 #265 merge `b383d888` 合入，已变基到最新 `origin/main`；已按 TDD 建绿基线 `mvn -q -Dtest=TerminologyServiceTest,TerminologyApiContractTest test`；红测曾按预期编译失败于 `TerminologyCandidateGenerationRequest` 缺少 `semanticAssistEnabled` 契约；已补术语包发布收紧（GRAY 默认 `BED_PERCENT` 10%、DRAFT→FULL 普通角色拒绝、医院管理员可直接全量、FULL 会替换同 scope 活动包、回滚恢复包写 `rollbackFromPackageId`）和 B0 降级（`semantic_assist_enabled=false` 时仅 `matchExactCode`，不查高危规则集）。变基后验证已通过：`mvn -q -Dtest=TerminologyServiceTest,TerminologyApiContractTest,TerminologyControllerSecurityTest,EngineEndToEndIntegrationTest test`、`mvn -q test`、changed T-GATE、迁移规约、中文注释、diff 检查。
+- 下一步（精确到动作/命令）：1. `git push --force-with-lease` 更新 PR #266；2. 等远端 CI 8/8；3. 合并并确认 `origin/main` 后按 backlog 领取下一阶段。
+- 相关文件 / 测试 / 坑：触碰 `TerminologyService`、`SemanticTermMatcher`、`TerminologyRequests`、`TermMappingPackage`、`TerminologyServiceTest`、`EngineEndToEndIntegrationTest`、`TERM-01` 卡与本 handoff。不得把本 PR 写成通用 SYS-04 全框架已完成；它只收口 TERM-01 术语包发布子流。不得恢复字符相似度 / 编辑距离或模型伪候选；`DEFER-010` 10 万级字典压测仍 open，不阻塞当前 PR 但不得宣称清零。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- 平台主源与租户覆盖层读取实现 ✅（#265，merge `b383d888`）：知识身份 / 版本、规则定义 / 执行、路径模板 / 入径已改为“本租户覆盖优先，未覆盖回退平台主源”；规则执行日志与患者路径事实仍写当前客户租户；平台源离线包导入客户租户只保存包 / 条目引用，不再物理写入客户资产主表；`docs/CONSTITUTION.md` 与 `docs/glossary.md` 已同步为“订阅 / 只读快照 / 覆盖层”口径。后续覆盖关系表 `base_platform_version_id` / 合并状态 / rebase 任务仍按后续卡推进，不得把平台主源同步回客户主源。
+- D2 TERM-01 PR2 高危近似判别 ✅（#264，merge `86bffa98`）：新增 `mk_term_high_risk_rule` 规则表、`HighRiskRuleRepository`、`HighRiskTermDetector` 和 V53 五方言迁移 / SYSTEM 种子；候选生成命中钾/钠、肌钙蛋白 T/I、左/右、剂量 10 倍、胰岛素 U/mL 高危近似规则时强制 `risk=HIGH`，沿用禁批量确认和逐条二次确认，并补短英文片段误报反例避免 `k/na` 误伤普通药名。本地后端全量、聚焦套件、H2/PostgreSQL/Oracle 迁移至 V53、changed T-GATE、迁移规约、中文注释与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。映射包发布 / B0 降级未在 PR2 冒领，已转当前 PR3。
 - 登录与首次部署体验修复发布 ✅（#260，merge `d998fc67`；本轮追加登录模式入口文案收口）：登录页保留 MedKernel 品牌并加宽居中；有客户 / 集团 / 医院租户时支持“集团院内户”和“主平台户”双模式切换，客户入口优先，主平台登录不显示院方信息；无客户租户时默认平台主租户自动进入且不显示租户下拉；首次部署接管页整体框起、去掉 `BASE-11` 等技术标签、保留返回登录和离线 MFA 说明。192.168.8.191 已发布验证 `/`、`/login`、`/bootstrap`、`/medkernel/api/v1/auth/login-tenants`、`/medkernel/actuator/health/readiness` 均正常；Oracle 现场库复核 `medkernel-basic` 在业务租户、字符串列和 `org_unit` 均无残留，平台凭证租户保持唯一 `t-1`。
 - D2 TERM-01 PR1 确定性语义候选 ✅（#262，merge `1c752fd6`）：候选生成从旧字面相似度切换为确定性语义候选，依据只来自精确编码、同义词/缩写别名和编码族；删除旧 `calculateSimilarity` 生产实现，新增 `SemanticTermMatcher`，端到端样例改为真实别名命中。验证：红测覆盖精确编码优先、编码族中风险、同义词/缩写命中和字符重合不产候选；`TerminologyServiceTest`、聚焦术语 / API / 安全 / E2E 套件、后端全量 `mvn -q test`（含 H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V52）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。高危近似判别与映射包发布未在 PR1 冒领。
 - D2 KNOW-02 知识版本候选识别与审核去重工作流 ✅（#261，merge `3ab23bce`）：新增知识候选分类与审核分派，按 `content_hash` / `knowledge_identity` / 适用域判定新建、同身份新版、重复、冲突；重复不新增待办，冲突生成对照审核视图，候选 `PENDING_REPLACEMENT_REVIEW` 仅供比较不参与临床执行；清理旧草稿创建口径，补 V52 五方言迁移、API 契约和服务层测试。验证：聚焦套件、后端全量 `mvn -q test`（含 H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V52）、changed T-GATE、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。
@@ -155,4 +147,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `TERM-01` PR2 高危近似规则判别（merge `86bffa98`）、登录模式入口文案 #263（merge `f2612a14`）、D2 `TERM-01` PR1（#262，merge `1c752fd6`）、D2 `KNOW-02`（#261，merge `3ab23bce`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260，且登录前端已发布到 192.168.8.191。当前用户优先线为 `codex/platform-tenant-overlay-impl` 平台主源 / 租户覆盖层实现：知识、规则、路径、平台源离线包边界已完成聚焦红绿验证，下一步跑后端全量、T-GATE、PR、CI、合并并发布；完成后再回到 D2 后续卡。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含平台主源与租户覆盖层读取 #265（merge `b383d888`）、D2 `TERM-01` PR2 高危近似判别 #264（merge `86bffa98`）、登录模式入口文案收口 #263、D2 `TERM-01` PR1 #262、D2 `KNOW-02` #261、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260。当前在 `codex/d2-term-01-package-release` 推进 D2 `TERM-01` PR3 映射包发布与 B0 降级，已完成红绿单测、术语 API / 安全 / E2E 聚焦回归、变基后后端全量验证和 changed T-GATE；待更新 PR #266、CI / 合并。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

@@ -263,10 +263,10 @@ class TerminologyServiceTest {
     }
 
     @Test
-    void publishPackageFullSupersedesPreviousPublishedPackageAndRecordsEvent() {
-        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
+    void publishPackageFullFromGraySupersedesPreviousActivePackageAndRecordsEvent() {
+        TermMappingPackage gray = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.GRAY);
         TermMappingPackage previous = pkg(29L, "PKG-LAB-CARD", "2026.05.01", TermMappingPackageStatus.PUBLISHED);
-        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
+        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(gray));
         when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
             .thenReturn(List.of(previous));
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -292,6 +292,57 @@ class TerminologyServiceTest {
         verify(packageReleaseRepository).save(releaseCaptor.capture());
         assertThat(releaseCaptor.getValue().eventType()).isEqualTo(TermPackageReleaseEventType.PUBLISH);
         assertThat(releaseCaptor.getValue().releaseMode()).isEqualTo(PackageReleaseMode.FULL);
+    }
+
+    @Test
+    void publishPackageGrayWithoutScopeUsesDefaultTenPercentBedScope() {
+        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
+        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
+        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TermMappingPackage gray = service.publishPackage(
+            30L,
+            publishPackageRequest(PackageReleaseMode.GRAY, "灰度发布", null)
+        );
+
+        assertThat(gray.status()).isEqualTo(TermMappingPackageStatus.GRAY);
+        assertThat(gray.grayScopeJson()).contains("BED_PERCENT", "10");
+        ArgumentCaptor<TermMappingPackageRelease> releaseCaptor =
+            ArgumentCaptor.forClass(TermMappingPackageRelease.class);
+        verify(packageReleaseRepository).save(releaseCaptor.capture());
+        assertThat(releaseCaptor.getValue().grayScopeJson()).contains("BED_PERCENT", "10");
+    }
+
+    @Test
+    void publishPackageFullFromDraftRejectsNonHospitalAdmin() {
+        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
+        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> service.publishPackage(
+            30L,
+            publishPackageRequest(PackageReleaseMode.FULL, "绕过灰度直接全量", null)
+        ))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void publishPackageFullFromDraftAllowsHospitalAdminDirectRelease() {
+        TermMappingPackage draft = pkg(30L, "PKG-LAB-CARD", "2026.05.25", TermMappingPackageStatus.DRAFT);
+        when(packageRepository.findByTenantIdAndId("t-1", 30L)).thenReturn(Optional.of(draft));
+        when(packageRepository.findActiveByTenantIdAndPackageCodeAndScope("t-1", "PKG-LAB-CARD", "DEPARTMENT", "CARD"))
+            .thenReturn(List.of());
+        when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packageReleaseRepository.save(any(TermMappingPackageRelease.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TermMappingPackage published = service.publishPackage(
+            30L,
+            publishPackageRequest(PackageReleaseMode.FULL, "院级管理员确认直接全量", null, List.of("hospital-admin"))
+        );
+
+        assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
     }
 
     @Test
@@ -322,6 +373,7 @@ class TerminologyServiceTest {
         verify(packageReleaseRepository).save(releaseCaptor.capture());
         assertThat(releaseCaptor.getValue().eventType()).isEqualTo(TermPackageReleaseEventType.ROLLBACK);
         assertThat(releaseCaptor.getValue().targetPackageId()).isEqualTo(29L);
+        assertThat(restored.rollbackFromPackageId()).isEqualTo(30L);
     }
 
     @Test
@@ -482,6 +534,48 @@ class TerminologyServiceTest {
         assertThat(created.candidateSource()).isEqualTo(MappingCandidateSource.RULE);
         assertThat(created.evidenceText()).contains("确定性语义匹配", "同义词/缩写");
         assertThat(created.evidenceText()).doesNotContain("LCS");
+    }
+
+    @Test
+    void generateCandidatesWhenSemanticAssistDisabledUsesOnlyExactCode() {
+        LocalTerm exactLocal = localTerm(
+            1L, "LIS", "718-7", TermCategory.LAB, "院内血色素", "yuanneixuesesu"
+        );
+        LocalTerm aliasLocal = localTerm(3L);
+        StandardTerm exactStandard = standardTerm(
+            2L, "LOINC", "718-7", TermCategory.LAB, "血红蛋白", "hgb|hemoglobin"
+        );
+        StandardTerm aliasStandard = new StandardTerm(
+            4L, "t-1", "LOINC", "6598-7", TermCategory.LAB, "Cardiac troponin T",
+            "ctnt|cardiac troponin t|肌钙蛋白t", "2.78", StandardTermStatus.ACTIVE,
+            null, "LOINC 来源别名：cTnT；中文同义词：肌钙蛋白T",
+            Instant.now(), "system", Instant.now(), "system"
+        );
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(exactLocal, aliasLocal));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(exactStandard, aliasStandard));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(
+            candidateGenerationRequest("t-1", false)
+        );
+
+        assertThat(response.generatedCount()).isEqualTo(1);
+        assertThat(response.candidates())
+            .singleElement()
+            .satisfies(candidate -> {
+                assertThat(candidate.localTermId()).isEqualTo(1L);
+                assertThat(candidate.standardTermId()).isEqualTo(2L);
+                assertThat(candidate.semanticMatchScore()).isEqualTo(1.0);
+                assertThat(candidate.evidenceText()).contains("精确编码");
+            });
+        verify(candidateRepository).save(any(MappingCandidate.class));
+        verify(highRiskRuleRepository, Mockito.never()).findActiveByTenantIdAndCategory(any(), any());
     }
 
     @Test
@@ -689,10 +783,14 @@ class TerminologyServiceTest {
     }
 
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId) {
+        return candidateGenerationRequest(tenantId, null);
+    }
+
+    private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId, Boolean semanticAssistEnabled) {
         return new TerminologyCandidateGenerationRequest(
             "req-api04-001", "trace-api04-001", tenantId, "g-1", "h-1", "c-1", "s-1",
             "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
-            "LIS", null
+            "LIS", null, semanticAssistEnabled
         );
     }
 
@@ -729,9 +827,17 @@ class TerminologyServiceTest {
     }
 
     private PublishTerminologyPackageRequest publishPackageRequest(PackageReleaseMode mode, String reason, String grayScopeJson) {
+        return publishPackageRequest(mode, reason, grayScopeJson, List.of("it-ops"));
+    }
+
+    private PublishTerminologyPackageRequest publishPackageRequest(
+            PackageReleaseMode mode,
+            String reason,
+            String grayScopeJson,
+            List<String> roleCodes) {
         return new PublishTerminologyPackageRequest(
             "req-api04-publish", "trace-api04-publish", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", roleCodes, "pkg-2026.06",
             mode, reason, grayScopeJson
         );
     }
