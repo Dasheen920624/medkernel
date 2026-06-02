@@ -49,19 +49,22 @@ public class AuthController {
     private final SystemConfigService configService;
     private final MfaPolicyService mfaPolicyService;
     private final PasswordResetService passwordResetService;
+    private final LoginTenantDirectoryService loginTenantDirectoryService;
 
     public AuthController(AuthService authService,
                           AuthSessionService sessionService,
                           AuthCookieProperties cookieProps,
                           SystemConfigService configService,
                           MfaPolicyService mfaPolicyService,
-                          PasswordResetService passwordResetService) {
+                          PasswordResetService passwordResetService,
+                          LoginTenantDirectoryService loginTenantDirectoryService) {
         this.authService = authService;
         this.sessionService = sessionService;
         this.cookieProps = cookieProps;
         this.configService = configService;
         this.mfaPolicyService = mfaPolicyService;
         this.passwordResetService = passwordResetService;
+        this.loginTenantDirectoryService = loginTenantDirectoryService;
     }
 
     @PostMapping("/login")
@@ -90,6 +93,11 @@ public class AuthController {
             enabled
                 ? "院方统一身份入口已按认证模式开放，但当前未配置真实 IdP 连接器。"
                 : "当前认证模式未开放院方统一身份入口。"));
+    }
+
+    @GetMapping("/login-tenants")
+    public ApiResult<LoginTenantDirectoryResponse> loginTenants() {
+        return ApiResult.ok(loginTenantDirectoryService.directory());
     }
 
     @PostMapping("/delegated/callback")

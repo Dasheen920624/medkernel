@@ -18,10 +18,20 @@ let delegatedAuthStatusState: {
   isError: boolean;
   error?: unknown;
 };
+let loginTenantDirectoryState: {
+  data?: {
+    primaryTenants: Array<{ tenantId: string; name: string; kind: string }>;
+    platformTenant: { tenantId: string; name: string; kind: string };
+    hasCustomerTenants: boolean;
+  };
+  isLoading: boolean;
+  isError: boolean;
+};
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigateMock }));
 vi.mock("@/shared/api/hooks", () => ({
   useLogin: () => ({ mutateAsync: mutateAsyncMock, isPending: loginPending }),
   useDelegatedAuthStatus: () => delegatedAuthStatusState,
+  useLoginTenantDirectory: () => loginTenantDirectoryState,
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -52,6 +62,15 @@ describe("Login", () => {
       isLoading: false,
       isError: false,
     };
+    loginTenantDirectoryState = {
+      data: {
+        primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
+        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        hasCustomerTenants: false,
+      },
+      isLoading: false,
+      isError: false,
+    };
   });
 
   it("登录成功跳转 /dashboard", async () => {
@@ -68,6 +87,11 @@ describe("Login", () => {
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/dashboard"));
+    expect(mutateAsyncMock).toHaveBeenCalledWith({
+      username: "doctor",
+      password: "Mk@2026dev",
+      tenantId: "t-1",
+    });
   });
 
   it("登录成功后若仍需改密或 MFA，强制进入首次部署引导", async () => {
@@ -120,6 +144,93 @@ describe("Login", () => {
     expect(navigateMock).toHaveBeenCalledWith("/bootstrap");
   });
 
+  it("登录页以登录卡片居中为主，平台状态默认隐藏", () => {
+    render(<Login />);
+
+    expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("登录上下文")).not.toBeInTheDocument();
+    expect(screen.queryByText("平台管理入口")).not.toBeInTheDocument();
+    expect(screen.queryByText("安全审计已开启")).not.toBeInTheDocument();
+  });
+
+  it("租户标识使用字典下拉，默认选择平台主租户", () => {
+    render(<Login />);
+
+    expect(screen.getByLabelText("租户标识")).toHaveAttribute("role", "combobox");
+    expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(
+      screen.getByText("全局医疗知识和标准包的源租户；客户租户进入工作台后分配。"),
+    ).toBeInTheDocument();
+  });
+
+  it("已有客户租户时优先显示客户或集团租户，平台主租户退居第二层", async () => {
+    loginTenantDirectoryState = {
+      data: {
+        primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
+        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        hasCustomerTenants: true,
+      },
+      isLoading: false,
+      isError: false,
+    };
+    mutateAsyncMock.mockResolvedValue({
+      userId: "hosp-admin",
+      tenantId: "t-hospital",
+      roles: ["hospital-admin"],
+      mustChangePwd: false,
+      mfaRequired: false,
+      mfaBound: false,
+    });
+    render(<Login />);
+
+    expect(screen.getByLabelText("客户 / 集团租户")).toHaveAttribute("role", "combobox");
+    expect(await screen.findByText("集团总院")).toBeInTheDocument();
+    expect(screen.queryByText("平台主租户（唯一内置）")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "平台主租户登录" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
+    fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
+
+    await waitFor(() =>
+      expect(mutateAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: "t-hospital" }),
+      ),
+    );
+  });
+
+  it("客户租户存在时可展开第二层切换平台主租户登录", async () => {
+    loginTenantDirectoryState = {
+      data: {
+        primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
+        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        hasCustomerTenants: true,
+      },
+      isLoading: false,
+      isError: false,
+    };
+    render(<Login />);
+
+    fireEvent.click(screen.getByRole("button", { name: "平台主租户登录" }));
+
+    expect(await screen.findByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(screen.getByText(/仅平台开发者和运维人员管理全局知识源时使用/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回客户/集团登录" })).toBeInTheDocument();
+  });
+
+  it("登录帮助默认收起，避免登录卡片首屏过长", () => {
+    render(<Login />);
+
+    expect(screen.getByRole("button", { name: "登录帮助" })).toBeInTheDocument();
+    expect(screen.queryByText("首次登录")).not.toBeInTheDocument();
+    expect(screen.queryByText("忘记密码")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "登录帮助" }));
+
+    expect(screen.getByText("首次登录")).toBeInTheDocument();
+    expect(screen.getByText("忘记密码")).toBeInTheDocument();
+  });
+
   it("登录页根容器注入主题 token，避免背景和文字失效", () => {
     const { container } = render(<Login />);
     const main = container.querySelector("main");
@@ -140,10 +251,32 @@ describe("Login", () => {
     const themeSwitcherCss = cssBlock(loginCss, ".themeSwitcher");
     const providerGridCss = cssBlock(loginCss, ".providerGrid");
 
-    expect(loginCss).toMatch(/grid-template-areas:/);
-    expect(loginCss).toMatch(/grid-area:\s*theme/);
-    expect(themeSwitcherCss).not.toMatch(/position:\s*absolute/);
+    expect(loginCss).toMatch(/place-items:\s*center/);
+    expect(loginCss).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*calc\(var\(--mk-unit\) \* 430\)\)/,
+    );
+    expect(themeSwitcherCss).toMatch(/position:\s*absolute/);
     expect(providerGridCss).not.toMatch(/repeat\(2/);
+  });
+
+  it("登录页默认隐藏帮助列表样式，不让右侧卡片拖出首屏", () => {
+    const loginCss = readLoginCss();
+    const cardStackCss = cssBlock(loginCss, ".cardStack");
+
+    expect(cardStackCss).toContain("gap: calc(var(--mk-unit) * 16)");
+    expect(loginCss).toContain(".helpToggle");
+    expect(loginCss).toContain(".compactFooter");
+  });
+
+  it("登录页布局居中收紧，不让两栏中间留大空白", () => {
+    const loginCss = readLoginCss();
+    const pageCss = cssBlock(loginCss, ".page");
+
+    expect(pageCss).toContain("place-items: center");
+    expect(pageCss).toContain("justify-content: center");
+    expect(pageCss).toContain("grid-template-columns: minmax(0, calc(var(--mk-unit) * 430))");
+    expect(pageCss).not.toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(loginCss).toContain(".secondaryEntry");
   });
 
   it("登录页控件尺寸由主题 token 驱动，支持老年医生模式放大", () => {

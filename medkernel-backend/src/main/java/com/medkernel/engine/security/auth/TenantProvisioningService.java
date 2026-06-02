@@ -24,6 +24,7 @@ import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgLevel;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -77,15 +78,17 @@ public class TenantProvisioningService {
     /** 开通新租户：建租户根组织 + 首个医院管理员账号（须首登改密）+ hospital-admin 角色。 */
     @Transactional
     public ProvisionTenantResponse provisionTenant(ProvisionTenantRequest req) {
-        String tenantId = req.tenantId();
+        String tenantId = req.tenantId().trim();
         String actor = actor();
         mfaPolicyService.assertHighRiskAllowed("platform_tenant", tenantId);
-        if (orgUnits.countByTenantId(tenantId) > 0
+        if (PlatformTenant.isPlatformTenant(tenantId)
+                || orgUnits.countByTenantId(tenantId) > 0
                 || credentials.findByTenantIdAndUsername(tenantId, req.adminUsername()).isPresent()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.CREATE, "platform_tenant", tenantId,
-                ErrorCode.ENG_TENANT_001.code(), "开通租户失败：租户已存在 " + tenantId));
-            throw new ApiException(ErrorCode.ENG_TENANT_001);
+                ErrorCode.ENG_TENANT_001.code(), "开通租户失败：租户已存在或为唯一平台主租户 " + tenantId));
+            throw new ApiException(ErrorCode.ENG_TENANT_001,
+                "平台主租户为唯一内置租户，不能作为客户租户重复开通");
         }
         Instant now = Instant.now();
         OrgUnit tenantRoot = orgUnits.save(new OrgUnit(

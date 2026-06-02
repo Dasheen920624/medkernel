@@ -12,17 +12,12 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 API-06 路径引擎 API 🚧
-
-- 类型：软件开发 / 后端 API / 前端 API 口径 / 文档
-- 分支：`codex/d2-api-06-pathway-engine-api`（基于 `origin/main` 522f47ba，D2 API-05 #250 已合并）
-- 目标：按 [D2 域简报](cards/D2/_brief.md) 与 [API-06](cards/D2/API-06.md) 收口路径引擎 API：统一 `/api/v1/engine/pathway/**` 客户面，专病包 / 路径模板 / 患者路径 / 节点推进 / 变异 / 关键时钟 / 仿真 / 发布合同，补 12 字段统一入参与旧入口清理，并同步共享前端 API 调用口径。
-- 状态：已按 TDD 完成 RED→GREEN 并创建 PR #251，本地全量验证通过：后端统一到 `/api/v1/engine/pathway/**`，新增 12 字段标准上下文校验、`patient-pathways/{id}/advance` 路径参数合同、`variances` 独立查询、旧 `/api/v1/engine/pathways/**` 与旧路径实例 `diagnose` 客户面入口 404；前端共享 hooks 已清理 API-05 旧 `/engine/rules/**` 与 API-06 旧 `/engine/pathways/**`，并让规则/路径页面统一注入标准上下文。已同步服务契约、API-06 卡、backlog 和业务文档；待 CI 8/8、合并清理后领取下一张 D2 卡。
-- 下一步（精确到动作/命令）：1. 等远端 CI 8/8；2. squash 合并、确认 `origin/main` 含合并提交；3. 删除远端分支并清理本地 worktree；4. 从 [backlog](backlog.md) 领取下一张 D2 当前第一闸任务。
-- 相关文件 / 测试 / 坑：关键路径为 `medkernel-backend/src/main/java/com/medkernel/engine/pathway/**`、`medkernel-backend/src/test/java/com/medkernel/engine/pathway/**`、`frontend/src/shared/api/hooks.ts`、`frontend/src/pages/tenant/PathwayTemplates.tsx`、`frontend/src/pages/clinical/PatientPathways.tsx`、`docs/cards/D2/API-06.md`。当前本地证据：后端全量 `mvn -q test` 865 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48；前端 `npm run verify` 41 files / 206 tests 通过；`npm run build` 通过但保留 `DEFER-003` vendor chunk 提示；T-GATE：真实性 24/24、真实性 changed 扫描 15 文件 0 阻断、迁移 / 配置规则测试 10/10、迁移 changed 扫描 0 个新增 SQL 文件 0 阻断、配置 changed 扫描 10 文件 0 阻断、中文注释 0 fail / 0 warn、`git diff --check origin/main...HEAD` 退出 0。已知非当前阶段问题继续登记而不阻塞：国产化真实环境 `DEFER-001`、依赖审计 `DEFER-002`、前端输出噪声 `DEFER-003`、历史 COMMENT GAP `DEFER-006`、跨域规则影响索引 `DEFER-012`、全站历史技术化文案 `DEFER-007`。
+（暂无未归档短线；下一步按 backlog 当前第一闸继续领取。）
 
 ## 已归档工作线（最近完成，供回溯）
 
+- 登录/首次部署/平台主租户源治理与 192.168.8.191 交付 ✅（#252）：按用户现场反馈完成登录页与首次部署接管整体优化，登录页改为居中单目标入口，登录帮助 / 院方统一身份折叠展示，租户标识改为字典下拉；未开通客户 / 集团租户时默认只显示唯一平台主租户 `t-1`，开通客户 / 集团租户后客户入口优先、平台主租户退居第二层。首次部署接管去掉 `BASE-11` 等技术标签，每一步补“返回登录”，MFA 绑定展示二维码、手输密钥、签发方、设备名、6 位 / 30 秒说明，并支持内网离线使用认证器。后端新增登录租户目录，统一 `PlatformTenant` 常量；平台主租户固定为 `t-1`，`SYSTEM` / `__SYSTEM__` 仅作技术命名空间；知识包离线导入允许平台 `t-1` 源同步到客户 / 集团租户后本地定制，禁止客户源污染平台或客户间串包。Oracle 现场库已把旧 `medkernel-basic` 存量凭证 / 角色 / 审计链归一到 `t-1`，删除误落到 `tenant_id` 的异常登录尝试；复核 `platform_credential` 仅 `t-1/medkernel`，`user_role_assignment` 全部业务分配为 `t-1`，102 张带 `TENANT_ID` 表无旧租户 / 客户 / 集团残留，系统配置和内置角色仅保留 `SYSTEM` 技术命名空间。验证：前端 `npm run verify`、`npm run build`，后端 `mvn -B -q test`、`mvn -B -q -DskipTests package`，T-GATE 规则测试、`git diff --check`、中文注释门禁通过；Playwright 本地 / 远端 HTTPS 验证登录与接管页无首屏空洞、无 `BASE-11`，远端 `https://192.168.8.191:8443/`、`/login`、`/bootstrap`、`/medkernel/api/v1/auth/login-tenants`、`/medkernel/actuator/health/readiness` 均正常。远端 `/zoesoft/medkernel` 已备份旧 jar/dist 并替换新包，`medkernel.service` active，Oracle Flyway schema v48，nginx 配置测试与 reload 成功。
+- D2 API-06 路径引擎 API ✅（#251，merge `acffa29a`）：收口 `/api/v1/engine/pathway/**` 统一客户面，交付专病包 / 路径模板 / 患者路径 / 节点推进 / 变异 / 关键时钟 / 仿真 / 发布合同，补 12 字段统一入参，清理旧 `/api/v1/engine/pathways/**` 和旧路径实例 `diagnose` 客户面入口；前端共享 hooks 清理 API-05 / API-06 旧路径，并让规则 / 路径页面统一注入标准上下文。本地后端全量、前端 verify/build、T-GATE 与远端 CI 通过后合入 `origin/main`。
 - D2 API-05 规则引擎 API ✅（#250，merge `522f47b`）：收口 `/api/v1/engine/rule/**` 统一客户面，交付规则定义 CRUD、测试病例、测试执行、仿真、影响分析、发布门禁、执行与执行解释；补 12 字段统一入参、旧 `/api/v1/engine/rules` 客户面入口 404 清理、高危规则发布影响摘要门禁、测试全绿门禁、DSL 错误码和执行解释。本地后端聚焦回归、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描、中文注释扫描、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。真实跨域影响对象归 `DEFER-012`，不阻塞 API-06。
 - D2 API-04 字典映射 API ✅（#249，merge `b7fd2979`）：收口 `/api/v1/engine/terminology/**` 统一客户面，交付标准 / 院内字典查询、确定性候选生成、高危标注、禁批量确认、逐条二次确认、冲突列举、映射包发布 / 回滚与 12 字段统一入参；清理旧 `auto-recommend` / `standard-terms` / `local-terms` / `packages/**` / `candidates/{id}/confirm` 客户面入口。本地聚焦回归、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描、中文注释扫描、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001`、`DEFER-006`、`DEFER-010`、`DEFER-011` 保持 open，不阻塞主线但不得宣称清零。
 - D2 API-03 标准知识资产 API ✅（#248，merge `86a01727`）：收口 `/api/v1/engine/knowledge/**` 统一客户面，交付来源登记、资产版本、引用锚点、提交 / 激活 / 撤回、lineage、历史重放、异步导出、标准上下文与候选诚实 B0；新增无来源引用禁止激活门禁 `KNOWLEDGE_CITATION_REQUIRED`，清理 API-03 触碰范围旧入口和不自然“物理”表述。本地聚焦回归、`FlywayMultiDialectSmokeTest`、后端全量 `mvn -q test`、T-GATE 34/34、真实性全仓扫描 747 文件、中文注释扫描、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；远端分支和本地 worktree 已清理。`DEFER-001`、`DEFER-006`、`DEFER-009` 保持 open，不阻塞主线但不得宣称清零。
@@ -137,4 +132,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；当前分支为 `codex/d2-api-06-pathway-engine-api`，API-06 已完成本地全量验证与 T-GATE，正在 PR/CI/合并收口。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 本轮已完成登录 / 首次部署接管体验重构、平台主租户 `t-1` 唯一源治理、Oracle 旧 `medkernel-basic` 数据归一和 192.168.8.191 HTTPS 交付；长期目标保持 active。`origin/main` 已包含 D2 API-06 路径引擎 API（merge `acffa29a`），后续按最新 `origin/main` 从 [backlog](backlog.md) 继续领取下一张当前第一闸任务。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

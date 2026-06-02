@@ -88,6 +88,7 @@ public class SecurityConfig {
                     "/api/v1/bootstrap/password",
                     "/api/v1/auth/login",
                     "/api/v1/auth/password-reset",
+                    "/api/v1/auth/login-tenants",
                     "/api/v1/auth/delegated/status",
                     "/api/v1/auth/delegated/callback",
                     "/api/v1/auth/logout",

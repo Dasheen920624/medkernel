@@ -3220,12 +3220,29 @@ export interface DelegatedAuthStatus {
   message: string;
 }
 
+export interface LoginTenantOption {
+  tenantId: string;
+  name: string;
+  kind: "PLATFORM" | "CUSTOMER" | string;
+}
+
+export interface LoginTenantDirectory {
+  primaryTenants: LoginTenantOption[];
+  platformTenant: LoginTenantOption;
+  hasCustomerTenants: boolean;
+}
+
 type DelegatedAuthStatusEnvelope = {
   data: DelegatedAuthStatus;
 };
 
 export async function fetchDelegatedAuthStatus(): Promise<DelegatedAuthStatus> {
   const resp = await apiClient.get<DelegatedAuthStatusEnvelope>("/auth/delegated/status");
+  return resp.data.data;
+}
+
+export async function fetchLoginTenantDirectory(): Promise<LoginTenantDirectory> {
+  const resp = await apiClient.get<{ data: LoginTenantDirectory }>("/auth/login-tenants");
   return resp.data.data;
 }
 
@@ -3263,6 +3280,15 @@ export function useDelegatedAuthStatus(enabled = true) {
     queryKey: ["auth", "delegated", "status"],
     queryFn: fetchDelegatedAuthStatus,
     enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useLoginTenantDirectory() {
+  return useQuery({
+    queryKey: ["auth", "login-tenants"],
+    queryFn: fetchLoginTenantDirectory,
     retry: false,
     staleTime: 60_000,
   });

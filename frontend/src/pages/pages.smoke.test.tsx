@@ -62,6 +62,37 @@ function mockDelegatedAuthStatus() {
         config,
       };
     }
+    if (config.url === "/auth/login-tenants") {
+      return {
+        data: {
+          data: {
+            primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
+            platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+            hasCustomerTenants: false,
+          },
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    }
+    if (config.url === "/experience/theme-preference") {
+      return {
+        data: {
+          data: {
+            mode: "DEFAULT",
+            version: 1,
+            updatedAt: null,
+            updatedBy: null,
+          },
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    }
     throw new Error(`未预期的测试接口请求：${config.url ?? ""}`);
   }) as AxiosAdapter;
 }
@@ -165,13 +196,14 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "集团医疗智能中枢" })).toBeInTheDocument();
-    expect(
-      screen.getByText("确认身份后进入工作台，系统会按角色展示对应菜单。"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("安全审计已开启")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
+    expect(screen.getByText("使用医院账号或统一身份继续")).toBeInTheDocument();
+    expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(screen.queryByText("安全审计已开启")).toBeNull();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录帮助" })).toBeInTheDocument();
+    expect(screen.queryByText("首次登录")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 

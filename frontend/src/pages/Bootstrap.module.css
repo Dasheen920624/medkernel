@@ -2,21 +2,17 @@
   min-height: 100vh;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, calc(var(--mk-unit) * 560)) minmax(
-      calc(var(--mk-unit) * 360),
-      calc(var(--mk-unit) * 560)
+  grid-template-columns: minmax(0, calc(var(--mk-unit) * 480)) minmax(
+      calc(var(--mk-unit) * 380),
+      calc(var(--mk-unit) * 520)
     );
   align-items: center;
   justify-content: center;
-  gap: calc(var(--mk-unit) * 32);
-  padding: calc(var(--mk-unit) * 56)
+  gap: calc(var(--mk-unit) * 24);
+  padding: calc(var(--mk-unit) * 48)
     clamp(calc(var(--mk-unit) * 20), 6vw, calc(var(--mk-unit) * 72));
-  color: var(--mk-bootstrap-text, CanvasText);
-  background: linear-gradient(
-    135deg,
-    var(--mk-bootstrap-surface-tint, Canvas),
-    var(--mk-bootstrap-layout, Canvas)
-  );
+  color: var(--mk-bootstrap-text);
+  background: linear-gradient(135deg, var(--mk-bootstrap-surface-tint), var(--mk-bootstrap-layout));
 }
 
 .themeSwitcher {
@@ -25,16 +21,16 @@
   right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
   z-index: 1;
   padding: calc(var(--mk-unit) * 4);
-  border: var(--mk-line-width) solid var(--mk-bootstrap-border, currentColor);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
   border-radius: var(--mk-bootstrap-radius);
-  background: var(--mk-bootstrap-surface, Canvas);
+  background: var(--mk-bootstrap-surface);
   box-shadow: var(--mk-bootstrap-shadow);
 }
 
 .hero {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 18);
+  gap: calc(var(--mk-unit) * 14);
 }
 
 .title {
@@ -45,8 +41,36 @@
 }
 
 .lead {
-  max-width: calc(var(--mk-unit) * 520);
+  max-width: calc(var(--mk-unit) * 460);
   font-size: var(--mk-bootstrap-font-lg);
+  font-weight: 700;
+  color: var(--mk-bootstrap-text);
+}
+
+.signalList {
+  display: grid;
+  gap: calc(var(--mk-unit) * 8);
+  width: 100%;
+  margin: calc(var(--mk-unit) * 2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signalItem {
+  display: grid;
+  gap: calc(var(--mk-unit) * 2);
+  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: var(--mk-bootstrap-radius);
+  background: var(--mk-bootstrap-surface);
+}
+
+.signalItem span {
+  font-size: var(--mk-bootstrap-font-sm);
+  color: var(--mk-bootstrap-muted);
+}
+
+.signalItem strong {
   font-weight: 700;
   color: var(--mk-bootstrap-text);
 }
@@ -56,9 +80,9 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: calc(var(--mk-unit) * 10);
   align-items: start;
-  max-width: calc(var(--mk-unit) * 560);
-  padding: calc(var(--mk-unit) * 14) calc(var(--mk-unit) * 16);
-  border: var(--mk-line-width) solid var(--mk-bootstrap-border, currentColor);
+  max-width: calc(var(--mk-unit) * 480);
+  padding: calc(var(--mk-unit) * 12) calc(var(--mk-unit) * 14);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
   border-radius: var(--mk-bootstrap-radius);
   background: var(--mk-bootstrap-surface);
 }
@@ -70,20 +94,20 @@
 
 .panel {
   width: 100%;
-  border: var(--mk-line-width) solid var(--mk-bootstrap-border, currentColor);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
   border-radius: var(--mk-bootstrap-radius);
   box-shadow: var(--mk-bootstrap-shadow);
 }
 
 .panel :global(.ant-card-body) {
-  padding: calc(var(--mk-unit) * 28);
+  padding: calc(var(--mk-unit) * 26);
 }
 
 .panelStack,
 .stepSection {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 18);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .stepTitle {
@@ -94,14 +118,20 @@
 .page :global(.ant-form-item-label > label),
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-select),
 .page :global(.ant-btn) {
   font-size: var(--mk-bootstrap-control-font);
 }
 
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-select-selector),
 .page :global(.ant-btn-lg) {
   min-height: var(--mk-bootstrap-control-height);
+}
+
+.page :global(.ant-select-selector) {
+  align-items: center;
 }
 
 .page :global(.ant-input-affix-wrapper .ant-input) {
@@ -117,18 +147,76 @@
   margin-bottom: 0;
 }
 
+.formActions {
+  display: grid;
+  gap: calc(var(--mk-unit) * 10);
+}
+
 .recoveryBox {
   display: grid;
   gap: calc(var(--mk-unit) * 6);
   min-width: min(100%, calc(var(--mk-unit) * 320));
   padding: calc(var(--mk-unit) * 14);
-  border: var(--mk-line-width) solid var(--mk-bootstrap-border, currentColor);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
   border-radius: var(--mk-bootstrap-radius);
   background: var(--mk-bootstrap-fill);
 }
 
 .recoveryCode {
   font-size: var(--mk-bootstrap-font-lg);
+  word-break: break-all;
+}
+
+.mfaSetupGrid {
+  display: grid;
+  grid-template-columns: minmax(0, calc(var(--mk-unit) * 188)) minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 12);
+  align-items: start;
+}
+
+.qrPanel,
+.manualPanel {
+  min-width: 0;
+  display: grid;
+  gap: calc(var(--mk-unit) * 8);
+  padding: calc(var(--mk-unit) * 12);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: var(--mk-bootstrap-radius);
+  background: var(--mk-bootstrap-fill);
+}
+
+.qrPanel {
+  justify-items: center;
+  text-align: center;
+}
+
+.mfaSteps {
+  display: grid;
+  gap: calc(var(--mk-unit) * 4);
+  margin: 0;
+  padding-left: calc(var(--mk-unit) * 18);
+  color: var(--mk-bootstrap-muted);
+}
+
+.mfaManualList {
+  display: grid;
+  gap: calc(var(--mk-unit) * 6);
+  margin: 0;
+}
+
+.mfaManualList div {
+  display: grid;
+  grid-template-columns: calc(var(--mk-unit) * 76) minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.mfaManualList dt {
+  color: var(--mk-bootstrap-muted);
+}
+
+.mfaManualList dd {
+  min-width: 0;
+  margin: 0;
   word-break: break-all;
 }
 
@@ -152,5 +240,14 @@
 @media (max-width: 35em) {
   .panel :global(.ant-card-body) {
     padding: calc(var(--mk-unit) * 22);
+  }
+
+  .mfaSetupGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .mfaManualList div {
+    grid-template-columns: 1fr;
+    gap: calc(var(--mk-unit) * 2);
   }
 }

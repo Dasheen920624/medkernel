@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const FRONTEND_DIR = dirname(fileURLToPath(import.meta.url));
+const STYLELINT_BIN = join(FRONTEND_DIR, "node_modules", "stylelint", "bin", "stylelint.mjs");
 
 async function withCss(content, run) {
   const dir = await mkdtemp(join(tmpdir(), "medkernel-stylelint-"));
@@ -20,7 +21,7 @@ async function withCss(content, run) {
 }
 
 function runStylelint(file) {
-  return execFileSync("npx", ["stylelint", "--config", "stylelint.config.mjs", file], {
+  return execFileSync(process.execPath, [STYLELINT_BIN, "--config", "stylelint.config.mjs", file], {
     cwd: FRONTEND_DIR,
     encoding: "utf8",
     stdio: "pipe",

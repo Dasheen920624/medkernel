@@ -31,6 +31,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -465,9 +466,7 @@ public class PackageEngineService {
         }
 
         validateManifestPayloadMatch(manifest, packageInfo, sourcePackageId, sourceTenantId, packageCode, packageVersion);
-        if (!tenantId.equals(sourceTenantId)) {
-            throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "离线包租户与当前租户不一致，禁止导入");
-        }
+        validateOfflineImportTenantLineage(tenantId, sourceTenantId);
 
         int itemCount = requireInt(manifest, "itemCount", "离线包 itemCount 不合法");
         if (itemCount != itemsNode.size()) {
@@ -502,11 +501,13 @@ public class PackageEngineService {
         );
         KnowledgePackage savedPackage = packageRepository.save(importedPackage);
         List<PackageItem> importedItems = buildOfflineImportItems(
-            itemsNode, tenantId, savedPackage.packageId(), sourcePackageId, actor, traceId, now);
+            itemsNode, tenantId, sourceTenantId, savedPackage.packageId(), sourcePackageId, actor, traceId, now);
         importedItems.forEach(itemRepository::save);
 
         auditPublisher.publish(AuditAction.IMPORT, "knowledge_package", savedPackage.packageId(),
             "导入配置包离线安装包为草案，版本: " + packageVersion
+                + "，源租户: " + sourceTenantId
+                + "，源包: " + sourcePackageId
                 + "，资产条目数: " + importedItems.size()
                 + "，payloadSha256: " + actualSha256);
         return new PackageOfflineImportResponse(
@@ -840,6 +841,23 @@ public class PackageEngineService {
         }
     }
 
+    private void validateOfflineImportTenantLineage(String currentTenantId, String sourceTenantId) {
+        if (currentTenantId.equals(sourceTenantId)) {
+            return;
+        }
+        if (PlatformTenant.isPlatformTenant(sourceTenantId) && !PlatformTenant.isPlatformTenant(currentTenantId)) {
+            return;
+        }
+        if (PlatformTenant.isPlatformTenant(currentTenantId)) {
+            throw new ApiException(
+                ErrorCode.TENANT_FORBIDDEN,
+                "客户或集团离线包禁止导入平台主租户，平台主源只能由平台租户自身维护");
+        }
+        throw new ApiException(
+            ErrorCode.TENANT_FORBIDDEN,
+            "离线包仅允许本租户恢复，或从平台主租户下发到客户 / 集团租户");
+    }
+
     private void validateManifestPayloadMatch(
             JsonNode manifest,
             JsonNode packageInfo,
@@ -862,6 +880,7 @@ public class PackageEngineService {
     private List<PackageItem> buildOfflineImportItems(
             JsonNode itemsNode,
             String tenantId,
+            String sourceTenantId,
             String importedPackageId,
             String sourcePackageId,
             String actor,
@@ -873,7 +892,7 @@ public class PackageEngineService {
             if (itemNode == null || !itemNode.isObject()) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产条目必须是对象");
             }
-            requireSameText(itemNode, "tenantId", tenantId, "离线包资产条目租户与当前租户不一致");
+            requireSameText(itemNode, "tenantId", sourceTenantId, "离线包资产条目租户与源租户不一致");
             requireSameText(itemNode, "packageId", sourcePackageId, "离线包资产条目 packageId 与包元信息不一致");
             PackageItemAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
             String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
