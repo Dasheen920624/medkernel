@@ -17,6 +17,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ClinicalEventContext;
+import com.medkernel.engine.context.ContextSnapshotResources;
+import com.medkernel.engine.context.ContextSnapshotResponse;
+import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -61,6 +65,7 @@ public class PathwayEngineService {
     private final PathwayVarianceRepository variances;
     private final ClinicalClockRepository clocks;
     private final SpecialtyMetricBindingRepository metricBindings;
+    private final ContextSnapshotService contextSnapshots;
     private final PathwayProgressor progressor;
     private final AuditEventPublisher auditPublisher;
     private final StateTransitionRecorder transitions;
@@ -79,6 +84,7 @@ public class PathwayEngineService {
                                 PathwayVarianceRepository variances,
                                 ClinicalClockRepository clocks,
                                 SpecialtyMetricBindingRepository metricBindings,
+                                ContextSnapshotService contextSnapshots,
                                 PathwayProgressor progressor,
                                 AuditEventPublisher auditPublisher,
                                 StateTransitionRecorder transitions,
@@ -93,6 +99,7 @@ public class PathwayEngineService {
         this.variances = variances;
         this.clocks = clocks;
         this.metricBindings = metricBindings;
+        this.contextSnapshots = contextSnapshots;
         this.progressor = progressor;
         this.auditPublisher = auditPublisher;
         this.transitions = transitions;
@@ -194,7 +201,9 @@ public class PathwayEngineService {
         ensureTemplateDraft(template);
         List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
         List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
-        validatePublishGate(template, graphNodes, graphEdges);
+        List<SpecialtyMetricBinding> graphBindings =
+            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId);
+        validatePublishGate(template, graphNodes, graphEdges, graphBindings);
 
         Instant now = Instant.now();
         String actor = currentActor();
@@ -278,6 +287,8 @@ public class PathwayEngineService {
                 template.templateId(), effective.sourceTenantId(), startNodeCode)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_006,
                 "入径起始节点不存在: " + startNodeCode));
+        List<SpecialtyMetricBinding> graphBindings = metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+            template.templateId(), effective.sourceTenantId());
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
         Instant now = Instant.now();
@@ -287,7 +298,8 @@ public class PathwayEngineService {
             template.templateId(), startNode.nodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             now, null, null, null, null, now, actor, now, actor, traceId));
         ClinicalClock startClock = clocks.save(newClock(
-            tenantId, patientPathwayId, startNode, now, actor, traceId));
+            tenantId, patientPathwayId, startNode, metricCodeForNode(graphBindings, startNode.nodeCode()),
+            now, actor, traceId));
         transitions.record(PATIENT_PATHWAY_ENTITY, patientPathwayId, null,
             PatientPathwayStatus.NODE_EXECUTING.name(), "ENTER_PATHWAY", null);
         auditPublisher.publish(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
@@ -370,6 +382,9 @@ public class PathwayEngineService {
         String currentNode = request == null || isBlank(request.startNodeCode())
             ? template.startNodeCode() : request.startNodeCode();
         List<String> requestedTargets = request == null ? List.of() : request.requestedNextNodeCodes();
+        ContextSnapshotResponse snapshot = request == null || isBlank(request.snapshotId())
+            ? null : contextSnapshots.findById(request.snapshotId());
+        Map<String, Object> facts = snapshot == null ? Map.of() : contextFacts(snapshot.resources());
         java.util.ArrayList<String> trajectory = new java.util.ArrayList<>();
         trajectory.add(currentNode);
         PatientPathwayStatus finalStatus = PatientPathwayStatus.NODE_EXECUTING;
@@ -377,7 +392,7 @@ public class PathwayEngineService {
             String requestedTarget = i < requestedTargets.size() ? requestedTargets.get(i) : null;
             PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
                 new PathwayGraph(graphNodes, graphEdges), currentNode,
-                PathwayAdvanceEventType.COMPLETE, requestedTarget));
+                PathwayAdvanceEventType.COMPLETE, requestedTarget, facts));
             finalStatus = decision.status();
             if (decision.nextNodeCode() == null) {
                 break;
@@ -385,7 +400,16 @@ public class PathwayEngineService {
             currentNode = decision.nextNodeCode();
             trajectory.add(currentNode);
         }
-        return new PathwaySimulationResponse(templateId, trajectory, finalStatus, RequestContext.currentTraceId());
+        return new PathwaySimulationResponse(
+            templateId,
+            snapshot == null ? null : snapshot.snapshotId(),
+            trajectory,
+            finalStatus,
+            snapshot == null ? null : snapshot.qualityStatus(),
+            snapshot == null ? List.of() : snapshot.missingFields(),
+            snapshot == null ? Map.of() : snapshot.mappingStatus(),
+            snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()),
+            RequestContext.currentTraceId());
     }
 
     /**
@@ -407,9 +431,14 @@ public class PathwayEngineService {
             effective.template().templateId(), effective.sourceTenantId());
         List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
             effective.template().templateId(), effective.sourceTenantId());
+        List<SpecialtyMetricBinding> graphBindings = metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+            effective.template().templateId(), effective.sourceTenantId());
+        ContextSnapshotResponse snapshot = isBlank(request.snapshotId())
+            ? null : contextSnapshots.findById(request.snapshotId());
+        Map<String, Object> facts = snapshot == null ? Map.of() : contextFacts(snapshot.resources());
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
             new PathwayGraph(graphNodes, graphEdges), currentNodeCode,
-            request.eventType(), request.requestedNextNodeCode()));
+            request.eventType(), request.requestedNextNodeCode(), facts));
 
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
@@ -426,7 +455,9 @@ public class PathwayEngineService {
         ClinicalClock nextClock = null;
         PathwayNode nextNode = findNode(graphNodes, decision.nextNodeCode());
         if (decision.status() == PatientPathwayStatus.NODE_EXECUTING && nextNode != null) {
-            nextClock = clocks.save(newClock(tenantId, runtime.patientPathwayId(), nextNode, now, actor, traceId));
+            nextClock = clocks.save(newClock(
+                tenantId, runtime.patientPathwayId(), nextNode,
+                metricCodeForNode(graphBindings, nextNode.nodeCode()), now, actor, traceId));
         }
 
         PatientPathway updated = copyRuntime(runtime, decision, request, now, actor, traceId);
@@ -437,7 +468,14 @@ public class PathwayEngineService {
             "推进患者路径 " + runtime.patientPathwayId());
         return new PathwayAdvanceResponse(
             runtime.patientPathwayId(), decision.previousNodeCode(), decision.nextNodeCode(),
-            decision.status(), varianceId, traceId);
+            decision.status(), varianceId,
+            decision.edgeCode(), decision.edgeType(),
+            snapshot == null ? null : snapshot.snapshotId(),
+            snapshot == null ? null : snapshot.qualityStatus(),
+            snapshot == null ? List.of() : snapshot.missingFields(),
+            snapshot == null ? Map.of() : snapshot.mappingStatus(),
+            snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()),
+            decision.evidence(), traceId);
     }
 
     /**
@@ -459,7 +497,8 @@ public class PathwayEngineService {
     }
 
     private void validatePublishGate(PathwayTemplate template, List<PathwayNode> graphNodes,
-                                     List<PathwayEdge> graphEdges) {
+                                     List<PathwayEdge> graphEdges,
+                                     List<SpecialtyMetricBinding> graphBindings) {
         Set<String> nodeCodes = new HashSet<>();
         boolean hasTerminal = false;
         for (PathwayNode node : graphNodes) {
@@ -487,6 +526,23 @@ public class PathwayEngineService {
         for (PathwayNode node : graphNodes) {
             if (!Boolean.TRUE.equals(node.terminalFlag()) && !nodesWithOutgoing.contains(node.nodeCode())) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "非终止节点缺少出边: " + node.nodeCode());
+            }
+        }
+        validateClockBindings(graphNodes, graphBindings);
+    }
+
+    private void validateClockBindings(List<PathwayNode> graphNodes, List<SpecialtyMetricBinding> graphBindings) {
+        Set<String> boundNodes = new HashSet<>();
+        for (SpecialtyMetricBinding binding : nullToEmpty(graphBindings)) {
+            if (!isBlank(binding.nodeCode()) && !isBlank(binding.metricCode())) {
+                boundNodes.add(binding.nodeCode());
+            }
+        }
+        for (PathwayNode node : graphNodes) {
+            if (node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0
+                    && !boundNodes.contains(node.nodeCode())) {
+                throw new ApiException(ErrorCode.PATHWAY_CLOCK_MISSING,
+                    "节点 " + node.nodeCode() + " 设置了关键时限但未绑定质控指标");
             }
         }
     }
@@ -532,13 +588,23 @@ public class PathwayEngineService {
     }
 
     private ClinicalClock newClock(String tenantId, String patientPathwayId,
-                                   PathwayNode node, Instant now, String actor, String traceId) {
+                                   PathwayNode node, String metricCode,
+                                   Instant now, String actor, String traceId) {
         Instant dueAt = node.timeWindowMinutes() == null ? null
             : now.plusSeconds(node.timeWindowMinutes().longValue() * 60L);
         return new ClinicalClock(
             null, "cc-" + UUID.randomUUID(), tenantId, patientPathwayId,
-            node.nodeCode(), null, now, dueAt, null, ClinicalClockStatus.RUNNING,
+            node.nodeCode(), metricCode, now, dueAt, null, ClinicalClockStatus.RUNNING,
             now, actor, now, actor, traceId);
+    }
+
+    private String metricCodeForNode(List<SpecialtyMetricBinding> graphBindings, String nodeCode) {
+        return nullToEmpty(graphBindings).stream()
+            .filter(binding -> Objects.equals(binding.nodeCode(), nodeCode))
+            .filter(binding -> !isBlank(binding.metricCode()))
+            .map(SpecialtyMetricBinding::metricCode)
+            .findFirst()
+            .orElse(null);
     }
 
     private ClinicalClock copyClock(ClinicalClock clock, ClinicalClockStatus status,
@@ -547,6 +613,49 @@ public class PathwayEngineService {
             clock.id(), clock.clockId(), clock.tenantId(), clock.patientPathwayId(),
             clock.nodeCode(), clock.metricCode(), clock.startedAt(), clock.dueAt(),
             now, status, clock.createdAt(), clock.createdBy(), now, actor, traceId);
+    }
+
+    private Map<String, Object> contextFacts(ContextSnapshotResources resources) {
+        if (resources == null) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> facts = new LinkedHashMap<>();
+        if (resources.patient() != null) {
+            facts.put("context.patient.mpi", resources.patient().mpi());
+            facts.put("patient.mpi", resources.patient().mpi());
+        }
+        for (CanonicalObservation observation : resources.observations()) {
+            Object value = observation.valueNumeric() == null
+                ? observation.valueString()
+                : observation.valueNumeric();
+            String code = observation.code();
+            facts.put("observation." + code + ".value", value);
+            facts.put("observation." + code + ".valueNumeric", observation.valueNumeric());
+            facts.put("observation." + code + ".criticalFlag", observation.criticalFlag());
+            facts.put("context.observations." + code + ".value", value);
+            facts.put("context.observations." + code + ".criticalFlag", observation.criticalFlag());
+        }
+        return facts;
+    }
+
+    private Map<String, Integer> contextResourceCounts(ContextSnapshotResources resources) {
+        if (resources == null) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("patient", resources.patient() == null ? 0 : 1);
+        counts.put("encounters", resources.encounters().size());
+        counts.put("conditions", resources.conditions().size());
+        counts.put("nursingAssessments", resources.nursingAssessments().size());
+        counts.put("observations", resources.observations().size());
+        counts.put("diagnosticReports", resources.diagnosticReports().size());
+        counts.put("medications", resources.medications().size());
+        counts.put("procedures", resources.procedures().size());
+        counts.put("documents", resources.documents().size());
+        counts.put("carePlans", resources.carePlans().size());
+        counts.put("followUps", resources.followUps().size());
+        counts.put("claims", resources.claims().size());
+        return counts;
     }
 
     private PathwayTemplate findTemplate(String templateId, String tenantId) {

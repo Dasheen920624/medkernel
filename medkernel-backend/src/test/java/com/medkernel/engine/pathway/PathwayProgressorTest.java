@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,56 @@ class PathwayProgressorTest {
             graph(), "ASSESS", PathwayAdvanceEventType.COMPLETE, "SURGERY"));
 
         assertThat(decision.nextNodeCode()).isEqualTo("SURGERY");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
+    }
+
+    @Test
+    void skipsUnmatchedConditionEdgeAndFallsBackToDefaultEdge() {
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            conditionGraph(), "REVIEW", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("context.readyForFollowup", false)));
+
+        assertThat(decision.previousNodeCode()).isEqualTo("REVIEW");
+        assertThat(decision.nextNodeCode()).isEqualTo("PLAN");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.DEFAULT);
+        assertThat(decision.evidence()).containsEntry("context.readyForFollowup", false);
+    }
+
+    @Test
+    void recordsMissingConditionFactAndFallsBackToDefaultEdge() {
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            conditionGraph(), "REVIEW", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of()));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("PLAN");
+        assertThat(decision.evidence()).containsKey("context.readyForFollowup");
+        assertThat(decision.evidence().get("context.readyForFollowup")).isNull();
+    }
+
+    @Test
+    void prefersMatchedConditionEdgeOverDefaultFallback() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("REVIEW", 10, false),
+                node("PLAN", 20, false),
+                node("FOLLOWUP", 30, true)
+            ),
+            List.of(
+                edge("e-default", tenantId, templateId, "REVIEW", "PLAN",
+                    PathwayEdgeType.DEFAULT, 1),
+                edge("e-condition", tenantId, templateId, "REVIEW", "FOLLOWUP",
+                    PathwayEdgeType.CONDITION, 2,
+                    "{\"fact\":\"context.readyForFollowup\",\"operator\":\"equals\",\"value\":true}")
+            )
+        );
+
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            graph, "REVIEW", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("context.readyForFollowup", true)));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("FOLLOWUP");
         assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
     }
 
@@ -98,6 +149,25 @@ class PathwayProgressorTest {
         );
     }
 
+    private PathwayGraph conditionGraph() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        return new PathwayGraph(
+            List.of(
+                node("REVIEW", 10, false),
+                node("FOLLOWUP", 20, true),
+                node("PLAN", 30, false)
+            ),
+            List.of(
+                edge("e-condition", tenantId, templateId, "REVIEW", "FOLLOWUP",
+                    PathwayEdgeType.CONDITION, 1,
+                    "{\"fact\":\"context.readyForFollowup\",\"operator\":\"equals\",\"value\":true}"),
+                edge("e-default", tenantId, templateId, "REVIEW", "PLAN",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+    }
+
     private PathwayNode node(String code, int sortOrder, boolean terminal) {
         Instant now = Instant.now();
         return new PathwayNode(
@@ -108,9 +178,15 @@ class PathwayProgressorTest {
 
     private PathwayEdge edge(String edgeId, String tenantId, String templateId,
                              String from, String to, PathwayEdgeType type, int priority) {
+        return edge(edgeId, tenantId, templateId, from, to, type, priority, null);
+    }
+
+    private PathwayEdge edge(String edgeId, String tenantId, String templateId,
+                             String from, String to, PathwayEdgeType type, int priority,
+                             String conditionJson) {
         Instant now = Instant.now();
         return new PathwayEdge(
             null, edgeId, tenantId, templateId, edgeId, from, to, type,
-            null, priority, now, "tester", now, "tester", "trace-pathway");
+            conditionJson, priority, now, "tester", now, "tester", "trace-pathway");
     }
 }

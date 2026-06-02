@@ -24,6 +24,7 @@ public record PathwayAdvanceRequest(
     @JsonAlias("user_id") String userId,
     @JsonAlias("role_codes") List<String> roleCodes,
     @JsonAlias("package_version") String packageVersion,
+    @JsonAlias("snapshot_id") String snapshotId,
     String patientPathwayId,
     @NotNull PathwayAdvanceEventType eventType,
     String currentNodeCode,
@@ -48,14 +49,29 @@ public record PathwayAdvanceRequest(
                                  String exitReason,
                                  String eventId) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+            null, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+            varianceReason, resolutionAction, exitReason, eventId);
+    }
+
+    public PathwayAdvanceRequest(String patientPathwayId,
+                                 PathwayAdvanceEventType eventType,
+                                 String currentNodeCode,
+                                 String requestedNextNodeCode,
+                                 VarianceType varianceType,
+                                 String varianceReason,
+                                 String resolutionAction,
+                                 String exitReason,
+                                 String eventId,
+                                 String snapshotId) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            snapshotId, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             varianceReason, resolutionAction, exitReason, eventId);
     }
 
     public PathwayAdvanceRequest withPatientPathwayId(String id) {
         return new PathwayAdvanceRequest(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion, id,
+            departmentId, specialtyId, userId, roleCodes, packageVersion, snapshotId, id,
             eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             varianceReason, resolutionAction, exitReason, eventId
         );

@@ -18,6 +18,7 @@
 `engine/pathway` **控制器已建**，本卡＝**契约化 + 统一入参/分页对齐**：
 - 已有：`PathwayEngineController`(+ 安全测试)、`PathwayEngineService`、`PathwayTemplateCreateRequest`/`Detail`/`Filter`/`PublishResponse`、`PatientPathwayEnterRequest`/`Detail`、`PathwayAdvanceRequest`/`Response`、`PathwaySimulateRequest`/`Response`、`SpecialtyPackageCreateRequest`、`SpecialtyMetricBindingRequest`、`ClinicalClock`。
 - 2026-06-02 本卡补齐：① 统一 12 字段入参 + `ApiResult`/`ProblemDetail`；② `/api/v1/engine/pathway/**` 客户面；③ `patient-pathways/{id}/advance` 路径参数合同；④ `variances`/`clocks` 独立查询；⑤ 前端共享 hooks 和消费页清理旧 `/engine/rules/**`、`/engine/pathways/**` 口径。
+- 2026-06-02 PATH-01 PR1 追加：`POST /pathway-templates/{id}/simulate` 与 `POST /patient-pathways/{id}/advance` 支持 `snapshotId` 读取 [API-01](API-01.md) 真实上下文快照；响应追加快照质量 / 缺失字段 / 映射状态 / 资源计数，推进响应追加 `edgeCode`、`edgeType`、`decisionEvidence`。条件边推进可消费快照事实证据；旧只按起点 / 目标序列或人工指定目标的结构化路径仍保留为兼容路径，但后续页面必须优先选择真实快照。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 模板/专病包**：`GET/POST /pathway-templates`、`POST /specialty-packages`；列表分页（[API-13](../D0/API-13.md)）。
@@ -68,5 +69,5 @@ N·A —— 本卡无页面。被 [PATH-01](PATH-01.md) 路径配置页 + D3 患
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/pathway/**` 端点 + 推进/变异/时钟 + 发布接 [SYS-04](SYS-04.md)。
-- 测试：契约 + 安全 + 推进幂等 + 变异/时钟 + 发布回滚测试；本地聚焦已过：`mvn -q -Dtest=PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,PathwayEngineServiceTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`npm run typecheck`、`npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts`；本地全量已过：`mvn -q test`（865 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48）、`npm run verify`（41 files / 206 tests）、`npm run build`、T-GATE（真实性 24/24、迁移规约 8/8、配置边界 2/2、changed 扫描 0 阻断、中文注释 0 fail / 0 warn、`git diff --check`）。
+- 测试：契约 + 安全 + 推进幂等 + 变异/时钟 + 发布回滚测试；本地聚焦已过：`mvn -q -Dtest=PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,PathwayEngineServiceTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`npm run typecheck`、`npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts`；本地全量已过：`mvn -q test`（865 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48）、`npm run verify`（41 files / 206 tests）、`npm run build`、T-GATE（真实性 24/24、迁移规约 8/8、配置边界 2/2、changed 扫描 0 阻断、中文注释 0 fail / 0 warn、`git diff --check`）。PATH-01 PR1 追加验证：`PathwayEngineServiceTest` 覆盖实时推进携带 `snapshotId` 并返回 `edgeCode`、`edgeType`、快照质量与 `decisionEvidence`；`PathwayProgressorTest` 覆盖条件边优先于默认 fallback；聚焦后端套件、后端全量、前端 verify/build、T-GATE 均通过，历史噪声与历史迁移债务分别登记在 `DEFER-003`、`DEFER-006`、`DEFER-016`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

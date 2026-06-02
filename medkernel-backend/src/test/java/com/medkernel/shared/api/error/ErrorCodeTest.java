@@ -170,6 +170,11 @@ class ErrorCodeTest {
             assertThat(code.errorClass()).isEqualTo(ErrorClass.DATA);
             assertThat(code.retryable()).isFalse();
         });
+        assertThat(ErrorCode.fromCode("PATHWAY_CLOCK_MISSING")).hasValueSatisfying(code -> {
+            assertThat(code.httpStatus()).isEqualTo(409);
+            assertThat(code.errorClass()).isEqualTo(ErrorClass.DATA);
+            assertThat(code.retryable()).isFalse();
+        });
     }
 
     @Test

@@ -1014,8 +1014,13 @@ export interface PathwayTemplatePublishResponse {
 
 export interface PathwaySimulationResponse {
   templateId: string;
+  snapshotId?: string | null;
   nodeTrajectory: string[];
   finalStatus: PatientPathwayStatus;
+  contextQualityStatus?: string | null;
+  missingFields?: Array<Record<string, unknown>>;
+  mappingStatus?: Record<string, string>;
+  contextResourceCounts?: Record<string, number>;
   traceId: string;
 }
 
@@ -1076,6 +1081,14 @@ export interface PathwayAdvanceResponse {
   nextNodeCode?: string | null;
   status: PatientPathwayStatus;
   varianceId?: string | null;
+  edgeCode?: string | null;
+  edgeType?: PathwayEdgeType | null;
+  snapshotId?: string | null;
+  contextQualityStatus?: string | null;
+  missingFields?: Array<Record<string, unknown>>;
+  mappingStatus?: Record<string, string>;
+  contextResourceCounts?: Record<string, number>;
+  decisionEvidence?: Record<string, unknown>;
   traceId: string;
 }
 
@@ -1216,6 +1229,7 @@ export function useSimulatePathway(templateId: string) {
   return useMutation({
     mutationFn: async (payload: {
       packageVersion: string;
+      snapshotId?: string;
       startNodeCode?: string;
       requestedNextNodeCodes?: string[];
     }) => {
@@ -1273,6 +1287,7 @@ export function useAdvancePatientPathway() {
       eventType: PathwayAdvanceEventType;
       currentNodeCode?: string;
       requestedNextNodeCode?: string;
+      snapshotId?: string;
       varianceType?: VarianceType;
       varianceReason?: string;
       resolutionAction?: string;
