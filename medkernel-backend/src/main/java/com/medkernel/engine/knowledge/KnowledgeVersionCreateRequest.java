@@ -45,10 +45,4 @@ public record KnowledgeVersionCreateRequest(
         );
     }
 
-    DraftVersionCreateRequest toDraftVersionCreateRequest(Long identityId) {
-        return new DraftVersionCreateRequest(
-            identityId, versionNo, versionLabel, sourceDocumentId, sourceVersionId, content, anchors, riskLevel,
-            gradeQuality, gradeStrength
-        );
-    }
 }

@@ -43,10 +43,10 @@ public class KnowledgeVersionController {
 
     @PostMapping("/identities/{identityId}/versions")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<KnowledgeAssetVersion> createVersion(@PathVariable Long identityId,
-                                                          @Valid @RequestBody KnowledgeVersionCreateRequest request) {
+    public ApiResult<KnowledgeCandidateResponse> createVersion(@PathVariable Long identityId,
+                                                               @Valid @RequestBody KnowledgeVersionCreateRequest request) {
         request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
-        return ApiResult.ok(versionService.createDraftVersion(identityId, request));
+        return ApiResult.ok(versionService.classifyCandidate(identityId, request));
     }
 
     @GetMapping("/versions/{versionId}")

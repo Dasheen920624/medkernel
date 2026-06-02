@@ -20,12 +20,12 @@
 - 缺口（本卡补）：① **新旧识别**（来源/内容指纹 + 适用域 → 新建/新版/重复/冲突判定）；② **去重**（同 content_hash 或等价主题不产生重复待办）；③ **冲突归并**（多来源同主题差异 → 合并审核视图）；④ **待审分流**（候选 `PENDING_REPLACEMENT_REVIEW` 共存仅供比较、绝不执行）；⑤ 审核通过**调用 [SYS-08](SYS-08.md) 原子替换**。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 新旧识别**：新候选进入 → 按 `(content_hash, knowledge_identity, 适用域)` 判定 **新建 / 同身份新版 / 重复 / 冲突** 四类，记判定依据。
-- [ ] **FR-2 去重**：同 content_hash 或判定为重复者**不新增审核待办、不产生可发布候选**（去重约束基座在 [KNOW-01](KNOW-01.md)/[SYS-08](SYS-08.md)，本卡管工作流分流）。
-- [ ] **FR-3 冲突归并**：多来源同主题差异 → 生成**对照审核视图**（现行版/候选差异/来源/分级），不自动合并。
-- [ ] **FR-4 待审分流**：候选置 `PENDING_REPLACEMENT_REVIEW` 与现行 `ACTIVE` 共存**仅供比较**，**绝不参与临床执行**（核心 #14）；分派审核人（医务处/专家）。
-- [ ] **FR-5 审核 → 替换**：审核通过 → **调用 [SYS-08](SYS-08.md) 原子替换**（激活新版/失效旧版/刷投影/发同步/影响病例任务）；拒绝 → `REJECTED` 留档；**本卡不自行写替换事务**。
-- [ ] **FR-6 旧版隔离**：被替换旧版仅历史重放、标"历史版本"，不混入新审核候选池。
+- [x] **FR-1 新旧识别**：新候选进入 → 按 `(content_hash, knowledge_identity, 适用域)` 判定 **新建 / 同身份新版 / 重复 / 冲突** 四类，记判定依据。
+- [x] **FR-2 去重**：同 content_hash 或判定为重复者**不新增审核待办、不产生可发布候选**（去重约束基座在 [KNOW-01](KNOW-01.md)/[SYS-08](SYS-08.md)，本卡管工作流分流）。
+- [x] **FR-3 冲突归并**：多来源同主题差异 → 生成**对照审核视图**（现行版/候选差异/来源/分级），不自动合并。
+- [x] **FR-4 待审分流**：候选置 `PENDING_REPLACEMENT_REVIEW` 与现行 `ACTIVE` 共存**仅供比较**，**绝不参与临床执行**（核心 #14）；分派审核人（医务处/专家）。
+- [x] **FR-5 审核 → 替换**：审核通过 → **调用 [SYS-08](SYS-08.md) 原子替换主链路**（激活新版 / 失效旧版 / 刷知识图与搜索投影）；拒绝 → `REJECTED` 留档；**本卡不自行写替换事务**，紧急失效、发布同步与影响病例任务仍归 [SYS-08](SYS-08.md)。
+- [x] **FR-6 旧版隔离**：被替换旧版仅历史重放、标"历史版本"，不混入新审核候选池。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -38,9 +38,9 @@
 N·A —— 本卡无页面。"版本替换审核"左右对照页在 **D4 AI 知识审核页**呈现；本卡供工作流与判定。
 
 ## 数据与迁移
-- 表族：复用 `knowledge_asset_version`/`knowledge_supersession`/`knowledge_lineage`（[KNOW-01](KNOW-01.md)/[SYS-08](SYS-08.md)）；新增 `candidate_classification`（候选 → 类别 + 判定依据 + 时点）· `review_assignment`（审核分派/结论）。
-- 主键 ULID；索引：`knowledge_identity`、`classification`、`review_status`。
-- 组织字段：`tenant_id` + `org_path` + 审计（[BASE-04](../D0/BASE-04.md)）。
+- 表族：复用 `knowledge_asset_version`/`knowledge_supersession`/`knowledge_lineage`（[KNOW-01](KNOW-01.md)/[SYS-08](SYS-08.md)）；新增 `mk_knowledge_candidate_classification`（候选 → 类别 + 判定依据 + 时点）· `mk_knowledge_review_assignment`（审核分派/结论）。
+- 主键沿知识域既有迁移模式使用 `BIGINT` identity；索引：`knowledge_identity`、`classification`、`review_status`、候选版本。
+- 组织字段：`tenant_id` + `org_path` 作用域快照 + 审计（[BASE-04](../D0/BASE-04.md)）。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释。
 
 ## 视角清单（11 视角逐条）
@@ -61,15 +61,16 @@ N·A —— 本卡无页面。"版本替换审核"左右对照页在 **D4 AI 知
 - 本卡落点：把"候选进来怎么识别/去重/分流/审核/隔离"做成工作流，发布动作一律委托 [SYS-08](SYS-08.md) 原子替换。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：导入同一来源两次 → 第二次判定"重复"、不产生新待办；导入同主题更新 → 判定"同身份新版"、入待审。
-- [ ] **AC-2（FR-3/4）**：两来源同主题冲突 → 生成对照视图、置 `PENDING_REPLACEMENT_REVIEW`，临床请求**不命中候选**只命中现行 ACTIVE。
-- [ ] **AC-3（FR-5）**：审核通过 → 触发 [SYS-08](SYS-08.md) 原子替换（旧版 SUPERSEDED、刷投影、影响病例任务）；拒绝 → REJECTED 留档。
-- [ ] **AC-4（FR-6）**：被替换旧版不再进候选池、仅历史重放标"历史版本"。
+- [x] **AC-1（FR-1/2）**：导入同一来源两次 → 第二次判定"重复"、不产生新待办；导入同主题更新 → 判定"同身份新版"、入待审。
+- [x] **AC-2（FR-3/4）**：两来源同主题冲突 → 生成对照视图、置 `PENDING_REPLACEMENT_REVIEW`，临床请求**不命中候选**只命中现行 ACTIVE。
+- [x] **AC-3（FR-5）**：审核通过 → 调用 [SYS-08](SYS-08.md) 既有原子替换主链路（旧版 SUPERSEDED、知识图 / 搜索投影刷新）；拒绝 → REJECTED 留档。完整影响病例任务不在本卡冒领，仍归 [SYS-08](SYS-08.md)。
+- [x] **AC-4（FR-6）**：被替换旧版不再进候选池、仅历史重放标"历史版本"。
 - 关联 A1–A9 剧本：A4 权威替换（识别→审核→替换闭环）。
 - T-GATE：前后端真实性门禁全绿（去重/分类真实、候选不参与执行）。
 - B0 验收：人工识别 + 审核，**天然 B0**；AI 自动分类关闭不影响工作流。
 
 ## 完工证据
-- 代码 permalink：`CandidateClassification` + `ReviewDecision` + 审核 → [SYS-08](SYS-08.md) 替换调用 + `candidate_classification`/`review_assignment` 5 方言迁移。
+- 代码 permalink：`CandidateClassification` + `ReviewDecision` + 审核 → [SYS-08](SYS-08.md) 替换调用 + `mk_knowledge_candidate_classification`/`mk_knowledge_review_assignment` 5 方言迁移。
 - 测试：新旧识别四类测试 + 去重测试 + 冲突对照测试 + 候选不参与临床测试 + 审核→替换链路测试。
+- 本地验证：`mvn -q -Dtest=KnowledgeVersionServiceTest,KnowledgeEngineTest,KnowledgeAssetApiContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

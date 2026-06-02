@@ -27,12 +27,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.shared.api.error.ApiException;
 
 /**
  * API-03 标准知识资产 API 合同测试。
  *
- * <p>这些测试只验证客户可调用的 REST 合同：标准上下文、路径、诚实空态和历史重放标识。
+ * <p>这些测试只验证客户可调用的 REST 合同：标准上下文、路径、候选审核响应和历史重放标识。
  * 服务层细节由 KnowledgeIdentityServiceTest / KnowledgeVersionServiceTest 覆盖。
  */
 @SpringBootTest
@@ -133,6 +132,9 @@ class KnowledgeAssetApiContractTest {
 
     @Test
     void createVersionAcceptsGradeFields() throws Exception {
+        when(versionService.classifyCandidate(eq(1L), any()))
+            .thenReturn(candidateResponse(CandidateClassificationType.SAME_IDENTITY_NEW_VERSION));
+
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions")
                 .with(medicalAffairsJwt())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -159,7 +161,7 @@ class KnowledgeAssetApiContractTest {
 
         ArgumentCaptor<KnowledgeVersionCreateRequest> requestCaptor =
             ArgumentCaptor.forClass(KnowledgeVersionCreateRequest.class);
-        verify(versionService).createDraftVersion(eq(1L), requestCaptor.capture());
+        verify(versionService).classifyCandidate(eq(1L), requestCaptor.capture());
         assertThat(requestCaptor.getValue().gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
         assertThat(requestCaptor.getValue().gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
     }
@@ -193,21 +195,23 @@ class KnowledgeAssetApiContractTest {
     }
 
     @Test
-    void candidatesRouteReturnsHonestEmptyB0Contract() throws Exception {
-        when(versionService.listCandidates(1L)).thenReturn(KnowledgeCandidateResponse.know02Pending(1L));
+    void candidatesRouteReturnsClassificationWorkflowContract() throws Exception {
+        when(versionService.listCandidates(1L))
+            .thenReturn(candidateResponse(CandidateClassificationType.SAME_IDENTITY_NEW_VERSION));
 
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/candidates")
                 .with(readJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.available").value(false))
-            .andExpect(jsonPath("$.data.reasonCode").value("KNOW_02_PENDING"))
-            .andExpect(jsonPath("$.data.candidates").isArray());
+            .andExpect(jsonPath("$.data.available").value(true))
+            .andExpect(jsonPath("$.data.reasonCode").value("SAME_IDENTITY_NEW_VERSION"))
+            .andExpect(jsonPath("$.data.candidates").isArray())
+            .andExpect(jsonPath("$.data.classifications[0].reviewStatus").value("PENDING_REPLACEMENT_REVIEW"));
     }
 
     @Test
-    void candidateReviewRouteReturnsNotFoundWhileKnow02StorageIsAbsent() throws Exception {
+    void candidateReviewRouteReturnsReviewDecisionContract() throws Exception {
         when(versionService.reviewCandidate(eq(77L), any()))
-            .thenThrow(ApiException.notFound("知识候选尚未接入 KNOW-02 candidate_classification"));
+            .thenReturn(candidateResponse("APPROVED", CandidateReviewStatus.APPROVED));
 
         mvc.perform(post("/api/v1/engine/knowledge/candidates/77/review")
                 .with(medicalAffairsJwt())
@@ -224,19 +228,21 @@ class KnowledgeAssetApiContractTest {
                       "reason": "同意"
                     }
                     """))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.code").value("ENG-API-005"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.reasonCode").value("APPROVED"))
+            .andExpect(jsonPath("$.data.classifications[0].reviewStatus").value("APPROVED"));
     }
 
     @Test
-    void candidateDiffRouteReturnsNotFoundWhileKnow02StorageIsAbsent() throws Exception {
+    void candidateDiffRouteReturnsStoredClassificationView() throws Exception {
         when(versionService.diffCandidate(77L))
-            .thenThrow(ApiException.notFound("知识候选尚未接入 KNOW-02 candidate_classification"));
+            .thenReturn(candidateResponse(CandidateClassificationType.CONFLICT));
 
         mvc.perform(get("/api/v1/engine/knowledge/candidates/77/diff")
                 .with(readJwt()))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.code").value("ENG-API-005"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.reasonCode").value("CONFLICT"))
+            .andExpect(jsonPath("$.data.classifications[0].diffSummary").value("当前 ACTIVE 与候选对照"));
     }
 
     @Test
@@ -288,6 +294,38 @@ class KnowledgeAssetApiContractTest {
               "package_version": "pkg-2026.06"
             }
             """;
+    }
+
+    private static KnowledgeCandidateResponse candidateResponse(CandidateClassificationType type) {
+        return candidateResponse(type.name(), CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+    }
+
+    private static KnowledgeCandidateResponse candidateResponse(String reasonCode, CandidateReviewStatus status) {
+        Instant now = Instant.now();
+        CandidateClassificationType type = CandidateClassificationType.valueOf(
+            reasonCode.equals("APPROVED") ? "SAME_IDENTITY_NEW_VERSION" : reasonCode);
+        KnowledgeAssetVersion candidate = new KnowledgeAssetVersion(
+            22L, "t-1", 1L, "2026", "2026 版",
+            7L, 8L, "a".repeat(64), "[]",
+            status == CandidateReviewStatus.APPROVED ? KnowledgeVersionStatus.ACTIVE : KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW,
+            KnowledgeRiskLevel.LOW, SourceAuthorityLevel.B_GUIDELINE,
+            GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, null,
+            null, null, null, null, null, null, null, null,
+            now, "u-99", now, "u-99"
+        );
+        CandidateClassification classification = new CandidateClassification(
+            77L, "t-1", "tenant:t-1", 1L, 22L, 5L, type, status,
+            candidate.contentHash(), "content_hash 与身份匹配", "当前 ACTIVE 与候选对照",
+            now, "u-99", now, "u-99"
+        );
+        return new KnowledgeCandidateResponse(
+            1L,
+            List.of(candidate),
+            List.of(classification),
+            true,
+            reasonCode,
+            "候选审核工作流测试响应"
+        );
     }
 
     @SuppressWarnings("unused")

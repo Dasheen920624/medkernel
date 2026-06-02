@@ -77,12 +77,14 @@ class MigrationBaselineContractTest {
         "V48__context_snapshot_standard_contract.sql",
         "V49__knowledge_citation_anchor_offsets.sql",
         "V50__knowledge_trust_grading.sql",
-        "V51__knowledge_projection_targets.sql"
+        "V51__knowledge_projection_targets.sql",
+        "V52__knowledge_candidate_workflow.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
-        "knowledge_supersession", "knowledge_export_job", "standard_term", "local_term",
+        "knowledge_supersession", "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
+        "standard_term", "local_term",
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment",
@@ -132,6 +134,9 @@ class MigrationBaselineContractTest {
         "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_citation_tenant_av", "idx_citation_fragment",
         "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
+        "idx_candidate_classification_identity", "idx_candidate_classification_status",
+        "idx_candidate_classification_candidate", "idx_review_assignment_identity",
+        "idx_review_assignment_status", "idx_review_assignment_candidate",
         "idx_standard_term_tenant_category", "idx_standard_term_tenant_updated",
         "idx_local_term_tenant_source", "idx_local_term_department",
         "idx_term_mapping_tenant_status", "idx_term_mapping_local_standard",
@@ -225,6 +230,8 @@ class MigrationBaselineContractTest {
         "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
+        "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
+        "ck_review_assignment_review_status", "ck_review_assignment_decision",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
         "uk_local_term_code", "ck_local_term_category", "ck_local_term_status",
         "ck_term_mapping_status", "ck_term_mapping_risk",
@@ -319,7 +326,8 @@ class MigrationBaselineContractTest {
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
         "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
-        "knowledge_export_job", "standard_term", "local_term", "term_mapping", "mapping_candidate",
+        "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
+        "standard_term", "local_term", "term_mapping", "mapping_candidate",
         "mapping_conflict", "term_mapping_package", "term_mapping_package_item",
         "term_mapping_package_release", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
@@ -353,6 +361,7 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
+        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "term_mapping", "mapping_candidate", "mapping_conflict",
         "term_mapping_package", "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_test_case",
@@ -405,6 +414,8 @@ class MigrationBaselineContractTest {
         Map.entry("source_version", Set.of("version_no")),
         Map.entry("knowledge_identity", Set.of("status")),
         Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
+        Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
+        Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
         Map.entry("knowledge_export_job", Set.of("status")),
         Map.entry("standard_term", Set.of("version_no", "status")),
         Map.entry("local_term", Set.of("status")),
@@ -631,6 +642,40 @@ class MigrationBaselineContractTest {
                 .contains("KNOWLEDGE_SEARCH")
                 .contains("COMMENT ON COLUMN mk_projection_sync.target_type")
                 .contains("COMMENT ON COLUMN mk_projection_snapshot.target_type");
+        }
+    }
+
+    @Test
+    void v52ShouldAddKnowledgeCandidateWorkflowForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V52__knowledge_candidate_workflow.sql");
+            assertThat(ddl).as("%s 知识候选识别与审核迁移", dialect)
+                .contains("mk_knowledge_candidate_classification")
+                .contains("mk_knowledge_review_assignment")
+                .contains("org_path")
+                .contains("PENDING_REPLACEMENT_REVIEW")
+                .contains("NEW_ASSET")
+                .contains("SAME_IDENTITY_NEW_VERSION")
+                .contains("DUPLICATE")
+                .contains("CONFLICT")
+                .contains("DUPLICATE_SKIPPED")
+                .contains("APPROVED")
+                .contains("REJECTED")
+                .contains("ck_knowledge_asset_version_status")
+                .contains("ck_knowledge_candidate_classification")
+                .contains("ck_knowledge_candidate_review_status")
+                .contains("ck_review_assignment_review_status")
+                .contains("ck_review_assignment_decision")
+                .contains("idx_candidate_classification_identity")
+                .contains("idx_candidate_classification_status")
+                .contains("idx_review_assignment_identity")
+                .contains("idx_review_assignment_status")
+                .contains("COMMENT ON TABLE mk_knowledge_candidate_classification")
+                .contains("COMMENT ON TABLE mk_knowledge_review_assignment")
+                .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.org_path")
+                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.org_path")
+                .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary")
+                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.reason");
         }
     }
 

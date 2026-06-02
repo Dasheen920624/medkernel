@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 KNOW-02 知识版本候选识别与审核去重工作流 🚧
 - 类型：软件开发
-- 分支：待建 `codex/d2-know-02-candidate-workflow`
+- 分支：`codex/d2-know-02-candidate-workflow`
 - 目标：完成 [KNOW-02](cards/D2/KNOW-02.md) 范围：候选进入后按 `content_hash` / `knowledge_identity` / 适用域判定新建、同身份新版、重复、冲突；重复不新增待办，冲突生成对照审核视图，候选 `PENDING_REPLACEMENT_REVIEW` 仅供比较不参与临床执行；审核通过只调用 [SYS-08](cards/D2/SYS-08.md) 原子替换，不在本卡重造替换事务。
-- 状态：待开工；`KNOW-01` 已通过 #258 合入 `origin/main`（merge `902104e6`，远端 CI 8/8），可作为来源 / 内容指纹 / 可信分级 / 图搜索投影基础。已核查 [backlog](backlog.md) 当前下一卡为 `KNOW-02`，`DEFER-001` 至 `DEFER-012` 仍 open 但均非本卡当前主链路阻塞。
-- 下一步（精确到动作/命令）：1. 基于最新 `origin/main` 创建隔离 worktree / 分支 `codex/d2-know-02-candidate-workflow`；2. 读 [CONSTITUTION](CONSTITUTION.md)、[D2 域简报](cards/D2/_brief.md)、[KNOW-02](cards/D2/KNOW-02.md)、[待处理问题清单](audit/deferred-issues.md)；3. 建绿色基线，优先跑 `mvn -q -Dtest=KnowledgeVersionServiceTest,KnowledgeEngineTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；4. 先写红灯测试锁定候选四分类、重复去重不建待办、冲突对照、候选不参与执行、审核通过转交替换端口；5. 实现最小闭环后跑后端全量、changed T-GATE、PR、CI 8/8、合并，再领取下一卡。
-- 相关文件 / 测试 / 坑：预计触碰 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`KnowledgeVersionService`、`KnowledgeIdentityService`、`KnowledgeAssetVersionRepository`、新增候选分类 / 审核分派表与五方言迁移。严禁把候选写成 ACTIVE 或参与临床执行；严禁本卡自行重造 SYS-08 唯一有效约束 / 紧急失效 / 影响病例任务；AI 自动分类属于 wave2，B0 必须人工可跑通。
+- 状态：主体实现已提交在当前分支，待 PR / CI / 合并；已清理旧 `DraftVersionCreateRequest` / 版本草稿创建服务口径，新增候选分类与审核分派持久化、`PENDING_REPLACEMENT_REVIEW` 状态、V52 五方言迁移、API 契约和服务层红绿测试。聚焦套件已绿；最新后端全量 `mvn -q test` 已绿，含 H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V52；changed T-GATE、中文注释和 diff 检查已绿。CI 通过并合并后才能把 `origin/main` 视为完成。
+- 下一步（精确到动作/命令）：1. 推送分支并创建 PR；2. 等待远端 CI 8/8，通过后合并到 `origin/main`；3. 合并并确认后才领取 [backlog](backlog.md) 下一卡 `TERM-01`。
+- 相关文件 / 测试 / 坑：触碰 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`KnowledgeVersionService`、`KnowledgeVersionController`、`ServiceContractCatalog`、`KnowledgeVersionServiceTest`、`KnowledgeEngineTest`、`KnowledgeAssetApiContractTest`、迁移契约测试与 V52 五方言迁移。严禁把候选写成 ACTIVE 或参与临床执行；严禁本卡自行重造 SYS-08 完整紧急失效 / 影响病例任务；AI 自动分类属于 wave2，B0 必须人工可跑通。`DEFER-001` 至 `DEFER-012` 仍 open 但均非本卡当前主链路阻塞。
 
 ### 线 2 · 平台主源与租户覆盖层治理 🚧
 
@@ -161,4 +161,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`，远端 CI 8/8）与平台主源协作红线 #257，`KNOW-01` 已完成并归档。当前用户优先线为 `codex/login-bootstrap-polish` 登录与首次部署体验修复：已完成本地前端 / 后端 / Browser 验证和 `medkernel-basic` 现场清理，下一步推送 PR、CI 合并、发布 192.168.8.191；发布完成后恢复线 2 平台主源 / 知识包治理。`KNOW-02` 是后续 D2 下一卡，未接到恢复主线指令前不抢占当前发布任务。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260。当前在 `codex/d2-know-02-candidate-workflow` 推进 D2 `KNOW-02`，主体实现已落地并创建 PR #261，变基到最新 `origin/main` 后待远端 CI 8/8 与合并；合并并确认后才领取下一卡 `TERM-01`。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

@@ -85,7 +85,7 @@ public final class ServiceContractCatalog {
             "com.medkernel.engine.knowledge.KnowledgeVersionController", "/api/v1/engine/knowledge",
             permissions("knowledge.read", "knowledge.publish", "knowledge.withdraw", "knowledge.write", "knowledge.review"),
             audits(
-                audit(AuditAction.CREATE, "knowledge_version", "创建知识版本草稿"),
+                audit(AuditAction.CREATE, "knowledge_candidate", "创建知识版本候选并进入新旧识别"),
                 audit(AuditAction.REVIEW, "knowledge_candidate", "提交版本审核或处理候选知识"),
                 audit(AuditAction.PUBLISH, "knowledge_version", "激活或撤回知识版本"))),
         contract("large-list", "大规模列表服务",
