@@ -343,9 +343,18 @@ class TerminologyServiceTest {
     }
 
     private LocalTerm localTerm(Long id) {
+        return localTerm(id, "LIS", "LIS-TNT", TermCategory.LAB, "肌钙蛋白T", "肌钙蛋白t");
+    }
+
+    private LocalTerm localTerm(Long id,
+                                String sourceSystem,
+                                String localCode,
+                                TermCategory category,
+                                String localName,
+                                String normalizedName) {
         Instant now = Instant.now();
         return new LocalTerm(
-            id, "t-1", "LIS", "LIS-TNT", TermCategory.LAB, "肌钙蛋白T", "肌钙蛋白t",
+            id, "t-1", sourceSystem, localCode, category, localName, normalizedName,
             "CARD", LocalTermStatus.UNMAPPED, now, now, now, "system", now, "system"
         );
     }
@@ -360,10 +369,19 @@ class TerminologyServiceTest {
     }
 
     private StandardTerm standardTerm(Long id, TermCategory category) {
+        return standardTerm(id, "LOINC", "718-7", category, "血红蛋白", "血红蛋白");
+    }
+
+    private StandardTerm standardTerm(Long id,
+                                      String standardSystem,
+                                      String termCode,
+                                      TermCategory category,
+                                      String displayName,
+                                      String normalizedName) {
         Instant now = Instant.now();
         return new StandardTerm(
-            id, "t-1", "LOINC", "718-7", category, "血红蛋白", "血红蛋白",
-            "2.78", StandardTermStatus.ACTIVE, null, "LOINC", now, "system", now, "system"
+            id, "t-1", standardSystem, termCode, category, displayName, normalizedName,
+            "2.78", StandardTermStatus.ACTIVE, null, standardSystem, now, "system", now, "system"
         );
     }
 
@@ -395,9 +413,14 @@ class TerminologyServiceTest {
     }
 
     @Test
-    void generateCandidatesCreatesRuleCandidatesWithHighRiskFlag() {
-        LocalTerm local = localTerm(1L); // "肌钙蛋白T"
-        StandardTerm standardMatch = standardTerm(2L, TermCategory.LAB); // "血红蛋白" -> 蛋白(2字重合) -> 2/4 = 0.5 相似度
+    void generateCandidatesCreatesRuleCandidatesFromSemanticAlias() {
+        LocalTerm local = localTerm(1L); // "肌钙蛋白T" / normalizedName = "肌钙蛋白t"
+        StandardTerm standardMatch = new StandardTerm(
+            2L, "t-1", "LOINC", "6598-7", TermCategory.LAB, "Cardiac troponin T",
+            "ctnt|cardiac troponin t|肌钙蛋白t", "2.78", StandardTermStatus.ACTIVE,
+            null, "LOINC 来源别名：cTnT；中文同义词：肌钙蛋白T",
+            Instant.now(), "system", Instant.now(), "system"
+        );
         StandardTerm standardMismatchCategory = new StandardTerm(
             3L, "t-1", "LOINC", "718-8", TermCategory.DRUG, "肌钙蛋白", "肌钙蛋白",
             "2.78", StandardTermStatus.ACTIVE, null, "LOINC", Instant.now(), "system", Instant.now(), "system"
@@ -419,8 +442,8 @@ class TerminologyServiceTest {
         assertThat(response.candidates())
             .singleElement()
             .satisfies(candidate -> {
-                assertThat(candidate.semanticMatchScore()).isEqualTo(0.4444444444444444);
-                assertThat(candidate.highRiskFlag()).isTrue();
+                assertThat(candidate.semanticMatchScore()).isEqualTo(0.96);
+                assertThat(candidate.highRiskFlag()).isFalse();
                 assertThat(candidate.source()).isEqualTo(MappingCandidateSource.RULE);
             });
 
@@ -430,9 +453,92 @@ class TerminologyServiceTest {
         assertThat(created.localTermId()).isEqualTo(1L);
         assertThat(created.standardTermId()).isEqualTo(2L);
         assertThat(created.status()).isEqualTo(MappingCandidateStatus.PENDING);
-        assertThat(created.confidence()).isEqualTo(0.4444444444444444); // "肌钙蛋白T" 对 "血红蛋白" LCS "蛋白"(2字) => 2 * 2 / (5 + 4) = 4/9
-        assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.HIGH); // sim = 0.444 -> HIGH risk
+        assertThat(created.confidence()).isEqualTo(0.96);
+        assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.LOW);
         assertThat(created.candidateSource()).isEqualTo(MappingCandidateSource.RULE);
+        assertThat(created.evidenceText()).contains("确定性语义匹配", "同义词/缩写");
+        assertThat(created.evidenceText()).doesNotContain("LCS");
+    }
+
+    @Test
+    void generateCandidatesPrioritizesExactCodeAsSemanticEvidence() {
+        LocalTerm local = localTerm(
+            1L, "LIS", "718-7", TermCategory.LAB, "院内血色素", "yuanneixuesesu"
+        );
+        StandardTerm standardMatch = standardTerm(
+            2L, "LOINC", "718-7", TermCategory.LAB, "血红蛋白", "hgb|hemoglobin"
+        );
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(standardMatch));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isEqualTo(1);
+        ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(candidateCaptor.capture());
+        MappingCandidate created = candidateCaptor.getValue();
+        assertThat(created.confidence()).isEqualTo(1.0);
+        assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.LOW);
+        assertThat(created.evidenceText()).contains("确定性语义匹配", "精确编码");
+        assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
+    }
+
+    @Test
+    void generateCandidatesCreatesMediumRiskCandidateFromCodeFamilyOnly() {
+        LocalTerm local = localTerm(
+            1L, "LIS", "I63900A", TermCategory.DIAGNOSIS, "院内脑血管事件", "yuanneinaoxueguanshijian"
+        );
+        StandardTerm standardMatch = standardTerm(
+            2L, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "naogengsi"
+        );
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(standardMatch));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isEqualTo(1);
+        ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(candidateCaptor.capture());
+        MappingCandidate created = candidateCaptor.getValue();
+        assertThat(created.confidence()).isEqualTo(0.82);
+        assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.MEDIUM);
+        assertThat(created.evidenceText()).contains("确定性语义匹配", "编码族");
+        assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
+    }
+
+    @Test
+    void generateCandidatesDoesNotUseCharacterOverlapAsSemanticEvidence() {
+        LocalTerm local = localTerm(1L); // 与“血红蛋白”有“蛋白”字符重合，但医学语义不同
+        StandardTerm hemoglobin = standardTerm(2L, TermCategory.LAB);
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(hemoglobin));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isZero();
+        assertThat(response.candidates()).isEmpty();
+        verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
     }
 
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId) {
