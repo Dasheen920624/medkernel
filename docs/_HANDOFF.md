@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 RULE-01 规则引擎三层配置与规则库页 🚧
 - 类型：软件开发
-- 分支：`codex/d2-rule-01-layered-ui`
+- 分支：`codex/d2-rule-01-sim-release`
 - 目标：按 [RULE-01](cards/D2/RULE-01.md) 实施规则引擎后端 + 三层前端：L1 模板、L2 可视化条件树、L3 DSL、7 步流、测试病例与仿真；消费已完成的 [API-05](cards/D2/API-05.md)，不得伪造跨域影响对象。
-- 状态：PR1 后端解释证据已合入 `origin/main`（#270，merge `6a5dc99e`）；PR2 三层前端已在本分支实现：规则库创建流从旧 JSON 文本框升级为 L1 模板 / L2 可视化条件树 / L3 DSL，支持 L2→L3 同步、L3→L2 回填、提交前占位字段拦截、≤3 默认筛选和六态页面骨架；三层模板 / 互转逻辑已下沉到 `frontend/src/shared/config/ruleLayeredEditor.ts`，旧页面内硬编码模板已清理。
-- 下一步（精确到动作/命令）：1. 合入本分支 PR2 前必须确认 CI 8/8 通过；2. PR2 合入并清理分支 / worktree 后，从最新 `origin/main` 领取 PR3：仿真病例选择器 + 7 步流发布；3. PR3 不得伪造患者、路径或同步目标，跨域影响对象仍按 `DEFER-012` 处理，只有真实反向索引完成后才能关闭。
-- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/RuleDefinitions.tsx`、`frontend/src/pages/tenant/RuleDefinitions.test.tsx`、`frontend/src/shared/config/ruleLayeredEditor.ts`、`frontend/src/shared/config/ruleLayeredEditor.test.ts`、规则相关 hooks / API 客户端、`docs/cards/D2/RULE-01.md`、[体验契约](EXPERIENCE_CONTRACT.md)。本地验证证据：前端基线 smoke / 清洁测试 25 通过；三层编辑目标测试 4 通过；`npm run verify` 43 文件 / 224 测试通过；`npm run build` 通过；changed T-GATE、中文注释门禁、`git diff --check` 通过；本机应用内浏览器本轮无可用 `iab` 实例，已登记 `DEFER-004`，改用项目 Playwright 对 `http://127.0.0.1:5175/rule/definitions` 完成页面渲染、弹窗 L1/L2/L3、L2 同步 L3 和控制台错误验收。`DEFER-003` 测试噪声、`DEFER-012` 真实跨域反向索引、`DEFER-013` OpenSpec 旧变更同步、`DEFER-014` 非当前页面旧 `Tabs.TabPane` 仍 open，不得宣称清零。
+- 状态：PR1 后端解释证据已合入 `origin/main`（#270，merge `6a5dc99e`）；PR2 三层前端已合入 `origin/main`（#272，merge `3ab31066`）；PR3 已在本分支完成本地实现：规则详情页新增真实上下文快照选择器，按患者 / 就诊读取 ACTIVE 快照详情并用 `resources` 试运行；发布页签接入 `StepFlow` 7 步流、测试用例全绿提示、真实影响摘要 `impactDigest`、审核说明和高危发布门禁；共享 hooks 补 `useContextSnapshotDetail` / `useRuleImpact` / 发布 `impactDigest + reason` 合同。跨域路径 / 在径患者 / 同步目标仍按 `DEFER-012` 明示，不伪造对象。
+- 下一步（精确到动作/命令）：1. 为本分支创建 PR，写明 RULE-01 PR3 范围和验证证据；2. 等远端 CI 8/8 通过后 squash 合并；3. 合并后同步 `origin/main`、清理本分支 / worktree / 本地 5176 dev server；4. 从最新 `origin/main` 领取下一张 pending 卡 [PATH-01](cards/D2/PATH-01.md)，仍按 TDD + 真实快照 / 7 步流 / 非阻塞登记规则执行。
+- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/RuleDefinitions.tsx`、`frontend/src/pages/tenant/RuleDefinitions.test.tsx`、`frontend/src/shared/api/hooks.ts`、`frontend/src/shared/config/ruleLayeredEditor.ts`、规则相关 hooks / API 客户端、`docs/cards/D2/RULE-01.md`、[体验契约](EXPERIENCE_CONTRACT.md)。本地验证证据：RED 测试先失败于缺患者 / 就诊快照选择与 7 步流页签；目标测试 `npm test -- src/pages/tenant/RuleDefinitions.test.tsx src/shared/config/ruleLayeredEditor.test.ts` 2 文件 / 6 测试通过；`npm run test:coverage` 43 文件 / 226 测试通过（远端首跑暴露规则页复杂交互测试在覆盖率模式下超过默认 5 秒，已给该文件 3 个交互测试补明确超时）；`npm run verify` 43 文件 / 226 测试通过；`npm run build` 通过（仍有既有 vendor-antd 大 chunk 提示，归 `DEFER-003`）；changed T-GATE、配置边界、迁移规约、中文注释门禁、`git diff --check` 通过；本机应用内浏览器仍无可用 `iab` 实例，归 `DEFER-004`，改用项目 Playwright 对 `http://127.0.0.1:5176/rule/definitions` 完成规则页、真实快照试运行、发布 7 步流、请求体 digest/reason 和控制台错误验收，截图 `/tmp/rule-definitions-pr3-fresh.png`。`DEFER-003` 测试噪声、`DEFER-004` in-app browser、`DEFER-012` 真实跨域反向索引、`DEFER-013` OpenSpec 旧变更同步、`DEFER-014` 非当前页面旧 `Tabs.TabPane` 仍 open，不得宣称清零。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -150,4 +150,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；当前分支 `codex/d2-rule-01-layered-ui` 已完成 D2 `RULE-01` PR2 本地实现与验证，待 PR2 远端 CI / 合并。合入后继续 D2 `RULE-01` PR3：仿真病例选择器 + 7 步流发布。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-014` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；当前分支 `codex/d2-rule-01-sim-release` 已完成 D2 `RULE-01` PR3 本地实现与验证，待创建 PR、远端 CI 8/8、squash 合并、同步 `origin/main`、清理本地 5176 dev server 与 worktree。合入后继续领取下一张 pending 卡 [PATH-01](cards/D2/PATH-01.md)。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-014` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
