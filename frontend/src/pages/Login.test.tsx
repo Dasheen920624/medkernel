@@ -186,7 +186,7 @@ describe("Login", () => {
 
     const modeSwitch = screen.getByLabelText("登录类型切换");
     expect(modeSwitch).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "集团/院内户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "集团院内户" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -238,7 +238,7 @@ describe("Login", () => {
     );
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "集团/院内户" }));
+    fireEvent.click(screen.getByRole("button", { name: "集团院内户" }));
 
     expect(await screen.findByRole("button", { name: /集团总院/ })).toHaveAttribute(
       "aria-pressed",

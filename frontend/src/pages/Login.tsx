@@ -277,7 +277,7 @@ export default function Login() {
                 }
                 onClick={() => setShowPlatformTenant(false)}
               >
-                集团/院内户
+                集团院内户
               </Button>
               <Button
                 aria-pressed={showPlatformTenant}
