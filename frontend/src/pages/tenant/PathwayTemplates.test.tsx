@@ -12,7 +12,9 @@ import type {
 
 const apiMocks = vi.hoisted(() => ({
   templateListData: { items: [], total: 0 } as unknown,
+  rollbackTemplateListData: { items: [], total: 0 } as unknown,
   templateDetailData: null as unknown,
+  templateImpactData: null as unknown,
   packagesData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
@@ -22,21 +24,32 @@ const apiMocks = vi.hoisted(() => ({
   createPackage: vi.fn(),
   createTemplate: vi.fn(),
   publishTemplate: vi.fn(),
+  fullRolloutTemplate: vi.fn(),
+  rollbackTemplate: vi.fn(),
   simulatePathway: vi.fn(),
+  templateListParams: [] as unknown[],
 }));
 
 const PATHWAY_INTERACTION_TIMEOUT_MS = 15_000;
 
 vi.mock("@/shared/api/hooks", () => ({
-  usePathwayTemplates: () => ({
-    data: apiMocks.templateListData,
-    isLoading: false,
-    refetch: apiMocks.refetchList,
-  }),
+  usePathwayTemplates: (params?: { templateCode?: string }) => {
+    apiMocks.templateListParams.push(params ?? {});
+    return {
+      data: params?.templateCode ? apiMocks.rollbackTemplateListData : apiMocks.templateListData,
+      isLoading: false,
+      refetch: apiMocks.refetchList,
+    };
+  },
   usePathwayTemplateDetail: () => ({
     data: apiMocks.templateDetailData,
     isLoading: false,
     refetch: apiMocks.refetchDetail,
+  }),
+  usePathwayTemplateImpact: () => ({
+    data: apiMocks.templateImpactData,
+    isLoading: false,
+    isError: false,
   }),
   useSpecialtyPackages: () => ({
     data: apiMocks.packagesData,
@@ -52,6 +65,14 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   usePublishPathwayTemplate: () => ({
     mutateAsync: apiMocks.publishTemplate,
+    isPending: false,
+  }),
+  useFullRolloutPathwayTemplate: () => ({
+    mutateAsync: apiMocks.fullRolloutTemplate,
+    isPending: false,
+  }),
+  useRollbackPathwayTemplate: () => ({
+    mutateAsync: apiMocks.rollbackTemplate,
     isPending: false,
   }),
   useSimulatePathway: () => ({
@@ -105,6 +126,20 @@ const draftTemplate: PathwayTemplate = {
   startNodeCode: "ASSESS",
   sourceRef: "院内已审核路径制度",
   description: "路径复核配置",
+};
+
+const publishedTemplate: PathwayTemplate = {
+  ...draftTemplate,
+  templateId: "pt-path-published",
+  templateVersion: 2,
+  status: "PUBLISHED",
+};
+
+const rollbackTemplate: PathwayTemplate = {
+  ...draftTemplate,
+  templateId: "pt-path-offline",
+  templateVersion: 1,
+  status: "OFFLINE",
 };
 
 function createTemplateDetail(): PathwayTemplateDetailResponse {
@@ -178,7 +213,9 @@ async function openPathwayDrawer() {
 describe("PathwayTemplates 三层路径配置体验", () => {
   beforeEach(() => {
     apiMocks.templateListData = { items: [], total: 0 };
+    apiMocks.rollbackTemplateListData = { items: [], total: 0 };
     apiMocks.templateDetailData = null;
+    apiMocks.templateImpactData = null;
     apiMocks.packagesData = { items: [], total: 0 };
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
@@ -188,7 +225,10 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.createPackage.mockReset();
     apiMocks.createTemplate.mockReset();
     apiMocks.publishTemplate.mockReset();
+    apiMocks.fullRolloutTemplate.mockReset();
+    apiMocks.rollbackTemplate.mockReset();
     apiMocks.simulatePathway.mockReset();
+    apiMocks.templateListParams = [];
   });
 
   it(
@@ -308,6 +348,123 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(screen.getByText("OBSERVATION:obs-1:code:HB")).toBeInTheDocument();
       expect(screen.getAllByText("ASSESS").length).toBeGreaterThan(0);
       expect(screen.getAllByText("FOLLOWUP").length).toBeGreaterThan(0);
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径发布使用 7 步流展示影响摘要，并携带 impactDigest 与审核理由进入灰度发布",
+    async () => {
+      apiMocks.templateListData = { items: [draftTemplate], total: 1 };
+      apiMocks.templateDetailData = createTemplateDetail();
+      apiMocks.templateImpactData = {
+        templateId: "pt-path-1",
+        analysisStatus: "COMPLETE",
+        affectedPatientPathways: 2,
+        nodeCount: 2,
+        edgeCount: 1,
+        timedNodeCount: 2,
+        terminalNodeCount: 1,
+        canaryPercent: 10,
+        impactDigest: "sha256:path-impact",
+        releaseEvidence: [
+          "拓扑节点 2 个，边 1 条，终止节点 1 个",
+          "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本",
+        ],
+        traceId: "trace-impact",
+      };
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.publishTemplate.mockResolvedValue({
+        templateId: "pt-path-1",
+        status: "PUBLISHED",
+        releaseStep: "canary_release",
+        canaryPercent: 10,
+        impactDigest: "sha256:path-impact",
+        analysisStatus: "COMPLETE",
+        releaseEvidence: [],
+        traceId: "trace-publish",
+      });
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+
+      expect(screen.getByText("sha256:path-impact")).toBeInTheDocument();
+      expect(screen.getByText("灰度发布默认 10%")).toBeInTheDocument();
+      await user.type(
+        screen.getByLabelText("发布审核说明"),
+        "已核查影响摘要和随访交接，先灰度 10%。",
+      );
+      await user.click(screen.getByRole("button", { name: /提交审核并进入灰度发布/ }));
+
+      await waitFor(() =>
+        expect(apiMocks.publishTemplate).toHaveBeenCalledWith({
+          templateId: "pt-path-1",
+          packageVersion: "pkg-2026.06",
+          impactDigest: "sha256:path-impact",
+          reason: "已核查影响摘要和随访交接，先灰度 10%。",
+        }),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径回滚目标来自同编码已下线历史版本查询",
+    async () => {
+      apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
+      apiMocks.rollbackTemplateListData = { items: [rollbackTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        template: publishedTemplate,
+      };
+      apiMocks.templateImpactData = {
+        templateId: "pt-path-published",
+        analysisStatus: "COMPLETE",
+        affectedPatientPathways: 1,
+        nodeCount: 2,
+        edgeCount: 1,
+        timedNodeCount: 2,
+        terminalNodeCount: 1,
+        canaryPercent: 10,
+        impactDigest: "sha256:path-published-impact",
+        releaseEvidence: ["灰度发布默认 10%，全量前必须保留本次 impactDigest"],
+        traceId: "trace-impact",
+      };
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.rollbackTemplate.mockResolvedValue({
+        templateId: "pt-path-offline",
+        status: "PUBLISHED",
+        releaseStep: "evidence_rollback",
+        canaryPercent: 0,
+        impactDigest: "sha256:path-published-impact",
+        analysisStatus: "COMPLETE",
+        releaseEvidence: [],
+        traceId: "trace-rollback",
+      });
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      await user.type(screen.getByLabelText("发布审核说明"), "灰度异常，回滚上一版本。");
+
+      await user.click(screen.getByRole("combobox", { name: "回滚目标版本" }));
+      await user.click(await screen.findByText("PATH.CARDIO.REVIEW v1.0"));
+      await user.click(screen.getByRole("button", { name: /回滚到目标版本/ }));
+
+      await waitFor(() =>
+        expect(apiMocks.rollbackTemplate).toHaveBeenCalledWith({
+          templateId: "pt-path-published",
+          packageVersion: "pkg-2026.06",
+          rollbackTargetTemplateId: "pt-path-offline",
+          impactDigest: "sha256:path-published-impact",
+          reason: "灰度异常，回滚上一版本。",
+        }),
+      );
+      expect(apiMocks.templateListParams).toContainEqual({
+        status: "OFFLINE",
+        templateCode: "PATH.CARDIO.REVIEW",
+        page: 1,
+        size: 100,
+      });
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

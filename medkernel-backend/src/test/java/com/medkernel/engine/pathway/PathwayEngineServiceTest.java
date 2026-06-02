@@ -26,6 +26,8 @@ import com.medkernel.engine.context.MissingFieldEntry;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -55,6 +57,7 @@ class PathwayEngineServiceTest {
     private AuditEventPublisher auditPublisher;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
+    private PathwayFollowupHandoffPort followupHandoff;
     private ObjectMapper json;
     private PathwayEngineService service;
 
@@ -73,12 +76,13 @@ class PathwayEngineServiceTest {
         auditPublisher = mock(AuditEventPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
+        followupHandoff = mock(PathwayFollowupHandoffPort.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new PathwayEngineService(
             packages, profiles, templates, nodes, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditPublisher,
-            transitions, diagnoseAssembler, json);
+            transitions, diagnoseAssembler, json, followupHandoff);
 
         when(packages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(profiles.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -146,6 +150,22 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void listTemplatesCanFilterRollbackHistoryByTemplateCode() {
+        PathwayTemplate history = template(
+            "pt-history", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.OFFLINE);
+        when(templates.listByFilter(
+                "tenant-A", PathwayTemplateStatus.OFFLINE.name(), null, null, "TPL.COPD"))
+            .thenReturn(List.of(history));
+
+        PageResponse<PathwayTemplate> response = service.listTemplates(
+            new PathwayTemplateFilter(PathwayTemplateStatus.OFFLINE, null, null, "TPL.COPD"),
+            PageRequest.defaults());
+
+        assertThat(response.items()).extracting(PathwayTemplate::templateId)
+            .containsExactly("pt-history");
+    }
+
+    @Test
     void publishFailsWhenStartNodeIsMissing() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
@@ -172,14 +192,169 @@ class PathwayEngineServiceTest {
             .thenReturn(List.of(
                 binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
                 binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
 
-        PathwayTemplatePublishResponse response = service.publishTemplate("pt-1");
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-1");
+        PathwayTemplatePublishResponse response = service.publishTemplate(
+            "pt-1",
+            new PathwayOperationRequest(impact.impactDigest(), "已核查影响摘要与灰度发布安排"));
 
         assertThat(response.status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
+        assertThat(response.releaseStep()).isEqualTo("canary_release");
+        assertThat(response.canaryPercent()).isEqualTo(10);
+        assertThat(response.impactDigest()).isEqualTo(impact.impactDigest());
         ArgumentCaptor<PathwayTemplate> templateCap = ArgumentCaptor.forClass(PathwayTemplate.class);
         verify(templates).save(templateCap.capture());
         assertThat(templateCap.getValue().status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
         verify(auditPublisher).publish(AuditAction.PUBLISH, "pathway_template", "pt-1", "发布路径模板 TPL.COPD");
+    }
+
+    @Test
+    void templateImpactUsesRealGraphAndRuntimeFactsForReleaseDigest() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+
+        PathwayTemplateImpactResponse response = service.templateImpact("pt-1");
+
+        assertThat(response.analysisStatus()).isEqualTo("COMPLETE");
+        assertThat(response.affectedPatientPathways()).isEqualTo(1);
+        assertThat(response.nodeCount()).isEqualTo(2);
+        assertThat(response.edgeCount()).isEqualTo(1);
+        assertThat(response.timedNodeCount()).isEqualTo(2);
+        assertThat(response.terminalNodeCount()).isEqualTo(1);
+        assertThat(response.canaryPercent()).isEqualTo(10);
+        assertThat(response.impactDigest()).startsWith("sha256:");
+        assertThat(response.releaseEvidence()).anySatisfy(evidence ->
+            assertThat(evidence).contains("灰度发布默认 10%"));
+    }
+
+    @Test
+    void templateImpactDigestIgnoresLifecycleStatusChanges() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+
+        PathwayTemplateImpactResponse draftImpact = service.templateImpact("pt-1");
+        PathwayTemplateImpactResponse publishedImpact = service.templateImpact("pt-1");
+
+        assertThat(publishedImpact.impactDigest()).isEqualTo(draftImpact.impactDigest());
+    }
+
+    @Test
+    void publishRejectsMissingCurrentImpactDigestAndReviewReason() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.publishTemplate("pt-1", new PathwayOperationRequest(null, "")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+        verify(templates, never()).save(any());
+    }
+
+    @Test
+    void fullRolloutRequiresHospitalAdminAndKeepsImpactDigestEvidence() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-1");
+
+        assertThatThrownBy(() -> service.fullRolloutTemplate(
+            "pt-1", operationRequest(impact.impactDigest(), "全量前复核", List.of("doctor"), null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+
+        PathwayTemplatePublishResponse response = service.fullRolloutTemplate(
+            "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("hospital-admin"), null));
+
+        assertThat(response.releaseStep()).isEqualTo("full_rollout");
+        assertThat(response.impactDigest()).isEqualTo(impact.impactDigest());
+        verify(transitions).record("pathway_template", "pt-1", PathwayTemplateStatus.PUBLISHED.name(),
+            PathwayTemplateStatus.PUBLISHED.name(), "FULL_ROLLOUT_PATHWAY_TEMPLATE", null);
+    }
+
+    @Test
+    void rollbackPublishedTemplateRestoresTargetVersionAndLeavesAuditEvidence() {
+        PathwayTemplate current = template("pt-current", "tenant-A", "TPL.COPD", 2, PathwayTemplateStatus.PUBLISHED);
+        PathwayTemplate target = template("pt-old", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.OFFLINE);
+        when(templates.findByTemplateIdAndTenantId("pt-current", "tenant-A"))
+            .thenReturn(Optional.of(current));
+        when(templates.findByTemplateIdAndTenantId("pt-old", "tenant-A"))
+            .thenReturn(Optional.of(target));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-current", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-current", "tenant-A", "ASSESS", 10, false),
+                node("pt-current", "tenant-A", "FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-current", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-current", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-current", "tenant-A"))
+            .thenReturn(List.of());
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-current");
+
+        PathwayTemplatePublishResponse response = service.rollbackTemplate(
+            "pt-current",
+            operationRequest(impact.impactDigest(), "灰度异常，回滚到上一版本", List.of("hospital-admin"), "pt-old"));
+
+        assertThat(response.templateId()).isEqualTo("pt-old");
+        assertThat(response.status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
+        assertThat(response.releaseStep()).isEqualTo("evidence_rollback");
+        ArgumentCaptor<PathwayTemplate> templateCap = ArgumentCaptor.forClass(PathwayTemplate.class);
+        verify(templates, org.mockito.Mockito.times(2)).save(templateCap.capture());
+        assertThat(templateCap.getAllValues()).anySatisfy(saved -> {
+            assertThat(saved.templateId()).isEqualTo("pt-current");
+            assertThat(saved.status()).isEqualTo(PathwayTemplateStatus.OFFLINE);
+        });
+        assertThat(templateCap.getAllValues()).anySatisfy(saved -> {
+            assertThat(saved.templateId()).isEqualTo("pt-old");
+            assertThat(saved.status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
+        });
+        verify(auditPublisher).publish(AuditAction.ROLLBACK, "pathway_template", "pt-old",
+            "回滚路径模板 TPL.COPD");
     }
 
     @Test
@@ -295,6 +470,40 @@ class PathwayEngineServiceTest {
             assertThat(saved.status()).isEqualTo(ClinicalClockStatus.COMPLETED));
         assertThat(clockCap.getAllValues()).anySatisfy(saved ->
             assertThat(saved.nodeCode()).isEqualTo("FOLLOWUP"));
+    }
+
+    @Test
+    void advanceCompletedPathwayCreatesFollowupHandoff() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "FOLLOWUP");
+        ClinicalClock currentClock = clock("clock-followup", "FOLLOWUP", ClinicalClockStatus.RUNNING);
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(currentClock));
+        when(followupHandoff.handoff(any()))
+            .thenReturn(new PathwayFollowupHandoffResult("plan-path-1", 1, "ACTIVE", "trace-pathway"));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.COMPLETE, null, null, null, null, null, null, "evt-complete"));
+
+        assertThat(response.status()).isEqualTo(PatientPathwayStatus.COMPLETED);
+        assertThat(response.followupPlanId()).isEqualTo("plan-path-1");
+        assertThat(response.followupTaskCount()).isEqualTo(1);
+        ArgumentCaptor<PathwayFollowupHandoffCommand> handoffCap =
+            ArgumentCaptor.forClass(PathwayFollowupHandoffCommand.class);
+        verify(followupHandoff).handoff(handoffCap.capture());
+        assertThat(handoffCap.getValue().patientPathwayId()).isEqualTo("pp-1");
+        assertThat(handoffCap.getValue().patientId()).isEqualTo("patient-1");
+        assertThat(handoffCap.getValue().encounterId()).isEqualTo("enc-1");
+        assertThat(handoffCap.getValue().templateId()).isEqualTo("pt-1");
+        assertThat(handoffCap.getValue().diseaseCode()).isEqualTo("COPD");
+        assertThat(handoffCap.getValue().taskTypes()).containsExactly("QUESTIONNAIRE");
     }
 
     @Test
@@ -500,6 +709,14 @@ class PathwayEngineServiceTest {
             "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayOperationRequest operationRequest(String impactDigest, String reason,
+                                                     List<String> roleCodes,
+                                                     String rollbackTargetTemplateId) {
+        return new PathwayOperationRequest(
+            null, null, null, null, null, null, null, null, null, null, roleCodes, null,
+            impactDigest, reason, "submit_review", false, rollbackTargetTemplateId);
     }
 
     private PathwayNode node(String code, int sortOrder, boolean terminal) {

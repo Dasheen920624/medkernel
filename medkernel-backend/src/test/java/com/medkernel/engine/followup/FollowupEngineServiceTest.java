@@ -3,10 +3,13 @@ package com.medkernel.engine.followup;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -80,6 +83,29 @@ class FollowupEngineServiceTest {
         assertEquals("PLAN01", response.planId());
         assertEquals(1, response.tasks().size());
         assertEquals(FollowupTaskType.QUESTIONNAIRE, response.tasks().get(0).taskType());
+    }
+
+    @Test
+    void generatePlanReusesExistingPathwayPlan() {
+        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
+            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE")
+        );
+        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            FollowupPlanStatus.ACTIVE, Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.PENDING, null, null, Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+
+        when(planRepository.findByTenantIdAndPathwayId("tenant-1", "PATH01"))
+            .thenReturn(Optional.of(plan));
+        when(taskRepository.findByTenantIdAndPlanId("tenant-1", "PLAN01"))
+            .thenReturn(List.of(task));
+
+        FollowupPlanDetailResponse response = service.generatePlan(request);
+
+        assertEquals("PLAN01", response.planId());
+        assertEquals(1, response.tasks().size());
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
     }
 
     @Test

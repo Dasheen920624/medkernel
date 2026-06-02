@@ -3,6 +3,7 @@ package com.medkernel.engine.followup;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -51,8 +52,12 @@ public class FollowupEngineService {
         RequestContext.Snapshot ctx = RequestContext.snapshot();
         String tenantId = ctx.orgScope().tenantId();
         String traceId = ctx.traceId();
+        Optional<FollowupPlan> existingPlan = existingPlanByPathway(tenantId, request.pathwayId());
+        if (existingPlan.isPresent()) {
+            return toDetailResponse(existingPlan.get());
+        }
 
-        // 创建计划
+        Instant now = Instant.now();
         FollowupPlan plan = new FollowupPlan(
             null,
             UUID.randomUUID().toString(),
@@ -63,32 +68,32 @@ public class FollowupEngineService {
             request.diseaseCode(),
             request.riskLevel(),
             FollowupPlanStatus.ACTIVE,
-            Instant.now(),
+            now,
             "system",
-            Instant.now(),
+            now,
             "system",
             traceId
         );
         plan = planRepository.save(plan);
 
-        // 生成对应的任务
         List<FollowupTaskDetailResponse> taskResponses = new ArrayList<>();
         if (request.taskTypes() != null) {
             for (String typeStr : request.taskTypes()) {
                 FollowupTaskType taskType = FollowupTaskType.valueOf(typeStr);
+                Instant taskNow = Instant.now();
                 FollowupTask task = new FollowupTask(
                     null,
                     UUID.randomUUID().toString(),
                     tenantId,
                     plan.planId(),
                     taskType,
-                    Instant.now().plusSeconds(86400 * 7), // 默认7天后
+                    taskNow.plusSeconds(86400 * 7),
                     FollowupTaskStatus.PENDING,
                     null,
                     null,
-                    Instant.now(),
+                    taskNow,
                     "system",
-                    Instant.now(),
+                    taskNow,
                     "system",
                     traceId
                 );
@@ -212,20 +217,7 @@ public class FollowupEngineService {
             throw ApiException.forbidden("无权访问该租户数据");
         }
 
-        List<FollowupTask> tasks = taskRepository.findByTenantIdAndPlanId(plan.tenantId(), planId);
-        List<FollowupTaskDetailResponse> taskResponses = tasks.stream()
-            .map(t -> new FollowupTaskDetailResponse(t.taskId(), t.taskType(), t.dueDate(), t.status()))
-            .collect(Collectors.toList());
-
-        return new FollowupPlanDetailResponse(
-            plan.planId(),
-            plan.tenantId(),
-            plan.patientId(),
-            plan.encounterId(),
-            plan.diseaseCode(),
-            plan.status(),
-            taskResponses
-        );
+        return toDetailResponse(plan);
     }
 
     /**
@@ -253,23 +245,35 @@ public class FollowupEngineService {
             pageResult = planRepository.findByTenantId(tenantId, pageable);
         }
 
-        List<FollowupPlanDetailResponse> list = pageResult.getContent().stream().map(plan -> {
-            List<FollowupTask> tasks = taskRepository.findByTenantIdAndPlanId(plan.tenantId(), plan.planId());
-            List<FollowupTaskDetailResponse> taskResponses = tasks.stream()
-                .map(t -> new FollowupTaskDetailResponse(t.taskId(), t.taskType(), t.dueDate(), t.status()))
-                .collect(Collectors.toList());
-
-            return new FollowupPlanDetailResponse(
-                plan.planId(),
-                plan.tenantId(),
-                plan.patientId(),
-                plan.encounterId(),
-                plan.diseaseCode(),
-                plan.status(),
-                taskResponses
-            );
-        }).collect(Collectors.toList());
+        List<FollowupPlanDetailResponse> list = pageResult.getContent().stream()
+            .map(this::toDetailResponse)
+            .collect(Collectors.toList());
 
         return PageResponse.of(list, req, pageResult.getTotalElements());
+    }
+
+    private Optional<FollowupPlan> existingPlanByPathway(String tenantId, String pathwayId) {
+        if (pathwayId == null || pathwayId.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<FollowupPlan> result = planRepository.findByTenantIdAndPathwayId(tenantId, pathwayId);
+        return result == null ? Optional.empty() : result;
+    }
+
+    private FollowupPlanDetailResponse toDetailResponse(FollowupPlan plan) {
+        List<FollowupTask> tasks = taskRepository.findByTenantIdAndPlanId(plan.tenantId(), plan.planId());
+        List<FollowupTaskDetailResponse> taskResponses = tasks.stream()
+            .map(t -> new FollowupTaskDetailResponse(t.taskId(), t.taskType(), t.dueDate(), t.status()))
+            .collect(Collectors.toList());
+
+        return new FollowupPlanDetailResponse(
+            plan.planId(),
+            plan.tenantId(),
+            plan.patientId(),
+            plan.encounterId(),
+            plan.diseaseCode(),
+            plan.status(),
+            taskResponses
+        );
     }
 }

@@ -83,7 +83,7 @@ public class PathwayEngineController {
     }
 
     /**
-     * 按状态、病种和专病包过滤分页查询路径模板。
+     * 按状态、病种、专病包和模板编码过滤分页查询路径模板。
      *
      * <p>权限：{@code pathway.read}；过滤参数均可选，{@code null} 表示不过滤。
      */
@@ -93,11 +93,12 @@ public class PathwayEngineController {
             @RequestParam(required = false) PathwayTemplateStatus status,
             @RequestParam(required = false) String diseaseCode,
             @RequestParam(required = false) String packageId,
+            @RequestParam(required = false) String templateCode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.listTemplates(
-            new PathwayTemplateFilter(status, diseaseCode, packageId),
+            new PathwayTemplateFilter(status, diseaseCode, packageId, templateCode),
             new PageRequest(page, size, sort)));
     }
 
@@ -113,6 +114,17 @@ public class PathwayEngineController {
     }
 
     /**
+     * 读取路径模板发布前影响摘要。
+     *
+     * <p>权限：{@code pathway.read}；摘要来自真实拓扑、关键时钟和患者路径实例事实。
+     */
+    @GetMapping("/pathway-templates/{templateId}/impact")
+    @PreAuthorize("@perm.has('pathway.read')")
+    public ApiResult<PathwayTemplateImpactResponse> templateImpact(@PathVariable String templateId) {
+        return ApiResult.ok(service.templateImpact(templateId));
+    }
+
+    /**
      * 执行路径模板发布门禁并发布草稿模板。
      *
      * <p>权限：{@code pathway.publish}；发布门禁失败时抛出 {@code ENG-PATHWAY-004}。
@@ -123,7 +135,35 @@ public class PathwayEngineController {
             @PathVariable String templateId,
             @RequestBody @Valid PathwayOperationRequest request) {
         validateContext(request);
-        return ApiResult.ok(service.publishTemplate(templateId));
+        return ApiResult.ok(service.publishTemplate(templateId, request));
+    }
+
+    /**
+     * 对已灰度发布的路径模板执行院级全量确认。
+     *
+     * <p>权限：{@code pathway.publish}；必须携带当前影响摘要、审核说明和院级管理员角色。
+     */
+    @PostMapping("/pathway-templates/{templateId}/rollout/full")
+    @PreAuthorize("@perm.has('pathway.publish')")
+    public ApiResult<PathwayTemplatePublishResponse> fullRolloutTemplate(
+            @PathVariable String templateId,
+            @RequestBody @Valid PathwayOperationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.fullRolloutTemplate(templateId, request));
+    }
+
+    /**
+     * 将当前路径模板回滚到同编码历史版本。
+     *
+     * <p>权限：{@code pathway.publish}；必须携带当前影响摘要、审核说明和回滚目标模板。
+     */
+    @PostMapping("/pathway-templates/{templateId}/rollback")
+    @PreAuthorize("@perm.has('pathway.publish')")
+    public ApiResult<PathwayTemplatePublishResponse> rollbackTemplate(
+            @PathVariable String templateId,
+            @RequestBody @Valid PathwayOperationRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.rollbackTemplate(templateId, request));
     }
 
     /**

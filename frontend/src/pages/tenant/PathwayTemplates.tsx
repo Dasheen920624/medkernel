@@ -28,6 +28,7 @@ import {
   ApartmentOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
+  DeploymentUnitOutlined,
   FolderOpenOutlined,
   PlusOutlined,
   PlayCircleOutlined,
@@ -35,14 +36,18 @@ import {
   SwapOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
+import { StepFlow } from "@/shared/ui/StepFlow";
 import {
   useContextSnapshotDetail,
   useContextSnapshots,
   useCreatePathwayTemplate,
   useCreateSpecialtyPackage,
+  useFullRolloutPathwayTemplate,
   usePathwayTemplateDetail,
+  usePathwayTemplateImpact,
   usePathwayTemplates,
   usePublishPathwayTemplate,
+  useRollbackPathwayTemplate,
   useSimulatePathway,
   useSpecialtyPackages,
 } from "@/shared/api/hooks";
@@ -55,6 +60,7 @@ import type {
   PathwaySimulationResponse,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
+  PathwayTemplateImpactResponse,
   PathwayTemplateLevel,
   PathwayTemplateStatus,
   SpecialtyMetricBinding,
@@ -455,6 +461,11 @@ export default function PathwayTemplates() {
   const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [detailActiveTab, setDetailActiveTab] = useState<string>("l1");
+  const [releaseReason, setReleaseReason] = useState<string>("");
+  const [rollbackTargetTemplateId, setRollbackTargetTemplateId] = useState<string | undefined>(
+    undefined,
+  );
 
   const [simulateStartNode, setSimulateStartNode] = useState<string>("");
   const [snapshotPatientId, setSnapshotPatientId] = useState<string>("");
@@ -484,6 +495,21 @@ export default function PathwayTemplates() {
     refetch: refetchDetail,
   } = usePathwayTemplateDetail(selectedTemplateId || "");
 
+  const impactQuery = usePathwayTemplateImpact(selectedTemplateId || "", {
+    enabled: !!selectedTemplateId,
+  });
+  const { data: rollbackTargetsData } = usePathwayTemplates(
+    {
+      status: "OFFLINE",
+      templateCode: detailData?.template.templateCode,
+      page: 1,
+      size: 100,
+    },
+    {
+      enabled: detailData?.template.status === "PUBLISHED" && !!detailData.template.templateCode,
+    },
+  );
+
   const { data: packagesData, refetch: refetchPackages } = useSpecialtyPackages({
     page: 1,
     size: 100,
@@ -500,6 +526,8 @@ export default function PathwayTemplates() {
   const createPackageMutation = useCreateSpecialtyPackage();
   const createTemplateMutation = useCreatePathwayTemplate();
   const publishTemplateMutation = usePublishPathwayTemplate();
+  const fullRolloutMutation = useFullRolloutPathwayTemplate();
+  const rollbackMutation = useRollbackPathwayTemplate();
   const simulateMutation = useSimulatePathway(selectedTemplateId || "");
 
   const [packageForm] = Form.useForm();
@@ -615,20 +643,105 @@ export default function PathwayTemplates() {
 
   const handlePublishTemplate = async () => {
     if (!selectedTemplateId) return;
+    const impactDigest = impactQuery.data?.impactDigest;
+    const reason = cleanText(releaseReason);
+    if (!impactDigest) {
+      messageApi.error("请先读取发布影响摘要后再提交审核。");
+      return;
+    }
+    if (!reason) {
+      messageApi.error("请填写发布审核说明。");
+      return;
+    }
     try {
       await publishTemplateMutation.mutateAsync({
         templateId: selectedTemplateId,
         packageVersion:
           packageVersionFor(detailData?.template.packageId) ??
           String(detailData?.template.templateVersion ?? ""),
+        impactDigest,
+        reason,
       });
-      messageApi.success("路径模板发布成功，已正式上线运行");
+      messageApi.success("路径模板已通过门禁，进入 10% 灰度发布并保留回滚证据");
+      setReleaseReason("");
       refetchDetail();
       refetchList();
     } catch (error: unknown) {
       modal.error({
         title: "路径发布门禁拒绝",
         content: getApiErrorMessage(error, "未通过路径闭环或时窗门禁核查，禁止上线。"),
+      });
+    }
+  };
+
+  const releasePackageVersion = () =>
+    packageVersionFor(detailData?.template.packageId) ??
+    String(detailData?.template.templateVersion ?? "");
+
+  const handleFullRolloutTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const impactDigest = impactQuery.data?.impactDigest;
+    const reason = cleanText(releaseReason);
+    if (!impactDigest) {
+      messageApi.error("请先读取发布影响摘要后再全量确认。");
+      return;
+    }
+    if (!reason) {
+      messageApi.error("请填写全量确认说明。");
+      return;
+    }
+    try {
+      await fullRolloutMutation.mutateAsync({
+        templateId: selectedTemplateId,
+        packageVersion: releasePackageVersion(),
+        impactDigest,
+        reason,
+      });
+      messageApi.success("路径模板已完成院级全量确认");
+      setReleaseReason("");
+      refetchDetail();
+      refetchList();
+    } catch (error: unknown) {
+      modal.error({
+        title: "全量发布门禁拒绝",
+        content: getApiErrorMessage(error, "未通过院级管理员确认或影响摘要核查。"),
+      });
+    }
+  };
+
+  const handleRollbackTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const impactDigest = impactQuery.data?.impactDigest;
+    const reason = cleanText(releaseReason);
+    if (!impactDigest) {
+      messageApi.error("请先读取发布影响摘要后再回滚。");
+      return;
+    }
+    if (!reason) {
+      messageApi.error("请填写回滚说明。");
+      return;
+    }
+    if (!rollbackTargetTemplateId) {
+      messageApi.error("请选择回滚目标模板版本。");
+      return;
+    }
+    try {
+      await rollbackMutation.mutateAsync({
+        templateId: selectedTemplateId,
+        packageVersion: releasePackageVersion(),
+        rollbackTargetTemplateId,
+        impactDigest,
+        reason,
+      });
+      messageApi.success("路径模板已回滚到目标版本并保留审计证据");
+      setReleaseReason("");
+      setRollbackTargetTemplateId(undefined);
+      refetchDetail();
+      refetchList();
+    } catch (error: unknown) {
+      modal.error({
+        title: "路径回滚门禁拒绝",
+        content: getApiErrorMessage(error, "未通过回滚目标、院级确认或影响摘要核查。"),
       });
     }
   };
@@ -741,6 +854,9 @@ export default function PathwayTemplates() {
           icon={<ApartmentOutlined />}
           onClick={() => {
             setSelectedTemplateId(record.templateId);
+            setDetailActiveTab("l1");
+            setReleaseReason("");
+            setRollbackTargetTemplateId(undefined);
             setSimulateStartNode(record.startNodeCode ?? "");
             resetSimulation();
           }}
@@ -1154,6 +1270,132 @@ export default function PathwayTemplates() {
   const simulationMapping = mappingEntries(
     simulationResponse?.mappingStatus ?? selectedSnapshotDetail?.mappingStatus,
   );
+  const releaseImpact: PathwayTemplateImpactResponse | null = impactQuery.data ?? null;
+  const releaseEvidenceItems = releaseImpact?.releaseEvidence ?? [];
+  const rollbackTargetOptions =
+    rollbackTargetsData?.items?.filter(
+      (item: PathwayTemplate) =>
+        item.templateId !== selectedTemplateId &&
+        item.templateCode === detailData?.template.templateCode &&
+        item.status === "OFFLINE",
+    ) ?? [];
+  const releaseCurrentStep =
+    detailData?.template.status === "PUBLISHED" ? "full_rollout" : "submit_review";
+  let releaseImpactSummary = <Alert type="warning" showIcon message="尚未返回路径发布影响摘要。" />;
+  if (impactQuery.isLoading) {
+    releaseImpactSummary = <Alert type="info" showIcon message="正在读取路径发布影响摘要..." />;
+  } else if (impactQuery.isError) {
+    releaseImpactSummary = (
+      <Alert
+        type="error"
+        showIcon
+        message="影响摘要读取失败"
+        description="发布门禁需要真实影响摘要，请稍后重试。"
+      />
+    );
+  } else if (releaseImpact) {
+    releaseImpactSummary = (
+      <Descriptions bordered column={2} size="small">
+        <Descriptions.Item label="影响分析状态">
+          <Tag color={releaseImpact.analysisStatus === "COMPLETE" ? "green" : "orange"}>
+            {releaseImpact.analysisStatus}
+          </Tag>
+        </Descriptions.Item>
+        <Descriptions.Item label="影响摘要">{releaseImpact.impactDigest}</Descriptions.Item>
+        <Descriptions.Item label="关联患者路径">
+          {releaseImpact.affectedPatientPathways}
+        </Descriptions.Item>
+        <Descriptions.Item label="拓扑规模">
+          {releaseImpact.nodeCount} 节点 / {releaseImpact.edgeCount} 边
+        </Descriptions.Item>
+        <Descriptions.Item label="关键时钟节点">{releaseImpact.timedNodeCount}</Descriptions.Item>
+        <Descriptions.Item label="终止节点">{releaseImpact.terminalNodeCount}</Descriptions.Item>
+        <Descriptions.Item label="灰度比例">灰度发布默认 10%</Descriptions.Item>
+        <Descriptions.Item label="回滚凭据">保留本次 impactDigest</Descriptions.Item>
+      </Descriptions>
+    );
+  }
+
+  const releaseStepPanel = (
+    <Space direction="vertical" size="middle" className="mk-full-width">
+      <Alert
+        type="info"
+        showIcon
+        message="路径发布将先进入 10% 灰度，并保留回滚证据。"
+        description="全量发布必须基于本次影响摘要和审计记录继续推进，不能跳过影响核查。"
+      />
+      {releaseImpactSummary}
+      {releaseEvidenceItems.length > 0 && (
+        <Timeline
+          items={releaseEvidenceItems.map((evidence, index) => ({
+            key: `${index}-${evidence}`,
+            color: index === releaseEvidenceItems.length - 1 ? "green" : "blue",
+            children: evidence,
+          }))}
+        />
+      )}
+      <Form layout="vertical">
+        <Form.Item label="发布审核说明" htmlFor="pathway-release-reason">
+          <TextArea
+            id="pathway-release-reason"
+            rows={3}
+            value={releaseReason}
+            onChange={(event) => setReleaseReason(event.target.value)}
+            placeholder="填写已核查影响摘要、灰度范围、随访交接和回滚安排。"
+          />
+        </Form.Item>
+        {detailData?.template.status === "DRAFT" ? (
+          <Button
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            onClick={handlePublishTemplate}
+            loading={publishTemplateMutation.isPending}
+            disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
+            className="bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+          >
+            提交审核并进入灰度发布
+          </Button>
+        ) : (
+          <Space direction="vertical" size="small" className="mk-full-width">
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={handleFullRolloutTemplate}
+              loading={fullRolloutMutation.isPending}
+              disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
+              className="bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+            >
+              院级确认全量发布
+            </Button>
+            <Form.Item label="回滚目标版本" className="mb-0">
+              <Select
+                aria-label="回滚目标版本"
+                placeholder="选择已下线历史版本"
+                value={rollbackTargetTemplateId}
+                onChange={setRollbackTargetTemplateId}
+                options={rollbackTargetOptions.map((item: PathwayTemplate) => ({
+                  value: item.templateId,
+                  label: `${item.templateCode} v${item.templateVersion}.0`,
+                }))}
+              />
+            </Form.Item>
+            <Button
+              danger
+              onClick={handleRollbackTemplate}
+              loading={rollbackMutation.isPending}
+              disabled={
+                !releaseImpact?.impactDigest ||
+                !cleanText(releaseReason) ||
+                !rollbackTargetTemplateId
+              }
+            >
+              回滚到目标版本
+            </Button>
+          </Space>
+        )}
+      </Form>
+    </Space>
+  );
 
   const detailLayerItems: TabsProps["items"] = detailData
     ? [
@@ -1425,6 +1667,27 @@ export default function PathwayTemplates() {
             </Row>
           ),
         },
+        {
+          key: "release",
+          label: (
+            <span>
+              <DeploymentUnitOutlined /> 7 步流发布
+            </span>
+          ),
+          children: (
+            <div className="mt-3">
+              <StepFlow
+                currentStep={releaseCurrentStep}
+                panelByStep={
+                  releaseCurrentStep === "full_rollout"
+                    ? { full_rollout: releaseStepPanel }
+                    : { submit_review: releaseStepPanel }
+                }
+                status={releaseImpact?.impactDigest ? "process" : "error"}
+              />
+            </div>
+          ),
+        },
       ]
     : [];
 
@@ -1624,11 +1887,10 @@ export default function PathwayTemplates() {
               <Button
                 type="primary"
                 icon={<CheckCircleOutlined />}
-                onClick={handlePublishTemplate}
-                loading={publishTemplateMutation.isPending}
+                onClick={() => setDetailActiveTab("release")}
                 className="mr-6 bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
               >
-                校验并申请发布上线
+                进入 7 步流发布
               </Button>
             )}
           </div>
@@ -1636,6 +1898,9 @@ export default function PathwayTemplates() {
         width={1080}
         onClose={() => {
           setSelectedTemplateId(null);
+          setDetailActiveTab("l1");
+          setReleaseReason("");
+          setRollbackTargetTemplateId(undefined);
           setSimulateStartNode("");
           resetSimulation();
         }}
@@ -1655,7 +1920,11 @@ export default function PathwayTemplates() {
               showIcon
               className="mb-6 rounded-lg"
             />
-            <Tabs defaultActiveKey="l1" items={detailLayerItems} />
+            <Tabs
+              activeKey={detailActiveTab}
+              onChange={setDetailActiveTab}
+              items={detailLayerItems}
+            />
           </div>
         )}
       </Drawer>
