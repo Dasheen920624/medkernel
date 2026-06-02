@@ -26,7 +26,7 @@
 ## 功能要求（原子可测条目）
 
 - [ ] **FR-1 版本不可变**：已发布的知识/规则/路径/包**不可原地修改**，只能生成新版本（版本号单调 + 内容 `content_hash`）；已发布版本只读，旧内容不得删除。
-- [ ] **FR-2 唯一权威生效域**：以 `asset_identity + organization_scope + applicable_population/context + effective_time` 判定生效域，每域**最多一个** `ACTIVE` 版本（框架提供约束与解析；权威知识的并发激活拒绝/原子替换专项在 [SYS-08](SYS-08.md)）。
+- [ ] **FR-2 唯一权威生效域**：以 `asset_identity + org_path + applicable_population/context + effective_time` 判定生效域，每域**最多一个** `ACTIVE` 版本（框架提供约束与解析；权威知识的并发激活拒绝/原子替换专项在 [SYS-08](SYS-08.md)）。
 - [ ] **FR-3 七层组织继承覆盖**：平台 → 集团 → 医院 → 院区 → 社区站点 → 科室 → 专病；提供继承解析（给定组织节点 + 资产身份 → 生效版本）；**局部覆盖必须说明差异/来源/原因/影响范围**（覆盖可解释）；**安全红线（高风险禁忌、法定规则）不可被下级静默关闭**。
 - [ ] **FR-4 发布流（变更类状态机 + 7 步流）**：草稿 → 审核 → 静默观察 → 灰度（默认 10% 床位）→ 全量 → 下线/回滚，复用核心 §3 变更类状态机 + §4 七步流（含"看影响"）；**仅院级管理员可"直接全量"**。
 - [ ] **FR-5 回滚**：回滚**不丢审计、不破坏历史推荐解释**；被撤回的高风险版本**不得一键回滚**，回滚目标须过当前安全校验与授权确认。
@@ -46,8 +46,8 @@
 N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步流组件，呈现在各配置页与 **D2 配置包中心页**；本卡只立框架。
 
 ## 数据与迁移
-- 表族（对齐详规 §7.6 发布同步族）：`asset_version`（通用版本：身份/版本号/`content_hash`/状态/生效域/不可变）· `release_plan`（范围/灰度水位/回滚目标/状态）· `activation_transaction`（激活/失效原子事务记录）· `inheritance_override`（局部覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
-- 主键：ULID；唯一约束：**`(asset_identity, organization_scope, applicable, effective)` 上 `ACTIVE` 唯一**（框架级保证 FR-2）；索引：`org_path`、`status`、`effective_time`、`asset_identity`。
+- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `release_plan`（范围/灰度水位/回滚目标/状态）· `activation_transaction`（激活/失效原子事务记录）· `inheritance_override`（局部覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
+- 业务版本 ID：`version_id` 使用 `av-<ULID>`；物理 `id` 仅作 JDBC 持久化主键。唯一约束：**`(asset_identity, org_path, applicable, effective)` 上 `ACTIVE` 唯一**（框架级保证 FR-2）；索引：`org_path`、`status`、`effective_time`、`asset_identity`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段；继承解析依赖 [BASE-01](../D0/BASE-01.md) 的 `org_closure`。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释；`ACTIVE` 唯一约束按方言实现（部分唯一索引或发布事务校验）。
 
@@ -79,11 +79,11 @@ N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步
 - B0 验收：框架纯确定性、无模型依赖，**天然 B0**（关闭全部模型后版本与发布行为不变）。
 
 ## 完工证据
-- 代码 permalink：`VersionedAssetPort`/`InheritanceResolver`/`ReleasePort`/`ReplayPort` + `AssetVersion`/`ReleasePlan`/`InheritanceOverride` + `activation_transaction` + `asset_version` 迁移（×5 方言，ACTIVE 唯一约束）。
+- 代码 permalink：`VersionedAssetPort`/`InheritanceResolver`/`ReleasePort`/`ReplayPort` + `AssetVersion`/`ReleasePlan`/`InheritanceOverride` + `activation_transaction` + `mk_version_asset_version` 迁移（×5 方言，ACTIVE 唯一约束）。
 - 测试：版本不可变测试 + 七层继承解析测试 + 安全红线不可下级关测试 + 灰度/全量/回滚状态机测试 + 历史重放一致性测试 + ACTIVE 唯一约束并发测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（5d，后端框架；按 PR 拆分）
-- PR1：`AssetVersion` 不可变版本 + `content_hash` + `asset_version` 5 方言迁移 + ACTIVE 唯一约束 → AC-1。
+- PR1：`AssetVersion` 不可变版本 + `content_hash` + `mk_version_asset_version` 5 方言迁移 + ACTIVE 唯一约束 → AC-1。
 - PR2：`InheritanceResolver` 七层继承解析 + 局部覆盖可解释 + 安全红线不可下级关 → AC-2。
 - PR3：`ReleasePort` 变更类发布流（灰度/全量/回滚）+ `ReplayPort` 历史重放 + 运行解析隔离 + 发布证据 → AC-3/4/5。

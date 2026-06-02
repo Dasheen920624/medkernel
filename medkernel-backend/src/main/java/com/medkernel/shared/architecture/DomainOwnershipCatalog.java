@@ -35,6 +35,7 @@ public final class DomainOwnershipCatalog {
                 "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment")),
         module("engine-package", packages("com.medkernel.engine.pkg"), prefixes(),
             tables("knowledge_package", "package_item", "release_plan", "sync_target", "sync_log")),
+        module("engine-versioning", packages("com.medkernel.engine.versioning"), prefixes("mk_version_"), tables()),
         module("engine-projection", packages("com.medkernel.engine.projection"), prefixes("mk_projection_"), tables()),
         module("engine-evaluation", packages("com.medkernel.engine.evaluation"),
             prefixes("evaluation_", "rectification_"), tables("quality_finding")),
