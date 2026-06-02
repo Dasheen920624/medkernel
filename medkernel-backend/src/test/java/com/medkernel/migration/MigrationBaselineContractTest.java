@@ -79,7 +79,8 @@ class MigrationBaselineContractTest {
         "V50__knowledge_trust_grading.sql",
         "V51__knowledge_projection_targets.sql",
         "V52__knowledge_candidate_workflow.sql",
-        "V53__terminology_high_risk_rules.sql"
+        "V53__terminology_high_risk_rules.sql",
+        "V54__asset_version_framework.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -118,7 +119,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_projection_sync", "mk_projection_snapshot"
+        "mk_projection_sync", "mk_projection_snapshot",
+        "mk_version_asset_version"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -218,7 +220,9 @@ class MigrationBaselineContractTest {
         "idx_mk_clinical_follow_up_patient", "idx_mk_clinical_follow_up_org_path",
         "idx_mk_clinical_claim_patient", "idx_mk_clinical_claim_org_path",
         "idx_mk_projection_sync_tenant_target_ts", "idx_mk_projection_sync_tenant_status",
-        "idx_mk_projection_snapshot_tenant_target"
+        "idx_mk_projection_snapshot_tenant_target",
+        "idx_mk_version_asset_version_tenant_status", "idx_mk_version_asset_version_identity",
+        "idx_mk_version_asset_version_active_scope"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -324,7 +328,10 @@ class MigrationBaselineContractTest {
         "uk_mk_clinical_follow_up_source", "uk_mk_clinical_claim_source",
         "uk_mk_projection_sync_tenant_sync", "ck_mk_projection_sync_target",
         "ck_mk_projection_sync_status", "uk_mk_projection_snapshot_fact",
-        "ck_mk_projection_snapshot_target", "ck_mk_projection_snapshot_kind"
+        "ck_mk_projection_snapshot_target", "ck_mk_projection_snapshot_kind",
+        "uk_mk_version_asset_version_id", "uk_mk_version_asset_version_no",
+        "uk_mk_version_asset_version_active", "ck_mk_version_asset_version_type",
+        "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -360,7 +367,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_projection_sync", "mk_projection_snapshot"
+        "mk_projection_sync", "mk_projection_snapshot",
+        "mk_version_asset_version"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -391,7 +399,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim"
+        "mk_clinical_follow_up", "mk_clinical_claim",
+        "mk_version_asset_version"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
         Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
@@ -479,7 +488,8 @@ class MigrationBaselineContractTest {
         Map.entry("mk_config_item", Set.of("value_type", "risk_level", "source", "protected_flag", "active_flag", "version")),
         Map.entry("mk_config_history", Set.of("change_type", "version")),
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),
-        Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind"))
+        Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind")),
+        Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -704,6 +714,30 @@ class MigrationBaselineContractTest {
                 .contains("idx_mk_term_high_risk_rule_category")
                 .contains("COMMENT ON TABLE mk_term_high_risk_rule")
                 .contains("COMMENT ON COLUMN mk_term_high_risk_rule.evidence_text");
+        }
+    }
+
+    @Test
+    void v54ShouldDeclareAssetVersionFrameworkForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V54__asset_version_framework.sql");
+            assertThat(ddl).as("%s 不可变资产版本框架迁移", dialect)
+                .contains("mk_version_asset_version")
+                .contains("content_hash")
+                .contains("org_path")
+                .contains("active_scope_key")
+                .contains("uk_mk_version_asset_version_id")
+                .contains("uk_mk_version_asset_version_no")
+                .contains("uk_mk_version_asset_version_active")
+                .contains("ck_mk_version_asset_version_type")
+                .contains("ck_mk_version_asset_version_status")
+                .contains("ck_mk_version_asset_version_hash")
+                .contains("idx_mk_version_asset_version_tenant_status")
+                .contains("idx_mk_version_asset_version_identity")
+                .contains("idx_mk_version_asset_version_active_scope")
+                .contains("COMMENT ON TABLE mk_version_asset_version")
+                .contains("COMMENT ON COLUMN mk_version_asset_version.content_hash")
+                .contains("COMMENT ON COLUMN mk_version_asset_version.active_scope_key");
         }
     }
 

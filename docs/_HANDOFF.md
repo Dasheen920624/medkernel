@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 SYS-04 PR1 不可变版本框架 🚧
 - 类型：软件开发
-- 分支：下一步从最新 `origin/main` 创建 `codex/d2-sys-04-pr1-version-foundation`
-- 目标：完成 SYS-04 PR1：抽取配置类资产共享的不可变版本契约、稳定 `content_hash`、`asset_version` 五方言迁移与同一生效域 ACTIVE 唯一约束，为继承解析 / 发布流 / 历史重放打统一地基。
-- 状态：PKG-01 已通过 #281 合入并在本轮收口中同步为 done；SYS-04 尚未开工。下一步必须先读核心 + D2 `_brief` + [SYS-04](cards/D2/SYS-04.md)，核查 `engine/knowledge`、`engine/pkg`、`engine/pathway`、`engine/evaluation` 现有版本字段和迁移表族，不直接复用散落旧实现当作完成证明。
-- 下一步（精确到动作/命令）：1. 从 `origin/main` 新建 `codex/d2-sys-04-pr1-version-foundation`；2. 建立绿色基线；3. 写红灯测试覆盖已发布版本禁止原地修改、同域 ACTIVE 唯一、content_hash 稳定；4. 实现最小共享框架和五方言迁移；5. 跑后端 / T-GATE / 迁移 / 中文注释 / diff 检查后 PR。
-- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`medkernel-backend/src/main/java/com/medkernel/engine/knowledge`、`engine/pkg`、`engine/pathway`、`engine/evaluation`、`medkernel-backend/src/main/resources/db/migration/**`；`DEFER-001` 国产化真实环境仍 open，当前仅保障 PostgreSQL + Oracle；不得把 PKG-01 包级 `ReleasePlan` 直接冒充通用 SYS-04 框架完成。
+- 分支：`codex/d2-sys-04-pr1-version-foundation`
+- 目标：完成 SYS-04 PR1：抽取配置类资产共享的不可变版本契约、稳定 `content_hash`、`mk_version_asset_version` 五方言迁移与同一生效域 ACTIVE 唯一约束，为继承解析 / 发布流 / 历史重放打统一地基。
+- 状态：PR1 本地实现与验证完成，待提交 / PR / CI / 合并。新增 `engine.versioning` 通用 `AssetVersion` / `VersionedAssetPort` / `AssetVersionService` / `AssetVersionRepository`，新增共享 `Sha256ContentHash` 与 `Ulid` 并让知识域 / 临床 ULID 入口复用，V54 五方言迁移使用物理表 `mk_version_asset_version`（`version_id=av-<ULID>`、组织列统一 `org_path`，遵循 BASE-05 新增迁移命名规约，不再使用旧裸表名 `asset_version`）。已补 `engine-versioning` 单一 owner。目标测试覆盖 `content_hash` 稳定、已发布版本禁止原地修改、同域 ACTIVE 防双活和 H2 V54 迁移；本地全量后端 `mvn -q test` 退出码 0，Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 均迁移到 V54；真实性全量 806 文件、配置边界 748 文件、迁移规约 5 个 V54 文件、`git diff --cached --check` 均通过。SYS-04 PR2/PR3 的继承解析、完整发布流、回滚与历史重放尚未开工，不能冒领整卡完成。
+- 下一步（精确到动作/命令）：1. 提交并创建 PR；2. 远端 CI 通过后 squash 合并；3. 从最新 `origin/main` 领取 SYS-04 PR2 继承解析。
+- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`medkernel-backend/src/main/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/java/com/medkernel/shared/hash/Sha256ContentHash.java`、`medkernel-backend/src/main/java/com/medkernel/shared/ids/Ulid.java`、`medkernel-backend/src/main/java/com/medkernel/shared/architecture/DomainOwnershipCatalog.java`、`medkernel-backend/src/main/resources/db/migration/**/V54__asset_version_framework.sql`、`AssetVersionServiceTest`、`AssetVersionRepositoryTest`、`Sha256ContentHashTest`、`UlidTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、`DomainOwnershipContractTest`；`DEFER-001` 国产化真实环境仍 open，当前仅保障 PostgreSQL + Oracle；不得把 PKG-01 包级 `ReleasePlan` 或 SYS-04 PR1 当成完整版本继承与发布框架。
 
 ## 已归档工作线（最近完成，供回溯）
 
