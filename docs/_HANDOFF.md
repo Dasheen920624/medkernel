@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 RULE-01 规则引擎三层配置与规则库页 🚧
 - 类型：软件开发
-- 分支：`codex/d2-rule-01-layered-ui`（待从最新 `origin/main` 新建）
+- 分支：`codex/d2-rule-01-layered-ui`
 - 目标：按 [RULE-01](cards/D2/RULE-01.md) 实施规则引擎后端 + 三层前端：L1 模板、L2 可视化条件树、L3 DSL、7 步流、测试病例与仿真；消费已完成的 [API-05](cards/D2/API-05.md)，不得伪造跨域影响对象。
-- 状态：PR1 后端解释证据已合入 `origin/main`（#270，merge `6a5dc99e`）；待领取 PR2 三层前端：L1 模板、L2 可视化条件树、L3 DSL，要求双向互转无损、六态和 ≤3 默认筛选。
-- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 创建 `codex/d2-rule-01-layered-ui` worktree；2. 核查 `frontend/src/pages` / `frontend/src/features` 现有规则库实现并跑前端规则相关基线；3. 先写失败测试锁住 L2↔L3 互转与 L1 模板实例化；4. 实施 PR2 并通过本地前端验证 + changed T-GATE + CI 8/8 后合并；5. 再继续 PR3 仿真病例选择器 + 7 步流发布。
-- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/RuleDefinitions.tsx`、规则相关 hooks / API 客户端、`docs/cards/D2/RULE-01.md`、[体验契约](EXPERIENCE_CONTRACT.md)；不得把 JSON 文本框冒充三层编辑器。`DEFER-012` 真实跨域反向索引仍 open，发布影响分析不得造受影响患者 / 路径 / 同步目标；`DEFER-013` OpenSpec 旧变更同步问题仍 open，不影响 PR2。
+- 状态：PR1 后端解释证据已合入 `origin/main`（#270，merge `6a5dc99e`）；PR2 三层前端已在本分支实现：规则库创建流从旧 JSON 文本框升级为 L1 模板 / L2 可视化条件树 / L3 DSL，支持 L2→L3 同步、L3→L2 回填、提交前占位字段拦截、≤3 默认筛选和六态页面骨架；三层模板 / 互转逻辑已下沉到 `frontend/src/shared/config/ruleLayeredEditor.ts`，旧页面内硬编码模板已清理。
+- 下一步（精确到动作/命令）：1. 合入本分支 PR2 前必须确认 CI 8/8 通过；2. PR2 合入并清理分支 / worktree 后，从最新 `origin/main` 领取 PR3：仿真病例选择器 + 7 步流发布；3. PR3 不得伪造患者、路径或同步目标，跨域影响对象仍按 `DEFER-012` 处理，只有真实反向索引完成后才能关闭。
+- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/RuleDefinitions.tsx`、`frontend/src/pages/tenant/RuleDefinitions.test.tsx`、`frontend/src/shared/config/ruleLayeredEditor.ts`、`frontend/src/shared/config/ruleLayeredEditor.test.ts`、规则相关 hooks / API 客户端、`docs/cards/D2/RULE-01.md`、[体验契约](EXPERIENCE_CONTRACT.md)。本地验证证据：前端基线 smoke / 清洁测试 25 通过；三层编辑目标测试 4 通过；`npm run verify` 43 文件 / 224 测试通过；`npm run build` 通过；changed T-GATE、中文注释门禁、`git diff --check` 通过；本机应用内浏览器本轮无可用 `iab` 实例，已登记 `DEFER-004`，改用项目 Playwright 对 `http://127.0.0.1:5175/rule/definitions` 完成页面渲染、弹窗 L1/L2/L3、L2 同步 L3 和控制台错误验收。`DEFER-003` 测试噪声、`DEFER-012` 真实跨域反向索引、`DEFER-013` OpenSpec 旧变更同步、`DEFER-014` 非当前页面旧 `Tabs.TabPane` 仍 open，不得宣称清零。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -150,4 +150,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `RULE-01` PR1 后端解释证据 #270（merge `6a5dc99e`）和 D2 `TERM-01` PR4 来源追溯与冲突待裁 #268（merge `45ce8841`）。下一步领取 D2 `RULE-01` PR2，从最新 `origin/main` 新建 `codex/d2-rule-01-layered-ui`，按 TDD 实施 L1/L2/L3 三层前端与互转无损。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-013` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；当前分支 `codex/d2-rule-01-layered-ui` 已完成 D2 `RULE-01` PR2 本地实现与验证，待 PR2 远端 CI / 合并。合入后继续 D2 `RULE-01` PR3：仿真病例选择器 + 7 步流发布。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-014` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
