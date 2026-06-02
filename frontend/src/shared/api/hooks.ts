@@ -2385,6 +2385,7 @@ export interface PackageValidateResponse {
   packageId: string;
   status: KnowledgePackage["status"];
   itemCount: number;
+  contentSha256: string;
   valid: boolean;
   issues: PackageValidateIssue[];
 }

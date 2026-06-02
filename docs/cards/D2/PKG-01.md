@@ -18,6 +18,7 @@
 `engine/pkg` **已实质建成**，本卡＝**契约化 + 同步证据/回滚/校验补全**：
 - 已有：`KnowledgePackage`(+`Status`)、`PackageItem`(+`AssetType`)、`ReleasePlan`(+`Status`/`ReleaseScopeType`/`ReleaseStrategy`)、`PackageSyncPort` + `LenientPackageSyncAdapter`、`SyncTarget`(+`Status`/`Type`)、`SyncLog`(+`Status`)、`PackageEngineService`/`Controller`、`PackageDiffResponse`、`PackageSyncRequest`/`Response`。
 - 缺口（本卡补）：① 包**校验**（完整性/依赖/版本/content_hash）；② **灰度/全量/回滚**对齐 [SYS-04](SYS-04.md) 变更类状态机；③ **真实同步证据**（同步水位 + 失败站点 + `NOT_SYNCED`）；④ 离线包导入/导出（内外网双形态）。
+- 2026-06-03 PR1 进展（`codex/d2-pkg-01-pr1-integrity`）：发布前校验响应新增稳定 `contentSha256`，摘要来自包编码 / 版本 / 资产类型 / 资产 ID / 资产版本声明；`validatePackage` 已对 `RULE` / `PATHWAY` / `EVALUATION` 资产做真实存在与已发布状态校验，缺失或未发布返回 `BLOCKING` 问题；尚未接入统一依赖适配器的 `KNOWLEDGE` / `TERMINOLOGY` / `FOLLOWUP` 发布前同样返回 `BLOCKING`，且 `syncPackage` / `releasePackage` 创建发布计划前强制复用同一校验，避免未核验资产绕过校验直接发布。当前离线完整资产快照仍只覆盖既有 `RULE` / `EVALUATION`，全资产类型离线内容迁移登记 `DEFER-018`，不得冒领 AC-1 全量完成。
 
 ## 功能要求（原子可测条目）
 - [ ] **FR-1 打包/导出**：选规则/路径/知识/字典资产打成 `KnowledgePackage`（含 `PackageItem` + 依赖 + content_hash）；可导出离线包。
@@ -69,6 +70,7 @@ N·A —— 本卡无页面。呈现在 **D2 配置包中心页**（发布/同�
 ## 完工证据
 - 代码 permalink：`PackageEngineService` 校验/灰度/回滚 + `PackageSyncPort` 真实证据 + `NOT_SYNCED` + content_hash + 5 方言迁移。
 - 测试：导入校验/完整性测试 + 灰度回滚测试 + 无通道 `NOT_SYNCED` 测试 + 同步水位/失败站点测试 + 证据导出测试。
+- 当前 PR1 本地证据：后端包发布聚焦基线 `mvn -q -Dtest=PackageEngineServiceTest,PackageEngineControllerSecurityTest,LenientPackageSyncAdapterTest test` 通过；红灯先失败于缺 `PackageValidateResponse.contentSha256()`，新增红灯又先失败于 `releasePackage` 未阻断术语资产，随后补稳定内容摘要、缺失资产依赖阻断、未接入适配器资产类型阻断和发布入口强制校验；`mvn -q -Dtest=PackageEngineServiceTest#validatePackageReturnsValidWhenPackageHasRealItems+validatePackageBlocksWhenDeclaredAssetDependencyIsMissing test`、`mvn -q -Dtest=PackageEngineServiceTest#releasePackageBlocksWhenValidationHasBlockingIssues test`、`mvn -q -Dtest=PackageEngineServiceTest test`、后端全量 `mvn -q test` 通过，含 PostgreSQL 15.18 / Oracle 21.3 迁移至 V53；前端 `npm run typecheck`、`npm test -- src/shared/api/hooks.test.ts src/pages/tenant/ConfigPackages.test.tsx`、`npm run verify`（44 文件 / 231 测试）和 `npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`node scripts/authenticity-guard.mjs --mode=all` 扫描 796 文件通过，配置边界 inventory 扫描 738 文件通过，迁移 changed 扫描 0 文件通过，`scripts/check-comment-zh.sh` 0 fail / 0 warn，`git diff --check` 通过，生产依赖 `npm audit --omit=dev` 0 漏洞。同步失败 / `NOT_SYNCED` 日志、前端测试噪声和大 chunk 提示为既有场景；`DEFER-018` 未关闭前不得勾选 AC-1 全资产完成。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（6d，后端引擎；按 PR 拆分）

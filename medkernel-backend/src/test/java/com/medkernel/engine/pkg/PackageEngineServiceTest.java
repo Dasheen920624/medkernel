@@ -173,6 +173,7 @@ class PackageEngineServiceTest {
         PackageValidateResponse response = service.validatePackage("pkg-empty");
 
         assertThat(response.packageId()).isEqualTo("pkg-empty");
+        assertThat(response.contentSha256()).matches("[a-f0-9]{64}");
         assertThat(response.valid()).isFalse();
         assertThat(response.itemCount()).isZero();
         assertThat(response.issues()).anySatisfy(issue -> {
@@ -196,13 +197,68 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-1"))
             .thenReturn(List.of(item));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-1", "dept-rule")));
 
         PackageValidateResponse response = service.validatePackage("pkg-1");
 
         assertThat(response.packageId()).isEqualTo("pkg-1");
+        assertThat(response.contentSha256()).matches("[a-f0-9]{64}");
         assertThat(response.valid()).isTrue();
         assertThat(response.itemCount()).isEqualTo(1);
         assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
+    void validatePackageBlocksWhenDeclaredAssetDependencyIsMissing() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-missing", "tenant-A", "PKG.MISSING", "1.0.0", "缺依赖配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem item = new PackageItem(
+            10L, "item-1", "tenant-A", "pkg-missing", PackageItemAssetType.RULE, "rule-missing", "1",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-missing", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-missing"))
+            .thenReturn(List.of(item));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-missing", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        PackageValidateResponse response = service.validatePackage("pkg-missing");
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).anySatisfy(issue -> {
+            assertThat(issue.field()).isEqualTo("items[RULE:rule-missing]");
+            assertThat(issue.severity()).isEqualTo("BLOCKING");
+            assertThat(issue.message()).contains("入包规则不存在");
+        });
+    }
+
+    @Test
+    void validatePackageBlocksUnsupportedAssetTypesUntilDependencyAdapterExists() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-terminology", "tenant-A", "PKG.TERM", "1.0.0", "术语配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem item = new PackageItem(
+            10L, "item-1", "tenant-A", "pkg-terminology", PackageItemAssetType.TERMINOLOGY, "term-map-1", "1",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-terminology", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-terminology"))
+            .thenReturn(List.of(item));
+
+        PackageValidateResponse response = service.validatePackage("pkg-terminology");
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).anySatisfy(issue -> {
+            assertThat(issue.field()).isEqualTo("items[TERMINOLOGY:term-map-1]");
+            assertThat(issue.severity()).isEqualTo("BLOCKING");
+            assertThat(issue.message()).contains("尚未接入统一依赖适配器");
+        });
     }
 
     @Test
@@ -666,6 +722,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-1");
 
         SyncTarget target = new SyncTarget(
             1L, "target-1", "tenant-A", "同步目标", SyncTargetType.DIFY, "config",
@@ -700,6 +757,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-1");
 
         SyncTarget target = new SyncTarget(
             1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
@@ -733,6 +791,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-1");
 
         SyncTarget target = new SyncTarget(
             1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
@@ -750,6 +809,36 @@ class PackageEngineServiceTest {
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
         assertThat(response.logs()).hasSize(1);
         assertThat(response.logs().get(0).syncEvidence()).isEqualTo("EVIDENCE-RELEASE-001");
+    }
+
+    @Test
+    void releasePackageBlocksWhenValidationHasBlockingIssues() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-bad", "tenant-A", "PKG.TERM", "1.0.0", "术语配置包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        PackageItem item = new PackageItem(
+            10L, "item-1", "tenant-A", "pkg-bad", PackageItemAssetType.TERMINOLOGY, "term-map-1", "1",
+            Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-bad", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-bad"))
+            .thenReturn(List.of(item));
+        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(new SyncTarget(
+                1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
+                SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
+
+        assertThatThrownBy(() -> service.releasePackage("pkg-bad", new PackageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, List.of("target-1")
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("配置包发布前校验未通过")
+            .hasMessageContaining("尚未接入统一依赖适配器");
+        verify(planRepository, never()).save(any(ReleasePlan.class));
+        verify(syncPort, never()).sync(any(), any(), any());
     }
 
     @Test
@@ -790,6 +879,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-draft", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-draft");
 
         SyncTarget target = new SyncTarget(
             1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
@@ -818,6 +908,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-draft", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-draft");
 
         SyncTarget successTarget = new SyncTarget(
             1L, "target-ok", "tenant-A", "规则库", SyncTargetType.CLINICAL_DB, "config",
@@ -1194,6 +1285,7 @@ class PackageEngineServiceTest {
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-copd-v2", "tenant-A"))
             .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-copd-v2");
 
         // 模拟同一个租户下有多个 ACTIVE 状态的不同业务包
         // 1. COPD 的老版本包 (PKG.COPD v1.0) -> 应该被失效
@@ -1442,6 +1534,14 @@ class PackageEngineServiceTest {
         when(targetRepository.findByTargetIdAndTenantId(targetId, "tenant-A"))
             .thenReturn(Optional.of(target));
         return target;
+    }
+
+    private void stubPackageReadyForRelease(String packageId) {
+        String ruleId = "rule-ready-" + packageId;
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", packageId))
+            .thenReturn(List.of(packageItem(900L, packageId, PackageItemAssetType.RULE, ruleId, "1")));
+        when(ruleRepository.findByRuleIdAndTenantId(ruleId, "tenant-A"))
+            .thenReturn(Optional.of(publishedRule(ruleId, "dept-rule")));
     }
 
     private PackageItem packageItem(
