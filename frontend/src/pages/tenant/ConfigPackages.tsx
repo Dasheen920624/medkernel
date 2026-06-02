@@ -56,7 +56,7 @@ import {
   useRuleDefinitions,
   usePathwayTemplates,
   useEvaluationIndicators,
-  useTerminologyMappings,
+  useTerminologyPackages,
   useImportOfflinePackage,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
@@ -68,7 +68,7 @@ import type {
   PathwayTemplate,
   RuleDefinition,
   SyncLogResponse,
-  TermMapping,
+  TermMappingPackage,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
@@ -138,7 +138,7 @@ export default function ConfigPackages() {
   const { data: activeRules } = useRuleDefinitions({ size: 100 });
   const { data: activePathways } = usePathwayTemplates({ size: 100 });
   const { data: activeEvaluations } = useEvaluationIndicators({ size: 100 });
-  const { data: activeTerminologies } = useTerminologyMappings({ size: 100 });
+  const { data: activeTerminologyPackages } = useTerminologyPackages({ size: 100 });
 
   // 4. API 突变 Hooks
   const createPackageMutation = useCreatePackage();
@@ -190,6 +190,12 @@ export default function ConfigPackages() {
 
   // B. 细项管理：添加资产
   const [selectedAssetType, setSelectedAssetType] = useState<string>("RULE");
+  const terminologyPackageOptions = (activeTerminologyPackages?.items || []).filter(
+    (item) => item.status === "PUBLISHED" || item.status === "GRAY",
+  );
+  const terminologyAssetId = (item: TermMappingPackage) =>
+    `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
+
   const handleAddItem = async () => {
     if (!selectedPackageId) return;
     try {
@@ -801,7 +807,10 @@ export default function ConfigPackages() {
                         initialValue="RULE"
                       >
                         <Select
-                          onChange={(val) => setSelectedAssetType(val)}
+                          onChange={(val) => {
+                            setSelectedAssetType(val);
+                            itemForm.resetFields(["assetId", "assetVersion"]);
+                          }}
                           className="rounded-lg"
                         >
                           <Option value="RULE">规则引擎 (RULE)</Option>
@@ -822,6 +831,17 @@ export default function ConfigPackages() {
                           showSearch
                           allowClear
                           className="rounded-lg"
+                          onChange={(value) => {
+                            if (selectedAssetType !== "TERMINOLOGY") return;
+                            const selected = terminologyPackageOptions.find(
+                              (item) => terminologyAssetId(item) === value,
+                            );
+                            if (selected) {
+                              itemForm.setFieldsValue({ assetVersion: selected.packageVersion });
+                            } else {
+                              itemForm.setFieldsValue({ assetVersion: undefined });
+                            }
+                          }}
                         >
                           {selectedAssetType === "RULE" &&
                             (activeRules?.items || []).map((r: RuleDefinition) => (
@@ -845,12 +865,12 @@ export default function ConfigPackages() {
                             ))}
 
                           {selectedAssetType === "TERMINOLOGY" &&
-                            (activeTerminologies?.items || []).map((t: TermMapping) => (
+                            terminologyPackageOptions.map((t: TermMappingPackage) => (
                               <Option
-                                key={t.localTermId || t.id}
-                                value={`term-map-${t.localTermId || t.id}`}
+                                key={`${t.packageCode}-${t.packageVersion}-${t.scopeLevel}-${t.scopeCode}`}
+                                value={terminologyAssetId(t)}
                               >
-                                {t.category} (ID: {t.localTermId || t.id})
+                                {t.displayName} ({t.packageCode} / {t.scopeLevel}:{t.scopeCode})
                               </Option>
                             ))}
                         </Select>
@@ -863,7 +883,12 @@ export default function ConfigPackages() {
                         rules={[{ required: true }]}
                       >
                         <Input
-                          placeholder="请输入资产快照版本"
+                          placeholder={
+                            selectedAssetType === "TERMINOLOGY"
+                              ? "选择术语包后自动带出版本"
+                              : "请输入资产快照版本"
+                          }
+                          readOnly={selectedAssetType === "TERMINOLOGY"}
                           className="rounded-lg font-normal"
                         />
                       </Form.Item>

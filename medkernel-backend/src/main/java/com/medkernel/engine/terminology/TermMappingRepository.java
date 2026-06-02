@@ -13,6 +13,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TermMappingRepository extends ListCrudRepository<TermMapping, Long> {
 
+    Optional<TermMapping> findByTenantIdAndId(String tenantId, Long id);
+
     Optional<TermMapping> findByTenantIdAndLocalTermIdAndStandardTermId(String tenantId, Long localTermId,
                                                                         Long standardTermId);
 

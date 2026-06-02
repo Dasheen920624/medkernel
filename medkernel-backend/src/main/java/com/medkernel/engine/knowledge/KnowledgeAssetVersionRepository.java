@@ -21,6 +21,12 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
 
     Optional<KnowledgeAssetVersion> findByTenantIdAndId(String tenantId, Long id);
 
+    Optional<KnowledgeAssetVersion> findByTenantIdAndIdentityIdAndVersionNo(
+        String tenantId,
+        Long identityId,
+        String versionNo
+    );
+
     List<KnowledgeAssetVersion> findByTenantIdAndIdentityIdOrderByCreatedAtDesc(String tenantId, Long identityId);
 
     List<KnowledgeAssetVersion> findByTenantIdAndStatusOrderByUpdatedAtDescIdDesc(

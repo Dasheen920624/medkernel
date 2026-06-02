@@ -21,12 +21,29 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
+import com.medkernel.engine.knowledge.GradeEvidenceQuality;
+import com.medkernel.engine.knowledge.GradeRecommendationStrength;
+import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
+import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
+import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
+import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
+import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
+import com.medkernel.engine.terminology.TermMapping;
+import com.medkernel.engine.terminology.TermMappingPackage;
+import com.medkernel.engine.terminology.TermMappingPackageItem;
+import com.medkernel.engine.terminology.TermMappingPackageItemRepository;
+import com.medkernel.engine.terminology.TermMappingPackageRepository;
+import com.medkernel.engine.terminology.TermMappingRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
@@ -65,6 +82,11 @@ public class PackageEngineService {
     private final PathwayTemplateRepository pathwayRepository;
     private final EvaluationIndicatorRepository evaluationRepository;
     private final RuleVersionRepository ruleVersionRepository;
+    private final KnowledgeIdentityRepository knowledgeIdentityRepository;
+    private final KnowledgeAssetVersionRepository knowledgeVersionRepository;
+    private final TermMappingPackageRepository terminologyPackageRepository;
+    private final TermMappingPackageItemRepository terminologyPackageItemRepository;
+    private final TermMappingRepository terminologyMappingRepository;
 
     private final PackageSyncPort syncPort;
     private final AuditEventPublisher auditPublisher;
@@ -80,6 +102,11 @@ public class PackageEngineService {
             RuleVersionRepository ruleVersionRepository,
             PathwayTemplateRepository pathwayRepository,
             EvaluationIndicatorRepository evaluationRepository,
+            KnowledgeIdentityRepository knowledgeIdentityRepository,
+            KnowledgeAssetVersionRepository knowledgeVersionRepository,
+            TermMappingPackageRepository terminologyPackageRepository,
+            TermMappingPackageItemRepository terminologyPackageItemRepository,
+            TermMappingRepository terminologyMappingRepository,
             PackageSyncPort syncPort,
             AuditEventPublisher auditPublisher,
             TransactionTemplate transactionTemplate) {
@@ -92,6 +119,11 @@ public class PackageEngineService {
         this.ruleVersionRepository = ruleVersionRepository;
         this.pathwayRepository = pathwayRepository;
         this.evaluationRepository = evaluationRepository;
+        this.knowledgeIdentityRepository = knowledgeIdentityRepository;
+        this.knowledgeVersionRepository = knowledgeVersionRepository;
+        this.terminologyPackageRepository = terminologyPackageRepository;
+        this.terminologyPackageItemRepository = terminologyPackageItemRepository;
+        this.terminologyMappingRepository = terminologyMappingRepository;
         this.syncPort = syncPort;
         this.auditPublisher = auditPublisher;
         this.transactionTemplate = transactionTemplate;
@@ -179,7 +211,7 @@ public class PackageEngineService {
         }
 
         // 验证所绑定的资产是否存在及其生命周期状态（未审核的资产如 DRAFT 不可入包）
-        validateAssetStatus(tenantId, request.assetType(), request.assetId());
+        validateAssetStatus(tenantId, request.assetType(), request.assetId(), request.assetVersion());
 
         // 避免重复添加同个资产
         Optional<PackageItem> existing = itemRepository
@@ -241,31 +273,17 @@ public class PackageEngineService {
     private List<PackageValidateIssue> validatePackageItemDependencies(String tenantId, List<PackageItem> items) {
         List<PackageValidateIssue> issues = new ArrayList<>();
         for (PackageItem item : items) {
-            if (requiresDomainDependencyValidation(item.assetType())) {
-                try {
-                    validateAssetStatus(tenantId, item.assetType(), item.assetId());
-                } catch (ApiException ex) {
-                    issues.add(new PackageValidateIssue(
-                        itemField(item),
-                        "BLOCKING",
-                        ex.getMessage()
-                    ));
-                }
-                continue;
+            try {
+                validateAssetStatus(tenantId, item.assetType(), item.assetId(), item.assetVersion());
+            } catch (ApiException ex) {
+                issues.add(new PackageValidateIssue(
+                    itemField(item),
+                    "BLOCKING",
+                    ex.getMessage()
+                ));
             }
-            issues.add(new PackageValidateIssue(
-                itemField(item),
-                "BLOCKING",
-                "该资产类型尚未接入统一依赖适配器，发布前不能跳过依赖校验: " + item.assetType()
-            ));
         }
         return issues;
-    }
-
-    private boolean requiresDomainDependencyValidation(PackageItemAssetType assetType) {
-        return assetType == PackageItemAssetType.RULE
-            || assetType == PackageItemAssetType.PATHWAY
-            || assetType == PackageItemAssetType.EVALUATION;
     }
 
     private String itemField(PackageItem item) {
@@ -625,6 +643,28 @@ public class PackageEngineService {
                 evaluationRepository.findByIndicatorIdAndTenantId(item.assetId(), tenantId)
                     .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_002, "离线导出评估指标不存在: " + item.assetId()))
             );
+            case KNOWLEDGE -> {
+                KnowledgeIdentity identity = knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, item.assetId())
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_002, "离线导出知识身份不存在: " + item.assetId()));
+                KnowledgeAssetVersion version = knowledgeVersionRepository
+                    .findByTenantIdAndIdentityIdAndVersionNo(tenantId, identity.id(), item.assetVersion())
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "离线导出知识版本不存在: " + item.assetId() + "@" + item.assetVersion()
+                    ));
+                yield buildKnowledgeAssetContent(identity, version);
+            }
+            case TERMINOLOGY -> {
+                TerminologyAssetKey key = parseTerminologyAssetKey(item.assetId());
+                TermMappingPackage terminologyPackage = terminologyPackageRepository
+                    .findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
+                        tenantId, key.packageCode(), item.assetVersion(), key.scopeLevel(), key.scopeCode())
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "离线导出术语映射包不存在: " + item.assetId() + "@" + item.assetVersion()
+                    ));
+                yield buildTerminologyAssetContent(terminologyPackage);
+            }
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "离线包暂不支持完整资产内容迁移: " + item.assetType());
@@ -689,6 +729,95 @@ public class PackageEngineService {
                 indicator.publishedBy(),
                 instantText(indicator.activatedAt())
             )
+        ));
+    }
+
+    private JsonNode buildKnowledgeAssetContent(KnowledgeIdentity identity, KnowledgeAssetVersion version) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineKnowledgeContent(
+            new PackageOfflineKnowledgeIdentity(
+                identity.identityCode(),
+                enumName(identity.domain()),
+                identity.subject(),
+                identity.specialtyId(),
+                identity.description(),
+                enumName(identity.status()),
+                version.versionNo()
+            ),
+            new PackageOfflineKnowledgeVersion(
+                version.versionNo(),
+                version.versionLabel(),
+                version.sourceDocumentId(),
+                version.sourceVersionId(),
+                version.contentHash(),
+                version.anchors(),
+                enumName(version.status()),
+                enumName(version.riskLevel()),
+                enumName(version.authorityLevel()),
+                enumName(version.gradeQuality()),
+                enumName(version.gradeStrength()),
+                version.conflictArbitration(),
+                instantText(version.effectiveFrom()),
+                instantText(version.effectiveTo()),
+                version.reviewedBy(),
+                instantText(version.reviewedAt()),
+                instantText(version.activatedAt()),
+                instantText(version.supersededAt()),
+                instantText(version.withdrawnAt()),
+                version.withdrawnReason()
+            )
+        ));
+    }
+
+    private JsonNode buildTerminologyAssetContent(TermMappingPackage terminologyPackage) {
+        if (terminologyPackage.id() == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线导出术语映射包缺少本地主键，不能回查条目: " + terminologyPackage.packageCode());
+        }
+        List<TermMappingPackageItem> packageItems = terminologyPackageItemRepository
+            .findByTenantIdAndPackageId(terminologyPackage.tenantId(), terminologyPackage.id()).stream()
+            .sorted(Comparator.comparing(
+                TermMappingPackageItem::mappingId,
+                Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
+        List<PackageOfflineTermMapping> mappings = packageItems.stream()
+            .map(item -> terminologyMappingRepository.findByTenantIdAndId(terminologyPackage.tenantId(), item.mappingId())
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "离线导出术语映射包条目缺少正式映射: " + terminologyPackage.packageCode() + "#" + item.mappingId()
+                )))
+            .map(mapping -> new PackageOfflineTermMapping(
+                mapping.localTermId(),
+                mapping.standardTermId(),
+                mapping.sourceSystem(),
+                mapping.categoryName(),
+                mapping.confidence(),
+                mapping.riskLevelName(),
+                mapping.statusName(),
+                mapping.evidenceText(),
+                mapping.confirmedBy(),
+                instantText(mapping.confirmedAt())
+            ))
+            .toList();
+        List<PackageOfflineTermMappingPackageItem> items = packageItems.stream()
+            .map(item -> new PackageOfflineTermMappingPackageItem(item.mappingSnapshot()))
+            .toList();
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineTerminologyContent(
+            new PackageOfflineTerminologyPackage(
+                terminologyPackage.packageCode(),
+                terminologyPackage.packageVersion(),
+                terminologyPackage.displayName(),
+                terminologyPackage.scopeLevel(),
+                terminologyPackage.scopeCode(),
+                terminologyPackage.statusName(),
+                terminologyPackage.mappingCount(),
+                terminologyPackage.contentHash(),
+                terminologyPackage.grayScopeJson(),
+                terminologyPackage.publishedBy(),
+                instantText(terminologyPackage.publishedAt()),
+                terminologyPackage.rollbackFromPackageId()
+            ),
+            mappings,
+            items
         ));
     }
 
@@ -763,6 +892,8 @@ public class PackageEngineService {
         switch (assetType) {
             case RULE -> importOfflineRuleSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
+            case KNOWLEDGE -> importOfflineKnowledgeSnapshot(assetId, assetVersion, content, tenantId, actor, now);
+            case TERMINOLOGY -> importOfflineTerminologySnapshot(assetId, assetVersion, content, tenantId, actor, now);
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "离线包暂不支持完整资产内容迁移: " + assetType);
@@ -797,6 +928,41 @@ public class PackageEngineService {
                 }
                 ensurePackageAssetPublished("评估指标", indicator.status());
             }
+            case KNOWLEDGE -> {
+                PackageOfflineKnowledgeContent knowledgeContent =
+                    readOfflineContent(content, PackageOfflineKnowledgeContent.class);
+                if (!assetId.equals(knowledgeContent.identity().identityCode())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包知识快照 identityCode 与资产条目不一致");
+                }
+                if (!assetVersion.equals(knowledgeContent.version().versionNo())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包知识快照 versionNo 与资产条目不一致");
+                }
+                ensurePackageAssetPublished("知识版本", knowledgeContent.version().status());
+                if (!"ACTIVE".equalsIgnoreCase(knowledgeContent.identity().status())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                        "离线包知识身份必须为 ACTIVE 状态, 当前: " + knowledgeContent.identity().status());
+                }
+            }
+            case TERMINOLOGY -> {
+                PackageOfflineTerminologyContent terminologyContent =
+                    readOfflineContent(content, PackageOfflineTerminologyContent.class);
+                PackageOfflineTerminologyPackage terminologyPackage = terminologyContent.terminologyPackage();
+                TerminologyAssetKey key = parseTerminologyAssetKey(assetId);
+                if (!key.packageCode().equals(terminologyPackage.packageCode())
+                        || !key.scopeLevel().equals(terminologyPackage.scopeLevel())
+                        || !key.scopeCode().equals(terminologyPackage.scopeCode())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射包快照业务键与资产条目不一致");
+                }
+                if (!assetVersion.equals(terminologyPackage.packageVersion())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射包版本与资产条目不一致");
+                }
+                ensureTerminologyPackageReleased(terminologyPackage.status());
+                if (terminologyPackage.mappingCount() != null
+                        && terminologyPackage.mappingCount() != terminologyContent.mappings().size()) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射包 mappingCount 与映射快照数量不一致");
+                }
+                validateOfflineTerminologyMappings(terminologyContent.mappings());
+            }
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "离线包暂不支持完整资产内容迁移: " + assetType);
@@ -807,6 +973,24 @@ public class PackageEngineService {
         if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包" + assetName + "必须为 PUBLISHED 或 ACTIVE 状态, 当前: " + status);
+        }
+    }
+
+    private void validateOfflineTerminologyMappings(List<PackageOfflineTermMapping> mappings) {
+        for (PackageOfflineTermMapping mapping : mappings) {
+            try {
+                TermMapping.validateImportedEnums(mapping.category(), mapping.riskLevel(), mapping.status());
+            } catch (IllegalArgumentException ex) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                    "离线包术语映射枚举不合法: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void ensureTerminologyPackageReleased(String status) {
+        if (!"PUBLISHED".equalsIgnoreCase(status) && !"GRAY".equalsIgnoreCase(status)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包术语映射包必须为 PUBLISHED 或 GRAY 状态, 当前: " + status);
         }
     }
 
@@ -928,6 +1112,184 @@ public class PackageEngineService {
         ));
     }
 
+    private void importOfflineKnowledgeSnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            Instant now) {
+        PackageOfflineKnowledgeContent knowledgeContent = readOfflineContent(content, PackageOfflineKnowledgeContent.class);
+        validateOfflineAssetSnapshotContent(PackageItemAssetType.KNOWLEDGE, assetId, assetVersion, content);
+
+        Optional<KnowledgeIdentity> existingIdentity =
+            knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, assetId);
+        if (existingIdentity.isPresent()) {
+            KnowledgeAssetVersion existingVersion = knowledgeVersionRepository
+                .findByTenantIdAndIdentityIdAndVersionNo(tenantId, existingIdentity.get().id(), assetVersion)
+                .orElseThrow(() -> new ApiException(
+                    ErrorCode.CONFLICT,
+                    "本地知识身份存在但缺少离线包要求的版本: " + assetId + "@" + assetVersion
+                ));
+            ensureLocalSnapshotMatches("知识版本", assetId, content,
+                buildKnowledgeAssetContent(existingIdentity.get(), existingVersion));
+            return;
+        }
+
+        PackageOfflineKnowledgeIdentity identity = knowledgeContent.identity();
+        KnowledgeIdentity savedIdentity = knowledgeIdentityRepository.save(new KnowledgeIdentity(
+            null,
+            tenantId,
+            identity.identityCode(),
+            parseEnum(KnowledgeDomain.class, identity.domain(), "知识身份领域"),
+            identity.subject(),
+            identity.specialtyId(),
+            identity.description(),
+            parseEnum(KnowledgeIdentityStatus.class, identity.status(), "知识身份状态"),
+            null,
+            now,
+            actor,
+            now,
+            actor
+        ));
+        PackageOfflineKnowledgeVersion version = knowledgeContent.version();
+        KnowledgeAssetVersion savedVersion = knowledgeVersionRepository.save(new KnowledgeAssetVersion(
+            null,
+            tenantId,
+            savedIdentity.id(),
+            version.versionNo(),
+            version.versionLabel(),
+            version.sourceDocumentId(),
+            version.sourceVersionId(),
+            version.contentHash(),
+            version.anchors(),
+            parseEnum(KnowledgeVersionStatus.class, version.status(), "知识版本状态"),
+            parseEnum(KnowledgeRiskLevel.class, version.riskLevel(), "知识风险级别"),
+            parseNullableEnum(SourceAuthorityLevel.class, version.authorityLevel(), "知识来源可信分级"),
+            parseNullableEnum(GradeEvidenceQuality.class, version.gradeQuality(), "GRADE 证据质量"),
+            parseNullableEnum(GradeRecommendationStrength.class, version.gradeStrength(), "GRADE 推荐强度"),
+            version.conflictArbitration(),
+            parseInstant(version.effectiveFrom()),
+            parseInstant(version.effectiveTo()),
+            version.reviewedBy(),
+            parseInstant(version.reviewedAt()),
+            parseInstant(version.activatedAt()),
+            parseInstant(version.supersededAt()),
+            parseInstant(version.withdrawnAt()),
+            version.withdrawnReason(),
+            now,
+            actor,
+            now,
+            actor
+        ));
+        if (savedVersion.id() != null && savedVersion.status() == KnowledgeVersionStatus.ACTIVE) {
+            knowledgeIdentityRepository.save(new KnowledgeIdentity(
+                savedIdentity.id(),
+                savedIdentity.tenantId(),
+                savedIdentity.identityCode(),
+                savedIdentity.domain(),
+                savedIdentity.subject(),
+                savedIdentity.specialtyId(),
+                savedIdentity.description(),
+                savedIdentity.status(),
+                savedVersion.id(),
+                savedIdentity.createdAt(),
+                savedIdentity.createdBy(),
+                now,
+                actor
+            ));
+        }
+    }
+
+    private void importOfflineTerminologySnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            Instant now) {
+        PackageOfflineTerminologyContent terminologyContent =
+            readOfflineContent(content, PackageOfflineTerminologyContent.class);
+        validateOfflineAssetSnapshotContent(PackageItemAssetType.TERMINOLOGY, assetId, assetVersion, content);
+        PackageOfflineTerminologyPackage importedPackage = terminologyContent.terminologyPackage();
+        TerminologyAssetKey key = parseTerminologyAssetKey(assetId);
+
+        Optional<TermMappingPackage> existingPackage = terminologyPackageRepository
+            .findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
+                tenantId, key.packageCode(), assetVersion, key.scopeLevel(), key.scopeCode());
+        if (existingPackage.isPresent()) {
+            ensureLocalSnapshotMatches("术语映射包", assetId, content,
+                buildTerminologyAssetContent(existingPackage.get()));
+            return;
+        }
+
+        TermMappingPackage savedPackage = terminologyPackageRepository.save(TermMappingPackage.imported(
+            tenantId,
+            importedPackage.packageCode(),
+            importedPackage.packageVersion(),
+            importedPackage.displayName(),
+            importedPackage.scopeLevel(),
+            importedPackage.scopeCode(),
+            importedPackage.status(),
+            importedPackage.mappingCount(),
+            importedPackage.contentHash(),
+            importedPackage.grayScopeJson(),
+            importedPackage.publishedBy(),
+            parseInstant(importedPackage.publishedAt()),
+            importedPackage.rollbackFromPackageId(),
+            now,
+            actor
+        ));
+
+        List<TermMapping> savedMappings = new ArrayList<>();
+        for (PackageOfflineTermMapping mapping : terminologyContent.mappings()) {
+            TermMapping savedMapping = terminologyMappingRepository
+                .findByTenantIdAndLocalTermIdAndStandardTermId(
+                    tenantId,
+                    mapping.localTermId(),
+                    mapping.standardTermId()
+                )
+                .orElseGet(() -> terminologyMappingRepository.save(TermMapping.imported(
+                    tenantId,
+                    mapping.localTermId(),
+                    mapping.standardTermId(),
+                    mapping.sourceSystem(),
+                    mapping.category(),
+                    mapping.confidence(),
+                    mapping.riskLevel(),
+                    mapping.status(),
+                    mapping.evidenceText(),
+                    mapping.confirmedBy(),
+                    parseInstant(mapping.confirmedAt()),
+                    now,
+                    actor
+                )));
+            savedMappings.add(savedMapping);
+        }
+
+        for (int i = 0; i < savedMappings.size(); i++) {
+            TermMapping savedMapping = savedMappings.get(i);
+            String mappingSnapshot = i < terminologyContent.items().size()
+                ? terminologyContent.items().get(i).mappingSnapshot()
+                : termMappingSnapshot(savedMapping);
+            terminologyPackageItemRepository.save(new TermMappingPackageItem(
+                null,
+                tenantId,
+                savedPackage.id(),
+                savedMapping.id(),
+                mappingSnapshot,
+                now,
+                actor
+            ));
+        }
+    }
+
+    private String termMappingSnapshot(TermMapping mapping) {
+        return "{\"localTermId\":" + mapping.localTermId()
+            + ",\"standardTermId\":" + mapping.standardTermId()
+            + ",\"status\":\"" + mapping.statusName() + "\"}";
+    }
+
     private <T> T readOfflineContent(JsonNode content, Class<T> type) {
         try {
             return OFFLINE_EXPORT_MAPPER.treeToValue(content, type);
@@ -1045,7 +1407,7 @@ public class PackageEngineService {
                 throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产条目: " + assetKey);
             }
             if (!platformSourceReference) {
-                validateAssetStatus(tenantId, assetType, assetId);
+                validateAssetStatus(tenantId, assetType, assetId, assetVersion);
             }
 
             items.add(new PackageItem(
@@ -1108,6 +1470,17 @@ public class PackageEngineService {
     private <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value, String label) {
         if (value == null || value.isBlank()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "离线包缺少" + label);
+        }
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "离线包" + label + "不合法: " + value);
+        }
+    }
+
+    private <E extends Enum<E>> E parseNullableEnum(Class<E> enumClass, String value, String label) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
         try {
             return Enum.valueOf(enumClass, value);
@@ -1333,6 +1706,87 @@ public class PackageEngineService {
         String publishedAt,
         String publishedBy,
         String activatedAt
+    ) {}
+
+    private record PackageOfflineKnowledgeContent(
+        PackageOfflineKnowledgeIdentity identity,
+        PackageOfflineKnowledgeVersion version
+    ) {}
+
+    private record PackageOfflineKnowledgeIdentity(
+        String identityCode,
+        String domain,
+        String subject,
+        String specialtyId,
+        String description,
+        String status,
+        String currentVersionNo
+    ) {}
+
+    private record PackageOfflineKnowledgeVersion(
+        String versionNo,
+        String versionLabel,
+        Long sourceDocumentId,
+        Long sourceVersionId,
+        String contentHash,
+        String anchors,
+        String status,
+        String riskLevel,
+        String authorityLevel,
+        String gradeQuality,
+        String gradeStrength,
+        String conflictArbitration,
+        String effectiveFrom,
+        String effectiveTo,
+        String reviewedBy,
+        String reviewedAt,
+        String activatedAt,
+        String supersededAt,
+        String withdrawnAt,
+        String withdrawnReason
+    ) {}
+
+    private record PackageOfflineTerminologyContent(
+        PackageOfflineTerminologyPackage terminologyPackage,
+        List<PackageOfflineTermMapping> mappings,
+        List<PackageOfflineTermMappingPackageItem> items
+    ) {
+        PackageOfflineTerminologyContent {
+            mappings = mappings == null ? List.of() : List.copyOf(mappings);
+            items = items == null ? List.of() : List.copyOf(items);
+        }
+    }
+
+    private record PackageOfflineTerminologyPackage(
+        String packageCode,
+        String packageVersion,
+        String displayName,
+        String scopeLevel,
+        String scopeCode,
+        String status,
+        Integer mappingCount,
+        String contentHash,
+        String grayScopeJson,
+        String publishedBy,
+        String publishedAt,
+        Long rollbackFromPackageId
+    ) {}
+
+    private record PackageOfflineTermMapping(
+        Long localTermId,
+        Long standardTermId,
+        String sourceSystem,
+        String category,
+        Double confidence,
+        String riskLevel,
+        String status,
+        String evidenceText,
+        String confirmedBy,
+        String confirmedAt
+    ) {}
+
+    private record PackageOfflineTermMappingPackageItem(
+        String mappingSnapshot
     ) {}
 
     /**
@@ -1829,7 +2283,7 @@ public class PackageEngineService {
         return RequestContext.snapshot().userId() == null ? "system" : RequestContext.snapshot().userId();
     }
 
-    private void validateAssetStatus(String tenantId, PackageItemAssetType type, String assetId) {
+    private void validateAssetStatus(String tenantId, PackageItemAssetType type, String assetId, String assetVersion) {
         switch (type) {
             case RULE -> {
                 RuleDefinition rule = ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
@@ -1856,11 +2310,90 @@ public class PackageEngineService {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "只允许 PUBLISHED 或 ACTIVE 状态的评估指标入包, 当前: " + status);
                 }
             }
-            default -> {
-                // TERMINOLOGY、KNOWLEDGE、FOLLOWUP 等宽限处理
+            case KNOWLEDGE -> {
+                KnowledgeIdentity identity = knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, assetId)
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_002, "入包知识身份不存在: " + assetId));
+                if (!identity.isActive()) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "只允许 ACTIVE 状态的知识身份入包, 当前: " + identity.status());
+                }
+                KnowledgeAssetVersion version = knowledgeVersionRepository
+                    .findByTenantIdAndIdentityIdAndVersionNo(tenantId, identity.id(), assetVersion)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "入包知识版本不存在: " + assetId + "@" + assetVersion
+                    ));
+                if (!version.isAuthoritative()) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许 ACTIVE 状态的知识版本入包, 当前: " + version.status()
+                    );
+                }
+                if (identity.currentVersionId() != null
+                        && version.id() != null
+                        && !identity.currentVersionId().equals(version.id())) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "知识资产版本不是当前权威版本: " + assetId + "@" + assetVersion
+                    );
+                }
+            }
+            case TERMINOLOGY -> {
+                TerminologyAssetKey key = parseTerminologyAssetKey(assetId);
+                TermMappingPackage terminologyPackage = terminologyPackageRepository
+                    .findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
+                        tenantId,
+                        key.packageCode(),
+                        assetVersion,
+                        key.scopeLevel(),
+                        key.scopeCode()
+                    )
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "入包术语映射包不存在: " + assetId + "@" + assetVersion
+                    ));
+                if (!terminologyPackage.isReleasedForPackageAsset()) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许 PUBLISHED 或 GRAY 状态的术语映射包入包, 当前: " + terminologyPackage.statusName()
+                    );
+                }
+            }
+            case FOLLOWUP -> {
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "随访计划属于患者运行数据，不允许作为配置包资产入包；请在 D3 FOLLOW-01 建立随访模板资产后再接入包发布"
+                );
             }
         }
     }
+
+    private TerminologyAssetKey parseTerminologyAssetKey(String assetId) {
+        String[] parts = assetId == null ? new String[0] : assetId.split("\\|", -1);
+        if (parts.length != 3
+                || parts[0].isBlank()
+                || parts[1].isBlank()
+                || parts[2].isBlank()) {
+            throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "术语映射包资产 ID 必须为 packageCode|scopeLevel|scopeCode: " + assetId
+            );
+        }
+        return new TerminologyAssetKey(parts[0].trim(), parts[1].trim(), parts[2].trim());
+    }
+
+    private String terminologyAssetId(TermMappingPackage terminologyPackage) {
+        return terminologyPackage.packageCode()
+            + "|"
+            + terminologyPackage.scopeLevel()
+            + "|"
+            + terminologyPackage.scopeCode();
+    }
+
+    private record TerminologyAssetKey(
+        String packageCode,
+        String scopeLevel,
+        String scopeCode
+    ) {}
 
     private String getAssetDepartment(String tenantId, PackageItemAssetType type, String assetId) {
         switch (type) {

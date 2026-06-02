@@ -275,6 +275,27 @@ export interface TermMapping {
   updatedAt?: string;
 }
 
+export interface TermMappingPackage {
+  id: number;
+  tenantId: string;
+  packageCode: string;
+  packageVersion: string;
+  displayName: string;
+  scopeLevel: string;
+  scopeCode: string;
+  status: "DRAFT" | "GRAY" | "PUBLISHED" | "SUPERSEDED" | "ROLLED_BACK" | "ARCHIVED";
+  mappingCount: number;
+  contentHash: string;
+  grayScopeJson?: string | null;
+  publishedBy?: string | null;
+  publishedAt?: string | null;
+  rollbackFromPackageId?: number | null;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
 export interface PageResponse<T> {
   items: T[];
   page: number;
@@ -306,6 +327,28 @@ export function useTerminologyMappings(params?: TerminologyMappingsParams) {
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<TermMapping> }>(
         "/engine/terminology/mappings",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface TerminologyPackagesParams {
+  page?: number;
+  size?: number;
+  packageCode?: string;
+  status?: TermMappingPackage["status"];
+  scopeLevel?: string;
+  scopeCode?: string;
+}
+
+export function useTerminologyPackages(params?: TerminologyPackagesParams) {
+  return useQuery({
+    queryKey: ["terminology", "packages", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<TermMappingPackage> }>(
+        "/engine/terminology/packages",
         { params },
       );
       return data.data;
