@@ -52,6 +52,27 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void workbenchDemoValidationPermissionIsRealAndClinicalRolesCannotUseIt() {
+        PermissionCode.fromCode("workbench:demo:view")
+            .ifPresentOrElse(permission -> {
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+                    .contains(permission);
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+                    .contains(permission);
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
+                    .contains(permission);
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
+                    .contains(permission);
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
+                    .doesNotContain(permission);
+                assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
+                    .doesNotContain(permission);
+            }, () -> {
+                throw new AssertionError("WORKBENCH-02 动作权限 workbench:demo:view 未登记");
+            });
+    }
+
+    @Test
     void doctorCanReadAndAcceptButNotPublishRules() {
         var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR);
         assertThat(perms)

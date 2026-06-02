@@ -21,7 +21,13 @@ export interface MenuSection {
 export const menuSections: MenuSection[] = routeSections.map((section) => ({
   ...section,
   items: routeMetas
-    .filter((route) => route.sectionKey === section.key && route.menuKey && route.menuLabel)
+    .filter(
+      (route) =>
+        route.sectionKey === section.key &&
+        route.menuKey &&
+        route.menuLabel &&
+        (!route.hidden || section.hidden),
+    )
     .map((route) => ({
       key: route.menuKey as string,
       label: route.menuLabel as string,
@@ -35,7 +41,13 @@ export function getMenuSectionsForProfile(
   return routeSections.map((section) => ({
     ...section,
     items: routeMetas
-      .filter((route) => route.sectionKey === section.key && route.menuKey && route.menuLabel)
+      .filter(
+        (route) =>
+          route.sectionKey === section.key &&
+          route.menuKey &&
+          route.menuLabel &&
+          (!route.hidden || section.hidden),
+      )
       .filter((route) => canAccessRoute(route, profile))
       .map((route) => ({
         key: route.menuKey as string,

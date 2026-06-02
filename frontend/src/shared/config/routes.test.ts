@@ -20,8 +20,28 @@ describe("route metadata", () => {
   });
 
   it("does not keep hidden demo-only routes in the production router metadata", () => {
-    expect(routeMetas.some((route) => route.path.includes("demo"))).toBe(false);
-    expect(routeMetas.some((route) => route.title.includes("演示"))).toBe(false);
+    expect(routeMetas.map((route) => route.path)).not.toContain("/config/packages/demo");
+    expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);
+  });
+
+  it("registers the WORKBENCH-02 production demo-validation route without opening a new menu slot", () => {
+    const route = findRouteByPath("/workbench/demo-validation");
+
+    expect(route).toMatchObject({
+      title: "演示与校验",
+      sectionKey: "workbench",
+      menuKey: "demo-validation",
+      menuLabel: "演示与校验",
+      hidden: true,
+      pageType: "workbench",
+    });
+    expect(route?.requiredPermissions).toEqual(["menu.workbench", "workbench:demo:view"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "it-ops",
+      "hospital-admin",
+      "platform-admin",
+    ]);
   });
 
   it("requires breadcrumb metadata for authenticated pages", () => {
@@ -46,7 +66,7 @@ describe("route metadata", () => {
 
   it("binds menu routes to the INFRA-05 second-level menu permission code", () => {
     routeMetas
-      .filter((route) => route.requireAuth && route.sectionKey && route.menuKey)
+      .filter((route) => route.requireAuth && route.sectionKey && route.menuKey && !route.hidden)
       .forEach((route) => {
         expect(route.requiredPermissions).toContain(`menu.${route.menuKey}`);
         if (route.menuKey !== route.sectionKey) {
@@ -70,6 +90,30 @@ describe("route metadata", () => {
         menuKeys: ["provenance"],
       }),
     ).toBe(true);
+  });
+
+  it("requires the WORKBENCH-02 action permission in addition to the workbench menu", () => {
+    expect(
+      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [{ code: "workbench:demo:view" }],
+        menuKeys: ["workbench"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+        roles: [{ code: "doctor" }],
+        permissions: [{ code: "workbench:demo:view" }],
+        menuKeys: ["workbench"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [],
+        menuKeys: ["workbench"],
+      }),
+    ).toBe(false);
   });
 
   it("rejects legacy first-level section menuKeys for second-level routes", () => {

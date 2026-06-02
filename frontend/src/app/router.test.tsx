@@ -92,6 +92,13 @@ function authenticatedProfile() {
         displayName: "查看工作台",
         risk: "LOW",
       },
+      {
+        code: "workbench:demo:view",
+        dimension: "ACTION",
+        target: "workbench:demo:view",
+        displayName: "查看演示与校验",
+        risk: "LOW",
+      },
     ],
     menuKeys: ["workbench"],
     environmentKeys: ["production"],
@@ -112,6 +119,10 @@ function authenticatedProfile() {
 
 vi.mock("@/pages/Dashboard", () => ({
   default: () => <div>本周建议动作</div>,
+}));
+
+vi.mock("@/pages/workbench/DemoValidation", () => ({
+  default: () => <div>演示就绪度自检</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -161,5 +172,13 @@ describe("AppRouter", () => {
 
     expect(await screen.findByText("此功能待 W3 业务域任务实装")).toBeInTheDocument();
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
+  });
+
+  it("routes the WORKBENCH-02 demo-validation page through the protected layout", async () => {
+    securityProfileState.value = { data: authenticatedProfile(), isError: false };
+    renderRouter("/workbench/demo-validation");
+
+    expect(await screen.findByText("演示就绪度自检")).toBeInTheDocument();
+    expect(screen.queryByText("此功能待 W3 业务域任务实装")).toBeNull();
   });
 });

@@ -96,6 +96,7 @@ public enum PermissionCode {
     MPI_WRITE("mpi.write", Risk.HIGH, "合并患者主索引"),
     PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
     PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
+    WORKBENCH_DEMO_VIEW("workbench:demo:view", Risk.LOW, "查看演示与校验页面"),
 
     // ─── 菜单维度（INFRA-05 前的一级入口遗留权限，仅保留枚举兼容，不再作为有效菜单矩阵）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),
@@ -213,7 +214,9 @@ public enum PermissionCode {
     }
 
     private static String targetFrom(String code, PermissionDimension dimension) {
-        int separator = code.indexOf('.');
+        int dotSeparator = code.indexOf('.');
+        int colonSeparator = code.indexOf(':');
+        int separator = dotSeparator >= 0 ? dotSeparator : colonSeparator;
         if (separator < 0) {
             return code;
         }

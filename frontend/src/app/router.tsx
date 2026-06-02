@@ -4,6 +4,7 @@ import { Spin } from "antd";
 import { AppLayout } from "@/widgets/AppLayout";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const DemoValidation = lazy(() => import("@/pages/workbench/DemoValidation"));
 const Login = lazy(() => import("@/pages/Login"));
 const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -60,6 +61,7 @@ export function AppRouter() {
         <Route path="/embed/launch" element={<EmbedLaunch />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/workbench/demo-validation" element={<DemoValidation />} />
 
           {/* 试点准备 */}
           <Route path="/onboarding/guide" element={<ImplementationGuide />} />
