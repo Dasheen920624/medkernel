@@ -1188,6 +1188,94 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void exportSyncEvidenceIncludesFailedSitesAndDoesNotForgeEvidence() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "配置包", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        ReleasePlan plan = new ReleasePlan(
+            10L, "plan-1", "tenant-A", "pkg-1", "hospital-1",
+            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
+            "{\"strategy\":\"BED_PERCENT\",\"percentage\":10,\"scopeCode\":\"hospital-1\"}",
+            ReleasePlanStatus.FAILED, Instant.now(), "tester", Instant.now(), "tester", "trace-plan"
+        );
+        SyncLog successLog = new SyncLog(
+            20L, "log-ok", "tenant-A", "plan-1", "target-ok",
+            SyncLogStatus.SUCCESS, null, null, 0, "EVIDENCE-OK",
+            Instant.now(), "tester", Instant.now(), "tester", "trace-ok"
+        );
+        SyncLog failedLog = new SyncLog(
+            21L, "log-fail", "tenant-A", "plan-1", "target-fail",
+            SyncLogStatus.FAILED, "ENG-PACKAGE-005", "目标库写入失败", 0, null,
+            Instant.now(), "tester", Instant.now(), "tester", "trace-fail"
+        );
+        SyncLog notSyncedLog = new SyncLog(
+            22L, "log-not-synced", "tenant-A", "plan-1", "target-offline",
+            SyncLogStatus.NOT_SYNCED, "NOT_SYNCED", "未配置真实同步适配器", 0, null,
+            Instant.now(), "tester", Instant.now(), "tester", "trace-offline"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
+            .thenReturn(List.of(plan));
+        when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-1"))
+            .thenReturn(List.of(successLog, failedLog, notSyncedLog));
+        when(targetRepository.findByTargetIdAndTenantId("target-ok", "tenant-A"))
+            .thenReturn(Optional.of(syncTarget("target-ok", "院内规则库", SyncTargetType.CLINICAL_DB)));
+        when(targetRepository.findByTargetIdAndTenantId("target-fail", "tenant-A"))
+            .thenReturn(Optional.of(syncTarget("target-fail", "图谱同步", SyncTargetType.GRAPH_DB)));
+        when(targetRepository.findByTargetIdAndTenantId("target-offline", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        String ndjson = service.exportSyncEvidence("pkg-1");
+        List<JsonNode> lines = ndjson.lines()
+            .map(line -> {
+                try {
+                    return TEST_MAPPER.readTree(line);
+                } catch (Exception e) {
+                    throw new AssertionError("同步证据导出必须是合法 JSONL", e);
+                }
+            })
+            .toList();
+
+        assertThat(lines).hasSize(5);
+        JsonNode summary = lines.get(0);
+        assertThat(summary.path("event").asText()).isEqualTo("PACKAGE_SYNC_EVIDENCE_SUMMARY");
+        assertThat(summary.path("successTargetCount").asInt()).isEqualTo(1);
+        assertThat(summary.path("failedTargetCount").asInt()).isEqualTo(1);
+        assertThat(summary.path("notSyncedTargetCount").asInt()).isEqualTo(1);
+        assertThat(lines).anySatisfy(line -> {
+            assertThat(line.path("event").asText()).isEqualTo("PACKAGE_SYNC_PLAN");
+            assertThat(line.path("planId").asText()).isEqualTo("plan-1");
+            assertThat(line.path("scopeValue").asText()).contains("BED_PERCENT");
+        });
+        JsonNode failedLine = lines.stream()
+            .filter(line -> "target-fail".equals(line.path("targetId").asText()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(failedLine.path("event").asText()).isEqualTo("PACKAGE_SYNC_TARGET");
+        assertThat(failedLine.path("targetName").asText()).isEqualTo("图谱同步");
+        assertThat(failedLine.path("status").asText()).isEqualTo("FAILED");
+        assertThat(failedLine.path("errorMessage").asText()).contains("目标库写入失败");
+        assertThat(failedLine.hasNonNull("syncEvidence")).isFalse();
+        JsonNode notSyncedLine = lines.stream()
+            .filter(line -> "target-offline".equals(line.path("targetId").asText()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(notSyncedLine.path("status").asText()).isEqualTo("NOT_SYNCED");
+        assertThat(notSyncedLine.path("targetName").asText()).isEqualTo("target-offline");
+        assertThat(notSyncedLine.hasNonNull("syncEvidence")).isFalse();
+        assertThat(lines).anySatisfy(line -> {
+            assertThat(line.path("targetId").asText()).isEqualTo("target-ok");
+            assertThat(line.path("syncEvidence").asText()).isEqualTo("EVIDENCE-OK");
+        });
+        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-1"),
+            argThat(message -> message.contains("导出配置包同步证据")
+                && message.contains("失败站点数: 1")
+                && message.contains("未接入站点数: 1")));
+    }
+
+    @Test
     void syncPackageDoesNotPublishDraftWhenAllTargetsAreNotSynced() throws Exception {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待同步草稿包", null,
@@ -1678,6 +1766,13 @@ class PackageEngineServiceTest {
         return new KnowledgePackage(
             1L, packageId, "tenant-A", "PKG.TEST", version, "测试知识包", null,
             status, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private SyncTarget syncTarget(String targetId, String targetName, SyncTargetType targetType) {
+        return new SyncTarget(
+            1L, targetId, "tenant-A", targetName, targetType, "config",
+            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
     }
 

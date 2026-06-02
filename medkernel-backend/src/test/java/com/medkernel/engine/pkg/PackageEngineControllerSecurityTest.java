@@ -352,6 +352,22 @@ class PackageEngineControllerSecurityTest {
     }
 
     @Test
+    void authorizedUserCanDownloadSyncEvidenceNdjson() throws Exception {
+        when(service.exportSyncEvidence("pkg-1"))
+            .thenReturn("{\"event\":\"PACKAGE_SYNC_EVIDENCE_SUMMARY\",\"failedTargetCount\":1}\n");
+
+        mvc.perform(get(PKG_ROOT + "/pkg-1/sync-logs/export")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
+            .andExpect(header().string("Content-Disposition", containsString("package-sync-evidence-pkg-1.jsonl")))
+            .andExpect(content().string(containsString("PACKAGE_SYNC_EVIDENCE_SUMMARY")))
+            .andExpect(content().string(containsString("failedTargetCount")));
+    }
+
+    @Test
     void authorizedUserCanImportOfflinePackageJson() throws Exception {
         when(service.importOfflinePackage(new PackageOfflineImportRequest("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V1\"}")))
             .thenReturn(new PackageOfflineImportResponse(

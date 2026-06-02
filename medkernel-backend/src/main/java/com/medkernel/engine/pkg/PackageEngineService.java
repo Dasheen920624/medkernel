@@ -70,7 +70,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PackageEngineService {
 
     private static final Logger log = LoggerFactory.getLogger(PackageEngineService.class);
-    private static final ObjectMapper DIFF_EXPORT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper PACKAGE_JSON_MAPPER = new ObjectMapper();
     private static final ObjectMapper OFFLINE_EXPORT_MAPPER = new ObjectMapper();
     private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V1";
     private static final String DEFAULT_GRAY_SCOPE_STRATEGY = "BED_PERCENT";
@@ -404,7 +404,7 @@ public class PackageEngineService {
         PackageDiffResponse diff = calculateDiff(packageId, basePackageId);
         StringBuilder ndjson = new StringBuilder();
 
-        appendDiffExportLine(ndjson, new PackageDiffSummaryExportLine(
+        appendEvidenceExportLine(ndjson, new PackageDiffSummaryExportLine(
             "PACKAGE_DIFF_SUMMARY",
             diff.packageId(),
             diff.baseVersion(),
@@ -415,7 +415,7 @@ public class PackageEngineService {
             traceId
         ));
         for (String departmentId : diff.affectedDepartments()) {
-            appendDiffExportLine(ndjson, new PackageDiffDepartmentExportLine(
+            appendEvidenceExportLine(ndjson, new PackageDiffDepartmentExportLine(
                 "PACKAGE_DIFF_AFFECTED_DEPARTMENT",
                 diff.packageId(),
                 departmentId,
@@ -423,7 +423,7 @@ public class PackageEngineService {
             ));
         }
         for (PackageDiffChange change : diff.changes()) {
-            appendDiffExportLine(ndjson, new PackageDiffChangeExportLine(
+            appendEvidenceExportLine(ndjson, new PackageDiffChangeExportLine(
                 "PACKAGE_DIFF_CHANGE",
                 diff.packageId(),
                 change.changeType(),
@@ -442,17 +442,106 @@ public class PackageEngineService {
         return ndjson.toString();
     }
 
+    /**
+     * 导出配置包同步证据与失败站点清单。
+     */
+    public String exportSyncEvidence(String packageId) {
+        String tenantId = currentTenantId();
+        String traceId = RequestContext.currentTraceId();
+        KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
+        List<ReleasePlan> plans = planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId);
+        Map<String, List<SyncLog>> logsByPlanId = new HashMap<>();
+        List<SyncLog> allLogs = new ArrayList<>();
+        for (ReleasePlan plan : plans) {
+            List<SyncLog> logs = logRepository.findByTenantIdAndPlanId(tenantId, plan.planId());
+            logsByPlanId.put(plan.planId(), logs);
+            allLogs.addAll(logs);
+        }
+
+        long successTargetCount = allLogs.stream()
+            .filter(log -> log.status() == SyncLogStatus.SUCCESS)
+            .count();
+        long failedTargetCount = allLogs.stream()
+            .filter(log -> log.status() == SyncLogStatus.FAILED)
+            .count();
+        long notSyncedTargetCount = allLogs.stream()
+            .filter(log -> log.status() == SyncLogStatus.NOT_SYNCED)
+            .count();
+
+        StringBuilder ndjson = new StringBuilder();
+        appendEvidenceExportLine(ndjson, new PackageSyncEvidenceSummaryExportLine(
+            "PACKAGE_SYNC_EVIDENCE_SUMMARY",
+            packageId,
+            pack.packageCode(),
+            pack.packageVersion(),
+            plans.size(),
+            allLogs.size(),
+            successTargetCount,
+            failedTargetCount,
+            notSyncedTargetCount,
+            traceId
+        ));
+        for (ReleasePlan plan : plans) {
+            appendEvidenceExportLine(ndjson, new PackageSyncPlanExportLine(
+                "PACKAGE_SYNC_PLAN",
+                packageId,
+                plan.planId(),
+                plan.targetOrgUnitId(),
+                plan.strategy(),
+                plan.scopeType(),
+                plan.scopeValue(),
+                plan.status(),
+                plan.createdAt() == null ? null : plan.createdAt().toString(),
+                plan.traceId(),
+                traceId
+            ));
+            for (SyncLog log : logsByPlanId.getOrDefault(plan.planId(), List.of())) {
+                appendEvidenceExportLine(ndjson, new PackageSyncTargetExportLine(
+                    "PACKAGE_SYNC_TARGET",
+                    packageId,
+                    log.planId(),
+                    log.logId(),
+                    log.targetId(),
+                    resolveSyncTargetName(tenantId, log.targetId()),
+                    log.status(),
+                    log.errorCode(),
+                    log.errorMessage(),
+                    log.retryCount(),
+                    log.syncEvidence(),
+                    log.traceId(),
+                    traceId
+                ));
+            }
+        }
+
+        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+            "导出配置包同步证据，发布计划数: " + plans.size()
+                + "，同步日志数: " + allLogs.size()
+                + "，失败站点数: " + failedTargetCount
+                + "，未接入站点数: " + notSyncedTargetCount);
+        return ndjson.toString();
+    }
+
+    private String resolveSyncTargetName(String tenantId, String targetId) {
+        return targetRepository.findByTargetIdAndTenantId(targetId, tenantId)
+            .map(SyncTarget::targetName)
+            .map(String::trim)
+            .filter(name -> !name.isEmpty())
+            .orElse(targetId);
+    }
+
     private void addAffectedDepartment(List<String> affectedDepartments, String departmentId) {
         if (departmentId != null && !affectedDepartments.contains(departmentId)) {
             affectedDepartments.add(departmentId);
         }
     }
 
-    private void appendDiffExportLine(StringBuilder builder, Object line) {
+    private void appendEvidenceExportLine(StringBuilder builder, Object line) {
         try {
-            builder.append(DIFF_EXPORT_MAPPER.writeValueAsString(line)).append('\n');
+            builder.append(PACKAGE_JSON_MAPPER.writeValueAsString(line)).append('\n');
         } catch (JsonProcessingException e) {
-            throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包差异影响证据导出失败");
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "配置包证据导出失败");
         }
     }
 
@@ -482,6 +571,49 @@ public class PackageEngineService {
         String assetId,
         String baseVersion,
         String targetVersion,
+        String traceId
+    ) {}
+
+    private record PackageSyncEvidenceSummaryExportLine(
+        String event,
+        String packageId,
+        String packageCode,
+        String packageVersion,
+        int planCount,
+        int logCount,
+        long successTargetCount,
+        long failedTargetCount,
+        long notSyncedTargetCount,
+        String traceId
+    ) {}
+
+    private record PackageSyncPlanExportLine(
+        String event,
+        String packageId,
+        String planId,
+        String targetOrgUnitId,
+        ReleaseStrategy strategy,
+        ReleaseScopeType scopeType,
+        String scopeValue,
+        ReleasePlanStatus status,
+        String createdAt,
+        String planTraceId,
+        String traceId
+    ) {}
+
+    private record PackageSyncTargetExportLine(
+        String event,
+        String packageId,
+        String planId,
+        String logId,
+        String targetId,
+        String targetName,
+        SyncLogStatus status,
+        String errorCode,
+        String errorMessage,
+        int retryCount,
+        String syncEvidence,
+        String logTraceId,
         String traceId
     ) {}
 
@@ -2005,7 +2137,7 @@ public class PackageEngineService {
 
     private ReleaseScope defaultGrayScope(String targetOrgUnitId) {
         String scopeCode = normalizedText(targetOrgUnitId);
-        ObjectNode scope = DIFF_EXPORT_MAPPER.createObjectNode();
+        ObjectNode scope = PACKAGE_JSON_MAPPER.createObjectNode();
         scope.put("strategy", DEFAULT_GRAY_SCOPE_STRATEGY);
         scope.put("percentage", DEFAULT_GRAY_SCOPE_PERCENTAGE);
         scope.put("scopeCode", scopeCode);
