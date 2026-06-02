@@ -46,7 +46,7 @@
 N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步流组件，呈现在各配置页与 **D2 配置包中心页**；本卡只立框架。
 
 ## 数据与迁移
-- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `release_plan`（范围/灰度水位/回滚目标/状态）· `activation_transaction`（激活/失效原子事务记录）· `inheritance_override`（局部覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
+- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/`safety_policy`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `release_plan`（范围/灰度水位/回滚目标/状态）· `activation_transaction`（激活/失效原子事务记录）· `mk_version_inheritance_override`（局部替换覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
 - 业务版本 ID：`version_id` 使用 `av-<ULID>`；物理 `id` 仅作 JDBC 持久化主键。唯一约束：**`(asset_identity, org_path, applicable, effective)` 上 `ACTIVE` 唯一**（框架级保证 FR-2）；索引：`org_path`、`status`、`effective_time`、`asset_identity`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段；继承解析依赖 [BASE-01](../D0/BASE-01.md) 的 `org_closure`。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释；`ACTIVE` 唯一约束按方言实现（部分唯一索引或发布事务校验）。
@@ -82,8 +82,9 @@ N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步
 - 代码 permalink：`VersionedAssetPort`/`InheritanceResolver`/`ReleasePort`/`ReplayPort` + `AssetVersion`/`ReleasePlan`/`InheritanceOverride` + `activation_transaction` + `mk_version_asset_version` 迁移（×5 方言，ACTIVE 唯一约束）。
 - 测试：版本不可变测试 + 七层继承解析测试 + 安全红线不可下级关测试 + 灰度/全量/回滚状态机测试 + 历史重放一致性测试 + ACTIVE 唯一约束并发测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- PR 拆分证据口径：PR2 只交付 `InheritanceResolver`、替换式 `InheritanceOverride` 解释与 `INHERITANCE_SAFETY_DENIED`；普通 `DISABLE` 关闭继承必须等 PR3 发布流具备审核 / 证据链 / 解析消费后再开放，不允许先落一个运行时不会执行的关闭记录。
 
 ## 大卡工序（5d，后端框架；按 PR 拆分）
 - PR1：`AssetVersion` 不可变版本 + `content_hash` + `mk_version_asset_version` 5 方言迁移 + ACTIVE 唯一约束 → AC-1。
-- PR2：`InheritanceResolver` 七层继承解析 + 局部覆盖可解释 + 安全红线不可下级关 → AC-2。
+- PR2：`InheritanceResolver` 七层继承解析 + 局部替换覆盖可解释 + 安全红线不可下级关；普通关闭继承在 PR2 诚实拒绝并留待 PR3 发布证据链 → AC-2。
 - PR3：`ReleasePort` 变更类发布流（灰度/全量/回滚）+ `ReplayPort` 历史重放 + 运行解析隔离 + 发布证据 → AC-3/4/5。

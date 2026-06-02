@@ -16,5 +16,25 @@ public record AssetVersionRegisterCommand(
     String contentHash,
     String sourceRef,
     String createdBy,
-    String traceId
-) {}
+    String traceId,
+    AssetVersionSafetyPolicy safetyPolicy
+) {
+    public AssetVersionRegisterCommand(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
+            String applicableScope,
+            String content,
+            String contentHash,
+            String sourceRef,
+            String createdBy,
+            String traceId) {
+        this(
+            tenantId, assetType, assetIdentity, versionNo, organizationScope,
+            applicableScope, content, contentHash, sourceRef, createdBy, traceId,
+            AssetVersionSafetyPolicy.NORMAL
+        );
+    }
+}

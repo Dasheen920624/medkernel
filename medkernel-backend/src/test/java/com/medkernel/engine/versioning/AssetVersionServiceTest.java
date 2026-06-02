@@ -55,6 +55,7 @@ class AssetVersionServiceTest {
 
         assertThat(saved.contentHash()).isEqualTo(sha256("when observation.d_dimer > 0.5 then alert"));
         assertThat(saved.versionId()).matches("av-[0-9A-HJKMNP-TV-Z]{26}");
+        assertThat(saved.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.NORMAL);
         assertThat(saved.status()).isEqualTo(AssetVersionStatus.DRAFT);
         assertThat(saved.activeScopeKey()).startsWith("version:");
         assertThat(saved.createdAt()).isEqualTo(Instant.parse("2026-06-03T08:00:00Z"));
