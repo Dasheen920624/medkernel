@@ -29,7 +29,9 @@ public record KnowledgeVersionCreateRequest(
     @JsonAlias("source_version_id") @NotNull Long sourceVersionId,
     @NotBlank String content,
     String anchors,
-    @JsonAlias("risk_level") @NotNull KnowledgeRiskLevel riskLevel
+    @JsonAlias("risk_level") @NotNull KnowledgeRiskLevel riskLevel,
+    @JsonAlias("grade_quality") GradeEvidenceQuality gradeQuality,
+    @JsonAlias("grade_strength") GradeRecommendationStrength gradeStrength
 ) {
 
     public KnowledgeVersionCreateRequest {
@@ -45,7 +47,8 @@ public record KnowledgeVersionCreateRequest(
 
     DraftVersionCreateRequest toDraftVersionCreateRequest(Long identityId) {
         return new DraftVersionCreateRequest(
-            identityId, versionNo, versionLabel, sourceDocumentId, sourceVersionId, content, anchors, riskLevel
+            identityId, versionNo, versionLabel, sourceDocumentId, sourceVersionId, content, anchors, riskLevel,
+            gradeQuality, gradeStrength
         );
     }
 }

@@ -14,6 +14,8 @@ import jakarta.validation.constraints.NotNull;
  * @param content 知识内容明文，用于计算 SHA-256 哈希去重防重
  * @param anchors 引用锚点对应关系 JSON
  * @param riskLevel 风险级别
+ * @param gradeQuality GRADE 证据质量
+ * @param gradeStrength GRADE 推荐强度
  */
 public record DraftVersionCreateRequest(
     @NotNull Long identityId,
@@ -23,6 +25,8 @@ public record DraftVersionCreateRequest(
     @NotNull Long sourceVersionId,
     @NotBlank String content,
     String anchors,
-    @NotNull KnowledgeRiskLevel riskLevel
+    @NotNull KnowledgeRiskLevel riskLevel,
+    GradeEvidenceQuality gradeQuality,
+    GradeRecommendationStrength gradeStrength
 ) {
 }

@@ -1,8 +1,10 @@
 package com.medkernel.engine.knowledge;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -126,6 +129,39 @@ class KnowledgeAssetApiContractTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(standardContextJson()))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void createVersionAcceptsGradeFields() throws Exception {
+        mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions")
+                .with(medicalAffairsJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-version-create-001",
+                      "trace_id": "trace-version-create-001",
+                      "tenant_id": "t-1",
+                      "user_id": "u-99",
+                      "role_codes": ["medical-affairs"],
+                      "package_version": "pkg-2026.06",
+                      "version_no": "2026",
+                      "version_label": "2026 版",
+                      "source_document_id": 7,
+                      "source_version_id": 8,
+                      "content": "真实指南内容",
+                      "anchors": "[]",
+                      "risk_level": "LOW",
+                      "grade_quality": "HIGH",
+                      "grade_strength": "STRONG"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<KnowledgeVersionCreateRequest> requestCaptor =
+            ArgumentCaptor.forClass(KnowledgeVersionCreateRequest.class);
+        verify(versionService).createDraftVersion(eq(1L), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
+        assertThat(requestCaptor.getValue().gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
     }
 
     @Test

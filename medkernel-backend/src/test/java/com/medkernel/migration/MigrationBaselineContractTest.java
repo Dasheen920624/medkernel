@@ -75,7 +75,8 @@ class MigrationBaselineContractTest {
         "V46__auth_mfa_sm3_reset.sql",
         "V47__workbench_demo_validation_permission.sql",
         "V48__context_snapshot_standard_contract.sql",
-        "V49__knowledge_citation_anchor_offsets.sql"
+        "V49__knowledge_citation_anchor_offsets.sql",
+        "V50__knowledge_trust_grading.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -127,7 +128,7 @@ class MigrationBaselineContractTest {
         "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",
         "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
         "idx_knowledge_av_tenant_status", "idx_knowledge_av_tenant_updated",
-        "idx_knowledge_av_content_hash", "idx_citation_tenant_av", "idx_citation_fragment",
+        "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_citation_tenant_av", "idx_citation_fragment",
         "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
         "idx_standard_term_tenant_category", "idx_standard_term_tenant_updated",
@@ -220,6 +221,7 @@ class MigrationBaselineContractTest {
         "uk_source_version_doc_no", "uk_source_version_doc_hash", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
         "uk_knowledge_asset_version", "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
+        "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
@@ -591,6 +593,29 @@ class MigrationBaselineContractTest {
                 .contains("ck_citation_anchor_offsets")
                 .contains("COMMENT ON COLUMN citation.start_offset")
                 .contains("COMMENT ON COLUMN citation.end_offset");
+        }
+    }
+
+    @Test
+    void v50ShouldAddKnowledgeTrustGradingForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V50__knowledge_trust_grading.sql");
+            assertThat(ddl).as("%s 知识可信分级迁移", dialect)
+                .contains("authority_basis")
+                .contains("authority_level")
+                .contains("grade_quality")
+                .contains("grade_strength")
+                .contains("conflict_arbitration")
+                .contains("ck_source_document_authority")
+                .contains("ck_knowledge_asset_version_authority")
+                .contains("ck_knowledge_asset_grade_quality")
+                .contains("ck_knowledge_asset_grade_strength")
+                .contains("idx_knowledge_av_authority")
+                .contains("COMMENT ON COLUMN source_document.authority_basis")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.authority_level")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.grade_quality")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.grade_strength")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.conflict_arbitration");
         }
     }
 

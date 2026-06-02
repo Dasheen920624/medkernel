@@ -32,6 +32,7 @@ class KnowledgeVersionServiceTest {
     private KnowledgeAssetVersionRepository versionRepo;
     private KnowledgeSupersessionRepository supersessionRepo;
     private CitationRepository citationRepo;
+    private SourceDocumentRepository sourceDocRepo;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -40,7 +41,8 @@ class KnowledgeVersionServiceTest {
         versionRepo = Mockito.mock(KnowledgeAssetVersionRepository.class);
         supersessionRepo = Mockito.mock(KnowledgeSupersessionRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
-        service = new KnowledgeVersionService(identityRepo, versionRepo, supersessionRepo, citationRepo);
+        sourceDocRepo = Mockito.mock(SourceDocumentRepository.class);
+        service = new KnowledgeVersionService(identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
@@ -126,6 +128,81 @@ class KnowledgeVersionServiceTest {
         assertThat(spCap.getValue().oldVersionId()).isEqualTo(5L);
         assertThat(spCap.getValue().newVersionId()).isEqualTo(11L);
         assertThat(spCap.getValue().transitionReason()).isEqualTo("新版指南更新");
+    }
+
+    @Test
+    void activateHigherAuthorityCandidateRecordsArbitrationWithoutManualReason() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion oldActive =
+            version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.D_HOSPITAL);
+        KnowledgeAssetVersion newCandidate =
+            version(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.A_REGULATION);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+
+        service.activate(1L, 11L, null);
+
+        ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
+        verify(versionRepo, times(2)).save(vCap.capture());
+        KnowledgeAssetVersion activated = vCap.getAllValues().get(1);
+        assertThat(activated.conflictArbitration()).contains("A 法规").contains("D 院内");
+
+        ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
+        verify(supersessionRepo).save(spCap.capture());
+        assertThat(spCap.getValue().transitionReason()).contains("可信分级裁决");
+    }
+
+    @Test
+    void activateRejectsLowAuthorityOverrideWithoutReason() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion oldActive =
+            version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.A_REGULATION);
+        KnowledgeAssetVersion newCandidate =
+            version(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.D_HOSPITAL);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+
+        assertThatThrownBy(() -> service.activate(1L, 11L, "  "))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.AUTHORITY_OVERRIDE_DENIED);
+        verify(versionRepo, never()).save(any());
+        verify(supersessionRepo, never()).save(any());
+    }
+
+    @Test
+    void activateAllowsLowAuthorityOverrideWithExplicitReasonAndRecordsArbitration() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion oldActive =
+            version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.A_REGULATION);
+        KnowledgeAssetVersion newCandidate =
+            version(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW, SourceAuthorityLevel.D_HOSPITAL);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+
+        service.activate(1L, 11L, "院内药事会已审核本院禁忌证差异");
+
+        ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
+        verify(versionRepo, times(2)).save(vCap.capture());
+        assertThat(vCap.getAllValues().get(1).conflictArbitration()).contains("低阶来源覆盖高阶来源");
+
+        ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
+        verify(supersessionRepo).save(spCap.capture());
+        assertThat(spCap.getValue().transitionReason())
+            .contains("院内药事会已审核本院禁忌证差异")
+            .contains("低阶来源覆盖高阶来源");
     }
 
     @Test
@@ -256,6 +333,7 @@ class KnowledgeVersionServiceTest {
     @Test
     void createDraftVersionWithStandardRequestUsesPathIdentity() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
 
         KnowledgeAssetVersion created = service.createDraftVersion(1L, versionCreateRequest("v2"));
@@ -264,23 +342,31 @@ class KnowledgeVersionServiceTest {
         assertThat(created.versionNo()).isEqualTo("v2");
         assertThat(created.status()).isEqualTo(KnowledgeVersionStatus.UNDER_REVIEW);
         assertThat(created.contentHash()).isNotBlank();
+        assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
+        assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
+        assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
         assertThat(created.createdBy()).isEqualTo("u-99");
     }
 
     @Test
     void createDraftVersionStoresCanonicalSha256() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
 
         KnowledgeAssetVersion created = service.createDraftVersion(draftRequest(1L, "v2", "真实指南内容"));
 
         assertThat(created.contentHash()).isEqualTo(sha256("真实指南内容"));
         assertThat(created.contentHash()).matches("[0-9a-f]{64}");
+        assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.C_CONSENSUS_LITERATURE);
+        assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.MODERATE);
+        assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.WEAK);
     }
 
     @Test
     void createDraftVersionRejectsBlankContentInsteadOfHashingEmptyString() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDraftVersion(draftRequest(1L, "v2", "   ")))
@@ -414,6 +500,7 @@ class KnowledgeVersionServiceTest {
             Instant.now(), "hospital-admin", Instant.now(), "hospital-admin"
         );
         when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-hospital", 10L)).thenReturn(Optional.of(sourceDocument("t-hospital", 10L, SourceAuthorityLevel.D_HOSPITAL)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-hospital", 1L))
             .thenReturn(List.of());
 
@@ -437,11 +524,17 @@ class KnowledgeVersionServiceTest {
     }
 
     private KnowledgeAssetVersion version(Long id, Long identityId, KnowledgeVersionStatus status, KnowledgeRiskLevel risk) {
+        return version(id, identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE);
+    }
+
+    private KnowledgeAssetVersion version(Long id, Long identityId, KnowledgeVersionStatus status,
+                                          KnowledgeRiskLevel risk, SourceAuthorityLevel authorityLevel) {
         Instant now = Instant.now();
         return new KnowledgeAssetVersion(
             id, "t-1", identityId, "v1", "label",
             null, null, sha256("知识版本夹具内容-" + id), null,
             status, risk,
+            authorityLevel, null, null, null,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
@@ -457,7 +550,8 @@ class KnowledgeVersionServiceTest {
         return new KnowledgeVersionCreateRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
             "u-99", List.of("knowledge.write"), "pkg-2026.06",
-            versionNo, "2026 版", 7L, 8L, "真实指南内容", "[]", KnowledgeRiskLevel.LOW
+            versionNo, "2026 版", 7L, 8L, "真实指南内容", "[]", KnowledgeRiskLevel.LOW,
+            GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG
         );
     }
 
@@ -478,7 +572,21 @@ class KnowledgeVersionServiceTest {
 
     private DraftVersionCreateRequest draftRequest(Long identityId, String versionNo, String content) {
         return new DraftVersionCreateRequest(
-            identityId, versionNo, "医院定制版本", 10L, 20L, content, null, KnowledgeRiskLevel.MEDIUM);
+            identityId, versionNo, "医院定制版本", 10L, 20L, content, null, KnowledgeRiskLevel.MEDIUM,
+            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK);
+    }
+
+    private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel) {
+        return sourceDocument("t-1", id, authorityLevel);
+    }
+
+    private SourceDocument sourceDocument(String tenantId, Long id, SourceAuthorityLevel authorityLevel) {
+        Instant now = Instant.now();
+        return new SourceDocument(
+            id, tenantId, "SRC." + id, SourceType.GUIDELINE, authorityLevel,
+            "来源分级依据", "来源文件", "发布机构", "LICENSE", "zh-CN",
+            now, "tester", now, "tester"
+        );
     }
 
     private String sha256(String text) {

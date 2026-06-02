@@ -63,7 +63,7 @@ class KnowledgeEngineTest {
         );
 
         versionService = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo
         );
 
         // 初始化租户与用户上下文环境
@@ -84,8 +84,8 @@ class KnowledgeEngineTest {
     @Test
     void registerSourceSavesNewDocumentWhenNotExists() {
         SourceRegisterRequest req = new SourceRegisterRequest(
-            "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.CHINA_NATIONAL,
-            "中华骨科指南", "中华医学会", "MIT", "zh-CN"
+            "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
+            "中华骨科指南", "中华医学会", "MIT", "zh-CN", "国家级指南发布机构与版本号可追溯"
         );
 
         when(sourceDocRepo.findByTenantIdAndSourceCode("t-1", "doc-code")).thenReturn(Optional.empty());
@@ -101,14 +101,15 @@ class KnowledgeEngineTest {
     @Test
     void registerSourceReturnsExistingDocumentWhenAlreadyExists() {
         SourceDocument existing = new SourceDocument(
-            1L, "t-1", "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.CHINA_NATIONAL,
+            1L, "t-1", "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
+            "国家级指南发布机构与版本号可追溯",
             "中华骨科指南", "中华医学会", "MIT", "zh-CN",
             Instant.now(), "system", Instant.now(), "system"
         );
 
         SourceRegisterRequest req = new SourceRegisterRequest(
-            "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.CHINA_NATIONAL,
-            "中华骨科指南", "中华医学会", "MIT", "zh-CN"
+            "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
+            "中华骨科指南", "中华医学会", "MIT", "zh-CN", "国家级指南发布机构与版本号可追溯"
         );
 
         when(sourceDocRepo.findByTenantIdAndSourceCode("t-1", "doc-code")).thenReturn(Optional.of(existing));
@@ -126,7 +127,8 @@ class KnowledgeEngineTest {
         );
 
         SourceDocument doc = new SourceDocument(
-            1L, "t-1", "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.CHINA_NATIONAL,
+            1L, "t-1", "doc-code", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
+            "国家级指南发布机构与版本号可追溯",
             "中华骨科指南", "中华医学会", "MIT", "zh-CN",
             Instant.now(), "system", Instant.now(), "system"
         );
@@ -227,7 +229,8 @@ class KnowledgeEngineTest {
     @Test
     void createDraftVersionSavesSuccessfully() {
         DraftVersionCreateRequest req = new DraftVersionCreateRequest(
-            5L, "v2.0", "测试标签", null, null, "这里是全新的医学文献内容", "anchors", KnowledgeRiskLevel.MEDIUM
+            5L, "v2.0", "测试标签", 1L, 2L, "这里是全新的医学文献内容", "anchors", KnowledgeRiskLevel.MEDIUM,
+            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK
         );
 
         KnowledgeIdentity identity = new KnowledgeIdentity(
@@ -236,6 +239,7 @@ class KnowledgeEngineTest {
         );
 
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(Collections.emptyList());
 
         KnowledgeAssetVersion saved = versionService.createDraftVersion(req);
@@ -250,7 +254,8 @@ class KnowledgeEngineTest {
     @Test
     void createDraftVersionRejectsDueToContentHashCollision() {
         DraftVersionCreateRequest req = new DraftVersionCreateRequest(
-            5L, "v2.0", "测试标签", null, null, "这里是完全重复的历史医学内容", "anchors", KnowledgeRiskLevel.MEDIUM
+            5L, "v2.0", "测试标签", 1L, 2L, "这里是完全重复的历史医学内容", "anchors", KnowledgeRiskLevel.MEDIUM,
+            GradeEvidenceQuality.LOW, GradeRecommendationStrength.WEAK
         );
 
         KnowledgeIdentity identity = new KnowledgeIdentity(
@@ -262,17 +267,29 @@ class KnowledgeEngineTest {
         String computedHash = sha256("这里是完全重复的历史医学内容");
         KnowledgeAssetVersion historyVersion = new KnowledgeAssetVersion(
             12L, "t-1", 5L, "v1.0", "旧标签", null, null, computedHash, "anchors",
-            KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.MEDIUM, null, null, null, null, null, null, null, null,
+            KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.MEDIUM,
+            SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
+            null, null, null, null, null, null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );
 
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(List.of(historyVersion));
 
         assertThatThrownBy(() -> versionService.createDraftVersion(req))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_KNOW_002);
+    }
+
+    private SourceDocument sourceDocument(Long id) {
+        Instant now = Instant.now();
+        return new SourceDocument(
+            id, "t-1", "SRC." + id, SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
+            "国家级指南发布机构与版本号可追溯",
+            "来源文件", "发布机构", "LICENSE", "zh-CN", now, "system", now, "system"
+        );
     }
 
     private String sha256(String text) {
