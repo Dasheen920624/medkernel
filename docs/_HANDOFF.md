@@ -14,14 +14,15 @@
 
 ### 线 1 · D2 RULE-01 规则引擎三层配置与规则库页 🚧
 - 类型：软件开发
-- 分支：`codex/d2-rule-01-engine-ui`
+- 分支：`codex/d2-rule-01-layered-ui`（待从最新 `origin/main` 新建）
 - 目标：按 [RULE-01](cards/D2/RULE-01.md) 实施规则引擎后端 + 三层前端：L1 模板、L2 可视化条件树、L3 DSL、7 步流、测试病例与仿真；消费已完成的 [API-05](cards/D2/API-05.md)，不得伪造跨域影响对象。
-- 状态：PR1 后端解释证据切片待 PR：`RuleDslEvaluator` 已把实际求值条件的 `fact/sourcePath/operator/expected/actual/matched/missing` 附加到执行解释；服务层执行日志、`/evaluate` 与 `/explain` REST 响应均已加测试锁定。本地目标测试、后端全量与 changed T-GATE 已通过。OpenSpec 旧变更进度不同步已登记 `DEFER-013`，不阻塞主线。
-- 下一步（精确到动作/命令）：1. 提交并推送 PR1；2. 等待 CI 8/8；3. 合并后更新本文件并清理 worktree；4. 继续 RULE-01 PR2：L1/L2/L3 三层前端（条件树画布 + DSL 编辑器，六态）+ 互转无损。
-- 相关文件 / 测试 / 坑：本切片已触碰 `medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleDslEvaluator.java`、`RuleDslEvaluatorTest`、`RuleEngineServiceTest`、`RuleEngineApiContractTest` 与 `docs/audit/deferred-issues.md`；验证：`mvn -q -Dtest=RuleDslEvaluatorTest,RuleEngineServiceTest,RuleEngineApiContractTest test`、`mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、changed T-GATE、中文注释和 diff 检查均通过。`DEFER-012` 真实跨域反向索引仍 open，RULE-01 若触及发布影响分析必须要么真实补索引并关闭，要么继续诚实暴露不可用范围，不得造受影响患者 / 路径 / 同步目标。
+- 状态：PR1 后端解释证据已合入 `origin/main`（#270，merge `6a5dc99e`）；待领取 PR2 三层前端：L1 模板、L2 可视化条件树、L3 DSL，要求双向互转无损、六态和 ≤3 默认筛选。
+- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 创建 `codex/d2-rule-01-layered-ui` worktree；2. 核查 `frontend/src/pages` / `frontend/src/features` 现有规则库实现并跑前端规则相关基线；3. 先写失败测试锁住 L2↔L3 互转与 L1 模板实例化；4. 实施 PR2 并通过本地前端验证 + changed T-GATE + CI 8/8 后合并；5. 再继续 PR3 仿真病例选择器 + 7 步流发布。
+- 相关文件 / 测试 / 坑：重点看 `frontend/src/pages/tenant/RuleDefinitions.tsx`、规则相关 hooks / API 客户端、`docs/cards/D2/RULE-01.md`、[体验契约](EXPERIENCE_CONTRACT.md)；不得把 JSON 文本框冒充三层编辑器。`DEFER-012` 真实跨域反向索引仍 open，发布影响分析不得造受影响患者 / 路径 / 同步目标；`DEFER-013` OpenSpec 旧变更同步问题仍 open，不影响 PR2。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 RULE-01 PR1 后端解释证据 ✅（#270，merge `6a5dc99e`）：`RuleDslEvaluator` 已把实际求值条件的 `fact/sourcePath/operator/expected/actual/matched/missing` 附加到执行解释；命中和未命中 / 缺字段均有条件证据；服务层执行日志、`/evaluate` 与 `/explain` 客户面响应均透传同一证据快照。本地验证：红灯测试先失败于 `conditionEvidence` 为空，随后 `mvn -q -Dtest=RuleDslEvaluatorTest,RuleEngineServiceTest,RuleEngineApiContractTest test`、后端全量 `mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、changed T-GATE、中文注释与 diff 检查通过；远端 CI 8/8 通过后合入。`DEFER-012` 跨域影响索引、`DEFER-013` OpenSpec 旧变更同步仍 open，未冒领 PR2 三层前端或 PR3 仿真 / 7 步流。
 - D2 TERM-01 PR4 来源追溯与冲突待裁 ✅（#268，merge `45ce8841`）：标准字典分页保留来源版本与证据追溯；候选确认时自动登记一对多 / 多对一 OPEN 冲突并标记人工裁决；同一院内术语命中多个标准候选时生成待裁冲突，不自动取唯一映射。验证：`mvn -q -Dtest=TerminologyServiceTest test`、`mvn -q -Dtest=TerminologyServiceTest,TerminologyApiContractTest,EngineEndToEndIntegrationTest test`、后端全量 `mvn -q test`（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、changed T-GATE、迁移规约、中文注释、diff 检查与远端 CI 8/8 通过；`frontend-lint` 首跑因 GitHub npm `ECONNRESET` 外部网络中断失败，重跑后通过。`DEFER-010` 10 万级字典压测与国产化 `DEFER-001` 仍 open，未冒领清零。
 - D2 TERM-01 PR3 映射包发布与 B0 降级 ✅（#266，merge `5a4be9cf`）：术语映射包发布子流已对齐 [SYS-04](cards/D2/SYS-04.md) 灰度 / 全量 / 回滚语义，GRAY 默认 `BED_PERCENT` 10%，普通实施 / 信息科不能从 DRAFT 绕过灰度直接 FULL，仅医院管理员可直接全量；FULL 替换同 scope 活动包，回滚恢复目标包并写 `rollbackFromPackageId` 证据；候选生成在 `semantic_assist_enabled=false` 时只保留精确编码候选，不查高危规则集、不用别名或编码族伪造候选。本地后端全量、聚焦套件、changed T-GATE、迁移规约、中文注释、diff 检查与远端 CI 8/8 通过后合入 `origin/main`；PR3 未冒领通用 SYS-04 全框架，`DEFER-010` 10 万级字典压测仍 open。
 - 平台主源与租户覆盖层治理 ✅（#265，merge `b383d888`）：知识身份 / 版本、规则定义 / 执行、路径模板 / 入径统一为“本租户覆盖优先，未覆盖回退平台主源 `t-1`”；规则执行日志与患者路径事实仍写当前客户租户；平台源离线包导入客户 / 集团租户只校验快照和保留发布引用，不再向客户资产主表物化平台资产，避免客户侧数据或主源被污染。验证：聚焦套件 `KnowledgeIdentityServiceTest,KnowledgeVersionServiceTest,RuleEngineServiceTest,PathwayEngineServiceTest,PackageEngineServiceTest`、后端全量 `mvn -B -q test`、changed T-GATE、迁移规约、中文注释、diff 检查和远端 CI 8/8 均通过；后端 jar 已发布到 192.168.8.191，远端 SHA256 `243c6fa88c63568a15484228ec1d09aaafe8acc81c8a50f3864dae96dc5dc15a`，HTTPS `/medkernel/actuator/health/readiness`、`/medkernel/api/v1/auth/login-tenants`、`/login` 均 200；Oracle 现场库 `flyway_schema_history` v53，`platform_credential` 仅 `t-1/medkernel`，全库字符串列 `medkernel-basic` 命中 0。
@@ -149,4 +150,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；当前在 `codex/d2-rule-01-engine-ui` 推进 D2 `RULE-01` PR1 后端解释证据切片，本地验证已通过，下一步 PR / CI / 合并后继续 PR2 三层前端。`origin/main` 已包含 D2 `TERM-01` PR4 来源追溯与冲突待裁 #268（merge `45ce8841`）及此前 D2/D1/D0 已归档工作线。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-013` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `RULE-01` PR1 后端解释证据 #270（merge `6a5dc99e`）和 D2 `TERM-01` PR4 来源追溯与冲突待裁 #268（merge `45ce8841`）。下一步领取 D2 `RULE-01` PR2，从最新 `origin/main` 新建 `codex/d2-rule-01-layered-ui`，按 TDD 实施 L1/L2/L3 三层前端与互转无损。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-013` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
