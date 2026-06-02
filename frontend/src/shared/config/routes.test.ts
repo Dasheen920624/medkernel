@@ -6,6 +6,7 @@ import {
   routeMetas,
   customerRouteMetas,
 } from "./routes";
+import { ROLE_OPTIONS } from "./roleCatalog";
 
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
@@ -42,6 +43,23 @@ describe("route metadata", () => {
       "hospital-admin",
       "platform-admin",
     ]);
+  });
+
+  it("makes the dashboard an explicit default landing route for all 13 customer roles", () => {
+    const route = findRouteByPath("/dashboard");
+    const customerRoleCodes = ROLE_OPTIONS.map((role) => role.code);
+
+    expect(route?.requiredPermissions).toEqual(["menu.workbench"]);
+    expect(route?.requiredRoles).toEqual(customerRoleCodes);
+    customerRoleCodes.forEach((roleCode) => {
+      expect(
+        canAccessRoute(route, {
+          roles: [{ code: roleCode }],
+          permissions: [],
+          menuKeys: ["workbench"],
+        }),
+      ).toBe(true);
+    });
   });
 
   it("requires breadcrumb metadata for authenticated pages", () => {
