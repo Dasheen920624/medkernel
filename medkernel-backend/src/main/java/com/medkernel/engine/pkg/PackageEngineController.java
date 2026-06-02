@@ -160,6 +160,26 @@ public class PackageEngineController {
     }
 
     /**
+     * 导出包发布同步证据与失败站点清单。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/{packageId}/sync-logs/export")
+    @PreAuthorize("@perm.has('package.read')")
+    public void exportSyncEvidence(
+            @PathVariable String packageId,
+            HttpServletResponse response) throws IOException {
+        String evidence = service.exportSyncEvidence(packageId);
+        String safePackageId = packageId.replaceAll("[^A-Za-z0-9_.-]", "_");
+        response.setContentType("application/x-ndjson;charset=utf-8");
+        response.setHeader("Content-Disposition",
+            "attachment; filename=\"package-sync-evidence-" + safePackageId + ".jsonl\"");
+        try (OutputStream output = response.getOutputStream()) {
+            output.write(evidence.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
      * 导入离线配置包，验签后以本地草案落库。
      *
      * <p>权限：{@code package.publish}。

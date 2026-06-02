@@ -61,6 +61,7 @@ import {
   useSecurityProfile,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
+  downloadPackageSyncEvidenceExport,
 } from "@/shared/api/hooks";
 import type {
   EvaluationIndicator,
@@ -239,6 +240,7 @@ export default function ConfigPackages() {
   const [syncProgress, setSyncProgress] = useState<number>(0);
   const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
   const [syncExecuting, setSyncExecuting] = useState<boolean>(false);
+  const [syncEvidenceExporting, setSyncEvidenceExporting] = useState<boolean>(false);
 
   const handleSyncPackage = async () => {
     if (!selectedPackageId) return;
@@ -311,6 +313,21 @@ export default function ConfigPackages() {
       message.error(getApiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
     } finally {
       setOfflineExportingId(null);
+    }
+  };
+
+  const handleExportSyncEvidence = async () => {
+    if (!selectedPackageId) return;
+    setSyncEvidenceExporting(true);
+    try {
+      const blob = await downloadPackageSyncEvidenceExport(selectedPackageId);
+      const safeName = (selectedPackage?.packageCode || selectedPackageId).replace(/[^\w.-]/g, "_");
+      triggerBlobDownload(blob, `package-sync-evidence-${safeName}.jsonl`);
+      message.success("同步证据已开始下载。");
+    } catch (err: unknown) {
+      message.error(getApiErrorMessage(err, "同步证据导出失败，请检查同步日志后重试。"));
+    } finally {
+      setSyncEvidenceExporting(false);
     }
   };
 
@@ -388,6 +405,11 @@ export default function ConfigPackages() {
       )
     : [];
   const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
+  const attentionSyncLogs = visibleSyncLogs.filter(
+    (log) => log.status === "FAILED" || log.status === "NOT_SYNCED",
+  );
+  const syncTargetName = (targetId: string) =>
+    displayTargets.find((target) => target.targetId === targetId)?.targetName || targetId;
   const syncLogStatusColor = (status: string) => {
     if (status === "SUCCESS") return "green";
     if (status === "NOT_SYNCED") return "orange";
@@ -1260,6 +1282,54 @@ export default function ConfigPackages() {
                 className="mb-4"
               />
 
+              {attentionSyncLogs.length > 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="mb-4 rounded-lg"
+                  message={
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">失败 / 未接入站点</span>
+                      <Button
+                        size="small"
+                        icon={<DownloadOutlined aria-hidden="true" />}
+                        loading={syncEvidenceExporting}
+                        onClick={handleExportSyncEvidence}
+                      >
+                        导出同步证据
+                      </Button>
+                    </div>
+                  }
+                  description={
+                    <div className="mt-1 flex flex-col gap-2">
+                      {attentionSyncLogs.map((log) => (
+                        <div
+                          key={log.logId}
+                          className="flex flex-col gap-1 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-800">
+                              {syncTargetName(log.targetId)}
+                            </span>
+                            <Tag color={syncLogStatusColor(log.status)} className="m-0 text-[10px]">
+                              {syncLogStatusText(log.status)}
+                            </Tag>
+                          </div>
+                          {log.errorMessage && (
+                            <span className="text-slate-600">原因：{log.errorMessage}</span>
+                          )}
+                          {!log.syncEvidence && (
+                            <span className="text-slate-500">
+                              该站点没有成功同步水位，系统不会伪造成已同步。
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  }
+                />
+              )}
+
               {/* 实时同步证据 Timeline */}
               {visibleSyncLogs.length > 0 && (
                 <div className="mt-4">
@@ -1276,9 +1346,7 @@ export default function ConfigPackages() {
                         <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex flex-col gap-1.5">
                           <div className="flex justify-between items-center text-xs font-semibold">
                             <span className="text-slate-800">
-                              通道:{" "}
-                              {displayTargets.find((t) => t.targetId === log.targetId)
-                                ?.targetName || log.targetId}
+                              通道: {syncTargetName(log.targetId)}
                             </span>
                             <Tag color={syncLogStatusColor(log.status)} className="m-0 text-[10px]">
                               {syncLogStatusText(log.status)}

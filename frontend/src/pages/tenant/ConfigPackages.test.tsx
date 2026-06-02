@@ -4,10 +4,14 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ConfigPackages from "./ConfigPackages";
-import { downloadPackageOfflineExport } from "@/shared/api/hooks";
+import {
+  downloadPackageOfflineExport,
+  downloadPackageSyncEvidenceExport,
+} from "@/shared/api/hooks";
 
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
+  downloadPackageSyncEvidenceExport: vi.fn(),
   importOfflinePackage: vi.fn(),
   addPackageItem: vi.fn(),
   releasePackage: vi.fn(),
@@ -47,7 +51,10 @@ vi.mock("@/shared/api/hooks", () => ({
     },
   }),
   useSyncTargets: () => ({
-    data: [{ targetId: "target-his", targetName: "院内 HIS 同步通道" }],
+    data: [
+      { targetId: "target-his", targetName: "院内 HIS 同步通道" },
+      { targetId: "target-graph", targetName: "图谱同步通道" },
+    ],
   }),
   useCreatePackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePackages: () => ({
@@ -114,12 +121,15 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   downloadPackageDiffExport: vi.fn(),
   downloadPackageOfflineExport: apiMocks.downloadPackageOfflineExport,
+  downloadPackageSyncEvidenceExport: apiMocks.downloadPackageSyncEvidenceExport,
 }));
 
 describe("ConfigPackages offline package export", () => {
   beforeEach(() => {
     apiMocks.downloadPackageOfflineExport.mockReset();
     apiMocks.downloadPackageOfflineExport.mockResolvedValue(new Blob(["offline-package"]));
+    apiMocks.downloadPackageSyncEvidenceExport.mockReset();
+    apiMocks.downloadPackageSyncEvidenceExport.mockResolvedValue(new Blob(["sync-evidence"]));
     apiMocks.importOfflinePackage.mockReset();
     apiMocks.addPackageItem.mockReset();
     apiMocks.addPackageItem.mockResolvedValue({
@@ -279,6 +289,61 @@ describe("ConfigPackages offline package export", () => {
           packageVersion: "3.0.0",
         },
       });
+    });
+  });
+
+  it("shows failed and not-connected sites and exports sync evidence", async () => {
+    apiMocks.releasePackage.mockResolvedValueOnce({
+      status: "FAILED",
+      logs: [
+        {
+          logId: "log-fail",
+          planId: "plan-1",
+          targetId: "target-his",
+          status: "FAILED",
+          errorCode: "ENG-PACKAGE-005",
+          errorMessage: "目标库写入失败",
+          retryCount: 0,
+          syncEvidence: null,
+        },
+        {
+          logId: "log-not-synced",
+          planId: "plan-1",
+          targetId: "target-graph",
+          status: "NOT_SYNCED",
+          errorCode: "NOT_SYNCED",
+          errorMessage: "未配置真实同步适配器",
+          retryCount: 0,
+          syncEvidence: null,
+        },
+      ],
+    });
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+    fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
+    await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
+    fireEvent.change(screen.getByLabelText("接收组织单元"), {
+      target: { value: "hospital-1" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
+
+    expect(await screen.findByText("失败 / 未接入站点")).toBeInTheDocument();
+    expect(screen.getAllByText("院内 HIS 同步通道").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("图谱同步通道").length).toBeGreaterThan(0);
+    expect(screen.getByText("目标库写入失败")).toBeInTheDocument();
+    expect(screen.getByText("未配置真实同步适配器")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "导出同步证据" }));
+
+    await waitFor(() => {
+      expect(downloadPackageSyncEvidenceExport).toHaveBeenCalledWith("pkg-offline");
     });
   });
 

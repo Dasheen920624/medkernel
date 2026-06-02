@@ -2435,8 +2435,9 @@ export interface PackageValidateResponse {
 
 export interface SyncLogResponse {
   logId: string;
+  planId?: string;
   targetId: string;
-  status: "RUNNING" | "SUCCESS" | "FAILED" | string;
+  status: "RUNNING" | "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
   errorCode: string | null;
   errorMessage: string | null;
   retryCount: number;
@@ -2446,7 +2447,7 @@ export interface SyncLogResponse {
 export interface PackageSyncResponse {
   planId: string;
   packageId: string;
-  status: "EXECUTING" | "SUCCESS" | "FAILED" | string;
+  status: "EXECUTING" | "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
   logs: SyncLogResponse[];
 }
 
@@ -2556,6 +2557,13 @@ export async function downloadPackageDiffExport(packageId: string, basePackageId
 
 export async function downloadPackageOfflineExport(packageId: string) {
   const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/offline/export`, {
+    responseType: "blob",
+  });
+  return data;
+}
+
+export async function downloadPackageSyncEvidenceExport(packageId: string) {
+  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/sync-logs/export`, {
     responseType: "blob",
   });
   return data;

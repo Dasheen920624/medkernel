@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "./client";
 import {
   downloadPackageOfflineExport,
+  downloadPackageSyncEvidenceExport,
   bindBootstrapMfa,
   changePassword,
   checkBootstrapInitToken,
@@ -89,6 +90,18 @@ describe("package export api helpers", () => {
 
     expect(result).toBe(offlineBlob);
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/offline/export", {
+      responseType: "blob",
+    });
+  });
+
+  it("downloads sync evidence from the dedicated sync-log export endpoint", async () => {
+    const evidenceBlob = new Blob(['{"event":"PACKAGE_SYNC_EVIDENCE_SUMMARY"}\n']);
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: evidenceBlob });
+
+    const result = await downloadPackageSyncEvidenceExport("pkg-1");
+
+    expect(result).toBe(evidenceBlob);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs/export", {
       responseType: "blob",
     });
   });
