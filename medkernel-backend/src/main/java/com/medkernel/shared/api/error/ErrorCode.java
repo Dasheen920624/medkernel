@@ -37,6 +37,7 @@ public enum ErrorCode {
     TENANT_CONTEXT_MISSING("ENG-BASE-001", 400, "租户上下文缺失", ErrorClass.AUTH, false),
     TENANT_FORBIDDEN("ENG-BASE-002", 403, "无权访问该租户数据", ErrorClass.AUTH, false),
     DATA_SCOPE_DENIED("ENG-BASE-003", 403, "数据范围权限不足", ErrorClass.AUTH, false),
+    ORG_SCOPE_DENIED("ENG-BASE-004", 403, "组织作用域权限不足", ErrorClass.AUTH, false),
 
     INTERNAL_ERROR("ENG-SYS-001", 500, "服务内部错误", ErrorClass.INTERNAL, false),
     DOWNSTREAM_UNAVAILABLE("ENG-SYS-002", 503, "下游服务不可用", ErrorClass.EXTERNAL, true),

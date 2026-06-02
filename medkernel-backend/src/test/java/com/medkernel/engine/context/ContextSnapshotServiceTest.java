@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -98,6 +100,74 @@ class ContextSnapshotServiceTest {
         verify(idemRepo, never()).save(any());
         verify(auditPublisher, times(1)).publish(
             eq(AuditAction.CREATE), eq("context_snapshot"), anyString(), anyString());
+    }
+
+    @Test
+    void shouldCreateSnapshotFromUnifiedRequestAndReturnStandardContract() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-current",
+            new OrgScope("tenant-A", "group-1", "hospital-1", "campus-1", "site-1", "DEPT-A", "stroke"),
+            "current-user"));
+        when(idemRepo.findByTenantIdAndIdempotencyKey("tenant-A", "req-ctx-1"))
+            .thenReturn(Optional.empty());
+
+        ContextSnapshotRequest request = unifiedRequest("req-ctx-1", "pkg-2026.06");
+
+        ContextSnapshotResponse resp = service.create(request, "legacy-header-key");
+
+        assertThat(resp.packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.knowledgePackageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.rulePackageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.pathwayPackageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.resources().patient().mpi()).isEqualTo("MPI-1");
+        assertThat(resp.resources().observations()).extracting(CanonicalObservation::code)
+            .containsExactly("HB");
+        assertThat(resp.traceId()).isEqualTo("trace-current");
+
+        ArgumentCaptor<ContextSnapshot> snapshotCap = ArgumentCaptor.forClass(ContextSnapshot.class);
+        verify(snapshots).save(snapshotCap.capture());
+        assertThat(snapshotCap.getValue().requestId()).isEqualTo("req-ctx-1");
+        assertThat(snapshotCap.getValue().packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(snapshotCap.getValue().orgPath())
+            .isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/stroke");
+
+        verify(idemRepo).findByTenantIdAndIdempotencyKey("tenant-A", "req-ctx-1");
+        verify(idemRepo, never()).findByTenantIdAndIdempotencyKey("tenant-A", "legacy-header-key");
+    }
+
+    @Test
+    void shouldBindSnakeCaseStandardRequestJson() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.findAndRegisterModules();
+
+        ContextSnapshotRequest request = mapper.readValue("""
+            {
+              "request_id": "req-json-1",
+              "trace_id": "trace-json",
+              "tenant_id": "tenant-A",
+              "department_id": "DEPT-A",
+              "role_codes": ["DOCTOR"],
+              "patient_id": "MPI-JSON",
+              "encounter_id": "ENC-JSON",
+              "org_unit_id": "ORG-JSON",
+              "package_version": "pkg-json",
+              "resources": {}
+            }
+            """, ContextSnapshotRequest.class);
+
+        assertThat(request.requestId()).isEqualTo("req-json-1");
+        assertThat(request.traceId()).isEqualTo("trace-json");
+        assertThat(request.tenantId()).isEqualTo("tenant-A");
+        assertThat(request.departmentId()).isEqualTo("DEPT-A");
+        assertThat(request.roleCodes()).containsExactly("DOCTOR");
+        assertThat(request.patientId()).isEqualTo("MPI-JSON");
+        assertThat(request.encounterId()).isEqualTo("ENC-JSON");
+        assertThat(request.orgUnitId()).isEqualTo("ORG-JSON");
+        assertThat(request.packageVersion()).isEqualTo("pkg-json");
+        assertThat(request.knowledgePackageVersion()).isEqualTo("pkg-json");
+        assertThat(request.rulePackageVersion()).isEqualTo("pkg-json");
+        assertThat(request.pathwayPackageVersion()).isEqualTo("pkg-json");
+        assertThat(request.resources().observations()).isEmpty();
     }
 
     @Test
@@ -183,6 +253,30 @@ class ContextSnapshotServiceTest {
     }
 
     @Test
+    void shouldUseRequestIdAsTenantScopedIdempotencyKey() {
+        when(idemRepo.findByTenantIdAndIdempotencyKey("tenant-A", "req-retry-1"))
+            .thenReturn(Optional.of(new ContextIdempotencyKey(
+                1L, "tenant-A", "req-retry-1", "ctx-cached", "digest",
+                Instant.now().plusSeconds(60), Instant.now())));
+        when(snapshots.findBySnapshotIdAndTenantId("ctx-cached", "tenant-A"))
+            .thenReturn(Optional.of(new ContextSnapshot(
+                1L, "ctx-cached", "tenant-A", "ORG-1",
+                "req-retry-1", "tenant-A/ORG-1", "pkg-2026.06",
+                "MPI-1", "ENC-1",
+                "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
+                ContextSnapshotStatus.ACTIVE, "[]", "{}",
+                QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
+
+        ContextSnapshotResponse resp = service.create(unifiedRequest("req-retry-1", "pkg-2026.06"), "header-fallback");
+
+        assertThat(resp.snapshotId()).isEqualTo("ctx-cached");
+        assertThat(resp.packageVersion()).isEqualTo("pkg-2026.06");
+        verify(idemRepo).findByTenantIdAndIdempotencyKey("tenant-A", "req-retry-1");
+        verify(idemRepo, never()).findByTenantIdAndIdempotencyKey("tenant-A", "header-fallback");
+        verify(snapshots, never()).save(any());
+    }
+
+    @Test
     void shouldPersistIdempotencyKeyWhenProvidedAndMiss() {
         when(idemRepo.findByTenantIdAndIdempotencyKey(eq("tenant-A"), anyString()))
             .thenReturn(Optional.empty());
@@ -218,6 +312,72 @@ class ContextSnapshotServiceTest {
 
         assertThat(resp.snapshotId()).isEqualTo("ctx-1");
         assertThat(resp.qualityStatus()).isEqualTo(QualityStatus.VALID);
+    }
+
+    @Test
+    void shouldReadPersistedResourcesMissingFieldsAndMappingStatus() {
+        var missingJson = "[{\"resourceType\":\"CONDITION\",\"field\":\"*\",\"level\":\"ERROR\"}]";
+        var mappingJson = "{\"OBSERVATION:obs-1:code:HB\":\"UNKNOWN\"}";
+        when(snapshots.findBySnapshotIdAndTenantId("ctx-1", "tenant-A"))
+            .thenReturn(Optional.of(new ContextSnapshot(
+                1L, "ctx-1", "tenant-A", "ORG-1",
+                "req-ctx-1", "tenant-A/ORG-1", "pkg-2026.06",
+                "MPI-1", "ENC-1",
+                "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
+                ContextSnapshotStatus.ACTIVE, missingJson, mappingJson,
+                QualityStatus.PARTIAL, "trace", null, Instant.now(), "tester")));
+        when(resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc("ctx-1", "tenant-A"))
+            .thenReturn(List.of(
+                new CanonicalResource(null, "res-p", "ctx-1", "tenant-A",
+                    CanonicalResourceType.PATIENT, json(validResources().patient()),
+                    "HIS", "rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID, 0, "trace"),
+                new CanonicalResource(null, "res-o", "ctx-1", "tenant-A",
+                    CanonicalResourceType.OBSERVATION, json(sampleObservation()),
+                    "LIS", "obs-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.PARTIAL, 1, "trace")
+            ));
+
+        ContextSnapshotResponse resp = service.findById("ctx-1");
+
+        assertThat(resp.missingFields()).singleElement().satisfies(entry -> {
+            assertThat(entry.resourceType()).isEqualTo("CONDITION");
+            assertThat(entry.field()).isEqualTo("*");
+            assertThat(entry.level()).isEqualTo("ERROR");
+        });
+        assertThat(resp.mappingStatus()).containsEntry("OBSERVATION:obs-1:code:HB", "UNKNOWN");
+        assertThat(resp.resources().patient().mpi()).isEqualTo("MPI-1");
+        assertThat(resp.resources().observations()).extracting(CanonicalObservation::observationId)
+            .containsExactly("obs-1");
+    }
+
+    @Test
+    void shouldRejectWhenRequestTenantExceedsCurrentScope() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-current", OrgScope.tenant("tenant-A"), "tester"));
+
+        assertThatThrownBy(() -> service.create(unifiedRequestForTenant("tenant-B"), null))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
+
+        verify(snapshots, never()).save(any());
+        ArgumentCaptor<AuditEvent> evCap = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(isolatedAudit).publishInNewTx(evCap.capture());
+        assertThat(evCap.getValue().errorCode()).isEqualTo(ErrorCode.ORG_SCOPE_DENIED.code());
+    }
+
+    @Test
+    void shouldRejectWhenRequestDepartmentExceedsCurrentScope() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-current",
+            new OrgScope("tenant-A", null, null, null, null, "DEPT-A", null),
+            "tester"));
+
+        assertThatThrownBy(() -> service.create(unifiedRequestForDepartment("DEPT-B"), null))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
+
+        verify(snapshots, never()).save(any());
     }
 
     @Test
@@ -334,6 +494,114 @@ class ContextSnapshotServiceTest {
 
     private ContextSnapshotResources validResources() {
         return ContextSnapshotServiceFixtures.validResources();
+    }
+
+    private ContextSnapshotRequest unifiedRequest(String requestId, String packageVersion) {
+        return new ContextSnapshotRequest(
+            requestId,
+            "trace-from-client",
+            "tenant-A",
+            "group-1",
+            "hospital-1",
+            "campus-1",
+            "site-1",
+            "DEPT-A",
+            "stroke",
+            "doctor-1",
+            List.of("DOCTOR"),
+            "MPI-1",
+            "ENC-1",
+            "ORG-1",
+            packageVersion,
+            null,
+            null,
+            null,
+            resourcesWithObservation()
+        );
+    }
+
+    private ContextSnapshotRequest unifiedRequestForTenant(String tenantId) {
+        return new ContextSnapshotRequest(
+            "req-cross-tenant",
+            "trace-from-client",
+            tenantId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "doctor-1",
+            List.of("DOCTOR"),
+            "MPI-1",
+            "ENC-1",
+            "ORG-1",
+            "pkg-2026.06",
+            null,
+            null,
+            null,
+            validResources()
+        );
+    }
+
+    private ContextSnapshotRequest unifiedRequestForDepartment(String departmentId) {
+        return new ContextSnapshotRequest(
+            "req-cross-department",
+            "trace-from-client",
+            "tenant-A",
+            null,
+            null,
+            null,
+            null,
+            departmentId,
+            null,
+            "doctor-1",
+            List.of("DOCTOR"),
+            "MPI-1",
+            "ENC-1",
+            "ORG-1",
+            "pkg-2026.06",
+            null,
+            null,
+            null,
+            validResources()
+        );
+    }
+
+    private ContextSnapshotResources resourcesWithObservation() {
+        ContextSnapshotResources base = validResources();
+        return new ContextSnapshotResources(
+            base.patient(),
+            base.encounters(),
+            base.conditions(),
+            base.nursingAssessments(),
+            List.of(sampleObservation()),
+            base.diagnosticReports(),
+            base.medications(),
+            base.procedures(),
+            base.documents(),
+            base.carePlans(),
+            base.followUps(),
+            base.claims()
+        );
+    }
+
+    private CanonicalObservation sampleObservation() {
+        return new CanonicalObservation(
+            "obs-1", "HB", "血红蛋白",
+            new BigDecimal("132.5"), null, "g/L", "120-160", null,
+            "LIS", "obs-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.PARTIAL
+        );
+    }
+
+    private String json(Object value) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.findAndRegisterModules();
+            return mapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
     }
 
     private String sha256Json(ContextSnapshotRequest request) {

@@ -3,6 +3,7 @@ package com.medkernel.engine.context;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
@@ -31,6 +33,7 @@ import com.medkernel.engine.context.canonical.CanonicalFollowUp;
 import com.medkernel.engine.context.canonical.CanonicalMedication;
 import com.medkernel.engine.context.canonical.CanonicalNursingAssessment;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
+import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.context.canonical.CanonicalProcedure;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -92,19 +95,23 @@ public class ContextSnapshotService {
 
     @Transactional
     public ContextSnapshotResponse create(ContextSnapshotRequest req, String idempotencyKey) {
-        String tenantId = requireCurrentTenant();
+        OrgScope scope = requireCurrentOrgScope();
+        String tenantId = scope.tenantId();
         String userId = RequestContext.currentUserId().orElse("system");
-        String traceId = RequestContext.currentTraceId();
+        String traceId = req.effectiveTraceId(RequestContext.currentTraceId());
+        String effectiveIdempotencyKey = req.effectiveIdempotencyKey(idempotencyKey);
 
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+        validateRequestScope(scope, req);
+
+        if (hasText(effectiveIdempotencyKey)) {
             Optional<ContextIdempotencyKey> existing =
-                idemRepo.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey);
+                idemRepo.findByTenantIdAndIdempotencyKey(tenantId, effectiveIdempotencyKey);
             if (existing.isPresent()) {
                 ContextSnapshot snap = snapshots.findBySnapshotIdAndTenantId(
                     existing.get().snapshotId(), tenantId)
                     .orElseThrow(() -> new ApiException(ErrorCode.ENG_CONTEXT_004,
                         "幂等记录无对应 snapshot=" + existing.get().snapshotId()));
-                return toResponse(snap, List.of(), Map.of());
+                return toResponse(snap);
             }
         }
 
@@ -125,6 +132,9 @@ public class ContextSnapshotService {
         Instant now = Instant.now();
         ContextSnapshot saved = snapshots.save(new ContextSnapshot(
             null, snapshotId, tenantId, req.orgUnitId(),
+            ContextSnapshotRequest.firstNonBlank(req.requestId(), effectiveIdempotencyKey),
+            orgPath(scope, req),
+            req.effectivePackageVersion(),
             req.patientId(), req.encounterId(),
             req.knowledgePackageVersion(), req.rulePackageVersion(), req.pathwayPackageVersion(),
             ContextSnapshotStatus.ACTIVE,
@@ -134,9 +144,9 @@ public class ContextSnapshotService {
 
         persistResources(saved.snapshotId(), tenantId, req.resources());
 
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+        if (hasText(effectiveIdempotencyKey)) {
             idemRepo.save(new ContextIdempotencyKey(
-                null, tenantId, idempotencyKey, saved.snapshotId(),
+                null, tenantId, effectiveIdempotencyKey, saved.snapshotId(),
                 digest(req), now.plusSeconds(IDEMPOTENCY_TTL_SECONDS), now
             ));
         }
@@ -147,8 +157,7 @@ public class ContextSnapshotService {
         transitions.record("context_snapshot", saved.snapshotId(),
             null, ContextSnapshotStatus.ACTIVE.name(), "INITIAL_CREATE", null);
 
-        return new ContextSnapshotResponse(saved.snapshotId(), ContextSnapshotStatus.ACTIVE,
-            quality, missing, mappingStatus, now, traceId);
+        return toResponse(saved, req.resources(), missing, mappingStatus);
     }
 
     @Transactional(readOnly = true)
@@ -157,7 +166,7 @@ public class ContextSnapshotService {
         ContextSnapshot snap = snapshots.findBySnapshotIdAndTenantId(snapshotId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_CONTEXT_001,
                 "snapshot 不存在: " + snapshotId));
-        return toResponse(snap, List.of(), Map.of());
+        return toResponse(snap);
     }
 
     @Transactional(readOnly = true)
@@ -166,10 +175,11 @@ public class ContextSnapshotService {
         ContextSnapshot snap = snapshots.findBySnapshotIdAndTenantId(snapshotId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_CONTEXT_001,
                 "snapshot 不存在: " + snapshotId));
+        ContextSnapshotResponse response = toResponse(snap);
         return diagnoseAssembler.assemble(
             "context_snapshot", snap.snapshotId(), snap.tenantId(),
             snap.status() == null ? null : snap.status().name(),
-            snap,
+            response,
             List.of(),
             Map.of(),
             null,
@@ -209,11 +219,37 @@ public class ContextSnapshotService {
     // ── 私有辅助 ─────────────────────────────────────────
 
     private String requireCurrentTenant() {
+        return requireCurrentOrgScope().tenantId();
+    }
+
+    private OrgScope requireCurrentOrgScope() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
             throw ApiException.tenantMissing();
         }
-        return scope.tenantId();
+        return scope;
+    }
+
+    private void validateRequestScope(OrgScope currentScope, ContextSnapshotRequest req) {
+        if (hasText(req.tenantId()) && !req.tenantId().equals(currentScope.tenantId())) {
+            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED,
+                "请求租户越权 current=" + currentScope.tenantId() + " request=" + req.tenantId());
+            throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求组织作用域超出当前租户");
+        }
+        rejectMismatchedOrgLayer("group", currentScope.groupId(), req.groupId());
+        rejectMismatchedOrgLayer("hospital", currentScope.hospitalId(), req.hospitalId());
+        rejectMismatchedOrgLayer("campus", currentScope.campusId(), req.campusId());
+        rejectMismatchedOrgLayer("site", currentScope.siteId(), req.siteId());
+        rejectMismatchedOrgLayer("department", currentScope.departmentId(), req.departmentId());
+        rejectMismatchedOrgLayer("specialty", currentScope.specialtyId(), req.specialtyId());
+    }
+
+    private void rejectMismatchedOrgLayer(String layer, String currentValue, String requestValue) {
+        if (hasText(currentValue) && hasText(requestValue) && !currentValue.equals(requestValue)) {
+            publishFailureAudit(ErrorCode.ORG_SCOPE_DENIED,
+                "请求组织层级越权 layer=" + layer + " current=" + currentValue + " request=" + requestValue);
+            throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求组织作用域超出当前授权范围");
+        }
     }
 
     private void validatePackageVersions(String tenantId, ContextSnapshotRequest req) {
@@ -282,10 +318,64 @@ public class ContextSnapshotService {
         return in == null ? List.of() : in;
     }
 
-    private ContextSnapshotResponse toResponse(ContextSnapshot snap,
+    private ContextSnapshotResponse toResponse(ContextSnapshot snap) {
+        return toResponse(snap, readResources(snap), readMissingFields(snap.missingFieldsJson()),
+            readMappingStatus(snap.mappingStatusJson()));
+    }
+
+    private ContextSnapshotResponse toResponse(ContextSnapshot snap, ContextSnapshotResources resourcesDto,
             List<MissingFieldEntry> missing, Map<String, String> mappingStatus) {
-        return new ContextSnapshotResponse(snap.snapshotId(), snap.status(),
-            snap.qualityStatus(), missing, mappingStatus, snap.createdAt(), snap.traceId());
+        return new ContextSnapshotResponse(
+            snap.snapshotId(),
+            snap.status(),
+            resourcesDto,
+            ContextSnapshotRequest.firstNonBlank(
+                snap.packageVersion(), snap.knowledgePackageVersion(), snap.rulePackageVersion(), snap.pathwayPackageVersion()),
+            snap.knowledgePackageVersion(),
+            snap.rulePackageVersion(),
+            snap.pathwayPackageVersion(),
+            snap.qualityStatus(),
+            missing,
+            mappingStatus,
+            snap.createdAt(),
+            snap.traceId()
+        );
+    }
+
+    private ContextSnapshotResources readResources(ContextSnapshot snap) {
+        List<CanonicalResource> rows = resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc(
+            snap.snapshotId(), snap.tenantId());
+        CanonicalPatient patient = null;
+        List<CanonicalEncounter> encounters = new ArrayList<>();
+        List<CanonicalCondition> conditions = new ArrayList<>();
+        List<CanonicalNursingAssessment> nursingAssessments = new ArrayList<>();
+        List<CanonicalObservation> observations = new ArrayList<>();
+        List<CanonicalDiagnosticReport> diagnosticReports = new ArrayList<>();
+        List<CanonicalMedication> medications = new ArrayList<>();
+        List<CanonicalProcedure> procedures = new ArrayList<>();
+        List<CanonicalDocument> documents = new ArrayList<>();
+        List<CanonicalCarePlan> carePlans = new ArrayList<>();
+        List<CanonicalFollowUp> followUps = new ArrayList<>();
+        List<CanonicalClaim> claims = new ArrayList<>();
+
+        for (CanonicalResource row : rows) {
+            switch (row.resourceType()) {
+                case PATIENT -> patient = readPayload(row, CanonicalPatient.class);
+                case ENCOUNTER -> encounters.add(readPayload(row, CanonicalEncounter.class));
+                case CONDITION -> conditions.add(readPayload(row, CanonicalCondition.class));
+                case NURSING_ASSESSMENT -> nursingAssessments.add(readPayload(row, CanonicalNursingAssessment.class));
+                case OBSERVATION -> observations.add(readPayload(row, CanonicalObservation.class));
+                case DIAGNOSTIC_REPORT -> diagnosticReports.add(readPayload(row, CanonicalDiagnosticReport.class));
+                case MEDICATION -> medications.add(readPayload(row, CanonicalMedication.class));
+                case PROCEDURE -> procedures.add(readPayload(row, CanonicalProcedure.class));
+                case DOCUMENT -> documents.add(readPayload(row, CanonicalDocument.class));
+                case CARE_PLAN -> carePlans.add(readPayload(row, CanonicalCarePlan.class));
+                case FOLLOW_UP -> followUps.add(readPayload(row, CanonicalFollowUp.class));
+                case CLAIM -> claims.add(readPayload(row, CanonicalClaim.class));
+            }
+        }
+        return new ContextSnapshotResources(patient, encounters, conditions, nursingAssessments,
+            observations, diagnosticReports, medications, procedures, documents, carePlans, followUps, claims);
     }
 
     private String writeJson(Object o) {
@@ -293,6 +383,57 @@ public class ContextSnapshotService {
             return json.writeValueAsString(o);
         } catch (JsonProcessingException e) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_001, "JSON 序列化失败", e);
+        }
+    }
+
+    private <T> T readPayload(CanonicalResource row, Class<T> type) {
+        try {
+            return json.readValue(row.resourcePayloadJson(), type);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001,
+                "标准资源 JSON 解析失败 resourceId=" + row.resourceId(), exception);
+        }
+    }
+
+    private List<MissingFieldEntry> readMissingFields(String rawJson) {
+        if (!hasText(rawJson)) {
+            return List.of();
+        }
+        try {
+            return json.readValue(rawJson, new TypeReference<List<MissingFieldEntry>>() {});
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "missingFields JSON 解析失败", exception);
+        }
+    }
+
+    private Map<String, String> readMappingStatus(String rawJson) {
+        if (!hasText(rawJson)) {
+            return Map.of();
+        }
+        try {
+            return json.readValue(rawJson, new TypeReference<Map<String, String>>() {});
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "mappingStatus JSON 解析失败", exception);
+        }
+    }
+
+    private String orgPath(OrgScope scope, ContextSnapshotRequest req) {
+        List<String> segments = new ArrayList<>();
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.groupId(), req.groupId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.hospitalId(), req.hospitalId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.campusId(), req.campusId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.siteId(), req.siteId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.departmentId(), req.departmentId()));
+        addIfHasText(segments, ContextSnapshotRequest.firstNonBlank(scope.specialtyId(), req.specialtyId()));
+        if (!segments.isEmpty()) {
+            return String.join("/", segments);
+        }
+        return ContextSnapshotRequest.firstNonBlank(req.orgUnitId(), scope.tenantId());
+    }
+
+    private void addIfHasText(List<String> segments, String value) {
+        if (hasText(value)) {
+            segments.add(value);
         }
     }
 
@@ -308,5 +449,9 @@ public class ContextSnapshotService {
     private void publishFailureAudit(ErrorCode code, String summary) {
         isolatedAudit.publishInNewTx(AuditEvent.failure(
             AuditAction.EXECUTE, "context_snapshot", null, code.code(), summary));
+    }
+
+    private static boolean hasText(String value) {
+        return ContextSnapshotRequest.hasText(value);
     }
 }

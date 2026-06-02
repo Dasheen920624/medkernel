@@ -73,7 +73,8 @@ class MigrationBaselineContractTest {
         "V44__system_superadmin_seed.sql",
         "V45__credential_login_attempt.sql",
         "V46__auth_mfa_sm3_reset.sql",
-        "V47__workbench_demo_validation_permission.sql"
+        "V47__workbench_demo_validation_permission.sql",
+        "V48__context_snapshot_standard_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -137,7 +138,9 @@ class MigrationBaselineContractTest {
         "idx_role_permission_tenant_role",
         "idx_user_role_assignment_user",
         "idx_context_snapshot_tenant_patient", "idx_context_snapshot_tenant_enc",
-        "idx_context_snapshot_status", "idx_canonical_resource_snapshot",
+        "idx_context_snapshot_status", "idx_context_snapshot_tenant_request",
+        "idx_context_snapshot_org_path", "idx_context_snapshot_package_version",
+        "idx_canonical_resource_snapshot",
         "idx_canonical_resource_tenant_type", "idx_clinical_event_tenant_received",
         "idx_clinical_event_snapshot", "idx_context_idempotency_expires",
         "idx_most_entity", "idx_most_tenant_time", "idx_most_trace", "idx_most_failed",
@@ -557,6 +560,22 @@ class MigrationBaselineContractTest {
             assertThat(migrationPathFor(dialect, "V8__observability_baseline.sql"))
                 .as("dialect %s must ship V8", dialect)
                 .exists();
+        }
+    }
+
+    @Test
+    void v48ShouldExtendContextSnapshotStandardContract() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V48__context_snapshot_standard_contract.sql")
+                .toLowerCase(Locale.ROOT);
+            assertThat(sql).as("%s V48 标准上下文字段", dialect)
+                .contains("context_snapshot", "request_id", "org_path", "package_version");
+            assertThat(sql).as("%s V48 标准上下文索引", dialect)
+                .contains(
+                    "idx_context_snapshot_tenant_request",
+                    "idx_context_snapshot_org_path",
+                    "idx_context_snapshot_package_version"
+                );
         }
     }
 

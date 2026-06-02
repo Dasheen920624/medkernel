@@ -33,4 +33,23 @@ public record ContextSnapshotResources(
     @Valid List<CanonicalCarePlan> carePlans,
     @Valid List<CanonicalFollowUp> followUps,
     @Valid List<CanonicalClaim> claims
-) {}
+) {
+
+    public ContextSnapshotResources {
+        encounters = safeList(encounters);
+        conditions = safeList(conditions);
+        nursingAssessments = safeList(nursingAssessments);
+        observations = safeList(observations);
+        diagnosticReports = safeList(diagnosticReports);
+        medications = safeList(medications);
+        procedures = safeList(procedures);
+        documents = safeList(documents);
+        carePlans = safeList(carePlans);
+        followUps = safeList(followUps);
+        claims = safeList(claims);
+    }
+
+    private static <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : List.copyOf(values);
+    }
+}

@@ -16,5 +16,7 @@ public interface CanonicalResourceRepository extends ListCrudRepository<Canonica
 
     List<CanonicalResource> findBySnapshotIdOrderBySeqNoAsc(String snapshotId);
 
+    List<CanonicalResource> findBySnapshotIdAndTenantIdOrderBySeqNoAsc(String snapshotId, String tenantId);
+
     List<CanonicalResource> findByTraceIdOrderBySeqNoAsc(String traceId);
 }
