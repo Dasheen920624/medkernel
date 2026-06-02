@@ -13,22 +13,23 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
- * MedKernel v1.0 GA · 知识身份只读 API（GA-ENG-API-03）。
+ * MedKernel v1.0 GA · 知识身份与来源 API（GA-ENG-API-03）。
  *
  * <p>对应详细规范 §1797-1806 / §S37 "床旁知识查阅"。
- * 临床医生通过本接口拉取当前权威版本；审核人通过 lineage 看历史时间轴。
+ * 临床医生通过本接口拉取当前权威版本；知识治理人员登记来源、创建资产并查看引用链。
  *
  * <p>访问控制：
  * <ul>
  *   <li>类级 {@link DataScope}({@code requireTenant=true})：所有方法都需要租户上下文</li>
- *   <li>方法级 {@code @PreAuthorize("@perm.has('knowledge.read')")}：所有临床/审核角色默认拥有</li>
+ *   <li>方法级 {@code @PreAuthorize}：按读取、写入和发布动作分别校验权限</li>
  * </ul>
  */
 @RestController
-@RequestMapping("/api/v1/engine/knowledge/identities")
+@RequestMapping("/api/v1/engine/knowledge")
 @DataScope(requireTenant = true)
 public class KnowledgeIdentityController {
 
@@ -38,7 +39,7 @@ public class KnowledgeIdentityController {
         this.service = service;
     }
 
-    @GetMapping
+    @GetMapping("/identities")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<PageResponse<KnowledgeIdentity>> list(
             @RequestParam(required = false) Integer page,
@@ -53,28 +54,41 @@ public class KnowledgeIdentityController {
         return ApiResult.ok(service.page(req, filter));
     }
 
-    @GetMapping("/{id}")
+    @PostMapping("/identities")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<KnowledgeIdentity> create(@Valid @RequestBody KnowledgeIdentityCreateRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(service.createIdentity(request));
+    }
+
+    @GetMapping("/identities/{id}")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeIdentity> get(@PathVariable Long id) {
         return ApiResult.ok(service.get(id));
     }
 
-    @GetMapping("/by-code/{identityCode}")
+    @GetMapping("/identities/by-code/{identityCode}")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeIdentity> getByCode(@PathVariable String identityCode) {
         return ApiResult.ok(service.getByCode(identityCode));
     }
 
-    @GetMapping("/{id}/active")
+    @GetMapping("/identities/{id}/active")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeAssetVersion> getActiveVersion(@PathVariable Long id) {
         return ApiResult.ok(service.getActiveVersion(id));
     }
 
-    @GetMapping("/{id}/lineage")
+    @GetMapping("/identities/{id}/lineage")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeLineage> getLineage(@PathVariable Long id) {
         return ApiResult.ok(service.getLineage(id));
+    }
+
+    @GetMapping("/identities/{id}/citations")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<java.util.List<Citation>> getCitations(@PathVariable Long id) {
+        return ApiResult.ok(service.listCitations(id));
     }
 
     /**
@@ -85,7 +99,8 @@ public class KnowledgeIdentityController {
      */
     @PostMapping("/sources")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<SourceDocument> registerSource(@Valid @RequestBody SourceRegisterRequest request) {
+    public ApiResult<SourceDocument> registerSource(@Valid @RequestBody KnowledgeSourceCreateRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
         return ApiResult.ok(service.registerSource(request));
     }
 
@@ -95,10 +110,12 @@ public class KnowledgeIdentityController {
      * @param request 来源版本注册请求
      * @return 来源版本实体
      */
-    @PostMapping("/sources/versions")
+    @PostMapping("/sources/{sourceDocumentId}/versions")
     @PreAuthorize("@perm.has('knowledge.write')")
-    public ApiResult<SourceVersion> registerSourceVersion(@Valid @RequestBody SourceVersionRegisterRequest request) {
-        return ApiResult.ok(service.registerSourceVersion(request));
+    public ApiResult<SourceVersion> registerSourceVersion(@PathVariable Long sourceDocumentId,
+                                                          @Valid @RequestBody KnowledgeSourceVersionCreateRequest request) {
+        request.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(service.registerSourceVersion(sourceDocumentId, request));
     }
 
     /**

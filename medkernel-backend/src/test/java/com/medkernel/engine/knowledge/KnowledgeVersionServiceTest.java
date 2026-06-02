@@ -31,6 +31,7 @@ class KnowledgeVersionServiceTest {
     private KnowledgeIdentityRepository identityRepo;
     private KnowledgeAssetVersionRepository versionRepo;
     private KnowledgeSupersessionRepository supersessionRepo;
+    private CitationRepository citationRepo;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -38,7 +39,8 @@ class KnowledgeVersionServiceTest {
         identityRepo = Mockito.mock(KnowledgeIdentityRepository.class);
         versionRepo = Mockito.mock(KnowledgeAssetVersionRepository.class);
         supersessionRepo = Mockito.mock(KnowledgeSupersessionRepository.class);
-        service = new KnowledgeVersionService(identityRepo, versionRepo, supersessionRepo);
+        citationRepo = Mockito.mock(CitationRepository.class);
+        service = new KnowledgeVersionService(identityRepo, versionRepo, supersessionRepo, citationRepo);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
@@ -61,6 +63,8 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
         when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 10L))
+            .thenReturn(List.of(citation(10L)));
 
         KnowledgeAssetVersion activated = service.activate(1L, 10L, null);
 
@@ -95,6 +99,8 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
         when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
 
         service.activate(1L, 11L, "新版指南更新");
 
@@ -160,6 +166,20 @@ class KnowledgeVersionServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
+    }
+
+    @Test
+    void activateRejectsVersionWithoutCitation() {
+        KnowledgeIdentity identity = identity(1L, null);
+        KnowledgeAssetVersion candidate = version(10L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+
+        assertThatThrownBy(() -> service.activate(1L, 10L, null))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.KNOWLEDGE_CITATION_REQUIRED);
+        verify(versionRepo, never()).save(any());
     }
 
     @Test
@@ -234,6 +254,126 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void createDraftVersionWithStandardRequestUsesPathIdentity() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
+
+        KnowledgeAssetVersion created = service.createDraftVersion(1L, versionCreateRequest("v2"));
+
+        assertThat(created.identityId()).isEqualTo(1L);
+        assertThat(created.versionNo()).isEqualTo("v2");
+        assertThat(created.status()).isEqualTo(KnowledgeVersionStatus.UNDER_REVIEW);
+        assertThat(created.contentHash()).isNotBlank();
+        assertThat(created.createdBy()).isEqualTo("u-99");
+    }
+
+    @Test
+    void submitDraftTransitionsToUnderReviewAndKeepsVersionFields() {
+        KnowledgeAssetVersion draft = version(10L, 1L, KnowledgeVersionStatus.DRAFT, KnowledgeRiskLevel.HIGH);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(draft));
+
+        KnowledgeAssetVersion submitted = service.submit(1L, 10L, actionRequest("t-1"));
+
+        assertThat(submitted.status()).isEqualTo(KnowledgeVersionStatus.UNDER_REVIEW);
+        assertThat(submitted.riskLevel()).isEqualTo(KnowledgeRiskLevel.HIGH);
+        assertThat(submitted.contentHash()).isEqualTo(draft.contentHash());
+        assertThat(submitted.identityId()).isEqualTo(1L);
+        assertThat(submitted.updatedBy()).isEqualTo("u-99");
+        verify(versionRepo).save(any(KnowledgeAssetVersion.class));
+    }
+
+    @Test
+    void submitUnderReviewIsIdempotent() {
+        KnowledgeAssetVersion underReview = version(10L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(underReview));
+
+        KnowledgeAssetVersion result = service.submit(1L, 10L, actionRequest("t-1"));
+
+        assertThat(result).isSameAs(underReview);
+        verify(versionRepo, never()).save(any());
+    }
+
+    @Test
+    void submitRejectsCrossIdentityVersion() {
+        KnowledgeAssetVersion otherIdentityVersion = version(10L, 2L, KnowledgeVersionStatus.DRAFT, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(otherIdentityVersion));
+
+        assertThatThrownBy(() -> service.submit(1L, 10L, actionRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+        verify(versionRepo, never()).save(any());
+    }
+
+    @Test
+    void submitRejectsMismatchedTenantContext() {
+        assertThatThrownBy(() -> service.submit(1L, 10L, actionRequest("t-2")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
+        verify(versionRepo, never()).findByTenantIdAndId(any(), any());
+    }
+
+    @Test
+    void replayVersionRejectsVersionNotBelongingToIdentity() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(version(10L, 2L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW)));
+
+        assertThatThrownBy(() -> service.replayVersion(1L, 10L, "pkg-2026.06", "snap-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void replayVersionReturnsHistoricalMarkerWithoutRequiringActiveStatus() {
+        KnowledgeAssetVersion superseded = version(10L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+        when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(superseded));
+
+        KnowledgeReplayResponse replay = service.replayVersion(1L, 10L, "pkg-2026.06", "snap-1");
+
+        assertThat(replay.identityId()).isEqualTo(1L);
+        assertThat(replay.versionId()).isEqualTo(10L);
+        assertThat(replay.historicalVersion()).isTrue();
+        assertThat(replay.status()).isEqualTo(KnowledgeVersionStatus.SUPERSEDED);
+        assertThat(replay.packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(replay.snapshotId()).isEqualTo("snap-1");
+    }
+
+    @Test
+    void listCandidatesReturnsKnow02PendingEmptyContract() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
+
+        KnowledgeCandidateResponse response = service.listCandidates(1L);
+
+        assertThat(response.identityId()).isEqualTo(1L);
+        assertThat(response.available()).isFalse();
+        assertThat(response.reasonCode()).isEqualTo("KNOW_02_PENDING");
+        assertThat(response.candidates()).isEmpty();
+    }
+
+    @Test
+    void reviewCandidateReturnsNotFoundWhileKnow02StorageIsAbsent() {
+        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void diffCandidateReturnsNotFoundWhileKnow02StorageIsAbsent() {
+        assertThatThrownBy(() -> service.diffCandidate(88L))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void requiresTenantContext() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.empty(), null));
         assertThatThrownBy(() -> service.activate(1L, 10L, null))
@@ -263,6 +403,33 @@ class KnowledgeVersionServiceTest {
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
             now, "init", now, "init"
+        );
+    }
+
+    private Citation citation(Long versionId) {
+        return new Citation(1L, "t-1", versionId, 100L, CitationRelation.SUPPORTS, 100, Instant.now(), "init");
+    }
+
+    private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo) {
+        return new KnowledgeVersionCreateRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.write"), "pkg-2026.06",
+            versionNo, "2026 版", 7L, 8L, "真实指南内容", "[]", KnowledgeRiskLevel.LOW
+        );
+    }
+
+    private KnowledgeActionRequest actionRequest(String tenantId) {
+        return new KnowledgeActionRequest(
+            "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06", "提交审核"
+        );
+    }
+
+    private KnowledgeCandidateReviewRequest candidateReviewRequest(String tenantId) {
+        return new KnowledgeCandidateReviewRequest(
+            "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            KnowledgeCandidateReviewDecision.APPROVE, "同意"
         );
     }
 

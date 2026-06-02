@@ -36,19 +36,22 @@ public class KnowledgeIdentityService {
     private final SourceDocumentRepository sourceDocumentRepository;
     private final SourceVersionRepository sourceVersionRepository;
     private final SourceFragmentRepository sourceFragmentRepository;
+    private final CitationRepository citationRepository;
 
     public KnowledgeIdentityService(KnowledgeIdentityRepository identityRepository,
                                     KnowledgeAssetVersionRepository versionRepository,
                                     KnowledgeSupersessionRepository supersessionRepository,
                                     SourceDocumentRepository sourceDocumentRepository,
                                     SourceVersionRepository sourceVersionRepository,
-                                    SourceFragmentRepository sourceFragmentRepository) {
+                                    SourceFragmentRepository sourceFragmentRepository,
+                                    CitationRepository citationRepository) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
         this.sourceVersionRepository = sourceVersionRepository;
         this.sourceFragmentRepository = sourceFragmentRepository;
+        this.citationRepository = citationRepository;
     }
 
     public PageResponse<KnowledgeIdentity> page(PageRequest request, KnowledgeIdentityFilter filter) {
@@ -118,6 +121,71 @@ public class KnowledgeIdentityService {
         }
         // SQL LIKE：包裹 %
         return "%" + trimmed + "%";
+    }
+
+    /**
+     * 创建知识身份。current_version_id 只能由版本激活流程维护，创建时保持为空。
+     *
+     * @param request 创建请求
+     * @return 已创建的知识身份
+     */
+    public KnowledgeIdentity createIdentity(KnowledgeIdentityCreateRequest request) {
+        String tenantId = requireCurrentTenant();
+        validateContext(request.context(), tenantId);
+        String identityCode = request.identityCode().trim();
+        identityRepository.findByTenantIdAndIdentityCode(tenantId, identityCode)
+            .ifPresent(existing -> {
+                throw new ApiException(ErrorCode.CONFLICT, "知识身份编码已存在: " + identityCode);
+            });
+        Instant now = Instant.now();
+        KnowledgeIdentity identity = new KnowledgeIdentity(
+            null,
+            tenantId,
+            identityCode,
+            request.domain(),
+            request.subject().trim(),
+            blankToNull(request.assetSpecialtyId()),
+            blankToNull(request.description()),
+            KnowledgeIdentityStatus.ACTIVE,
+            null,
+            now,
+            currentActor(),
+            now,
+            currentActor()
+        );
+        return identityRepository.save(identity);
+    }
+
+    /**
+     * API-03 标准入口：登记来源文献并校验统一上下文。
+     */
+    public SourceDocument registerSource(KnowledgeSourceCreateRequest request) {
+        String tenantId = requireCurrentTenant();
+        validateContext(request.context(), tenantId);
+        return registerSource(request.toSourceRegisterRequest());
+    }
+
+    /**
+     * API-03 标准入口：在路径指定的来源文献下登记版本。
+     */
+    public SourceVersion registerSourceVersion(Long sourceDocumentId, KnowledgeSourceVersionCreateRequest request) {
+        String tenantId = requireCurrentTenant();
+        validateContext(request.context(), tenantId);
+        return registerSourceVersion(request.toSourceVersionRegisterRequest(sourceDocumentId));
+    }
+
+    /**
+     * 查询当前权威版本的真实引用锚点。无 ACTIVE 版本时返回空列表，不伪造来源证据。
+     */
+    public List<Citation> listCitations(Long identityId) {
+        String tenantId = requireCurrentTenant();
+        identityRepository.findByTenantIdAndId(tenantId, identityId)
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
+        Optional<KnowledgeAssetVersion> active = versionRepository.findActiveByIdentity(tenantId, identityId);
+        if (active.isEmpty()) {
+            return List.of();
+        }
+        return citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(tenantId, active.get().id());
     }
 
     /**
@@ -207,7 +275,7 @@ public class KnowledgeIdentityService {
 
         Optional<SourceFragment> existingHashOpt = sourceFragmentRepository.findBySourceVersionIdAndContentHash(request.sourceVersionId(), contentHash);
         if (existingHashOpt.isPresent()) {
-            throw new ApiException(ErrorCode.CONFLICT, "相同的文献片段内容已在当前版本中被注册，触发去重防线物理阻断");
+            throw new ApiException(ErrorCode.CONFLICT, "相同的文献片段内容已在当前版本中被注册，触发去重防线阻断");
         }
 
         SourceFragment fragment = new SourceFragment(
@@ -227,6 +295,17 @@ public class KnowledgeIdentityService {
         return RequestContext.currentUserId()
             .filter(s -> !s.isBlank())
             .orElse("system");
+    }
+
+    private void validateContext(KnowledgeApiContext context, String tenantId) {
+        if (context == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "标准知识资产 API 缺少统一入参字段");
+        }
+        context.validateTenant(tenantId);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String requireSourceContentHash(String contentHash) {

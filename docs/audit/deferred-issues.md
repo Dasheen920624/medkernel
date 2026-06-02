@@ -39,6 +39,7 @@
 | DEFER-006 | 历史迁移中文 COMMENT 覆盖缺口：`check-comment-zh.sh --mode=full` 暴露 oracle/postgres/kingbase 的 V1/V3/V7/V10 存量 GAP | 当前新增 V48 已补齐中文 COMMENT 且 PostgreSQL/Oracle 当前运行验证通过；历史 GAP 不影响当前主线和 changed 门禁。不得宣称历史迁移 COMMENT 全量清零，也不得直接改旧迁移破坏 Flyway checksum | 否 | BASE-05 迁移治理专项；GA `INFRA-10` 总验收前 | open | 制定不破坏已部署 checksum 的修复方案：通过新补偿迁移或经批准的基线重建补齐中文 COMMENT；提交 H2/PostgreSQL/Oracle 迁移验证、`scripts/check-comment-zh.sh --mode=full` 无 GAP 或有批准豁免记录、迁移规约门禁和 CI 证据 |
 | DEFER-007 | 非当前卡触碰范围的历史页面可见技术化文案残留：如“物理沙盒 / 物理入库 / 物理投影 / 物理合并”等面向用户不自然表达 | 本轮已清理 WORKBENCH-01 触碰的工作台与租户生命周期面板；其余残留分布在 D2–D6 多个后续页面，不影响当前工作台 PR1 的真实数据源、权限态和降级主链路。不得把这些后续页面写成体验文案已清零 | 否 | 对应页面卡实施时同步清理；GA `INFRA-10` 体验总验收前全量收口 | open | 对 `frontend/src/pages` 和 `frontend/src/features` 运行可见技术文案扫描，消除不符合角色语言的“物理”等历史表达或给出医疗/工程语境必要性；提交对应页面测试、浏览器验收截图和全仓扫描证据 |
 | DEFER-008 | 全局缺上下文错误码命名别名未统一：D2 API-01 卡写 `CONTEXT_MISSING`，现有平台脊柱仍返回 `ENG-BASE-001 / TENANT_CONTEXT_MISSING` | 不影响当前 API-01 主链路：无租户上下文仍诚实返回 ProblemDetail，跨组织拒绝已新增 `ORG_SCOPE_DENIED / ENG-BASE-004`；不得宣称 `CONTEXT_MISSING` 别名已完成 | 否 | BASE-03 错误码契约治理；GA `INFRA-10` 总验收前 | open | 统一错误码命名策略并补兼容映射：提交 `CONTEXT_MISSING`/`CONTEXT_VALIDATION_FAILED` 与既有 `ENG-BASE-*`/`ENG-CONTEXT-*` 的规范、全局异常处理测试、前后端错误文案回归和 API 契约文档 |
+| DEFER-009 | API-03 知识资产列表真实 10 万级规模压测证据未在本地生成 | API-03 已验证服务端分页/筛选契约与异步导出真实任务，不伪造 10 万条计数或压测结果；不影响当前 PostgreSQL + Oracle API 合同收口。不得宣称知识资产 10 万级真实压测已通过 | 否 | D0 `API-13` 大列表治理、GA `SYS-07` NFR 与 `INFRA-10` 总验收 | open | 在 PostgreSQL + Oracle 环境构造或导入 10 万级知识资产/引用数据，提交分页 P95、筛选、异步导出提交→轮询→下载、资源占用和 CI/验收日志；若纳入专项压测，应附数据生成脚本与可复现命令 |
 
 ## 新问题登记模板
 
