@@ -3,10 +3,14 @@ package com.medkernel.engine.terminology;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -35,6 +39,7 @@ class TerminologyServiceTest {
     private TermMappingPackageRepository packageRepository;
     private TermMappingPackageItemRepository packageItemRepository;
     private TermMappingPackageReleaseRepository packageReleaseRepository;
+    private HighRiskRuleRepository highRiskRuleRepository;
     private TerminologyService service;
 
     @BeforeEach
@@ -47,6 +52,7 @@ class TerminologyServiceTest {
         packageRepository = Mockito.mock(TermMappingPackageRepository.class);
         packageItemRepository = Mockito.mock(TermMappingPackageItemRepository.class);
         packageReleaseRepository = Mockito.mock(TermMappingPackageReleaseRepository.class);
+        highRiskRuleRepository = Mockito.mock(HighRiskRuleRepository.class);
         service = new TerminologyService(
             standardTermRepository,
             localTermRepository,
@@ -55,8 +61,10 @@ class TerminologyServiceTest {
             conflictRepository,
             packageRepository,
             packageItemRepository,
-            packageReleaseRepository
+            packageReleaseRepository,
+            highRiskRuleRepository
         );
+        when(highRiskRuleRepository.findActiveByTenantIdAndCategory(any(), any())).thenReturn(List.of());
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
     }
 
@@ -342,16 +350,16 @@ class TerminologyServiceTest {
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
     }
 
-    private LocalTerm localTerm(Long id) {
+    private static LocalTerm localTerm(Long id) {
         return localTerm(id, "LIS", "LIS-TNT", TermCategory.LAB, "肌钙蛋白T", "肌钙蛋白t");
     }
 
-    private LocalTerm localTerm(Long id,
-                                String sourceSystem,
-                                String localCode,
-                                TermCategory category,
-                                String localName,
-                                String normalizedName) {
+    private static LocalTerm localTerm(Long id,
+                                       String sourceSystem,
+                                       String localCode,
+                                       TermCategory category,
+                                       String localName,
+                                       String normalizedName) {
         Instant now = Instant.now();
         return new LocalTerm(
             id, "t-1", sourceSystem, localCode, category, localName, normalizedName,
@@ -368,20 +376,36 @@ class TerminologyServiceTest {
         );
     }
 
-    private StandardTerm standardTerm(Long id, TermCategory category) {
+    private static StandardTerm standardTerm(Long id, TermCategory category) {
         return standardTerm(id, "LOINC", "718-7", category, "血红蛋白", "血红蛋白");
     }
 
-    private StandardTerm standardTerm(Long id,
-                                      String standardSystem,
-                                      String termCode,
-                                      TermCategory category,
-                                      String displayName,
-                                      String normalizedName) {
+    private static StandardTerm standardTerm(Long id,
+                                             String standardSystem,
+                                             String termCode,
+                                             TermCategory category,
+                                             String displayName,
+                                             String normalizedName) {
         Instant now = Instant.now();
         return new StandardTerm(
             id, "t-1", standardSystem, termCode, category, displayName, normalizedName,
             "2.78", StandardTermStatus.ACTIVE, null, standardSystem, now, "system", now, "system"
+        );
+    }
+
+    private static HighRiskRule highRiskRule(Long id,
+                                             String ruleCode,
+                                             HighRiskRuleType ruleType,
+                                             TermCategory category,
+                                             String leftTerms,
+                                             String rightTerms,
+                                             String unitTerms,
+                                             Double scaleRatio,
+                                             String evidenceText) {
+        Instant now = Instant.now();
+        return new HighRiskRule(
+            id, "SYSTEM", ruleCode, ruleType, category, leftTerms, rightTerms, unitTerms,
+            scaleRatio, evidenceText, HighRiskRuleStatus.ACTIVE, now, "system", now, "system"
         );
     }
 
@@ -520,6 +544,71 @@ class TerminologyServiceTest {
         assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("highRiskNearNegativeCases")
+    void generateCandidatesMarksHighRiskNearNegativeCandidates(
+            String caseName,
+            LocalTerm local,
+            StandardTerm standard,
+            HighRiskRule rule,
+            String expectedEvidence) {
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(standard));
+        when(highRiskRuleRepository.findActiveByTenantIdAndCategory("t-1", local.category()))
+            .thenReturn(List.of(rule));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(local.id()), eq(standard.id()), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isEqualTo(1);
+        assertThat(response.candidates())
+            .singleElement()
+            .satisfies(candidate -> {
+                assertThat(candidate.highRiskFlag()).isTrue();
+                assertThat(candidate.riskLevel()).isEqualTo(TermRiskLevel.HIGH);
+                assertThat(candidate.evidenceText()).contains(expectedEvidence, "禁止批量确认", "二次确认");
+            });
+
+        ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(candidateCaptor.capture());
+        MappingCandidate created = candidateCaptor.getValue();
+        assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.HIGH);
+        assertThat(created.evidenceText()).contains("高危近似判别", expectedEvidence);
+        assertThat(created.evidenceText()).doesNotContain("LCS");
+    }
+
+    @Test
+    void generateCandidatesDoesNotTreatShortLatinFragmentsAsKNaRisk() {
+        LocalTerm local = localTerm(
+            1L, "LIS", "DRUG-KET", TermCategory.DRUG, "酮咯酸注射液", "ketorolac"
+        );
+        StandardTerm standard = standardTerm(
+            2L, "YPBM", "NAPROXEN", TermCategory.DRUG, "萘普生片", "naproxen"
+        );
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(standard));
+        when(highRiskRuleRepository.findActiveByTenantIdAndCategory("t-1", TermCategory.DRUG))
+            .thenReturn(List.of(highRiskRule(
+                2L, "MED-C1-K-NA", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, TermCategory.DRUG,
+                "钾|k|k+|potassium|氯化钾|kcl", "钠|na|na+|sodium|氯化钠|nacl", null, null,
+                "钾/钠高危近似"
+            )));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isZero();
+        assertThat(response.candidates()).isEmpty();
+        verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
+    }
+
     @Test
     void generateCandidatesDoesNotUseCharacterOverlapAsSemanticEvidence() {
         LocalTerm local = localTerm(1L); // 与“血红蛋白”有“蛋白”字符重合，但医学语义不同
@@ -539,6 +628,64 @@ class TerminologyServiceTest {
         assertThat(response.generatedCount()).isZero();
         assertThat(response.candidates()).isEmpty();
         verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
+    }
+
+    private static Stream<Arguments> highRiskNearNegativeCases() {
+        return Stream.of(
+            Arguments.of(
+                "肌钙蛋白 T/I 强制高危",
+                localTerm(1L, "LIS", "LIS-TNT", TermCategory.LAB, "肌钙蛋白T", "ctnt|肌钙蛋白t"),
+                standardTerm(2L, "LOINC", "42757-5", TermCategory.LAB, "Cardiac troponin I", "ctni|肌钙蛋白i"),
+                highRiskRule(
+                    1L, "MED-C1-TROPONIN-TI", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, TermCategory.LAB,
+                    "肌钙蛋白t|ctnt|troponint|tnt", "肌钙蛋白i|ctni|troponini|tni", null, null,
+                    "肌钙蛋白 T/I 高危近似"
+                ),
+                "肌钙蛋白 T/I"
+            ),
+            Arguments.of(
+                "钾/钠强制高危",
+                localTerm(1L, "LIS", "LIS-K", TermCategory.DRUG, "氯化钾注射液", "kcl|氯化钾"),
+                standardTerm(2L, "YPBM", "YP-NA", TermCategory.DRUG, "氯化钠注射液", "nacl|氯化钠"),
+                highRiskRule(
+                    2L, "MED-C1-K-NA", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, TermCategory.DRUG,
+                    "钾|k|k+|potassium|氯化钾|kcl", "钠|na|na+|sodium|氯化钠|nacl", null, null,
+                    "钾/钠高危近似"
+                ),
+                "钾/钠"
+            ),
+            Arguments.of(
+                "左/右强制高危",
+                localTerm(1L, "LIS", "PROC-L", TermCategory.PROCEDURE, "左肾切除术", "左肾切除"),
+                standardTerm(2L, "ICD-9-CM-3", "55.5101", TermCategory.PROCEDURE, "右肾切除术", "右肾切除"),
+                highRiskRule(
+                    3L, "MED-C1-LEFT-RIGHT", HighRiskRuleType.MUTUALLY_EXCLUSIVE_TERMS, null,
+                    "左|left", "右|right", null, null, "左/右部位高危近似"
+                ),
+                "左/右"
+            ),
+            Arguments.of(
+                "剂量 10 倍量级强制高危",
+                localTerm(1L, "LIS", "DRUG-10", TermCategory.DRUG, "阿托伐他汀 10mg 片", "阿托伐他汀10mg"),
+                standardTerm(2L, "YPBM", "DRUG-100", TermCategory.DRUG, "阿托伐他汀 100mg 片", "阿托伐他汀100mg"),
+                highRiskRule(
+                    4L, "MED-C1-DOSE-10X", HighRiskRuleType.DOSE_MAGNITUDE, TermCategory.DRUG,
+                    "", "", "mg|毫克", 10.0, "剂量量级 10 倍高危近似"
+                ),
+                "剂量量级"
+            ),
+            Arguments.of(
+                "胰岛素 U/mL 强制高危",
+                localTerm(1L, "LIS", "INS-100", TermCategory.DRUG, "胰岛素 100U/mL", "insulin|100u/ml"),
+                standardTerm(2L, "YPBM", "INS", TermCategory.DRUG, "胰岛素注射液", "insulin|胰岛素"),
+                highRiskRule(
+                    5L, "MED-C1-INSULIN-UML", HighRiskRuleType.UNIT_STRENGTH, TermCategory.DRUG,
+                    "胰岛素|insulin", "", "u/ml|iu/ml|单位/ml|单位每毫升", null,
+                    "胰岛素 U/mL 单位高危近似"
+                ),
+                "胰岛素 U/mL"
+            )
+        );
     }
 
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId) {
