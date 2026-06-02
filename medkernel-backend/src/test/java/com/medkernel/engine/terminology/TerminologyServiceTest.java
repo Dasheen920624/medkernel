@@ -95,7 +95,7 @@ class TerminologyServiceTest {
 
         TermMapping mapping = service.confirmCandidate(
             10L,
-            new ConfirmMappingRequest("专家确认", null)
+            confirmRequest(true, "已逐条核对标准码与院内码")
         );
 
         assertThat(mapping.localTermId()).isEqualTo(1L);
@@ -109,7 +109,7 @@ class TerminologyServiceTest {
         ArgumentCaptor<MappingCandidate> savedCandidate = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(savedCandidate.capture());
         assertThat(savedCandidate.getValue().status()).isEqualTo(MappingCandidateStatus.CONFIRMED);
-        assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("专家确认");
+        assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("专家逐条确认");
     }
 
     @Test
@@ -119,7 +119,10 @@ class TerminologyServiceTest {
         when(localTermRepository.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(localTerm(1L)));
         when(standardTermRepository.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(standardTerm(2L, TermCategory.DRUG)));
 
-        assertThatThrownBy(() -> service.confirmCandidate(10L, new ConfirmMappingRequest("跨类候选", null)))
+        assertThatThrownBy(() -> service.confirmCandidate(
+                10L,
+                confirmRequest(true, "已逐条核对标准码与院内码")
+            ))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
@@ -130,10 +133,89 @@ class TerminologyServiceTest {
         when(candidateRepository.findByTenantIdAndId("t-1", 10L))
             .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.CONFIRMED)));
 
-        assertThatThrownBy(() -> service.confirmCandidate(10L, new ConfirmMappingRequest("重复确认", null)))
+        assertThatThrownBy(() -> service.confirmCandidate(10L, confirmRequest(true, "重复确认前已核对")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void confirmCandidateRejectsHighRiskWithoutSecondConfirmation() {
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.PENDING)));
+
+        assertThatThrownBy(() -> service.confirmCandidate(
+                10L,
+                confirmRequest(false, null)
+            ))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED);
+    }
+
+    @Test
+    void batchConfirmRejectsAnyHighRiskCandidate() {
+        MappingCandidate highRisk = candidate(10L, MappingCandidateStatus.PENDING);
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(highRisk));
+        when(candidateRepository.findByTenantIdAndId("t-1", 11L))
+            .thenReturn(Optional.of(candidate(11L, MappingCandidateStatus.PENDING, TermRiskLevel.LOW)));
+
+        assertThatThrownBy(() -> service.batchConfirmCandidates(batchConfirmRequest(List.of(10L, 11L))))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.MAPPING_HIGH_RISK_BATCH_DENIED);
+
+        verify(mappingRepository, Mockito.never()).save(any(TermMapping.class));
+        verify(candidateRepository, Mockito.never()).save(any(MappingCandidate.class));
+    }
+
+    @Test
+    void batchConfirmAcceptsOrdinaryCandidatesAndReturnsCandidateIds() {
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.PENDING, TermRiskLevel.LOW)));
+        when(candidateRepository.findByTenantIdAndId("t-1", 11L))
+            .thenReturn(Optional.of(candidate(11L, MappingCandidateStatus.PENDING, TermRiskLevel.MEDIUM)));
+        when(localTermRepository.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(localTerm(1L)));
+        when(standardTermRepository.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(standardTerm(2L, TermCategory.LAB)));
+        when(mappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("t-1", 1L, 2L))
+            .thenReturn(Optional.empty());
+        when(mappingRepository.save(any(TermMapping.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TerminologyBatchConfirmResponse response = service.batchConfirmCandidates(batchConfirmRequest(List.of(10L, 11L)));
+
+        assertThat(response.confirmedCount()).isEqualTo(2);
+        assertThat(response.confirmedCandidateIds()).containsExactly(10L, 11L);
+        verify(mappingRepository, Mockito.times(2)).save(any(TermMapping.class));
+        verify(candidateRepository, Mockito.times(2)).save(any(MappingCandidate.class));
+    }
+
+    @Test
+    void batchConfirmDeduplicatesCandidateIdsBeforeConfirming() {
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.PENDING, TermRiskLevel.LOW)));
+        when(localTermRepository.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(localTerm(1L)));
+        when(standardTermRepository.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(standardTerm(2L, TermCategory.LAB)));
+        when(mappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("t-1", 1L, 2L))
+            .thenReturn(Optional.empty());
+        when(mappingRepository.save(any(TermMapping.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TerminologyBatchConfirmResponse response = service.batchConfirmCandidates(batchConfirmRequest(List.of(10L, 10L)));
+
+        assertThat(response.confirmedCount()).isEqualTo(1);
+        assertThat(response.confirmedCandidateIds()).containsExactly(10L);
+        verify(candidateRepository, Mockito.times(1)).findByTenantIdAndId("t-1", 10L);
+        verify(mappingRepository, Mockito.times(1)).save(any(TermMapping.class));
+        verify(candidateRepository, Mockito.times(1)).save(any(MappingCandidate.class));
+    }
+
+    @Test
+    void writeRequestRejectsTenantMismatch() {
+        assertThatThrownBy(() -> service.generateCandidates(candidateGenerationRequest("t-2")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
     }
 
     @Test
@@ -144,7 +226,7 @@ class TerminologyServiceTest {
 
         MappingConflict resolved = service.resolveConflict(
             20L,
-            new ResolveConflictRequest("保留检验系统一对一映射")
+            resolveConflictRequest("保留检验系统一对一映射")
         );
 
         assertThat(resolved.status()).isEqualTo(MappingConflictStatus.RESOLVED);
@@ -160,9 +242,7 @@ class TerminologyServiceTest {
         when(packageRepository.save(any(TermMappingPackage.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(packageItemRepository.save(any(TermMappingPackageItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        TermMappingPackage pkg = service.buildPackage(new BuildTerminologyPackageRequest(
-            "PKG-LAB-CARD", "2026.05.25", "DEPARTMENT", "CARD", "检验映射包"
-        ));
+        TermMappingPackage pkg = service.buildPackage(buildPackageRequest());
 
         assertThat(pkg.status()).isEqualTo(TermMappingPackageStatus.DRAFT);
         assertThat(pkg.mappingCount()).isEqualTo(1);
@@ -186,7 +266,7 @@ class TerminologyServiceTest {
 
         TermMappingPackage published = service.publishPackage(
             30L,
-            new PublishTerminologyPackageRequest(PackageReleaseMode.FULL, "全量发布", null)
+            publishPackageRequest(PackageReleaseMode.FULL, "全量发布", null)
         );
 
         assertThat(published.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
@@ -217,7 +297,7 @@ class TerminologyServiceTest {
 
         TermMappingPackage restored = service.rollbackPackage(
             30L,
-            new RollbackTerminologyPackageRequest(29L, "发现院内码映射异常")
+            rollbackPackageRequest(29L, "发现院内码映射异常")
         );
 
         assertThat(restored.status()).isEqualTo(TermMappingPackageStatus.PUBLISHED);
@@ -245,7 +325,7 @@ class TerminologyServiceTest {
 
         assertThatThrownBy(() -> service.rollbackPackage(
             30L,
-            new RollbackTerminologyPackageRequest(29L, "草稿不能作为回滚点")
+            rollbackPackageRequest(29L, "草稿不能作为回滚点")
         ))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
@@ -315,18 +395,7 @@ class TerminologyServiceTest {
     }
 
     @Test
-    void detectUnmappedLocalTermsReturnsUnmappedTerms() {
-        LocalTerm local = localTerm(1L);
-        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
-            .thenReturn(List.of(local));
-
-        List<LocalTerm> result = service.detectUnmappedLocalTerms("LIS");
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).localName()).isEqualTo("肌钙蛋白T");
-    }
-
-    @Test
-    void autoRecommendCandidatesGeneratesPendingCandidates() {
+    void generateCandidatesCreatesRuleCandidatesWithHighRiskFlag() {
         LocalTerm local = localTerm(1L); // "肌钙蛋白T"
         StandardTerm standardMatch = standardTerm(2L, TermCategory.LAB); // "血红蛋白" -> 蛋白(2字重合) -> 2/4 = 0.5 相似度
         StandardTerm standardMismatchCategory = new StandardTerm(
@@ -345,8 +414,15 @@ class TerminologyServiceTest {
 
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        int recommended = service.autoRecommendCandidates("LIS");
-        assertThat(recommended).isEqualTo(1); // MismatchCategory 虽名字匹配，但因分类(DRUG)不同被过滤
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+        assertThat(response.generatedCount()).isEqualTo(1); // MismatchCategory 虽名字匹配，但因分类(DRUG)不同被过滤
+        assertThat(response.candidates())
+            .singleElement()
+            .satisfies(candidate -> {
+                assertThat(candidate.semanticMatchScore()).isEqualTo(0.4444444444444444);
+                assertThat(candidate.highRiskFlag()).isTrue();
+                assertThat(candidate.source()).isEqualTo(MappingCandidateSource.RULE);
+            });
 
         ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(candidateCaptor.capture());
@@ -356,5 +432,71 @@ class TerminologyServiceTest {
         assertThat(created.status()).isEqualTo(MappingCandidateStatus.PENDING);
         assertThat(created.confidence()).isEqualTo(0.4444444444444444); // "肌钙蛋白T" 对 "血红蛋白" LCS "蛋白"(2字) => 2 * 2 / (5 + 4) = 4/9
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.HIGH); // sim = 0.444 -> HIGH risk
+        assertThat(created.candidateSource()).isEqualTo(MappingCandidateSource.RULE);
+    }
+
+    private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId) {
+        return new TerminologyCandidateGenerationRequest(
+            "req-api04-001", "trace-api04-001", tenantId, "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "LIS", null
+        );
+    }
+
+    private TerminologyCandidateConfirmRequest confirmRequest(Boolean acknowledged, String reason) {
+        return new TerminologyCandidateConfirmRequest(
+            "req-api04-confirm", "trace-api04-confirm", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            "专家逐条确认", null, acknowledged, reason
+        );
+    }
+
+    private TerminologyCandidateBatchConfirmRequest batchConfirmRequest(List<Long> candidateIds) {
+        return new TerminologyCandidateBatchConfirmRequest(
+            "req-api04-batch", "trace-api04-batch", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            candidateIds, "批量确认"
+        );
+    }
+
+    private BuildTerminologyPackageRequest buildPackageRequest() {
+        return new BuildTerminologyPackageRequest(
+            "req-api04-package", "trace-api04-package", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            "PKG-LAB-CARD", "2026.05.25", "DEPARTMENT", "CARD", "检验映射包"
+        );
+    }
+
+    private ResolveConflictRequest resolveConflictRequest(String resolutionNote) {
+        return new ResolveConflictRequest(
+            "req-api04-conflict", "trace-api04-conflict", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("specialist"), "pkg-2026.06",
+            resolutionNote
+        );
+    }
+
+    private PublishTerminologyPackageRequest publishPackageRequest(PackageReleaseMode mode, String reason, String grayScopeJson) {
+        return new PublishTerminologyPackageRequest(
+            "req-api04-publish", "trace-api04-publish", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            mode, reason, grayScopeJson
+        );
+    }
+
+    private RollbackTerminologyPackageRequest rollbackPackageRequest(Long targetPackageId, String reason) {
+        return new RollbackTerminologyPackageRequest(
+            "req-api04-rollback", "trace-api04-rollback", "t-1", "g-1", "h-1", "c-1", "s-1",
+            "d-1", "sp-1", "u-99", List.of("it-ops"), "pkg-2026.06",
+            targetPackageId, reason
+        );
+    }
+
+    private MappingCandidate candidate(Long id, MappingCandidateStatus status, TermRiskLevel riskLevel) {
+        Instant now = Instant.now();
+        return new MappingCandidate(
+            id, "t-1", 1L, 2L, 0.96, MappingCandidateSource.RULE,
+            riskLevel, "同义词 + 单位一致", false, status, null,
+            null, null, now, "system", now, "system"
+        );
     }
 }

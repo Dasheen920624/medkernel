@@ -14,11 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * GA-ENG-API-04 术语映射应用服务：分页查询、候选确认、冲突处置、映射包构建/发布/回滚。
+ * GA-ENG-API-04 字典映射应用服务：分页查询、候选生成、候选确认、冲突处置、映射包构建/发布/回滚。
  *
  * <p>所有写操作都在 {@link Transactional} 事务内推进；
  * 租户上下文从 {@link RequestContext#currentOrgScope()} 获取，缺失时直接抛
@@ -162,8 +163,8 @@ public class TerminologyService {
      * 同 (localTermId, standardTermId) 已存在映射则原地更新，否则新增；最后把候选标记为 CONFIRMED。
      */
     @Transactional
-    public TermMapping confirmCandidate(Long candidateId, ConfirmMappingRequest request) {
-        String tenantId = requireCurrentTenant();
+    public TermMapping confirmCandidate(Long candidateId, TerminologyCandidateConfirmRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
         MappingCandidate candidate = candidateRepository.findByTenantIdAndId(tenantId, candidateId)
@@ -171,6 +172,46 @@ public class TerminologyService {
         if (candidate.status() != MappingCandidateStatus.PENDING) {
             throw ApiException.conflict("映射候选 id=" + candidateId + " 不是待确认状态");
         }
+        ensureHighRiskSecondConfirmation(candidate, request);
+        return confirmPendingCandidate(candidate, request.reviewNote(), request.evidenceOverride(), userId, now);
+    }
+
+    /**
+     * 批量确认普通候选；如果包含高危候选，整批拒绝且不落任何映射。
+     */
+    @Transactional
+    public TerminologyBatchConfirmResponse batchConfirmCandidates(TerminologyCandidateBatchConfirmRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
+        String userId = currentUserId();
+        Instant now = Instant.now();
+        List<Long> candidateIds = request.candidateIds().stream().distinct().toList();
+        List<MappingCandidate> candidates = candidateIds.stream()
+            .map(id -> candidateRepository.findByTenantIdAndId(tenantId, id)
+                .orElseThrow(() -> ApiException.notFound("映射候选 id=" + id)))
+            .toList();
+        if (candidates.stream().anyMatch(candidate -> candidate.riskLevel() == TermRiskLevel.HIGH)) {
+            throw new ApiException(ErrorCode.MAPPING_HIGH_RISK_BATCH_DENIED);
+        }
+        for (MappingCandidate candidate : candidates) {
+            if (candidate.status() != MappingCandidateStatus.PENDING) {
+                throw ApiException.conflict("映射候选 id=" + candidate.id() + " 不是待确认状态");
+            }
+        }
+        List<Long> confirmedIds = candidates.stream()
+            .map(candidate -> {
+                confirmPendingCandidate(candidate, request.reviewNote(), null, userId, now);
+                return candidate.id();
+            })
+            .toList();
+        return new TerminologyBatchConfirmResponse(confirmedIds.size(), confirmedIds);
+    }
+
+    private TermMapping confirmPendingCandidate(MappingCandidate candidate,
+                                                String reviewNote,
+                                                String evidenceOverride,
+                                                String userId,
+                                                Instant now) {
+        String tenantId = candidate.tenantId();
         LocalTerm localTerm = localTermRepository.findByTenantIdAndId(tenantId, candidate.localTermId())
             .orElseThrow(() -> ApiException.notFound("院内字典 id=" + candidate.localTermId()));
         StandardTerm standardTerm = standardTermRepository.findByTenantIdAndId(tenantId, candidate.standardTermId())
@@ -184,14 +225,14 @@ public class TerminologyService {
         TermMapping saved = mappingRepository
             .findByTenantIdAndLocalTermIdAndStandardTermId(tenantId, candidate.localTermId(), candidate.standardTermId())
             .map(existing -> mappingRepository.save(existing.confirmed(
-                userId, now, evidence(request, candidate), localTerm.sourceSystem(), mappingCategory
+                userId, now, evidence(evidenceOverride, candidate), localTerm.sourceSystem(), mappingCategory
             )))
             .orElseGet(() -> mappingRepository.save(new TermMapping(
                 null, tenantId, candidate.localTermId(), candidate.standardTermId(), localTerm.sourceSystem(), mappingCategory,
                 candidate.confidence(), candidate.riskLevel(), TermMappingStatus.CONFIRMED,
-                evidence(request, candidate), userId, now, now, userId, now, userId
+                evidence(evidenceOverride, candidate), userId, now, now, userId, now, userId
             )));
-        candidateRepository.save(candidate.confirmed(request.reviewNote(), userId, now));
+        candidateRepository.save(candidate.confirmed(reviewNote, userId, now));
         return saved;
     }
 
@@ -200,7 +241,7 @@ public class TerminologyService {
      */
     @Transactional
     public MappingConflict resolveConflict(Long conflictId, ResolveConflictRequest request) {
-        String tenantId = requireCurrentTenant();
+        String tenantId = requireValidatedTenant(request.context());
         MappingConflict conflict = conflictRepository.findByTenantIdAndId(tenantId, conflictId)
             .orElseThrow(() -> ApiException.notFound("映射冲突 id=" + conflictId));
         if (conflict.status() != MappingConflictStatus.OPEN) {
@@ -216,7 +257,7 @@ public class TerminologyService {
      */
     @Transactional
     public TermMappingPackage buildPackage(BuildTerminologyPackageRequest request) {
-        String tenantId = requireCurrentTenant();
+        String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
         List<TermMapping> mappings = mappingRepository.findConfirmedByTenantIdAndScope(
@@ -246,7 +287,7 @@ public class TerminologyService {
      */
     @Transactional
     public TermMappingPackage publishPackage(Long packageId, PublishTerminologyPackageRequest request) {
-        String tenantId = requireCurrentTenant();
+        String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
         TermMappingPackage pkg = packageRepository.findByTenantIdAndId(tenantId, packageId)
@@ -282,7 +323,7 @@ public class TerminologyService {
      */
     @Transactional
     public TermMappingPackage rollbackPackage(Long packageId, RollbackTerminologyPackageRequest request) {
-        String tenantId = requireCurrentTenant();
+        String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
         TermMappingPackage current = packageRepository.findByTenantIdAndId(tenantId, packageId)
@@ -315,6 +356,12 @@ public class TerminologyService {
         return scope.tenantId();
     }
 
+    private String requireValidatedTenant(TerminologyApiContext context) {
+        String tenantId = requireCurrentTenant();
+        context.validateTenant(tenantId);
+        return tenantId;
+    }
+
     private String currentUserId() {
         return RequestContext.currentUserId().orElse("system");
     }
@@ -330,11 +377,22 @@ public class TerminologyService {
         return value == null ? null : value.name();
     }
 
-    private String evidence(ConfirmMappingRequest request, MappingCandidate candidate) {
-        if (request.evidenceOverride() != null && !request.evidenceOverride().isBlank()) {
-            return request.evidenceOverride().trim();
+    private String evidence(String evidenceOverride, MappingCandidate candidate) {
+        if (evidenceOverride != null && !evidenceOverride.isBlank()) {
+            return evidenceOverride.trim();
         }
         return candidate.evidenceText();
+    }
+
+    private void ensureHighRiskSecondConfirmation(MappingCandidate candidate, TerminologyCandidateConfirmRequest request) {
+        if (candidate.riskLevel() != TermRiskLevel.HIGH) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(request.highRiskAcknowledged())
+                || request.highRiskReason() == null
+                || request.highRiskReason().isBlank()) {
+            throw new ApiException(ErrorCode.MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED);
+        }
     }
 
     private boolean sameScope(TermMappingPackage current, TermMappingPackage target) {
@@ -370,47 +428,39 @@ public class TerminologyService {
     }
 
     /**
-     * 未映射本地字典词条自动发现接口。
-     */
-    public List<LocalTerm> detectUnmappedLocalTerms(String sourceSystem) {
-        String tenantId = requireCurrentTenant();
-        return localTermRepository.findByTenantIdAndSourceSystemAndStatus(tenantId, sourceSystem, LocalTermStatus.UNMAPPED);
-    }
-
-    /**
-     * 智能候选推荐引擎核心逻辑。
+     * 确定性候选生成。
      *
-     * <p>扫描指定来源系统下的所有未映射本地词条，基于文本交叉相似度计算自动匹配标准词条，
-     * 分级别设定置信度、风险评级并幂等写入/更新 PENDING 候选列表。
+     * <p>扫描指定来源系统下的所有未映射院内词条，基于 LCS 相似度生成候选，
+     * 分级设定置信度、风险评级并幂等写入 PENDING 候选列表。
      */
     @Transactional
-    public int autoRecommendCandidates(String sourceSystem) {
-        String tenantId = requireCurrentTenant();
+    public TerminologyCandidateGenerationResponse generateCandidates(TerminologyCandidateGenerationRequest request) {
+        String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
 
         List<LocalTerm> unmapped = localTermRepository.findByTenantIdAndSourceSystemAndStatus(
-            tenantId, sourceSystem, LocalTermStatus.UNMAPPED);
+            tenantId, request.sourceSystem(), LocalTermStatus.UNMAPPED);
         if (unmapped.isEmpty()) {
-            return 0;
+            return new TerminologyCandidateGenerationResponse(0, List.of());
         }
 
         List<StandardTerm> standardTerms = standardTermRepository.findByTenantIdAndStatus(
             tenantId, StandardTermStatus.ACTIVE);
         if (standardTerms.isEmpty()) {
-            return 0;
+            return new TerminologyCandidateGenerationResponse(0, List.of());
         }
 
-        int count = 0;
+        double threshold = request.minimumScore() == null ? 0.2 : request.minimumScore();
+        List<TerminologyCandidateResponse> generated = new java.util.ArrayList<>();
         for (LocalTerm local : unmapped) {
             for (StandardTerm standard : standardTerms) {
-                // 分类强校验：只对比相同分类的标准术语（诊断/手术/药品等）
                 if (local.category() != null && standard.category() != null && local.category() != standard.category()) {
                     continue;
                 }
 
                 double sim = calculateSimilarity(local.localName(), standard.displayName());
-                if (sim >= 0.2) {
+                if (sim >= threshold) {
                     TermRiskLevel risk = TermRiskLevel.HIGH;
                     if (sim >= 0.9) {
                         risk = TermRiskLevel.LOW;
@@ -418,34 +468,34 @@ public class TerminologyService {
                         risk = TermRiskLevel.MEDIUM;
                     }
 
-                    String evidence = String.format("系统相似度计算自动发现推荐，匹配分值 %.2f，院内词: %s，标准词: %s",
+                    String evidence = String.format("确定性 LCS 相似度 %.2f，院内词：%s，标准词：%s",
                         sim, local.localName(), standard.displayName());
 
-                    // 幂等确认：若存在相同 (local, standard) 且仍待确认候选则原地升级属性，避免主键碰撞
                     Optional<MappingCandidate> existingOpt = candidateRepository
                         .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
                             tenantId, local.id(), standard.id(), MappingCandidateStatus.PENDING);
 
+                    MappingCandidate saved;
                     if (existingOpt.isPresent()) {
                         MappingCandidate existing = existingOpt.get();
-                        candidateRepository.save(new MappingCandidate(
-                            existing.id(), tenantId, local.id(), standard.id(), sim, MappingCandidateSource.AI,
+                        saved = candidateRepository.save(new MappingCandidate(
+                            existing.id(), tenantId, local.id(), standard.id(), sim, MappingCandidateSource.RULE,
                             risk, evidence, false, MappingCandidateStatus.PENDING,
                             existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
                             existing.createdAt(), existing.createdBy(), now, userId
                         ));
                     } else {
-                        candidateRepository.save(new MappingCandidate(
-                            null, tenantId, local.id(), standard.id(), sim, MappingCandidateSource.AI,
+                        saved = candidateRepository.save(new MappingCandidate(
+                            null, tenantId, local.id(), standard.id(), sim, MappingCandidateSource.RULE,
                             risk, evidence, false, MappingCandidateStatus.PENDING,
                             null, null, null, now, userId, now, userId
                         ));
                     }
-                    count++;
+                    generated.add(TerminologyCandidateResponse.from(saved));
                 }
             }
         }
-        return count;
+        return new TerminologyCandidateGenerationResponse(generated.size(), generated);
     }
 
     private double calculateSimilarity(String s1, String s2) {

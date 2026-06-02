@@ -17,14 +17,15 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
 `engine/terminology` **控制器已建**，本卡＝**契约化 + 高危返回 + 统一入参**：
 - 已有：`TerminologyController`(+ 安全测试)、`TerminologyService`、`TerminologyRequests`/`Filters`/`Enums`、`MappingCandidate`/`MappingConflict`/`TermMappingPackage(Release)` 各 Repository。
-- 缺口（本卡补）：① 候选端点返回 `HighRiskFlag`（[TERM-01](TERM-01.md) MED-C1）+ **禁批量确认**校验；② 映射包发布端点对齐 [SYS-04](SYS-04.md)；③ 统一 12 字段入参 + `ApiResult`/`ProblemDetail`；④ 大字典列表走 [API-13](../D0/API-13.md)。
+- 已补：① `POST /mappings/candidates` 返回 `semanticMatchScore` + `highRiskFlag`，且确定性 B0 候选来源为 `RULE`；② 高危候选批量确认拒绝 `MAPPING_HIGH_RISK_BATCH_DENIED`，批量重复候选 ID 只确认一次，逐条确认缺二次确认拒绝 `MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED`；③ 映射包路由对齐 `/mapping-packages/**`；④ 写接口补 12 字段统一入参与租户一致性校验；⑤ 清理旧 `auto-recommend` / `standard-terms` / `local-terms` / `packages/**` / `candidates/{id}/confirm` 客户面入口。
+- 未在本卡伪造：真实 10 万级标准 / 院内字典压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭，登记 `DEFER-010`。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 字典查询**：`GET /terms/standard`（ICD-10/ICD-9-CM-3/药品本位码/LOINC）、`GET /terms/local`，分页/筛选走 [API-13](../D0/API-13.md)。
-- [ ] **FR-2 候选 + 高危**：`POST /mappings/candidates` 返回候选 + `SemanticMatchScore` + `HighRiskFlag`；高危候选**禁批量确认**（`MAPPING_HIGH_RISK_BATCH_DENIED`）。
-- [ ] **FR-3 映射确认/冲突**：`POST /mappings/{id}/confirm`（高危逐条 + 二次确认）、`GET /mappings/conflicts`。
-- [ ] **FR-4 映射包发布**：`POST /mapping-packages/{id}/publish`（草稿→审核→灰度→全量→回滚，委托 [SYS-04](SYS-04.md)）。
-- [ ] **FR-5 统一入参/信封**：12 字段统一入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
+- [x] **FR-1 字典查询**：`GET /terms/standard`（ICD-10/ICD-9-CM-3/药品本位码/LOINC）、`GET /terms/local`，分页/筛选走 [API-13](../D0/API-13.md)。
+- [x] **FR-2 候选 + 高危**：`POST /mappings/candidates` 返回候选 + `SemanticMatchScore` + `HighRiskFlag`；高危候选**禁批量确认**（`MAPPING_HIGH_RISK_BATCH_DENIED`）。
+- [x] **FR-3 映射确认/冲突**：`POST /mappings/{id}/confirm`（高危逐条 + 二次确认）、`GET /mappings/conflicts`。
+- [x] **FR-4 映射包发布**：`POST /mapping-packages/{id}/publish`（草稿→审核→灰度→全量→回滚，委托 [SYS-04](SYS-04.md)）。
+- [x] **FR-5 统一入参/信封**：12 字段统一入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -57,15 +58,15 @@ N·A —— 本卡无页面。被 **D2 字典映射页**消费（高危红标 + 
 - 本卡落点：字典能力以统一契约对外，高危安全约束在 API 层再兜一层。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-2）**：请求高危候选批量确认 → API 返回 `MAPPING_HIGH_RISK_BATCH_DENIED`（即便前端发批量）。
-- [ ] **AC-2（FR-1/3）**：标准/院内字典分页查询稳定；冲突列举返回待裁项。
-- [ ] **AC-3（FR-4）**：映射包发布灰度→全量→回滚经 [SYS-04](SYS-04.md)，状态机正确。
-- [ ] **AC-4（FR-5）**：缺统一入参 → `ProblemDetail`；越权访问 → 0 + 审计。
+- [x] **AC-1（FR-2）**：请求高危候选批量确认 → API 返回 `MAPPING_HIGH_RISK_BATCH_DENIED`（即便前端发批量）。
+- [x] **AC-2（FR-1/3）**：标准/院内字典分页查询稳定；冲突列举返回待裁项。真实 10 万级压测不在本卡伪造，归 `DEFER-010` 在 [SYS-07](../ga/SYS-07.md) / GA 验收关闭。
+- [x] **AC-3（FR-4）**：映射包发布灰度→全量→回滚经 [SYS-04](SYS-04.md)，状态机正确。
+- [x] **AC-4（FR-5）**：缺统一入参 → `ProblemDetail`；越权访问 → 0 + 审计。
 - 关联 A1–A9 剧本：A3 字典映射。
 - T-GATE：前后端真实性门禁全绿。
 - B0 验收：确定性候选 + 人工确认，**天然 B0**。
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/terminology/**` 端点 + `HighRiskFlag` 返回 + 禁批量校验 + 发布接 [SYS-04](SYS-04.md)。
-- 测试：契约测试 + 高危禁批量/禁自动 API 测试 + 分页/冲突测试 + 发布回滚测试。
+- 本地验证：`TerminologyApiContractTest`、`TerminologyServiceTest`、`TerminologyControllerSecurityTest`、`EngineEndToEndIntegrationTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest` 聚焦通过；`FlywayMultiDialectSmokeTest` 覆盖 H2 / PostgreSQL / Oracle 迁移至 V48；后端全量 `mvn -q test` 通过；T-GATE 规则测试 34/34；真实性全仓扫描通过；中文注释扫描仅剩 `DEFER-006` 历史迁移 COMMENT GAP。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

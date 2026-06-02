@@ -35,10 +35,10 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * MedKernel 顶级引擎全能力端到端物理集成验证测试（E2E）。
+ * MedKernel 顶级引擎全能力端到端集成验证测试（E2E）。
  *
- * <p>本类特意设定于 com.medkernel.engine.terminology 包内，以物理穿透术语模块包私有枚举（TerminologyEnums）的访问壁垒。
- * 覆盖知识物理去重、DP LCS 术语字典映射、诊断决策 CDSS 双向反馈、时序随访分发、网关安全自愈降级以及合规证据对账验签的全生命周期。
+ * <p>本类设定于 com.medkernel.engine.terminology 包内，以访问术语模块包私有枚举（TerminologyEnums）。
+ * 覆盖知识去重、DP LCS 术语字典映射、诊断决策 CDSS 双向反馈、时序随访分发、网关安全自愈降级以及合规证据对账验签的全生命周期。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -90,10 +90,10 @@ class EngineEndToEndIntegrationTest {
 
     @Test
     void runFullEnginePhysicalWorkflow() {
-        System.out.println("====== [1. 知识指南片段物理 SHA-256 去重注册] ======");
+        System.out.println("====== [1. 知识指南片段 SHA-256 去重注册] ======");
         String payload = "【卒中规范溶栓指南】对于急性缺血性卒中，溶栓前收缩压应控制在 < 185 mmHg 且舒张压 < 110 mmHg。";
         
-        // 物理建立知识文档及版本数据环境
+        // 建立知识文档及版本数据环境
         var doc = docRepo.save(new com.medkernel.engine.knowledge.SourceDocument(
             null, tenantId, "DOC-STROKE-101",
             com.medkernel.engine.knowledge.SourceType.GUIDELINE,
@@ -111,19 +111,19 @@ class EngineEndToEndIntegrationTest {
         );
         SourceFragment fragment = knowledgeService.createFragment(fragmentReq);
         
-        assertNotNull(fragment.id(), "知识片段物理ID非空");
-        assertNotNull(fragment.contentHash(), "物理内容哈希已真实算得");
+        assertNotNull(fragment.id(), "知识片段 ID 非空");
+        assertNotNull(fragment.contentHash(), "内容哈希已真实算得");
         assertEquals(64, fragment.contentHash().length(), "哈希符合 SHA-256 64位十六进制编码规格");
 
-        // 验证物理排重阻断：相同片段内容第二次插入在不同锚点下触发哈希冲突防线物理阻断
+        // 验证排重阻断：相同片段内容第二次插入在不同锚点下触发哈希冲突防线
         assertThrows(ApiException.class, () -> {
             knowledgeService.createFragment(new FragmentCreateRequest(
                 ver.id(), "sec-4.2-duplicate", "冲突条文", payload
             ));
-        }, "相同数据重复录入触发哈希冲突防线物理阻断");
+        }, "相同数据重复录入触发哈希冲突防线");
 
 
-        System.out.println("====== [2. 临床字典术语 DP 最长公共子序列 (LCS) 智能映射] ======");
+        System.out.println("====== [2. 临床字典术语 DP 最长公共子序列 (LCS) 确定性映射] ======");
         // 建立测试字典环境，使用已打通的包私有枚举
         StandardTerm standard = standardTermRepo.save(new StandardTerm(
             null, tenantId, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "nao geng si",
@@ -134,12 +134,16 @@ class EngineEndToEndIntegrationTest {
             "DEPT-01", LocalTermStatus.UNMAPPED, Instant.now(), Instant.now(), Instant.now(), "system", Instant.now(), "system"
         ));
 
-        // 自动触发智能候选推荐引擎计算 (calculateSimilarity)
+        // 触发确定性候选生成计算 (calculateSimilarity)
         // "卒中脑梗" 有 4 字，"脑梗死" 有 3 字，最长公共子序列是 "脑梗" (2字)，经典 LCS 相似度 = 2 * 2 / (4 + 3) = 0.57 >= 0.2
-        int count = terminologyService.autoRecommendCandidates("HIS");
-        assertEquals(1, count, "字典智能引擎发现并推荐了 1 个候选映射");
+        TerminologyCandidateGenerationResponse generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
+            "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
+            "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",
+            "HIS", null
+        ));
+        assertEquals(1, generation.generatedCount(), "字典规则引擎发现了 1 个候选映射");
 
-        // 查到推荐的 candidate 并物理执行确认
+        // 查到候选并执行人工确认
         var candidatesPage = terminologyService.pageCandidates(
             new com.medkernel.shared.api.PageRequest(1, 10, null),
             new CandidateFilter(MappingCandidateStatus.PENDING, null, null)
@@ -150,9 +154,13 @@ class EngineEndToEndIntegrationTest {
         // 专家人工确认推荐映射
         TermMapping mapping = terminologyService.confirmCandidate(
             candidate.id(),
-            new ConfirmMappingRequest("专家组最终物理确认", "DOCTOR")
+            new TerminologyCandidateConfirmRequest(
+                "req-e2e-term-confirm", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
+                "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("specialist"), "pkg-stroke-2026",
+                "专家组最终确认", "医生人工确认", true, "已核对诊断编码和院内词条"
+            )
         );
-        assertNotNull(mapping.id(), "已成功建立物理映射关系");
+        assertNotNull(mapping.id(), "已成功建立映射关系");
         assertEquals("CONFIRMED", mapping.status().name());
 
 
@@ -177,7 +185,7 @@ class EngineEndToEndIntegrationTest {
             )
         );
         
-        // 物理存入就诊上下文
+        // 存入就诊上下文
         var snapshotResult = contextService.create(contextReq, "idempotency-key-stroke-888");
         assertNotNull(snapshotResult.snapshotId(), "就诊快照同步保存成功");
 
@@ -235,7 +243,7 @@ class EngineEndToEndIntegrationTest {
         assertEquals("REJECTED", feedbackResp.cardStatus().name());
 
 
-        System.out.println("====== [5. 出院事件触发智能随访时序问卷计划生成] ======");
+        System.out.println("====== [5. 出院事件触发时序随访问卷计划生成] ======");
         // 出院事件，系统自动根据模板，为脑卒中患者分发 30 天时序随访任务
         FollowupPlanGenerateRequest followupReq = new FollowupPlanGenerateRequest(
             "PAT-777", "enc-stroke-888", "pathway-99", "I63.900", "HIGH", List.of("QUESTIONNAIRE", "EXAM")
@@ -243,7 +251,7 @@ class EngineEndToEndIntegrationTest {
         FollowupPlanDetailResponse followupResp = followupService.generatePlan(followupReq);
         assertNotNull(followupResp.planId());
         assertEquals("ACTIVE", followupResp.status().name());
-        assertFalse(followupResp.tasks().isEmpty(), "智能时序随访第一期任务与问卷分发就绪");
+        assertFalse(followupResp.tasks().isEmpty(), "时序随访第一期任务与问卷分发就绪");
 
 
         System.out.println("====== [6. 大模型网关安全自愈降级 (B0 主链路验收)] ======");
@@ -258,13 +266,13 @@ class EngineEndToEndIntegrationTest {
         assertNotNull(gateResp.taskId());
         assertEquals("DEGRADED", gateResp.status(), "未接入 provider 时任务状态为 DEGRADED 降级运行");
         assertEquals("B0", gateResp.modelMode(), "诚实退回到 B0 无模型基线");
-        assertTrue(gateResp.fallbackUsed(), "标记物理使用了 fallback 降级");
+        assertTrue(gateResp.fallbackUsed(), "标记使用了 fallback 降级");
         assertTrue(gateResp.fallbackReason().contains("B0 确定性基线"), "B0 基线归因被诚实记录");
         assertNull(gateResp.confidence(), "B0 基线不得伪造置信度");
         assertEquals("[]", gateResp.sourceCitations(), "B0 基线不得伪造来源引文");
 
 
-        System.out.println("====== [7. 合规证据快照打包、物理验签与防篡改对账] ======");
+        System.out.println("====== [7. 合规证据快照打包、验签与防篡改对账] ======");
         // 合规证据打包，对上述全流程产生的数据快照打包为 ZIP 安全压缩证据包
         String evidenceId = "evd-e2e-stroke-888";
         EvidenceCreateDto evidenceDto = new EvidenceCreateDto(
@@ -274,14 +282,14 @@ class EngineEndToEndIntegrationTest {
         );
         
         EvidenceResponse evidenceResp = evidenceService.createSnapshot(tenantId, evidenceDto);
-        assertNotNull(evidenceResp.evidenceId(), "证据快照物理创建入库成功");
+        assertNotNull(evidenceResp.evidenceId(), "证据快照创建入库成功");
         assertNotNull(evidenceResp.payloadHash(), "快照自动计算了真实的 SHA-256 防伪签名");
         
         // 对账验签校验：验证数据未被篡改
         EvidenceVerifyResult verifyResult = evidenceService.verifyEvidence(tenantId, evidenceId);
         assertTrue(verifyResult.isValid(), "证据快照双向防伪哈希对账验签成功");
-        assertEquals(verifyResult.storedHash(), verifyResult.calculatedHash(), "哈希物理碰撞对账一致");
+        assertEquals(verifyResult.storedHash(), verifyResult.calculatedHash(), "哈希对账一致");
 
-        System.out.println("====== 🎉 [MedKernel v1.0 GA 顶级引擎全链路 E2E 物理验证通过！] ======");
+        System.out.println("====== 🎉 [MedKernel v1.0 GA 顶级引擎全链路 E2E 验证通过！] ======");
     }
 }
