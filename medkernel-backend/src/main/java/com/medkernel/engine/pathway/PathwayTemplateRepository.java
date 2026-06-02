@@ -42,6 +42,19 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                        String packageId, int offset, int limit);
 
     /**
+     * 与分页查询同口径的完整列表，用于平台主源与租户覆盖层的有效模板合并。
+     */
+    @Query("""
+        SELECT * FROM pathway_template
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:diseaseCode IS NULL OR disease_code = :diseaseCode)
+          AND (:packageId IS NULL OR package_id = :packageId)
+        ORDER BY updated_at DESC, id DESC
+        """)
+    List<PathwayTemplate> listByFilter(String tenantId, String status, String diseaseCode, String packageId);
+
+    /**
      * 统计可选过滤条件下的路径模板总数。
      */
     @Query("""

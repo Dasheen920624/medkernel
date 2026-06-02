@@ -524,7 +524,7 @@ class KnowledgeVersionServiceTest {
             .thenReturn(List.of(active));
 
         KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequestWithContent(
-            "duplicate-v2", "知识版本夹具内容-5"));
+            "duplicate-v2", "知识版本夹具内容-t-1-5"));
 
         assertThat(response.available()).isTrue();
         assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
@@ -749,27 +749,78 @@ class KnowledgeVersionServiceTest {
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
     }
 
+    @Test
+    void listByIdentityFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
+        KnowledgeAssetVersion platformVersion =
+            version(900L, "t-1", 100L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platformIdentity));
+        when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.empty());
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 100L))
+            .thenReturn(List.of(platformVersion));
+
+        List<KnowledgeAssetVersion> versions = service.listByIdentity(100L);
+
+        assertThat(versions).containsExactly(platformVersion);
+    }
+
+    @Test
+    void listByIdentityPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
+        KnowledgeIdentity localIdentity = identity(200L, "t-hospital", "DRUG.X", null);
+        KnowledgeAssetVersion localVersion =
+            version(901L, "t-hospital", 200L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platformIdentity));
+        when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.of(localIdentity));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-hospital", 200L))
+            .thenReturn(List.of(localVersion));
+
+        List<KnowledgeAssetVersion> versions = service.listByIdentity(100L);
+
+        assertThat(versions).containsExactly(localVersion);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 100L);
+    }
+
     // ─── helpers ──────────────────────────────────────────────
 
     private KnowledgeIdentity identity(Long id, Long currentVersionId) {
+        return identity(id, "t-1", "DRUG.X", currentVersionId);
+    }
+
+    private KnowledgeIdentity identity(Long id, String tenantId, String identityCode, Long currentVersionId) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
-            id, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "测试主题", null, null,
+            id, tenantId, identityCode, KnowledgeDomain.DRUG, "测试主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, currentVersionId,
             now, "init", now, "init"
         );
     }
 
     private KnowledgeAssetVersion version(Long id, Long identityId, KnowledgeVersionStatus status, KnowledgeRiskLevel risk) {
-        return version(id, identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE);
+        return version(id, "t-1", identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE);
+    }
+
+    private KnowledgeAssetVersion version(Long id, String tenantId, Long identityId,
+                                          KnowledgeVersionStatus status, KnowledgeRiskLevel risk) {
+        return version(id, tenantId, identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE);
     }
 
     private KnowledgeAssetVersion version(Long id, Long identityId, KnowledgeVersionStatus status,
                                           KnowledgeRiskLevel risk, SourceAuthorityLevel authorityLevel) {
+        return version(id, "t-1", identityId, status, risk, authorityLevel);
+    }
+
+    private KnowledgeAssetVersion version(Long id, String tenantId, Long identityId,
+                                          KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
+                                          SourceAuthorityLevel authorityLevel) {
         Instant now = Instant.now();
         return new KnowledgeAssetVersion(
-            id, "t-1", identityId, "v1", "label",
-            null, null, sha256("知识版本夹具内容-" + id), null,
+            id, tenantId, identityId, "v1", "label",
+            null, null, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
             status, risk,
             authorityLevel, null, null, null,
             null, null, null, null,

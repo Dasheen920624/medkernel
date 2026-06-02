@@ -504,7 +504,9 @@ public class PackageEngineService {
         }
 
         Instant now = Instant.now();
-        importOfflineAssetSnapshots(assetSnapshotsNode, itemsNode, tenantId, actor, traceId, now);
+        boolean platformSourceReference = isPlatformSourceReferenceImport(tenantId, sourceTenantId);
+        importOfflineAssetSnapshots(
+            assetSnapshotsNode, itemsNode, tenantId, sourceTenantId, actor, traceId, now);
         KnowledgePackage importedPackage = new KnowledgePackage(
             null,
             UUID.randomUUID().toString(),
@@ -522,7 +524,8 @@ public class PackageEngineService {
         );
         KnowledgePackage savedPackage = packageRepository.save(importedPackage);
         List<PackageItem> importedItems = buildOfflineImportItems(
-            itemsNode, tenantId, sourceTenantId, savedPackage.packageId(), sourcePackageId, actor, traceId, now);
+            itemsNode, tenantId, sourceTenantId, savedPackage.packageId(), sourcePackageId,
+            actor, traceId, now, platformSourceReference);
         importedItems.forEach(itemRepository::save);
 
         auditPublisher.publish(AuditAction.IMPORT, "knowledge_package", savedPackage.packageId(),
@@ -631,6 +634,7 @@ public class PackageEngineService {
             JsonNode assetSnapshotsNode,
             JsonNode itemsNode,
             String tenantId,
+            String sourceTenantId,
             String actor,
             String traceId,
             Instant now) {
@@ -666,7 +670,16 @@ public class PackageEngineService {
             if (snapshot == null) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包缺少资产内容快照: " + key);
             }
-            importOfflineAssetSnapshot(assetType, assetId, assetVersion, snapshot, tenantId, actor, traceId, now);
+            importOfflineAssetSnapshot(
+                assetType,
+                assetId,
+                assetVersion,
+                snapshot,
+                tenantId,
+                sourceTenantId,
+                actor,
+                traceId,
+                now);
         }
     }
 
@@ -676,16 +689,62 @@ public class PackageEngineService {
             String assetVersion,
             JsonNode snapshot,
             String tenantId,
+            String sourceTenantId,
             String actor,
             String traceId,
             Instant now) {
         JsonNode content = requireObject(snapshot, "content", "离线包资产快照缺少 content 内容");
+        if (isPlatformSourceReferenceImport(tenantId, sourceTenantId)) {
+            validateOfflineAssetSnapshotContent(assetType, assetId, assetVersion, content);
+            return;
+        }
         switch (assetType) {
             case RULE -> importOfflineRuleSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "离线包暂不支持完整资产内容迁移: " + assetType);
+        }
+    }
+
+    private void validateOfflineAssetSnapshotContent(
+            PackageItemAssetType assetType,
+            String assetId,
+            String assetVersion,
+            JsonNode content) {
+        switch (assetType) {
+            case RULE -> {
+                PackageOfflineRuleContent ruleContent = readOfflineContent(content, PackageOfflineRuleContent.class);
+                if (!assetId.equals(ruleContent.rule().ruleId())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包规则快照 ruleId 与资产条目不一致");
+                }
+                if (!Integer.valueOf(parseAssetVersionNo(assetVersion)).equals(ruleContent.version().versionNo())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包规则快照 versionNo 与资产条目不一致");
+                }
+                ensurePackageAssetPublished("规则", ruleContent.rule().status());
+            }
+            case EVALUATION -> {
+                PackageOfflineEvaluationContent evaluationContent =
+                    readOfflineContent(content, PackageOfflineEvaluationContent.class);
+                PackageOfflineEvaluationIndicator indicator = evaluationContent.indicator();
+                if (!assetId.equals(indicator.indicatorId())) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包评估指标快照 indicatorId 与资产条目不一致");
+                }
+                if (!Integer.toString(indicator.versionNo()).equals(assetVersion)) {
+                    throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包评估指标快照 versionNo 与资产条目不一致");
+                }
+                ensurePackageAssetPublished("评估指标", indicator.status());
+            }
+            default -> throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "离线包暂不支持完整资产内容迁移: " + assetType);
+        }
+    }
+
+    private void ensurePackageAssetPublished(String assetName, String status) {
+        if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包" + assetName + "必须为 PUBLISHED 或 ACTIVE 状态, 当前: " + status);
         }
     }
 
@@ -906,7 +965,8 @@ public class PackageEngineService {
             String sourcePackageId,
             String actor,
             String traceId,
-            Instant now) {
+            Instant now,
+            boolean platformSourceReference) {
         List<PackageItem> items = new ArrayList<>();
         Set<String> uniqueAssets = new HashSet<>();
         for (JsonNode itemNode : itemsNode) {
@@ -922,7 +982,9 @@ public class PackageEngineService {
             if (!uniqueAssets.add(assetKey)) {
                 throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产条目: " + assetKey);
             }
-            validateAssetStatus(tenantId, assetType, assetId);
+            if (!platformSourceReference) {
+                validateAssetStatus(tenantId, assetType, assetId);
+            }
 
             items.add(new PackageItem(
                 null,
@@ -940,6 +1002,10 @@ public class PackageEngineService {
             ));
         }
         return items;
+    }
+
+    private boolean isPlatformSourceReferenceImport(String tenantId, String sourceTenantId) {
+        return PlatformTenant.isPlatformTenant(sourceTenantId) && !PlatformTenant.isPlatformTenant(tenantId);
     }
 
     private PackageItemAssetType parseAssetType(String assetType) {

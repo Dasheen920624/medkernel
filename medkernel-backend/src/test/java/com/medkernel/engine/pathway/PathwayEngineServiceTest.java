@@ -185,11 +185,58 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void enterPatientPathwayFallsBackToPlatformTemplateAndKeepsRuntimeInCustomerTenant() {
+        PathwayTemplate platformTemplate = template(
+            "pt-platform", "t-1", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayNode platformStart = node("pt-platform", "t-1", "ASSESS", 10, false);
+        when(templates.findByTemplateIdAndTenantId("pt-platform", "tenant-A")).thenReturn(Optional.empty());
+        when(templates.findByTemplateIdAndTenantId("pt-platform", "t-1")).thenReturn(Optional.of(platformTemplate));
+        when(templates.findByTenantIdAndTemplateCodeAndTemplateVersion("tenant-A", "TPL.COPD", 1))
+            .thenReturn(Optional.empty());
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-platform", "t-1", "ASSESS"))
+            .thenReturn(Optional.of(platformStart));
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "patient-1", "enc-1", "pt-platform", null));
+
+        assertThat(response.patientPathway().tenantId()).isEqualTo("tenant-A");
+        assertThat(response.patientPathway().templateId()).isEqualTo("pt-platform");
+        ArgumentCaptor<ClinicalClock> clockCap = ArgumentCaptor.forClass(ClinicalClock.class);
+        verify(clocks).save(clockCap.capture());
+        assertThat(clockCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(clockCap.getValue().nodeCode()).isEqualTo("ASSESS");
+    }
+
+    @Test
+    void enterPatientPathwayPrefersLocalTemplateWithSameCodeAndVersionOverPlatformTemplate() {
+        PathwayTemplate platformTemplate = template(
+            "pt-platform", "t-1", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayTemplate localOverride = template(
+            "pt-local", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayNode localStart = node("pt-local", "tenant-A", "ASSESS", 10, false);
+        when(templates.findByTemplateIdAndTenantId("pt-platform", "tenant-A")).thenReturn(Optional.empty());
+        when(templates.findByTemplateIdAndTenantId("pt-platform", "t-1")).thenReturn(Optional.of(platformTemplate));
+        when(templates.findByTenantIdAndTemplateCodeAndTemplateVersion("tenant-A", "TPL.COPD", 1))
+            .thenReturn(Optional.of(localOverride));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-local", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(localStart));
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "patient-1", "enc-1", "pt-platform", null));
+
+        assertThat(response.patientPathway().tenantId()).isEqualTo("tenant-A");
+        assertThat(response.patientPathway().templateId()).isEqualTo("pt-local");
+        verify(nodes).findByTemplateIdAndTenantIdAndNodeCode("pt-local", "tenant-A", "ASSESS");
+    }
+
+    @Test
     void advanceCompleteMovesToNextNodeAndClosesCurrentClock() {
         PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
         ClinicalClock currentClock = clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING);
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
         when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
@@ -217,6 +264,8 @@ class PathwayEngineServiceTest {
     void varianceCanPausePathwayAndPersistVariance() {
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
         when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
@@ -239,6 +288,8 @@ class PathwayEngineServiceTest {
     void exitClosesCurrentClockAndMarksRuntimeExited() {
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(node("ASSESS", 10, false)));
         when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
@@ -315,19 +366,28 @@ class PathwayEngineServiceTest {
     }
 
     private PathwayTemplate template(PathwayTemplateStatus status) {
+        return template("pt-1", "tenant-A", "TPL.COPD", 1, status);
+    }
+
+    private PathwayTemplate template(String templateId, String tenantId, String templateCode,
+                                     Integer templateVersion, PathwayTemplateStatus status) {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
-            "COPD", 1, PathwayTemplateLevel.STANDARD, status, "ASSESS",
+            1L, templateId, tenantId, "sp-1", templateCode, "稳定期随访路径",
+            "COPD", templateVersion, PathwayTemplateLevel.STANDARD, status, "ASSESS",
             "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");
     }
 
     private PathwayNode node(String code, int sortOrder, boolean terminal) {
+        return node("pt-1", "tenant-A", code, sortOrder, terminal);
+    }
+
+    private PathwayNode node(String templateId, String tenantId, String code, int sortOrder, boolean terminal) {
         Instant now = Instant.now();
         return new PathwayNode(
-            null, "pn-" + code, "tenant-A", "pt-1", code, code,
+            null, "pn-" + code, tenantId, templateId, code, code,
             terminal ? PathwayNodeType.FOLLOWUP : PathwayNodeType.ASSESSMENT,
             sortOrder, "医生", null, 1440, terminal, null,
             now, "tester", now, "tester", "trace-pathway");

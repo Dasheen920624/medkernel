@@ -23,10 +23,10 @@
 ### 线 2 · 平台主源与租户覆盖层治理 🚧
 
 - 类型：软件开发 / 架构治理
-- 分支：codex/platform-tenant-overlay
+- 分支：`codex/platform-tenant-overlay-impl`
 - 目标：把知识、规则、路径等医疗资产从“当前租户硬查 / 全量同步副本”统一改为“平台主源 `t-1` + 租户覆盖层 Overlay”：平台主源只能更新 / 同步平台主源本身；客户 / 集团 / 医院默认订阅或授权使用平台发布版本，不再把平台资产物理同步成客户主源副本；本地新增或修改同一 canonical key 时生成本租户覆盖副本并优先生效；平台更新自动影响未覆盖资产，已覆盖资产不得被覆盖，后续进入人工合并 / 回退流程。
-- 状态：已固化设计与实施计划到 `docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`、`docs/superpowers/plans/2026-06-02-platform-tenant-overlay-plan.md`；协作红线已通过 #257 合入 `origin/main`。代码实现仍在 stash `stash@{0}: On platform-tenant-overlay: wip platform overlay implementation`，按用户最新指令先暂停，等“登录 / 首次部署体验修复”发布到现场后再恢复；未完成前不得把 main 视为已具备完整 Overlay 运行能力。
-- 下一步（精确到动作/命令）：1. 等线 3 完成 PR / 合并 / 192.168.8.191 发布；2. 从最新 `origin/main` 新建或恢复平台主源治理分支，按需应用 `stash@{0}` 的相关改动；3. 给路径模板补 RED 测试，锁定客户租户可基于平台已发布模板入径、本地同 `template_code + template_version` 优先；4. 实现路径模板 / 节点 / 边按解析来源租户读取、患者路径事实仍写当前租户；5. 给知识身份 / 版本补平台身份回退与本地同 `identity_code` 覆盖测试；6. 跑 `mvn -B -q "-Dtest=KnowledgeVersionServiceTest,RuleEngineServiceTest,PathwayEngineServiceTest" test` 和后端全量验证。
+- 状态：登录 / 首次部署体验修复已通过 #260 合入并发布到 192.168.8.191，线 2 已恢复实施。当前从最新 `origin/main` 新建 `codex/platform-tenant-overlay-impl`，应用并整理旧 stash 草稿；已实现知识身份 / 版本、规则定义 / 执行、路径模板 / 入径的“本租户覆盖优先，未覆盖回退平台主源”有效读取；规则执行日志与患者路径事实仍写当前客户租户；平台源离线包导入客户租户只保存包 / 条目引用，不再物理写入客户资产主表；`docs/CONSTITUTION.md` 与 `docs/glossary.md` 已同步为“订阅 / 只读快照 / 覆盖层”口径。
+- 下一步（精确到动作/命令）：1. 继续跑后端全量 `mvn -B -q test`；2. 跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`、`scripts/check-comment-zh.sh`、`git diff --check`；3. 中文 commit、推送 `codex/platform-tenant-overlay-impl`、创建 PR 并等待远端 CI 8/8；4. CI 通过后合并 `main`，再发布到 192.168.8.191 并验证 `/medkernel/actuator/health/readiness` 与核心 API；5. 发布完成后再领取 D2 `KNOW-02`。
 - 协作红线：其它 AI 或人类同步改造时必须以本线为最新语义，不得再按“客户租户完整同步平台资产副本后各自维护”的旧模式设计；不得把平台主源同步为客户主源，平台发布给客户只能是只读发布版本 / 离线快照 / 订阅引用；不得让客户 / 集团 / 医院资产反写污染平台主租户 `t-1`；不得把 `SYSTEM` 或历史 `medkernel-basic` 当医疗知识业务租户。
 - 相关文件 / 测试 / 坑：核心不变量见 `docs/CONSTITUTION.md` §8 平台源知识不可污染 / 平台主租户唯一；业务键第一阶段使用 `knowledge_identity.identity_code`、`rule_definition.rule_code`、`pathway_template.template_code + template_version`、`specialty_package.package_code + package_version`；第二阶段再补覆盖关系表记录 `base_platform_version_id` / 合并状态 / rebase 任务。
 
@@ -155,4 +155,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含登录模式入口文案收口 #263（merge `f2612a14`）、D2 `TERM-01` PR1（#262，merge `1c752fd6`）、D2 `KNOW-02`（#261，merge `3ab23bce`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260。当前在 `codex/d2-term-01-high-risk-detector` 推进 D2 `TERM-01` PR2 高危近似判别器，已完成红绿单测、V53 迁移、聚焦套件、后端全量和变基后 changed T-GATE，待 PR / CI / 合并；合并并确认后继续 TERM-01 PR3 映射包发布接 SYS-04 与关模型降级。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `TERM-01` PR2 高危近似规则判别（merge `86bffa98`）、登录模式入口文案 #263（merge `f2612a14`）、D2 `TERM-01` PR1（#262，merge `1c752fd6`）、D2 `KNOW-02`（#261，merge `3ab23bce`）、平台主源协作红线 #257 与登录 / 首次部署体验修复 #260，且登录前端已发布到 192.168.8.191。当前用户优先线为 `codex/platform-tenant-overlay-impl` 平台主源 / 租户覆盖层实现：知识、规则、路径、平台源离线包边界已完成聚焦红绿验证，下一步跑后端全量、T-GATE、PR、CI、合并并发布；完成后再回到 D2 后续卡。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

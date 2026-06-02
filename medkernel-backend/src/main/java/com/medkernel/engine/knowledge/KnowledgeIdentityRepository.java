@@ -45,6 +45,20 @@ public interface KnowledgeIdentityRepository extends ListCrudRepository<Knowledg
     List<KnowledgeIdentity> pageByFilter(String tenantId, String domain, String specialtyId, String status, String keyword,
                                          int offset, int limit);
 
+    /**
+     * 与分页查询同口径的完整列表，用于平台主源与当前租户覆盖层的有效身份合并。
+     */
+    @Query("""
+        SELECT * FROM knowledge_identity
+        WHERE tenant_id = :tenantId
+          AND (:domain IS NULL OR domain = :domain)
+          AND (:specialtyId IS NULL OR specialty_id = :specialtyId)
+          AND (:status IS NULL OR status = :status)
+          AND (:keyword IS NULL OR LOWER(subject) LIKE :keyword OR LOWER(identity_code) LIKE :keyword)
+        ORDER BY updated_at DESC, id DESC
+        """)
+    List<KnowledgeIdentity> listByFilter(String tenantId, String domain, String specialtyId, String status, String keyword);
+
     @Query("""
         SELECT * FROM knowledge_identity
         WHERE tenant_id = :tenantId

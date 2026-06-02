@@ -60,21 +60,20 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageNormalizesKeywordToLowercaseAndWrapsPercent() {
-        when(identityRepo.countByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%"))).thenReturn(2L);
-        when(identityRepo.pageByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%"), anyInt(), anyInt()))
-            .thenReturn(List.of(identityRow(1L)));
+        when(identityRepo.listByFilter(eq("t-1"), any(), any(), any(), eq("%他汀%")))
+            .thenReturn(List.of(identityRow(1L), identityRow(2L, "t-1", "DRUG.Y")));
 
         PageResponse<KnowledgeIdentity> page = service.page(
             new PageRequest(1, 20, null),
             new KnowledgeIdentityFilter(null, null, null, "  他汀  ")
         );
         assertThat(page.total()).isEqualTo(2);
-        assertThat(page.items()).hasSize(1);
+        assertThat(page.items()).hasSize(2);
     }
 
     @Test
     void pageFilterEmptyKeywordBecomesNull() {
-        when(identityRepo.countByFilter(eq("t-1"), any(), any(), any(), eq(null))).thenReturn(0L);
+        when(identityRepo.listByFilter(eq("t-1"), any(), any(), any(), eq(null))).thenReturn(List.of());
         PageResponse<KnowledgeIdentity> page = service.page(
             PageRequest.defaults(),
             new KnowledgeIdentityFilter(null, null, null, "   ")
@@ -84,8 +83,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageEnumFiltersAreMappedToStringName() {
-        when(identityRepo.countByFilter("t-1", "DRUG", null, "ACTIVE", null)).thenReturn(1L);
-        when(identityRepo.pageByFilter(eq("t-1"), eq("DRUG"), any(), eq("ACTIVE"), any(), anyInt(), anyInt()))
+        when(identityRepo.listByFilter(eq("t-1"), eq("DRUG"), any(), eq("ACTIVE"), any()))
             .thenReturn(List.of(identityRow(1L)));
 
         service.page(
@@ -94,8 +92,26 @@ class KnowledgeIdentityServiceTest {
         );
         // 校验 enum→String 转换确实发生：count 被调到，且 specialty 为 null
         ArgumentCaptor<String> domainCap = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(identityRepo).countByFilter(eq("t-1"), domainCap.capture(), any(), any(), any());
+        Mockito.verify(identityRepo).listByFilter(eq("t-1"), domainCap.capture(), any(), any(), any());
         assertThat(domainCap.getValue()).isEqualTo("DRUG");
+    }
+
+    @Test
+    void pageMergesCustomerLocalOverridesWithPlatformActiveIdentities() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        KnowledgeIdentity localOverride = identityRow(200L, "t-hospital", "DRUG.X");
+        KnowledgeIdentity platformShadowed = identityRow(100L, "t-1", "DRUG.X");
+        KnowledgeIdentity platformOnly = identityRow(101L, "t-1", "DRUG.Y");
+        when(identityRepo.listByFilter("t-hospital", null, null, null, null)).thenReturn(List.of(localOverride));
+        when(identityRepo.listByFilter("t-1", null, null, "ACTIVE", null))
+            .thenReturn(List.of(platformShadowed, platformOnly));
+
+        PageResponse<KnowledgeIdentity> page = service.page(
+            PageRequest.defaults(), new KnowledgeIdentityFilter(null, null, null, null));
+
+        assertThat(page.items()).extracting(KnowledgeIdentity::id)
+            .containsExactly(200L, 101L);
+        assertThat(page.total()).isEqualTo(2);
     }
 
     @Test
@@ -103,6 +119,35 @@ class KnowledgeIdentityServiceTest {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
         KnowledgeIdentity result = service.get(1L);
         assertThat(result.id()).isEqualTo(1L);
+    }
+
+    @Test
+    void getFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
+        when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platform));
+        when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.empty());
+
+        KnowledgeIdentity result = service.get(100L);
+
+        assertThat(result.tenantId()).isEqualTo("t-1");
+        assertThat(result.identityCode()).isEqualTo("DRUG.X");
+    }
+
+    @Test
+    void getPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "doctor"));
+        KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
+        KnowledgeIdentity local = identityRow(200L, "t-hospital", "DRUG.X");
+        when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
+        when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platform));
+        when(identityRepo.findByTenantIdAndIdentityCode("t-hospital", "DRUG.X")).thenReturn(Optional.of(local));
+
+        KnowledgeIdentity result = service.get(100L);
+
+        assertThat(result.id()).isEqualTo(200L);
+        assertThat(result.tenantId()).isEqualTo("t-hospital");
     }
 
     @Test
@@ -377,9 +422,13 @@ class KnowledgeIdentityServiceTest {
     }
 
     private KnowledgeIdentity identityRow(Long id) {
+        return identityRow(id, "t-1", "DRUG.X");
+    }
+
+    private KnowledgeIdentity identityRow(Long id, String tenantId, String identityCode) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
-            id, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "测试主题", null, null,
+            id, tenantId, identityCode, KnowledgeDomain.DRUG, "测试主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, null,
             now, "u", now, "u"
         );
