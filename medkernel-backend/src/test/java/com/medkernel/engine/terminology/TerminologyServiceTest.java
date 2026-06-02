@@ -91,6 +91,34 @@ class TerminologyServiceTest {
     }
 
     @Test
+    void pageStandardTermsPreservesSourceVersionAndEvidenceTrace() {
+        StandardTerm traced = new StandardTerm(
+            2L, "t-1", "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "naogengsi",
+            "ICD-10-2026A", StandardTermStatus.ACTIVE, 88L,
+            "来源：国家医保疾病诊断编码 2026A；锚点：I63.900",
+            Instant.now(), "system", Instant.now(), "system"
+        );
+        when(standardTermRepository.countByFilter("t-1", "ICD-10", "DIAGNOSIS", "ACTIVE", "%脑梗死%"))
+            .thenReturn(1L);
+        when(standardTermRepository.pageByFilter(
+            eq("t-1"), eq("ICD-10"), eq("DIAGNOSIS"), eq("ACTIVE"), eq("%脑梗死%"), anyInt(), anyInt()
+        )).thenReturn(List.of(traced));
+
+        PageResponse<StandardTerm> page = service.pageStandardTerms(
+            new PageRequest(1, 20, null),
+            new StandardTermFilter("ICD-10", TermCategory.DIAGNOSIS, StandardTermStatus.ACTIVE, "脑梗死")
+        );
+
+        assertThat(page.items())
+            .singleElement()
+            .satisfies(term -> {
+                assertThat(term.versionNo()).isEqualTo("ICD-10-2026A");
+                assertThat(term.sourceVersionId()).isEqualTo(88L);
+                assertThat(term.evidenceText()).contains("国家医保疾病诊断编码", "I63.900");
+            });
+    }
+
+    @Test
     void confirmCandidateCreatesMappingAndMarksCandidateConfirmed() {
         MappingCandidate candidate = candidate(10L, MappingCandidateStatus.PENDING);
         when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
@@ -118,6 +146,47 @@ class TerminologyServiceTest {
         verify(candidateRepository).save(savedCandidate.capture());
         assertThat(savedCandidate.getValue().status()).isEqualTo(MappingCandidateStatus.CONFIRMED);
         assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("专家逐条确认");
+    }
+
+    @Test
+    void confirmCandidateRegistersOneToManyAndManyToOneConflicts() {
+        MappingCandidate candidate = candidate(10L, MappingCandidateStatus.PENDING, TermRiskLevel.LOW);
+        when(candidateRepository.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
+        when(localTermRepository.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(localTerm(
+            1L, "HIS-DIAG", "DIA-001", TermCategory.DIAGNOSIS, "急性脑梗死", "急性脑梗死"
+        )));
+        when(standardTermRepository.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(standardTerm(
+            2L, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "脑梗死"
+        )));
+        when(mappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("t-1", 1L, 2L))
+            .thenReturn(Optional.empty());
+        when(mappingRepository.findByTenantIdAndLocalTermIdAndStatus("t-1", 1L, TermMappingStatus.CONFIRMED))
+            .thenReturn(List.of(mapping(101L, 1L, 3L, TermCategory.DIAGNOSIS, TermRiskLevel.MEDIUM)));
+        when(mappingRepository.findByTenantIdAndStandardTermIdAndStatus("t-1", 2L, TermMappingStatus.CONFIRMED))
+            .thenReturn(List.of(mapping(102L, 4L, 2L, TermCategory.DIAGNOSIS, TermRiskLevel.LOW)));
+        when(mappingRepository.save(any(TermMapping.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(conflictRepository.save(any(MappingConflict.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirmCandidate(10L, confirmRequest(false, null));
+
+        ArgumentCaptor<MappingConflict> conflictCaptor = ArgumentCaptor.forClass(MappingConflict.class);
+        verify(conflictRepository, Mockito.times(2)).save(conflictCaptor.capture());
+        assertThat(conflictCaptor.getAllValues())
+            .extracting(MappingConflict::conflictType)
+            .containsExactlyInAnyOrder(MappingConflictType.ONE_TO_MANY, MappingConflictType.MANY_TO_ONE);
+        assertThat(conflictCaptor.getAllValues())
+            .allSatisfy(conflict -> {
+                assertThat(conflict.status()).isEqualTo(MappingConflictStatus.OPEN);
+                assertThat(conflict.localTermId()).isEqualTo(1L);
+                assertThat(conflict.standardTermId()).isEqualTo(2L);
+                assertThat(conflict.description()).contains("待人工裁决");
+            });
+
+        ArgumentCaptor<MappingCandidate> savedCandidate = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository).save(savedCandidate.capture());
+        assertThat(savedCandidate.getValue().conflictFlag()).isTrue();
+        assertThat(savedCandidate.getValue().status()).isEqualTo(MappingCandidateStatus.CONFIRMED);
     }
 
     @Test
@@ -471,10 +540,27 @@ class TerminologyServiceTest {
     }
 
     private TermMapping mapping(Long id, TermMappingStatus status) {
+        return mapping(id, 1L, 2L, TermCategory.LAB, TermRiskLevel.HIGH, status);
+    }
+
+    private TermMapping mapping(Long id,
+                                Long localTermId,
+                                Long standardTermId,
+                                TermCategory category,
+                                TermRiskLevel riskLevel) {
+        return mapping(id, localTermId, standardTermId, category, riskLevel, TermMappingStatus.CONFIRMED);
+    }
+
+    private TermMapping mapping(Long id,
+                                Long localTermId,
+                                Long standardTermId,
+                                TermCategory category,
+                                TermRiskLevel riskLevel,
+                                TermMappingStatus status) {
         Instant now = Instant.now();
         return new TermMapping(
-            id, "t-1", 1L, 2L, "LIS", TermCategory.LAB, 0.96,
-            TermRiskLevel.HIGH, status, "同义词 + 单位一致", "u-99", now,
+            id, "t-1", localTermId, standardTermId, "LIS", category, 0.96,
+            riskLevel, status, "同义词 + 单位一致", "u-99", now,
             now, "system", now, "system"
         );
     }
@@ -636,6 +722,51 @@ class TerminologyServiceTest {
         assertThat(created.riskLevel()).isEqualTo(TermRiskLevel.MEDIUM);
         assertThat(created.evidenceText()).contains("确定性语义匹配", "编码族");
         assertThat(created.evidenceText()).doesNotContain("同义词/缩写", "LCS");
+    }
+
+    @Test
+    void generateCandidatesMarksSameLocalMultiStandardCandidatesAsOpenConflict() {
+        LocalTerm local = localTerm(
+            1L, "HIS-DIAG", "DIA-001", TermCategory.DIAGNOSIS, "急性脑梗死", "急性脑梗死"
+        );
+        StandardTerm icdA = standardTerm(
+            2L, "ICD-10", "I63.900", TermCategory.DIAGNOSIS, "脑梗死", "急性脑梗死|脑梗死"
+        );
+        StandardTerm icdB = standardTerm(
+            3L, "ICD-10", "I63.901", TermCategory.DIAGNOSIS, "脑梗死急性期", "急性脑梗死|脑梗死急性期"
+        );
+
+        when(localTermRepository.findByTenantIdAndSourceSystemAndStatus("t-1", "LIS", LocalTermStatus.UNMAPPED))
+            .thenReturn(List.of(local));
+        when(standardTermRepository.findByTenantIdAndStatus("t-1", StandardTermStatus.ACTIVE))
+            .thenReturn(List.of(icdA, icdB));
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(2L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+            eq("t-1"), eq(1L), eq(3L), eq(MappingCandidateStatus.PENDING)
+        )).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(conflictRepository.save(any(MappingConflict.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TerminologyCandidateGenerationResponse response = service.generateCandidates(candidateGenerationRequest("t-1"));
+
+        assertThat(response.generatedCount()).isEqualTo(2);
+        ArgumentCaptor<MappingCandidate> candidateCaptor = ArgumentCaptor.forClass(MappingCandidate.class);
+        verify(candidateRepository, Mockito.times(2)).save(candidateCaptor.capture());
+        assertThat(candidateCaptor.getAllValues())
+            .allSatisfy(saved -> {
+                assertThat(saved.conflictFlag()).isTrue();
+                assertThat(saved.status()).isEqualTo(MappingCandidateStatus.PENDING);
+            });
+
+        ArgumentCaptor<MappingConflict> conflictCaptor = ArgumentCaptor.forClass(MappingConflict.class);
+        verify(conflictRepository).save(conflictCaptor.capture());
+        assertThat(conflictCaptor.getValue().conflictType()).isEqualTo(MappingConflictType.ONE_TO_MANY);
+        assertThat(conflictCaptor.getValue().localTermId()).isEqualTo(1L);
+        assertThat(conflictCaptor.getValue().standardTermId()).isNull();
+        assertThat(conflictCaptor.getValue().status()).isEqualTo(MappingConflictStatus.OPEN);
+        assertThat(conflictCaptor.getValue().description()).contains("2 个标准候选", "待人工裁决");
     }
 
     @ParameterizedTest(name = "{0}")

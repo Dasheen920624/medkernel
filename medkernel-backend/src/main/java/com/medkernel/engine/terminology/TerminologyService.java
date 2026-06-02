@@ -241,8 +241,63 @@ public class TerminologyService {
                 candidate.confidence(), candidate.riskLevel(), TermMappingStatus.CONFIRMED,
                 evidence(evidenceOverride, candidate), userId, now, now, userId, now, userId
             )));
-        candidateRepository.save(candidate.confirmed(reviewNote, userId, now));
+        boolean conflictDetected = registerConfirmedMappingConflicts(candidate, saved, userId, now);
+        MappingCandidate reviewedCandidate = conflictDetected
+            ? candidate.withConflictFlag(true, userId, now)
+            : candidate;
+        candidateRepository.save(reviewedCandidate.confirmed(reviewNote, userId, now));
         return saved;
+    }
+
+    private boolean registerConfirmedMappingConflicts(MappingCandidate candidate,
+                                                      TermMapping saved,
+                                                      String userId,
+                                                      Instant now) {
+        String tenantId = candidate.tenantId();
+        boolean conflictDetected = false;
+        for (TermMapping existing : mappingRepository.findByTenantIdAndLocalTermIdAndStatus(
+                tenantId, candidate.localTermId(), TermMappingStatus.CONFIRMED)) {
+            if (Objects.equals(existing.standardTermId(), candidate.standardTermId())) {
+                continue;
+            }
+            conflictDetected = true;
+            ensureOpenConflict(
+                tenantId,
+                MappingConflictType.ONE_TO_MANY,
+                candidate.localTermId(),
+                candidate.standardTermId(),
+                saved.id(),
+                higherRisk(candidate.riskLevel(), existing.riskLevel()),
+                "同一院内术语 id=" + candidate.localTermId()
+                    + " 已确认映射到标准术语 id=" + existing.standardTermId()
+                    + "，当前又确认到标准术语 id=" + candidate.standardTermId()
+                    + "，待人工裁决",
+                userId,
+                now
+            );
+        }
+        for (TermMapping existing : mappingRepository.findByTenantIdAndStandardTermIdAndStatus(
+                tenantId, candidate.standardTermId(), TermMappingStatus.CONFIRMED)) {
+            if (Objects.equals(existing.localTermId(), candidate.localTermId())) {
+                continue;
+            }
+            conflictDetected = true;
+            ensureOpenConflict(
+                tenantId,
+                MappingConflictType.MANY_TO_ONE,
+                candidate.localTermId(),
+                candidate.standardTermId(),
+                saved.id(),
+                higherRisk(candidate.riskLevel(), existing.riskLevel()),
+                "标准术语 id=" + candidate.standardTermId()
+                    + " 已被院内术语 id=" + existing.localTermId()
+                    + " 确认映射，当前院内术语 id=" + candidate.localTermId()
+                    + " 也确认到该标准术语，待人工裁决",
+                userId,
+                now
+            );
+        }
+        return conflictDetected;
     }
 
     /**
@@ -498,6 +553,7 @@ public class TerminologyService {
         List<TerminologyCandidateResponse> generated = new java.util.ArrayList<>();
         Map<TermCategory, List<HighRiskRule>> highRiskRulesByCategory = new HashMap<>();
         for (LocalTerm local : unmapped) {
+            List<CandidateMatch> matches = new java.util.ArrayList<>();
             List<HighRiskRule> highRiskRules = semanticAssistEnabled
                 ? highRiskRulesByCategory.computeIfAbsent(
                     local.category(),
@@ -517,29 +573,51 @@ public class TerminologyService {
                     : SemanticTermMatcher.matchExactCode(local, standard);
                 if (highRisk.isPresent() || (match.isPresent() && match.get().score() >= threshold)) {
                     CandidateDecision decision = candidateDecision(highRisk, match);
-
-                    Optional<MappingCandidate> existingOpt = candidateRepository
-                        .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
-                            tenantId, local.id(), standard.id(), MappingCandidateStatus.PENDING);
-
-                    MappingCandidate saved;
-                    if (existingOpt.isPresent()) {
-                        MappingCandidate existing = existingOpt.get();
-                        saved = candidateRepository.save(new MappingCandidate(
-                            existing.id(), tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
-                            decision.riskLevel(), decision.evidence(), false, MappingCandidateStatus.PENDING,
-                            existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
-                            existing.createdAt(), existing.createdBy(), now, userId
-                        ));
-                    } else {
-                        saved = candidateRepository.save(new MappingCandidate(
-                            null, tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
-                            decision.riskLevel(), decision.evidence(), false, MappingCandidateStatus.PENDING,
-                            null, null, null, now, userId, now, userId
-                        ));
-                    }
-                    generated.add(TerminologyCandidateResponse.from(saved));
+                    matches.add(new CandidateMatch(standard, decision));
                 }
+            }
+
+            boolean conflictFlag = matches.size() > 1;
+            if (conflictFlag) {
+                ensureOpenConflict(
+                    tenantId,
+                    MappingConflictType.ONE_TO_MANY,
+                    local.id(),
+                    null,
+                    null,
+                    highestRisk(matches),
+                    "院内术语 id=" + local.id() + " 命中 " + matches.size()
+                        + " 个标准候选 " + candidateStandardIds(matches)
+                        + "，待人工裁决",
+                    userId,
+                    now
+                );
+            }
+
+            for (CandidateMatch candidateMatch : matches) {
+                StandardTerm standard = candidateMatch.standard();
+                CandidateDecision decision = candidateMatch.decision();
+                Optional<MappingCandidate> existingOpt = candidateRepository
+                    .findByTenantIdAndLocalTermIdAndStandardTermIdAndStatus(
+                        tenantId, local.id(), standard.id(), MappingCandidateStatus.PENDING);
+
+                MappingCandidate saved;
+                if (existingOpt.isPresent()) {
+                    MappingCandidate existing = existingOpt.get();
+                    saved = candidateRepository.save(new MappingCandidate(
+                        existing.id(), tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                        decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
+                        existing.reviewNote(), existing.reviewedBy(), existing.reviewedAt(),
+                        existing.createdAt(), existing.createdBy(), now, userId
+                    ));
+                } else {
+                    saved = candidateRepository.save(new MappingCandidate(
+                        null, tenantId, local.id(), standard.id(), decision.score(), MappingCandidateSource.RULE,
+                        decision.riskLevel(), decision.evidence(), conflictFlag, MappingCandidateStatus.PENDING,
+                        null, null, null, now, userId, now, userId
+                    ));
+                }
+                generated.add(TerminologyCandidateResponse.from(saved));
             }
         }
         return new TerminologyCandidateGenerationResponse(generated.size(), generated);
@@ -556,6 +634,61 @@ public class TerminologyService {
         String evidence = risk.evidence()
             + semantic.map(match -> "；原候选依据：" + match.evidence()).orElse("");
         return new CandidateDecision(score, TermRiskLevel.HIGH, evidence);
+    }
+
+    private void ensureOpenConflict(String tenantId,
+                                    MappingConflictType conflictType,
+                                    Long localTermId,
+                                    Long standardTermId,
+                                    Long mappingId,
+                                    TermRiskLevel riskLevel,
+                                    String description,
+                                    String userId,
+                                    Instant now) {
+        Optional<MappingConflict> existing = standardTermId == null
+            ? conflictRepository.findOpenLocalOnly(tenantId, conflictType, localTermId)
+            : conflictRepository.findOpenByExactScope(tenantId, conflictType, localTermId, standardTermId);
+        if (existing.isPresent()) {
+            return;
+        }
+        conflictRepository.save(new MappingConflict(
+            null, tenantId, conflictType, localTermId, standardTermId, mappingId,
+            riskLevel, description, MappingConflictStatus.OPEN,
+            null, null, null, now, userId, now, userId
+        ));
+    }
+
+    private TermRiskLevel highestRisk(List<CandidateMatch> matches) {
+        TermRiskLevel highest = TermRiskLevel.LOW;
+        for (CandidateMatch match : matches) {
+            highest = higherRisk(highest, match.decision().riskLevel());
+        }
+        return highest;
+    }
+
+    private TermRiskLevel higherRisk(TermRiskLevel first, TermRiskLevel second) {
+        TermRiskLevel normalizedFirst = first == null ? TermRiskLevel.LOW : first;
+        TermRiskLevel normalizedSecond = second == null ? TermRiskLevel.LOW : second;
+        if (normalizedFirst == TermRiskLevel.HIGH || normalizedSecond == TermRiskLevel.HIGH) {
+            return TermRiskLevel.HIGH;
+        }
+        if (normalizedFirst == TermRiskLevel.MEDIUM || normalizedSecond == TermRiskLevel.MEDIUM) {
+            return TermRiskLevel.MEDIUM;
+        }
+        return TermRiskLevel.LOW;
+    }
+
+    private String candidateStandardIds(List<CandidateMatch> matches) {
+        return matches.stream()
+            .map(match -> String.valueOf(match.standard().id()))
+            .toList()
+            .toString();
+    }
+
+    private record CandidateMatch(
+        StandardTerm standard,
+        CandidateDecision decision
+    ) {
     }
 
     private record CandidateDecision(

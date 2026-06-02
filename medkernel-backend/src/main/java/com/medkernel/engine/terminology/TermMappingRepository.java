@@ -16,6 +16,12 @@ public interface TermMappingRepository extends ListCrudRepository<TermMapping, L
     Optional<TermMapping> findByTenantIdAndLocalTermIdAndStandardTermId(String tenantId, Long localTermId,
                                                                         Long standardTermId);
 
+    List<TermMapping> findByTenantIdAndLocalTermIdAndStatus(String tenantId, Long localTermId,
+                                                            TermMappingStatus status);
+
+    List<TermMapping> findByTenantIdAndStandardTermIdAndStatus(String tenantId, Long standardTermId,
+                                                               TermMappingStatus status);
+
     /**
      * 按租户 + 可选过滤条件（来源系统 / 分类 / 状态 / 证据关键词）统计映射数量。
      */
