@@ -18,6 +18,7 @@
 `engine/knowledge` **已有分级枚举雏形**，本卡＝**框架化分级 + GRADE + 仲裁**：
 - 已有：`SourceAuthorityLevel`、`SourceType`、`Citation`/`CitationRelation`、`KnowledgeRiskLevel`。
 - 缺口（本卡补）：① **A/B/C/D/E 五级**标准化 + 判定规则；② **GRADE 兼容**字段（证据质量/推荐强度）；③ **冲突仲裁**算法（分级 + 时效 + 适用域，默认高阶）；④ 低阶覆盖高阶的**显式理由 + 审核**门禁。
+- 2026-06-02 阶段证据：`KNOW-01` PR2 已落地引擎底座（A/B/C/D/E 枚举与依据、GRADE 字段、资产版本快照、冲突仲裁摘要、低阶覆盖高阶显式理由门禁、V50 数据列与约束）。本卡仍不整体标 done：FR-5 展示/默认推荐优先级需等 D4/D6 页面或临床消费面接入后验收。
 
 ## 功能要求（原子可测条目）
 - [ ] **FR-1 五级分级**：来源标 A 法规 / B 国家指南 / C 共识文献 / D 院内 / E 反馈；分级有判定依据可溯。
@@ -70,4 +71,5 @@ N·A —— 本卡无页面。分级/仲裁结果在 D6 来源追溯页 / D4 知
 ## 完工证据
 - 代码 permalink：`SourceAuthorityLevel` 五级 + `GradeRating` + `ConflictArbitration` + 覆盖门禁 + 5 方言增量迁移。
 - 测试：分级判定测试 + 冲突仲裁测试 + 低阶覆盖门禁测试 + 展示优先级测试。
+- 阶段证据：`KNOW-01` PR2 已覆盖分级判定、GRADE 入参、冲突仲裁、低阶覆盖门禁与 PostgreSQL/Oracle/H2 V50 迁移烟测；展示优先级测试仍待页面/消费端接入。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

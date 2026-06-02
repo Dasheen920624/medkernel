@@ -97,12 +97,13 @@ class EngineEndToEndIntegrationTest {
         var doc = docRepo.save(new com.medkernel.engine.knowledge.SourceDocument(
             null, tenantId, "DOC-STROKE-101",
             com.medkernel.engine.knowledge.SourceType.GUIDELINE,
-            com.medkernel.engine.knowledge.SourceAuthorityLevel.CHINA_NATIONAL,
+            com.medkernel.engine.knowledge.SourceAuthorityLevel.B_GUIDELINE,
+            "国家级指南发布机构与版本号可追溯",
             "急性缺血性脑卒中规范化溶栓指南 (2025版)", "卫健委", "None", "zh-CN",
             Instant.now(), "system", Instant.now(), "system"
         ));
         var ver = verRepo.save(new com.medkernel.engine.knowledge.SourceVersion(
-            null, tenantId, doc.id(), "v1.0", Instant.now(), "hash-stroke-e2e", "http://docs/stroke-v1.pdf", "zh-CN",
+            null, tenantId, doc.id(), "v1.0", Instant.now(), sha256(payload), "http://docs/stroke-v1.pdf", "zh-CN",
             Instant.now(), "system"
         ));
 
@@ -291,5 +292,23 @@ class EngineEndToEndIntegrationTest {
         assertEquals(verifyResult.storedHash(), verifyResult.calculatedHash(), "哈希对账一致");
 
         System.out.println("====== 🎉 [MedKernel v1.0 GA 顶级引擎全链路 E2E 验证通过！] ======");
+    }
+
+    private String sha256(String text) {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                String part = Integer.toHexString(0xff & b);
+                if (part.length() == 1) {
+                    hex.append('0');
+                }
+                hex.append(part);
+            }
+            return hex.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("无法计算测试来源正文 SHA-256", ex);
+        }
     }
 }

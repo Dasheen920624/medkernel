@@ -19,6 +19,7 @@ public record SourceDocument(
     @Column("source_code") String sourceCode,
     @Column("source_type") SourceType sourceType,
     @Column("authority_level") SourceAuthorityLevel authorityLevel,
+    @Column("authority_basis") String authorityBasis,
     @Column("title") String title,
     @Column("publisher") String publisher,
     @Column("license") String license,

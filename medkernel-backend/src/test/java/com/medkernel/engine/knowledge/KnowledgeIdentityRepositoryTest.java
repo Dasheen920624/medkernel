@@ -120,7 +120,8 @@ class KnowledgeIdentityRepositoryTest {
     void sourceFragmentContentHashIsPersistedAndQueryable() {
         Instant now = Instant.now();
         SourceDocument document = sourceDocumentRepository.save(new SourceDocument(
-            null, "t-1", "SRC.A", SourceType.GUIDELINE, SourceAuthorityLevel.SOCIETY,
+            null, "t-1", "SRC.A", SourceType.GUIDELINE, SourceAuthorityLevel.C_CONSENSUS_LITERATURE,
+            "专业学会共识原文可追溯",
             "来源文件", "发布机构", "LICENSE", "zh-CN", now, "tester", now, "tester"
         ));
         SourceVersion version = sourceVersionRepository.save(new SourceVersion(

@@ -49,6 +49,7 @@ class KnowledgeIdentityServiceTest {
         );
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(sourceDocRepo.save(any(SourceDocument.class))).thenAnswer(inv -> inv.getArgument(0));
         when(sourceVerRepo.save(any(SourceVersion.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -143,6 +144,46 @@ class KnowledgeIdentityServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
+    }
+
+    @Test
+    void sourceAuthorityLevelsFollowCanonicalAToETrustOrder() {
+        assertThat(SourceAuthorityLevel.A_REGULATION.rank()).isLessThan(SourceAuthorityLevel.B_GUIDELINE.rank());
+        assertThat(SourceAuthorityLevel.B_GUIDELINE.rank()).isLessThan(SourceAuthorityLevel.C_CONSENSUS_LITERATURE.rank());
+        assertThat(SourceAuthorityLevel.C_CONSENSUS_LITERATURE.rank()).isLessThan(SourceAuthorityLevel.D_HOSPITAL.rank());
+        assertThat(SourceAuthorityLevel.D_HOSPITAL.rank()).isLessThan(SourceAuthorityLevel.E_FEEDBACK.rank());
+        assertThat(SourceAuthorityLevel.A_REGULATION.label()).contains("A");
+        assertThat(SourceAuthorityLevel.A_REGULATION.isHighAuthority()).isTrue();
+        assertThat(SourceAuthorityLevel.D_HOSPITAL.isLowAuthority()).isTrue();
+    }
+
+    @Test
+    void registerSourceRejectsBlankAuthorityBasis() {
+        SourceRegisterRequest request = new SourceRegisterRequest(
+            "SRC.NHC.2026", SourceType.POLICY, SourceAuthorityLevel.A_REGULATION,
+            "国家卫健委政策", "国家卫健委", "公开", "zh-CN", "  "
+        );
+        when(sourceDocRepo.findByTenantIdAndSourceCode("t-1", "SRC.NHC.2026")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.registerSource(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        Mockito.verify(sourceDocRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void registerSourceStoresAuthorityBasis() {
+        SourceRegisterRequest request = new SourceRegisterRequest(
+            "SRC.NHC.2026", SourceType.POLICY, SourceAuthorityLevel.A_REGULATION,
+            "国家卫健委政策", "国家卫健委", "公开", "zh-CN", "国家卫健委发布文件编号 NHC-2026-01"
+        );
+        when(sourceDocRepo.findByTenantIdAndSourceCode("t-1", "SRC.NHC.2026")).thenReturn(Optional.empty());
+
+        SourceDocument created = service.registerSource(request);
+
+        assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.A_REGULATION);
+        assertThat(created.authorityBasis()).isEqualTo("国家卫健委发布文件编号 NHC-2026-01");
     }
 
     @Test
@@ -347,7 +388,8 @@ class KnowledgeIdentityServiceTest {
     private SourceDocument identitySourceDocument() {
         Instant now = Instant.now();
         return new SourceDocument(
-            1L, "t-1", "SRC.X", SourceType.GUIDELINE, SourceAuthorityLevel.HOSPITAL,
+            1L, "t-1", "SRC.X", SourceType.GUIDELINE, SourceAuthorityLevel.D_HOSPITAL,
+            "院内制度编号可追溯",
             "来源文件", "发布机构", "LICENSE", "zh-CN", now, "u", now, "u"
         );
     }
@@ -366,6 +408,7 @@ class KnowledgeIdentityServiceTest {
             id, "t-1", identityId, "v1", "label",
             null, null, sha256("知识版本夹具内容-" + id), null,
             status, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE, null, null, null,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,

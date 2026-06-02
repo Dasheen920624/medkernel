@@ -26,6 +26,7 @@ public record KnowledgeSourceCreateRequest(
     @JsonAlias("source_code") @NotBlank String sourceCode,
     @JsonAlias("source_type") @NotNull SourceType sourceType,
     @JsonAlias("authority_level") @NotNull SourceAuthorityLevel authorityLevel,
+    @JsonAlias("authority_basis") @NotBlank String authorityBasis,
     @NotBlank String title,
     String publisher,
     String license,
@@ -44,6 +45,6 @@ public record KnowledgeSourceCreateRequest(
     }
 
     SourceRegisterRequest toSourceRegisterRequest() {
-        return new SourceRegisterRequest(sourceCode, sourceType, authorityLevel, title, publisher, license, language);
+        return new SourceRegisterRequest(sourceCode, sourceType, authorityLevel, title, publisher, license, language, authorityBasis);
     }
 }

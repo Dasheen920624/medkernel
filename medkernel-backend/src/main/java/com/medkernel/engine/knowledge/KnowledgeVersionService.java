@@ -40,15 +40,18 @@ public class KnowledgeVersionService {
     private final KnowledgeAssetVersionRepository versionRepository;
     private final KnowledgeSupersessionRepository supersessionRepository;
     private final CitationRepository citationRepository;
+    private final SourceDocumentRepository sourceDocumentRepository;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
                                    KnowledgeSupersessionRepository supersessionRepository,
-                                   CitationRepository citationRepository) {
+                                   CitationRepository citationRepository,
+                                   SourceDocumentRepository sourceDocumentRepository) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
         this.citationRepository = citationRepository;
+        this.sourceDocumentRepository = sourceDocumentRepository;
     }
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
@@ -101,6 +104,7 @@ public class KnowledgeVersionService {
             target.sourceDocumentId(), target.sourceVersionId(),
             target.contentHash(), target.anchors(),
             KnowledgeVersionStatus.UNDER_REVIEW, target.riskLevel(),
+            target.authorityLevel(), target.gradeQuality(), target.gradeStrength(), target.conflictArbitration(),
             target.effectiveFrom(), target.effectiveTo(),
             target.reviewedBy(), target.reviewedAt(),
             target.activatedAt(), target.supersededAt(),
@@ -172,6 +176,7 @@ public class KnowledgeVersionService {
         String tenantId = requireCurrentTenant();
         String actor = currentActor();
         Instant now = Instant.now();
+        String normalizedReason = reason == null || reason.isBlank() ? null : reason.trim();
 
         // 1) 悲观锁定身份行 — 序列化同一 identity 的所有 activate / withdraw
         KnowledgeIdentity identity = identityRepository.findByTenantIdAndIdForUpdate(tenantId, identityId)
@@ -190,7 +195,7 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.CONFLICT,
                 "版本当前状态 " + target.status() + " 不可激活（需 UNDER_REVIEW 或 CANDIDATE）");
         }
-        if (target.isHighRisk() && (reason == null || reason.isBlank())) {
+        if (target.isHighRisk() && normalizedReason == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
         requireCitation(tenantId, target.id());
@@ -199,8 +204,14 @@ public class KnowledgeVersionService {
         Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByIdentity(tenantId, identityId);
         Long oldVersionId = null;
         SupersessionType transitionType = SupersessionType.ACTIVATE;
+        ConflictArbitration arbitration = null;
         if (currentActiveOpt.isPresent()) {
             KnowledgeAssetVersion oldActive = currentActiveOpt.get();
+            arbitration = ConflictArbitration.between(oldActive, target);
+            if (arbitration.lowAuthorityOverrideHighAuthority() && normalizedReason == null) {
+                throw new ApiException(ErrorCode.AUTHORITY_OVERRIDE_DENIED,
+                    "低阶来源覆盖高阶来源必须填写理由并由发布审核人确认");
+            }
             oldVersionId = oldActive.id();
             transitionType = SupersessionType.REPLACE;
             KnowledgeAssetVersion superseded = new KnowledgeAssetVersion(
@@ -209,6 +220,7 @@ public class KnowledgeVersionService {
                 oldActive.sourceDocumentId(), oldActive.sourceVersionId(),
                 oldActive.contentHash(), oldActive.anchors(),
                 KnowledgeVersionStatus.SUPERSEDED, oldActive.riskLevel(),
+                oldActive.authorityLevel(), oldActive.gradeQuality(), oldActive.gradeStrength(), oldActive.conflictArbitration(),
                 oldActive.effectiveFrom(), now /* effective_to = activate 时刻 */,
                 oldActive.reviewedBy(), oldActive.reviewedAt(),
                 oldActive.activatedAt(), now /* superseded_at */,
@@ -226,6 +238,8 @@ public class KnowledgeVersionService {
             target.sourceDocumentId(), target.sourceVersionId(),
             target.contentHash(), target.anchors(),
             KnowledgeVersionStatus.ACTIVE, target.riskLevel(),
+            target.authorityLevel(), target.gradeQuality(), target.gradeStrength(),
+            arbitration != null && arbitration.hasSummary() ? arbitration.summary() : target.conflictArbitration(),
             now /* effective_from = 激活时刻 */, null /* effective_to 由后续 supersede 写 */,
             actor, now /* reviewed_at */,
             now /* activated_at */, null, null, null,
@@ -247,12 +261,22 @@ public class KnowledgeVersionService {
         // 6) supersession 历史链
         KnowledgeSupersession transition = new KnowledgeSupersession(
             null, tenantId, identityId, oldVersionId, saved.id(),
-            transitionType, reason == null ? null : reason.trim(),
+            transitionType, transitionReason(normalizedReason, arbitration),
             now, actor
         );
         supersessionRepository.save(transition);
 
         return saved;
+    }
+
+    private String transitionReason(String reason, ConflictArbitration arbitration) {
+        if (arbitration == null || !arbitration.hasSummary()) {
+            return reason;
+        }
+        if (reason == null || reason.isBlank()) {
+            return arbitration.summary();
+        }
+        return reason.trim() + "\n" + arbitration.summary();
     }
 
     /**
@@ -290,6 +314,7 @@ public class KnowledgeVersionService {
             target.sourceDocumentId(), target.sourceVersionId(),
             target.contentHash(), target.anchors(),
             KnowledgeVersionStatus.WITHDRAWN, target.riskLevel(),
+            target.authorityLevel(), target.gradeQuality(), target.gradeStrength(), target.conflictArbitration(),
             target.effectiveFrom(), now,
             target.reviewedBy(), target.reviewedAt(),
             target.activatedAt(), target.supersededAt(),
@@ -361,6 +386,8 @@ public class KnowledgeVersionService {
         // 1) 校验知识身份是否存在
         KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, request.identityId())
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + request.identityId()));
+        SourceDocument sourceDocument = sourceDocumentRepository.findByTenantIdAndId(tenantId, request.sourceDocumentId())
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_KNOW_001, "来源文献不存在 id=" + request.sourceDocumentId()));
 
         // 2) 校验版本号唯一性，避免 uk_knowledge_asset_version (identity_id, version_no) 碰撞
         Optional<KnowledgeAssetVersion> existingVerOpt = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, request.identityId()).stream()
@@ -394,6 +421,7 @@ public class KnowledgeVersionService {
             request.anchors(),
             KnowledgeVersionStatus.UNDER_REVIEW, // 初始状态为 UNDER_REVIEW
             request.riskLevel() == null ? KnowledgeRiskLevel.MEDIUM : request.riskLevel(),
+            sourceDocument.authorityLevel(), request.gradeQuality(), request.gradeStrength(), null,
             null, null, null, null, null, null, null, null,
             now, actor, now, actor
         );

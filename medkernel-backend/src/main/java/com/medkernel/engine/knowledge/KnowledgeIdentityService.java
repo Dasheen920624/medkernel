@@ -194,6 +194,7 @@ public class KnowledgeIdentityService {
      */
     public SourceDocument registerSource(SourceRegisterRequest request) {
         String tenantId = requireCurrentTenant();
+        String authorityBasis = requireAuthorityBasis(request.authorityBasis());
         return sourceDocumentRepository.findByTenantIdAndSourceCode(tenantId, request.sourceCode())
             .orElseGet(() -> {
                 SourceDocument doc = new SourceDocument(
@@ -202,6 +203,7 @@ public class KnowledgeIdentityService {
                     request.sourceCode(),
                     request.sourceType(),
                     request.authorityLevel(),
+                    authorityBasis,
                     request.title(),
                     request.publisher(),
                     request.license(),
@@ -296,6 +298,13 @@ public class KnowledgeIdentityService {
             Instant.now()
         );
         return sourceFragmentRepository.save(fragment);
+    }
+
+    private String requireAuthorityBasis(String authorityBasis) {
+        if (authorityBasis == null || authorityBasis.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "来源可信分级必须填写判定依据");
+        }
+        return authorityBasis.trim();
     }
 
     private String currentActor() {
