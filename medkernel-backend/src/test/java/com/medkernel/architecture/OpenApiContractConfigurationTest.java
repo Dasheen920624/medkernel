@@ -18,6 +18,6 @@ class OpenApiContractConfigurationTest {
         assertThat(ServiceContractCatalog.openApiPaths())
             .contains("/api/v1/engine/events/**")
             .contains("/api/v1/engine/rule/**")
-            .contains("/api/v1/engine/pathways/**");
+            .contains("/api/v1/engine/pathway/**");
     }
 }

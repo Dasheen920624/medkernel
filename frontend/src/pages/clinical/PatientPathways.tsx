@@ -21,26 +21,30 @@ import {
 import type { BadgeProps, TableProps } from "antd";
 import {
   PlusOutlined,
-  BugOutlined,
   CompassOutlined,
   FileTextOutlined,
   CalendarOutlined,
-  UserOutlined,
   RightCircleOutlined,
   WarningOutlined,
   DisconnectOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
+  useSpecialtyPackages,
   usePathwayTemplates,
   usePathwayTemplateDetail,
   useEnterPatientPathway,
   usePatientPathwayDetail,
   useAdvancePatientPathway,
   usePatientPathwayClocks,
-  usePatientPathwayDiagnose,
+  usePatientPathwayVariances,
 } from "@/shared/api/hooks";
-import type { PathwayTemplate, PatientPathway, PatientPathwayStatus } from "@/shared/api/hooks";
+import type {
+  PathwayTemplate,
+  PatientPathway,
+  PatientPathwayStatus,
+  PathwayVariance,
+} from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
@@ -51,7 +55,7 @@ type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
-  const [diagnoseDrawerVisible, setDiagnoseDrawerVisible] = useState<boolean>(false);
+  const [varianceDrawerVisible, setVarianceDrawerVisible] = useState<boolean>(false);
 
   // 分页状态
   const [page, setPage] = useState<number>(1);
@@ -60,6 +64,10 @@ export default function PatientPathways() {
 
   const { data: templatesData } = usePathwayTemplates({
     status: "PUBLISHED",
+    page: 1,
+    size: 100,
+  });
+  const { data: packagesData } = useSpecialtyPackages({
     page: 1,
     size: 100,
   });
@@ -85,7 +93,7 @@ export default function PatientPathways() {
     selectedPathwayId || "",
   );
 
-  const { data: diagnoseData, refetch: refetchDiagnose } = usePatientPathwayDiagnose(
+  const { data: variancesData, refetch: refetchVariances } = usePatientPathwayVariances(
     selectedPathwayId || "",
   );
 
@@ -99,6 +107,24 @@ export default function PatientPathways() {
   const [varianceForm] = Form.useForm();
   const [exitForm] = Form.useForm();
 
+  const packageVersionForTemplate = (templateId?: string | null) => {
+    const selectedTemplate = templateDetail?.template;
+    const template =
+      selectedTemplate?.templateId === templateId
+        ? selectedTemplate
+        : templatesData?.items?.find((item) => item.templateId === templateId);
+    const specialtyPackage = packagesData?.items?.find(
+      (item) => item.packageId === template?.packageId,
+    );
+    return specialtyPackage?.packageVersion ?? (template ? String(template.templateVersion) : "");
+  };
+
+  const selectedTemplatePackageVersion = () =>
+    packageVersionForTemplate(templateDetail?.template.templateId);
+
+  const isPathwayMutable = (status?: PatientPathwayStatus) =>
+    status === "ENTERED" || status === "NODE_EXECUTING" || status === "VARIANCE";
+
   // 办理患者入径
   const handleEnterPathway = async () => {
     try {
@@ -107,7 +133,8 @@ export default function PatientPathways() {
         patientId: values.patientId,
         encounterId: values.encounterId?.trim() || undefined,
         templateId: values.templateId,
-        startNodeCode: values.startNodeCode || "START",
+        startNodeCode: values.startNodeCode?.trim() || undefined,
+        packageVersion: packageVersionForTemplate(values.templateId),
       });
 
       message.success(`患者 ${values.patientId} 入径成功，Trace ID: ${res?.traceId || ""}`);
@@ -132,6 +159,7 @@ export default function PatientPathways() {
       const values = await advanceForm.validateFields();
       const res = await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
+        packageVersion: selectedTemplatePackageVersion(),
         eventType: "COMPLETE",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode: values.requestedNextNodeCode,
@@ -154,7 +182,7 @@ export default function PatientPathways() {
 
       refetchDetail();
       refetchClocks();
-      refetchDiagnose();
+      refetchVariances();
     } catch (error: unknown) {
       if (applyApiFieldErrors(advanceForm, error)) return;
       message.error(getApiErrorMessage(error, "节点流转失败"));
@@ -168,6 +196,7 @@ export default function PatientPathways() {
       const values = await varianceForm.validateFields();
       const res = await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
+        packageVersion: selectedTemplatePackageVersion(),
         eventType: "VARIANCE",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode: values.continueNodeCode,
@@ -193,26 +222,27 @@ export default function PatientPathways() {
 
       refetchDetail();
       refetchClocks();
-      refetchDiagnose();
+      refetchVariances();
     } catch (error: unknown) {
       if (applyApiFieldErrors(varianceForm, error)) return;
       message.error(getApiErrorMessage(error, "变异登记流转失败"));
     }
   };
 
-  // 物理退出路径 (EXIT)
+  // 退出路径 (EXIT)
   const handleExitAdvance = async () => {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await exitForm.validateFields();
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
+        packageVersion: selectedTemplatePackageVersion(),
         eventType: "EXIT",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         exitReason: values.exitReason,
       });
 
-      message.info("患者已办理物理退出临床路径");
+      message.info("患者已退出临床路径");
       exitForm.resetFields();
 
       setSessionPathways((prev) =>
@@ -228,7 +258,7 @@ export default function PatientPathways() {
 
       refetchDetail();
       refetchClocks();
-      refetchDiagnose();
+      refetchVariances();
     } catch (error: unknown) {
       if (applyApiFieldErrors(exitForm, error)) return;
       message.error(getApiErrorMessage(error, "路径退径失败"));
@@ -265,7 +295,7 @@ export default function PatientPathways() {
       dataIndex: "currentNodeCode",
       key: "currentNodeCode",
       render: (c: string, record: PatientPathway) => {
-        if (record.status === "EXITED") return <Tag color="red">已物理退径</Tag>;
+        if (record.status === "EXITED") return <Tag color="red">已退径</Tag>;
         if (record.status === "COMPLETED") return <Tag color="green">已完成路径</Tag>;
         return <Tag color="orange">{c}</Tag>;
       },
@@ -276,7 +306,9 @@ export default function PatientPathways() {
       key: "status",
       render: (status: PatientPathwayStatus) => {
         const config: Record<string, { status: PathwayBadgeStatus; text: string }> = {
-          ACTIVE: { status: "processing", text: "流转中 (ACTIVE)" },
+          ENTERED: { status: "processing", text: "已入径 (ENTERED)" },
+          NODE_EXECUTING: { status: "processing", text: "节点执行中 (NODE_EXECUTING)" },
+          VARIANCE: { status: "warning", text: "变异处理中 (VARIANCE)" },
           COMPLETED: { status: "success", text: "已完成 (COMPLETED)" },
           EXITED: { status: "error", text: "已退出 (EXITED)" },
         };
@@ -293,7 +325,7 @@ export default function PatientPathways() {
           icon={<CompassOutlined />}
           onClick={() => {
             setSelectedPathwayId(record.patientPathwayId);
-            setDiagnoseDrawerVisible(false);
+            setVarianceDrawerVisible(false);
           }}
           className="text-indigo-600 hover:text-indigo-900 font-semibold"
         >
@@ -306,7 +338,7 @@ export default function PatientPathways() {
   return (
     <PageShell
       title="患者路径"
-      description="办理临床患者入径，提供标准路径 Milestone 状态时间线，支撑医护标准推进、临床变异登记与可信诊断可审计链追溯。"
+      description="办理临床患者入径，提供标准路径 Milestone 状态时间线，支撑医护标准推进、临床变异登记与可审计链追溯。"
     >
       {/* 检索头 */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
@@ -378,8 +410,8 @@ export default function PatientPathways() {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，默认为 START)">
-            <Input placeholder="START" />
+          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
+            <Input placeholder="留空使用已发布模板的起始节点" />
           </Form.Item>
         </Form>
       </Modal>
@@ -425,7 +457,9 @@ export default function PatientPathways() {
               </Descriptions.Item>
               <Descriptions.Item label="运行状态">
                 <Badge
-                  status={detailData.patientPathway.status === "ACTIVE" ? "processing" : "default"}
+                  status={
+                    isPathwayMutable(detailData.patientPathway.status) ? "processing" : "default"
+                  }
                   text={detailData.patientPathway.status}
                 />
               </Descriptions.Item>
@@ -533,7 +567,7 @@ export default function PatientPathways() {
                     items={[
                       {
                         key: "complete",
-                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        disabled: !isPathwayMutable(detailData.patientPathway.status),
                         label: (
                           <span>
                             <RightCircleOutlined /> 标准流转
@@ -547,7 +581,7 @@ export default function PatientPathways() {
                             onFinish={handleCompleteAdvance}
                           >
                             <Alert
-                              message="标准推进：物理完成当前操作并驱动至下一个标准路径节点。这会自动触发节点出边（Edge）的评估并刷新时钟周期。"
+                              message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按模板出边计算下一步并刷新关键时钟。"
                               type="success"
                               showIcon
                               className="mb-4 rounded-lg"
@@ -582,7 +616,7 @@ export default function PatientPathways() {
                               loading={advancePathwayMutation.isPending}
                               className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
                             >
-                              物理完成并正常推进
+                              完成当前节点并推进
                             </Button>
                           </Form>
                         ),
@@ -590,7 +624,7 @@ export default function PatientPathways() {
 
                       {
                         key: "variance",
-                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        disabled: !isPathwayMutable(detailData.patientPathway.status),
                         label: (
                           <span>
                             <WarningOutlined /> 登记变异
@@ -675,10 +709,10 @@ export default function PatientPathways() {
 
                       {
                         key: "exit",
-                        disabled: detailData.patientPathway.status !== "ACTIVE",
+                        disabled: !isPathwayMutable(detailData.patientPathway.status),
                         label: (
                           <span>
-                            <DisconnectOutlined /> 物理退径
+                            <DisconnectOutlined /> 退径
                           </span>
                         ),
                         children: (
@@ -689,14 +723,14 @@ export default function PatientPathways() {
                             onFinish={handleExitAdvance}
                           >
                             <Alert
-                              message="人工退径：强行断开人机闭环，将患者从此专病路径中移除。该操作属于高危行为，会物理冻结所有关键时钟，且需要接受临床质量管理监督。"
+                              message="人工退径：将患者从此专病路径中退出。该操作属于高危行为，会关闭当前关键时钟，并需要接受临床质量管理监督。"
                               type="error"
                               showIcon
                               className="mb-4 rounded-lg"
                             />
                             <Form.Item
                               name="exitReason"
-                              label="申请强制物理退径理由"
+                              label="申请强制退径理由"
                               rules={[{ required: true }]}
                             >
                               <TextArea
@@ -712,7 +746,7 @@ export default function PatientPathways() {
                               loading={advancePathwayMutation.isPending}
                               className="w-full mt-2"
                             >
-                              物理脱靶退出路径
+                              确认退出路径
                             </Button>
                           </Form>
                         ),
@@ -723,104 +757,77 @@ export default function PatientPathways() {
               </Col>
             </Row>
 
-            {/* 可信诊断追溯入口 */}
+            {/* 变异事实入口 */}
             <div className="mt-6 flex justify-center w-full">
               <Button
                 type="default"
-                icon={<BugOutlined />}
+                icon={<WarningOutlined />}
                 onClick={() => {
-                  setDiagnoseDrawerVisible(true);
-                  refetchDiagnose();
+                  setVarianceDrawerVisible(true);
+                  refetchVariances();
                 }}
                 className="rounded-lg border-indigo-500 text-indigo-600 hover:bg-indigo-50 w-full max-w-sm py-5 font-semibold text-center flex items-center justify-center gap-2"
               >
-                可信诊断归因与决策追溯审计 (diagnose)
+                查看变异事实与审计线索
               </Button>
             </div>
           </div>
         )}
       </Drawer>
 
-      {/* 可信归因诊断审计 Drawer */}
+      {/* 变异事实 Drawer */}
       <Drawer
         title={
           <div className="flex items-center gap-2">
-            <BugOutlined className="text-indigo-600" />
-            <span>临床路径决策链可信归因追溯</span>
+            <WarningOutlined className="text-indigo-600" />
+            <span>临床路径变异事实</span>
           </div>
         }
         width={640}
-        onClose={() => setDiagnoseDrawerVisible(false)}
-        open={diagnoseDrawerVisible}
+        onClose={() => setVarianceDrawerVisible(false)}
+        open={varianceDrawerVisible}
         destroyOnClose
       >
-        {diagnoseData ? (
+        {(variancesData ?? detailData?.variances ?? []).length > 0 ? (
           <div>
             <Alert
-              message="路径解释追溯数据直接由 StateTransitionRecorder 物理事件留痕归集，隔离了哈希签名，确保 100% 透明及不可篡改审计。"
+              message="这里仅展示后端返回的路径变异事实，页面不补写原因、不生成本地变异记录。"
               type="info"
               showIcon
               className="mb-6 rounded-lg"
             />
 
-            <Descriptions title="求值Trace元数据" bordered column={1} size="small" className="mb-6">
-              <Descriptions.Item label="流转 Execution ID">
-                <span className="font-normal text-xs">{diagnoseData.executionId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="链路 Trace ID">
-                <span className="font-normal text-xs">{diagnoseData.traceId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
-                <span className="font-normal text-xs">
-                  {diagnoseData.inputPayloadSummary || "待后端返回"}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="流程风险定级">
-                <Tag color={diagnoseData.riskLevel === "HIGH" ? "red" : "orange"}>
-                  {diagnoseData.riskLevel || "LOW"}
-                </Tag>
-              </Descriptions.Item>
-            </Descriptions>
-
             <Card
               title={
                 <div className="flex items-center gap-2 text-indigo-600 font-semibold">
                   <FileTextOutlined />
-                  <span>路径决策流转证据与解释文本</span>
+                  <span>变异记录</span>
                 </div>
               }
               className="mb-6 rounded-xl border-gray-200"
             >
-              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100">
-                {diagnoseData.explanationSnapshot || "当前接口未返回解释文本，页面不会补写归因。"}
-              </div>
-            </Card>
-
-            <Card
-              title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <CalendarOutlined />
-                  <span>审计流转历史 (State History)</span>
-                </div>
-              }
-              className="rounded-xl border-gray-200"
-            >
               <Timeline>
-                {diagnoseData.statusHistory?.map((h, idx) => (
-                  <Timeline.Item key={idx} color={h.status === "SIGNED" ? "green" : "blue"}>
-                    <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
-                      <span>状态: {h.status}</span>
-                      <span className="text-gray-400 font-normal">
-                        {new Date(h.changedAt).toLocaleString()}
-                      </span>
+                {(variancesData ?? detailData?.variances ?? []).map((variance: PathwayVariance) => (
+                  <Timeline.Item key={variance.varianceId} color="orange">
+                    <div className="font-semibold text-gray-800 text-xs">
+                      {variance.nodeCode} · {variance.varianceType}
                     </div>
-                    <div className="text-gray-600 text-xs mt-1">
-                      <span>操作人: </span>
-                      <Tag color="cyan" icon={<UserOutlined />}>
-                        {h.changedBy}
-                      </Tag>
+                    <div className="text-gray-600 text-xs mt-1">{variance.reason}</div>
+                    <div className="text-gray-500 text-xs mt-1">
+                      <span>处置动作：</span>
+                      <span>{variance.resolutionAction || "未记录"}</span>
                     </div>
-                    <div className="text-gray-500 text-xs mt-1 font-normal italic">{h.summary}</div>
+                    {variance.continueNodeCode && (
+                      <div className="text-gray-500 text-xs mt-1">
+                        <span>继续节点：</span>
+                        <Tag color="blue">{variance.continueNodeCode}</Tag>
+                      </div>
+                    )}
+                    <div className="text-gray-400 text-xs mt-1">
+                      {variance.createdAt
+                        ? new Date(variance.createdAt).toLocaleString()
+                        : "未返回时间"}
+                    </div>
                   </Timeline.Item>
                 ))}
               </Timeline>
@@ -829,7 +836,7 @@ export default function PatientPathways() {
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[200px] text-gray-400">
             <WarningOutlined className="text-48px mb-4" />
-            <span>无法获取该路径实例的物理诊断解释链。</span>
+            <span>当前路径实例暂无变异记录。</span>
           </div>
         )}
       </Drawer>

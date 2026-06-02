@@ -17,15 +17,15 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
 `engine/pathway` **控制器已建**，本卡＝**契约化 + 统一入参/分页对齐**：
 - 已有：`PathwayEngineController`(+ 安全测试)、`PathwayEngineService`、`PathwayTemplateCreateRequest`/`Detail`/`Filter`/`PublishResponse`、`PatientPathwayEnterRequest`/`Detail`、`PathwayAdvanceRequest`/`Response`、`PathwaySimulateRequest`/`Response`、`SpecialtyPackageCreateRequest`、`SpecialtyMetricBindingRequest`、`ClinicalClock`。
-- 缺口（本卡补）：① 统一 12 字段入参 + 信封；② 关键时钟/变异查询端点对齐；③ 发布对齐 [SYS-04](SYS-04.md) 7 步流；④ 大列表走 [API-13](../D0/API-13.md)。
+- 2026-06-02 本卡补齐：① 统一 12 字段入参 + `ApiResult`/`ProblemDetail`；② `/api/v1/engine/pathway/**` 客户面；③ `patient-pathways/{id}/advance` 路径参数合同；④ `variances`/`clocks` 独立查询；⑤ 前端共享 hooks 和消费页清理旧 `/engine/rules/**`、`/engine/pathways/**` 口径。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 模板/专病包**：`GET/POST /pathway-templates`、`POST /specialty-packages`；列表分页（[API-13](../D0/API-13.md)）。
-- [ ] **FR-2 患者路径**：`POST /patient-pathways/enter`、`GET /patient-pathways/{id}`（节点/变异/时钟状态）。
-- [ ] **FR-3 节点推进**：`POST /patient-pathways/{id}/advance`（幂等，返回 `PathwayProgressDecision` + 解释）。
-- [ ] **FR-4 变异/时钟**：`GET /patient-pathways/{id}/variances`、`GET /patient-pathways/{id}/clocks`（超时状态）。
-- [ ] **FR-5 仿真 + 发布**：`POST /pathway-templates/{id}/simulate`、`POST /pathway-templates/{id}/publish`（7 步流，[SYS-04](SYS-04.md)）。
-- [ ] **FR-6 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
+- [x] **FR-1 模板/专病包**：`GET/POST /pathway-templates`、`POST /specialty-packages`；列表分页（[API-13](../D0/API-13.md)）。
+- [x] **FR-2 患者路径**：`POST /patient-pathways/enter`、`GET /patient-pathways/{id}`（节点/变异/时钟状态）。
+- [x] **FR-3 节点推进**：`POST /patient-pathways/{id}/advance`（幂等，返回 `PathwayProgressDecision` + 解释）。
+- [x] **FR-4 变异/时钟**：`GET /patient-pathways/{id}/variances`、`GET /patient-pathways/{id}/clocks`（超时状态）。
+- [x] **FR-5 仿真 + 发布**：`POST /pathway-templates/{id}/simulate`、`POST /pathway-templates/{id}/publish`（7 步流，[SYS-04](SYS-04.md)）。
+- [x] **FR-6 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -58,15 +58,15 @@ N·A —— 本卡无页面。被 [PATH-01](PATH-01.md) 路径配置页 + D3 患
 - 本卡落点：路径能力以统一契约对外，配置与运行共用一套端点。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：模板/专病包 CRUD + 患者入径，统一信封；分页稳定。
-- [ ] **AC-2（FR-3/4）**：节点推进幂等 + 解释；变异/时钟状态可查。
-- [ ] **AC-3（FR-5）**：仿真不写库；7 步流发布灰度→全量→回滚。
-- [ ] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
+- [x] **AC-1（FR-1/2）**：模板/专病包 CRUD + 患者入径，统一信封；分页稳定。
+- [x] **AC-2（FR-3/4）**：节点推进幂等 + 解释；变异/时钟状态可查。
+- [x] **AC-3（FR-5）**：仿真不写库；7 步流发布灰度→全量→回滚。
+- [x] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
 - 关联 A1–A9 剧本：A3 路径配置、A4 发布回滚。
 - T-GATE：真实性门禁全绿。
 - B0 验收：确定性推进，**天然 B0**。
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/pathway/**` 端点 + 推进/变异/时钟 + 发布接 [SYS-04](SYS-04.md)。
-- 测试：契约 + 安全 + 推进幂等 + 变异/时钟 + 发布回滚测试。
+- 测试：契约 + 安全 + 推进幂等 + 变异/时钟 + 发布回滚测试；本地聚焦已过：`mvn -q -Dtest=PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,PathwayEngineServiceTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`npm run typecheck`、`npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts`；本地全量已过：`mvn -q test`（865 tests / 0 failures / 0 errors / 0 skipped，含 PostgreSQL 15.18 + Oracle 21.3 迁移至 V48）、`npm run verify`（41 files / 206 tests）、`npm run build`、T-GATE（真实性 24/24、迁移规约 8/8、配置边界 2/2、changed 扫描 0 阻断、中文注释 0 fail / 0 warn、`git diff --check`）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

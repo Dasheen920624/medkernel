@@ -5,8 +5,8 @@ import java.util.List;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
-import com.medkernel.shared.observability.DiagnoseResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +20,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 路径引擎 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathways}）。
+ * 路径引擎 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathway/**}）。
  *
- * <p>承担专病包、路径模板、发布、试运行、患者入径、节点推进、关键时钟与诊断解释的 HTTP 合同；
+ * <p>承担专病包、路径模板、发布、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
  * 权限由 {@code pathway.read}/{@code pathway.write}/{@code pathway.publish} 拆分控制，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
 @RestController
-@RequestMapping("/api/v1/engine/pathways")
+@RequestMapping("/api/v1/engine/pathway")
 @DataScope(requireTenant = true)
 public class PathwayEngineController {
 
@@ -45,10 +45,11 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.write}；请求必须包含病种、包编码、版本、名称和来源引用。
      */
-    @PostMapping("/packages")
+    @PostMapping("/specialty-packages")
     @PreAuthorize("@perm.has('pathway.write')")
     public ResponseEntity<ApiResult<SpecialtyPackageResponse>> createPackage(
             @RequestBody @Valid SpecialtyPackageCreateRequest request) {
+        validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.createPackage(request)));
     }
@@ -58,7 +59,7 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.read}；分页参数缺省时使用系统默认页大小。
      */
-    @GetMapping("/packages")
+    @GetMapping("/specialty-packages")
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<PageResponse<SpecialtyPackage>> listPackages(
             @RequestParam(required = false) Integer page,
@@ -72,10 +73,11 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.write}；模板必须关联当前租户下存在的专病包。
      */
-    @PostMapping("/templates")
+    @PostMapping("/pathway-templates")
     @PreAuthorize("@perm.has('pathway.write')")
     public ResponseEntity<ApiResult<PathwayTemplateDetailResponse>> createTemplate(
             @RequestBody @Valid PathwayTemplateCreateRequest request) {
+        validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.createTemplate(request)));
     }
@@ -85,7 +87,7 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.read}；过滤参数均可选，{@code null} 表示不过滤。
      */
-    @GetMapping("/templates")
+    @GetMapping("/pathway-templates")
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<PageResponse<PathwayTemplate>> listTemplates(
             @RequestParam(required = false) PathwayTemplateStatus status,
@@ -104,7 +106,7 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.read}；模板不存在时抛出 {@code ENG-PATHWAY-002}。
      */
-    @GetMapping("/templates/{templateId}")
+    @GetMapping("/pathway-templates/{templateId}")
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<PathwayTemplateDetailResponse> templateDetail(@PathVariable String templateId) {
         return ApiResult.ok(service.templateDetail(templateId));
@@ -115,9 +117,12 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.publish}；发布门禁失败时抛出 {@code ENG-PATHWAY-004}。
      */
-    @PostMapping("/templates/{templateId}/publish")
+    @PostMapping("/pathway-templates/{templateId}/publish")
     @PreAuthorize("@perm.has('pathway.publish')")
-    public ApiResult<PathwayTemplatePublishResponse> publishTemplate(@PathVariable String templateId) {
+    public ApiResult<PathwayTemplatePublishResponse> publishTemplate(
+            @PathVariable String templateId,
+            @RequestBody @Valid PathwayOperationRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.publishTemplate(templateId));
     }
 
@@ -126,11 +131,12 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.write}；试运行不创建患者路径实例，也不写入变异或关键时钟。
      */
-    @PostMapping("/templates/{templateId}/simulate")
+    @PostMapping("/pathway-templates/{templateId}/simulate")
     @PreAuthorize("@perm.has('pathway.write')")
     public ApiResult<PathwaySimulationResponse> simulate(
             @PathVariable String templateId,
-            @RequestBody(required = false) @Valid PathwaySimulateRequest request) {
+            @RequestBody @Valid PathwaySimulateRequest request) {
+        validateContext(request);
         return ApiResult.ok(service.simulate(templateId, request));
     }
 
@@ -139,10 +145,11 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.write}；仅允许基于已发布模板入径，成功后创建首个关键时钟。
      */
-    @PostMapping("/patients")
+    @PostMapping("/patient-pathways/enter")
     @PreAuthorize("@perm.has('pathway.write')")
     public ResponseEntity<ApiResult<PatientPathwayDetailResponse>> enterPatientPathway(
             @RequestBody @Valid PatientPathwayEnterRequest request) {
+        validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.enterPatientPathway(request)));
     }
@@ -152,7 +159,7 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.read}；返回当前节点、累计变异和关键时钟事实。
      */
-    @GetMapping("/patients/{patientPathwayId}")
+    @GetMapping("/patient-pathways/{patientPathwayId}")
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<PatientPathwayDetailResponse> patientDetail(@PathVariable String patientPathwayId) {
         return ApiResult.ok(service.patientDetail(patientPathwayId));
@@ -163,10 +170,24 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.write}；接口只记录流程事实，不自动诊断、不自动开立医嘱。
      */
-    @PostMapping("/advance")
+    @PostMapping("/patient-pathways/{patientPathwayId}/advance")
     @PreAuthorize("@perm.has('pathway.write')")
-    public ApiResult<PathwayAdvanceResponse> advance(@RequestBody @Valid PathwayAdvanceRequest request) {
-        return ApiResult.ok(service.advance(request));
+    public ApiResult<PathwayAdvanceResponse> advance(
+            @PathVariable String patientPathwayId,
+            @RequestBody @Valid PathwayAdvanceRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.advance(request.withPatientPathwayId(patientPathwayId)));
+    }
+
+    /**
+     * 查询患者路径实例的变异事实列表。
+     *
+     * <p>权限：{@code pathway.read}；先校验患者路径属于当前租户，再返回变异记录。
+     */
+    @GetMapping("/patient-pathways/{patientPathwayId}/variances")
+    @PreAuthorize("@perm.has('pathway.read')")
+    public ApiResult<List<PathwayVariance>> variances(@PathVariable String patientPathwayId) {
+        return ApiResult.ok(service.variances(patientPathwayId));
     }
 
     /**
@@ -174,20 +195,13 @@ public class PathwayEngineController {
      *
      * <p>权限：{@code pathway.read}；关键时钟用于追踪节点时间窗和质控指标关联。
      */
-    @GetMapping("/{patientPathwayId}/clocks")
+    @GetMapping("/patient-pathways/{patientPathwayId}/clocks")
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<List<ClinicalClock>> clocks(@PathVariable String patientPathwayId) {
         return ApiResult.ok(service.clocks(patientPathwayId));
     }
 
-    /**
-     * 生成患者路径实例的诊断解释响应。
-     *
-     * <p>权限：{@code pathway.read}；响应包含路径实例状态、证据引用和 traceId。
-     */
-    @GetMapping("/patients/{patientPathwayId}/diagnose")
-    @PreAuthorize("@perm.has('pathway.read')")
-    public ApiResult<DiagnoseResponse> diagnose(@PathVariable String patientPathwayId) {
-        return ApiResult.ok(service.diagnose(patientPathwayId));
+    private void validateContext(PathwayContextRequest request) {
+        request.apiContext().validateTenant(RequestContext.currentOrgScope().tenantId());
     }
 }

@@ -50,17 +50,17 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 const DEFAULT_NODES_JSON = `[
-  { "nodeCode": "START", "name": "准入评估", "nodeType": "START", "sortOrder": 1, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 30, "terminalFlag": false },
-  { "nodeCode": "PLAN", "name": "方案确认", "nodeType": "PROCESS", "sortOrder": 2, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 120, "terminalFlag": false },
-  { "nodeCode": "REVIEW", "name": "阶段复核", "nodeType": "BRANCH", "sortOrder": 3, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 1440, "terminalFlag": false },
-  { "nodeCode": "EXIT", "name": "出径交接", "nodeType": "STOP", "sortOrder": 4, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 180, "terminalFlag": true }
+  { "nodeCode": "ASSESS", "name": "准入评估", "nodeType": "ASSESSMENT", "sortOrder": 1, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 30, "terminal": false },
+  { "nodeCode": "PLAN", "name": "方案确认", "nodeType": "NURSING", "sortOrder": 2, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 120, "terminal": false },
+  { "nodeCode": "REVIEW", "name": "阶段复核", "nodeType": "QUALITY", "sortOrder": 3, "responsibleRole": "ATTENDING_PHYSICIAN", "timeWindowMinutes": 1440, "terminal": false },
+  { "nodeCode": "FOLLOWUP", "name": "出径随访", "nodeType": "FOLLOWUP", "sortOrder": 4, "responsibleRole": "PRIMARY_NURSE", "timeWindowMinutes": 180, "terminal": true }
 ]`;
 
 const DEFAULT_EDGES_JSON = `[
-  { "edgeCode": "E1", "fromNodeCode": "START", "toNodeCode": "PLAN", "edgeType": "STANDARD", "priority": 1 },
-  { "edgeCode": "E2", "fromNodeCode": "PLAN", "toNodeCode": "REVIEW", "edgeType": "STANDARD", "priority": 1 },
-  { "edgeCode": "E3", "fromNodeCode": "REVIEW", "toNodeCode": "EXIT", "edgeType": "CONDITIONAL", "conditionJson": "{\\"fact\\": \\"context.readyForExit\\", \\"operator\\": \\"equals\\", \\"value\\": true}", "priority": 1 },
-  { "edgeCode": "E4", "fromNodeCode": "REVIEW", "toNodeCode": "PLAN", "edgeType": "VARIANCE", "conditionJson": "{\\"fact\\": \\"context.needReplan\\", \\"operator\\": \\"equals\\", \\"value\\": true}", "priority": 2 }
+  { "edgeCode": "E1", "fromNodeCode": "ASSESS", "toNodeCode": "PLAN", "edgeType": "DEFAULT", "priority": 1 },
+  { "edgeCode": "E2", "fromNodeCode": "PLAN", "toNodeCode": "REVIEW", "edgeType": "DEFAULT", "priority": 1 },
+  { "edgeCode": "E3", "fromNodeCode": "REVIEW", "toNodeCode": "FOLLOWUP", "edgeType": "CONDITION", "condition": {"fact": "context.readyForFollowup", "operator": "equals", "value": true}, "priority": 1 },
+  { "edgeCode": "E4", "fromNodeCode": "REVIEW", "toNodeCode": "PLAN", "edgeType": "PHYSICIAN_DECISION", "condition": {"fact": "context.needReplan", "operator": "equals", "value": true}, "priority": 2 }
 ]`;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
@@ -71,15 +71,15 @@ type PathwayNodeDraft = {
   sortOrder: number;
   responsibleRole?: string;
   timeWindowMinutes?: number;
-  terminalFlag: boolean;
-  configJson?: string;
+  terminal: boolean;
+  config?: unknown;
 };
 type PathwayEdgeDraft = {
   edgeCode: string;
   fromNodeCode: string;
   toNodeCode: string;
   edgeType: PathwayEdgeType;
-  conditionJson?: string;
+  condition?: unknown;
   priority: number;
 };
 
@@ -109,7 +109,7 @@ export default function PathwayTemplates() {
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  const [simulateStartNode, setSimulateStartNode] = useState<string>("START");
+  const [simulateStartNode, setSimulateStartNode] = useState<string>("ASSESS");
   const [simulateContextJson, setSimulateContextJson] = useState<string>("");
   const [simulateResult, setSimulateResult] = useState<string[] | null>(null);
 
@@ -144,6 +144,9 @@ export default function PathwayTemplates() {
   const [packageForm] = Form.useForm();
   const [templateForm] = Form.useForm();
 
+  const packageVersionFor = (packageId?: string | null) =>
+    packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
+
   const handleCreatePackage = async () => {
     try {
       const values = await packageForm.validateFields();
@@ -169,11 +172,14 @@ export default function PathwayTemplates() {
         templateCode: values.templateCode,
         name: values.name,
         diseaseCode: values.diseaseCode,
+        packageVersion: packageVersionFor(values.packageId) ?? values.packageVersion,
         templateLevel: values.templateLevel,
+        templateVersion: Number(values.templateVersion),
+        startNodeCode: values.startNodeCode,
         sourceRef: values.sourceRef,
         description: values.description,
-        entryCriteriaJson: "{}",
-        exitCriteriaJson: "{}",
+        entryCriteria: {},
+        exitCriteria: {},
         nodes: parsedNodes as PathwayNodeDraft[],
         edges: parsedEdges as PathwayEdgeDraft[],
       });
@@ -191,7 +197,12 @@ export default function PathwayTemplates() {
   const handlePublishTemplate = async () => {
     if (!selectedTemplateId) return;
     try {
-      await publishTemplateMutation.mutateAsync(selectedTemplateId);
+      await publishTemplateMutation.mutateAsync({
+        templateId: selectedTemplateId,
+        packageVersion:
+          packageVersionFor(detailData?.template.packageId) ??
+          String(detailData?.template.templateVersion ?? ""),
+      });
       message.success("路径模板发布成功，已正式上线运行！");
       refetchDetail();
       refetchList();
@@ -214,10 +225,12 @@ export default function PathwayTemplates() {
       if (!parseJsonInput(contextJson, "请先粘贴真实脱敏路径上下文快照 JSON")) return;
 
       const result = await simulateMutation.mutateAsync({
+        packageVersion:
+          packageVersionFor(detailData?.template.packageId) ??
+          String(detailData?.template.templateVersion ?? ""),
         startNodeCode: simulateStartNode,
-        contextJson,
       });
-      setSimulateResult(result.simulatedPath || []);
+      setSimulateResult(result.nodeTrajectory || []);
       message.success("路径轨迹试运行成功");
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "路径试运行失败"));
@@ -345,7 +358,9 @@ export default function PathwayTemplates() {
               icon={<PlusOutlined />}
               onClick={() => {
                 templateForm.setFieldsValue({
-                  templateLevel: "CLINICAL",
+                  templateLevel: "STANDARD",
+                  templateVersion: 1,
+                  startNodeCode: "ASSESS",
                   nodesJson: DEFAULT_NODES_JSON,
                   edgesJson: DEFAULT_EDGES_JSON,
                 });
@@ -386,7 +401,7 @@ export default function PathwayTemplates() {
         destroyOnClose
       >
         <Alert
-          message="专病包是临床路径和质控资产的容器实体，受租户级别物理强隔离与版本升级灰度发布控制。"
+          message="专病包是临床路径和质控资产的容器实体，受租户级别数据隔离、版本升级和灰度发布控制。"
           type="info"
           showIcon
           className="mb-6 rounded-lg"
@@ -504,9 +519,23 @@ export default function PathwayTemplates() {
             <Col span={8}>
               <Form.Item name="templateLevel" label="路径层级" rules={[{ required: true }]}>
                 <Select>
-                  <Option value="CLINICAL">CLINICAL (临床规范级)</Option>
-                  <Option value="BUSINESS">BUSINESS (业务质控级)</Option>
+                  <Option value="STANDARD">STANDARD (标准模板)</Option>
+                  <Option value="HOSPITAL">HOSPITAL (医院模板)</Option>
+                  <Option value="DEPARTMENT">DEPARTMENT (科室模板)</Option>
+                  <Option value="SPECIALTY">SPECIALTY (专科模板)</Option>
                 </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="templateVersion" label="模板版本号" rules={[{ required: true }]}>
+                <Input type="number" min={1} placeholder="输入模板版本号" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="startNodeCode" label="起始节点编码" rules={[{ required: true }]}>
+                <Input placeholder="ASSESS" />
               </Form.Item>
             </Col>
           </Row>

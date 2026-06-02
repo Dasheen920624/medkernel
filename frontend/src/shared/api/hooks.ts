@@ -70,6 +70,62 @@ export function useSecurityProfile() {
   });
 }
 
+type StandardApiContextFields = {
+  request_id: string;
+  trace_id: string;
+  tenant_id: string;
+  group_id?: string | null;
+  hospital_id?: string | null;
+  campus_id?: string | null;
+  site_id?: string | null;
+  department_id?: string | null;
+  specialty_id?: string | null;
+  user_id: string;
+  role_codes: string[];
+  package_version: string;
+};
+
+function standardApiContext(
+  profile: SecurityProfile | undefined,
+  packageVersion: string | undefined,
+): StandardApiContextFields {
+  if (!profile) {
+    throw new Error("缺少当前用户安全画像，无法提交标准上下文请求。");
+  }
+  const tenantId = profile.dataScope?.tenantId;
+  const roleCodes = profile.roles.map((role) => role.code).filter(Boolean);
+  const version = packageVersion?.trim();
+  if (!tenantId || roleCodes.length === 0 || !version) {
+    throw new Error("标准上下文缺少租户、角色或包版本，请刷新用户状态后重试。");
+  }
+  const traceId = crypto.randomUUID();
+  return {
+    request_id: crypto.randomUUID(),
+    trace_id: traceId,
+    tenant_id: tenantId,
+    group_id: profile.dataScope.groupId,
+    hospital_id: profile.dataScope.hospitalId,
+    campus_id: profile.dataScope.campusId,
+    site_id: profile.dataScope.siteId,
+    department_id: profile.dataScope.departmentId,
+    specialty_id: profile.dataScope.specialtyId,
+    user_id: profile.userId,
+    role_codes: roleCodes,
+    package_version: version,
+  };
+}
+
+function withStandardApiContext<T extends Record<string, unknown>>(
+  payload: T,
+  profile: SecurityProfile | undefined,
+  packageVersion: string | undefined,
+): T & StandardApiContextFields {
+  return {
+    ...payload,
+    ...standardApiContext(profile, packageVersion),
+  };
+}
+
 // ──────────────────────────────────────────
 // 合规运维 · 审计日志（BASE-04 已落地）
 // ──────────────────────────────────────────
@@ -555,6 +611,21 @@ export interface RuleEvaluateResponse {
   items: RuleEvaluationItem[];
 }
 
+export interface RuleExplanationResponse {
+  executionId: string;
+  ruleId: string;
+  versionId: string;
+  triggerPoint: string;
+  eventId: string;
+  inputDigest: string;
+  hit: boolean;
+  severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  actions?: unknown;
+  explanation?: unknown;
+  status: "SUCCESS" | "FAILED" | string;
+  traceId: string;
+}
+
 export interface DiagnoseResponse {
   executionId: string;
   traceId: string;
@@ -585,7 +656,7 @@ export function useRuleDefinitions(params?: RuleFilterParams) {
     queryKey: ["rules", "definitions", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<RuleDefinition> }>(
-        "/engine/rules",
+        "/engine/rule/rules",
         { params },
       );
       return data.data;
@@ -598,7 +669,9 @@ export function useRuleDetail(ruleId: string) {
     queryKey: ["rules", "detail", ruleId],
     queryFn: async () => {
       if (!ruleId) return null;
-      const { data } = await apiClient.get<{ data: RuleDetailResponse }>(`/engine/rules/${ruleId}`);
+      const { data } = await apiClient.get<{ data: RuleDetailResponse }>(
+        `/engine/rule/rules/${ruleId}`,
+      );
       return data.data;
     },
     enabled: !!ruleId,
@@ -606,6 +679,7 @@ export function useRuleDetail(ruleId: string) {
 }
 
 export function useCreateRule() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       ruleCode: string;
@@ -613,29 +687,41 @@ export function useCreateRule() {
       ruleType: string;
       authoringMode: string;
       riskLevel: string;
+      packageVersion: string;
       sourceRef: string;
       changeSummary: string;
-      dslJson: string;
-      explanationJson: string;
+      dslJson: unknown;
+      explanationJson: unknown;
     }) => {
-      const { data } = await apiClient.post<{ data: { ruleId: string } }>("/engine/rules", payload);
+      const { packageVersion, dslJson, explanationJson, ...rulePayload } = payload;
+      const { data } = await apiClient.post<{ data: { ruleId: string } }>(
+        "/engine/rule/rules",
+        withStandardApiContext(
+          { ...rulePayload, dsl: dslJson, explanation: explanationJson },
+          security.data,
+          packageVersion,
+        ),
+      );
       return data.data;
     },
   });
 }
 
 export function useAddTestCase(ruleId: string) {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
+      packageVersion: string;
       caseType: string;
-      inputPayload: string;
+      inputPayload: unknown;
       expectedHit: boolean;
       expectedSeverity: string;
       expectedActionCode: string;
     }) => {
+      const { packageVersion, ...casePayload } = payload;
       const { data } = await apiClient.post<{ data: RuleTestCase }>(
-        `/engine/rules/${ruleId}/test-cases`,
-        payload,
+        `/engine/rule/rules/${ruleId}/test-cases`,
+        withStandardApiContext(casePayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -643,11 +729,13 @@ export function useAddTestCase(ruleId: string) {
 }
 
 export function useSimulateRule(ruleId: string) {
+  const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { inputPayload: string }) => {
+    mutationFn: async (payload: { packageVersion: string; inputPayload: unknown }) => {
+      const { packageVersion, inputPayload } = payload;
       const { data } = await apiClient.post<{ data: RuleEvaluationItem }>(
-        `/engine/rules/${ruleId}/simulate`,
-        payload,
+        `/engine/rule/rules/${ruleId}/simulate`,
+        withStandardApiContext({ context: inputPayload }, security.data, packageVersion),
       );
       return data.data;
     },
@@ -655,10 +743,12 @@ export function useSimulateRule(ruleId: string) {
 }
 
 export function usePublishRule() {
+  const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (ruleId: string) => {
+    mutationFn: async (payload: { ruleId: string; packageVersion: string }) => {
       const { data } = await apiClient.post<{ data: { versionId: string } }>(
-        `/engine/rules/${ruleId}/publish`,
+        `/engine/rule/rules/${payload.ruleId}/publish`,
+        withStandardApiContext({}, security.data, payload.packageVersion),
       );
       return data.data;
     },
@@ -666,28 +756,39 @@ export function usePublishRule() {
 }
 
 export function useEvaluateRules() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       triggerPoint: string;
       patientId?: string;
+      packageVersion: string;
       payloadJson: string;
     }) => {
+      const context = JSON.parse(payload.payloadJson) as unknown;
       const { data } = await apiClient.post<{ data: RuleEvaluateResponse }>(
-        "/engine/rules/evaluate",
-        payload,
+        "/engine/rule/rules/evaluate",
+        withStandardApiContext(
+          {
+            triggerPoint: payload.triggerPoint,
+            context,
+            eventId: crypto.randomUUID(),
+          },
+          security.data,
+          payload.packageVersion,
+        ),
       );
       return data.data;
     },
   });
 }
 
-export function useRuleExecutionDiagnose(executionId: string) {
+export function useRuleExecutionExplain(executionId: string) {
   return useQuery({
-    queryKey: ["rules", "diagnose", executionId],
+    queryKey: ["rules", "explain", executionId],
     queryFn: async () => {
       if (!executionId) return null;
-      const { data } = await apiClient.get<{ data: DiagnoseResponse }>(
-        `/engine/rules/executions/${executionId}/diagnose`,
+      const { data } = await apiClient.get<{ data: RuleExplanationResponse }>(
+        `/engine/rule/rules/executions/${executionId}/explain`,
       );
       return data.data;
     },
@@ -699,11 +800,43 @@ export function useRuleExecutionDiagnose(executionId: string) {
 
 export type SpecialtyPackageStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
 export type PathwayTemplateStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
-export type PathwayTemplateLevel = "CLINICAL" | "BUSINESS" | string;
-export type PathwayNodeType = "START" | "PROCESS" | "BRANCH" | "STOP" | string;
-export type PathwayEdgeType = "STANDARD" | "CONDITIONAL" | "EXCEPTION" | "VARIANCE" | string;
-export type PatientPathwayStatus = "ACTIVE" | "COMPLETED" | "EXITED" | string;
-export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "OVERDUE" | string;
+export type PathwayTemplateLevel =
+  | "STANDARD"
+  | "GROUP"
+  | "HOSPITAL"
+  | "DEPARTMENT"
+  | "SPECIALTY"
+  | string;
+export type PathwayNodeType =
+  | "SCREENING"
+  | "ASSESSMENT"
+  | "EXAM"
+  | "LAB"
+  | "MEDICATION"
+  | "SURGERY"
+  | "NURSING"
+  | "REHAB"
+  | "DISCHARGE"
+  | "FOLLOWUP"
+  | "QUALITY"
+  | string;
+export type PathwayEdgeType =
+  | "DEFAULT"
+  | "CONDITION"
+  | "RISK_STRATIFICATION"
+  | "PATIENT_CHOICE"
+  | "RESOURCE_UNAVAILABLE"
+  | "PHYSICIAN_DECISION"
+  | "ROLLBACK"
+  | string;
+export type PatientPathwayStatus =
+  | "ENTERED"
+  | "NODE_EXECUTING"
+  | "VARIANCE"
+  | "COMPLETED"
+  | "EXITED"
+  | string;
+export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "VARIANCE" | string;
 export type VarianceType =
   | "MEDICAL"
   | "PATIENT_REASON"
@@ -811,7 +944,8 @@ export interface PathwayTemplatePublishResponse {
 
 export interface PathwaySimulationResponse {
   templateId: string;
-  simulatedPath: string[];
+  nodeTrajectory: string[];
+  finalStatus: PatientPathwayStatus;
   traceId: string;
 }
 
@@ -868,7 +1002,10 @@ export interface PatientPathwayDetailResponse {
 
 export interface PathwayAdvanceResponse {
   patientPathwayId: string;
+  previousNodeCode?: string | null;
+  nextNodeCode?: string | null;
   status: PatientPathwayStatus;
+  varianceId?: string | null;
   traceId: string;
 }
 
@@ -878,7 +1015,7 @@ export function useSpecialtyPackages(params?: { page?: number; size?: number; so
     queryKey: ["pathways", "packages", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<SpecialtyPackage> }>(
-        "/engine/pathways/packages",
+        "/engine/pathway/specialty-packages",
         { params },
       );
       return data.data;
@@ -887,6 +1024,7 @@ export function useSpecialtyPackages(params?: { page?: number; size?: number; so
 }
 
 export function useCreateSpecialtyPackage() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       packageCode: string;
@@ -897,8 +1035,8 @@ export function useCreateSpecialtyPackage() {
       description: string;
     }) => {
       const { data } = await apiClient.post<{ data: SpecialtyPackageResponse }>(
-        "/engine/pathways/packages",
-        payload,
+        "/engine/pathway/specialty-packages",
+        withStandardApiContext(payload, security.data, payload.packageVersion),
       );
       return data.data;
     },
@@ -918,7 +1056,7 @@ export function usePathwayTemplates(params?: {
     queryKey: ["pathways", "templates", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<PathwayTemplate> }>(
-        "/engine/pathways/templates",
+        "/engine/pathway/pathway-templates",
         { params },
       );
       return data.data;
@@ -932,7 +1070,7 @@ export function usePathwayTemplateDetail(templateId: string) {
     queryFn: async () => {
       if (!templateId) return null;
       const { data } = await apiClient.get<{ data: PathwayTemplateDetailResponse }>(
-        `/engine/pathways/templates/${templateId}`,
+        `/engine/pathway/pathway-templates/${templateId}`,
       );
       return data.data;
     },
@@ -941,17 +1079,21 @@ export function usePathwayTemplateDetail(templateId: string) {
 }
 
 export function useCreatePathwayTemplate() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       packageId: string;
       templateCode: string;
       name: string;
       diseaseCode: string;
+      packageVersion: string;
       templateLevel: PathwayTemplateLevel;
+      templateVersion: number;
+      startNodeCode: string;
       sourceRef: string;
       description: string;
-      entryCriteriaJson?: string;
-      exitCriteriaJson?: string;
+      entryCriteria?: unknown;
+      exitCriteria?: unknown;
       nodes: Array<{
         nodeCode: string;
         name: string;
@@ -959,25 +1101,27 @@ export function useCreatePathwayTemplate() {
         sortOrder: number;
         responsibleRole?: string;
         timeWindowMinutes?: number;
-        terminalFlag: boolean;
-        configJson?: string;
+        terminal: boolean;
+        config?: unknown;
       }>;
       edges: Array<{
         edgeCode: string;
         fromNodeCode: string;
         toNodeCode: string;
         edgeType: PathwayEdgeType;
-        conditionJson?: string;
+        condition?: unknown;
         priority: number;
       }>;
       metricBindings?: Array<{
         nodeCode: string;
         metricCode: string;
+        required?: boolean;
       }>;
     }) => {
+      const { packageVersion, ...templatePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwayTemplateDetailResponse }>(
-        "/engine/pathways/templates",
-        payload,
+        "/engine/pathway/pathway-templates",
+        withStandardApiContext(templatePayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -985,10 +1129,12 @@ export function useCreatePathwayTemplate() {
 }
 
 export function usePublishPathwayTemplate() {
+  const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (templateId: string) => {
+    mutationFn: async (payload: { templateId: string; packageVersion: string }) => {
       const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
-        `/engine/pathways/templates/${templateId}/publish`,
+        `/engine/pathway/pathway-templates/${payload.templateId}/publish`,
+        withStandardApiContext({}, security.data, payload.packageVersion),
       );
       return data.data;
     },
@@ -996,11 +1142,17 @@ export function usePublishPathwayTemplate() {
 }
 
 export function useSimulatePathway(templateId: string) {
+  const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { startNodeCode?: string; contextJson?: string }) => {
+    mutationFn: async (payload: {
+      packageVersion: string;
+      startNodeCode?: string;
+      requestedNextNodeCodes?: string[];
+    }) => {
+      const { packageVersion, ...simulatePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwaySimulationResponse }>(
-        `/engine/pathways/templates/${templateId}/simulate`,
-        payload,
+        `/engine/pathway/pathway-templates/${templateId}/simulate`,
+        withStandardApiContext(simulatePayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -1009,16 +1161,19 @@ export function useSimulatePathway(templateId: string) {
 
 // 3. PatientPathway Hooks
 export function useEnterPatientPathway() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       patientId: string;
       encounterId?: string;
       templateId: string;
       startNodeCode?: string;
+      packageVersion: string;
     }) => {
+      const { packageVersion, ...enterPayload } = payload;
       const { data } = await apiClient.post<{ data: PatientPathwayDetailResponse }>(
-        "/engine/pathways/patients",
-        payload,
+        "/engine/pathway/patient-pathways/enter",
+        withStandardApiContext(enterPayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -1031,7 +1186,7 @@ export function usePatientPathwayDetail(patientPathwayId: string) {
     queryFn: async () => {
       if (!patientPathwayId) return null;
       const { data } = await apiClient.get<{ data: PatientPathwayDetailResponse }>(
-        `/engine/pathways/patients/${patientPathwayId}`,
+        `/engine/pathway/patient-pathways/${patientPathwayId}`,
       );
       return data.data;
     },
@@ -1040,9 +1195,11 @@ export function usePatientPathwayDetail(patientPathwayId: string) {
 }
 
 export function useAdvancePatientPathway() {
+  const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       patientPathwayId: string;
+      packageVersion: string;
       eventType: PathwayAdvanceEventType;
       currentNodeCode?: string;
       requestedNextNodeCode?: string;
@@ -1052,9 +1209,10 @@ export function useAdvancePatientPathway() {
       exitReason?: string;
       eventId?: string;
     }) => {
+      const { patientPathwayId, packageVersion, ...advancePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwayAdvanceResponse }>(
-        "/engine/pathways/advance",
-        payload,
+        `/engine/pathway/patient-pathways/${patientPathwayId}/advance`,
+        withStandardApiContext(advancePayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -1067,7 +1225,7 @@ export function usePatientPathwayClocks(patientPathwayId: string) {
     queryFn: async () => {
       if (!patientPathwayId) return [];
       const { data } = await apiClient.get<{ data: ClinicalClock[] }>(
-        `/engine/pathways/${patientPathwayId}/clocks`,
+        `/engine/pathway/patient-pathways/${patientPathwayId}/clocks`,
       );
       return data.data;
     },
@@ -1075,13 +1233,13 @@ export function usePatientPathwayClocks(patientPathwayId: string) {
   });
 }
 
-export function usePatientPathwayDiagnose(patientPathwayId: string) {
+export function usePatientPathwayVariances(patientPathwayId: string) {
   return useQuery({
-    queryKey: ["pathways", "patient-diagnose", patientPathwayId],
+    queryKey: ["pathways", "patient-variances", patientPathwayId],
     queryFn: async () => {
-      if (!patientPathwayId) return null;
-      const { data } = await apiClient.get<{ data: DiagnoseResponse }>(
-        `/engine/pathways/patients/${patientPathwayId}/diagnose`,
+      if (!patientPathwayId) return [];
+      const { data } = await apiClient.get<{ data: PathwayVariance[] }>(
+        `/engine/pathway/patient-pathways/${patientPathwayId}/variances`,
       );
       return data.data;
     },
@@ -2112,7 +2270,7 @@ export function useImportOfflinePackage() {
   });
 }
 
-// 7. 触发多通道物理投影同步发布
+// 7. 触发多通道真实同步发布
 export function useSyncPackage() {
   return useMutation({
     mutationFn: async (payload: { packageId: string; request: PackageSyncRequest }) => {

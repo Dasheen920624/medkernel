@@ -129,6 +129,7 @@ export default function RuleDefinitions() {
     isLoading: detailLoading,
     refetch: refetchDetail,
   } = useRuleDetail(selectedRuleId || "");
+  const selectedRulePackageVersion = detailData?.definition.packageVersion ?? "";
 
   // API 突变逻辑
   const createRuleMutation = useCreateRule();
@@ -150,6 +151,7 @@ export default function RuleDefinitions() {
         ruleType: values.ruleType,
         authoringMode: "DSL",
         riskLevel: values.riskLevel,
+        packageVersion: values.packageVersion,
         sourceRef: values.sourceRef,
         changeSummary: values.changeSummary,
         dslJson,
@@ -174,6 +176,7 @@ export default function RuleDefinitions() {
       if (!inputPayload) return;
 
       await addTestCaseMutation.mutateAsync({
+        packageVersion: selectedRulePackageVersion,
         caseType: values.caseType,
         inputPayload,
         expectedHit: values.expectedHit,
@@ -197,6 +200,7 @@ export default function RuleDefinitions() {
       if (!inputPayload) return;
 
       const result = await simulateMutation.mutateAsync({
+        packageVersion: selectedRulePackageVersion,
         inputPayload,
       });
       setSimulateResult(result);
@@ -210,7 +214,10 @@ export default function RuleDefinitions() {
   const handlePublish = async () => {
     if (!selectedRuleId) return;
     try {
-      await publishMutation.mutateAsync(selectedRuleId);
+      await publishMutation.mutateAsync({
+        ruleId: selectedRuleId,
+        packageVersion: selectedRulePackageVersion,
+      });
       message.success("发布成功！所有门禁测试通过，规则已跃迁为 PUBLISHED");
       refetchDetail();
       refetchList();
@@ -695,6 +702,13 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item
+            name="packageVersion"
+            label="标准上下文包版本"
+            rules={[{ required: true, message: "请输入本规则绑定的配置包版本" }]}
+          >
+            <Input placeholder="输入配置包版本，例如当前已审核包版本号" />
+          </Form.Item>
           <Form.Item name="changeSummary" label="初始化变更内容说明" rules={[{ required: true }]}>
             <Input placeholder="本次创建版本的修改概述" />
           </Form.Item>

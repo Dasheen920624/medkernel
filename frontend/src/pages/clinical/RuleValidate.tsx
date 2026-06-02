@@ -11,18 +11,15 @@ import {
   Alert,
   message,
   Drawer,
-  Timeline,
 } from "antd";
 import {
   PlayCircleOutlined,
   BugOutlined,
   CompassOutlined,
   FileTextOutlined,
-  CalendarOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
-import { useEvaluateRules, useRuleExecutionDiagnose } from "@/shared/api/hooks";
+import { useEvaluateRules, useRuleExecutionExplain } from "@/shared/api/hooks";
 import type { RuleEvaluationItem, RuleEvaluateResponse } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 
@@ -32,12 +29,13 @@ export default function RuleValidate() {
   const [contextJson, setContextJson] = useState<string>("");
   const [triggerPoint, setTriggerPoint] = useState<string>("PRESCRIPTION_SUBMIT");
   const [patientId, setPatientId] = useState<string>("");
+  const [packageVersion, setPackageVersion] = useState<string>("");
 
   const [evaluateResponse, setEvaluateResponse] = useState<RuleEvaluateResponse | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   const evaluateMutation = useEvaluateRules();
-  const { data: diagnoseData, isLoading: diagnoseLoading } = useRuleExecutionDiagnose(
+  const { data: explainData, isLoading: explainLoading } = useRuleExecutionExplain(
     selectedExecutionId || "",
   );
 
@@ -58,6 +56,7 @@ export default function RuleValidate() {
       const res = await evaluateMutation.mutateAsync({
         triggerPoint,
         patientId: patientId.trim() || undefined,
+        packageVersion,
         payloadJson,
       });
 
@@ -66,6 +65,12 @@ export default function RuleValidate() {
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "批量规则评估失败"));
     }
+  };
+
+  const renderJson = (value: unknown) => {
+    if (typeof value === "string") return value;
+    if (value === null || value === undefined) return "暂无解释。";
+    return JSON.stringify(value, null, 2);
   };
 
   const columns = [
@@ -101,10 +106,9 @@ export default function RuleValidate() {
       render: (code: string) => <Tag color="blue">{code}</Tag>,
     },
     {
-      title: "诊断回溯",
+      title: "解释追溯",
       key: "action",
       render: (_record: RuleEvaluationItem) => {
-        // 当命中且有执行 ID 时，支持诊断
         if (evaluateResponse?.executionId) {
           return (
             <Button
@@ -113,7 +117,7 @@ export default function RuleValidate() {
               onClick={() => setSelectedExecutionId(evaluateResponse.executionId)}
               className="text-indigo-600 hover:text-indigo-900 font-medium"
             >
-              追溯解释诊断
+              查看执行解释
             </Button>
           );
         }
@@ -125,7 +129,7 @@ export default function RuleValidate() {
   return (
     <PageShell
       title="规则试运行"
-      description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因诊断。"
+      description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
     >
       <Row gutter={24}>
         {/* 左栏：输入上下文 */}
@@ -161,6 +165,16 @@ export default function RuleValidate() {
               />
             </div>
 
+            <div className="mb-4">
+              <div className="text-xs font-semibold text-gray-700 mb-1">标准上下文包版本</div>
+              <Input
+                placeholder="输入本次规则求值绑定的配置包版本"
+                value={packageVersion}
+                onChange={(e) => setPackageVersion(e.target.value)}
+                className="font-normal text-sm"
+              />
+            </div>
+
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-1">
                 真实脱敏 Payload JSON 快照
@@ -169,7 +183,7 @@ export default function RuleValidate() {
                 rows={16}
                 value={contextJson}
                 onChange={(e) => setContextJson(e.target.value)}
-                placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、诊断或药品。"
+                placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、病种或药品。"
                 className="font-normal text-xs p-3 bg-gray-50 rounded-lg"
               />
             </div>
@@ -252,24 +266,24 @@ export default function RuleValidate() {
         </Col>
       </Row>
 
-      {/* 可解释归因诊断抽屉 */}
+      {/* 可解释归因追溯抽屉 */}
       <Drawer
         title={
           <div className="flex items-center gap-2">
             <BugOutlined className="text-indigo-600" />
-            <span>临床可信解释与归因诊断分析</span>
+            <span>临床可信解释与归因追溯</span>
           </div>
         }
         width={640}
         onClose={() => setSelectedExecutionId(null)}
         open={!!selectedExecutionId}
-        loading={diagnoseLoading}
+        loading={explainLoading}
         destroyOnClose
       >
-        {diagnoseData && (
+        {explainData && (
           <div>
             <Alert
-              message="本诊断视图数据提取自引擎底座 StateTransitionRecorder。通过物理隔离事件和不参与哈希签名的元数据，为临床一线提供 100% 透明可信的决策审计链依据。"
+              message="本解释视图读取规则执行日志中的真实输入摘要、命中结果、动作与解释快照；页面不补写归因。"
               type="info"
               showIcon
               className="mb-6 rounded-lg"
@@ -277,17 +291,25 @@ export default function RuleValidate() {
 
             <Descriptions title="求值快照元数据" bordered column={1} size="small" className="mb-6">
               <Descriptions.Item label="求值 Execution ID">
-                <span className="font-normal text-xs">{diagnoseData.executionId}</span>
+                <span className="font-normal text-xs">{explainData.executionId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="链路 Trace ID">
-                <span className="font-normal text-xs">{diagnoseData.traceId}</span>
+                <span className="font-normal text-xs">{explainData.traceId}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="触发点">
+                <span className="font-normal text-xs">{explainData.triggerPoint}</span>
               </Descriptions.Item>
               <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
-                <span className="font-normal text-xs">{diagnoseData.inputPayloadSummary}</span>
+                <span className="font-normal text-xs">{explainData.inputDigest}</span>
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">
-                <Tag color={diagnoseData.riskLevel === "HIGH" ? "red" : "orange"}>
-                  {diagnoseData.riskLevel || "LOW"}
+                <Tag color={explainData.severity === "HIGH" ? "red" : "orange"}>
+                  {explainData.severity || "LOW"}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="执行状态">
+                <Tag color={explainData.status === "SUCCESS" ? "green" : "red"}>
+                  {explainData.status}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
@@ -301,39 +323,23 @@ export default function RuleValidate() {
               }
               className="mb-6 rounded-xl border-gray-200"
             >
-              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100">
-                {diagnoseData.explanationSnapshot || "暂无解释。"}
+              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100 whitespace-pre-wrap">
+                {renderJson(explainData.explanation)}
               </div>
             </Card>
 
             <Card
               title={
                 <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <CalendarOutlined />
-                  <span>审计流转历史 (State History)</span>
+                  <FileTextOutlined />
+                  <span>执行动作快照</span>
                 </div>
               }
               className="rounded-xl border-gray-200"
             >
-              <Timeline>
-                {diagnoseData.statusHistory?.map((h, idx) => (
-                  <Timeline.Item key={idx} color={h.status === "SIGNED" ? "green" : "blue"}>
-                    <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
-                      <span>状态: {h.status}</span>
-                      <span className="text-gray-400 font-normal">
-                        {new Date(h.changedAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="text-gray-600 text-xs mt-1">
-                      <span>操作人: </span>
-                      <Tag color="cyan" icon={<UserOutlined />}>
-                        {h.changedBy}
-                      </Tag>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1 font-normal italic">{h.summary}</div>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
+              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100 whitespace-pre-wrap">
+                {renderJson(explainData.actions)}
+              </div>
             </Card>
           </div>
         )}

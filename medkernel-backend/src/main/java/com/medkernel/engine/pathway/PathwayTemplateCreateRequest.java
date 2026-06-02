@@ -2,6 +2,7 @@ package com.medkernel.engine.pathway;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.Valid;
@@ -15,6 +16,18 @@ import jakarta.validation.constraints.NotNull;
  * <p>一次性携带模板主数据、节点、边和指标绑定，保存为可发布前校验的草稿资产。
  */
 public record PathwayTemplateCreateRequest(
+    @JsonAlias("request_id") String requestId,
+    @JsonAlias("trace_id") String traceId,
+    @JsonAlias("tenant_id") String tenantId,
+    @JsonAlias("group_id") String groupId,
+    @JsonAlias("hospital_id") String hospitalId,
+    @JsonAlias("campus_id") String campusId,
+    @JsonAlias("site_id") String siteId,
+    @JsonAlias("department_id") String departmentId,
+    @JsonAlias("specialty_id") String specialtyId,
+    @JsonAlias("user_id") String userId,
+    @JsonAlias("role_codes") List<String> roleCodes,
+    @JsonAlias("package_version") String packageVersion,
     @NotBlank String packageId,
     @NotBlank String templateCode,
     @NotBlank String name,
@@ -29,4 +42,35 @@ public record PathwayTemplateCreateRequest(
     @NotEmpty List<@Valid PathwayNodeRequest> nodes,
     List<@Valid PathwayEdgeRequest> edges,
     List<@Valid SpecialtyMetricBindingRequest> metricBindings
-) {}
+) implements PathwayContextRequest {
+    public PathwayTemplateCreateRequest {
+        roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+    }
+
+    public PathwayTemplateCreateRequest(String packageId,
+                                        String templateCode,
+                                        String name,
+                                        String diseaseCode,
+                                        Integer templateVersion,
+                                        PathwayTemplateLevel templateLevel,
+                                        String startNodeCode,
+                                        String sourceRef,
+                                        String description,
+                                        JsonNode entryCriteria,
+                                        JsonNode exitCriteria,
+                                        List<PathwayNodeRequest> nodes,
+                                        List<PathwayEdgeRequest> edges,
+                                        List<SpecialtyMetricBindingRequest> metricBindings) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
+            startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
+            nodes, edges, metricBindings);
+    }
+
+    public PathwayApiContext apiContext() {
+        return new PathwayApiContext(
+            requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
+            departmentId, specialtyId, userId, roleCodes, packageVersion
+        );
+    }
+}
