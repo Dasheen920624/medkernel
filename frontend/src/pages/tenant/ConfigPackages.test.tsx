@@ -9,6 +9,7 @@ import { downloadPackageOfflineExport } from "@/shared/api/hooks";
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
   importOfflinePackage: vi.fn(),
+  addPackageItem: vi.fn(),
   releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("@/shared/api/hooks", () => ({
           packageVersion: "3.0.0",
           name: "通用配置包",
           description: "真实资产集合",
-          status: "PUBLISHED",
+          status: "DRAFT",
           createdAt: "2026-06-01T00:00:00Z",
           createdBy: "tester",
           updatedAt: "2026-06-01T00:00:00Z",
@@ -49,7 +50,7 @@ vi.mock("@/shared/api/hooks", () => ({
     data: { items: [] },
     refetch: apiMocks.refetchPackageDetail,
   }),
-  useAddPackageItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAddPackageItem: () => ({ mutateAsync: apiMocks.addPackageItem, isPending: false }),
   useCalculateDiff: () => ({ data: null }),
   useSyncPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReleasePackage: () => ({ mutateAsync: apiMocks.releasePackage, isPending: false }),
@@ -59,7 +60,28 @@ vi.mock("@/shared/api/hooks", () => ({
   useRuleDefinitions: () => ({ data: { items: [] } }),
   usePathwayTemplates: () => ({ data: { items: [] } }),
   useEvaluationIndicators: () => ({ data: { items: [] } }),
-  useTerminologyMappings: () => ({ data: { items: [] } }),
+  useTerminologyPackages: () => ({
+    data: {
+      items: [
+        {
+          id: 301,
+          tenantId: "tenant-A",
+          packageCode: "TERM.LAB",
+          packageVersion: "2026.06",
+          displayName: "检验术语映射包",
+          scopeLevel: "DEPARTMENT",
+          scopeCode: "CARD",
+          status: "PUBLISHED",
+          mappingCount: 1,
+          contentHash: "b".repeat(64),
+          createdAt: "2026-06-01T00:00:00Z",
+          createdBy: "tester",
+          updatedAt: "2026-06-01T00:00:00Z",
+          updatedBy: "tester",
+        },
+      ],
+    },
+  }),
   downloadPackageDiffExport: vi.fn(),
   downloadPackageOfflineExport: apiMocks.downloadPackageOfflineExport,
 }));
@@ -69,6 +91,14 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.downloadPackageOfflineExport.mockReset();
     apiMocks.downloadPackageOfflineExport.mockResolvedValue(new Blob(["offline-package"]));
     apiMocks.importOfflinePackage.mockReset();
+    apiMocks.addPackageItem.mockReset();
+    apiMocks.addPackageItem.mockResolvedValue({
+      itemId: "item-term",
+      packageId: "pkg-offline",
+      assetType: "TERMINOLOGY",
+      assetId: "TERM.LAB|DEPARTMENT|CARD",
+      assetVersion: "2026.06",
+    });
     apiMocks.importOfflinePackage.mockResolvedValue({
       packageId: "pkg-imported",
       packageCode: "PKG.IMPORT",
@@ -171,5 +201,37 @@ describe("ConfigPackages offline package export", () => {
     expect(screen.getByText("院内同步发布中心")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeInTheDocument();
     expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
+  });
+
+  it("adds terminology package assets with the stable package scope key", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+
+    fireEvent.mouseDown(screen.getByLabelText("资产类型"));
+    await userEvent.click(await screen.findByText("术语字典映射 (TERMINOLOGY)"));
+
+    fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
+    await userEvent.click(await screen.findByText(/检验术语映射包/));
+    expect(screen.getByLabelText("资产快照版本")).toHaveValue("2026.06");
+    await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
+
+    await waitFor(() => {
+      expect(apiMocks.addPackageItem).toHaveBeenCalledWith({
+        packageId: "pkg-offline",
+        request: {
+          assetType: "TERMINOLOGY",
+          assetId: "TERM.LAB|DEPARTMENT|CARD",
+          assetVersion: "2026.06",
+          packageVersion: "3.0.0",
+        },
+      });
+    });
   });
 });

@@ -1,5 +1,7 @@
 package com.medkernel.engine.terminology;
 
+import java.util.List;
+
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -8,4 +10,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface TermMappingPackageItemRepository extends ListCrudRepository<TermMappingPackageItem, Long> {
+    List<TermMappingPackageItem> findByTenantIdAndPackageId(String tenantId, Long packageId);
 }

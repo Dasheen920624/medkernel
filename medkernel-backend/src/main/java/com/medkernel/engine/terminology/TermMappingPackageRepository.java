@@ -15,6 +15,14 @@ public interface TermMappingPackageRepository extends ListCrudRepository<TermMap
 
     Optional<TermMappingPackage> findByTenantIdAndId(String tenantId, Long id);
 
+    Optional<TermMappingPackage> findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
+        String tenantId,
+        String packageCode,
+        String packageVersion,
+        String scopeLevel,
+        String scopeCode
+    );
+
     /**
      * 按租户 + 可选过滤条件（包编码 / 状态 / 作用域层级 / 作用域编码）统计映射包数量。
      */

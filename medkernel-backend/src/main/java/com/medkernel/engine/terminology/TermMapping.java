@@ -33,6 +33,113 @@ public record TermMapping(
     @Column("updated_by") String updatedBy
 ) {
 
+    public static TermMapping imported(
+            String tenantId,
+            Long localTermId,
+            Long standardTermId,
+            String sourceSystem,
+            String category,
+            Double confidence,
+            String riskLevel,
+            String status,
+            String evidenceText,
+            String confirmedBy,
+            Instant confirmedAt,
+            Instant now,
+            String actor) {
+        return imported(
+            null,
+            tenantId,
+            localTermId,
+            standardTermId,
+            sourceSystem,
+            category,
+            confidence,
+            riskLevel,
+            status,
+            evidenceText,
+            confirmedBy,
+            confirmedAt,
+            now,
+            actor
+        );
+    }
+
+    public static TermMapping imported(
+            Long id,
+            String tenantId,
+            Long localTermId,
+            Long standardTermId,
+            String sourceSystem,
+            String category,
+            Double confidence,
+            String riskLevel,
+            String status,
+            String evidenceText,
+            String confirmedBy,
+            Instant confirmedAt,
+            Instant now,
+            String actor) {
+        return new TermMapping(
+            id,
+            tenantId,
+            localTermId,
+            standardTermId,
+            sourceSystem,
+            parseNullableEnum(TermCategory.class, category),
+            confidence,
+            parseRequiredEnum(TermRiskLevel.class, riskLevel, TermRiskLevel.MEDIUM),
+            parseRequiredEnum(TermMappingStatus.class, status, TermMappingStatus.CONFIRMED),
+            evidenceText,
+            confirmedBy,
+            confirmedAt,
+            now,
+            actor,
+            now,
+            actor
+        );
+    }
+
+    public String categoryName() {
+        return category == null ? null : category.name();
+    }
+
+    public String riskLevelName() {
+        return riskLevel == null ? null : riskLevel.name();
+    }
+
+    public String statusName() {
+        return status == null ? null : status.name();
+    }
+
+    public static void validateImportedEnums(String category, String riskLevel, String status) {
+        parseNullableEnum(TermCategory.class, category);
+        parseRequiredEnum(TermRiskLevel.class, riskLevel, TermRiskLevel.MEDIUM);
+        parseRequiredEnum(TermMappingStatus.class, status, TermMappingStatus.CONFIRMED);
+    }
+
+    private static <E extends Enum<E>> E parseNullableEnum(Class<E> enumClass, String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(enumClass.getSimpleName() + "=" + value, e);
+        }
+    }
+
+    private static <E extends Enum<E>> E parseRequiredEnum(Class<E> enumClass, String value, E defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(enumClass.getSimpleName() + "=" + value, e);
+        }
+    }
+
     TermMapping confirmed(String userId, Instant now, String evidence, String sourceSystem, TermCategory category) {
         return new TermMapping(
             id, tenantId, localTermId, standardTermId,
