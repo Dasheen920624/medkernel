@@ -224,7 +224,7 @@ describe("page smoke coverage", () => {
     );
 
     expect(await screen.findByLabelText("登录类型切换")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "集团/院内户" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "集团院内户" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
