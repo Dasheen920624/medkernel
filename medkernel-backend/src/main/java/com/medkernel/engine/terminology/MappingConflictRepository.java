@@ -16,6 +16,41 @@ public interface MappingConflictRepository extends ListCrudRepository<MappingCon
     Optional<MappingConflict> findByTenantIdAndId(String tenantId, Long id);
 
     /**
+     * 查询同一候选范围下尚未处置的精确冲突，避免候选重复生成时制造重复待裁单。
+     */
+    @Query("""
+        SELECT * FROM mapping_conflict
+        WHERE tenant_id = :tenantId
+          AND conflict_type = :conflictType
+          AND local_term_id = :localTermId
+          AND standard_term_id = :standardTermId
+          AND status = 'OPEN'
+        ORDER BY updated_at DESC, id DESC
+        FETCH FIRST 1 ROW ONLY
+        """)
+    Optional<MappingConflict> findOpenByExactScope(String tenantId,
+                                                   MappingConflictType conflictType,
+                                                   Long localTermId,
+                                                   Long standardTermId);
+
+    /**
+     * 查询仅绑定院内词的未处置冲突；用于一个院内词命中多个标准候选的候选生成阶段。
+     */
+    @Query("""
+        SELECT * FROM mapping_conflict
+        WHERE tenant_id = :tenantId
+          AND conflict_type = :conflictType
+          AND local_term_id = :localTermId
+          AND standard_term_id IS NULL
+          AND status = 'OPEN'
+        ORDER BY updated_at DESC, id DESC
+        FETCH FIRST 1 ROW ONLY
+        """)
+    Optional<MappingConflict> findOpenLocalOnly(String tenantId,
+                                                MappingConflictType conflictType,
+                                                Long localTermId);
+
+    /**
      * 按租户 + 可选过滤条件（状态 / 风险等级 / 冲突类型）统计冲突数量。
      */
     @Query("""

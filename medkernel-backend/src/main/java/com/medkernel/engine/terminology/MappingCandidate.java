@@ -41,4 +41,12 @@ public record MappingCandidate(
             note, userId, now, createdAt, createdBy, now, userId
         );
     }
+
+    MappingCandidate withConflictFlag(boolean nextConflictFlag, String userId, Instant now) {
+        return new MappingCandidate(
+            id, tenantId, localTermId, standardTermId, confidence, candidateSource,
+            riskLevel, evidenceText, nextConflictFlag, status,
+            reviewNote, reviewedBy, reviewedAt, createdAt, createdBy, now, userId
+        );
+    }
 }
