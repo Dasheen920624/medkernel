@@ -604,6 +604,46 @@ export interface RuleEvaluationItem {
   explanation: string;
 }
 
+export interface RuleTestCaseResult {
+  caseId: string;
+  caseType: string;
+  status: "PASS" | "FAIL" | "PENDING" | string;
+  hit?: boolean | null;
+  message?: string | null;
+  runAt?: string | null;
+}
+
+export interface RuleImpactObject {
+  objectType: string;
+  objectId: string;
+  displayName: string;
+  impactReason: string;
+}
+
+export interface RuleImpactResponse {
+  ruleId: string;
+  versionId: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | string;
+  analysisStatus: "COMPLETE" | "PARTIAL" | string;
+  impactDigest: string;
+  affectedRules: RuleImpactObject[];
+  affectedPathways: RuleImpactObject[];
+  inPathPatients: RuleImpactObject[];
+  syncTargets: RuleImpactObject[];
+  unavailableScopes: string[];
+  traceId: string;
+}
+
+export interface RulePublishResponse {
+  ruleId: string;
+  versionId: string;
+  status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
+  traceId: string;
+  results: RuleTestCaseResult[];
+  impactDigest?: string | null;
+  impactStatus?: string | null;
+}
+
 export interface RuleEvaluateResponse {
   traceId: string;
   executionId: string;
@@ -742,13 +782,43 @@ export function useSimulateRule(ruleId: string) {
   });
 }
 
+export function useRuleImpact(
+  ruleId: string,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["rules", "impact", ruleId],
+    enabled: (options?.enabled ?? true) && !!ruleId,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: RuleImpactResponse }>(
+        `/engine/rule/rules/${ruleId}/impact`,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function usePublishRule() {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { ruleId: string; packageVersion: string }) => {
-      const { data } = await apiClient.post<{ data: { versionId: string } }>(
+    mutationFn: async (payload: {
+      ruleId: string;
+      packageVersion: string;
+      impactDigest?: string;
+      reason?: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: RulePublishResponse }>(
         `/engine/rule/rules/${payload.ruleId}/publish`,
-        withStandardApiContext({}, security.data, payload.packageVersion),
+        withStandardApiContext(
+          {
+            impactDigest: payload.impactDigest,
+            reason: payload.reason,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
       );
       return data.data;
     },
@@ -1856,6 +1926,21 @@ export interface ContextSnapshotSummary {
   createdAt?: string;
 }
 
+export interface ContextSnapshotResponse {
+  snapshotId: string;
+  status: ContextSnapshotStatus;
+  resources?: Record<string, unknown> | null;
+  packageVersion?: string | null;
+  knowledgePackageVersion?: string | null;
+  rulePackageVersion?: string | null;
+  pathwayPackageVersion?: string | null;
+  qualityStatus: string;
+  missingFields: Array<Record<string, unknown>>;
+  mappingStatus: Record<string, string>;
+  createdAt?: string;
+  traceId?: string;
+}
+
 export function useContextSnapshots(
   params?: {
     patientId?: string;
@@ -1876,6 +1961,24 @@ export function useContextSnapshots(
       const { data } = await apiClient.get<{ data: PageResponse<ContextSnapshotSummary> }>(
         "/engine/context/snapshots",
         { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useContextSnapshotDetail(
+  snapshotId: string,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["context", "snapshot", snapshotId],
+    enabled: (options?.enabled ?? true) && !!snapshotId,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ContextSnapshotResponse }>(
+        `/engine/context/snapshots/${snapshotId}`,
       );
       return data.data;
     },

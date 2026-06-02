@@ -4,9 +4,11 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Col,
   Descriptions,
   Drawer,
+  Empty,
   Form,
   Input,
   Modal,
@@ -27,6 +29,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CodeOutlined,
+  DeploymentUnitOutlined,
   FileSearchOutlined,
   InfoCircleOutlined,
   PlusOutlined,
@@ -41,9 +44,20 @@ import {
   useAddTestCase,
   useSimulateRule,
   usePublishRule,
+  useContextSnapshots,
+  useContextSnapshotDetail,
+  useRuleImpact,
 } from "@/shared/api/hooks";
-import type { RuleDefinition, RuleEvaluationItem } from "@/shared/api/hooks";
+import type {
+  RuleDefinition,
+  RuleEvaluationItem,
+  RuleImpactObject,
+  RuleImpactResponse,
+  RuleTestCase,
+  ContextSnapshotSummary,
+} from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { StepFlow } from "@/shared/ui/StepFlow";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -68,8 +82,10 @@ const { Text } = Typography;
 
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
 type CreateLayerKey = "l1" | "l2" | "l3";
+type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
+const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   DRUG_SAFETY: "合理用药安全",
@@ -191,6 +207,25 @@ function valueForOperator(operator: RuleOperator, currentValue: RuleCondition["v
   return currentValue ?? "";
 }
 
+function releaseCaseSummary(testCases: RuleTestCase[]) {
+  const caseTypes = new Set(testCases.map((item) => item.caseType));
+  const missingTypes = REQUIRED_RELEASE_CASE_TYPES.filter((caseType) => !caseTypes.has(caseType));
+  const allPassed =
+    testCases.length > 0 &&
+    missingTypes.length === 0 &&
+    testCases.every((item) => item.lastStatus === "PASS");
+  return { missingTypes, allPassed };
+}
+
+function impactCount(list?: RuleImpactObject[]) {
+  return list?.length ?? 0;
+}
+
+function releaseImpactStatus(impact?: RuleImpactResponse | null) {
+  if (!impact) return "未读取";
+  return impact.analysisStatus === "PARTIAL" ? "部分影响已确认" : impact.analysisStatus;
+}
+
 export default function RuleDefinitions() {
   const { message, modal } = AntdApp.useApp();
   const [page, setPage] = useState(1);
@@ -199,6 +234,7 @@ export default function RuleDefinitions() {
   const [typeFilter, setTypeFilter] = useState<string | undefined>(undefined);
   const [riskFilter, setRiskFilter] = useState<string | undefined>(undefined);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [activeDetailLayer, setActiveDetailLayer] = useState<DetailLayerKey>("l2");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
   const [selectedTemplateKey, setSelectedTemplateKey] =
@@ -210,6 +246,14 @@ export default function RuleDefinitions() {
   const [caseForm] = Form.useForm();
   const [simulatePayload, setSimulatePayload] = useState<string>("");
   const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
+  const [snapshotPatientId, setSnapshotPatientId] = useState("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [snapshotSearchParams, setSnapshotSearchParams] = useState<{
+    patientId?: string;
+    encounterId?: string;
+  } | null>(null);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
+  const [releaseReason, setReleaseReason] = useState("");
 
   const {
     data: listData,
@@ -248,6 +292,27 @@ export default function RuleDefinitions() {
   const addTestCaseMutation = useAddTestCase(selectedRuleId || "");
   const simulateMutation = useSimulateRule(selectedRuleId || "");
   const publishMutation = usePublishRule();
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: snapshotSearchParams?.patientId,
+      encounterId: snapshotSearchParams?.encounterId,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+    },
+    { enabled: Boolean(selectedRuleId && snapshotSearchParams) },
+  );
+  const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
+    enabled: Boolean(selectedRuleId && selectedSnapshotId),
+  });
+  const impactQuery = useRuleImpact(selectedRuleId || "", {
+    enabled: Boolean(selectedRuleId && detailData?.definition.status === "DRAFT"),
+  });
+  const snapshots = snapshotsQuery.data?.items ?? [];
+  const releaseGate = useMemo(
+    () => releaseCaseSummary(detailData?.testCases ?? []),
+    [detailData?.testCases],
+  );
 
   const resetLayeredAuthoring = (templateKey: RuleTemplateKey = DEFAULT_TEMPLATE_KEY) => {
     const template = findTemplate(templateKey);
@@ -408,15 +473,8 @@ export default function RuleDefinitions() {
     }
   };
 
-  const handleSimulate = async () => {
+  const runSimulation = async (inputPayload: unknown) => {
     try {
-      const inputPayload = parseJsonInput(
-        simulatePayload,
-        "请先粘贴真实脱敏上下文快照 JSON",
-        message.error,
-      );
-      if (!inputPayload) return;
-
       const result = await simulateMutation.mutateAsync({
         packageVersion: selectedRulePackageVersion,
         inputPayload,
@@ -429,12 +487,64 @@ export default function RuleDefinitions() {
     }
   };
 
+  const handleManualSimulate = async () => {
+    const inputPayload = parseJsonInput(
+      simulatePayload,
+      "请先粘贴真实脱敏上下文快照 JSON",
+      message.error,
+    );
+    if (!inputPayload) return;
+    await runSimulation(inputPayload);
+  };
+
+  const handleSnapshotSearch = () => {
+    const patientId = snapshotPatientId.trim();
+    const encounterId = snapshotEncounterId.trim();
+    if (!patientId && !encounterId) {
+      message.warning("请输入患者 ID 或就诊 ID 后再读取真实快照。");
+      return;
+    }
+    setSnapshotSearchParams({
+      patientId: patientId || undefined,
+      encounterId: encounterId || undefined,
+    });
+    setSelectedSnapshotId("");
+    setSimulateResult(null);
+  };
+
+  const handleSimulateSelectedSnapshot = async () => {
+    if (!selectedSnapshotId) {
+      message.warning("请先选择一个 ACTIVE 快照。");
+      return;
+    }
+    const snapshot = snapshotDetailQuery.data;
+    if (!snapshot?.resources) {
+      message.error("快照详情未返回标准资源，不能进行规则试运行。");
+      return;
+    }
+    await runSimulation(snapshot.resources);
+  };
+
   const handlePublish = async () => {
     if (!selectedRuleId) return;
+    const impactDigest = impactQuery.data?.impactDigest;
+    const reason = releaseReason.trim();
+    if (!impactDigest) {
+      setActiveDetailLayer("release");
+      message.error("请先读取发布影响摘要，再提交发布门禁。");
+      return;
+    }
+    if (!reason) {
+      setActiveDetailLayer("release");
+      message.error("请填写发布审核说明。");
+      return;
+    }
     try {
       await publishMutation.mutateAsync({
         ruleId: selectedRuleId,
         packageVersion: selectedRulePackageVersion,
+        impactDigest,
+        reason,
       });
       message.success("发布成功，门禁测试通过");
       refetchDetail();
@@ -491,12 +601,239 @@ export default function RuleDefinitions() {
       title: "操作",
       key: "action",
       render: (_value: unknown, record: RuleDefinition) => (
-        <Button type="link" onClick={() => setSelectedRuleId(record.ruleId)}>
+        <Button
+          type="link"
+          onClick={() => {
+            setSelectedRuleId(record.ruleId);
+            setActiveDetailLayer("l2");
+            setSelectedSnapshotId("");
+            setSnapshotSearchParams(null);
+            setSimulatePayload("");
+            setSimulateResult(null);
+            setReleaseReason("");
+          }}
+        >
           查看配置与试运行
         </Button>
       ),
     },
   ];
+
+  const renderSnapshotChoice = (snapshot: ContextSnapshotSummary) => {
+    const selected = selectedSnapshotId === snapshot.snapshotId;
+    return (
+      <Card
+        key={snapshot.snapshotId}
+        size="small"
+        hoverable
+        onClick={() => {
+          setSelectedSnapshotId(snapshot.snapshotId);
+          setSimulateResult(null);
+        }}
+      >
+        <Space direction="vertical" size={2} className="mk-full-width">
+          <Space>
+            <Badge status={selected ? "processing" : "default"} />
+            <Text strong>{snapshot.snapshotId}</Text>
+            <Tag color={snapshot.status === "ACTIVE" ? "green" : "default"}>{snapshot.status}</Tag>
+          </Space>
+          <Text type="secondary">
+            患者 {snapshot.patientId || "-"} · 就诊 {snapshot.encounterId || "-"} · 质量{" "}
+            {snapshot.qualityStatus}
+          </Text>
+          {snapshot.createdAt && <Text type="secondary">创建时间 {snapshot.createdAt}</Text>}
+        </Space>
+      </Card>
+    );
+  };
+
+  const renderSnapshotChoices = () => {
+    if (!snapshotSearchParams) {
+      return <Empty description="输入患者 ID 或就诊 ID 后读取 ACTIVE 快照" />;
+    }
+    if (snapshotsQuery.isLoading) {
+      return <Alert type="info" showIcon message="正在读取真实上下文快照列表..." />;
+    }
+    if (snapshotsQuery.isError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message="上下文快照接口读取失败"
+          description="请稍后重试；页面不会用演示病例替代真实快照。"
+        />
+      );
+    }
+    if (snapshots.length === 0) {
+      return <Empty description="当前患者或就诊下暂无 ACTIVE 临床快照" />;
+    }
+    return (
+      <Space direction="vertical" size="small" className="mk-full-width">
+        {snapshots.map(renderSnapshotChoice)}
+      </Space>
+    );
+  };
+
+  const renderSelectedSnapshotDetail = () => {
+    if (!selectedSnapshotId) {
+      return <Empty description="请选择一个快照，系统会读取该快照详情用于规则试运行" />;
+    }
+    if (snapshotDetailQuery.isLoading) {
+      return <Alert type="info" showIcon message="正在读取快照详情..." />;
+    }
+    if (snapshotDetailQuery.isError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message="快照详情读取失败"
+          description="不能在无真实详情的情况下试运行。"
+        />
+      );
+    }
+    const snapshot = snapshotDetailQuery.data;
+    if (!snapshot?.resources) {
+      return (
+        <Alert
+          type="warning"
+          showIcon
+          message="该快照未返回标准资源"
+          description="请更换快照或检查上下文快照采集链路。"
+        />
+      );
+    }
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="快照 ID">{snapshot.snapshotId}</Descriptions.Item>
+          <Descriptions.Item label="质量状态">{snapshot.qualityStatus}</Descriptions.Item>
+          <Descriptions.Item label="绑定包版本">
+            {snapshot.packageVersion || selectedRulePackageVersion || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="缺失字段">
+            {snapshot.missingFields?.length ? `${snapshot.missingFields.length} 项` : "无"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Trace">{snapshot.traceId || "-"}</Descriptions.Item>
+        </Descriptions>
+        <Button
+          type="primary"
+          icon={<PlayCircleOutlined />}
+          aria-label="使用该快照试运行"
+          onClick={handleSimulateSelectedSnapshot}
+          loading={simulateMutation.isPending}
+          block
+        >
+          使用该快照试运行
+        </Button>
+      </Space>
+    );
+  };
+
+  const renderImpactObjectList = (title: string, objects: RuleImpactObject[]) => (
+    <Descriptions.Item label={title}>
+      {objects.length === 0 ? (
+        <Text type="secondary">暂无真实对象</Text>
+      ) : (
+        <Space direction="vertical" size={2}>
+          {objects.map((item) => (
+            <Text key={`${item.objectType}-${item.objectId}`}>
+              {item.displayName} · {item.impactReason}
+            </Text>
+          ))}
+        </Space>
+      )}
+    </Descriptions.Item>
+  );
+
+  let impactSummaryPanel = (
+    <Descriptions bordered column={2} size="small">
+      <Descriptions.Item label="影响分析状态">
+        {releaseImpactStatus(impactQuery.data)}
+      </Descriptions.Item>
+      <Descriptions.Item label="影响摘要">
+        {impactQuery.data?.impactDigest || <Text type="secondary">未返回</Text>}
+      </Descriptions.Item>
+      <Descriptions.Item label="规则对象">
+        {impactCount(impactQuery.data?.affectedRules)}
+      </Descriptions.Item>
+      <Descriptions.Item label="路径模板">
+        {impactCount(impactQuery.data?.affectedPathways)}
+      </Descriptions.Item>
+      <Descriptions.Item label="在径患者">
+        {impactCount(impactQuery.data?.inPathPatients)}
+      </Descriptions.Item>
+      <Descriptions.Item label="同步目标">
+        {impactCount(impactQuery.data?.syncTargets)}
+      </Descriptions.Item>
+      {renderImpactObjectList("已定位规则", impactQuery.data?.affectedRules ?? [])}
+      <Descriptions.Item label="不可用范围">
+        {impactQuery.data?.unavailableScopes?.length ? (
+          <Space wrap>
+            {impactQuery.data.unavailableScopes.map((scope) => (
+              <Tag key={scope}>{scope}</Tag>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">无</Text>
+        )}
+      </Descriptions.Item>
+    </Descriptions>
+  );
+  if (impactQuery.isLoading) {
+    impactSummaryPanel = <Alert type="info" showIcon message="正在读取发布影响摘要..." />;
+  }
+  if (impactQuery.isError) {
+    impactSummaryPanel = (
+      <Alert
+        type="error"
+        showIcon
+        message="影响摘要读取失败"
+        description="发布门禁需要真实影响摘要，请稍后重试。"
+      />
+    );
+  }
+
+  const releaseStepPanel = (
+    <Space direction="vertical" size="middle" className="mk-full-width">
+      <Alert
+        type={releaseGate.allPassed ? "success" : "warning"}
+        showIcon
+        message={
+          releaseGate.allPassed
+            ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
+            : `发布门禁未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
+        }
+      />
+      {detailData?.definition.riskLevel === "HIGH" && (
+        <Alert
+          type="warning"
+          showIcon
+          message="高危规则必须携带当前影响摘要和审核说明。"
+          description="影响摘要来自规则影响分析接口；跨域反向索引未接入的范围会明示为不可用，不会在前端补造路径、患者或同步目标。"
+        />
+      )}
+      {impactSummaryPanel}
+      <Form layout="vertical">
+        <Form.Item label="发布审核说明" htmlFor="rule-release-reason">
+          <TextArea
+            id="rule-release-reason"
+            rows={3}
+            value={releaseReason}
+            onChange={(event) => setReleaseReason(event.target.value)}
+            placeholder="填写已核查影响摘要、测试结果和灰度发布安排。"
+          />
+        </Form.Item>
+        <Button
+          type="primary"
+          onClick={handlePublish}
+          loading={publishMutation.isPending}
+          disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
+        >
+          提交发布门禁
+        </Button>
+      </Form>
+    </Space>
+  );
 
   const detailLayerItems = detailData
     ? [
@@ -683,64 +1020,122 @@ export default function RuleDefinitions() {
             </span>
           ),
           children: (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form layout="vertical">
-                  <Form.Item label="真实脱敏上下文快照 JSON">
-                    <TextArea
-                      rows={12}
-                      value={simulatePayload}
-                      onChange={(e) => setSimulatePayload(e.target.value)}
-                      placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、诊断或药品。"
-                      className="font-normal text-xs"
-                    />
-                  </Form.Item>
-                  <Button
-                    type="primary"
-                    icon={<PlayCircleOutlined />}
-                    onClick={handleSimulate}
-                    loading={simulateMutation.isPending}
-                    block
-                  >
-                    运行规则试运行求值
-                  </Button>
-                </Form>
-              </Col>
-              <Col span={12}>
-                {simulateResult ? (
-                  <div className="bg-gray-50 p-4 rounded-lg min-h-64 overflow-auto max-h-96">
-                    <Descriptions column={1} size="small" bordered className="mb-4">
-                      <Descriptions.Item label="规则是否命中">
-                        {simulateResult.hit ? (
-                          <Tag color="red">命中</Tag>
-                        ) : (
-                          <Tag color="green">未命中</Tag>
+            <Space direction="vertical" size="large" className="mk-full-width">
+              <Alert
+                type="info"
+                showIcon
+                message="默认从标准上下文快照接口读取真实脱敏快照；页面不内置示例病例。"
+              />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form layout="vertical">
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.Item label="患者 ID" htmlFor="rule-snapshot-patient-id">
+                          <Input
+                            id="rule-snapshot-patient-id"
+                            value={snapshotPatientId}
+                            onChange={(event) => setSnapshotPatientId(event.target.value)}
+                            placeholder="输入患者主索引"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item label="就诊 ID" htmlFor="rule-snapshot-encounter-id">
+                          <Input
+                            id="rule-snapshot-encounter-id"
+                            value={snapshotEncounterId}
+                            onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                            placeholder="输入就诊号"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Button
+                      icon={<FileSearchOutlined />}
+                      aria-label="读取真实快照"
+                      onClick={handleSnapshotSearch}
+                    >
+                      读取真实快照
+                    </Button>
+                  </Form>
+                  <div className="mt-4">{renderSnapshotChoices()}</div>
+                </Col>
+                <Col span={12}>{renderSelectedSnapshotDetail()}</Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Card size="small" title="专家手工 JSON 兜底">
+                    <Form layout="vertical">
+                      <Form.Item label="真实脱敏上下文快照 JSON">
+                        <TextArea
+                          rows={8}
+                          value={simulatePayload}
+                          onChange={(e) => setSimulatePayload(e.target.value)}
+                          placeholder="仅在已知快照 ID 无法检索时使用；仍必须来自真实脱敏上下文。"
+                          className="font-normal text-xs"
+                        />
+                      </Form.Item>
+                      <Button
+                        icon={<PlayCircleOutlined />}
+                        onClick={handleManualSimulate}
+                        loading={simulateMutation.isPending}
+                        block
+                      >
+                        运行手工 JSON 试运行
+                      </Button>
+                    </Form>
+                  </Card>
+                </Col>
+                <Col span={12}>
+                  {simulateResult ? (
+                    <div className="bg-gray-50 p-4 rounded-lg min-h-64 overflow-auto max-h-96">
+                      <Descriptions column={1} size="small" bordered className="mb-4">
+                        <Descriptions.Item label="规则是否命中">
+                          {simulateResult.hit ? (
+                            <Tag color="red">命中</Tag>
+                          ) : (
+                            <Tag color="green">未命中</Tag>
+                          )}
+                        </Descriptions.Item>
+                        {simulateResult.hit && (
+                          <>
+                            <Descriptions.Item label="动作代码">
+                              {simulateResult.actionCode}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="最高严重等级">
+                              {simulateResult.severity}
+                            </Descriptions.Item>
+                          </>
                         )}
-                      </Descriptions.Item>
-                      {simulateResult.hit && (
-                        <>
-                          <Descriptions.Item label="动作代码">
-                            {simulateResult.actionCode}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="最高严重等级">
-                            {simulateResult.severity}
-                          </Descriptions.Item>
-                        </>
-                      )}
-                    </Descriptions>
-                    <Text strong>详细决策动作说明</Text>
-                    <div className="text-xs text-gray-600 bg-white p-3 rounded border border-gray-200 font-normal mt-2">
-                      {simulateResult.explanation || "未命中，无动作输出。"}
+                      </Descriptions>
+                      <Text strong>详细决策动作说明</Text>
+                      <div className="text-xs text-gray-600 bg-white p-3 rounded border border-gray-200 font-normal mt-2">
+                        {simulateResult.explanation || "未命中，无动作输出。"}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center min-h-64 text-gray-400">
-                    <PlayCircleOutlined className="text-[48px] mb-4" />
-                    <span>粘贴真实脱敏上下文快照后，点击运行开始求值</span>
-                  </div>
-                )}
-              </Col>
-            </Row>
+                  ) : (
+                    <Empty description="选择真实快照并试运行后展示命中与解释" />
+                  )}
+                </Col>
+              </Row>
+            </Space>
+          ),
+        },
+        {
+          key: "release",
+          label: (
+            <span>
+              <DeploymentUnitOutlined /> 7 步流发布
+            </span>
+          ),
+          children: (
+            <StepFlow
+              currentStep="submit_review"
+              panelByStep={{ submit_review: releaseStepPanel }}
+              status={releaseGate.allPassed ? "process" : "error"}
+            />
           ),
         },
       ]
@@ -1097,8 +1492,8 @@ export default function RuleDefinitions() {
           <div className="flex items-center justify-between w-full">
             <span>规则配置详情与试运行</span>
             {detailData?.definition.status === "DRAFT" && (
-              <Button type="primary" onClick={handlePublish} loading={publishMutation.isPending}>
-                提交发布门禁
+              <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
+                进入发布流
               </Button>
             )}
           </div>
@@ -1106,7 +1501,12 @@ export default function RuleDefinitions() {
         width={980}
         onClose={() => {
           setSelectedRuleId(null);
+          setActiveDetailLayer("l2");
+          setSelectedSnapshotId("");
+          setSnapshotSearchParams(null);
+          setSimulatePayload("");
           setSimulateResult(null);
+          setReleaseReason("");
         }}
         open={!!selectedRuleId}
         loading={detailLoading}
@@ -1143,7 +1543,11 @@ export default function RuleDefinitions() {
               </Descriptions.Item>
             </Descriptions>
 
-            <Tabs defaultActiveKey="l2" items={detailLayerItems} />
+            <Tabs
+              activeKey={activeDetailLayer}
+              onChange={(key) => setActiveDetailLayer(key as DetailLayerKey)}
+              items={detailLayerItems}
+            />
           </Space>
         )}
       </Drawer>
