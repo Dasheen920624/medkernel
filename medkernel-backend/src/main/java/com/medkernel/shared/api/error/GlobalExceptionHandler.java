@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.medkernel.shared.api.ApiError;
 import com.medkernel.shared.context.RequestContext;
@@ -44,7 +45,7 @@ import jakarta.validation.ConstraintViolationException;
  *   <tr><td>{@link AuthenticationException}</td><td>{@link ErrorCode#UNAUTHORIZED}</td><td>401</td></tr>
  *   <tr><td>{@link PermissionDeniedException}</td><td>PERMISSION_DENIED</td><td>403</td></tr>
  *   <tr><td>{@link AccessDeniedException}</td><td>PERMISSION_DENIED</td><td>403</td></tr>
- *   <tr><td>{@link NoHandlerFoundException}</td><td>{@link ErrorCode#NOT_FOUND}</td><td>404</td></tr>
+ *   <tr><td>{@link NoHandlerFoundException} / {@link NoResourceFoundException}</td><td>{@link ErrorCode#NOT_FOUND}</td><td>404</td></tr>
  *   <tr><td>{@link HttpRequestMethodNotSupportedException}</td><td>{@link ErrorCode#METHOD_NOT_ALLOWED}</td><td>405</td></tr>
  *   <tr><td>{@link HttpMediaTypeNotSupportedException}</td><td>{@link ErrorCode#UNSUPPORTED_MEDIA_TYPE}</td><td>415</td></tr>
  *   <tr><td>{@link DataIntegrityViolationException}</td><td>{@link ErrorCode#CONFLICT}</td><td>409</td></tr>
@@ -137,6 +138,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ProblemDetail> handleNoHandler(NoHandlerFoundException ex) {
         return problemResponse(ErrorCode.NOT_FOUND, "接口不存在：" + ex.getRequestURL());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ProblemDetail> handleNoResource(NoResourceFoundException ex) {
+        return problemResponse(ErrorCode.NOT_FOUND, "接口不存在：" + ex.getResourcePath());
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

@@ -133,7 +133,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.CREATE, "recommendation_trigger", "创建推荐触发"),
                 audit(AuditAction.FEEDBACK, "recommendation_card", "记录提醒反馈"))),
         contract("rule", "规则引擎服务",
-            "com.medkernel.engine.rule.RuleEngineController", "/api/v1/engine/rules",
+            "com.medkernel.engine.rule.RuleEngineController", "/api/v1/engine/rule",
             permissions("rule.write", "rule.read", "rule.publish"),
             audits(
                 audit(AuditAction.CREATE, "rule_definition", "创建规则和测试用例"),

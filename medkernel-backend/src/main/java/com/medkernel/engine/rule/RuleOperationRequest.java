@@ -3,14 +3,11 @@ package com.medkernel.engine.rule;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.databind.JsonNode;
-
-import jakarta.validation.constraints.NotNull;
 
 /**
- * 规则试运行入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/{ruleId}/simulate}）。
+ * 规则测试执行等无额外业务字段操作的统一入参。
  */
-public record RuleSimulateRequest(
+public record RuleOperationRequest(
     @JsonAlias("request_id") String requestId,
     @JsonAlias("trace_id") String traceId,
     @JsonAlias("tenant_id") String tenantId,
@@ -22,15 +19,10 @@ public record RuleSimulateRequest(
     @JsonAlias("specialty_id") String specialtyId,
     @JsonAlias("user_id") String userId,
     @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
-    @NotNull JsonNode context
+    @JsonAlias("package_version") String packageVersion
 ) implements RuleContextRequest {
-    public RuleSimulateRequest {
+    public RuleOperationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-    }
-
-    public RuleSimulateRequest(JsonNode context) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null, context);
     }
 
     public RuleApiContext apiContext() {

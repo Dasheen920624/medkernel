@@ -140,8 +140,9 @@ class RuleEngineServiceTest {
                 testCase(RuleTestCaseType.BOUNDARY, true, hitContext()),
                 testCase(RuleTestCaseType.CONFLICT, false, missContext())
             ));
+        RuleImpactResponse impact = service.impact("rule-1");
 
-        assertThatThrownBy(() -> service.publish("rule-1"))
+        assertThatThrownBy(() -> service.publish("rule-1", new RulePublishRequest(impact.impactDigest(), "已查看影响")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_004);
@@ -167,10 +168,13 @@ class RuleEngineServiceTest {
                 testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
                 testCase(RuleTestCaseType.CONFLICT, false, missContext())
             ));
+        RuleImpactResponse impact = service.impact("rule-1");
 
-        RulePublishResponse response = service.publish("rule-1");
+        RulePublishResponse response = service.publish("rule-1", new RulePublishRequest(impact.impactDigest(), "已查看影响"));
 
         assertThat(response.status()).isEqualTo(RuleDefinitionStatus.PUBLISHED);
+        assertThat(response.impactDigest()).isEqualTo(impact.impactDigest());
+        assertThat(response.impactStatus()).isEqualTo("PARTIAL");
         assertThat(response.results()).hasSize(4).allSatisfy(result ->
             assertThat(result.status()).isEqualTo(RuleTestCaseStatus.PASS));
         ArgumentCaptor<RuleDefinition> ruleCap = ArgumentCaptor.forClass(RuleDefinition.class);
@@ -182,6 +186,67 @@ class RuleEngineServiceTest {
         assertThat(versionCap.getAllValues()).anySatisfy(saved ->
             assertThat(saved.status()).isEqualTo(RuleVersionStatus.PUBLISHED));
         verify(auditPublisher).publish(AuditAction.PUBLISH, "rule_definition", "rule-1", "发布规则版本 version-1");
+    }
+
+    @Test
+    void impactReturnsPartialKnownObjectsAndDigest() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+
+        RuleImpactResponse response = service.impact("rule-1");
+
+        assertThat(response.analysisStatus()).isEqualTo("PARTIAL");
+        assertThat(response.impactDigest()).startsWith("sha256:");
+        assertThat(response.affectedRules()).singleElement().satisfies(rule -> {
+            assertThat(rule.objectType()).isEqualTo("RULE_DEFINITION");
+            assertThat(rule.objectId()).isEqualTo("rule-1");
+        });
+        assertThat(response.affectedPathways()).isEmpty();
+        assertThat(response.inPathPatients()).isEmpty();
+        assertThat(response.syncTargets()).isEmpty();
+        assertThat(response.unavailableScopes()).hasSize(3);
+    }
+
+    @Test
+    void highRiskPublishWithoutImpactDigestIsDeniedBeforeTesting() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+
+        assertThatThrownBy(() -> service.publish("rule-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.RULE_PUBLISH_GATE_DENIED);
+    }
+
+    @Test
+    void runTestsReturnsAllResultsWithoutPublishing() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext())
+            ));
+
+        RuleTestRunResponse response = service.runTests("rule-1");
+
+        assertThat(response.allPassed()).isTrue();
+        assertThat(response.results()).hasSize(2);
+        verify(definitions, org.mockito.Mockito.never()).save(any());
+        verify(versions, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -234,6 +299,24 @@ class RuleEngineServiceTest {
         assertThat(summaryCaptor.getValue().matchedRuleId()).isEqualTo("rule-1");
         assertThat(summaryCaptor.getValue().matchedVersionId()).isEqualTo("version-1");
         assertThat(summaryCaptor.getValue().degradationReason()).isNull();
+    }
+
+    @Test
+    void explainReturnsHitChainFromExecutionLog() {
+        RuleExecutionLog execution = new RuleExecutionLog(
+            1L, "rex-1", "tenant-A", "rule-1", "version-1", "ORDER_SIGN",
+            "evt-1", "tester", "sha256:abc", true, RuleRiskLevel.HIGH,
+            "[{\"actionCode\":\"STRONG_REMINDER\"}]", "{\"title\":\"抗凝风险提示\"}",
+            RuleExecutionStatus.SUCCESS, null, null, Instant.now(), Instant.now(), "trace-rule");
+        when(executions.findByExecutionIdAndTenantId("rex-1", "tenant-A")).thenReturn(Optional.of(execution));
+
+        RuleExplanationResponse response = service.explain("rex-1");
+
+        assertThat(response.executionId()).isEqualTo("rex-1");
+        assertThat(response.ruleId()).isEqualTo("rule-1");
+        assertThat(response.actions().get(0).path("actionCode").asText()).isEqualTo("STRONG_REMINDER");
+        assertThat(response.explanation().path("title").asText()).isEqualTo("抗凝风险提示");
+        assertThat(response.inputDigest()).isEqualTo("sha256:abc");
     }
 
     private RuleDefinition existingRule(RuleDefinitionStatus status) {

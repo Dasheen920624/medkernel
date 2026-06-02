@@ -59,6 +59,8 @@ class RuleEngineControllerSecurityTest {
         }
         """;
 
+    private static final String PUBLISH_BODY = "{}";
+
     @Autowired
     MockMvc mvc;
 
@@ -73,7 +75,7 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanReadRuleButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/rules/rule-1"))
+        mvc.perform(get("/api/v1/engine/rule/rules/rule-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -81,7 +83,7 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanEvaluateRulesButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rules/evaluate")
+        mvc.perform(post("/api/v1/engine/rule/rules/evaluate")
                 .contentType("application/json")
                 .content(EVALUATE_BODY))
             .andExpect(status().isBadRequest())
@@ -91,7 +93,7 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanDiagnoseExecutionButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/rules/executions/rex-1/diagnose"))
+        mvc.perform(get("/api/v1/engine/rule/rules/executions/rex-1/explain"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -99,7 +101,7 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanReachCreateButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rules")
+        mvc.perform(post("/api/v1/engine/rule/rules")
                 .contentType("application/json")
                 .content(CREATE_BODY))
             .andExpect(status().isBadRequest())
@@ -109,13 +111,13 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanReachTestCaseAndSimulateButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rules/rule-1/test-cases")
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/test-cases")
                 .contentType("application/json")
                 .content(TEST_CASE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/rules/rule-1/simulate")
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/simulate")
                 .contentType("application/json")
                 .content("{\"context\":{\"patient\":{\"age\":72}}}"))
             .andExpect(status().isBadRequest())
@@ -125,7 +127,9 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
     void medicalAffairsCanPublishButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rules/rule-1/publish"))
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/publish")
+                .contentType("application/json")
+                .content(PUBLISH_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -133,14 +137,16 @@ class RuleEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotPublishRules() throws Exception {
-        mvc.perform(post("/api/v1/engine/rules/rule-1/publish"))
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/publish")
+                .contentType("application/json")
+                .content(PUBLISH_BODY))
             .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadRules() throws Exception {
-        mvc.perform(get("/api/v1/engine/rules"))
+        mvc.perform(get("/api/v1/engine/rule/rules"))
             .andExpect(status().isForbidden());
     }
 }

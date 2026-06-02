@@ -3,14 +3,15 @@ package com.medkernel.engine.rule;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.databind.JsonNode;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
- * 规则试运行入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/{ruleId}/simulate}）。
+ * 规则发布请求。
+ *
+ * <p>高危规则必须携带最近影响分析返回的 {@code impactDigest}；reason 用于审计留痕。
  */
-public record RuleSimulateRequest(
+public record RulePublishRequest(
     @JsonAlias("request_id") String requestId,
     @JsonAlias("trace_id") String traceId,
     @JsonAlias("tenant_id") String tenantId,
@@ -23,14 +24,15 @@ public record RuleSimulateRequest(
     @JsonAlias("user_id") String userId,
     @JsonAlias("role_codes") List<String> roleCodes,
     @JsonAlias("package_version") String packageVersion,
-    @NotNull JsonNode context
+    @Size(max = 128) String impactDigest,
+    @Size(max = 500) String reason
 ) implements RuleContextRequest {
-    public RuleSimulateRequest {
+    public RulePublishRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    public RuleSimulateRequest(JsonNode context) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null, context);
+    public RulePublishRequest(String impactDigest, String reason) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null, impactDigest, reason);
     }
 
     public RuleApiContext apiContext() {
