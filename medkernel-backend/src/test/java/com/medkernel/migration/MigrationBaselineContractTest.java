@@ -80,7 +80,8 @@ class MigrationBaselineContractTest {
         "V51__knowledge_projection_targets.sql",
         "V52__knowledge_candidate_workflow.sql",
         "V53__terminology_high_risk_rules.sql",
-        "V54__asset_version_framework.sql"
+        "V54__asset_version_framework.sql",
+        "V55__version_inheritance_override.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -120,7 +121,7 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version"
+        "mk_version_asset_version", "mk_version_inheritance_override"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -222,7 +223,8 @@ class MigrationBaselineContractTest {
         "idx_mk_projection_sync_tenant_target_ts", "idx_mk_projection_sync_tenant_status",
         "idx_mk_projection_snapshot_tenant_target",
         "idx_mk_version_asset_version_tenant_status", "idx_mk_version_asset_version_identity",
-        "idx_mk_version_asset_version_active_scope"
+        "idx_mk_version_asset_version_active_scope",
+        "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -331,7 +333,10 @@ class MigrationBaselineContractTest {
         "ck_mk_projection_snapshot_target", "ck_mk_projection_snapshot_kind",
         "uk_mk_version_asset_version_id", "uk_mk_version_asset_version_no",
         "uk_mk_version_asset_version_active", "ck_mk_version_asset_version_type",
-        "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash"
+        "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash",
+        "ck_mk_version_asset_safety_policy",
+        "uk_mk_version_inheritance_override_id", "uk_mk_version_inheritance_override_active",
+        "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -368,7 +373,7 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version"
+        "mk_version_asset_version", "mk_version_inheritance_override"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -400,7 +405,7 @@ class MigrationBaselineContractTest {
         "mk_clinical_diagnostic_report", "mk_clinical_document",
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_version_asset_version"
+        "mk_version_asset_version", "mk_version_inheritance_override"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
         Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
@@ -489,7 +494,8 @@ class MigrationBaselineContractTest {
         Map.entry("mk_config_history", Set.of("change_type", "version")),
         Map.entry("mk_projection_sync", Set.of("target_type", "status")),
         Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind")),
-        Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status"))
+        Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status")),
+        Map.entry("mk_version_inheritance_override", Set.of("override_mode"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -738,6 +744,33 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_version_asset_version")
                 .contains("COMMENT ON COLUMN mk_version_asset_version.content_hash")
                 .contains("COMMENT ON COLUMN mk_version_asset_version.active_scope_key");
+        }
+    }
+
+    @Test
+    void v55ShouldDeclareVersionInheritanceOverrideForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V55__version_inheritance_override.sql");
+            assertThat(ddl).as("%s 继承覆盖迁移", dialect)
+                .contains("mk_version_asset_version")
+                .contains("safety_policy")
+                .contains("mk_version_inheritance_override")
+                .contains("override_mode")
+                .contains("diff_summary")
+                .contains("override_reason")
+                .contains("impact_scope")
+                .contains("uk_mk_version_inheritance_override_id")
+                .contains("uk_mk_version_inheritance_override_active")
+                .contains("ck_mk_version_asset_safety_policy")
+                .contains("ck_mk_version_inheritance_override_type")
+                .contains("ck_mk_version_inheritance_override_mode")
+                .contains("idx_mk_version_inheritance_override_scope")
+                .contains("idx_mk_version_inheritance_override_version")
+                .contains("COMMENT ON COLUMN mk_version_asset_version.safety_policy")
+                .contains("COMMENT ON TABLE mk_version_inheritance_override")
+                .contains("COMMENT ON COLUMN mk_version_inheritance_override.diff_summary")
+                .contains("COMMENT ON COLUMN mk_version_inheritance_override.override_reason")
+                .contains("COMMENT ON COLUMN mk_version_inheritance_override.impact_scope");
         }
     }
 

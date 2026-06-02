@@ -59,6 +59,7 @@ public class AssetVersionService implements VersionedAssetPort {
             organizationScope,
             applicableScope,
             VersionContentHash.resolve(command.content(), command.contentHash()),
+            command.safetyPolicy() == null ? AssetVersionSafetyPolicy.NORMAL : command.safetyPolicy(),
             AssetVersionStatus.DRAFT,
             draftScopeKey(versionId),
             blankToNull(command.sourceRef()),

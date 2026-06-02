@@ -49,6 +49,7 @@ class AssetVersionRepositoryTest {
         ));
 
         assertThat(saved.id()).isNotNull();
+        assertThat(saved.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.NORMAL);
         assertThat(repository.findByVersionIdAndTenantId(saved.versionId(), "tenant-A")).contains(saved);
         assertThat(repository.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A",

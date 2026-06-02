@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 SYS-04 PR2 继承解析 🚧
 - 类型：软件开发
-- 分支：PR1 收口合并后，从最新 `origin/main` 创建 `codex/d2-sys-04-pr2-inheritance-resolver`
+- 分支：`codex/d2-sys-04-pr2-inheritance-resolver`
 - 目标：完成 SYS-04 PR2：在 PR1 `AssetVersion` 地基上实现 `InheritanceResolver` 七层组织继承解析、局部覆盖差异可解释、安全红线不可被下级静默关闭，对齐 AC-2。
-- 状态：PR1 已通过 #283 squash 合并（merge `0d9f1d7`），当前仅做接力收口；PR2 尚未开工，不得冒领。当前真实运行范围仍为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境继续登记在 `DEFER-001`，不阻塞 PR2。
-- 下一步（精确到动作/命令）：1. 合并本接力收口；2. 从最新 `origin/main` 创建 `codex/d2-sys-04-pr2-inheritance-resolver`；3. 读 `docs/cards/D2/SYS-04.md`、`docs/cards/D0/BASE-01.md`、`engine.versioning` 和组织闭包实现；4. TDD 先写继承解析 / 局部覆盖 / 安全红线拒绝测试；5. 最小实现后跑聚焦测试、后端全量、T-GATE 和 PR。
-- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`docs/cards/D0/BASE-01.md`、`medkernel-backend/src/main/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/java/com/medkernel/engine/org`、`medkernel-backend/src/test/java/com/medkernel/engine/versioning`；PR2 只做继承解析，不提前做 PR3 的完整发布流、回滚、历史重放和发布证据。
+- 状态：PR2 本地实现已完成并进入最终验证 / 提交 / PR 阶段：已新增七层继承解析、局部替换覆盖解释、`safety_policy` 与 `INHERITANCE_SAFETY_DENIED`；普通 `DISABLE` 关闭继承在 PR2 诚实拒绝，留待 PR3 发布流具备审核 / 证据链 / 解析消费后开放。当前真实运行范围仍为 PostgreSQL + Oracle；达梦 / 人大金仓真实环境继续登记在 `DEFER-001`，不阻塞 PR2。
+- 下一步（精确到动作/命令）：1. 跑聚焦测试、后端全量、T-GATE、中文注释和空白检查；2. 提交 `SYS-04 PR2 继承解析与安全红线`；3. 提交后重跑 changed T-GATE，推送并创建 PR；4. 等远端 CI 通过后 squash 合并；5. 从最新 `origin/main` 领取 SYS-04 PR3 发布流 / 回滚 / 历史重放。
+- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`docs/cards/D0/BASE-01.md`、`medkernel-backend/src/main/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/java/com/medkernel/engine/org`、`medkernel-backend/src/test/java/com/medkernel/engine/versioning`、`medkernel-backend/src/main/resources/db/migration/*/V55__version_inheritance_override.sql`；PR2 只做继承解析和替换覆盖解释，不提前做 PR3 的完整发布流、回滚、历史重放和发布证据；新增迁移须确认 PostgreSQL + Oracle 可真实运行，DM / Kingbase 只做静态一致性维护。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -158,4 +158,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；PKG-01 已通过 #281 合入并收口为 done，下一步从最新 `origin/main` 领取 SYS-04 PR1 不可变版本框架。`DEFER-019` 随访模板资产化缺口保持 `open`，`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；当前推进 SYS-04 PR2 继承解析，PR2 本地实现进入最终验证 / 提交 / PR 阶段，完成后才领取 SYS-04 PR3。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

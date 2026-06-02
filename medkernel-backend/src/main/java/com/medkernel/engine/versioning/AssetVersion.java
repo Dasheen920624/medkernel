@@ -23,6 +23,7 @@ public record AssetVersion(
     @Column("org_path") String organizationScope,
     @Column("applicable_scope") String applicableScope,
     @Column("content_hash") String contentHash,
+    @Column("safety_policy") AssetVersionSafetyPolicy safetyPolicy,
     AssetVersionStatus status,
     @Column("active_scope_key") String activeScopeKey,
     @Column("source_ref") String sourceRef,
@@ -35,10 +36,38 @@ public record AssetVersion(
     @Column("trace_id") String traceId
 ) {
 
+    public AssetVersion(
+            Long id,
+            String versionId,
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
+            String applicableScope,
+            String contentHash,
+            AssetVersionStatus status,
+            String activeScopeKey,
+            String sourceRef,
+            Instant effectiveFrom,
+            Instant effectiveTo,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(
+            id, versionId, tenantId, assetType, assetIdentity, versionNo,
+            organizationScope, applicableScope, contentHash, AssetVersionSafetyPolicy.NORMAL,
+            status, activeScopeKey, sourceRef, effectiveFrom, effectiveTo, createdAt,
+            createdBy, updatedAt, updatedBy, traceId
+        );
+    }
+
     public AssetVersion withVersionId(String newVersionId) {
         return new AssetVersion(
             id, newVersionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, contentHash, status, activeScopeKey, sourceRef,
+            organizationScope, applicableScope, contentHash, safetyPolicy, status, activeScopeKey, sourceRef,
             effectiveFrom, effectiveTo, createdAt, createdBy, updatedAt, updatedBy, traceId
         );
     }
@@ -46,7 +75,7 @@ public record AssetVersion(
     public AssetVersion withContentHash(String newContentHash, Instant now, String actor) {
         return new AssetVersion(
             id, versionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, newContentHash, status, activeScopeKey, sourceRef,
+            organizationScope, applicableScope, newContentHash, safetyPolicy, status, activeScopeKey, sourceRef,
             effectiveFrom, effectiveTo, createdAt, createdBy, now, actor, traceId
         );
     }
@@ -54,7 +83,7 @@ public record AssetVersion(
     public AssetVersion withStatus(AssetVersionStatus newStatus, String newActiveScopeKey, Instant now, String actor) {
         return new AssetVersion(
             id, versionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, contentHash, newStatus, newActiveScopeKey, sourceRef,
+            organizationScope, applicableScope, contentHash, safetyPolicy, newStatus, newActiveScopeKey, sourceRef,
             effectiveFrom, effectiveTo, createdAt, createdBy, now, actor, traceId
         );
     }
