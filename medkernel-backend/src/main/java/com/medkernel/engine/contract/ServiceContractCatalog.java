@@ -161,6 +161,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.PERMISSION_CHANGE, "sys_password_reset_token", "消费一次性密码重置 token")),
             publicEndpoints(
                 "POST /api/v1/auth/login",
+                "GET /api/v1/auth/login-tenants",
                 "GET /api/v1/auth/delegated/status",
                 "POST /api/v1/auth/delegated/callback",
                 "POST /api/v1/auth/logout",

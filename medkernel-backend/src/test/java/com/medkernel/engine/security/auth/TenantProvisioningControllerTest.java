@@ -117,6 +117,15 @@ class TenantProvisioningControllerTest {
     }
 
     @Test
+    void provisionTenant_rejectsPlatformTenantId() throws Exception {
+        mvc.perform(post("/api/v1/admin/tenants").with(platformAdmin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tenantId\":\"t-1\",\"tenantName\":\"平台主租户\",\"adminUsername\":\"platform-owner\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ENG-TENANT-001"));
+    }
+
+    @Test
     void provisionTenant_duplicate_conflict() throws Exception {
         String body = "{\"tenantId\":\"t-hosp2\",\"tenantName\":\"测试医院2\",\"adminUsername\":\"hosp2admin\"}";
         mvc.perform(post("/api/v1/admin/tenants").with(platformAdmin())

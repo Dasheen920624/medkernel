@@ -382,6 +382,26 @@ class KnowledgeVersionServiceTest {
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
     }
 
+    @Test
+    void createDraftVersionInCustomerTenantDoesNotWriteBackToPlatformTenant() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "hospital-admin"));
+        KnowledgeIdentity identity = new KnowledgeIdentity(
+            1L, "t-hospital", "DRUG.X", KnowledgeDomain.DRUG, "医院定制主题", null, null,
+            KnowledgeIdentityStatus.ACTIVE, null,
+            Instant.now(), "hospital-admin", Instant.now(), "hospital-admin"
+        );
+        when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-hospital", 1L))
+            .thenReturn(List.of());
+
+        KnowledgeAssetVersion saved =
+            service.createDraftVersion(draftRequest(1L, "hospital-v1", "医院本地定制内容"));
+
+        assertThat(saved.tenantId()).isEqualTo("t-hospital");
+        verify(identityRepo, never()).findByTenantIdAndId("t-1", 1L);
+        verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
+    }
+
     // ─── helpers ──────────────────────────────────────────────
 
     private KnowledgeIdentity identity(Long id, Long currentVersionId) {
@@ -431,6 +451,11 @@ class KnowledgeVersionServiceTest {
             "u-99", List.of("knowledge.review"), "pkg-2026.06",
             KnowledgeCandidateReviewDecision.APPROVE, "同意"
         );
+    }
+
+    private DraftVersionCreateRequest draftRequest(Long identityId, String versionNo, String content) {
+        return new DraftVersionCreateRequest(
+            identityId, versionNo, "医院定制版本", 10L, 20L, content, null, KnowledgeRiskLevel.MEDIUM);
     }
 
     @SuppressWarnings("unused")

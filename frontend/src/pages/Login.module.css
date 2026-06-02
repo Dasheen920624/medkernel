@@ -2,25 +2,20 @@
   min-height: 100vh;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(
-      calc(var(--mk-unit) * 360),
-      calc(var(--mk-unit) * 440)
-    );
-  grid-template-areas:
-    "theme theme"
-    "context login";
-  grid-template-rows: auto minmax(0, 1fr);
-  align-items: center;
-  gap: calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 32);
-  padding: calc(var(--mk-unit) * 24)
+  grid-template-columns: minmax(0, calc(var(--mk-unit) * 430));
+  place-items: center;
+  justify-content: center;
+  gap: calc(var(--mk-unit) * 16);
+  padding: calc(var(--mk-unit) * 68)
     clamp(calc(var(--mk-unit) * 24), 6vw, calc(var(--mk-unit) * 72));
   color: var(--mk-login-text);
   background: var(--mk-login-page-bg);
 }
 
 .themeSwitcher {
-  grid-area: theme;
-  justify-self: end;
+  position: absolute;
+  top: calc(var(--mk-unit) * 24);
+  right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
   z-index: 1;
   padding: calc(var(--mk-unit) * 4);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
@@ -29,95 +24,7 @@
   box-shadow: var(--mk-login-shadow);
 }
 
-.contextPanel {
-  grid-area: context;
-  max-width: calc(var(--mk-unit) * 680);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--mk-unit) * 20);
-}
-
-.kicker {
-  font-weight: 700;
-  color: var(--mk-login-primary);
-}
-
-.brandTitle {
-  margin: 0;
-  font-size: var(--mk-login-heading-1);
-  line-height: 1.18;
-  color: var(--mk-login-primary);
-}
-
-.primaryGoal {
-  max-width: calc(var(--mk-unit) * 520);
-  font-size: var(--mk-login-font-lg);
-  font-weight: 700;
-  color: var(--mk-login-text);
-}
-
-.signalList {
-  width: min(100%, calc(var(--mk-unit) * 560));
-  display: grid;
-  gap: calc(var(--mk-unit) * 10);
-  margin: calc(var(--mk-unit) * 8) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.signalItem {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: calc(var(--mk-unit) * 12);
-  align-items: center;
-  padding: calc(var(--mk-unit) * 14) calc(var(--mk-unit) * 16);
-  border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
-  border-radius: var(--mk-login-radius);
-  background: var(--mk-login-surface);
-}
-
-.signalIcon {
-  width: calc(var(--mk-unit) * 32);
-  height: calc(var(--mk-unit) * 32);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: var(--mk-login-primary);
-  background: var(--mk-login-surface-tint);
-}
-
-.signalText {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--mk-unit) * 2);
-}
-
-.signalText span {
-  font-size: var(--mk-login-font-sm);
-  color: var(--mk-login-text-muted);
-}
-
-.signalText strong {
-  font-weight: 700;
-  color: var(--mk-login-text);
-}
-
-.safetyCopy {
-  max-width: calc(var(--mk-unit) * 560);
-  color: var(--mk-login-text-muted);
-}
-
-.bootstrapEntry {
-  width: fit-content;
-  border-color: var(--mk-login-primary-border);
-  color: var(--mk-login-primary);
-  background: var(--mk-login-surface);
-}
-
 .loginCard {
-  grid-area: login;
   width: 100%;
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
   border-radius: var(--mk-login-radius);
@@ -125,20 +32,26 @@
 }
 
 .loginCard :global(.ant-card-body) {
-  padding: calc(var(--mk-unit) * 28);
+  padding: calc(var(--mk-unit) * 24);
 }
 
 .page :global(.ant-form-item-label > label),
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-select),
 .page :global(.ant-btn) {
   font-size: var(--mk-login-control-font);
 }
 
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-select-selector),
 .page :global(.ant-btn-lg) {
   min-height: var(--mk-login-control-height);
+}
+
+.page :global(.ant-select-selector) {
+  align-items: center;
 }
 
 .page :global(.ant-input-affix-wrapper .ant-input) {
@@ -153,13 +66,17 @@
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 20);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .cardHeader {
   display: flex;
   flex-direction: column;
   gap: calc(var(--mk-unit) * 4);
+}
+
+.kickerTags {
+  margin-bottom: calc(var(--mk-unit) * 2);
 }
 
 .cardTitle {
@@ -170,7 +87,7 @@
   display: flex;
   gap: calc(var(--mk-unit) * 8);
   align-items: flex-start;
-  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
@@ -182,11 +99,32 @@
   color: var(--mk-login-primary);
 }
 
+.secondaryEntry {
+  width: 100%;
+  border-color: var(--mk-login-border);
+  color: var(--mk-login-primary);
+  background: var(--mk-login-surface);
+}
+
+.tenantLayer {
+  display: grid;
+  gap: calc(var(--mk-unit) * 4);
+  margin-top: calc(var(--mk-unit) * -6);
+}
+
+.tenantLayerButton {
+  width: fit-content;
+  height: auto;
+  padding: 0;
+  font-size: var(--mk-login-font-sm);
+}
+
 .divider {
   margin: calc(var(--mk-unit) * 4) 0;
 }
 
-.ssoToggle {
+.ssoToggle,
+.helpToggle {
   height: auto;
   padding: 0;
   font-size: var(--mk-login-font-sm);
@@ -251,39 +189,21 @@
   text-align: center;
 }
 
+.compactFooter {
+  gap: calc(var(--mk-unit) * 1);
+}
+
 @media (max-width: 53.75em) {
   .page {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "theme"
-      "context"
-      "login";
-    grid-template-rows: auto auto auto;
-    align-items: start;
-    padding: calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
-  }
-
-  .themeSwitcher {
-    justify-self: end;
-  }
-
-  .contextPanel {
-    max-width: none;
-  }
-
-  .brandTitle {
-    font-size: var(--mk-login-heading-2);
+    align-items: center;
+    padding: calc(var(--mk-unit) * 64) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
   }
 }
 
 @media (max-width: 32.5em) {
   .page {
     gap: calc(var(--mk-unit) * 20);
-  }
-
-  .signalItem {
-    grid-template-columns: 1fr;
-    gap: calc(var(--mk-unit) * 4);
   }
 
   .loginCard :global(.ant-card-body) {

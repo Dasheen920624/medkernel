@@ -4,7 +4,9 @@ import {
   Card,
   Form,
   Input,
+  QRCode,
   Result,
+  Select,
   Space,
   Steps,
   Tag,
@@ -12,10 +14,12 @@ import {
   theme,
 } from "antd";
 import {
+  ArrowLeftOutlined,
   CheckCircleOutlined,
   KeyOutlined,
   LockOutlined,
   LoginOutlined,
+  QrcodeOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -30,9 +34,25 @@ import {
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { bootstrapTenantOptions, defaultTenantId } from "@/shared/config/tenantDictionary";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
+
+const handoverSignals = [
+  {
+    label: "准备接管码",
+    value: "由部署包生成，现场离线也能校验",
+  },
+  {
+    label: "创建首发管理员",
+    value: "只创建第一个接管账号，后续账号进工作台开通",
+  },
+  {
+    label: "绑定双因素认证",
+    value: "二维码本页生成，不访问外网",
+  },
+];
 
 type BootstrapPhase =
   | "init-token"
@@ -131,6 +151,14 @@ export default function Bootstrap() {
     return 4;
   }, [phase]);
 
+  const goLogin = () => navigate("/login");
+
+  const returnLoginButton = (
+    <Button aria-label="返回登录" block size="large" icon={<ArrowLeftOutlined />} onClick={goLogin}>
+      返回登录
+    </Button>
+  );
+
   async function submitToken(values: { token: string }) {
     setGlobalError(null);
     try {
@@ -140,7 +168,7 @@ export default function Bootstrap() {
       setExpiresAt(result.expiresAt);
       setPhase("password");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "init token 校验失败");
+      const errorMessage = getApiErrorMessage(err, "部署接管码校验失败");
       if (!applyApiFieldErrors(tokenForm, err, { fieldNameMap: mapBootstrapField })) {
         tokenForm.setFields([{ name: "token", errors: [errorMessage] }]);
       }
@@ -210,7 +238,7 @@ export default function Bootstrap() {
           return;
         }
         if (!result.secret) {
-          throw new Error("MFA 密钥生成失败，请重试。");
+          throw new Error("双因素认证密钥生成失败，请重试。");
         }
         setMfaSetup({
           label,
@@ -232,12 +260,12 @@ export default function Bootstrap() {
         code,
       });
       if (!result.mfaBound || !result.recoveryCode) {
-        throw new Error("MFA 验证未完成，请重新输入验证码。");
+        throw new Error("双因素认证验证未完成，请重新输入验证码。");
       }
       setRecoveryCode(result.recoveryCode);
       setPhase("done");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "MFA 绑定失败");
+      const errorMessage = getApiErrorMessage(err, "双因素认证绑定失败");
       if (!applyApiFieldErrors(mfaForm, err)) {
         mfaForm.setFields([{ name: mfaSetup ? "code" : "label", errors: [errorMessage] }]);
       }
@@ -253,19 +281,27 @@ export default function Bootstrap() {
 
       <section className={styles.hero} aria-label="首次部署接管说明">
         <Space size={8} wrap>
-          <Tag color="processing">BASE-11</Tag>
-          <Tag>一次性 init token</Tag>
-          <Tag>PostgreSQL / Oracle</Tag>
+          <Tag color="processing">平台接管</Tag>
+          <Tag>离线可用</Tag>
+          <Tag>只初始化首发身份</Tag>
         </Space>
         <Title level={1} className={styles.title}>
           首次部署接管
         </Title>
         <Text className={styles.lead}>
-          用部署期一次性 token 创建首发内置超级管理员，再完成改密与 MFA，避免生产环境写死账号。
+          使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。
         </Text>
+        <ul className={styles.signalList} aria-label="接管流程说明">
+          {handoverSignals.map((item) => (
+            <li className={styles.signalItem} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </li>
+          ))}
+        </ul>
         <div className={styles.guardRail}>
           <SafetyCertificateOutlined aria-hidden="true" />
-          <Text>token 只校验和消费一次；恢复码只展示一次；高危动作会继续要求 MFA。</Text>
+          <Text>接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。</Text>
         </div>
       </section>
 
@@ -275,10 +311,10 @@ export default function Bootstrap() {
             size="small"
             current={currentStep}
             items={[
-              { title: "token" },
+              { title: "接管码" },
               { title: "账号" },
               { title: "改密" },
-              { title: "MFA" },
+              { title: "双因素" },
               { title: "完成" },
             ]}
           />
@@ -288,36 +324,39 @@ export default function Bootstrap() {
           {phase === "init-token" && (
             <section className={styles.stepSection}>
               <Title level={2} className={styles.stepTitle}>
-                校验 init token
+                校验部署接管码
               </Title>
               <Paragraph type="secondary">
-                输入由部署密钥系统注入的短期 token。这里不会创建登录态，也不会保存明文。
+                输入由部署包生成的短期接管码。这里不会创建登录态，也不会保存明文。
               </Paragraph>
               <Form form={tokenForm} layout="vertical" requiredMark={false} onFinish={submitToken}>
                 <Form.Item
-                  label="init token"
+                  label="部署接管码"
                   name="token"
-                  rules={[{ required: true, message: "请输入 init token" }]}
+                  rules={[{ required: true, message: "请输入部署接管码" }]}
                 >
                   <Input.Password
                     prefix={<KeyOutlined />}
                     autoComplete="one-time-code"
                     size="large"
-                    placeholder="输入部署期一次性 token"
+                    placeholder="输入部署接管码"
                   />
                 </Form.Item>
                 <Form.Item className={styles.lastItem}>
-                  <Button
-                    aria-label="校验 init token"
-                    type="primary"
-                    htmlType="submit"
-                    block
-                    size="large"
-                    loading={checkToken.isPending}
-                    icon={<CheckCircleOutlined />}
-                  >
-                    校验 init token
-                  </Button>
+                  <div className={styles.formActions}>
+                    <Button
+                      aria-label="继续接管"
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      size="large"
+                      loading={checkToken.isPending}
+                      icon={<CheckCircleOutlined />}
+                    >
+                      继续接管
+                    </Button>
+                    {returnLoginButton}
+                  </div>
                 </Form.Item>
               </Form>
             </section>
@@ -329,10 +368,16 @@ export default function Bootstrap() {
                 设置首发管理员
               </Title>
               <Paragraph type="secondary">
-                token 有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                。首发账号创建后必须登录并改密。
+                接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
+                。首发管理员属于平台主租户（唯一内置），客户集团和医院租户进入工作台后开通。
               </Paragraph>
-              <Form form={adminForm} layout="vertical" requiredMark={false} onFinish={submitAdmin}>
+              <Form
+                form={adminForm}
+                initialValues={{ tenantId: defaultTenantId }}
+                layout="vertical"
+                requiredMark={false}
+                onFinish={submitAdmin}
+              >
                 <Form.Item
                   label="账号"
                   name="username"
@@ -340,8 +385,17 @@ export default function Bootstrap() {
                 >
                   <Input prefix={<UserOutlined />} size="large" autoComplete="username" />
                 </Form.Item>
-                <Form.Item label="租户标识" name="tenantId" extra="留空时使用平台默认租户 t-1。">
-                  <Input size="large" autoComplete="organization" />
+                <Form.Item
+                  label="租户标识"
+                  name="tenantId"
+                  extra="唯一内置平台源租户；客户集团和医院租户进入工作台后开通。"
+                >
+                  <Select
+                    options={bootstrapTenantOptions}
+                    optionFilterProp="label"
+                    showSearch
+                    size="large"
+                  />
                 </Form.Item>
                 <Form.Item
                   label="初始密码"
@@ -376,17 +430,20 @@ export default function Bootstrap() {
                   />
                 </Form.Item>
                 <Form.Item className={styles.lastItem}>
-                  <Button
-                    aria-label="创建首发管理员"
-                    type="primary"
-                    htmlType="submit"
-                    block
-                    size="large"
-                    loading={createAdmin.isPending}
-                    icon={<UserOutlined />}
-                  >
-                    创建首发管理员
-                  </Button>
+                  <div className={styles.formActions}>
+                    <Button
+                      aria-label="创建首发管理员"
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      size="large"
+                      loading={createAdmin.isPending}
+                      icon={<UserOutlined />}
+                    >
+                      创建首发管理员
+                    </Button>
+                    {returnLoginButton}
+                  </div>
                 </Form.Item>
               </Form>
             </section>
@@ -399,13 +456,13 @@ export default function Bootstrap() {
               subTitle={`请使用首发账号登录并完成首次改密：${admin?.username ?? "首发管理员"}`}
               extra={[
                 <Button
-                  aria-label="前往登录"
+                  aria-label="返回登录"
                   type="primary"
                   key="login"
                   icon={<LoginOutlined />}
-                  onClick={() => navigate("/login")}
+                  onClick={goLogin}
                 >
-                  前往登录
+                  返回登录
                 </Button>,
               ]}
             />
@@ -469,17 +526,20 @@ export default function Bootstrap() {
                   />
                 </Form.Item>
                 <Form.Item className={styles.lastItem}>
-                  <Button
-                    aria-label="完成首次改密"
-                    type="primary"
-                    htmlType="submit"
-                    block
-                    size="large"
-                    loading={changePassword.isPending}
-                    icon={<CheckCircleOutlined />}
-                  >
-                    完成首次改密
-                  </Button>
+                  <div className={styles.formActions}>
+                    <Button
+                      aria-label="完成首次改密"
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      size="large"
+                      loading={changePassword.isPending}
+                      icon={<CheckCircleOutlined />}
+                    >
+                      完成首次改密
+                    </Button>
+                    {returnLoginButton}
+                  </div>
                 </Form.Item>
               </Form>
             </section>
@@ -488,22 +548,56 @@ export default function Bootstrap() {
           {phase === "mfa" && (
             <section className={styles.stepSection}>
               <Title level={2} className={styles.stepTitle}>
-                绑定 MFA
+                绑定双因素认证
               </Title>
               <Paragraph type="secondary">
-                首发管理员必须完成 MFA 验证后才能执行高危配置、租户开通和应急操作。
+                首发管理员必须完成双因素认证后才能执行高危配置、租户开通和应急操作。
               </Paragraph>
               {mfaSetup && (
-                <div className={styles.recoveryBox}>
-                  <Text type="secondary">请在认证器中录入密钥，再输入 6 位动态验证码。</Text>
-                  <Text strong copyable className={styles.recoveryCode}>
-                    {mfaSetup.secret}
-                  </Text>
+                <div className={styles.mfaSetupGrid}>
                   {mfaSetup.otpauthUri && (
-                    <Text type="secondary" copyable>
-                      {mfaSetup.otpauthUri}
-                    </Text>
+                    <div className={styles.qrPanel} aria-label="离线双因素认证二维码">
+                      <Text strong>
+                        <QrcodeOutlined aria-hidden="true" /> 扫码绑定
+                      </Text>
+                      <QRCode value={mfaSetup.otpauthUri} size={156} bordered={false} type="svg" />
+                      <Text type="secondary">二维码由本页面生成，不访问外网。</Text>
+                    </div>
                   )}
+                  <div className={styles.manualPanel}>
+                    <Text strong>不能扫码时手动录入</Text>
+                    <ol className={styles.mfaSteps}>
+                      <li>在手机或内网安全终端打开认证器 App，选择“扫码添加”。</li>
+                      <li>内网不可扫码时选择“手动输入密钥”。</li>
+                      <li>每 30 秒生成 6 位动态验证码，把当前验证码填到下方。</li>
+                    </ol>
+                    <dl className={styles.mfaManualList}>
+                      <div>
+                        <dt>密钥</dt>
+                        <dd>
+                          <Text strong copyable className={styles.recoveryCode}>
+                            {mfaSetup.secret}
+                          </Text>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>发行方</dt>
+                        <dd>MedKernel</dd>
+                      </div>
+                      <div>
+                        <dt>账号/设备</dt>
+                        <dd>{mfaSetup.label}</dd>
+                      </div>
+                      <div>
+                        <dt>验证码位数</dt>
+                        <dd>6 位</dd>
+                      </div>
+                      <div>
+                        <dt>刷新周期</dt>
+                        <dd>30 秒</dd>
+                      </div>
+                    </dl>
+                  </div>
                 </div>
               )}
               <Form
@@ -516,7 +610,7 @@ export default function Bootstrap() {
                 <Form.Item
                   label="设备名称"
                   name="label"
-                  rules={[{ required: true, message: "请输入 MFA 设备名称" }]}
+                  rules={[{ required: true, message: "请输入设备名称" }]}
                 >
                   <Input
                     prefix={<SafetyCertificateOutlined />}
@@ -542,17 +636,20 @@ export default function Bootstrap() {
                   </Form.Item>
                 )}
                 <Form.Item className={styles.lastItem}>
-                  <Button
-                    aria-label={mfaSetup ? "验证并绑定 MFA" : "生成 MFA 密钥"}
-                    type="primary"
-                    htmlType="submit"
-                    block
-                    size="large"
-                    loading={bindMfa.isPending}
-                    icon={<SafetyCertificateOutlined />}
-                  >
-                    {mfaSetup ? "验证并绑定 MFA" : "生成 MFA 密钥"}
-                  </Button>
+                  <div className={styles.formActions}>
+                    <Button
+                      aria-label={mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      size="large"
+                      loading={bindMfa.isPending}
+                      icon={<SafetyCertificateOutlined />}
+                    >
+                      {mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                    </Button>
+                    {returnLoginButton}
+                  </div>
                 </Form.Item>
               </Form>
             </section>
@@ -562,7 +659,7 @@ export default function Bootstrap() {
             <Result
               status="success"
               title="首发身份接管完成"
-              subTitle="后续可开通首个租户；国产化真实运行证据仍按待处理清单在最终适配阶段关闭。"
+              subTitle="现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户开通中维护。"
               extra={[
                 recoveryCode ? (
                   <div className={styles.recoveryBox} key="recovery">
@@ -581,6 +678,9 @@ export default function Bootstrap() {
                   onClick={() => navigate("/dashboard")}
                 >
                   进入工作台
+                </Button>,
+                <Button key="login" icon={<ArrowLeftOutlined />} onClick={goLogin}>
+                  返回登录
                 </Button>,
               ]}
             />

@@ -109,6 +109,15 @@ class AuthControllerTest {
         }
     }
 
+    @Test
+    void loginTenantsIsPublicAndDefaultsToPlatformTenantWhenNoCustomerTenantExists() throws Exception {
+        mvc.perform(get("/api/v1/auth/login-tenants"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.hasCustomerTenants").value(false))
+            .andExpect(jsonPath("$.data.primaryTenants[0].tenantId").value("t-1"))
+            .andExpect(jsonPath("$.data.platformTenant.name").value("平台主租户（唯一内置）"));
+    }
+
     @AfterEach
     void cleanUp() {
         // I2: 清理凭证

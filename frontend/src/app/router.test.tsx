@@ -60,6 +60,15 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: false,
     isError: false,
   }),
+  useLoginTenantDirectory: () => ({
+    data: {
+      primaryTenants: [{ tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" }],
+      platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+      hasCustomerTenants: false,
+    },
+    isLoading: false,
+    isError: false,
+  }),
   useCheckBootstrapInitToken: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateBootstrapAdmin: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useChangePassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -121,6 +130,23 @@ vi.mock("@/pages/Dashboard", () => ({
   default: () => <div>本周建议动作</div>,
 }));
 
+vi.mock("@/pages/Login", () => ({
+  default: () => (
+    <main>
+      <h1>登录工作台</h1>
+      <p>使用医院账号或统一身份继续</p>
+    </main>
+  ),
+}));
+
+vi.mock("@/pages/Bootstrap", () => ({
+  default: () => (
+    <main>
+      <h1>首次部署接管</h1>
+    </main>
+  ),
+}));
+
 vi.mock("@/pages/workbench/DemoValidation", () => ({
   default: () => <div>演示就绪度自检</div>,
 }));
@@ -147,7 +173,8 @@ describe("AppRouter", () => {
   it("uses the login page as the default entry instead of opening the workbench", async () => {
     renderRouter("/");
 
-    expect(await screen.findByRole("heading", { name: "集团医疗智能中枢" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
+    expect(screen.getByText("使用医院账号或统一身份继续")).toBeInTheDocument();
     expect(screen.queryByText("本周建议动作")).toBeNull();
   });
 

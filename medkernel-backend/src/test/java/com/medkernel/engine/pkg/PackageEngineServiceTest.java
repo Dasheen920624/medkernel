@@ -478,6 +478,68 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void importOfflinePackageAllowsPlatformSourceIntoCustomerTenantAsLocalDraft() throws Exception {
+        String offlineJson = offlinePackageJson("PKG.PLATFORM", "2026.06.01", "t-1");
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.PLATFORM", "2026.06.01"))
+            .thenReturn(Optional.empty());
+        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
+        when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
+
+        PackageOfflineImportResponse response = service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson));
+
+        assertThat(response.status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
+        verify(packageRepository).save(packCap.capture());
+        assertThat(packCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(packCap.getValue().packageId()).isNotEqualTo("pkg-source");
+
+        ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
+        verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());
+        assertThat(itemCap.getAllValues()).allSatisfy(item ->
+            assertThat(item.tenantId()).isEqualTo("tenant-A"));
+        verify(ruleRepository, never()).findByRuleIdAndTenantId("rule-stable", "t-1");
+        verify(evaluationRepository, never()).findByIndicatorIdAndTenantId("eval-stable", "t-1");
+    }
+
+    @Test
+    void importOfflinePackageRejectsCustomerSourceIntoPlatformTenant() throws Exception {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-pkg", OrgScope.tenant("t-1"), "platform-admin"));
+        String offlineJson = offlinePackageJson("PKG.CUSTOMER", "2026.06.01", "tenant-A");
+
+        assertThatThrownBy(() -> service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.TENANT_FORBIDDEN);
+
+        verify(packageRepository, never()).save(any());
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsCustomerSourceIntoAnotherCustomerTenant() throws Exception {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-pkg", OrgScope.tenant("tenant-B"), "customer-admin"));
+        String offlineJson = offlinePackageJson("PKG.CUSTOMER", "2026.06.01", "tenant-A");
+
+        assertThatThrownBy(() -> service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.TENANT_FORBIDDEN);
+
+        verify(packageRepository, never()).save(any());
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
     void importOfflinePackageRejectsTamperedPayloadSha256BeforePersisting() throws Exception {
         ObjectNode root = (ObjectNode) TEST_MAPPER.readTree(offlinePackageJson("PKG.TAMPER", "2026.06.01"));
         ((ObjectNode) root.path("payload").path("packageInfo")).put("packageVersion", "2026.06.02");
@@ -1092,9 +1154,13 @@ class PackageEngineServiceTest {
     }
 
     private String offlinePackageJson(String packageCode, String packageVersion) throws Exception {
+        return offlinePackageJson(packageCode, packageVersion, "tenant-A");
+    }
+
+    private String offlinePackageJson(String packageCode, String packageVersion, String sourceTenantId) throws Exception {
         ObjectNode packageInfo = TEST_MAPPER.createObjectNode();
         packageInfo.put("packageId", "pkg-source");
-        packageInfo.put("tenantId", "tenant-A");
+        packageInfo.put("tenantId", sourceTenantId);
         packageInfo.put("packageCode", packageCode);
         packageInfo.put("packageVersion", packageVersion);
         packageInfo.put("name", "离线导入配置包");
@@ -1107,8 +1173,8 @@ class PackageEngineServiceTest {
         packageInfo.put("traceId", "trace-source");
 
         ArrayNode items = TEST_MAPPER.createArrayNode();
-        items.add(offlineItem("source-item-1", "RULE", "rule-stable", "2"));
-        items.add(offlineItem("source-item-2", "EVALUATION", "eval-stable", "1"));
+        items.add(offlineItem(sourceTenantId, "source-item-1", "RULE", "rule-stable", "2"));
+        items.add(offlineItem(sourceTenantId, "source-item-2", "EVALUATION", "eval-stable", "1"));
 
         ArrayNode assetSnapshots = TEST_MAPPER.createArrayNode();
         assetSnapshots.add(offlineSnapshot("RULE", "rule-stable", "2", offlineRuleContent("rule-stable", "rule-version-2", 2)));
@@ -1125,7 +1191,7 @@ class PackageEngineServiceTest {
 
         ObjectNode manifest = TEST_MAPPER.createObjectNode();
         manifest.put("packageId", "pkg-source");
-        manifest.put("tenantId", "tenant-A");
+        manifest.put("tenantId", sourceTenantId);
         manifest.put("packageCode", packageCode);
         manifest.put("packageVersion", packageVersion);
         manifest.put("status", "PUBLISHED");
@@ -1215,10 +1281,10 @@ class PackageEngineServiceTest {
                 .digest(TEST_MAPPER.writeValueAsString(node).getBytes(StandardCharsets.UTF_8)));
     }
 
-    private ObjectNode offlineItem(String itemId, String assetType, String assetId, String assetVersion) {
+    private ObjectNode offlineItem(String sourceTenantId, String itemId, String assetType, String assetId, String assetVersion) {
         ObjectNode item = TEST_MAPPER.createObjectNode();
         item.put("itemId", itemId);
-        item.put("tenantId", "tenant-A");
+        item.put("tenantId", sourceTenantId);
         item.put("packageId", "pkg-source");
         item.put("assetType", assetType);
         item.put("assetId", assetId);
