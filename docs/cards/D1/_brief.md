@@ -12,7 +12,7 @@
 
 ## 现状（搬迁时核查，2026-05-30；前端代码请以仓库为准复核）
 
-- **工作台 UI** = `frontend/src/widgets/WorkbenchPanel.tsx`，经 `frontend/src/pages/Dashboard.tsx`（仅 `return <WorkbenchPanel/>`）挂载于路由 `/dashboard`（登入默认落点，路由表 `frontend/src/app/router.tsx`）。WorkbenchPanel 已组合 `TenantLifecyclePanel`（`features/tenant-lifecycle`）/`MetricGrid`/`PageState`/`StatusBadge`——即**租户生命周期面板、指标网格、页面态已有雏形**，但数据全是硬编码 mock（`todoMock`/静态指标/静态演示按钮）、不调后端；六态是否齐全、是否默认角色视图、是否可下钻待 [WORKBENCH-01](WORKBENCH-01.md) 核验补全。
+- **工作台 UI** = `frontend/src/widgets/WorkbenchPanel.tsx`，经 `frontend/src/pages/Dashboard.tsx`（仅 `return <WorkbenchPanel/>`）挂载于路由 `/dashboard`（登入默认落点，路由表 `frontend/src/app/router.tsx`）。WORKBENCH-01 PR1 已清理旧“等待真实聚合 API”空态，先读取 `/security/me` 权限画像；确认有工作台权限后再并行读取现有来源：`/system/operations` 运行状态、`/compliance/audit/events` 最近变化、`/platform/success/lifecycle` 租户生命周期；按角色切换信息科 / 临床 / 医务质控 / 审计 / 院管视图，补无权限与部分来源降级。后续 PR2 继续补主按钮 / 筛选 / 下钻 / 本周建议动作 / 性能与无障碍。
 - **数据源**：后端当前**无 workbench REST 端点**（全仓 `workbench` 仅 `MenuPermissionCatalog` 菜单权限键 + 其测试，非接口）；WorkbenchPanel 现以硬编码 mock 呈现。按详规 S0 口径，工作台须**复用现有 API**（健康/审计/待办/大列表/引擎状态）渲染真实数据，未建域诚实降级，**不得伪造或 dangling**。
 - **演示模式**：`features/demo-mode/DemoModeToggle.tsx` 已有，[WORKBENCH-02](WORKBENCH-02.md) 在其上做"演示与校验"。
 - **演示页（已清）** 原 `frontend/src/pages/StepFlowDemo.tsx` 与生产路由 `config/packages/demo` 已由 [INFRA-09](INFRA-09.md) 清出生产；`StepFlow` 组件（`shared/ui/StepFlow.tsx`）保留供 D2 配置类页面复用，生产 router 已加门禁防 `*Demo` / demo 路径回流。

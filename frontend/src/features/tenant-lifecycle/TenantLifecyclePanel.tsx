@@ -38,14 +38,11 @@ export function TenantLifecyclePanel() {
 
   if (isLoading) {
     return (
-      <Card
-        title={<Text className={styles.title}>租户多维生命周期控制台</Text>}
-        className={styles.card}
-      >
+      <Card title={<Text className={styles.title}>租户生命周期</Text>} className={styles.card}>
         <div className={styles.loaderContainer}>
           <Spin size="large" />
           <Text type="secondary" className={styles.loaderText}>
-            正在物理加载多维生命周期数据...
+            正在读取生命周期数据...
           </Text>
         </div>
       </Card>
@@ -54,15 +51,10 @@ export function TenantLifecyclePanel() {
 
   if (error || !data) {
     return (
-      <Card
-        title={<Text className={styles.title}>租户多维生命周期控制台</Text>}
-        className={styles.card}
-      >
+      <Card title={<Text className={styles.title}>租户生命周期</Text>} className={styles.card}>
         <Alert
           message="数据加载失败"
-          description={
-            error instanceof Error ? error.message : "无法与底层租户生命周期服务建立物理连接"
-          }
+          description={error instanceof Error ? error.message : "暂时无法读取租户生命周期服务"}
           type="error"
           showIcon
         />
@@ -80,11 +72,11 @@ export function TenantLifecyclePanel() {
     if (!nextStage) return;
     transitionMutation.mutate(nextStage.key, {
       onSuccess: () => {
-        message.success(`生命周期物理演进成功：已成功推进至【${nextStage.title}】`);
+        message.success(`生命周期已推进至【${nextStage.title}】`);
         refetch();
       },
       onError: (err: unknown) => {
-        message.error(`推进生命周期失败: ${getApiErrorMessage(err, "请求物理变迁失败")}`);
+        message.error(`推进生命周期失败: ${getApiErrorMessage(err, "请求推进生命周期失败")}`);
       },
     });
   };
@@ -109,10 +101,8 @@ export function TenantLifecyclePanel() {
     <Card
       title={
         <Space direction="vertical" size={2}>
-          <Text className={styles.title}>租户多维生命周期控制台</Text>
-          <Text className={styles.subtitle}>
-            与 docs/CONSTITUTION.md §6 多维并行生命周期物理驱动对齐
-          </Text>
+          <Text className={styles.title}>租户生命周期</Text>
+          <Text className={styles.subtitle}>查看当前试点阶段、健康度和已启用范围</Text>
         </Space>
       }
       extra={
@@ -145,7 +135,7 @@ export function TenantLifecyclePanel() {
           />
         </div>
 
-        {/* 物理切片多维数据 */}
+        {/* 多维治理数据 */}
         <Row gutter={[24, 24]} align="stretch">
           {/* 健康度得分切片 */}
           <Col xs={24} md={8}>
@@ -179,7 +169,7 @@ export function TenantLifecyclePanel() {
                     </div>
                   )}
                 />
-                <Text className={styles.progressDesc}>全量集成证据链及模型成效得出</Text>
+                <Text className={styles.progressDesc}>根据接入、运行和验收证据计算</Text>
               </div>
             </Card>
           </Col>
@@ -209,9 +199,7 @@ export function TenantLifecyclePanel() {
                     无已激活服务模块
                   </Text>
                 )}
-                <Paragraph className={styles.cardDesc}>
-                  由底座统一认证中心对当前租户注入的安全服务许可范围。
-                </Paragraph>
+                <Paragraph className={styles.cardDesc}>当前租户已启用的服务范围。</Paragraph>
               </div>
             </Card>
           </Col>
@@ -249,7 +237,7 @@ export function TenantLifecyclePanel() {
           </Col>
         </Row>
 
-        {/* 下一阶段演进操作与审计物理留痕 */}
+        {/* 下一阶段演进操作与审计留痕 */}
         <Divider className={styles.divider} />
 
         <Row align="middle" justify="space-between">
@@ -257,7 +245,7 @@ export function TenantLifecyclePanel() {
             <Space size="middle">
               {data.updatedAt && (
                 <span className={styles.auditText}>
-                  <ClockCircleOutlined /> 物理更新时间：{new Date(data.updatedAt).toLocaleString()}
+                  <ClockCircleOutlined /> 更新时间：{new Date(data.updatedAt).toLocaleString()}
                 </span>
               )}
               {data.updatedBy && (
@@ -276,7 +264,7 @@ export function TenantLifecyclePanel() {
                 onClick={handleTransition}
                 className={styles.transitionBtn}
               >
-                推进生命阶段至【{nextStage.title}】
+                推进生命周期阶段至【{nextStage.title}】
               </Button>
             ) : (
               <Button disabled className={styles.transitionBtn}>

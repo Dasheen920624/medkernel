@@ -97,13 +97,14 @@ type AuditSnapshotEnvelope = {
   data: AuditEventRow;
 };
 
-export function useAuditEvents() {
+export function useAuditEvents(enabled = true) {
   return useQuery({
     queryKey: ["audit", "events"],
     queryFn: async () => {
       const resp = await apiClient.get<AuditEventsEnvelope>("/compliance/audit/events");
       return resp.data.data?.items ?? [];
     },
+    enabled,
   });
 }
 
@@ -177,13 +178,14 @@ type RuntimeOperationsEnvelope = {
   data: RuntimeOperationsSnapshot;
 };
 
-export function useRuntimeOperations() {
+export function useRuntimeOperations(enabled = true) {
   return useQuery({
     queryKey: ["system", "operations"],
     queryFn: async () => {
       const response = await apiClient.get<RuntimeOperationsEnvelope>("/system/operations");
       return response.data.data;
     },
+    enabled,
     refetchInterval: 30_000,
   });
 }
@@ -2739,13 +2741,14 @@ export function useUpdateBranding() {
   });
 }
 
-export function useSuccessPlan() {
+export function useSuccessPlan(enabled = true) {
   return useQuery({
     queryKey: ["platform", "success", "lifecycle"],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: SuccessPlan }>("/platform/success/lifecycle");
       return data.data;
     },
+    enabled,
   });
 }
 
