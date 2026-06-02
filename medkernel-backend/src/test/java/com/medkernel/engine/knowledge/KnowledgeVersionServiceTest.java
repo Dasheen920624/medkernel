@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -34,6 +35,8 @@ class KnowledgeVersionServiceTest {
     private CitationRepository citationRepo;
     private SourceDocumentRepository sourceDocRepo;
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
+    private CandidateClassificationRepository candidateClassificationRepo;
+    private ReviewAssignmentRepository reviewAssignmentRepo;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -44,14 +47,19 @@ class KnowledgeVersionServiceTest {
         citationRepo = Mockito.mock(CitationRepository.class);
         sourceDocRepo = Mockito.mock(SourceDocumentRepository.class);
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
+        candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
+        reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
         service = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort);
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
+            candidateClassificationRepo, reviewAssignmentRepo);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
         when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> inv.getArgument(0));
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(supersessionRepo.save(any(KnowledgeSupersession.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reviewAssignmentRepo.save(any(ReviewAssignment.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @AfterEach
@@ -355,45 +363,60 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
-    void createDraftVersionWithStandardRequestUsesPathIdentity() {
+    void classifyCandidateWithStandardRequestUsesPathIdentity() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
+        when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        KnowledgeAssetVersion created = service.createDraftVersion(1L, versionCreateRequest("v2"));
+        KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequest("v2"));
 
+        KnowledgeAssetVersion created = response.candidates().get(0);
         assertThat(created.identityId()).isEqualTo(1L);
         assertThat(created.versionNo()).isEqualTo("v2");
-        assertThat(created.status()).isEqualTo(KnowledgeVersionStatus.UNDER_REVIEW);
+        assertThat(created.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
         assertThat(created.contentHash()).isNotBlank();
         assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
         assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
         assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
         assertThat(created.createdBy()).isEqualTo("u-99");
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.classification()).isEqualTo(CandidateClassificationType.NEW_ASSET);
+                assertThat(item.orgPath()).isEqualTo("tenant:t-1");
+            });
+        ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo).save(assignment.capture());
+        assertThat(assignment.getValue().orgPath()).isEqualTo("tenant:t-1");
     }
 
     @Test
-    void createDraftVersionStoresCanonicalSha256() {
+    void classifyCandidateStoresCanonicalSha256() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
+        when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        KnowledgeAssetVersion created = service.createDraftVersion(draftRequest(1L, "v2", "真实指南内容"));
+        KnowledgeAssetVersion created = service.classifyCandidate(1L,
+            versionCreateRequestWithTenant("t-1", 10L, 20L, "v2", "真实指南内容")).candidates().get(0);
 
         assertThat(created.contentHash()).isEqualTo(sha256("真实指南内容"));
         assertThat(created.contentHash()).matches("[0-9a-f]{64}");
         assertThat(created.authorityLevel()).isEqualTo(SourceAuthorityLevel.C_CONSENSUS_LITERATURE);
-        assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.MODERATE);
-        assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.WEAK);
+        assertThat(created.gradeQuality()).isEqualTo(GradeEvidenceQuality.HIGH);
+        assertThat(created.gradeStrength()).isEqualTo(GradeRecommendationStrength.STRONG);
     }
 
     @Test
-    void createDraftVersionRejectsBlankContentInsteadOfHashingEmptyString() {
+    void classifyCandidateRejectsBlankContentInsteadOfHashingEmptyString() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.createDraftVersion(draftRequest(1L, "v2", "   ")))
+        assertThatThrownBy(() -> service.classifyCandidate(1L,
+            versionCreateRequestWithTenant("t-1", 10L, 20L, "v2", "   ")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
@@ -479,15 +502,200 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
-    void listCandidatesReturnsKnow02PendingEmptyContract() {
+    void listCandidatesReturnsAvailableEmptyWorkflowWhenNoPendingCandidates() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
 
         KnowledgeCandidateResponse response = service.listCandidates(1L);
 
         assertThat(response.identityId()).isEqualTo(1L);
-        assertThat(response.available()).isFalse();
-        assertThat(response.reasonCode()).isEqualTo("KNOW_02_PENDING");
+        assertThat(response.available()).isTrue();
+        assertThat(response.reasonCode()).isEqualTo("OK");
         assertThat(response.candidates()).isEmpty();
+        assertThat(response.classifications()).isEmpty();
+    }
+
+    @Test
+    void classifyDuplicateCandidateRecordsBasisWithoutCreatingReviewTodoOrVersion() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L))
+            .thenReturn(List.of(active));
+
+        KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequestWithContent(
+            "duplicate-v2", "知识版本夹具内容-5"));
+
+        assertThat(response.available()).isTrue();
+        assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
+        assertThat(response.candidates()).isEmpty();
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.classification()).isEqualTo(CandidateClassificationType.DUPLICATE);
+                assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.DUPLICATE_SKIPPED);
+                assertThat(item.basis()).contains("content_hash").contains(active.contentHash());
+                assertThat(item.activeVersionId()).isEqualTo(5L);
+                assertThat(item.candidateVersionId()).isNull();
+            });
+        verify(versionRepo, never()).save(any());
+        verify(reviewAssignmentRepo, never()).save(any());
+    }
+
+    @Test
+    void classifyNewVersionCreatesPendingReviewCandidateWithoutActivatingIt() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 7L)).thenReturn(Optional.of(sourceDocument(7L, SourceAuthorityLevel.B_GUIDELINE)));
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L))
+            .thenReturn(List.of(active));
+        when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> {
+            KnowledgeAssetVersion candidate = inv.getArgument(0);
+            return new KnowledgeAssetVersion(
+                22L, candidate.tenantId(), candidate.identityId(), candidate.versionNo(), candidate.versionLabel(),
+                candidate.sourceDocumentId(), candidate.sourceVersionId(), candidate.contentHash(), candidate.anchors(),
+                candidate.status(), candidate.riskLevel(), candidate.authorityLevel(), candidate.gradeQuality(),
+                candidate.gradeStrength(), candidate.conflictArbitration(), candidate.effectiveFrom(), candidate.effectiveTo(),
+                candidate.reviewedBy(), candidate.reviewedAt(), candidate.activatedAt(), candidate.supersededAt(),
+                candidate.withdrawnAt(), candidate.withdrawnReason(), candidate.createdAt(), candidate.createdBy(),
+                candidate.updatedAt(), candidate.updatedBy());
+        });
+
+        KnowledgeCandidateResponse response = service.classifyCandidate(1L, versionCreateRequestWithContent(
+            "regulation-v2", "国家法规更新后的真实内容"));
+
+        assertThat(response.reasonCode()).isEqualTo("SAME_IDENTITY_NEW_VERSION");
+        assertThat(response.candidates()).singleElement()
+            .satisfies(candidate -> {
+                assertThat(candidate.id()).isEqualTo(22L);
+                assertThat(candidate.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
+                assertThat(candidate.activatedAt()).isNull();
+            });
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.classification()).isEqualTo(CandidateClassificationType.SAME_IDENTITY_NEW_VERSION);
+                assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+                assertThat(item.activeVersionId()).isEqualTo(5L);
+                assertThat(item.candidateVersionId()).isEqualTo(22L);
+                assertThat(item.diffSummary()).contains("当前 ACTIVE").contains("候选");
+            });
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+        verify(reviewAssignmentRepo).save(any(ReviewAssignment.class));
+    }
+
+    @Test
+    void reviewCandidateHasTransactionalBoundaryForApprovalReplacement() throws NoSuchMethodException {
+        Transactional transactional = KnowledgeVersionService.class
+            .getDeclaredMethod("reviewCandidate", Long.class, KnowledgeCandidateReviewRequest.class)
+            .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+    }
+
+    @Test
+    void approveCandidateDelegatesToAtomicActivationFlow() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
+        assertThat(response.candidates()).singleElement()
+            .satisfies(approved -> assertThat(approved.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE));
+        verify(supersessionRepo).save(any(KnowledgeSupersession.class));
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
+    void rejectCandidateMarksVersionRejectedWithoutActivationSideEffects() {
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.CONFLICT,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+
+        KnowledgeCandidateReviewRequest rejectRequest = new KnowledgeCandidateReviewRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            KnowledgeCandidateReviewDecision.REJECT, "来源冲突，退回补证"
+        );
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, rejectRequest);
+
+        assertThat(response.reasonCode()).isEqualTo("REJECTED");
+        assertThat(response.candidates()).singleElement()
+            .satisfies(rejected -> assertThat(rejected.status()).isEqualTo(KnowledgeVersionStatus.REJECTED));
+        ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
+        verify(reviewAssignmentRepo).save(assignment.capture());
+        assertThat(assignment.getValue().reason()).isEqualTo("来源冲突，退回补证");
+        assertThat(assignment.getValue().decision()).isEqualTo(KnowledgeCandidateReviewDecision.REJECT);
+        verify(supersessionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void diffCandidateReturnsStoredConflictViewWithoutActivatingCandidate() {
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.CONFLICT,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+
+        KnowledgeCandidateResponse response = service.diffCandidate(88L);
+
+        assertThat(response.reasonCode()).isEqualTo("CONFLICT");
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.classification()).isEqualTo(CandidateClassificationType.CONFLICT);
+                assertThat(item.diffSummary()).contains("当前 ACTIVE 与候选对照");
+            });
+        assertThat(response.candidates()).singleElement()
+            .satisfies(item -> assertThat(item.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW));
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void diffDuplicateCandidateReturnsClassificationWithoutLookingUpMissingVersion() {
+        CandidateClassification classification = classification(
+            89L,
+            1L,
+            null,
+            5L,
+            CandidateClassificationType.DUPLICATE,
+            CandidateReviewStatus.DUPLICATE_SKIPPED);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 89L)).thenReturn(Optional.of(classification));
+
+        KnowledgeCandidateResponse response = service.diffCandidate(89L);
+
+        assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
+        assertThat(response.candidates()).isEmpty();
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.DUPLICATE_SKIPPED));
+        verify(versionRepo, never()).findByTenantIdAndId(any(), any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -516,7 +724,7 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
-    void createDraftVersionInCustomerTenantDoesNotWriteBackToPlatformTenant() {
+    void classifyCandidateInCustomerTenantDoesNotWriteBackToPlatformTenant() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "hospital-admin"));
         KnowledgeIdentity identity = new KnowledgeIdentity(
             1L, "t-hospital", "DRUG.X", KnowledgeDomain.DRUG, "医院定制主题", null, null,
@@ -527,11 +735,16 @@ class KnowledgeVersionServiceTest {
         when(sourceDocRepo.findByTenantIdAndId("t-hospital", 10L)).thenReturn(Optional.of(sourceDocument("t-hospital", 10L, SourceAuthorityLevel.D_HOSPITAL)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-hospital", 1L))
             .thenReturn(List.of());
+        when(versionRepo.save(any(KnowledgeAssetVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        KnowledgeAssetVersion saved =
-            service.createDraftVersion(draftRequest(1L, "hospital-v1", "医院本地定制内容"));
+        KnowledgeAssetVersion saved = service.classifyCandidate(1L,
+            versionCreateRequestWithTenant("t-hospital", 10L, 20L, "hospital-v1", "医院本地定制内容"))
+            .candidates()
+            .get(0);
 
         assertThat(saved.tenantId()).isEqualTo("t-hospital");
+        assertThat(saved.createdBy()).isEqualTo("hospital-admin");
         verify(identityRepo, never()).findByTenantIdAndId("t-1", 1L);
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
     }
@@ -571,10 +784,19 @@ class KnowledgeVersionServiceTest {
     }
 
     private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo) {
+        return versionCreateRequestWithContent(versionNo, "真实指南内容");
+    }
+
+    private KnowledgeVersionCreateRequest versionCreateRequestWithContent(String versionNo, String content) {
+        return versionCreateRequestWithTenant("t-1", 7L, 8L, versionNo, content);
+    }
+
+    private KnowledgeVersionCreateRequest versionCreateRequestWithTenant(String tenantId, Long sourceDocumentId,
+            Long sourceVersionId, String versionNo, String content) {
         return new KnowledgeVersionCreateRequest(
-            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
             "u-99", List.of("knowledge.write"), "pkg-2026.06",
-            versionNo, "2026 版", 7L, 8L, "真实指南内容", "[]", KnowledgeRiskLevel.LOW,
+            versionNo, "2026 版", sourceDocumentId, sourceVersionId, content, "[]", KnowledgeRiskLevel.LOW,
             GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG
         );
     }
@@ -594,10 +816,15 @@ class KnowledgeVersionServiceTest {
         );
     }
 
-    private DraftVersionCreateRequest draftRequest(Long identityId, String versionNo, String content) {
-        return new DraftVersionCreateRequest(
-            identityId, versionNo, "医院定制版本", 10L, 20L, content, null, KnowledgeRiskLevel.MEDIUM,
-            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK);
+    private CandidateClassification classification(Long id, Long identityId, Long candidateVersionId,
+                                                   Long activeVersionId, CandidateClassificationType type,
+                                                   CandidateReviewStatus status) {
+        Instant now = Instant.now();
+        return new CandidateClassification(
+            id, "t-1", "tenant:t-1", identityId, candidateVersionId, activeVersionId, type, status,
+            sha256("candidate-" + candidateVersionId), "测试分类依据", "当前 ACTIVE 与候选对照",
+            now, "init", now, "init"
+        );
     }
 
     private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel) {

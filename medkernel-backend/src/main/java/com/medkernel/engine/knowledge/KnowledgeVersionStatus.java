@@ -5,8 +5,8 @@ package com.medkernel.engine.knowledge;
  *
  * <p>状态机（详细规范 §1.4 / §1797-1806）：
  * <pre>
- *   DRAFT ──编辑──&gt; CANDIDATE ──提交审核──&gt; UNDER_REVIEW ─┬─审核通过激活─&gt; ACTIVE ──新版替代─&gt; SUPERSEDED
- *                                                          │                       └──紧急撤回─&gt; WITHDRAWN
+ *   DRAFT ──编辑──&gt; CANDIDATE ──新旧识别──&gt; PENDING_REPLACEMENT_REVIEW ──审核通过──&gt; ACTIVE ──新版替代─&gt; SUPERSEDED
+ *                                 └──────提交审核──&gt; UNDER_REVIEW ───────┘                       └──紧急撤回─&gt; WITHDRAWN
  *                                                          └─审核驳回─&gt; REJECTED
  * </pre>
  *
@@ -17,6 +17,8 @@ public enum KnowledgeVersionStatus {
     DRAFT,
     /** AI 生成或人工录入的候选，等待审核分流 */
     CANDIDATE,
+    /** 新旧识别后的替换候选，仅供人工对照审核，不参与临床执行 */
+    PENDING_REPLACEMENT_REVIEW,
     /** 提交审核中（医务处/科主任/专科专家审核） */
     UNDER_REVIEW,
     /** 当前权威版本：临床决策、规则校验、推荐均以此版本为准 */
@@ -30,7 +32,7 @@ public enum KnowledgeVersionStatus {
 
     /** 该状态版本是否可被审核激活 */
     public boolean isActivatable() {
-        return this == UNDER_REVIEW || this == CANDIDATE;
+        return this == UNDER_REVIEW || this == CANDIDATE || this == PENDING_REPLACEMENT_REVIEW;
     }
 
     /** 该状态版本是否当前可作为临床决策依据 */

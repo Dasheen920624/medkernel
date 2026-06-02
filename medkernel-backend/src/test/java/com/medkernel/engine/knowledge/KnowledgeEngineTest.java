@@ -1,7 +1,6 @@
 package com.medkernel.engine.knowledge;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,8 +30,8 @@ import static org.mockito.Mockito.when;
  * <ul>
  *   <li>来源文献、版本及锚点片段登记</li>
  *   <li>引用锚点 SHA-256 摘要签名计算与幂等防重</li>
- *   <li>待审草稿版本创建（初始为 UNDER_REVIEW）</li>
- *   <li>基于内容哈希 SHA-256 指纹的历史版本碰撞去重（ENG-KNOW-002）</li>
+ *   <li>候选进入新旧识别后只进入待替换审核，不直接发布</li>
+ *   <li>基于内容哈希 SHA-256 指纹的重复候选去重</li>
  * </ul>
  */
 class KnowledgeEngineTest {
@@ -45,6 +44,8 @@ class KnowledgeEngineTest {
     private SourceFragmentRepository sourceFragRepo;
     private CitationRepository citationRepo;
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
+    private CandidateClassificationRepository candidateClassificationRepo;
+    private ReviewAssignmentRepository reviewAssignmentRepo;
 
     private KnowledgeIdentityService identityService;
     private KnowledgeVersionService versionService;
@@ -59,13 +60,16 @@ class KnowledgeEngineTest {
         sourceFragRepo = Mockito.mock(SourceFragmentRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
+        candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
+        reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
         );
 
         versionService = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
+            candidateClassificationRepo, reviewAssignmentRepo
         );
 
         // 初始化租户与用户上下文环境
@@ -229,12 +233,7 @@ class KnowledgeEngineTest {
     }
 
     @Test
-    void createDraftVersionSavesSuccessfully() {
-        DraftVersionCreateRequest req = new DraftVersionCreateRequest(
-            5L, "v2.0", "测试标签", 1L, 2L, "这里是全新的医学文献内容", "anchors", KnowledgeRiskLevel.MEDIUM,
-            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK
-        );
-
+    void classifyCandidateCreatesPendingReviewVersion() {
         KnowledgeIdentity identity = new KnowledgeIdentity(
             5L, "t-1", "DRUG.A", KnowledgeDomain.DRUG, "骨关节炎临床规则", null, null,
             KnowledgeIdentityStatus.ACTIVE, null, Instant.now(), "system", Instant.now(), "system"
@@ -242,24 +241,25 @@ class KnowledgeEngineTest {
 
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
-        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(Collections.emptyList());
+        when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(List.of());
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        KnowledgeAssetVersion saved = versionService.createDraftVersion(req);
+        KnowledgeCandidateResponse response = versionService.classifyCandidate(5L,
+            versionCreateRequest("v2.0", "这里是全新的医学文献内容"));
 
+        KnowledgeAssetVersion saved = response.candidates().get(0);
         assertThat(saved).isNotNull();
         assertThat(saved.versionNo()).isEqualTo("v2.0");
-        assertThat(saved.status()).isEqualTo(KnowledgeVersionStatus.UNDER_REVIEW);
+        assertThat(saved.status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
         assertThat(saved.contentHash()).isNotBlank();
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> assertThat(item.classification()).isEqualTo(CandidateClassificationType.NEW_ASSET));
         verify(versionRepo, times(1)).save(any(KnowledgeAssetVersion.class));
+        verify(reviewAssignmentRepo, times(1)).save(any(ReviewAssignment.class));
     }
 
     @Test
-    void createDraftVersionRejectsDueToContentHashCollision() {
-        DraftVersionCreateRequest req = new DraftVersionCreateRequest(
-            5L, "v2.0", "测试标签", 1L, 2L, "这里是完全重复的历史医学内容", "anchors", KnowledgeRiskLevel.MEDIUM,
-            GradeEvidenceQuality.LOW, GradeRecommendationStrength.WEAK
-        );
-
+    void classifyCandidateDeduplicatesContentHashWithoutReviewAssignment() {
         KnowledgeIdentity identity = new KnowledgeIdentity(
             5L, "t-1", "DRUG.A", KnowledgeDomain.DRUG, "骨关节炎临床规则", null, null,
             KnowledgeIdentityStatus.ACTIVE, null, Instant.now(), "system", Instant.now(), "system"
@@ -278,11 +278,29 @@ class KnowledgeEngineTest {
         when(identityRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(sourceDocument(1L)));
         when(versionRepo.findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 5L)).thenReturn(List.of(historyVersion));
+        when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> versionService.createDraftVersion(req))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.ENG_KNOW_002);
+        KnowledgeCandidateResponse response = versionService.classifyCandidate(5L,
+            versionCreateRequest("v2.0", "这里是完全重复的历史医学内容"));
+
+        assertThat(response.reasonCode()).isEqualTo("DUPLICATE");
+        assertThat(response.candidates()).isEmpty();
+        assertThat(response.classifications()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.reviewStatus()).isEqualTo(CandidateReviewStatus.DUPLICATE_SKIPPED);
+                assertThat(item.candidateVersionId()).isNull();
+            });
+        verify(versionRepo, never()).save(any(KnowledgeAssetVersion.class));
+        verify(reviewAssignmentRepo, never()).save(any(ReviewAssignment.class));
+    }
+
+    private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo, String content) {
+        return new KnowledgeVersionCreateRequest(
+            "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
+            "u-admin", List.of("knowledge.write"), "pkg-2026.06",
+            versionNo, "测试标签", 1L, 2L, content, "anchors", KnowledgeRiskLevel.MEDIUM,
+            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK
+        );
     }
 
     private SourceDocument sourceDocument(Long id) {

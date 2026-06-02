@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -19,7 +20,7 @@ import com.medkernel.shared.context.RequestContext;
  *   {@link #activate}(identity, versionId)
  *     ├─ 悲观锁 knowledge_identity 行
  *     ├─ 当前 ACTIVE 版本（如有）→ SUPERSEDED，写 supersession (REPLACE/ACTIVATE)
- *     ├─ 目标版本（UNDER_REVIEW / CANDIDATE）→ ACTIVE
+ *     ├─ 目标版本（UNDER_REVIEW / CANDIDATE / PENDING_REPLACEMENT_REVIEW）→ ACTIVE
  *     ├─ knowledge_identity.current_version_id 指向新版
  *     └─ commit
  *
@@ -42,19 +43,25 @@ public class KnowledgeVersionService {
     private final CitationRepository citationRepository;
     private final SourceDocumentRepository sourceDocumentRepository;
     private final KnowledgeProjectionRefreshPort projectionRefreshPort;
+    private final CandidateClassificationRepository candidateClassificationRepository;
+    private final ReviewAssignmentRepository reviewAssignmentRepository;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
                                    KnowledgeSupersessionRepository supersessionRepository,
                                    CitationRepository citationRepository,
                                    SourceDocumentRepository sourceDocumentRepository,
-                                   KnowledgeProjectionRefreshPort projectionRefreshPort) {
+                                   KnowledgeProjectionRefreshPort projectionRefreshPort,
+                                   CandidateClassificationRepository candidateClassificationRepository,
+                                   ReviewAssignmentRepository reviewAssignmentRepository) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
         this.citationRepository = citationRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
         this.projectionRefreshPort = projectionRefreshPort;
+        this.candidateClassificationRepository = candidateClassificationRepository;
+        this.reviewAssignmentRepository = reviewAssignmentRepository;
     }
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
@@ -68,16 +75,6 @@ public class KnowledgeVersionService {
         String tenantId = requireCurrentTenant();
         return versionRepository.findByTenantIdAndId(tenantId, versionId)
             .orElseThrow(() -> ApiException.notFound("知识版本 id=" + versionId));
-    }
-
-    /**
-     * 在指定知识身份下创建待审草稿版本。
-     */
-    @Transactional
-    public KnowledgeAssetVersion createDraftVersion(Long identityId, KnowledgeVersionCreateRequest request) {
-        String tenantId = requireCurrentTenant();
-        validateContext(request.context(), tenantId);
-        return createDraftVersion(request.toDraftVersionCreateRequest(identityId));
     }
 
     /**
@@ -146,31 +143,258 @@ public class KnowledgeVersionService {
     }
 
     /**
-     * KNOW-02 未实施候选表前，API-03 返回诚实空态。
+     * 列出指定知识身份下的新旧识别结果与待替换审核候选。
      */
     public KnowledgeCandidateResponse listCandidates(Long identityId) {
         String tenantId = requireCurrentTenant();
         identityRepository.findByTenantIdAndId(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        return KnowledgeCandidateResponse.know02Pending(identityId);
+        List<CandidateClassification> classifications =
+            candidateClassificationRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(tenantId, identityId);
+        List<KnowledgeAssetVersion> candidates = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(
+                tenantId,
+                identityId)
+            .stream()
+            .filter(version -> version.status() == KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW)
+            .toList();
+        return new KnowledgeCandidateResponse(
+            identityId,
+            candidates,
+            classifications,
+            true,
+            "OK",
+            "知识候选审核工作流已可用"
+        );
     }
 
+    /**
+     * 对新进入的知识版本候选做 B0 新旧识别与审核分流。
+     */
+    @Transactional
+    public KnowledgeCandidateResponse classifyCandidate(Long identityId, KnowledgeVersionCreateRequest request) {
+        String tenantId = requireCurrentTenant();
+        validateContext(request.context(), tenantId);
+        String actor = currentActor();
+        String orgPath = currentOrgPath();
+        Instant now = Instant.now();
+        KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, identityId)
+            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
+        SourceDocument sourceDocument = sourceDocumentRepository.findByTenantIdAndId(tenantId, request.sourceDocumentId())
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_KNOW_001, "来源文献不存在 id=" + request.sourceDocumentId()));
+        List<KnowledgeAssetVersion> existingVersions =
+            versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, identityId);
+        existingVersions.stream()
+            .filter(version -> version.versionNo().equalsIgnoreCase(request.versionNo()))
+            .findFirst()
+            .ifPresent(existing -> {
+                throw new ApiException(ErrorCode.CONFLICT,
+                    "知识身份 id=" + identityId + " 下的版本号 " + request.versionNo() + " 已存在");
+            });
+
+        String contentHash = ContentHash.sha256(request.content());
+        Optional<KnowledgeAssetVersion> duplicate = existingVersions.stream()
+            .filter(version -> contentHash.equals(version.contentHash()))
+            .findFirst();
+        Optional<KnowledgeAssetVersion> active = existingVersions.stream()
+            .filter(KnowledgeAssetVersion::isAuthoritative)
+            .findFirst();
+        if (duplicate.isPresent()) {
+            KnowledgeAssetVersion duplicateVersion = duplicate.get();
+            CandidateClassification classification = candidateClassificationRepository.save(new CandidateClassification(
+                null,
+                tenantId,
+                orgPath,
+                identityId,
+                null,
+                active.map(KnowledgeAssetVersion::id).orElse(duplicateVersion.id()),
+                CandidateClassificationType.DUPLICATE,
+                CandidateReviewStatus.DUPLICATE_SKIPPED,
+                contentHash,
+                "content_hash 与既有版本 " + duplicateVersion.versionNo() + " 一致: " + contentHash,
+                "重复候选已去重，不新增审核待办",
+                now,
+                actor,
+                now,
+                actor));
+            return KnowledgeCandidateResponse.classified(
+                identityId,
+                List.of(),
+                List.of(classification),
+                CandidateClassificationType.DUPLICATE,
+                "候选内容指纹重复，已记录去重依据且未产生审核待办");
+        }
+
+        KnowledgeAssetVersion candidate = versionRepository.save(new KnowledgeAssetVersion(
+            null,
+            tenantId,
+            identity.id(),
+            request.versionNo(),
+            request.versionLabel(),
+            request.sourceDocumentId(),
+            request.sourceVersionId(),
+            contentHash,
+            request.anchors(),
+            KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW,
+            request.riskLevel() == null ? KnowledgeRiskLevel.MEDIUM : request.riskLevel(),
+            sourceDocument.authorityLevel(),
+            request.gradeQuality(),
+            request.gradeStrength(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            now,
+            actor,
+            now,
+            actor));
+        CandidateClassificationType classificationType = candidateClassificationType(active, sourceDocument);
+        String diffSummary = diffSummary(active.orElse(null), candidate, sourceDocument);
+        CandidateClassification classification = candidateClassificationRepository.save(new CandidateClassification(
+            null,
+            tenantId,
+            orgPath,
+            identityId,
+            candidate.id(),
+            active.map(KnowledgeAssetVersion::id).orElse(null),
+            classificationType,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
+            contentHash,
+            basis(classificationType, active.orElse(null), sourceDocument, contentHash),
+            diffSummary,
+            now,
+            actor,
+            now,
+            actor));
+        reviewAssignmentRepository.save(new ReviewAssignment(
+            null,
+            tenantId,
+            orgPath,
+            classification.id(),
+            identityId,
+            candidate.id(),
+            actor,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW,
+            null,
+            null,
+            null,
+            null,
+            now,
+            actor,
+            now,
+            actor));
+        return KnowledgeCandidateResponse.classified(
+            identityId,
+            List.of(candidate),
+            List.of(classification),
+            classificationType,
+            "候选已进入替换审核队列，仅供人工对照，不参与临床执行");
+    }
+
+    @Transactional
     public KnowledgeCandidateResponse reviewCandidate(Long candidateId, KnowledgeCandidateReviewRequest request) {
         String tenantId = requireCurrentTenant();
         validateContext(request.context(), tenantId);
-        throw ApiException.notFound("知识候选尚未接入 KNOW-02 candidate_classification，candidateId=" + candidateId);
+        String actor = currentActor();
+        Instant now = Instant.now();
+        CandidateClassification classification = candidateClassificationRepository.findByTenantIdAndId(tenantId, candidateId)
+            .orElseThrow(() -> ApiException.notFound("知识候选 id=" + candidateId));
+        if (classification.reviewStatus() != CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW) {
+            throw new ApiException(ErrorCode.CONFLICT, "候选当前状态 " + classification.reviewStatus() + " 不可重复审核");
+        }
+        if (request.decision() == KnowledgeCandidateReviewDecision.APPROVE) {
+            KnowledgeAssetVersion activated = activate(classification.identityId(), classification.candidateVersionId(), request.reason());
+            CandidateClassification approved = candidateClassificationRepository.save(classificationWithStatus(
+                classification,
+                CandidateReviewStatus.APPROVED,
+                classification.basis(),
+                now,
+                actor));
+            reviewAssignmentRepository.save(reviewAssignment(
+                approved,
+                CandidateReviewStatus.APPROVED,
+                KnowledgeCandidateReviewDecision.APPROVE,
+                request.reason(),
+                actor,
+                now));
+            return new KnowledgeCandidateResponse(
+                classification.identityId(),
+                List.of(activated),
+                List.of(approved),
+                true,
+                "APPROVED",
+                "候选审核通过，已转交权威版本原子替换流程");
+        }
+        KnowledgeAssetVersion candidate = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
+            .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+        KnowledgeAssetVersion rejected = new KnowledgeAssetVersion(
+            candidate.id(), candidate.tenantId(), candidate.identityId(),
+            candidate.versionNo(), candidate.versionLabel(),
+            candidate.sourceDocumentId(), candidate.sourceVersionId(),
+            candidate.contentHash(), candidate.anchors(),
+            KnowledgeVersionStatus.REJECTED, candidate.riskLevel(),
+            candidate.authorityLevel(), candidate.gradeQuality(), candidate.gradeStrength(), candidate.conflictArbitration(),
+            candidate.effectiveFrom(), candidate.effectiveTo(),
+            candidate.reviewedBy(), candidate.reviewedAt(),
+            candidate.activatedAt(), candidate.supersededAt(),
+            candidate.withdrawnAt(), candidate.withdrawnReason(),
+            candidate.createdAt(), candidate.createdBy(),
+            now, actor
+        );
+        KnowledgeAssetVersion saved = versionRepository.save(rejected);
+        CandidateClassification rejectedClassification = candidateClassificationRepository.save(classificationWithStatus(
+            classification,
+            CandidateReviewStatus.REJECTED,
+            appendReason(classification.basis(), request.reason()),
+            now,
+            actor));
+        reviewAssignmentRepository.save(reviewAssignment(
+            rejectedClassification,
+            CandidateReviewStatus.REJECTED,
+            KnowledgeCandidateReviewDecision.REJECT,
+            request.reason(),
+            actor,
+            now));
+        return new KnowledgeCandidateResponse(
+            classification.identityId(),
+            List.of(saved),
+            List.of(rejectedClassification),
+            true,
+            "REJECTED",
+            "候选已拒绝并留档，不参与临床执行");
     }
 
     public KnowledgeCandidateResponse diffCandidate(Long candidateId) {
-        requireCurrentTenant();
-        throw ApiException.notFound("知识候选尚未接入 KNOW-02 candidate_classification，candidateId=" + candidateId);
+        String tenantId = requireCurrentTenant();
+        CandidateClassification classification = candidateClassificationRepository.findByTenantIdAndId(tenantId, candidateId)
+            .orElseThrow(() -> ApiException.notFound("知识候选 id=" + candidateId));
+        if (classification.candidateVersionId() == null) {
+            return KnowledgeCandidateResponse.classified(
+                classification.identityId(),
+                List.of(),
+                List.of(classification),
+                classification.classification(),
+                "重复候选未落版本，仅返回去重依据");
+        }
+        KnowledgeAssetVersion candidate = versionRepository.findByTenantIdAndId(tenantId, classification.candidateVersionId())
+            .orElseThrow(() -> ApiException.notFound("知识版本 id=" + classification.candidateVersionId()));
+        return KnowledgeCandidateResponse.classified(
+            classification.identityId(),
+            List.of(candidate),
+            List.of(classification),
+            classification.classification(),
+            "已返回候选与当前权威版本的对照审核视图");
     }
 
     /**
      * 审核激活：将目标版本原子地推到 ACTIVE，旧版降为 SUPERSEDED。
      *
      * @param identityId 知识身份 id
-     * @param versionId  待激活的版本 id（必须属于该身份，状态为 UNDER_REVIEW 或 CANDIDATE）
+     * @param versionId  待激活的版本 id（必须属于该身份，状态为 UNDER_REVIEW、CANDIDATE 或 PENDING_REPLACEMENT_REVIEW）
      * @param reason     激活说明（高风险必填，由 Controller 层 / Bean Validation 保证）
      * @return 激活后的新版（status=ACTIVE）
      */
@@ -196,7 +420,7 @@ public class KnowledgeVersionService {
         }
         if (target.status() == null || !target.status().isActivatable()) {
             throw new ApiException(ErrorCode.CONFLICT,
-                "版本当前状态 " + target.status() + " 不可激活（需 UNDER_REVIEW 或 CANDIDATE）");
+                "版本当前状态 " + target.status() + " 不可激活（需 UNDER_REVIEW、CANDIDATE 或 PENDING_REPLACEMENT_REVIEW）");
         }
         if (target.isHighRisk() && normalizedReason == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
@@ -288,6 +512,91 @@ public class KnowledgeVersionService {
         return reason.trim() + "\n" + arbitration.summary();
     }
 
+    private CandidateClassificationType candidateClassificationType(Optional<KnowledgeAssetVersion> active,
+            SourceDocument sourceDocument) {
+        if (active.isEmpty()) {
+            return CandidateClassificationType.NEW_ASSET;
+        }
+        SourceAuthorityLevel activeAuthority = active.get().authorityLevel();
+        if (activeAuthority != null && activeAuthority != sourceDocument.authorityLevel()) {
+            return CandidateClassificationType.CONFLICT;
+        }
+        return CandidateClassificationType.SAME_IDENTITY_NEW_VERSION;
+    }
+
+    private String basis(CandidateClassificationType type, KnowledgeAssetVersion active,
+            SourceDocument sourceDocument, String contentHash) {
+        if (type == CandidateClassificationType.NEW_ASSET) {
+            return "当前知识身份暂无 ACTIVE 版本，按新建候选分流；content_hash=" + contentHash;
+        }
+        if (type == CandidateClassificationType.CONFLICT) {
+            return "同一知识身份已有 ACTIVE 版本，候选来源分级 "
+                + sourceDocument.authorityLevel() + " 与当前 "
+                + active.authorityLevel() + " 不一致，需对照审核；content_hash=" + contentHash;
+        }
+        return "同一知识身份已有 ACTIVE 版本，内容指纹不同，按同身份新版待审；content_hash=" + contentHash;
+    }
+
+    private String diffSummary(KnowledgeAssetVersion active, KnowledgeAssetVersion candidate,
+            SourceDocument sourceDocument) {
+        if (active == null) {
+            return "当前无 ACTIVE 版本；候选 " + candidate.versionNo() + " 将作为首个待审版本";
+        }
+        return "当前 ACTIVE=" + active.versionNo()
+            + " / " + active.authorityLevel()
+            + "；候选=" + candidate.versionNo()
+            + " / " + sourceDocument.authorityLevel()
+            + "；候选仅供人工对照审核，不参与临床执行";
+    }
+
+    private CandidateClassification classificationWithStatus(CandidateClassification classification,
+            CandidateReviewStatus status, String basis, Instant now, String actor) {
+        return new CandidateClassification(
+            classification.id(),
+            classification.tenantId(),
+            classification.orgPath(),
+            classification.identityId(),
+            classification.candidateVersionId(),
+            classification.activeVersionId(),
+            classification.classification(),
+            status,
+            classification.contentHash(),
+            basis,
+            classification.diffSummary(),
+            classification.createdAt(),
+            classification.createdBy(),
+            now,
+            actor);
+    }
+
+    private ReviewAssignment reviewAssignment(CandidateClassification classification, CandidateReviewStatus status,
+            KnowledgeCandidateReviewDecision decision, String reason, String actor, Instant now) {
+        return new ReviewAssignment(
+            null,
+            classification.tenantId(),
+            classification.orgPath(),
+            classification.id(),
+            classification.identityId(),
+            classification.candidateVersionId(),
+            actor,
+            status,
+            decision,
+            reason == null ? null : reason.trim(),
+            actor,
+            now,
+            now,
+            actor,
+            now,
+            actor);
+    }
+
+    private String appendReason(String basis, String reason) {
+        if (reason == null || reason.isBlank()) {
+            return basis;
+        }
+        return basis + "\n审核拒绝原因：" + reason.trim();
+    }
+
     /**
      * 紧急撤回：将当前 ACTIVE 版本降为 WITHDRAWN。
      *
@@ -366,6 +675,10 @@ public class KnowledgeVersionService {
             .orElse("system");
     }
 
+    private String currentOrgPath() {
+        return AuditEvent.orgPath(RequestContext.currentOrgScope());
+    }
+
     private void validateContext(KnowledgeApiContext context, String tenantId) {
         if (context == null) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "标准知识资产 API 缺少统一入参字段");
@@ -378,64 +691,6 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.KNOWLEDGE_CITATION_REQUIRED,
                 "知识版本 id=" + versionId + " 缺少来源引用，禁止激活");
         }
-    }
-
-    /**
-     * 创建待审版本草稿。
-     *
-     * @param request 创建请求
-     * @return 创建的版本草稿实体
-     */
-    @Transactional
-    public KnowledgeAssetVersion createDraftVersion(DraftVersionCreateRequest request) {
-        String tenantId = requireCurrentTenant();
-        String actor = currentActor();
-        Instant now = Instant.now();
-
-        // 1) 校验知识身份是否存在
-        KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, request.identityId())
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + request.identityId()));
-        SourceDocument sourceDocument = sourceDocumentRepository.findByTenantIdAndId(tenantId, request.sourceDocumentId())
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_KNOW_001, "来源文献不存在 id=" + request.sourceDocumentId()));
-
-        // 2) 校验版本号唯一性，避免 uk_knowledge_asset_version (identity_id, version_no) 碰撞
-        Optional<KnowledgeAssetVersion> existingVerOpt = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, request.identityId()).stream()
-            .filter(v -> v.versionNo().equalsIgnoreCase(request.versionNo()))
-            .findFirst();
-        if (existingVerOpt.isPresent()) {
-            throw new ApiException(ErrorCode.CONFLICT, "知识身份 id=" + request.identityId() + " 下的版本号 " + request.versionNo() + " 已存在");
-        }
-
-        // 3) 计算内容哈希 SHA-256
-        String contentHash = ContentHash.sha256(request.content());
-
-        // 4) 扫描同 Identity 下的所有既有版本，若 contentHash 与之匹配则抛出 ENG_KNOW_002 冲突异常
-        List<KnowledgeAssetVersion> existingVersions = versionRepository.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(tenantId, request.identityId());
-        for (KnowledgeAssetVersion v : existingVersions) {
-            if (contentHash.equals(v.contentHash())) {
-                throw new ApiException(ErrorCode.ENG_KNOW_002, "知识版本内容指纹冲突已存在，历史冲突版本号: " + v.versionNo());
-            }
-        }
-
-        // 5) 创建待审版本，初始状态为 UNDER_REVIEW
-        KnowledgeAssetVersion draft = new KnowledgeAssetVersion(
-            null,
-            tenantId,
-            request.identityId(),
-            request.versionNo(),
-            request.versionLabel(),
-            request.sourceDocumentId(),
-            request.sourceVersionId(),
-            contentHash,
-            request.anchors(),
-            KnowledgeVersionStatus.UNDER_REVIEW, // 初始状态为 UNDER_REVIEW
-            request.riskLevel() == null ? KnowledgeRiskLevel.MEDIUM : request.riskLevel(),
-            sourceDocument.authorityLevel(), request.gradeQuality(), request.gradeStrength(), null,
-            null, null, null, null, null, null, null, null,
-            now, actor, now, actor
-        );
-
-        return versionRepository.save(draft);
     }
 
 }

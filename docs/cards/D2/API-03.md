@@ -12,20 +12,20 @@
 - owner / reviewer：待派单（owner ≠ reviewer）
 
 ## 目标
-提供知识资产的**统一 REST 客户面**：来源登记 / 解析 / 引用 / 版本（草稿→审核→替换）/ 历史重放 / 分页筛选 / **异步导出**。本卡只立**API 契约**，能力在 [KNOW-01](KNOW-01.md)/[KNOW-02](KNOW-02.md)/[SYS-08](SYS-08.md)；统一入参/信封复用 [BASE-03](../D0/BASE-03.md)。
+提供知识资产的**统一 REST 客户面**：来源登记 / 解析 / 引用 / 版本候选（新旧识别→审核→替换）/ 历史重放 / 分页筛选 / **异步导出**。本卡只立**API 契约**，能力在 [KNOW-01](KNOW-01.md)/[KNOW-02](KNOW-02.md)/[SYS-08](SYS-08.md)；统一入参/信封复用 [BASE-03](../D0/BASE-03.md)。
 
 ## 收口结果（2026-06-02，以 `medkernel-backend/src` 为准）
 `engine/knowledge` 已收口为统一客户面 `/api/v1/engine/knowledge/**`：
-- 已补：来源/来源版本、身份创建、版本创建、提交、激活、撤回、lineage、当前版本引用、历史重放、候选/审核/diff 诚实 B0、异步导出统一入口。
+- 已补：来源/来源版本、身份创建、版本候选新旧识别、提交、激活、撤回、lineage、当前版本引用、历史重放、候选/审核/diff 真实工作流、异步导出统一入口。
 - 已对齐：新写入端点与导出提交支持 12 字段统一入参（兼容 snake_case）、`ApiResult`/`ProblemDetail` 信封、traceId 与当前租户校验。
 - 已清理：API-03 触碰范围内的旧入口口径与面向用户不自然的“物理”表述；旧 HTTP 兼容入口不再保留，避免继续扩散低质历史代码。
 - 已补业务红线：激活前必须存在来源引用，缺引用返回 `KNOWLEDGE_CITATION_REQUIRED / ENG-KNOW-003`，禁止无来源断言成为 ACTIVE。
-- 未在本卡伪造：KNOW-02 候选表族未实施前，候选列表返回诚实空态；真实 10 万级规模压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭，登记 `DEFER-009`。
+- 未在本卡伪造：真实 10 万级规模压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭，登记 `DEFER-009`。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 来源/资产 CRUD**：`POST /sources`、`POST /sources/{id}/versions`、`GET/POST /identities`、`GET /identities/{id}`、`GET /identities/{id}/citations`。
 - [x] **FR-2 版本与替换**：`POST /identities/{id}/versions/{vid}/submit|activate|withdraw`（替换委托 [SYS-08](SYS-08.md)）、`GET /identities/{id}/lineage`。
-- [x] **FR-3 候选/审核**：`GET /identities/{id}/candidates`、`POST /candidates/{id}/review`、`GET /candidates/{id}/diff`（委托 [KNOW-02](KNOW-02.md)，未实施前诚实空态/404）。
+- [x] **FR-3 候选/审核**：`GET /identities/{id}/candidates`、`POST /candidates/{id}/review`、`GET /candidates/{id}/diff`（委托 [KNOW-02](KNOW-02.md)，返回候选版本、分类依据与审核结论）。
 - [x] **FR-4 历史重放**：`GET /identities/{id}/versions/{vid}/replay`（绑定当时资产版本，标"历史版本"，不混入新决策）。
 - [x] **FR-5 大列表 + 异步导出**：列表统一服务端分页/筛选（[API-13](../D0/API-13.md)）；导出走 `KnowledgeExportJob` 异步任务（提交→轮询→下载）。
 - [x] **FR-6 统一入参/信封**：新写入端点与导出提交统一 12 字段入参（request_id/trace_id/租户六层/user/role/package_version 等）+ `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
@@ -55,7 +55,7 @@ N·A —— 本卡无页面。被 D4 AI 知识审核页 / D6 来源追溯页消�
 8. **集成与互操作**：外部系统经本 API 读知识，不直连库。
 9. **运维 / SRE / 国产化**：异步导出可重试/断点；大导出离线友好。
 10. **质量与真实性审计**：无伪造分页计数/导出哈希；端点真实连引擎（铁律 #1）。
-11. **AI / 模型治理与可降级**：候选/审核端点呈现"AI 候选不执行"；关模型仅候选端点空，CRUD/版本/导出不受影响。
+11. **AI / 模型治理与可降级**：候选/审核端点呈现"AI 候选不执行"；关模型不影响 B0 人工识别与审核，CRUD/版本/导出不受影响。
 
 ## 适用不变量
 - 命中核心约束：**§1.4 统一入参** · **§7 唯一权威 + 来源可溯** · **#14 候选不执行** · **依赖 [API-13](../D0/API-13.md) 大列表 / [BASE-03](../D0/BASE-03.md) 契约**。
