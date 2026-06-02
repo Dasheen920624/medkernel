@@ -12,16 +12,17 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 PKG-01 PR3 同步证据 / 失败站点 / 导出 🚧
+### 线 1 · D2 SYS-04 PR1 不可变版本框架 🚧
 - 类型：软件开发
-- 分支：codex/d2-pkg-01-pr3-sync-evidence
-- 目标：完成 PKG-01 PR3 / AC-3：同步日志保留真实水位；`FAILED` / `NOT_SYNCED` 站点在配置包中心可见；同步证据可导出为 NDJSON；失败 / 未接入站点不得伪造成成功同步。
-- 状态：本地实现与验证已收口，待提交 PR / CI / 合并。红灯先失败于服务层缺 `exportSyncEvidence`、控制器缺导出端点、前端缺失败 / 未接入站点汇总和导出入口；随后补 `PackageEngineService.exportSyncEvidence`、`GET /engine/pkg/packages/{packageId}/sync-logs/export`、配置包中心失败站点告警与“导出同步证据”。已通过后端聚焦 / 全量 `mvn -q test`（含 PostgreSQL 15.18 / Oracle 21.3 Testcontainers 迁移至 V53）、前端目标测试、`npm run typecheck`、`npm run verify`（44 文件 / 236 测试）、`npm run build`、`npm audit --omit=dev`、T-GATE 34/34、真实性全仓 796 文件、配置边界 inventory 738 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check`。项目 Playwright `/config/packages` 验收通过，截图 `/tmp/medkernel-pkg-pr3-sync-evidence.png`，提交载荷 `strategy=GRAYSCALE/scopeType=ALL/scopeValue=""`、`targetIds=["target-his"]`、`role_codes=["implementation-engineer"]`，同步证据导出命中，控制台错误 / 页面错误 / 未覆盖 API 均为 0。
-- 下一步（精确到动作/命令）：1. 复核 diff，提交并推送 `codex/d2-pkg-01-pr3-sync-evidence`；2. 创建 PR，等远端 CI 8/8；3. CI 通过后 squash 合并并确认 `origin/main` 含合并提交；4. 合并后从新 `origin/main` 领取 backlog 当前下一闸。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/pkg/PackageEngineService.java`、`PackageEngineController.java`、`PackageEngineServiceTest.java`、`PackageEngineControllerSecurityTest.java`、`frontend/src/pages/tenant/ConfigPackages.tsx`、`ConfigPackages.test.tsx`、`frontend/src/shared/api/hooks.ts`、`hooks.test.ts`；`DEFER-004` in-app browser 仍 open，本轮 Browser 插件返回无可用 `iab`，已用项目 Playwright 代验；`DEFER-019` 随访模板资产化仍 open，不得宣称 FOLLOWUP 入包完成。
+- 分支：下一步从最新 `origin/main` 创建 `codex/d2-sys-04-pr1-version-foundation`
+- 目标：完成 SYS-04 PR1：抽取配置类资产共享的不可变版本契约、稳定 `content_hash`、`asset_version` 五方言迁移与同一生效域 ACTIVE 唯一约束，为继承解析 / 发布流 / 历史重放打统一地基。
+- 状态：PKG-01 已通过 #281 合入并在本轮收口中同步为 done；SYS-04 尚未开工。下一步必须先读核心 + D2 `_brief` + [SYS-04](cards/D2/SYS-04.md)，核查 `engine/knowledge`、`engine/pkg`、`engine/pathway`、`engine/evaluation` 现有版本字段和迁移表族，不直接复用散落旧实现当作完成证明。
+- 下一步（精确到动作/命令）：1. 从 `origin/main` 新建 `codex/d2-sys-04-pr1-version-foundation`；2. 建立绿色基线；3. 写红灯测试覆盖已发布版本禁止原地修改、同域 ACTIVE 唯一、content_hash 稳定；4. 实现最小共享框架和五方言迁移；5. 跑后端 / T-GATE / 迁移 / 中文注释 / diff 检查后 PR。
+- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-04.md`、`medkernel-backend/src/main/java/com/medkernel/engine/knowledge`、`engine/pkg`、`engine/pathway`、`engine/evaluation`、`medkernel-backend/src/main/resources/db/migration/**`；`DEFER-001` 国产化真实环境仍 open，当前仅保障 PostgreSQL + Oracle；不得把 PKG-01 包级 `ReleasePlan` 直接冒充通用 SYS-04 框架完成。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 PKG-01 PR3 同步证据 / 失败站点 / 导出 ✅（#281，merge `8ab7b2a1`）：新增 `PackageEngineService.exportSyncEvidence` 与 `GET /engine/pkg/packages/{packageId}/sync-logs/export`，NDJSON 导出发布计划、同步目标、失败 / 未接入站点和审计摘要；配置包中心显示 `FAILED` / `NOT_SYNCED` 站点、逐站点原因和“导出同步证据”入口。后端聚焦 / 全量、前端目标 / typecheck / verify / build、生产依赖审计、T-GATE、真实性全仓、配置边界、迁移 changed、中文注释、`git diff --check`、项目 Playwright `/config/packages` 和远端 CI 8/8 通过后合入。PKG-01 现已覆盖 AC-1/2/3；`DEFER-019` 随访模板资产化仍 open，不冒领。
 - D2 PKG-01 PR2 灰度 / 全量 / 回滚发布闸 ✅（#280，merge `a0a13416`）：配置包灰度默认生成 10% 床位范围快照且不覆盖 ACTIVE；直接全量必须由院级管理员 / 等价院级管理角色确认；回滚继续保持高危确认、成功同步证据和失败不切状态；配置包中心默认灰度、非院级角色禁用全量，清理触碰范围旧 Ant Design 废弃用法。后端聚焦 / 全量、前端目标 / verify / build、生产依赖审计、T-GATE、真实性全仓、配置边界、迁移 changed、中文注释、`git diff --check`、项目 Playwright `/config/packages` 和远端 CI 8/8 通过后合入。未冒领 PR3 同步证据导出和失败站点。
 - D2 PKG-01 PR1 后续硬化：知识 / 术语资产适配与离线迁移 ✅（#278，merge `8fe8634e`）：基于 #277 发布前完整性基线，补齐 `KNOWLEDGE` 知识身份编码 + 权威版本号和 `TERMINOLOGY` 术语映射包编码 + 范围键 + 包版本的稳定 `PackageItem.assetId/assetVersion` 契约；发布前校验知识身份 / 版本和术语包状态；离线包导出 / 导入携带知识身份 / 版本、术语包 / 映射 / 包条目快照，坏术语映射枚举在落库前返回 `ENG_PACKAGE_002`；配置包中心改为读取已发布术语映射包，自动带出版本并清理生产页 `term-map-*` 临时口径；`FOLLOWUP` 患者运行计划 / 任务入包被诚实阻断，随访模板资产化归 `DEFER-019`。本地验证：后端聚焦 / 全量（Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 迁移至 V53）、前端目标测试 / typecheck / verify / build / 生产依赖审计、T-GATE、真实性全仓、配置边界、迁移 changed、中文注释、`git diff --check`、项目 Playwright `/config/packages` 术语包选择交互；远端 CI 8/8 通过后合入。`DEFER-018` 已关闭；`DEFER-004` / `DEFER-019` 保持 open，不阻塞后续主线但不得冒领。
 - D2 PKG-01 PR1 发布前完整性校验 ✅（#277，merge `db92d43b`）：新增稳定 `contentSha256`、资产依赖阻断问题汇总、规则 / 路径 / 指标真实存在与已发布状态校验，未接入统一适配器的资产类型发布前返回 `BLOCKING`，`syncPackage` / `releasePackage` 创建计划前强制复用同一校验；后端聚焦 / 全量、前端 typecheck / 目标测试 / verify / build、T-GATE、真实性 / 配置边界 / 迁移 changed / 中文注释 / diff 检查和生产依赖审计通过后合入。后续知识 / 术语 / 随访全资产离线迁移缺口拆到当前工作线与 `DEFER-018` / `DEFER-019`，未冒领 AC-1 全量清零。
@@ -156,4 +157,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；PKG-01 PR3 同步证据 / 失败站点 / 导出本地实现与验证已收口，下一步提交 PR、等待 CI 8/8 并合入后继续 backlog 当前下一闸。`DEFER-019` 随访模板资产化缺口保持 `open`，`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；PKG-01 已通过 #281 合入并收口为 done，下一步从最新 `origin/main` 领取 SYS-04 PR1 不可变版本框架。`DEFER-019` 随访模板资产化缺口保持 `open`，`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
