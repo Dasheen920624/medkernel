@@ -21,13 +21,23 @@
 - 相关文件 / 测试 / 坑：预计触碰 `medkernel-backend/src/main/java/com/medkernel/engine/knowledge/**`、`KnowledgeVersionService`、`KnowledgeIdentityService`、`KnowledgeAssetVersionRepository`、新增候选分类 / 审核分派表与五方言迁移。严禁把候选写成 ACTIVE 或参与临床执行；严禁本卡自行重造 SYS-08 唯一有效约束 / 紧急失效 / 影响病例任务；AI 自动分类属于 wave2，B0 必须人工可跑通。
 
 ### 线 2 · 平台主源与租户覆盖层治理 🚧
+
 - 类型：软件开发 / 架构治理
 - 分支：codex/platform-tenant-overlay
 - 目标：把知识、规则、路径等医疗资产从“当前租户硬查 / 全量同步副本”统一改为“平台主源 `t-1` + 租户覆盖层 Overlay”：平台主源只能更新 / 同步平台主源本身；客户 / 集团 / 医院默认订阅或授权使用平台发布版本，不再把平台资产物理同步成客户主源副本；本地新增或修改同一 canonical key 时生成本租户覆盖副本并优先生效；平台更新自动影响未覆盖资产，已覆盖资产不得被覆盖，后续进入人工合并 / 回退流程。
-- 状态：已固化设计与实施计划到 `docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`、`docs/superpowers/plans/2026-06-02-platform-tenant-overlay-plan.md`；本次先把协作红线同步给所有并行 AI，代码实现仍在 `codex/platform-tenant-overlay` 分支按 TDD 推进，未完成前不得把 main 视为已具备完整 Overlay 运行能力。
-- 下一步（精确到动作/命令）：1. 给路径模板补 RED 测试，锁定客户租户可基于平台已发布模板入径、本地同 `template_code + template_version` 优先；2. 实现路径模板 / 节点 / 边按解析来源租户读取、患者路径事实仍写当前租户；3. 给知识身份 / 版本补平台身份回退与本地同 `identity_code` 覆盖测试；4. 跑 `mvn -B -q "-Dtest=KnowledgeVersionServiceTest,RuleEngineServiceTest,PathwayEngineServiceTest" test` 和后端全量验证。
+- 状态：已固化设计与实施计划到 `docs/superpowers/specs/2026-06-02-platform-tenant-overlay-design.md`、`docs/superpowers/plans/2026-06-02-platform-tenant-overlay-plan.md`；协作红线已通过 #257 合入 `origin/main`。代码实现仍在 stash `stash@{0}: On platform-tenant-overlay: wip platform overlay implementation`，按用户最新指令先暂停，等“登录 / 首次部署体验修复”发布到现场后再恢复；未完成前不得把 main 视为已具备完整 Overlay 运行能力。
+- 下一步（精确到动作/命令）：1. 等线 3 完成 PR / 合并 / 192.168.8.191 发布；2. 从最新 `origin/main` 新建或恢复平台主源治理分支，按需应用 `stash@{0}` 的相关改动；3. 给路径模板补 RED 测试，锁定客户租户可基于平台已发布模板入径、本地同 `template_code + template_version` 优先；4. 实现路径模板 / 节点 / 边按解析来源租户读取、患者路径事实仍写当前租户；5. 给知识身份 / 版本补平台身份回退与本地同 `identity_code` 覆盖测试；6. 跑 `mvn -B -q "-Dtest=KnowledgeVersionServiceTest,RuleEngineServiceTest,PathwayEngineServiceTest" test` 和后端全量验证。
 - 协作红线：其它 AI 或人类同步改造时必须以本线为最新语义，不得再按“客户租户完整同步平台资产副本后各自维护”的旧模式设计；不得把平台主源同步为客户主源，平台发布给客户只能是只读发布版本 / 离线快照 / 订阅引用；不得让客户 / 集团 / 医院资产反写污染平台主租户 `t-1`；不得把 `SYSTEM` 或历史 `medkernel-basic` 当医疗知识业务租户。
 - 相关文件 / 测试 / 坑：核心不变量见 `docs/CONSTITUTION.md` §8 平台源知识不可污染 / 平台主租户唯一；业务键第一阶段使用 `knowledge_identity.identity_code`、`rule_definition.rule_code`、`pathway_template.template_code + template_version`、`specialty_package.package_code + package_version`；第二阶段再补覆盖关系表记录 `base_platform_version_id` / 合并状态 / rebase 任务。
+
+### 线 3 · 登录与首次部署体验修复发布 🚧
+
+- 类型：软件开发 / 运维发布
+- 分支：`codex/login-bootstrap-polish`
+- 目标：按现场反馈把登录页和首次部署页恢复为正式交付体验：登录页保留 MedKernel 品牌，卡片居中适当加宽；有客户 / 集团 / 医院租户时支持“集团/院内户”和“主平台户”双模式切换，客户入口优先，主平台登录不显示院方信息；无客户租户时默认平台主租户自动进入且不显示租户下拉；首次部署接管页整体框起、去掉 `BASE-11` 等技术标签、保留返回登录和离线 MFA 说明；清理误生成 `medkernel-basic` 业务数据，保持新部署状态。
+- 状态：已按 TDD 完成登录双模式、首次部署框架、烟测缓存隔离和错误租户清理。Oracle 现场库已复核并删除唯一残留 `audit_event.org_path=tenant:medkernel-basic` 及对应 `audit_chain_head`；复核 `TENANT_ID` 与字符串列均无 `medkernel-basic`，`org_unit` 无客户根，平台凭证租户保持 `t-1`。本地验证通过：前端 `npm test -- --run src/pages/Login.test.tsx src/pages/Bootstrap.test.tsx src/pages/pages.smoke.test.tsx`（46 tests）、`npm run verify`（41 files / 220 tests）、`npm run build`；后端 `mvn -B "-Dtest=AuthControllerTest,LoginTenantDirectoryServiceTest,BootstrapControllerTest" test`（22 tests）；Browser 本地验证 `/login` 平台-only、客户 / 主平台双模式切换、`/bootstrap` 接管页布局均符合预期。Windows 本机无 `bash`，`scripts/check-comment-zh.sh` 本轮无法本机执行；提交后需在可用 Bash 环境或 CI 复跑。
+- 下一步（精确到动作/命令）：1. 提交前跑 `git diff --check`，提交后重跑 changed T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`；2. 中文 commit、推送 `codex/login-bootstrap-polish`、创建 PR，等待 CI；3. CI 通过后按规则合并到 `main`；4. 拉取最新 `origin/main` 并发布到 192.168.8.191，现场 `/zoesoft/medkernel` 可按用户授权完全重建，走 HTTPS 验证 `/login`、`/bootstrap`、`/medkernel/api/v1/auth/login-tenants`、readiness；5. 发布完成后恢复线 2 平台主源 / 知识包治理。
+- 相关文件 / 测试 / 坑：`frontend/src/pages/Login.tsx`、`Login.module.css`、`Login.test.tsx`、`Bootstrap.tsx`、`Bootstrap.module.css`、`Bootstrap.test.tsx`、`pages.smoke.test.tsx`、`docs/glossary.md`、`docs/superpowers/plans/2026-06-02-login-bootstrap-source-followup.md`；不要恢复旧租户下拉或 `BASE-11` 标签；不要把 `medkernel-basic` 当合法业务租户；本线发布后才继续平台主源 Overlay 代码。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -151,4 +161,4 @@
 
 ---
 
-> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`，远端 CI 8/8），`KNOW-01` 已完成并归档。当前下一主线为 D2 `KNOW-02` 知识版本候选识别与审核去重工作流，需基于最新 `origin/main` 新建 `codex/d2-know-02-candidate-workflow` 后按 TDD 开工。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-02 · 长期目标保持 active；`origin/main` 已包含 D2 `KNOW-01` PR3 图/搜索投影刷新与降级（#258，merge `902104e6`，远端 CI 8/8）与平台主源协作红线 #257，`KNOW-01` 已完成并归档。当前用户优先线为 `codex/login-bootstrap-polish` 登录与首次部署体验修复：已完成本地前端 / 后端 / Browser 验证和 `medkernel-basic` 现场清理，下一步推送 PR、CI 合并、发布 192.168.8.191；发布完成后恢复线 2 平台主源 / 知识包治理。`KNOW-02` 是后续 D2 下一卡，未接到恢复主线指令前不抢占当前发布任务。非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`DEFER-001` 至 `DEFER-012` 仍 open，不阻塞主线但不得宣称清零；遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

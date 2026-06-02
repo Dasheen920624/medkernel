@@ -2,13 +2,7 @@
   min-height: 100vh;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, calc(var(--mk-unit) * 480)) minmax(
-      calc(var(--mk-unit) * 380),
-      calc(var(--mk-unit) * 520)
-    );
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--mk-unit) * 24);
+  place-items: center;
   padding: calc(var(--mk-unit) * 48)
     clamp(calc(var(--mk-unit) * 20), 6vw, calc(var(--mk-unit) * 72));
   color: var(--mk-bootstrap-text);
@@ -31,6 +25,30 @@
   display: flex;
   flex-direction: column;
   gap: calc(var(--mk-unit) * 14);
+}
+
+.bootstrapShell {
+  display: grid;
+  grid-template-columns: minmax(0, calc(var(--mk-unit) * 430)) minmax(
+      calc(var(--mk-unit) * 380),
+      calc(var(--mk-unit) * 500)
+    );
+  gap: calc(var(--mk-unit) * 20);
+  align-items: stretch;
+  width: min(100%, calc(var(--mk-unit) * 990));
+  padding: calc(var(--mk-unit) * 18);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: calc(var(--mk-bootstrap-radius) + calc(var(--mk-unit) * 2));
+  background: color-mix(in srgb, var(--mk-bootstrap-surface) 82%, transparent);
+  box-shadow: var(--mk-bootstrap-shadow);
+}
+
+.heroCard {
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 20);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: var(--mk-bootstrap-radius);
+  background: var(--mk-bootstrap-fill);
 }
 
 .title {
@@ -96,7 +114,7 @@
   width: 100%;
   border: var(--mk-line-width) solid var(--mk-bootstrap-border);
   border-radius: var(--mk-bootstrap-radius);
-  box-shadow: var(--mk-bootstrap-shadow);
+  box-shadow: none;
 }
 
 .panel :global(.ant-card-body) {
@@ -150,6 +168,27 @@
 .formActions {
   display: grid;
   gap: calc(var(--mk-unit) * 10);
+}
+
+.bootstrapTenantContext {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: calc(var(--mk-unit) * 10);
+  align-items: start;
+  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  border: var(--mk-line-width) solid var(--mk-bootstrap-border);
+  border-radius: var(--mk-bootstrap-radius);
+  background: var(--mk-bootstrap-fill);
+}
+
+.bootstrapTenantContext :global(.anticon) {
+  margin-top: calc(var(--mk-unit) * 3);
+  color: var(--mk-bootstrap-primary);
+}
+
+.bootstrapTenantContext div {
+  display: grid;
+  gap: calc(var(--mk-unit) * 2);
 }
 
 .recoveryBox {
@@ -222,9 +261,13 @@
 
 @media (max-width: 57.5em) {
   .page {
-    grid-template-columns: 1fr;
     align-items: start;
     padding: calc(var(--mk-unit) * 72) calc(var(--mk-unit) * 16) calc(var(--mk-unit) * 28);
+  }
+
+  .bootstrapShell {
+    grid-template-columns: 1fr;
+    padding: calc(var(--mk-unit) * 12);
   }
 
   .themeSwitcher {

@@ -6,7 +6,6 @@ import {
   Input,
   QRCode,
   Result,
-  Select,
   Space,
   Steps,
   Tag,
@@ -34,7 +33,7 @@ import {
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import { bootstrapTenantOptions, defaultTenantId } from "@/shared/config/tenantDictionary";
+import { defaultTenantId } from "@/shared/config/tenantDictionary";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -186,7 +185,7 @@ export default function Bootstrap() {
     try {
       const result = await createAdmin.mutateAsync({
         token: initToken,
-        tenantId: values.tenantId?.trim() || undefined,
+        tenantId: defaultTenantId,
         username: values.username.trim(),
         password: values.password,
       });
@@ -279,414 +278,420 @@ export default function Bootstrap() {
         <ThemeSwitcher syncRemote={false} />
       </div>
 
-      <section className={styles.hero} aria-label="首次部署接管说明">
-        <Space size={8} wrap>
-          <Tag color="processing">平台接管</Tag>
-          <Tag>离线可用</Tag>
-          <Tag>只初始化首发身份</Tag>
-        </Space>
-        <Title level={1} className={styles.title}>
-          首次部署接管
-        </Title>
-        <Text className={styles.lead}>
-          使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。
-        </Text>
-        <ul className={styles.signalList} aria-label="接管流程说明">
-          {handoverSignals.map((item) => (
-            <li className={styles.signalItem} key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </li>
-          ))}
-        </ul>
-        <div className={styles.guardRail}>
-          <SafetyCertificateOutlined aria-hidden="true" />
-          <Text>接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。</Text>
-        </div>
-      </section>
+      <section className={styles.bootstrapShell} aria-label="首次部署接管工作区">
+        <section className={`${styles.hero} ${styles.heroCard}`} aria-label="首次部署接管说明">
+          <Space size={8} wrap>
+            <Tag color="processing">平台接管</Tag>
+            <Tag>离线可用</Tag>
+            <Tag>只初始化首发身份</Tag>
+          </Space>
+          <Title level={1} className={styles.title}>
+            首次部署接管
+          </Title>
+          <Text className={styles.lead}>
+            使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。
+          </Text>
+          <ul className={styles.signalList} aria-label="接管流程说明">
+            {handoverSignals.map((item) => (
+              <li className={styles.signalItem} key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </li>
+            ))}
+          </ul>
+          <div className={styles.guardRail}>
+            <SafetyCertificateOutlined aria-hidden="true" />
+            <Text>接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。</Text>
+          </div>
+        </section>
 
-      <Card className={styles.panel} bordered={false}>
-        <div className={styles.panelStack}>
-          <Steps
-            size="small"
-            current={currentStep}
-            items={[
-              { title: "接管码" },
-              { title: "账号" },
-              { title: "改密" },
-              { title: "双因素" },
-              { title: "完成" },
-            ]}
-          />
-
-          {globalError && <Alert type="error" showIcon message={globalError} />}
-
-          {phase === "init-token" && (
-            <section className={styles.stepSection}>
-              <Title level={2} className={styles.stepTitle}>
-                校验部署接管码
-              </Title>
-              <Paragraph type="secondary">
-                输入由部署包生成的短期接管码。这里不会创建登录态，也不会保存明文。
-              </Paragraph>
-              <Form form={tokenForm} layout="vertical" requiredMark={false} onFinish={submitToken}>
-                <Form.Item
-                  label="部署接管码"
-                  name="token"
-                  rules={[{ required: true, message: "请输入部署接管码" }]}
-                >
-                  <Input.Password
-                    prefix={<KeyOutlined />}
-                    autoComplete="one-time-code"
-                    size="large"
-                    placeholder="输入部署接管码"
-                  />
-                </Form.Item>
-                <Form.Item className={styles.lastItem}>
-                  <div className={styles.formActions}>
-                    <Button
-                      aria-label="继续接管"
-                      type="primary"
-                      htmlType="submit"
-                      block
-                      size="large"
-                      loading={checkToken.isPending}
-                      icon={<CheckCircleOutlined />}
-                    >
-                      继续接管
-                    </Button>
-                    {returnLoginButton}
-                  </div>
-                </Form.Item>
-              </Form>
-            </section>
-          )}
-
-          {phase === "password" && (
-            <section className={styles.stepSection}>
-              <Title level={2} className={styles.stepTitle}>
-                设置首发管理员
-              </Title>
-              <Paragraph type="secondary">
-                接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                。首发管理员属于平台主租户（唯一内置），客户集团和医院租户进入工作台后开通。
-              </Paragraph>
-              <Form
-                form={adminForm}
-                initialValues={{ tenantId: defaultTenantId }}
-                layout="vertical"
-                requiredMark={false}
-                onFinish={submitAdmin}
-              >
-                <Form.Item
-                  label="账号"
-                  name="username"
-                  rules={[{ required: true, message: "请输入首发管理员账号" }]}
-                >
-                  <Input prefix={<UserOutlined />} size="large" autoComplete="username" />
-                </Form.Item>
-                <Form.Item
-                  label="租户标识"
-                  name="tenantId"
-                  extra="唯一内置平台源租户；客户集团和医院租户进入工作台后开通。"
-                >
-                  <Select
-                    options={bootstrapTenantOptions}
-                    optionFilterProp="label"
-                    showSearch
-                    size="large"
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="初始密码"
-                  name="password"
-                  rules={[{ required: true, min: 8, message: "初始密码至少 8 位" }]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    size="large"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="确认初始密码"
-                  name="confirmPassword"
-                  dependencies={["password"]}
-                  rules={[
-                    { required: true, message: "请再次输入初始密码" },
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        return !value || getFieldValue("password") === value
-                          ? Promise.resolve()
-                          : Promise.reject(new Error("两次输入的密码不一致"));
-                      },
-                    }),
-                  ]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    size="large"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Form.Item className={styles.lastItem}>
-                  <div className={styles.formActions}>
-                    <Button
-                      aria-label="创建首发管理员"
-                      type="primary"
-                      htmlType="submit"
-                      block
-                      size="large"
-                      loading={createAdmin.isPending}
-                      icon={<UserOutlined />}
-                    >
-                      创建首发管理员
-                    </Button>
-                    {returnLoginButton}
-                  </div>
-                </Form.Item>
-              </Form>
-            </section>
-          )}
-
-          {phase === "login-required" && (
-            <Result
-              status="success"
-              title="首发管理员已创建"
-              subTitle={`请使用首发账号登录并完成首次改密：${admin?.username ?? "首发管理员"}`}
-              extra={[
-                <Button
-                  aria-label="返回登录"
-                  type="primary"
-                  key="login"
-                  icon={<LoginOutlined />}
-                  onClick={goLogin}
-                >
-                  返回登录
-                </Button>,
+        <Card className={styles.panel} bordered={false}>
+          <div className={styles.panelStack}>
+            <Steps
+              size="small"
+              current={currentStep}
+              items={[
+                { title: "接管码" },
+                { title: "账号" },
+                { title: "改密" },
+                { title: "双因素" },
+                { title: "完成" },
               ]}
             />
-          )}
 
-          {phase === "change-password" && (
-            <section className={styles.stepSection}>
-              <Title level={2} className={styles.stepTitle}>
-                完成首次改密
-              </Title>
-              <Paragraph type="secondary">
-                当前账号仍处于必须改密状态，完成前不能进入业务工作台。
-              </Paragraph>
-              <Form
-                form={passwordForm}
-                layout="vertical"
-                requiredMark={false}
-                onFinish={submitPassword}
-              >
-                <Form.Item
-                  label="当前密码"
-                  name="oldPassword"
-                  rules={[{ required: true, message: "请输入当前密码" }]}
+            {globalError && <Alert type="error" showIcon message={globalError} />}
+
+            {phase === "init-token" && (
+              <section className={styles.stepSection}>
+                <Title level={2} className={styles.stepTitle}>
+                  校验部署接管码
+                </Title>
+                <Paragraph type="secondary">
+                  输入由部署包生成的短期接管码。这里不会创建登录态，也不会保存明文。
+                </Paragraph>
+                <Form
+                  form={tokenForm}
+                  layout="vertical"
+                  requiredMark={false}
+                  onFinish={submitToken}
                 >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    size="large"
-                    autoComplete="current-password"
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="新密码"
-                  name="newPassword"
-                  rules={[{ required: true, min: 8, message: "新密码至少 8 位" }]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    size="large"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="确认新密码"
-                  name="confirmPassword"
-                  dependencies={["newPassword"]}
-                  rules={[
-                    { required: true, message: "请再次输入新密码" },
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        return !value || getFieldValue("newPassword") === value
-                          ? Promise.resolve()
-                          : Promise.reject(new Error("两次输入的新密码不一致"));
-                      },
-                    }),
-                  ]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    size="large"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Form.Item className={styles.lastItem}>
-                  <div className={styles.formActions}>
-                    <Button
-                      aria-label="完成首次改密"
-                      type="primary"
-                      htmlType="submit"
-                      block
+                  <Form.Item
+                    label="部署接管码"
+                    name="token"
+                    rules={[{ required: true, message: "请输入部署接管码" }]}
+                  >
+                    <Input.Password
+                      prefix={<KeyOutlined />}
+                      autoComplete="one-time-code"
                       size="large"
-                      loading={changePassword.isPending}
-                      icon={<CheckCircleOutlined />}
-                    >
-                      完成首次改密
-                    </Button>
-                    {returnLoginButton}
-                  </div>
-                </Form.Item>
-              </Form>
-            </section>
-          )}
-
-          {phase === "mfa" && (
-            <section className={styles.stepSection}>
-              <Title level={2} className={styles.stepTitle}>
-                绑定双因素认证
-              </Title>
-              <Paragraph type="secondary">
-                首发管理员必须完成双因素认证后才能执行高危配置、租户开通和应急操作。
-              </Paragraph>
-              {mfaSetup && (
-                <div className={styles.mfaSetupGrid}>
-                  {mfaSetup.otpauthUri && (
-                    <div className={styles.qrPanel} aria-label="离线双因素认证二维码">
-                      <Text strong>
-                        <QrcodeOutlined aria-hidden="true" /> 扫码绑定
-                      </Text>
-                      <QRCode value={mfaSetup.otpauthUri} size={156} bordered={false} type="svg" />
-                      <Text type="secondary">二维码由本页面生成，不访问外网。</Text>
+                      placeholder="输入部署接管码"
+                    />
+                  </Form.Item>
+                  <Form.Item className={styles.lastItem}>
+                    <div className={styles.formActions}>
+                      <Button
+                        aria-label="继续接管"
+                        type="primary"
+                        htmlType="submit"
+                        block
+                        size="large"
+                        loading={checkToken.isPending}
+                        icon={<CheckCircleOutlined />}
+                      >
+                        继续接管
+                      </Button>
+                      {returnLoginButton}
                     </div>
-                  )}
-                  <div className={styles.manualPanel}>
-                    <Text strong>不能扫码时手动录入</Text>
-                    <ol className={styles.mfaSteps}>
-                      <li>在手机或内网安全终端打开认证器 App，选择“扫码添加”。</li>
-                      <li>内网不可扫码时选择“手动输入密钥”。</li>
-                      <li>每 30 秒生成 6 位动态验证码，把当前验证码填到下方。</li>
-                    </ol>
-                    <dl className={styles.mfaManualList}>
-                      <div>
-                        <dt>密钥</dt>
-                        <dd>
-                          <Text strong copyable className={styles.recoveryCode}>
-                            {mfaSetup.secret}
-                          </Text>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>发行方</dt>
-                        <dd>MedKernel</dd>
-                      </div>
-                      <div>
-                        <dt>账号/设备</dt>
-                        <dd>{mfaSetup.label}</dd>
-                      </div>
-                      <div>
-                        <dt>验证码位数</dt>
-                        <dd>6 位</dd>
-                      </div>
-                      <div>
-                        <dt>刷新周期</dt>
-                        <dd>30 秒</dd>
-                      </div>
-                    </dl>
+                  </Form.Item>
+                </Form>
+              </section>
+            )}
+
+            {phase === "password" && (
+              <section className={styles.stepSection}>
+                <Title level={2} className={styles.stepTitle}>
+                  设置首发管理员
+                </Title>
+                <Paragraph type="secondary">
+                  接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
+                  。首发管理员属于平台主租户（唯一内置），客户集团和医院租户进入工作台后开通。
+                </Paragraph>
+                <div className={styles.bootstrapTenantContext}>
+                  <SafetyCertificateOutlined aria-hidden="true" />
+                  <div>
+                    <Text strong>平台主租户自动绑定</Text>
+                    <Text type="secondary">客户集团和医院租户进入工作台后开通。</Text>
                   </div>
                 </div>
-              )}
-              <Form
-                form={mfaForm}
-                layout="vertical"
-                requiredMark={false}
-                initialValues={{ label: state.username || "首发管理员安全设备" }}
-                onFinish={submitMfa}
-              >
-                <Form.Item
-                  label="设备名称"
-                  name="label"
-                  rules={[{ required: true, message: "请输入设备名称" }]}
+                <Form
+                  form={adminForm}
+                  layout="vertical"
+                  requiredMark={false}
+                  onFinish={submitAdmin}
                 >
-                  <Input
-                    prefix={<SafetyCertificateOutlined />}
-                    size="large"
-                    disabled={Boolean(mfaSetup)}
-                  />
-                </Form.Item>
-                {mfaSetup && (
                   <Form.Item
-                    label="动态验证码"
-                    name="code"
+                    label="账号"
+                    name="username"
+                    rules={[{ required: true, message: "请输入首发管理员账号" }]}
+                  >
+                    <Input prefix={<UserOutlined />} size="large" autoComplete="username" />
+                  </Form.Item>
+                  <Form.Item
+                    label="初始密码"
+                    name="password"
+                    rules={[{ required: true, min: 8, message: "初始密码至少 8 位" }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      size="large"
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="确认初始密码"
+                    name="confirmPassword"
+                    dependencies={["password"]}
                     rules={[
-                      { required: true, message: "请输入认证器中的动态验证码" },
-                      { pattern: /^\d{6}$/, message: "动态验证码为 6 位数字" },
+                      { required: true, message: "请再次输入初始密码" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          return !value || getFieldValue("password") === value
+                            ? Promise.resolve()
+                            : Promise.reject(new Error("两次输入的密码不一致"));
+                        },
+                      }),
                     ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      size="large"
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
+                  <Form.Item className={styles.lastItem}>
+                    <div className={styles.formActions}>
+                      <Button
+                        aria-label="创建首发管理员"
+                        type="primary"
+                        htmlType="submit"
+                        block
+                        size="large"
+                        loading={createAdmin.isPending}
+                        icon={<UserOutlined />}
+                      >
+                        创建首发管理员
+                      </Button>
+                      {returnLoginButton}
+                    </div>
+                  </Form.Item>
+                </Form>
+              </section>
+            )}
+
+            {phase === "login-required" && (
+              <Result
+                status="success"
+                title="首发管理员已创建"
+                subTitle={`请使用首发账号登录并完成首次改密：${admin?.username ?? "首发管理员"}`}
+                extra={[
+                  <Button
+                    aria-label="返回登录"
+                    type="primary"
+                    key="login"
+                    icon={<LoginOutlined />}
+                    onClick={goLogin}
+                  >
+                    返回登录
+                  </Button>,
+                ]}
+              />
+            )}
+
+            {phase === "change-password" && (
+              <section className={styles.stepSection}>
+                <Title level={2} className={styles.stepTitle}>
+                  完成首次改密
+                </Title>
+                <Paragraph type="secondary">
+                  当前账号仍处于必须改密状态，完成前不能进入业务工作台。
+                </Paragraph>
+                <Form
+                  form={passwordForm}
+                  layout="vertical"
+                  requiredMark={false}
+                  onFinish={submitPassword}
+                >
+                  <Form.Item
+                    label="当前密码"
+                    name="oldPassword"
+                    rules={[{ required: true, message: "请输入当前密码" }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      size="large"
+                      autoComplete="current-password"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="新密码"
+                    name="newPassword"
+                    rules={[{ required: true, min: 8, message: "新密码至少 8 位" }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      size="large"
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="确认新密码"
+                    name="confirmPassword"
+                    dependencies={["newPassword"]}
+                    rules={[
+                      { required: true, message: "请再次输入新密码" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          return !value || getFieldValue("newPassword") === value
+                            ? Promise.resolve()
+                            : Promise.reject(new Error("两次输入的新密码不一致"));
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      size="large"
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
+                  <Form.Item className={styles.lastItem}>
+                    <div className={styles.formActions}>
+                      <Button
+                        aria-label="完成首次改密"
+                        type="primary"
+                        htmlType="submit"
+                        block
+                        size="large"
+                        loading={changePassword.isPending}
+                        icon={<CheckCircleOutlined />}
+                      >
+                        完成首次改密
+                      </Button>
+                      {returnLoginButton}
+                    </div>
+                  </Form.Item>
+                </Form>
+              </section>
+            )}
+
+            {phase === "mfa" && (
+              <section className={styles.stepSection}>
+                <Title level={2} className={styles.stepTitle}>
+                  绑定双因素认证
+                </Title>
+                <Paragraph type="secondary">
+                  首发管理员必须完成双因素认证后才能执行高危配置、租户开通和应急操作。
+                </Paragraph>
+                {mfaSetup && (
+                  <div className={styles.mfaSetupGrid}>
+                    {mfaSetup.otpauthUri && (
+                      <div className={styles.qrPanel} aria-label="离线双因素认证二维码">
+                        <Text strong>
+                          <QrcodeOutlined aria-hidden="true" /> 扫码绑定
+                        </Text>
+                        <QRCode
+                          value={mfaSetup.otpauthUri}
+                          size={156}
+                          bordered={false}
+                          type="svg"
+                        />
+                        <Text type="secondary">二维码由本页面生成，不访问外网。</Text>
+                      </div>
+                    )}
+                    <div className={styles.manualPanel}>
+                      <Text strong>不能扫码时手动录入</Text>
+                      <ol className={styles.mfaSteps}>
+                        <li>在手机或内网安全终端打开认证器 App，选择“扫码添加”。</li>
+                        <li>内网不可扫码时选择“手动输入密钥”。</li>
+                        <li>每 30 秒生成 6 位动态验证码，把当前验证码填到下方。</li>
+                      </ol>
+                      <dl className={styles.mfaManualList}>
+                        <div>
+                          <dt>密钥</dt>
+                          <dd>
+                            <Text strong copyable className={styles.recoveryCode}>
+                              {mfaSetup.secret}
+                            </Text>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>发行方</dt>
+                          <dd>MedKernel</dd>
+                        </div>
+                        <div>
+                          <dt>账号/设备</dt>
+                          <dd>{mfaSetup.label}</dd>
+                        </div>
+                        <div>
+                          <dt>验证码位数</dt>
+                          <dd>6 位</dd>
+                        </div>
+                        <div>
+                          <dt>刷新周期</dt>
+                          <dd>30 秒</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                )}
+                <Form
+                  form={mfaForm}
+                  layout="vertical"
+                  requiredMark={false}
+                  initialValues={{ label: state.username || "首发管理员安全设备" }}
+                  onFinish={submitMfa}
+                >
+                  <Form.Item
+                    label="设备名称"
+                    name="label"
+                    rules={[{ required: true, message: "请输入设备名称" }]}
                   >
                     <Input
                       prefix={<SafetyCertificateOutlined />}
                       size="large"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
+                      disabled={Boolean(mfaSetup)}
                     />
                   </Form.Item>
-                )}
-                <Form.Item className={styles.lastItem}>
-                  <div className={styles.formActions}>
-                    <Button
-                      aria-label={mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
-                      type="primary"
-                      htmlType="submit"
-                      block
-                      size="large"
-                      loading={bindMfa.isPending}
-                      icon={<SafetyCertificateOutlined />}
+                  {mfaSetup && (
+                    <Form.Item
+                      label="动态验证码"
+                      name="code"
+                      rules={[
+                        { required: true, message: "请输入认证器中的动态验证码" },
+                        { pattern: /^\d{6}$/, message: "动态验证码为 6 位数字" },
+                      ]}
                     >
-                      {mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
-                    </Button>
-                    {returnLoginButton}
-                  </div>
-                </Form.Item>
-              </Form>
-            </section>
-          )}
+                      <Input
+                        prefix={<SafetyCertificateOutlined />}
+                        size="large"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                      />
+                    </Form.Item>
+                  )}
+                  <Form.Item className={styles.lastItem}>
+                    <div className={styles.formActions}>
+                      <Button
+                        aria-label={mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                        type="primary"
+                        htmlType="submit"
+                        block
+                        size="large"
+                        loading={bindMfa.isPending}
+                        icon={<SafetyCertificateOutlined />}
+                      >
+                        {mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                      </Button>
+                      {returnLoginButton}
+                    </div>
+                  </Form.Item>
+                </Form>
+              </section>
+            )}
 
-          {phase === "done" && (
-            <Result
-              status="success"
-              title="首发身份接管完成"
-              subTitle="现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户开通中维护。"
-              extra={[
-                recoveryCode ? (
-                  <div className={styles.recoveryBox} key="recovery">
-                    <Text type="secondary">一次性恢复码</Text>
-                    <Text strong className={styles.recoveryCode}>
-                      {recoveryCode}
-                    </Text>
-                    <Text type="secondary">只在此处展示一次，数据库仅保存摘要。</Text>
-                  </div>
-                ) : null,
-                <Button
-                  aria-label="进入工作台"
-                  type="primary"
-                  key="dashboard"
-                  icon={<LoginOutlined />}
-                  onClick={() => navigate("/dashboard")}
-                >
-                  进入工作台
-                </Button>,
-                <Button key="login" icon={<ArrowLeftOutlined />} onClick={goLogin}>
-                  返回登录
-                </Button>,
-              ]}
-            />
-          )}
-        </div>
-      </Card>
+            {phase === "done" && (
+              <Result
+                status="success"
+                title="首发身份接管完成"
+                subTitle="现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户开通中维护。"
+                extra={[
+                  recoveryCode ? (
+                    <div className={styles.recoveryBox} key="recovery">
+                      <Text type="secondary">一次性恢复码</Text>
+                      <Text strong className={styles.recoveryCode}>
+                        {recoveryCode}
+                      </Text>
+                      <Text type="secondary">只在此处展示一次，数据库仅保存摘要。</Text>
+                    </div>
+                  ) : null,
+                  <Button
+                    aria-label="进入工作台"
+                    type="primary"
+                    key="dashboard"
+                    icon={<LoginOutlined />}
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    进入工作台
+                  </Button>,
+                  <Button key="login" icon={<ArrowLeftOutlined />} onClick={goLogin}>
+                    返回登录
+                  </Button>,
+                ]}
+              />
+            )}
+          </div>
+        </Card>
+      </section>
     </main>
   );
 }

@@ -59,6 +59,9 @@ describe("Bootstrap", () => {
     const { container } = renderBootstrap();
 
     expect(screen.getByRole("heading", { name: "首次部署接管" })).toBeInTheDocument();
+    const shell = screen.getByRole("region", { name: "首次部署接管工作区" });
+    expect(shell.className).toContain("bootstrapShell");
+    expect(shell.querySelector('[aria-label="首次部署接管说明"]')?.className).toContain("heroCard");
     expect(screen.getByRole("button", { name: /主题模式：默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续接管" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
@@ -101,11 +104,10 @@ describe("Bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "继续接管" }));
     expect(await screen.findByRole("heading", { name: "设置首发管理员" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
-    expect(screen.getByLabelText("租户标识")).toHaveAttribute("role", "combobox");
-    expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
-    expect(
-      screen.getByText("唯一内置平台源租户；客户集团和医院租户进入工作台后开通。"),
-    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
+    expect(screen.getByText("平台主租户自动绑定")).toBeInTheDocument();
+    expect(screen.getByText("客户集团和医院租户进入工作台后开通。")).toBeInTheDocument();
     expect(container.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("账号"), { target: { value: "platform-owner" } });
@@ -200,8 +202,10 @@ describe("Bootstrap", () => {
   it("首次部署页布局收紧，避免说明区和表单区中间过空", () => {
     const css = readBootstrapCss();
 
-    expect(css).toContain("minmax(0, calc(var(--mk-unit) * 480))");
-    expect(css).toContain("gap: calc(var(--mk-unit) * 24)");
+    expect(css).toContain(".bootstrapShell");
+    expect(css).toContain(".heroCard");
+    expect(css).toContain("grid-template-columns: minmax(0, calc(var(--mk-unit) * 430))");
+    expect(css).toContain("gap: calc(var(--mk-unit) * 20)");
     expect(css).not.toContain("calc(var(--mk-unit) * 560)) minmax");
     expect(css).not.toContain("gap: calc(var(--mk-unit) * 32)");
   });

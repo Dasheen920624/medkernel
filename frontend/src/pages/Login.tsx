@@ -1,16 +1,4 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Divider,
-  Form,
-  Input,
-  Select,
-  Space,
-  Tag,
-  Typography,
-  theme,
-} from "antd";
+import { Alert, Button, Card, Form, Input, Typography, theme } from "antd";
 import {
   DownOutlined,
   IdcardOutlined,
@@ -132,6 +120,7 @@ export default function Login() {
   const [showSso, setShowSso] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPlatformTenant, setShowPlatformTenant] = useState(false);
+  const [selectedTenantId, setSelectedTenantId] = useState(defaultTenantId);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loginForm] = Form.useForm<{
     username: string;
@@ -140,7 +129,6 @@ export default function Login() {
   }>();
   const navigate = useNavigate();
   const login = useLogin();
-  const delegatedAuthStatus = useDelegatedAuthStatus(showSso);
   const loginTenantDirectory = useLoginTenantDirectory();
   const { token } = theme.useToken();
 
@@ -166,13 +154,35 @@ export default function Login() {
     "--mk-login-control-height": `${Math.max(token.controlHeight, token.controlHeightLG)}px`,
   } as CSSProperties;
 
+  const tenantDirectory = loginTenantDirectory.data;
+  const hasCustomerTenants = tenantDirectory?.hasCustomerTenants ?? false;
+  const platformTenant = tenantDirectory?.platformTenant ?? fallbackPlatformTenant;
+  const primaryTenants = useMemo(() => {
+    const tenants = tenantDirectory?.primaryTenants?.length
+      ? tenantDirectory.primaryTenants
+      : [fallbackPlatformTenant];
+    return tenants;
+  }, [tenantDirectory?.primaryTenants]);
+  const visibleTenants = useMemo(
+    () => (hasCustomerTenants && !showPlatformTenant ? primaryTenants : [platformTenant]),
+    [hasCustomerTenants, platformTenant, primaryTenants, showPlatformTenant],
+  );
+  const activeTenant =
+    visibleTenants.find((tenant) => tenant.tenantId === selectedTenantId) ??
+    visibleTenants[0] ??
+    fallbackPlatformTenant;
+  const isPlatformLayer = !hasCustomerTenants || showPlatformTenant;
+  const canUseDelegatedLogin = hasCustomerTenants && !showPlatformTenant;
+
+  const delegatedAuthStatus = useDelegatedAuthStatus(showSso && canUseDelegatedLogin);
+
   async function handleSubmit(values: { username: string; password: string; tenantId?: string }) {
     setErrorMsg(null);
     try {
       const result = await login.mutateAsync({
         username: values.username,
         password: values.password,
-        tenantId: values.tenantId?.trim() || undefined,
+        tenantId: activeTenant.tenantId,
       });
       if (result.mustChangePwd || (result.mfaRequired && !result.mfaBound)) {
         navigate("/bootstrap", {
@@ -208,37 +218,20 @@ export default function Login() {
     isError: delegatedAuthStatus.isError,
     error: delegatedAuthStatus.error,
   });
-  const tenantDirectory = loginTenantDirectory.data;
-  const hasCustomerTenants = tenantDirectory?.hasCustomerTenants ?? false;
-  const platformTenant = tenantDirectory?.platformTenant ?? fallbackPlatformTenant;
-  const primaryTenantOptions = useMemo(() => {
-    const tenants = tenantDirectory?.primaryTenants?.length
-      ? tenantDirectory.primaryTenants
-      : [{ tenantId: defaultTenantId, name: platformTenantLabel, kind: "PLATFORM" }];
-    return tenants.map(toSelectOption);
-  }, [tenantDirectory?.primaryTenants]);
-  const platformTenantOption = useMemo(() => toSelectOption(platformTenant), [platformTenant]);
-  const tenantOptions = useMemo(
-    () =>
-      hasCustomerTenants && !showPlatformTenant ? primaryTenantOptions : [platformTenantOption],
-    [hasCustomerTenants, platformTenantOption, primaryTenantOptions, showPlatformTenant],
-  );
-  const tenantFieldLabel =
-    hasCustomerTenants && !showPlatformTenant ? "客户 / 集团租户" : "租户标识";
-  let tenantFieldExtra = platformTenantDescription;
-  if (hasCustomerTenants && showPlatformTenant) {
-    tenantFieldExtra = "仅平台开发者和运维人员管理全局知识源时使用；客户定制不会回写平台主租户。";
-  }
-  if (hasCustomerTenants && !showPlatformTenant) {
-    tenantFieldExtra = "优先使用已开通的客户或集团租户；平台主租户在下方第二层。";
-  }
-  const activeTenantLayerLabel =
-    hasCustomerTenants && !showPlatformTenant ? "客户 / 集团租户" : "平台主租户";
+  useEffect(() => {
+    const tenantStillVisible = visibleTenants.some(
+      (tenant) => tenant.tenantId === selectedTenantId,
+    );
+    if (!tenantStillVisible) {
+      setSelectedTenantId(visibleTenants[0]?.tenantId ?? defaultTenantId);
+    }
+  }, [selectedTenantId, visibleTenants]);
 
   useEffect(() => {
-    const nextTenantId = tenantOptions[0]?.value ?? defaultTenantId;
-    loginForm.setFieldValue("tenantId", nextTenantId);
-  }, [loginForm, tenantOptions]);
+    if (!canUseDelegatedLogin && showSso) {
+      setShowSso(false);
+    }
+  }, [canUseDelegatedLogin, showSso]);
 
   return (
     <main
@@ -254,16 +247,49 @@ export default function Login() {
       <Card className={styles.loginCard} bordered={false}>
         <div className={styles.cardStack}>
           <div className={styles.cardHeader}>
-            <Space size={8} wrap className={styles.kickerTags}>
-              <Tag color="processing">{activeTenantLayerLabel}</Tag>
-              <Tag>安全登录</Tag>
-              <Tag>内网可用</Tag>
-            </Space>
+            <div className={styles.brandLockup}>
+              <div className={styles.brandMark} aria-hidden="true">
+                M
+              </div>
+              <div className={styles.brandCopy}>
+                <Text strong className={styles.brandName}>
+                  MedKernel
+                </Text>
+                <Text type="secondary" className={styles.brandSubtitle}>
+                  集团医疗智能中枢
+                </Text>
+              </div>
+            </div>
             <Title level={2} className={styles.cardTitle}>
               登录工作台
             </Title>
-            <Text type="secondary">使用医院账号或统一身份继续</Text>
+            <Text type="secondary">
+              {canUseDelegatedLogin ? "使用客户或集团账号继续" : "使用平台账号继续"}
+            </Text>
           </div>
+
+          {hasCustomerTenants && (
+            <div className={styles.loginModeSwitch} aria-label="登录类型切换">
+              <Button
+                aria-pressed={!showPlatformTenant}
+                className={
+                  showPlatformTenant ? styles.loginModeButton : styles.loginModeButtonActive
+                }
+                onClick={() => setShowPlatformTenant(false)}
+              >
+                集团/院内户
+              </Button>
+              <Button
+                aria-pressed={showPlatformTenant}
+                className={
+                  showPlatformTenant ? styles.loginModeButtonActive : styles.loginModeButton
+                }
+                onClick={() => setShowPlatformTenant(true)}
+              >
+                主平台户
+              </Button>
+            </div>
+          )}
 
           {errorMsg && <Alert type="error" showIcon message="登录失败" description={errorMsg} />}
 
@@ -299,20 +325,48 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </Form.Item>
-            <Form.Item label={tenantFieldLabel} name="tenantId" extra={tenantFieldExtra}>
-              <Select
-                loading={loginTenantDirectory.isLoading}
-                options={tenantOptions}
-                optionFilterProp="label"
-                placeholder={
-                  hasCustomerTenants && !showPlatformTenant
-                    ? "请选择客户或集团租户"
-                    : "请选择平台主租户"
-                }
-                showSearch
-                size="large"
-              />
-            </Form.Item>
+            {canUseDelegatedLogin ? (
+              <div className={styles.tenantChoiceSection} aria-label="客户或集团租户">
+                <Text strong className={styles.fieldLabel}>
+                  登录租户
+                </Text>
+                <div className={styles.tenantChoiceGroup}>
+                  {visibleTenants.map((tenant) => {
+                    const selected = activeTenant.tenantId === tenant.tenantId;
+                    return (
+                      <Button
+                        key={tenant.tenantId}
+                        aria-pressed={selected}
+                        className={selected ? styles.tenantChoiceActive : styles.tenantChoice}
+                        loading={loginTenantDirectory.isLoading}
+                        onClick={() => setSelectedTenantId(tenant.tenantId)}
+                      >
+                        <span className={styles.tenantChoiceName}>{tenant.name}</span>
+                        <span className={styles.tenantChoiceMeta}>{tenantKindLabel(tenant)}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Text type="secondary" className={styles.helperText}>
+                  客户和集团账号优先进入本租户；平台主租户在下方第二层。
+                </Text>
+              </div>
+            ) : (
+              <div className={styles.platformContext}>
+                <SafetyCertificateOutlined aria-hidden="true" />
+                <div>
+                  <Text strong>平台主租户自动进入</Text>
+                  <Text type="secondary" className={styles.helperText}>
+                    {isPlatformLayer && hasCustomerTenants
+                      ? "仅平台开发者和运维人员管理全局知识源时使用；客户定制不会回写平台主租户。"
+                      : platformTenantDescription}
+                  </Text>
+                  <Text type="secondary" className={styles.helperText}>
+                    {activeTenant.name}
+                  </Text>
+                </div>
+              </div>
+            )}
             <Form.Item>
               <Button
                 type="primary"
@@ -341,26 +395,8 @@ export default function Login() {
             首次部署接管
           </Button>
 
-          {hasCustomerTenants && (
-            <div className={styles.tenantLayer}>
-              <Button
-                type="link"
-                size="small"
-                className={styles.tenantLayerButton}
-                onClick={() => setShowPlatformTenant(!showPlatformTenant)}
-              >
-                {showPlatformTenant ? "返回客户/集团登录" : "平台主租户登录"}
-              </Button>
-              {showPlatformTenant && (
-                <Text type="secondary" className={styles.helperText}>
-                  平台主租户（唯一内置）只维护全局知识源和标准包；客户和集团定制在各自租户内新增或覆盖。
-                </Text>
-              )}
-            </div>
-          )}
-
-          <div>
-            <Divider className={styles.divider}>
+          <div className={styles.utilityRow}>
+            {canUseDelegatedLogin && (
               <Button
                 type="link"
                 size="small"
@@ -377,66 +413,63 @@ export default function Login() {
                   className={showSso ? styles.toggleIconOpen : styles.toggleIcon}
                 />
               </Button>
-            </Divider>
-            {showSso && (
-              <div id="delegated-auth-panel" className={styles.ssoStack}>
-                <Alert
-                  className={styles.ssoStatus}
-                  type={delegatedAlert.type}
-                  showIcon
-                  message={delegatedAlert.message}
-                  description={delegatedAlert.description}
-                />
-                <div className={styles.providerGrid} aria-label="统一身份方式">
-                  {delegatedProviders.map((provider) => (
-                    <Button
-                      block
-                      disabled
-                      className={styles.providerButton}
-                      key={provider}
-                      loading={delegatedAuthStatus.isLoading}
-                    >
-                      {provider}（{delegatedState}）
-                    </Button>
-                  ))}
-                </div>
-                <Text type="secondary" className={styles.helperText}>
-                  当前页只展示已配置状态；真实院方 IdP、证书链和回调地址完成配置后才会开放跳转。
-                </Text>
-              </div>
             )}
+            <Button
+              type="link"
+              size="small"
+              className={styles.helpToggle}
+              aria-controls="login-help-panel"
+              aria-expanded={showHelp}
+              aria-label="登录帮助"
+              onClick={() => setShowHelp(!showHelp)}
+            >
+              <QuestionCircleOutlined aria-hidden="true" />
+              登录帮助
+              <DownOutlined
+                aria-hidden="true"
+                className={showHelp ? styles.toggleIconOpen : styles.toggleIcon}
+              />
+            </Button>
           </div>
 
-          <div>
-            <Divider className={styles.divider}>
-              <Button
-                type="link"
-                size="small"
-                className={styles.helpToggle}
-                aria-controls="login-help-panel"
-                aria-expanded={showHelp}
-                aria-label="登录帮助"
-                onClick={() => setShowHelp(!showHelp)}
-              >
-                <QuestionCircleOutlined aria-hidden="true" />
-                登录帮助
-                <DownOutlined
-                  aria-hidden="true"
-                  className={showHelp ? styles.toggleIconOpen : styles.toggleIcon}
-                />
-              </Button>
-            </Divider>
-            {showHelp && (
-              <div id="login-help-panel" className={styles.helpList} aria-label="登录帮助内容">
-                {helpItems.map((item) => (
-                  <div className={styles.helpItem} key={item.label}>
-                    <Text strong>{item.label}</Text>
-                    <Text type="secondary">{item.value}</Text>
-                  </div>
+          {canUseDelegatedLogin && showSso && (
+            <div id="delegated-auth-panel" className={styles.ssoStack}>
+              <Alert
+                className={styles.ssoStatus}
+                type={delegatedAlert.type}
+                showIcon
+                message={delegatedAlert.message}
+                description={delegatedAlert.description}
+              />
+              <div className={styles.providerGrid} aria-label="统一身份方式">
+                {delegatedProviders.map((provider) => (
+                  <Button
+                    block
+                    disabled
+                    className={styles.providerButton}
+                    key={provider}
+                    loading={delegatedAuthStatus.isLoading}
+                  >
+                    {provider}（{delegatedState}）
+                  </Button>
                 ))}
               </div>
-            )}
-          </div>
+              <Text type="secondary" className={styles.helperText}>
+                当前页只展示已配置状态；真实院方 IdP、证书链和回调地址完成配置后才会开放跳转。
+              </Text>
+            </div>
+          )}
+
+          {showHelp && (
+            <div id="login-help-panel" className={styles.helpList} aria-label="登录帮助内容">
+              {helpItems.map((item) => (
+                <div className={styles.helpItem} key={item.label}>
+                  <Text strong>{item.label}</Text>
+                  <Text type="secondary">{item.value}</Text>
+                </div>
+              ))}
+            </div>
+          )}
 
           <footer className={`${styles.complianceFooter} ${styles.compactFooter}`}>
             <Text type="secondary" className={styles.helperText}>
@@ -452,9 +485,12 @@ export default function Login() {
   );
 }
 
-function toSelectOption(tenant: LoginTenantOption) {
-  return {
-    label: tenant.name,
-    value: tenant.tenantId,
-  };
+function tenantKindLabel(tenant: LoginTenantOption) {
+  if (tenant.kind === "GROUP") {
+    return "集团租户";
+  }
+  if (tenant.kind === "HOSPITAL") {
+    return "医院租户";
+  }
+  return tenant.kind === "PLATFORM" ? "平台主租户" : "客户租户";
 }
