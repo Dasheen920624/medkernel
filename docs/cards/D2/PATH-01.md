@@ -18,6 +18,7 @@
 `engine/pathway` **后端已实质建成**，本卡＝**契约化 + 三层前端 + 仿真/随访接续补全**：
 - 已有（后端）：`PathwayTemplate`(+`Level`/`Status`/`Detail`)、`PathwayNode`/`PathwayEdge`/`PathwayGraph`(+`NodeType`/`EdgeType`)、`PatientPathway`(+`Status`/`Enter`/`Detail`)、`PathwayProgressor`/`PathwayProgressDecision`/`PathwayAdvanceRequest`、`PathwayVariance`、`ClinicalClock`(+`Status`)、`SpecialtyPackage`、`SpecialtyMetricBinding`、`PathwaySimulateRequest`/`Response`、`PathwayEngineService`/`Controller`(+ 安全测试)。
 - 缺口（本卡补）：① **三层前端**（L1 模板 / L2 节点画布 X6/G6 / L3 DSL）；② **仿真**接 [API-01](API-01.md) 真实快照；③ 发布 **7 步流 + §3 状态机** 接 [SYS-04](SYS-04.md)；④ **关键时钟绑定质控**（[SYS-04](SYS-04.md)/D4 评估消费）；⑤ **随访接续**（出径 → 随访计划交接 D3 FOLLOW）。
+- 2026-06-02 PR1 进展（`codex/d2-path-01-backend-contracts`）：后端仿真与实时推进新增 `snapshotId`，通过 `ContextSnapshotService.findById` 消费 [API-01](API-01.md) 真实快照，返回 `contextQualityStatus`、`missingFields`、`mappingStatus`、`contextResourceCounts`；`PathwayProgressor` 支持从快照事实评估 `condition_json`（如检验值条件），默认边仅作 fallback，不再抢走已满足条件边；`PathwayProgressDecision` / `PathwayAdvanceResponse` 携带命中边与事实证据；有时窗节点发布时必须绑定质控指标，缺失返回 `PATHWAY_CLOCK_MISSING`，入径 / 推进创建的 `ClinicalClock.metricCode` 来自真实 `SpecialtyMetricBinding`。未冒领三层前端、7 步发布、随访接续和 D4 超时信号闭环。
 
 ## 功能要求（原子可测条目）
 - [ ] **FR-1 三层配置**：L1 模板实例化 / L2 节点画布（节点/边/分支/并行）/ L3 DSL；三层产出同一 `PathwayTemplate`，互转无损。
@@ -74,6 +75,7 @@
 ## 完工证据
 - 代码 permalink：节点画布前端 + `PathwayProgressor` 接 [API-01](API-01.md) + 关键时钟触发 + 仿真 + 7 步流接 [SYS-04](SYS-04.md) + 随访接续 + 5 方言迁移。
 - 测试：三层互转 + 推进/变异 + 关键时钟超时 + 仿真真实快照 + 随访接续 + 灰度回滚 E2E。
+- 当前 PR1 本地证据：红灯测试先失败于缺 `ContextSnapshotService` 依赖、`snapshotId` 仿真 / 实时推进合同、快照证据响应、条件事实证据和 `PATHWAY_CLOCK_MISSING` 错误码；默认边 fallback 红灯先失败于旧逻辑返回 `PLAN` 而非满足条件的 `FOLLOWUP`。随后聚焦后端 `mvn -q -Dtest=PathwayProgressorTest,PathwayEngineServiceTest,PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,PathwayRepositoryTest,ErrorCodeTest test` 通过；后端全量 `mvn -q test` 通过，含 H2、PostgreSQL 15.18、Oracle 21.3 迁移至 V53；前端 `npm run verify`（43 文件 / 226 测试）与 `npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`authenticity-guard --mode=all` 扫描 791 文件通过，配置边界 inventory 扫描 733 文件通过，changed 迁移扫描 0 文件通过，`scripts/check-comment-zh.sh --mode=full` 引擎 / shared Javadoc 100% 且历史 COMMENT gap 继续归 `DEFER-006`，`git diff --check` 通过。`DEFER-003` 前端测试 / 构建噪声、`DEFER-006` 历史迁移 COMMENT gap、`DEFER-016` 历史迁移 inventory 债务保持 open，不冒领清零。PR1 仅覆盖后端真实快照仿真 / 推进、条件推进证据、变异 / 时钟基础和发布关键时钟门禁，不勾选整卡完成。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（16d，后端 + 三层前端；按 PR 拆分）

@@ -5,16 +5,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ContextSnapshotResources;
+import com.medkernel.engine.context.ContextSnapshotResponse;
+import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.MissingFieldEntry;
+import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalObservation;
+import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -40,6 +51,7 @@ class PathwayEngineServiceTest {
     private PathwayVarianceRepository variances;
     private ClinicalClockRepository clocks;
     private SpecialtyMetricBindingRepository metricBindings;
+    private ContextSnapshotService contextSnapshots;
     private AuditEventPublisher auditPublisher;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
@@ -57,6 +69,7 @@ class PathwayEngineServiceTest {
         variances = mock(PathwayVarianceRepository.class);
         clocks = mock(ClinicalClockRepository.class);
         metricBindings = mock(SpecialtyMetricBindingRepository.class);
+        contextSnapshots = mock(ContextSnapshotService.class);
         auditPublisher = mock(AuditEventPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
@@ -64,7 +77,7 @@ class PathwayEngineServiceTest {
         json.findAndRegisterModules();
         service = new PathwayEngineService(
             packages, profiles, templates, nodes, edges, patientPathways, variances,
-            clocks, metricBindings, new PathwayProgressor(), auditPublisher,
+            clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditPublisher,
             transitions, diagnoseAssembler, json);
 
         when(packages.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -155,6 +168,10 @@ class PathwayEngineServiceTest {
             .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
         when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "COPD.TIME_TO_ASSESS", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
 
         PathwayTemplatePublishResponse response = service.publishTemplate("pt-1");
 
@@ -166,11 +183,30 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenTimedNodeHasNoQualityMetricBinding() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+
+        assertThatThrownBy(() -> service.publishTemplate("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.PATHWAY_CLOCK_MISSING);
+    }
+
+    @Test
     void enterPatientPathwayCreatesRuntimeAndStartClock() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
             .thenReturn(Optional.of(node("ASSESS", 10, false)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "patient-1", "enc-1", "pt-1", null));
@@ -181,6 +217,7 @@ class PathwayEngineServiceTest {
         ArgumentCaptor<ClinicalClock> clockCap = ArgumentCaptor.forClass(ClinicalClock.class);
         verify(clocks).save(clockCap.capture());
         assertThat(clockCap.getValue().nodeCode()).isEqualTo("ASSESS");
+        assertThat(clockCap.getValue().metricCode()).isEqualTo("COPD.TIME_TO_ASSESS");
         assertThat(clockCap.getValue().dueAt()).isNotNull();
     }
 
@@ -261,6 +298,41 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void advanceCanUseSnapshotFactsAndReturnDecisionEvidence() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", 10, false),
+                node("TRANSFUSION_REVIEW", 20, true),
+                node("FOLLOWUP", 30, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "TRANSFUSION_REVIEW", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"observation.HB.value\",\"operator\":\"lt\",\"value\":90}", 1),
+                edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT, null, 2)));
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.COMPLETE, null, null, null,
+            null, null, null, "evt-real-1", "ctx-real-1"));
+
+        assertThat(response.nextNodeCode()).isEqualTo("TRANSFUSION_REVIEW");
+        assertThat(response.edgeCode()).isEqualTo("EDGE.ASSESS.TRANSFUSION_REVIEW");
+        assertThat(response.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
+        assertThat(response.snapshotId()).isEqualTo("ctx-real-1");
+        assertThat(response.contextQualityStatus()).isEqualTo(QualityStatus.PARTIAL);
+        assertThat(response.contextResourceCounts()).containsEntry("observations", 1);
+        assertThat(response.decisionEvidence()).containsEntry("observation.HB.value", new BigDecimal("86"));
+        verify(contextSnapshots).findById("ctx-real-1");
+    }
+
+    @Test
     void varianceCanPausePathwayAndPersistVariance() {
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
@@ -305,6 +377,56 @@ class PathwayEngineServiceTest {
         verify(patientPathways).save(pathwayCap.capture());
         assertThat(pathwayCap.getValue().exitReason()).isEqualTo("患者转院");
         assertThat(pathwayCap.getValue().exitedAt()).isNotNull();
+    }
+
+    @Test
+    void simulateReadsApi01SnapshotAndReturnsContextEvidenceWithoutWritingRuntimeFacts() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+
+        PathwaySimulationResponse response = service.simulate(
+            "pt-1",
+            new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of()));
+
+        assertThat(response.snapshotId()).isEqualTo("ctx-real-1");
+        assertThat(response.contextQualityStatus()).isEqualTo(QualityStatus.PARTIAL);
+        assertThat(response.contextResourceCounts()).containsEntry("observations", 1);
+        assertThat(response.missingFields()).containsExactly(
+            new MissingFieldEntry("CONDITION", "*", "WARN"));
+        assertThat(response.mappingStatus()).containsEntry("OBSERVATION:obs-1:code:HB", "MAPPED");
+        verify(contextSnapshots).findById("ctx-real-1");
+        verify(patientPathways, never()).save(any());
+        verify(variances, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
+    void simulateUsesSnapshotObservationFactsToChooseConditionEdge() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", 10, false),
+                node("TRANSFUSION_REVIEW", 20, true),
+                node("FOLLOWUP", 30, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "TRANSFUSION_REVIEW", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"observation.HB.value\",\"operator\":\"lt\",\"value\":90}", 1),
+                edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT, null, 2)));
+        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+
+        PathwaySimulationResponse response = service.simulate(
+            "pt-1",
+            new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of()));
+
+        assertThat(response.nodeTrajectory()).containsExactly("ASSESS", "TRANSFUSION_REVIEW");
+        assertThat(response.finalStatus()).isEqualTo(PatientPathwayStatus.COMPLETED);
     }
 
     @Test
@@ -394,10 +516,14 @@ class PathwayEngineServiceTest {
     }
 
     private PathwayEdge edge(String from, String to, PathwayEdgeType type) {
+        return edge(from, to, type, null, 10);
+    }
+
+    private PathwayEdge edge(String from, String to, PathwayEdgeType type, String conditionJson, int priority) {
         Instant now = Instant.now();
         return new PathwayEdge(
             null, "pe-" + from + "-" + to, "tenant-A", "pt-1",
-            "EDGE." + from + "." + to, from, to, type, null, 10,
+            "EDGE." + from + "." + to, from, to, type, conditionJson, priority,
             now, "tester", now, "tester", "trace-pathway");
     }
 
@@ -423,6 +549,41 @@ class PathwayEngineServiceTest {
             1L, varianceId, "tenant-A", "pp-1", "ASSESS", type,
             "医生根据患者情况调整节点", "人工确认后继续", "FOLLOWUP",
             now.minusSeconds(30), "tester", now.minusSeconds(30), "tester", "trace-pathway");
+    }
+
+    private SpecialtyMetricBinding binding(String nodeCode, String metricCode, boolean required) {
+        Instant now = Instant.now();
+        return new SpecialtyMetricBinding(
+            1L, "smb-" + nodeCode, "tenant-A", "sp-1", "pt-1", nodeCode, metricCode,
+            required, now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private ContextSnapshotResponse contextSnapshot(String snapshotId) {
+        Instant now = Instant.now();
+        ContextSnapshotResources resources = new ContextSnapshotResources(
+            new CanonicalPatient(
+                "patient-1", "脱敏患者", LocalDate.of(1980, 1, 1), "F",
+                List.of(), List.of(), "MPI", "p-1", "v1", now, now, QualityStatus.VALID),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new CanonicalObservation(
+                "obs-1", "HB", "血红蛋白", new BigDecimal("86"), null, "g/L",
+                "115-150", "LOW", "LIS", "obs-rec-1", "v1", now, now, QualityStatus.PARTIAL)),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        return new ContextSnapshotResponse(
+            snapshotId,
+            ContextSnapshotStatus.ACTIVE,
+            resources,
+            "pkg-2026.06",
+            "pkg-2026.06",
+            "pkg-2026.06",
+            "pkg-2026.06",
+            QualityStatus.PARTIAL,
+            List.of(new MissingFieldEntry("CONDITION", "*", "WARN")),
+            Map.of("OBSERVATION:obs-1:code:HB", "MAPPED"),
+            now,
+            "trace-pathway");
     }
 
     private JsonNode json(String source) {

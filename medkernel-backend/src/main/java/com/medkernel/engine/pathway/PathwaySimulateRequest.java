@@ -22,6 +22,7 @@ public record PathwaySimulateRequest(
     @JsonAlias("user_id") String userId,
     @JsonAlias("role_codes") List<String> roleCodes,
     @JsonAlias("package_version") String packageVersion,
+    @JsonAlias("snapshot_id") String snapshotId,
     String startNodeCode,
     List<String> requestedNextNodeCodes
 ) implements PathwayContextRequest {
@@ -37,7 +38,12 @@ public record PathwaySimulateRequest(
 
     public PathwaySimulateRequest(String startNodeCode, List<String> requestedNextNodeCodes) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            startNodeCode, requestedNextNodeCodes);
+            null, startNodeCode, requestedNextNodeCodes);
+    }
+
+    public PathwaySimulateRequest(String snapshotId, String startNodeCode, List<String> requestedNextNodeCodes) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            snapshotId, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwayApiContext apiContext() {
