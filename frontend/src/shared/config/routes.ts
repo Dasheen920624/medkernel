@@ -239,6 +239,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "implementation-guide",
     menuLabel: "客户实施向导",
+    requiredPermissions: ["menu.implementation-guide", "tenant.read"],
+    requiredRoles: ["implementation-engineer", "platform-admin", "hospital-admin"],
     experience: readonlyExperience("实施工程师", "按步骤完成试点准备核查", "待完成步骤"),
     pageType: "configuration",
     stateMachine: "config",
