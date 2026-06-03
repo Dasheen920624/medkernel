@@ -64,6 +64,9 @@ public enum ErrorCode {
     ENG_RULE_004("ENG-RULE-004", 409, "发布门禁失败", ErrorClass.DATA, false),
     ENG_RULE_005("ENG-RULE-005", 500, "规则执行失败", ErrorClass.INTERNAL, false),
     ENG_RULE_006("ENG-RULE-006", 409, "当前规则状态不允许该操作", ErrorClass.DATA, false),
+    DSL_OPERATOR_INVALID("DSL_OPERATOR_INVALID", 400, "规则 DSL 算子无效", ErrorClass.INPUT, false),
+    UNIT_INCOMPATIBLE("UNIT_INCOMPATIBLE", 400, "临床单位不可安全换算", ErrorClass.INPUT, false),
+    INSUFFICIENT_DATA("INSUFFICIENT_DATA", 400, "临床计算缺少必要数据", ErrorClass.DATA, false),
 
     ENG_PATHWAY_001("ENG-PATHWAY-001", 400, "路径模板校验失败", ErrorClass.INPUT, false),
     ENG_PATHWAY_002("ENG-PATHWAY-002", 404, "路径模板不存在", ErrorClass.DATA, false),

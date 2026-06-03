@@ -134,6 +134,25 @@ class ErrorCodeTest {
     }
 
     @Test
+    void clinicalRuleOperatorErrorCodesAreRegistered() {
+        assertThat(ErrorCode.fromCode("UNIT_INCOMPATIBLE")).hasValueSatisfying(code -> {
+            assertThat(code.httpStatus()).isEqualTo(400);
+            assertThat(code.errorClass()).isEqualTo(ErrorClass.INPUT);
+            assertThat(code.retryable()).isFalse();
+        });
+        assertThat(ErrorCode.fromCode("INSUFFICIENT_DATA")).hasValueSatisfying(code -> {
+            assertThat(code.httpStatus()).isEqualTo(400);
+            assertThat(code.errorClass()).isEqualTo(ErrorClass.DATA);
+            assertThat(code.retryable()).isFalse();
+        });
+        assertThat(ErrorCode.fromCode("DSL_OPERATOR_INVALID")).hasValueSatisfying(code -> {
+            assertThat(code.httpStatus()).isEqualTo(400);
+            assertThat(code.errorClass()).isEqualTo(ErrorClass.INPUT);
+            assertThat(code.retryable()).isFalse();
+        });
+    }
+
+    @Test
     void pathwayEngineErrorCodesAreRegistered() {
         assertThat(ErrorCode.fromCode("ENG-PATHWAY-001")).hasValueSatisfying(code -> {
             assertThat(code.httpStatus()).isEqualTo(400);
