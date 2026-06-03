@@ -40,6 +40,7 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: false,
     isError: false,
   }),
+  useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
   useContextSnapshotDetail: () => ({
     data: apiMocks.snapshotDetailData,
     isLoading: false,

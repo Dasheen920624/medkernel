@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   App,
+  AutoComplete,
   Badge,
   Button,
   Card,
@@ -38,6 +39,7 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import {
+  useContextFieldCatalog,
   useContextSnapshotDetail,
   useContextSnapshots,
   useCreatePathwayTemplate,
@@ -595,6 +597,12 @@ export default function PathwayTemplates() {
     page: 1,
     size: 100,
   });
+
+  const fieldCatalogQuery = useContextFieldCatalog();
+  const fieldCatalogOptions = (fieldCatalogQuery.data ?? []).map((field) => ({
+    value: field.fieldPath,
+    label: `${field.displayName}（${field.fieldPath}）`,
+  }));
 
   const { data: snapshotsData, isLoading: snapshotsLoading } = useContextSnapshots(
     snapshotQuery ?? undefined,
@@ -1360,7 +1368,18 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionFact"]}
                             label="条件字段路径"
                           >
-                            <Input placeholder="如 context.readyForFollowup" />
+                            <AutoComplete
+                              options={fieldCatalogOptions}
+                              filterOption={(input, option) =>
+                                String(option?.value ?? "")
+                                  .toLowerCase()
+                                  .includes(input.toLowerCase()) ||
+                                String(option?.label ?? "")
+                                  .toLowerCase()
+                                  .includes(input.toLowerCase())
+                              }
+                              placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={5}>

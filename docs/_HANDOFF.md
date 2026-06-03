@@ -30,8 +30,11 @@
   - #306 OpenSpec 完整设计入库
   - #308 递归条件模型内核 `conditionModel.ts`（9 测试）、#309 通用递归条件树组件 `ConditionTreeEditor`（6 测试）、#310 规则 DSL 桥接 `ruleDsl.ts`（6 测试）—— 这三个是早期并行模型，**择机转用于「路径边守卫」可视化**（路径边目前仍是纯文本 JSON，无编辑器），规则线不再用它们。
   - #312 **原地扩展** `ruleLayeredEditor.ts` 加递归嵌套（`RuleConditionGroup`/`conditionNodeToDsl`/`dslToConditionNode`/`dslWhenToRootGroup`/`flatToRootGroup` + `RuleConditionTree.root?`），**保留全部已上线临床算子（between/unit_compare/temporal/derived），零回归**（5 新测试 + 既有 4 测试全过）。
+  - **#321 规则页 L2 递归 UI 落地**：`RuleDefinitions.tsx` L2 改递归「条件组(all/any/取反)+子条件组」编辑（新增 `ruleConditionTreeOps.ts` id 基增删改/遍历/校验），丰富叶子编辑器原样复用；修复「同步即跳专家模式」；详情 L2 递归只读；`withStableRoot` 稳定 id。4 RTL 全过。→ **用户吐槽「条件树只有一层」「同步即跳专家」已解决并上线。**
+  - **#323 路径页易用性**：节点/边自动编码（N1/E1，可改唯一）、源/目标/起始节点改下拉选已建节点、时钟指标字段级即时校验、字段补 tooltip。5 RTL 全过。→ **用户吐槽「节点编码全手填」「手敲连边」「时窗静默失败」已解决并上线。**
 - 关键背景（避免重复踩坑）：main 已是含「专家模式 + 临床算子」的截图版本（`121eb6dc`）；现有 `ruleLayeredEditor` 条件模型已很丰富，**唯一缺多层级嵌套**。方向已与用户确认：**原地扩展现有编辑器**，不要用早期并行模型替换（会回退临床算子）。
-- 下一步（精确到动作）：1. **PR-B**：把 `RuleDefinitions.tsx`（2275 行）L2 渲染改递归——把现有 index 基的丰富叶子编辑器（`renderConditionValueEditor` 等，行 ~500-960）改为 id/onChange 基并按 `root` 组递归渲染（+条件 / +子条件组 / all|any / 取反 / 删除组），复用 #312 的序列化；同时修「同步即跳专家模式」（`syncTreeToDsl` 行 474-479 当前强制 `setActiveCreateLayer("l3")`+`setCreateExpertMode(true)`，应改为静默同步不跳）。UI 要简洁美观（缩进卡片、克制留白、清晰层级）。2. 详情 L2（行 ~1410-1440）同样递归只读渲染。3. 更新 `RuleDefinitions.test.tsx` + 加嵌套 RTL 用例。4. 之后 P3 路径引擎（节点自动编码 / 下拉连边 / 校验前移）、P2 字段目录选择器。
+- 进行中：**P2 上下文字段目录**（解决「上下文没有字典/数据源可选」）—— 后端新增 `ContextFieldCatalog`/`ContextFieldDescriptor`/`ContextFieldCatalogController`（`GET /api/v1/engine/context/field-catalog`，从 canonical 真实记录字段派生，`context.read` 权限，4 单测过）；前端新增 `useContextFieldCatalog` hook，规则叶子「上下文字段路径」与路径边「条件字段路径」改 `AutoComplete` 字段选择器（仍可手输，非破坏）。
+- 下一步（精确到动作）：1. P2 收尾：字段选中可带出 dataType→valueKind/单位（当前仅做路径建议）；可选把字段目录落库 + 前台维护页（设计附录 B）。2. P5 院内↔标准字典对照（复用 terminology 域）。3. UI 视觉打磨：用预览工具实跑规则/路径页截图，按「简洁美观」调间距/配色/层级。4. 早期并行模型（#308/#309/#310 的 conditionModel/ConditionTreeEditor）择机转用于「路径边守卫」可视化或退役。
 - 相关文件 / 测试 / 坑：`frontend/src/shared/config/ruleLayeredEditor.ts`（已含递归 helpers）、`frontend/src/pages/tenant/RuleDefinitions.tsx`、`RuleDefinitions.test.tsx`；CI 前端门禁＝`prettier --check` + `eslint`(含 `medkernel/no-inline-style`，**禁内联 style，用 CSS Module**) + `stylelint`(**禁 px，用 rem**) + `test:coverage`。已知 flaky：`ConfigPackages.test.tsx` 离线导出用例在覆盖率并发下偶发 XHR AggregateError（单跑稳过），已登记独立修复任务，绿不了时只重跑该 job。
 
 ## 已归档工作线（最近完成，供回溯）

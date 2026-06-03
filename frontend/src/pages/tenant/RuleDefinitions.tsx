@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   App as AntdApp,
   Alert,
+  AutoComplete,
   Badge,
   Button,
   Card,
@@ -47,6 +48,7 @@ import {
   useAddTestCase,
   useSimulateRule,
   usePublishRule,
+  useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
   useRuleImpact,
@@ -969,6 +971,12 @@ export default function RuleDefinitions() {
     );
   };
 
+  const fieldCatalogQuery = useContextFieldCatalog();
+  const fieldCatalogOptions = (fieldCatalogQuery.data ?? []).map((field) => ({
+    value: field.fieldPath,
+    label: `${field.displayName}（${field.fieldPath}）`,
+  }));
+
   const firstLeafId = ((): string | undefined => {
     const find = (node: RuleConditionNode): string | undefined => {
       if (!isConditionGroup(node)) return node.id;
@@ -1012,11 +1020,20 @@ export default function RuleDefinitions() {
               label="上下文字段路径"
               htmlFor={isFirstLeaf ? "rule-condition-fact" : undefined}
             >
-              <Input
+              <AutoComplete
                 id={isFirstLeaf ? "rule-condition-fact" : undefined}
                 value={condition.fact}
-                onChange={(event) => updateCondition(condition.id, { fact: event.target.value })}
-                placeholder="如 observations.0.value"
+                options={fieldCatalogOptions}
+                filterOption={(input, option) =>
+                  String(option?.value ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase()) ||
+                  String(option?.label ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                onChange={(value) => updateCondition(condition.id, { fact: value })}
+                placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
               />
             </Form.Item>
           </Col>
