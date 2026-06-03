@@ -18,12 +18,12 @@
 已有实质基础：`engine/recommendation/` 下 `RecommendationCard{+DetailResponse/Filter/Repository/Request/Status/Type}` + `RecommendationEngineController`。本卡＝把"综合命中（规则+路径+知识）+ 解释追溯 + 反馈 + 疲劳治理"框架化为引擎核心；命中复用 D2 `RuleDslEvaluator`/路径/知识，非从零。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 综合命中：对临床上下文（[API-01](../D2/API-01.md)）跑规则（[RULE-01](../D2/RULE-01.md)）+ 路径节点（[PATH-01](../D2/PATH-01.md)）+ 知识（[KNOW-01](../D2/KNOW-01.md)）产出推荐卡。
-- [ ] FR-2 解释追溯：每张卡记录命中的规则/路径/知识 **ID + 版本**，可回链来源。
+- [x] FR-1 综合命中：对临床上下文（[API-01](../D2/API-01.md)）跑规则（[RULE-01](../D2/RULE-01.md)）+ 路径节点（[PATH-01](../D2/PATH-01.md)）+ 知识（[KNOW-01](../D2/KNOW-01.md)）产出推荐卡。
+- [x] FR-2 解释追溯：每张卡记录命中的规则/路径/知识 **ID + 版本**，可回链来源。
 - [x] FR-3 反馈闭环：采纳/不采纳带**结构化原因**，回写影响疲劳与统计。
 - [x] FR-4 疲劳治理：同患者重复/低价值卡按阈值抑制，抑制可解释、可审计、阈值按科室可配。
-- [ ] FR-5 红线优先：命中 [OPT-04](OPT-04.md) 红线（DDI/危急值/禁忌）的卡强制高优先、不可被疲劳抑制。
-- [ ] FR-6 B0 降级：模型语义增强为挂点，关闭只用确定性命中 + `MODEL_DISABLED`。
+- [x] FR-5 红线优先：命中 [OPT-04](OPT-04.md) 红线（DDI/危急值/禁忌）的卡强制高优先、不可被疲劳抑制。
+- [x] FR-6 B0 降级：模型语义增强为挂点，关闭只用确定性命中 + `MODEL_DISABLED`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -52,9 +52,9 @@
 - 本卡落点：确定性综合命中 + 可解释 + 反馈 + 疲劳治理，红线（[OPT-04](OPT-04.md)）不可被抑制。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：命中产出卡且可追溯到规则/路径/知识版本。
+- [x] AC-1（FR-1/2）：命中产出卡且可追溯到规则/路径/知识版本。
 - [x] AC-2（FR-3/4）：反馈带原因回写疲劳；抑制可解释可审计。
-- [ ] AC-3（FR-5/6）：红线卡强优先不被抑制；关模型确定性命中仍跑。
+- [x] AC-3（FR-5/6）：红线卡强优先不被抑制；关模型确定性命中仍跑。
 - 关联 A1–A9 剧本：A5 推荐 · A6 鉴别诊断。
 - T-GATE：前后端真实性门禁全绿（无写死医学常量 / 无假命中）。
 - B0 验收：★关模型/Dify/图投影，确定性命中 + 解释 + 反馈全可用。
@@ -69,7 +69,7 @@
 - 推荐卡解释中记录 `matchType=RULE`、触发编码、场景、上下文快照、规则 ID / 编码 / 版本 ID / 版本号 / 来源引用，并透传规则解释的 `conditionEvidence`；来源表落 `RULE` + `CONTEXT`，存在患者在径实例时追加 `PATHWAY` 来源和模板版本 / 当前节点定位。
 - `RecommendationEngineService.evaluate` 先聚合确定性命中，再合并调用方提交的非 AI 候选，按卡编码去重后进入既有状态机、来源落库、疲劳信号和 `MODEL_DISABLED` 诚实返回；AI 候选只计入总数，不落库成 B0 卡。
 - 临床事件到推荐的适配器改走 `evaluate`，避免临床事件只创建空触发而不执行确定性推荐。
-- 未在 PR1 冒领：知识全文/语义命中、反馈闭环、疲劳阈值配置、红线优先和复现/回放仍归 PR2/PR3；完整 AC-1 需后续补齐知识来源后再勾选。
+- 未在 PR1 冒领：知识全文/语义命中、反馈闭环、疲劳阈值配置、红线优先和复现/回放仍归 PR2/PR3；完整 AC-1 已在 PR3 通过 ACTIVE 知识版本来源链补齐。
 
 ### PR2 实施记录（2026-06-04）
 - 本轮收口反馈闭环、疲劳治理和 CDSS 层红线优先，不冒领完整 OPT-04 红线库：`RecommendationEngineService` 继续在反馈后回写疲劳信号，并把 `ACCEPT` / `REJECT` / `DISMISS` 都收紧为必须携带结构化原因代码和说明，避免“关闭忽略”变成不可解释的低价值信号。
@@ -77,6 +77,14 @@
 - `SystemConfigSeeder` 播种默认空 JSON 策略，配置中心可展示和审计该键，但默认 `{}` 不开启自动抑制；低/中风险只有在解析到正整数阈值与回看窗口时才统计低价值信号并落 `SUPPRESSED`。
 - `RecommendationRiskLevel.HIGH` / `CRITICAL` 在疲劳策略解析与历史低价值计数前直接返回不可抑制，CRITICAL + 强打断 + 医师确认作为 CDSS 层红线级推荐卡验证；完整 DDI / 危急值 / 禁忌红线资产库仍归 [OPT-04](OPT-04.md) 后续卡，不在本 PR 伪造。
 - 已跑证据：`mvn -q -Dtest=RecommendationDeterministicMatcherTest,RecommendationFatiguePolicyResolverTest,RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationRepositoryTest,ClinicalEventEngineAdapterTest test` 通过；`mvn -q -Dtest=SystemConfigServiceTest,SystemConfigControllerTest test` 通过；最终代码清理后复跑后端全量 `mvn -q test` 192 reports / 1177 tests / 0 failures / 0 errors / 0 skipped（本机 Docker PostgreSQL 15.18 与 Oracle 21.3 迁移冒烟均运行至 V70 并二次 no-op）；前端 `npm run verify` 51 files / 311 tests 通过（既有 React Router/act warning 仍归 [DEFER-003](../../audit/deferred-issues.md)）；T-GATE 脚本自测 34 项、提交后 changed-mode 真实性扫描 7 文件 / 配置边界 7 文件 / 迁移 0 文件、中文注释和 diff 检查通过。完整 AC-3 和 B0 回放仍归 PR3。
+
+### PR3 实施记录（2026-06-04）
+- 本轮收口 B0 降级挂点、知识来源解释链与复现/回放口径：`RecommendationDeterministicMatcher` 继续以规则 DSL 为医学判断入口，不写死医学常量；当规则版本 `sourceRef` 使用 `knowledge:<identityCode>` 时，按当前租户覆盖优先、平台主租户 `t-1` 回退的口径解析 ACTIVE 知识身份与版本，并把 `KNOWLEDGE` 来源写入推荐卡来源列表。
+- 推荐卡解释 JSON 新增 `knowledgeIdentityId`、`knowledgeIdentityCode`、`knowledgeSourceTenantId`、`knowledgeVersionId`、`knowledgeVersionNo` 与内容 hash；来源链保持 `RULE` + `KNOWLEDGE` + `CONTEXT`，有患者在径实例时继续追加 `PATHWAY` 来源，满足同一命中可追溯到规则 / 知识 / 路径版本。
+- `RecommendationDeterministicMatcher` 补齐与 D2 一致的平台主源继承：客户租户没有本地规则或知识覆盖时，消费平台已发布规则与 ACTIVE 知识；客户租户有同编码覆盖时优先使用本地版本，避免漏掉首发平台资产。
+- `RecommendationEngineService.evaluate` 在 `MODEL_DISABLED` 下只统计真实确定性候选；AI 生成候选继续过滤且不落库、不计入 `totalCardCount`，避免 B0 响应把不可用模型候选展示成真实推荐数量。
+- PR3 新增红绿证据：知识来源测试先因命中器构造器缺少知识仓储失败；B0 计数测试先因 AI 候选仍计入总数失败；实现后 `mvn -q -Dtest=RecommendationDeterministicMatcherTest test`、`mvn -q -Dtest=RecommendationEngineServiceTest test`、`mvn -q -Dtest=RecommendationDeterministicMatcherTest,RecommendationFatiguePolicyResolverTest,RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationRepositoryTest,ClinicalEventEngineAdapterTest test` 均通过。
+- PR3 本地收口证据：后端全量 `mvn -q test` 192 reports / 1179 tests / 0 failures / 0 errors / 0 skipped，H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移至 V70 并二次 no-op；前端先因新 worktree 未安装依赖出现 `eslint: command not found`，执行 `npm ci --prefer-offline --no-audit` 后 `npm run verify` 51 files / 311 tests 通过（既有 React Router / act warning 仍归 [DEFER-003](../../audit/deferred-issues.md)）；T-GATE 脚本自测 34 项通过，真实性全量扫描 953 文件、配置边界 inventory 扫描 891 文件、迁移 files-mode 扫 0 文件、中文注释 0 fail / 0 warn、`git diff --check` 均通过；提交后 changed-mode 真实性扫描 2 文件、配置边界扫描 2 文件、迁移扫描 0 文件，中文注释和 `git diff --check origin/main..HEAD` 通过。完整 DDI / 危急值 / 禁忌红线资产库仍归 [OPT-04](OPT-04.md)，本卡只完成 CDSS 层强优先、不可疲劳抑制和 B0 推荐主链路。
 
 ## 完工证据
 - 代码 permalink：`engine/recommendation` 命中/解释/疲劳 + B0 降级。
