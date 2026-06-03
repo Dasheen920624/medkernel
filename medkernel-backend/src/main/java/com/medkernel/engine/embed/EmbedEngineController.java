@@ -47,14 +47,14 @@ public class EmbedEngineController {
      * 使用启动令牌兑换获取嵌入会话临床上下文，并物理标记令牌为已使用。
      *
      * @param request 启动令牌兑换请求
-     * @param originHeader 请求头中的 Origin 属性，用以作白名单过滤
+     * @param originHeader 请求头中的 Origin 属性，用以作白名单过滤，缺失时拒绝兑换
      * @return 会话及关联的临床上下文
      */
     @PostMapping("/launch")
     @PreAuthorize("@perm.has('embed.read')")
     public ApiResult<EmbedLaunchContextResponse> validateAndExchange(
             @Valid @RequestBody EmbedLaunchRequest request,
-            @RequestHeader(value = "Origin", required = false) String originHeader) {
+            @RequestHeader("Origin") String originHeader) {
         return ApiResult.ok(service.validateAndExchange(request, originHeader));
     }
 

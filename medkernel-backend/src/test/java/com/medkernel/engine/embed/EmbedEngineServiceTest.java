@@ -28,6 +28,8 @@ import com.medkernel.shared.context.RequestContext;
 
 class EmbedEngineServiceTest {
 
+    private static final String TRUSTED_ORIGIN = "https://his.hospital.com";
+
     private EmbedLaunchTokenRepository tokenRepo;
     private EmbedOriginWhitelistRepository originRepo;
     private AuditEventPublisher auditPublisher;
@@ -92,10 +94,12 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        allowTrustedOrigin();
         when(tokenRepo.consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"))).thenReturn(1);
 
         EmbedLaunchContextResponse res = service.validateAndExchange(
-            new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null);
+            new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+            TRUSTED_ORIGIN);
 
         assertThat(res.active()).isTrue();
         assertThat(res.userId()).isEqualTo("user-1");
@@ -112,6 +116,28 @@ class EmbedEngineServiceTest {
     }
 
     @Test
+    void validateAndExchange_MissingOriginThrowsForbiddenBeforeConsumingToken() {
+        String tokenVal = "tkn-123456";
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                " "))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_002);
+
+        verify(originRepo, never()).findByTenantIdAndOrigin(any(), any());
+        verify(tokenRepo, never()).consumeUnusedToken(any(), any(), any(), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
     void validateAndExchange_ModeMismatchThrowsBadRequestBeforeConsumingToken() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken unused = new EmbedLaunchToken(
@@ -121,9 +147,11 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        allowTrustedOrigin();
 
         assertThatThrownBy(() -> service.validateAndExchange(
-                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.API, "patient-view", "hook-instance-001"), null))
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.API, "patient-view", "hook-instance-001"),
+                TRUSTED_ORIGIN))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
 
@@ -141,9 +169,11 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(revoked));
+        allowTrustedOrigin();
 
         assertThatThrownBy(() -> service.validateAndExchange(
-                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                TRUSTED_ORIGIN))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
 
@@ -160,9 +190,11 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(used));
+        allowTrustedOrigin();
 
         assertThatThrownBy(() -> service.validateAndExchange(
-                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                TRUSTED_ORIGIN))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_003);
 
@@ -178,10 +210,12 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        allowTrustedOrigin();
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertThatThrownBy(() -> service.validateAndExchange(
-                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                TRUSTED_ORIGIN))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_001);
 
@@ -241,5 +275,11 @@ class EmbedEngineServiceTest {
 
         assertThat(list).containsExactly("https://his.hospital.com");
         verify(originRepo).save(any(EmbedOriginWhitelist.class));
+    }
+
+    private void allowTrustedOrigin() {
+        when(originRepo.findByTenantIdAndOrigin("tenant-1", TRUSTED_ORIGIN)).thenReturn(Optional.of(
+            new EmbedOriginWhitelist(1L, "tenant-1", TRUSTED_ORIGIN, Instant.now(), "user-1", Instant.now(), "user-1")
+        ));
     }
 }
