@@ -271,8 +271,13 @@ function findTemplate(key: RuleTemplateKey) {
   return RULE_LAYER_TEMPLATES.find((item) => item.key === key) ?? RULE_LAYER_TEMPLATES[0];
 }
 
+/** 确保条件树带稳定的递归根组（root 的 id 在编辑期保持不变，避免增删按钮丢失目标组）。 */
+function withStableRoot(tree: RuleConditionTree): RuleConditionTree {
+  return tree.root ? tree : { ...tree, root: flatToRootGroup(tree) };
+}
+
 function createDefaultTree() {
-  return instantiateRuleTemplate(DEFAULT_TEMPLATE_KEY);
+  return withStableRoot(instantiateRuleTemplate(DEFAULT_TEMPLATE_KEY));
 }
 
 function createDefaultDslText() {
@@ -447,7 +452,7 @@ export default function RuleDefinitions() {
 
   const resetLayeredAuthoring = (templateKey: RuleTemplateKey = DEFAULT_TEMPLATE_KEY) => {
     const template = findTemplate(templateKey);
-    const nextTree = instantiateRuleTemplate(templateKey);
+    const nextTree = withStableRoot(instantiateRuleTemplate(templateKey));
     setSelectedTemplateKey(templateKey);
     setConditionTree(nextTree);
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
@@ -482,7 +487,7 @@ export default function RuleDefinitions() {
 
   const applyTemplate = (templateKey: RuleTemplateKey) => {
     const template = findTemplate(templateKey);
-    const nextTree = instantiateRuleTemplate(templateKey);
+    const nextTree = withStableRoot(instantiateRuleTemplate(templateKey));
     setSelectedTemplateKey(templateKey);
     setConditionTree(nextTree);
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));

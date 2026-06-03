@@ -325,4 +325,36 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );
+
+  it(
+    "L2 支持新增子条件组实现任意层级嵌套，并同步为嵌套 DSL",
+    async () => {
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+
+      // 新增子条件组（初始仅根组，存在唯一「新增子条件组」按钮）
+      await user.click(within(dialog).getByRole("button", { name: "新增子条件组" }));
+
+      // 进入专家模式并同步，断言 DSL 为嵌套结构（顶层 all 内含子组）
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
+      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("规则 DSL JSON") as HTMLTextAreaElement;
+      const parsed = JSON.parse(dslEditor.value) as { when: { all: unknown[] } };
+      expect(Array.isArray(parsed.when.all)).toBe(true);
+      // 顶层数组里存在一个本身带 all/any 的子组（即嵌套）
+      const hasNestedGroup = parsed.when.all.some(
+        (node) =>
+          typeof node === "object" &&
+          node !== null &&
+          ("all" in (node as object) || "any" in (node as object)),
+      );
+      expect(hasNestedGroup).toBe(true);
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
 });
