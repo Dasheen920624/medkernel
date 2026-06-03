@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -34,6 +35,8 @@ public class EmbedEngineService {
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
 
+    private record LaunchContract(String triggerPoint, String hook, String hookInstance) {}
+
     public EmbedEngineService(EmbedLaunchTokenRepository tokenRepo,
                               EmbedOriginWhitelistRepository originRepo,
                               AuditEventPublisher auditPublisher,
@@ -56,6 +59,10 @@ public class EmbedEngineService {
         String createdBy = RequestContext.currentUserId().orElse("system");
         String traceId = RequestContext.currentTraceId();
 
+        String triggerPoint = requireSupportedCdsHook(req.triggerPoint(), "签发嵌入令牌触发点");
+        String hook = requireSupportedCdsHook(req.hook(), "签发嵌入令牌 CDS Hook");
+        requireSameCdsHook(triggerPoint, hook, "签发嵌入令牌");
+
         String tokenValue = "tkn-" + UUID.randomUUID().toString().replace("-", "");
         int expireSec = req.expireSeconds() != null && req.expireSeconds() > 0 ? req.expireSeconds() : DEFAULT_EXPIRE_SECONDS;
         Instant now = Instant.now();
@@ -72,7 +79,7 @@ public class EmbedEngineService {
             req.roleCode(),
             req.patientId(),
             req.encounterId(),
-            req.triggerPoint(),
+            triggerPoint,
             "UNUSED",
             expiredAt,
             now,
@@ -81,7 +88,7 @@ public class EmbedEngineService {
             createdBy,
             traceId,
             req.integrationMode().name(),
-            req.hook(),
+            hook,
             hookInstance,
             null
         );
@@ -91,10 +98,10 @@ public class EmbedEngineService {
         String embedUrl = String.format("/embed/launch?token=%s", tokenValue);
 
         auditPublisher.publish(AuditAction.CREATE, "embed_launch_token", tokenValue,
-            "生成嵌入启动令牌 triggerPoint=" + req.triggerPoint() + " patientId=" + req.patientId());
+            "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
 
         return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl,
-            req.integrationMode(), LAUNCH_ENDPOINT, req.hook());
+            req.integrationMode(), LAUNCH_ENDPOINT, hook);
     }
 
     /**
@@ -114,7 +121,7 @@ public class EmbedEngineService {
 
         String tenantId = entity.tenantId();
         requireAllowedOrigin(tenantId, originHeader, request.token());
-        validateLaunchContract(request, entity);
+        LaunchContract contract = validateLaunchContract(request, entity);
 
         // 2. 令牌状态与时效性校验
         if (EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
@@ -157,12 +164,12 @@ public class EmbedEngineService {
             entity.tenantId(),
             entity.patientId(),
             entity.encounterId(),
-            entity.triggerPoint(),
+            contract.triggerPoint(),
             true,
             entity.traceId(),
             parseIntegrationMode(entity.integrationMode()),
-            entity.hook(),
-            entity.hookInstance(),
+            contract.hook(),
+            contract.hookInstance(),
             EmbedModelStatus.MODEL_DISABLED,
             EmbedConnectionStatus.CONNECTED,
             CDS_HOOK_VERSION
@@ -249,7 +256,7 @@ public class EmbedEngineService {
         return RequestContext.currentUserId().orElse("system");
     }
 
-    private void validateLaunchContract(EmbedLaunchRequest request, EmbedLaunchToken entity) {
+    private LaunchContract validateLaunchContract(EmbedLaunchRequest request, EmbedLaunchToken entity) {
         EmbedIntegrationMode tokenMode = parseIntegrationMode(entity.integrationMode());
         if (request.integrationMode() != tokenMode) {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
@@ -257,10 +264,18 @@ public class EmbedEngineService {
                     + " actual=" + request.integrationMode());
             throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入方式与启动令牌不匹配");
         }
-        if (hasText(request.hook()) && hasText(entity.hook()) && !request.hook().equals(entity.hook())) {
+        String tokenTriggerPoint = requireSupportedCdsHook(entity.triggerPoint(), "启动令牌触发点");
+        String tokenHook = hasText(entity.hook())
+            ? requireSupportedCdsHook(entity.hook(), "启动令牌 CDS Hook")
+            : tokenTriggerPoint;
+        requireSameCdsHook(tokenTriggerPoint, tokenHook, "启动令牌");
+        String requestHook = hasText(request.hook())
+            ? requireSupportedCdsHook(request.hook(), "兑换请求 CDS Hook")
+            : tokenHook;
+        if (!requestHook.equals(tokenHook)) {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
-                "CDS Hook 不匹配 token=" + request.token() + " expected=" + entity.hook()
-                    + " actual=" + request.hook());
+                "CDS Hook 不匹配 token=" + request.token() + " expected=" + tokenHook
+                    + " actual=" + requestHook);
             throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 与启动令牌不匹配");
         }
         if (hasText(request.hookInstance()) && hasText(entity.hookInstance())
@@ -269,6 +284,8 @@ public class EmbedEngineService {
                 "CDS Hook 实例不匹配 token=" + request.token());
             throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 实例与启动令牌不匹配");
         }
+        String hookInstance = hasText(entity.hookInstance()) ? entity.hookInstance() : request.hookInstance();
+        return new LaunchContract(tokenTriggerPoint, tokenHook, hookInstance);
     }
 
     private void requireAllowedOrigin(String tenantId, String originHeader, String token) {
@@ -312,6 +329,27 @@ public class EmbedEngineService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String requireSupportedCdsHook(String value, String label) {
+        if (!hasText(value)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, label + "缺失");
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + "缺失");
+        }
+        try {
+            return ClinicalEventTriggerPoint.fromWireValue(value).wireValue();
+        } catch (IllegalArgumentException ex) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内 value=" + value);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内");
+        }
+    }
+
+    private void requireSameCdsHook(String triggerPoint, String hook, String label) {
+        if (!triggerPoint.equals(hook)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                label + " triggerPoint 与 CDS Hook 不一致 triggerPoint=" + triggerPoint + " hook=" + hook);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + " triggerPoint 与 CDS Hook 不一致");
+        }
     }
 
     private void publishFailureAudit(ErrorCode code, String summary) {

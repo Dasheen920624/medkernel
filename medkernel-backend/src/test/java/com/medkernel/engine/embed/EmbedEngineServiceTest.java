@@ -17,6 +17,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -54,7 +56,7 @@ class EmbedEngineServiceTest {
 
     @Test
     void generateToken_SucceedsAndSavesUNUSEDToken() {
-        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest("user-1", "doctor", "P100", "E200", "OUTPATIENT", 60);
+        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest("user-1", "doctor", "P100", "E200", "patient-view", 60);
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EmbedLaunchTokenResponse res = service.generateToken(req);
@@ -64,6 +66,38 @@ class EmbedEngineServiceTest {
         assertThat(res.expiredAt()).isAfter(Instant.now());
         verify(tokenRepo).save(any(EmbedLaunchToken.class));
         verify(auditPublisher).publish(eq(AuditAction.CREATE), eq("embed_launch_token"), eq(res.token()), any());
+    }
+
+    @Test
+    void generateToken_NormalizesTriggerPointAndDefaultHookToCdsHookWireValue() {
+        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
+            "user-1", "doctor", "P100", "E200", "ORDER_SIGN", 60,
+            EmbedIntegrationMode.API, null, null);
+        when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmbedLaunchTokenResponse res = service.generateToken(req);
+
+        assertThat(res.integrationMode()).isEqualTo(EmbedIntegrationMode.API);
+        assertThat(res.hook()).isEqualTo("order-sign");
+        verify(tokenRepo).save(org.mockito.ArgumentMatchers.argThat(saved ->
+            saved.integrationMode().equals(EmbedIntegrationMode.API.name())
+                && saved.triggerPoint().equals("order-sign")
+                && saved.hook().equals("order-sign")
+                && saved.hookInstance().equals("trace-1")));
+    }
+
+    @Test
+    void generateToken_RejectsUnsupportedCdsHookBeforeSavingToken() {
+        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
+            "user-1", "doctor", "P100", "E200", "OUTPATIENT", 60,
+            EmbedIntegrationMode.IFRAME, null, null);
+
+        assertThatThrownBy(() -> service.generateToken(req))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
+
+        verify(tokenRepo, never()).save(any(EmbedLaunchToken.class));
+        verify(isolatedAudit).publishInNewTx(any());
     }
 
     @Test
@@ -89,7 +123,7 @@ class EmbedEngineServiceTest {
         String tokenVal = "tkn-123456";
         Instant expiredAt = Instant.now().plusSeconds(60);
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
             "UNUSED", expiredAt, Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -113,6 +147,57 @@ class EmbedEngineServiceTest {
         verify(tokenRepo).consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"));
         verify(tokenRepo, never()).save(any(EmbedLaunchToken.class));
         verify(auditPublisher).publish(eq(AuditAction.EXECUTE), eq("embed_launch_token"), eq(tokenVal), any());
+    }
+
+    @Test
+    void validateAndExchange_NormalizesRequestedCdsHookAliasBeforeConsumingToken() {
+        String tokenVal = "tkn-api";
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "order-sign",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            EmbedIntegrationMode.API.name(), "order-sign", "hook-order-001", null
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        allowTrustedOrigin();
+        when(tokenRepo.consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"))).thenReturn(1);
+
+        EmbedLaunchContextResponse res = service.validateAndExchange(
+            new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.API, "ORDER_SIGN", "hook-order-001"),
+            TRUSTED_ORIGIN);
+
+        assertThat(res.integrationMode()).isEqualTo(EmbedIntegrationMode.API);
+        assertThat(res.triggerPoint()).isEqualTo("order-sign");
+        assertThat(res.hook()).isEqualTo("order-sign");
+        assertThat(res.hookInstance()).isEqualTo("hook-order-001");
+        verify(tokenRepo).consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(EmbedIntegrationMode.class)
+    void validateAndExchange_AllIntegrationModesShareSameCdsHookContext(EmbedIntegrationMode mode) {
+        String tokenVal = "tkn-" + mode.name();
+        String hookInstance = "hook-" + mode.name();
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "result-review",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            mode.name(), "result-review", hookInstance, null
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        allowTrustedOrigin();
+        when(tokenRepo.consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"))).thenReturn(1);
+
+        EmbedLaunchContextResponse res = service.validateAndExchange(
+            new EmbedLaunchRequest(tokenVal, mode, "result-review", hookInstance),
+            TRUSTED_ORIGIN);
+
+        assertThat(res.integrationMode()).isEqualTo(mode);
+        assertThat(res.triggerPoint()).isEqualTo("result-review");
+        assertThat(res.hook()).isEqualTo("result-review");
+        assertThat(res.hookInstance()).isEqualTo(hookInstance);
+        assertThat(res.cdsHookVersion()).isEqualTo("1.0");
+        verify(tokenRepo).consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"));
     }
 
     @Test
@@ -185,7 +270,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_AlreadyUSEDToken_ThrowsConflict() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -205,7 +290,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_ExpiredToken_ThrowsExpiredAndSetsEXPIRED() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken unused = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
             "UNUSED", Instant.now().minusSeconds(10), Instant.now().minusSeconds(100), "user-1", Instant.now().minusSeconds(100), "user-1", "trace-1"
         );
 
@@ -227,7 +312,7 @@ class EmbedEngineServiceTest {
     void validateAndExchange_OriginNotInWhitelist_ThrowsForbidden() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
@@ -247,7 +332,7 @@ class EmbedEngineServiceTest {
     void feedback_SucceedsAndPublishesAudit() {
         String tokenVal = "tkn-123456";
         EmbedLaunchToken used = new EmbedLaunchToken(
-            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
             "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
