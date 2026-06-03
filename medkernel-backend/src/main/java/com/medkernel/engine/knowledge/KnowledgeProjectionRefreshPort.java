@@ -7,5 +7,11 @@ package com.medkernel.engine.knowledge;
  */
 public interface KnowledgeProjectionRefreshPort {
 
-    void refreshPublishedVersion(String tenantId, Long identityId, Long versionId, String requestedBy, String traceId);
+    KnowledgeProjectionRefreshResult refreshPublishedVersion(
+        String tenantId,
+        Long identityId,
+        Long versionId,
+        String requestedBy,
+        String traceId
+    );
 }
