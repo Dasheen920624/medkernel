@@ -134,6 +134,52 @@ const terminologyMappingExperience: RouteExperience = {
   riskLevel: "medium",
 };
 
+const adapterHubExperience: RouteExperience = {
+  primaryRole: "信息科 / 实施工程师",
+  goal: "查看院内系统接入、健康、字段映射、死信和数据质量，确保断连诚实暴露",
+  defaultView: "异常连接、字段映射缺口和待上线接入申请优先",
+  defaultFilters: [
+    {
+      key: "protocolType",
+      label: "系统类型",
+      kind: "select",
+      placeholder: "请选择系统类型",
+      optionSource: "static",
+      options: [
+        { label: "HIS", value: "HIS" },
+        { label: "EMR", value: "EMR" },
+        { label: "LIS", value: "LIS" },
+        { label: "PACS", value: "PACS" },
+        { label: "FHIR", value: "FHIR" },
+      ],
+    },
+    {
+      key: "healthStatus",
+      label: "健康状态",
+      kind: "select",
+      placeholder: "请选择健康状态",
+      optionSource: "static",
+      options: [
+        { label: "健康", value: "HEALTHY" },
+        { label: "未连接", value: "NOT_CONNECTED" },
+        { label: "配置非法", value: "MISCONFIGURED" },
+        { label: "异常", value: "UNHEALTHY" },
+      ],
+    },
+    {
+      key: "orgPath",
+      label: "组织范围",
+      kind: "search",
+      placeholder: "输入院区或科室",
+    },
+  ],
+  expertContent: ["adapterId", "traceId", "configJson", "routeReference", "messageId"],
+  interruptionLevel: "strong",
+  evidence: "适配器启停、健康检查、死信重放、数据质量报告均保留审计证据",
+  dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
+  riskLevel: "medium",
+};
+
 const routeMetaInputs: RouteMetaInput[] = [
   {
     path: "/login",
@@ -324,7 +370,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "adapter-hub",
     menuLabel: "适配器中心",
-    experience: readonlyExperience("信息科", "核查院内系统适配状态", "异常连接"),
+    requiredPermissions: [
+      "menu.adapter-hub",
+      "integration.read",
+      "integration.write",
+      "integration.execute",
+    ],
+    requiredRoles: ["it-ops", "implementation"],
+    experience: adapterHubExperience,
     pageType: "configuration",
     stateMachine: "config",
   },

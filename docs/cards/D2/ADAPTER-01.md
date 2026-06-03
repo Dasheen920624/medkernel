@@ -5,6 +5,7 @@
 > 实化映射：占位 `D2-PAGE-适配器中心` → 本卡 **ADAPTER-01**。
 
 ## 身份
+
 - 卡 ID：ADAPTER-01（页面卡；= backlog `D2-PAGE-适配器中心` 实化）
 - 域：D2 试点准备
 - 关联场景：S2 院内系统接入
@@ -13,33 +14,42 @@
 - owner / reviewer：待派单（owner ≠ reviewer）
 
 ## 目标
+
 把适配器中心页**真实化**：适配器目录 + 连通/健康状态 + 字段映射 + 重试死信 + **数据质量看板** + 接入向导。**接 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) 真实状态，断连诚实标 `NOT_CONNECTED`，不伪造连接**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
+
 页面**已存在待真实化**：`pages/tenant/AdapterHub`（路由 `/adapter/hub` 已注册 sectionKey `pilot-setup`，占位）。本卡＝接 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) 真实适配器/健康/数据质量 + 六态/RBAC。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 适配器目录**：列出 HIS/EMR/LIS/PACS/医保/病案/随访适配器 + 连通态；启停（[INTEG-01](INTEG-01.md)）。
-- [ ] **FR-2 健康状态**：实时健康 + 断连诚实标 `NOT_CONNECTED`，不伪造在线。
-- [ ] **FR-3 字段映射 + 死信**：字段映射配置（接 [TERM-01](TERM-01.md)）；死信队列查看 + 重放。
-- [ ] **FR-4 数据质量看板**：必填率/编码映射率/时效（[SVC-PILOT-02](SVC-PILOT-02.md) `DataQualityReport`），缺口诚实暴露。
-- [ ] **FR-5 接入向导**：向导式新增适配器（[SVC-INTEGRATION-01](SVC-INTEGRATION-01.md) 接入生命周期）。
-- [ ] **FR-6 六态 + RBAC**：六态齐全；仅信息科·实施工程师可操作；数据按 `OrgContext`。
+
+- [x] **FR-1 适配器目录**：列出 HIS/EMR/LIS/PACS/医保/病案/随访适配器 + 连通态；启停（[INTEG-01](INTEG-01.md)）。
+- [x] **FR-2 健康状态**：实时健康 + 断连诚实标 `NOT_CONNECTED`，不伪造在线。
+- [x] **FR-3 字段映射 + 死信**：字段映射配置（接 [TERM-01](TERM-01.md)）；死信队列查看 + 重放。
+- [x] **FR-4 数据质量看板**：必填率/编码映射率/时效（[SVC-PILOT-02](SVC-PILOT-02.md) `DataQualityReport`），缺口诚实暴露。
+- [x] **FR-5 接入向导**：向导式新增适配器（[SVC-INTEGRATION-01](SVC-INTEGRATION-01.md) 接入生命周期）。
+- [x] **FR-6 六态 + RBAC**：六态齐全；仅信息科·实施工程师可操作；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
+
 ### 接口契约（引擎/API 卡）
-N·A —— 页面卡，消费 [INTEG-01](INTEG-01.md) `/engine/integration/**` + [SVC-PILOT-02](SVC-PILOT-02.md) `/engine/mpi/**` 现有 API。
+
+N·A —— 页面卡，消费 [INTEG-01](INTEG-01.md) / [SVC-PILOT-02](SVC-PILOT-02.md) / [SVC-INTEGRATION-01](SVC-INTEGRATION-01.md) 现有 API：`/api/v1/engine/integration/adapters`、`/adapter-hub/status`、`/logs`、`/dead-letter/{id}/replay`、`/data-quality/reports`、`/onboardings`、`/onboardings/{id}/advance`。本卡不新增后端端点。
+
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `pilot-setup` / menuKey `adapter-hub` / menuLabel `适配器中心` / path `/adapter/hub` / requiredPermissions 适配器管理 / requiredRoles 信息科·实施工程师。
+
+- 路由元数据：sectionKey `pilot-setup` / menuKey `adapter-hub` / menuLabel `适配器中心` / path `/adapter/hub` / requiredPermissions `menu.adapter-hub + integration.read/write/execute` / requiredRoles `it-ops`、`implementation`。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 适配器目录 + 健康面板 + 字段映射 + 死信队列 + 数据质量看板 + 六态。
 - 主按钮 ≤1（新增适配器）/ 默认筛选 ≤3（类型/状态/院区）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（启停/重放权）/ 数据（org）/ 资产（适配器）/ 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码。
 
 ## 数据与迁移
+
 N·A —— 页面卡不落库；消费 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) 表族。
 
 ## 视角清单（11 视角逐条）
+
 1. **产品架构**：院内系统接入的运维中枢页。
 2. **产品体验**：适配器目录 + 健康 + 死信 + 数据质量看板 + 六态；国产浏览器可读。
 3. **系统与数据架构**：状态实时取数、独立降级；大消息日志分页；P95 ≤1s。
@@ -53,18 +63,23 @@ N·A —— 页面卡不落库；消费 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](S
 11. **AI / 模型治理与可降级**：N·A —— 接入页无模型。
 
 ## 适用不变量
+
 - 命中核心约束：**§10 集成边界 / 不阻断主流程** · **铁律 #2 断连不伪造** · **§13 数据质量不伪造** · **依赖 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md)**。
 - 本卡落点：把适配器中心从占位页变为真实状态、诚实降级、含数据质量看板的接入运维页。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：适配器目录 + 健康；断连显示 `NOT_CONNECTED`（不伪造在线）。
-- [ ] **AC-2（FR-3/4）**：字段映射配置 + 死信重放；数据质量看板真实统计、缺口暴露。
-- [ ] **AC-3（FR-5/6）**：接入向导新增适配器；六态齐全；非授权角色无访问。
+
+- [x] **AC-1（FR-1/2）**：适配器目录 + 健康；断连显示 `NOT_CONNECTED`（不伪造在线）。
+- [x] **AC-2（FR-3/4）**：字段映射配置 + 死信重放；数据质量看板真实统计、缺口暴露。
+- [x] **AC-3（FR-5/6）**：接入向导新增适配器；六态齐全；非授权角色无访问。
 - 关联 A1–A9 剧本：A1 接入、A6 合规（数据质量证据）。
 - T-GATE：前端真实性门禁全绿（no-page-mock、断连不伪造）。
 - B0 验收：确定性接入运维，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：`pages/tenant/AdapterHub` 真实化 + 接 [INTEG-01](INTEG-01.md)/[SVC-PILOT-02](SVC-PILOT-02.md) + 数据质量看板 + 六态。
-- 测试：适配器目录/健康测试 + 断连 `NOT_CONNECTED` 测试 + 死信重放测试 + 数据质量测试 + no-page-mock 门禁。
+
+- 代码 permalink：待 PR 合并后补 GitHub permalink；本地改动覆盖 `frontend/src/pages/tenant/AdapterHub.tsx`、`AdapterHub.module.css`、`frontend/src/shared/api/hooks.ts`、`frontend/src/shared/config/routes.ts`。
+- 测试：新增 `AdapterHub.test.tsx` 覆盖适配器目录、健康诊断、`NOT_CONNECTED` 诚实展示、死信重试 / 重放、数据质量报告、接入申请推进、六态；`hooks.test.ts` 覆盖接入生命周期 / 数据质量 / 死信重放 endpoint；`routes.test.ts` 覆盖 RBAC；`RulePathwayCleanliness.test.ts` 阻断旧 Webhook / Launch Token 控制台回流。
+- 本地证据：聚焦测试 4 files / 67 tests、页面 smoke 22 tests、前端 `npm run verify` 51 files / 309 tests、生产依赖审计 0、`npm run build`、T-GATE 规则测试 34/34、中文注释 0 fail / 0 warn、`git diff --check`。浏览器打开 `/adapter/hub` 在无登录会话时正确重定向 `/login` 且 console errors 0；受保护页面完整交互由组件级红绿测试覆盖，未伪造登录会话。
+- 未冒领：`DEFER-003` 前端测试 / 构建噪声、`DEFER-004` 浏览器截图链路、真实院方连接器 / 大规模压测仍保持 open；本卡不新增后端 / 迁移。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

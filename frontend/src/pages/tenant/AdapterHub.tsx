@@ -1,1449 +1,902 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+
 import {
-  Table,
+  Alert,
   Button,
-  Tag,
-  Modal,
+  Card,
+  Descriptions,
   Form,
   Input,
+  Modal,
+  Progress,
   Select,
-  Card,
-  Badge,
-  Alert,
-  message,
-  Row,
-  Col,
-  List,
-  Tabs,
   Space,
-  theme,
   Statistic,
-  Descriptions,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+  message,
 } from "antd";
 import {
-  PlusOutlined,
-  PlayCircleOutlined,
-  SafetyCertificateOutlined,
   ApiOutlined,
-  CodeOutlined,
-  FileProtectOutlined,
-  CloudSyncOutlined,
   CheckCircleOutlined,
   DisconnectOutlined,
+  FileProtectOutlined,
   HeartOutlined,
+  PlusOutlined,
   ReloadOutlined,
-  LockOutlined,
-  CompassOutlined,
+  SafetyCertificateOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
+import type { ColumnsType } from "antd/es/table";
+
 import {
-  useEmbedOrigins,
-  useAddEmbedOrigin,
-  useGenerateEmbedToken,
-  useIntegrationAdapters,
   useAdapterHubStatus,
-  useGenerateDataQualityReport,
-  useCreateAdapter,
-  useUpdateAdapter,
+  useAdvanceIntegrationOnboarding,
   useCheckAdapterHealth,
-  useWebhooks,
-  useCreateWebhook,
-  useTestWebhookSignature,
+  useCreateAdapter,
+  useCreateIntegrationOnboarding,
+  useGenerateDataQualityReport,
+  useIntegrationAdapters,
   useIntegrationLogs,
-  useRetryMessage,
+  useIntegrationOnboardings,
   useReplayDeadLetter,
-} from "@/shared/api/hooks";
-import type {
-  DataQualityReport,
-  IntegrationAdapter,
-  WebhookSignatureTestResult,
+  useRetryMessage,
+  useSecurityProfile,
+  useUpdateAdapter,
+  type AdapterHubSourceStatus,
+  type DataQualityReport,
+  type IntegrationAdapter,
+  type IntegrationMessageLog,
+  type IntegrationOnboarding,
+  type SecurityProfile,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { PageState } from "@/shared/ui/PageState";
+import type { PageStateKind } from "@/shared/ui/PageState.contract";
+import { StepFlow } from "@/shared/ui/StepFlow";
+import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
+import styles from "./AdapterHub.module.css";
+
+const { Text } = Typography;
 const { Option } = Select;
 
-type EmbedMessageData = Record<string, unknown> & {
-  source: "MEDKERNEL_CDSS_EMBED";
-  action?: string;
-  reason?: string;
+const route = findRouteByPath("/adapter/hub");
+
+if (!route?.experience) {
+  throw new Error("适配器中心页面缺少体验声明");
+}
+
+const PAGE_META: { title: string; experience: RouteExperience } = {
+  title: route.title,
+  experience: route.experience,
 };
 
-interface QualityDiagnosticReport {
-  adapterId: string;
-  healthStatus: string;
-  rttMs: number | null;
-  lastHeartbeatAt?: string;
-  errorMessage?: string;
+const LOG_PAGE_SIZE = 10;
+
+const HEALTH_COLOR: Record<string, string> = {
+  HEALTHY: "green",
+  NOT_CONNECTED: "default",
+  MISCONFIGURED: "red",
+  UNHEALTHY: "red",
+  ERROR: "red",
+};
+
+const ADAPTER_STATUS_COLOR: Record<string, string> = {
+  ACTIVE: "green",
+  SUSPENDED: "orange",
+};
+
+const LOG_STATUS_COLOR: Record<string, string> = {
+  SUCCESS: "green",
+  FAILED: "orange",
+  RETRYING: "blue",
+  NOT_CONNECTED: "default",
+  DEAD_LETTER: "red",
+};
+
+const ONBOARDING_STATUS_COLOR: Record<string, string> = {
+  REQUESTED: "blue",
+  AUTH_CONFIGURED: "cyan",
+  MAPPING_CONFIGURED: "orange",
+  ONLINE: "green",
+  OFFLINE: "default",
+};
+
+function hasPermission(profile: SecurityProfile | undefined, code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
-function isEmbedMessageData(data: unknown): data is EmbedMessageData {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    (data as { source?: unknown }).source === "MEDKERNEL_CDSS_EMBED"
-  );
+function percent(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
 }
 
-function getHealthTagColor(status: string) {
-  if (status === "HEALTHY") return "green";
-  if (status === "NOT_CONNECTED") return "default";
-  return "red";
+function healthTag(status: string) {
+  return <Tag color={HEALTH_COLOR[status] ?? "default"}>{status}</Tag>;
 }
 
-function isDiagnosticError(report: QualityDiagnosticReport) {
-  return report.healthStatus === "MISCONFIGURED" || report.healthStatus === "ERROR";
+function adapterEvidenceText(onboarding: IntegrationOnboarding) {
+  return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${onboarding.healthStatus}，缺口 ${onboarding.blockers.length} 项。`;
 }
 
-function getDiagnosticCardClassName(report: QualityDiagnosticReport) {
-  return `border-slate-200 mt-4 rounded-xl ${
-    isDiagnosticError(report) ? "bg-red-50/20 border-red-200" : "bg-slate-50"
-  }`;
-}
-
-function renderDiagnosticAlert(report: QualityDiagnosticReport) {
-  if (report.healthStatus === "ERROR") {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message="健康检查请求失败"
-        description={report.errorMessage}
-        className="mt-3 rounded-lg text-xs"
-      />
-    );
+function getErrorTrace(error: unknown) {
+  if (error && typeof error === "object" && "traceId" in error) {
+    return String((error as { traceId?: unknown }).traceId ?? "");
   }
+  return undefined;
+}
 
-  if (report.healthStatus === "MISCONFIGURED") {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message="适配器配置非法 (MISCONFIGURED)"
-        description="configJson 不是合法 JSON，请修正后重试。"
-        className="mt-3 rounded-lg text-xs"
-      />
-    );
-  }
+function pageStateTitle(state: PageStateKind) {
+  if (state === "loading") return "正在加载适配器中心";
+  if (state === "empty") return "暂无适配器接入记录";
+  if (state === "error") return "适配器中心暂时不可用";
+  if (state === "partial") return "部分接入需要处理";
+  return undefined;
+}
 
-  return (
-    <Alert
-      type="info"
-      showIcon
-      message="本地配置校验通过，外部连通性未知 (NOT_CONNECTED)"
-      description="当前未接入真实外部连接器，无法判定外部可达性；据实不伪造 HEALTHY 或网络 RTT。"
-      className="mt-3 rounded-lg text-xs"
-    />
-  );
+function pageStateFor({
+  canAccess,
+  securityLoading,
+  adaptersLoading,
+  adaptersError,
+  partialError,
+  adapters,
+  onboardings,
+}: {
+  canAccess: boolean;
+  securityLoading: boolean;
+  adaptersLoading: boolean;
+  adaptersError: boolean;
+  partialError: boolean;
+  adapters: IntegrationAdapter[];
+  onboardings: IntegrationOnboarding[];
+}): PageStateKind {
+  if (!securityLoading && !canAccess) return "forbidden";
+  if (securityLoading || adaptersLoading) return "loading";
+  if (adaptersError) return "error";
+  if (partialError) return "partial";
+  if (adapters.length === 0 && onboardings.length === 0) return "empty";
+  return "ready";
 }
 
 export default function AdapterHub() {
-  const { token } = theme.useToken();
+  const [logPage, setLogPage] = useState(1);
+  const [adapterModalOpen, setAdapterModalOpen] = useState(false);
+  const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
+  const [expertMode, setExpertMode] = useState(false);
+  const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
+  const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
 
-  // ==========================================
-  // 1. API 接口数据绑定 (React Query)
-  // ==========================================
-  const { data: apiOrigins, refetch: refetchOrigins } = useEmbedOrigins();
-  const addOriginMutation = useAddEmbedOrigin();
-  const generateTokenMutation = useGenerateEmbedToken();
+  const [adapterForm] = Form.useForm();
+  const [onboardingForm] = Form.useForm();
 
-  // 集成总线接口 hooks
-  const {
-    data: apiAdapters,
-    refetch: refetchAdapters,
-    isLoading: loadingAdapters,
-  } = useIntegrationAdapters();
-  const { data: adapterHubStatus, refetch: refetchAdapterHubStatus } = useAdapterHubStatus();
+  const security = useSecurityProfile();
+  const adaptersQuery = useIntegrationAdapters();
+  const statusQuery = useAdapterHubStatus();
+  const logsQuery = useIntegrationLogs(logPage, LOG_PAGE_SIZE);
+  const onboardingsQuery = useIntegrationOnboardings();
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
   const healthCheckMutation = useCheckAdapterHealth();
-  const generateDataQualityReportMutation = useGenerateDataQualityReport();
-
-  const { data: apiWebhooks, refetch: refetchWebhooks } = useWebhooks();
-  const createWebhookMutation = useCreateWebhook();
-  const testWebhookSigMutation = useTestWebhookSignature();
-
-  const [logPage, setLogPage] = useState(1);
-  const {
-    data: apiLogsData,
-    refetch: refetchLogs,
-    isLoading: loadingLogs,
-  } = useIntegrationLogs(logPage, 5);
+  const qualityReportMutation = useGenerateDataQualityReport();
   const retryMessageMutation = useRetryMessage();
   const replayDeadLetterMutation = useReplayDeadLetter();
+  const createOnboardingMutation = useCreateIntegrationOnboarding();
+  const advanceOnboardingMutation = useAdvanceIntegrationOnboarding();
 
-  // ==========================================
-  // 2. 嵌入交互状态
-  // ==========================================
-  const [originFormVisible, setOriginFormVisible] = useState<boolean>(false);
-  const [sandboxVisible, setSandboxVisible] = useState<boolean>(false);
+  const profile = security.data;
+  const canAccess = !!profile && canAccessRoute(route, profile);
+  const canWrite = hasPermission(profile, "integration.write");
+  const canExecute = hasPermission(profile, "integration.execute");
 
-  // 嵌入沙箱所用的 token & URL 状态
-  const [sandboxToken, setSandboxToken] = useState<string>("");
-  const [sandboxUrl, setSandboxUrl] = useState<string>("");
-  const [embedEventNotes, setEmbedEventNotes] = useState<string[]>([]);
-  const [postMessageLogs, setPostMessageLogs] = useState<EmbedMessageData[]>([]);
-
-  // 适配器 & Webhook 控制表单状态
-  const [adapterModalVisible, setAdapterModalVisible] = useState(false);
-  const [webhookModalVisible, setWebhookModalVisible] = useState(false);
-  const [healthCheckLoadingMap, setHealthCheckLoadingMap] = useState<Record<string, boolean>>({});
-  const [qualityDiagnosticReport, setQualityDiagnosticReport] =
-    useState<QualityDiagnosticReport | null>(null);
-  const [dataQualityReport, setDataQualityReport] = useState<DataQualityReport | null>(null);
-
-  // Webhook 签名测试状态
-  const [selectedWebhookId, setSelectedWebhookId] = useState<string>("");
-  const [webhookTestPayload, setWebhookTestPayload] = useState<string>("");
-  const [testResultSummary, setTestResultSummary] = useState<WebhookSignatureTestResult | null>(
-    null,
-  );
-  const [testLogLoading, setTestLogLoading] = useState<boolean>(false);
-
-  // 表单 Form 定义
-  const [originForm] = Form.useForm();
-  const [tokenForm] = Form.useForm();
-  const [adapterForm] = Form.useForm();
-  const [webhookForm] = Form.useForm();
-
-  // 仅展示后端真实数据；无数据走空态，不用写死兜底冒充已接入。
-  const displayOrigins = apiOrigins ?? [];
-  const displayAdapters = apiAdapters ?? [];
-  const displayWebhooks = apiWebhooks ?? [];
-  const displayLogs = apiLogsData?.items ?? [];
-  const displayLogsTotal = apiLogsData?.total ?? 0;
-  const adapterTotal = adapterHubStatus?.totalAdapters ?? displayAdapters.length;
+  const adapters = adaptersQuery.data ?? [];
+  const status = statusQuery.data;
+  const logs = logsQuery.data?.items ?? [];
+  const onboardings = onboardingsQuery.data ?? [];
+  const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
-    adapterHubStatus?.healthyAdapters ??
-    displayAdapters.filter((adapter) => adapter.healthStatus === "HEALTHY").length;
+    status?.healthyAdapters ??
+    adapters.filter((adapter) => adapter.healthStatus === "HEALTHY").length;
   const notConnectedAdapters =
-    adapterHubStatus?.notConnectedAdapters ??
-    displayAdapters.filter((adapter) => adapter.healthStatus === "NOT_CONNECTED").length;
-  const mappedAdapters = adapterHubStatus?.mappedAdapters ?? 0;
-  const mappingRate = adapterTotal === 0 ? 0 : Math.round((mappedAdapters / adapterTotal) * 100);
+    status?.notConnectedAdapters ??
+    adapters.filter((adapter) => adapter.healthStatus === "NOT_CONNECTED").length;
+  const mappedAdapters = status?.mappedAdapters ?? 0;
+  const deadLetterCount = logs.filter((log) => log.status === "DEAD_LETTER").length;
+  const failedCount = logs.filter((log) => log.status === "FAILED").length;
+  const mappingRate = percent(mappedAdapters, totalAdapters);
+  const healthRate = percent(healthyAdapters, totalAdapters);
 
-  // 3. 监听跨域通信
-  useEffect(() => {
-    const handleIframeMessage = (event: MessageEvent) => {
-      if (isEmbedMessageData(event.data)) {
-        const payload = event.data;
-        setPostMessageLogs((prev) => [payload, ...prev]);
+  const pageState = pageStateFor({
+    canAccess,
+    securityLoading: security.isLoading,
+    adaptersLoading: adaptersQuery.isLoading,
+    adaptersError: adaptersQuery.isError,
+    partialError: statusQuery.isError || logsQuery.isError || onboardingsQuery.isError,
+    adapters,
+    onboardings,
+  });
 
-        if (payload.action === "ADOPT") {
-          message.success("已收到嵌入页面采纳反馈。");
-          setEmbedEventNotes((prev) => ["已收到采纳反馈；医嘱处理仍以院方系统为准。", ...prev]);
-        } else if (payload.action === "REJECT") {
-          const reason = String(payload.reason ?? "未提供拒绝理由");
-          message.warning(`已收到嵌入页面拒绝反馈：${reason}`);
-          setEmbedEventNotes((prev) => [`已收到拒绝反馈：${reason}`, ...prev]);
-        }
-      }
-    };
-
-    window.addEventListener("message", handleIframeMessage);
-    return () => {
-      window.removeEventListener("message", handleIframeMessage);
-    };
-  }, []);
-
-  // 4. 动作执行（跨域白名单与 Token 签发）
-  const handleAddOrigin = async () => {
-    let values;
-    try {
-      values = await originForm.validateFields();
-    } catch {
-      return; // 表单校验错误已在控件上提示
-    }
-    try {
-      await addOriginMutation.mutateAsync({ origin: values.origin });
-      message.success("跨域安全域名配置成功！");
-      setOriginFormVisible(false);
-      originForm.resetFields();
-      refetchOrigins();
-    } catch (error: unknown) {
-      if (applyApiFieldErrors(originForm, error)) return;
-      message.error(getApiErrorMessage(error, "跨域安全域名配置失败，请稍后重试"));
-    }
-  };
-
-  const handleGenerateToken = async () => {
-    try {
-      const values = await tokenForm.validateFields();
-      const res = await generateTokenMutation.mutateAsync({
-        userId: values.userId,
-        roleCode: values.roleCode,
-        patientId: values.patientId,
-        encounterId: values.encounterId,
-        triggerPoint: values.triggerPoint,
-        expireSeconds: 600,
-      });
-
-      if (res?.token) {
-        setSandboxToken(res.token);
-        setSandboxUrl(`${window.location.origin}${res.embedUrl}`);
-        setSandboxVisible(true);
-        setPostMessageLogs([]);
-      }
-    } catch (error: unknown) {
-      if (applyApiFieldErrors(tokenForm, error)) return;
-      message.error(
-        getApiErrorMessage(error, "生成 Launch Token 失败，请稍后重试或确认嵌入服务已就绪"),
-      );
-    }
-  };
-
-  // 5. 适配器生命周期操作
-  const handleCreateAdapter = async () => {
+  async function handleCreateAdapter() {
     try {
       const values = await adapterForm.validateFields();
       await createAdapterMutation.mutateAsync(values);
-      message.success("异构适配器配置成功！");
-      setAdapterModalVisible(false);
+      message.success("适配器已提交到接入总线。");
+      setAdapterModalOpen(false);
       adapterForm.resetFields();
-      refetchAdapters();
-      refetchAdapterHubStatus();
+      void adaptersQuery.refetch();
+      void statusQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(adapterForm, error)) return;
-      message.error(getApiErrorMessage(error, "配置适配器失败，请检查参数"));
+      message.error(getApiErrorMessage(error, "创建适配器失败，请检查参数"));
     }
-  };
+  }
 
-  const handleCheckAdapterHealth = async (adapterId: string) => {
-    setHealthCheckLoadingMap((prev) => ({ ...prev, [adapterId]: true }));
+  async function handleToggleAdapterStatus(adapter: IntegrationAdapter) {
     try {
-      const res = await healthCheckMutation.mutateAsync(adapterId);
-      // 仅展示后端真实健康检查结果，不从 configJson 反解伪造体检报告。
-      setQualityDiagnosticReport({
-        adapterId: res.adapterId,
-        healthStatus: res.healthStatus,
-        rttMs: res.rttMs,
-        lastHeartbeatAt: res.lastHeartbeatAt,
-      });
-      if (res.healthStatus === "MISCONFIGURED") {
-        message.error(`适配器 [${adapterId}] 配置非法 (MISCONFIGURED)，请修正 configJson 后重试`);
-      } else {
-        message.info(`适配器 [${adapterId}] 配置校验通过；当前外部连通性为 NOT_CONNECTED`);
-      }
-      refetchAdapters();
-      refetchAdapterHubStatus();
-    } catch (error: unknown) {
-      const errMsg = getApiErrorMessage(error, "健康检查请求失败，请稍后重试");
-      setQualityDiagnosticReport({
-        adapterId,
-        healthStatus: "ERROR",
-        rttMs: null,
-        errorMessage: errMsg,
-      });
-      message.error(`[健康检查失败] ${adapterId}：${errMsg}`);
-    } finally {
-      setHealthCheckLoadingMap((prev) => ({ ...prev, [adapterId]: false }));
-    }
-  };
-
-  const handleToggleAdapterStatus = async (adapter: IntegrationAdapter) => {
-    try {
-      const newStatus = adapter.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
       await updateAdapterMutation.mutateAsync({
         adapterId: adapter.adapterId,
         payload: {
           name: adapter.name,
           protocolType: adapter.protocolType,
           configJson: adapter.configJson,
-          status: newStatus,
+          status: adapter.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
         },
       });
-      message.success(`适配器状态已变更为: ${newStatus}`);
-      refetchAdapters();
-      refetchAdapterHubStatus();
+      message.success("适配器状态已更新。");
+      void adaptersQuery.refetch();
+      void statusQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "切换适配器状态失败，请稍后重试"));
+      message.error(getApiErrorMessage(error, "更新适配器状态失败"));
     }
-  };
+  }
 
-  const handleGenerateDataQualityReport = async () => {
+  async function handleCheckAdapterHealth(adapterId: string) {
     try {
-      const report = await generateDataQualityReportMutation.mutateAsync();
-      setDataQualityReport(report);
-      refetchAdapterHubStatus();
-      message.success("数据质量报告快照已生成。");
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "生成数据质量报告失败，请稍后重试"));
-    }
-  };
-
-  // 6. Webhook 配置与签名测试
-  const handleCreateWebhook = async () => {
-    try {
-      const values = await webhookForm.validateFields();
-      await createWebhookMutation.mutateAsync(values);
-      message.success("Webhook 订阅成功，已强随机生成 128 位数字签名密钥！");
-      setWebhookModalVisible(false);
-      webhookForm.resetFields();
-      refetchWebhooks();
-    } catch (error: unknown) {
-      if (applyApiFieldErrors(webhookForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建 Webhook 订阅失败"));
-    }
-  };
-
-  const handleTestWebhookSignature = async () => {
-    if (!selectedWebhookId) {
-      message.warning("请先在左侧选择需要测试的 Webhook 订阅通道！");
-      return;
-    }
-    const payload = webhookTestPayload.trim();
-    if (!payload) {
-      message.warning("请粘贴真实脱敏 Webhook 报文后再发起签名测试。");
-      return;
-    }
-    try {
-      JSON.parse(payload);
-    } catch {
-      message.error("Webhook 报文必须是合法 JSON。");
-      return;
-    }
-    setTestLogLoading(true);
-    try {
-      const res = await testWebhookSigMutation.mutateAsync({
-        webhookId: selectedWebhookId,
-        payload,
-      });
-      setTestResultSummary(res);
-      message.success("HMAC-SHA256 签名双向安全校准握手测试成功！");
-    } catch (error: unknown) {
-      message.error(
-        getApiErrorMessage(error, "Webhook 签名测试失败，请确认订阅通道存在且报文为合法 JSON"),
-      );
-    } finally {
-      setTestLogLoading(false);
-    }
-  };
-
-  // 7. 死信重试操作
-  const handleRetryMessage = async (messageId: string) => {
-    try {
-      const res = await retryMessageMutation.mutateAsync(messageId);
-      if (res.status === "SUCCESS") {
-        message.success(`消息 [${messageId}] 手动重投成功！`);
+      const result = await healthCheckMutation.mutateAsync(adapterId);
+      setHealthResult(result);
+      void adaptersQuery.refetch();
+      void statusQuery.refetch();
+      if (result.healthStatus === "HEALTHY") {
+        message.success("健康检查完成。");
       } else {
-        message.warning(`重新投递失败，状态: ${res.status}`);
+        message.info("外部连通性未知或不可用，已按真实状态展示。");
       }
-      refetchLogs();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, `消息 [${messageId}] 重试失败，请稍后重试`));
+      message.error(getApiErrorMessage(error, "健康检查失败"));
     }
-  };
+  }
 
-  const handleReplayDeadLetter = async (messageId: string) => {
+  async function handleGenerateQualityReport() {
     try {
-      const res = await replayDeadLetterMutation.mutateAsync(messageId);
-      message.warning(`死信已重放为补偿消息，当前状态: ${res.status}`);
-      refetchLogs();
+      const report = await qualityReportMutation.mutateAsync();
+      setQualityReport(report);
+      void statusQuery.refetch();
+      message.success("数据质量报告已生成。");
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "死信重放失败，请确认状态为 DEAD_LETTER"));
+      message.error(getApiErrorMessage(error, "生成质量报告失败"));
     }
-  };
+  }
 
-  // 客户端仅导出当前页可见交易流水，不伪造成后端签名存证。
-  const handleExportLogsCertificate = () => {
-    if (displayLogs.length === 0) {
-      message.info("当前没有可导出的交易流水记录。");
-      return;
+  async function handleRetryMessage(messageId: string) {
+    try {
+      await retryMessageMutation.mutateAsync(messageId);
+      message.success("已提交重试请求。");
+      void logsQuery.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "重试失败"));
     }
-    const blob = new Blob([JSON.stringify(displayLogs, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `integration-message-logs-${Date.now()}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    message.success("已导出当前页交易流水快照；正式签名存证以服务端导出能力为准。");
-  };
+  }
+
+  async function handleReplayDeadLetter(messageId: string) {
+    try {
+      await replayDeadLetterMutation.mutateAsync(messageId);
+      message.success("已提交死信重放请求。");
+      void logsQuery.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "死信重放失败"));
+    }
+  }
+
+  async function handleCreateOnboarding() {
+    try {
+      const values = await onboardingForm.validateFields();
+      await createOnboardingMutation.mutateAsync(values);
+      message.success("接入申请已创建。");
+      setOnboardingModalOpen(false);
+      onboardingForm.resetFields();
+      void onboardingsQuery.refetch();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(onboardingForm, error)) return;
+      message.error(getApiErrorMessage(error, "创建接入申请失败"));
+    }
+  }
+
+  async function handleAdvanceOnboarding(onboarding: IntegrationOnboarding) {
+    try {
+      await advanceOnboardingMutation.mutateAsync({
+        onboardingId: onboarding.onboardingId,
+        targetStatus: "ONLINE",
+        evidenceText: adapterEvidenceText(onboarding),
+      });
+      message.success("接入阶段推进请求已提交。");
+      void onboardingsQuery.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "推进接入阶段失败"));
+    }
+  }
+
+  const adapterColumns: ColumnsType<IntegrationAdapter> = [
+    {
+      title: "系统与适配器",
+      key: "name",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          <Text className={styles.identifier}>{record.adapterId}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "协议",
+      dataIndex: "protocolType",
+      key: "protocolType",
+      render: (value) => <Tag color="blue">{value}</Tag>,
+    },
+    {
+      title: "健康状态",
+      dataIndex: "healthStatus",
+      key: "healthStatus",
+      render: (value) => healthTag(String(value)),
+    },
+    {
+      title: "RTT",
+      dataIndex: "rttMs",
+      key: "rttMs",
+      render: (value) => <Text>{Number(value) > 0 ? `${value}ms` : "未测量"}</Text>,
+    },
+    {
+      title: "运行状态",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => (
+        <Tag color={ADAPTER_STATUS_COLOR[String(value)] ?? "default"}>
+          {value === "ACTIVE" ? "启用中" : "已挂起"}
+        </Tag>
+      ),
+    },
+    {
+      title: "最近探活",
+      dataIndex: "lastHeartbeatAt",
+      key: "lastHeartbeatAt",
+      render: (value) => (
+        <Text type="secondary">{value ? new Date(String(value)).toLocaleString() : "暂无"}</Text>
+      ),
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, record) => (
+        <Space wrap>
+          <Button
+            icon={<HeartOutlined aria-hidden="true" />}
+            loading={healthCheckMutation.isPending}
+            disabled={!canExecute}
+            onClick={() => handleCheckAdapterHealth(record.adapterId)}
+          >
+            健康诊断
+          </Button>
+          <Button
+            danger={record.status === "ACTIVE"}
+            disabled={!canWrite}
+            onClick={() => handleToggleAdapterStatus(record)}
+          >
+            {record.status === "ACTIVE" ? "挂起" : "激活"}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const logColumns: ColumnsType<IntegrationMessageLog> = [
+    {
+      title: "消息与 trace",
+      key: "messageId",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.messageId}</Text>
+          <Text className={styles.identifier}>{record.traceId}</Text>
+        </Space>
+      ),
+    },
+    { title: "系统", dataIndex: "systemName", key: "systemName" },
+    { title: "方向", dataIndex: "direction", key: "direction" },
+    { title: "摘要", dataIndex: "payloadSummary", key: "payloadSummary" },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => <Tag color={LOG_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+    },
+    {
+      title: "重试",
+      key: "retry",
+      render: (_, record) => (
+        <Text>
+          {record.retryCount}/{record.maxRetries}
+        </Text>
+      ),
+    },
+    {
+      title: "错误",
+      dataIndex: "errorMessage",
+      key: "errorMessage",
+      render: (value) => <Text type="secondary">{value || "无"}</Text>,
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, record) => {
+        const isDeadLetter = record.status === "DEAD_LETTER";
+        const isSuccess = record.status === "SUCCESS";
+        return (
+          <Space wrap>
+            <Button
+              icon={<ReloadOutlined aria-hidden="true" />}
+              aria-label="重试"
+              disabled={!canExecute || isSuccess || isDeadLetter}
+              onClick={() => handleRetryMessage(record.messageId)}
+            >
+              重试
+            </Button>
+            <Button
+              aria-label="重放"
+              disabled={!canExecute || !isDeadLetter}
+              onClick={() => handleReplayDeadLetter(record.messageId)}
+            >
+              重放
+            </Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
+  const onboardingColumns: ColumnsType<IntegrationOnboarding> = [
+    {
+      title: "接入申请",
+      key: "name",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          <Text className={styles.identifier}>{record.onboardingId}</Text>
+        </Space>
+      ),
+    },
+    { title: "来源系统", dataIndex: "sourceSystem", key: "sourceSystem" },
+    { title: "业务场景", dataIndex: "businessScenario", key: "businessScenario" },
+    {
+      title: "阶段",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => (
+        <Tag color={ONBOARDING_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>
+      ),
+    },
+    {
+      title: "健康 / 映射",
+      key: "quality",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          {healthTag(record.healthStatus)}
+          <Text type="secondary">字段映射 {record.mappedFieldCount} 项</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "阻塞项",
+      key: "blockers",
+      render: (_, record) =>
+        record.blockers.length === 0 ? (
+          <Text type="secondary">无</Text>
+        ) : (
+          <ul className={styles.gapList}>
+            {record.blockers.map((blocker) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+        ),
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, record) => (
+        <Button
+          disabled={!canExecute || record.status === "ONLINE" || record.blockers.length > 0}
+          onClick={() => handleAdvanceOnboarding(record)}
+        >
+          推进到上线
+        </Button>
+      ),
+    },
+  ];
+
+  const fieldMappingItems = status?.sources ?? [];
 
   return (
-    <PageShell
-      title="第三方对接总线与页面集成"
-      description="管理院内异构系统接入。支持适配器生命周期、Webhook 签名校验、死信重试队列、嵌入页免登联调和数据质量报告。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={profile}
+      expertMode={expertMode}
+      onExpertModeChange={setExpertMode}
+      primary={
+        <Button
+          type="primary"
+          icon={<PlusOutlined aria-hidden="true" />}
+          disabled={!canWrite}
+          onClick={() => setAdapterModalOpen(true)}
+        >
+          新增适配器
+        </Button>
+      }
+      extras={
+        <Button
+          icon={<FileProtectOutlined aria-hidden="true" />}
+          loading={qualityReportMutation.isPending}
+          disabled={!canExecute}
+          onClick={handleGenerateQualityReport}
+        >
+          生成质量报告
+        </Button>
+      }
     >
-      {/* 顶部简易 Metric 状态大盘 */}
-      <Row gutter={16} className="mb-6">
-        <Col span={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
-            <Statistic
-              title="已注册适配器数"
-              value={adapterTotal}
-              prefix={<ApiOutlined className="text-sky-500 mr-1.5" />}
-              valueStyle={{ color: token.colorPrimary }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
-            <Statistic
-              title="真实连通率 (HEALTHY)"
-              value={adapterTotal === 0 ? 0 : Math.round((healthyAdapters / adapterTotal) * 100)}
-              suffix="%"
-              prefix={<CheckCircleOutlined className="text-emerald-500 mr-1.5" />}
-              valueStyle={{ color: token.colorSuccess }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
-            <Statistic
-              title="断连适配器"
-              value={notConnectedAdapters}
-              prefix={<DisconnectOutlined className="text-amber-500 mr-1.5" />}
-              valueStyle={{ color: token.colorWarning }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
-            <Statistic
-              title="字段映射覆盖"
-              value={mappingRate}
-              suffix="%"
-              prefix={<SafetyCertificateOutlined className="text-purple-500 mr-1.5" />}
-              valueStyle={{ color: "var(--ant-purple-6)" }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <PageState
+        state={pageState}
+        title={pageStateTitle(pageState)}
+        traceId={getErrorTrace(adaptersQuery.error)}
+        successCount={pageState === "partial" ? adapters.length : undefined}
+        failureCount={pageState === "partial" ? 1 : undefined}
+        failureDetails={
+          pageState === "partial"
+            ? [
+                {
+                  key: "集成附属数据",
+                  reason: "适配器主列表已可用，但健康汇总、日志或接入申请有来源失败",
+                  retryable: true,
+                },
+              ]
+            : []
+        }
+        onRetry={() => {
+          void adaptersQuery.refetch();
+          void statusQuery.refetch();
+          void logsQuery.refetch();
+          void onboardingsQuery.refetch();
+        }}
+      >
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          <div className={styles.summaryGrid}>
+            <Card className={styles.summaryCard}>
+              <Statistic title="已登记适配器" value={totalAdapters} prefix={<ApiOutlined />} />
+            </Card>
+            <Card className={styles.summaryCard}>
+              <Statistic
+                title="真实连通率"
+                value={healthRate}
+                suffix="%"
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+            <Card className={styles.summaryCard}>
+              <Statistic
+                title="NOT_CONNECTED"
+                value={notConnectedAdapters}
+                prefix={<DisconnectOutlined />}
+              />
+            </Card>
+            <Card className={styles.summaryCard}>
+              <Statistic
+                title="字段映射覆盖"
+                value={mappingRate}
+                suffix="%"
+                prefix={<SafetyCertificateOutlined />}
+              />
+            </Card>
+          </div>
 
-      {/* 核心多 Tab 功能页签 */}
-      <Card bordered={false} className="shadow-sm rounded-2xl">
-        <Tabs
-          defaultActiveKey="adapters"
-          items={[
-            {
-              key: "adapters",
-              label: (
-                <span className="flex items-center gap-1.5 text-xs">
-                  <ApiOutlined />
-                  <span>适配器生命周期管理</span>
-                </span>
+          <StepFlow
+            currentStep="impact_preview"
+            panelByStep={{
+              impact_preview: (
+                <Space direction="vertical" size="small">
+                  <Text strong>适配器接入 7 步流</Text>
+                  <Text type="secondary">
+                    适配器属于配置类资产，必须按“选模板/导入 → 自动校验 → 看影响 → 提交审核 →
+                    灰度发布 → 全量 → 留证据/可回滚”留证。
+                  </Text>
+                  <Text type="secondary">
+                    当前重点看影响：断连、字段映射缺口、死信和数据质量缺口都会阻止把状态伪装成健康。
+                  </Text>
+                </Space>
               ),
-              children: (
-                <div className="flex flex-col gap-4">
-                  <div className="flex justify-between items-center">
+            }}
+          />
+
+          {healthResult && (
+            <Alert
+              type={healthResult.healthStatus === "HEALTHY" ? "success" : "info"}
+              showIcon
+              message={healthResult.healthStatus === "HEALTHY" ? "健康检查完成" : "外部连通性未知"}
+              description={`适配器 ${healthResult.adapterId} 返回 ${healthResult.healthStatus}，RTT ${
+                healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
+              }。页面仅展示后端真实状态。`}
+            />
+          )}
+
+          {qualityReport && <QualityReportCard report={qualityReport} />}
+
+          <Tabs
+            defaultActiveKey="adapters"
+            items={[
+              {
+                key: "adapters",
+                label: "适配器目录",
+                children: (
+                  <div className={styles.sectionStack}>
                     <Alert
                       type="info"
                       showIcon
-                      message="系统级适配器连接诊断"
-                      description="通过配置各异构适配器接入 HIS/EMR 等实时数据，支持一键健康检查与诚实断连标记。"
-                      className="w-3/4 rounded-lg text-xs"
+                      message="断连不伪造"
+                      description="外部系统未接入真实连接器时保持 NOT_CONNECTED；配置非法显示 MISCONFIGURED，不用本地规则猜测 HEALTHY。"
                     />
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => setAdapterModalVisible(true)}
-                      className="bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-md"
-                    >
-                      新建适配器
-                    </Button>
+                    <Table
+                      rowKey="adapterId"
+                      columns={adapterColumns}
+                      dataSource={adapters}
+                      pagination={false}
+                      scroll={{ x: 900 }}
+                    />
+                    <FieldMappingPanel items={fieldMappingItems} />
                   </div>
-
-                  <Table
-                    dataSource={displayAdapters.map((a) => ({ ...a, key: a.adapterId }))}
-                    loading={loadingAdapters}
-                    pagination={false}
-                    columns={[
-                      {
-                        title: "适配器标识/系统名",
-                        key: "name",
-                        render: (_, record) => (
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-slate-800 text-xs">
-                              {record.name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              {record.adapterId}
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        title: "接入协议",
-                        dataIndex: "protocolType",
-                        key: "protocolType",
-                        render: (type) => (
-                          <Tag color="blue" className="font-normal m-0 text-[10px]">
-                            {type}
-                          </Tag>
-                        ),
-                      },
-                      {
-                        title: "健康状态",
-                        key: "healthStatus",
-                        render: (_, record) => {
-                          const statusMap: Record<
-                            string,
-                            "success" | "error" | "default" | "warning"
-                          > = {
-                            HEALTHY: "success",
-                            NOT_CONNECTED: "default",
-                            MISCONFIGURED: "error",
-                            UNHEALTHY: "error",
-                          };
-                          return (
-                            <Badge
-                              status={statusMap[record.healthStatus] ?? "default"}
-                              text={record.healthStatus}
-                              className="font-normal text-xs"
-                            />
-                          );
-                        },
-                      },
-                      {
-                        title: "真实探活延迟",
-                        dataIndex: "rttMs",
-                        key: "rttMs",
-                        render: (rtt) => (
-                          <span className="font-normal text-xs">{rtt ? `${rtt}ms` : "—"}</span>
-                        ),
-                      },
-                      {
-                        title: "运行状态",
-                        dataIndex: "status",
-                        key: "status",
-                        render: (status) => (
-                          <Tag color={status === "ACTIVE" ? "green" : "red"}>
-                            {status === "ACTIVE" ? "启用中" : "已挂起"}
-                          </Tag>
-                        ),
-                      },
-                      {
-                        title: "最近健康检查",
-                        dataIndex: "lastHeartbeatAt",
-                        key: "lastHeartbeatAt",
-                        render: (t) => (
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {t ? new Date(t).toLocaleString() : "暂无"}
-                          </span>
-                        ),
-                      },
-                      {
-                        title: "健康操作",
-                        key: "actions",
-                        render: (_, record) => (
-                          <Space size="middle">
-                            <Button
-                              size="small"
-                              icon={<HeartOutlined />}
-                              loading={healthCheckLoadingMap[record.adapterId]}
-                              onClick={() => handleCheckAdapterHealth(record.adapterId)}
-                              className="hover:border-sky-500 hover:text-sky-500"
-                            >
-                              健康诊断
-                            </Button>
-                            <Button
-                              size="small"
-                              danger={record.status === "ACTIVE"}
-                              onClick={() => handleToggleAdapterStatus(record)}
-                              className="text-xs"
-                            >
-                              {record.status === "ACTIVE" ? "挂起" : "激活"}
-                            </Button>
-                          </Space>
-                        ),
-                      },
-                    ]}
-                  />
-
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-slate-800">
-                          数据质量报告快照
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          必填字段、字段映射和连通核查时效均来自后端当前租户事实。
-                        </span>
-                      </div>
-                      <Button
-                        size="small"
-                        icon={<FileProtectOutlined />}
-                        loading={generateDataQualityReportMutation.isPending}
-                        onClick={handleGenerateDataQualityReport}
-                      >
-                        生成报告
-                      </Button>
+                ),
+              },
+              {
+                key: "dead-letter",
+                label: "死信重放",
+                children: (
+                  <div className={styles.sectionStack}>
+                    <div className={styles.toolbar}>
+                      <Text type="secondary">
+                        失败 {failedCount} 条，死信 {deadLetterCount}{" "}
+                        条；重放会创建补偿消息，原始证据保留。
+                      </Text>
                     </div>
-
-                    {dataQualityReport ? (
-                      <Descriptions size="small" column={4} className="mt-3">
-                        <Descriptions.Item label="必填率">
-                          <span className="text-xs">{dataQualityReport.requiredFieldRate}%</span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="映射率">
-                          <span className="text-xs">{dataQualityReport.mappingRate}%</span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="时效率">
-                          <span className="text-xs">{dataQualityReport.timelinessRate}%</span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="报告ID">
-                          <span className="text-xs select-all">{dataQualityReport.reportId}</span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="缺口摘要" span={4}>
-                          <span className="text-xs text-slate-600">
-                            {dataQualityReport.gapSummary}
-                          </span>
-                        </Descriptions.Item>
-                      </Descriptions>
+                    <Table
+                      rowKey="messageId"
+                      columns={logColumns}
+                      dataSource={logs}
+                      loading={logsQuery.isLoading}
+                      pagination={{
+                        current: logPage,
+                        pageSize: LOG_PAGE_SIZE,
+                        total: logsQuery.data?.total ?? 0,
+                        onChange: setLogPage,
+                      }}
+                      scroll={{ x: 900 }}
+                    />
+                  </div>
+                ),
+              },
+              {
+                key: "quality",
+                label: "数据质量看板",
+                children: (
+                  <div className={styles.sectionStack}>
+                    {qualityReport ? (
+                      <QualityReportCard report={qualityReport} />
                     ) : (
                       <Alert
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        className="mt-3 rounded-lg text-xs"
+                        description="点击页面右上角“生成质量报告”，后端会基于当前租户适配器、字段映射和探活事实生成快照。"
                       />
                     )}
+                    <div className={styles.qualityGrid}>
+                      <MetricCard title="未连接" value={status?.notConnectedAdapters ?? 0} />
+                      <MetricCard title="配置非法" value={status?.misconfiguredAdapters ?? 0} />
+                      <MetricCard title="字段映射覆盖" value={mappingRate} suffix="%" />
+                    </div>
                   </div>
-
-                  {/* 适配器健康检查结果（仅展示后端真实返回，不伪造体检指标） */}
-                  {qualityDiagnosticReport && (
-                    <Card
-                      title={
-                        <span className="flex items-center gap-1.5 text-xs text-sky-600 font-semibold">
-                          <CompassOutlined />
-                          <span>适配器健康检查结果</span>
-                        </span>
-                      }
-                      className={getDiagnosticCardClassName(qualityDiagnosticReport)}
-                      size="small"
-                    >
-                      <Descriptions size="small" column={3}>
-                        <Descriptions.Item label="适配器">
-                          <span className="font-normal text-xs">
-                            {qualityDiagnosticReport.adapterId}
-                          </span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="健康状态">
-                          <Tag
-                            color={getHealthTagColor(qualityDiagnosticReport.healthStatus)}
-                            className="font-bold"
-                          >
-                            {qualityDiagnosticReport.healthStatus}
-                          </Tag>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="网络 RTT">
-                          <span className="font-normal text-xs">
-                            {qualityDiagnosticReport.rttMs
-                              ? `${qualityDiagnosticReport.rttMs}ms`
-                              : "未测量"}
-                          </span>
-                        </Descriptions.Item>
-                      </Descriptions>
-                      {renderDiagnosticAlert(qualityDiagnosticReport)}
-                    </Card>
-                  )}
-                </div>
-              ),
-            },
-
-            {
-              key: "webhooks",
-              label: (
-                <span className="flex items-center gap-1.5 text-xs">
-                  <LockOutlined />
-                  <span>Webhook 回调订阅安全自研沙箱</span>
-                </span>
-              ),
-              children: (
-                <Row gutter={16}>
-                  <Col span={10}>
-                    <Card
-                      title={
-                        <div className="flex justify-between items-center w-full">
-                          <span className="text-xs font-semibold">Webhook 接收端订阅管理</span>
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => setWebhookModalVisible(true)}
-                            className="bg-sky-600 border-sky-600 hover:bg-sky-700"
-                          >
-                            新增回调订阅
-                          </Button>
-                        </div>
-                      }
-                      className="rounded-xl border-slate-200"
-                      size="small"
-                    >
-                      <List
-                        dataSource={displayWebhooks}
-                        renderItem={(item) => (
-                          <List.Item
-                            actions={[
-                              <Button
-                                type="link"
-                                size="small"
-                                onClick={() => setSelectedWebhookId(item.webhookId)}
-                                className="text-xs"
-                              >
-                                测试握手
-                              </Button>,
-                            ]}
-                          >
-                            <List.Item.Meta
-                              title={
-                                <span className="text-xs font-bold text-slate-800">
-                                  {item.name}
-                                </span>
-                              }
-                              description={
-                                <div className="flex flex-col gap-1 text-[10px] text-slate-400">
-                                  <span className="font-normal select-all">
-                                    地址: {item.callbackUrl}
-                                  </span>
-                                  <span>
-                                    事件:{" "}
-                                    <Tag className="m-0 py-0 px-1 text-[9px]" color="purple">
-                                      {item.eventsSubscribed}
-                                    </Tag>
-                                  </span>
-                                  <span className="font-normal select-all text-amber-600">
-                                    密钥: {item.secretKey}
-                                  </span>
-                                </div>
-                              }
-                            />
-                          </List.Item>
-                        )}
-                      />
-                    </Card>
-                  </Col>
-
-                  <Col span={14}>
-                    <Card
-                      title={
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-sky-600">
-                          <CodeOutlined />
-                          <span>HMAC-SHA256 签名双向自校准测试终端</span>
-                        </span>
-                      }
-                      className="rounded-xl border-slate-200 bg-slate-50"
-                      size="small"
-                    >
-                      <Space direction="vertical" className="w-full" size="middle">
-                        <div>
-                          <span className="text-slate-600 text-xs mr-2 font-medium">
-                            选择目标配置:
-                          </span>
-                          <Select
-                            className="w-56"
-                            placeholder="请选择订阅通道"
-                            value={selectedWebhookId}
-                            onChange={(val) => setSelectedWebhookId(val)}
-                            size="small"
-                          >
-                            {displayWebhooks.map((item) => (
-                              <Option key={item.webhookId} value={item.webhookId}>
-                                {item.name}
-                              </Option>
-                            ))}
-                          </Select>
-                        </div>
-
-                        <div>
-                          <span className="block text-slate-600 text-xs mb-1 font-medium">
-                            输入真实脱敏通知报文 Payload (JSON):
-                          </span>
-                          <Input.TextArea
-                            rows={4}
-                            value={webhookTestPayload}
-                            onChange={(e) => setWebhookTestPayload(e.target.value)}
-                            placeholder="粘贴真实脱敏 Webhook 报文 JSON，不在页面内预置患者或就诊示例。"
-                            className="font-normal text-xs rounded-lg"
-                          />
-                        </div>
-
-                        <Button
-                          type="primary"
-                          icon={<CloudSyncOutlined />}
-                          loading={testLogLoading}
-                          onClick={handleTestWebhookSignature}
-                          className="bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-md text-xs"
-                        >
-                          发送通知并生成 HMAC-SHA256 安全签名
-                        </Button>
-
-                        {testResultSummary && (
-                          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-inner flex flex-col gap-2">
-                            <span className="font-semibold text-xs text-emerald-600 flex items-center gap-1">
-                              <CheckCircleOutlined />
-                              <span>签名生成与验证过程 (HMAC-SHA256 Pipeline)</span>
-                            </span>
-                            <div className="text-[10px] font-normal flex flex-col gap-1 text-slate-600">
-                              <div>
-                                <span className="font-bold text-slate-400">
-                                  共享密钥 (Secret Key):
-                                </span>{" "}
-                                {testResultSummary.secretKey}
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-400">
-                                  测试时间戳 (Timestamp Header):
-                                </span>{" "}
-                                {testResultSummary.timestamp}
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-400">
-                                  串联签名原文字段 (Timestamp + Payload):
-                                </span>
-                              </div>
-                              <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[9px] overflow-auto select-all max-h-20">
-                                {testResultSummary.payloadSigned}
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-400">
-                                  生成签名哈希结果 (X-MedKernel-Signature):
-                                </span>
-                              </div>
-                              <Tag
-                                color="cyan"
-                                className="text-[10px] font-normal select-all w-fit py-0.5 px-2"
-                              >
-                                {testResultSummary.signature}
-                              </Tag>
-                            </div>
-                            <Alert
-                              type="success"
-                              showIcon
-                              message="防伪签名验证成功"
-                              description="经 HMAC-SHA256 算法对称哈希校验，接收端与发送端数据内容指纹 100% 对齐。防篡改、防重放保护防御已生效！"
-                              className="mt-1 rounded-lg text-[10px] py-1"
-                            />
-                          </div>
-                        )}
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
-              ),
-            },
-
-            {
-              key: "logs",
-              label: (
-                <span className="flex items-center gap-1.5 text-xs">
-                  <ReloadOutlined />
-                  <span>重试死信与接口存证队列</span>
-                </span>
-              ),
-              children: (
-                <div className="flex flex-col gap-4">
-                  <div className="flex justify-between items-center">
-                    <Alert
-                      type="warning"
-                      showIcon
-                      message="死信队列与失败重试规则"
-                      description="数据总线交换发生失败时保留完整审计证据；断连标记为 NOT_CONNECTED，不阻断医生主流程，重试超限后进入 DEAD_LETTER，可人工重放为新的补偿消息。"
-                      className="w-3/4 rounded-lg text-xs"
-                    />
-                    <Button
-                      icon={<FileProtectOutlined />}
-                      onClick={handleExportLogsCertificate}
-                      className="hover:border-sky-500 hover:text-sky-500"
-                    >
-                      导出接口数据交换存证
-                    </Button>
-                  </div>
-
-                  <Table
-                    dataSource={displayLogs.map((l) => ({ ...l, key: l.messageId }))}
-                    loading={loadingLogs}
-                    pagination={{
-                      current: logPage,
-                      pageSize: 5,
-                      total: displayLogsTotal,
-                      onChange: (p) => setLogPage(p),
-                    }}
-                    columns={[
-                      {
-                        title: "消息ID/追踪 traceId",
-                        key: "messageId",
-                        render: (_, record) => (
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-slate-800 text-xs">
-                              {record.messageId}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              {record.traceId}
-                            </span>
-                          </div>
-                        ),
-                      },
-                      {
-                        title: "业务流向",
-                        dataIndex: "direction",
-                        key: "direction",
-                        render: (dir) => (
-                          <Tag color={dir === "INBOUND" ? "blue" : "purple"}>
-                            {dir === "INBOUND" ? "← Inbound (接收)" : "→ Outbound (发送)"}
-                          </Tag>
-                        ),
-                      },
-                      {
-                        title: "对接系统",
-                        dataIndex: "systemName",
-                        key: "systemName",
-                        render: (name) => (
-                          <span className="font-medium text-xs text-slate-700">{name}</span>
-                        ),
-                      },
-                      {
-                        title: "报文摘要",
-                        dataIndex: "payloadSummary",
-                        key: "payloadSummary",
-                        className: "font-normal text-xs",
-                      },
-                      {
-                        title: "重试控制门槛",
-                        key: "retry",
-                        render: (_, record) => (
-                          <span className="font-normal text-xs">
-                            {record.retryCount} / {record.maxRetries} 次
-                          </span>
-                        ),
-                      },
-                      {
-                        title: "总线诊断结果",
-                        key: "status",
-                        render: (_, record) => {
-                          let color = "green";
-                          if (record.status === "FAILED") color = "orange";
-                          if (record.status === "NOT_CONNECTED") color = "default";
-                          if (record.status === "DEAD_LETTER") color = "red";
-                          return (
-                            <Tag color={color} className="font-normal">
-                              {record.status}
-                            </Tag>
-                          );
-                        },
-                      },
-                      {
-                        title: "失败最近故障诊断",
-                        dataIndex: "errorMessage",
-                        key: "errorMessage",
-                        render: (err) => (
-                          <span
-                            className="text-[10px] text-red-500 font-sans block max-w-[200px] truncate"
-                            title={err || ""}
-                          >
-                            {err || "—"}
-                          </span>
-                        ),
-                      },
-                      {
-                        title: "存证操作项",
-                        key: "actions",
-                        render: (_, record) => {
-                          const isSuccess = record.status === "SUCCESS";
-                          const isDeadLetter = record.status === "DEAD_LETTER";
-                          return (
-                            <Space size="middle">
-                              <Button
-                                size="small"
-                                type="primary"
-                                icon={<ReloadOutlined />}
-                                disabled={isSuccess || isDeadLetter}
-                                onClick={() => handleRetryMessage(record.messageId)}
-                                className="bg-sky-600 border-sky-600 hover:bg-sky-700 text-xs rounded-md"
-                              >
-                                重试
-                              </Button>
-                              <Button
-                                size="small"
-                                icon={<PlayCircleOutlined />}
-                                disabled={!isDeadLetter}
-                                onClick={() => handleReplayDeadLetter(record.messageId)}
-                              >
-                                重放
-                              </Button>
-                            </Space>
-                          );
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-              ),
-            },
-
-            {
-              key: "sandbox",
-              label: (
-                <span className="flex items-center gap-1.5 text-xs">
-                  <PlayCircleOutlined />
-                  <span>HIS/EMR 免登嵌入联调 (Launch Token)</span>
-                </span>
-              ),
-              children: (
-                <Row gutter={16}>
-                  {/* 左侧配置 */}
-                  <Col span={9}>
-                    <Card
-                      title={
-                        <span className="text-xs font-semibold">
-                          一次性免登嵌入 Launch Token 生成器
-                        </span>
-                      }
-                      className="rounded-xl border-slate-200 bg-slate-50"
-                      size="small"
-                    >
-                      <Form form={tokenForm} layout="vertical">
-                        <Row gutter={12}>
-                          <Col span={12}>
-                            <Form.Item
-                              name="userId"
-                              label="医生工号 (User ID)"
-                              rules={[{ required: true }]}
-                            >
-                              <Input
-                                placeholder="输入真实医生工号"
-                                className="rounded-lg text-xs"
-                              />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              name="roleCode"
-                              label="岗位角色"
-                              rules={[{ required: true }]}
-                              initialValue="PHYSICIAN"
-                            >
-                              <Select className="rounded-lg text-xs">
-                                <Option value="PHYSICIAN">临床医生</Option>
-                                <Option value="NURSE">临床护士</Option>
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                        </Row>
-
-                        <Row gutter={12}>
-                          <Col span={12}>
-                            <Form.Item
-                              name="patientId"
-                              label="测试目标患者 ID"
-                              rules={[{ required: true }]}
-                            >
-                              <Input placeholder="输入真实患者 ID" className="rounded-lg text-xs" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              name="encounterId"
-                              label="就诊流水号"
-                              rules={[{ required: true }]}
-                            >
-                              <Input
-                                placeholder="输入真实就诊流水号"
-                                className="rounded-lg text-xs font-normal"
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-
-                        <Form.Item
-                          name="triggerPoint"
-                          label="页面嵌入触发时机"
-                          rules={[{ required: true }]}
-                          initialValue="OUTPATIENT_DIAGNOSIS"
-                        >
-                          <Select className="rounded-lg text-xs">
-                            <Option value="OUTPATIENT_DIAGNOSIS">
-                              门诊诊断下达时 (OUTPATIENT_DIAGNOSIS)
-                            </Option>
-                            <Option value="ADMISSION_CHECK">
-                              患者办完住院登记时 (ADMISSION_CHECK)
-                            </Option>
-                            <Option value="DISCHARGE_PLAN">
-                              开具出院小结随访时 (DISCHARGE_PLAN)
-                            </Option>
-                          </Select>
-                        </Form.Item>
-
-                        <Button
-                          type="primary"
-                          onClick={handleGenerateToken}
-                          icon={<PlayCircleOutlined />}
-                          className="bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-md w-full text-xs"
-                        >
-                          生成 60s 令牌并打开嵌入页
-                        </Button>
-                      </Form>
-                    </Card>
-
-                    {/* 跨域 Origin 域名管理 */}
-                    <Card
-                      title={
-                        <div className="flex justify-between items-center w-full">
-                          <span className="text-xs font-semibold">跨域 Origin 安全防护</span>
-                          <Button
-                            type="link"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => setOriginFormVisible(true)}
-                            className="text-xs"
-                          >
-                            安全防护
-                          </Button>
-                        </div>
-                      }
-                      className="rounded-xl border-slate-200 mt-4"
-                      size="small"
-                    >
-                      <Table
-                        dataSource={displayOrigins.map((orig, i) => ({ key: i, origin: orig }))}
-                        size="small"
-                        pagination={false}
-                        columns={[
-                          {
-                            title: "允许的跨域 Origin 域名地址",
-                            dataIndex: "origin",
-                            key: "origin",
-                            className: "font-normal text-[10px] text-slate-700",
-                          },
-                          {
-                            title: "防护状态",
-                            key: "status",
-                            render: () => (
-                              <Tag color="green" className="text-[9px]">
-                                防护中
-                              </Tag>
-                            ),
-                          },
-                        ]}
-                      />
-                    </Card>
-                  </Col>
-
-                  {/* 右侧嵌入联调 */}
-                  <Col span={15}>
-                    {sandboxVisible ? (
-                      <Card
-                        title={
-                          <span className="flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
-                            <LockOutlined />
-                            <span>核心住院医生工作站嵌入联调</span>
-                          </span>
-                        }
-                        className="border-amber-200 rounded-xl"
-                        size="small"
+                ),
+              },
+              {
+                key: "onboarding",
+                label: "接入向导",
+                children: (
+                  <div className={styles.sectionStack}>
+                    <div className={styles.toolbar}>
+                      <Text type="secondary">
+                        接入申请必须先完成鉴权、字段映射和健康检查，再由后端推进状态。
+                      </Text>
+                      <Button
+                        icon={<PlusOutlined aria-hidden="true" />}
+                        disabled={!canWrite}
+                        onClick={() => setOnboardingModalOpen(true)}
                       >
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Card
-                              className="bg-amber-50/30 border-amber-100 mb-4 rounded-xl"
-                              size="small"
-                            >
-                              <span className="font-bold text-xs text-slate-700 block mb-2">
-                                嵌入交互事件:
-                              </span>
-                              <List
-                                size="small"
-                                dataSource={embedEventNotes}
-                                renderItem={(item) => (
-                                  <List.Item className="py-1 px-0 text-[10px] text-slate-600">
-                                    {item}
-                                  </List.Item>
-                                )}
-                              />
-                            </Card>
-                          </Col>
+                        新增接入申请
+                      </Button>
+                    </div>
+                    <Table
+                      rowKey="onboardingId"
+                      columns={onboardingColumns}
+                      dataSource={onboardings}
+                      pagination={false}
+                      scroll={{ x: 900 }}
+                    />
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </Space>
+      </PageState>
 
-                          <Col span={12}>
-                            <Card
-                              className="bg-slate-900 border-slate-800 text-slate-200 mb-4 rounded-xl"
-                              size="small"
-                            >
-                              <span className="font-bold text-xs text-slate-400 block mb-2">
-                                跨域交互事件记录{sandboxToken ? "（令牌已生成）" : ""}:
-                              </span>
-                              <div className="max-h-24 overflow-y-auto font-normal text-[9px]">
-                                {postMessageLogs.length === 0 ? (
-                                  <span className="text-slate-500">
-                                    等待嵌入页面交互事件回传...
-                                  </span>
-                                ) : (
-                                  postMessageLogs.map((log, i) => (
-                                    <div key={i} className="mb-1 border-b border-slate-800 pb-1">
-                                      <div>接收事件：{String(log.action ?? "UNKNOWN")}</div>
-                                      {log.reason ? (
-                                        <div className="text-[8px] text-slate-400">
-                                          原因：{String(log.reason)}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </Card>
-                          </Col>
-                        </Row>
-
-                        <iframe
-                          src={sandboxUrl}
-                          title="HIS/EMR 嵌入联调页面"
-                          className="w-full h-80 rounded-xl border border-slate-200 shadow"
-                        />
-                      </Card>
-                    ) : (
-                      <Card className="bg-slate-50 border-slate-200 rounded-xl h-full min-h-[400px] flex items-center justify-center">
-                        <span className="text-slate-400 text-xs text-center block">
-                          请先在左侧输入就诊环境参数，
-                          <br />
-                          并点击“生成 60s 令牌”打开 HIS/EMR 嵌入联调页面。
-                        </span>
-                      </Card>
-                    )}
-                  </Col>
-                </Row>
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      {/* 新建适配器 Modal */}
       <Modal
-        title="在线配置异构接入适配器 (JPA / SOAP / REST / FHIR)"
-        open={adapterModalVisible}
+        title="新增适配器"
+        open={adapterModalOpen}
         onOk={handleCreateAdapter}
-        onCancel={() => setAdapterModalVisible(false)}
-        okText="确认创建"
+        onCancel={() => setAdapterModalOpen(false)}
+        okText="提交适配器"
         cancelText="取消"
-        className="rounded-2xl"
       >
-        <Form form={adapterForm} layout="vertical" className="mt-4">
-          <Form.Item
-            name="adapterId"
-            label="适配器系统唯一标识 (Adapter ID)"
-            rules={[{ required: true, message: "请输入适配器系统标识" }]}
-          >
-            <Input placeholder="请输入真实适配器系统标识" className="rounded-lg" />
+        <Form form={adapterForm} layout="vertical">
+          <Form.Item name="adapterId" label="适配器标识" rules={[{ required: true }]}>
+            <Input placeholder="输入真实适配器标识" />
           </Form.Item>
-
-          <Form.Item
-            name="name"
-            label="系统对接中文名称"
-            rules={[{ required: true, message: "请输入中文名称" }]}
-          >
-            <Input placeholder="请输入真实系统对接名称" className="rounded-lg" />
+          <Form.Item name="name" label="系统名称" rules={[{ required: true }]}>
+            <Input placeholder="输入院内系统名称" />
           </Form.Item>
-
           <Form.Item
             name="protocolType"
-            label="接入协议通信类型"
-            rules={[{ required: true }]}
+            label="接入协议"
             initialValue="REST"
-          >
-            <Select className="rounded-lg">
-              <Option value="HL7">HL7 / SOAP 协议</Option>
-              <Option value="FHIR">HL7 FHIR 标准资源</Option>
-              <Option value="Webhook">Webhook 回调拉取</Option>
-              <Option value="REST">REST API 主动检索</Option>
-              <Option value="WebService">WebService 传统接口</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item name="configJson" label="连接字段映射规则配置 JSON (Config JSON)">
-            <Input.TextArea
-              rows={4}
-              placeholder="请输入真实连接配置 JSON"
-              className="font-normal text-xs rounded-lg"
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 新建 Webhook Modal */}
-      <Modal
-        title="新增外部 Webhook 事件回调订阅"
-        open={webhookModalVisible}
-        onOk={handleCreateWebhook}
-        onCancel={() => setWebhookModalVisible(false)}
-        okText="确认订阅"
-        cancelText="取消"
-        className="rounded-2xl"
-      >
-        <Form form={webhookForm} layout="vertical" className="mt-4">
-          <Form.Item
-            name="webhookId"
-            label="Webhook 订阅唯一标识"
-            rules={[{ required: true, message: "请输入订阅标识" }]}
-          >
-            <Input placeholder="请输入真实订阅标识" className="rounded-lg" />
-          </Form.Item>
-
-          <Form.Item
-            name="name"
-            label="订阅通道中文名称"
-            rules={[{ required: true, message: "请输入订阅中文名称" }]}
-          >
-            <Input placeholder="请输入真实订阅通道名称" className="rounded-lg" />
-          </Form.Item>
-
-          <Form.Item
-            name="callbackUrl"
-            label="第三方回调 URL (Callback URL)"
-            rules={[
-              { required: true, message: "请输入回调 URL" },
-              {
-                pattern: /^https?:\/\/.*$/,
-                message: "请输入以 http:// 或 https:// 开头的合法地址",
-              },
-            ]}
-          >
-            <Input placeholder="请输入真实回调地址" className="rounded-lg font-normal" />
-          </Form.Item>
-
-          <Form.Item
-            name="eventsSubscribed"
-            label="订阅的临床场景触发点 (Events Subscribed)"
             rules={[{ required: true }]}
-            initialValue="OUTPATIENT_DIAGNOSIS"
           >
-            <Select className="rounded-lg">
-              <Option value="OUTPATIENT_DIAGNOSIS">门诊诊断下达时 (OUTPATIENT_DIAGNOSIS)</Option>
-              <Option value="ADMISSION_CHECK">患者办完住院登记时 (ADMISSION_CHECK)</Option>
-              <Option value="DISCHARGE_PLAN">开具出院小结随访时 (DISCHARGE_PLAN)</Option>
+            <Select>
+              <Option value="HIS">HIS</Option>
+              <Option value="EMR">EMR</Option>
+              <Option value="LIS">LIS</Option>
+              <Option value="PACS">PACS</Option>
+              <Option value="FHIR">FHIR</Option>
+              <Option value="REST">REST</Option>
             </Select>
+          </Form.Item>
+          <Form.Item name="configJson" label="连接与字段映射 JSON">
+            <Input.TextArea rows={4} placeholder="输入真实连接配置或字段映射 JSON" />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* 跨域 Origin 域名添加 Modal */}
       <Modal
-        title="添加跨域安全域名防护"
-        open={originFormVisible}
-        onOk={handleAddOrigin}
-        onCancel={() => setOriginFormVisible(false)}
-        okText="加入防护"
+        title="新增接入申请"
+        open={onboardingModalOpen}
+        onOk={handleCreateOnboarding}
+        onCancel={() => setOnboardingModalOpen(false)}
+        okText="提交申请"
         cancelText="取消"
-        className="rounded-2xl"
       >
-        <Form form={originForm} layout="vertical" className="mt-4">
+        <Form form={onboardingForm} layout="vertical">
+          <Form.Item name="onboardingId" label="接入申请标识" rules={[{ required: true }]}>
+            <Input placeholder="输入真实接入申请标识" />
+          </Form.Item>
+          <Form.Item name="name" label="接入申请名称" rules={[{ required: true }]}>
+            <Input placeholder="输入接入申请名称" />
+          </Form.Item>
           <Form.Item
-            name="origin"
-            label="允许跨域的 Origin 域名地址"
-            rules={[
-              { required: true, message: "域名地址必填" },
-              {
-                pattern: /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/,
-                message: "请输入合法的 http(s)://origin 格式，且末尾不带斜杠",
-              },
-            ]}
-            initialValue="http://test.hospital.local:9000"
+            name="accessMode"
+            label="接入模式"
+            initialValue="ADAPTER"
+            rules={[{ required: true }]}
           >
-            <Input
-              placeholder="如 http://his-system.local:8080"
-              className="rounded-lg font-normal"
-            />
+            <Select>
+              <Option value="ADAPTER">适配器</Option>
+              <Option value="FHIR">FHIR 门面</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="adapterId" label="绑定适配器标识">
+            <Input placeholder="适配器模式下填写" />
+          </Form.Item>
+          <Form.Item name="fhirVersion" label="FHIR 版本">
+            <Input placeholder="FHIR 模式下填写 R4 或 R5" />
+          </Form.Item>
+          <Form.Item name="sourceSystem" label="来源系统" rules={[{ required: true }]}>
+            <Input placeholder="例如 HIS / EMR / LIS" />
+          </Form.Item>
+          <Form.Item name="businessScenario" label="业务场景" rules={[{ required: true }]}>
+            <Input placeholder="例如门诊患者主数据" />
+          </Form.Item>
+          <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
+            <Input placeholder="集团/医院/院区/科室" />
+          </Form.Item>
+          <Form.Item name="callbackWebhookId" label="回调通道标识">
+            <Input placeholder="如已配置回调通道，可填写真实标识" />
           </Form.Item>
         </Form>
       </Modal>
-    </PageShell>
+    </PageExperienceShell>
+  );
+}
+
+function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
+  return (
+    <Card title="字段映射与缺口" className={styles.sectionCard}>
+      {items.length === 0 ? (
+        <Text type="secondary">暂无字段映射来源状态。</Text>
+      ) : (
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          {items.map((item) => (
+            <Descriptions key={item.adapterId} bordered size="small" column={2}>
+              <Descriptions.Item label="适配器">{item.name}</Descriptions.Item>
+              <Descriptions.Item label="状态">{healthTag(item.healthStatus)}</Descriptions.Item>
+              <Descriptions.Item label="映射字段">{item.mappedFieldCount}</Descriptions.Item>
+              <Descriptions.Item label="最近探活">
+                {item.lastHeartbeatAt ? new Date(item.lastHeartbeatAt).toLocaleString() : "暂无"}
+              </Descriptions.Item>
+              <Descriptions.Item label="缺口" span={2}>
+                {item.gaps.length === 0 ? (
+                  <Text type="secondary">无</Text>
+                ) : (
+                  <ul className={styles.gapList}>
+                    {item.gaps.map((gap) => (
+                      <li key={gap}>{gap}</li>
+                    ))}
+                  </ul>
+                )}
+              </Descriptions.Item>
+            </Descriptions>
+          ))}
+        </Space>
+      )}
+    </Card>
+  );
+}
+
+function QualityReportCard({ report }: { report: DataQualityReport }) {
+  return (
+    <Card title="数据质量报告" className={styles.sectionCard}>
+      <div className={styles.qualityGrid}>
+        <MetricCard title="必填率" value={report.requiredFieldRate} suffix="%" />
+        <MetricCard title="映射率" value={report.mappingRate} suffix="%" />
+        <MetricCard title="时效率" value={report.timelinessRate} suffix="%" />
+      </div>
+      <Descriptions size="small" column={2}>
+        <Descriptions.Item label="报告 ID">{report.reportId}</Descriptions.Item>
+        <Descriptions.Item label="traceId">{report.traceId ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
+        <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
+        <Descriptions.Item label="缺口摘要" span={2}>
+          {report.gapSummary}
+        </Descriptions.Item>
+      </Descriptions>
+    </Card>
+  );
+}
+
+function MetricCard({ title, value, suffix }: { title: string; value: number; suffix?: string }) {
+  return (
+    <Card className={styles.qualityCard}>
+      <Space direction="vertical" size="small" className="mk-full-width">
+        <Text type="secondary">{title}</Text>
+        <Progress percent={suffix === "%" ? value : undefined} showInfo={false} />
+        <Text strong>
+          {value}
+          {suffix}
+        </Text>
+      </Space>
+    </Card>
   );
 }

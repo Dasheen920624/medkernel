@@ -153,6 +153,7 @@ function actionPermission(code: string) {
 
 function permissionProfile(menuKeys: string[]) {
   const hasTerminologyMapping = menuKeys.includes("terminology-mapping");
+  const hasAdapterHub = menuKeys.includes("adapter-hub");
   return {
     userId: "doctor-1",
     username: "chen.ming",
@@ -160,11 +161,15 @@ function permissionProfile(menuKeys: string[]) {
     roles: [
       { code: "doctor", displayName: "临床医生" },
       ...(hasTerminologyMapping ? [{ code: "it-ops", displayName: "信息科" }] : []),
+      ...(hasAdapterHub ? [{ code: "it-ops", displayName: "信息科" }] : []),
     ],
     permissions: [
       ...menuKeys.map(menuPermission),
       ...(hasTerminologyMapping
         ? ["term.read", "term.write", "term.publish"].map(actionPermission)
+        : []),
+      ...(hasAdapterHub
+        ? ["integration.read", "integration.write", "integration.execute"].map(actionPermission)
         : []),
     ],
     environmentKeys: ["production"],

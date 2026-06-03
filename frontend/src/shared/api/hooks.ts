@@ -3450,6 +3450,23 @@ export interface IntegrationReplayResult {
   message: string;
 }
 
+export interface IntegrationOnboarding {
+  onboardingId: string;
+  name: string;
+  status: "REQUESTED" | "AUTH_CONFIGURED" | "MAPPING_CONFIGURED" | "ONLINE" | "OFFLINE" | string;
+  routeType: "ADAPTER" | "FHIR" | string;
+  routeReference: string;
+  healthStatus: IntegrationAdapter["healthStatus"];
+  mappedFieldCount: number;
+  blockers: string[];
+  sourceSystem: string;
+  businessScenario: string;
+  orgPath: string;
+  callbackWebhookId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdapterCreatePayload {
   adapterId: string;
   name: string;
@@ -3474,6 +3491,24 @@ export interface WebhookCreatePayload {
 export interface WebhookTestPayload {
   webhookId: string;
   payload: string;
+}
+
+export interface IntegrationOnboardingCreatePayload {
+  onboardingId: string;
+  name: string;
+  accessMode: "ADAPTER" | "FHIR";
+  adapterId?: string;
+  fhirVersion?: string;
+  sourceSystem: string;
+  businessScenario: string;
+  orgPath: string;
+  callbackWebhookId?: string;
+}
+
+export interface IntegrationOnboardingAdvancePayload {
+  onboardingId: string;
+  targetStatus: "REQUESTED" | "AUTH_CONFIGURED" | "MAPPING_CONFIGURED" | "ONLINE" | "OFFLINE";
+  evidenceText: string;
 }
 
 export interface WebhookSignatureTestResult {
@@ -3566,6 +3601,46 @@ export function useGenerateDataQualityReport() {
     mutationFn: async () => {
       const { data } = await apiClient.post<IntegrationEnvelope<DataQualityReport>>(
         "/api/v1/engine/integration/data-quality/reports",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useIntegrationOnboardings() {
+  return useQuery({
+    queryKey: ["integration", "onboardings"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<IntegrationOnboarding[]>>(
+        "/api/v1/engine/integration/onboardings",
+      );
+      return data.data ?? [];
+    },
+  });
+}
+
+export function useCreateIntegrationOnboarding() {
+  return useMutation({
+    mutationFn: async (payload: IntegrationOnboardingCreatePayload) => {
+      const { data } = await apiClient.post<IntegrationEnvelope<IntegrationOnboarding>>(
+        "/api/v1/engine/integration/onboardings",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useAdvanceIntegrationOnboarding() {
+  return useMutation({
+    mutationFn: async ({
+      onboardingId,
+      targetStatus,
+      evidenceText,
+    }: IntegrationOnboardingAdvancePayload) => {
+      const { data } = await apiClient.post<IntegrationEnvelope<IntegrationOnboarding>>(
+        `/api/v1/engine/integration/onboardings/${onboardingId}/advance`,
+        { targetStatus, evidenceText },
       );
       return data.data;
     },
