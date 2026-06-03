@@ -69,7 +69,7 @@ class EmbedEngineControllerTest {
     private static final String FEEDBACK_BODY = """
         {
           "token": "tkn-123456",
-          "actionType": "ACCEPT",
+          "actionType": "ADOPT",
           "reason": "已采纳抗凝建议"
         }
         """;
@@ -142,7 +142,8 @@ class EmbedEngineControllerTest {
     @Test
     void feedback_ReturnsOk() throws Exception {
         when(service.feedback(any(EmbedFeedbackRequest.class))).thenReturn(
-            new EmbedFeedbackResponse("tkn-123456", "ADOPT", EmbedConnectionStatus.NOT_CONNECTED, "trace-123"));
+            new EmbedFeedbackResponse("tkn-123456", "ADOPT", EmbedConnectionStatus.NOT_CONNECTED,
+                false, "HOST_CALLBACK_NOT_CONFIGURED", "trace-123"));
 
         mockMvc.perform(post("/api/v1/engine/embed/feedback")
                 .with(jwt().jwt(token -> token
@@ -154,6 +155,8 @@ class EmbedEngineControllerTest {
                 .content(FEEDBACK_BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.callbackStatus").value("NOT_CONNECTED"))
+            .andExpect(jsonPath("$.data.callbackDelivered").value(false))
+            .andExpect(jsonPath("$.data.degradationReason").value("HOST_CALLBACK_NOT_CONFIGURED"))
             .andExpect(jsonPath("$.data.traceId").value("trace-123"));
 
         verify(service).feedback(any(EmbedFeedbackRequest.class));

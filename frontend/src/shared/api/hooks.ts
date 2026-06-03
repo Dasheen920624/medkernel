@@ -3186,14 +3186,16 @@ export interface EmbedLaunchContextResponse {
 
 export interface EmbedFeedbackRequest {
   token: string;
-  actionType: "ADOPT" | "REJECT" | string;
+  actionType: "ADOPT" | "REJECT";
   reason?: string;
 }
 
 export interface EmbedFeedbackResponse {
   token: string;
-  actionType: string;
+  actionType: "ADOPT" | "REJECT";
   callbackStatus: "CONNECTED" | "NOT_CONNECTED";
+  callbackDelivered: boolean;
+  degradationReason: string | null;
   traceId: string;
 }
 
