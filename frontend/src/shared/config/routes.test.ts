@@ -172,6 +172,47 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("limits adapter hub to integration operators with read/write/execute permissions", () => {
+    const route = findRouteByPath("/adapter/hub");
+
+    expect(route?.requiredPermissions).toEqual([
+      "menu.adapter-hub",
+      "integration.read",
+      "integration.write",
+      "integration.execute",
+    ]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "implementation"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "integration.read" }],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)

@@ -158,4 +158,22 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(terminologySource).not.toContain("experience sample");
     expect(terminologySource).not.toContain("style=");
   });
+
+  it("keeps adapter hub focused on real integration status without legacy sandbox UI", () => {
+    const adapterSource = readSource("src/pages/tenant/AdapterHub.tsx");
+
+    expect(adapterSource).toContain("StepFlow");
+    expect(adapterSource).toContain("useIntegrationAdapters");
+    expect(adapterSource).toContain("useAdapterHubStatus");
+    expect(adapterSource).toContain("useIntegrationLogs");
+    expect(adapterSource).toContain("useIntegrationOnboardings");
+    expect(adapterSource).toContain("useGenerateDataQualityReport");
+    expect(adapterSource).toContain("useReplayDeadLetter");
+    expect(adapterSource).not.toContain("Webhook 回调订阅安全自研沙箱");
+    expect(adapterSource).not.toContain("Launch Token");
+    expect(adapterSource).not.toContain("rounded-2xl");
+    expect(adapterSource).not.toContain("text-slate-");
+    expect(adapterSource).not.toContain("bg-slate-");
+    expect(adapterSource).not.toContain("style=");
+  });
 });

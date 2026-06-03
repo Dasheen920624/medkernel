@@ -19,11 +19,16 @@ import {
   saveExperienceViewSnapshot,
   submitLargeListExport,
   useCreatePackage,
+  useAdvanceIntegrationOnboarding,
   useActivateOnboardingReadiness,
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
   useConfirmTerminologyCandidate,
+  useCreateIntegrationOnboarding,
+  useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
+  useIntegrationOnboardings,
+  useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
   useLocalTerms,
@@ -603,6 +608,150 @@ describe("terminology mapping api helpers", () => {
         targetPackageId: 29,
         reason: "灰度验证失败",
       }),
+    );
+  });
+});
+
+describe("integration adapter api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("loads integration onboarding lifecycle records from the SVC-INTEGRATION-01 endpoint", async () => {
+    const onboardings = [
+      {
+        onboardingId: "onb-his",
+        name: "HIS 主数据接入申请",
+        status: "MAPPING_CONFIGURED",
+        routeType: "ADAPTER",
+        routeReference: "/api/v1/engine/integration/adapters/his-main",
+        healthStatus: "NOT_CONNECTED",
+        mappedFieldCount: 12,
+        blockers: ["外部连接器未连通"],
+        sourceSystem: "HIS",
+        businessScenario: "门诊患者主数据",
+        orgPath: "集团/医院",
+        callbackWebhookId: null,
+        createdAt: "2026-06-03T08:00:00Z",
+        updatedAt: "2026-06-03T08:00:00Z",
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: onboardings } });
+
+    const { result } = renderApiHook(() => useIntegrationOnboardings());
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(onboardings);
+    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/engine/integration/onboardings");
+  });
+
+  it("creates and advances integration onboarding records without inventing endpoints", async () => {
+    const response = {
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      status: "REQUESTED",
+      routeType: "ADAPTER",
+      routeReference: "/api/v1/engine/integration/adapters/his-main",
+      healthStatus: "NOT_CONNECTED",
+      mappedFieldCount: 0,
+      blockers: ["接入申请已创建，待配置鉴权与字段映射"],
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+      callbackWebhookId: null,
+      createdAt: "2026-06-03T08:00:00Z",
+      updatedAt: "2026-06-03T08:00:00Z",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: response } })
+      .mockResolvedValueOnce({ data: { data: { ...response, status: "ONLINE" } } });
+
+    const create = renderApiHook(() => useCreateIntegrationOnboarding());
+    const advance = renderApiHook(() => useAdvanceIntegrationOnboarding());
+
+    await create.result.current.mutateAsync({
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      accessMode: "ADAPTER",
+      adapterId: "his-main",
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+    });
+    await advance.result.current.mutateAsync({
+      onboardingId: "onb-his",
+      targetStatus: "ONLINE",
+      evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/api/v1/engine/integration/onboardings", {
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      accessMode: "ADAPTER",
+      adapterId: "his-main",
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/engine/integration/onboardings/onb-his/advance",
+      {
+        targetStatus: "ONLINE",
+        evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
+      },
+    );
+  });
+
+  it("generates data quality reports and replays dead letters through real integration endpoints", async () => {
+    const report = {
+      reportId: "dqr-1",
+      tenantId: "tenant-A",
+      generatedAt: "2026-06-03T08:10:00Z",
+      requiredFieldTotal: 100,
+      requiredFieldPresent: 82,
+      requiredFieldRate: 82,
+      adapterTotal: 2,
+      mappedAdapterCount: 1,
+      mappingRate: 50,
+      timelyAdapterCount: 1,
+      timelinessRate: 50,
+      notConnectedCount: 1,
+      misconfiguredCount: 1,
+      gapSummary: "HIS 断连，LIS 配置非法",
+      createdAt: "2026-06-03T08:10:00Z",
+      createdBy: "it-1",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: report } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            sourceMessageId: "msg-dead",
+            replayMessageId: "msg-replay",
+            traceId: "trace-replay",
+            status: "NOT_CONNECTED",
+            blocksMainFlow: false,
+            message: "已重放为补偿消息",
+          },
+        },
+      });
+
+    const quality = renderApiHook(() => useGenerateDataQualityReport());
+    const replay = renderApiHook(() => useReplayDeadLetter());
+
+    await quality.result.current.mutateAsync();
+    await replay.result.current.mutateAsync("msg-dead");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/engine/integration/data-quality/reports",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/engine/integration/dead-letter/msg-dead/replay",
     );
   });
 });

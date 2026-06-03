@@ -120,9 +120,8 @@ describe("page smoke coverage", () => {
 
   it("renders the tenant adapter-hub console", () => {
     renderPage(<AdapterHub />);
-    expect(screen.getByRole("heading", { name: "第三方对接总线与页面集成" })).toBeInTheDocument();
-    expect(screen.getByText(/Webhook 回调订阅安全自研沙箱/)).toBeInTheDocument();
-    expect(screen.getByText(/重试死信与接口存证队列/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "适配器中心" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载适配器中心")).toBeInTheDocument();
   });
 
   it("renders the clinical embed-launch console in fallback isolation state", () => {
