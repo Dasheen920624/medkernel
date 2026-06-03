@@ -29,6 +29,24 @@ import styles from "./Tenant.module.css";
 const { Option } = Select;
 const { Text, Title } = Typography;
 
+type OrgLevelCode =
+  | "TENANT"
+  | "GROUP"
+  | "HOSPITAL"
+  | "CAMPUS"
+  | "SITE"
+  | "DEPARTMENT"
+  | "SPECIALTY";
+
+const parentLevelByChildLevel: Partial<Record<OrgLevelCode, OrgLevelCode>> = {
+  GROUP: "TENANT",
+  HOSPITAL: "GROUP",
+  CAMPUS: "HOSPITAL",
+  SITE: "CAMPUS",
+  DEPARTMENT: "SITE",
+  SPECIALTY: "DEPARTMENT",
+};
+
 // 集中维护品牌预设调色盘，供开通页与预览区复用
 function getPresetThemes() {
   return [
@@ -76,10 +94,11 @@ export default function TenantOnboarding() {
 
   // 4. 品牌实时预览状态
   const watchHospitalName =
-    Form.useWatch("hospitalName", brandForm) ?? branding?.hospitalName ?? "MedKernel 智能示范医院";
+    Form.useWatch("hospitalName", brandForm) ?? branding?.hospitalName ?? "未配置医院名称";
   const watchLogoUrl = Form.useWatch("logoUrl", brandForm) ?? branding?.logoUrl ?? "";
   const watchThemeColor =
     Form.useWatch("themeColor", brandForm) ?? branding?.themeColor ?? "var(--mk-theme-navy)";
+  const selectedLevel = Form.useWatch("level", form) as OrgLevelCode | undefined;
 
   // 获取预设调色盘
   const presetThemes = getPresetThemes();
@@ -105,8 +124,11 @@ export default function TenantOnboarding() {
         key: "level",
         render: (level: string) => {
           const colors: Record<string, string> = {
+            TENANT: "default",
+            GROUP: "gold",
             HOSPITAL: "blue",
             CAMPUS: "cyan",
+            SITE: "green",
             DEPARTMENT: "purple",
             SPECIALTY: "geekblue",
           };
@@ -181,198 +203,226 @@ export default function TenantOnboarding() {
     }
   };
 
-  // 过滤出可作为上级节点的组织列表
-  const parentCandidates = useMemo(
-    () => orgData?.items?.filter((it) => it.level === "HOSPITAL" || it.level === "CAMPUS") ?? [],
-    [orgData],
-  );
+  // 过滤出当前层级允许的直接上级组织列表
+  const parentCandidates = useMemo(() => {
+    const parentLevel = selectedLevel ? parentLevelByChildLevel[selectedLevel] : undefined;
+    if (!parentLevel) return [];
+    return orgData?.items?.filter((it) => it.level === parentLevel) ?? [];
+  }, [orgData, selectedLevel]);
 
   return (
     <PageShell
-      title="租户开通与品牌沙箱"
+      title="租户开通与品牌配置"
       description="自主注册管理当前租户的七层组织树机构，在此配置个性化品牌 Logo、医院命名及专属 UI 色系。"
     >
-      <Tabs activeKey={activeTab} onChange={setActiveTab} className="mk-tabs-premium">
-        <Tabs.TabPane
-          tab={
-            <Space>
-              <ClusterOutlined />
-              <span>组织结构登记</span>
-            </Space>
-          }
-          key="org"
-        >
-          <div className={styles.sandboxLayout}>
-            {/* 左侧创建表单 */}
-            <div className={styles.sandboxForm}>
-              <Card title="开通入驻新机构节点">
-                <Form form={form} layout="vertical">
-                  <Form.Item
-                    name="level"
-                    label="组织层级"
-                    rules={[{ required: true, message: "请选择组织层级" }]}
-                  >
-                    <Select placeholder="请选择级别...">
-                      <Option value="HOSPITAL">医院总部 (HOSPITAL)</Option>
-                      <Option value="CAMPUS">分院院区 (CAMPUS)</Option>
-                      <Option value="DEPARTMENT">临床科室 (DEPARTMENT)</Option>
-                      <Option value="SPECIALTY">专病维度 (SPECIALTY)</Option>
-                    </Select>
-                  </Form.Item>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        className="mk-tabs-premium"
+        items={[
+          {
+            key: "org",
+            label: (
+              <Space>
+                <ClusterOutlined />
+                <span>组织结构登记</span>
+              </Space>
+            ),
+            children: (
+              <div className={styles.sandboxLayout}>
+                <div className={styles.sandboxForm}>
+                  <Card title="开通入驻新机构节点">
+                    <Form form={form} layout="vertical">
+                      <Form.Item
+                        name="level"
+                        label="组织层级"
+                        rules={[{ required: true, message: "请选择组织层级" }]}
+                      >
+                        <Select
+                          placeholder="请选择级别..."
+                          onChange={() => form.setFieldValue("parentId", undefined)}
+                        >
+                          <Option value="TENANT">租户根 (TENANT)</Option>
+                          <Option value="GROUP">集团 (GROUP)</Option>
+                          <Option value="HOSPITAL">医院总部 (HOSPITAL)</Option>
+                          <Option value="CAMPUS">分院院区 (CAMPUS)</Option>
+                          <Option value="SITE">社区服务点 (SITE)</Option>
+                          <Option value="DEPARTMENT">临床科室 (DEPARTMENT)</Option>
+                          <Option value="SPECIALTY">专病维度 (SPECIALTY)</Option>
+                        </Select>
+                      </Form.Item>
 
-                  <Form.Item
-                    name="code"
-                    label="唯一识别编码 (Code)"
-                    rules={[{ required: true, message: "请输入识别编码" }]}
-                  >
-                    <Input placeholder="例如：HOSP-002 或 DEPT-GYN" />
-                  </Form.Item>
+                      <Form.Item
+                        name="code"
+                        label="唯一识别编码 (Code)"
+                        rules={[{ required: true, message: "请输入识别编码" }]}
+                      >
+                        <Input placeholder="输入租户内唯一组织编码" />
+                      </Form.Item>
 
-                  <Form.Item
-                    name="name"
-                    label="机构中文名称"
-                    rules={[{ required: true, message: "请输入机构名称" }]}
-                  >
-                    <Input placeholder="例如：协和医院西院区" />
-                  </Form.Item>
+                      <Form.Item
+                        name="name"
+                        label="机构中文名称"
+                        rules={[{ required: true, message: "请输入机构名称" }]}
+                      >
+                        <Input placeholder="输入机构中文名称" />
+                      </Form.Item>
 
-                  <Form.Item name="parentId" label="上级组织节点">
-                    <Select placeholder="选择上级关联节点（可选）" allowClear>
-                      {parentCandidates.map((p) => (
-                        <Option key={p.id} value={p.id}>
-                          {p.name} ({p.level})
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
+                      <Form.Item
+                        name="parentId"
+                        label="直接上级组织节点"
+                        rules={[
+                          {
+                            required: Boolean(selectedLevel && selectedLevel !== "TENANT"),
+                            message: "请选择直接上级组织节点",
+                          },
+                        ]}
+                      >
+                        <Select
+                          placeholder={
+                            selectedLevel === "TENANT"
+                              ? "租户根不需要上级组织"
+                              : "选择直接上级组织节点"
+                          }
+                          allowClear
+                          disabled={!selectedLevel || selectedLevel === "TENANT"}
+                        >
+                          {parentCandidates.map((p) => (
+                            <Option key={p.id} value={p.id}>
+                              {p.name} ({p.level})
+                            </Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
 
-                  <Form.Item name="specialtyId" label="专科 ID">
-                    <Input placeholder="医学专科匹配（可选），如 Stroke" />
-                  </Form.Item>
+                      <Form.Item name="specialtyId" label="专科 ID">
+                        <Input placeholder="若为专病层级，填写专病字典标识" />
+                      </Form.Item>
 
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={handleOrgSubmit}
-                    loading={createOrgMutation.isPending}
-                    block
-                  >
-                    原子新增并持久化
-                  </Button>
-                </Form>
-              </Card>
-            </div>
-
-            {/* 右侧树节点列表 */}
-            <div className={styles.sandboxForm}>
-              <Card title="当前已登记组织单元" loading={orgLoading}>
-                <Table
-                  dataSource={orgData?.items ?? []}
-                  columns={columns}
-                  rowKey="id"
-                  pagination={{ pageSize: 5 }}
-                  size="small"
-                />
-              </Card>
-            </div>
-          </div>
-        </Tabs.TabPane>
-
-        <Tabs.TabPane
-          tab={
-            <Space>
-              <ExperimentOutlined />
-              <span>品牌定制沙箱</span>
-            </Space>
-          }
-          key="brand"
-        >
-          <div className={styles.sandboxLayout}>
-            {/* 左侧配置项 */}
-            <div className={styles.sandboxForm}>
-              <Card title="平台视觉品牌配置" loading={brandLoading}>
-                <Form form={brandForm} layout="vertical">
-                  <Form.Item
-                    name="hospitalName"
-                    label="示范医院名称"
-                    rules={[{ required: true, message: "医院物理名称不能为空" }]}
-                  >
-                    <Input placeholder="输入将在系统左上角呈现的医院定制名称" />
-                  </Form.Item>
-
-                  <Form.Item name="logoUrl" label="定制 Logo 图片 URL">
-                    <Input
-                      placeholder="Logo 线上 URL，如 http://assets/my-logo.png"
-                      prefix={<PictureOutlined />}
-                    />
-                  </Form.Item>
-
-                  <Form.Item name="themeColor" label="UI 主题色配置">
-                    <Input placeholder="CSS 合法色值，支持 HEX / RGB" />
-                  </Form.Item>
-
-                  <Form.Item label="预设高保真调色盘">
-                    <div className={styles.themeSelectorWrap}>
-                      {presetThemes.map((theme) => (
-                        <Tooltip key={theme.color} title={theme.name}>
-                          <div
-                            style={getThemeStyle(theme.color)}
-                            className={`${styles.themeDot} ${
-                              watchThemeColor === theme.color ? styles.themeDotActive : ""
-                            }`}
-                            onClick={() => brandForm.setFieldValue("themeColor", theme.color)}
-                          />
-                        </Tooltip>
-                      ))}
-                    </div>
-                  </Form.Item>
-
-                  <Form.Item name="expertMode" label="全面开启专家模式" valuePropName="checked">
-                    <Switch checkedChildren="专家版" unCheckedChildren="标准版" />
-                  </Form.Item>
-
-                  <Button
-                    type="primary"
-                    icon={<SaveOutlined />}
-                    onClick={handleBrandSubmit}
-                    loading={updateBrandingMutation.isPending}
-                    block
-                  >
-                    保存品牌定制
-                  </Button>
-                </Form>
-              </Card>
-            </div>
-
-            {/* 右侧动态沙箱实时预览 */}
-            <div className={styles.sandboxPreview}>
-              <Title level={5} type="secondary" className={styles.sandboxPreviewTitle}>
-                品牌定制效果实时沙箱预览
-              </Title>
-              <div className={styles.previewContainer}>
-                {/* 动态主题头部 */}
-                <div style={getThemeStyle(watchThemeColor)} className={styles.previewHeader}>
-                  {watchLogoUrl ? (
-                    <img src={watchLogoUrl} className={styles.previewLogo} alt="Hospital Logo" />
-                  ) : (
-                    <div className={styles.previewLogoPlaceholder}>H</div>
-                  )}
-                  <Title level={5} className={styles.previewTitle}>
-                    {watchHospitalName}
-                  </Title>
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleOrgSubmit}
+                        loading={createOrgMutation.isPending}
+                        block
+                      >
+                        原子新增并持久化
+                      </Button>
+                    </Form>
+                  </Card>
                 </div>
-                {/* 主题预览主体 */}
-                <div className={styles.previewBody}>
-                  <div className={styles.previewPlaceholderBar} />
-                  <div className={styles.previewPlaceholderBarShort} />
-                  <div className={styles.previewPlaceholderBar} />
-                  <Tag color="success">{watchHospitalName} · 正常运行中</Tag>
+
+                <div className={styles.sandboxForm}>
+                  <Card title="当前已登记组织单元" loading={orgLoading}>
+                    <Table
+                      dataSource={orgData?.items ?? []}
+                      columns={columns}
+                      rowKey="id"
+                      pagination={{ pageSize: 5 }}
+                      size="small"
+                    />
+                  </Card>
                 </div>
               </div>
-            </div>
-          </div>
-        </Tabs.TabPane>
-      </Tabs>
+            ),
+          },
+          {
+            key: "brand",
+            label: (
+              <Space>
+                <ExperimentOutlined />
+                <span>品牌定制</span>
+              </Space>
+            ),
+            children: (
+              <div className={styles.sandboxLayout}>
+                <div className={styles.sandboxForm}>
+                  <Card title="平台视觉品牌配置" loading={brandLoading}>
+                    <Form form={brandForm} layout="vertical">
+                      <Form.Item
+                        name="hospitalName"
+                        label="医院名称"
+                        rules={[{ required: true, message: "医院物理名称不能为空" }]}
+                      >
+                        <Input placeholder="输入将在系统左上角呈现的医院定制名称" />
+                      </Form.Item>
+
+                      <Form.Item name="logoUrl" label="定制 Logo 图片 URL">
+                        <Input
+                          placeholder="粘贴院方已授权的 Logo HTTPS URL"
+                          prefix={<PictureOutlined />}
+                        />
+                      </Form.Item>
+
+                      <Form.Item name="themeColor" label="UI 主题色配置">
+                        <Input placeholder="CSS 变量或合法色值" />
+                      </Form.Item>
+
+                      <Form.Item label="预设高保真调色盘">
+                        <div className={styles.themeSelectorWrap}>
+                          {presetThemes.map((theme) => (
+                            <Tooltip key={theme.color} title={theme.name}>
+                              <div
+                                style={getThemeStyle(theme.color)}
+                                className={`${styles.themeDot} ${
+                                  watchThemeColor === theme.color ? styles.themeDotActive : ""
+                                }`}
+                                onClick={() => brandForm.setFieldValue("themeColor", theme.color)}
+                              />
+                            </Tooltip>
+                          ))}
+                        </div>
+                      </Form.Item>
+
+                      <Form.Item name="expertMode" label="全面开启专家模式" valuePropName="checked">
+                        <Switch checkedChildren="专家版" unCheckedChildren="标准版" />
+                      </Form.Item>
+
+                      <Button
+                        type="primary"
+                        icon={<SaveOutlined />}
+                        onClick={handleBrandSubmit}
+                        loading={updateBrandingMutation.isPending}
+                        block
+                      >
+                        保存品牌定制
+                      </Button>
+                    </Form>
+                  </Card>
+                </div>
+
+                <div className={styles.sandboxPreview}>
+                  <Title level={5} type="secondary" className={styles.sandboxPreviewTitle}>
+                    品牌定制效果实时预览
+                  </Title>
+                  <div className={styles.previewContainer}>
+                    <div style={getThemeStyle(watchThemeColor)} className={styles.previewHeader}>
+                      {watchLogoUrl ? (
+                        <img
+                          src={watchLogoUrl}
+                          className={styles.previewLogo}
+                          alt="Hospital Logo"
+                        />
+                      ) : (
+                        <div className={styles.previewLogoPlaceholder}>H</div>
+                      )}
+                      <Title level={5} className={styles.previewTitle}>
+                        {watchHospitalName}
+                      </Title>
+                    </div>
+                    <div className={styles.previewBody}>
+                      <div className={styles.previewPlaceholderBar} />
+                      <div className={styles.previewPlaceholderBarShort} />
+                      <div className={styles.previewPlaceholderBar} />
+                      <Tag color="success">{watchHospitalName} · 正常运行中</Tag>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
     </PageShell>
   );
 }

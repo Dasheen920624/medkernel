@@ -36,7 +36,7 @@ import jakarta.validation.constraints.NotNull;
  * <p>客户端永远不允许传 tenantId 参数（防越权伪造），均由 RequestContext 隐式注入。
  */
 @RestController
-@RequestMapping("/api/v1/tenant/org-units")
+@RequestMapping({"/api/v1/engine/org/org-units", "/api/v1/tenant/org-units"})
 @DataScope(requireTenant = true)
 public class OrgUnitController {
 

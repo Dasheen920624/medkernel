@@ -3283,9 +3283,9 @@ export interface SuccessPlan {
 
 export function useBranding() {
   return useQuery({
-    queryKey: ["platform", "branding"],
+    queryKey: ["engine", "tenant", "branding"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: Branding }>("/platform/branding");
+      const { data } = await apiClient.get<{ data: Branding }>("/engine/tenant/branding");
       return data.data;
     },
   });
@@ -3294,7 +3294,7 @@ export function useBranding() {
 export function useUpdateBranding() {
   return useMutation({
     mutationFn: async (payload: Partial<Branding>) => {
-      const { data } = await apiClient.post<{ data: Branding }>("/platform/branding", payload);
+      const { data } = await apiClient.post<{ data: Branding }>("/engine/tenant/branding", payload);
       return data.data;
     },
   });
@@ -3302,9 +3302,9 @@ export function useUpdateBranding() {
 
 export function useSuccessPlan(enabled = true) {
   return useQuery({
-    queryKey: ["platform", "success", "lifecycle"],
+    queryKey: ["engine", "tenant", "success-plan"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: SuccessPlan }>("/platform/success/lifecycle");
+      const { data } = await apiClient.get<{ data: SuccessPlan }>("/engine/tenant/success-plan");
       return data.data;
     },
     enabled,
@@ -3315,7 +3315,7 @@ export function useTransitionSuccessStage() {
   return useMutation({
     mutationFn: async (nextStage: string) => {
       const { data } = await apiClient.post<{ data: SuccessPlan }>(
-        "/platform/success/lifecycle/transition",
+        "/engine/tenant/success-plan/transition",
         { nextStage },
       );
       return data.data;

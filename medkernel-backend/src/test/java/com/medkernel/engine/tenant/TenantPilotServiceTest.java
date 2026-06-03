@@ -1,7 +1,13 @@
 package com.medkernel.engine.tenant;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +17,27 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitStatus;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.pkg.ReleasePlan;
+import com.medkernel.engine.pkg.ReleasePlanRepository;
+import com.medkernel.engine.pkg.ReleasePlanStatus;
+import com.medkernel.engine.pkg.ReleaseScopeType;
+import com.medkernel.engine.pkg.ReleaseStrategy;
+import com.medkernel.engine.security.PlatformCredential;
+import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.UserRoleAssignment;
+import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionHistory;
@@ -39,6 +65,24 @@ class TenantPilotServiceTest {
     @Autowired
     private StateTransitionHistoryRepository transitionHistoryRepo;
 
+    @Autowired
+    private OrgUnitRepository orgUnitRepo;
+
+    @Autowired
+    private PlatformCredentialRepository credentialRepo;
+
+    @Autowired
+    private UserRoleAssignmentRepository roleAssignmentRepo;
+
+    @Autowired
+    private IntegrationAdapterRepository adapterRepo;
+
+    @Autowired
+    private KnowledgePackageRepository packageRepo;
+
+    @Autowired
+    private ReleasePlanRepository releasePlanRepo;
+
     private final String tenantId = "tenant-pilot-smoke-01";
     private final String actor = "DOC-PILOT-88";
     private final String traceId = "tr-pilot-smoke-777";
@@ -50,60 +94,58 @@ class TenantPilotServiceTest {
     }
 
     @Test
-    void testGetAndSaveBrandingPhysicalIsolation() {
-        System.out.println("====== [1. 验证品牌定制个性化默认初始化落库] ======");
+    void getAndSaveBrandingUsesHonestEmptyDefaultsAndTenantIsolation() {
         Branding brand = service.getBranding(tenantId);
-        
+
         assertNotNull(brand.id(), "自增物理主键生成成功");
         assertEquals(tenantId, brand.tenantId());
-        assertEquals("MedKernel 智能示范医院", brand.hospitalName());
-        assertEquals("#0F172A", brand.themeColor());
+        assertEquals("未配置医院名称", brand.hospitalName());
+        assertThat(brand.logoUrl()).isNull();
+        assertEquals("var(--mk-theme-navy)", brand.themeColor());
         assertFalse(brand.expertMode());
+        assertThat(brand.hospitalName()).doesNotContain("示范医院");
 
-        System.out.println("====== [2. 验证品牌个性定制物理更新与审计留痕] ======");
         Branding updateInput = new Branding(
             null,
             tenantId,
-            "MedKernel 数字化胸痛中心",
-            "http://assets/logo-chest-pain.png",
-            "#06B6D4",
-            true, // 专家模式
+            "市人民医院",
+            "/assets/tenant-logo.svg",
+            "var(--mk-theme-cyan)",
+            true,
             "{\"customLogoSize\":\"large\"}",
             null, null, null, null
         );
         Branding saved = service.saveBranding(tenantId, updateInput);
-        
+
         assertEquals(brand.id(), saved.id(), "更新物理主键保持一致");
-        assertEquals("MedKernel 数字化胸痛中心", saved.hospitalName());
-        assertEquals("#06B6D4", saved.themeColor());
+        assertEquals("市人民医院", saved.hospitalName());
+        assertEquals("var(--mk-theme-cyan)", saved.themeColor());
         assertTrue(saved.expertMode());
         assertEquals("{\"customLogoSize\":\"large\"}", saved.customBrandingJson());
         assertEquals(actor, saved.updatedBy(), "更新人审计指纹正确");
     }
 
     @Test
-    void testSuccessLifecycleTransitionWithAuditChain() {
-        System.out.println("====== [3. 验证客户成功生命周期首个准备阶段初始化物理落库] ======");
+    void successLifecycleTransitionRequiresReadinessAndWritesAuditChain() {
         SuccessPlan plan = service.getSuccessPlan(tenantId);
-        
+
         assertNotNull(plan.id());
         assertEquals(tenantId, plan.tenantId());
         assertEquals("PREPARATION", plan.currentStage(), "初始生命阶段应为准备阶段");
-        assertEquals(80, plan.healthScore());
-        assertTrue(plan.activatedModules().contains("CDSS"));
+        assertEquals(0, plan.healthScore());
+        assertThat(plan.activatedModules()).isEmpty();
+        assertThat(plan.activatedPathways()).isEmpty();
 
-        System.out.println("====== [4. 验证生命周期物理演进及同事务审计状态变迁链物理写入] ======");
-        // 推进到 1 试运行阶段 (PILOT)
+        seedAllReadinessPrerequisites();
         SuccessPlan progressed = service.transitionStage(tenantId, "PILOT");
-        
+
         assertEquals("PILOT", progressed.currentStage());
         assertEquals(plan.id(), progressed.id());
         assertEquals(actor, progressed.updatedBy());
 
-        // 物理断言：同事务物理追溯 mk_obs_state_transition 表
         List<StateTransitionHistory> historyList = transitionHistoryRepo
             .findByEntityTypeAndEntityIdOrderByOccurredAtAsc("tenant_success_plan", tenantId);
-        
+
         assertFalse(historyList.isEmpty(), "必须在审计轨迹表中物理生成变迁记录");
         StateTransitionHistory auditRecord = historyList.get(0);
         assertEquals("PREPARATION", auditRecord.fromStatus(), "起步审计状态完全对齐");
@@ -111,9 +153,117 @@ class TenantPilotServiceTest {
         assertEquals(actor, auditRecord.actor(), "审计操作人指纹完全对齐");
         assertEquals(traceId, auditRecord.traceId(), "全链路追踪 ID 对齐");
 
-        System.out.println("====== [5. 验证非法演进阶段物理安全防御阻断与异常抛出] ======");
-        assertThrows(ApiException.class, () -> {
-            service.transitionStage(tenantId, "ILLEGAL_STAGE_CODE");
-        }, "非法的阶段演进应当被物理拦截并抛出 ApiException");
+        assertThatThrownBy(() -> service.transitionStage(tenantId, "ILLEGAL_STAGE_CODE"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void onboardingReadinessBlocksMissingPrerequisitesWithExplicitStepReasons() {
+        OnboardingReadiness readiness = service.getOnboardingReadiness(tenantId);
+
+        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.steps())
+            .extracting(ImplementationStep::key)
+            .containsExactly(
+                "ORGANIZATION",
+                "USERS",
+                "PERMISSIONS",
+                "ADAPTERS",
+                "ASSETS",
+                "GRAYSCALE"
+            );
+        assertThat(readiness.steps())
+            .extracting(ImplementationStep::status)
+            .containsOnly("BLOCKED");
+        assertThat(readiness.blockers())
+            .anyMatch(reason -> reason.contains("组织树"))
+            .anyMatch(reason -> reason.contains("用户"))
+            .anyMatch(reason -> reason.contains("权限"))
+            .anyMatch(reason -> reason.contains("适配器"))
+            .anyMatch(reason -> reason.contains("资产"))
+            .anyMatch(reason -> reason.contains("灰度"));
+
+        assertThatThrownBy(() -> service.assertOnboardingReady(tenantId))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.TENANT_ONBOARD_NOT_READY);
+    }
+
+    @Test
+    void onboardingReadinessAllowsOpeningOnlyAfterRealPrerequisitesArePresent() {
+        seedAllReadinessPrerequisites();
+
+        OnboardingReadiness readiness = service.getOnboardingReadiness(tenantId);
+
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.blockers()).isEmpty();
+        assertThat(readiness.steps())
+            .extracting(ImplementationStep::status)
+            .containsOnly("DONE");
+        assertThat(readiness.steps())
+            .extracting(ImplementationStep::targetPath)
+            .contains(
+                "/tenant/onboarding",
+                "/admin/credentials",
+                "/compliance/user-roles",
+                "/integration/adapters",
+                "/config/packages"
+            );
+
+        service.assertOnboardingReady(tenantId);
+    }
+
+    private void seedAllReadinessPrerequisites() {
+        Instant now = Instant.now();
+        OrgUnit tenant = orgUnitRepo.save(org(null, OrgLevel.TENANT, "TENANT-PILOT", "/TENANT-PILOT"));
+        OrgUnit group = orgUnitRepo.save(org(tenant.id(), OrgLevel.GROUP, "GROUP-PILOT", "/TENANT-PILOT/GROUP-PILOT"));
+        OrgUnit hospital = orgUnitRepo.save(org(group.id(), OrgLevel.HOSPITAL, "HOSP-PILOT", "/TENANT-PILOT/GROUP-PILOT/HOSP-PILOT"));
+
+        credentialRepo.save(new PlatformCredential(
+            null, "cred-pilot-01", tenantId, "doctor-1", "doctor-1",
+            "bcrypt:test", "ACTIVE", "N", null,
+            now, actor, now, actor, traceId
+        ));
+        roleAssignmentRepo.save(new UserRoleAssignment(
+            null, tenantId, "doctor-1", RoleCode.DOCTOR.code(), OrgLevel.HOSPITAL.name(), hospital.id(),
+            "Y", now, actor, now, actor
+        ));
+        adapterRepo.save(new IntegrationAdapter(
+            null, "adapter-his-01", tenantId, "HIS 主数据接入", "HTTP",
+            "ACTIVE", "{\"endpoint\":\"https://his.example.invalid\"}", "NOT_CONNECTED", 0L,
+            null, now, actor, now, actor
+        ));
+        packageRepo.save(new KnowledgePackage(
+            null, "pkg-readiness-01", tenantId, "PKG.CHEST", "1.0.0",
+            "胸痛配置资产包", "真实配置资产", KnowledgePackageStatus.ACTIVE,
+            now, actor, now, actor, traceId
+        ));
+        releasePlanRepo.save(new ReleasePlan(
+            null, "plan-gray-01", tenantId, "pkg-readiness-01", hospital.id(),
+            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL, hospital.id(), ReleasePlanStatus.SUCCESS,
+            now, actor, now, actor, traceId
+        ));
+    }
+
+    private OrgUnit org(String parentId, OrgLevel level, String code, String path) {
+        Instant now = Instant.now();
+        return new OrgUnit(
+            null,
+            parentId,
+            tenantId,
+            path,
+            level,
+            code,
+            code,
+            null,
+            null,
+            OrgUnitStatus.ACTIVE,
+            now,
+            actor,
+            now,
+            actor
+        );
     }
 }

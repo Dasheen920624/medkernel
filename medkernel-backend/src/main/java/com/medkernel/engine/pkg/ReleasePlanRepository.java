@@ -15,4 +15,6 @@ public interface ReleasePlanRepository extends ListCrudRepository<ReleasePlan, L
     Optional<ReleasePlan> findByPlanIdAndTenantId(String planId, String tenantId);
 
     List<ReleasePlan> findByTenantIdAndPackageIdOrderByCreatedAtDesc(String tenantId, String packageId);
+
+    List<ReleasePlan> findByTenantIdOrderByCreatedAtDesc(String tenantId);
 }
