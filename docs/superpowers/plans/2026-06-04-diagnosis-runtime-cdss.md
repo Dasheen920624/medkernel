@@ -393,6 +393,7 @@ public class DiagnosisAssistService {
         ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
         ExtractedFindings findings = extractor.extract(tenant, snapshot.resources());
         DiagnosisConfidencePolicy policy = policies.findByTenantIdAndScopeKey(tenant, "DEFAULT")
+            .or(() -> policies.findByTenantIdAndScopeKey("t-1", "DEFAULT")) // 未覆盖回退平台主源（V67 种子）
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_005, "缺少默认置信策略 DEFAULT"));
         Set<String> redlineCodes = redlineCodes(tenant, findings.normalizedCodes());
 
@@ -486,7 +487,9 @@ private void persist(String snapshotId, java.util.Set<String> findingCodes, List
         null,                                                       // expiresAt
         List.of(new RecommendationSourceRequest(                    // sources≥1（否则 ENG_REC_005）
             RecommendationSourceType.KNOWLEDGE, String.valueOf(c.sourceVersionId()),
-            null, c.diagnosisName(), null, null, "诊断知识命中"))
+            null,
+            c.diagnosisName() == null ? ("诊断 " + c.identityId()) : c.diagnosisName(), // sourceTitle @NotBlank：判空兜底
+            null, null, "诊断知识命中"))
     )).toList();
     recommendationEngine.trigger(new RecommendationTriggerRequest(
         "DX-" + snapshotId,        // triggerCode @NotBlank
@@ -560,7 +563,7 @@ Run（changed T-GATE）: `node ../scripts/authenticity-guard.mjs --changed` — 
 
 **已核实（本轮审核落实，对照真实代码）：** `ContextSnapshotService.findById(id) → ContextSnapshotResponse.resources()`（自取当前租户、snapshot 不存在自抛 `ENG_CONTEXT_001`）；`Canonical{Condition,Observation,Medication,Procedure}.code()/codeSystem()` 均在；`KnowledgeAssetVersion.authorityLevel()` 为 `SourceAuthorityLevel` 枚举（`.name()` 合法）；`RecommendationTriggerRequest`/`RecommendationCardRequest` 字段与 `@NotBlank` 必填已对齐落库代码；`RecommendationRiskLevel{LOW,MEDIUM,HIGH,CRITICAL}`、`RecommendationInterruptLevel{SILENT,INFO,WEAK_INTERRUPTIVE,STRONG_INTERRUPTIVE}`；V67 未被占用（当前 main 最大 V66）。
 
-**仍需实现时核对（小项）：** `RecommendationSourceRequest` 参数顺序与 `RecommendationSourceType.KNOWLEDGE` 枚举值、`CanonicalResourceType` 枚举名。
+**已全部核实（无剩余悬空）：** `RecommendationSourceRequest(sourceType, sourceRefId, sourceVersion, sourceTitle@NotBlank, citationLocator, sourceHash, summary)`、`RecommendationSourceType.KNOWLEDGE`、`CanonicalResourceType{CONDITION,OBSERVATION,MEDICATION,PROCEDURE,…}`、架构测试 `DomainOwnershipContractTest`、发布激活入口 `KnowledgeVersionService.activate(identityId, versionId, reason)` 均已确认存在。
 
 ---
 

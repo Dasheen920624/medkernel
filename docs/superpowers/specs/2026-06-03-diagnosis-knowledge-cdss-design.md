@@ -80,7 +80,7 @@ CDSS-01 合流 + 排序(高危先行 > 证据充分 > 来源可信)
 | `mk_diagnosis_care_pointer` 诊疗指针 | 确诊后去哪 | `pointer_type`(TREATMENT/WORKUP/PATHWAY) · `target_ref`(指针到规则/知识/PATH-01 模板) · `is_soft`(路径恒为软建议) |
 | `mk_diagnosis_test_case` 诊断测试病例 | 发布门禁的回归集 | `findings`(发现集) · `expected_identity_id`(期望候选) · `expected_confidence`(期望分级)；发布前必须全绿（见 4.6） |
 
-- **时序维度（补充点 1）**：`temporal_constraint` 让 criterion 表达"3 天内的发热""肌钙蛋白动态升高"等病程语义，复用 RuleDslEvaluator 的 temporal 算子，不另造时间引擎。
+- **时序维度（补充点 1）**：`temporal_constraint` 让 criterion 表达"3 天内的发热""肌钙蛋白动态升高"等病程语义，复用 RuleDslEvaluator 的 temporal 算子，不另造时间引擎。（**字段在 Spec 1 落库，但 value/temporal 求值留后续阶段——Plan A/B 命中到编码级、暂不评估这两个约束**。）
 - **防知识层爆炸（补充点 4）**：发现项统一引用 TERM-01 编码（不写死文字），`mk_diagnosis_criterion` 对 `finding_term_code` 建索引，支持"发现→疾病"反向查询；维护落在"发现"和"疾病"两个可控维度，而非其笛卡尔积；鉴别关系单向声明、运行时双向解析。
 - 每条标准/鉴别挂 `citation_id`，复用 KNOW-01 的 `Citation`→`SourceFragment`→`SourceDocument`，满足 S16 验收"来源可追溯"。
 - 迁移：V67 五方言（h2/postgres/oracle/dm/kingbase），表名 `mk_diagnosis_*` owner 前缀，中文 `COMMENT ON`，含组织/版本/审计字段与索引约束。
@@ -205,3 +205,4 @@ CDSS-01 合流 + 排序(高危先行 > 证据充分 > 来源可信)
 2. 发现项依赖 TERM-01 标准化覆盖度；未标准化项进响应 `unmappedFindings` 部分可用、不猜（4.3 步骤 2，正常响应字段、非错误码）。
 3. 首发诊断知识"料"来源：Spec 1 用少量高频专病人工种子验证链路（带测试病例），规模化生成留 Spec 3（AI 工厂）。
 4. 竞争假设的呈现密度需配合 REMIND-01 低打扰：候选数量上限/折叠策略，实现期定，默认保守。
+5. `value_constraint`/`temporal_constraint` 求值留后续阶段（Spec 1 命中到编码级；接 RuleDslEvaluator 后支持“血钾>6.5”“肌钙蛋白动态升高”等数值/时序判定）。
