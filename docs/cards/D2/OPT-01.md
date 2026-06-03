@@ -15,13 +15,13 @@
 
 提供 **FHIR R4/R5 标准互操作门面**：把 10 类核心 FHIR 资源（Patient / Encounter / Condition / Observation / Medication / Procedure / CarePlan / ServiceRequest / DiagnosticReport / DocumentReference）**双向映射**到院内 `CanonicalResource`，让标准化程度高的医院/集团平台经 FHIR 接入，**同时保留院内私有适配器**；门面是**协议转换层**，不替代院内适配、不绕引擎直写医疗结论（核心 §10）。
 
-## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
+## 现状（搬迁时核查 2026-05-30；2026-06-03 PR1 施工复核）
 
-本卡**基本待建**：
+本卡仍按 PR 拆分推进，现状以 `medkernel-backend/src` 为准：
 
-- 全仓"fhir" 仅作 `integration_adapter.protocol_type` 的枚举值出现（`HL7|FHIR|Webhook|REST|WebService`，见 `AdapterCreateDto/AdapterUpdateDto` + V20 集成迁移注释），**无任何 FHIR 资源门面或资源映射实现**。
-- 项目已有自有 `CanonicalResource(+Type/Repository)` 与 `canonical/` 12 子类型（[API-01](API-01.md)/[SYS-01](../D0/SYS-01.md)）——这是门面的映射目标，**本卡不重定义模型**。
-- 本卡＝**新建** FHIR R4/R5 资源门面（10 类资源 + R4/R5 双版本 + CapabilityStatement）并映射到 `CanonicalResource`，挂在 [INTEG-01](INTEG-01.md) 适配器总线上。
+- 已有 [SYS-01](../D0/SYS-01.md) 标准临床模型与 `StandardClinicalFhirMappingRegistry`，可声明 12 类 `CanonicalResourceType` 到 FHIR R4 资源类型的参考映射；本卡必须复用该模型，**不得重定义第二份临床模型**。
+- 已有自有 `CanonicalResource(+Type/Repository)` 与 `engine/context/canonical/` 12 子类型（[API-01](API-01.md)/[SYS-01](../D0/SYS-01.md)）——这是门面的映射目标。
+- PR1 新增 `com.medkernel.engine.integration.fhir` 下的 R4 映射层与映射证据仓储，先覆盖 Patient 出站与 Observation 入站的确定性映射；FHIR 运行端点、R5、CapabilityStatement、受控 create 回流、断连 `NOT_CONNECTED` 和安全边界仍在 PR2/PR3，未完成前不得冒领整卡。
 
 ## 功能要求（原子可测条目）
 
@@ -46,8 +46,8 @@
 N·A —— 本卡无独立页面。门面健康/字段映射率在 **D2 适配器中心页**（[INTEG-01](INTEG-01.md) 承接）只读呈现；CDS Hooks 风格事件归 [OPT-02](../D3/OPT-02.md)（D3）。
 
 ## 数据与迁移
-- 表族：`fhir_resource_mapping`（FHIR `(resourceType, id)` ↔ `canonical_resource_id` 映射）· `fhir_mapping_rule`（字段映射规则 + 版本 + R4/R5）· 复用 `canonical_resource`（[SYS-01](../D0/SYS-01.md)/[API-01](API-01.md)，本卡读/映射）。
-- 主键：ULID；唯一约束：`(tenant_id, fhir_resource_type, fhir_id)`、`(tenant_id, canonical_resource_id, fhir_version)`；索引：`canonical_resource_id`、`fhir_resource_type`。
+- 表族：`mk_fhir_resource_mapping`（FHIR `(version, resourceType, id)` ↔ `canonical_resource_id` 映射证据）· `mk_fhir_mapping_rule`（字段映射规则 + 版本 + R4/R5）· 复用 `canonical_resource`（[SYS-01](../D0/SYS-01.md)/[API-01](API-01.md)，本卡读/映射）。表名前缀遵守 `mk_<域>_<实体>` 迁移规约，替代搬迁草案中的裸表名。
+- 主键：关系库自增主键；唯一约束：`(tenant_id, fhir_version, fhir_resource_type, fhir_id)`、`(tenant_id, canonical_resource_id, fhir_version)`；索引：`canonical_resource_id`、`fhir_resource_type`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段（映射动作留痕，[BASE-04](../D0/BASE-04.md)）。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释 + 映射唯一约束。
 
@@ -79,11 +79,18 @@ N·A —— 本卡无独立页面。门面健康/字段映射率在 **D2 适配�
 - B0 验收：门面纯确定性映射、无模型依赖，**天然 B0**（关闭全部模型后映射不变）。
 
 ## 完工证据
-- 代码 permalink：10 类 FHIR 资源门面端点 + R4/R5 映射层 + `CapabilityStatement` + `fhir_resource_mapping`/`fhir_mapping_rule` 迁移（×5 方言）+ 引擎回流入口。
+- 代码 permalink：10 类 FHIR 资源门面端点 + R4/R5 映射层 + `CapabilityStatement` + `mk_fhir_resource_mapping`/`mk_fhir_mapping_rule` 迁移（×5 方言）+ 引擎回流入口。
 - 测试：FHIR↔Canonical 双向映射往返测试 + R4/R5 双版本测试 + "FHIR 写不绕引擎"安全测试 + 未映射 `OperationOutcome` 测试 + 断连 `NOT_CONNECTED` 测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
+### PR1 阶段证据（R4 映射地基，不代表整卡完成）
+- 新增 `FhirR4CanonicalMapper`：复用 `CanonicalPatient` / `CanonicalObservation`，Patient 出站不臆造缺失字段，Observation 入站对非 LOINC 本地编码返回 OperationOutcome 风格 warning 与 `PARTIAL` 质量状态。
+- 新增 `mk_fhir_resource_mapping` / `mk_fhir_mapping_rule` V63 五方言迁移、仓储与 owner 前缀 `mk_fhir_`。
+- 本地红绿证据：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirResourceMappingRepositoryTest test`；聚焦回归：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirResourceMappingRepositoryTest,StandardClinicalFhirMappingRegistryTest,StandardClinicalModelContractTest,CanonicalResourceRepositoryTest,ContextSnapshotRepositoryTest,DomainOwnershipContractTest test`。
+- 本地全量证据：`mvn -q test`（Surefire XML 汇总 176 files / 1057 tests / 0 failures / 0 errors / 0 skipped；H2/PostgreSQL 15.18/Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate 无新迁移）；`npm run verify`（44 files / 236 tests）；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities）；`npm run build`（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
+- 提交后 changed-mode T-GATE：真实性门禁扫描 12 个文件、配置边界门禁扫描 12 个文件、迁移规约门禁扫描 5 个 SQL，均无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check HEAD~1..HEAD` 通过。
+
 ## 大卡工序（6d，后端为主；按 PR 拆分）
-- PR1：FHIR 资源映射数据模型 + `fhir_mapping_rule` + 5 方言迁移 + Canonical↔FHIR 映射层（R4）→ AC-1。
+- PR1：FHIR 资源映射数据模型 + `mk_fhir_mapping_rule` + 5 方言迁移 + Canonical↔FHIR 映射层（R4）→ AC-1 地基。
 - PR2：R5 双版本 + CapabilityStatement + 编码经 TERM 字典映射 + 未映射诚实 `OperationOutcome` → AC-2/4。
 - PR3：受控 create 回流引擎（不绕引擎 + 医师确认）+ 门面挂 INTEG-01 总线 + 断连 `NOT_CONNECTED` + 安全（签名/白名单/脱敏）→ AC-3/5。
