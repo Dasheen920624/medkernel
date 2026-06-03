@@ -21,6 +21,19 @@
 - 下一步（精确到动作/命令）：1. 运行最终 focused / verify / build / T-GATE 回归；2. 提交并推送 ADAPTER-01 PR；3. 等远端 CI 8/8；4. squash 合并、fast-forward main、清理 worktree；5. 核查 D2 “7 页面真实化”是否可标 done，再领取 D2 域级验收。
 - 相关文件 / 测试 / 坑：`frontend/src/pages/tenant/AdapterHub.tsx`、`frontend/src/pages/tenant/AdapterHub.module.css`、`frontend/src/pages/tenant/AdapterHub.test.tsx`、`frontend/src/shared/api/hooks.ts`、`frontend/src/shared/api/hooks.test.ts`、`frontend/src/shared/config/routes.ts`、`frontend/src/shared/config/routes.test.ts`、`frontend/src/pages/tenant/RulePathwayCleanliness.test.ts`、`frontend/src/widgets/AppLayout.test.tsx`、`docs/cards/D2/ADAPTER-01.md`、`docs/audit/ADAPTER-01-adapter-hub-page.md`。`DEFER-003/004` 仍 open，不阻塞当前主线但不得宣称清零；真实院方连接器连通依赖客户现场资源，本卡只声明后端事实和诚实 `NOT_CONNECTED`。
 
+### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
+- 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
+- 工具/分支前缀：Claude Code（本线分支用 `feat/rule-*`、`feat/path-*`）
+- 设计权威：OpenSpec 变更 `openspec/changes/pathway-rule-authoring-overhaul/`（已合并 main，**先读其 `README.md` 导读**）。10 能力规格 · 52 需求 · 9 设计附录（A 文法 / B 数据模型+API / C 场景矩阵 / D 枚举 / E 公式库 / F 前端架构 / G 体验 / H 非功能 / I 集成落地）。
+- 目标：把试点客户「完全不能用」的路径配置 / 规则库整治为简单可配、可表达复杂临床逻辑（嵌套 + 临床算子）、可批量可复用、界面简洁美观、医学可辩护的创作平台。
+- 已完成（均已 squash 合并 origin/main）：
+  - #306 OpenSpec 完整设计入库
+  - #308 递归条件模型内核 `conditionModel.ts`（9 测试）、#309 通用递归条件树组件 `ConditionTreeEditor`（6 测试）、#310 规则 DSL 桥接 `ruleDsl.ts`（6 测试）—— 这三个是早期并行模型，**择机转用于「路径边守卫」可视化**（路径边目前仍是纯文本 JSON，无编辑器），规则线不再用它们。
+  - #312 **原地扩展** `ruleLayeredEditor.ts` 加递归嵌套（`RuleConditionGroup`/`conditionNodeToDsl`/`dslToConditionNode`/`dslWhenToRootGroup`/`flatToRootGroup` + `RuleConditionTree.root?`），**保留全部已上线临床算子（between/unit_compare/temporal/derived），零回归**（5 新测试 + 既有 4 测试全过）。
+- 关键背景（避免重复踩坑）：main 已是含「专家模式 + 临床算子」的截图版本（`121eb6dc`）；现有 `ruleLayeredEditor` 条件模型已很丰富，**唯一缺多层级嵌套**。方向已与用户确认：**原地扩展现有编辑器**，不要用早期并行模型替换（会回退临床算子）。
+- 下一步（精确到动作）：1. **PR-B**：把 `RuleDefinitions.tsx`（2275 行）L2 渲染改递归——把现有 index 基的丰富叶子编辑器（`renderConditionValueEditor` 等，行 ~500-960）改为 id/onChange 基并按 `root` 组递归渲染（+条件 / +子条件组 / all|any / 取反 / 删除组），复用 #312 的序列化；同时修「同步即跳专家模式」（`syncTreeToDsl` 行 474-479 当前强制 `setActiveCreateLayer("l3")`+`setCreateExpertMode(true)`，应改为静默同步不跳）。UI 要简洁美观（缩进卡片、克制留白、清晰层级）。2. 详情 L2（行 ~1410-1440）同样递归只读渲染。3. 更新 `RuleDefinitions.test.tsx` + 加嵌套 RTL 用例。4. 之后 P3 路径引擎（节点自动编码 / 下拉连边 / 校验前移）、P2 字段目录选择器。
+- 相关文件 / 测试 / 坑：`frontend/src/shared/config/ruleLayeredEditor.ts`（已含递归 helpers）、`frontend/src/pages/tenant/RuleDefinitions.tsx`、`RuleDefinitions.test.tsx`；CI 前端门禁＝`prettier --check` + `eslint`(含 `medkernel/no-inline-style`，**禁内联 style，用 CSS Module**) + `stylelint`(**禁 px，用 rem**) + `test:coverage`。已知 flaky：`ConfigPackages.test.tsx` 离线导出用例在覆盖率并发下偶发 XHR AggregateError（单跑稳过），已登记独立修复任务，绿不了时只重跑该 job。
+
 ## 已归档工作线（最近完成，供回溯）
 
 - D2 DICTMAP-01 字典映射页真实化 ✅（#317，merge `f851ed0a`）：`/terminology/mapping` 改为消费 `/engine/terminology/**` 的标准字典、院内字典、候选、冲突、映射包、确认、批量确认、构建、发布、回滚 hook；高危候选红标且批量确认禁用，高危逐条二次确认必须勾选并填写理由；映射包支持构建、10% 灰度 / 全量发布、回滚；路由收紧 `menu.terminology-mapping + term.read/write/publish` 与 `it-ops/specialist/medical-admin`；清理旧只读 / 示例口径，修正移动端 header 和表格横向滚动。本地前端 verify 50 files / 299 tests、生产依赖审计 0、build、T-GATE、中文注释和 diff 检查通过；远端 CI 8/8 通过后 squash 合入，远端分支和本地 worktree 已清理。当前继续 ADAPTER-01；`DEFER-003/004/010/011` 保持 open 不阻塞主线。
