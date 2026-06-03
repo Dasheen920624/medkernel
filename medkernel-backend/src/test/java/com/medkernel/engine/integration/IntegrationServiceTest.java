@@ -2,15 +2,20 @@ package com.medkernel.engine.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +41,12 @@ class IntegrationServiceTest {
 
     @Autowired
     private IntegrationMessageLogRepository logRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private final String tenantId = "tenant-001";
 
@@ -161,6 +172,166 @@ class IntegrationServiceTest {
     }
 
     @Test
+    void webhookIdIsUniqueOnlyInsideTenantScope() {
+        IntegrationWebhookConfig tenantOne = service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-shared", "一院 Webhook", "http://one.local/callback", "LAB_RESULT"));
+        IntegrationWebhookConfig tenantTwo = service.createWebhook("tenant-002",
+            new WebhookCreateDto("whk-shared", "二院 Webhook", "http://two.local/callback", "LAB_RESULT"));
+
+        assertEquals("tenant-001", tenantOne.tenantId());
+        assertEquals("tenant-002", tenantTwo.tenantId());
+        assertEquals(1, service.getWebhooks(tenantId).size());
+        assertEquals(1, service.getWebhooks("tenant-002").size());
+
+        assertThrows(ApiException.class, () -> service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-shared", "重复 Webhook", "http://duplicate.local/callback", "LAB_RESULT")));
+    }
+
+    @Test
+    void inboundWebhookRejectsInvalidSignatureAndStoresFailedMessageLog() throws Exception {
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-in", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        WebhookInboundRequestDto inbound = inboundRequest("msg-bad-sig", "trace-bad-sig", "lis-adapter",
+            "{\"patientId\":\"P-100\",\"diagnosisCode\":\"DIA-A00\"}");
+
+        ApiException error = assertThrows(ApiException.class, () ->
+            service.ingestWebhook(tenantId, "whk-in", "1780456000", "bad-signature", inbound));
+
+        assertEquals("ENG-INTEG-004", error.errorCode().code());
+        IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-bad-sig", tenantId).orElseThrow();
+        assertEquals("INBOUND", log.direction());
+        assertEquals("Webhook", log.protocolType());
+        assertEquals("FAILED", log.status());
+        assertTrue(log.errorMessage().contains("Webhook 消息签名校验失败"));
+        assertTrue(log.payload().contains("diagnosisCode"));
+    }
+
+    @Test
+    void inboundWebhookVerifiesSignatureMapsFieldsAndNormalizesCodesByConfirmedTermMapping() throws Exception {
+        Long standardTermId = insertStandardTerm("ICD-10", "A00", "霍乱");
+        Long localTermId = insertLocalTerm("HIS", "DIA-A00", "本院霍乱诊断");
+        Long mappingId = insertConfirmedTermMapping(localTermId, standardTermId, "HIS");
+
+        service.createAdapter(tenantId, new AdapterCreateDto("lis-adapter", "LIS 入站适配器", "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {"sourcePath": "/patientId", "targetPath": "/patient/id"},
+                {"sourcePath": "/diagnosisCode", "targetPath": "/diagnosis/code", "termMappingId": %d}
+              ]
+            }
+            """.formatted(mappingId)));
+        IntegrationWebhookConfig webhook = service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        WebhookInboundRequestDto inbound = inboundRequest("msg-map-1", "trace-map-1", "lis-adapter",
+            "{\"patientId\":\"P-100\",\"diagnosisCode\":\"DIA-A00\"}");
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhook.secretKey(), timestamp, inbound);
+
+        WebhookInboundResultDto result = service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound);
+
+        assertEquals("SUCCESS", result.status());
+        assertFalse(result.idempotentReplay());
+        assertEquals(2, result.mappedFieldCount());
+        assertEquals(1, result.normalizedCodeCount());
+        assertEquals("P-100", result.mappedPayload().at("/patient/id").asText());
+        assertEquals("ICD-10", result.mappedPayload().at("/diagnosis/code/system").asText());
+        assertEquals("A00", result.mappedPayload().at("/diagnosis/code/code").asText());
+        assertEquals("霍乱", result.mappedPayload().at("/diagnosis/code/display").asText());
+
+        IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-map-1", tenantId).orElseThrow();
+        assertEquals("SUCCESS", log.status());
+        assertTrue(log.payload().contains("\"mappedPayload\""));
+        assertTrue(log.payloadSummary().contains("映射字段 2"));
+
+        WebhookInboundResultDto replay = service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound);
+        assertEquals("SUCCESS", replay.status());
+        assertTrue(replay.idempotentReplay());
+        assertEquals(1, logRepository.countByTenantId(tenantId));
+    }
+
+    @Test
+    void inboundWebhookRejectsStaleTimestampEvenWhenSignatureMatches() throws Exception {
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-stale", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-stale", tenantId).orElseThrow();
+        WebhookInboundRequestDto inbound = inboundRequest("msg-stale", "trace-stale", "lis-adapter",
+            "{\"patientId\":\"P-100\"}");
+        String staleTimestamp = String.valueOf(Instant.now().minus(Duration.ofMinutes(10)).getEpochSecond());
+        String signature = signInbound(webhook.secretKey(), staleTimestamp, inbound);
+
+        ApiException error = assertThrows(ApiException.class, () ->
+            service.ingestWebhook(tenantId, "whk-stale", staleTimestamp, signature, inbound));
+
+        assertEquals("ENG-INTEG-004", error.errorCode().code());
+        IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-stale", tenantId).orElseThrow();
+        assertEquals("FAILED", log.status());
+        assertTrue(log.errorMessage().contains("Webhook 消息签名校验失败"));
+    }
+
+    @Test
+    void inboundWebhookStoresFailedLogWhenFieldMappingConfigurationIsInvalid() throws Exception {
+        service.createAdapter(tenantId, new AdapterCreateDto("lis-bad-map", "LIS 坏映射适配器", "Webhook", "{}"));
+        IntegrationWebhookConfig webhook = service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-bad-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        WebhookInboundRequestDto inbound = inboundRequest("msg-bad-map", "trace-bad-map", "lis-bad-map",
+            "{\"patientId\":\"P-100\"}");
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhook.secretKey(), timestamp, inbound);
+
+        ApiException error = assertThrows(ApiException.class, () ->
+            service.ingestWebhook(tenantId, "whk-bad-map", timestamp, signature, inbound));
+
+        assertEquals("ENG-INTEG-001", error.errorCode().code());
+        IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-bad-map", tenantId).orElseThrow();
+        assertEquals("FAILED", log.status());
+        assertTrue(log.errorMessage().contains("适配器未配置字段映射"));
+    }
+
+    @Test
+    void inboundMessageIdempotencyIsScopedByTenant() {
+        logRepository.save(new IntegrationMessageLog(
+            null,
+            "shared-message",
+            tenantId,
+            "trace-tenant-1",
+            "INBOUND",
+            "HIS",
+            "Webhook",
+            "tenant-1",
+            "{}",
+            "SUCCESS",
+            0,
+            3,
+            null,
+            Instant.now(),
+            "system",
+            Instant.now(),
+            "system"
+        ));
+
+        assertDoesNotThrow(() -> logRepository.save(new IntegrationMessageLog(
+            null,
+            "shared-message",
+            "tenant-002",
+            "trace-tenant-2",
+            "INBOUND",
+            "HIS",
+            "Webhook",
+            "tenant-2",
+            "{}",
+            "SUCCESS",
+            0,
+            3,
+            null,
+            Instant.now(),
+            "system",
+            Instant.now(),
+            "system"
+        )));
+    }
+
+    @Test
     void testMessageLogsAndRetry() {
         // 先手动插入一条失败的消息日志，物理报文 payload 非空
         IntegrationMessageLog log = new IntegrationMessageLog(
@@ -236,5 +407,77 @@ class IntegrationServiceTest {
         service.deleteMessage(tenantId, "msg-2");
         Optional<IntegrationMessageLog> deletedEmpty = logRepository.findByMessageIdAndTenantId("msg-2", tenantId);
         assertFalse(deletedEmpty.isPresent());
+    }
+
+    private WebhookInboundRequestDto inboundRequest(String messageId, String traceId, String adapterId, String payload)
+            throws JsonProcessingException {
+        return new WebhookInboundRequestDto(
+            messageId,
+            traceId,
+            adapterId,
+            "LIS",
+            "LAB_RESULT",
+            objectMapper.readTree(payload)
+        );
+    }
+
+    private String currentTimestamp() {
+        return String.valueOf(Instant.now().getEpochSecond());
+    }
+
+    private String signInbound(String secretKey, String timestamp, WebhookInboundRequestDto request) throws Exception {
+        String data = timestamp + "." + objectMapper.writeValueAsString(request);
+        Mac sha256Hmac = Mac.getInstance("HmacSHA256");
+        sha256Hmac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        byte[] hash = sha256Hmac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        StringBuilder signature = new StringBuilder(2 * hash.length);
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                signature.append('0');
+            }
+            signature.append(hex);
+        }
+        return signature.toString();
+    }
+
+    private Long insertStandardTerm(String standardSystem, String termCode, String displayName) {
+        jdbcTemplate.update("""
+            INSERT INTO standard_term
+                (tenant_id, standard_system, term_code, category, display_name, normalized_name,
+                 version_no, status, evidence_text, created_by, updated_by)
+            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, '2026', 'ACTIVE', 'TERM-01 已确认标准术语', 'test', 'test')
+            """, tenantId, standardSystem, termCode, displayName, displayName.toLowerCase());
+        return jdbcTemplate.queryForObject("""
+            SELECT id FROM standard_term
+            WHERE tenant_id = ? AND standard_system = ? AND term_code = ? AND version_no = '2026'
+            """, Long.class, tenantId, standardSystem, termCode);
+    }
+
+    private Long insertLocalTerm(String sourceSystem, String localCode, String localName) {
+        jdbcTemplate.update("""
+            INSERT INTO local_term
+                (tenant_id, source_system, local_code, category, local_name, normalized_name,
+                 status, created_by, updated_by)
+            VALUES (?, ?, ?, 'DIAGNOSIS', ?, ?, 'MAPPED', 'test', 'test')
+            """, tenantId, sourceSystem, localCode, localName, localName.toLowerCase());
+        return jdbcTemplate.queryForObject("""
+            SELECT id FROM local_term
+            WHERE tenant_id = ? AND source_system = ? AND local_code = ? AND category = 'DIAGNOSIS'
+            """, Long.class, tenantId, sourceSystem, localCode);
+    }
+
+    private Long insertConfirmedTermMapping(Long localTermId, Long standardTermId, String sourceSystem) {
+        jdbcTemplate.update("""
+            INSERT INTO term_mapping
+                (tenant_id, local_term_id, standard_term_id, source_system, category, confidence,
+                 risk_level, status, evidence_text, confirmed_by, confirmed_at, created_by, updated_by)
+            VALUES (?, ?, ?, ?, 'DIAGNOSIS', 1.0, 'LOW', 'CONFIRMED',
+                    'TERM-01 已确认映射', 'test', CURRENT_TIMESTAMP, 'test', 'test')
+            """, tenantId, localTermId, standardTermId, sourceSystem);
+        return jdbcTemplate.queryForObject("""
+            SELECT id FROM term_mapping
+            WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND status = 'CONFIRMED'
+            """, Long.class, tenantId, localTermId, standardTermId);
     }
 }

@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers(disabledWithoutDocker = true)
 class FlywayMultiDialectSmokeTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 59;
+    private static final int LATEST_MIGRATION_VERSION = 61;
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(

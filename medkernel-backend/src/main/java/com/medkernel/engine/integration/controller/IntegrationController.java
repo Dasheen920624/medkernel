@@ -240,6 +240,45 @@ public class IntegrationController {
     }
 
     /**
+     * 接收第三方系统 Webhook 入站消息。
+     *
+     * <p>签名头由服务层进行 HMAC-SHA256 常量时间校验；验签失败会拒绝并写入集成消息日志。
+     *
+     * @param webhookId Webhook 订阅 ID
+     * @param timestamp 防重放签名时间戳
+     * @param signature HMAC-SHA256 签名
+     * @param dto       入站消息 DTO
+     * @return 字段映射和编码归一后的处理结果
+     */
+    @PostMapping("/webhooks/{id}/inbound")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<WebhookInboundResultDto> ingestWebhook(@PathVariable("id") String webhookId,
+                                                            @RequestHeader("X-MedKernel-Timestamp") String timestamp,
+                                                            @RequestHeader("X-MedKernel-Signature") String signature,
+                                                            @Validated @RequestBody WebhookInboundRequestDto dto) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            WebhookInboundResultDto result = integrationService.ingestWebhook(tenantId, webhookId, timestamp, signature, dto);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.EXECUTE,
+                "integration_webhook",
+                webhookId,
+                "接收入站 Webhook 消息: " + result.messageId() + "，状态: " + result.status()
+            ));
+            return ApiResult.ok(result);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "integration_webhook",
+                webhookId,
+                e.errorCode().code(),
+                "接收入站 Webhook 消息失败: " + dto.messageId() + "，原因: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
      * 分页查询当前租户下所有第三方集成流审计日志 (支持死信队列的查看)。
      *
      * @param page 页码，从 1 开始，默认 1

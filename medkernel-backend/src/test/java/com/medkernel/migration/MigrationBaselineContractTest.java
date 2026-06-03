@@ -85,7 +85,9 @@ class MigrationBaselineContractTest {
         "V56__version_release_replay.sql",
         "V57__knowledge_effective_scope_unique.sql",
         "V58__knowledge_invalidation_affected_tasks.sql",
-        "V59__integration_adapter_tenant_unique.sql"
+        "V59__integration_adapter_tenant_unique.sql",
+        "V60__integration_message_tenant_unique.sql",
+        "V61__integration_webhook_tenant_unique.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -556,6 +558,36 @@ class MigrationBaselineContractTest {
                 .contains("drop constraint")
                 .contains("uk_integration_adapter")
                 .contains("unique (tenant_id, adapter_id)");
+        }
+    }
+
+    @Test
+    void integrationMessageIdempotencyConstraintIsTenantScopedInEveryDialect() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V60__integration_message_tenant_unique.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 入站消息幂等键必须收窄到租户作用域", dialect)
+                .contains("drop constraint")
+                .contains("uk_integration_message")
+                .contains("unique (tenant_id, message_id)");
+        }
+    }
+
+    @Test
+    void integrationWebhookUniqueConstraintIsTenantScopedInEveryDialect() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V61__integration_webhook_tenant_unique.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s Webhook 唯一约束必须收窄到租户作用域", dialect)
+                .contains("drop constraint")
+                .contains("uk_integration_webhook")
+                .contains("unique (tenant_id, webhook_id)");
         }
     }
 

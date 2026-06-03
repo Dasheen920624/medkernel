@@ -32,6 +32,9 @@ class IntegrationControllerSecurityTest {
 
     private static final String ADAPTER_BODY = "{\"adapterId\":\"adp-9\",\"name\":\"HIS连接\",\"protocolType\":\"HL7\",\"configJson\":\"{}\"}";
     private static final String WEBHOOK_BODY = "{\"webhookId\":\"whk-9\",\"name\":\"诊断订阅\",\"callbackUrl\":\"http://domain/cb\",\"eventsSubscribed\":\"OUTPATIENT_DIAGNOSIS\"}";
+    private static final String INBOUND_BODY = """
+        {"messageId":"msg-9","traceId":"trace-9","adapterId":"adp-9","sourceSystem":"HIS","eventType":"DIAGNOSIS","payload":{"patientId":"P-9"}}
+        """;
 
     @AfterEach
     void clearAll() {
@@ -98,6 +101,28 @@ class IntegrationControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/integration/webhooks")
                 .contentType("application/json")
                 .content(WEBHOOK_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void anonymousCannotIngestWebhook() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
+                .contentType("application/json")
+                .header("X-MedKernel-Timestamp", "1780456123")
+                .header("X-MedKernel-Signature", "bad-signature")
+                .content(INBOUND_BODY))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void inboundWebhookFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
+                .contentType("application/json")
+                .header("X-MedKernel-Timestamp", "1780456123")
+                .header("X-MedKernel-Signature", "bad-signature")
+                .content(INBOUND_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 INTEG-01 第三方对接总线 🚧
 - 类型：软件开发
-- 分支：`codex/d2-integ-01-bus`
+- 分支：`codex/d2-integ-01-pr2-webhook-mapping`
 - 目标：完成 INTEG-01：适配器目录、FHIR/CDS Hooks 风格门面、Webhook 签名、字段映射、健康检查与重试死信；外部系统断连必须诚实 `NOT_CONNECTED`，不得伪造同步或回调成功。
-- 状态：PR1 已完成适配器目录地基、租户内唯一约束、手动健康检查、健康汇总与 `NOT_CONNECTED` 诚实状态；本地后端全量、前端 verify/build、迁移 smoke、脚本自测、提交后 changed-mode T-GATE（真实性 12 文件 / 配置边界 10 文件 / 迁移 5 文件）、中文注释与 diff 检查已通过。AC-1 仍不勾选：周期探活未完成，不冒领。
-- 下一步（精确到动作/命令）：1. 推送 `codex/d2-integ-01-bus`，开 PR，等待远端 CI 8/8 通过后 squash 合并；2. 合并并 fetch 最新 `origin/main` 后继续 INTEG-01 PR2：Webhook 入站验签 + 字段映射接 TERM-01；3. PR2 仍按 TDD + 提交后 changed-mode T-GATE，不复用 PR1 证据。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/**`、`IntegrationController`、`IntegrationAdapterRepository`、`frontend/src/pages/tenant/AdapterHub.tsx`、`medkernel-backend/src/main/resources/db/migration/*/V59__integration_adapter_tenant_unique.sql`；FHIR R4/R5 完整资源门面在 OPT-01，INTEG-01 只做对接总线与门面挂点，不冒领完整临床资源实现；外部 HIS/EMR/LIS/PACS 真实环境不可用时登记问题并继续 B0，总线需返回 `NOT_CONNECTED`。历史迁移中的旧 QA-08/INTEG-02 文案不改写，避免破坏已发布 Flyway checksum；生产代码触碰范围已清理旧 ping/自检口径。
+- 状态：PR1 已通过 #291 合入 `origin/main`。PR2 当前分支已本地实现 Webhook 入站验签、5 分钟 timestamp 防重放、租户内 message/webhook 唯一约束 V60/V61、字段映射 JSON Pointer、TERM-01 `CONFIRMED` 映射归一、失败/配置错误落 `FAILED` 入站日志，并清理 `IntegrationWebhookConfigRepository.findByWebhookId` 全局旧查找。已跑：`mvn -q -Dtest=IntegrationServiceTest#inboundWebhookStoresFailedLogWhenFieldMappingConfigurationIsInvalid test`、`mvn -q -Dtest=IntegrationServiceTest#inboundWebhookRejectsStaleTimestampEvenWhenSignatureMatches test`、`mvn -q -Dtest=IntegrationServiceTest,IntegrationControllerSecurityTest,MigrationBaselineContractTest,ServiceContractGovernanceTest test`、`mvn -q -Dtest=FlywayMultiDialectSmokeTest,H2BaselineMigrationTest,MigrationBaselineContractTest test`、`mvn -q test`（H2 + Docker PostgreSQL 15.18 / Oracle 21.3 均到 v61 且二次 migrate 无新迁移）；提交前 `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`、`scripts/check-comment-zh.sh`、`git diff --check` 已通过；提交后 changed-mode T-GATE：真实性 8 文件 / 配置边界 8 文件 / 迁移 10 文件均通过。AC-2 已在卡中勾选；FR-2 周期探活、FR-5/FR-6 重试死信/不阻断主流程仍未完成，不冒领。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d2-integ-01-pr2-webhook-mapping`，开 PR，远端 CI 8/8 通过后 squash 合并；2. fetch 最新 `origin/main` 后从新分支继续 INTEG-01 PR3：重试死信 + 重放 + 不阻断主流程降级。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/**`、`IntegrationController`、`IntegrationMessageLogRepository`、`IntegrationWebhookConfigRepository`、`TermMappingRepository`、`StandardTermRepository`、`medkernel-backend/src/main/resources/db/migration/*/V60__integration_message_tenant_unique.sql`、`V61__integration_webhook_tenant_unique.sql`、`docs/cards/D2/INTEG-01.md`；FHIR R4/R5 完整资源门面在 OPT-01，INTEG-01 只做对接总线与门面挂点，不冒领完整临床资源实现；外部 HIS/EMR/LIS/PACS 真实环境不可用时登记问题并继续 B0，总线需返回 `NOT_CONNECTED`。历史迁移中的旧 QA-08/INTEG-02 文案不改写，避免破坏已发布 Flyway checksum；DM/Kingbase 真实运行环境仍按 `DEFER-001` 后续适配，当前运行保障 PostgreSQL + Oracle。
 
 ## 已归档工作线（最近完成，供回溯）
 
@@ -163,4 +163,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；SYS-08 已通过 #287/#288/#289 完成并收口为 done，当前下一任务为 D2 INTEG-01 第三方对接总线，需从最新 `origin/main` 新建分支后实施。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；当前在 D2 INTEG-01 PR2 `codex/d2-integ-01-pr2-webhook-mapping`，本地实现、后端全量验证、提交前门禁和 changed-mode T-GATE 已完成，下一步为 PR / CI / 合并；合并后继续 PR3 重试死信 + 不阻断主流程降级。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
