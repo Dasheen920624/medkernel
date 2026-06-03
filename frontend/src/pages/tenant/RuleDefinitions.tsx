@@ -348,7 +348,9 @@ function impactCount(list?: RuleImpactObject[]) {
 
 function releaseImpactStatus(impact?: RuleImpactResponse | null) {
   if (!impact) return "未读取";
-  return impact.analysisStatus === "PARTIAL" ? "部分影响已确认" : impact.analysisStatus;
+  if (impact.analysisStatus === "COMPLETE") return "已完成真实影响分析";
+  if (impact.analysisStatus === "PARTIAL") return "部分影响已确认";
+  return impact.analysisStatus;
 }
 
 export default function RuleDefinitions() {
@@ -1534,6 +1536,9 @@ export default function RuleDefinitions() {
         {impactCount(impactQuery.data?.syncTargets)}
       </Descriptions.Item>
       {renderImpactObjectList("已定位规则", impactQuery.data?.affectedRules ?? [])}
+      {renderImpactObjectList("受影响路径", impactQuery.data?.affectedPathways ?? [])}
+      {renderImpactObjectList("在径患者", impactQuery.data?.inPathPatients ?? [])}
+      {renderImpactObjectList("同步目标", impactQuery.data?.syncTargets ?? [])}
       <Descriptions.Item label="不可用范围">
         {impactQuery.data?.unavailableScopes?.length ? (
           <Space wrap>
@@ -1577,7 +1582,7 @@ export default function RuleDefinitions() {
           type="warning"
           showIcon
           message="高危规则必须携带当前影响摘要和审核说明。"
-          description="影响摘要来自规则影响分析接口；跨域反向索引未接入的范围会明示为不可用，不会在前端补造路径、患者或同步目标。"
+          description="影响摘要来自规则影响分析接口；路径、在径患者和同步目标只展示后端从关系库定位到的真实对象。"
         />
       )}
       {impactSummaryPanel}

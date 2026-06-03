@@ -17,8 +17,8 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准；API-05 收口 2026-06-02）
 `engine/rule` **控制器已建**，本卡＝**契约化 + 影响分析/解释/统一入参补全**：
 - 已有：`RuleEngineController`(+ 安全测试)、`RuleEngineService`、`RuleEvaluateRequest`/`Response`、`RuleSimulateRequest`、`RuleTestCase`、`RulePublishResponse`、`RuleCreateRequest`/`Response`/`RuleDetailResponse`/`RuleFilter`。
-- 已补：① 统一客户面入口 `/api/v1/engine/rule/**`，旧 `/api/v1/engine/rules` 客户面入口 404；② 规则定义创建/详情/列表/更新、测试病例、全量测试、仿真、影响分析、发布、执行、执行解释端点；③ 写接口、仿真、测试、发布、执行补 12 字段统一入参与租户一致性校验；④ 高危规则发布必须携带当前影响分析摘要，且测试用例需全绿；⑤ DSL 错误返回 `RULE_DSL_INVALID`，高危门禁返回 `RULE_PUBLISH_GATE_DENIED`。
-- 未在本卡伪造：真实跨域影响对象（路径模板、在径患者、同步目标）需先建立规则反向索引，已登记 `DEFER-012`，当前影响分析只返回规则自身、版本、测试覆盖与不可用范围；真实 10 万级规则列表压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭。
+- 已补：① 统一客户面入口 `/api/v1/engine/rule/**`，旧 `/api/v1/engine/rules` 客户面入口 404；② 规则定义创建/详情/列表/更新、测试病例、全量测试、仿真、影响分析、发布、执行、执行解释端点；③ 写接口、仿真、测试、发布、执行补 12 字段统一入参与租户一致性校验；④ 高危规则发布必须携带当前影响分析摘要，且测试用例需全绿；⑤ DSL 错误返回 `RULE_DSL_INVALID`，高危门禁返回 `RULE_PUBLISH_GATE_DENIED`；⑥ 规则影响分析已通过关系库只读索引定位路径模板、在径患者和发布同步目标，关闭 `DEFER-012`，无真实对象时返回空列表，不前端补造。
+- 未在本卡伪造：真实 10 万级规则列表压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 定义 CRUD**：`GET/POST/PUT /rules`、`GET /rules/{id}`（含三层产物）；列表分页（[API-13](../D0/API-13.md)）。
@@ -60,14 +60,14 @@ N·A —— 本卡无页面。被 [RULE-01](RULE-01.md) 规则库页消费。
 
 ## 验收 + 验证
 - [x] **AC-1（FR-1/2）**：规则 CRUD + 用例测试，统一信封；用例不全绿不可发布。
-- [x] **AC-2（FR-3/4）**：影响分析返回受影响对象；高危无影响分析发布 → `RULE_PUBLISH_GATE_DENIED`。跨域真实影响对象不伪造，归 `DEFER-012` 在 [RULE-01](RULE-01.md) / [SYS-04](SYS-04.md) / 域级验收关闭。
+- [x] **AC-2（FR-3/4）**：影响分析返回受影响对象；高危无影响分析发布 → `RULE_PUBLISH_GATE_DENIED`。跨域真实影响对象由关系库只读索引返回路径模板、在径患者和同步目标，`DEFER-012` 已关闭；无真实引用时返回空列表，不伪造对象。
 - [x] **AC-3（FR-5）**：对标准上下文求值返回结果 + 解释。
 - [x] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
 - 关联 A1–A9 剧本：A3 规则配置、A4 发布回滚。
-- T-GATE：真实性门禁全绿。
+- T-GATE：本分支脚本门禁与提交后 changed-mode 扫描作为 PR 合入门禁，证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)。
 - B0 验收：确定性求值，**天然 B0**。
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/rule/**` 端点 + 影响分析 + 解释 + 发布接 [SYS-04](SYS-04.md)。
-- 本地验证：`RuleEngineApiContractTest`、`RuleEngineServiceTest`、`RuleEngineControllerSecurityTest`、`RuleDslEvaluatorTest`、`RuleRepositoryTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`、`GlobalExceptionHandlerTest`、`ErrorCodeTest` 聚焦通过；后端全量 `mvn -q test` 通过；`FlywayMultiDialectSmokeTest` 覆盖 H2 / PostgreSQL / Oracle 迁移至 V48；T-GATE 规则测试 34/34；真实性全仓扫描通过；中文注释扫描仅剩 `DEFER-006` 历史迁移 COMMENT GAP。
+- 本地验证：`RuleEngineApiContractTest`、`RuleEngineServiceTest`、`RuleEngineControllerSecurityTest`、`RuleDslEvaluatorTest`、`RuleRepositoryTest`、`RelationalRuleImpactIndexTest`、`RelationalRuleImpactIndexRepositoryTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`、`GlobalExceptionHandlerTest`、`ErrorCodeTest` 聚焦通过；后端全量 `mvn -q test` 通过；`FlywayMultiDialectSmokeTest` 覆盖 H2 / PostgreSQL / Oracle 迁移至当前版本；T-GATE 脚本测试、中文注释 changed 扫描、diff 检查与前端全量证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)。历史迁移中文 COMMENT full gap 仍归 `DEFER-006`，不得写成已清零。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
