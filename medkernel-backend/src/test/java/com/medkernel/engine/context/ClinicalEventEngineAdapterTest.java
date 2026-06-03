@@ -43,8 +43,9 @@ class ClinicalEventEngineAdapterTest {
         ArgumentCaptor<RuleEvaluateRequest> requestCap = ArgumentCaptor.forClass(RuleEvaluateRequest.class);
         verify(service).evaluate(requestCap.capture());
         assertThat(requestCap.getValue().eventId()).isEqualTo("evt-1");
-        assertThat(requestCap.getValue().triggerPoint()).isEqualTo("DIAGNOSIS");
+        assertThat(requestCap.getValue().triggerPoint()).isEqualTo("patient-view");
         assertThat(requestCap.getValue().context().path("event").path("eventId").asText()).isEqualTo("evt-1");
+        assertThat(requestCap.getValue().context().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
         assertThat(requestCap.getValue().context().path("patient").path("patientId").asText()).isEqualTo("MPI-1");
     }
 
@@ -82,6 +83,7 @@ class ClinicalEventEngineAdapterTest {
         assertThat(requestCap.getValue().sourceEventId()).isEqualTo("evt-1");
         assertThat(requestCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(requestCap.getValue().encounterId()).isEqualTo("ENC-1");
+        assertThat(requestCap.getValue().scenarioCode()).isEqualTo("patient-view");
         assertThat(requestCap.getValue().inputDigest()).isEqualTo("sha256:payload");
         assertThat(requestCap.getValue().candidateCards()).isEmpty();
     }
@@ -92,6 +94,7 @@ class ClinicalEventEngineAdapterTest {
             "tenant-A",
             new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
             ClinicalEventType.DIAGNOSIS,
+            ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",
             "ENC-1",
             "ctx-1",
@@ -99,7 +102,7 @@ class ClinicalEventEngineAdapterTest {
             "pkg-2026.06",
             "sha256:payload",
             Instant.parse("2026-06-01T01:00:00Z"),
-            "HIS:DIAGNOSIS",
+            "HIS:patient-view",
             "trace-1",
             json.createObjectNode().put("diagnosisCode", "I10"),
             List.of());

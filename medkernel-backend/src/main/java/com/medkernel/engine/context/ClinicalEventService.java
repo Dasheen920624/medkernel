@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.integration.repository.IntegrationWebhookConfigRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -46,6 +48,7 @@ public class ClinicalEventService {
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
     private final ClinicalEventProperties properties;
+    private final IntegrationWebhookConfigRepository webhookConfigRepository;
 
     public ClinicalEventService(ClinicalEventRepository events,
                                 ClinicalEventPayloadRepository payloads,
@@ -55,7 +58,8 @@ public class ClinicalEventService {
                                 StateTransitionRecorder transitions,
                                 DiagnoseResponseAssembler diagnoseAssembler,
                                 ObjectMapper json,
-                                ClinicalEventProperties properties) {
+                                ClinicalEventProperties properties,
+                                IntegrationWebhookConfigRepository webhookConfigRepository) {
         this.events = events;
         this.payloads = payloads;
         this.outbox = outbox;
@@ -65,6 +69,7 @@ public class ClinicalEventService {
         this.diagnoseAssembler = diagnoseAssembler;
         this.json = json;
         this.properties = properties;
+        this.webhookConfigRepository = webhookConfigRepository;
     }
 
     @Transactional
@@ -72,7 +77,8 @@ public class ClinicalEventService {
         String tenantId = requireCurrentTenant();
         boolean existingBeforeReceive = events.findByEventIdAndTenantId(req.eventId(), tenantId).isPresent();
         ClinicalEventAcceptedResponse accepted = receiveAsync(req);
-        if (existingBeforeReceive || accepted.status() == ClinicalEventStatus.PROCESSED) {
+        if (existingBeforeReceive || !accepted.eventId().equals(req.eventId())
+            || accepted.status() == ClinicalEventStatus.PROCESSED) {
             return accepted;
         }
         processor.process(accepted.eventId(), tenantId);
@@ -105,9 +111,20 @@ public class ClinicalEventService {
             }
             return accepted(existing.get(), digest, traceId, now);
         }
+        var idempotent = findByIdempotencyKey(tenantId, req.idempotencyKey());
+        if (idempotent.isPresent()) {
+            ClinicalEvent event = idempotent.get();
+            if (!digest.equals(event.payloadDigest())) {
+                throw new ApiException(ErrorCode.ENG_CONTEXT_004,
+                    "ClinicalEventIdempotencyKey 已存在且 payload 不一致");
+            }
+            return accepted(event, digest, traceId, now);
+        }
+        requireCallbackWhitelist(req.callbackWebhookId(), tenantId);
 
         ClinicalEvent saved = events.save(new ClinicalEvent(
             null, req.eventId(), tenantId, req.eventType(),
+            req.triggerPoint(), req.idempotencyKey(), req.callbackWebhookId(),
             writeOrgScope(),
             req.patientId(), req.encounterId(), req.sourceSystem(), req.packageVersion(),
             digest, req.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
@@ -133,10 +150,23 @@ public class ClinicalEventService {
     @Transactional
     public ClinicalEventBatchResponse receiveBatch(ClinicalEventBatchRequest req) {
         String batchId = "batch-" + UUID.randomUUID();
-        List<ClinicalEventAcceptedResponse> items = req.events().stream()
-            .map(this::receiveAsync)
-            .toList();
-        return new ClinicalEventBatchResponse(batchId, items, RequestContext.currentTraceId());
+        java.util.ArrayList<ClinicalEventAcceptedResponse> items = new java.util.ArrayList<>();
+        java.util.ArrayList<ClinicalEventBatchFailure> failures = new java.util.ArrayList<>();
+        for (ClinicalEventRequest item : req.events()) {
+            try {
+                items.add(receiveAsync(item));
+            } catch (ApiException exception) {
+                failures.add(new ClinicalEventBatchFailure(
+                    item == null ? null : item.eventId(),
+                    exception.errorCode().code(),
+                    exception.getMessage(),
+                    exception.errorCode().retryable()));
+            }
+        }
+        ClinicalEventBatchStatus status = batchStatus(items.size(), failures.size());
+        return new ClinicalEventBatchResponse(
+            batchId, items, failures, req.events().size(), items.size(), failures.size(), status,
+            RequestContext.currentTraceId());
     }
 
     @Transactional(readOnly = true)
@@ -188,6 +218,17 @@ public class ClinicalEventService {
         return PageResponse.of(rows, page, total);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<ClinicalEventDeadLetterResponse> listDeadLetters(PageRequest page) {
+        String tenantId = requireCurrentTenant();
+        long total = outbox.countDeadByTenantId(tenantId);
+        List<ClinicalEventDeadLetterResponse> rows = total == 0 ? List.of()
+            : outbox.pageDeadByTenantId(tenantId, page.offset(), page.safeSize()).stream()
+                .map(this::toDeadLetter)
+                .toList();
+        return PageResponse.of(rows, page, total);
+    }
+
     @Transactional
     public ClinicalEventReplayResponse replay(String eventId) {
         String tenantId = requireCurrentTenant();
@@ -206,6 +247,7 @@ public class ClinicalEventService {
         events.save(copyWithStatus(source, ClinicalEventStatus.SUPERSEDED));
         events.save(new ClinicalEvent(
             null, newEventId, tenantId, source.eventType(),
+            source.triggerPoint(), null, source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             payload.digest(), source.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
@@ -232,6 +274,15 @@ public class ClinicalEventService {
             source.eventId(), newEventId, ClinicalEventStatus.RECEIVED, RequestContext.currentTraceId());
     }
 
+    @Transactional
+    public ClinicalEventReplayResponse replayDeadLetter(String deadLetterId) {
+        String tenantId = requireCurrentTenant();
+        ClinicalEventOutbox deadLetter = outbox.findByEventIdAndTenantId(deadLetterId, tenantId)
+            .filter(row -> "DEAD".equals(row.claimStatus()))
+            .orElseThrow(() -> ApiException.notFound("临床事件死信"));
+        return replay(deadLetter.eventId());
+    }
+
     static String digest(ObjectMapper json, JsonNode payload) {
         return sha256(writePayload(json, payload));
     }
@@ -249,16 +300,23 @@ public class ClinicalEventService {
 
     private ClinicalEventDetailResponse toDetail(ClinicalEvent event) {
         return new ClinicalEventDetailResponse(
-            event.eventId(), event.eventType(), event.patientId(), event.encounterId(),
-            event.sourceSystem(), event.packageVersion(), event.processingStatus(),
+            event.eventId(), event.eventType(), event.triggerPoint(), event.patientId(), event.encounterId(),
+            event.sourceSystem(), event.packageVersion(), event.callbackWebhookId(), event.processingStatus(),
             event.payloadDigest(), event.errorCode(), event.errorClass(),
             event.retryCount(), event.rootEventId(), event.occurredAt(),
             event.receivedAt(), event.traceId());
     }
 
+    private ClinicalEventDeadLetterResponse toDeadLetter(ClinicalEventOutbox row) {
+        return new ClinicalEventDeadLetterResponse(
+            row.eventId(), row.eventId(), row.traceId(), row.retryCount(), row.lastErrorCode(),
+            row.createdAt(), row.nextAttemptAt());
+    }
+
     private ClinicalEvent copyWithStatus(ClinicalEvent source, ClinicalEventStatus status) {
         return new ClinicalEvent(
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
+            source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
@@ -296,6 +354,30 @@ public class ClinicalEventService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("JDK 缺少 SHA-256 摘要算法", exception);
         }
+    }
+
+    private Optional<ClinicalEvent> findByIdempotencyKey(String tenantId, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return Optional.empty();
+        }
+        return events.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey);
+    }
+
+    private void requireCallbackWhitelist(String callbackWebhookId, String tenantId) {
+        if (callbackWebhookId == null || callbackWebhookId.isBlank()) {
+            return;
+        }
+        webhookConfigRepository.findByWebhookIdAndTenantId(callbackWebhookId, tenantId)
+            .filter(config -> "ACTIVE".equalsIgnoreCase(config.status()))
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_003,
+                "临床事件回调 Webhook 未在当前租户白名单中: " + callbackWebhookId));
+    }
+
+    private ClinicalEventBatchStatus batchStatus(int acceptedCount, int failureCount) {
+        if (failureCount == 0) {
+            return ClinicalEventBatchStatus.COMPLETED;
+        }
+        return acceptedCount == 0 ? ClinicalEventBatchStatus.FAILED : ClinicalEventBatchStatus.PARTIAL_SUCCESS;
     }
 
     private String requireCurrentTenant() {
