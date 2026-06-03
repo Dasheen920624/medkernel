@@ -1,6 +1,6 @@
-# 第三方接入契约指南（INTEG-02）
+# 第三方接入契约指南（INTEG-02 + OPT-01 FHIR 门面）
 
-> 适用对象：院内信息科、第三方厂商、实施工程师。本文档只描述当前已经存在的 INTEG-01 对接总线端点；FHIR R4/R5 资源门面由 OPT-01 交付前，不发布运行 URL。
+> 适用对象：院内信息科、第三方厂商、实施工程师。本文档描述当前已经存在的 INTEG-01 对接总线端点，以及 OPT-01 挂载在总线下的 FHIR R4/R5 运行门面；FHIR 门面只声明已实现能力，不发布未落地资源或交互。
 
 ## 接入边界
 
@@ -13,7 +13,7 @@
 | Webhook | `/api/v1/engine/integration/webhooks/{id}/inbound` | 使用 `X-MedKernel-Timestamp` 和 `X-MedKernel-Signature` 做 HMAC-SHA256 验签 | `NOT_CONNECTED` |
 | REST / WebService / HL7 适配器 | `/api/v1/engine/integration/adapters` | 先登记适配器、字段映射和真实连接配置；没有真实连接器时只登记诚实状态 | `NOT_CONNECTED` |
 | 出站异步同步 | `/api/v1/engine/integration/messages/outbound` | 主流程不等待外部回执；失败进入日志、重试或死信 | `NOT_CONNECTED` / `NOT_SYNCED` |
-| FHIR / CDS Hooks 风格门面 | OPT-01 待交付 | INTEG-02 只保留接入指引，不写不存在的运行端点 | N/A |
+| FHIR R4/R5 资源门面 | `/api/v1/engine/integration/fhir/{version}/metadata`、`/api/v1/engine/integration/fhir/{version}/{resourceType}` | OPT-01 所有，挂 INTEG-01 总线；当前只开放 Observation 受控 create，高风险 MedicationRequest / ServiceRequest 只登记医师确认任务 | `NOT_CONNECTED` |
 
 ## 数据流
 
@@ -22,6 +22,14 @@
 3. 服务端校验租户、权限、签名、幂等键和字段映射。
 4. 字段映射进入 API-01 标准上下文；临床编码经 TERM-01 字典映射归一，无法确定时进入人工待裁或质量告警。
 5. 对接日志、traceId、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
+
+## FHIR 运行门面
+
+- `GET /api/v1/engine/integration/fhir/{version}/metadata` 返回真实 `CapabilityStatement`，只声明当前已落地的 R4/R5 能力范围。
+- `POST /api/v1/engine/integration/fhir/{version}/{resourceType}` 接收原始 FHIR JSON resource，请求头必须带 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`；可选 `X-MedKernel-Package-Version`。适配器配置只能写 `fhir.signatureWebhookId` 引用，禁止内联 `secretKey`。
+- 当前受控 create 只支持 Observation，写入会映射为 `CanonicalResource`、登记 FHIR 映射证据、回流临床事件入口，并把出站补偿交给 INTEG-01；无真实连接器时返回 `NOT_CONNECTED` 证据。
+- MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写病历、不绕引擎。
+- 未连接适配器、签名错误、白名单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
 
 ## OpenAPI
 
@@ -43,8 +51,9 @@
 ## 鉴权与签名
 
 - 平台账号或受委托身份完成认证后访问管理端点；接口权限由 `integration.read`、`integration.write`、`integration.execute` 控制。
-- Webhook 入站必须带 `X-MedKernel-Timestamp` 与 `X-MedKernel-Signature`。
+- Webhook 入站和 FHIR create 必须带 `X-MedKernel-Timestamp` 与 `X-MedKernel-Signature`。
 - 签名基于租户内 Webhook 密钥和原始 payload 计算 HMAC-SHA256；服务端常量时间比较，失败拒绝并审计。
+- FHIR create 签名基于适配器引用的 Webhook 签名密钥、时间戳和原始 resource 计算；适配器可配置来源 IP 白名单，但不得在配置 JSON 内存放明文密钥。
 - 密钥、令牌、患者原始 payload 不得写入适配器配置、日志或文档样例。
 
 ## 幂等
@@ -81,5 +90,7 @@
 | 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
 | 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |
 | 回调 | 回调测试目标不可达 | 返回失败或 `NOT_CONNECTED` |
+| FHIR | Observation create | 落 `CanonicalResource`、映射证据和临床事件；断连只返回 `NOT_CONNECTED`，不伪造同步成功 |
+| FHIR | 高风险医嘱类 create | 只登记医师确认任务，禁止自动开嘱或直写病历 |
 | 降级 | 外部系统关闭 | 主流程不中断，集成状态为 `NOT_CONNECTED` / `NOT_SYNCED` |
 | 审计 | 执行类操作 | 可按 traceId 查到动作、目标、结果和错误码 |

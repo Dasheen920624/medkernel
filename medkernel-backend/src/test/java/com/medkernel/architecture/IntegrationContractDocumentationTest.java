@@ -17,6 +17,7 @@ import java.util.TreeSet;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.integration.fhir.FhirFacadeController;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -52,10 +53,15 @@ class IntegrationContractDocumentationTest {
         JsonNode document = readJson("integration-openapi.paths.json");
 
         assertThat(document.path("basePath").asText()).isEqualTo("/api/v1/engine/integration");
-        assertThat(document.path("fhirFacade").path("status").asText()).isEqualTo("DEFERRED_TO_OPT_01");
-        assertThat(document.path("fhirFacade").path("documentedRuntimePaths"))
-            .as("OPT-01 未交付前不得在 INTEG-02 文档里伪造 FHIR 运行端点")
-            .isEmpty();
+        assertThat(document.path("fhirFacade").path("status").asText()).isEqualTo("RUNTIME_AVAILABLE");
+        assertThat(values(document.path("fhirFacade").path("documentedRuntimePaths")))
+            .as("OPT-01 FHIR 运行门面文档必须与控制器真实端点一致")
+            .containsExactlyElementsOf(fhirFacadeControllerEndpoints());
+        assertThat(document.path("fhirFacade").path("supportedCreates"))
+            .extracting(JsonNode::asText)
+            .containsExactly("Observation");
+        assertThat(document.path("fhirFacade").path("degradation").path("disconnectedStatus").asText())
+            .isEqualTo("NOT_CONNECTED");
 
         Set<String> actualEndpoints = integrationControllerEndpoints();
         Set<String> documentedEndpoints = new TreeSet<>();
@@ -97,11 +103,14 @@ class IntegrationContractDocumentationTest {
             .contains("NOT_SYNCED")
             .contains("traceId")
             .contains("审计")
-            .contains("验收清单");
+            .contains("验收清单")
+            .contains("/api/v1/engine/integration/fhir/{version}/metadata")
+            .contains("/api/v1/engine/integration/fhir/{version}/{resourceType}")
+            .contains("FHIR_PHYSICIAN_CONFIRMATION")
+            .contains("OperationOutcome");
         assertThat(guide)
-            .as("FHIR 门面归 OPT-01，INTEG-02 只能写待接入边界，不能写不存在的 FHIR 运行 URL")
-            .doesNotContain("/api/v1/fhir")
-            .doesNotContain("/fhir/");
+            .as("FHIR 门面挂 INTEG-01 总线，不得回流旧式裸 /api/v1/fhir 幽灵端点")
+            .doesNotContain("/api/v1/fhir");
     }
 
     @Test
@@ -157,12 +166,26 @@ class IntegrationContractDocumentationTest {
     }
 
     private static Set<String> integrationControllerEndpoints() {
-        String basePath = classPath(IntegrationController.class);
+        return controllerEndpoints(IntegrationController.class);
+    }
+
+    private static Set<String> fhirFacadeControllerEndpoints() {
+        return controllerEndpoints(FhirFacadeController.class);
+    }
+
+    private static Set<String> controllerEndpoints(Class<?> controller) {
+        String basePath = classPath(controller);
         Set<String> endpoints = new TreeSet<>();
-        for (Method method : IntegrationController.class.getDeclaredMethods()) {
+        for (Method method : controller.getDeclaredMethods()) {
             mappedEndpoint(method, basePath).ifPresent(endpoints::add);
         }
         return endpoints;
+    }
+
+    private static Set<String> values(JsonNode array) {
+        Set<String> values = new TreeSet<>();
+        array.forEach(node -> values.add(node.asText()));
+        return values;
     }
 
     private static String classPath(Class<?> controller) {

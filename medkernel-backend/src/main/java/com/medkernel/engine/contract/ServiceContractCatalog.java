@@ -72,6 +72,13 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.CREATE, "integration_adapter", "创建适配器和 Webhook"),
                 audit(AuditAction.UPDATE, "integration_adapter", "更新适配器和 Webhook"),
                 audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签 / 出站补偿 / 死信重放"))),
+        contract("fhir-facade", "FHIR R4/R5 运行门面服务",
+            "com.medkernel.engine.integration.fhir.FhirFacadeController", "/api/v1/engine/integration/fhir",
+            permissions("integration.read", "integration.execute"),
+            audits(
+                audit(AuditAction.CREATE, "mk_fhir_resource_mapping", "FHIR Observation create 映射为标准临床资源"),
+                audit(AuditAction.CREATE, "clinical_event", "FHIR create 回流临床事件入口"),
+                audit(AuditAction.CREATE, "sys_task", "高风险 FHIR 写入登记医师确认任务"))),
         contract("knowledge-export", "知识导出服务",
             "com.medkernel.engine.knowledge.KnowledgeExportController", "/api/v1/engine/knowledge/exports",
             permissions("knowledge.export"),

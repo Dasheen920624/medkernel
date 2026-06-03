@@ -10,9 +10,30 @@
   },
   "fhirFacade": {
     "ownerCard": "OPT-01",
-    "status": "DEFERRED_TO_OPT_01",
-    "documentedRuntimePaths": [],
-    "note": "FHIR R4/R5 resource facade is not implemented in INTEG-02. Do not publish runtime FHIR URLs before OPT-01 provides them."
+    "status": "RUNTIME_AVAILABLE",
+    "documentedRuntimePaths": [
+      "GET /api/v1/engine/integration/fhir/{version}/metadata",
+      "POST /api/v1/engine/integration/fhir/{version}/{resourceType}"
+    ],
+    "supportedCreates": [
+      "Observation"
+    ],
+    "guardedHighRiskCreates": [
+      "MedicationRequest",
+      "ServiceRequest"
+    ],
+    "securityHeaders": [
+      "X-MedKernel-Fhir-Adapter",
+      "X-MedKernel-Timestamp",
+      "X-MedKernel-Signature",
+      "X-MedKernel-Package-Version"
+    ],
+    "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store secretKey inline.",
+    "degradation": {
+      "disconnectedStatus": "NOT_CONNECTED",
+      "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fakes write success."
+    },
+    "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability intentionally declares only implemented create surface."
   },
   "commonHeaders": [
     {
@@ -32,8 +53,13 @@
     },
     {
       "name": "X-MedKernel-Signature",
-      "required": "webhook inbound",
+      "required": "webhook inbound and FHIR create",
       "purpose": "HMAC-SHA256 signature"
+    },
+    {
+      "name": "X-MedKernel-Fhir-Adapter",
+      "required": "FHIR create",
+      "purpose": "tenant-scoped FHIR adapter id that references signing webhook, whitelist, and default package version"
     }
   ],
   "paths": {
