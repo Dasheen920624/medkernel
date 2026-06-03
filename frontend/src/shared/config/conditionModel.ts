@@ -70,11 +70,7 @@ interface DslLeaf {
 }
 
 /** DSL 节点：`{all:[...]}` | `{any:[...]}` | `{not:节点}` | 叶子。 */
-export type DslNode =
-  | { all: DslNode[] }
-  | { any: DslNode[] }
-  | { not: DslNode }
-  | DslLeaf;
+export type DslNode = { all: DslNode[] } | { any: DslNode[] } | { not: DslNode } | DslLeaf;
 
 let idSeq = 0;
 
@@ -132,7 +128,11 @@ export function normalizeLeafValue(value: unknown, kind: RuleValueKind): RuleLea
   }
   if (kind === "boolean") {
     if (typeof value === "boolean") return value;
-    return String(value ?? "").trim().toLowerCase() === "true";
+    return (
+      String(value ?? "")
+        .trim()
+        .toLowerCase() === "true"
+    );
   }
   if (kind === "list") {
     if (Array.isArray(value)) return value as RuleLeafValue;

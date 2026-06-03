@@ -25,8 +25,18 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
         createGroup({
           logic: "any",
           children: [
-            createLeaf({ fact: "observations[].valueNumeric", operator: "gt", value: 1.5, valueKind: "number" }),
-            createLeaf({ fact: "conditions[].code", operator: "in", value: ["N18"], valueKind: "list" }),
+            createLeaf({
+              fact: "observations[].valueNumeric",
+              operator: "gt",
+              value: 1.5,
+              valueKind: "number",
+            }),
+            createLeaf({
+              fact: "conditions[].code",
+              operator: "in",
+              value: ["N18"],
+              valueKind: "list",
+            }),
           ],
         }),
       ],
@@ -84,7 +94,12 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
     const legacy = {
       when: {
         all: [
-          { fact: "context.scr", operator: "gte", value: 2, ui: { label: "肌酐", valueKind: "number" } },
+          {
+            fact: "context.scr",
+            operator: "gte",
+            value: 2,
+            ui: { label: "肌酐", valueKind: "number" },
+          },
         ],
       },
     };
@@ -130,7 +145,9 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
 
     const unresolved = createGroup({
       logic: "all",
-      children: [createLeaf({ fact: "context.<字段路径>", operator: "exists", valueKind: "empty" })],
+      children: [
+        createLeaf({ fact: "context.<字段路径>", operator: "exists", valueKind: "empty" }),
+      ],
     });
     expect(hasUnresolvedFact(unresolved)).toBe(true);
     expect(validateTree(unresolved).ok).toBe(false);
@@ -138,11 +155,19 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
     const emptyGroup = createGroup({ logic: "all", children: [] });
     expect(validateTree(emptyGroup).ok).toBe(false);
 
-    const deep = createGroup({ logic: "all", children: [createLeaf({ fact: "x", operator: "exists", valueKind: "empty" })] });
+    const deep = createGroup({
+      logic: "all",
+      children: [createLeaf({ fact: "x", operator: "exists", valueKind: "empty" })],
+    });
     expect(validateTree(deep, { maxDepth: 1 }).ok).toBe(true);
     const tooDeep = createGroup({
       logic: "all",
-      children: [createGroup({ logic: "any", children: [createLeaf({ fact: "x", operator: "exists", valueKind: "empty" })] })],
+      children: [
+        createGroup({
+          logic: "any",
+          children: [createLeaf({ fact: "x", operator: "exists", valueKind: "empty" })],
+        }),
+      ],
     });
     expect(validateTree(tooDeep, { maxDepth: 1 }).ok).toBe(false);
   });
