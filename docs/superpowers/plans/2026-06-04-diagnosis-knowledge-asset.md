@@ -296,11 +296,14 @@ public interface DiagnosisCriterionRepository extends ListCrudRepository<Diagnos
          + "AND diagnosis_version_id = :versionId ORDER BY id ASC")
     List<DiagnosisCriterion> findByTenantIdAndDiagnosisVersionId(String tenantId, Long versionId);
 
+    // Spring Data JDBC 不做派生 deleteBy，按项目惯例用 @Modifying + 显式 DELETE（参照 ClinicalEventOutboxRepository 的 @Modifying import）。
+    @org.springframework.data.jdbc.repository.query.Modifying
+    @Query("DELETE FROM mk_diagnosis_criterion WHERE tenant_id = :tenantId AND id = :id")
     void deleteByTenantIdAndId(String tenantId, Long id);
 }
 ```
 
-- [ ] **Step 4: 其余 4 仓储同构** — `DiagnosisDifferentialRepository`/`DiagnosisCarePointerRepository`/`DiagnosisTestCaseRepository` 各加 `findByTenantIdAndDiagnosisVersionId`；`DiagnosisConfidencePolicyRepository` 加 `Optional<DiagnosisConfidencePolicy> findByTenantIdAndScopeKey(String tenantId, String scopeKey)`。
+- [ ] **Step 4: 其余 4 仓储同构** — `DiagnosisDifferentialRepository`/`DiagnosisCarePointerRepository`/`DiagnosisTestCaseRepository` 各加 `findByTenantIdAndDiagnosisVersionId` + 同款 `@Modifying @Query` 删除；`DiagnosisConfidencePolicyRepository` 加 `Optional<DiagnosisConfidencePolicy> findByTenantIdAndScopeKey(String tenantId, String scopeKey)`。
 
 - [ ] **Step 5: 运行验证通过** — Run: `mvn -q -Dtest=DiagnosisCriterionRepositoryTest test` — Expected: PASS
 - [ ] **Step 6: 提交** — `git commit -m "feat(diagnosis): 5 个诊断知识仓储"`
@@ -314,7 +317,16 @@ public interface DiagnosisCriterionRepository extends ListCrudRepository<Diagnos
 - Modify: `shared/architecture/DomainOwnershipCatalog.java:33`
 - Test: `DomainOwnershipCatalogTest`（若存在则复跑；否则靠 Task 2 迁移 + 既有架构测试）
 
-- [ ] **Step 1: 加错误码** — 在 `ErrorCode` 仿 `ENG_REC_*` 风格新增：`ENG_DX_001`（诊断知识版本无效或未发布）、`ENG_DX_004`（鉴别引用的诊断身份不存在）、`ENG_DX_006`（诊断测试病例未通过，不得发布）。沿用现有 code/httpStatus/中文 message 字段惯例。
+- [ ] **Step 1: 加错误码** — 在 `ErrorCode` 枚举按真实签名 `(String code, int httpStatus, String message, ErrorClass class, boolean retryable)` 新增（4 个）：
+
+```java
+ENG_DX_001("ENG-DX-001", 409, "诊断知识版本无效或未发布", ErrorClass.DATA, false),
+ENG_DX_004("ENG-DX-004", 400, "鉴别引用的诊断身份不存在", ErrorClass.DATA, false),
+ENG_DX_005("ENG-DX-005", 409, "诊断置信策略缺失或非法", ErrorClass.DATA, false),
+ENG_DX_006("ENG-DX-006", 409, "诊断测试病例未通过，不得发布", ErrorClass.DATA, false),
+```
+
+`ENG_DX_005` 在本 Plan A 定义（Task 8 `resolvePolicy` 先用）；**运行时 Plan B 不再新增 DX 错误码——空态/部分可用是正常响应字段，不抛异常**（已删原计划的 `ENG_DX_002/003`）。
 
 - [ ] **Step 2: 登记 owner** — `DomainOwnershipCatalog.java` 第 33 行 `engine-knowledge` 的 `prefixes("knowledge_asset_", "knowledge_export_", "source_")` 改为 `prefixes("knowledge_asset_", "knowledge_export_", "source_", "mk_diagnosis_")`。
 
@@ -651,7 +663,7 @@ public class DiagnosisKnowledgeService {
 
     private DiagnosisConfidencePolicy resolvePolicy(String tenant) {
         return policies.findByTenantIdAndScopeKey(tenant, "DEFAULT")
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_001, "缺少默认置信策略 DEFAULT"));
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_005, "缺少默认置信策略 DEFAULT"));
     }
 
     private Set<String> parseFindings(String raw) {

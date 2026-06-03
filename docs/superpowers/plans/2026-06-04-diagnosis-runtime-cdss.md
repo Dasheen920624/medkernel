@@ -26,16 +26,16 @@
 **修改：**
 - `engine/recommendation/RecommendationCardType.java` — 加 `DIAGNOSIS`
 - `engine/knowledge/KnowledgeAssetVersionRepository.java` — 加 `findActiveDiagnosisVersions`
-- `shared/api/error/ErrorCode.java` — 加 `ENG_DX_002` / `ENG_DX_003` / `ENG_DX_005`
+-（**不改 `ErrorCode`**：诊断族错误码全在 Plan A 定义；运行时未标准化/空态为正常响应字段，不设错误码）
 
 **复用（Plan A / 现有）：** `DiagnosisMatcher`、`DiagnosisCriterionRepository`、`DiagnosisConfidencePolicyRepository`、`KnowledgeIdentityRepository`、`ContextSnapshotService`、`RecommendationEngineService.trigger`、`RuleDslEvaluator`/`RuleEngineService`。
 
 ---
 
-## Task 1: RecommendationCardType 加 DIAGNOSIS + 错误码
+## Task 1: RecommendationCardType 加 DIAGNOSIS
 
 **Files:**
-- Modify: `engine/recommendation/RecommendationCardType.java`、`shared/api/error/ErrorCode.java`
+- Modify: `engine/recommendation/RecommendationCardType.java`
 - Test: `RecommendationCardTypeTest.java`
 
 - [ ] **Step 1: 写失败测试**
@@ -53,7 +53,7 @@ class RecommendationCardTypeTest {
 
 - [ ] **Step 2: 运行验证失败** — Run: `cd medkernel-backend && mvn -q -Dtest=RecommendationCardTypeTest test` — Expected: `No enum constant ... DIAGNOSIS`
 
-- [ ] **Step 3: 实现** — `RecommendationCardType` 枚举加 `DIAGNOSIS`（更新 Javadoc 列举）；`ErrorCode` 仿 `ENG_DX_001` 加：`ENG_DX_002`（发现编码未标准化，部分可用提示）、`ENG_DX_003`（无诊断候选，诚实空态、非排除结论）、`ENG_DX_005`（置信策略缺失或非法）。
+- [ ] **Step 3: 实现** — `RecommendationCardType` 枚举加 `DIAGNOSIS`（更新 Javadoc 列举）。**不新增 DX 错误码**：原 `ENG_DX_002`（未标准化）/ `ENG_DX_003`（无候选）是误设——未标准化项进响应 `unmappedFindings`、无候选返回空 `candidates` + `advisoryNote`，均为正常 200 响应、不抛异常；`ENG_DX_005`（置信策略缺失）已在 Plan A 定义。本 Task 仅改枚举，Step 2 命令不变。
 
 - [ ] **Step 4: 运行验证通过** — Run: `mvn -q -Dtest=RecommendationCardTypeTest test` — Expected: PASS
 - [ ] **Step 5: 提交** — `git commit -m "feat(diagnosis): RecommendationCardType.DIAGNOSIS + ENG_DX 运行时错误码"`
@@ -82,13 +82,13 @@ class DiagnosisFindingExtractorTest {
 
     @Test void mapsKnownAndCollectsUnmapped() {
         // 构造仅含两个 condition code 的 ContextSnapshot（FEVER、LOCALX），见下方夹具
-        var findings = extractor.extract("t-1", TestSnapshots.withConditionCodes("FEVER", "LOCALX"));
+        var findings = extractor.extract("t-1", TestSnapshots.resourcesWithConditionCodes("FEVER", "LOCALX"));
         assertThat(findings.normalizedCodes()).containsExactly("STD-FEVER");
         assertThat(findings.unmappedFindings()).containsExactly("LOCALX");
     }
 }
 ```
-（`TestSnapshots.withConditionCodes(...)` 为本测试夹具：构造一个 `ContextSnapshot`，其 `resources().conditions()` 含给定 code 的 `CanonicalCondition`；按 `CanonicalCondition` 构造器落地。）
+（`TestSnapshots.resourcesWithConditionCodes(...)` 构造 `ContextSnapshotResources`，其 `conditions()` 含给定 code 的 `CanonicalCondition`（其余列表空）；按 `CanonicalCondition` 真实构造器落地。）
 
 - [ ] **Step 2: 运行验证失败** — Run: `mvn -q -Dtest=DiagnosisFindingExtractorTest test` — Expected: 编译失败
 
@@ -144,7 +144,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 import com.medkernel.engine.context.CanonicalResourceType;
-import com.medkernel.engine.context.ContextSnapshot;
+import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalMedication;
@@ -160,10 +160,9 @@ public class DiagnosisFindingExtractor {
         this.port = port;
     }
 
-    public ExtractedFindings extract(String tenantId, ContextSnapshot snapshot) {
+    public ExtractedFindings extract(String tenantId, ContextSnapshotResources r) {
         Set<String> normalized = new LinkedHashSet<>();
         List<String> unmapped = new ArrayList<>();
-        var r = snapshot.resources();
         for (CanonicalCondition c : r.conditions()) {
             classify(tenantId, CanonicalResourceType.CONDITION, c.code(), c.codeSystem(), normalized, unmapped);
         }
@@ -300,7 +299,7 @@ package com.medkernel.engine.knowledge.diagnosis.runtime;
 //  1) 造 1 个 ACTIVE 诊断版本（criteria 命中 STRONG）+ 快照含对应发现 → assist 返回 1 个候选，confidence=STRONG，含支持证据；
 //  2) 两个候选（STRONG vs MODERATE）→ STRONG 排在前（高危先行 > 证据充分 > 来源可信）；
 //  3) 无任何命中 → candidates 空，advisoryNote 含“非排除诊断”，不抛错（空态安全）。
-// 断言候选可回链 sourceVersionId；断言落库走推荐卡（cards 表存在 cardType=DIAGNOSIS 的卡）。
+// 断言候选可回链 sourceVersionId。（落库到推荐卡在 Task 6 实现并测试；本 Task 只验命中/排序/空态、不落库，assist 暂为 readOnly。）
 ```
 
 - [ ] **Step 2: 运行验证失败** — Run: `mvn -q -Dtest=DiagnosisAssistServiceTest test` — Expected: 编译失败
@@ -344,7 +343,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import com.medkernel.engine.context.ContextSnapshot;
+import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
@@ -390,8 +389,9 @@ public class DiagnosisAssistService {
     @Transactional(readOnly = true)
     public DiagnosisAssistResponse assist(DiagnosisAssistRequest request) {
         String tenant = tenant();
-        ContextSnapshot snapshot = snapshots.loadById(tenant, request.contextSnapshotId()); // 按实际方法名
-        ExtractedFindings findings = extractor.extract(tenant, snapshot);
+        // findById 自取当前租户、snapshot 不存在自抛 ENG_CONTEXT_001；响应体含 resources。
+        ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
+        ExtractedFindings findings = extractor.extract(tenant, snapshot.resources());
         DiagnosisConfidencePolicy policy = policies.findByTenantIdAndScopeKey(tenant, "DEFAULT")
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_005, "缺少默认置信策略 DEFAULT"));
         Set<String> redlineCodes = redlineCodes(tenant, findings.normalizedCodes());
@@ -445,7 +445,7 @@ public class DiagnosisAssistService {
     private String traceId() { return RequestContext.currentTraceId(); }
 }
 ```
-（`snapshots.loadById` / `v.authorityLevel()` 等以实际方法/字段名为准；`KnowledgeAssetVersion` 的 `authorityLevel` 来自 KNOW-01 PR2。step 5b 的 trigger 接线在 Task 6 与契约一起落地并测试。）
+（`v.authorityLevel()` 返回 `SourceAuthorityLevel` 枚举（KNOW-01 PR2），`.name()` 合法、判空处理；step 5b 的 trigger 落库接线在 Task 6 与契约一起落地并测试。）
 
 - [ ] **Step 5: 运行验证通过** — Run: `mvn -q -Dtest=DiagnosisAssistServiceTest test` — Expected: PASS（命中/排序/空态非排除三用例）
 - [ ] **Step 6: 提交** — `git commit -m "feat(diagnosis): 鉴别诊断候选编排 + 排序 + 空态安全"`
@@ -463,7 +463,42 @@ public class DiagnosisAssistService {
 
 - [ ] **Step 2: 运行验证失败** — Run: `mvn -q -Dtest=DiagnosisAssistApiContractTest,DiagnosisAssistControllerSecurityTest test` — Expected: 404/编译失败
 
-- [ ] **Step 3: 实现落库治理（step 5b）** — 在 `DiagnosisAssistService.assist` 末尾，把每个候选转 `RecommendationCardRequest`（`cardType=DIAGNOSIS`、`requiresPhysicianConfirmation=true`、`riskLevel` 红线→HIGH 否则按置信、`sources` 含一条 `sourceType=KNOWLEDGE / sourceRefId=sourceVersionId`、`explanationJson` 放支持/反对/缺失/鉴别）；组 `RecommendationTriggerRequest(triggerType=DIAGNOSIS_ASSIST, contextSnapshotId, candidateCards)` 调 `recommendationEngineService.trigger(...)`。注意：方法改为 `@Transactional`（写）；候选为空则不触发、仅返回空态。
+- [ ] **Step 3: 实现落库治理（step 5b）** — `DiagnosisAssistService` 注入 `RecommendationEngineService recommendationEngine`，`assist` 改 `@Transactional`（写），`return` 前调 `persist(...)`。**所有 `@NotBlank` 必填字段都给值；`interruptLevel` 用 `INFO`（避免 `validateCards` 的 `ENG_REC_001`：STRONG_INTERRUPTIVE 必须高风险）；每卡至少一条 source（否则 `ENG_REC_005`）；候选为空不触发、仅返回空态：**
+
+```java
+private void persist(String snapshotId, java.util.Set<String> findingCodes, List<DiagnosisCandidate> candidates) {
+    if (candidates.isEmpty()) {
+        return; // 空态不落库
+    }
+    List<RecommendationCardRequest> cards = candidates.stream().map(c -> new RecommendationCardRequest(
+        "dx-" + c.identityId(),                                       // cardCode @NotBlank
+        RecommendationCardType.DIAGNOSIS,                            // cardType
+        c.diagnosisName() == null ? String.valueOf(c.identityId()) : c.diagnosisName(), // title @NotBlank
+        "支持 " + c.supporting().size() + " 项 / 缺失必需 " + c.missingRequired().size() + " 项", // summary @NotBlank
+        "辅助建议，请医师确认（非自动诊断）",                          // suggestedAction @NotBlank
+        c.redline() ? RecommendationRiskLevel.HIGH : RecommendationRiskLevel.LOW,        // riskLevel
+        RecommendationInterruptLevel.INFO,                          // interruptLevel（非强打断，过 validateCards）
+        true,                                                       // requiresPhysicianConfirmation 恒真
+        false,                                                      // aiGenerated（确定性命中）
+        "置信 " + c.confidence() + "；来源诊断知识版本 " + c.sourceVersionId(), // sourceSummary @NotBlank
+        explanationJson(c),                                         // explanationJson（支持/反对/缺失/鉴别）
+        "dx:" + c.identityId(),                                     // fatigueKey
+        null,                                                       // expiresAt
+        List.of(new RecommendationSourceRequest(                    // sources≥1（否则 ENG_REC_005）
+            RecommendationSourceType.KNOWLEDGE, String.valueOf(c.sourceVersionId()),
+            null, c.diagnosisName(), null, null, "诊断知识命中"))
+    )).toList();
+    recommendationEngine.trigger(new RecommendationTriggerRequest(
+        "DX-" + snapshotId,        // triggerCode @NotBlank
+        "DIAGNOSIS_ASSIST",        // triggerType @NotBlank（String，非枚举）
+        null, snapshotId, null, null, null,
+        "S16",                     // scenarioCode @NotBlank
+        null,
+        inputDigest(findingCodes), // inputDigest @NotBlank（发现集稳定摘要）
+        null, cards));
+}
+```
+核对：`RecommendationSourceRequest` 参数顺序 `sourceType/sourceRefId/sourceVersion/sourceTitle/citationLocator/sourceHash/summary`、`RecommendationSourceType` 须含 `KNOWLEDGE`（实现时核对枚举）；`explanationJson(c)`/`inputDigest(codes)` 为私有助手。`assist` 改 `@Transactional` 后 `persist` 与命中读同一写事务。
 
 - [ ] **Step 4: 实现控制器（完整）**
 
@@ -509,21 +544,23 @@ Run（changed T-GATE）: `node ../scripts/authenticity-guard.mjs --changed` — 
 ## Self-Review（对设计 4.3/4.4/4.8）
 
 **Spec 覆盖：**
-- 取患者发现 + 标准化部分可用 → Task 2（`DiagnosisFindingExtractor` + `ENG_DX_002` unmapped 清单）。
+- 取患者发现 + 标准化部分可用 → Task 2（`DiagnosisFindingExtractor`，未标准化项进响应 `unmappedFindings` 字段、不抛异常）。
 - 候选并列、不排他 → Task 5（遍历各 ACTIVE 版本各自成候选，WEAK 折叠非排除）。
 - 证据装配（支持/反对/缺失） → 复用 Plan A `DiagnosisMatchResult`，落入 `DiagnosisCandidate`。
 - 置信非概率 → 复用 Plan A `DiagnosisConfidence`（无百分比字段）。
 - 红线合流、强优先、OPT-04 未就绪诚实降级 → Task 4 + 排序 `redline` 优先。
 - 排序（高危>证据>来源） → Task 5 `rankComparator`。
 - 统一治理（复用 trigger） → Task 6 step 3。
-- 空态非排除 → Task 5 `ADVISORY_EMPTY` + Task 1 `ENG_DX_003`。
+- 空态非排除 → Task 5 `ADVISORY_EMPTY`（正常 200 响应、不抛异常，不设错误码）。
 - 不自动诊断 → `requiresPhysicianConfirmation=true`、只读 assist + 卡需医师反馈。
 
 **类型一致性：** `ExtractedFindings(normalizedCodes:Set,unmappedFindings:List)`、`RedlineHit(identityCode,severity,reason)`、`DiagnosisCandidate(...confidence:DiagnosisConfidence...redline:boolean,sourceVersionId)`、`DiagnosisAssistResponse(candidates,unmappedFindings,advisoryNote,traceId)`、`matcher.match(Set,List,policy)`（与 Plan A 一致）、`policies.findByTenantIdAndScopeKey`（Plan A Task 4 定义）— 一致。
 
 **占位扫描：** `DefaultFindingNormalizationPort`/`DefaultDiagnosisRedlinePort` 的 `TODO(接线)` 是**有意的诚实降级挂点**（OPT-04/TERM 深接未就绪时不伪造），非计划占位；其行为有测试覆盖（返回空/不阻断）。其余步骤均给完整代码或明确接线指令。
 
-**待执行者确认的真实签名（实现时核对）：** `ContextSnapshotService` 按 id 取快照的方法名、`Canonical*` 的 `code()/codeSystem()` 访问器、`CanonicalResourceType` 枚举值、`KnowledgeAssetVersion.authorityLevel()`、`RecommendationTriggerRequest`/`RecommendationCardRequest` 构造参数顺序。
+**已核实（本轮审核落实，对照真实代码）：** `ContextSnapshotService.findById(id) → ContextSnapshotResponse.resources()`（自取当前租户、snapshot 不存在自抛 `ENG_CONTEXT_001`）；`Canonical{Condition,Observation,Medication,Procedure}.code()/codeSystem()` 均在；`KnowledgeAssetVersion.authorityLevel()` 为 `SourceAuthorityLevel` 枚举（`.name()` 合法）；`RecommendationTriggerRequest`/`RecommendationCardRequest` 字段与 `@NotBlank` 必填已对齐落库代码；`RecommendationRiskLevel{LOW,MEDIUM,HIGH,CRITICAL}`、`RecommendationInterruptLevel{SILENT,INFO,WEAK_INTERRUPTIVE,STRONG_INTERRUPTIVE}`；V67 未被占用（当前 main 最大 V66）。
+
+**仍需实现时核对（小项）：** `RecommendationSourceRequest` 参数顺序与 `RecommendationSourceType.KNOWLEDGE` 枚举值、`CanonicalResourceType` 枚举名。
 
 ---
 
