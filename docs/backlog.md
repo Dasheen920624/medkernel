@@ -174,7 +174,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | OPT-07 | 来源证据分级与冲突仲裁 | A 法规/B 国家指南/C 共识文献/D 院内/E 反馈 + GRADE 兼容 | 5d | done |
 | SVC-PILOT-01 | 租户与组织服务包 | TenantOnboarding + ImplementationGuide + 组织树（核心 §9 七层：租户根/集团/医院/院区/社区服务点/科室/专病）| 4d | done |
 | SVC-PILOT-02 | 接入与数据质量服务包 | HIS/EMR/LIS/PACS/医保/病案/随访适配 + AdapterHub + 字段映射 | 5d | done |
-| SVC-PILOT-03 | 资产准备服务包 | 知识包/配置包/字典/规则/路径 + ConfigPackages + 灰度全量回滚 | 4d | pending |
+| SVC-PILOT-03 | 资产准备服务包 | 知识包/配置包/字典/规则/路径 + ConfigPackages + 灰度全量回滚 | 4d | done |
 | SVC-INTEGRATION-01 | 第三方业务接口服务包 | 接入管理 + 字段映射 + 健康检查 + FHIR 门面 + 回调 + 区域协同 | 5d | pending |
 | IMPL-01 / TENANT-01 / CFGPKG-01 / DICTMAP-01 / ADAPTER-01（+ 规则库=RULE-01 · 路径配置=PATH-01）| 7 页面真实化 | 每页：7 步流（配置类）+ 4 状态机 + 六态 + 1 主按钮 ≤3 默认筛选 + 五维 RBAC + B0 + E2E；每页必交见质量基线 | — | pending |
 | **D2-验收** | **试点准备域级验收** | 导入/配置规则路径知识字典 → 7 步流提交 → 灰度 → 全量 → 回滚，全 B0 真实可跑 | — | pending |

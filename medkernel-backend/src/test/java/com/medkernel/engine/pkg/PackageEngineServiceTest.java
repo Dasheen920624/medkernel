@@ -92,6 +92,8 @@ class PackageEngineServiceTest {
     private TermMappingPackageRepository terminologyPackageRepository;
     private TermMappingPackageItemRepository terminologyPackageItemRepository;
     private TermMappingRepository terminologyMappingRepository;
+    private PilotPackageTemplateRepository pilotTemplateRepository;
+    private PilotPackageTemplateItemRepository pilotTemplateItemRepository;
 
     private PackageSyncPort syncPort;
     private AuditEventPublisher auditPublisher;
@@ -115,6 +117,8 @@ class PackageEngineServiceTest {
         terminologyPackageRepository = mock(TermMappingPackageRepository.class);
         terminologyPackageItemRepository = mock(TermMappingPackageItemRepository.class);
         terminologyMappingRepository = mock(TermMappingRepository.class);
+        pilotTemplateRepository = mock(PilotPackageTemplateRepository.class);
+        pilotTemplateItemRepository = mock(PilotPackageTemplateItemRepository.class);
 
         syncPort = mock(PackageSyncPort.class);
         auditPublisher = mock(AuditEventPublisher.class);
@@ -136,6 +140,7 @@ class PackageEngineServiceTest {
             ruleRepository, ruleVersionRepository, pathwayRepository, evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
             terminologyPackageRepository, terminologyPackageItemRepository, terminologyMappingRepository,
+            pilotTemplateRepository, pilotTemplateItemRepository,
             syncPort, auditPublisher,
             transactionTemplate
         );
@@ -198,6 +203,8 @@ class PackageEngineServiceTest {
             );
         });
         when(terminologyPackageItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pilotTemplateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pilotTemplateItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pkg", OrgScope.tenant("tenant-A"), "tester"));
@@ -419,6 +426,149 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void instantiatePilotTemplateCreatesDraftPackageWithAllRequiredAssetTypes() {
+        PilotPackageTemplate template = activePilotTemplate(
+            "t-1", "tpl-first-run", "TPL.FIRST_RUN", "试点首发最小可运行集");
+        List<PilotPackageTemplateItem> templateItems = List.of(
+            pilotTemplateItem("tpl-first-run", 10, PackageItemAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
+            pilotTemplateItem("tpl-first-run", 20, PackageItemAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06"),
+            pilotTemplateItem("tpl-first-run", 30, PackageItemAssetType.RULE, "rule-stable", "2"),
+            pilotTemplateItem("tpl-first-run", 40, PackageItemAssetType.PATHWAY, "pathway-stable", "1")
+        );
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "tenant-A", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "t-1", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.of(template));
+        when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("t-1", "tpl-first-run"))
+            .thenReturn(templateItems);
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "PKG.FIRST.RUN", "2026.06.03"))
+            .thenReturn(Optional.empty());
+        when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
+            .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
+        when(knowledgeVersionRepository.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 101L, "v1"))
+            .thenReturn(Optional.of(activeKnowledgeVersion(201L, 101L, "v1")));
+        when(terminologyPackageRepository.findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
+                "tenant-A", "TERM.LAB", "2026.06", "DEPARTMENT", "CARD"))
+            .thenReturn(Optional.of(publishedTerminologyPackage(
+                "TERM.LAB", "2026.06", "DEPARTMENT", "CARD")));
+        when(ruleRepository.findByRuleIdAndTenantId("rule-stable", "tenant-A"))
+            .thenReturn(Optional.of(publishedRule("rule-stable", "dept-rule")));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+
+        PilotPackageInstantiationResponse response = service.instantiatePilotTemplate(
+            "TPL.FIRST_RUN",
+            new PilotPackageTemplateInstantiateRequest(
+                "PKG.FIRST.RUN",
+                "2026.06.03",
+                "首发配置包",
+                "由试点首发模板实例化"
+            )
+        );
+
+        assertThat(response.templateCode()).isEqualTo("TPL.FIRST_RUN");
+        assertThat(response.packageInfo().status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        assertThat(response.packageInfo().packageCode()).isEqualTo("PKG.FIRST.RUN");
+        assertThat(response.items()).hasSize(4);
+        assertThat(response.items()).extracting(PackageItemResponse::assetType)
+            .containsExactly(
+                PackageItemAssetType.KNOWLEDGE,
+                PackageItemAssetType.TERMINOLOGY,
+                PackageItemAssetType.RULE,
+                PackageItemAssetType.PATHWAY
+            );
+
+        ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
+        verify(packageRepository).save(packCap.capture());
+        assertThat(packCap.getValue().status()).isEqualTo(KnowledgePackageStatus.DRAFT);
+        assertThat(packCap.getValue().traceId()).isEqualTo("trace-pkg");
+
+        ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
+        verify(itemRepository, org.mockito.Mockito.times(4)).save(itemCap.capture());
+        assertThat(itemCap.getAllValues()).allSatisfy(item -> {
+            assertThat(item.packageId()).isEqualTo(packCap.getValue().packageId());
+            assertThat(item.tenantId()).isEqualTo("tenant-A");
+            assertThat(item.traceId()).isEqualTo("trace-pkg");
+        });
+        verify(auditPublisher).publish(eq(AuditAction.CREATE), eq("knowledge_package"),
+            eq(packCap.getValue().packageId()), any());
+    }
+
+    @Test
+    void instantiatePilotTemplateRejectsMissingDependencyAndLeavesNoPartialDraft() {
+        PilotPackageTemplate template = activePilotTemplate(
+            "tenant-A", "tpl-missing", "TPL.MISSING", "缺依赖模板");
+        when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                "tenant-A", "TPL.MISSING", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(Optional.of(template));
+        when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("tenant-A", "tpl-missing"))
+            .thenReturn(List.of(pilotTemplateItem(
+                "tpl-missing", 10, PackageItemAssetType.RULE, "rule-missing", "1")));
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                "tenant-A", "PKG.MISSING", "2026.06.03"))
+            .thenReturn(Optional.empty());
+        when(ruleRepository.findByRuleIdAndTenantId("rule-missing", "tenant-A"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.instantiatePilotTemplate(
+                "TPL.MISSING",
+                new PilotPackageTemplateInstantiateRequest(
+                    "PKG.MISSING",
+                    "2026.06.03",
+                    "缺依赖配置包",
+                    "不能留下半成品"
+                )))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.PACKAGE_DEPENDENCY_MISSING);
+                assertThat(api.getMessage()).contains("rule-missing");
+            });
+
+        verify(packageRepository, never()).save(any(KnowledgePackage.class));
+        verify(itemRepository, never()).save(any(PackageItem.class));
+    }
+
+    @Test
+    void getAssetReadinessReflectsReleasedPackagesAndGrayscaleEvidence() {
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "tenant-A", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of(activePilotTemplate("tenant-A", "tpl-tenant", "TPL.TENANT", "院内模板")));
+        when(pilotTemplateRepository.findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                "t-1", PilotPackageTemplateStatus.ACTIVE))
+            .thenReturn(List.of(activePilotTemplate("t-1", "tpl-platform", "TPL.PLATFORM", "平台模板")));
+        when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
+            .thenReturn(List.of(
+                packageVersion("pkg-active", "2.0.0", KnowledgePackageStatus.ACTIVE),
+                packageVersion("pkg-draft", "3.0.0", KnowledgePackageStatus.DRAFT),
+                packageVersion("pkg-published", "1.9.0", KnowledgePackageStatus.PUBLISHED)
+            ));
+        when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
+            .thenReturn(List.of(new ReleasePlan(
+                1L, "plan-gray", "tenant-A", "pkg-published", "hospital-1",
+                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
+                "{\"strategy\":\"BED_PERCENT\",\"percentage\":10}",
+                ReleasePlanStatus.SUCCESS,
+                Instant.now(), "tester", Instant.now(), "tester", "trace"
+            )));
+
+        PackageAssetReadinessResponse readiness = service.getAssetReadiness();
+
+        assertThat(readiness.tenantId()).isEqualTo("tenant-A");
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.templateCount()).isEqualTo(2);
+        assertThat(readiness.draftPackageCount()).isEqualTo(1);
+        assertThat(readiness.releasedPackageCount()).isEqualTo(2);
+        assertThat(readiness.activePackageCount()).isEqualTo(1);
+        assertThat(readiness.grayscaleReady()).isTrue();
+        assertThat(readiness.readyPackageId()).isEqualTo("pkg-active");
+        assertThat(readiness.blockers()).isEmpty();
+    }
+
+    @Test
     void calculateDiffComputesCorrectStats() {
         KnowledgePackage targetPack = new KnowledgePackage(
             1L, "pkg-target", "tenant-A", "PKG.COPD", "2.0.0", "新包", null,
@@ -567,7 +717,7 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void exportOfflinePackageReturnsPayloadWithPhysicalSha256AndPublishesAudit() throws Exception {
+    void exportOfflinePackageReturnsPayloadSha256AndPublishesAudit() throws Exception {
         KnowledgePackage pack = packageVersion("pkg-offline", "3.0.0", KnowledgePackageStatus.PUBLISHED);
         List<PackageItem> items = List.of(
             packageItem(1L, "pkg-offline", PackageItemAssetType.RULE, "rule-stable", "2"),
@@ -2060,6 +2210,54 @@ class PackageEngineServiceTest {
         return new PackageItem(
             id, "item-" + id, "tenant-A", packageId, assetType, assetId, assetVersion,
             Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private PilotPackageTemplate activePilotTemplate(
+            String tenantId,
+            String templateId,
+            String templateCode,
+            String name) {
+        return new PilotPackageTemplate(
+            1L,
+            templateId,
+            tenantId,
+            templateCode,
+            name,
+            "试点首发配置包模板",
+            "PKG.PILOT",
+            "1.0.0",
+            PilotPackageTemplateStatus.ACTIVE,
+            Instant.now(),
+            "tester",
+            Instant.now(),
+            "tester",
+            "trace"
+        );
+    }
+
+    private PilotPackageTemplateItem pilotTemplateItem(
+            String templateId,
+            int sortOrder,
+            PackageItemAssetType assetType,
+            String assetId,
+            String assetVersion) {
+        return new PilotPackageTemplateItem(
+            (long) sortOrder,
+            "tpl-item-" + sortOrder,
+            templateId.startsWith("tpl-first") ? "t-1" : "tenant-A",
+            templateId,
+            assetType,
+            assetId,
+            assetVersion,
+            true,
+            sortOrder,
+            "首发模板必需资产",
+            Instant.now(),
+            "tester",
+            Instant.now(),
+            "tester",
+            "trace"
         );
     }
 

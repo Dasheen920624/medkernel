@@ -91,6 +91,8 @@ public class PackageEngineService {
     private final TermMappingPackageRepository terminologyPackageRepository;
     private final TermMappingPackageItemRepository terminologyPackageItemRepository;
     private final TermMappingRepository terminologyMappingRepository;
+    private final PilotPackageTemplateRepository pilotTemplateRepository;
+    private final PilotPackageTemplateItemRepository pilotTemplateItemRepository;
 
     private final PackageSyncPort syncPort;
     private final AuditEventPublisher auditPublisher;
@@ -111,6 +113,8 @@ public class PackageEngineService {
             TermMappingPackageRepository terminologyPackageRepository,
             TermMappingPackageItemRepository terminologyPackageItemRepository,
             TermMappingRepository terminologyMappingRepository,
+            PilotPackageTemplateRepository pilotTemplateRepository,
+            PilotPackageTemplateItemRepository pilotTemplateItemRepository,
             PackageSyncPort syncPort,
             AuditEventPublisher auditPublisher,
             TransactionTemplate transactionTemplate) {
@@ -128,6 +132,8 @@ public class PackageEngineService {
         this.terminologyPackageRepository = terminologyPackageRepository;
         this.terminologyPackageItemRepository = terminologyPackageItemRepository;
         this.terminologyMappingRepository = terminologyMappingRepository;
+        this.pilotTemplateRepository = pilotTemplateRepository;
+        this.pilotTemplateItemRepository = pilotTemplateItemRepository;
         this.syncPort = syncPort;
         this.auditPublisher = auditPublisher;
         this.transactionTemplate = transactionTemplate;
@@ -243,6 +249,173 @@ public class PackageEngineService {
         auditPublisher.publish(AuditAction.UPDATE, "knowledge_package", packageId,
             "向知识包添加资产条目 (" + request.assetType() + "): " + request.assetId());
         return PackageItemResponse.from(saved);
+    }
+
+    /**
+     * 查询当前租户可用的试点首发模板；租户模板优先，平台模板兜底。
+     */
+    @Transactional(readOnly = true)
+    public List<PilotPackageTemplateResponse> listPilotTemplates() {
+        return activeTemplatesForTenant(currentTenantId()).stream()
+            .map(template -> PilotPackageTemplateResponse.from(
+                template,
+                pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc(
+                    template.tenantId(), template.templateId())))
+            .toList();
+    }
+
+    /**
+     * 将试点首发模板实例化为配置包草稿，并按模板资产项自动组包。
+     */
+    @Transactional
+    public PilotPackageInstantiationResponse instantiatePilotTemplate(
+            String templateCode,
+            PilotPackageTemplateInstantiateRequest request) {
+        String tenantId = currentTenantId();
+        String traceId = RequestContext.currentTraceId();
+        String actor = currentActor();
+        PilotPackageTemplateInstantiateRequest instantiateRequest = requireInstantiateRequest(request);
+        PilotPackageTemplate template = resolvePilotTemplate(tenantId, templateCode);
+        List<PilotPackageTemplateItem> templateItems = pilotTemplateItemRepository
+            .findByTenantIdAndTemplateIdOrderBySortOrderAsc(template.tenantId(), template.templateId());
+        if (templateItems.isEmpty()) {
+            throw new ApiException(
+                ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                "首发模板未配置任何资产项: " + template.templateCode()
+            );
+        }
+
+        String packageCode = firstNonBlank(instantiateRequest.packageCode(), template.packageCodePrefix());
+        String packageVersion = firstNonBlank(instantiateRequest.packageVersion(), template.defaultPackageVersion());
+        String packageName = firstNonBlank(instantiateRequest.name(), template.name());
+        String packageDescription = firstNonBlank(instantiateRequest.description(), template.description());
+        requirePackageIdentity(packageCode, packageVersion, packageName);
+
+        if (packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+                tenantId, packageCode, packageVersion).isPresent()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_004, "知识包版本在该租户内已存在: " + packageVersion);
+        }
+
+        List<PilotPackageTemplateItem> validItems = new ArrayList<>();
+        List<String> blockers = new ArrayList<>();
+        for (PilotPackageTemplateItem item : templateItems) {
+            try {
+                validateAssetStatus(tenantId, item.assetType(), item.assetId(), item.assetVersion());
+                validItems.add(item);
+            } catch (ApiException ex) {
+                if (item.required()) {
+                    blockers.add(item.assetType() + ":" + item.assetId() + "@" + item.assetVersion()
+                        + "：" + ex.getMessage());
+                }
+            }
+        }
+        if (!blockers.isEmpty()) {
+            throw new ApiException(
+                ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                "首发模板依赖资产缺失或未发布: " + String.join("；", blockers)
+            );
+        }
+        if (validItems.isEmpty()) {
+            throw new ApiException(
+                ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                "首发模板未命中可入包资产: " + template.templateCode()
+            );
+        }
+
+        Instant now = Instant.now();
+        KnowledgePackage pack = new KnowledgePackage(
+            null,
+            UUID.randomUUID().toString(),
+            tenantId,
+            packageCode,
+            packageVersion,
+            packageName,
+            packageDescription,
+            KnowledgePackageStatus.DRAFT,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        );
+        KnowledgePackage savedPackage = packageRepository.save(pack);
+        List<PackageItemResponse> savedItems = validItems.stream()
+            .map(item -> itemRepository.save(new PackageItem(
+                null,
+                UUID.randomUUID().toString(),
+                tenantId,
+                savedPackage.packageId(),
+                item.assetType(),
+                item.assetId(),
+                item.assetVersion(),
+                now,
+                actor,
+                now,
+                actor,
+                traceId
+            )))
+            .map(PackageItemResponse::from)
+            .toList();
+
+        auditPublisher.publish(AuditAction.CREATE, "knowledge_package", savedPackage.packageId(),
+            "由首发模板实例化配置包草稿: " + template.templateCode()
+                + "，资产条目数: " + savedItems.size());
+        return new PilotPackageInstantiationResponse(
+            template.templateCode(),
+            PackageResponse.from(savedPackage),
+            savedItems
+        );
+    }
+
+    /**
+     * 复算配置资产准备状态，供实施向导读取。
+     */
+    @Transactional(readOnly = true)
+    public PackageAssetReadinessResponse getAssetReadiness() {
+        String tenantId = currentTenantId();
+        int templateCount = activeTemplatesForTenant(tenantId).size();
+        List<KnowledgePackage> packages = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId);
+        long draftCount = packages.stream()
+            .filter(pack -> pack.status() == KnowledgePackageStatus.DRAFT)
+            .count();
+        long releasedCount = packages.stream()
+            .filter(this::releasedPackage)
+            .count();
+        long activeCount = packages.stream()
+            .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
+            .count();
+        String readyPackageId = packages.stream()
+            .filter(pack -> pack.status() == KnowledgePackageStatus.ACTIVE)
+            .findFirst()
+            .or(() -> packages.stream().filter(pack -> pack.status() == KnowledgePackageStatus.PUBLISHED).findFirst())
+            .map(KnowledgePackage::packageId)
+            .orElse(null);
+        boolean grayscaleReady = planRepository.findByTenantIdOrderByCreatedAtDesc(tenantId).stream()
+            .anyMatch(plan -> plan.strategy() == ReleaseStrategy.GRAYSCALE
+                && plan.status() == ReleasePlanStatus.SUCCESS);
+
+        List<String> blockers = new ArrayList<>();
+        if (templateCount == 0) {
+            blockers.add("未配置可用的试点首发模板");
+        }
+        if (releasedCount == 0) {
+            blockers.add("配置包尚未灰度发布或启用");
+        }
+        if (!grayscaleReady) {
+            blockers.add("灰度发布尚未成功");
+        }
+        return new PackageAssetReadinessResponse(
+            tenantId,
+            blockers.isEmpty(),
+            templateCount,
+            draftCount,
+            releasedCount,
+            activeCount,
+            grayscaleReady,
+            readyPackageId,
+            blockers,
+            Instant.now()
+        );
     }
 
     /**
@@ -2171,6 +2344,76 @@ public class PackageEngineService {
 
     private record ReleaseScope(ReleaseScopeType scopeType, String scopeValue) {}
 
+    private List<PilotPackageTemplate> activeTemplatesForTenant(String tenantId) {
+        List<PilotPackageTemplate> templates = new ArrayList<>();
+        Set<String> seenCodes = new HashSet<>();
+        for (PilotPackageTemplate template : pilotTemplateRepository
+                .findByTenantIdAndStatusOrderByTemplateCodeAsc(tenantId, PilotPackageTemplateStatus.ACTIVE)) {
+            if (seenCodes.add(template.templateCode())) {
+                templates.add(template);
+            }
+        }
+        if (!PlatformTenant.ID.equals(tenantId)) {
+            for (PilotPackageTemplate template : pilotTemplateRepository
+                    .findByTenantIdAndStatusOrderByTemplateCodeAsc(
+                        PlatformTenant.ID, PilotPackageTemplateStatus.ACTIVE)) {
+                if (seenCodes.add(template.templateCode())) {
+                    templates.add(template);
+                }
+            }
+        }
+        return templates;
+    }
+
+    private PilotPackageTemplate resolvePilotTemplate(String tenantId, String templateCode) {
+        String normalizedTemplateCode = normalizedText(templateCode);
+        if (normalizedTemplateCode == null) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "首发模板编码不能为空");
+        }
+        return pilotTemplateRepository
+            .findByTenantIdAndTemplateCodeAndStatus(
+                tenantId, normalizedTemplateCode, PilotPackageTemplateStatus.ACTIVE)
+            .or(() -> PlatformTenant.ID.equals(tenantId)
+                ? Optional.empty()
+                : pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
+                    PlatformTenant.ID, normalizedTemplateCode, PilotPackageTemplateStatus.ACTIVE))
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PACKAGE_001,
+                "首发模板不存在或已停用: " + normalizedTemplateCode
+            ));
+    }
+
+    private PilotPackageTemplateInstantiateRequest requireInstantiateRequest(
+            PilotPackageTemplateInstantiateRequest request) {
+        if (request == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "首发模板实例化请求不能为空");
+        }
+        return request;
+    }
+
+    private String firstNonBlank(String candidate, String fallback) {
+        String normalizedCandidate = normalizedText(candidate);
+        return normalizedCandidate == null ? normalizedText(fallback) : normalizedCandidate;
+    }
+
+    private void requirePackageIdentity(String packageCode, String packageVersion, String name) {
+        if (packageCode == null || packageCode.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包编码");
+        }
+        if (packageVersion == null || packageVersion.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包版本");
+        }
+        if (name == null || name.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "实例化配置包缺少包名称");
+        }
+    }
+
+    private boolean releasedPackage(KnowledgePackage knowledgePackage) {
+        return knowledgePackage != null
+            && (knowledgePackage.status() == KnowledgePackageStatus.PUBLISHED
+                || knowledgePackage.status() == KnowledgePackageStatus.ACTIVE);
+    }
+
     private void assertPackageReadyForRelease(String packageId) {
         PackageValidateResponse validation = validatePackage(packageId);
         if (validation.valid()) {
@@ -2493,7 +2736,9 @@ public class PackageEngineService {
         switch (type) {
             case RULE -> {
                 RuleDefinition rule = ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "入包规则不存在: " + assetId));
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包规则不存在: " + assetId));
                 // 审核通过的规则方可入包
                 String status = rule.status() == null ? "" : rule.status().name();
                 if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
@@ -2502,7 +2747,9 @@ public class PackageEngineService {
             }
             case PATHWAY -> {
                 PathwayTemplate template = pathwayRepository.findByTemplateIdAndTenantId(assetId, tenantId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_002, "入包路径不存在: " + assetId));
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包路径不存在: " + assetId));
                 String status = template.status() == null ? "" : template.status().name();
                 if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "只允许 PUBLISHED 或 ACTIVE 状态的路径入包, 当前: " + status);
@@ -2510,7 +2757,9 @@ public class PackageEngineService {
             }
             case EVALUATION -> {
                 EvaluationIndicator indicator = evaluationRepository.findByIndicatorIdAndTenantId(assetId, tenantId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_002, "入包评估指标不存在: " + assetId));
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包评估指标不存在: " + assetId));
                 String status = indicator.status() == null ? "" : indicator.status().name();
                 if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "只允许 PUBLISHED 或 ACTIVE 状态的评估指标入包, 当前: " + status);
@@ -2518,14 +2767,16 @@ public class PackageEngineService {
             }
             case KNOWLEDGE -> {
                 KnowledgeIdentity identity = knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, assetId)
-                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_002, "入包知识身份不存在: " + assetId));
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包知识身份不存在: " + assetId));
                 if (!identity.isActive()) {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "只允许 ACTIVE 状态的知识身份入包, 当前: " + identity.status());
                 }
                 KnowledgeAssetVersion version = knowledgeVersionRepository
                     .findByTenantIdAndIdentityIdAndVersionNo(tenantId, identity.id(), assetVersion)
                     .orElseThrow(() -> new ApiException(
-                        ErrorCode.ENG_PACKAGE_002,
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
                         "入包知识版本不存在: " + assetId + "@" + assetVersion
                     ));
                 if (!version.isAuthoritative()) {
@@ -2554,7 +2805,7 @@ public class PackageEngineService {
                         key.scopeCode()
                     )
                     .orElseThrow(() -> new ApiException(
-                        ErrorCode.ENG_PACKAGE_002,
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
                         "入包术语映射包不存在: " + assetId + "@" + assetVersion
                     ));
                 if (!terminologyPackage.isReleasedForPackageAsset()) {

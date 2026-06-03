@@ -19,7 +19,10 @@ import {
   saveExperienceViewSnapshot,
   submitLargeListExport,
   useCreatePackage,
+  useInstantiatePilotTemplate,
+  usePackageAssetReadiness,
   usePackageSyncLogs,
+  usePilotPackageTemplates,
   useSyncPackage,
 } from "./hooks";
 
@@ -198,6 +201,97 @@ describe("package export api helpers", () => {
       ]),
     );
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
+  });
+
+  it("loads pilot package templates from the dedicated API-10 endpoint", async () => {
+    const templates = [
+      {
+        templateId: "tpl-first-run",
+        templateCode: "TPL.FIRST_RUN",
+        tenantId: "t-1",
+        name: "首发模板",
+        description: "试点首发配置包",
+        packageCodePrefix: "PILOT.FIRST",
+        defaultPackageVersion: "2026.06.01",
+        itemCount: 1,
+        items: [
+          {
+            assetType: "KNOWLEDGE",
+            assetId: "KN.COPD",
+            assetVersion: "2026.06",
+            required: true,
+            sortOrder: 0,
+            dependencyNote: "首发知识库",
+          },
+        ],
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: templates } });
+
+    const { result } = renderApiHook(() => usePilotPackageTemplates());
+
+    await waitFor(() => expect(result.current.data).toBe(templates));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pilot-templates");
+  });
+
+  it("loads asset readiness from the dedicated API-10 endpoint", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      ready: true,
+      templateCount: 1,
+      draftPackageCount: 1,
+      releasedPackageCount: 1,
+      activePackageCount: 1,
+      grayscaleReady: true,
+      readyPackageId: "pkg-ready",
+      blockers: [],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: readiness } });
+
+    const { result } = renderApiHook(() => usePackageAssetReadiness());
+
+    await waitFor(() => expect(result.current.data).toBe(readiness));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/asset-readiness");
+  });
+
+  it("instantiates a pilot template through API-10 with standard context fields", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          templateCode: "TPL.FIRST_RUN",
+          packageInfo: { packageId: "pkg-first", packageCode: "PILOT.FIRST" },
+          items: [],
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useInstantiatePilotTemplate());
+
+    await result.current.mutateAsync({
+      templateCode: "TPL.FIRST_RUN",
+      request: {
+        packageCode: "PILOT.FIRST",
+        packageVersion: "2026.06.03",
+        name: "首发配置包",
+        description: "由首发模板生成",
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pkg/packages/pilot-templates/TPL.FIRST_RUN/instantiate",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000003",
+        trace_id: "00000000-0000-4000-8000-000000000003",
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "2026.06.03",
+        packageCode: "PILOT.FIRST",
+        packageVersion: "2026.06.03",
+        name: "首发配置包",
+      }),
+    );
   });
 });
 

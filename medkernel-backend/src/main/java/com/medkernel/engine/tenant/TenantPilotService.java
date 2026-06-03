@@ -28,7 +28,7 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
 /**
  * 租户定制与客户成功生命周期服务层。
  *
- * <p>实现个性化品牌存取与 6 阶段多维生命周期的物理推进及同事务审计追溯。
+ * <p>实现个性化品牌存取与 6 阶段客户成功生命周期推进及同事务审计追溯。
  */
 @Service
 public class TenantPilotService {
