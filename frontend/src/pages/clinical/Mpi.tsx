@@ -29,7 +29,7 @@ import {
   useMergeMpiPatients,
   type MpiPatient,
 } from "@/shared/api/hooks";
-import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;
@@ -105,12 +105,12 @@ export default function Mpi() {
         return;
       }
 
-      await mergeMutation.mutateAsync({
+      const result = await mergeMutation.mutateAsync({
         sourceMpiId: values.sourceMpiId,
         targetMpiId: values.targetMpiId,
       });
 
-      message.success("患者主索引物理合并成功，已写入可观测性审计日志");
+      message.success(result?.message || "患者主索引合并成功，已记录审计证据");
       setIsMergeModalVisible(false);
       form.resetFields();
 
@@ -119,6 +119,11 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(form, error)) return;
+      const parsed = parseApiError(error, "合并失败，请检查主索引ID是否正确");
+      if (parsed.code === "MPI_MERGE_REQUIRES_REVIEW") {
+        message.warning(parsed.message);
+        return;
+      }
       message.error(getApiErrorMessage(error, "合并失败，请检查主索引ID是否正确"));
     }
   };
@@ -171,7 +176,7 @@ export default function Mpi() {
         render: (count: number) => {
           if (count > 0) {
             return (
-              <Tooltip title={`该主索引已物理收纳并入 ${count} 个历史主就诊人记录`}>
+              <Tooltip title={`该主索引已合并 ${count} 个历史主索引记录`}>
                 <Badge count={`+${count}`} className={styles.badgeSuccess} />
               </Tooltip>
             );
@@ -197,7 +202,7 @@ export default function Mpi() {
         render: (targetId: string | null) => {
           if (targetId) {
             return (
-              <Tooltip title={`已被物理归并入目标患者主索引：${targetId}`}>
+              <Tooltip title={`已合并至目标患者主索引：${targetId}`}>
                 <Tag color="orange" icon={<MergeCellsOutlined />}>
                   {targetId}
                 </Tag>
@@ -222,7 +227,7 @@ export default function Mpi() {
                 合并患者
               </Button>
             ) : (
-              <Tooltip title="已合并的患者主索引无法再次作为主导源进行合并">
+              <Tooltip title="已合并的患者主索引无法再次作为源记录合并">
                 <Button type="primary" size="small" disabled icon={<MergeCellsOutlined />}>
                   已归并
                 </Button>
@@ -238,31 +243,31 @@ export default function Mpi() {
   return (
     <PageShell
       title="患者主索引 MPI"
-      description="跨院区、跨系统就诊唯一身份合并归信中心。支持基于唯一识别符的联邦多维聚合呈现，以及医疗事务级高合规人机合并审计。"
+      description="跨院区、跨系统归一患者身份。支持基于唯一识别符的聚合呈现，并对高风险合并保留人工审核与审计证据。"
     >
       <div className={styles.container}>
         {/* 驾驶舱统计指标 */}
         <div className={styles.statsRow}>
           <div className={styles.statCard}>
             <div className={styles.statHeader}>
-              <span className={styles.statTitle}>活跃患者主索引 (ACTIVE)</span>
+              <span className={styles.statTitle}>活跃患者主索引</span>
               <TeamOutlined className={styles.statIcon} />
             </div>
             <div className={styles.statValue}>
               {statsLoading ? "..." : (stats?.activeCount ?? 0)}
             </div>
-            <div className={styles.statSubtext}>当前租户下正在独立运行的活跃患者数</div>
+            <div className={styles.statSubtext}>当前租户下仍作为主记录使用的患者数</div>
           </div>
 
           <div className={styles.statCard}>
             <div className={styles.statHeader}>
-              <span className={styles.statTitle}>已物理并入患者 (MERGED)</span>
+              <span className={styles.statTitle}>已合并患者主索引</span>
               <MergeCellsOutlined className={`${styles.statIcon} ${styles.statIconSuccess}`} />
             </div>
             <div className={styles.statValue}>
               {statsLoading ? "..." : (stats?.mergedCount ?? 0)}
             </div>
-            <div className={styles.statSubtext}>因身份重合已被同事务归并的主索引数</div>
+            <div className={styles.statSubtext}>因确认身份重合而归档的源主索引数</div>
           </div>
 
           <div className={styles.statCard}>
@@ -330,7 +335,7 @@ export default function Mpi() {
                 重置
               </Button>
               <Button type="dashed" icon={<MergeCellsOutlined />} onClick={() => showMergeModal()}>
-                快速物理合并
+                快速合并
               </Button>
             </Space>
           </div>
@@ -357,19 +362,19 @@ export default function Mpi() {
           />
         </div>
 
-        {/* 物理合并弹窗 */}
+        {/* 合并弹窗 */}
         <Modal
           title={
             <Space>
               <MergeCellsOutlined className={styles.warningIcon} />
-              <span>物理合并重复患者主索引 (MPI)</span>
+              <span>合并重复患者主索引</span>
             </Space>
           }
           open={isMergeModalVisible}
           onOk={handleMergeSubmit}
           onCancel={() => setIsMergeModalVisible(false)}
           confirmLoading={mergeMutation.isPending}
-          okText="物理确认合并"
+          okText="确认合并"
           cancelText="取消返回"
           width={560}
           destroyOnClose
@@ -381,34 +386,34 @@ export default function Mpi() {
               <span>高风险医疗合规安全警示</span>
             </div>
             <div className={styles.warningText}>
-              合并患者主索引为<strong>不可逆的最高级别</strong>就诊历史物理并入操作！合并后：
+              合并患者主索引是<strong>不可逆</strong>操作。合并后：
               <br />
               1. <strong>源患者（被合并人）</strong>
-              的所有就诊信息、临床决策树和随访记录将一并迁移或代理到目标患者名下。
+              将归档为已合并，后续以目标患者主索引为准。
               <br />
-              2. 源患者状态物理更改为 <strong>MERGED_INTO</strong>，该主索引将彻底失去主导控制活性。
+              2. 就诊、随访等关联记录会随目标主索引统一查看。
               <br />
-              3. medkernel 引擎底座同事务记录可观测性状态流转审计日志（StateTransitionRecorder）。
+              3. 身份证后四位、性别或年龄存在风险差异时，系统会生成审核单，不会自动合并。
             </div>
           </div>
 
           <Form form={form} layout="vertical">
             <Form.Item
               name="sourceMpiId"
-              label={<Text strong>源患者主索引 ID (被物理吞并、变更为已合并的主索引)</Text>}
+              label={<Text strong>源患者主索引 ID（合并后归档）</Text>}
               rules={[{ required: true, message: "请输入源患者主索引 ID" }]}
               className={styles.modalFormItem}
             >
-              <Input placeholder="例如：mpi_xxxxx (该索引生命周期将进入 MERGED_INTO)" />
+              <Input placeholder="例如：mpi_xxxxx" />
             </Form.Item>
 
             <Form.Item
               name="targetMpiId"
-              label={<Text strong>合并目标活跃患者主索引 ID (最终保留、继承主索引的实体)</Text>}
+              label={<Text strong>目标患者主索引 ID（最终保留）</Text>}
               rules={[{ required: true, message: "请输入合并目标活跃患者主索引 ID" }]}
               className={styles.modalFormItem}
             >
-              <Input placeholder="例如：mpi_yyyyy (该索引的被合并计数将自动累加)" />
+              <Input placeholder="例如：mpi_yyyyy" />
             </Form.Item>
           </Form>
         </Modal>

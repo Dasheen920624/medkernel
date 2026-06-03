@@ -61,6 +61,18 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
+    void anonymousCannotReadAdapterHubStatus() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/adapter-hub/status"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymousCannotGenerateDataQualityReport() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/data-quality/reports"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void anonymousCannotCreateAdapter() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/adapters")
                 .contentType("application/json")
@@ -84,6 +96,22 @@ class IntegrationControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void healthSummaryFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/health"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void adapterHubStatusFailsOnMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/adapter-hub/status"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void dataQualityReportGenerationFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/data-quality/reports"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

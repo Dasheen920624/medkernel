@@ -71,7 +71,8 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "integration_adapter", "创建适配器和 Webhook"),
                 audit(AuditAction.UPDATE, "integration_adapter", "更新适配器和 Webhook"),
-                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签 / 出站补偿 / 死信重放"))),
+                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签 / 出站补偿 / 死信重放"),
+                audit(AuditAction.EXECUTE, "mk_integration_data_quality_report", "生成数据质量报告快照"))),
         contract("fhir-facade", "FHIR R4/R5 运行门面服务",
             "com.medkernel.engine.integration.fhir.FhirFacadeController", "/api/v1/engine/integration/fhir",
             permissions("integration.read", "integration.execute"),
@@ -105,9 +106,11 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.EXECUTE, "model_capability_task", "提交和重试模型任务"),
                 audit(AuditAction.UPDATE, "model_policy", "校验模型路由策略"))),
         contract("mpi", "患者主索引服务",
-            "com.medkernel.engine.mpi.MpiController", "/api/v1/clinical/mpi",
+            "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
             permissions("mpi.read", "mpi.write"),
-            audits(audit(AuditAction.UPDATE, "mpi_patient", "合并患者主索引"))),
+            audits(
+                audit(AuditAction.UPDATE, "mpi_patient", "合并患者主索引"),
+                audit(AuditAction.REVIEW, "mk_mpi_merge_review", "确认高危 MPI 合并审核单"))),
         contract("org-unit", "组织单元服务",
             "com.medkernel.engine.org.OrgUnitController", "/api/v1/engine/org/org-units",
             permissions("org.read", "org.write"),

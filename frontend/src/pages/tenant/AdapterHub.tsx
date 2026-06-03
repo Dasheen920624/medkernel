@@ -41,6 +41,8 @@ import {
   useAddEmbedOrigin,
   useGenerateEmbedToken,
   useIntegrationAdapters,
+  useAdapterHubStatus,
+  useGenerateDataQualityReport,
   useCreateAdapter,
   useUpdateAdapter,
   useCheckAdapterHealth,
@@ -51,7 +53,11 @@ import {
   useRetryMessage,
   useReplayDeadLetter,
 } from "@/shared/api/hooks";
-import type { IntegrationAdapter, WebhookSignatureTestResult } from "@/shared/api/hooks";
+import type {
+  DataQualityReport,
+  IntegrationAdapter,
+  WebhookSignatureTestResult,
+} from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { Option } = Select;
@@ -146,9 +152,11 @@ export default function AdapterHub() {
     refetch: refetchAdapters,
     isLoading: loadingAdapters,
   } = useIntegrationAdapters();
+  const { data: adapterHubStatus, refetch: refetchAdapterHubStatus } = useAdapterHubStatus();
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
   const healthCheckMutation = useCheckAdapterHealth();
+  const generateDataQualityReportMutation = useGenerateDataQualityReport();
 
   const { data: apiWebhooks, refetch: refetchWebhooks } = useWebhooks();
   const createWebhookMutation = useCreateWebhook();
@@ -166,14 +174,13 @@ export default function AdapterHub() {
   // ==========================================
   // 2. 嵌入交互状态
   // ==========================================
-  const [localOrigins] = useState<string[]>([]);
   const [originFormVisible, setOriginFormVisible] = useState<boolean>(false);
   const [sandboxVisible, setSandboxVisible] = useState<boolean>(false);
 
   // 嵌入沙箱所用的 token & URL 状态
   const [sandboxToken, setSandboxToken] = useState<string>("");
   const [sandboxUrl, setSandboxUrl] = useState<string>("");
-  const [hisOrders, setHisOrders] = useState<string[]>([]);
+  const [embedEventNotes, setEmbedEventNotes] = useState<string[]>([]);
   const [postMessageLogs, setPostMessageLogs] = useState<EmbedMessageData[]>([]);
 
   // 适配器 & Webhook 控制表单状态
@@ -182,6 +189,7 @@ export default function AdapterHub() {
   const [healthCheckLoadingMap, setHealthCheckLoadingMap] = useState<Record<string, boolean>>({});
   const [qualityDiagnosticReport, setQualityDiagnosticReport] =
     useState<QualityDiagnosticReport | null>(null);
+  const [dataQualityReport, setDataQualityReport] = useState<DataQualityReport | null>(null);
 
   // Webhook 签名测试状态
   const [selectedWebhookId, setSelectedWebhookId] = useState<string>("");
@@ -197,12 +205,21 @@ export default function AdapterHub() {
   const [adapterForm] = Form.useForm();
   const [webhookForm] = Form.useForm();
 
-  // 仅展示后端真实数据（含本会话内本地新增的跨域白名单）；无数据走空态，不再用写死兜底冒充已接入。
-  const displayOrigins = apiOrigins ?? localOrigins;
+  // 仅展示后端真实数据；无数据走空态，不用写死兜底冒充已接入。
+  const displayOrigins = apiOrigins ?? [];
   const displayAdapters = apiAdapters ?? [];
   const displayWebhooks = apiWebhooks ?? [];
   const displayLogs = apiLogsData?.items ?? [];
   const displayLogsTotal = apiLogsData?.total ?? 0;
+  const adapterTotal = adapterHubStatus?.totalAdapters ?? displayAdapters.length;
+  const healthyAdapters =
+    adapterHubStatus?.healthyAdapters ??
+    displayAdapters.filter((adapter) => adapter.healthStatus === "HEALTHY").length;
+  const notConnectedAdapters =
+    adapterHubStatus?.notConnectedAdapters ??
+    displayAdapters.filter((adapter) => adapter.healthStatus === "NOT_CONNECTED").length;
+  const mappedAdapters = adapterHubStatus?.mappedAdapters ?? 0;
+  const mappingRate = adapterTotal === 0 ? 0 : Math.round((mappedAdapters / adapterTotal) * 100);
 
   // 3. 监听跨域通信
   useEffect(() => {
@@ -212,12 +229,12 @@ export default function AdapterHub() {
         setPostMessageLogs((prev) => [payload, ...prev]);
 
         if (payload.action === "ADOPT") {
-          message.success("【HIS系统成功收到跨域指令】已登记采纳反馈。");
-          setHisOrders((prev) => [...prev, "已接收采纳反馈，医嘱由 HIS/EMR 真实系统处理。"]);
+          message.success("已收到嵌入页面采纳反馈。");
+          setEmbedEventNotes((prev) => ["已收到采纳反馈；医嘱处理仍以院方系统为准。", ...prev]);
         } else if (payload.action === "REJECT") {
-          const reason = payload.reason || "未提供拒绝理由";
-          message.warning(`【HIS系统收到拒绝事件】反馈理由已存档：${reason}`);
-          setHisOrders((prev) => [...prev, `临床拒绝 CDSS 建议：${reason}`]);
+          const reason = String(payload.reason ?? "未提供拒绝理由");
+          message.warning(`已收到嵌入页面拒绝反馈：${reason}`);
+          setEmbedEventNotes((prev) => [`已收到拒绝反馈：${reason}`, ...prev]);
         }
       }
     };
@@ -228,7 +245,7 @@ export default function AdapterHub() {
     };
   }, []);
 
-  // 4. 动作执行 (跨域白名单 & Token 发生)
+  // 4. 动作执行（跨域白名单与 Token 签发）
   const handleAddOrigin = async () => {
     let values;
     try {
@@ -283,6 +300,7 @@ export default function AdapterHub() {
       setAdapterModalVisible(false);
       adapterForm.resetFields();
       refetchAdapters();
+      refetchAdapterHubStatus();
     } catch (error: unknown) {
       if (applyApiFieldErrors(adapterForm, error)) return;
       message.error(getApiErrorMessage(error, "配置适配器失败，请检查参数"));
@@ -303,11 +321,10 @@ export default function AdapterHub() {
       if (res.healthStatus === "MISCONFIGURED") {
         message.error(`适配器 [${adapterId}] 配置非法 (MISCONFIGURED)，请修正 configJson 后重试`);
       } else {
-        message.info(
-          `适配器 [${adapterId}] 本地配置校验通过；外部连通性未知 (NOT_CONNECTED)，待接入真实连接器`,
-        );
+        message.info(`适配器 [${adapterId}] 配置校验通过；当前外部连通性为 NOT_CONNECTED`);
       }
       refetchAdapters();
+      refetchAdapterHubStatus();
     } catch (error: unknown) {
       const errMsg = getApiErrorMessage(error, "健康检查请求失败，请稍后重试");
       setQualityDiagnosticReport({
@@ -336,8 +353,20 @@ export default function AdapterHub() {
       });
       message.success(`适配器状态已变更为: ${newStatus}`);
       refetchAdapters();
+      refetchAdapterHubStatus();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "切换适配器状态失败，请稍后重试"));
+    }
+  };
+
+  const handleGenerateDataQualityReport = async () => {
+    try {
+      const report = await generateDataQualityReportMutation.mutateAsync();
+      setDataQualityReport(report);
+      refetchAdapterHubStatus();
+      message.success("数据质量报告快照已生成。");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "生成数据质量报告失败，请稍后重试"));
     }
   };
 
@@ -414,7 +443,7 @@ export default function AdapterHub() {
     }
   };
 
-  // 客户端导出当前页交易流水快照（真实数据，无伪造哈希）；带后端签名的防伪存证包需 INTEG 导出接口支持。
+  // 客户端仅导出当前页可见交易流水，不伪造成后端签名存证。
   const handleExportLogsCertificate = () => {
     if (displayLogs.length === 0) {
       message.info("当前没有可导出的交易流水记录。");
@@ -427,15 +456,13 @@ export default function AdapterHub() {
     anchor.download = `integration-message-logs-${Date.now()}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    message.success(
-      "已导出当前页交易流水快照（客户端 JSON）。带后端签名、可用于互联互通测评的防伪存证包需 INTEG 导出接口支持（待接入）。",
-    );
+    message.success("已导出当前页交易流水快照；正式签名存证以服务端导出能力为准。");
   };
 
   return (
     <PageShell
       title="第三方对接总线与页面集成"
-      description="管理院内各异构系统的底层物理连接。支持适配器生命周期、Webhook HMAC-SHA256 安全签名自校准、死信重试队列以及 HIS 免登 Launch 仿真沙盒。"
+      description="管理院内异构系统接入。支持适配器生命周期、Webhook 签名校验、死信重试队列、嵌入页免登联调和数据质量报告。"
     >
       {/* 顶部简易 Metric 状态大盘 */}
       <Row gutter={16} className="mb-6">
@@ -443,7 +470,7 @@ export default function AdapterHub() {
           <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
             <Statistic
               title="已注册适配器数"
-              value={displayAdapters.length}
+              value={adapterTotal}
               prefix={<ApiOutlined className="text-sky-500 mr-1.5" />}
               valueStyle={{ color: token.colorPrimary }}
             />
@@ -453,15 +480,7 @@ export default function AdapterHub() {
           <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
             <Statistic
               title="真实连通率 (HEALTHY)"
-              value={
-                displayAdapters.length === 0
-                  ? 0
-                  : Math.round(
-                      (displayAdapters.filter((a) => a.healthStatus === "HEALTHY").length /
-                        displayAdapters.length) *
-                        100,
-                    )
-              }
+              value={adapterTotal === 0 ? 0 : Math.round((healthyAdapters / adapterTotal) * 100)}
               suffix="%"
               prefix={<CheckCircleOutlined className="text-emerald-500 mr-1.5" />}
               valueStyle={{ color: token.colorSuccess }}
@@ -471,8 +490,8 @@ export default function AdapterHub() {
         <Col span={6}>
           <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
             <Statistic
-              title="重试死信失败项"
-              value={displayLogs.filter((l) => l.status !== "SUCCESS").length}
+              title="断连适配器"
+              value={notConnectedAdapters}
               prefix={<DisconnectOutlined className="text-amber-500 mr-1.5" />}
               valueStyle={{ color: token.colorWarning }}
             />
@@ -481,8 +500,9 @@ export default function AdapterHub() {
         <Col span={6}>
           <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
             <Statistic
-              title="安全域名防护数"
-              value={displayOrigins.length}
+              title="字段映射覆盖"
+              value={mappingRate}
+              suffix="%"
               prefix={<SafetyCertificateOutlined className="text-purple-500 mr-1.5" />}
               valueStyle={{ color: "var(--ant-purple-6)" }}
             />
@@ -629,6 +649,56 @@ export default function AdapterHub() {
                       },
                     ]}
                   />
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-semibold text-slate-800">
+                          数据质量报告快照
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          必填字段、字段映射和连通核查时效均来自后端当前租户事实。
+                        </span>
+                      </div>
+                      <Button
+                        size="small"
+                        icon={<FileProtectOutlined />}
+                        loading={generateDataQualityReportMutation.isPending}
+                        onClick={handleGenerateDataQualityReport}
+                      >
+                        生成报告
+                      </Button>
+                    </div>
+
+                    {dataQualityReport ? (
+                      <Descriptions size="small" column={4} className="mt-3">
+                        <Descriptions.Item label="必填率">
+                          <span className="text-xs">{dataQualityReport.requiredFieldRate}%</span>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="映射率">
+                          <span className="text-xs">{dataQualityReport.mappingRate}%</span>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="时效率">
+                          <span className="text-xs">{dataQualityReport.timelinessRate}%</span>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="报告ID">
+                          <span className="text-xs select-all">{dataQualityReport.reportId}</span>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="缺口摘要" span={4}>
+                          <span className="text-xs text-slate-600">
+                            {dataQualityReport.gapSummary}
+                          </span>
+                        </Descriptions.Item>
+                      </Descriptions>
+                    ) : (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="尚未生成本轮数据质量报告"
+                        className="mt-3 rounded-lg text-xs"
+                      />
+                    )}
+                  </div>
 
                   {/* 适配器健康检查结果（仅展示后端真实返回，不伪造体检指标） */}
                   {qualityDiagnosticReport && (
@@ -1006,7 +1076,7 @@ export default function AdapterHub() {
               label: (
                 <span className="flex items-center gap-1.5 text-xs">
                   <PlayCircleOutlined />
-                  <span>HIS/EMR 免登嵌入沙箱 (Launch Token)</span>
+                  <span>HIS/EMR 免登嵌入联调 (Launch Token)</span>
                 </span>
               ),
               children: (
@@ -1016,7 +1086,7 @@ export default function AdapterHub() {
                     <Card
                       title={
                         <span className="text-xs font-semibold">
-                          一次性免登嵌入 Launch Token 发生器
+                          一次性免登嵌入 Launch Token 生成器
                         </span>
                       }
                       className="rounded-xl border-slate-200 bg-slate-50"
@@ -1029,9 +1099,11 @@ export default function AdapterHub() {
                               name="userId"
                               label="医生工号 (User ID)"
                               rules={[{ required: true }]}
-                              initialValue="doc-chao-009"
                             >
-                              <Input className="rounded-lg text-xs" />
+                              <Input
+                                placeholder="输入真实医生工号"
+                                className="rounded-lg text-xs"
+                              />
                             </Form.Item>
                           </Col>
                           <Col span={12}>
@@ -1098,7 +1170,7 @@ export default function AdapterHub() {
                           icon={<PlayCircleOutlined />}
                           className="bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-md w-full text-xs"
                         >
-                          生成 60s 令牌并发射集成 iframe
+                          生成 60s 令牌并打开嵌入页
                         </Button>
                       </Form>
                     </Card>
@@ -1107,7 +1179,7 @@ export default function AdapterHub() {
                     <Card
                       title={
                         <div className="flex justify-between items-center w-full">
-                          <span className="text-xs font-semibold">跨域 Origin 安全防卫</span>
+                          <span className="text-xs font-semibold">跨域 Origin 安全防护</span>
                           <Button
                             type="link"
                             size="small"
@@ -1115,7 +1187,7 @@ export default function AdapterHub() {
                             onClick={() => setOriginFormVisible(true)}
                             className="text-xs"
                           >
-                            安全防卫
+                            安全防护
                           </Button>
                         </div>
                       }
@@ -1147,14 +1219,14 @@ export default function AdapterHub() {
                     </Card>
                   </Col>
 
-                  {/* 右侧沙箱展示 */}
+                  {/* 右侧嵌入联调 */}
                   <Col span={15}>
                     {sandboxVisible ? (
                       <Card
                         title={
                           <span className="flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
                             <LockOutlined />
-                            <span>核心住院医生工作站 (HIS) 仿真沙箱界面</span>
+                            <span>核心住院医生工作站嵌入联调</span>
                           </span>
                         }
                         className="border-amber-200 rounded-xl"
@@ -1167,11 +1239,11 @@ export default function AdapterHub() {
                               size="small"
                             >
                               <span className="font-bold text-xs text-slate-700 block mb-2">
-                                医生工作站处方开立区:
+                                嵌入交互事件:
                               </span>
                               <List
                                 size="small"
-                                dataSource={hisOrders}
+                                dataSource={embedEventNotes}
                                 renderItem={(item) => (
                                   <List.Item className="py-1 px-0 text-[10px] text-slate-600">
                                     {item}
@@ -1187,21 +1259,22 @@ export default function AdapterHub() {
                               size="small"
                             >
                               <span className="font-bold text-xs text-slate-400 block mb-2">
-                                postMessage 双向跨域通信审计{" "}
-                                {sandboxToken ? `(Token: ${sandboxToken})` : ""}:
+                                跨域交互事件记录{sandboxToken ? "（令牌已生成）" : ""}:
                               </span>
                               <div className="max-h-24 overflow-y-auto font-normal text-[9px]">
                                 {postMessageLogs.length === 0 ? (
                                   <span className="text-slate-500">
-                                    等待 CDSS 交互反馈指令事件回传...
+                                    等待嵌入页面交互事件回传...
                                   </span>
                                 ) : (
                                   postMessageLogs.map((log, i) => (
                                     <div key={i} className="mb-1 border-b border-slate-800 pb-1">
-                                      <div>[接收事件] action={log.action}</div>
-                                      <div className="text-[8px] text-slate-400">
-                                        payload: {JSON.stringify(log)}
-                                      </div>
+                                      <div>接收事件：{String(log.action ?? "UNKNOWN")}</div>
+                                      {log.reason ? (
+                                        <div className="text-[8px] text-slate-400">
+                                          原因：{String(log.reason)}
+                                        </div>
+                                      ) : null}
                                     </div>
                                   ))
                                 )}
@@ -1212,7 +1285,7 @@ export default function AdapterHub() {
 
                         <iframe
                           src={sandboxUrl}
-                          title="HIS CDSS Sandbox"
+                          title="HIS/EMR 嵌入联调页面"
                           className="w-full h-80 rounded-xl border border-slate-200 shadow"
                         />
                       </Card>
@@ -1221,7 +1294,7 @@ export default function AdapterHub() {
                         <span className="text-slate-400 text-xs text-center block">
                           请先在左侧输入就诊环境参数，
                           <br />
-                          并点击“生成 60s 令牌”来拉起 HIS 嵌入仿真沙盒。
+                          并点击“生成 60s 令牌”打开 HIS/EMR 嵌入联调页面。
                         </span>
                       </Card>
                     )}
@@ -1275,7 +1348,7 @@ export default function AdapterHub() {
             </Select>
           </Form.Item>
 
-          <Form.Item name="configJson" label="连接字段映射规则配制 JSON (Config JSON)">
+          <Form.Item name="configJson" label="连接字段映射规则配置 JSON (Config JSON)">
             <Input.TextArea
               rows={4}
               placeholder="请输入真实连接配置 JSON"
@@ -1343,7 +1416,7 @@ export default function AdapterHub() {
 
       {/* 跨域 Origin 域名添加 Modal */}
       <Modal
-        title="添加跨域安全域名防卫"
+        title="添加跨域安全域名防护"
         open={originFormVisible}
         onOk={handleAddOrigin}
         onCancel={() => setOriginFormVisible(false)}
