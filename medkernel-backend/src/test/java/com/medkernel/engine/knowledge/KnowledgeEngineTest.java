@@ -72,7 +72,7 @@ class KnowledgeEngineTest {
         );
 
         versionService = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo
         );
 

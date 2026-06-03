@@ -171,7 +171,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | INTEG-02 | 第三方接口文档与契约模板 | 接入概览 + OpenAPI + 字段映射 + 鉴权 + 幂等 + 回调 + 降级 + 审计 | 3d | done |
 | MED-C2 | 规则 DSL 补临床算子 | between/unit_compare 单位换算/temporal 时间窗·连续次数/derived 受控算术 eGFR/CrCl/BSA | 5d | done |
 | OPT-01 | 标准临床模型与 FHIR R4/R5 门面 | Patient/Encounter/Condition/Observation/Medication/Procedure/CarePlan/ServiceRequest/DiagnosticReport/DocumentReference | 6d | done |
-| OPT-07 | 来源证据分级与冲突仲裁 | A 法规/B 国家指南/C 共识文献/D 院内/E 反馈 + GRADE 兼容 | 5d | pending |
+| OPT-07 | 来源证据分级与冲突仲裁 | A 法规/B 国家指南/C 共识文献/D 院内/E 反馈 + GRADE 兼容 | 5d | done |
 | SVC-PILOT-01 | 租户与组织服务包 | TenantOnboarding + ImplementationGuide + 组织树（核心 §9 七层：平台/集团/医院/院区/社区服务点/科室/专病）| 4d | pending |
 | SVC-PILOT-02 | 接入与数据质量服务包 | HIS/EMR/LIS/PACS/医保/病案/随访适配 + AdapterHub + 字段映射 | 5d | pending |
 | SVC-PILOT-03 | 资产准备服务包 | 知识包/配置包/字典/规则/路径 + ConfigPackages + 灰度全量回滚 | 4d | pending |

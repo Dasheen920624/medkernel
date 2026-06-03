@@ -44,6 +44,7 @@ public class KnowledgeVersionService {
     private final KnowledgeSupersessionRepository supersessionRepository;
     private final CitationRepository citationRepository;
     private final SourceDocumentRepository sourceDocumentRepository;
+    private final SourceVersionRepository sourceVersionRepository;
     private final KnowledgeProjectionRefreshPort projectionRefreshPort;
     private final CandidateClassificationRepository candidateClassificationRepository;
     private final ReviewAssignmentRepository reviewAssignmentRepository;
@@ -55,6 +56,7 @@ public class KnowledgeVersionService {
                                    KnowledgeSupersessionRepository supersessionRepository,
                                    CitationRepository citationRepository,
                                    SourceDocumentRepository sourceDocumentRepository,
+                                   SourceVersionRepository sourceVersionRepository,
                                    KnowledgeProjectionRefreshPort projectionRefreshPort,
                                    CandidateClassificationRepository candidateClassificationRepository,
                                    ReviewAssignmentRepository reviewAssignmentRepository,
@@ -65,6 +67,7 @@ public class KnowledgeVersionService {
         this.supersessionRepository = supersessionRepository;
         this.citationRepository = citationRepository;
         this.sourceDocumentRepository = sourceDocumentRepository;
+        this.sourceVersionRepository = sourceVersionRepository;
         this.projectionRefreshPort = projectionRefreshPort;
         this.candidateClassificationRepository = candidateClassificationRepository;
         this.reviewAssignmentRepository = reviewAssignmentRepository;
@@ -461,7 +464,12 @@ public class KnowledgeVersionService {
         ConflictArbitration arbitration = null;
         if (currentActiveOpt.isPresent()) {
             KnowledgeAssetVersion oldActive = currentActiveOpt.get();
-            arbitration = ConflictArbitration.between(oldActive, target);
+            arbitration = ConflictArbitration.between(
+                oldActive,
+                target,
+                resolveSourceVersion(tenantId, oldActive.sourceVersionId()),
+                resolveSourceVersion(tenantId, target.sourceVersionId())
+            );
             if (arbitration.lowAuthorityOverrideHighAuthority() && normalizedReason == null) {
                 throw new ApiException(ErrorCode.AUTHORITY_OVERRIDE_DENIED,
                     "低阶来源覆盖高阶来源必须填写理由并由发布审核人确认");
@@ -540,6 +548,13 @@ public class KnowledgeVersionService {
             return arbitration.summary();
         }
         return reason.trim() + "\n" + arbitration.summary();
+    }
+
+    private SourceVersion resolveSourceVersion(String tenantId, Long sourceVersionId) {
+        if (sourceVersionId == null) {
+            return null;
+        }
+        return sourceVersionRepository.findByTenantIdAndId(tenantId, sourceVersionId).orElse(null);
     }
 
     private CandidateClassificationType candidateClassificationType(Optional<KnowledgeAssetVersion> active,
