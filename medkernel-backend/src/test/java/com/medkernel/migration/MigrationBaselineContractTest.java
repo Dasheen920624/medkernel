@@ -91,7 +91,8 @@ class MigrationBaselineContractTest {
         "V62__integration_message_not_connected_status.sql",
         "V63__fhir_resource_mapping.sql",
         "V64__mpi_merge_review_data_quality_report.sql",
-        "V65__pilot_package_template.sql"
+        "V65__pilot_package_template.sql",
+        "V66__integration_business_service_package.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -118,6 +119,7 @@ class MigrationBaselineContractTest {
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
+        "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
@@ -212,6 +214,8 @@ class MigrationBaselineContractTest {
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
+        "idx_integ_onb_tenant_status", "idx_integ_onb_adapter",
+        "idx_integ_regional_tenant_trust", "idx_integ_regional_org",
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
         "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
@@ -337,6 +341,9 @@ class MigrationBaselineContractTest {
         "uk_integration_adapter", "uk_integration_webhook", "uk_integration_message",
         "ck_integration_adapter_status", "ck_integration_adapter_health",
         "ck_integration_webhook_status", "ck_integration_message_dir", "ck_integration_message_status",
+        "uk_integ_onboarding_tenant_id", "ck_integ_onboarding_mode",
+        "ck_integ_onboarding_status", "ck_integ_onboarding_fhir",
+        "uk_integ_regional_source_id", "ck_integ_regional_trust", "ck_integ_regional_status",
         "uk_evidence_snapshot",
         "uk_tenant_branding", "uk_tenant_success_plan",
         "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
@@ -403,6 +410,7 @@ class MigrationBaselineContractTest {
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
+        "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
@@ -439,6 +447,7 @@ class MigrationBaselineContractTest {
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
+        "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review",
@@ -473,7 +482,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
         Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id")),
         Map.entry("mk_mpi_merge_review", Set.of("requested_at", "requested_by", "reviewed_at", "reviewed_by", "trace_id", "created_at", "updated_at")),
-        Map.entry("mk_integration_data_quality_report", Set.of("generated_at", "created_at", "created_by", "trace_id"))
+        Map.entry("mk_integration_data_quality_report", Set.of("generated_at", "created_at", "created_by", "trace_id")),
+        Map.entry("mk_integration_onboarding", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
+        Map.entry("mk_integration_regional_source", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id"))
     );
     private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.ofEntries(
         Map.entry("org_unit", Set.of("status")),
@@ -535,6 +546,8 @@ class MigrationBaselineContractTest {
         Map.entry("integration_adapter", Set.of("status", "health_status")),
         Map.entry("integration_webhook_config", Set.of("status")),
         Map.entry("integration_message_log", Set.of("status", "direction")),
+        Map.entry("mk_integration_onboarding", Set.of("access_mode", "status", "fhir_version")),
+        Map.entry("mk_integration_regional_source", Set.of("trust_level", "status")),
         Map.entry("tenant_success_plan", Set.of("current_stage")),
         Map.entry("mpi_patient", Set.of("status")),
         Map.entry("mk_mpi_merge_review", Set.of("risk_level", "status")),
