@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResources;
@@ -179,6 +180,8 @@ public class FollowupEngineService {
     public FollowupQuestionnaireResponse dispatchQuestionnaire(FollowupQuestionnaireRequest request) {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
+        String formData = normalizeJsonObject(request.formData(), "问卷模板载荷");
+        String answerData = normalizeOptionalJsonObject(request.answerData(), "问卷作答载荷");
         Optional<FollowupQuestionnaire> existing =
             existingQuestionnaireByIdempotency(tenantId, request.idempotencyKey());
         if (existing.isPresent()) {
@@ -188,7 +191,7 @@ public class FollowupEngineService {
         FollowupTask task = findTask(request.taskId(), tenantId);
         Instant now = Instant.now();
         String actor = firstNonBlank(request.executorId(), actor(ctx));
-        boolean completed = hasText(request.answerData());
+        boolean completed = hasText(answerData);
         FollowupQuestionnaire questionnaire = questionnaireRepository.save(new FollowupQuestionnaire(
             null,
             "fq-" + UUID.randomUUID(),
@@ -196,8 +199,8 @@ public class FollowupEngineService {
             task.planId(),
             task.taskId(),
             request.questionnaireTemplateId(),
-            request.formData(),
-            request.answerData(),
+            formData,
+            answerData,
             request.score(),
             completed ? "COMPLETED" : "DISPATCHED",
             request.idempotencyKey(),
@@ -249,6 +252,7 @@ public class FollowupEngineService {
         String actor = firstNonBlank(request.triggeredBy(), actor(ctx));
         String idempotencyKey = blankToNull(request.idempotencyKey());
         ensureAbnormalReportType(request.eventType());
+        JsonNode abnormalPayload = requireJsonObjectPayload(request.payload(), "异常回院事件载荷");
 
         if (idempotencyKey != null) {
             Optional<FollowupEvent> existingEvent = eventRepository.findByTenantIdAndEventTypeAndIdempotencyKey(
@@ -275,7 +279,7 @@ public class FollowupEngineService {
             tenantId,
             plan.planId(),
             FollowupEventType.ABNORMAL_RETURN,
-            request.payload(),
+            writeJson(abnormalPayload),
             actor,
             idempotencyKey,
             now,
@@ -310,12 +314,7 @@ public class FollowupEngineService {
             tenantId,
             plan.planId(),
             FollowupEventType.NOTIFICATION_REQUESTED,
-            writeJson(Map.of(
-                "returnTaskId", returnTask.taskId(),
-                "patientId", plan.patientId(),
-                "encounterId", plan.encounterId(),
-                "sourceEventId", abnormalEvent.eventId()
-            )),
+            notificationPayload(returnTask, plan, abnormalEvent, abnormalPayload),
             actor,
             idempotencyKey == null ? null : notificationKey(idempotencyKey),
             now,
@@ -337,6 +336,16 @@ public class FollowupEngineService {
         String tenantId = ctx.orgScope().tenantId();
         String traceId = ctx.traceId();
         String actor = actor(ctx);
+        JsonNode resultPayload = requireJsonObjectPayload(request.resultPayload(), "随访结果回流载荷");
+        String idempotencyKey = blankToNull(request.idempotencyKey());
+        if (idempotencyKey != null) {
+            Optional<FollowupEvent> existingEvent = eventRepository.findByTenantIdAndEventTypeAndIdempotencyKey(
+                tenantId, FollowupEventType.RESULT_INFLOW, idempotencyKey);
+            if (existingEvent.isPresent()) {
+                return new FollowupResultBackflowResponse(
+                    existingEvent.get().eventId(), contextSnapshotIdFromPayload(existingEvent.get().payload()), traceId);
+            }
+        }
         FollowupPlan plan = findPlan(request.planId(), tenantId);
         FollowupTask task = findTask(request.taskId(), tenantId);
         FollowupQuestionnaire questionnaire = questionnaireRepository.findByQuestionnaireId(request.questionnaireId())
@@ -347,7 +356,7 @@ public class FollowupEngineService {
         }
 
         ContextSnapshotResponse snapshot = contextSnapshotService.create(
-            contextBackflowRequest(plan, questionnaire, request, ctx),
+            contextBackflowRequest(plan, task, questionnaire, request, ctx),
             request.idempotencyKey()
         );
         Instant now = Instant.now();
@@ -357,7 +366,7 @@ public class FollowupEngineService {
             tenantId,
             plan.planId(),
             FollowupEventType.RESULT_INFLOW,
-            resultPayload(request, snapshot.snapshotId()),
+            resultPayload(request, snapshot.snapshotId(), resultPayload),
             actor,
             request.idempotencyKey(),
             now,
@@ -629,6 +638,7 @@ public class FollowupEngineService {
 
     private ContextSnapshotRequest contextBackflowRequest(
             FollowupPlan plan,
+            FollowupTask task,
             FollowupQuestionnaire questionnaire,
             FollowupResultBackflowRequest request,
             RequestContext.Snapshot ctx) {
@@ -650,7 +660,7 @@ public class FollowupEngineService {
         CanonicalFollowUp followUp = new CanonicalFollowUp(
             questionnaire.questionnaireId(),
             plan.diseaseCode() == null ? "FOLLOWUP_RESULT" : plan.diseaseCode(),
-            taskRepository.findByTaskId(request.taskId()).map(FollowupTask::dueDate).orElse(now),
+            task.dueDate() == null ? now : task.dueDate(),
             questionnaire.questionnaireTemplateId(),
             firstNonBlank(request.abnormalFlag(), "N"),
             "FOLLOWUP",
@@ -698,13 +708,62 @@ public class FollowupEngineService {
         );
     }
 
-    private String resultPayload(FollowupResultBackflowRequest request, String snapshotId) {
-        return writeJson(Map.of(
-            "questionnaireId", request.questionnaireId(),
-            "contextSnapshotId", snapshotId,
-            "abnormalFlag", firstNonBlank(request.abnormalFlag(), "N"),
-            "resultPayload", request.resultPayload()
-        ));
+    private String resultPayload(FollowupResultBackflowRequest request, String snapshotId, JsonNode resultPayload) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("questionnaireId", request.questionnaireId());
+        payload.put("contextSnapshotId", snapshotId);
+        payload.put("abnormalFlag", firstNonBlank(request.abnormalFlag(), "N"));
+        payload.put("resultPayload", resultPayload);
+        return writeJson(payload);
+    }
+
+    private String notificationPayload(
+            FollowupTask returnTask,
+            FollowupPlan plan,
+            FollowupEvent abnormalEvent,
+            JsonNode abnormalPayload) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("returnTaskId", returnTask.taskId());
+        payload.put("patientId", plan.patientId());
+        payload.put("encounterId", plan.encounterId());
+        payload.put("sourceEventId", abnormalEvent.eventId());
+        payload.put("abnormalPayload", abnormalPayload);
+        return writeJson(payload);
+    }
+
+    private String contextSnapshotIdFromPayload(String payload) {
+        JsonNode node = requireJsonObjectPayload(payload, "随访回流事件载荷");
+        JsonNode snapshotId = node.get("contextSnapshotId");
+        if (snapshotId == null || !snapshotId.isTextual() || !hasText(snapshotId.asText())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "已有随访回流事件缺少上下文快照 ID");
+        }
+        return snapshotId.asText();
+    }
+
+    private String normalizeOptionalJsonObject(String payload, String label) {
+        if (!hasText(payload)) {
+            return null;
+        }
+        return normalizeJsonObject(payload, label);
+    }
+
+    private String normalizeJsonObject(String payload, String label) {
+        return writeJson(requireJsonObjectPayload(payload, label));
+    }
+
+    private JsonNode requireJsonObjectPayload(String payload, String label) {
+        if (!hasText(payload)) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, label + "必须是 JSON 对象");
+        }
+        try {
+            JsonNode node = json.readTree(payload);
+            if (node == null || !node.isObject()) {
+                throw new ApiException(ErrorCode.ENG_FOLLOW_004, label + "必须是 JSON 对象");
+            }
+            return node;
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, label + "必须是 JSON 对象");
+        }
     }
 
     private RequestContext.Snapshot requireContext() {

@@ -310,6 +310,18 @@ class FollowupEngineServiceTest {
     }
 
     @Test
+    void submitQuestionnaireRejectsNonJsonObjectAnswer() {
+        ApiException exception = assertThrows(ApiException.class, () -> service.submitQuestionnaire(
+            "TASK01",
+            new FollowupQuestionnaireSubmitRequest("TASK01", "[\"非结构化答案\"]", "nurse-1", "FOLLOWUP_NURSE")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        verify(questionnaireRepository, never()).save(any(FollowupQuestionnaire.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
     void reportAbnormalCreatesReturnVisitTaskAndNotificationEvent() {
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
             FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
@@ -400,5 +412,37 @@ class FollowupEngineServiceTest {
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).followUpId()).isEqualTo("FQ01");
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).abnormalFlag()).isEqualTo("N");
         verify(eventRepository).save(any(FollowupEvent.class));
+    }
+
+    @Test
+    void backflowResultReusesExistingResultInflowEventByIdempotencyKey() {
+        FollowupEvent existing = new FollowupEvent(
+            10L,
+            "FE-RESULT-EXISTING",
+            "tenant-1",
+            "PLAN01",
+            FollowupEventType.RESULT_INFLOW,
+            "{\"questionnaireId\":\"FQ01\",\"contextSnapshotId\":\"ctx-existing\",\"abnormalFlag\":\"Y\"}",
+            "nurse-1",
+            "result-key-1",
+            Instant.now(),
+            "nurse-1",
+            Instant.now(),
+            "nurse-1",
+            "trace-old"
+        );
+        when(eventRepository.findByTenantIdAndEventTypeAndIdempotencyKey(
+            "tenant-1", FollowupEventType.RESULT_INFLOW, "result-key-1"))
+            .thenReturn(Optional.of(existing));
+
+        FollowupResultBackflowResponse response = service.backflowResult(new FollowupResultBackflowRequest(
+            "PLAN01", "TASK01", "FQ01", "{\"painScore\":8}", "Y",
+            "pkg-2026.06", "result-key-1"
+        ));
+
+        assertThat(response.eventId()).isEqualTo("FE-RESULT-EXISTING");
+        assertThat(response.contextSnapshotId()).isEqualTo("ctx-existing");
+        verify(contextSnapshotService, never()).create(any(ContextSnapshotRequest.class), any(String.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
     }
 }
