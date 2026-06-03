@@ -17,9 +17,9 @@
 - 类型：软件开发
 - 分支：`codex/d3-api-02-clinical-event-api`
 - 目标：领取 D3 第一闸 [API-02](cards/D3/API-02.md)，实现临床事件同步 / 异步 / 批量 / 回放 / 重试 / 死信 / 回调客户面 API；必须消费 D2 已发布规则 / 路径 / 知识 / 字典的 B0 真实资产，不绕过关系库权威，不自动开医嘱或写病历。
-- 状态：待领取。D2 试点准备域已完成域级验收收口并关闭 `DEFER-012`；D3 可在本 PR 合入后从 API-02 开始。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
-- 下一步（精确到动作/命令）：1. 基于最新 `origin/main` 新建 `codex/d3-api-02-clinical-event-api` 工作树；2. 读 [CONSTITUTION](CONSTITUTION.md)、[D3 域简报](cards/D3/_brief.md)、[API-02](cards/D3/API-02.md)、[EXPERIENCE_CONTRACT](EXPERIENCE_CONTRACT.md)（若触页面）与本清单；3. 核查 `medkernel-backend/src/main/java/com/medkernel/engine/context`、`engine/recommendation`、`engine/pathway`、`engine/rule`、`shared/runtime/task` 现状；4. 先写失败测试，再实现 API-02；5. 复跑后端 / 前端相关验证、T-GATE、中文注释、diff 检查、PR、CI、合并后再领取下一卡。
-- 相关文件 / 测试 / 坑：D3 不能重造 D2 的规则 / 路径 / 知识 / 字典真相源；临床事件必须带租户 / 组织 / 患者 / 就诊 / 包版本上下文；外部系统断连必须 `NOT_CONNECTED` / `NOT_SYNCED` 诚实降级；`DEFER-019` 随访模板资产化归 D3 `FOLLOW-01` 后回接 D2，不得把患者运行计划打进配置包。
+- 状态：本地实现、提交与 changed-mode 门禁完成，待推送 / PR / 远端 CI / 合并；`docs/backlog.md` 已将 API-02 标 done，合并后才能领取 D3 下一卡 [API-07](cards/D3/API-07.md)。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d3-api-02-clinical-event-api` 并创建 PR；2. 等待远端 CI 全绿后 squash merge；3. 合并确认 `origin/main` 后清理工作树并领取 D3 [API-07](cards/D3/API-07.md)。
+- 相关文件 / 测试 / 坑：本轮新增临床事件触发点、客户面幂等键、回调 webhook 白名单、批量逐条失败、死信查询 / 回放、`clinical-event.v1` schema、V67 五方言迁移；回调经 INTEG-01 出站总线，未接真实外部通道时只落 `NOT_CONNECTED` / `NOT_SYNCED` 诚实状态，不伪造外部送达。已跑证据见 [API-02](cards/D3/API-02.md)；当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。`DEFER-019` 随访模板资产化归 D3 `FOLLOW-01` 后回接 D2，不得把患者运行计划打进配置包。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）

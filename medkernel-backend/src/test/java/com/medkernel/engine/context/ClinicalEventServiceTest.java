@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.medkernel.engine.integration.domain.IntegrationWebhookConfig;
+import com.medkernel.engine.integration.repository.IntegrationWebhookConfigRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,7 @@ class ClinicalEventServiceTest {
     private AuditEventPublisher auditPublisher;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
+    private IntegrationWebhookConfigRepository webhooks;
     private ObjectMapper json;
     private ClinicalEventService service;
 
@@ -55,12 +58,13 @@ class ClinicalEventServiceTest {
         auditPublisher = mock(AuditEventPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
+        webhooks = mock(IntegrationWebhookConfigRepository.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
 
         service = new ClinicalEventService(
             events, payloads, outbox, processor, auditPublisher, transitions, diagnoseAssembler, json,
-            new ClinicalEventProperties(1024, Duration.ofMillis(50), 10, 3, List.of(1L, 5L, 30L)));
+            new ClinicalEventProperties(1024, Duration.ofMillis(50), 10, 3, List.of(1L, 5L, 30L)), webhooks);
 
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(payloads.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -142,6 +146,60 @@ class ClinicalEventServiceTest {
     }
 
     @Test
+    void receiveAsyncIsIdempotentWhenSameClinicalEventIdempotencyKeyAndPayloadDigest() {
+        ClinicalEvent existing = existingEvent("evt-first", ClinicalEventStatus.RECEIVED, digest(samplePayload()));
+        when(events.findByEventIdAndTenantId("evt-second", "tenant-A")).thenReturn(Optional.empty());
+        when(events.findByTenantIdAndIdempotencyKey("tenant-A", "idem-1")).thenReturn(Optional.of(existing));
+
+        ClinicalEventAcceptedResponse resp = service.receiveAsync(sampleRequest("evt-second", "idem-1"));
+
+        assertThat(resp.eventId()).isEqualTo("evt-first");
+        verify(events, never()).save(any());
+        verify(payloads, never()).save(any());
+        verify(outbox, never()).save(any());
+    }
+
+    @Test
+    void receiveAsyncReturnsExistingIdempotencyResultBeforeCallbackWhitelistChanges() {
+        ClinicalEvent existing = existingEvent("evt-first", ClinicalEventStatus.RECEIVED, digest(samplePayload()));
+        when(events.findByEventIdAndTenantId("evt-second", "tenant-A")).thenReturn(Optional.empty());
+        when(events.findByTenantIdAndIdempotencyKey("tenant-A", "idem-1")).thenReturn(Optional.of(existing));
+
+        ClinicalEventAcceptedResponse resp = service.receiveAsync(sampleRequest("evt-second", "idem-1", "wh-disabled"));
+
+        assertThat(resp.eventId()).isEqualTo("evt-first");
+        verify(webhooks, never()).findByWebhookIdAndTenantId(anyString(), anyString());
+        verify(events, never()).save(any());
+        verify(payloads, never()).save(any());
+        verify(outbox, never()).save(any());
+    }
+
+    @Test
+    void receiveDoesNotProcessAgainWhenClinicalEventIdempotencyKeyReturnsExistingEvent() {
+        ClinicalEvent existing = existingEvent("evt-first", ClinicalEventStatus.RECEIVED, digest(samplePayload()));
+        when(events.findByEventIdAndTenantId("evt-second", "tenant-A")).thenReturn(Optional.empty());
+        when(events.findByTenantIdAndIdempotencyKey("tenant-A", "idem-1")).thenReturn(Optional.of(existing));
+
+        ClinicalEventAcceptedResponse resp = service.receive(sampleRequest("evt-second", "idem-1"));
+
+        assertThat(resp.eventId()).isEqualTo("evt-first");
+        assertThat(resp.status()).isEqualTo(ClinicalEventStatus.RECEIVED);
+        verify(processor, never()).process(anyString(), anyString());
+    }
+
+    @Test
+    void receiveAsyncRejectsSameClinicalEventIdempotencyKeyWithDifferentPayloadDigest() {
+        ClinicalEvent existing = existingEvent("evt-first", ClinicalEventStatus.RECEIVED, "different");
+        when(events.findByEventIdAndTenantId("evt-second", "tenant-A")).thenReturn(Optional.empty());
+        when(events.findByTenantIdAndIdempotencyKey("tenant-A", "idem-1")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.receiveAsync(sampleRequest("evt-second", "idem-1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_CONTEXT_004);
+    }
+
+    @Test
     void receiveAsyncRejectsSameEventIdWithDifferentPayloadDigest() {
         when(events.findByEventIdAndTenantId("evt-1", "tenant-A"))
             .thenReturn(Optional.of(existingEvent("evt-1", ClinicalEventStatus.RECEIVED, "different")));
@@ -156,12 +214,62 @@ class ClinicalEventServiceTest {
     void receiveAsyncRejectsOversizedPayload() {
         service = new ClinicalEventService(
             events, payloads, outbox, processor, auditPublisher, transitions, diagnoseAssembler, json,
-            new ClinicalEventProperties(10, Duration.ofMillis(50), 10, 3, List.of(1L)));
+            new ClinicalEventProperties(10, Duration.ofMillis(50), 10, 3, List.of(1L)), webhooks);
 
         assertThatThrownBy(() -> service.receiveAsync(sampleRequest("evt-big")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVENT_001);
+    }
+
+    @Test
+    void receiveAsyncRejectsCallbackWebhookOutsideTenantWhitelist() {
+        when(events.findByEventIdAndTenantId("evt-callback", "tenant-A")).thenReturn(Optional.empty());
+        when(webhooks.findByWebhookIdAndTenantId("wh-missing", "tenant-A")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.receiveAsync(sampleRequest("evt-callback", null, "wh-missing")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_INTEG_003);
+    }
+
+    @Test
+    void receiveAsyncAcceptsCallbackWebhookFromTenantWhitelist() {
+        when(events.findByEventIdAndTenantId("evt-callback", "tenant-A")).thenReturn(Optional.empty());
+        when(webhooks.findByWebhookIdAndTenantId("wh-allowed", "tenant-A"))
+            .thenReturn(Optional.of(new IntegrationWebhookConfig(
+                null, "wh-allowed", "tenant-A", "临床事件回调",
+                "https://his.example.test/callback", "secret", "CLINICAL_EVENT", "ACTIVE",
+                Instant.now(), "tester", Instant.now(), "tester")));
+
+        ClinicalEventAcceptedResponse resp = service.receiveAsync(sampleRequest("evt-callback", null, "wh-allowed"));
+
+        assertThat(resp.eventId()).isEqualTo("evt-callback");
+        ArgumentCaptor<ClinicalEvent> eventCap = ArgumentCaptor.forClass(ClinicalEvent.class);
+        verify(events).save(eventCap.capture());
+        assertThat(eventCap.getValue().callbackWebhookId()).isEqualTo("wh-allowed");
+    }
+
+    @Test
+    void receiveBatchReturnsPartialFailureInsteadOfStoppingAtFirstError() {
+        ClinicalEventRequest first = sampleRequest("evt-ok");
+        ClinicalEventRequest duplicate = sampleRequest("evt-conflict");
+        ClinicalEvent existing = existingEvent("evt-conflict", ClinicalEventStatus.RECEIVED, "different");
+        when(events.findByEventIdAndTenantId("evt-ok", "tenant-A")).thenReturn(Optional.empty());
+        when(events.findByEventIdAndTenantId("evt-conflict", "tenant-A")).thenReturn(Optional.of(existing));
+
+        ClinicalEventBatchResponse resp = service.receiveBatch(new ClinicalEventBatchRequest(List.of(first, duplicate)));
+
+        assertThat(resp.status()).isEqualTo(ClinicalEventBatchStatus.PARTIAL_SUCCESS);
+        assertThat(resp.totalCount()).isEqualTo(2);
+        assertThat(resp.acceptedCount()).isEqualTo(1);
+        assertThat(resp.failureCount()).isEqualTo(1);
+        assertThat(resp.failures()).singleElement()
+            .satisfies(failure -> {
+                assertThat(failure.eventId()).isEqualTo("evt-conflict");
+                assertThat(failure.errorCode()).isEqualTo(ErrorCode.ENG_EVENT_002.code());
+                assertThat(failure.retryable()).isFalse();
+            });
     }
 
     @Test
@@ -208,6 +316,45 @@ class ClinicalEventServiceTest {
     }
 
     @Test
+    void listDeadLettersReturnsDeadOutboxEvidence() {
+        ClinicalEventOutbox dead = new ClinicalEventOutbox(
+            7L, "evt-dead", "tenant-A", "trace-dead", "tester", "DEAD",
+            "worker-1", Instant.parse("2026-05-27T01:00:02Z"),
+            Instant.parse("2026-05-27T01:00:03Z"), 3, ErrorCode.ENG_EVENT_005.code(),
+            Instant.parse("2026-05-27T01:00:01Z"), null);
+        when(outbox.countDeadByTenantId("tenant-A")).thenReturn(1L);
+        when(outbox.pageDeadByTenantId("tenant-A", 0, 20)).thenReturn(List.of(dead));
+
+        var page = service.listDeadLetters(PageRequest.defaults());
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.deadLetterId()).isEqualTo("evt-dead");
+                assertThat(item.eventId()).isEqualTo("evt-dead");
+                assertThat(item.retryCount()).isEqualTo(3);
+                assertThat(item.errorCode()).isEqualTo(ErrorCode.ENG_EVENT_005.code());
+            });
+    }
+
+    @Test
+    void replayDeadLetterRequiresDeadOutboxAndCreatesReplayEvent() {
+        ClinicalEvent source = existingEvent("evt-dead", ClinicalEventStatus.FAILED, "digest-source");
+        when(outbox.findByEventIdAndTenantId("evt-dead", "tenant-A")).thenReturn(Optional.of(
+            new ClinicalEventOutbox(7L, "evt-dead", "tenant-A", "trace-dead", "tester", "DEAD",
+                "worker-1", Instant.now(), Instant.now(), 3, ErrorCode.ENG_EVENT_005.code(), Instant.now(), null)));
+        when(events.findByEventIdAndTenantId("evt-dead", "tenant-A")).thenReturn(Optional.of(source));
+        when(payloads.findByEventIdAndTenantId("evt-dead", "tenant-A")).thenReturn(Optional.of(
+            new ClinicalEventPayload(1L, "evt-dead", "tenant-A", samplePayload().toString(), null,
+                "INLINE", "application/json", "digest-source", 10L, Instant.now(), null)));
+
+        ClinicalEventReplayResponse resp = service.replayDeadLetter("evt-dead");
+
+        assertThat(resp.sourceEventId()).isEqualTo("evt-dead");
+        assertThat(resp.newEventId()).startsWith("evt-replay-");
+    }
+
+    @Test
     void listUsesRepositoryFilterWithinTenant() {
         ClinicalEvent row = existingEvent("evt-1", ClinicalEventStatus.PROCESSED, "digest");
         when(events.countByFilter("tenant-A", "MPI-1", null, "PROCESSED", null)).thenReturn(1L);
@@ -223,9 +370,18 @@ class ClinicalEventServiceTest {
     }
 
     private ClinicalEventRequest sampleRequest(String eventId) {
+        return sampleRequest(eventId, null);
+    }
+
+    private ClinicalEventRequest sampleRequest(String eventId, String idempotencyKey) {
+        return sampleRequest(eventId, idempotencyKey, null);
+    }
+
+    private ClinicalEventRequest sampleRequest(String eventId, String idempotencyKey, String callbackWebhookId) {
         return new ClinicalEventRequest(
             eventId, ClinicalEventType.DIAGNOSIS, "MPI-1", "ENC-1",
-            "HIS", "kpv-1", samplePayload(), Instant.parse("2026-05-27T01:00:00Z"));
+            "HIS", "kpv-1", ClinicalEventTriggerPoint.PATIENT_VIEW,
+            idempotencyKey, callbackWebhookId, samplePayload(), Instant.parse("2026-05-27T01:00:00Z"));
     }
 
     private JsonNode samplePayload() {
@@ -237,6 +393,7 @@ class ClinicalEventServiceTest {
     private ClinicalEvent existingEvent(String eventId, ClinicalEventStatus status, String digest) {
         return new ClinicalEvent(
             1L, eventId, "tenant-A", ClinicalEventType.DIAGNOSIS,
+            ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
             "MPI-1", "ENC-1", "HIS", "kpv-1", digest,
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),

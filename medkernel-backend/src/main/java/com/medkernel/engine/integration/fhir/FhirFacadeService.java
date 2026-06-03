@@ -29,6 +29,7 @@ import com.medkernel.engine.context.CanonicalResourceRepository;
 import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.ClinicalEventRequest;
 import com.medkernel.engine.context.ClinicalEventService;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
@@ -248,6 +249,9 @@ public class FhirFacadeService {
             encounterId,
             "FHIR_" + command.version().name(),
             packageVersion,
+            triggerPointFor(saved.resourceType()),
+            null,
+            null,
             eventPayload(saved, mapping, command),
             mapped.resource().eventTime() == null ? Instant.now() : mapped.resource().eventTime()));
 
@@ -628,6 +632,16 @@ public class FhirFacadeService {
             case MEDICATION, PROCEDURE, CARE_PLAN -> ClinicalEventType.ORDER;
             case FOLLOW_UP -> ClinicalEventType.FOLLOWUP;
             case NURSING_ASSESSMENT, CLAIM -> ClinicalEventType.REPORT;
+        };
+    }
+
+    private ClinicalEventTriggerPoint triggerPointFor(CanonicalResourceType resourceType) {
+        return switch (resourceType) {
+            case PATIENT, ENCOUNTER, CONDITION, CLAIM -> ClinicalEventTriggerPoint.PATIENT_VIEW;
+            case OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT, NURSING_ASSESSMENT -> ClinicalEventTriggerPoint.RESULT_REVIEW;
+            case MEDICATION -> ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE;
+            case PROCEDURE, CARE_PLAN -> ClinicalEventTriggerPoint.ORDER_SIGN;
+            case FOLLOW_UP -> ClinicalEventTriggerPoint.FOLLOWUP_ALERT;
         };
     }
 

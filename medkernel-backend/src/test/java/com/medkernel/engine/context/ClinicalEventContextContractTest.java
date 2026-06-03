@@ -38,6 +38,7 @@ class ClinicalEventContextContractTest {
             "tenant-A",
             orgScope,
             ClinicalEventType.DIAGNOSIS,
+            ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",
             "ENC-1",
             "ctx-1",
@@ -45,7 +46,7 @@ class ClinicalEventContextContractTest {
             "pkg-2026.06",
             "sha256:payload",
             Instant.parse("2026-06-01T01:00:00Z"),
-            "HIS:DIAGNOSIS",
+            "HIS:patient-view",
             "trace-1",
             payload,
             List.of(anchor));
@@ -56,7 +57,8 @@ class ClinicalEventContextContractTest {
         assertThat(context.patientId()).isEqualTo("MPI-1");
         assertThat(context.encounterId()).isEqualTo("ENC-1");
         assertThat(context.contextSnapshotId()).isEqualTo("ctx-1");
-        assertThat(context.triggerSource()).isEqualTo("HIS:DIAGNOSIS");
+        assertThat(context.triggerSource()).isEqualTo("HIS:patient-view");
+        assertThat(context.triggerPoint()).isEqualTo("patient-view");
         assertThat(context.traceId()).isEqualTo("trace-1");
         assertThat(context.payloadDigest()).isEqualTo("sha256:payload");
         assertThat(context.payload().path("diagnosisCode").asText()).isEqualTo("I10");

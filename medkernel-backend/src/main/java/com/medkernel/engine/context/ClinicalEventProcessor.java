@@ -86,6 +86,7 @@ public class ClinicalEventProcessor {
         events.findByEventIdAndTenantId(eventId, tenantId).ifPresent(event -> {
             ClinicalEvent failed = new ClinicalEvent(
                 event.id(), event.eventId(), event.tenantId(), event.eventType(),
+                event.triggerPoint(), event.idempotencyKey(), event.callbackWebhookId(),
                 event.orgScopeJson(),
                 event.patientId(), event.encounterId(), event.sourceSystem(), event.packageVersion(),
                 event.payloadDigest(), event.occurredAt(), event.receivedAt(), event.snapshotId(),
@@ -105,6 +106,7 @@ public class ClinicalEventProcessor {
     private ClinicalEvent withStatus(ClinicalEvent source, ClinicalEventStatus status) {
         return new ClinicalEvent(
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
+            source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),

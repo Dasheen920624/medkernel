@@ -8,10 +8,12 @@ import java.time.Instant;
 public record ClinicalEventDetailResponse(
     String eventId,
     ClinicalEventType eventType,
+    ClinicalEventTriggerPoint triggerPoint,
     String patientId,
     String encounterId,
     String sourceSystem,
     String packageVersion,
+    String callbackWebhookId,
     ClinicalEventStatus status,
     String payloadDigest,
     String errorCode,

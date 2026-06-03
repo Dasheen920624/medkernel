@@ -92,7 +92,8 @@ class MigrationBaselineContractTest {
         "V63__fhir_resource_mapping.sql",
         "V64__mpi_merge_review_data_quality_report.sql",
         "V65__pilot_package_template.sql",
-        "V66__integration_business_service_package.sql"
+        "V66__integration_business_service_package.sql",
+        "V67__clinical_event_api_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -175,6 +176,7 @@ class MigrationBaselineContractTest {
         "idx_canonical_resource_snapshot",
         "idx_canonical_resource_tenant_type", "idx_clinical_event_tenant_received",
         "idx_clinical_event_snapshot", "idx_context_idempotency_expires",
+        "uk_clinical_event_idempotency", "idx_clinical_event_trigger", "idx_clinical_event_callback",
         "idx_most_entity", "idx_most_tenant_time", "idx_most_trace", "idx_most_failed",
         "idx_mops_trace", "idx_mops_entity", "idx_mops_tenant_time",
         "idx_canonical_resource_trace",
@@ -287,6 +289,7 @@ class MigrationBaselineContractTest {
         "uk_context_snapshot_id", "ck_context_snapshot_status", "ck_context_snapshot_quality",
         "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
         "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
+        "ck_clinical_event_trigger_point",
         "uk_context_idempotency_tenant_key",
         "ck_most_error_class",
         "uk_mops_payload_id", "ck_mops_storage_type",
@@ -1133,6 +1136,29 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V10__clinical_event_api.sql"))
                 .as("dialect %s must ship V10", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v67ShouldDeclareClinicalEventCustomerContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V67__clinical_event_api_contract.sql");
+        assertThat(h2).contains("trigger_point");
+        assertThat(h2).contains("idempotency_key");
+        assertThat(h2).contains("callback_webhook_id");
+        assertThat(h2).contains("ck_clinical_event_trigger_point");
+        assertThat(h2).contains("uk_clinical_event_idempotency");
+        assertThat(h2).contains("idx_clinical_event_trigger");
+        assertThat(h2).contains("idx_clinical_event_callback");
+        assertThat(h2).contains("PATIENT_VIEW", "ORDER_SIGN", "MEDICATION_PRESCRIBE",
+            "RESULT_REVIEW", "DISCHARGE_SIGN", "FOLLOWUP_ALERT");
+    }
+
+    @Test
+    void v67ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V67__clinical_event_api_contract.sql"))
+                .as("dialect %s must ship V67", dialect)
                 .exists();
         }
     }
