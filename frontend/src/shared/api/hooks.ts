@@ -3444,6 +3444,15 @@ export interface SuccessPlan {
   updatedBy?: string;
 }
 
+export interface ImplementationStep {
+  key: string;
+  title: string;
+  status: "DONE" | "BLOCKED";
+  blockers: string[];
+  targetPath: string;
+  evidence: string | null;
+}
+
 export function useBranding() {
   return useQuery({
     queryKey: ["engine", "tenant", "branding"],
@@ -3468,6 +3477,19 @@ export function useSuccessPlan(enabled = true) {
     queryKey: ["engine", "tenant", "success-plan"],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: SuccessPlan }>("/engine/tenant/success-plan");
+      return data.data;
+    },
+    enabled,
+  });
+}
+
+export function useImplementationSteps(enabled = true) {
+  return useQuery({
+    queryKey: ["engine", "tenant", "implementation-steps"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ImplementationStep[] }>(
+        "/engine/tenant/implementation-steps",
+      );
       return data.data;
     },
     enabled,

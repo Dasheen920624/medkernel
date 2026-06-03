@@ -19,6 +19,7 @@ import {
   saveExperienceViewSnapshot,
   submitLargeListExport,
   useCreatePackage,
+  useImplementationSteps,
   useInstantiatePilotTemplate,
   usePackageAssetReadiness,
   usePackageSyncLogs,
@@ -253,6 +254,33 @@ describe("package export api helpers", () => {
 
     await waitFor(() => expect(result.current.data).toBe(readiness));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/asset-readiness");
+  });
+
+  it("loads implementation guide steps from the tenant engine readiness endpoint", async () => {
+    const steps = [
+      {
+        key: "organization",
+        title: "组织树",
+        status: "DONE",
+        blockers: [],
+        targetPath: "/tenant/onboarding",
+        evidence: "已存在医院组织",
+      },
+      {
+        key: "adapters",
+        title: "适配器",
+        status: "BLOCKED",
+        blockers: ["尚未配置 HIS 适配器"],
+        targetPath: "/adapter/hub",
+        evidence: null,
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: steps } });
+
+    const { result } = renderApiHook(() => useImplementationSteps());
+
+    await waitFor(() => expect(result.current.data).toBe(steps));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/implementation-steps");
   });
 
   it("instantiates a pilot template through API-10 with standard context fields", async () => {

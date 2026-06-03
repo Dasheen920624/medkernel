@@ -1,283 +1,263 @@
 import {
-  Card,
-  Steps,
+  Alert,
   Button,
-  Space,
-  Typography,
-  Row,
+  Card,
   Col,
-  Statistic,
+  List,
   Progress,
-  Badge,
-  message,
+  Row,
+  Space,
+  Statistic,
+  Steps,
+  Tag,
+  Typography,
 } from "antd";
 import {
-  RocketOutlined,
+  ArrowRightOutlined,
   CheckCircleOutlined,
-  DashboardOutlined,
-  AppstoreOutlined,
-  CompassOutlined,
-  LoadingOutlined,
+  ExclamationCircleOutlined,
+  SafetyCertificateOutlined,
 } from "@ant-design/icons";
+import { Link } from "react-router-dom";
+
+import { useImplementationSteps, type ImplementationStep } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
-import { useSuccessPlan, useTransitionSuccessStage } from "@/shared/api/hooks";
+import { StepFlow } from "@/shared/ui/StepFlow";
+import type { StepKey } from "@/shared/ui/StepFlow.contract";
 import styles from "./Tenant.module.css";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
-function getStepsConfig() {
-  return [
-    { title: "签合同 · 建立项目", stage: "PREPARATION", subStep: 1, owner: "销售 + 客户成功" },
-    { title: "现场调研 · 出方案", stage: "PREPARATION", subStep: 2, owner: "实施 + 信息科" },
-    { title: "租户开通 · 建管理员", stage: "PREPARATION", subStep: 3, owner: "实施工程师" },
-    { title: "接入适配器 · HIS/EMR", stage: "PILOT", subStep: 4, owner: "实施 + 信息科" },
-    { title: "导入字典映射", stage: "PILOT", subStep: 5, owner: "实施 + 临床专家" },
-    { title: "导入配置包 · 路径/规则", stage: "PILOT", subStep: 6, owner: "实施 + 医务处" },
-    { title: "试点科室培训", stage: "ACCEPTANCE", subStep: 7, owner: "客户成功 + 临床" },
-    { title: "试运行与全院推广", stage: "PROMOTION", subStep: 8, owner: "医院全员" },
-    { title: "双签验收 · 稳定运行", stage: "RUNNING", subStep: 9, owner: "院长 + 交付代表" },
-  ];
+const targetLabelByPath: Record<string, string> = {
+  "/tenant/onboarding": "租户开通",
+  "/adapter/hub": "适配器中心",
+  "/config/packages": "配置包中心",
+  "/terminology/mapping": "字典映射",
+};
+
+function targetLabel(path: string) {
+  return targetLabelByPath[path] ?? "对应配置页";
 }
 
-function splitDisplayList(value?: string) {
-  return value
-    ? value
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
+function statusLabel(step: ImplementationStep) {
+  return step.status === "DONE" ? "已就绪" : "阻塞";
 }
 
-function getStepBadge(status: "finish" | "process" | "wait") {
-  if (status === "finish") return { badgeStatus: "success" as const, text: "已完结" };
-  if (status === "process") return { badgeStatus: "processing" as const, text: "演进中" };
-  return { badgeStatus: "default" as const, text: "未开始" };
+function statusTag(step: ImplementationStep) {
+  if (step.status === "DONE") {
+    return (
+      <Tag icon={<CheckCircleOutlined />} color="success">
+        已就绪
+      </Tag>
+    );
+  }
+  return (
+    <Tag icon={<ExclamationCircleOutlined />} color="warning">
+      阻塞
+    </Tag>
+  );
+}
+
+function flowStepFor(steps: ImplementationStep[]): StepKey {
+  if (steps.some((step) => step.status === "BLOCKED")) {
+    return "auto_validate";
+  }
+  return "canary_release";
+}
+
+function firstBlockedStep(steps: ImplementationStep[]) {
+  return steps.find((step) => step.status === "BLOCKED") ?? null;
 }
 
 export default function ImplementationGuide() {
-  const { data: plan, isLoading, refetch } = useSuccessPlan();
-  const transitionMutation = useTransitionSuccessStage();
-
-  const currentStage = plan?.currentStage ?? "PREPARATION";
-  const stepsConfig = getStepsConfig();
-
-  const getStepStatus = (stepStage: string, subStepIndex: number) => {
-    const stageOrder = ["PREPARATION", "PILOT", "ACCEPTANCE", "PROMOTION", "RUNNING", "RENEWAL"];
-    const currentOrderIndex = stageOrder.indexOf(currentStage);
-    const stepOrderIndex = stageOrder.indexOf(stepStage);
-
-    if (currentStage === "RENEWAL") {
-      return "finish" as const;
-    }
-
-    if (stepOrderIndex < currentOrderIndex) {
-      return "finish" as const;
-    }
-
-    if (stepOrderIndex > currentOrderIndex) {
-      return "wait" as const;
-    }
-
-    if (currentStage === "PREPARATION") {
-      if (subStepIndex < 3) return "finish" as const;
-      return "process" as const;
-    }
-    if (currentStage === "PILOT") {
-      if (subStepIndex < 6) return "finish" as const;
-      return "process" as const;
-    }
-
-    return "process" as const;
-  };
-
-  const getCurrentStepIndex = () => {
-    switch (currentStage) {
-      case "PREPARATION":
-        return 2;
-      case "PILOT":
-        return 5;
-      case "ACCEPTANCE":
-        return 6;
-      case "PROMOTION":
-        return 7;
-      case "RUNNING":
-        return 8;
-      case "RENEWAL":
-        return 9;
-      default:
-        return 0;
-    }
-  };
-
-  const handleNextStage = async () => {
-    let nextStage = "";
-    switch (currentStage) {
-      case "PREPARATION":
-        nextStage = "PILOT";
-        break;
-      case "PILOT":
-        nextStage = "ACCEPTANCE";
-        break;
-      case "ACCEPTANCE":
-        nextStage = "PROMOTION";
-        break;
-      case "PROMOTION":
-        nextStage = "RUNNING";
-        break;
-      case "RUNNING":
-        nextStage = "RENEWAL";
-        break;
-      default:
-        message.success("项目已完成全部生命周期演进，已达最优运行状态！");
-        return;
-    }
-
-    try {
-      await transitionMutation.mutateAsync(nextStage);
-      message.success(`生命周期阶段已成功演进至: ${nextStage}`);
-      refetch();
-    } catch {
-      message.error("生命周期演进失败，请检查操作权限。");
-    }
-  };
+  const { data: steps = [], isLoading, isError, refetch } = useImplementationSteps();
 
   if (isLoading) {
     return (
-      <PageShell title="客户实施向导" description="正在加载实施成功计划...">
-        <div className={styles.loaderWrap}>
-          <LoadingOutlined className={styles.loaderIcon} spin />
-          <div className={styles.loaderText}>正在获取实时演进计划...</div>
-        </div>
+      <PageShell
+        title="客户实施向导"
+        description="读取试点准备真实步骤"
+        state="loading"
+        stateProps={{
+          title: "正在加载实施步骤",
+          description: "正在读取当前组织范围内的组织、用户、权限、适配器、资产与灰度就绪状态。",
+        }}
+      >
+        <></>
       </PageShell>
     );
   }
 
-  const healthColor =
-    (plan?.healthScore ?? 0) >= 80 ? "var(--ant-success-color)" : "var(--ant-warning-color)";
-  const activatedModules = splitDisplayList(plan?.activatedModules);
-  const activatedPathways = splitDisplayList(plan?.activatedPathways);
+  if (isError) {
+    return (
+      <PageShell
+        title="客户实施向导"
+        description="请重试或联系信息科"
+        state="error"
+        stateProps={{
+          title: "实施步骤读取失败",
+          description: "请重试；若持续失败，请带 traceId 联系信息科排查租户引擎接口。",
+          onRetry: () => refetch(),
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  if (steps.length === 0) {
+    return (
+      <PageShell
+        title="客户实施向导"
+        description="等待租户服务包返回步骤"
+        state="empty"
+        stateProps={{
+          title: "暂无实施步骤",
+          description: "当前租户尚未返回实施步骤，请先确认租户与组织范围已建立。",
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  const doneCount = steps.filter((step) => step.status === "DONE").length;
+  const blockedCount = steps.length - doneCount;
+  const progress = Math.round((doneCount / steps.length) * 100);
+  const blockedStep = firstBlockedStep(steps);
+  const currentStepIndex = Math.min(
+    blockedStep ? steps.findIndex((step) => step.key === blockedStep.key) : steps.length - 1,
+    steps.length - 1,
+  );
+  const primaryTarget = blockedStep ?? steps[steps.length - 1];
 
   return (
     <PageShell
       title="客户实施向导"
-      description="跨部门、跨系统的 9 步交付模型。在此直观推进项目阶段，监控治理健康度与引擎服务的激活快照。"
+      description="按真实就绪状态推进试点准备"
       primary={
-        currentStage !== "RENEWAL" ? (
-          <Button
-            type="primary"
-            icon={<RocketOutlined />}
-            onClick={handleNextStage}
-            loading={transitionMutation.isPending}
-          >
-            继续推进下一阶段
-          </Button>
-        ) : (
-          <Button type="primary" disabled icon={<CheckCircleOutlined />} className="mk-btn-success">
-            项目已完成双签验收
-          </Button>
-        )
+        primaryTarget ? (
+          <Link to={primaryTarget.targetPath}>
+            <Button type="primary" icon={<ArrowRightOutlined />}>
+              {blockedStep ? "继续处理阻塞项" : "查看发布准备"}
+            </Button>
+          </Link>
+        ) : undefined
       }
     >
-      <div className={styles.container}>
-        {/* 精致驾驶舱指标区 */}
-        <Row gutter={[24, 24]}>
-          <Col xs={24} sm={12} md={8}>
-            <Card hoverable className={styles.statCard}>
-              <div className={styles.statFlex}>
-                <Statistic
-                  title="多维治理健康度评分"
-                  value={plan?.healthScore ?? 0}
-                  suffix="分"
-                  valueStyle={{ color: healthColor, fontWeight: 700 }}
-                />
-                <Text type="secondary">基于当前生命周期配置自动评估</Text>
-              </div>
+      <Space direction="vertical" size="large" className="mk-full-width">
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={8}>
+            <Card className={styles.readinessSummaryCard}>
+              <Statistic title="已就绪步骤" value={doneCount} suffix={`/ ${steps.length}`} />
               <Progress
-                type="circle"
-                percent={plan?.healthScore ?? 0}
-                size={60}
-                strokeColor={healthColor}
+                percent={progress}
+                size="small"
+                status={blockedCount > 0 ? "active" : "success"}
               />
             </Card>
           </Col>
-
-          <Col xs={24} sm={12} md={8}>
-            <Card hoverable className={styles.statCard}>
-              <div className={styles.statFlex}>
-                <div className={styles.statHeader}>
-                  <span className={styles.statTitle}>已激活系统服务模块</span>
-                  <AppstoreOutlined className={styles.statIconBlue} />
-                </div>
-                <div>
-                  {activatedModules.length > 0 ? (
-                    activatedModules.map((mod) => (
-                      <span key={mod} className={styles.badgeModule}>
-                        {mod}
-                      </span>
-                    ))
-                  ) : (
-                    <Text type="secondary">暂无激活模块</Text>
-                  )}
-                </div>
-              </div>
+          <Col xs={24} md={8}>
+            <Card className={styles.readinessSummaryCard}>
+              <Statistic title="阻塞项" value={blockedCount} />
+              <Text type={blockedCount > 0 ? "warning" : "secondary"}>
+                {blockedStep ? `下一项：${blockedStep.title}` : "当前步骤均已就绪"}
+              </Text>
             </Card>
           </Col>
-
-          <Col xs={24} sm={12} md={8}>
-            <Card hoverable className={styles.statCard}>
-              <div className={styles.statFlex}>
-                <div className={styles.statHeader}>
-                  <span className={styles.statTitle}>已导入临床专病包</span>
-                  <CompassOutlined className={styles.statIconPurple} />
-                </div>
-                <div>
-                  {activatedPathways.length > 0 ? (
-                    activatedPathways.map((path) => (
-                      <span key={path} className={styles.badgePathway}>
-                        {path}
-                      </span>
-                    ))
-                  ) : (
-                    <Text type="secondary">暂无导入专病包</Text>
-                  )}
-                </div>
-              </div>
+          <Col xs={24} md={8}>
+            <Card className={styles.readinessSummaryCard}>
+              <Statistic title="下一配置页" value={targetLabel(primaryTarget.targetPath)} />
+              <Text type="secondary">所有跳转均来自租户引擎返回的 targetPath</Text>
             </Card>
           </Col>
         </Row>
 
-        {/* 动态步骤卡片 */}
-        <Card
-          title={
-            <Space>
-              <DashboardOutlined />
-              <span>交付全生命周期步骤推进</span>
-            </Space>
-          }
-        >
+        {blockedCount > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="部分步骤未就绪"
+            description="阻塞项会保留在本页并指向对应配置页；未完成前不得把试点准备标记为完成。"
+          />
+        ) : (
+          <Alert
+            type="success"
+            showIcon
+            message="试点准备步骤均已就绪"
+            description="可以进入灰度发布与验收留证，但仍需按 7 步流完成审核、灰度、全量和回滚证据。"
+          />
+        )}
+
+        <Card title="实施步骤真实状态">
           <Steps
             direction="vertical"
-            current={getCurrentStepIndex()}
-            items={stepsConfig.map((step) => {
-              const status = getStepStatus(step.stage, step.subStep);
-              const badge = getStepBadge(status);
-
-              return {
-                title: step.title,
-                status,
-                description: (
-                  <div className={styles.stepDesc}>
-                    <Space size="middle">
-                      <Text type="secondary">负责人: {step.owner}</Text>
-                      <Badge status={badge.badgeStatus} text={badge.text} />
-                    </Space>
-                  </div>
-                ),
-              };
-            })}
+            current={currentStepIndex}
+            status={blockedCount > 0 ? "error" : "finish"}
+            items={steps.map((step) => ({
+              title: step.title,
+              status: step.status === "DONE" ? ("finish" as const) : ("error" as const),
+              description: statusLabel(step),
+            }))}
           />
         </Card>
-      </div>
+
+        <div className={styles.readinessGrid}>
+          {steps.map((step) => (
+            <Card
+              key={step.key}
+              data-testid={`implementation-step-${step.key}`}
+              className={styles.readinessStepCard}
+            >
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <div className={styles.stepTitleRow}>
+                  <Space size="small">
+                    <SafetyCertificateOutlined />
+                    <Title level={5} className={styles.stepTitle}>
+                      {step.title}
+                    </Title>
+                  </Space>
+                  {statusTag(step)}
+                </div>
+
+                {step.evidence ? (
+                  <Text className={styles.stepEvidence}>{step.evidence}</Text>
+                ) : (
+                  <List
+                    size="small"
+                    split={false}
+                    dataSource={step.blockers}
+                    locale={{ emptyText: "后端未返回阻塞原因" }}
+                    renderItem={(blocker) => (
+                      <List.Item className={styles.blockerItem}>
+                        <Text type="warning">{blocker}</Text>
+                      </List.Item>
+                    )}
+                  />
+                )}
+
+                <Link to={step.targetPath} className={styles.stepActionLink}>
+                  前往{targetLabel(step.targetPath)}
+                </Link>
+              </Space>
+            </Card>
+          ))}
+        </div>
+
+        <StepFlow
+          currentStep={flowStepFor(steps)}
+          status={blockedCount > 0 ? "error" : "process"}
+          panelByStep={{
+            auto_validate: (
+              <Text>
+                已读取 {steps.length} 个实施就绪步骤，{blockedCount}{" "}
+                个仍需处理；请先关闭阻塞项，再进入灰度。
+              </Text>
+            ),
+            canary_release: <Text>就绪检查已完成，下一步按默认 10% 灰度发布并留存证据。</Text>,
+          }}
+        />
+      </Space>
     </PageShell>
   );
 }

@@ -64,6 +64,31 @@ describe("route metadata", () => {
     });
   });
 
+  it("limits the implementation guide to implementation and administrator roles", () => {
+    const route = findRouteByPath("/onboarding/guide");
+
+    expect(route?.requiredPermissions).toEqual(["menu.implementation-guide", "tenant.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "platform-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["implementation-guide"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["implementation-guide"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)
