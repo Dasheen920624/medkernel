@@ -20,8 +20,8 @@
 - 缺口（本卡补）：① **适配器目录**统一登记/状态（连通/断连）；② **健康检查** + `NOT_CONNECTED` 诚实标；③ **重试 + 死信**队列；④ **字段映射**接 [TERM-01](TERM-01.md) 编码归一；⑤ FHIR 门面（[OPT-01](OPT-01.md)）挂载本总线、CDS Hooks 门面后移 D3（OPT-02）。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 适配器目录**：登记/启停适配器（HIS/EMR/LIS/PACS/医保/病案…），统一 `IntegrationAdapter` + 连通状态。
-- [ ] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。
+- [x] **FR-1 适配器目录**：登记/启停适配器（HIS/EMR/LIS/PACS/医保/病案…），统一 `IntegrationAdapter` + 连通状态。PR1：`adapter_id` 收敛为租户内唯一，清理全局仓储查找，前后端目录继续只按当前租户读取。
+- [ ] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。PR1 已完成手动健康检查与健康目录汇总：`GET /api/v1/engine/integration/health`、`POST /api/v1/engine/integration/adapters/{id}/health-check`；周期调度待真实连接器接入后继续补齐，不伪造成已完成。
 - [ ] **FR-3 Webhook 签名**：入站 Webhook 验签（`IntegrationWebhookConfig`）；验签失败拒绝 + 记 `IntegrationMessageLog`。
 - [ ] **FR-4 字段映射**：外部字段 ↔ 标准上下文（[API-01](API-01.md)）字段映射，编码经 [TERM-01](TERM-01.md) 归一。
 - [ ] **FR-5 重试 + 死信**：失败消息按策略重试，超限入死信队列可人工重放；不静默丢。
@@ -60,7 +60,7 @@ N·A —— 本卡无页面。呈现在 **D2 适配器中心页**（适配器状
 - 本卡落点：把第三方对接做成统一、可观测、诚实降级、不丢消息的总线。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：登记适配器 + 健康探活；断连 → `NOT_CONNECTED`（不伪造）。
+- [ ] **AC-1（FR-1/2）**：登记适配器 + 健康探活；断连 → `NOT_CONNECTED`（不伪造）。PR1 已红绿覆盖跨租户同名适配器、租户内冲突、健康汇总不串租户和不伪造 `HEALTHY`；周期探活未冒领完成。
 - [ ] **AC-2（FR-3/4）**：Webhook 验签失败拒绝 + 记日志；外部字段映射到标准上下文、编码归一。
 - [ ] **AC-3（FR-5/6）**：失败消息重试 → 超限入死信可重放；同步超时不阻断主流程（降级标记）。
 - 关联 A1–A9 剧本：A1 接入、A6 合规（对接审计）。
@@ -72,7 +72,14 @@ N·A —— 本卡无页面。呈现在 **D2 适配器中心页**（适配器状
 - 测试：健康探活/断连测试 + 验签测试 + 字段映射测试 + 重试死信/重放测试 + 不阻断主流程测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
+### PR1 证据（适配器目录 / 健康检查 / NOT_CONNECTED）
+- 代码范围：`IntegrationService.checkAdapterHealth`、`getAdapterHealthSummary`、`IntegrationController` 的 `/health` 与 `/health-check`、前端 `AdapterHub` 健康检查调用、V59 五方言 `integration_adapter` 租户内唯一约束。
+- 测试：`IntegrationServiceTest.adapterCodeIsUniqueOnlyInsideTenantScope`、`healthSummaryIsTenantScopedAndNeverFakesConnectivity`、`healthCheckHonestlyReportsConfigStateNeverFakesHealthy`；`IntegrationControllerSecurityTest` 覆盖健康目录匿名拒绝与缺租户拒绝；`MigrationBaselineContractTest.integrationAdapterUniqueConstraintIsTenantScopedInEveryDialect` 覆盖五方言 V59 约束。
+- 红绿证据：先补 `IntegrationServiceTest` / `MigrationBaselineContractTest` 期望，红灯暴露缺少健康检查服务、健康汇总 DTO 与 V59 租户内唯一约束；实现后目标套件转绿。
+- 已运行：`mvn -q -Dtest=IntegrationServiceTest,IntegrationControllerSecurityTest,MigrationBaselineContractTest,ServiceContractGovernanceTest test`；`mvn -q -Dtest=FlywayMultiDialectSmokeTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；`mvn -q test`（Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 + H2 均迁移至 v59，二次 migrate 无新迁移）；`npm run verify`（44 files / 236 tests）；`npm run build`；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`；`scripts/check-comment-zh.sh`；`git diff --check`。
+- 提交后 changed-mode 守卫：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`（扫描 12 文件）、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`（扫描 10 文件）、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`（扫描 5 文件）均通过。PR1 合入后继续 PR2 Webhook 入站验签 + 字段映射。
+
 ## 大卡工序（6d，后端引擎；按 PR 拆分）
-- PR1：适配器目录 + 健康检查 + `NOT_CONNECTED` → AC-1。
+- PR1：适配器目录 + 手动健康检查 + 健康汇总 + `NOT_CONNECTED` → AC-1 地基（本分支实施，周期探活不冒领，待 PR / CI）。
 - PR2：Webhook 验签 + 字段映射接 [TERM-01](TERM-01.md) → AC-2。
 - PR3：重试死信 + 重放 + 不阻断主流程降级 → AC-3。
