@@ -90,7 +90,7 @@ public class IntegrationController {
     /**
      * 更新已有第三方适配器系统的配置。
      *
-     * <p>包含协议类型变更及系统挂起/挂载操作，若更新失败同样会记录物理子事务审计日志。
+     * <p>包含协议类型变更及系统挂起 / 挂载操作，若更新失败同样会记录事务审计日志。
      *
      * @param adapterId 适配器全局唯一 ID
      * @param dto       更新信息 DTO
@@ -132,6 +132,26 @@ public class IntegrationController {
     public ApiResult<AdapterHealthSummaryDto> getAdapterHealthSummary() {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         return ApiResult.ok(integrationService.getAdapterHealthSummary(tenantId));
+    }
+
+    /**
+     * 获取 AdapterHub 接入编排实时状态。
+     */
+    @GetMapping("/adapter-hub/status")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<AdapterHubStatus> getAdapterHubStatus() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(integrationService.getAdapterHubStatus(tenantId));
+    }
+
+    /**
+     * 生成并持久化当前租户数据质量报告快照。
+     */
+    @PostMapping("/data-quality/reports")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<DataQualityReport> generateDataQualityReport() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(integrationService.generateDataQualityReport(tenantId));
     }
 
     /**

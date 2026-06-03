@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +25,8 @@ import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
@@ -31,11 +34,12 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
 /**
  * MpiService 单元测试。
  *
- * <p>全面覆盖列表查询、多维度指标驾驶舱统计、物理事务合并逻辑及其可观测性审计记录。
+ * <p>全面覆盖列表查询、多维度指标驾驶舱统计、事务合并逻辑及其可观测性审计记录。
  */
 class MpiServiceTest {
 
     private MpiPatientRepository repository;
+    private MpiMergeReviewRepository reviewRepository;
     private StateTransitionRecorder recorder;
     private MpiService service;
 
@@ -45,8 +49,9 @@ class MpiServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(MpiPatientRepository.class);
+        reviewRepository = mock(MpiMergeReviewRepository.class);
         recorder = mock(StateTransitionRecorder.class);
-        service = new MpiService(repository, recorder);
+        service = new MpiService(repository, reviewRepository, recorder);
 
         // 设置 RequestContext
         RequestContext.restore(new RequestContext.Snapshot("trace-mpi-test", OrgScope.tenant(TENANT_ID), ACTOR));
@@ -213,15 +218,17 @@ class MpiServiceTest {
             null, Instant.now(), ACTOR, Instant.now(), ACTOR
         );
         MpiPatient target = new MpiPatient(
-            2L, "mpi-target", TENANT_ID, "张*四", "M", 32, "5678", 1, "ACTIVE",
+            2L, "mpi-target", TENANT_ID, "张*三", "M", 31, "1234", 1, "ACTIVE",
             null, Instant.now(), ACTOR, Instant.now(), ACTOR
         );
 
         when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-source")).thenReturn(Optional.of(source));
         when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-target")).thenReturn(Optional.of(target));
 
-        service.mergePatients("mpi-source", "mpi-target");
+        MpiMergeResult result = service.mergePatients("mpi-source", "mpi-target");
 
+        assertThat(result.status()).isEqualTo("MERGED");
+        assertThat(result.reviewId()).isNull();
         // 验证源患者更新：状态变为 MERGED_INTO，指向目标 mpi-target
         ArgumentCaptor<MpiPatient> patientCaptor = ArgumentCaptor.forClass(MpiPatient.class);
         verify(repository, times(2)).save(patientCaptor.capture());
@@ -247,7 +254,103 @@ class MpiServiceTest {
             eq("mpi-source"),
             eq("ACTIVE"),
             eq("MERGED_INTO"),
-            eq("物理合并至目标患者主索引：mpi-target"),
+            eq("合并至目标患者主索引：mpi-target"),
+            isNull()
+        );
+    }
+
+    @Test
+    void shouldRequireManualReviewBeforeHighRiskMergeAndPersistPendingReview() {
+        MpiPatient source = new MpiPatient(
+            1L, "mpi-source", TENANT_ID, "张*三", "M", 30, "1234", 0, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        MpiPatient target = new MpiPatient(
+            2L, "mpi-target", TENANT_ID, "张*三", "M", 30, "5678", 0, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-source")).thenReturn(Optional.of(source));
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-target")).thenReturn(Optional.of(target));
+        when(reviewRepository.findByTenantIdAndSourceMpiIdAndTargetMpiId(TENANT_ID, "mpi-source", "mpi-target"))
+            .thenReturn(Optional.empty());
+        when(reviewRepository.save(any(MpiMergeReview.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.mergePatients("mpi-source", "mpi-target"));
+
+        assertThat(error.errorCode()).isEqualTo(ErrorCode.MPI_MERGE_REQUIRES_REVIEW);
+        ArgumentCaptor<MpiMergeReview> reviewCaptor = ArgumentCaptor.forClass(MpiMergeReview.class);
+        verify(reviewRepository).save(reviewCaptor.capture());
+        MpiMergeReview review = reviewCaptor.getValue();
+        assertThat(review.status()).isEqualTo("PENDING");
+        assertThat(review.riskLevel()).isEqualTo("HIGH");
+        assertThat(review.sourceMpiId()).isEqualTo("mpi-source");
+        assertThat(review.targetMpiId()).isEqualTo("mpi-target");
+        assertThat(review.riskReason()).contains("身份证后四位不一致");
+        verify(repository, never()).save(any(MpiPatient.class));
+        verify(recorder, never()).record(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void shouldReusePendingReviewForRepeatedHighRiskMergeRequest() {
+        MpiPatient source = new MpiPatient(
+            1L, "mpi-source", TENANT_ID, "张*三", "M", 30, "1234", 0, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        MpiPatient target = new MpiPatient(
+            2L, "mpi-target", TENANT_ID, "张*三", "M", 30, "5678", 0, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        MpiMergeReview existing = MpiMergeReview.pending(
+            "mrv-existing", TENANT_ID, "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致", ACTOR, Instant.now(), "trace-mpi-test"
+        );
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-source")).thenReturn(Optional.of(source));
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-target")).thenReturn(Optional.of(target));
+        when(reviewRepository.findByTenantIdAndSourceMpiIdAndTargetMpiId(TENANT_ID, "mpi-source", "mpi-target"))
+            .thenReturn(Optional.of(existing));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.mergePatients("mpi-source", "mpi-target"));
+
+        assertThat(error.errorCode()).isEqualTo(ErrorCode.MPI_MERGE_REQUIRES_REVIEW);
+        verify(reviewRepository, never()).save(any(MpiMergeReview.class));
+        verify(repository, never()).save(any(MpiPatient.class));
+    }
+
+    @Test
+    void shouldConfirmPendingReviewThenMergeAndRecordAudit() {
+        MpiMergeReview pending = MpiMergeReview.pending(
+            "mrv-1", TENANT_ID, "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致", ACTOR, Instant.now(), "trace-mpi-test"
+        );
+        MpiPatient source = new MpiPatient(
+            1L, "mpi-source", TENANT_ID, "张*三", "M", 30, "1234", 2, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        MpiPatient target = new MpiPatient(
+            2L, "mpi-target", TENANT_ID, "张*三", "M", 30, "5678", 1, "ACTIVE",
+            null, Instant.now(), ACTOR, Instant.now(), ACTOR
+        );
+        when(reviewRepository.findByTenantIdAndReviewId(TENANT_ID, "mrv-1")).thenReturn(Optional.of(pending));
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-source")).thenReturn(Optional.of(source));
+        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-target")).thenReturn(Optional.of(target));
+        when(reviewRepository.save(any(MpiMergeReview.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MpiMergeResult result = service.confirmMergeReview(
+            "mrv-1",
+            new MpiMergeReviewConfirmRequest("人工核验 HIS 与身份证原件一致")
+        );
+
+        assertThat(result.status()).isEqualTo("MERGED");
+        assertThat(result.reviewId()).isEqualTo("mrv-1");
+        ArgumentCaptor<MpiMergeReview> reviewCaptor = ArgumentCaptor.forClass(MpiMergeReview.class);
+        verify(reviewRepository).save(reviewCaptor.capture());
+        assertThat(reviewCaptor.getValue().status()).isEqualTo("CONFIRMED");
+        assertThat(reviewCaptor.getValue().reviewReason()).isEqualTo("人工核验 HIS 与身份证原件一致");
+        verify(repository, times(2)).save(any(MpiPatient.class));
+        verify(recorder).record(
+            eq("mpi_patient"),
+            eq("mpi-source"),
+            eq("ACTIVE"),
+            eq("MERGED_INTO"),
+            eq("合并至目标患者主索引：mpi-target"),
             isNull()
         );
     }

@@ -89,7 +89,8 @@ class MigrationBaselineContractTest {
         "V60__integration_message_tenant_unique.sql",
         "V61__integration_webhook_tenant_unique.sql",
         "V62__integration_message_not_connected_status.sql",
-        "V63__fhir_resource_mapping.sql"
+        "V63__fhir_resource_mapping.sql",
+        "V64__mpi_merge_review_data_quality_report.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -117,7 +118,7 @@ class MigrationBaselineContractTest {
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
-        "mpi_patient",
+        "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
         "emergency_permission_grant",
         "sys_idempotency",
@@ -209,6 +210,7 @@ class MigrationBaselineContractTest {
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
         "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
+        "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
         "idx_pwd_reset_token_lookup", "idx_pwd_reset_token_expiry",
         "idx_emergency_permission_active", "idx_emergency_permission_expiry",
@@ -331,7 +333,9 @@ class MigrationBaselineContractTest {
         "ck_integration_webhook_status", "ck_integration_message_dir", "ck_integration_message_status",
         "uk_evidence_snapshot",
         "uk_tenant_branding", "uk_tenant_success_plan",
-        "uk_mpi_patient_id",
+        "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
+        "ck_mpi_merge_review_status", "ck_dqr_required_nonneg", "ck_dqr_adapter_nonneg",
+        "ck_dqr_status_nonneg", "ck_dqr_rates",
         "uk_platform_credential_id", "uk_platform_credential_username",
         "ck_platform_credential_status", "ck_platform_credential_mustchg",
         "uk_sys_login_attempt_id", "uk_sys_login_attempt_tenant_user", "ck_sys_login_attempt_failed_count",
@@ -395,7 +399,7 @@ class MigrationBaselineContractTest {
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
-        "mpi_patient",
+        "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
         "emergency_permission_grant",
         "sys_idempotency",
@@ -431,7 +435,7 @@ class MigrationBaselineContractTest {
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "evidence_snapshot",
         "tenant_branding", "tenant_success_plan",
-        "mpi_patient",
+        "mpi_patient", "mk_mpi_merge_review",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
         "emergency_permission_grant",
         "sys_task", "sys_task_dead_letter",
@@ -461,7 +465,9 @@ class MigrationBaselineContractTest {
         Map.entry("sys_login_attempt", Set.of("trace_id")),
         Map.entry("sys_password_reset_token", Set.of("trace_id")),
         Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
-        Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id"))
+        Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id")),
+        Map.entry("mk_mpi_merge_review", Set.of("requested_at", "requested_by", "reviewed_at", "reviewed_by", "trace_id", "created_at", "updated_at")),
+        Map.entry("mk_integration_data_quality_report", Set.of("generated_at", "created_at", "created_by", "trace_id"))
     );
     private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.ofEntries(
         Map.entry("org_unit", Set.of("status")),
@@ -525,6 +531,7 @@ class MigrationBaselineContractTest {
         Map.entry("integration_message_log", Set.of("status", "direction")),
         Map.entry("tenant_success_plan", Set.of("current_stage")),
         Map.entry("mpi_patient", Set.of("status")),
+        Map.entry("mk_mpi_merge_review", Set.of("risk_level", "status")),
         Map.entry("emergency_permission_grant", Set.of("active_flag")),
         Map.entry("sys_task", Set.of("task_mode", "status")),
         Map.entry("sys_task_dead_letter", Set.of("task_mode")),

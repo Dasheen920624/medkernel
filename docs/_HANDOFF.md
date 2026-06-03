@@ -12,16 +12,17 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 SVC-PILOT-01 租户与组织服务包 🚧
+### 线 1 · D2 SVC-PILOT-02 接入与数据质量服务包 🚧
 - 类型：软件开发
-- 分支：`codex/d2-svc-pilot-01`
-- 目标：完成 SVC-PILOT-01：租户开通 + 客户实施向导 + 七层组织树服务包，把空租户带到可配置、可检查、可阻塞、可审计的试点准备状态；新入口统一走 `/api/v1/engine/tenant/**` 与 `/api/v1/engine/org/**`。
-- 状态：已完成代码实现与触碰范围净化，待提交后 changed-mode T-GATE / PR / CI / 合并。实现口径：`ImplementationStep` 与 `OnboardingReadiness` 为确定性 DTO，按既有关系事实（组织树、用户角色、适配器、知识包、灰度发布计划、品牌 / 成功计划）实时聚合，不新增 `onboarding_readiness` / `implementation_step` 重复真相表；`OrgLevel.canHaveParent` 收紧为直接父级，跨层创建 / 重挂返回 `ORG_LEVEL_INVALID`；开通门禁未就绪返回 `TENANT_ONBOARD_NOT_READY` + 阻塞清单；`TenantEngineController` 暴露 branding / success-plan / implementation-steps / onboarding-readiness；`OrgUnitController` 暴露 engine org 路由；前端 `TenantOnboarding` 补七层、直接父级过滤、真实品牌默认值，hooks 切到 engine tenant 路由，并清理旧 `Tabs.TabPane`。
-- 下一步（精确到动作/命令）：1. 重跑后端聚焦与前端目标测试；2. 重跑后端全量、前端 verify / audit / build、T-GATE、`git diff --check`；3. 暂存提交后重跑 changed-mode T-GATE；4. 推送 `codex/d2-svc-pilot-01`、创建 PR、等远端 CI 8/8；5. squash 合并、fast-forward main、清理 worktree；6. 从 backlog 领取下一张 pending 卡（预计 `SVC-PILOT-02`），不因 deferred open 项阻塞。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/tenant/*`、`medkernel-backend/src/main/java/com/medkernel/engine/org/*`、`frontend/src/pages/tenant/TenantOnboarding.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/SVC-PILOT-01.md`、`docs/audit/deferred-issues.md`。当前运行数据库范围只保障 PostgreSQL + Oracle；DM/Kingbase 真实环境仍按 `DEFER-001` 最终适配，不得伪造通过。
+- 分支：`codex/d2-svc-pilot-02`
+- 目标：完成 SVC-PILOT-02：把院内系统接入、字段映射、MPI 匹配 / 合并去重、数据质量核查编排为可信、可核查、安全的服务包，供 ADAPTER-01 与 D3 标准上下文消费。
+- 状态：已完成实现与本地验证：新增 `mk_mpi_merge_review` / `mk_integration_data_quality_report` 五方言 V64 迁移，高危 MPI 合并先落审核单并返回 `MPI_MERGE_REQUIRES_REVIEW`，人工确认后才合并；AdapterHub 状态与数据质量报告按真实 adapter / MPI / 字段映射事实计算，断连保持 `NOT_CONNECTED`，不伪造达标；前端适配器中心接入服务端状态和质量快照，MPI 页面展示高危审核提示并清理触碰范围旧文案。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d2-svc-pilot-02`、创建 PR、等远端 CI 8/8；2. squash 合并、fast-forward main、清理 worktree；3. 从 backlog 领取下一张 pending 卡 `SVC-PILOT-03`，不因 deferred open 项阻塞。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/mpi/*`、`medkernel-backend/src/main/java/com/medkernel/engine/integration/*`、`frontend/src/pages/tenant/AdapterHub.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/SVC-PILOT-02.md`。当前运行数据库范围只保障 PostgreSQL + Oracle；DM/Kingbase 真实环境仍按 `DEFER-001` 最终适配，但迁移文件仍按项目 5 方言一致维护。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 SVC-PILOT-01 租户与组织服务包 ✅（#305，merge `a6755520`）：新增 `/api/v1/engine/tenant/**` 与 `/api/v1/engine/org/**` 服务包入口，`ImplementationStep` / `OnboardingReadiness` 按现有关系事实实时聚合，不新增重复真相表；七层组织直接父级校验，跨层创建 / 重挂返回 `ORG_LEVEL_INVALID`；开通未就绪返回 `TENANT_ONBOARD_NOT_READY` + 阻塞清单；前端租户开通页补七层、直接父级过滤、真实品牌默认值，hooks 切到 engine tenant 路由并清理旧 `Tabs.TabPane`。本地后端聚焦 / 全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v63 并二次 no-op）、前端 verify 44 文件 / 241 测试、生产依赖审计 0、build、T-GATE、changed-mode 门禁和远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`DEFER-014` 已关闭，`DEFER-001/002/003/004` 保持 open 不阻塞主线。
 - D2 OPT-07 来源证据分级与冲突仲裁 ✅（#304，merge `a3710f94`）：`ConflictArbitration` 按“权威分级 > 来源发布时间 > 适用域精确度”可复算仲裁；新增 `KnowledgeSourceEvidence` 与 `GET /api/v1/engine/knowledge/identities/{id}/source-evidence`，当前权威版本来源按高阶主证据 / 低阶补充证据显式排序与标识；不新增重复表，不伪造缺失来源链路。本地聚焦、后端全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v63 并二次校验）、前端 verify / 生产依赖审计 / build、T-GATE、changed-mode 门禁和远端 CI 8/8 通过后 squash 合入。当前继续 SVC-PILOT-01。
 - D2 OPT-01 标准临床模型与 FHIR R4/R5 门面 PR4 ✅（#303，merge `4b338496`）：完成 10 类核心 FHIR 资源 read/search/create、FHIR `Bundle` searchset、R4/R5 共用映射、CapabilityStatement `OPT-01-PR4`、FHIR 受控 create 回流临床事件与 INTEG-01 补偿；ServiceRequest / MedicationRequest 保持医师确认安全边界，不自动写医嘱 / 申请单 / 病历。本地目标套件、后端全量（183 files / 1082 tests）、前端 verify/audit/build、门禁脚本自测、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合入；远端分支和本地 PR4 worktree 已清理。国产化真实环境仍在 `DEFER-001`，当前仅保障 PostgreSQL + Oracle。
 - 超管工作台访问修复 ✅（#301，merge `121eb6dc`，现场发布 `192.168.8.191`）：`/dashboard` 与 `/workbench/demo-validation` 显式纳入 `system-superadmin`，仍要求 `menu.workbench` / `workbench:demo:view` 权限，不旁路 RBAC；补路由与布局复现测试。本地验证含聚焦 37/37、`npm run verify`、`npm run build`、T-GATE、`mvn -B test` 1076 tests / 0 failures / 0 errors / 3 skipped；远端 CI 8/8 通过后 squash 合入，现场 `medkernel-deploy --source 121eb6dc` 发布成功，HTTPS `/login` 200、`/dashboard` 200、readiness `UP`、login-tenants 返回平台主租户 `t-1`。
@@ -173,4 +174,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；当前在 D2 SVC-PILOT-01 `codex/d2-svc-pilot-01`。本轮已完成租户与组织服务包代码实现：engine tenant/org 路由、实施步骤、开通就绪门、七层组织直接父级校验、真实品牌默认值、前端 engine hooks 和触碰范围旧 Tabs 清理；当前待重跑完整验证、提交、PR、CI、合并。下一步按在途线命令完成 changed-mode T-GATE、远端 CI 8/8、合并清理后领取 `SVC-PILOT-02`。`DEFER-001` 国产化真实环境、`DEFER-002` dev 依赖审计、`DEFER-003` 前端构建噪声、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；当前在 D2 SVC-PILOT-02 `codex/d2-svc-pilot-02`。本轮已完成高危 MPI 合并审核、数据质量报告、AdapterHub 状态编排、前端接入与触碰范围旧代码清理；本地后端聚焦 / 全量（186 files / 1106 tests，H2 / PostgreSQL 15.18 / Oracle 21.3 到 v64 并二次 no-op）、前端 verify / audit / build、脚本自测、inventory 门禁、changed-mode T-GATE、中文注释和 diff 检查均通过。下一步推送、PR、CI 8/8、合并清理后领取 `SVC-PILOT-03`。`DEFER-001` 国产化真实环境、`DEFER-002` dev 依赖审计、`DEFER-003` 前端构建噪声、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

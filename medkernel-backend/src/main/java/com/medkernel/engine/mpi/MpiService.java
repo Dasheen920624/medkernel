@@ -1,6 +1,7 @@
 package com.medkernel.engine.mpi;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,23 +12,29 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 
 /**
  * 患者主索引（MPI）业务服务逻辑层。
  *
- * <p>提供多租户强隔离下的患者检索、指标汇总以及跨院区患者身份物理合并。
+ * <p>提供多租户强隔离下的患者检索、指标汇总以及跨院区患者身份合并。
  * 合并操作在同一事务中进行状态变迁，并触发底座状态机历史记录器。
  */
 @Service
 public class MpiService {
 
     private final MpiPatientRepository repository;
+    private final MpiMergeReviewRepository reviewRepository;
     private final StateTransitionRecorder stateTransitionRecorder;
 
-    public MpiService(MpiPatientRepository repository, StateTransitionRecorder stateTransitionRecorder) {
+    public MpiService(MpiPatientRepository repository,
+                      MpiMergeReviewRepository reviewRepository,
+                      StateTransitionRecorder stateTransitionRecorder) {
         this.repository = repository;
+        this.reviewRepository = reviewRepository;
         this.stateTransitionRecorder = stateTransitionRecorder;
     }
 
@@ -93,42 +100,82 @@ public class MpiService {
     }
 
     /**
-     * 物理合并重复患者主索引。
+     * 合并重复患者主索引。
      *
-     * <p>在同一个物理事务中，将源 MPI 患者的状态变迁为 MERGED_INTO，设置 mergedIntoMpiId，
+     * <p>在同一个事务中，将源 MPI 患者的状态变迁为 MERGED_INTO，设置 mergedIntoMpiId，
      * 并累加目标患者的 mergedCount。同时触发 StateTransitionRecorder 记录审计日志。
      *
      * @param sourceMpiId 被合并的源主索引 ID
      * @param targetMpiId 合并入的目标主索引 ID
      */
+    @Transactional(noRollbackFor = ApiException.class)
+    public MpiMergeResult mergePatients(String sourceMpiId, String targetMpiId) {
+        String tenantId = requireTenantId();
+        validateMergeIds(sourceMpiId, targetMpiId);
+        MpiPatient sourcePatient = requirePatient(tenantId, sourceMpiId, "源患者");
+        MpiPatient targetPatient = requirePatient(tenantId, targetMpiId, "目标患者");
+        requireActive(sourcePatient, "源患者状态不是活跃状态（ACTIVE），不能进行合并操作");
+        requireActive(targetPatient, "目标患者状态不是活跃状态（ACTIVE），合并目标必须是活跃患者");
+
+        String riskReason = highRiskReason(sourcePatient, targetPatient);
+        if (riskReason != null) {
+            MpiMergeReview review = requireManualReview(tenantId, sourceMpiId, targetMpiId, riskReason);
+            throw new ApiException(
+                ErrorCode.MPI_MERGE_REQUIRES_REVIEW,
+                "高危患者主索引合并需要人工确认，审核单：" + review.reviewId() + "；原因：" + review.riskReason()
+            );
+        }
+
+        return mergeValidatedPatients(sourcePatient, targetPatient, null, null);
+    }
+
+    /**
+     * 人工确认高危合并审核单后执行真实合并。
+     */
     @Transactional
-    public void mergePatients(String sourceMpiId, String targetMpiId) {
-        String tenantId = RequestContext.currentOrgScope().tenantId();
-        if (tenantId == null || tenantId.isBlank()) {
-            throw new IllegalStateException("当前请求上下文中租户 ID 缺失，拒绝操作");
+    public MpiMergeResult confirmMergeReview(String reviewId, MpiMergeReviewConfirmRequest request) {
+        String tenantId = requireTenantId();
+        if (reviewId == null || reviewId.isBlank()) {
+            throw new IllegalArgumentException("MPI 合并审核单 ID 不能为空");
+        }
+        String reviewReason = request == null ? null : request.reviewReason();
+        if (reviewReason == null || reviewReason.isBlank()) {
+            throw new IllegalArgumentException("人工确认理由不能为空");
         }
 
-        if (sourceMpiId == null || sourceMpiId.isBlank() || targetMpiId == null || targetMpiId.isBlank()) {
-            throw new IllegalArgumentException("源患者主索引 ID 或目标患者主索引 ID 不能为空");
+        MpiMergeReview review = reviewRepository.findByTenantIdAndReviewId(tenantId, reviewId)
+            .orElseThrow(() -> ApiException.notFound("MPI 合并审核单"));
+        if (!"PENDING".equals(review.status())) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有 PENDING 状态的 MPI 合并审核单可以确认");
         }
 
-        if (sourceMpiId.equals(targetMpiId)) {
-            throw new IllegalArgumentException("源患者与目标患者不能是同一个患者，无法合并");
+        MpiPatient sourcePatient = requirePatient(tenantId, review.sourceMpiId(), "源患者");
+        MpiPatient targetPatient = requirePatient(tenantId, review.targetMpiId(), "目标患者");
+        requireActive(sourcePatient, "源患者状态不是活跃状态（ACTIVE），不能进行合并操作");
+        requireActive(targetPatient, "目标患者状态不是活跃状态（ACTIVE），合并目标必须是活跃患者");
+
+        String actor = RequestContext.currentUserId().orElse("system");
+        Instant now = Instant.now();
+        MpiMergeResult result = mergeValidatedPatients(sourcePatient, targetPatient, review.reviewId(), review.riskLevel());
+        reviewRepository.save(review.confirmed(actor, reviewReason.trim(), now));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<MpiMergeReview> getMergeReviews(String status) {
+        String tenantId = requireTenantId();
+        if (status == null || status.isBlank()) {
+            return reviewRepository.findAllByTenantIdAndStatus(tenantId, "PENDING");
         }
+        return reviewRepository.findAllByTenantIdAndStatus(tenantId, status.trim().toUpperCase());
+    }
 
-        MpiPatient sourcePatient = repository.findByTenantIdAndMpiId(tenantId, sourceMpiId)
-            .orElseThrow(() -> new IllegalArgumentException("未找到源患者主索引记录，ID: " + sourceMpiId));
-
-        MpiPatient targetPatient = repository.findByTenantIdAndMpiId(tenantId, targetMpiId)
-            .orElseThrow(() -> new IllegalArgumentException("未找到目标患者主索引记录，ID: " + targetMpiId));
-
-        if (!"ACTIVE".equals(sourcePatient.status())) {
-            throw new IllegalStateException("源患者状态不是活跃状态（ACTIVE），不能进行合并操作");
-        }
-
-        if (!"ACTIVE".equals(targetPatient.status())) {
-            throw new IllegalStateException("目标患者状态不是活跃状态（ACTIVE），合并目标必须是活跃患者");
-        }
+    private MpiMergeResult mergeValidatedPatients(MpiPatient sourcePatient,
+                                                  MpiPatient targetPatient,
+                                                  String reviewId,
+                                                  String riskLevel) {
+        String targetMpiId = targetPatient.mpiId();
+        String sourceMpiId = sourcePatient.mpiId();
 
         String actor = RequestContext.currentUserId().orElse("system");
         Instant now = Instant.now();
@@ -173,14 +220,84 @@ public class MpiService {
         repository.save(updatedSource);
         repository.save(updatedTarget);
 
-        // 3. 同事务物理触发可观测性审计
+        // 3. 同事务触发可观测性审计
         stateTransitionRecorder.record(
             "mpi_patient",
             sourceMpiId,
             "ACTIVE",
             "MERGED_INTO",
-            "物理合并至目标患者主索引：" + targetMpiId,
+            "合并至目标患者主索引：" + targetMpiId,
             null
         );
+
+        return new MpiMergeResult("MERGED", sourceMpiId, targetMpiId, reviewId, riskLevel, "患者主索引已合并");
+    }
+
+    private String requireTenantId() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalStateException("当前请求上下文中租户 ID 缺失，拒绝操作");
+        }
+        return tenantId;
+    }
+
+    private void validateMergeIds(String sourceMpiId, String targetMpiId) {
+        if (sourceMpiId == null || sourceMpiId.isBlank() || targetMpiId == null || targetMpiId.isBlank()) {
+            throw new IllegalArgumentException("源患者主索引 ID 或目标患者主索引 ID 不能为空");
+        }
+
+        if (sourceMpiId.equals(targetMpiId)) {
+            throw new IllegalArgumentException("源患者与目标患者不能是同一个患者，无法合并");
+        }
+    }
+
+    private MpiPatient requirePatient(String tenantId, String mpiId, String label) {
+        return repository.findByTenantIdAndMpiId(tenantId, mpiId)
+            .orElseThrow(() -> new IllegalArgumentException("未找到" + label + "主索引记录，ID: " + mpiId));
+    }
+
+    private void requireActive(MpiPatient patient, String message) {
+        if (!"ACTIVE".equals(patient.status())) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    private String highRiskReason(MpiPatient sourcePatient, MpiPatient targetPatient) {
+        List<String> reasons = new ArrayList<>();
+        if (!sameText(sourcePatient.idLast4(), targetPatient.idLast4())) {
+            reasons.add("身份证后四位不一致");
+        }
+        if (!sameText(sourcePatient.gender(), targetPatient.gender())) {
+            reasons.add("性别不一致");
+        }
+        if (sourcePatient.age() == null || targetPatient.age() == null
+                || Math.abs(sourcePatient.age() - targetPatient.age()) > 1) {
+            reasons.add("年龄差异超过安全阈值");
+        }
+        return reasons.isEmpty() ? null : String.join("；", reasons);
+    }
+
+    private boolean sameText(String first, String second) {
+        String left = first == null ? "" : first.trim();
+        String right = second == null ? "" : second.trim();
+        return !left.isBlank() && left.equalsIgnoreCase(right);
+    }
+
+    private MpiMergeReview requireManualReview(String tenantId,
+                                               String sourceMpiId,
+                                               String targetMpiId,
+                                               String riskReason) {
+        return reviewRepository.findByTenantIdAndSourceMpiIdAndTargetMpiId(tenantId, sourceMpiId, targetMpiId)
+            .orElseGet(() -> reviewRepository.save(MpiMergeReview.pending(
+                null,
+                tenantId,
+                sourceMpiId,
+                targetMpiId,
+                "HIGH",
+                riskReason,
+                RequestContext.currentUserId().orElse("system"),
+                Instant.now(),
+                RequestContext.currentTraceId()
+            )));
     }
 }
