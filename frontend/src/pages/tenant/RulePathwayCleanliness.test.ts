@@ -80,6 +80,9 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).not.toContain("/platform/success/lifecycle");
     expect(hooksSource).toContain("/engine/tenant/branding");
     expect(hooksSource).toContain("/engine/tenant/success-plan");
+    expect(hooksSource).toContain("/engine/tenant/onboarding-readiness");
+    expect(hooksSource).toContain("/engine/org/org-units");
+    expect(hooksSource).not.toContain('"/tenant/org-units"');
   });
 
   it("uses the engine MPI API roots for SVC-PILOT-02 hooks", () => {
@@ -106,6 +109,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(onboardingSource).not.toContain("MedKernel 智能示范医院");
     expect(onboardingSource).not.toContain("http://assets");
     expect(onboardingSource).not.toContain("Tabs.TabPane");
+    expect(onboardingSource).not.toContain("sandbox");
     expect(onboardingSource).toContain("未配置医院名称");
   });
 

@@ -3453,6 +3453,14 @@ export interface ImplementationStep {
   evidence: string | null;
 }
 
+export interface OnboardingReadiness {
+  tenantId: string;
+  ready: boolean;
+  steps: ImplementationStep[];
+  blockers: string[];
+  checkedAt: string;
+}
+
 export function useBranding() {
   return useQuery({
     queryKey: ["engine", "tenant", "branding"],
@@ -3496,6 +3504,30 @@ export function useImplementationSteps(enabled = true) {
   });
 }
 
+export function useOnboardingReadiness(enabled = true) {
+  return useQuery({
+    queryKey: ["engine", "tenant", "onboarding-readiness"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: OnboardingReadiness }>(
+        "/engine/tenant/onboarding-readiness",
+      );
+      return data.data;
+    },
+    enabled,
+  });
+}
+
+export function useActivateOnboardingReadiness() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post<{ data: OnboardingReadiness }>(
+        "/engine/tenant/onboarding-readiness/activate",
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useTransitionSuccessStage() {
   return useMutation({
     mutationFn: async (nextStage: string) => {
@@ -3528,11 +3560,14 @@ export interface OrgUnit {
 
 export function useOrgUnits(params?: { page?: number; size?: number; sort?: string }) {
   return useQuery({
-    queryKey: ["tenant", "org-units", params ?? {}],
+    queryKey: ["engine", "org", "org-units", params ?? {}],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<OrgUnit> }>("/tenant/org-units", {
-        params,
-      });
+      const { data } = await apiClient.get<{ data: PageResponse<OrgUnit> }>(
+        "/engine/org/org-units",
+        {
+          params,
+        },
+      );
       return data.data;
     },
   });
@@ -3540,9 +3575,9 @@ export function useOrgUnits(params?: { page?: number; size?: number; sort?: stri
 
 export function useOrgUnitsByLevel(level: string) {
   return useQuery({
-    queryKey: ["tenant", "org-units", "by-level", level],
+    queryKey: ["engine", "org", "org-units", "by-level", level],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: OrgUnit[] }>("/tenant/org-units/by-level", {
+      const { data } = await apiClient.get<{ data: OrgUnit[] }>("/engine/org/org-units/by-level", {
         params: { level },
       });
       return data.data;
@@ -3554,7 +3589,7 @@ export function useOrgUnitsByLevel(level: string) {
 export function useCreateOrgUnit() {
   return useMutation({
     mutationFn: async (payload: Partial<OrgUnit>) => {
-      const { data } = await apiClient.post<{ data: OrgUnit }>("/tenant/org-units", payload);
+      const { data } = await apiClient.post<{ data: OrgUnit }>("/engine/org/org-units", payload);
       return data.data;
     },
   });

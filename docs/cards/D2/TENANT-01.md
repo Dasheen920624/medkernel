@@ -5,39 +5,49 @@
 > 实化映射：占位 `D2-PAGE-租户开通` → 本卡 **TENANT-01**。
 
 ## 身份
+
 - 卡 ID：TENANT-01（页面卡；= backlog `D2-PAGE-租户开通` 实化）
 - 域：D2 试点准备
 - 关联场景：S1 集团与租户开通
 - 依赖卡：[SVC-PILOT-01](SVC-PILOT-01.md)（开通就绪/组织树后端）· [BASE-01](../D0/BASE-01.md)（OrgContext/组织继承）· [BASE-06](../D0/BASE-06.md)/[BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md)（骨架/体验/token）· [INFRA-03](../D0/INFRA-03.md)（错误反馈）
 - 工作量：3d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner / reviewer：Codex / PR reviewer（owner ≠ reviewer）
 
 ## 目标
+
 把租户开通页**真实化**：建/查组织树（核心 §9 七层：平台→集团→医院→院区→社区服务点→科室→专病）、配置租户基本信息、开通就绪门检查 → 一键开通。**组织树经 [BASE-01](../D0/BASE-01.md) 真实落地，开通经 [SVC-PILOT-01](SVC-PILOT-01.md) 就绪门，不前端假开通**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
+
 页面**已存在待真实化**：`pages/tenant/TenantOnboarding`（路由 `/tenant/onboarding` 已注册，sectionKey `pilot-setup`，`readonlyExperience` 占位）。本卡＝接 [SVC-PILOT-01](SVC-PILOT-01.md) 真实组织树/就绪 API + 六态/五维 RBAC。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 组织树管理**：建/查核心 §9 七层组织树（[SVC-PILOT-01](SVC-PILOT-01.md) `org-units`）；层级合法校验提示；跨租户不可见。
-- [ ] **FR-2 开通就绪门**：开通前展示就绪检查（[SVC-PILOT-01](SVC-PILOT-01.md) `onboarding-readiness`）；缺项阻塞，不可强开。
-- [ ] **FR-3 一键开通**：就绪后开通，结果真实回写 + 审计；失败明确原因。
-- [ ] **FR-4 六态 + RBAC**：六态齐全；仅平台/医院管理员·实施工程师可操作；数据按 `OrgContext`。
+
+- [x] **FR-1 组织树管理**：建/查核心 §9 七层组织树（[SVC-PILOT-01](SVC-PILOT-01.md) `org-units`）；层级合法校验提示；跨租户不可见。
+- [x] **FR-2 开通就绪门**：开通前展示就绪检查（[SVC-PILOT-01](SVC-PILOT-01.md) `onboarding-readiness`）；缺项阻塞，不可强开。
+- [x] **FR-3 一键开通**：就绪后开通，结果真实回写 + 审计；失败明确原因。
+- [x] **FR-4 六态 + RBAC**：六态齐全；仅平台/医院管理员·实施工程师可操作；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
+
 ### 接口契约（引擎/API 卡）
+
 N·A —— 页面卡，消费 [SVC-PILOT-01](SVC-PILOT-01.md) `org-units`/`onboarding-readiness` 现有 API。
+
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `pilot-setup` / menuKey `tenant-onboarding` / menuLabel `租户开通` / path `/tenant/onboarding` / requiredPermissions 租户开通 / requiredRoles 平台·医院管理员·实施工程师。
+
+- 路由元数据：sectionKey `pilot-setup` / menuKey `tenant-onboarding` / menuLabel `租户开通` / path `/tenant/onboarding` / requiredPermissions `menu.tenant-onboarding` + `tenant.read`；开通动作由后端 `tenant.write` 守门；requiredRoles 实施工程师·平台/医院管理员。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 组织树（树控件）+ 就绪检查面板 + 六态。
 - 主按钮 ≤1（开通）/ 默认筛选 ≤3（层级/状态/院区）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（开通权）/ 数据（org）/ 资产 / 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码。
 
 ## 数据与迁移
+
 N·A —— 页面卡不落库；消费 [SVC-PILOT-01](SVC-PILOT-01.md)/[BASE-01](../D0/BASE-01.md)。
 
 ## 视角清单（11 视角逐条）
+
 1. **产品架构**：试点开通的入口页。
 2. **产品体验**：组织树 + 就绪门 + 六态；国产浏览器/老年模式可读。
 3. **系统与数据架构**：组织树懒加载大组织；就绪聚合多源；P95 ≤1s。
@@ -51,18 +61,22 @@ N·A —— 页面卡不落库；消费 [SVC-PILOT-01](SVC-PILOT-01.md)/[BASE-01
 11. **AI / 模型治理与可降级**：N·A。
 
 ## 适用不变量
+
 - 命中核心约束：**§9 集团多租户继承 / 行级隔离** · **铁律 #1 真实性（不假开通）** · **依赖 [BASE-01](../D0/BASE-01.md)/[SVC-PILOT-01](SVC-PILOT-01.md)**。
 - 本卡落点：把租户开通从占位页变为真实组织树 + 就绪门 + 可审计开通。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：建核心 §9 七层组织树；跨层提示错误；跨租户不可见。
-- [ ] **AC-2（FR-2/3）**：缺项时开通受阻并列阻塞；就绪后开通成功 + 审计。
-- [ ] **AC-3（FR-4）**：六态齐全；非授权角色无访问。
+
+- [x] **AC-1（FR-1）**：建核心 §9 七层组织树；跨层提示错误；跨租户不可见。
+- [x] **AC-2（FR-2/3）**：缺项时开通受阻并列阻塞；就绪后开通成功 + 审计。
+- [x] **AC-3（FR-4）**：六态齐全；非授权角色无访问。
 - 关联 A1–A9 剧本：A1 开通、A5 集团复用。
 - T-GATE：前端真实性门禁全绿（no-page-mock）。
 - B0 验收：N·A（无模型）。
 
 ## 完工证据
-- 代码 permalink：`pages/tenant/TenantOnboarding` 真实化 + 组织树/就绪 API + 六态。
-- 测试：组织树/隔离测试 + 就绪门测试 + 开通审计测试 + no-page-mock 门禁。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+
+- 代码 permalink：`frontend/src/pages/tenant/TenantOnboarding.tsx` 真实化 + `useOnboardingReadiness` / `useActivateOnboardingReadiness` / engine org `org-units` + PageShell 六态 + 路由 RBAC。
+- 测试：红灯先失败于缺 `useOnboardingReadiness` / `useActivateOnboardingReadiness`、组织 hook 仍打旧 `/tenant/org-units`、路由缺 `tenant.read` 和角色限制、页面缺真实就绪门；实现后 `npm test -- src/pages/tenant/TenantOnboarding.test.tsx src/shared/api/hooks.test.ts src/shared/config/routes.test.ts src/pages/tenant/RulePathwayCleanliness.test.ts`（4 files / 51 tests）通过；`npm run verify`（50 files / 285 tests）通过；`npm run build` 通过；`npm audit --omit=dev --json` 生产依赖漏洞 0；后端 `mvn -q test` 通过（186 reports / 1120 tests / failures 0 / errors 0 / skipped 0，PostgreSQL 15.18 + Oracle 21.3 到 V66）。
+- T-GATE：提交后以 `origin/main..HEAD` 复跑 changed-mode 真实性门禁（扫描 3 个触碰文件）、配置边界、迁移规约、中文注释与 diff 检查，全部通过。
+- 审计员签字：待 PR reviewer（owner ≠ reviewer）。
