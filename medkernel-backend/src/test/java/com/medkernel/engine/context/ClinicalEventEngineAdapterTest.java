@@ -16,8 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEventDispatchResponse;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
+import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
+import com.medkernel.engine.recommendation.RecommendationModelStatus;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
-import com.medkernel.engine.recommendation.RecommendationTriggerResponse;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
 import com.medkernel.engine.rule.RuleEngineService;
 import com.medkernel.engine.rule.RuleEvaluateRequest;
@@ -67,10 +68,12 @@ class ClinicalEventEngineAdapterTest {
     }
 
     @Test
-    void cdssAdapterCreatesNoCardRecommendationTriggerFromClinicalEvent() {
+    void cdssAdapterEvaluatesDeterministicRecommendationsFromClinicalEvent() {
         RecommendationEngineService service = mock(RecommendationEngineService.class);
-        when(service.trigger(any(RecommendationTriggerRequest.class)))
-            .thenReturn(new RecommendationTriggerResponse("rt-1", RecommendationTriggerStatus.NO_CARD, 0, "trace-1"));
+        when(service.evaluate(any(RecommendationTriggerRequest.class)))
+            .thenReturn(new RecommendationEvaluationResponse(
+                "rt-1", RecommendationTriggerStatus.EVALUATED, 1, 1, 0,
+                RecommendationModelStatus.MODEL_DISABLED, List.of(), "trace-1"));
         var adapter = new ClinicalEventRecommendationEngineAdapter(service);
 
         ClinicalEventEngineDispatchResult result = adapter.dispatch(context());
@@ -79,7 +82,7 @@ class ClinicalEventEngineAdapterTest {
         assertThat(result.downstreamReferenceId()).isEqualTo("rt-1");
         ArgumentCaptor<RecommendationTriggerRequest> requestCap =
             ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
-        verify(service).trigger(requestCap.capture());
+        verify(service).evaluate(requestCap.capture());
         assertThat(requestCap.getValue().sourceEventId()).isEqualTo("evt-1");
         assertThat(requestCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(requestCap.getValue().encounterId()).isEqualTo("ENC-1");

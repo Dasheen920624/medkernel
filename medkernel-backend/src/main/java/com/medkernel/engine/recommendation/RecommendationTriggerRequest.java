@@ -8,7 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 
 /**
  * 推荐触发入参：triggerCode / triggerType / scenarioCode / inputDigest 必填，
- * 可携带候选 {@link RecommendationCardRequest} 列表（首版允许上游直接提交候选卡）。
+ * 可携带候选 {@link RecommendationCardRequest} 列表；评估接口会先基于标准上下文与已发布资产
+ * 生成确定性候选，再合并调用方提交的非 AI 候选卡。
  *
  * <p>fatigueSuppressionThreshold / fatigueWindowHours 为调用方传入的疲劳抑制策略；
  * 未传时只采集信号不自动抑制。modelEnhancementEnabled 是预留挂点，当前无真实模型网关时仍按

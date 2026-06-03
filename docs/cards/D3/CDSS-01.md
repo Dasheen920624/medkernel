@@ -64,6 +64,13 @@
 - PR2：反馈闭环 + 疲劳治理 + 红线优先 → 验收
 - PR3：B0 降级挂点 + 复现/回放测试 → 验收
 
+### PR1 实施记录（2026-06-04）
+- 本轮只收口 PR1 的确定性主链路，不冒领整卡：新增 `RecommendationDeterministicMatcher`，从 API-01 标准上下文快照读取资源，遍历当前租户已发布规则及 active 发布版本，用 `RuleDslEvaluator` 复用 D2 规则 DSL 命中逻辑生成非 AI 推荐候选。
+- 推荐卡解释中记录 `matchType=RULE`、触发编码、场景、上下文快照、规则 ID / 编码 / 版本 ID / 版本号 / 来源引用，并透传规则解释的 `conditionEvidence`；来源表落 `RULE` + `CONTEXT`，存在患者在径实例时追加 `PATHWAY` 来源和模板版本 / 当前节点定位。
+- `RecommendationEngineService.evaluate` 先聚合确定性命中，再合并调用方提交的非 AI 候选，按卡编码去重后进入既有状态机、来源落库、疲劳信号和 `MODEL_DISABLED` 诚实返回；AI 候选只计入总数，不落库成 B0 卡。
+- 临床事件到推荐的适配器改走 `evaluate`，避免临床事件只创建空触发而不执行确定性推荐。
+- 未在 PR1 冒领：知识全文/语义命中、反馈闭环、疲劳阈值配置、红线优先和复现/回放仍归 PR2/PR3；完整 AC-1 需后续补齐知识来源后再勾选。
+
 ## 完工证据
 - 代码 permalink：`engine/recommendation` 命中/解释/疲劳 + B0 降级。
 - 测试：命中复现 / 追溯 / 反馈 / 疲劳 / 红线优先 / 关模型 B0。
