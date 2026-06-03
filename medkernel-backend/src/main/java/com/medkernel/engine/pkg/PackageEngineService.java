@@ -1289,6 +1289,13 @@ public class PackageEngineService {
             actor
         ));
         PackageOfflineKnowledgeVersion version = knowledgeContent.version();
+        KnowledgeVersionStatus versionStatus = parseEnum(KnowledgeVersionStatus.class, version.status(), "知识版本状态");
+        KnowledgeRiskLevel riskLevel = parseEnum(KnowledgeRiskLevel.class, version.riskLevel(), "知识风险级别");
+        String organizationScope = "tenant:" + tenantId;
+        String applicableScope = KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE;
+        String activeScopeKey = versionStatus == KnowledgeVersionStatus.ACTIVE
+            ? KnowledgeAssetVersion.activeScopeKey(savedIdentity.id(), organizationScope, applicableScope)
+            : "version-pending:" + savedIdentity.id() + ":" + version.versionNo();
         KnowledgeAssetVersion savedVersion = knowledgeVersionRepository.save(new KnowledgeAssetVersion(
             null,
             tenantId,
@@ -1299,12 +1306,15 @@ public class PackageEngineService {
             version.sourceVersionId(),
             version.contentHash(),
             version.anchors(),
-            parseEnum(KnowledgeVersionStatus.class, version.status(), "知识版本状态"),
-            parseEnum(KnowledgeRiskLevel.class, version.riskLevel(), "知识风险级别"),
+            versionStatus,
+            riskLevel,
             parseNullableEnum(SourceAuthorityLevel.class, version.authorityLevel(), "知识来源可信分级"),
             parseNullableEnum(GradeEvidenceQuality.class, version.gradeQuality(), "GRADE 证据质量"),
             parseNullableEnum(GradeRecommendationStrength.class, version.gradeStrength(), "GRADE 推荐强度"),
             version.conflictArbitration(),
+            organizationScope,
+            applicableScope,
+            activeScopeKey,
             parseInstant(version.effectiveFrom()),
             parseInstant(version.effectiveTo()),
             version.reviewedBy(),

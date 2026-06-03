@@ -12,7 +12,8 @@ import org.springframework.stereotype.Repository;
  *
  * <p>关键查询：
  * <ul>
- *   <li>{@link #findActiveByIdentity(String, Long)}：定位当前权威版本（同 identity 同时刻 ≤ 1）</li>
+ *   <li>{@link #findActiveByEffectiveScope(String, Long, String, String)}：定位完整适用域内当前权威版本</li>
+ *   <li>{@link #findActiveByIdentity(String, Long)}：无适用域旧接口的默认权威版本兜底查询</li>
  *   <li>{@link #findByTenantIdAndIdentityIdOrderByCreatedAtDesc(String, Long)}：版本列表</li>
  * </ul>
  */
@@ -37,8 +38,25 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
     @Query("""
         SELECT * FROM knowledge_asset_version
         WHERE tenant_id = :tenantId AND identity_id = :identityId AND status = 'ACTIVE'
+        ORDER BY activated_at DESC, id DESC
+        OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
         """)
     Optional<KnowledgeAssetVersion> findActiveByIdentity(String tenantId, Long identityId);
+
+    @Query("""
+        SELECT * FROM knowledge_asset_version
+        WHERE tenant_id = :tenantId
+          AND identity_id = :identityId
+          AND organization_scope = :organizationScope
+          AND applicable_scope = :applicableScope
+          AND status = 'ACTIVE'
+        """)
+    Optional<KnowledgeAssetVersion> findActiveByEffectiveScope(
+        String tenantId,
+        Long identityId,
+        String organizationScope,
+        String applicableScope
+    );
 
     @Query("""
         SELECT * FROM knowledge_asset_version

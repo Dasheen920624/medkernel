@@ -85,7 +85,7 @@ public class KnowledgeIdentityService {
     public KnowledgeAssetVersion getActiveVersion(Long identityId) {
         String tenantId = requireCurrentTenant();
         EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
-        return versionRepository.findActiveByIdentity(effective.sourceTenantId(), effective.identity().id())
+        return findDefaultActiveVersion(effective)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId + " 当前无 ACTIVE 版本"));
     }
 
@@ -224,13 +224,22 @@ public class KnowledgeIdentityService {
      */
     public List<Citation> listCitations(Long identityId) {
         String tenantId = requireCurrentTenant();
-        identityRepository.findByTenantIdAndId(tenantId, identityId)
-            .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
-        Optional<KnowledgeAssetVersion> active = versionRepository.findActiveByIdentity(tenantId, identityId);
+        EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
+        Optional<KnowledgeAssetVersion> active = findDefaultActiveVersion(effective);
         if (active.isEmpty()) {
             return List.of();
         }
-        return citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(tenantId, active.get().id());
+        return citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(
+            effective.sourceTenantId(), active.get().id());
+    }
+
+    private Optional<KnowledgeAssetVersion> findDefaultActiveVersion(EffectiveKnowledgeIdentity effective) {
+        KnowledgeIdentity identity = effective.identity();
+        if (identity.currentVersionId() != null) {
+            return versionRepository.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
+                .filter(KnowledgeAssetVersion::isAuthoritative);
+        }
+        return versionRepository.findActiveByIdentity(effective.sourceTenantId(), identity.id());
     }
 
     /**

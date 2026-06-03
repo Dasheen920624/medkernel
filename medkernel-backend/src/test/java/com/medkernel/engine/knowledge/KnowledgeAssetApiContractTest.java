@@ -310,6 +310,10 @@ class KnowledgeAssetApiContractTest {
             status == CandidateReviewStatus.APPROVED ? KnowledgeVersionStatus.ACTIVE : KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW,
             KnowledgeRiskLevel.LOW, SourceAuthorityLevel.B_GUIDELINE,
             GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, null,
+            "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            status == CandidateReviewStatus.APPROVED
+                ? KnowledgeAssetVersion.activeScopeKey(1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)
+                : "version:22",
             null, null, null, null, null, null, null, null,
             now, "u-99", now, "u-99"
         );

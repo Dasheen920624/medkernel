@@ -82,7 +82,8 @@ class MigrationBaselineContractTest {
         "V53__terminology_high_risk_rules.sql",
         "V54__asset_version_framework.sql",
         "V55__version_inheritance_override.sql",
-        "V56__version_release_replay.sql"
+        "V56__version_release_replay.sql",
+        "V57__knowledge_effective_scope_unique.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -136,6 +137,7 @@ class MigrationBaselineContractTest {
         "idx_source_version_tenant_doc", "idx_source_fragment_tenant_ver",
         "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",
         "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
+        "idx_knowledge_av_effective_scope",
         "idx_knowledge_av_tenant_status", "idx_knowledge_av_tenant_updated",
         "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_citation_tenant_av", "idx_citation_fragment",
         "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
@@ -238,7 +240,8 @@ class MigrationBaselineContractTest {
         "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
         "uk_source_version_doc_no", "uk_source_version_doc_hash", "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
         "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
-        "uk_knowledge_asset_version", "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
+        "uk_knowledge_asset_version", "uk_knowledge_asset_version_active_scope",
+        "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
         "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
@@ -813,6 +816,22 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_version_activation_transaction")
                 .contains("COMMENT ON TABLE mk_version_replay_binding")
                 .contains("COMMENT ON COLUMN mk_version_asset_version.status");
+        }
+    }
+
+    @Test
+    void v57ShouldDeclareKnowledgeEffectiveScopeUniqueForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V57__knowledge_effective_scope_unique.sql");
+            assertThat(ddl).as("%s 知识完整适用域唯一约束迁移", dialect)
+                .contains("organization_scope")
+                .contains("applicable_scope")
+                .contains("active_scope_key")
+                .contains("uk_knowledge_asset_version_active_scope")
+                .contains("idx_knowledge_av_effective_scope")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.organization_scope")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.applicable_scope")
+                .contains("COMMENT ON COLUMN knowledge_asset_version.active_scope_key");
         }
     }
 
