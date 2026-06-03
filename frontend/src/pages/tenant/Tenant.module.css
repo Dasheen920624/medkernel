@@ -1,109 +1,67 @@
-/* MedKernel v1.0 GA · 试点准备与租户开通 Vanilla CSS 样式 */
-
-.container {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--mk-unit) * 24);
-}
-
-.loaderWrap {
-  text-align: center;
-  padding: calc(var(--mk-unit) * 100) 0;
-}
-
-.loaderIcon {
-  font-size: var(--ant-font-size-heading-1);
-}
-
-.loaderText {
-  margin-top: calc(var(--mk-unit) * 16);
-}
-
-.statCard {
-  display: flex;
-  align-items: center;
-  min-height: calc(var(--mk-unit) * 130);
+.readinessSummaryCard {
+  height: 100%;
   border-radius: var(--ant-border-radius-lg);
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: var(--ant-color-bg-container);
 }
 
-.statCard:hover {
-  box-shadow:
-    0 calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 15) calc(var(--mk-unit) * -3)
-      var(--ant-color-fill-tertiary),
-    0 calc(var(--mk-unit) * 4) calc(var(--mk-unit) * 6) calc(var(--mk-unit) * -2)
-      var(--ant-color-fill-tertiary);
-  border-color: var(--ant-color-border-secondary);
+.readinessGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 260), 1fr));
+  gap: calc(var(--mk-unit) * 16);
 }
 
-.statFlex {
-  flex: 1;
+.readinessStepCard {
+  min-height: calc(var(--mk-unit) * 190);
+  border-radius: var(--ant-border-radius-lg);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
-.statHeader {
+.stepTitleRow {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: calc(var(--mk-unit) * 8);
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
 }
 
-.statTitle {
-  font-size: var(--ant-font-size);
-  color: var(--ant-color-text-description);
+.stepTitle {
+  margin: 0 !important;
 }
 
-.statIconBlue {
-  color: var(--ant-color-info);
-  font-size: var(--ant-font-size-xl);
-}
-
-.statIconPurple {
-  color: var(--ant-purple-6);
-  font-size: var(--ant-font-size-xl);
-}
-
-.badgeModule {
-  background-color: var(--ant-color-info-bg);
-  color: var(--ant-color-info-text);
-  margin-right: calc(var(--mk-unit) * 6);
-  margin-bottom: calc(var(--mk-unit) * 6);
-  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
+.stepEvidence {
+  display: block;
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
   border-radius: var(--ant-border-radius-sm);
-  font-size: var(--ant-font-size-sm);
-  display: inline-block;
+  background: var(--ant-color-success-bg);
+  color: var(--ant-color-success-text);
 }
 
-.badgePathway {
-  background-color: var(--ant-purple-1);
-  color: var(--ant-purple-6);
-  margin-right: calc(var(--mk-unit) * 6);
-  margin-bottom: calc(var(--mk-unit) * 6);
-  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
-  border-radius: var(--ant-border-radius-sm);
-  font-size: var(--ant-font-size-sm);
-  display: inline-block;
+.blockerItem {
+  padding-inline: 0 !important;
 }
 
-.stepDesc {
-  margin-top: calc(var(--mk-unit) * 4);
-  margin-bottom: calc(var(--mk-unit) * 12);
+.stepActionLink {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--ant-color-link);
+  font-weight: 600;
 }
 
-/* 品牌定制沙箱样式 */
-.sandboxLayout {
-  display: flex;
+.onboardingGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: calc(var(--mk-unit) * 24);
+  align-items: start;
 }
 
-.sandboxForm {
-  flex: 1;
-  max-width: 50%;
+.onboardingPanel {
+  height: 100%;
 }
 
-.sandboxPreview {
-  flex: 1;
+.formHint {
+  margin-bottom: calc(var(--mk-unit) * 16);
+}
+
+.brandPreview {
   background: var(--ant-color-bg-layout);
   border: calc(var(--mk-unit) * 1) dashed var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
@@ -115,11 +73,11 @@
   min-height: calc(var(--mk-unit) * 350);
 }
 
-.sandboxPreviewTitle {
+.brandPreviewTitle {
   margin-bottom: calc(var(--mk-unit) * 16) !important;
 }
 
-.previewContainer {
+.brandPreviewContainer {
   background: var(--ant-color-bg-container);
   border-radius: var(--ant-border-radius-lg);
   box-shadow:
@@ -133,7 +91,7 @@
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
-.previewHeader {
+.brandPreviewHeader {
   color: var(--ant-color-bg-container);
   padding: calc(var(--mk-unit) * 20);
   display: flex;
@@ -142,7 +100,7 @@
   transition: background-color 0.3s ease;
 }
 
-.previewLogo {
+.brandPreviewLogo {
   width: calc(var(--mk-unit) * 32);
   height: calc(var(--mk-unit) * 32);
   object-fit: cover;
@@ -151,7 +109,7 @@
   padding: calc(var(--mk-unit) * 2);
 }
 
-.previewLogoPlaceholder {
+.brandPreviewLogoPlaceholder {
   width: calc(var(--mk-unit) * 32);
   height: calc(var(--mk-unit) * 32);
   border-radius: var(--ant-border-radius);
@@ -163,28 +121,28 @@
   font-weight: bold;
 }
 
-.previewTitle {
+.brandPreviewName {
   color: var(--ant-color-bg-container) !important;
   margin: 0 !important;
   font-size: var(--ant-font-size-lg) !important;
   font-weight: 600;
 }
 
-.previewBody {
+.brandPreviewBody {
   padding: calc(var(--mk-unit) * 20);
   display: flex;
   flex-direction: column;
   gap: calc(var(--mk-unit) * 12);
 }
 
-.previewPlaceholderBar {
+.brandPreviewLine {
   height: calc(var(--mk-unit) * 8);
   background: var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-sm);
   width: 100%;
 }
 
-.previewPlaceholderBarShort {
+.brandPreviewLineShort {
   height: calc(var(--mk-unit) * 8);
   background: var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-sm);
@@ -204,6 +162,7 @@
   cursor: pointer;
   border: calc(var(--mk-unit) * 2) solid transparent;
   transition: all 0.2s;
+  padding: 0;
 }
 
 .themeDotActive {
@@ -212,7 +171,31 @@
   box-shadow: 0 0 0 calc(var(--mk-unit) * 2) var(--ant-color-fill-secondary);
 }
 
-.badgeMpi {
+.themeNavy {
+  background-color: var(--mk-theme-navy);
+}
+
+.themeCyan {
+  background-color: var(--mk-theme-cyan);
+}
+
+.themeIndigo {
+  background-color: var(--mk-theme-indigo);
+}
+
+.themeViolet {
+  background-color: var(--mk-theme-violet);
+}
+
+.themeEmerald {
+  background-color: var(--mk-theme-emerald);
+}
+
+.themeAmber {
+  background-color: var(--mk-theme-amber);
+}
+
+.orgCode {
   font-family: monospace;
   background-color: var(--ant-color-border-secondary);
   color: var(--ant-color-text);
@@ -221,31 +204,8 @@
   font-weight: 600;
 }
 
-/* 预设调色盘只引用主题变量，避免品牌色散落在页面样式中。 */
-.themeNavy {
-  background-color: var(--ant-color-text) !important;
-}
-.themeCyan {
-  background-color: var(--ant-cyan-6) !important;
-}
-.themeIndigo {
-  background-color: var(--ant-blue-6) !important;
-}
-.themeViolet {
-  background-color: var(--ant-purple-6) !important;
-}
-.themeEmerald {
-  background-color: var(--ant-green-6) !important;
-}
-.themeAmber {
-  background-color: var(--ant-color-warning) !important;
-}
-
 @media (max-width: 48em) {
-  .sandboxLayout {
-    flex-direction: column;
-  }
-  .sandboxForm {
-    max-width: 100%;
+  .onboardingGrid {
+    grid-template-columns: 1fr;
   }
 }

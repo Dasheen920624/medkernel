@@ -12,6 +12,8 @@
 | --- | --- | --- | --- |
 | Webhook | `/api/v1/engine/integration/webhooks/{id}/inbound` | 使用 `X-MedKernel-Timestamp` 和 `X-MedKernel-Signature` 做 HMAC-SHA256 验签 | `NOT_CONNECTED` |
 | REST / WebService / HL7 适配器 | `/api/v1/engine/integration/adapters` | 先登记适配器、字段映射和真实连接配置；没有真实连接器时只登记诚实状态 | `NOT_CONNECTED` |
+| 业务接口接入生命周期 | `/api/v1/engine/integration/onboardings`、`/api/v1/engine/integration/onboardings/{id}/advance` | 按申请、鉴权、字段映射、联调上线、下线推进，接入路线可为适配器或 FHIR 门面 | `NOT_CONNECTED` |
+| 区域协同来源 | `/api/v1/engine/integration/regional-sources` | 登记来源组织、区域网络和 OPT-07 可信分级证据；未分级来源必须拒绝 | `NOT_CONNECTED` |
 | 出站异步同步 | `/api/v1/engine/integration/messages/outbound` | 主流程不等待外部回执；失败进入日志、重试或死信 | `NOT_CONNECTED` / `NOT_SYNCED` |
 | FHIR R4/R5 资源门面 | `/api/v1/engine/integration/fhir/{version}/metadata`、`/api/v1/engine/integration/fhir/{version}/{resourceType}`、`/api/v1/engine/integration/fhir/{version}/{resourceType}/{id}` | OPT-01 所有，挂 INTEG-01 总线；开放 10 类核心资源 read/search/create，高风险 ServiceRequest 只登记医师确认任务 | `NOT_CONNECTED` |
 
@@ -22,6 +24,21 @@
 3. 服务端校验租户、权限、签名、幂等键和字段映射。
 4. 字段映射进入 API-01 标准上下文；临床编码经 TERM-01 字典映射归一，无法确定时进入人工待裁或质量告警。
 5. 对接日志、traceId、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
+
+## 接入生命周期
+
+- `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定租户内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。
+- `POST /api/v1/engine/integration/onboardings/{id}/advance` 只能按 `REQUESTED` → `AUTH_CONFIGURED` → `MAPPING_CONFIGURED` → `ONLINE` 推进，`OFFLINE` 可用于下线；每次推进必须带阶段证据。
+- 适配器路线进入 `MAPPING_CONFIGURED` 或 `ONLINE` 前必须已有字段映射；缺字段映射返回 `ENG-INTEG-001`，不得用空映射绕过。
+- `ONLINE` 只表示接入配置链路完成，不等于外部系统真实可达；未接入真实连接器时响应仍显示 `NOT_CONNECTED` 阻塞项。
+- `GET /api/v1/engine/integration/onboardings` 供实施台查看所有接入档案及当前阻塞项，不返回幽灵接入或硬编码样例。
+
+## 区域协同来源
+
+- `POST /api/v1/engine/integration/regional-sources` 登记区域平台、上级医院、医联体等跨组织来源，必须包含来源组织 ID、来源组织名称、组织作用域和证据说明。
+- `trustLevel` 只能为 `LOW`、`MEDIUM`、`HIGH`，且必须来自 OPT-07 可信分级证据；空分级返回 `REGIONAL_SOURCE_UNGRADED`，不得默认高可信。
+- 来源可关联适配器或接入申请；关联对象不存在时拒绝保存，避免形成无法追溯的区域数据入口。
+- `GET /api/v1/engine/integration/regional-sources` 返回当前租户来源清单，跨租户来源必须隔离。
 
 ## FHIR 运行门面
 
@@ -70,6 +87,7 @@
 - 回调目标必须登记在 Webhook 订阅内，事件列表必须可审计。
 - 回调测试失败只能返回失败或 `NOT_CONNECTED`，不能写成成功。
 - 第三方系统重放同一消息时必须复用同一 `messageId`。
+- 回调死信可通过 `/api/v1/engine/integration/callbacks/dead-letter/{id}/replay` 人工重放；该入口复用集成死信补偿链路，原死信证据必须保留。
 
 ## 降级
 
@@ -92,6 +110,8 @@
 | 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
 | 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |
 | 回调 | 回调测试目标不可达 | 返回失败或 `NOT_CONNECTED` |
+| 接入 | 业务接口接入生命周期推进 | 阶段证据完整；字段映射缺失时拒绝进入映射完成或上线；上线仍不伪造外部连接 |
+| 区域 | 区域协同来源可信分级 | 未完成 OPT-07 分级返回 `REGIONAL_SOURCE_UNGRADED`；已分级来源保留组织和证据 |
 | FHIR | 10 类核心资源 read/search/create | read 返回已登记映射资源；search 返回 `Bundle`；create 落 `CanonicalResource`、映射证据和临床事件；断连只返回 `NOT_CONNECTED`，不伪造同步成功 |
 | FHIR | 高风险医嘱类 create | 只登记医师确认任务，禁止自动开嘱或直写病历 |
 | 降级 | 外部系统关闭 | 主流程不中断，集成状态为 `NOT_CONNECTED` / `NOT_SYNCED` |

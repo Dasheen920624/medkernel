@@ -9,9 +9,25 @@ import {
   useSavedViews,
   useSecurityProfile,
   useSubmitLargeListExport,
+  useBatchConfirmTerminologyCandidates,
+  useBuildTerminologyPackage,
+  useConfirmTerminologyCandidate,
+  useGenerateTerminologyCandidates,
+  useLocalTerms,
+  usePublishTerminologyPackage,
+  useRollbackTerminologyPackage,
+  useStandardTerms,
+  useTerminologyCandidates,
+  useTerminologyConflicts,
   useTerminologyMappings,
+  useTerminologyPackages,
+  type LocalTerm,
+  type MappingConflict,
+  type StandardTerm,
   type SecurityProfile,
   type TermMapping,
+  type TermMappingCandidate,
+  type TermMappingPackage,
 } from "@/shared/api/hooks";
 
 import TerminologyMapping from "./TerminologyMapping";
@@ -21,11 +37,22 @@ vi.mock("@/shared/api/hooks", () => ({
     view?.definitionJson ? JSON.parse(view.definitionJson) : null,
   ),
   useLargeListExportJob: vi.fn(),
+  useBatchConfirmTerminologyCandidates: vi.fn(),
+  useBuildTerminologyPackage: vi.fn(),
+  useConfirmTerminologyCandidate: vi.fn(),
+  useGenerateTerminologyCandidates: vi.fn(),
+  useLocalTerms: vi.fn(),
+  usePublishTerminologyPackage: vi.fn(),
+  useRollbackTerminologyPackage: vi.fn(),
   useSaveView: vi.fn(),
   useSavedViews: vi.fn(),
   useSecurityProfile: vi.fn(),
+  useStandardTerms: vi.fn(),
   useSubmitLargeListExport: vi.fn(),
+  useTerminologyCandidates: vi.fn(),
+  useTerminologyConflicts: vi.fn(),
   useTerminologyMappings: vi.fn(),
+  useTerminologyPackages: vi.fn(),
 }));
 
 const mapping: TermMapping = {
@@ -46,8 +73,16 @@ const mapping: TermMapping = {
 
 const profile: SecurityProfile = {
   userId: "user-1",
-  username: "tenant.viewer",
-  roles: [],
+  username: "it.owner",
+  roles: [
+    {
+      code: "it-ops",
+      displayName: "信息科",
+      source: "DEFAULT",
+      scopeLevel: null,
+      scopeCode: null,
+    },
+  ],
   mustChangePwd: false,
   mfaRequired: false,
   mfaBound: false,
@@ -66,6 +101,34 @@ const profile: SecurityProfile = {
       displayName: "列表导出",
       risk: "MEDIUM",
     },
+    {
+      code: "term.read",
+      dimension: "ACTION",
+      target: "terminology",
+      displayName: "读取字典映射",
+      risk: "LOW",
+    },
+    {
+      code: "term.write",
+      dimension: "ACTION",
+      target: "terminology",
+      displayName: "确认字典映射",
+      risk: "MEDIUM",
+    },
+    {
+      code: "term.publish",
+      dimension: "ACTION",
+      target: "terminology-package",
+      displayName: "发布映射包",
+      risk: "HIGH",
+    },
+    {
+      code: "package.rollback",
+      dimension: "ACTION",
+      target: "terminology-package",
+      displayName: "回滚映射包",
+      risk: "HIGH",
+    },
   ],
   menuKeys: ["terminology-mapping", "provenance"],
   environmentKeys: ["production"],
@@ -78,6 +141,92 @@ const profile: SecurityProfile = {
     departmentId: null,
     specialtyId: null,
   },
+};
+
+const standardTerm: StandardTerm = {
+  id: 200,
+  tenantId: "tenant-1",
+  standardSystem: "LOINC",
+  termCode: "2951-2",
+  category: "LAB",
+  displayName: "血清钠",
+  normalizedName: "血清钠",
+  versionNo: "2026.06",
+  status: "ACTIVE",
+  sourceVersionId: 12,
+  evidenceText: "LOINC 2026-06 来源版本",
+  updatedAt: "2026-06-01T00:00:00.000Z",
+};
+
+const localTerm: LocalTerm = {
+  id: 100,
+  tenantId: "tenant-1",
+  sourceSystem: "LIS",
+  localCode: "K",
+  category: "LAB",
+  localName: "血清钾",
+  normalizedName: "血清钾",
+  departmentId: "dept-lab",
+  status: "UNMAPPED",
+  lastSeenAt: "2026-06-01T00:00:00.000Z",
+};
+
+const highRiskCandidate: TermMappingCandidate = {
+  id: 901,
+  localTermId: 100,
+  standardTermId: 200,
+  semanticMatchScore: 0.44,
+  highRiskFlag: true,
+  riskLevel: "HIGH",
+  source: "RULE",
+  status: "PENDING",
+  evidenceText: "钾 / 钠不可互换，高危近似规则命中",
+};
+
+const ordinaryCandidate: TermMappingCandidate = {
+  id: 902,
+  localTermId: 101,
+  standardTermId: 201,
+  semanticMatchScore: 0.92,
+  highRiskFlag: false,
+  riskLevel: "LOW",
+  source: "RULE",
+  status: "PENDING",
+  evidenceText: "编码和名称精确匹配",
+};
+
+const openConflict: MappingConflict = {
+  id: 301,
+  tenantId: "tenant-1",
+  conflictType: "ONE_TO_MANY",
+  localTermId: 100,
+  standardTermId: 200,
+  mappingId: null,
+  riskLevel: "HIGH",
+  description: "同一院内检验项命中多个标准候选，需人工裁决。",
+  status: "OPEN",
+  createdAt: "2026-06-01T00:00:00.000Z",
+};
+
+const mappingPackage: TermMappingPackage = {
+  id: 30,
+  tenantId: "tenant-1",
+  packageCode: "TERM.LAB",
+  packageVersion: "2026.06",
+  displayName: "检验字典映射包",
+  scopeLevel: "HOSPITAL",
+  scopeCode: "hospital-A",
+  status: "DRAFT",
+  mappingCount: 12,
+  contentHash: "a".repeat(64),
+  grayScopeJson: null,
+  publishedBy: null,
+  publishedAt: null,
+  rollbackFromPackageId: null,
+  createdAt: "2026-06-01T00:00:00.000Z",
+  createdBy: "it.owner",
+  updatedAt: "2026-06-01T00:00:00.000Z",
+  updatedBy: "it.owner",
 };
 
 const defaultData = {
@@ -114,6 +263,18 @@ const defaultSavedView = {
   updatedBy: "doctor-1",
 };
 
+function pageData<T>(items: T[]) {
+  return {
+    items,
+    page: 1,
+    size: 20,
+    total: items.length,
+    hasNext: false,
+    totalEstimated: false,
+    traceId: "trace-page",
+  };
+}
+
 function configureQuery(
   queryOverrides: Record<string, unknown> = {},
   securityProfile: SecurityProfile = profile,
@@ -123,6 +284,44 @@ function configureQuery(
   vi.mocked(useSaveView).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
+    mutateAsync: vi.fn(),
+  } as never);
+  vi.mocked(useBuildTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(usePublishTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useRollbackTerminologyPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useStandardTerms).mockReturnValue({
+    data: pageData([standardTerm]),
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useLocalTerms).mockReturnValue({
+    data: pageData([localTerm]),
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useTerminologyCandidates).mockReturnValue({
+    data: pageData([highRiskCandidate, ordinaryCandidate]),
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useTerminologyConflicts).mockReturnValue({
+    data: pageData([openConflict]),
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useTerminologyPackages).mockReturnValue({
+    data: pageData([mappingPackage]),
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
   vi.mocked(useTerminologyMappings).mockReturnValue({
     data: defaultData,
     isLoading: false,
@@ -147,21 +346,41 @@ describe("TerminologyMapping experience sample", () => {
     configureQuery();
   });
 
-  it("renders a read-only experience using the real paged query contract", async () => {
+  it("renders the real high-risk mapping workspace instead of a read-only table", async () => {
     renderPage();
 
     expect(screen.getByText(/目标：核查院内码与标准码的映射关系/)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "映射状态" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入来源系统")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入院内码或标准码关键词")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认候选" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "确认候选" })).toHaveLength(1);
+    expect(screen.getByText("选字典")).toBeInTheDocument();
+    expect(screen.getByText("生成候选")).toBeInTheDocument();
+    expect(screen.getByText("逐条确认")).toBeInTheDocument();
+    expect(screen.getByText("灰度发布")).toBeInTheDocument();
+    expect(screen.getByText("证据/回滚")).toBeInTheDocument();
+    expect(screen.getByText("候选映射")).toBeInTheDocument();
+    expect(screen.getByText("高危近似")).toBeInTheDocument();
+    expect(screen.getByText("钾 / 钠不可互换，高危近似规则命中")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();
+    expect(screen.getByText("冲突待裁")).toBeInTheDocument();
+    expect(screen.getByText("同一院内检验项命中多个标准候选，需人工裁决。")).toBeInTheDocument();
+    expect(screen.getByText("映射包发布")).toBeInTheDocument();
+    expect(screen.getByText("检验字典映射包")).toBeInTheDocument();
     expect(useTerminologyMappings).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20, sort: "updatedAt,desc" }),
     );
+    expect(useStandardTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
+    expect(useLocalTerms).toHaveBeenCalledWith(expect.objectContaining({ size: 20 }));
+    expect(useTerminologyCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "PENDING", riskLevel: "HIGH" }),
+    );
+    expect(useTerminologyConflicts).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "OPEN" }),
+    );
+    expect(useTerminologyPackages).toHaveBeenCalledWith(expect.objectContaining({ size: 10 }));
 
-    expect(screen.queryByRole("button", { name: /导入医院字典/ })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /确认映射|提交审核|发布|回滚|批量处理/ }),
-    ).toBeNull();
     expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
 
     await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
@@ -176,6 +395,103 @@ describe("TerminologyMapping experience sample", () => {
     expect(useTerminologyMappings).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2, size: 20, sort: "updatedAt,desc" }),
     );
+  });
+
+  it("requires per-candidate second confirmation before confirming a high-risk mapping", async () => {
+    const confirmCandidate = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
+    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
+      mutateAsync: confirmCandidate,
+    } as never);
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "确认候选" }));
+    expect(screen.getByText("确认高危候选")).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
+    await userEvent.type(
+      screen.getByLabelText("高危确认理由"),
+      "已核对 LIS 原始值和 LOINC 来源版本",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
+
+    expect(confirmCandidate).toHaveBeenCalledWith({
+      candidateId: 901,
+      request: expect.objectContaining({
+        packageVersion: "2026.06",
+        reviewNote: "逐条确认高危候选",
+        highRiskAcknowledged: true,
+        highRiskReason: "已核对 LIS 原始值和 LOINC 来源版本",
+      }),
+    });
+  });
+
+  it("batch confirms only ordinary candidates when the high-risk queue is absent", async () => {
+    const batchConfirm = vi
+      .fn()
+      .mockResolvedValue({ confirmedCount: 1, confirmedCandidateIds: [902] });
+    vi.mocked(useTerminologyCandidates).mockReturnValue({
+      data: pageData([ordinaryCandidate]),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+    vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
+      mutateAsync: batchConfirm,
+    } as never);
+
+    renderPage();
+
+    expect(screen.getByRole("button", { name: "批量确认候选" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "批量确认候选" }));
+
+    expect(batchConfirm).toHaveBeenCalledWith({
+      candidateIds: [902],
+      request: expect.objectContaining({
+        packageVersion: "2026.06",
+        reviewNote: "批量确认普通候选",
+      }),
+    });
+  });
+
+  it("publishes and rolls back terminology packages through the 7-step release flow", async () => {
+    const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "GRAY" });
+    const rollbackPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
+    vi.mocked(usePublishTerminologyPackage).mockReturnValue({
+      mutateAsync: publishPackage,
+    } as never);
+    vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
+      mutateAsync: rollbackPackage,
+    } as never);
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
+    expect(screen.getByText("发布映射包")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "10% 灰度" })).toBeChecked();
+    await userEvent.type(screen.getByLabelText("发布原因"), "首发检验字典灰度验证");
+    await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
+
+    expect(publishPackage).toHaveBeenCalledWith({
+      packageId: 30,
+      request: expect.objectContaining({
+        packageVersion: "2026.06",
+        releaseMode: "GRAY",
+        reason: "首发检验字典灰度验证",
+      }),
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
+    await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
+    await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
+
+    expect(rollbackPackage).toHaveBeenCalledWith({
+      packageId: 30,
+      request: expect.objectContaining({
+        packageVersion: "2026.06",
+        targetPackageId: 30,
+        reason: "灰度验证发现院内码需重裁",
+      }),
+    });
   });
 
   it("loads the backend default view snapshot", async () => {

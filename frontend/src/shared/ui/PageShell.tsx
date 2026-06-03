@@ -38,14 +38,14 @@ export function PageShell({
   return (
     <Space direction="vertical" size="large" className="mk-full-width">
       <Card bordered={false} className="mk-card-transparent mk-card-body-flush">
-        <Space className="mk-flex-between" align="start">
+        <Space className="mk-flex-between" align="start" wrap>
           <Space direction="vertical" size={0}>
             <Title level={4} className="mk-title-tight">
               {title}
             </Title>
             {description && <Text type="secondary">{description}</Text>}
           </Space>
-          <Space>
+          <Space wrap>
             {extras}
             {primary}
           </Space>

@@ -52,6 +52,12 @@ class IntegrationServiceTest {
     private DataQualityReportRepository dataQualityReportRepository;
 
     @Autowired
+    private IntegrationOnboardingRepository onboardingRepository;
+
+    @Autowired
+    private RegionalSourceRepository regionalSourceRepository;
+
+    @Autowired
     private MpiPatientRepository mpiPatientRepository;
 
     @Autowired
@@ -198,6 +204,135 @@ class IntegrationServiceTest {
         assertTrue(status.sources().stream().noneMatch(item -> "his-quality-other".equals(item.adapterId())));
         assertTrue(status.sources().stream().anyMatch(item ->
             "lis-quality".equals(item.adapterId()) && item.gaps().contains("未配置字段映射")));
+    }
+
+    @Test
+    void onboardingLifecycleComposesAdapterAndFhirRoutesWithoutFakingConnectivity() {
+        service.createAdapter(tenantId, new AdapterCreateDto("his-business", "一院 HIS 业务接口", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-business", "业务回调", "http://one.local/callback", "PATIENT_EVENT"));
+
+        IntegrationOnboardingResponse adapterOnboarding = service.createIntegrationOnboarding(tenantId,
+            new IntegrationOnboardingCreateRequest(
+                "onb-adapter-1",
+                "一院 HIS 业务接口接入",
+                "ADAPTER",
+                "his-business",
+                null,
+                "HIS",
+                "S2 院内系统接入",
+                "/t-1/group-a/hospital-a",
+                "whk-business"
+            ));
+        IntegrationOnboardingResponse fhirOnboarding = service.createIntegrationOnboarding(tenantId,
+            new IntegrationOnboardingCreateRequest(
+                "onb-fhir-1",
+                "区域平台 FHIR 接入",
+                "FHIR",
+                null,
+                "R4",
+                "REGIONAL_FHIR",
+                "S40 区域共享",
+                "/t-1/group-a/hospital-a",
+                null
+            ));
+
+        assertEquals("REQUESTED", adapterOnboarding.status());
+        assertEquals("ADAPTER", adapterOnboarding.routeType());
+        assertEquals("/api/v1/engine/integration/adapters/his-business", adapterOnboarding.routeReference());
+        assertEquals("NOT_CONNECTED", adapterOnboarding.healthStatus());
+        assertTrue(adapterOnboarding.blockers().contains("未完成鉴权配置"));
+        assertEquals("FHIR", fhirOnboarding.routeType());
+        assertEquals("/api/v1/engine/integration/fhir/R4", fhirOnboarding.routeReference());
+
+        service.advanceIntegrationOnboarding(tenantId, "onb-adapter-1",
+            new IntegrationOnboardingAdvanceRequest("AUTH_CONFIGURED", "接口凭证已通过配置中心登记"));
+        service.advanceIntegrationOnboarding(tenantId, "onb-adapter-1",
+            new IntegrationOnboardingAdvanceRequest("MAPPING_CONFIGURED", "字段映射已确认"));
+        IntegrationOnboardingResponse online = service.advanceIntegrationOnboarding(tenantId, "onb-adapter-1",
+            new IntegrationOnboardingAdvanceRequest("ONLINE", "联调完成后上线业务接口"));
+
+        assertEquals("ONLINE", online.status());
+        assertEquals("NOT_CONNECTED", online.healthStatus(), "上线状态不应伪造外部连接成功");
+        assertTrue(online.blockers().stream().anyMatch(item -> item.contains("NOT_CONNECTED")));
+        assertEquals(2, onboardingRepository.findAllByTenantId(tenantId).size());
+    }
+
+    @Test
+    void onboardingRejectsMappingStageWhenAdapterHasNoFieldMappings() {
+        service.createAdapter(tenantId, new AdapterCreateDto("lis-without-mapping", "LIS 未映射", "Webhook", "{}"));
+        service.createIntegrationOnboarding(tenantId, new IntegrationOnboardingCreateRequest(
+            "onb-map-gap",
+            "LIS 接入缺映射",
+            "ADAPTER",
+            "lis-without-mapping",
+            null,
+            "LIS",
+            "S2 院内系统接入",
+            "/t-1/group-a/hospital-a",
+            null
+        ));
+        service.advanceIntegrationOnboarding(tenantId, "onb-map-gap",
+            new IntegrationOnboardingAdvanceRequest("AUTH_CONFIGURED", "已配置凭证"));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+            service.advanceIntegrationOnboarding(tenantId, "onb-map-gap",
+                new IntegrationOnboardingAdvanceRequest("MAPPING_CONFIGURED", "尝试绕过字段映射")));
+
+        assertEquals("ENG-INTEG-001", error.errorCode().code());
+        assertTrue(error.getMessage().contains("字段映射"));
+    }
+
+    @Test
+    void regionalSourceRequiresTrustGradeAndStoresCrossOrganizationEvidence() {
+        service.createAdapter(tenantId, new AdapterCreateDto("his-business", "一院 HIS 业务接口", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+
+        ApiException ungraded = assertThrows(ApiException.class, () ->
+            service.registerRegionalSource(tenantId, new RegionalSourceRegisterRequest(
+                "regional-missing-grade",
+                "医联体平台",
+                "org-region-1",
+                "上级医院影像中心",
+                "",
+                "影像互认共享通道",
+                "his-business",
+                "onb-adapter-1",
+                "/t-1/group-a/hospital-a"
+            )));
+
+        assertEquals("REGIONAL_SOURCE_UNGRADED", ungraded.errorCode().code());
+
+        RegionalSourceResponse trusted = service.registerRegionalSource(tenantId, new RegionalSourceRegisterRequest(
+            "regional-graded",
+            "医联体平台",
+            "org-region-1",
+            "上级医院影像中心",
+            "HIGH",
+            "OPT-07 已分级来源证据",
+            "his-business",
+            null,
+            "/t-1/group-a/hospital-a"
+        ));
+        service.registerRegionalSource("tenant-002", new RegionalSourceRegisterRequest(
+            "regional-other",
+            "外部区域平台",
+            "org-region-2",
+            "其他医院",
+            "MEDIUM",
+            "其他租户证据",
+            null,
+            null,
+            "/t-2/group-b/hospital-b"
+        ));
+
+        assertEquals("HIGH", trusted.trustLevel());
+        assertEquals("上级医院影像中心", trusted.sourceOrganizationName());
+        assertEquals(1, service.listRegionalSources(tenantId).size());
+        assertEquals(1, regionalSourceRepository.findAllByTenantId(tenantId).size());
     }
 
     @Test

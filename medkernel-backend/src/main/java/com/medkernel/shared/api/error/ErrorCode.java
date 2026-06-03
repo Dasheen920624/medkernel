@@ -132,6 +132,7 @@ public enum ErrorCode {
     ENG_INTEG_004("ENG-INTEG-004", 400, "Webhook 消息签名校验失败", ErrorClass.AUTH, false),
     ENG_INTEG_005("ENG-INTEG-005", 404, "集成接口日志不存在", ErrorClass.DATA, false),
     ENG_INTEG_006("ENG-INTEG-006", 409, "当前接口日志状态不允许重试", ErrorClass.DATA, false),
+    REGIONAL_SOURCE_UNGRADED("REGIONAL_SOURCE_UNGRADED", 409, "区域协同来源未完成可信分级", ErrorClass.DATA, false),
     MPI_MERGE_REQUIRES_REVIEW("MPI_MERGE_REQUIRES_REVIEW", 409, "高危患者主索引合并需要人工确认", ErrorClass.DATA, false),
 
     ENG_EVID_001("ENG-EVID-001", 404, "证据快照不存在", ErrorClass.DATA, false),

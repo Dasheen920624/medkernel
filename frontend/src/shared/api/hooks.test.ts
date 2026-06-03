@@ -19,11 +19,32 @@ import {
   saveExperienceViewSnapshot,
   submitLargeListExport,
   useCreatePackage,
+  useAdvanceIntegrationOnboarding,
+  useActivateOnboardingReadiness,
+  useBatchConfirmTerminologyCandidates,
+  useBuildTerminologyPackage,
+  useConfirmTerminologyCandidate,
+  useCreateIntegrationOnboarding,
+  useGenerateDataQualityReport,
+  useGenerateTerminologyCandidates,
+  useIntegrationOnboardings,
+  useReplayDeadLetter,
+  useImplementationSteps,
   useInstantiatePilotTemplate,
+  useLocalTerms,
+  useOnboardingReadiness,
+  useOrgUnits,
+  usePackages,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePilotPackageTemplates,
+  usePublishTerminologyPackage,
+  useRollbackTerminologyPackage,
   useSyncPackage,
+  useStandardTerms,
+  useTerminologyCandidates,
+  useTerminologyConflicts,
+  useTerminologyPackages,
 } from "./hooks";
 
 vi.mock("./client", () => ({
@@ -203,6 +224,30 @@ describe("package export api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
   });
 
+  it("loads package list through API-13 style server-side paging and filters", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 1,
+          size: 10,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      usePackages({ page: 0, size: 10, keyword: "COPD", status: "DRAFT" }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages", {
+      params: { page: 0, size: 10, keyword: "COPD", status: "DRAFT" },
+    });
+  });
+
   it("loads pilot package templates from the dedicated API-10 endpoint", async () => {
     const templates = [
       {
@@ -255,6 +300,91 @@ describe("package export api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/asset-readiness");
   });
 
+  it("loads implementation guide steps from the tenant engine readiness endpoint", async () => {
+    const steps = [
+      {
+        key: "organization",
+        title: "组织树",
+        status: "DONE",
+        blockers: [],
+        targetPath: "/tenant/onboarding",
+        evidence: "已存在医院组织",
+      },
+      {
+        key: "adapters",
+        title: "适配器",
+        status: "BLOCKED",
+        blockers: ["尚未配置 HIS 适配器"],
+        targetPath: "/adapter/hub",
+        evidence: null,
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: steps } });
+
+    const { result } = renderApiHook(() => useImplementationSteps());
+
+    await waitFor(() => expect(result.current.data).toBe(steps));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/implementation-steps");
+  });
+
+  it("loads tenant onboarding readiness from the tenant engine gate endpoint", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      ready: false,
+      steps: [
+        {
+          key: "organization",
+          title: "组织树",
+          status: "BLOCKED",
+          blockers: ["组织树缺少租户根或医院节点"],
+          targetPath: "/tenant/onboarding",
+          evidence: null,
+        },
+      ],
+      blockers: ["组织树缺少租户根或医院节点"],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: readiness } });
+
+    const { result } = renderApiHook(() => useOnboardingReadiness());
+
+    await waitFor(() => expect(result.current.data).toBe(readiness));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness");
+  });
+
+  it("activates tenant onboarding only through the tenant engine readiness gate", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      ready: true,
+      steps: [],
+      blockers: [],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: readiness } });
+
+    const { result } = renderApiHook(() => useActivateOnboardingReadiness());
+
+    await expect(result.current.mutateAsync()).resolves.toBe(readiness);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness/activate");
+  });
+
+  it("loads organization units from the engine org API root instead of the legacy tenant root", async () => {
+    const page = {
+      items: [{ id: "org-1", level: "TENANT", code: "T-1", name: "平台主租户" }],
+      page: 1,
+      size: 100,
+      total: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useOrgUnits({ size: 100 }));
+
+    await waitFor(() => expect(result.current.data).toBe(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/org/org-units", {
+      params: { size: 100 },
+    });
+  });
+
   it("instantiates a pilot template through API-10 with standard context fields", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
     vi.mocked(apiClient.post).mockResolvedValueOnce({
@@ -291,6 +421,337 @@ describe("package export api helpers", () => {
         packageVersion: "2026.06.03",
         name: "首发配置包",
       }),
+    );
+  });
+});
+
+describe("terminology mapping api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000004");
+  });
+
+  it("loads standard and local dictionaries from the API-04 paged endpoints", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } });
+
+    const standard = renderApiHook(() =>
+      useStandardTerms({ page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" }),
+    );
+    const local = renderApiHook(() =>
+      useLocalTerms({ page: 0, size: 20, sourceSystem: "LIS", status: "UNMAPPED" }),
+    );
+
+    await waitFor(() => expect(standard.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(local.result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/terms/standard", {
+      params: { page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/terms/local", {
+      params: { page: 0, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
+    });
+  });
+
+  it("loads candidates, conflicts and mapping packages from the API-04 roots", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } });
+
+    const candidates = renderApiHook(() =>
+      useTerminologyCandidates({ page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" }),
+    );
+    const conflicts = renderApiHook(() =>
+      useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" }),
+    );
+    const packages = renderApiHook(() =>
+      useTerminologyPackages({ page: 0, size: 10, status: "DRAFT" }),
+    );
+
+    await waitFor(() => expect(candidates.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(conflicts.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(packages.result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/mappings/candidates", {
+      params: { page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/mappings/conflicts", {
+      params: { page: 0, size: 10, status: "OPEN" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/terminology/mapping-packages", {
+      params: { page: 0, size: 10, status: "DRAFT" },
+    });
+  });
+
+  it("submits terminology candidate generation and confirmation with standard context fields", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { generatedCount: 1, candidates: [] } } })
+      .mockResolvedValueOnce({ data: { data: { id: 10, status: "CONFIRMED" } } })
+      .mockResolvedValueOnce({
+        data: { data: { confirmedCount: 1, confirmedCandidateIds: [11] } },
+      });
+
+    const generate = renderApiHook(() => useGenerateTerminologyCandidates());
+    const confirm = renderApiHook(() => useConfirmTerminologyCandidate());
+    const batchConfirm = renderApiHook(() => useBatchConfirmTerminologyCandidates());
+
+    await generate.result.current.mutateAsync({
+      packageVersion: "2026.06",
+      sourceSystem: "LIS",
+      minimumScore: 0.6,
+      semanticAssistEnabled: false,
+    });
+    await confirm.result.current.mutateAsync({
+      candidateId: 10,
+      request: {
+        packageVersion: "2026.06",
+        reviewNote: "逐条确认高危候选",
+        highRiskAcknowledged: true,
+        highRiskReason: "已核对来源版本",
+      },
+    });
+    await batchConfirm.result.current.mutateAsync({
+      candidateIds: [11],
+      request: { packageVersion: "2026.06", reviewNote: "批量确认普通候选" },
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/terminology/mappings/candidates",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000004",
+        trace_id: "00000000-0000-4000-8000-000000000004",
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "2026.06",
+        sourceSystem: "LIS",
+        semanticAssistEnabled: false,
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/terminology/mappings/10/confirm",
+      expect.objectContaining({
+        package_version: "2026.06",
+        highRiskAcknowledged: true,
+        highRiskReason: "已核对来源版本",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/terminology/mappings/batch-confirm",
+      expect.objectContaining({
+        package_version: "2026.06",
+        candidateIds: [11],
+      }),
+    );
+  });
+
+  it("builds, publishes and rolls back terminology mapping packages through API-04 roots", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "DRAFT" } } })
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "GRAY" } } })
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "ROLLED_BACK" } } });
+
+    const build = renderApiHook(() => useBuildTerminologyPackage());
+    const publish = renderApiHook(() => usePublishTerminologyPackage());
+    const rollback = renderApiHook(() => useRollbackTerminologyPackage());
+
+    await build.result.current.mutateAsync({
+      packageCode: "TERM.LAB",
+      packageVersion: "2026.06",
+      scopeLevel: "HOSPITAL",
+      scopeCode: "hospital-A",
+      displayName: "检验字典映射包",
+    });
+    await publish.result.current.mutateAsync({
+      packageId: 30,
+      request: {
+        packageVersion: "2026.06",
+        releaseMode: "GRAY",
+        reason: "首发检验字典灰度验证",
+        grayScopeJson: '{"percent":10}',
+      },
+    });
+    await rollback.result.current.mutateAsync({
+      packageId: 30,
+      request: {
+        packageVersion: "2026.06",
+        targetPackageId: 29,
+        reason: "灰度验证失败",
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/terminology/mapping-packages",
+      expect.objectContaining({
+        packageCode: "TERM.LAB",
+        packageVersion: "2026.06",
+        package_version: "2026.06",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/terminology/mapping-packages/30/publish",
+      expect.objectContaining({
+        releaseMode: "GRAY",
+        reason: "首发检验字典灰度验证",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/terminology/mapping-packages/30/rollback",
+      expect.objectContaining({
+        targetPackageId: 29,
+        reason: "灰度验证失败",
+      }),
+    );
+  });
+});
+
+describe("integration adapter api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("loads integration onboarding lifecycle records from the SVC-INTEGRATION-01 endpoint", async () => {
+    const onboardings = [
+      {
+        onboardingId: "onb-his",
+        name: "HIS 主数据接入申请",
+        status: "MAPPING_CONFIGURED",
+        routeType: "ADAPTER",
+        routeReference: "/api/v1/engine/integration/adapters/his-main",
+        healthStatus: "NOT_CONNECTED",
+        mappedFieldCount: 12,
+        blockers: ["外部连接器未连通"],
+        sourceSystem: "HIS",
+        businessScenario: "门诊患者主数据",
+        orgPath: "集团/医院",
+        callbackWebhookId: null,
+        createdAt: "2026-06-03T08:00:00Z",
+        updatedAt: "2026-06-03T08:00:00Z",
+      },
+    ];
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: onboardings } });
+
+    const { result } = renderApiHook(() => useIntegrationOnboardings());
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(onboardings);
+    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/engine/integration/onboardings");
+  });
+
+  it("creates and advances integration onboarding records without inventing endpoints", async () => {
+    const response = {
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      status: "REQUESTED",
+      routeType: "ADAPTER",
+      routeReference: "/api/v1/engine/integration/adapters/his-main",
+      healthStatus: "NOT_CONNECTED",
+      mappedFieldCount: 0,
+      blockers: ["接入申请已创建，待配置鉴权与字段映射"],
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+      callbackWebhookId: null,
+      createdAt: "2026-06-03T08:00:00Z",
+      updatedAt: "2026-06-03T08:00:00Z",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: response } })
+      .mockResolvedValueOnce({ data: { data: { ...response, status: "ONLINE" } } });
+
+    const create = renderApiHook(() => useCreateIntegrationOnboarding());
+    const advance = renderApiHook(() => useAdvanceIntegrationOnboarding());
+
+    await create.result.current.mutateAsync({
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      accessMode: "ADAPTER",
+      adapterId: "his-main",
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+    });
+    await advance.result.current.mutateAsync({
+      onboardingId: "onb-his",
+      targetStatus: "ONLINE",
+      evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/api/v1/engine/integration/onboardings", {
+      onboardingId: "onb-his",
+      name: "HIS 主数据接入申请",
+      accessMode: "ADAPTER",
+      adapterId: "his-main",
+      sourceSystem: "HIS",
+      businessScenario: "门诊患者主数据",
+      orgPath: "集团/医院",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/engine/integration/onboardings/onb-his/advance",
+      {
+        targetStatus: "ONLINE",
+        evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
+      },
+    );
+  });
+
+  it("generates data quality reports and replays dead letters through real integration endpoints", async () => {
+    const report = {
+      reportId: "dqr-1",
+      tenantId: "tenant-A",
+      generatedAt: "2026-06-03T08:10:00Z",
+      requiredFieldTotal: 100,
+      requiredFieldPresent: 82,
+      requiredFieldRate: 82,
+      adapterTotal: 2,
+      mappedAdapterCount: 1,
+      mappingRate: 50,
+      timelyAdapterCount: 1,
+      timelinessRate: 50,
+      notConnectedCount: 1,
+      misconfiguredCount: 1,
+      gapSummary: "HIS 断连，LIS 配置非法",
+      createdAt: "2026-06-03T08:10:00Z",
+      createdBy: "it-1",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: report } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            sourceMessageId: "msg-dead",
+            replayMessageId: "msg-replay",
+            traceId: "trace-replay",
+            status: "NOT_CONNECTED",
+            blocksMainFlow: false,
+            message: "已重放为补偿消息",
+          },
+        },
+      });
+
+    const quality = renderApiHook(() => useGenerateDataQualityReport());
+    const replay = renderApiHook(() => useReplayDeadLetter());
+
+    await quality.result.current.mutateAsync();
+    await replay.result.current.mutateAsync("msg-dead");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/engine/integration/data-quality/reports",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/engine/integration/dead-letter/msg-dead/replay",
     );
   });
 });

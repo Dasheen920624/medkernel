@@ -1,0 +1,64 @@
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 220), 1fr));
+  gap: calc(var(--mk-unit) * 16);
+}
+
+.summaryCard {
+  height: 100%;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+.sectionCard {
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+.filterBar {
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.statusSelect {
+  min-width: calc(var(--mk-unit) * 160);
+}
+
+.codeText {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.templatePreview {
+  margin-bottom: calc(var(--mk-unit) * 16);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+.diffGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 160), 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.diffSelect {
+  min-width: calc(var(--mk-unit) * 260);
+}
+
+.formAlert {
+  margin-bottom: calc(var(--mk-unit) * 16);
+}
+
+.syncProgress {
+  margin-bottom: calc(var(--mk-unit) * 16);
+}
+
+.syncIssue {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-warning-border);
+  border-radius: var(--ant-border-radius);
+  background: var(--ant-color-warning-bg);
+}
