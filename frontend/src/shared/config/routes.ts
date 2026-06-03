@@ -267,6 +267,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "config-packages",
     menuLabel: "配置包中心",
+    requiredPermissions: ["menu.config-packages", "pkg.read", "pkg.release"],
+    requiredRoles: ["implementation-engineer", "medical-admin", "hospital-admin"],
     experience: readonlyExperience(
       "实施工程师",
       "核查配置包准备和发布状态",

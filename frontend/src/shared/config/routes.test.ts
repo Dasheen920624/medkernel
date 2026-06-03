@@ -114,6 +114,31 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("limits config packages to package publishers with the pilot setup menu", () => {
+    const route = findRouteByPath("/config/packages");
+
+    expect(route?.requiredPermissions).toEqual(["menu.config-packages", "pkg.read", "pkg.release"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "medical-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "medical-admin" }],
+        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)

@@ -19,8 +19,14 @@ const apiMocks = vi.hoisted(() => ({
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
   refetchAssetReadiness: vi.fn(),
+  packagesData: null as Record<string, unknown> | null,
+  packagesLoading: false,
+  packagesError: false,
   pilotTemplates: [] as Array<Record<string, unknown>>,
+  pilotTemplatesLoading: false,
   assetReadiness: null as Record<string, unknown> | null,
+  assetReadinessLoading: false,
+  assetReadinessError: false,
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -62,7 +68,7 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useCreatePackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePackages: () => ({
-    data: {
+    data: apiMocks.packagesData ?? {
       items: [
         {
           packageId: "pkg-offline",
@@ -85,6 +91,8 @@ vi.mock("@/shared/api/hooks", () => ({
       hasNext: false,
       totalEstimated: false,
     },
+    isLoading: apiMocks.packagesLoading,
+    isError: apiMocks.packagesError,
     refetch: apiMocks.refetchPackages,
   }),
   usePackageDetail: () => ({
@@ -100,12 +108,13 @@ vi.mock("@/shared/api/hooks", () => ({
   useImportOfflinePackage: () => ({ mutateAsync: apiMocks.importOfflinePackage, isPending: false }),
   usePilotPackageTemplates: () => ({
     data: apiMocks.pilotTemplates,
-    isLoading: false,
+    isLoading: apiMocks.pilotTemplatesLoading,
   }),
   usePackageAssetReadiness: () => ({
     data: apiMocks.assetReadiness,
     refetch: apiMocks.refetchAssetReadiness,
-    isLoading: false,
+    isLoading: apiMocks.assetReadinessLoading,
+    isError: apiMocks.assetReadinessError,
   }),
   useInstantiatePilotTemplate: () => ({
     mutateAsync: apiMocks.instantiatePilotTemplate,
@@ -151,6 +160,12 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.addPackageItem.mockReset();
     apiMocks.instantiatePilotTemplate.mockReset();
     apiMocks.refetchAssetReadiness.mockReset();
+    apiMocks.packagesData = null;
+    apiMocks.packagesLoading = false;
+    apiMocks.packagesError = false;
+    apiMocks.pilotTemplatesLoading = false;
+    apiMocks.assetReadinessLoading = false;
+    apiMocks.assetReadinessError = false;
     apiMocks.pilotTemplates = [
       {
         templateId: "tpl-first-run",
@@ -274,6 +289,69 @@ describe("ConfigPackages offline package export", () => {
     await waitFor(() => {
       expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline");
     });
+  });
+
+  it("renders the real 7-step release flow and keeps publish as the only page primary action", () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getAllByText("自动校验").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("看影响").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "发布配置包" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /发布配置包|从首发模板创建|一键创建/ }),
+    ).toHaveLength(2);
+  });
+
+  it("uses PageShell loading, error and empty states for package readiness data", () => {
+    apiMocks.packagesLoading = true;
+
+    const { rerender } = render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("正在加载配置包中心")).toBeInTheDocument();
+
+    apiMocks.packagesLoading = false;
+    apiMocks.packagesError = true;
+    rerender(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("配置包中心读取失败")).toBeInTheDocument();
+
+    apiMocks.packagesError = false;
+    apiMocks.packagesData = {
+      items: [],
+      page: 1,
+      size: 10,
+      total: 0,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    rerender(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("暂无配置包")).toBeInTheDocument();
   });
 
   it("uses the backend page total for the cumulative package statistic", async () => {
@@ -499,8 +577,8 @@ describe("ConfigPackages offline package export", () => {
     expect(await screen.findByText("失败 / 未接入站点")).toBeInTheDocument();
     expect(screen.getAllByText("院内 HIS 同步通道").length).toBeGreaterThan(0);
     expect(screen.getAllByText("图谱同步通道").length).toBeGreaterThan(0);
-    expect(screen.getByText("目标库写入失败")).toBeInTheDocument();
-    expect(screen.getByText("未配置真实同步适配器")).toBeInTheDocument();
+    expect(screen.getAllByText("目标库写入失败").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未配置真实同步适配器").length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "导出同步证据" }));
 

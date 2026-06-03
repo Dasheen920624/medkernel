@@ -129,4 +129,18 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     }
     expect(onboardingSource).toContain("parentLevelByChildLevel");
   });
+
+  it("keeps config package center free of legacy decorative layout and wired to StepFlow", () => {
+    const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
+
+    expect(configPackagesSource).toContain("StepFlow");
+    expect(configPackagesSource).not.toContain("bg-gradient-to-br");
+    expect(configPackagesSource).not.toContain("rounded-2xl");
+    expect(configPackagesSource).not.toContain("text-slate-");
+    expect(configPackagesSource).not.toContain("style=");
+    expect(configPackagesSource).not.toContain("font-normal font");
+    expect(configPackagesSource).not.toContain("一键创建知识配置包草稿");
+    expect(configPackagesSource).toContain("width: 260");
+    expect(configPackagesSource).toContain("className={styles.nowrap}");
+  });
 });
