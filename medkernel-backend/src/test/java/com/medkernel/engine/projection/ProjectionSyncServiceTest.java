@@ -106,6 +106,28 @@ class ProjectionSyncServiceTest {
             .containsOnly(ProjectionTargetType.KNOWLEDGE_SEARCH);
     }
 
+    @Test
+    void knowledgeGraphConsistencyDetectsStaleSupersededVersionProjection() {
+        ProjectionFact current = fact(ProjectionTargetType.KNOWLEDGE_GRAPH, "NODE:KNOWLEDGE_VERSION:10");
+        List<ProjectionSnapshot> stored = new ArrayList<>();
+        stored.add(ProjectionSnapshot.fromFact("tenant-A", current, now(), "trace-1"));
+        stored.add(ProjectionSnapshot.fromFact(
+            "tenant-A",
+            fact(ProjectionTargetType.KNOWLEDGE_GRAPH, "NODE:KNOWLEDGE_VERSION:5"),
+            now(),
+            "trace-old"));
+        wireSnapshotStore(stored, ProjectionTargetType.KNOWLEDGE_GRAPH);
+        when(policy.graphProjectionEnabled()).thenReturn(true);
+        when(knowledgeSource.graphFactsForTenant("tenant-A")).thenReturn(List.of(current));
+
+        ProjectionConsistencyReport report = service.checkKnowledgeGraphConsistency("tenant-A");
+
+        assertThat(report.consistent()).isFalse();
+        assertThat(report.status()).isEqualTo(ProjectionSyncStatus.FAILED);
+        assertThat(report.extra()).extracting(ProjectionDiffItem::factKey)
+            .containsExactly("NODE:KNOWLEDGE_VERSION:5");
+    }
+
     private void wireSnapshotStore(List<ProjectionSnapshot> stored) {
         wireSnapshotStore(stored, ProjectionTargetType.CLINICAL_GRAPH);
     }

@@ -71,6 +71,9 @@ class KnowledgeProjectionSourceTest {
         assertThat(joinPayloads(facts))
             .contains("authorityLevel=A_REGULATION")
             .contains("gradeQuality=HIGH")
+            .contains("organizationScope=tenant:t-1")
+            .contains("applicableScope=ALL")
+            .contains("activeScopeKey=1\\|tenant:t-1\\|ALL")
             .doesNotContain("完整条文原文");
     }
 
@@ -90,6 +93,9 @@ class KnowledgeProjectionSourceTest {
             .contains("subject=二甲双胍禁忌证")
             .contains("sourceTitle=国家药品说明书")
             .contains("authorityLevel=A_REGULATION")
+            .contains("organizationScope=tenant:t-1")
+            .contains("applicableScope=ALL")
+            .contains("activeScopeKey=1\\|tenant:t-1\\|ALL")
             .contains("citationCount=1")
             .doesNotContain("完整条文原文");
     }
