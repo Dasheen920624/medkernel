@@ -94,7 +94,8 @@ class MigrationBaselineContractTest {
         "V65__pilot_package_template.sql",
         "V66__integration_business_service_package.sql",
         "V67__clinical_event_api_contract.sql",
-        "V68__recommendation_cdss_contract.sql"
+        "V68__recommendation_cdss_contract.sql",
+        "V69__followup_api09_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -211,9 +212,13 @@ class MigrationBaselineContractTest {
         "idx_release_plan_pkg", "idx_sync_target_tenant", "idx_sync_log_plan",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
         "idx_followup_plan_tenant_patient", "idx_followup_plan_status",
+        "uk_followup_plan_idempotency",
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
-        "idx_followup_questionnaire_task", "idx_followup_event_plan",
-        "idx_followup_event_type", "idx_embed_token_tenant", "idx_model_task_tenant",
+        "uk_followup_task_idempotency", "idx_followup_task_status_due",
+        "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
+        "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
+        "idx_followup_event_type", "uk_followup_event_idempotency",
+        "idx_embed_token_tenant", "idx_model_task_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -540,8 +545,9 @@ class MigrationBaselineContractTest {
         Map.entry("sync_target", Set.of("target_type", "status")),
         Map.entry("sync_log", Set.of("status")),
         Map.entry("followup_plan", Set.of("status")),
-        Map.entry("followup_task", Set.of("status")),
+        Map.entry("followup_task", Set.of("status", "task_type")),
         Map.entry("followup_questionnaire", Set.of("status")),
+        Map.entry("followup_event", Set.of("event_type")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
@@ -1180,6 +1186,40 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V68__recommendation_cdss_contract.sql"))
                 .as("dialect %s must ship V68", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v69ShouldDeclareFollowupCustomerApiContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V69__followup_api09_contract.sql");
+        assertThat(h2).contains(
+            "followup_plan",
+            "idempotency_key",
+            "followup_questionnaire",
+            "plan_id",
+            "questionnaire_template_id",
+            "answer_data",
+            "submitted_at",
+            "executor_id",
+            "uk_followup_plan_idempotency",
+            "uk_followup_task_idempotency",
+            "uk_followup_questionnaire_idempotency",
+            "uk_followup_event_idempotency",
+            "idx_followup_task_status_due",
+            "idx_followup_questionnaire_plan",
+            "RETURN_VISIT",
+            "IN_PROGRESS",
+            "ABNORMAL_RETURN",
+            "NOTIFICATION_REQUESTED",
+            "COMMENT ON COLUMN followup_event.idempotency_key");
+    }
+
+    @Test
+    void v69ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V69__followup_api09_contract.sql"))
+                .as("dialect %s must ship V69", dialect)
                 .exists();
         }
     }

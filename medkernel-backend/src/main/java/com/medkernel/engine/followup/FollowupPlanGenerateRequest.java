@@ -1,7 +1,7 @@
 package com.medkernel.engine.followup;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 /**
@@ -13,5 +13,21 @@ public record FollowupPlanGenerateRequest(
     String pathwayId,
     String diseaseCode,
     String riskLevel,
-    @NotNull List<String> taskTypes
-) {}
+    @NotEmpty List<String> taskTypes,
+    String idempotencyKey,
+    Boolean modelEnabled
+) {
+    public FollowupPlanGenerateRequest {
+        taskTypes = taskTypes == null ? List.of() : List.copyOf(taskTypes);
+    }
+
+    public FollowupPlanGenerateRequest(
+            String patientId,
+            String encounterId,
+            String pathwayId,
+            String diseaseCode,
+            String riskLevel,
+            List<String> taskTypes) {
+        this(patientId, encounterId, pathwayId, diseaseCode, riskLevel, taskTypes, null, null);
+    }
+}

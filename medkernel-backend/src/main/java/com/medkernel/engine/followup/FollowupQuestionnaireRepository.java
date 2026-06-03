@@ -11,4 +11,6 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 public interface FollowupQuestionnaireRepository extends CrudRepository<FollowupQuestionnaire, Long>, PagingAndSortingRepository<FollowupQuestionnaire, Long> {
     Optional<FollowupQuestionnaire> findByQuestionnaireId(String questionnaireId);
     Optional<FollowupQuestionnaire> findByTenantIdAndTaskId(String tenantId, String taskId);
+    Optional<FollowupQuestionnaire> findByQuestionnaireIdAndTenantId(String questionnaireId, String tenantId);
+    Optional<FollowupQuestionnaire> findByTenantIdAndIdempotencyKey(String tenantId, String idempotencyKey);
 }

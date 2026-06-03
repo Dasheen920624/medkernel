@@ -7,7 +7,18 @@ import java.time.Instant;
  */
 public record FollowupTaskDetailResponse(
     String taskId,
+    String planId,
     FollowupTaskType taskType,
     Instant dueDate,
-    FollowupTaskStatus status
-) {}
+    FollowupTaskStatus status,
+    String executorId,
+    String executorType
+) {
+    public FollowupTaskDetailResponse(
+            String taskId,
+            FollowupTaskType taskType,
+            Instant dueDate,
+            FollowupTaskStatus status) {
+        this(taskId, null, taskType, dueDate, status, null, null);
+    }
+}

@@ -13,6 +13,7 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 public interface FollowupPlanRepository extends CrudRepository<FollowupPlan, Long>, PagingAndSortingRepository<FollowupPlan, Long> {
     Optional<FollowupPlan> findByPlanId(String planId);
     Optional<FollowupPlan> findByTenantIdAndPathwayId(String tenantId, String pathwayId);
+    Optional<FollowupPlan> findByTenantIdAndIdempotencyKey(String tenantId, String idempotencyKey);
     Page<FollowupPlan> findByTenantIdAndPatientId(String tenantId, String patientId, Pageable pageable);
     Page<FollowupPlan> findByTenantId(String tenantId, Pageable pageable);
 }

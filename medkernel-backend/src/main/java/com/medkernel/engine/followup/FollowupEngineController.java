@@ -69,6 +69,34 @@ public class FollowupEngineController {
     }
 
     /**
+     * 分页查询随访任务列表。
+     */
+    @GetMapping("/tasks")
+    @PreAuthorize("@perm.has('followup.read')")
+    public ApiResult<PageResponse<FollowupTaskDetailResponse>> listTasks(
+            @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) String planId,
+            @RequestParam(required = false) FollowupTaskStatus status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.listTasks(
+            new FollowupTaskFilter(patientId, planId, status),
+            new PageRequest(page, size, sort)
+        ));
+    }
+
+    /**
+     * 顶层随访问卷下发 / 作答入口。
+     */
+    @PostMapping("/questionnaires")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupQuestionnaireResponse> dispatchQuestionnaire(
+            @Valid @RequestBody FollowupQuestionnaireRequest request) {
+        return ApiResult.ok(service.dispatchQuestionnaire(request));
+    }
+
+    /**
      * 提交患者出院随访问卷数据，并自动标记对应随访任务为已完成。
      *
      * @param taskId  随访任务业务唯一 ID
@@ -95,5 +123,25 @@ public class FollowupEngineController {
     public ApiResult<Void> reportAbnormal(@Valid @RequestBody FollowupAbnormalReportRequest request) {
         service.reportAbnormal(request);
         return ApiResult.empty();
+    }
+
+    /**
+     * API-09 顶层异常回院上报入口。
+     */
+    @PostMapping("/abnormal-reports")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupAbnormalReportResponse> reportAbnormalV1(
+            @Valid @RequestBody FollowupAbnormalReportRequest request) {
+        return ApiResult.ok(service.reportAbnormal(request));
+    }
+
+    /**
+     * 随访结果回流到标准临床上下文。
+     */
+    @PostMapping("/results")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupResultBackflowResponse> backflowResult(
+            @Valid @RequestBody FollowupResultBackflowRequest request) {
+        return ApiResult.ok(service.backflowResult(request));
     }
 }
