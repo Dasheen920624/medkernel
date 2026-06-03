@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 API-09 随访 API 🚧
+### 线 1 · D3 API-11 嵌入 API 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-api-09-followup-api`
-- 目标：领取 D3 第三闸 [API-09](cards/D3/API-09.md)，把随访计划、任务、问卷下发 / 答案、异常返院触发、结果回流和幂等派发契约化；模型未接入时仍走确定性计划，不能伪造问卷、答案、通知或返院闭环。
-- 状态：API-07 已经 #326 squash 合入 `origin/main`（merge `fa883d888e9ecdbad756694af02ad002d6390f41`）并清理工作树；当前 API-09 本地实现、V69 五方言迁移、领域事件 schema、文档同步、提交、后端全量与提交后 changed-mode T-GATE 已完成，`docs/backlog.md` 已将 API-09 标 `done`。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
-- 下一步（精确到动作/命令）：1. 推送 `codex/d3-api-09-followup-api` 并创建 PR；2. 远端 CI 8/8 全绿后 squash merge；3. 合并确认 `origin/main` 后清理工作树并领取 D3 [API-11](cards/D3/API-11.md)。
-- 相关文件 / 测试 / 坑：新增 `GET /followup/tasks`、`POST /followup/questionnaires`、`POST /followup/abnormal-reports`、`POST /followup/results`；随访计划 / 任务 / 问卷 / 事件补租户幂等键，异常上报只接受 `ABNORMAL_RETURN` 并生成 `RETURN_VISIT` 任务 + `NOTIFICATION_REQUESTED` 事件，结果回流调用 API-01 `ContextSnapshotService`，患者姓名缺失时写入明确的 `PARTIAL` 资源“随访回流未提供患者姓名”而不伪造真实姓名。已跑：红灯聚焦测试先失败；聚焦测试通过；迁移 / 跨模块套件通过；`DomainEventSchemaContractTest` 通过；后端全量 `mvn -q test` 190 reports / 1163 tests / 0 failures / 0 errors / 0 skipped；脚本自测 34/34、V69 迁移 files 门禁、提交后 changed-mode 真实性 24 文件 / 配置边界 24 文件 / 迁移 5 文件、中文注释与 diff 检查通过。当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。
+- 分支：`codex/d3-api-11-embed-api`
+- 目标：领取 D3 第四闸 [API-11](cards/D3/API-11.md)，把 iframe / SDK / 纯 API 嵌入契约化；启动令牌一次性消费、过期、白名单、CDS Hooks 风格元数据、反馈回调和诚实降级都必须为真。
+- 状态：API-09 已经 #327 squash 合入 `origin/main`（merge `f648ca1a3b38388f183f995655f7bc5a279c7637`）并清理工作树；当前 API-11 本地实现、V70 五方言迁移、前端 hook 契约、文档同步、后端全量、前端全量 verify 已完成，`docs/backlog.md` 已将 API-11 标 `done`。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
+- 下一步（精确到动作/命令）：1. 跑提交前 T-GATE（脚本自测、changed-mode 真实性 / 配置边界 / 迁移规约、中文注释、diff 检查）；2. 提交并推送 `codex/d3-api-11-embed-api` 创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理工作树并领取 D3 [CDSS-01](cards/D3/CDSS-01.md)，不得跳过阶段。
+- 相关文件 / 测试 / 坑：`POST /api/v1/engine/embed/launch` 改为 `EmbedLaunchRequest` 请求体，旧 GET 启动兑换入口已清理；`EmbedLaunchToken` V70 新增 `integration_mode`、`hook`、`hook_instance`、`consumed_at` 与状态 / Hook 索引；`consumeUnusedToken` 用条件更新保证一次性原子消费；`ENG-EMBED-005` 表达嵌入方式 / Hook / 状态不匹配；反馈只接受已消费令牌并返回 `callbackStatus=NOT_CONNECTED`，不伪造宿主系统回调成功；换上下文返回 `MODEL_DISABLED`、`CONNECTED` 和 CDS Hook 版本。已跑：红灯聚焦测试先失败；`mvn -q -Dtest=EmbedEngineServiceTest,EmbedEngineControllerTest,EmbedEngineControllerSecurityTest test` 通过；迁移 / OpenAPI / 错误码套件通过；`mvn -q test` 190 reports / 1170 tests / 0 failures / 0 errors / 0 skipped；`npm run typecheck`、`npm test -- EmbedLaunch.test.tsx`、`npm run verify` 51 files / 311 tests 通过。当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -197,4 +197,4 @@
 
 ---
 
-> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `API-02` 已 #325 squash 合入 `origin/main`（merge `99f53b3337aeb3053ff2ca6737fcbce5f9faf727`）并清理工作树，当前在途线为 D3 `API-07`。API-07 本地实现与文档同步已完成，后端聚焦套件、跨模块套件、迁移套件、最终 `mvn -q test`（190 reports / 1149 tests / 0 failures / 0 errors / 0 skipped）通过；工作树 T-GATE 与提交后 changed-mode 真实性 / 配置边界 / 迁移规约 / 脚本自测 / 中文注释 / diff 检查通过；下一步推送、PR、远端 CI 与合并，合并后领取 D3 `API-09`。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `API-09` 已 #327 squash 合入 `origin/main`（merge `f648ca1a3b38388f183f995655f7bc5a279c7637`）并清理工作树，当前在途线为 D3 `API-11`。API-11 本地实现与文档同步已完成，后端聚焦套件、迁移 / 契约套件、最终 `mvn -q test`（190 reports / 1170 tests / 0 failures / 0 errors / 0 skipped）通过；前端 `npm run verify`（51 files / 311 tests）通过；下一步跑 T-GATE、提交、推送、PR、远端 CI 与合并，合并后领取 D3 `CDSS-01`。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
