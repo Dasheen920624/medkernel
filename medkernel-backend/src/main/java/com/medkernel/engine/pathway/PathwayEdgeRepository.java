@@ -3,6 +3,7 @@ package com.medkernel.engine.pathway;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -29,4 +30,20 @@ public interface PathwayEdgeRepository extends ListCrudRepository<PathwayEdge, L
      */
     List<PathwayEdge> findByTemplateIdAndTenantIdAndFromNodeCodeOrderByPriorityAsc(
         String templateId, String tenantId, String fromNodeCode);
+
+    /**
+     * 查询可能引用指定规则的路径流转边候选，调用方必须再解析 JSON 做精确确认。
+     */
+    @Query("""
+        SELECT * FROM pathway_edge
+        WHERE tenant_id = :tenantId
+          AND (
+            condition_json LIKE '%' || :ruleId || '%'
+            OR condition_json LIKE '%' || :ruleCode || '%'
+            OR condition_json LIKE '%' || :versionId || '%'
+          )
+        ORDER BY template_id ASC, priority ASC, id ASC
+        """)
+    List<PathwayEdge> findByTenantIdAndRuleReference(
+        String tenantId, String ruleId, String ruleCode, String versionId);
 }

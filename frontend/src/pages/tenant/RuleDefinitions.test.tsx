@@ -277,7 +277,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ruleId: "rule-1",
         versionId: "ver-1",
         riskLevel: "HIGH",
-        analysisStatus: "PARTIAL",
+        analysisStatus: "COMPLETE",
         impactDigest: "sha256:impact-abc",
         affectedRules: [
           {
@@ -287,10 +287,31 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             impactReason: "当前草稿版本",
           },
         ],
-        affectedPathways: [],
-        inPathPatients: [],
-        syncTargets: [],
-        unavailableScopes: ["路径模板反向索引待接入"],
+        affectedPathways: [
+          {
+            objectType: "PATHWAY_TEMPLATE",
+            objectId: "pt-1",
+            displayName: "慢阻肺抗凝路径",
+            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+          },
+        ],
+        inPathPatients: [
+          {
+            objectType: "PATIENT_PATHWAY",
+            objectId: "ppath-active",
+            displayName: "患者 patient-1 / 就诊 enc-1",
+            impactReason: "当前节点 ASSESS",
+          },
+        ],
+        syncTargets: [
+          {
+            objectType: "SYNC_TARGET",
+            objectId: "target-clinical",
+            displayName: "院内规则库",
+            impactReason: "配置包 pkg-1 同步状态 SUCCESS",
+          },
+        ],
+        unavailableScopes: [],
         traceId: "trace-impact",
       };
       apiMocks.publishRule.mockResolvedValue({
@@ -300,7 +321,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         traceId: "trace-publish",
         results: [],
         impactDigest: "sha256:impact-abc",
-        impactStatus: "PARTIAL",
+        impactStatus: "COMPLETE",
       });
 
       const user = await openDraftRuleDrawer();
@@ -310,7 +331,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(screen.getByText("自动校验")).toBeInTheDocument();
       expect(screen.getByText("看影响")).toBeInTheDocument();
       expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
-      expect(screen.getByText("路径模板反向索引待接入")).toBeInTheDocument();
+      expect(screen.getByText("已完成真实影响分析")).toBeInTheDocument();
+      expect(screen.getByText(/慢阻肺抗凝路径/)).toBeInTheDocument();
+      expect(screen.getByText(/患者 patient-1/)).toBeInTheDocument();
+      expect(screen.getByText(/院内规则库/)).toBeInTheDocument();
 
       await user.type(screen.getByLabelText("发布审核说明"), "已查看影响摘要并确认灰度发布");
       await user.click(screen.getByRole("button", { name: "提交发布门禁" }));
