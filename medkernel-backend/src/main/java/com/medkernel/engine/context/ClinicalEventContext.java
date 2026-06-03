@@ -18,6 +18,7 @@ public record ClinicalEventContext(
     @NotBlank String tenantId,
     @NotNull OrgScope orgScope,
     @NotNull ClinicalEventType eventType,
+    @NotNull ClinicalEventTriggerPoint clinicalTriggerPoint,
     @NotBlank String patientId,
     String encounterId,
     String contextSnapshotId,
@@ -34,15 +35,31 @@ public record ClinicalEventContext(
         if (orgScope == null) {
             orgScope = OrgScope.tenant(tenantId);
         }
+        if (clinicalTriggerPoint == null) {
+            clinicalTriggerPoint = fallbackTriggerPoint(eventType);
+        }
         if (triggerSource == null || triggerSource.isBlank()) {
             String source = sourceSystem == null || sourceSystem.isBlank() ? "UNKNOWN" : sourceSystem;
-            triggerSource = source + ":" + (eventType == null ? "UNKNOWN" : eventType.name());
+            triggerSource = source + ":" + clinicalTriggerPoint.wireValue();
         }
         payload = payload == null ? NullNode.getInstance() : payload.deepCopy();
         codeMappingAnchors = codeMappingAnchors == null ? List.of() : List.copyOf(codeMappingAnchors);
     }
 
     public String triggerPoint() {
-        return eventType == null ? "UNKNOWN" : eventType.name();
+        return clinicalTriggerPoint.wireValue();
+    }
+
+    private static ClinicalEventTriggerPoint fallbackTriggerPoint(ClinicalEventType eventType) {
+        if (eventType == null) {
+            return ClinicalEventTriggerPoint.PATIENT_VIEW;
+        }
+        return switch (eventType) {
+            case ORDER -> ClinicalEventTriggerPoint.ORDER_SIGN;
+            case REPORT -> ClinicalEventTriggerPoint.RESULT_REVIEW;
+            case DISCHARGE -> ClinicalEventTriggerPoint.DISCHARGE_SIGN;
+            case FOLLOWUP -> ClinicalEventTriggerPoint.FOLLOWUP_ALERT;
+            case DIAGNOSIS, ADMISSION -> ClinicalEventTriggerPoint.PATIENT_VIEW;
+        };
     }
 }

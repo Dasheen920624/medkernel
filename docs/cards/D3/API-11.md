@@ -18,21 +18,21 @@
 已有实质基础：`engine/embed/` 下 `EmbedEngineController` / `EmbedEngineService` + `EmbedLaunchToken` + `EmbedLaunchContextResponse` + `EmbedFeedbackRequest` + 安全/契约测试。本卡＝把 launch token 一次性/过期/白名单 + 三路嵌入 + 回调契约化，token 归 [EMBED-01](EMBED-01.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 launch token：签发 → 一次性消费换取上下文（`EmbedLaunchContextResponse`），重复使用拒绝。
-- [ ] FR-2 过期/白名单：token 过期拒绝；来源 origin 不在白名单拒绝。
-- [ ] FR-3 三路嵌入：iframe / SDK / 纯 API 三种集成方式契约一致。
-- [ ] FR-4 事件/回调：CDS Hooks 风格事件（[OPT-02](OPT-02.md)）+ 反馈回调（`EmbedFeedbackRequest`）。
-- [ ] FR-5 降级：引擎/模型不可用诚实返回 `MODEL_DISABLED`/`NOT_CONNECTED`，不伪造嵌入卡。
+- [x] FR-1 launch token：签发 → 一次性消费换取上下文（`EmbedLaunchContextResponse`），重复使用拒绝。
+- [x] FR-2 过期/白名单：token 过期拒绝；来源 origin 不在白名单拒绝。
+- [x] FR-3 三路嵌入：iframe / SDK / 纯 API 三种集成方式契约一致。
+- [x] FR-4 事件/回调：CDS Hooks 风格事件（[OPT-02](OPT-02.md)）+ 反馈回调（`EmbedFeedbackRequest`）。
+- [x] FR-5 降级：引擎/模型不可用诚实返回 `MODEL_DISABLED`/`NOT_CONNECTED`，不伪造嵌入卡。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - 端点：`POST /api/v1/engine/embed/launch-tokens`（签发）· `POST .../embed/launch`（消费换上下文）· `POST .../embed/feedback`（反馈）
-- DTO：`EmbedLaunchToken` / `EmbedLaunchContextResponse` / `EmbedFeedbackRequest`（Record + Bean Validation）
-- 响应信封：`ApiResult` / `ProblemDetail`；状态机：变更类（签发→已消费/已过期/已撤销）
+- DTO：`EmbedLaunchTokenRequest` / `EmbedLaunchTokenResponse` / `EmbedLaunchRequest` / `EmbedLaunchContextResponse` / `EmbedFeedbackRequest` / `EmbedFeedbackResponse`（Record + Bean Validation）
+- 响应信封：`ApiResult` / `ProblemDetail`；状态机：`UNUSED` → `USED` / `EXPIRED` / `REVOKED`
 - 幂等 / 错误码 / traceId：token 一次性（消费即失效）；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
-- 复用 `EmbedLaunchToken` 表族（[EMBED-01](EMBED-01.md) 归属）+ 白名单/origin 配置；五方言（[BASE-05](../D0/BASE-05.md)）
+- 复用 `EmbedLaunchToken` 表族（[EMBED-01](EMBED-01.md) 归属）+ 白名单/origin 配置；V70 五方言补 `integration_mode` / `hook` / `hook_instance` / `consumed_at`、状态过期索引和 Hook 索引（[BASE-05](../D0/BASE-05.md)）
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：第三方系统嵌入的统一入口契约。
@@ -52,14 +52,15 @@
 - 本卡落点：安全可控的三路嵌入契约，token 归 [EMBED-01](EMBED-01.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：token 一次性消费；过期/非白名单拒绝。
-- [ ] AC-2（FR-3/4）：三路嵌入契约一致；事件/回调可达。
-- [ ] AC-3（FR-5）：断连/关模型诚实降级，无伪造卡。
+- [x] AC-1（FR-1/2）：token 一次性消费；过期/非白名单拒绝。
+- [x] AC-2（FR-3/4）：三路嵌入契约一致；事件/回调可达。
+- [x] AC-3（FR-5）：断连/关模型诚实降级，无伪造卡。
 - 关联 A1–A9 剧本：A4 嵌入触发。
 - T-GATE：后端真实性门禁全绿（token 不可重放 / 白名单不可绕）。
 - B0 验收：关模型嵌入换上下文 + 确定性命中仍可用。
 
 ## 完工证据
-- 代码 permalink：`engine/embed` launch token + 三路嵌入契约。
-- 测试：token 一次性 / 过期 / 白名单 / 降级 + 安全测试。
+- 代码 permalink：`engine/embed` launch token + 三路嵌入契约（PR 合并后回填）。
+- 测试：红灯先失败（缺 `EmbedLaunchRequest` / 三路模式 / 降级响应 / `ENG-EMBED-005` / 原子消费仓储方法）；绿灯已跑 `mvn -q -Dtest=EmbedEngineServiceTest,EmbedEngineControllerTest,EmbedEngineControllerSecurityTest test`、迁移/契约套件、后端全量 `mvn -q test`、前端 `npm run verify`。
+- T-GATE：提交前后 changed-mode 真实性 / 配置边界 / 迁移规约、中文注释、diff 检查和脚本自测（PR 前后以最新命令为准）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

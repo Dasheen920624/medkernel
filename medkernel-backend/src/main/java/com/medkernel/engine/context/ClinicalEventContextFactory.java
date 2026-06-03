@@ -30,6 +30,7 @@ public class ClinicalEventContextFactory {
             event.tenantId(),
             readOrgScope(event),
             event.eventType(),
+            event.triggerPoint(),
             event.patientId(),
             event.encounterId(),
             event.snapshotId(),
@@ -68,6 +69,6 @@ public class ClinicalEventContextFactory {
         String source = event.sourceSystem() == null || event.sourceSystem().isBlank()
             ? "UNKNOWN"
             : event.sourceSystem();
-        return source + ":" + event.eventType().name();
+        return source + ":" + event.triggerPoint().wireValue();
     }
 }

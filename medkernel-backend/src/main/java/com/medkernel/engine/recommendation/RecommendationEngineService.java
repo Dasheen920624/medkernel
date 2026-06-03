@@ -2,8 +2,10 @@ package com.medkernel.engine.recommendation;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.medkernel.shared.api.PageRequest;
@@ -27,9 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>负责推荐触发校验（高风险卡必须 {@code requiresPhysicianConfirmation=true}、强打断必须高风险、
  * 每张卡至少一条来源）、推荐卡状态机推进（{@link RecommendationCardStatus}）、
- * 反馈幂等记录、疲劳治理信号采集和审计/状态历史/诊断聚合。
+ * 反馈幂等记录、疲劳治理信号采集与阈值抑制、审计/状态历史/诊断聚合。
  * 不自动生成医嘱、诊断、病历或随访任务；
- * 错误码 {@code ENG_REC_001..ENG_REC_006} 覆盖参数/未找到/反馈终止态/来源缺失/高风险未确认等场景。
+ * 错误码 {@code ENG_REC_001..ENG_REC_007} 覆盖参数/未找到/反馈终止态/来源缺失/高风险未确认等场景。
  */
 @Service
 public class RecommendationEngineService {
@@ -44,6 +46,8 @@ public class RecommendationEngineService {
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final BusinessMetrics businessMetrics;
+    private final RecommendationDeterministicMatcher deterministicMatcher;
+    private final RecommendationFatiguePolicyResolver fatiguePolicyResolver;
 
     public RecommendationEngineService(
             RecommendationTriggerRepository triggers,
@@ -55,7 +59,9 @@ public class RecommendationEngineService {
             StateTransitionRecorder transitions,
             DiagnoseResponseAssembler diagnoseAssembler,
             IsolatedAuditPublisher isolatedAudit,
-            BusinessMetrics businessMetrics) {
+            BusinessMetrics businessMetrics,
+            RecommendationDeterministicMatcher deterministicMatcher,
+            RecommendationFatiguePolicyResolver fatiguePolicyResolver) {
         this.triggers = triggers;
         this.cards = cards;
         this.sources = sources;
@@ -66,6 +72,8 @@ public class RecommendationEngineService {
         this.diagnoseAssembler = diagnoseAssembler;
         this.isolatedAudit = isolatedAudit;
         this.businessMetrics = businessMetrics;
+        this.deterministicMatcher = deterministicMatcher;
+        this.fatiguePolicyResolver = fatiguePolicyResolver;
     }
 
     /**
@@ -122,17 +130,94 @@ public class RecommendationEngineService {
     }
 
     /**
-     * 分页查询当前租户的推荐卡，按 status / riskLevel / scenarioCode / patientId 过滤；空过滤返回全量。
+     * 客户面推荐评估接口：关模型时用标准上下文 + 已发布资产生成确定性候选，
+     * 合并调用方传入的非 AI 候选卡后持久化并返回 {@code MODEL_DISABLED}。
+     *
+     * <p>低/中风险卡按配置中心疲劳策略或旧请求兼容阈值做历史低价值信号抑制；
+     * 高风险/红线卡永不因疲劳阈值抑制。被抑制卡以 SUPPRESSED 状态留库并写疲劳信号，保证可解释、可审计。
+     */
+    @Transactional
+    public RecommendationEvaluationResponse evaluate(RecommendationTriggerRequest request) {
+        List<RecommendationCardRequest> deterministicCards = deterministicCards(request);
+        try {
+            validateCards(deterministicCards);
+        } catch (ApiException e) {
+            isolatedAudit.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE, "recommendation_trigger", request.triggerCode(),
+                e.errorCode().code(), "推荐评估校验失败 errorCode=" + e.errorCode().code()));
+            throw e;
+        }
+
+        String tenantId = tenantId();
+        String actor = actor();
+        String traceId = traceId();
+        Instant now = Instant.now();
+        String triggerId = "rt-" + UUID.randomUUID();
+        int totalCardCount = deterministicCards.size();
+        RecommendationTriggerStatus status = deterministicCards.isEmpty()
+            ? RecommendationTriggerStatus.NO_CARD
+            : RecommendationTriggerStatus.EVALUATED;
+
+        RecommendationTrigger trigger = triggers.save(new RecommendationTrigger(
+            null, triggerId, tenantId, request.triggerCode(), request.triggerType(),
+            request.sourceEventId(), request.contextSnapshotId(), request.patientId(), request.encounterId(),
+            request.patientPathwayId(), request.scenarioCode(), request.packageVersion(), request.inputDigest(),
+            status, null, request.occurredAt() == null ? now : request.occurredAt(),
+            now, actor, now, actor, traceId));
+
+        List<RecommendationCard> visibleCards = new ArrayList<>();
+        int suppressedCount = 0;
+        for (RecommendationCardRequest cardRequest : deterministicCards) {
+            boolean suppressed = shouldSuppress(request, cardRequest, tenantId, now);
+            RecommendationCard card = saveCard(trigger, cardRequest, now, actor, traceId,
+                suppressed ? RecommendationCardStatus.SUPPRESSED : RecommendationCardStatus.PENDING);
+            for (RecommendationSourceRequest sourceRequest : cardRequest.sources()) {
+                saveSource(card.cardId(), sourceRequest, now, actor, traceId);
+            }
+            saveFatigueSignal(trigger, card, suppressed ? RecommendationFatigueSignalType.SUPPRESSED
+                : initialSignal(cardRequest), null, now, actor, traceId);
+            if (suppressed) {
+                suppressedCount++;
+            } else {
+                visibleCards.add(card);
+                businessMetrics.incCdssAlerts();
+            }
+        }
+
+        transitions.record("recommendation_trigger", triggerId, null, status.name(), "评估推荐触发", null);
+        auditPublisher.publish(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
+            "评估推荐触发 " + request.triggerCode());
+        return new RecommendationEvaluationResponse(
+            triggerId, status, totalCardCount, visibleCards.size(), suppressedCount,
+            RecommendationModelStatus.MODEL_DISABLED, visibleCards, traceId);
+    }
+
+    private List<RecommendationCardRequest> deterministicCards(RecommendationTriggerRequest request) {
+        LinkedHashMap<String, RecommendationCardRequest> byCode = new LinkedHashMap<>();
+        for (RecommendationCardRequest card : deterministicMatcher.match(request)) {
+            byCode.put(card.cardCode(), card);
+        }
+        request.candidateCards().stream()
+            .filter(card -> !card.aiGenerated())
+            .forEach(card -> byCode.putIfAbsent(card.cardCode(), card));
+        return List.copyOf(byCode.values());
+    }
+
+    /**
+     * 分页查询当前租户的推荐卡，按 status / riskLevel / scenarioCode / patientId / encounterId / triggerPoint 过滤。
      */
     @Transactional(readOnly = true)
     public PageResponse<RecommendationCard> listCards(RecommendationCardFilter filter, PageRequest pageRequest) {
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        RecommendationCardFilter f = filter == null ? new RecommendationCardFilter(null, null, null, null) : filter;
+        RecommendationCardFilter f = filter == null ? new RecommendationCardFilter(null, null, null, null, null, null)
+            : filter;
         String status = f.status() == null ? null : f.status().name();
         String risk = f.riskLevel() == null ? null : f.riskLevel().name();
-        long total = cards.countByFilter(tenantId(), status, risk, f.scenarioCode(), f.patientId());
+        long total = cards.countByFilter(
+            tenantId(), status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint());
         List<RecommendationCard> rows = cards.pageByFilter(
-            tenantId(), status, risk, f.scenarioCode(), f.patientId(), req.offset(), req.safeSize());
+            tenantId(), status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint(),
+            req.offset(), req.safeSize());
         return PageResponse.of(rows, req, total);
     }
 
@@ -168,6 +253,16 @@ public class RecommendationEngineService {
     @Transactional
     public RecommendationFeedbackResponse feedback(String cardId, RecommendationFeedbackRequest request) {
         RecommendationCard card = findCard(cardId);
+        if (request.idempotencyKey() != null) {
+            var existing = feedback.findByCardIdAndTenantIdAndIdempotencyKey(cardId, tenantId(), request.idempotencyKey());
+            if (existing.isPresent()) {
+                RecommendationFeedback savedFeedback = existing.get();
+                return new RecommendationFeedbackResponse(savedFeedback.feedbackId(), cardId,
+                    nextStatus(savedFeedback.feedbackType()),
+                    savedFeedback.traceId() == null ? traceId() : savedFeedback.traceId());
+            }
+        }
+        validateFeedbackReason(request);
         if (isClosed(card) || isExpired(card)) {
             throw new ApiException(ErrorCode.ENG_REC_004);
         }
@@ -180,8 +275,9 @@ public class RecommendationEngineService {
         RecommendationCard savedCard = cards.save(rewriteStatus(card, nextStatus, now, actor));
         String feedbackId = "rf-" + UUID.randomUUID();
         feedback.save(new RecommendationFeedback(
-            null, feedbackId, tenantId, cardId, request.feedbackType(), request.reasonCode(),
-            request.reasonText(), actor, request.operatorRole(), now, actor, now, actor, traceId));
+            null, feedbackId, tenantId, cardId, request.idempotencyKey(), request.feedbackType(),
+            request.reasonCode(), request.reasonText(), actor, request.operatorRole(),
+            now, actor, now, actor, traceId));
 
         RecommendationTrigger trigger = triggers.findByTriggerIdAndTenantId(card.triggerId(), tenantId).orElse(null);
         saveFatigueSignal(trigger, savedCard, feedbackSignal(request.feedbackType()), actor, now, actor, traceId);
@@ -255,10 +351,16 @@ public class RecommendationEngineService {
 
     private RecommendationCard saveCard(RecommendationTrigger trigger, RecommendationCardRequest request,
                                         Instant now, String actor, String traceId) {
+        return saveCard(trigger, request, now, actor, traceId, RecommendationCardStatus.PENDING);
+    }
+
+    private RecommendationCard saveCard(RecommendationTrigger trigger, RecommendationCardRequest request,
+                                        Instant now, String actor, String traceId,
+                                        RecommendationCardStatus status) {
         return cards.save(new RecommendationCard(
             null, "rc-" + UUID.randomUUID(), trigger.tenantId(), trigger.triggerId(), request.cardCode(),
             request.cardType(), request.title(), request.summary(), request.suggestedAction(),
-            request.riskLevel(), request.interruptLevel(), RecommendationCardStatus.PENDING,
+            request.riskLevel(), request.interruptLevel(), status,
             request.requiresPhysicianConfirmation(), request.aiGenerated(), request.sourceSummary(),
             request.explanationJson(), request.fatigueKey(), request.expiresAt(),
             now, actor, now, actor, traceId));
@@ -323,6 +425,39 @@ public class RecommendationEngineService {
             case DEFER -> RecommendationFatigueSignalType.DEFERRED;
             case DISMISS -> RecommendationFatigueSignalType.DISMISSED;
         };
+    }
+
+    private boolean shouldSuppress(RecommendationTriggerRequest request, RecommendationCardRequest cardRequest,
+                                   String tenantId, Instant now) {
+        if (isHighRisk(cardRequest.riskLevel())) {
+            return false;
+        }
+        if (request.patientId() == null || request.patientId().isBlank()
+                || cardRequest.fatigueKey() == null || cardRequest.fatigueKey().isBlank()) {
+            return false;
+        }
+        Optional<RecommendationFatiguePolicy> policy = fatiguePolicyResolver.resolve(request);
+        if (policy.isEmpty()) {
+            return false;
+        }
+        RecommendationFatiguePolicy resolvedPolicy = policy.get();
+        Instant windowStartedAt = now.minusSeconds(resolvedPolicy.windowHours() * 3600L);
+        return fatigueSignals.countLowValueSignals(
+            tenantId, request.patientId(), cardRequest.fatigueKey(), windowStartedAt)
+            >= resolvedPolicy.threshold();
+    }
+
+    private void validateFeedbackReason(RecommendationFeedbackRequest request) {
+        if ((request.feedbackType() == RecommendationFeedbackType.ACCEPT
+                || request.feedbackType() == RecommendationFeedbackType.REJECT
+                || request.feedbackType() == RecommendationFeedbackType.DISMISS)
+                && (!hasText(request.reasonCode()) || !hasText(request.reasonText()))) {
+            throw new ApiException(ErrorCode.ENG_REC_007);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private boolean isHighRisk(RecommendationRiskLevel riskLevel) {

@@ -18,9 +18,27 @@ public record FollowupEvent(
     @Column("event_type") FollowupEventType eventType,
     String payload,
     @Column("triggered_by") String triggeredBy,
+    @Column("idempotency_key") String idempotencyKey,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
-) {}
+) {
+    public FollowupEvent(
+            Long id,
+            String eventId,
+            String tenantId,
+            String planId,
+            FollowupEventType eventType,
+            String payload,
+            String triggeredBy,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(id, eventId, tenantId, planId, eventType, payload, triggeredBy, null,
+            createdAt, createdBy, updatedAt, updatedBy, traceId);
+    }
+}

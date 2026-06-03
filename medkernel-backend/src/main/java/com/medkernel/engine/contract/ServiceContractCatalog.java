@@ -26,12 +26,28 @@ public final class ServiceContractCatalog {
             "com.medkernel.compliance.evidence.controller.EvidenceController", "/api/v1/compliance/evidence",
             permissions("audit.read", "audit.export"),
             audits(audit(AuditAction.EXPORT, "evidence_snapshot", "生成、校验和导出合规证据"))),
-        contract("clinical-event", "临床事件服务",
+        contractWithOpenApiPaths("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/events",
+            openApiPaths("/api/v1/engine/events/**", "/api/v1/engine/clinical-events/**"),
             permissions("event.write", "event.read"),
             audits(
                 audit(AuditAction.CREATE, "clinical_event", "接收临床事件"),
-                audit(AuditAction.EXECUTE, "clinical_event", "异步处理和重放临床事件"))),
+                audit(AuditAction.EXECUTE, "clinical_event", "异步处理、重放、死信回放和客户回调出站登记临床事件"))),
+        contract("clinical-event-async-suffix", "临床事件异步受理 suffix 服务",
+            "com.medkernel.engine.context.ClinicalEventAsyncSuffixController",
+            "/api/v1/engine/clinical-events:async",
+            permissions("event.write"),
+            audits(audit(AuditAction.CREATE, "clinical_event", "客户面 suffix 异步接收临床事件"))),
+        contract("clinical-event-batch-suffix", "临床事件批量受理 suffix 服务",
+            "com.medkernel.engine.context.ClinicalEventBatchSuffixController",
+            "/api/v1/engine/clinical-events:batch",
+            permissions("event.write"),
+            audits(audit(AuditAction.CREATE, "clinical_event", "客户面 suffix 批量接收临床事件"))),
+        contract("clinical-event-replay-suffix", "临床事件回放 suffix 服务",
+            "com.medkernel.engine.context.ClinicalEventReplaySuffixController",
+            "/api/v1/engine/clinical-events:replay",
+            permissions("event.write"),
+            audits(audit(AuditAction.EXECUTE, "clinical_event", "客户面 suffix 回放临床事件"))),
         contract("context-snapshot", "标准上下文快照服务",
             "com.medkernel.engine.context.ContextSnapshotController", "/api/v1/engine/context/snapshots",
             permissions("context.write", "context.read"),
@@ -113,14 +129,16 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.EXECUTE, "model_capability_task", "提交和重试模型任务"),
                 audit(AuditAction.UPDATE, "model_policy", "校验模型路由策略"))),
-        contract("mpi", "患者主索引服务",
+        contractWithOpenApiPaths("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
+            openApiPaths("/api/v1/engine/mpi/**", "/api/v1/clinical/mpi/**"),
             permissions("mpi.read", "mpi.write"),
             audits(
                 audit(AuditAction.UPDATE, "mpi_patient", "合并患者主索引"),
                 audit(AuditAction.REVIEW, "mk_mpi_merge_review", "确认高危 MPI 合并审核单"))),
-        contract("org-unit", "组织单元服务",
+        contractWithOpenApiPaths("org-unit", "组织单元服务",
             "com.medkernel.engine.org.OrgUnitController", "/api/v1/engine/org/org-units",
+            openApiPaths("/api/v1/engine/org/org-units/**", "/api/v1/tenant/org-units/**"),
             permissions("org.read", "org.write"),
             audits(audit(AuditAction.UPDATE, "org_unit", "创建和调整组织单元"))),
         contract("pathway", "路径引擎服务",
@@ -147,8 +165,13 @@ public final class ServiceContractCatalog {
             "com.medkernel.engine.recommendation.RecommendationEngineController", "/api/v1/engine/recommendations",
             permissions("recommendation.write", "recommendation.read", "recommendation.accept"),
             audits(
-                audit(AuditAction.CREATE, "recommendation_trigger", "创建推荐触发"),
+                audit(AuditAction.EXECUTE, "recommendation_trigger", "创建或评估推荐触发"),
                 audit(AuditAction.FEEDBACK, "recommendation_card", "记录提醒反馈"))),
+        contract("recommendation-evaluate-suffix", "推荐评估 suffix 服务",
+            "com.medkernel.engine.recommendation.RecommendationEvaluateSuffixController",
+            "/api/v1/engine/recommendations:evaluate",
+            permissions("recommendation.write"),
+            audits(audit(AuditAction.EXECUTE, "recommendation_trigger", "客户面评估推荐触发"))),
         contract("rule", "规则引擎服务",
             "com.medkernel.engine.rule.RuleEngineController", "/api/v1/engine/rule",
             permissions("rule.write", "rule.read", "rule.publish"),
@@ -277,6 +300,17 @@ public final class ServiceContractCatalog {
             .toList();
     }
 
+    private static ServiceContract contractWithOpenApiPaths(String id,
+                                                            String title,
+                                                            String controllerClassName,
+                                                            String basePath,
+                                                            List<String> openApiPaths,
+                                                            List<ServicePermissionDeclaration> permissions,
+                                                            List<ServiceAuditDeclaration> auditPoints) {
+        return new ServiceContract(id, title, controllerClassName, basePath,
+            openApiPaths, permissions, auditPoints, List.of());
+    }
+
     private static ServiceContract contract(String id,
                                             String title,
                                             String controllerClassName,
@@ -313,6 +347,10 @@ public final class ServiceContractCatalog {
 
     private static List<ServiceAuditDeclaration> audits(ServiceAuditDeclaration... declarations) {
         return List.of(declarations);
+    }
+
+    private static List<String> openApiPaths(String... paths) {
+        return List.of(paths);
     }
 
     private static ServiceAuditDeclaration audit(AuditAction action, String targetType, String purpose) {

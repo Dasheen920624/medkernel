@@ -7,5 +7,6 @@ public enum FollowupTaskType {
     QUESTIONNAIRE,
     EXAM,
     LAB,
-    OUTPATIENT
+    OUTPATIENT,
+    RETURN_VISIT
 }

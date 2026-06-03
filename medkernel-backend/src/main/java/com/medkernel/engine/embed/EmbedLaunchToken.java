@@ -20,11 +20,37 @@ public record EmbedLaunchToken(
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
     @Column("trigger_point") String triggerPoint,
-    String status, // UNUSED, USED, EXPIRED
+    String status,
     @Column("expired_at") Instant expiredAt,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy,
-    @Column("trace_id") String traceId
-) {}
+    @Column("trace_id") String traceId,
+    @Column("integration_mode") String integrationMode,
+    String hook,
+    @Column("hook_instance") String hookInstance,
+    @Column("consumed_at") Instant consumedAt
+) {
+    public EmbedLaunchToken(
+            Long id,
+            String token,
+            String tenantId,
+            String userId,
+            String roleCode,
+            String patientId,
+            String encounterId,
+            String triggerPoint,
+            String status,
+            Instant expiredAt,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(
+            id, token, tenantId, userId, roleCode, patientId, encounterId, triggerPoint, status,
+            expiredAt, createdAt, createdBy, updatedAt, updatedBy, traceId,
+            EmbedIntegrationMode.IFRAME.name(), null, null, null);
+    }
+}

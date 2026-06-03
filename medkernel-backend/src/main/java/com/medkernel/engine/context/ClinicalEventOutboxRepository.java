@@ -22,6 +22,20 @@ public interface ClinicalEventOutboxRepository extends ListCrudRepository<Clinic
 
     @Query("""
         SELECT * FROM clinical_event_outbox
+        WHERE tenant_id = :tenantId AND claim_status = 'DEAD'
+        ORDER BY created_at DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<ClinicalEventOutbox> pageDeadByTenantId(String tenantId, int offset, int limit);
+
+    @Query("""
+        SELECT COUNT(*) FROM clinical_event_outbox
+        WHERE tenant_id = :tenantId AND claim_status = 'DEAD'
+        """)
+    long countDeadByTenantId(String tenantId);
+
+    @Query("""
+        SELECT * FROM clinical_event_outbox
         WHERE claim_status = 'PENDING' AND next_attempt_at <= :now
         ORDER BY created_at
         OFFSET 0 ROWS FETCH NEXT :limit ROWS ONLY

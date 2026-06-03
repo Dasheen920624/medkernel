@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
  * GA-ENG-API-02 临床事件 API。
  */
 @RestController
-@RequestMapping("/api/v1/engine/events")
+@RequestMapping({"/api/v1/engine/events", "/api/v1/engine/clinical-events"})
 @DataScope(requireTenant = true)
 public class ClinicalEventController {
 
@@ -79,6 +79,21 @@ public class ClinicalEventController {
     @PreAuthorize("@perm.has('event.write')")
     public ApiResult<ClinicalEventReplayResponse> replay(@PathVariable String eventId) {
         return ApiResult.ok(service.replay(eventId));
+    }
+
+    @GetMapping("/dead-letter")
+    @PreAuthorize("@perm.has('event.read')")
+    public ApiResult<PageResponse<ClinicalEventDeadLetterResponse>> deadLetters(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.listDeadLetters(new PageRequest(page, size, sort)));
+    }
+
+    @PostMapping("/dead-letter/{deadLetterId}/replay")
+    @PreAuthorize("@perm.has('event.write')")
+    public ApiResult<ClinicalEventReplayResponse> replayDeadLetter(@PathVariable String deadLetterId) {
+        return ApiResult.ok(service.replayDeadLetter(deadLetterId));
     }
 
     @GetMapping

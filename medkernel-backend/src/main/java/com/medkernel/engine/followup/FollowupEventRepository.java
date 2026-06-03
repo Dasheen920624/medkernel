@@ -12,4 +12,6 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 public interface FollowupEventRepository extends CrudRepository<FollowupEvent, Long>, PagingAndSortingRepository<FollowupEvent, Long> {
     Optional<FollowupEvent> findByEventId(String eventId);
     List<FollowupEvent> findByTenantIdAndPlanId(String tenantId, String planId);
+    Optional<FollowupEvent> findByTenantIdAndEventTypeAndIdempotencyKey(
+        String tenantId, FollowupEventType eventType, String idempotencyKey);
 }

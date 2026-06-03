@@ -133,6 +133,7 @@ class ClinicalEventProcessorTest {
     private ClinicalEvent event(ClinicalEventStatus status) {
         return new ClinicalEvent(
             1L, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
+            ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
             "MPI-1", "ENC-1", "HIS", "kpv-1", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),

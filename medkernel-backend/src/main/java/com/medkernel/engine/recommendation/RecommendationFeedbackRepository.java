@@ -1,6 +1,7 @@
 package com.medkernel.engine.recommendation;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
@@ -12,4 +13,7 @@ import org.springframework.stereotype.Repository;
 public interface RecommendationFeedbackRepository extends ListCrudRepository<RecommendationFeedback, Long> {
 
     List<RecommendationFeedback> findByCardIdAndTenantIdOrderByCreatedAtAsc(String cardId, String tenantId);
+
+    Optional<RecommendationFeedback> findByCardIdAndTenantIdAndIdempotencyKey(
+        String cardId, String tenantId, String idempotencyKey);
 }

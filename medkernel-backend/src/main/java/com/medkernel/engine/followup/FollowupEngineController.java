@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 随访引擎控制器 (GA-ENG-API-09)。
  *
- * <p>提供随访计划智能生成、分期任务调度、问卷回收提交、以及临床异常事件上报等 REST 服务接口。
+ * <p>提供随访计划生成、分期任务调度、问卷回收提交、以及临床异常事件上报等 REST 服务接口。
  * 全线受 {@link DataScope} 与权限切面拦截，确保多租户数据严格物理隔离。
  */
 @RestController
@@ -26,7 +26,7 @@ public class FollowupEngineController {
     }
 
     /**
-     * 智能生成随访计划。
+     * 根据受控事实生成随访计划。
      *
      * @param request 随访计划生成请求，包含患者、就诊、路径、病种与风险分层等数据
      * @return 随访计划详情及生成的下属随访任务列表
@@ -69,6 +69,34 @@ public class FollowupEngineController {
     }
 
     /**
+     * 分页查询随访任务列表。
+     */
+    @GetMapping("/tasks")
+    @PreAuthorize("@perm.has('followup.read')")
+    public ApiResult<PageResponse<FollowupTaskDetailResponse>> listTasks(
+            @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) String planId,
+            @RequestParam(required = false) FollowupTaskStatus status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.listTasks(
+            new FollowupTaskFilter(patientId, planId, status),
+            new PageRequest(page, size, sort)
+        ));
+    }
+
+    /**
+     * 顶层随访问卷下发 / 作答入口。
+     */
+    @PostMapping("/questionnaires")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupQuestionnaireResponse> dispatchQuestionnaire(
+            @Valid @RequestBody FollowupQuestionnaireRequest request) {
+        return ApiResult.ok(service.dispatchQuestionnaire(request));
+    }
+
+    /**
      * 提交患者出院随访问卷数据，并自动标记对应随访任务为已完成。
      *
      * @param taskId  随访任务业务唯一 ID
@@ -95,5 +123,25 @@ public class FollowupEngineController {
     public ApiResult<Void> reportAbnormal(@Valid @RequestBody FollowupAbnormalReportRequest request) {
         service.reportAbnormal(request);
         return ApiResult.empty();
+    }
+
+    /**
+     * API-09 顶层异常回院上报入口。
+     */
+    @PostMapping("/abnormal-reports")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupAbnormalReportResponse> reportAbnormalV1(
+            @Valid @RequestBody FollowupAbnormalReportRequest request) {
+        return ApiResult.ok(service.reportAbnormal(request));
+    }
+
+    /**
+     * 随访结果回流到标准临床上下文。
+     */
+    @PostMapping("/results")
+    @PreAuthorize("@perm.has('followup.write')")
+    public ApiResult<FollowupResultBackflowResponse> backflowResult(
+            @Valid @RequestBody FollowupResultBackflowRequest request) {
+        return ApiResult.ok(service.backflowResult(request));
     }
 }

@@ -3153,12 +3153,18 @@ export interface EmbedLaunchTokenRequest {
   encounterId: string;
   triggerPoint: string;
   expireSeconds?: number;
+  integrationMode?: "IFRAME" | "SDK" | "API";
+  hook?: string;
+  hookInstance?: string;
 }
 
 export interface EmbedLaunchTokenResponse {
   token: string;
   expiredAt: string;
   embedUrl: string;
+  integrationMode: "IFRAME" | "SDK" | "API";
+  launchEndpoint: string;
+  hook?: string;
 }
 
 export interface EmbedLaunchContextResponse {
@@ -3170,12 +3176,25 @@ export interface EmbedLaunchContextResponse {
   triggerPoint: string;
   active: boolean;
   traceId: string;
+  integrationMode: "IFRAME" | "SDK" | "API";
+  hook?: string;
+  hookInstance?: string;
+  modelStatus: "MODEL_DISABLED";
+  connectionStatus: "CONNECTED" | "NOT_CONNECTED";
+  cdsHookVersion: string;
 }
 
 export interface EmbedFeedbackRequest {
   token: string;
   actionType: "ADOPT" | "REJECT" | string;
   reason?: string;
+}
+
+export interface EmbedFeedbackResponse {
+  token: string;
+  actionType: string;
+  callbackStatus: "CONNECTED" | "NOT_CONNECTED";
+  traceId: string;
 }
 
 export interface EmbedOriginRequest {
@@ -3201,9 +3220,9 @@ export function useEmbedLaunch(token: string) {
     queryKey: ["embed", "launch", token],
     queryFn: async () => {
       if (!token) return null;
-      const { data } = await apiClient.get<{ data: EmbedLaunchContextResponse }>(
+      const { data } = await apiClient.post<{ data: EmbedLaunchContextResponse }>(
         "/engine/embed/launch",
-        { params: { token } },
+        { token, integrationMode: "IFRAME" },
       );
       return data.data;
     },
@@ -3216,7 +3235,11 @@ export function useEmbedLaunch(token: string) {
 export function useSubmitEmbedFeedback() {
   return useMutation({
     mutationFn: async (payload: EmbedFeedbackRequest) => {
-      await apiClient.post<void>("/engine/embed/feedback", payload);
+      const { data } = await apiClient.post<{ data: EmbedFeedbackResponse }>(
+        "/engine/embed/feedback",
+        payload,
+      );
+      return data.data;
     },
   });
 }

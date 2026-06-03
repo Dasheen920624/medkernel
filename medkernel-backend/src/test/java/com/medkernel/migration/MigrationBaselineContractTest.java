@@ -92,7 +92,12 @@ class MigrationBaselineContractTest {
         "V63__fhir_resource_mapping.sql",
         "V64__mpi_merge_review_data_quality_report.sql",
         "V65__pilot_package_template.sql",
-        "V66__integration_business_service_package.sql"
+        "V66__integration_business_service_package.sql",
+        "V67__clinical_event_api_contract.sql",
+        "V68__recommendation_cdss_contract.sql",
+        "V69__followup_api09_contract.sql",
+        "V70__embed_api11_contract.sql",
+        "V71__followup_controlled_plan_clock.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -175,6 +180,7 @@ class MigrationBaselineContractTest {
         "idx_canonical_resource_snapshot",
         "idx_canonical_resource_tenant_type", "idx_clinical_event_tenant_received",
         "idx_clinical_event_snapshot", "idx_context_idempotency_expires",
+        "uk_clinical_event_idempotency", "idx_clinical_event_trigger", "idx_clinical_event_callback",
         "idx_most_entity", "idx_most_tenant_time", "idx_most_trace", "idx_most_failed",
         "idx_mops_trace", "idx_mops_entity", "idx_mops_tenant_time",
         "idx_canonical_resource_trace",
@@ -196,8 +202,8 @@ class MigrationBaselineContractTest {
         "idx_rec_trigger_tenant_time", "idx_rec_trigger_patient", "idx_rec_trigger_status",
         "idx_rec_trigger_scenario", "idx_rec_card_trigger", "idx_rec_card_tenant_status",
         "idx_rec_card_risk", "idx_rec_card_fatigue", "idx_rec_source_card",
-        "idx_rec_feedback_card_time", "idx_rec_fatigue_card", "idx_rec_fatigue_key",
-        "idx_rec_fatigue_tenant_time",
+        "idx_rec_feedback_card_time", "uk_rec_feedback_idempotency",
+        "idx_rec_fatigue_card", "idx_rec_fatigue_key", "idx_rec_fatigue_tenant_time",
         "idx_eval_indicator_tenant_status", "idx_eval_indicator_code_status",
         "idx_eval_run_tenant_time", "idx_eval_run_context",
         "idx_eval_result_run", "idx_eval_result_indicator",
@@ -207,10 +213,15 @@ class MigrationBaselineContractTest {
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
         "idx_release_plan_pkg", "idx_sync_target_tenant", "idx_sync_log_plan",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
-        "idx_followup_plan_tenant_patient", "idx_followup_plan_status",
+        "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
+        "uk_followup_plan_idempotency",
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
-        "idx_followup_questionnaire_task", "idx_followup_event_plan",
-        "idx_followup_event_type", "idx_embed_token_tenant", "idx_model_task_tenant",
+        "uk_followup_task_idempotency", "idx_followup_task_status_due", "idx_followup_task_clock",
+        "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
+        "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
+        "idx_followup_event_type", "uk_followup_event_idempotency",
+        "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
+        "idx_model_task_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -287,6 +298,7 @@ class MigrationBaselineContractTest {
         "uk_context_snapshot_id", "ck_context_snapshot_status", "ck_context_snapshot_quality",
         "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
         "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
+        "ck_clinical_event_trigger_point",
         "uk_context_idempotency_tenant_key",
         "ck_most_error_class",
         "uk_mops_payload_id", "ck_mops_storage_type",
@@ -536,8 +548,10 @@ class MigrationBaselineContractTest {
         Map.entry("sync_target", Set.of("target_type", "status")),
         Map.entry("sync_log", Set.of("status")),
         Map.entry("followup_plan", Set.of("status")),
-        Map.entry("followup_task", Set.of("status")),
+        Map.entry("followup_task", Set.of("status", "task_type")),
         Map.entry("followup_questionnaire", Set.of("status")),
+        Map.entry("followup_event", Set.of("event_type")),
+        Map.entry("embed_launch_token", Set.of("status")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
@@ -1133,6 +1147,134 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V10__clinical_event_api.sql"))
                 .as("dialect %s must ship V10", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v67ShouldDeclareClinicalEventCustomerContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V67__clinical_event_api_contract.sql");
+        assertThat(h2).contains("trigger_point");
+        assertThat(h2).contains("idempotency_key");
+        assertThat(h2).contains("callback_webhook_id");
+        assertThat(h2).contains("ck_clinical_event_trigger_point");
+        assertThat(h2).contains("uk_clinical_event_idempotency");
+        assertThat(h2).contains("idx_clinical_event_trigger");
+        assertThat(h2).contains("idx_clinical_event_callback");
+        assertThat(h2).contains("PATIENT_VIEW", "ORDER_SIGN", "MEDICATION_PRESCRIBE",
+            "RESULT_REVIEW", "DISCHARGE_SIGN", "FOLLOWUP_ALERT");
+    }
+
+    @Test
+    void v67ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V67__clinical_event_api_contract.sql"))
+                .as("dialect %s must ship V67", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v68ShouldDeclareRecommendationFeedbackIdempotencyAndSuppressionContract() {
+        String h2 = readMigration("h2", "V68__recommendation_cdss_contract.sql");
+        assertThat(h2).contains("recommendation_feedback");
+        assertThat(h2).contains("idempotency_key");
+        assertThat(h2).contains("uk_rec_feedback_idempotency");
+        assertThat(h2).contains("recommendation_fatigue_signal");
+        assertThat(h2).contains("SUPPRESSED");
+        assertThat(h2).contains("COMMENT ON COLUMN recommendation_feedback.idempotency_key");
+    }
+
+    @Test
+    void v68ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V68__recommendation_cdss_contract.sql"))
+                .as("dialect %s must ship V68", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v69ShouldDeclareFollowupCustomerApiContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V69__followup_api09_contract.sql");
+        assertThat(h2).contains(
+            "followup_plan",
+            "idempotency_key",
+            "followup_questionnaire",
+            "plan_id",
+            "questionnaire_template_id",
+            "answer_data",
+            "submitted_at",
+            "executor_id",
+            "uk_followup_plan_idempotency",
+            "uk_followup_task_idempotency",
+            "uk_followup_questionnaire_idempotency",
+            "uk_followup_event_idempotency",
+            "idx_followup_task_status_due",
+            "idx_followup_questionnaire_plan",
+            "RETURN_VISIT",
+            "IN_PROGRESS",
+            "ABNORMAL_RETURN",
+            "NOTIFICATION_REQUESTED",
+            "COMMENT ON COLUMN followup_event.idempotency_key");
+    }
+
+    @Test
+    void v69ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V69__followup_api09_contract.sql"))
+                .as("dialect %s must ship V69", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v70ShouldDeclareEmbedApi11ContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V70__embed_api11_contract.sql");
+        assertThat(h2).contains(
+            "embed_launch_token",
+            "integration_mode",
+            "hook",
+            "hook_instance",
+            "consumed_at",
+            "idx_embed_token_status_expired",
+            "idx_embed_token_hook",
+            "IFRAME",
+            "SDK",
+            "API",
+            "REVOKED",
+            "COMMENT ON COLUMN embed_launch_token.integration_mode");
+    }
+
+    @Test
+    void v70ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V70__embed_api11_contract.sql"))
+                .as("dialect %s must ship V70", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v71ShouldDeclareFollowupControlledPlanClockColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V71__followup_controlled_plan_clock.sql");
+        assertThat(h2).contains(
+            "source_fact_type",
+            "source_fact_id",
+            "generation_rule_code",
+            "generation_explanation",
+            "clinical_clock_id",
+            "idx_followup_plan_fact",
+            "idx_followup_task_clock",
+            "COMMENT ON COLUMN followup_plan.generation_explanation",
+            "COMMENT ON COLUMN followup_task.clinical_clock_id");
+    }
+
+    @Test
+    void v71ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V71__followup_controlled_plan_clock.sql"))
+                .as("dialect %s must ship V71", dialect)
                 .exists();
         }
     }

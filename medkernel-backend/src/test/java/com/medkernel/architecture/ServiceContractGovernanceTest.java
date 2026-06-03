@@ -103,7 +103,7 @@ class ServiceContractGovernanceTest {
     void serviceContractOpenApiPathsMustCoverEveryControllerBasePath() {
         Set<String> paths = new TreeSet<>(ServiceContractCatalog.openApiPaths());
         Set<String> expected = apiControllers().stream()
-            .map(this::classPath)
+            .flatMap(controller -> classPaths(controller).stream())
             .map(path -> path + "/**")
             .collect(Collectors.toCollection(TreeSet::new));
 
@@ -119,9 +119,19 @@ class ServiceContractGovernanceTest {
     }
 
     private String classPath(Class<?> controller) {
+        return classPaths(controller).stream().findFirst().orElse("");
+    }
+
+    private List<String> classPaths(Class<?> controller) {
         RequestMapping mapping = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);
         assertThat(mapping).as(controller.getName() + " 必须声明 @RequestMapping").isNotNull();
-        return first(mapping.path(), mapping.value()).orElse("");
+        List<String> paths = new ArrayList<>();
+        paths.addAll(Arrays.asList(mapping.path()));
+        paths.addAll(Arrays.asList(mapping.value()));
+        return paths.stream()
+            .filter(path -> path != null && !path.isBlank())
+            .distinct()
+            .toList();
     }
 
     private Optional<MappedEndpoint> mappedEndpoint(Method method, String basePath) {
