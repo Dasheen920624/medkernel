@@ -14,9 +14,13 @@ const apiMocks = vi.hoisted(() => ({
   downloadPackageSyncEvidenceExport: vi.fn(),
   importOfflinePackage: vi.fn(),
   addPackageItem: vi.fn(),
+  instantiatePilotTemplate: vi.fn(),
   releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
+  refetchAssetReadiness: vi.fn(),
+  pilotTemplates: [] as Array<Record<string, unknown>>,
+  assetReadiness: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -94,6 +98,19 @@ vi.mock("@/shared/api/hooks", () => ({
   usePackageSyncLogs: () => ({ data: [] }),
   useRollbackPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useImportOfflinePackage: () => ({ mutateAsync: apiMocks.importOfflinePackage, isPending: false }),
+  usePilotPackageTemplates: () => ({
+    data: apiMocks.pilotTemplates,
+    isLoading: false,
+  }),
+  usePackageAssetReadiness: () => ({
+    data: apiMocks.assetReadiness,
+    refetch: apiMocks.refetchAssetReadiness,
+    isLoading: false,
+  }),
+  useInstantiatePilotTemplate: () => ({
+    mutateAsync: apiMocks.instantiatePilotTemplate,
+    isPending: false,
+  }),
   useRuleDefinitions: () => ({ data: { items: [] } }),
   usePathwayTemplates: () => ({ data: { items: [] } }),
   useEvaluationIndicators: () => ({ data: { items: [] } }),
@@ -132,6 +149,66 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.downloadPackageSyncEvidenceExport.mockResolvedValue(new Blob(["sync-evidence"]));
     apiMocks.importOfflinePackage.mockReset();
     apiMocks.addPackageItem.mockReset();
+    apiMocks.instantiatePilotTemplate.mockReset();
+    apiMocks.refetchAssetReadiness.mockReset();
+    apiMocks.pilotTemplates = [
+      {
+        templateId: "tpl-first-run",
+        templateCode: "TPL.FIRST_RUN",
+        tenantId: "t-1",
+        name: "COPD 首发模板",
+        description: "包含知识、术语、规则、路径四类必需资产",
+        packageCodePrefix: "PILOT.COPD",
+        defaultPackageVersion: "2026.06.01",
+        itemCount: 4,
+        items: [
+          {
+            assetType: "KNOWLEDGE",
+            assetId: "KN.COPD",
+            assetVersion: "2026.06",
+            required: true,
+            sortOrder: 0,
+            dependencyNote: "首发知识库",
+          },
+          {
+            assetType: "TERMINOLOGY",
+            assetId: "TERM.LAB|DEPARTMENT|CARD",
+            assetVersion: "2026.06",
+            required: true,
+            sortOrder: 1,
+            dependencyNote: "术语映射包",
+          },
+          {
+            assetType: "RULE",
+            assetId: "RULE.COPD",
+            assetVersion: "2026.06",
+            required: true,
+            sortOrder: 2,
+            dependencyNote: "规则版本",
+          },
+          {
+            assetType: "PATHWAY",
+            assetId: "PATH.COPD",
+            assetVersion: "2026.06",
+            required: true,
+            sortOrder: 3,
+            dependencyNote: "路径模板",
+          },
+        ],
+      },
+    ];
+    apiMocks.assetReadiness = {
+      tenantId: "tenant-A",
+      ready: true,
+      templateCount: 1,
+      draftPackageCount: 1,
+      releasedPackageCount: 1,
+      activePackageCount: 0,
+      grayscaleReady: true,
+      readyPackageId: "pkg-offline",
+      blockers: [],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
     apiMocks.addPackageItem.mockResolvedValue({
       itemId: "item-term",
       packageId: "pkg-offline",
@@ -146,6 +223,16 @@ describe("ConfigPackages offline package export", () => {
       status: "DRAFT",
       itemCount: 2,
       payloadSha256: "a".repeat(64),
+    });
+    apiMocks.instantiatePilotTemplate.mockResolvedValue({
+      templateCode: "TPL.FIRST_RUN",
+      packageInfo: {
+        packageId: "pkg-first-run",
+        packageCode: "PILOT.COPD.001",
+        packageVersion: "2026.06.03",
+        status: "DRAFT",
+      },
+      items: [],
     });
     apiMocks.releasePackage.mockReset();
     apiMocks.releasePackage.mockResolvedValue({
@@ -201,6 +288,81 @@ describe("ConfigPackages offline package export", () => {
     const cumulativeStatistic = screen.getByText("总配置包版本 (累计)").closest(".ant-statistic");
     expect(cumulativeStatistic).not.toBeNull();
     expect(within(cumulativeStatistic as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("shows asset readiness and instantiates a draft package from the first-run template", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("首发资产准备")).toBeInTheDocument();
+    expect(screen.getByText(/模板 1 个/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "从首发模板创建" }));
+
+    expect(screen.getByText("COPD 首发模板")).toBeInTheDocument();
+    expect(screen.getByText(/KNOWLEDGE/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("配置包编码"), {
+      target: { value: "PILOT.COPD.001" },
+    });
+    fireEvent.change(screen.getByLabelText("配置包版本"), {
+      target: { value: "2026.06.03" },
+    });
+    fireEvent.change(screen.getByLabelText("配置包名称"), {
+      target: { value: "COPD 首发配置包" },
+    });
+    fireEvent.change(screen.getByLabelText("说明"), {
+      target: { value: "从真实首发模板生成" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "生成配置包草案" }));
+
+    await waitFor(() => {
+      expect(apiMocks.instantiatePilotTemplate).toHaveBeenCalledWith({
+        templateCode: "TPL.FIRST_RUN",
+        request: {
+          packageCode: "PILOT.COPD.001",
+          packageVersion: "2026.06.03",
+          name: "COPD 首发配置包",
+          description: "从真实首发模板生成",
+        },
+      });
+    });
+    expect(apiMocks.refetchPackages).toHaveBeenCalled();
+    expect(apiMocks.refetchAssetReadiness).toHaveBeenCalled();
+  });
+
+  it("keeps first-run template creation disabled when readiness blockers exist", () => {
+    apiMocks.pilotTemplates = [];
+    apiMocks.assetReadiness = {
+      tenantId: "tenant-A",
+      ready: false,
+      templateCount: 0,
+      draftPackageCount: 0,
+      releasedPackageCount: 0,
+      activePackageCount: 0,
+      grayscaleReady: false,
+      readyPackageId: null,
+      blockers: ["尚未配置首发模板", "尚未完成灰度发布证据"],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "从首发模板创建" })).toBeDisabled();
+    expect(screen.getByText("尚未配置首发模板")).toBeInTheDocument();
+    expect(screen.getByText("尚未完成灰度发布证据")).toBeInTheDocument();
   });
 
   it("offers a clear offline package import flow", async () => {

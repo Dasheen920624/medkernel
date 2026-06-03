@@ -12,16 +12,17 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 SVC-PILOT-02 接入与数据质量服务包 🚧
+### 线 1 · D2 SVC-PILOT-03 资产准备服务包 🚧
 - 类型：软件开发
-- 分支：`codex/d2-svc-pilot-02`
-- 目标：完成 SVC-PILOT-02：把院内系统接入、字段映射、MPI 匹配 / 合并去重、数据质量核查编排为可信、可核查、安全的服务包，供 ADAPTER-01 与 D3 标准上下文消费。
-- 状态：已完成实现与本地验证：新增 `mk_mpi_merge_review` / `mk_integration_data_quality_report` 五方言 V64 迁移，高危 MPI 合并先落审核单并返回 `MPI_MERGE_REQUIRES_REVIEW`，人工确认后才合并；AdapterHub 状态与数据质量报告按真实 adapter / MPI / 字段映射事实计算，断连保持 `NOT_CONNECTED`，不伪造达标；前端适配器中心接入服务端状态和质量快照，MPI 页面展示高危审核提示并清理触碰范围旧文案。
-- 下一步（精确到动作/命令）：1. 推送 `codex/d2-svc-pilot-02`、创建 PR、等远端 CI 8/8；2. squash 合并、fast-forward main、清理 worktree；3. 从 backlog 领取下一张 pending 卡 `SVC-PILOT-03`，不因 deferred open 项阻塞。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/mpi/*`、`medkernel-backend/src/main/java/com/medkernel/engine/integration/*`、`frontend/src/pages/tenant/AdapterHub.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/SVC-PILOT-02.md`。当前运行数据库范围只保障 PostgreSQL + Oracle；DM/Kingbase 真实环境仍按 `DEFER-001` 最终适配，但迁移文件仍按项目 5 方言一致维护。
+- 分支：`codex/d2-svc-pilot-03`
+- 目标：完成 SVC-PILOT-03：把知识 / 术语 / 规则 / 路径等已发布资产编排为试点首发配置包模板，可一键实例化草稿包，并向配置包中心暴露资产就绪快照，继续复用 PKG-01 灰度 / 全量 / 回滚链路。
+- 状态：本地全量验证完成，待推送 / PR / CI：新增 `mk_pkg_pilot_package_template` / `mk_pkg_pilot_template_item` 五方言 V65 迁移与 owner 目录；后端新增首发模板列表、模板实例化、资产就绪报告端点；依赖缺失返回 `PACKAGE_DEPENDENCY_MISSING` 且不保存部分草稿；前端配置包中心新增“首发资产准备”区和从模板生成草案弹窗；已清理当前触碰范围旧 `PhysicalSha256` 测试名和“物理推进”Javadoc。已 rebase 到最新 `origin/main`；后端目标 / 全量、前端 verify / audit / build、脚本自测、inventory 门禁、V65 迁移 files 门禁、提交后 changed-mode、中文注释和 diff 检查均通过。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d2-svc-pilot-03`、创建 PR；2. 等远端 CI 8/8；3. squash 合并、fast-forward main、清理 worktree；4. 从 backlog 领取下一张 pending 卡 `SVC-INTEGRATION-01`，open deferred 项只登记不阻塞。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/pkg/*PilotPackage*`、`PackageEngineService`、`PackageEngineController`、V65 五方言迁移、`frontend/src/pages/tenant/ConfigPackages.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/SVC-PILOT-03.md`。首发模板不写假 seed，必须由真实导入 / 配置产生；当前运行数据库范围只保障 PostgreSQL + Oracle，DM/Kingbase 真实环境仍按 `DEFER-001` 最终适配。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 SVC-PILOT-02 接入与数据质量服务包 ✅（#307，merge `8450b788`）：新增 `mk_mpi_merge_review` / `mk_integration_data_quality_report` 五方言 V64 迁移；高危 MPI 合并先落审核单并返回 `MPI_MERGE_REQUIRES_REVIEW`，人工确认后才合并；AdapterHub 状态与数据质量报告按真实 adapter / MPI / 字段映射事实计算，断连保持 `NOT_CONNECTED`，不伪造达标；前端适配器中心接入服务端状态和质量快照，MPI 页面展示高危审核提示并清理触碰范围旧文案。后端聚焦 / 全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v64 并二次 no-op）、前端 verify / audit / build、脚本自测、inventory 门禁、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后合入；远端分支和本地 worktree 已清理。`DEFER-001/002/003/004` 保持 open 不阻塞主线。
 - D2 SVC-PILOT-01 租户与组织服务包 ✅（#305，merge `a6755520`）：新增 `/api/v1/engine/tenant/**` 与 `/api/v1/engine/org/**` 服务包入口，`ImplementationStep` / `OnboardingReadiness` 按现有关系事实实时聚合，不新增重复真相表；七层组织直接父级校验，跨层创建 / 重挂返回 `ORG_LEVEL_INVALID`；开通未就绪返回 `TENANT_ONBOARD_NOT_READY` + 阻塞清单；前端租户开通页补七层、直接父级过滤、真实品牌默认值，hooks 切到 engine tenant 路由并清理旧 `Tabs.TabPane`。本地后端聚焦 / 全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v63 并二次 no-op）、前端 verify 44 文件 / 241 测试、生产依赖审计 0、build、T-GATE、changed-mode 门禁和远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`DEFER-014` 已关闭，`DEFER-001/002/003/004` 保持 open 不阻塞主线。
 - D2 OPT-07 来源证据分级与冲突仲裁 ✅（#304，merge `a3710f94`）：`ConflictArbitration` 按“权威分级 > 来源发布时间 > 适用域精确度”可复算仲裁；新增 `KnowledgeSourceEvidence` 与 `GET /api/v1/engine/knowledge/identities/{id}/source-evidence`，当前权威版本来源按高阶主证据 / 低阶补充证据显式排序与标识；不新增重复表，不伪造缺失来源链路。本地聚焦、后端全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v63 并二次校验）、前端 verify / 生产依赖审计 / build、T-GATE、changed-mode 门禁和远端 CI 8/8 通过后 squash 合入。当前继续 SVC-PILOT-01。
 - D2 OPT-01 标准临床模型与 FHIR R4/R5 门面 PR4 ✅（#303，merge `4b338496`）：完成 10 类核心 FHIR 资源 read/search/create、FHIR `Bundle` searchset、R4/R5 共用映射、CapabilityStatement `OPT-01-PR4`、FHIR 受控 create 回流临床事件与 INTEG-01 补偿；ServiceRequest / MedicationRequest 保持医师确认安全边界，不自动写医嘱 / 申请单 / 病历。本地目标套件、后端全量（183 files / 1082 tests）、前端 verify/audit/build、门禁脚本自测、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合入；远端分支和本地 PR4 worktree 已清理。国产化真实环境仍在 `DEFER-001`，当前仅保障 PostgreSQL + Oracle。
@@ -174,4 +175,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；当前在 D2 SVC-PILOT-02 `codex/d2-svc-pilot-02`。本轮已完成高危 MPI 合并审核、数据质量报告、AdapterHub 状态编排、前端接入与触碰范围旧代码清理；本地后端聚焦 / 全量（186 files / 1106 tests，H2 / PostgreSQL 15.18 / Oracle 21.3 到 v64 并二次 no-op）、前端 verify / audit / build、脚本自测、inventory 门禁、changed-mode T-GATE、中文注释和 diff 检查均通过。下一步推送、PR、CI 8/8、合并清理后领取 `SVC-PILOT-03`。`DEFER-001` 国产化真实环境、`DEFER-002` dev 依赖审计、`DEFER-003` 前端构建噪声、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；当前在 D2 SVC-PILOT-03 `codex/d2-svc-pilot-03`。本轮已完成首发配置包模板后端编排、V65 五方言迁移、配置包中心首发资产准备入口和触碰范围旧口径清理；已 rebase 到最新 `origin/main`，后端目标 / 全量（PostgreSQL 15.18 + Oracle 21.3 到 v65）、前端 verify（47 files / 268 tests）/ audit / build、脚本自测、inventory 门禁、V65 迁移 files 门禁、提交后 changed-mode、中文注释和 diff 检查均通过。下一步推送、PR、CI 8/8、合并清理。`DEFER-001` 国产化真实环境、`DEFER-002` dev 依赖审计、`DEFER-003` 前端构建噪声、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

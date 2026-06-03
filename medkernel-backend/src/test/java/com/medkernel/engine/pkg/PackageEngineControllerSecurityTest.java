@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -126,6 +127,18 @@ class PackageEngineControllerSecurityTest {
             """.formatted(standardContextFields(tenantId));
     }
 
+    private static String instantiateBodyWithContext(String tenantId) {
+        return """
+            {
+              %s,
+              "packageCode": "PKG.FIRST.RUN",
+              "packageVersion": "2026.06.03",
+              "name": "首发配置包",
+              "description": "由试点首发模板实例化"
+            }
+            """.formatted(standardContextFields(tenantId));
+    }
+
     @Autowired
     MockMvc mvc;
 
@@ -197,12 +210,23 @@ class PackageEngineControllerSecurityTest {
                 .contentType("application/json")
                 .content(ROLLBACK_BODY))
             .andExpect(status().isForbidden());
+
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+                .contentType("application/json")
+                .content(instantiateBodyWithContext("tenant-A")))
+            .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadPackages() throws Exception {
         mvc.perform(get(PKG_ROOT))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(get(PKG_ROOT + "/pilot-templates"))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(get(PKG_ROOT + "/asset-readiness"))
             .andExpect(status().isForbidden());
     }
 
@@ -253,6 +277,22 @@ class PackageEngineControllerSecurityTest {
         mvc.perform(post(PKG_ROOT + "/pkg-1/rollback")
                 .contentType("application/json")
                 .content(ROLLBACK_BODY)
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-002"))
+            .andExpect(jsonPath("$.detail").value(containsString("统一入参")));
+
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+                .contentType("application/json")
+                .content("""
+                    {
+                      "packageCode": "PKG.FIRST.RUN",
+                      "packageVersion": "2026.06.03",
+                      "name": "首发配置包"
+                    }
+                    """)
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
@@ -317,6 +357,88 @@ class PackageEngineControllerSecurityTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].status").value("NOT_SYNCED"))
             .andExpect(jsonPath("$.data[0].errorCode").value("NOT_SYNCED"));
+    }
+
+    @Test
+    void authorizedUserCanReadTemplatesReadinessAndInstantiatePilotTemplate() throws Exception {
+        when(service.listPilotTemplates())
+            .thenReturn(List.of(new PilotPackageTemplateResponse(
+                "tpl-first-run",
+                "TPL.FIRST_RUN",
+                "t-1",
+                "试点首发最小可运行集",
+                "平台首发模板",
+                "PKG.PILOT",
+                "1.0.0",
+                1,
+                List.of(new PilotPackageTemplateItemResponse(
+                    PackageItemAssetType.RULE,
+                    "rule-stable",
+                    "2",
+                    true,
+                    10,
+                    "首发规则"
+                ))
+            )));
+        when(service.getAssetReadiness())
+            .thenReturn(new PackageAssetReadinessResponse(
+                "tenant-A",
+                true,
+                1,
+                1,
+                1,
+                1,
+                true,
+                "pkg-active",
+                List.of(),
+                Instant.parse("2026-06-03T00:00:00Z")
+            ));
+        when(service.instantiatePilotTemplate(eq("TPL.FIRST_RUN"), any(PilotPackageTemplateInstantiateRequest.class)))
+            .thenReturn(new PilotPackageInstantiationResponse(
+                "TPL.FIRST_RUN",
+                new PackageResponse(
+                    "pkg-first-run",
+                    "PKG.FIRST.RUN",
+                    "2026.06.03",
+                    "首发配置包",
+                    "由试点首发模板实例化",
+                    KnowledgePackageStatus.DRAFT
+                ),
+                List.of(new PackageItemResponse(
+                    "item-rule",
+                    "pkg-first-run",
+                    PackageItemAssetType.RULE,
+                    "rule-stable",
+                    "2"
+                ))
+            ));
+
+        mvc.perform(get(PKG_ROOT + "/pilot-templates")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].templateCode").value("TPL.FIRST_RUN"))
+            .andExpect(jsonPath("$.data[0].items[0].assetType").value("RULE"));
+
+        mvc.perform(get(PKG_ROOT + "/asset-readiness")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.ready").value(true))
+            .andExpect(jsonPath("$.data.readyPackageId").value("pkg-active"));
+
+        mvc.perform(post(PKG_ROOT + "/pilot-templates/TPL.FIRST_RUN/instantiate")
+                .contentType("application/json")
+                .content(instantiateBodyWithContext("tenant-A"))
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.templateCode").value("TPL.FIRST_RUN"))
+            .andExpect(jsonPath("$.data.packageInfo.packageId").value("pkg-first-run"))
+            .andExpect(jsonPath("$.data.items[0].assetId").value("rule-stable"));
     }
 
     @Test
