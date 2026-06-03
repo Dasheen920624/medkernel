@@ -74,6 +74,8 @@ export const routeSections: RouteSectionMeta[] = [
 ];
 
 const CUSTOMER_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
+const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
+const WORKBENCH_LANDING_ROLE_CODES = [...CUSTOMER_ROLE_CODES, SYSTEM_SUPERADMIN_ROLE];
 
 function readonlyExperience(
   primaryRole: string,
@@ -165,7 +167,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "workbench",
     menuKey: "workbench",
     menuLabel: "工作台",
-    requiredRoles: CUSTOMER_ROLE_CODES,
+    requiredRoles: WORKBENCH_LANDING_ROLE_CODES,
     experience: readonlyExperience(
       "医院管理者",
       "查看当前运行状态和需要跟进的事项",
@@ -182,7 +184,13 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuKey: "demo-validation",
     menuLabel: "演示与校验",
     requiredPermissions: ["menu.workbench", "workbench:demo:view"],
-    requiredRoles: ["implementation-engineer", "it-ops", "hospital-admin", "platform-admin"],
+    requiredRoles: [
+      "implementation-engineer",
+      "it-ops",
+      "hospital-admin",
+      "platform-admin",
+      SYSTEM_SUPERADMIN_ROLE,
+    ],
     hidden: true,
     experience: {
       primaryRole: "实施工程师 / 信息科 / 医院管理员 / 平台管理员",

@@ -20,6 +20,14 @@
 - 下一步（精确到动作/命令）：1. 实际 stage 后重跑 changed-mode T-GATE 与 `mvn -q test` 最终全量；2. 提交、推送 `codex/d2-opt-01-fhir-pr3` 并创建 PR；3. 等远端 CI 8/8 后 squash 合并；4. fast-forward main、清理 worktree；5. 继续 OPT-01 PR4（10 类资源 read/search/create 运行覆盖），不得直接跳到下一张卡。
 - 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/fhir/*`、`medkernel-backend/src/test/java/com/medkernel/engine/integration/fhir/*`、`medkernel-backend/src/test/java/com/medkernel/architecture/{IntegrationContractDocumentationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest}.java`、`docs/contracts/integration/*`、`docs/cards/D2/OPT-01.md`。PR3 只声明已落地能力：Observation create + MedicationRequest / ServiceRequest 医师确认；Patient / Encounter / Condition 等 read/search 与 10 类全覆盖仍留 PR4，不能把 OPT-01 标 done。
 
+### 线 2 · 超管工作台访问修复 🚧
+- 类型：软件开发
+- 分支：`codex/superadmin-dashboard-access`
+- 目标：修复内置超级管理员登录后可见菜单但直接访问 `/dashboard` 被前端路由角色白名单拦截的问题，保持“超管不旁路、仍走 RBAC 权限画像”的约束。
+- 状态：本地已完成最小修复：`/dashboard` 与同槽 `/workbench/demo-validation` 的显式 `requiredRoles` 纳入 `system-superadmin`，仍要求 `menu.workbench` / `workbench:demo:view` 权限；已补路由红灯与布局复现测试。
+- 下一步（精确到动作/命令）：1. 视需要提交并推送 `codex/superadmin-dashboard-access`；2. 发布前在目标环境用内置超管登录复验 `/dashboard` 与“演示与校验”Tab；3. 若发 PR，合并后更新本线为归档。
+- 相关文件 / 测试 / 坑：`frontend/src/shared/config/routes.ts`、`frontend/src/shared/config/routes.test.ts`、`frontend/src/widgets/AppLayout.test.tsx`；本地验证：聚焦红灯先失败于缺少 `system-superadmin`，修复后 `npm run test -- --run src/shared/config/routes.test.ts src/widgets/AppLayout.test.tsx` 37/37 通过；`npm run verify` 全绿；`node --test scripts/authenticity-guard.test.mjs` 24/24 通过；`git diff --check origin/main...HEAD` 通过；`npm run build` 通过。`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main` 在未提交状态扫描 0 个文件（脚本仅看已提交 diff，且本次生产改动路径不命中真实性扫描规则）。
+
 ## 已归档工作线（最近完成，供回溯）
 
 - D2 OPT-01 PR1 FHIR R4 映射地基 ✅（#297，merge `8bd0a233`）：新增 `com.medkernel.engine.integration.fhir` 包、`FhirR4CanonicalMapper`、`mk_fhir_resource_mapping` / `mk_fhir_mapping_rule` V63 五方言迁移、映射证据仓储与 `mk_fhir_` owner 前缀；Patient 出站不臆造缺失字段，Observation 入站遇到未标准化编码返回 OperationOutcome 风格 warning 与 `PARTIAL`。本地红绿、聚焦 / 后端全量、迁移冒烟、前端 verify/build、生产依赖审计、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后合入；R5、CapabilityStatement、TERM 字典映射、受控 create / 总线 / 断连 / 安全边界留 PR2/PR3，OPT-01 未整卡 done。
