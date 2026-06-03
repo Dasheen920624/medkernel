@@ -90,7 +90,8 @@ class MigrationBaselineContractTest {
         "V61__integration_webhook_tenant_unique.sql",
         "V62__integration_message_not_connected_status.sql",
         "V63__fhir_resource_mapping.sql",
-        "V64__mpi_merge_review_data_quality_report.sql"
+        "V64__mpi_merge_review_data_quality_report.sql",
+        "V65__pilot_package_template.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -111,6 +112,7 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
+        "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_task", "model_capability_policy",
@@ -202,6 +204,7 @@ class MigrationBaselineContractTest {
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
         "idx_release_plan_pkg", "idx_sync_target_tenant", "idx_sync_log_plan",
+        "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
         "idx_followup_plan_tenant_patient", "idx_followup_plan_status",
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
         "idx_followup_questionnaire_task", "idx_followup_event_plan",
@@ -321,6 +324,9 @@ class MigrationBaselineContractTest {
         "uk_release_plan_id", "ck_release_plan_strategy", "ck_release_plan_scope_type", "ck_release_plan_status",
         "uk_sync_target_id", "ck_sync_target_type", "ck_sync_target_status",
         "uk_sync_log_id", "ck_sync_log_status",
+        "uk_pkg_tpl_tenant_code", "ck_pkg_tpl_status",
+        "fk_pkg_tpli_template", "uk_pkg_tpli_asset", "ck_pkg_tpli_type",
+        "ck_pkg_tpli_required", "ck_pkg_tpli_sort",
         "uk_followup_plan_id", "uk_followup_task_id",
         "uk_followup_questionnaire_id", "uk_followup_event_id",
         "uk_embed_launch_token", "uk_embed_origin_tenant",

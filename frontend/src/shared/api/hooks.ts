@@ -2451,6 +2451,53 @@ export interface PackageSyncResponse {
   logs: SyncLogResponse[];
 }
 
+export interface PilotPackageTemplateItem {
+  assetType: PackageItem["assetType"];
+  assetId: string;
+  assetVersion: string;
+  required: boolean;
+  sortOrder: number | null;
+  dependencyNote: string | null;
+}
+
+export interface PilotPackageTemplate {
+  templateId: string;
+  templateCode: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  packageCodePrefix: string;
+  defaultPackageVersion: string;
+  itemCount: number;
+  items: PilotPackageTemplateItem[];
+}
+
+export interface PackageAssetReadiness {
+  tenantId: string;
+  ready: boolean;
+  templateCount: number;
+  draftPackageCount: number;
+  releasedPackageCount: number;
+  activePackageCount: number;
+  grayscaleReady: boolean;
+  readyPackageId: string | null;
+  blockers: string[];
+  checkedAt: string;
+}
+
+export interface PilotPackageInstantiateRequest {
+  packageCode: string;
+  packageVersion: string;
+  name: string;
+  description?: string;
+}
+
+export interface PilotPackageInstantiation {
+  templateCode: string;
+  packageInfo: PackageResponse;
+  items: PackageItemResponse[];
+}
+
 // 1. 动态获取激活同步通道目标列表
 export function useSyncTargets() {
   return useQuery({
@@ -2497,6 +2544,56 @@ export function usePackages(page = 0, size = 10) {
           totalEstimated: false,
         }
       );
+    },
+  });
+}
+
+export function usePilotPackageTemplates() {
+  return useQuery({
+    queryKey: ["packages", "pilot-templates"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PilotPackageTemplate[] }>(
+        `${PACKAGE_API_ROOT}/pilot-templates`,
+      );
+      return data.data ?? [];
+    },
+  });
+}
+
+export function usePackageAssetReadiness() {
+  return useQuery({
+    queryKey: ["packages", "asset-readiness"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PackageAssetReadiness }>(
+        `${PACKAGE_API_ROOT}/asset-readiness`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useInstantiatePilotTemplate() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      templateCode: string;
+      request: PilotPackageInstantiateRequest;
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: PilotPackageInstantiation }>(
+        `${PACKAGE_API_ROOT}/pilot-templates/${encodeURIComponent(payload.templateCode)}/instantiate`,
+        withStandardApiContext(
+          { ...requestPayload, packageVersion },
+          security.data,
+          packageVersion,
+        ),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["packages", "asset-readiness"] });
     },
   });
 }

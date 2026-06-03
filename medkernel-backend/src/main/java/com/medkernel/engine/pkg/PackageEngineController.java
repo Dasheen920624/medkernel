@@ -68,6 +68,43 @@ public class PackageEngineController {
     }
 
     /**
+     * 查询可用于试点首发的一键配置包模板。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/pilot-templates")
+    @PreAuthorize("@perm.has('package.read')")
+    public ApiResult<List<PilotPackageTemplateResponse>> listPilotTemplates() {
+        return ApiResult.ok(service.listPilotTemplates());
+    }
+
+    /**
+     * 从首发模板实例化配置包草稿，并自动写入模板声明的资产项。
+     *
+     * <p>权限：{@code package.publish}。
+     */
+    @PostMapping("/pilot-templates/{templateCode}/instantiate")
+    @PreAuthorize("@perm.has('package.publish')")
+    public ResponseEntity<ApiResult<PilotPackageInstantiationResponse>> instantiatePilotTemplate(
+            @PathVariable String templateCode,
+            @RequestBody @Valid PilotPackageTemplateInstantiateRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(service.instantiatePilotTemplate(templateCode, request)));
+    }
+
+    /**
+     * 查询配置资产准备就绪状态，供实施向导和配置包中心共用。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/asset-readiness")
+    @PreAuthorize("@perm.has('package.read')")
+    public ApiResult<PackageAssetReadinessResponse> assetReadiness() {
+        return ApiResult.ok(service.getAssetReadiness());
+    }
+
+    /**
      * 获取知识包详情（含所包含的全部子资产条目列表）。
      *
      * <p>权限：{@code package.read}。

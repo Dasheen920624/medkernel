@@ -58,6 +58,9 @@ import {
   useEvaluationIndicators,
   useTerminologyPackages,
   useImportOfflinePackage,
+  usePilotPackageTemplates,
+  usePackageAssetReadiness,
+  useInstantiatePilotTemplate,
   useSecurityProfile,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
@@ -67,6 +70,7 @@ import type {
   EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
+  PilotPackageTemplate,
   PathwayTemplate,
   RuleDefinition,
   SyncLogResponse,
@@ -102,6 +106,23 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
+function assetTypeColor(type: string) {
+  const colors: Record<string, string> = {
+    KNOWLEDGE: "green",
+    TERMINOLOGY: "orange",
+    RULE: "blue",
+    PATHWAY: "purple",
+    EVALUATION: "cyan",
+    FOLLOWUP: "magenta",
+  };
+  return colors[type] || "default";
+}
+
+function defaultPilotPackageCode(template: PilotPackageTemplate) {
+  const suffix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `${template.packageCodePrefix}.${suffix}`;
+}
+
 export default function ConfigPackages() {
   const { token } = antdTheme.useToken();
   const { message } = AntdApp.useApp();
@@ -111,6 +132,13 @@ export default function ConfigPackages() {
   const { data: securityProfile } = useSecurityProfile();
   const { data: apiPackagesData, refetch: refetchPackages } = usePackages(currentPage - 1, 10);
   const { data: apiSyncTargets } = useSyncTargets();
+  const { data: pilotTemplates = [], isLoading: pilotTemplatesLoading } =
+    usePilotPackageTemplates();
+  const {
+    data: assetReadiness,
+    refetch: refetchAssetReadiness,
+    isLoading: readinessLoading,
+  } = usePackageAssetReadiness();
   const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
 
   const [searchKeyword, setSearchKeyword] = useState<string>("");
@@ -140,6 +168,10 @@ export default function ConfigPackages() {
   const [syncModalVisible, setSyncModalVisible] = useState<boolean>(false);
   const [rollbackModalVisible, setRollbackModalVisible] = useState<boolean>(false);
   const [offlineImportModalVisible, setOfflineImportModalVisible] = useState<boolean>(false);
+  const [pilotTemplateModalVisible, setPilotTemplateModalVisible] = useState<boolean>(false);
+  const [selectedPilotTemplateCode, setSelectedPilotTemplateCode] = useState<string | undefined>(
+    undefined,
+  );
   const [offlineImportContent, setOfflineImportContent] = useState<string>("");
   const [rollbackReason, setRollbackReason] = useState<string>("");
   const [rollbackConfirmed, setRollbackConfirmed] = useState<boolean>(false);
@@ -162,11 +194,13 @@ export default function ConfigPackages() {
   const releasePackageMutation = useReleasePackage();
   const rollbackPackageMutation = useRollbackPackage();
   const importOfflinePackageMutation = useImportOfflinePackage();
+  const instantiatePilotTemplateMutation = useInstantiatePilotTemplate();
 
   // 5. 表单定义
   const [createForm] = Form.useForm();
   const [itemForm] = Form.useForm();
   const [syncForm] = Form.useForm();
+  const [pilotTemplateForm] = Form.useForm();
 
   // 选中包的详情与细项
   const selectedPackage = displayPackages.find((p) => p.packageId === selectedPackageId);
@@ -175,6 +209,9 @@ export default function ConfigPackages() {
   );
   const { data: persistedSyncLogs } = usePackageSyncLogs(selectedPackageId || "");
   const currentItems = apiDetail?.items || [];
+  const selectedPilotTemplate =
+    pilotTemplates.find((template) => template.templateCode === selectedPilotTemplateCode) ??
+    pilotTemplates[0];
 
   // 计算多版本差异 API
   const { data: apiDiffData } = useCalculateDiff(selectedPackageId || "", basePackageIdForDiff);
@@ -201,6 +238,60 @@ export default function ConfigPackages() {
     } catch (err: unknown) {
       if (applyApiFieldErrors(createForm, err)) return;
       message.error(getApiErrorMessage(err, "配置包草稿创建失败，请检查接口状态后重试。"));
+    }
+  };
+
+  const openPilotTemplateModal = () => {
+    const template = selectedPilotTemplate ?? pilotTemplates[0];
+    if (!template) return;
+    setSelectedPilotTemplateCode(template.templateCode);
+    pilotTemplateForm.setFieldsValue({
+      templateCode: template.templateCode,
+      packageCode: defaultPilotPackageCode(template),
+      packageVersion: template.defaultPackageVersion,
+      name: `${template.name}配置包`,
+      description: template.description ?? "",
+    });
+    setPilotTemplateModalVisible(true);
+  };
+
+  const handlePilotTemplateChange = (templateCode: string) => {
+    const template = pilotTemplates.find((item) => item.templateCode === templateCode);
+    setSelectedPilotTemplateCode(templateCode);
+    if (!template) return;
+    pilotTemplateForm.setFieldsValue({
+      packageCode: defaultPilotPackageCode(template),
+      packageVersion: template.defaultPackageVersion,
+      name: `${template.name}配置包`,
+      description: template.description ?? "",
+    });
+  };
+
+  const closePilotTemplateModal = () => {
+    setPilotTemplateModalVisible(false);
+    setSelectedPilotTemplateCode(undefined);
+    pilotTemplateForm.resetFields();
+  };
+
+  const handleInstantiatePilotTemplate = async () => {
+    try {
+      const values = await pilotTemplateForm.validateFields();
+      const instantiated = await instantiatePilotTemplateMutation.mutateAsync({
+        templateCode: values.templateCode,
+        request: {
+          packageCode: values.packageCode,
+          packageVersion: values.packageVersion,
+          name: values.name,
+          description: values.description,
+        },
+      });
+      message.success(`首发配置包草案已生成：${instantiated.packageInfo.packageCode}`);
+      closePilotTemplateModal();
+      refetchPackages();
+      refetchAssetReadiness();
+    } catch (err: unknown) {
+      if (applyApiFieldErrors(pilotTemplateForm, err)) return;
+      message.error(getApiErrorMessage(err, "首发配置包草案生成失败，请先核对模板资产依赖。"));
     }
   };
 
@@ -395,6 +486,10 @@ export default function ConfigPackages() {
   const publishedCount = displayPackages.filter((p) => p.status === "PUBLISHED").length;
   const draftCount = displayPackages.filter((p) => p.status === "DRAFT").length;
   const offlineCount = displayPackages.filter((p) => p.status === "OFFLINE").length;
+  const readinessBlockers = assetReadiness?.blockers ?? [];
+  const canInstantiatePilotTemplate = pilotTemplates.length > 0;
+  const readinessStatusText = assetReadiness?.ready ? "已具备首发条件" : "仍有待处理项";
+  const readinessAlertType = assetReadiness?.ready ? "success" : "warning";
   const rollbackActionDisabled = !rollbackReason.trim() || !rollbackConfirmed;
   const availableRollbackPackages = selectedPackage
     ? displayPackages.filter(
@@ -611,6 +706,66 @@ export default function ConfigPackages() {
         </Col>
       </Row>
 
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm mb-6 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
+              <FileProtectOutlined />
+            </div>
+            <div>
+              <div className="font-semibold text-slate-900">首发资产准备</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                模板 {assetReadiness?.templateCount ?? pilotTemplates.length} 个 · 草案{" "}
+                {assetReadiness?.draftPackageCount ?? draftCount} 个 · 已发布{" "}
+                {assetReadiness?.releasedPackageCount ?? publishedCount + activeCount} 个
+              </div>
+            </div>
+          </div>
+          <Button
+            type="primary"
+            aria-label="从首发模板创建"
+            icon={<PlusOutlined aria-hidden="true" />}
+            disabled={!canInstantiatePilotTemplate}
+            loading={pilotTemplatesLoading || readinessLoading}
+            onClick={openPilotTemplateModal}
+            className="rounded-lg bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+          >
+            从首发模板创建
+          </Button>
+        </div>
+        <div className="px-5 py-4">
+          <Alert
+            type={readinessAlertType}
+            showIcon
+            className="rounded-lg"
+            message={
+              <div className="flex flex-wrap items-center gap-2">
+                <span>{readinessStatusText}</span>
+                <Tag color={assetReadiness?.grayscaleReady ? "green" : "orange"}>
+                  灰度证据 {assetReadiness?.grayscaleReady ? "已满足" : "待完成"}
+                </Tag>
+                {assetReadiness?.readyPackageId && (
+                  <Tag color="cyan">就绪包 {assetReadiness.readyPackageId}</Tag>
+                )}
+              </div>
+            }
+            description={
+              readinessBlockers.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {readinessBlockers.map((blocker) => (
+                    <Tag key={blocker} color="orange" className="m-0">
+                      {blocker}
+                    </Tag>
+                  ))}
+                </div>
+              ) : (
+                <span>模板、资产依赖和发布证据将由后端事实复算，页面不伪造准备状态。</span>
+              )
+            }
+          />
+        </div>
+      </div>
+
       {/* 2. 检索及操作 Form */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
         <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
@@ -725,6 +880,117 @@ export default function ConfigPackages() {
             type="info"
             showIcon
             className="rounded-lg border-sky-100 bg-sky-50 text-sky-900"
+          />
+        </Form>
+      </Modal>
+
+      {/* ────────────────── Modal: 从首发模板创建配置包草案 ────────────────── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-emerald-700 font-semibold text-lg border-b border-slate-100 pb-3">
+            <FileProtectOutlined />
+            <span>从首发模板创建配置包草案</span>
+          </div>
+        }
+        open={pilotTemplateModalVisible}
+        onOk={handleInstantiatePilotTemplate}
+        onCancel={closePilotTemplateModal}
+        width={760}
+        confirmLoading={instantiatePilotTemplateMutation.isPending}
+        destroyOnClose
+        forceRender
+        okText="生成配置包草案"
+        cancelText="取消"
+        okButtonProps={{ className: "bg-emerald-600 border-emerald-600 hover:bg-emerald-700" }}
+      >
+        <Form form={pilotTemplateForm} layout="vertical" className="mt-4">
+          <Form.Item
+            name="templateCode"
+            label="首发模板"
+            rules={[{ required: true, message: "请选择首发模板" }]}
+          >
+            <Select
+              placeholder="请选择首发模板"
+              className="rounded-lg"
+              onChange={handlePilotTemplateChange}
+            >
+              {pilotTemplates.map((template) => (
+                <Option key={template.templateCode} value={template.templateCode}>
+                  {template.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          {selectedPilotTemplate && (
+            <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-900">
+                    当前模板：{selectedPilotTemplate.name}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {selectedPilotTemplate.description || "该模板未填写说明"}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
+                  <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedPilotTemplate.items.map((item) => (
+                  <Tag
+                    key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
+                    color={assetTypeColor(item.assetType)}
+                    className="m-0"
+                  >
+                    {item.assetType} · {item.assetId} · {item.assetVersion}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="packageCode"
+                label="配置包编码"
+                rules={[{ required: true, message: "请输入配置包编码" }]}
+              >
+                <Input placeholder="请输入配置包编码" className="rounded-lg font-normal" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="packageVersion"
+                label="配置包版本"
+                rules={[{ required: true, message: "请输入配置包版本" }]}
+              >
+                <Input placeholder="请输入配置包版本" className="rounded-lg font-normal" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="name"
+            label="配置包名称"
+            rules={[{ required: true, message: "请输入配置包名称" }]}
+          >
+            <Input placeholder="请输入配置包名称" className="rounded-lg" />
+          </Form.Item>
+
+          <Form.Item name="description" label="说明">
+            <TextArea rows={3} placeholder="请输入本次首发准备说明" className="rounded-lg" />
+          </Form.Item>
+
+          <Alert
+            message="只生成草案，不绕过发布门禁"
+            description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
+            type="info"
+            showIcon
+            className="rounded-lg"
           />
         </Form>
       </Modal>
