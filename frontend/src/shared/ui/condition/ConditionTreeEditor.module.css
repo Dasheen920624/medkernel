@@ -1,0 +1,23 @@
+.label {
+  width: 130px;
+}
+
+.fact {
+  width: 220px;
+}
+
+.operator {
+  width: 120px;
+}
+
+.kind {
+  width: 110px;
+}
+
+.value {
+  width: 180px;
+}
+
+.logic {
+  width: 130px;
+}
