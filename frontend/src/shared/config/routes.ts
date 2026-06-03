@@ -253,6 +253,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "tenant-onboarding",
     menuLabel: "租户开通",
+    requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
+    requiredRoles: ["implementation-engineer", "platform-admin", "hospital-admin"],
     experience: readonlyExperience("实施工程师", "核查租户开通准备状态", "待配置组织"),
     pageType: "configuration",
     stateMachine: "config",

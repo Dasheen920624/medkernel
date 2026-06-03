@@ -89,6 +89,31 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("limits tenant onboarding to tenant readers in implementation and administrator roles", () => {
+    const route = findRouteByPath("/tenant/onboarding");
+
+    expect(route?.requiredPermissions).toEqual(["menu.tenant-onboarding", "tenant.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "platform-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "hospital-admin" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["tenant-onboarding"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["tenant-onboarding"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)

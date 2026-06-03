@@ -19,8 +19,11 @@ import {
   saveExperienceViewSnapshot,
   submitLargeListExport,
   useCreatePackage,
+  useActivateOnboardingReadiness,
   useImplementationSteps,
   useInstantiatePilotTemplate,
+  useOnboardingReadiness,
+  useOrgUnits,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePilotPackageTemplates,
@@ -281,6 +284,64 @@ describe("package export api helpers", () => {
 
     await waitFor(() => expect(result.current.data).toBe(steps));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/implementation-steps");
+  });
+
+  it("loads tenant onboarding readiness from the tenant engine gate endpoint", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      ready: false,
+      steps: [
+        {
+          key: "organization",
+          title: "组织树",
+          status: "BLOCKED",
+          blockers: ["组织树缺少租户根或医院节点"],
+          targetPath: "/tenant/onboarding",
+          evidence: null,
+        },
+      ],
+      blockers: ["组织树缺少租户根或医院节点"],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: readiness } });
+
+    const { result } = renderApiHook(() => useOnboardingReadiness());
+
+    await waitFor(() => expect(result.current.data).toBe(readiness));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness");
+  });
+
+  it("activates tenant onboarding only through the tenant engine readiness gate", async () => {
+    const readiness = {
+      tenantId: "tenant-A",
+      ready: true,
+      steps: [],
+      blockers: [],
+      checkedAt: "2026-06-03T00:00:00Z",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: readiness } });
+
+    const { result } = renderApiHook(() => useActivateOnboardingReadiness());
+
+    await expect(result.current.mutateAsync()).resolves.toBe(readiness);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness/activate");
+  });
+
+  it("loads organization units from the engine org API root instead of the legacy tenant root", async () => {
+    const page = {
+      items: [{ id: "org-1", level: "TENANT", code: "T-1", name: "平台主租户" }],
+      page: 1,
+      size: 100,
+      total: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useOrgUnits({ size: 100 }));
+
+    await waitFor(() => expect(result.current.data).toBe(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/org/org-units", {
+      params: { size: 100 },
+    });
   });
 
   it("instantiates a pilot template through API-10 with standard context fields", async () => {
