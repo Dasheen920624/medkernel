@@ -91,6 +91,12 @@ public class KnowledgeIdentityController {
         return ApiResult.ok(service.listCitations(id));
     }
 
+    @GetMapping("/identities/{id}/source-evidence")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<java.util.List<KnowledgeSourceEvidence>> getSourceEvidence(@PathVariable Long id) {
+        return ApiResult.ok(service.listSourceEvidence(id));
+    }
+
     /**
      * 注册或返回已存在的来源文献。
      *

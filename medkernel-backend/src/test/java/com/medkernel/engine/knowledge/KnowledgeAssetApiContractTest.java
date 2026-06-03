@@ -177,6 +177,21 @@ class KnowledgeAssetApiContractTest {
     }
 
     @Test
+    void sourceEvidenceRouteReturnsPrioritizedDisplayContract() throws Exception {
+        when(identityService.listSourceEvidence(1L)).thenReturn(List.of(sourceEvidence()));
+
+        mvc.perform(get("/api/v1/engine/knowledge/identities/1/source-evidence")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].authorityLabel").value("A 法规"))
+            .andExpect(jsonPath("$.data[0].displayRole").value("PRIMARY"))
+            .andExpect(jsonPath("$.data[0].recommendedByDefault").value(true))
+            .andExpect(jsonPath("$.data[0].supplementary").value(false))
+            .andExpect(jsonPath("$.data[0].displayLabel").value("A 法规 · 主证据"))
+            .andExpect(jsonPath("$.data[0].rankingReason").value("按可信分级、来源发布时间和适用域精确度排序"));
+    }
+
+    @Test
     void replayRouteMarksHistoricalVersion() throws Exception {
         when(versionService.replayVersion(eq(1L), eq(10L), eq("pkg-2026.06"), eq("ctx-snap-001")))
             .thenReturn(new KnowledgeReplayResponse(
@@ -329,6 +344,35 @@ class KnowledgeAssetApiContractTest {
             true,
             reasonCode,
             "候选审核工作流测试响应"
+        );
+    }
+
+    private static KnowledgeSourceEvidence sourceEvidence() {
+        return new KnowledgeSourceEvidence(
+            22L,
+            1L,
+            100L,
+            7L,
+            8L,
+            "SRC.NHC.2026",
+            "国家药品说明书",
+            SourceType.POLICY,
+            SourceAuthorityLevel.A_REGULATION,
+            "A 法规",
+            "国家卫健委发布文件编号 NHC-2026-01",
+            GradeEvidenceQuality.HIGH,
+            GradeRecommendationStrength.STRONG,
+            Instant.parse("2026-01-01T00:00:00Z"),
+            CitationRelation.SUPPORTS,
+            90,
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeSourceEvidenceRole.PRIMARY,
+            true,
+            false,
+            "A 法规 · 主证据",
+            "按可信分级、来源发布时间和适用域精确度排序",
+            null
         );
     }
 

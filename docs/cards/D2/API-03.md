@@ -17,13 +17,14 @@
 ## 收口结果（2026-06-02，以 `medkernel-backend/src` 为准）
 `engine/knowledge` 已收口为统一客户面 `/api/v1/engine/knowledge/**`：
 - 已补：来源/来源版本、身份创建、版本候选新旧识别、提交、激活、撤回、lineage、当前版本引用、历史重放、候选/审核/diff 真实工作流、异步导出统一入口。
+- 2026-06-03 补充：`GET /identities/{id}/source-evidence` 输出当前权威版本的来源证据展示视图，按可信分级、来源发布时间、适用域精确度和引用权重排序，供 D4/D6 与临床消费端直接区分主证据 / 补充证据。
 - 已对齐：新写入端点与导出提交支持 12 字段统一入参（兼容 snake_case）、`ApiResult`/`ProblemDetail` 信封、traceId 与当前租户校验。
 - 已清理：API-03 触碰范围内的旧入口口径与面向用户不自然的“物理”表述；旧 HTTP 兼容入口不再保留，避免继续扩散低质历史代码。
 - 已补业务红线：激活前必须存在来源引用，缺引用返回 `KNOWLEDGE_CITATION_REQUIRED / ENG-KNOW-003`，禁止无来源断言成为 ACTIVE。
 - 未在本卡伪造：真实 10 万级规模压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭，登记 `DEFER-009`。
 
 ## 功能要求（原子可测条目）
-- [x] **FR-1 来源/资产 CRUD**：`POST /sources`、`POST /sources/{id}/versions`、`GET/POST /identities`、`GET /identities/{id}`、`GET /identities/{id}/citations`。
+- [x] **FR-1 来源/资产 CRUD**：`POST /sources`、`POST /sources/{id}/versions`、`GET/POST /identities`、`GET /identities/{id}`、`GET /identities/{id}/citations`、`GET /identities/{id}/source-evidence`。
 - [x] **FR-2 版本与替换**：`POST /identities/{id}/versions/{vid}/submit|activate|withdraw`（替换委托 [SYS-08](SYS-08.md)）、`GET /identities/{id}/lineage`。
 - [x] **FR-3 候选/审核**：`GET /identities/{id}/candidates`、`POST /candidates/{id}/review`、`GET /candidates/{id}/diff`（委托 [KNOW-02](KNOW-02.md)，返回候选版本、分类依据与审核结论）。
 - [x] **FR-4 历史重放**：`GET /identities/{id}/versions/{vid}/replay`（绑定当时资产版本，标"历史版本"，不混入新决策）。
@@ -32,8 +33,8 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`/api/v1/engine/knowledge/**`（sources、identities、versions、candidates、lineage、replay、exports）。
-- DTO：新增标准客户面请求 `KnowledgeApiContext`、`KnowledgeIdentityCreateRequest`、`KnowledgeSourceCreateRequest`、`KnowledgeSourceVersionCreateRequest`、`KnowledgeVersionCreateRequest`、`KnowledgeActionRequest`、`KnowledgeReplayResponse`、`KnowledgeCandidateResponse`、`KnowledgeCandidateReviewRequest`；底层继续复用既有来源/版本/导出领域对象。
+- 端点：`/api/v1/engine/knowledge/**`（sources、identities、versions、candidates、lineage、replay、exports、source-evidence）。
+- DTO：新增标准客户面请求 `KnowledgeApiContext`、`KnowledgeIdentityCreateRequest`、`KnowledgeSourceCreateRequest`、`KnowledgeSourceVersionCreateRequest`、`KnowledgeVersionCreateRequest`、`KnowledgeActionRequest`、`KnowledgeReplayResponse`、`KnowledgeCandidateResponse`、`KnowledgeCandidateReviewRequest`、`KnowledgeSourceEvidence`；底层继续复用既有来源/版本/导出领域对象。
 - 响应信封：`ApiResult` / `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）；大列表 `PageResult`（[API-13](../D0/API-13.md)）。
 - 状态机：知识版本状态机（[KNOW-01](KNOW-01.md)/[SYS-08](SYS-08.md)）；导出任务走核心 §3 待办/任务态。
 - 幂等 / 错误码 / traceId：写操作幂等键（[BASE-03](../D0/BASE-03.md)）；无来源激活 → `KNOWLEDGE_CITATION_REQUIRED`；越权发布 → `FORBIDDEN`；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -71,7 +72,7 @@ N·A —— 本卡无页面。被 D4 AI 知识审核页 / D6 来源追溯页消�
 - B0 验收：CRUD/版本/导出纯确定性，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：PR 合并后补 `/api/v1/engine/knowledge/**` 端点统一入参/信封、`KnowledgeReplayResponse`、`KnowledgeCandidateResponse`、无来源激活门禁、分页/异步导出对齐。
+- 代码 permalink：PR 合并后补 `/api/v1/engine/knowledge/**` 端点统一入参/信封、`KnowledgeReplayResponse`、`KnowledgeCandidateResponse`、`KnowledgeSourceEvidence`、无来源激活门禁、分页/异步导出对齐。
 - 测试：`KnowledgeAssetApiContractTest`、`KnowledgeIdentityServiceTest`、`KnowledgeVersionServiceTest`、`KnowledgeExportServiceTest`、`KnowledgeIdentityControllerSecurityTest`、`KnowledgeEngineTest`、`KnowledgeIdentityRepositoryTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`。
 - 本地验证：后端聚焦回归、H2/PostgreSQL/Oracle 迁移 smoke、后端全量、T-GATE、真实性全仓扫描、中文注释扫描、`git diff --check`。
 - 审计员签字：PR reviewer（owner ≠ reviewer）。

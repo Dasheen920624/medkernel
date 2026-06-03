@@ -35,6 +35,7 @@ class KnowledgeVersionServiceTest {
     private KnowledgeSupersessionRepository supersessionRepo;
     private CitationRepository citationRepo;
     private SourceDocumentRepository sourceDocRepo;
+    private SourceVersionRepository sourceVersionRepo;
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private CandidateClassificationRepository candidateClassificationRepo;
     private ReviewAssignmentRepository reviewAssignmentRepo;
@@ -49,13 +50,14 @@ class KnowledgeVersionServiceTest {
         supersessionRepo = Mockito.mock(KnowledgeSupersessionRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
         sourceDocRepo = Mockito.mock(SourceDocumentRepository.class);
+        sourceVersionRepo = Mockito.mock(SourceVersionRepository.class);
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
         candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
         invalidationRepo = Mockito.mock(KnowledgeInvalidationRepository.class);
         affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
         service = new KnowledgeVersionService(
-            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
+            identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVersionRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
@@ -244,6 +246,57 @@ class KnowledgeVersionServiceTest {
         ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
         verify(supersessionRepo).save(spCap.capture());
         assertThat(spCap.getValue().transitionReason()).contains("可信分级裁决");
+    }
+
+    @Test
+    void activateSameAuthorityCandidateRecordsRecencyArbitrationBeforeScope() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion oldActive =
+            versionWithSourceVersion(5L, 1L, KnowledgeVersionStatus.ACTIVE, SourceAuthorityLevel.B_GUIDELINE,
+                501L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE);
+        KnowledgeAssetVersion newCandidate =
+            versionWithSourceVersion(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, SourceAuthorityLevel.B_GUIDELINE,
+                511L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE);
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(oldActive));
+        when(sourceVersionRepo.findByTenantIdAndId("t-1", 501L))
+            .thenReturn(Optional.of(sourceVersion(501L, Instant.parse("2024-01-01T00:00:00Z"))));
+        when(sourceVersionRepo.findByTenantIdAndId("t-1", 511L))
+            .thenReturn(Optional.of(sourceVersion(511L, Instant.parse("2026-01-01T00:00:00Z"))));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+
+        service.activate(1L, 11L, null);
+
+        ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
+        verify(versionRepo, times(2)).save(vCap.capture());
+        assertThat(vCap.getAllValues().get(1).conflictArbitration())
+            .contains("时效优先")
+            .contains("2026-01-01")
+            .contains("2024-01-01");
+    }
+
+    @Test
+    void conflictArbitrationFallsBackToScopeSpecificityWhenAuthorityAndRecencyTie() {
+        KnowledgeAssetVersion broad =
+            versionWithSourceVersion(5L, 1L, KnowledgeVersionStatus.ACTIVE, SourceAuthorityLevel.B_GUIDELINE,
+                501L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE);
+        KnowledgeAssetVersion specialty =
+            versionWithSourceVersion(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, SourceAuthorityLevel.B_GUIDELINE,
+                511L, "tenant:t-1", "specialty:CARD");
+        SourceVersion oldSource = sourceVersion(501L, Instant.parse("2026-01-01T00:00:00Z"));
+        SourceVersion targetSource = sourceVersion(511L, Instant.parse("2026-01-01T00:00:00Z"));
+
+        ConflictArbitration arbitration = ConflictArbitration.between(broad, specialty, oldSource, targetSource);
+
+        assertThat(arbitration.summary())
+            .contains("适用域优先")
+            .contains("specialty:CARD")
+            .contains(KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE);
+        assertThat(arbitration.lowAuthorityOverrideHighAuthority()).isFalse();
     }
 
     @Test
@@ -944,13 +997,28 @@ class KnowledgeVersionServiceTest {
                                           KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
                                           SourceAuthorityLevel authorityLevel,
                                           String organizationScope, String applicableScope) {
+        return versionWithSourceVersion(id, tenantId, identityId, status, risk, authorityLevel,
+            null, organizationScope, applicableScope);
+    }
+
+    private KnowledgeAssetVersion versionWithSourceVersion(Long id, Long identityId, KnowledgeVersionStatus status,
+                                                           SourceAuthorityLevel authorityLevel, Long sourceVersionId,
+                                                           String organizationScope, String applicableScope) {
+        return versionWithSourceVersion(id, "t-1", identityId, status, KnowledgeRiskLevel.LOW, authorityLevel,
+            sourceVersionId, organizationScope, applicableScope);
+    }
+
+    private KnowledgeAssetVersion versionWithSourceVersion(Long id, String tenantId, Long identityId,
+                                                           KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
+                                                           SourceAuthorityLevel authorityLevel, Long sourceVersionId,
+                                                           String organizationScope, String applicableScope) {
         Instant now = Instant.now();
         String activeScopeKey = status == KnowledgeVersionStatus.ACTIVE
             ? KnowledgeAssetVersion.activeScopeKey(identityId, organizationScope, applicableScope)
             : "version:" + id;
         return new KnowledgeAssetVersion(
             id, tenantId, identityId, "v1", "label",
-            null, null, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
+            null, sourceVersionId, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
             status, risk,
             authorityLevel, null, null, null,
             organizationScope, applicableScope, activeScopeKey,
@@ -963,6 +1031,13 @@ class KnowledgeVersionServiceTest {
 
     private Citation citation(Long versionId) {
         return new Citation(1L, "t-1", versionId, 100L, CitationRelation.SUPPORTS, 100, null, null, Instant.now(), "init");
+    }
+
+    private SourceVersion sourceVersion(Long id, Instant publishedAt) {
+        return new SourceVersion(
+            id, "t-1", 7L, "v-" + id, publishedAt, sha256("来源版本-" + id),
+            "s3://source-" + id + ".pdf", "zh-CN", Instant.now(), "tester"
+        );
     }
 
     private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo) {
