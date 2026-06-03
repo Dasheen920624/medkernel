@@ -60,6 +60,8 @@ medkernel:
     idempotency:
       enabled: ${MEDKERNEL_API_IDEMPOTENCY_ENABLED:true}
       ttl: ${MEDKERNEL_API_IDEMPOTENCY_TTL:24h}
+  integration:
+    health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
   auth:
     jwt:
       ttl-seconds: 28800

@@ -17,6 +17,4 @@ public interface IntegrationWebhookConfigRepository extends ListCrudRepository<I
     List<IntegrationWebhookConfig> findAllByTenantId(String tenantId);
 
     Optional<IntegrationWebhookConfig> findByWebhookIdAndTenantId(String webhookId, String tenantId);
-
-    Optional<IntegrationWebhookConfig> findByWebhookId(String webhookId);
 }

@@ -1,0 +1,273 @@
+{
+  "schemaVersion": "medkernel.integration.openapi.paths.v1",
+  "source": "com.medkernel.engine.integration.controller.IntegrationController",
+  "ownerCard": "INTEG-02",
+  "basePath": "/api/v1/engine/integration",
+  "runtimeOpenApi": {
+    "group": "medkernel-third-party-integration",
+    "url": "/v3/api-docs/medkernel-third-party-integration",
+    "swaggerUi": "/swagger-ui.html"
+  },
+  "fhirFacade": {
+    "ownerCard": "OPT-01",
+    "status": "RUNTIME_AVAILABLE",
+    "documentedRuntimePaths": [
+      "GET /api/v1/engine/integration/fhir/{version}/metadata",
+      "POST /api/v1/engine/integration/fhir/{version}/{resourceType}"
+    ],
+    "supportedCreates": [
+      "Observation"
+    ],
+    "guardedHighRiskCreates": [
+      "MedicationRequest",
+      "ServiceRequest"
+    ],
+    "securityHeaders": [
+      "X-MedKernel-Fhir-Adapter",
+      "X-MedKernel-Timestamp",
+      "X-MedKernel-Signature",
+      "X-MedKernel-Package-Version"
+    ],
+    "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store secretKey inline.",
+    "degradation": {
+      "disconnectedStatus": "NOT_CONNECTED",
+      "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fakes write success."
+    },
+    "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability intentionally declares only implemented create surface."
+  },
+  "commonHeaders": [
+    {
+      "name": "X-Tenant-Id",
+      "required": true,
+      "purpose": "tenant isolation and audit scope"
+    },
+    {
+      "name": "Idempotency-Key",
+      "required": "write operations",
+      "purpose": "deduplicate external retries where the endpoint has side effects"
+    },
+    {
+      "name": "X-MedKernel-Timestamp",
+      "required": "webhook inbound",
+      "purpose": "anti-replay timestamp for HMAC signature verification"
+    },
+    {
+      "name": "X-MedKernel-Signature",
+      "required": "webhook inbound and FHIR create",
+      "purpose": "HMAC-SHA256 signature"
+    },
+    {
+      "name": "X-MedKernel-Fhir-Adapter",
+      "required": "FHIR create",
+      "purpose": "tenant-scoped FHIR adapter id that references signing webhook, whitelist, and default package version"
+    }
+  ],
+  "paths": {
+    "/api/v1/engine/integration/adapters": {
+      "get": {
+        "operationId": "listIntegrationAdapters",
+        "summary": "List third-party integration adapters for current tenant.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Adapter health fields may be NOT_CONNECTED when no real connector is reachable."
+        }
+      },
+      "post": {
+        "operationId": "createIntegrationAdapter",
+        "summary": "Create a third-party adapter registration.",
+        "permission": "integration.write",
+        "auditTarget": "integration_adapter",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key and a stable adapterId; duplicate adapterId in one tenant is rejected."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Creation records configuration only; it must not fake connectivity."
+        }
+      }
+    },
+    "/api/v1/engine/integration/adapters/{id}": {
+      "put": {
+        "operationId": "updateIntegrationAdapter",
+        "summary": "Update protocol, configuration, or status of an existing adapter.",
+        "permission": "integration.write",
+        "auditTarget": "integration_adapter",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated vendor console submissions; adapterId remains the business key."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Updating configuration does not imply a successful connection."
+        }
+      }
+    },
+    "/api/v1/engine/integration/health": {
+      "get": {
+        "operationId": "getIntegrationHealthSummary",
+        "summary": "Read tenant adapter health distribution and per-adapter status.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Disconnected external systems remain visible as NOT_CONNECTED."
+        }
+      }
+    },
+    "/api/v1/engine/integration/adapters/{id}/health-check": {
+      "post": {
+        "operationId": "checkIntegrationAdapterHealth",
+        "summary": "Manually trigger health check for one adapter.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_adapter",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key when an operator may retry the same health check command."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "The check must not fabricate HEALTHY or a synthetic RTT."
+        }
+      }
+    },
+    "/api/v1/engine/integration/webhooks": {
+      "get": {
+        "operationId": "listIntegrationWebhooks",
+        "summary": "List webhook subscriptions for current tenant.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "A missing callback target does not hide the webhook configuration."
+        }
+      },
+      "post": {
+        "operationId": "createIntegrationWebhook",
+        "summary": "Create a secure webhook subscription.",
+        "permission": "integration.write",
+        "auditTarget": "integration_webhook",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key and stable webhookId; duplicate webhookId in one tenant is rejected."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Creation stores subscription metadata; callback delivery is verified separately."
+        }
+      }
+    },
+    "/api/v1/engine/integration/webhooks/test": {
+      "post": {
+        "operationId": "testIntegrationWebhookSignature",
+        "summary": "Generate and verify webhook signature test evidence.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_webhook",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated operator tests when the same payload is reused."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Failed callback delivery must be reported as test failure, not success."
+        }
+      }
+    },
+    "/api/v1/engine/integration/webhooks/{id}/inbound": {
+      "post": {
+        "operationId": "ingestIntegrationWebhook",
+        "summary": "Receive signed inbound webhook message.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_webhook",
+        "idempotency": {
+          "requirement": "The messageId in request body is the business idempotency key; retries must return the original processing state."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Invalid signature, unknown webhook, or missing mapping is rejected and audited."
+        }
+      }
+    },
+    "/api/v1/engine/integration/messages/outbound": {
+      "post": {
+        "operationId": "enqueueIntegrationOutboundMessage",
+        "summary": "Register outbound asynchronous integration message.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_message_log",
+        "idempotency": {
+          "requirement": "The messageId in request body is the business idempotency key; retries must not create duplicate side effects."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "No real connector means NOT_CONNECTED compensation log; never fake sent status."
+        }
+      }
+    },
+    "/api/v1/engine/integration/logs": {
+      "get": {
+        "operationId": "listIntegrationMessageLogs",
+        "summary": "Page through integration message audit logs.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Logs remain queryable when external systems are down."
+        }
+      }
+    },
+    "/api/v1/engine/integration/dead-letter": {
+      "get": {
+        "operationId": "listIntegrationDeadLetters",
+        "summary": "Page through dead-letter integration messages.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Dead-letter evidence remains visible during outages."
+        }
+      }
+    },
+    "/api/v1/engine/integration/logs/{id}/retry": {
+      "post": {
+        "operationId": "retryIntegrationMessage",
+        "summary": "Retry delivery for one integration message log.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_message_log",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated operator retry commands; messageId anchors compensation."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Retry without a reachable connector stays NOT_CONNECTED or DEAD_LETTER."
+        }
+      }
+    },
+    "/api/v1/engine/integration/dead-letter/{id}/replay": {
+      "post": {
+        "operationId": "replayIntegrationDeadLetter",
+        "summary": "Replay one dead-letter message while preserving original evidence.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_message_log",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated replay commands; replay creates a traceable compensation message."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Replay must keep honest failure state when no connector is reachable."
+        }
+      }
+    }
+  }
+}

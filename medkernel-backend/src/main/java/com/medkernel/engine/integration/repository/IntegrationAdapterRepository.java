@@ -16,7 +16,7 @@ public interface IntegrationAdapterRepository extends ListCrudRepository<Integra
 
     List<IntegrationAdapter> findAllByTenantId(String tenantId);
 
-    Optional<IntegrationAdapter> findByAdapterIdAndTenantId(String adapterId, String tenantId);
+    List<IntegrationAdapter> findAllByStatus(String status);
 
-    Optional<IntegrationAdapter> findByAdapterId(String adapterId);
+    Optional<IntegrationAdapter> findByAdapterIdAndTenantId(String adapterId, String tenantId);
 }

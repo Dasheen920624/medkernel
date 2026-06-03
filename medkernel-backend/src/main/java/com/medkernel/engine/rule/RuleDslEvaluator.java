@@ -19,19 +19,22 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 规则 JSON DSL 确定性执行器（GA-ENG-API-05 § 7）。
  *
  * <p>负责把 {@code when} 条件树（all/any/leaf）按上下文求值，命中后解析 {@code then} 动作并计算最高严重度。
- * 仅覆盖 exists/equals/not_equals/contains/gt/gte/lt/lte/in/not_in 十种确定性算子，
- * 缺失字段不抛内部异常，而是产生未命中以便试运行和发布门禁能精准定位失败原因。
+ * 覆盖基础比较、集合判断以及 between/unit_compare/temporal/derived 临床算子。
+ * 缺失普通字段不抛内部异常，而是产生未命中；受控公式缺少必需参数时返回
+ * {@code INSUFFICIENT_DATA}，避免临床计算臆测默认值。
  */
 @Component
 public class RuleDslEvaluator {
 
     private final ObjectMapper json;
+    private final ClinicalRuleOperatorSupport clinicalOperators;
 
     /**
      * 注入 JSON 处理器，用于缺省上下文、缺失节点与 DSL 条件树解析。
      */
     public RuleDslEvaluator(ObjectMapper json) {
         this.json = json;
+        this.clinicalOperators = new ClinicalRuleOperatorSupport(json);
     }
 
     /**
@@ -104,23 +107,37 @@ public class RuleDslEvaluator {
         JsonNode actual = findPath(context, fact);
         JsonNode expected = node.get("value");
 
-        boolean matched = switch (operator) {
-            case "exists" -> exists(actual);
-            case "equals" -> exists(actual) && valuesEqual(actual, expected);
-            case "not_equals" -> !exists(actual) || !valuesEqual(actual, expected);
-            case "contains" -> contains(actual, expected);
-            case "gt" -> compare(actual, expected, "gt");
-            case "gte" -> compare(actual, expected, "gte");
-            case "lt" -> compare(actual, expected, "lt");
-            case "lte" -> compare(actual, expected, "lte");
-            case "in" -> in(actual, expected);
-            case "not_in" -> !in(actual, expected);
-            default -> throw invalid("不支持的规则算子: " + operator);
+        ClinicalRuleOperatorSupport.Outcome outcome = switch (operator) {
+            case "exists" -> clinicalOperators.basicOutcome(exists(actual), actual, expected);
+            case "equals" -> clinicalOperators.basicOutcome(exists(actual) && valuesEqual(actual, expected), actual, expected);
+            case "not_equals" -> clinicalOperators.basicOutcome(!exists(actual) || !valuesEqual(actual, expected), actual, expected);
+            case "contains" -> clinicalOperators.basicOutcome(contains(actual, expected), actual, expected);
+            case "gt" -> clinicalOperators.basicOutcome(compare(actual, expected, "gt"), actual, expected);
+            case "gte" -> clinicalOperators.basicOutcome(compare(actual, expected, "gte"), actual, expected);
+            case "lt" -> clinicalOperators.basicOutcome(compare(actual, expected, "lt"), actual, expected);
+            case "lte" -> clinicalOperators.basicOutcome(compare(actual, expected, "lte"), actual, expected);
+            case "in" -> clinicalOperators.basicOutcome(in(actual, expected), actual, expected);
+            case "not_in" -> clinicalOperators.basicOutcome(!in(actual, expected), actual, expected);
+            case "between" -> clinicalOperators.between(fact, actual, expected);
+            case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
+            case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
+            case "derived" -> clinicalOperators.derived(fact, context, expected);
+            default -> throw operatorInvalid("不支持的规则算子: " + operator);
         };
         return new ConditionEvaluation(
-            matched,
+            outcome.matched(),
             List.of(new ConditionEvidence(
-                fact, "$." + fact, operator, expected, actual, matched, !exists(actual))));
+                fact,
+                "$." + fact,
+                operator,
+                outcome.expected(),
+                outcome.actual(),
+                outcome.matched(),
+                outcome.missing(),
+                outcome.value(),
+                outcome.unit(),
+                outcome.source(),
+                outcome.formula())));
     }
 
     private List<RuleActionResult> parseActions(JsonNode then) {
@@ -174,6 +191,18 @@ public class RuleDslEvaluator {
             entry.set("actual", safeNode(item.actual()));
             entry.put("matched", item.matched());
             entry.put("missing", item.missing());
+            if (item.value() != null && !item.value().isMissingNode() && !item.value().isNull()) {
+                entry.set("value", safeNode(item.value()));
+            }
+            if (item.unit() != null && !item.unit().isBlank()) {
+                entry.put("unit", item.unit());
+            }
+            if (item.source() != null && !item.source().isBlank()) {
+                entry.put("source", item.source());
+            }
+            if (item.formula() != null && !item.formula().isBlank()) {
+                entry.put("formula", item.formula());
+            }
             conditionEvidence.add(entry);
         }
         explanation.set("conditionEvidence", conditionEvidence);
@@ -291,6 +320,10 @@ public class RuleDslEvaluator {
         return new ApiException(ErrorCode.RULE_DSL_INVALID, message);
     }
 
+    private ApiException operatorInvalid(String message) {
+        return new ApiException(ErrorCode.DSL_OPERATOR_INVALID, message);
+    }
+
     private record ConditionEvaluation(boolean matched, List<ConditionEvidence> evidence) {
     }
 
@@ -301,6 +334,10 @@ public class RuleDslEvaluator {
         JsonNode expected,
         JsonNode actual,
         boolean matched,
-        boolean missing) {
+        boolean missing,
+        JsonNode value,
+        String unit,
+        String source,
+        String formula) {
     }
 }

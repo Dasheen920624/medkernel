@@ -1,7 +1,6 @@
 package com.medkernel.engine.integration.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -19,7 +18,7 @@ import com.medkernel.shared.datascope.DataScope;
 /**
  * 第三方系统对接总线及集成控制器。
  *
- * <p>提供多租户隔离下的异构系统适配器管理、自检诊断、Webhook 动态安全订阅、
+ * <p>提供多租户隔离下的异构系统适配器管理、健康检查诊断、Webhook 动态安全订阅、
  * 接口流审计死信队列手动重试投递及补偿、跨域通信及 launch token 免登接入审计等功能。
  */
 @RestController
@@ -124,22 +123,34 @@ public class IntegrationController {
     }
 
     /**
-     * 手动触发指定第三方系统适配器的物理连接健康自检 (Ping) 并计算单向时延。
+     * 获取当前租户适配器健康目录汇总。
+     *
+     * @return 适配器数量、连通状态分布和逐项健康说明
+     */
+    @GetMapping("/health")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<AdapterHealthSummaryDto> getAdapterHealthSummary() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(integrationService.getAdapterHealthSummary(tenantId));
+    }
+
+    /**
+     * 手动触发指定第三方系统适配器健康检查。
      *
      * @param adapterId 适配器全局唯一 ID
-     * @return 包含最新 RTT 时延与状态的适配器实体
+     * @return 包含最新健康状态的适配器实体
      */
-    @PostMapping("/adapters/{id}/ping")
+    @PostMapping("/adapters/{id}/health-check")
     @PreAuthorize("@perm.has('integration.execute')")
-    public ApiResult<IntegrationAdapter> pingAdapter(@PathVariable("id") String adapterId) {
+    public ApiResult<IntegrationAdapter> checkAdapterHealth(@PathVariable("id") String adapterId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
-            IntegrationAdapter adapter = integrationService.pingAdapter(tenantId, adapterId);
+            IntegrationAdapter adapter = integrationService.checkAdapterHealth(tenantId, adapterId);
             auditEventPublisher.publish(AuditEvent.of(
                 AuditAction.EXECUTE,
                 "integration_adapter",
                 adapterId,
-                "适配器自检连接健康诊断成功"
+                "适配器健康检查完成，状态: " + adapter.healthStatus()
             ));
             return ApiResult.ok(adapter);
         } catch (ApiException e) {
@@ -148,7 +159,7 @@ public class IntegrationController {
                 "integration_adapter",
                 adapterId,
                 e.errorCode().code(),
-                "适配器自检连接健康诊断失败: " + e.getMessage()
+                "适配器健康检查失败: " + e.getMessage()
             ));
             throw e;
         }
@@ -201,7 +212,7 @@ public class IntegrationController {
      * 手动触发指定 Webhook 通道的回调签名生成与双向测试。
      *
      * @param dto 测试入参 DTO (含要调试的 Webhook ID 与测试 Payload 报文)
-     * @return 包含推导签名结果及通断状态的键值对 Map 响应体
+     * @return 包含推导签名结果及通断状态的签名测试响应
      */
     @PostMapping("/webhooks/test")
     @PreAuthorize("@perm.has('integration.execute')")
@@ -222,7 +233,81 @@ public class IntegrationController {
                 "integration_webhook",
                 dto.webhookId(),
                 e.errorCode().code(),
-                "执行 Webhook 签名自检测连通测试失败: " + e.getMessage()
+                "执行 Webhook 签名测试失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
+     * 接收第三方系统 Webhook 入站消息。
+     *
+     * <p>签名头由服务层进行 HMAC-SHA256 常量时间校验；验签失败会拒绝并写入集成消息日志。
+     *
+     * @param webhookId Webhook 订阅 ID
+     * @param timestamp 防重放签名时间戳
+     * @param signature HMAC-SHA256 签名
+     * @param dto       入站消息 DTO
+     * @return 字段映射和编码归一后的处理结果
+     */
+    @PostMapping("/webhooks/{id}/inbound")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<WebhookInboundResultDto> ingestWebhook(@PathVariable("id") String webhookId,
+                                                            @RequestHeader("X-MedKernel-Timestamp") String timestamp,
+                                                            @RequestHeader("X-MedKernel-Signature") String signature,
+                                                            @Validated @RequestBody WebhookInboundRequestDto dto) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            WebhookInboundResultDto result = integrationService.ingestWebhook(tenantId, webhookId, timestamp, signature, dto);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.EXECUTE,
+                "integration_webhook",
+                webhookId,
+                "接收入站 Webhook 消息: " + result.messageId() + "，状态: " + result.status()
+            ));
+            return ApiResult.ok(result);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "integration_webhook",
+                webhookId,
+                e.errorCode().code(),
+                "接收入站 Webhook 消息失败: " + dto.messageId() + "，原因: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
+     * 登记第三方出站异步同步消息。
+     *
+     * <p>外部系统断连或尚未接入真实连接器时，服务层只登记 {@code NOT_CONNECTED} 补偿日志，
+     * 不等待外部回执，也不伪造发送成功，从而避免阻断医生主流程。
+     *
+     * @param dto 出站异步同步消息
+     * @return 不阻断主流程的登记结果
+     */
+    @PostMapping("/messages/outbound")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<IntegrationOutboundResultDto> enqueueOutboundMessage(
+            @Validated @RequestBody IntegrationOutboundRequestDto dto) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            IntegrationOutboundResultDto result = integrationService.enqueueOutboundMessage(tenantId, dto);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                dto.messageId(),
+                "登记第三方出站异步补偿消息，状态: " + result.status()
+            ));
+            return ApiResult.ok(result);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                dto.messageId(),
+                e.errorCode().code(),
+                "登记第三方出站异步补偿失败: " + e.getMessage()
             ));
             throw e;
         }
@@ -245,6 +330,21 @@ public class IntegrationController {
         long total = integrationService.getMessageLogsCount(tenantId);
         PageResponse<IntegrationMessageLog> response = PageResponse.of(list, pageReq, total);
         return ApiResult.ok(response);
+    }
+
+    /**
+     * 分页查询当前租户下所有集成死信消息。
+     */
+    @GetMapping("/dead-letter")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<PageResponse<IntegrationMessageLog>> getDeadLetters(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        PageRequest pageReq = new PageRequest(page, size, null);
+        List<IntegrationMessageLog> list = integrationService.getDeadLetters(tenantId, pageReq.offset(), pageReq.safeSize());
+        long total = integrationService.getDeadLettersCount(tenantId);
+        return ApiResult.ok(PageResponse.of(list, pageReq, total));
     }
 
     /**
@@ -279,31 +379,31 @@ public class IntegrationController {
     }
 
     /**
-     * 手动物理或逻辑删除指定集成流审计日志，通常用于已补偿且已结案的高危警报归档。
+     * 人工重放指定集成死信消息；原死信证据保留，新建补偿消息。
      *
      * @param messageId 流日志 ID
-     * @return 空返回实体
+     * @return 死信重放结果
      */
-    @DeleteMapping("/logs/{id}")
+    @PostMapping("/dead-letter/{id}/replay")
     @PreAuthorize("@perm.has('integration.execute')")
-    public ApiResult<Void> deleteMessage(@PathVariable("id") String messageId) {
+    public ApiResult<IntegrationReplayResultDto> replayDeadLetter(@PathVariable("id") String messageId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
-            integrationService.deleteMessage(tenantId, messageId);
+            IntegrationReplayResultDto result = integrationService.replayDeadLetter(tenantId, messageId);
             auditEventPublisher.publish(AuditEvent.of(
-                AuditAction.DELETE,
+                AuditAction.EXECUTE,
                 "integration_message_log",
                 messageId,
-                "手动删除接口集成流审计日志与重试项"
+                "人工重放集成死信消息，新消息: " + result.replayMessageId()
             ));
-            return ApiResult.empty();
+            return ApiResult.ok(result);
         } catch (ApiException e) {
             isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
-                AuditAction.DELETE,
+                AuditAction.EXECUTE,
                 "integration_message_log",
                 messageId,
                 e.errorCode().code(),
-                "手动删除接口审计日志失败: " + e.getMessage()
+                "人工重放集成死信消息失败: " + e.getMessage()
             ));
             throw e;
         }

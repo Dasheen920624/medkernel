@@ -48,6 +48,8 @@ public class SystemConfigService {
     public static final String AUDIT_FALLBACK_PATH_KEY = "medkernel.audit.fallback.path";
     public static final String CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY =
         "medkernel.events.worker.poll-interval-ms";
+    public static final String INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY =
+        "medkernel.integration.health-probe-interval-ms";
     private static final String SAFE_DEFAULT_SOURCE = "SAFE_DEFAULT";
     private static final Set<String> PROTECTED_RUNTIME_DISABLE_KEYS = Set.of(
         RUNTIME_FLAG_PREFIX + "domestic-crypto" + RUNTIME_FLAG_SUFFIX);
@@ -251,6 +253,12 @@ public class SystemConfigService {
         return readRuntimeLongConfig(
             CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY,
             properties.workerPollIntervalMs()).value();
+    }
+
+    public long runtimeIntegrationHealthProbeIntervalMs(IntegrationHealthProbeSettings properties) {
+        return readRuntimeLongConfig(
+            INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
+            properties.healthProbeIntervalMs()).value();
     }
 
     private RuntimeFeatureFlag runtimeFeatureFlag(String key, RuntimeProperties.FeatureFlag fallback) {
