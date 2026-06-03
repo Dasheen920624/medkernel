@@ -88,7 +88,8 @@ class MigrationBaselineContractTest {
         "V59__integration_adapter_tenant_unique.sql",
         "V60__integration_message_tenant_unique.sql",
         "V61__integration_webhook_tenant_unique.sql",
-        "V62__integration_message_not_connected_status.sql"
+        "V62__integration_message_not_connected_status.sql",
+        "V63__fhir_resource_mapping.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -130,7 +131,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
         "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -238,7 +240,8 @@ class MigrationBaselineContractTest {
         "idx_mk_version_asset_version_active_scope",
         "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
-        "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version"
+        "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
+        "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -362,7 +365,12 @@ class MigrationBaselineContractTest {
         "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
         "ck_mk_version_activation_transaction_type", "ck_mk_version_activation_transaction_action",
         "uk_mk_version_replay_binding_id", "uk_mk_version_replay_binding_event",
-        "ck_mk_version_replay_binding_type", "ck_mk_version_replay_binding_hash"
+        "ck_mk_version_replay_binding_type", "ck_mk_version_replay_binding_hash",
+        "uk_mk_fhir_res_map_fhir", "uk_mk_fhir_res_map_canon",
+        "ck_mk_fhir_res_map_ver", "ck_mk_fhir_res_map_status",
+        "ck_mk_fhir_res_map_rate", "ck_mk_fhir_res_map_missing",
+        "uk_mk_fhir_rule_code", "ck_mk_fhir_rule_ver",
+        "ck_mk_fhir_rule_status", "ck_mk_fhir_rule_version"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -400,7 +408,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_projection_sync", "mk_projection_snapshot",
         "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
         "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
@@ -433,7 +442,8 @@ class MigrationBaselineContractTest {
         "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding"
+        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
         Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
@@ -526,7 +536,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_version_inheritance_override", Set.of("override_mode")),
         Map.entry("mk_version_release_plan", Set.of("scope_type", "status")),
         Map.entry("mk_version_activation_transaction", Set.of("action")),
-        Map.entry("mk_version_replay_binding", Set.of("result_hash"))
+        Map.entry("mk_version_replay_binding", Set.of("result_hash")),
+        Map.entry("mk_fhir_resource_mapping", Set.of("fhir_version", "mapping_status")),
+        Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -608,6 +620,31 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void v63ShouldDeclareFhirResourceMappingAndRulesForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V63__fhir_resource_mapping.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s FHIR 资源映射与规则表", dialect)
+                .contains("mk_fhir_resource_mapping")
+                .contains("mk_fhir_mapping_rule")
+                .contains("uk_mk_fhir_res_map_fhir")
+                .contains("uk_mk_fhir_res_map_canon")
+                .contains("ck_mk_fhir_res_map_ver")
+                .contains("ck_mk_fhir_res_map_status")
+                .contains("idx_mk_fhir_res_map_tenant")
+                .contains("uk_mk_fhir_rule_code")
+                .contains("ck_mk_fhir_rule_ver")
+                .contains("ck_mk_fhir_rule_status")
+                .contains("idx_mk_fhir_rule_tenant")
+                .contains("comment on table mk_fhir_resource_mapping")
+                .contains("comment on table mk_fhir_mapping_rule");
+        }
+    }
+
+    @Test
     void everyDialectPreservesRequiredTablesIndexesAndBusinessConstraints() throws IOException {
         for (String dialect : DIALECTS) {
             String ddl = combinedDdl(dialect);
@@ -620,6 +657,7 @@ class MigrationBaselineContractTest {
             if (dialect.equals("oracle") || dialect.equals("dm")) {
                 expectedConstraints = new HashSet<>(COMMON_CONSTRAINTS);
                 expectedConstraints.add("ck_mapping_candidate_conflict");
+                expectedConstraints.add("ck_mk_fhir_rule_required");
             }
             assertThat(names(CONSTRAINT_PATTERN, ddl)).as("%s 业务约束", dialect)
                 .containsExactlyInAnyOrderElementsOf(expectedConstraints);
