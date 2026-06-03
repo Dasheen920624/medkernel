@@ -20,15 +20,26 @@ import {
   submitLargeListExport,
   useCreatePackage,
   useActivateOnboardingReadiness,
+  useBatchConfirmTerminologyCandidates,
+  useBuildTerminologyPackage,
+  useConfirmTerminologyCandidate,
+  useGenerateTerminologyCandidates,
   useImplementationSteps,
   useInstantiatePilotTemplate,
+  useLocalTerms,
   useOnboardingReadiness,
   useOrgUnits,
   usePackages,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePilotPackageTemplates,
+  usePublishTerminologyPackage,
+  useRollbackTerminologyPackage,
   useSyncPackage,
+  useStandardTerms,
+  useTerminologyCandidates,
+  useTerminologyConflicts,
+  useTerminologyPackages,
 } from "./hooks";
 
 vi.mock("./client", () => ({
@@ -404,6 +415,193 @@ describe("package export api helpers", () => {
         packageCode: "PILOT.FIRST",
         packageVersion: "2026.06.03",
         name: "首发配置包",
+      }),
+    );
+  });
+});
+
+describe("terminology mapping api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000004");
+  });
+
+  it("loads standard and local dictionaries from the API-04 paged endpoints", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 20, total: 0 } } });
+
+    const standard = renderApiHook(() =>
+      useStandardTerms({ page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" }),
+    );
+    const local = renderApiHook(() =>
+      useLocalTerms({ page: 0, size: 20, sourceSystem: "LIS", status: "UNMAPPED" }),
+    );
+
+    await waitFor(() => expect(standard.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(local.result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/terms/standard", {
+      params: { page: 0, size: 20, standardSystem: "LOINC", status: "ACTIVE" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/terms/local", {
+      params: { page: 0, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
+    });
+  });
+
+  it("loads candidates, conflicts and mapping packages from the API-04 roots", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 0, size: 10, total: 0 } } });
+
+    const candidates = renderApiHook(() =>
+      useTerminologyCandidates({ page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" }),
+    );
+    const conflicts = renderApiHook(() =>
+      useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" }),
+    );
+    const packages = renderApiHook(() =>
+      useTerminologyPackages({ page: 0, size: 10, status: "DRAFT" }),
+    );
+
+    await waitFor(() => expect(candidates.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(conflicts.result.current.data?.items).toEqual([]));
+    await waitFor(() => expect(packages.result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/mappings/candidates", {
+      params: { page: 0, size: 10, status: "PENDING", riskLevel: "HIGH" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/mappings/conflicts", {
+      params: { page: 0, size: 10, status: "OPEN" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/terminology/mapping-packages", {
+      params: { page: 0, size: 10, status: "DRAFT" },
+    });
+  });
+
+  it("submits terminology candidate generation and confirmation with standard context fields", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { generatedCount: 1, candidates: [] } } })
+      .mockResolvedValueOnce({ data: { data: { id: 10, status: "CONFIRMED" } } })
+      .mockResolvedValueOnce({
+        data: { data: { confirmedCount: 1, confirmedCandidateIds: [11] } },
+      });
+
+    const generate = renderApiHook(() => useGenerateTerminologyCandidates());
+    const confirm = renderApiHook(() => useConfirmTerminologyCandidate());
+    const batchConfirm = renderApiHook(() => useBatchConfirmTerminologyCandidates());
+
+    await generate.result.current.mutateAsync({
+      packageVersion: "2026.06",
+      sourceSystem: "LIS",
+      minimumScore: 0.6,
+      semanticAssistEnabled: false,
+    });
+    await confirm.result.current.mutateAsync({
+      candidateId: 10,
+      request: {
+        packageVersion: "2026.06",
+        reviewNote: "逐条确认高危候选",
+        highRiskAcknowledged: true,
+        highRiskReason: "已核对来源版本",
+      },
+    });
+    await batchConfirm.result.current.mutateAsync({
+      candidateIds: [11],
+      request: { packageVersion: "2026.06", reviewNote: "批量确认普通候选" },
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/terminology/mappings/candidates",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000004",
+        trace_id: "00000000-0000-4000-8000-000000000004",
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "2026.06",
+        sourceSystem: "LIS",
+        semanticAssistEnabled: false,
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/terminology/mappings/10/confirm",
+      expect.objectContaining({
+        package_version: "2026.06",
+        highRiskAcknowledged: true,
+        highRiskReason: "已核对来源版本",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/terminology/mappings/batch-confirm",
+      expect.objectContaining({
+        package_version: "2026.06",
+        candidateIds: [11],
+      }),
+    );
+  });
+
+  it("builds, publishes and rolls back terminology mapping packages through API-04 roots", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "DRAFT" } } })
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "GRAY" } } })
+      .mockResolvedValueOnce({ data: { data: { id: 30, status: "ROLLED_BACK" } } });
+
+    const build = renderApiHook(() => useBuildTerminologyPackage());
+    const publish = renderApiHook(() => usePublishTerminologyPackage());
+    const rollback = renderApiHook(() => useRollbackTerminologyPackage());
+
+    await build.result.current.mutateAsync({
+      packageCode: "TERM.LAB",
+      packageVersion: "2026.06",
+      scopeLevel: "HOSPITAL",
+      scopeCode: "hospital-A",
+      displayName: "检验字典映射包",
+    });
+    await publish.result.current.mutateAsync({
+      packageId: 30,
+      request: {
+        packageVersion: "2026.06",
+        releaseMode: "GRAY",
+        reason: "首发检验字典灰度验证",
+        grayScopeJson: '{"percent":10}',
+      },
+    });
+    await rollback.result.current.mutateAsync({
+      packageId: 30,
+      request: {
+        packageVersion: "2026.06",
+        targetPackageId: 29,
+        reason: "灰度验证失败",
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/terminology/mapping-packages",
+      expect.objectContaining({
+        packageCode: "TERM.LAB",
+        packageVersion: "2026.06",
+        package_version: "2026.06",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/terminology/mapping-packages/30/publish",
+      expect.objectContaining({
+        releaseMode: "GRAY",
+        reason: "首发检验字典灰度验证",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/terminology/mapping-packages/30/rollback",
+      expect.objectContaining({
+        targetPackageId: 29,
+        reason: "灰度验证失败",
       }),
     );
   });

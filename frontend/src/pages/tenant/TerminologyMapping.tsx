@@ -1,17 +1,52 @@
 import type { Key } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Tag } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Form,
+  Input,
+  Modal,
+  Radio,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import {
+  CheckCircleOutlined,
+  CloudUploadOutlined,
+  RollbackOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+import type { ColumnsType } from "antd/es/table";
 
 import {
   parseSavedExperienceView,
+  useBatchConfirmTerminologyCandidates,
+  useBuildTerminologyPackage,
+  useConfirmTerminologyCandidate,
   useLargeListExportJob,
+  useLocalTerms,
+  usePublishTerminologyPackage,
+  useRollbackTerminologyPackage,
   useSaveView,
   useSavedViews,
   useSecurityProfile,
+  useStandardTerms,
   useSubmitLargeListExport,
+  useTerminologyCandidates,
+  useTerminologyConflicts,
   useTerminologyMappings,
+  useTerminologyPackages,
+  type MappingConflict,
   type TermMapping,
+  type TermMappingCandidate,
+  type TermMappingPackage,
 } from "@/shared/api/hooks";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
@@ -21,6 +56,7 @@ import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { ServerDataTable } from "@/shared/ui/ServerDataTable";
+import { StepFlow } from "@/shared/ui/StepFlow";
 import type {
   ExperienceColumn,
   ExperienceFilterValue,
@@ -29,6 +65,10 @@ import type {
   RouteExperience,
 } from "@/shared/ui/experienceTypes";
 import { buildAsyncExportRequest, normalizePageResponse } from "@/shared/ui/experienceView";
+
+import styles from "./TerminologyMapping.module.css";
+
+const { Text } = Typography;
 
 const VIEW_KEY = "terminology.mapping";
 const PAGE_SIZE = 20;
@@ -75,6 +115,15 @@ const RISK_LABEL: Record<TermMapping["riskLevel"], string> = {
   HIGH: "高",
   MEDIUM: "中",
   LOW: "低",
+};
+
+const PACKAGE_STATUS_LABEL: Record<TermMappingPackage["status"], string> = {
+  DRAFT: "草稿",
+  GRAY: "灰度",
+  PUBLISHED: "已发布",
+  SUPERSEDED: "已替换",
+  ROLLED_BACK: "已回滚",
+  ARCHIVED: "已归档",
 };
 
 const tableColumns: Array<ExperienceColumn<TermMapping>> = [
@@ -160,6 +209,21 @@ function detailSections(mapping?: TermMapping): EvidenceDetailSection[] {
   ];
 }
 
+function percent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
+function candidateRiskTag(candidate: TermMappingCandidate) {
+  if (candidate.highRiskFlag) {
+    return <Tag color="red">高危</Tag>;
+  }
+  return <Tag color={RISK_COLOR[candidate.riskLevel]}>{RISK_LABEL[candidate.riskLevel]}</Tag>;
+}
+
 export default function TerminologyMapping() {
   const savedViews = useSavedViews(VIEW_KEY);
   const saveView = useSaveView();
@@ -176,6 +240,12 @@ export default function TerminologyMapping() {
     rowCount: number;
   }>();
   const [selectedMapping, setSelectedMapping] = useState<TermMapping>();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [rollbackOpen, setRollbackOpen] = useState(false);
+  const [confirmForm] = Form.useForm();
+  const [publishForm] = Form.useForm();
+  const [rollbackForm] = Form.useForm();
 
   const security = useSecurityProfile();
   const query = useTerminologyMappings({
@@ -187,6 +257,26 @@ export default function TerminologyMapping() {
     sourceSystem: getFilterValue(filters, "sourceSystem"),
     keyword: getFilterValue(filters, "keyword"),
   });
+  const standardTerms = useStandardTerms({ page: 0, size: PAGE_SIZE, status: "ACTIVE" });
+  const localTerms = useLocalTerms({
+    page: 0,
+    size: PAGE_SIZE,
+    sourceSystem: getFilterValue(filters, "sourceSystem"),
+    status: "UNMAPPED",
+  });
+  const candidates = useTerminologyCandidates({
+    page: 0,
+    size: PAGE_SIZE,
+    status: "PENDING",
+    riskLevel: "HIGH",
+  });
+  const conflicts = useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" });
+  const packages = useTerminologyPackages({ page: 0, size: 10 });
+  const confirmCandidate = useConfirmTerminologyCandidate();
+  const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
+  const buildPackage = useBuildTerminologyPackage();
+  const publishPackage = usePublishTerminologyPackage();
+  const rollbackPackage = useRollbackTerminologyPackage();
 
   useEffect(() => {
     if (savedViewApplied.current || !savedViews.data || savedViews.data.length === 0) {
@@ -232,18 +322,6 @@ export default function TerminologyMapping() {
     setRequest(nextRequest);
   }
 
-  function updateRequest(nextRequest: ExperiencePageRequest) {
-    setRequest(nextRequest);
-  }
-
-  function updateExpertMode(enabled: boolean) {
-    setExpertMode(enabled);
-  }
-
-  function updateColumns(nextSnapshot: ExperienceViewSnapshot) {
-    setVisibleColumnKeys(nextSnapshot.visibleColumnKeys);
-  }
-
   function saveCurrentView() {
     void saveView.mutateAsync({
       pageKey: VIEW_KEY,
@@ -253,15 +331,28 @@ export default function TerminologyMapping() {
     });
   }
 
-  const hasPermission = !security.data || canAccessRoute(route, security.data);
-  const canExport =
-    security.data?.permissions.some((permission) => permission.code === "list.export") ?? false;
-  const items = query.data?.items ?? [];
+  const routeAllowed = !security.data || canAccessRoute(route, security.data);
+  const canExport = hasPermission(security.data, "list.export");
+  const canWrite = hasPermission(security.data, "term.write");
+  const canPublish = hasPermission(security.data, "term.publish");
+  const canRollback = hasPermission(security.data, "package.rollback");
+  const mappingItems = query.data?.items ?? [];
+  const standardItems = standardTerms.data?.items ?? [];
+  const localItems = localTerms.data?.items ?? [];
+  const candidateItems = candidates.data?.items ?? [];
+  const conflictItems = conflicts.data?.items ?? [];
+  const packageItems = packages.data?.items ?? [];
+  const highRiskCandidates = candidateItems.filter((candidate) => candidate.highRiskFlag);
+  const ordinaryCandidates = candidateItems.filter((candidate) => !candidate.highRiskFlag);
+  const selectedCandidate = highRiskCandidates[0] ?? candidateItems[0];
+  const selectedPackage = packageItems[0];
+  const currentPackageVersion = selectedPackage?.packageVersion;
+
   let pageState: PageStateKind = "ready";
-  if (!hasPermission) pageState = "forbidden";
+  if (!routeAllowed) pageState = "forbidden";
   else if (query.isLoading) pageState = "loading";
   else if (query.isError) pageState = "error";
-  else if (items.length === 0) pageState = "empty";
+  else if (mappingItems.length === 0) pageState = "empty";
 
   const exportRequest = buildAsyncExportRequest({
     resourceType: "TERMINOLOGY_MAPPING",
@@ -271,20 +362,199 @@ export default function TerminologyMapping() {
     reason: "导出字典映射核查结果",
   });
 
+  const stepPanels = useMemo(
+    () => ({
+      evidence_rollback: (
+        <Space direction="vertical" size="small" className="mk-full-width">
+          <Text>
+            <Text strong>选字典</Text>：标准 {standardItems.length} 条，院内待映射{" "}
+            {localItems.length} 条
+          </Text>
+          <Text>
+            <Text strong>生成候选</Text>：待确认 {candidateItems.length} 条，高危{" "}
+            {highRiskCandidates.length} 条
+          </Text>
+          <Text>
+            <Text strong>逐条确认</Text>：高危候选必须二次确认，普通候选才允许批量确认
+          </Text>
+          <Text>
+            <Text strong>证据/回滚</Text>：映射包发布、灰度和回滚均由 API-04 留审计证据
+          </Text>
+        </Space>
+      ),
+    }),
+    [candidateItems.length, highRiskCandidates.length, localItems.length, standardItems.length],
+  );
+
+  const candidateColumns: ColumnsType<TermMappingCandidate> = [
+    {
+      title: "候选",
+      dataIndex: "id",
+      width: 120,
+      render: (id) => <Text strong>#{id}</Text>,
+    },
+    {
+      title: "语义分",
+      dataIndex: "semanticMatchScore",
+      width: 120,
+      render: (value: number) => percent(value),
+    },
+    {
+      title: "风险",
+      dataIndex: "riskLevel",
+      width: 140,
+      render: (_, candidate) => candidateRiskTag(candidate),
+    },
+    {
+      title: "证据",
+      dataIndex: "evidenceText",
+      render: (value?: string) => value ?? "暂无候选证据",
+    },
+  ];
+
+  const conflictColumns: ColumnsType<MappingConflict> = [
+    {
+      title: "冲突类型",
+      dataIndex: "conflictType",
+      width: 160,
+      render: (value: MappingConflict["conflictType"]) =>
+        value === "ONE_TO_MANY" ? "一对多冲突" : value,
+    },
+    {
+      title: "风险",
+      dataIndex: "riskLevel",
+      width: 100,
+      render: (value: MappingConflict["riskLevel"]) => (
+        <Tag color={RISK_COLOR[value]}>{RISK_LABEL[value]}</Tag>
+      ),
+    },
+    {
+      title: "待裁说明",
+      dataIndex: "description",
+    },
+  ];
+
+  async function submitHighRiskConfirmation() {
+    if (!selectedCandidate || !currentPackageVersion) return;
+    const values = await confirmForm.validateFields();
+    await confirmCandidate.mutateAsync({
+      candidateId: selectedCandidate.id,
+      request: {
+        packageVersion: currentPackageVersion,
+        reviewNote: selectedCandidate.highRiskFlag ? "逐条确认高危候选" : "确认普通候选",
+        highRiskAcknowledged: Boolean(values.highRiskAcknowledged),
+        highRiskReason: values.highRiskReason,
+      },
+    });
+    setConfirmOpen(false);
+    confirmForm.resetFields();
+  }
+
+  async function submitOrdinaryBatchConfirmation() {
+    if (
+      !currentPackageVersion ||
+      ordinaryCandidates.length === 0 ||
+      highRiskCandidates.length > 0
+    ) {
+      return;
+    }
+    await batchConfirmCandidates.mutateAsync({
+      candidateIds: ordinaryCandidates.map((candidate) => candidate.id),
+      request: { packageVersion: currentPackageVersion, reviewNote: "批量确认普通候选" },
+    });
+  }
+
+  async function submitPublish() {
+    if (!selectedPackage || !currentPackageVersion) return;
+    const values = await publishForm.validateFields();
+    await publishPackage.mutateAsync({
+      packageId: selectedPackage.id,
+      request: {
+        packageVersion: currentPackageVersion,
+        releaseMode: values.releaseMode,
+        reason: values.reason,
+        grayScopeJson: values.releaseMode === "GRAY" ? '{"percent":10}' : undefined,
+      },
+    });
+    setPublishOpen(false);
+    publishForm.resetFields();
+  }
+
+  async function submitRollback() {
+    if (!selectedPackage || !currentPackageVersion) return;
+    const values = await rollbackForm.validateFields();
+    await rollbackPackage.mutateAsync({
+      packageId: selectedPackage.id,
+      request: {
+        packageVersion: currentPackageVersion,
+        targetPackageId: selectedPackage.rollbackFromPackageId ?? selectedPackage.id,
+        reason: values.reason,
+      },
+    });
+    setRollbackOpen(false);
+    rollbackForm.resetFields();
+  }
+
   return (
     <PageExperienceShell
       meta={PAGE_META}
       securityProfile={security.data}
       expertMode={expertMode}
-      onExpertModeChange={updateExpertMode}
+      onExpertModeChange={setExpertMode}
+      primary={
+        <Button
+          type="primary"
+          aria-label="确认候选"
+          icon={<SafetyCertificateOutlined aria-hidden="true" />}
+          disabled={!canWrite || !selectedCandidate || !currentPackageVersion}
+          onClick={() => setConfirmOpen(true)}
+        >
+          确认候选
+        </Button>
+      }
       extras={
-        <AsyncExportAction
-          enabled
-          permissionGranted={canExport}
-          request={exportRequest}
-          onSubmit={submitExport.mutateAsync}
-          onPoll={pollExport.mutateAsync}
-        />
+        <Space wrap>
+          <AsyncExportAction
+            enabled
+            permissionGranted={canExport}
+            request={exportRequest}
+            onSubmit={submitExport.mutateAsync}
+            onPoll={pollExport.mutateAsync}
+          />
+          <Button
+            aria-label="构建映射包"
+            icon={<CheckCircleOutlined aria-hidden="true" />}
+            disabled={!canWrite || mappingItems.length === 0}
+            onClick={() =>
+              void buildPackage.mutateAsync({
+                packageCode: selectedPackage?.packageCode ?? "TERM.MAPPING",
+                packageVersion:
+                  currentPackageVersion ?? mappingItems[0]?.updatedAt?.slice(0, 7) ?? "待定版本",
+                scopeLevel: selectedPackage?.scopeLevel ?? "HOSPITAL",
+                scopeCode: selectedPackage?.scopeCode ?? "CURRENT",
+                displayName: selectedPackage?.displayName ?? "字典映射包",
+              })
+            }
+          >
+            构建映射包
+          </Button>
+          <Button
+            aria-label="发布映射包"
+            icon={<CloudUploadOutlined aria-hidden="true" />}
+            disabled={!canPublish || !selectedPackage}
+            onClick={() => setPublishOpen(true)}
+          >
+            发布映射包
+          </Button>
+          <Button
+            aria-label="回滚映射包"
+            icon={<RollbackOutlined aria-hidden="true" />}
+            disabled={!canRollback || !selectedPackage}
+            onClick={() => setRollbackOpen(true)}
+          >
+            回滚映射包
+          </Button>
+        </Space>
       }
     >
       <ExperienceFilterBar
@@ -301,25 +571,123 @@ export default function TerminologyMapping() {
         onRetry={query.refetch}
       >
         {query.data && (
-          <ServerDataTable<TermMapping>
-            viewKey={VIEW_KEY}
-            rowKey="id"
-            columns={tableColumns}
-            query={normalizePageResponse(query.data)}
-            request={request}
-            loading={false}
-            partial={
-              query.data.partial
-                ? { ...query.data.partial, onRetryFailures: () => void query.refetch() }
-                : undefined
-            }
-            expertMode={expertMode}
-            initialVisibleColumnKeys={visibleColumnKeys}
-            onRequestChange={updateRequest}
-            onOpenDetail={setSelectedMapping}
-            onViewSnapshotChange={updateColumns}
-            onSelectionSnapshotChange={setSelectionSnapshot}
-          />
+          <Space direction="vertical" size="large" className="mk-full-width">
+            <div className={styles.summaryGrid}>
+              <Card className={styles.summaryCard}>
+                <Statistic
+                  title="标准字典"
+                  value={standardTerms.data?.total ?? standardItems.length}
+                />
+                <Text type="secondary">ICD / LOINC / 药品本位码等分页读取</Text>
+              </Card>
+              <Card className={styles.summaryCard}>
+                <Statistic title="院内待映射" value={localTerms.data?.total ?? localItems.length} />
+                <Text type="secondary">按来源系统和关键词服务端筛选</Text>
+              </Card>
+              <Card className={styles.summaryCard}>
+                <Statistic title="高危候选" value={highRiskCandidates.length} />
+                <Text type="secondary">高危逐条确认，禁批量通过</Text>
+              </Card>
+              <Card className={styles.summaryCard}>
+                <Statistic title="待裁冲突数" value={conflictItems.length} />
+                <Text type="secondary">一对多 / 多对一保持人工裁决</Text>
+              </Card>
+            </div>
+
+            <StepFlow currentStep="evidence_rollback" panelByStep={stepPanels} />
+
+            <ServerDataTable<TermMapping>
+              viewKey={VIEW_KEY}
+              rowKey="id"
+              columns={tableColumns}
+              query={normalizePageResponse(query.data)}
+              request={request}
+              loading={false}
+              partial={
+                query.data.partial
+                  ? { ...query.data.partial, onRetryFailures: () => void query.refetch() }
+                  : undefined
+              }
+              expertMode={expertMode}
+              initialVisibleColumnKeys={visibleColumnKeys}
+              onRequestChange={setRequest}
+              onOpenDetail={setSelectedMapping}
+              onViewSnapshotChange={(nextSnapshot) =>
+                setVisibleColumnKeys(nextSnapshot.visibleColumnKeys)
+              }
+              onSelectionSnapshotChange={setSelectionSnapshot}
+            />
+
+            <Card title="候选映射" className={styles.sectionCard}>
+              {highRiskCandidates.length > 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className={styles.sectionAlert}
+                  message="高危近似"
+                  description="当前队列包含高危近似候选，系统禁用批量确认；必须逐条二次确认。"
+                />
+              )}
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Table<TermMappingCandidate>
+                  rowKey="id"
+                  columns={candidateColumns}
+                  dataSource={candidateItems}
+                  pagination={false}
+                  scroll={{ x: 720 }}
+                  size="small"
+                />
+                <Button
+                  disabled={
+                    !canWrite || highRiskCandidates.length > 0 || ordinaryCandidates.length === 0
+                  }
+                  onClick={() => void submitOrdinaryBatchConfirmation()}
+                >
+                  批量确认候选
+                </Button>
+              </Space>
+            </Card>
+
+            <Card title="冲突待裁" className={styles.sectionCard}>
+              <Table<MappingConflict>
+                rowKey="id"
+                columns={conflictColumns}
+                dataSource={conflictItems}
+                pagination={false}
+                scroll={{ x: 640 }}
+                size="small"
+              />
+            </Card>
+
+            <Card title="映射包发布" className={styles.sectionCard}>
+              {selectedPackage ? (
+                <div className={styles.descriptionScroll}>
+                  <Descriptions column={3} size="small" bordered>
+                    <Descriptions.Item label="名称">
+                      {selectedPackage.displayName}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="版本">
+                      {selectedPackage.packageVersion}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="状态">
+                      <Tag>{PACKAGE_STATUS_LABEL[selectedPackage.status]}</Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="范围">
+                      {selectedPackage.scopeLevel}:{selectedPackage.scopeCode}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="映射数">
+                      {selectedPackage.mappingCount}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="证据哈希">
+                      <Text code>{selectedPackage.contentHash.slice(0, 12)}</Text>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </div>
+              ) : (
+                <Text type="secondary">暂无可发布映射包。</Text>
+              )}
+            </Card>
+          </Space>
         )}
       </PageState>
       <EvidenceDetailDrawer
@@ -330,6 +698,76 @@ export default function TerminologyMapping() {
         traceId={query.data?.traceId}
         onClose={() => setSelectedMapping(undefined)}
       />
+      <Modal
+        title={selectedCandidate?.highRiskFlag ? "确认高危候选" : "确认普通候选"}
+        open={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
+        onOk={() => void submitHighRiskConfirmation()}
+        okText="提交确认"
+        destroyOnClose
+      >
+        <Form form={confirmForm} layout="vertical" preserve={false}>
+          <Alert
+            type={selectedCandidate?.highRiskFlag ? "warning" : "info"}
+            showIcon
+            className={styles.sectionAlert}
+            message={selectedCandidate?.evidenceText ?? "确认候选前请核对来源证据。"}
+          />
+          <Form.Item
+            name="highRiskAcknowledged"
+            valuePropName="checked"
+            rules={[{ required: true, message: "请先逐条核对高危近似风险" }]}
+          >
+            <Checkbox>已逐条核对高危近似风险</Checkbox>
+          </Form.Item>
+          <Form.Item
+            name="highRiskReason"
+            label="高危确认理由"
+            rules={[{ required: true, message: "请填写高危确认理由" }]}
+          >
+            <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="发布映射包流程"
+        open={publishOpen}
+        onCancel={() => setPublishOpen(false)}
+        onOk={() => void submitPublish()}
+        okText="提交发布"
+        destroyOnClose
+      >
+        <Form
+          form={publishForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={{ releaseMode: "GRAY" }}
+        >
+          <Form.Item name="releaseMode" label="发布模式" rules={[{ required: true }]}>
+            <Radio.Group>
+              <Radio value="GRAY">10% 灰度</Radio>
+              <Radio value="FULL">全量</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item name="reason" label="发布原因" rules={[{ required: true }]}>
+            <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="回滚映射包流程"
+        open={rollbackOpen}
+        onCancel={() => setRollbackOpen(false)}
+        onOk={() => void submitRollback()}
+        okText="提交回滚"
+        destroyOnClose
+      >
+        <Form form={rollbackForm} layout="vertical" preserve={false}>
+          <Form.Item name="reason" label="回滚原因" rules={[{ required: true }]}>
+            <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageExperienceShell>
   );
 }

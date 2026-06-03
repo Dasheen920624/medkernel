@@ -143,4 +143,19 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(configPackagesSource).toContain("width: 260");
     expect(configPackagesSource).toContain("className={styles.nowrap}");
   });
+
+  it("keeps terminology mapping wired to real API-04 safety flows instead of read-only samples", () => {
+    const terminologySource = readSource("src/pages/tenant/TerminologyMapping.tsx");
+
+    expect(terminologySource).toContain("StepFlow");
+    expect(terminologySource).toContain("useStandardTerms");
+    expect(terminologySource).toContain("useLocalTerms");
+    expect(terminologySource).toContain("useTerminologyCandidates");
+    expect(terminologySource).toContain("useTerminologyConflicts");
+    expect(terminologySource).toContain("usePublishTerminologyPackage");
+    expect(terminologySource).toContain("useRollbackTerminologyPackage");
+    expect(terminologySource).not.toContain("read-only");
+    expect(terminologySource).not.toContain("experience sample");
+    expect(terminologySource).not.toContain("style=");
+  });
 });

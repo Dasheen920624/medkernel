@@ -58,7 +58,7 @@ export function PageExperienceShell({
       description={`目标：${meta.experience.goal}`}
       primary={primary}
       extras={
-        <Space>
+        <Space wrap>
           {extras}
           {expertControl}
         </Space>

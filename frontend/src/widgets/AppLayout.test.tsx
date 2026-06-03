@@ -141,13 +141,32 @@ function menuPermission(code: string) {
   };
 }
 
+function actionPermission(code: string) {
+  return {
+    code,
+    dimension: "ACTION",
+    target: code,
+    displayName: `执行${code}`,
+    risk: "LOW",
+  };
+}
+
 function permissionProfile(menuKeys: string[]) {
+  const hasTerminologyMapping = menuKeys.includes("terminology-mapping");
   return {
     userId: "doctor-1",
     username: "chen.ming",
     menuKeys,
-    roles: [{ code: "doctor", displayName: "临床医生" }],
-    permissions: menuKeys.map(menuPermission),
+    roles: [
+      { code: "doctor", displayName: "临床医生" },
+      ...(hasTerminologyMapping ? [{ code: "it-ops", displayName: "信息科" }] : []),
+    ],
+    permissions: [
+      ...menuKeys.map(menuPermission),
+      ...(hasTerminologyMapping
+        ? ["term.read", "term.write", "term.publish"].map(actionPermission)
+        : []),
+    ],
     environmentKeys: ["production"],
     dataScope: { tenantId: "t-1", hospitalId: "h-1", departmentId: "d-1" },
   };
@@ -367,7 +386,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("uses backend menuKeys to authorize direct entry to the granted second-level menu", () => {
+  it("requires terminology action permissions beyond the backend menu key", () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["terminology-mapping"]),
@@ -377,8 +396,8 @@ describe("AppLayout", () => {
     mockViewport(1280);
     renderLayout();
 
-    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
-    expect(screen.queryByText("当前权限不足")).toBeNull();
+    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
   it("lets the built-in superadmin open the dashboard through RBAC permissions", () => {

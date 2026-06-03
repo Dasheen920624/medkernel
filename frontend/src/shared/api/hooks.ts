@@ -257,6 +257,58 @@ export function useSystemRuntime() {
 // ──────────────────────────────────────────
 // 字典映射 · GA-ENG-API-04 已上线（engine/terminology）
 // ──────────────────────────────────────────
+const TERMINOLOGY_API_ROOT = "/engine/terminology";
+
+type TermCategory =
+  | "DIAGNOSIS"
+  | "PROCEDURE"
+  | "DRUG"
+  | "DEVICE"
+  | "LAB"
+  | "EXAM"
+  | "ORDER"
+  | "INSURANCE"
+  | "DEPARTMENT"
+  | "DOCUMENT"
+  | "FOLLOWUP"
+  | "OTHER";
+
+export interface StandardTerm {
+  id: number;
+  tenantId: string;
+  standardSystem: string;
+  termCode: string;
+  category: TermCategory;
+  displayName: string;
+  normalizedName?: string;
+  versionNo: string;
+  status: "ACTIVE" | "DISABLED";
+  sourceVersionId?: number | null;
+  evidenceText?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface LocalTerm {
+  id: number;
+  tenantId: string;
+  sourceSystem: string;
+  localCode: string;
+  category: TermCategory;
+  localName: string;
+  normalizedName?: string;
+  departmentId?: string | null;
+  status: "UNMAPPED" | "MAPPED" | "DISABLED";
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface TermMapping {
   id: number;
   tenantId: string;
@@ -273,6 +325,43 @@ export interface TermMapping {
   createdAt?: string;
   createdBy?: string;
   updatedAt?: string;
+}
+
+export interface TermMappingCandidate {
+  id: number;
+  localTermId: number;
+  standardTermId: number;
+  semanticMatchScore: number;
+  highRiskFlag: boolean;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  source: "RULE" | "AI" | "MANUAL" | "IMPORT";
+  status: "PENDING" | "CONFIRMED" | "REJECTED" | "EXPIRED";
+  evidenceText?: string | null;
+}
+
+export interface MappingConflict {
+  id: number;
+  tenantId: string;
+  conflictType:
+    | "ONE_TO_MANY"
+    | "MANY_TO_ONE"
+    | "DISABLED_CODE"
+    | "CROSS_SYSTEM_INCONSISTENT"
+    | "HOMONYM"
+    | "SYNONYM_MISMATCH";
+  localTermId?: number | null;
+  standardTermId?: number | null;
+  mappingId?: number | null;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  description: string;
+  status: "OPEN" | "RESOLVED" | "IGNORED";
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  resolutionNote?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export interface TermMappingPackage {
@@ -296,6 +385,16 @@ export interface TermMappingPackage {
   updatedBy: string;
 }
 
+export interface TerminologyCandidateGenerationResponse {
+  generatedCount: number;
+  candidates: TermMappingCandidate[];
+}
+
+export interface TerminologyBatchConfirmResponse {
+  confirmedCount: number;
+  confirmedCandidateIds: number[];
+}
+
 export interface PageResponse<T> {
   items: T[];
   page: number;
@@ -316,9 +415,17 @@ export interface TerminologyMappingsParams {
   size?: number;
   sort?: string;
   sourceSystem?: string;
-  category?: string;
+  category?: TermCategory;
   status?: TermMapping["status"];
   keyword?: string;
+}
+
+function compactParams<T extends object>(params: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(params as Record<string, unknown>).filter(
+      ([, value]) => value !== undefined && value !== "",
+    ),
+  ) as Partial<T>;
 }
 
 export function useTerminologyMappings(params?: TerminologyMappingsParams) {
@@ -328,6 +435,100 @@ export function useTerminologyMappings(params?: TerminologyMappingsParams) {
       const { data } = await apiClient.get<{ data: PageResponse<TermMapping> }>(
         "/engine/terminology/mappings",
         { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface StandardTermsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  standardSystem?: string;
+  category?: TermCategory;
+  status?: StandardTerm["status"];
+  keyword?: string;
+}
+
+export function useStandardTerms(params: StandardTermsParams = {}) {
+  const requestParams = compactParams(params);
+  return useQuery({
+    queryKey: ["terminology", "standard-terms", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<StandardTerm> }>(
+        `${TERMINOLOGY_API_ROOT}/terms/standard`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface LocalTermsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  sourceSystem?: string;
+  category?: TermCategory;
+  status?: LocalTerm["status"];
+  keyword?: string;
+}
+
+export function useLocalTerms(params: LocalTermsParams = {}) {
+  const requestParams = compactParams(params);
+  return useQuery({
+    queryKey: ["terminology", "local-terms", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<LocalTerm> }>(
+        `${TERMINOLOGY_API_ROOT}/terms/local`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface TerminologyCandidatesParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  status?: TermMappingCandidate["status"];
+  riskLevel?: TermMappingCandidate["riskLevel"];
+  conflictFlag?: boolean;
+}
+
+export function useTerminologyCandidates(params: TerminologyCandidatesParams = {}) {
+  const requestParams = compactParams(params);
+  return useQuery({
+    queryKey: ["terminology", "candidates", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<TermMappingCandidate> }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/candidates`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface TerminologyConflictsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  status?: MappingConflict["status"];
+  riskLevel?: MappingConflict["riskLevel"];
+  conflictType?: MappingConflict["conflictType"];
+}
+
+export function useTerminologyConflicts(params: TerminologyConflictsParams = {}) {
+  const requestParams = compactParams(params);
+  return useQuery({
+    queryKey: ["terminology", "conflicts", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<MappingConflict> }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/conflicts`,
+        { params: requestParams },
       );
       return data.data;
     },
@@ -344,14 +545,164 @@ export interface TerminologyPackagesParams {
 }
 
 export function useTerminologyPackages(params?: TerminologyPackagesParams) {
+  const requestParams = compactParams(params ?? {});
   return useQuery({
-    queryKey: ["terminology", "packages", params ?? {}],
+    queryKey: ["terminology", "packages", requestParams],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<TermMappingPackage> }>(
-        "/engine/terminology/packages",
-        { params },
+        `${TERMINOLOGY_API_ROOT}/mapping-packages`,
+        { params: requestParams },
       );
       return data.data;
+    },
+  });
+}
+
+export function useGenerateTerminologyCandidates() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageVersion: string;
+      sourceSystem: string;
+      minimumScore?: number;
+      semanticAssistEnabled?: boolean;
+    }) => {
+      const { packageVersion, ...requestPayload } = payload;
+      const { data } = await apiClient.post<{ data: TerminologyCandidateGenerationResponse }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/candidates`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "conflicts"] });
+    },
+  });
+}
+
+export function useConfirmTerminologyCandidate() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      candidateId: number;
+      request: {
+        packageVersion: string;
+        reviewNote?: string;
+        evidenceOverride?: string;
+        highRiskAcknowledged?: boolean;
+        highRiskReason?: string;
+      };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: TermMapping }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/${payload.candidateId}/confirm`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "conflicts"] });
+    },
+  });
+}
+
+export function useBatchConfirmTerminologyCandidates() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      candidateIds: number[];
+      request: { packageVersion: string; reviewNote?: string };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: TerminologyBatchConfirmResponse }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/batch-confirm`,
+        withStandardApiContext(
+          { ...requestPayload, candidateIds: payload.candidateIds },
+          security.data,
+          packageVersion,
+        ),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["terminology", "candidates"] });
+    },
+  });
+}
+
+export function useBuildTerminologyPackage() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageCode: string;
+      packageVersion: string;
+      scopeLevel: string;
+      scopeCode: string;
+      displayName: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
+        `${TERMINOLOGY_API_ROOT}/mapping-packages`,
+        withStandardApiContext(payload, security.data, payload.packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
+    },
+  });
+}
+
+export function usePublishTerminologyPackage() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageId: number;
+      request: {
+        packageVersion: string;
+        releaseMode: "GRAY" | "FULL";
+        reason: string;
+        grayScopeJson?: string;
+      };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
+        `${TERMINOLOGY_API_ROOT}/mapping-packages/${payload.packageId}/publish`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
+    },
+  });
+}
+
+export function useRollbackTerminologyPackage() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      packageId: number;
+      request: { packageVersion: string; targetPackageId: number; reason: string };
+    }) => {
+      const { packageVersion, ...requestPayload } = payload.request;
+      const { data } = await apiClient.post<{ data: TermMappingPackage }>(
+        `${TERMINOLOGY_API_ROOT}/mapping-packages/${payload.packageId}/rollback`,
+        withStandardApiContext(requestPayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "packages"] });
     },
   });
 }
