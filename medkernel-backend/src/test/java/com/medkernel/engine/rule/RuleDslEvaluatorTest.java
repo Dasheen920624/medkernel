@@ -2,6 +2,7 @@ package com.medkernel.engine.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -148,7 +149,601 @@ class RuleDslEvaluatorTest {
         assertThatThrownBy(() -> evaluator.evaluate(dsl, read("{}")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
-            .isEqualTo(ErrorCode.RULE_DSL_INVALID);
+            .isEqualTo(ErrorCode.DSL_OPERATOR_INVALID);
+    }
+
+    @Test
+    void betweenOperatorHonorsExclusiveUpperBoundaryAndExplainsClinicalValue() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "between",
+                    "value": {
+                      "min": 3.5,
+                      "max": 5.5,
+                      "includeMin": true,
+                      "includeMax": false,
+                      "unit": "mmol/L"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "explain": {"title": "血钾区间", "reason": "校验血钾是否位于目标区间"}
+            }
+            """), read("""
+            {
+              "lab": {
+                "potassium": {
+                  "value": 5.5,
+                  "unit": "mmol/L",
+                  "source": "LIS:K-001"
+                }
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("between");
+        assertThat(evidence.path("value").asDouble()).isEqualTo(5.5d);
+        assertThat(evidence.path("unit").asText()).isEqualTo("mmol/L");
+        assertThat(evidence.path("source").asText()).isEqualTo("LIS:K-001");
+        assertThat(evidence.path("formula").asText()).isEqualTo("5.5 mmol/L between [3.5, 5.5)");
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+    }
+
+    @Test
+    void betweenOperatorRejectsUnitMismatchWithoutGuessing() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "between",
+                    "value": {"min": 3.5, "max": 5.5, "unit": "mmol/L"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "explain": {"title": "血钾区间", "reason": "校验血钾是否位于目标区间"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"potassium": {"value": 4.0, "unit": "mg/dL", "source": "LIS:K-002"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE);
+                assertThat(exception.getMessage()).contains("lab.potassium");
+            });
+    }
+
+    @Test
+    void betweenOperatorRejectsInvertedRange() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "between",
+                    "value": {"min": 6.0, "max": 3.5, "unit": "mmol/L"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "explain": {"title": "血钾区间", "reason": "拒绝反向区间"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"potassium": {"value": 4.0, "unit": "mmol/L", "source": "LIS:K-003"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.RULE_DSL_INVALID);
+                assertThat(exception.getMessage()).contains("min");
+            });
+    }
+
+    @Test
+    void unitCompareConvertsMgDlToMmolLBeforeComparison() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.glucose",
+                    "operator": "unit_compare",
+                    "value": {
+                      "comparison": "gte",
+                      "value": 7.0,
+                      "unit": "mmol/L",
+                      "analyte": "glucose"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血糖偏高"}],
+              "explain": {"title": "血糖换算", "reason": "跨单位比较血糖阈值"}
+            }
+            """), read("""
+            {
+              "lab": {
+                "glucose": {
+                  "value": 130,
+                  "unit": "mg/dL",
+                  "source": "LIS:GLU-001"
+                }
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("value").asDouble()).isCloseTo(7.21d, within(0.01d));
+        assertThat(evidence.path("unit").asText()).isEqualTo("mmol/L");
+        assertThat(evidence.path("source").asText()).isEqualTo("LIS:GLU-001");
+        assertThat(evidence.path("formula").asText())
+            .isEqualTo("130 mg/dL / 18.0182 = 7.21 mmol/L; 7.21 gte 7.0 mmol/L");
+    }
+
+    @Test
+    void unitCompareRejectsUnknownConversionWithoutGuessing() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.sodium",
+                    "operator": "unit_compare",
+                    "value": {
+                      "comparison": "gte",
+                      "value": 135,
+                      "unit": "mg/dL",
+                      "analyte": "sodium"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "钠离子提醒"}],
+              "explain": {"title": "钠离子换算", "reason": "未知换算拒绝"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L", "source": "LIS:NA-001"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.UNIT_INCOMPATIBLE);
+                assertThat(exception.getMessage()).contains("lab.sodium");
+            });
+    }
+
+    @Test
+    void temporalOperatorMatchesTwoConsecutivePotassiumResultsWithinFortyEightHours() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.potassium",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "consecutive",
+                      "window": "PT48H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 2,
+                      "condition": {"operator": "gt", "value": 6.0, "unit": "mmol/L"}
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "高钾血症风险"}],
+              "explain": {"title": "连续高钾", "reason": "48h 内连续两次血钾超过阈值"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "potassium": [
+                  {"value": 6.4, "unit": "mmol/L", "observedAt": "2026-05-31T23:59:59Z", "source": "LIS:K-old"},
+                  {"value": 6.1, "unit": "mmol/L", "observedAt": "2026-06-01T00:00:00Z", "source": "LIS:K-101"},
+                  {"value": 6.3, "unit": "mmol/L", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:K-102"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("value").asInt()).isEqualTo(2);
+        assertThat(evidence.path("unit").asText()).isEqualTo("次");
+        assertThat(evidence.path("source").asText()).isEqualTo("LIS:K-101,LIS:K-102");
+        assertThat(evidence.path("formula").asText())
+            .isEqualTo("PT48H window ending 2026-06-03T00:00:00Z consecutive 2 where value gt 6.0 mmol/L");
+    }
+
+    @Test
+    void temporalOperatorEvaluatesUpwardTrendInWindow() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.creatinine",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "trend",
+                      "direction": "up",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 3,
+                      "unit": "mg/dL"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "肌酐上升趋势"}],
+              "explain": {"title": "肌酐趋势", "reason": "校验窗口内肌酐趋势"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "creatinine": [
+                  {"value": 0.8, "unit": "mg/dL", "observedAt": "2026-06-01T08:00:00Z", "source": "LIS:CR-1"},
+                  {"value": 1.0, "unit": "mg/dL", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:CR-2"},
+                  {"value": 1.2, "unit": "mg/dL", "observedAt": "2026-06-02T20:00:00Z", "source": "LIS:CR-3"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("value").asInt()).isEqualTo(3);
+        assertThat(evidence.path("formula").asText())
+            .isEqualTo("PT72H window ending 2026-06-03T00:00:00Z trend up across 3 values");
+    }
+
+    @Test
+    void temporalOperatorRejectsNonNumericCountWithoutDefaulting() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.potassium",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "consecutive",
+                      "window": "PT48H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": "two",
+                      "condition": {"operator": "gt", "value": 6.0, "unit": "mmol/L"}
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "连续高钾"}],
+              "explain": {"title": "连续高钾", "reason": "拒绝非数值 count"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {
+              "observations": {
+                "potassium": [
+                  {"value": 6.4, "unit": "mmol/L", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:K-201"},
+                  {"value": 6.3, "unit": "mmol/L", "observedAt": "2026-06-02T20:00:00Z", "source": "LIS:K-202"}
+                ]
+              }
+            }
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.RULE_DSL_INVALID));
+    }
+
+    @Test
+    void temporalOperatorRejectsNonPositiveWindow() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.potassium",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "consecutive",
+                      "window": "PT0S",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 1,
+                      "condition": {"operator": "gt", "value": 6.0, "unit": "mmol/L"}
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "连续高钾"}],
+              "explain": {"title": "连续高钾", "reason": "拒绝非正时间窗"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"observations": {"potassium": []}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.RULE_DSL_INVALID));
+    }
+
+    @Test
+    void temporalTrendRejectsCountLessThanTwo() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.creatinine",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "trend",
+                      "direction": "up",
+                      "window": "PT24H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 1,
+                      "unit": "mg/dL"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "趋势提醒"}],
+              "explain": {"title": "趋势", "reason": "拒绝单点趋势"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {
+              "observations": {
+                "creatinine": [
+                  {"value": 1.2, "unit": "mg/dL", "observedAt": "2026-06-02T20:00:00Z", "source": "LIS:CR-3"}
+                ]
+              }
+            }
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.RULE_DSL_INVALID));
+    }
+
+    @Test
+    void temporalOperatorRejectsUnsupportedTrendDirectionEvenWithSingleValue() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.creatinine",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "trend",
+                      "direction": "sideways",
+                      "window": "PT24H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 1,
+                      "unit": "mg/dL"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "趋势提醒"}],
+              "explain": {"title": "趋势", "reason": "非法趋势方向"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {
+              "observations": {
+                "creatinine": [
+                  {"value": 1.2, "unit": "mg/dL", "observedAt": "2026-06-02T20:00:00Z", "source": "LIS:CR-3"}
+                ]
+              }
+            }
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.DSL_OPERATOR_INVALID));
+    }
+
+    @Test
+    void derivedFormulaRejectsNonPositiveClinicalParametersWithoutInternalError() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.egfr",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "CKD_EPI_2021_EGFR",
+                      "comparison": "gte",
+                      "value": 60,
+                      "unit": "mL/min/1.73m2",
+                      "parameters": {
+                        "creatinine": "labs.creatinine",
+                        "age": "patient.age",
+                        "sex": "patient.sex"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "explain": {"title": "eGFR", "reason": "拒绝不合法入参"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {
+              "patient": {"age": 60, "sex": "FEMALE"},
+              "labs": {"creatinine": {"value": 0, "unit": "mg/dL", "source": "LIS:CR-zero"}}
+            }
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
+                assertThat(exception.getMessage()).contains("creatinine");
+            });
+    }
+
+    @Test
+    void derivedEgfrRejectsMissingCreatinineWithoutDefaultValue() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.egfr",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "CKD_EPI_2021_EGFR",
+                      "comparison": "gte",
+                      "value": 60,
+                      "unit": "mL/min/1.73m2",
+                      "parameters": {
+                        "creatinine": "labs.creatinine",
+                        "age": "patient.age",
+                        "sex": "patient.sex"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "explain": {"title": "eGFR", "reason": "校验肾功能"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"patient": {"age": 60, "sex": "FEMALE"}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
+                assertThat(exception.getMessage()).contains("creatinine");
+            });
+    }
+
+    @Test
+    void derivedEgfrCalculatesWhitelistedFormulaAndExplainsResult() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.egfr",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "CKD_EPI_2021_EGFR",
+                      "comparison": "gte",
+                      "value": 80,
+                      "unit": "mL/min/1.73m2",
+                      "parameters": {
+                        "creatinine": "labs.creatinine",
+                        "age": "patient.age",
+                        "sex": "patient.sex"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "explain": {"title": "eGFR", "reason": "校验肾功能"}
+            }
+            """), read("""
+            {
+              "patient": {"age": 60, "sex": "FEMALE"},
+              "labs": {"creatinine": {"value": 0.8, "unit": "mg/dL", "source": "LIS:CR-20260603"}}
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("value").asDouble()).isCloseTo(84.35d, within(0.05d));
+        assertThat(evidence.path("unit").asText()).isEqualTo("mL/min/1.73m2");
+        assertThat(evidence.path("source").asText()).isEqualTo("LIS:CR-20260603");
+        assertThat(evidence.path("formula").asText())
+            .contains("CKD_EPI_2021_EGFR")
+            .contains("Scr=0.8 mg/dL");
+    }
+
+    @Test
+    void derivedCrclAndBsaUseWhitelistedDeterministicFormulas() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.crcl",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "COCKCROFT_GAULT_CRCL",
+                      "comparison": "gte",
+                      "value": 50,
+                      "unit": "mL/min",
+                      "parameters": {
+                        "creatinine": "labs.creatinine",
+                        "age": "patient.age",
+                        "sex": "patient.sex",
+                        "weightKg": "patient.weightKg"
+                      }
+                    }
+                  },
+                  {
+                    "fact": "derived.bsa",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "MOSTELLER_BSA",
+                      "comparison": "between",
+                      "min": 1.6,
+                      "max": 2.1,
+                      "unit": "m2",
+                      "parameters": {
+                        "heightCm": "patient.heightCm",
+                        "weightKg": "patient.weightKg"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "体表面积与肌酐清除率提醒"}],
+              "explain": {"title": "受控公式", "reason": "校验白名单公式"}
+            }
+            """), read("""
+            {
+              "patient": {"age": 60, "sex": "MALE", "weightKg": 70, "heightCm": 170},
+              "labs": {"creatinine": {"value": 1.0, "unit": "mg/dL", "source": "LIS:CR-20260603"}}
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence");
+        assertThat(evidence.get(0).path("value").asDouble()).isCloseTo(77.78d, within(0.05d));
+        assertThat(evidence.get(0).path("formula").asText()).contains("COCKCROFT_GAULT_CRCL");
+        assertThat(evidence.get(1).path("value").asDouble()).isCloseTo(1.82d, within(0.01d));
+        assertThat(evidence.get(1).path("formula").asText()).contains("MOSTELLER_BSA");
     }
 
     private JsonNode read(String source) throws Exception {
