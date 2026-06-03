@@ -80,6 +80,9 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).not.toContain("/platform/success/lifecycle");
     expect(hooksSource).toContain("/engine/tenant/branding");
     expect(hooksSource).toContain("/engine/tenant/success-plan");
+    expect(hooksSource).toContain("/engine/tenant/onboarding-readiness");
+    expect(hooksSource).toContain("/engine/org/org-units");
+    expect(hooksSource).not.toContain('"/tenant/org-units"');
   });
 
   it("uses the engine MPI API roots for SVC-PILOT-02 hooks", () => {
@@ -106,6 +109,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(onboardingSource).not.toContain("MedKernel 智能示范医院");
     expect(onboardingSource).not.toContain("http://assets");
     expect(onboardingSource).not.toContain("Tabs.TabPane");
+    expect(onboardingSource).not.toContain("sandbox");
     expect(onboardingSource).toContain("未配置医院名称");
   });
 
@@ -124,5 +128,52 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
       expect(onboardingSource).toContain(`value="${level}"`);
     }
     expect(onboardingSource).toContain("parentLevelByChildLevel");
+  });
+
+  it("keeps config package center free of legacy decorative layout and wired to StepFlow", () => {
+    const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
+
+    expect(configPackagesSource).toContain("StepFlow");
+    expect(configPackagesSource).not.toContain("bg-gradient-to-br");
+    expect(configPackagesSource).not.toContain("rounded-2xl");
+    expect(configPackagesSource).not.toContain("text-slate-");
+    expect(configPackagesSource).not.toContain("style=");
+    expect(configPackagesSource).not.toContain("font-normal font");
+    expect(configPackagesSource).not.toContain("一键创建知识配置包草稿");
+    expect(configPackagesSource).toContain("width: 260");
+    expect(configPackagesSource).toContain("className={styles.nowrap}");
+  });
+
+  it("keeps terminology mapping wired to real API-04 safety flows instead of read-only samples", () => {
+    const terminologySource = readSource("src/pages/tenant/TerminologyMapping.tsx");
+
+    expect(terminologySource).toContain("StepFlow");
+    expect(terminologySource).toContain("useStandardTerms");
+    expect(terminologySource).toContain("useLocalTerms");
+    expect(terminologySource).toContain("useTerminologyCandidates");
+    expect(terminologySource).toContain("useTerminologyConflicts");
+    expect(terminologySource).toContain("usePublishTerminologyPackage");
+    expect(terminologySource).toContain("useRollbackTerminologyPackage");
+    expect(terminologySource).not.toContain("read-only");
+    expect(terminologySource).not.toContain("experience sample");
+    expect(terminologySource).not.toContain("style=");
+  });
+
+  it("keeps adapter hub focused on real integration status without legacy sandbox UI", () => {
+    const adapterSource = readSource("src/pages/tenant/AdapterHub.tsx");
+
+    expect(adapterSource).toContain("StepFlow");
+    expect(adapterSource).toContain("useIntegrationAdapters");
+    expect(adapterSource).toContain("useAdapterHubStatus");
+    expect(adapterSource).toContain("useIntegrationLogs");
+    expect(adapterSource).toContain("useIntegrationOnboardings");
+    expect(adapterSource).toContain("useGenerateDataQualityReport");
+    expect(adapterSource).toContain("useReplayDeadLetter");
+    expect(adapterSource).not.toContain("Webhook 回调订阅安全自研沙箱");
+    expect(adapterSource).not.toContain("Launch Token");
+    expect(adapterSource).not.toContain("rounded-2xl");
+    expect(adapterSource).not.toContain("text-slate-");
+    expect(adapterSource).not.toContain("bg-slate-");
+    expect(adapterSource).not.toContain("style=");
   });
 });

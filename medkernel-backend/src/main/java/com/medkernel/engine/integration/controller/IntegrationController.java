@@ -155,6 +155,115 @@ public class IntegrationController {
     }
 
     /**
+     * 查询第三方业务接口接入生命周期档案。
+     */
+    @GetMapping("/onboardings")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<List<IntegrationOnboardingResponse>> listIntegrationOnboardings() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(integrationService.listIntegrationOnboardings(tenantId));
+    }
+
+    /**
+     * 创建第三方业务接口接入申请。
+     */
+    @PostMapping("/onboardings")
+    @PreAuthorize("@perm.has('integration.write')")
+    public ApiResult<IntegrationOnboardingResponse> createIntegrationOnboarding(
+            @Validated @RequestBody IntegrationOnboardingCreateRequest request) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            IntegrationOnboardingResponse response = integrationService.createIntegrationOnboarding(tenantId, request);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.CREATE,
+                "mk_integration_onboarding",
+                request.onboardingId(),
+                "创建第三方业务接口接入申请: " + request.name()
+            ));
+            return ApiResult.ok(response);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.CREATE,
+                "mk_integration_onboarding",
+                request.onboardingId(),
+                e.errorCode().code(),
+                "创建第三方业务接口接入申请失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
+     * 推进第三方业务接口接入生命周期阶段。
+     */
+    @PostMapping("/onboardings/{id}/advance")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<IntegrationOnboardingResponse> advanceIntegrationOnboarding(
+            @PathVariable("id") String onboardingId,
+            @Validated @RequestBody IntegrationOnboardingAdvanceRequest request) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            IntegrationOnboardingResponse response =
+                integrationService.advanceIntegrationOnboarding(tenantId, onboardingId, request);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.UPDATE,
+                "mk_integration_onboarding",
+                onboardingId,
+                "推进第三方业务接口接入阶段到: " + response.status()
+            ));
+            return ApiResult.ok(response);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.UPDATE,
+                "mk_integration_onboarding",
+                onboardingId,
+                e.errorCode().code(),
+                "推进第三方业务接口接入阶段失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
+     * 查询区域协同来源及可信分级。
+     */
+    @GetMapping("/regional-sources")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<List<RegionalSourceResponse>> listRegionalSources() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(integrationService.listRegionalSources(tenantId));
+    }
+
+    /**
+     * 登记区域协同来源。未完成可信分级时服务层拒绝保存。
+     */
+    @PostMapping("/regional-sources")
+    @PreAuthorize("@perm.has('integration.write')")
+    public ApiResult<RegionalSourceResponse> registerRegionalSource(
+            @Validated @RequestBody RegionalSourceRegisterRequest request) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            RegionalSourceResponse response = integrationService.registerRegionalSource(tenantId, request);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.CREATE,
+                "mk_integration_regional_source",
+                request.sourceId(),
+                "登记区域协同来源: " + request.sourceOrganizationName()
+            ));
+            return ApiResult.ok(response);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.CREATE,
+                "mk_integration_regional_source",
+                request.sourceId(),
+                e.errorCode().code(),
+                "登记区域协同来源失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
      * 手动触发指定第三方系统适配器健康检查。
      *
      * @param adapterId 适配器全局唯一 ID
@@ -424,6 +533,34 @@ public class IntegrationController {
                 messageId,
                 e.errorCode().code(),
                 "人工重放集成死信消息失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
+     * 从回调管理视角人工重放死信消息；复用集成死信补偿链路。
+     */
+    @PostMapping("/callbacks/dead-letter/{id}/replay")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<IntegrationReplayResultDto> replayCallbackDeadLetter(@PathVariable("id") String messageId) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            IntegrationReplayResultDto result = integrationService.replayCallbackDeadLetter(tenantId, messageId);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                messageId,
+                "人工重放回调死信消息，新消息: " + result.replayMessageId()
+            ));
+            return ApiResult.ok(result);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                messageId,
+                e.errorCode().code(),
+                "人工重放回调死信消息失败: " + e.getMessage()
             ));
             throw e;
         }

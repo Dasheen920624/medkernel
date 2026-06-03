@@ -97,7 +97,7 @@ function readonlyExperience(
 }
 
 const terminologyMappingExperience: RouteExperience = {
-  primaryRole: "实施工程师 / 信息科 / 医务处",
+  primaryRole: "信息科 / 专科专家 / 医务处",
   goal: "核查院内码与标准码的映射关系，降低后续规则和路径执行风险",
   defaultView: "最近更新的待确认和高风险映射优先",
   defaultFilters: [
@@ -129,8 +129,54 @@ const terminologyMappingExperience: RouteExperience = {
   ],
   expertContent: ["映射 ID", "院内编码 ID", "标准编码 ID", "traceId", "接口原始状态"],
   interruptionLevel: "info",
-  evidence: "详情抽屉展示证据文本、确认人、确认时间和审计入口",
-  dataScale: { expected: "large", pagination: "page", exportStrategy: "disabled" },
+  evidence: "候选、高危确认、冲突处置、发布和回滚均保留审计与证据入口",
+  dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
+  riskLevel: "medium",
+};
+
+const adapterHubExperience: RouteExperience = {
+  primaryRole: "信息科 / 实施工程师",
+  goal: "查看院内系统接入、健康、字段映射、死信和数据质量，确保断连诚实暴露",
+  defaultView: "异常连接、字段映射缺口和待上线接入申请优先",
+  defaultFilters: [
+    {
+      key: "protocolType",
+      label: "系统类型",
+      kind: "select",
+      placeholder: "请选择系统类型",
+      optionSource: "static",
+      options: [
+        { label: "HIS", value: "HIS" },
+        { label: "EMR", value: "EMR" },
+        { label: "LIS", value: "LIS" },
+        { label: "PACS", value: "PACS" },
+        { label: "FHIR", value: "FHIR" },
+      ],
+    },
+    {
+      key: "healthStatus",
+      label: "健康状态",
+      kind: "select",
+      placeholder: "请选择健康状态",
+      optionSource: "static",
+      options: [
+        { label: "健康", value: "HEALTHY" },
+        { label: "未连接", value: "NOT_CONNECTED" },
+        { label: "配置非法", value: "MISCONFIGURED" },
+        { label: "异常", value: "UNHEALTHY" },
+      ],
+    },
+    {
+      key: "orgPath",
+      label: "组织范围",
+      kind: "search",
+      placeholder: "输入院区或科室",
+    },
+  ],
+  expertContent: ["adapterId", "traceId", "configJson", "routeReference", "messageId"],
+  interruptionLevel: "strong",
+  evidence: "适配器启停、健康检查、死信重放、数据质量报告均保留审计证据",
+  dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
   riskLevel: "medium",
 };
 
@@ -239,6 +285,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "implementation-guide",
     menuLabel: "客户实施向导",
+    requiredPermissions: ["menu.implementation-guide", "tenant.read"],
+    requiredRoles: ["implementation-engineer", "platform-admin", "hospital-admin"],
     experience: readonlyExperience("实施工程师", "按步骤完成试点准备核查", "待完成步骤"),
     pageType: "configuration",
     stateMachine: "config",
@@ -251,6 +299,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "tenant-onboarding",
     menuLabel: "租户开通",
+    requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
+    requiredRoles: ["implementation-engineer", "platform-admin", "hospital-admin"],
     experience: readonlyExperience("实施工程师", "核查租户开通准备状态", "待配置组织"),
     pageType: "configuration",
     stateMachine: "config",
@@ -263,6 +313,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "config-packages",
     menuLabel: "配置包中心",
+    requiredPermissions: ["menu.config-packages", "pkg.read", "pkg.release"],
+    requiredRoles: ["implementation-engineer", "medical-admin", "hospital-admin"],
     experience: readonlyExperience(
       "实施工程师",
       "核查配置包准备和发布状态",
@@ -304,6 +356,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "terminology-mapping",
     menuLabel: "字典映射",
+    requiredPermissions: ["menu.terminology-mapping", "term.read", "term.write", "term.publish"],
+    requiredRoles: ["it-ops", "specialist", "medical-admin"],
     experience: terminologyMappingExperience,
     pageType: "configuration",
     stateMachine: "config",
@@ -316,7 +370,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "adapter-hub",
     menuLabel: "适配器中心",
-    experience: readonlyExperience("信息科", "核查院内系统适配状态", "异常连接"),
+    requiredPermissions: [
+      "menu.adapter-hub",
+      "integration.read",
+      "integration.write",
+      "integration.execute",
+    ],
+    requiredRoles: ["it-ops", "implementation"],
+    experience: adapterHubExperience,
     pageType: "configuration",
     stateMachine: "config",
   },

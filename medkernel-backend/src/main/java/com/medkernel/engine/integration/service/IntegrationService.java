@@ -48,6 +48,16 @@ public class IntegrationService {
     private static final String STATUS_FAILED = "FAILED";
     private static final String STATUS_DEAD_LETTER = "DEAD_LETTER";
     private static final String STATUS_NOT_CONNECTED = "NOT_CONNECTED";
+    private static final String ONBOARDING_REQUESTED = "REQUESTED";
+    private static final String ONBOARDING_AUTH_CONFIGURED = "AUTH_CONFIGURED";
+    private static final String ONBOARDING_MAPPING_CONFIGURED = "MAPPING_CONFIGURED";
+    private static final String ONBOARDING_ONLINE = "ONLINE";
+    private static final String ONBOARDING_OFFLINE = "OFFLINE";
+    private static final String ACCESS_MODE_ADAPTER = "ADAPTER";
+    private static final String ACCESS_MODE_FHIR = "FHIR";
+    private static final String TRUST_LOW = "LOW";
+    private static final String TRUST_MEDIUM = "MEDIUM";
+    private static final String TRUST_HIGH = "HIGH";
     private static final String HEALTH_HEALTHY = "HEALTHY";
     private static final String HEALTH_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String HEALTH_MISCONFIGURED = "MISCONFIGURED";
@@ -62,6 +72,8 @@ public class IntegrationService {
     private final IntegrationWebhookConfigRepository webhookRepository;
     private final IntegrationMessageLogRepository logRepository;
     private final DataQualityReportRepository dataQualityReportRepository;
+    private final IntegrationOnboardingRepository onboardingRepository;
+    private final RegionalSourceRepository regionalSourceRepository;
     private final TermMappingRepository termMappingRepository;
     private final StandardTermRepository standardTermRepository;
     private final MpiPatientRepository mpiPatientRepository;
@@ -74,6 +86,8 @@ public class IntegrationService {
                               IntegrationWebhookConfigRepository webhookRepository,
                               IntegrationMessageLogRepository logRepository,
                               DataQualityReportRepository dataQualityReportRepository,
+                              IntegrationOnboardingRepository onboardingRepository,
+                              RegionalSourceRepository regionalSourceRepository,
                               TermMappingRepository termMappingRepository,
                               StandardTermRepository standardTermRepository,
                               MpiPatientRepository mpiPatientRepository,
@@ -82,6 +96,8 @@ public class IntegrationService {
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
         this.dataQualityReportRepository = dataQualityReportRepository;
+        this.onboardingRepository = onboardingRepository;
+        this.regionalSourceRepository = regionalSourceRepository;
         this.termMappingRepository = termMappingRepository;
         this.standardTermRepository = standardTermRepository;
         this.mpiPatientRepository = mpiPatientRepository;
@@ -246,6 +262,144 @@ public class IntegrationService {
             generatedAt,
             sources
         );
+    }
+
+    /**
+     * 登记第三方业务接口接入申请，接入模式可为适配器路线或标准 FHIR 门面路线。
+     */
+    @Transactional
+    public IntegrationOnboardingResponse createIntegrationOnboarding(String tenantId,
+                                                                     IntegrationOnboardingCreateRequest request) {
+        if (onboardingRepository.findByOnboardingIdAndTenantId(request.onboardingId(), tenantId).isPresent()) {
+            throw new ApiException(ErrorCode.CONFLICT, "接入申请已存在: " + request.onboardingId());
+        }
+        String accessMode = normalizeAccessMode(request.accessMode());
+        String adapterId = blankToNull(request.adapterId());
+        String fhirVersion = blankToNull(request.fhirVersion());
+        String webhookId = blankToNull(request.callbackWebhookId());
+
+        if (ACCESS_MODE_ADAPTER.equals(accessMode)) {
+            if (adapterId == null) {
+                throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器接入必须绑定 adapterId");
+            }
+            requireAdapter(tenantId, adapterId);
+        } else {
+            fhirVersion = normalizeFhirVersion(fhirVersion);
+        }
+        if (webhookId != null) {
+            requireWebhook(tenantId, webhookId);
+        }
+
+        Instant now = Instant.now();
+        String actor = currentActor();
+        IntegrationOnboarding saved = onboardingRepository.save(new IntegrationOnboarding(
+            null,
+            request.onboardingId(),
+            tenantId,
+            request.name(),
+            accessMode,
+            adapterId,
+            fhirVersion,
+            request.sourceSystem(),
+            request.businessScenario(),
+            request.orgPath(),
+            webhookId,
+            ONBOARDING_REQUESTED,
+            "接入申请已登记，等待鉴权配置",
+            now,
+            actor,
+            now,
+            actor,
+            RequestContext.currentTraceId()
+        ));
+        return toOnboardingResponse(saved);
+    }
+
+    /**
+     * 推进第三方业务接口接入阶段；阶段完成不等于外部系统已真实连通。
+     */
+    @Transactional
+    public IntegrationOnboardingResponse advanceIntegrationOnboarding(String tenantId,
+                                                                      String onboardingId,
+                                                                      IntegrationOnboardingAdvanceRequest request) {
+        IntegrationOnboarding onboarding = onboardingRepository.findByOnboardingIdAndTenantId(onboardingId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "接入申请不存在: " + onboardingId));
+        String targetStatus = normalizeOnboardingStatus(request.targetStatus());
+        if (!isOnboardingTransitionAllowed(onboarding.status(), targetStatus)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001,
+                "接入阶段不允许从 " + onboarding.status() + " 推进到 " + targetStatus);
+        }
+        if (ACCESS_MODE_ADAPTER.equals(onboarding.accessMode())
+            && (ONBOARDING_MAPPING_CONFIGURED.equals(targetStatus) || ONBOARDING_ONLINE.equals(targetStatus))) {
+            requireAdapterMappingReady(tenantId, onboarding.adapterId());
+        }
+
+        IntegrationOnboarding saved = onboardingRepository.save(
+            onboarding.withStatus(targetStatus, request.evidenceText(), currentActor()));
+        return toOnboardingResponse(saved);
+    }
+
+    /**
+     * 查询当前租户第三方业务接口接入状态。
+     */
+    @Transactional(readOnly = true)
+    public List<IntegrationOnboardingResponse> listIntegrationOnboardings(String tenantId) {
+        return onboardingRepository.findAllByTenantId(tenantId).stream()
+            .map(this::toOnboardingResponse)
+            .toList();
+    }
+
+    /**
+     * 登记区域协同来源。来源未完成 OPT-07 可信分级时必须显式拒绝。
+     */
+    @Transactional
+    public RegionalSourceResponse registerRegionalSource(String tenantId, RegionalSourceRegisterRequest request) {
+        String trustLevel = normalizeTrustLevel(request.trustLevel());
+        if (regionalSourceRepository.findBySourceIdAndTenantId(request.sourceId(), tenantId).isPresent()) {
+            throw new ApiException(ErrorCode.CONFLICT, "区域来源已存在: " + request.sourceId());
+        }
+        String adapterId = blankToNull(request.adapterId());
+        String onboardingId = blankToNull(request.onboardingId());
+        if (adapterId != null) {
+            requireAdapter(tenantId, adapterId);
+        }
+        if (onboardingId != null) {
+            onboardingRepository.findByOnboardingIdAndTenantId(onboardingId, tenantId)
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "接入申请不存在: " + onboardingId));
+        }
+
+        Instant now = Instant.now();
+        String actor = currentActor();
+        RegionalSource saved = regionalSourceRepository.save(new RegionalSource(
+            null,
+            request.sourceId(),
+            tenantId,
+            request.regionalNetworkName(),
+            request.sourceOrganizationId(),
+            request.sourceOrganizationName(),
+            trustLevel,
+            request.evidenceText(),
+            adapterId,
+            onboardingId,
+            request.orgPath(),
+            STATUS_ACTIVE,
+            now,
+            actor,
+            now,
+            actor,
+            RequestContext.currentTraceId()
+        ));
+        return toRegionalSourceResponse(saved);
+    }
+
+    /**
+     * 查询当前租户区域协同来源。
+     */
+    @Transactional(readOnly = true)
+    public List<RegionalSourceResponse> listRegionalSources(String tenantId) {
+        return regionalSourceRepository.findAllByTenantId(tenantId).stream()
+            .map(this::toRegionalSourceResponse)
+            .toList();
     }
 
     /**
@@ -666,6 +820,164 @@ public class IntegrationService {
         );
     }
 
+    /**
+     * 回调管理视角的死信重放入口，复用同一补偿链路，避免产生第二套死信语义。
+     */
+    @Transactional
+    public IntegrationReplayResultDto replayCallbackDeadLetter(String tenantId, String messageId) {
+        return replayDeadLetter(tenantId, messageId);
+    }
+
+    private IntegrationOnboardingResponse toOnboardingResponse(IntegrationOnboarding onboarding) {
+        Optional<IntegrationAdapter> adapter = ACCESS_MODE_ADAPTER.equals(onboarding.accessMode())
+            ? adapterRepository.findByAdapterIdAndTenantId(onboarding.adapterId(), onboarding.tenantId())
+            : Optional.empty();
+        int mappedFieldCount = adapter.map(this::mappedFieldCount).orElse(0);
+        String healthStatus = adapter.map(IntegrationAdapter::healthStatus).orElse(HEALTH_NOT_CONNECTED);
+        List<String> blockers = onboardingBlockers(onboarding, adapter, mappedFieldCount, healthStatus);
+        String routeReference = ACCESS_MODE_FHIR.equals(onboarding.accessMode())
+            ? "/api/v1/engine/integration/fhir/" + onboarding.fhirVersion()
+            : "/api/v1/engine/integration/adapters/" + onboarding.adapterId();
+
+        return new IntegrationOnboardingResponse(
+            onboarding.onboardingId(),
+            onboarding.name(),
+            onboarding.status(),
+            onboarding.accessMode(),
+            routeReference,
+            healthStatus,
+            mappedFieldCount,
+            blockers,
+            onboarding.sourceSystem(),
+            onboarding.businessScenario(),
+            onboarding.orgPath(),
+            onboarding.callbackWebhookId(),
+            onboarding.createdAt(),
+            onboarding.updatedAt()
+        );
+    }
+
+    private List<String> onboardingBlockers(IntegrationOnboarding onboarding,
+                                            Optional<IntegrationAdapter> adapter,
+                                            int mappedFieldCount,
+                                            String healthStatus) {
+        List<String> blockers = new ArrayList<>();
+        if (ONBOARDING_REQUESTED.equals(onboarding.status())) {
+            blockers.add("未完成鉴权配置");
+        }
+        if ((ONBOARDING_REQUESTED.equals(onboarding.status()) || ONBOARDING_AUTH_CONFIGURED.equals(onboarding.status()))
+            && ACCESS_MODE_ADAPTER.equals(onboarding.accessMode())) {
+            blockers.add("未完成字段映射");
+        }
+        if (ACCESS_MODE_ADAPTER.equals(onboarding.accessMode()) && mappedFieldCount == 0) {
+            blockers.add("未配置字段映射");
+        }
+        if (adapter.isEmpty() && ACCESS_MODE_ADAPTER.equals(onboarding.accessMode())) {
+            blockers.add("绑定适配器不存在");
+        }
+        if (HEALTH_NOT_CONNECTED.equals(healthStatus)) {
+            blockers.add("NOT_CONNECTED：未接入真实外部连接器，不阻断主流程");
+        }
+        if (HEALTH_MISCONFIGURED.equals(healthStatus)) {
+            blockers.add("MISCONFIGURED：适配器配置非法，需修正后再联调");
+        }
+        return List.copyOf(blockers);
+    }
+
+    private RegionalSourceResponse toRegionalSourceResponse(RegionalSource source) {
+        return new RegionalSourceResponse(
+            source.sourceId(),
+            source.regionalNetworkName(),
+            source.sourceOrganizationId(),
+            source.sourceOrganizationName(),
+            source.trustLevel(),
+            source.evidenceText(),
+            source.adapterId(),
+            source.onboardingId(),
+            source.orgPath(),
+            source.status(),
+            source.createdAt(),
+            source.updatedAt()
+        );
+    }
+
+    private IntegrationAdapter requireAdapter(String tenantId, String adapterId) {
+        return adapterRepository.findByAdapterIdAndTenantId(adapterId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_002, "适配器不存在: " + adapterId));
+    }
+
+    private IntegrationWebhookConfig requireWebhook(String tenantId, String webhookId) {
+        return webhookRepository.findByWebhookIdAndTenantId(webhookId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_003, "Webhook订阅不存在: " + webhookId));
+    }
+
+    private void requireAdapterMappingReady(String tenantId, String adapterId) {
+        IntegrationAdapter adapter = requireAdapter(tenantId, adapterId);
+        if (fieldMappingRules(adapter).isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器未配置字段映射: " + adapterId);
+        }
+    }
+
+    private String normalizeAccessMode(String accessMode) {
+        String normalized = normalizeUpper(accessMode);
+        if (!ACCESS_MODE_ADAPTER.equals(normalized) && !ACCESS_MODE_FHIR.equals(normalized)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "接入模式必须为 ADAPTER 或 FHIR");
+        }
+        return normalized;
+    }
+
+    private String normalizeFhirVersion(String fhirVersion) {
+        String normalized = normalizeUpper(fhirVersion);
+        if (!"R4".equals(normalized) && !"R5".equals(normalized)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "FHIR 接入必须声明 R4 或 R5 版本");
+        }
+        return normalized;
+    }
+
+    private String normalizeOnboardingStatus(String status) {
+        String normalized = normalizeUpper(status);
+        if (!List.of(
+            ONBOARDING_REQUESTED,
+            ONBOARDING_AUTH_CONFIGURED,
+            ONBOARDING_MAPPING_CONFIGURED,
+            ONBOARDING_ONLINE,
+            ONBOARDING_OFFLINE
+        ).contains(normalized)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "接入阶段不合法: " + status);
+        }
+        return normalized;
+    }
+
+    private String normalizeTrustLevel(String trustLevel) {
+        String normalized = normalizeUpper(trustLevel);
+        if (normalized.isBlank()) {
+            throw new ApiException(ErrorCode.REGIONAL_SOURCE_UNGRADED, "区域来源未完成可信分级");
+        }
+        if (!TRUST_LOW.equals(normalized) && !TRUST_MEDIUM.equals(normalized) && !TRUST_HIGH.equals(normalized)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "区域来源可信分级必须为 LOW/MEDIUM/HIGH");
+        }
+        return normalized;
+    }
+
+    private boolean isOnboardingTransitionAllowed(String currentStatus, String targetStatus) {
+        if (currentStatus.equals(targetStatus) || ONBOARDING_OFFLINE.equals(targetStatus)) {
+            return true;
+        }
+        return switch (currentStatus) {
+            case ONBOARDING_REQUESTED -> ONBOARDING_AUTH_CONFIGURED.equals(targetStatus);
+            case ONBOARDING_AUTH_CONFIGURED -> ONBOARDING_MAPPING_CONFIGURED.equals(targetStatus);
+            case ONBOARDING_MAPPING_CONFIGURED -> ONBOARDING_ONLINE.equals(targetStatus);
+            default -> false;
+        };
+    }
+
+    private String normalizeUpper(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String currentActor() {
+        return RequestContext.currentUserId().orElse("system");
+    }
 
     private boolean isConfigJsonValid(String configJson) {
         if (configJson == null || configJson.isBlank()) {

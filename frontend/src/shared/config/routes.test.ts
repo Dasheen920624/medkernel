@@ -64,6 +64,155 @@ describe("route metadata", () => {
     });
   });
 
+  it("limits the implementation guide to implementation and administrator roles", () => {
+    const route = findRouteByPath("/onboarding/guide");
+
+    expect(route?.requiredPermissions).toEqual(["menu.implementation-guide", "tenant.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "platform-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["implementation-guide"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["implementation-guide"],
+      }),
+    ).toBe(false);
+  });
+
+  it("limits tenant onboarding to tenant readers in implementation and administrator roles", () => {
+    const route = findRouteByPath("/tenant/onboarding");
+
+    expect(route?.requiredPermissions).toEqual(["menu.tenant-onboarding", "tenant.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "platform-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "hospital-admin" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["tenant-onboarding"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "tenant.read" }],
+        menuKeys: ["tenant-onboarding"],
+      }),
+    ).toBe(false);
+  });
+
+  it("limits config packages to package publishers with the pilot setup menu", () => {
+    const route = findRouteByPath("/config/packages");
+
+    expect(route?.requiredPermissions).toEqual(["menu.config-packages", "pkg.read", "pkg.release"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "medical-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "medical-admin" }],
+        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(false);
+  });
+
+  it("limits terminology mapping to terminology operators with read/write/publish permissions", () => {
+    const route = findRouteByPath("/terminology/mapping");
+
+    expect(route?.requiredPermissions).toEqual([
+      "menu.terminology-mapping",
+      "term.read",
+      "term.write",
+      "term.publish",
+    ]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "specialist", "medical-admin"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "term.read" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(false);
+  });
+
+  it("limits adapter hub to integration operators with read/write/execute permissions", () => {
+    const route = findRouteByPath("/adapter/hub");
+
+    expect(route?.requiredPermissions).toEqual([
+      "menu.adapter-hub",
+      "integration.read",
+      "integration.write",
+      "integration.execute",
+    ]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "implementation"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [
+          { code: "integration.read" },
+          { code: "integration.write" },
+          { code: "integration.execute" },
+        ],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "integration.read" }],
+        menuKeys: ["adapter-hub"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)

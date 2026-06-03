@@ -1,0 +1,129 @@
+import { render, screen, within } from "@testing-library/react";
+import { App as AntdApp, ConfigProvider } from "antd";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import ImplementationGuide from "./ImplementationGuide";
+
+const apiMocks = vi.hoisted(() => ({
+  implementationSteps: [] as Array<Record<string, unknown>>,
+  implementationStepsLoading: false,
+  implementationStepsError: false,
+  implementationStepsRefetch: vi.fn(),
+  successPlanRefetch: vi.fn(),
+  transitionSuccessStage: vi.fn(),
+}));
+
+vi.mock("@/shared/api/hooks", () => ({
+  useImplementationSteps: () => ({
+    data: apiMocks.implementationSteps,
+    isLoading: apiMocks.implementationStepsLoading,
+    isError: apiMocks.implementationStepsError,
+    refetch: apiMocks.implementationStepsRefetch,
+  }),
+  useSuccessPlan: () => ({
+    data: {
+      currentStage: "PREPARATION",
+      healthScore: 40,
+      activatedModules: "",
+      activatedPathways: "",
+    },
+    isLoading: false,
+    refetch: apiMocks.successPlanRefetch,
+  }),
+  useTransitionSuccessStage: () => ({
+    mutateAsync: apiMocks.transitionSuccessStage,
+    isPending: false,
+  }),
+}));
+
+function renderGuide() {
+  return render(
+    <ConfigProvider>
+      <AntdApp>
+        <MemoryRouter>
+          <ImplementationGuide />
+        </MemoryRouter>
+      </AntdApp>
+    </ConfigProvider>,
+  );
+}
+
+describe("ImplementationGuide", () => {
+  beforeEach(() => {
+    apiMocks.implementationSteps = [
+      {
+        key: "organization",
+        title: "组织树",
+        status: "DONE",
+        blockers: [],
+        targetPath: "/tenant/onboarding",
+        evidence: "已存在集团、医院和科室组织",
+      },
+      {
+        key: "users",
+        title: "用户与角色",
+        status: "BLOCKED",
+        blockers: ["尚未创建院级管理员", "实施工程师未分配医院作用域"],
+        targetPath: "/tenant/onboarding",
+        evidence: null,
+      },
+      {
+        key: "adapters",
+        title: "适配器接入",
+        status: "BLOCKED",
+        blockers: ["HIS 适配器仍为 NOT_CONNECTED"],
+        targetPath: "/adapter/hub",
+        evidence: null,
+      },
+      {
+        key: "assets",
+        title: "配置资产",
+        status: "DONE",
+        blockers: [],
+        targetPath: "/config/packages",
+        evidence: "首发配置包已生成草稿",
+      },
+    ];
+    apiMocks.implementationStepsLoading = false;
+    apiMocks.implementationStepsError = false;
+    apiMocks.implementationStepsRefetch.mockReset();
+    apiMocks.successPlanRefetch.mockReset();
+    apiMocks.transitionSuccessStage.mockReset();
+  });
+
+  it("renders real backend implementation steps with blockers and configuration links", () => {
+    renderGuide();
+
+    expect(screen.getByRole("heading", { name: "客户实施向导" })).toBeInTheDocument();
+    const organizationStep = screen.getByTestId("implementation-step-organization");
+    expect(within(organizationStep).getByText("组织树")).toBeInTheDocument();
+    expect(within(organizationStep).getByText("已存在集团、医院和科室组织")).toBeInTheDocument();
+    expect(screen.getByText("尚未创建院级管理员")).toBeInTheDocument();
+    expect(screen.getByText("实施工程师未分配医院作用域")).toBeInTheDocument();
+    expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
+
+    const adapterStep = screen.getByTestId("implementation-step-adapters");
+    const adapterLink = within(adapterStep).getByRole("link", { name: "前往适配器中心" });
+    expect(adapterLink).toHaveAttribute("href", "/adapter/hub");
+  });
+
+  it("shows an empty state instead of a fake success plan when backend returns no steps", () => {
+    apiMocks.implementationSteps = [];
+
+    renderGuide();
+
+    expect(screen.getByText("暂无实施步骤")).toBeInTheDocument();
+    expect(screen.queryByText("跨部门、跨系统的 9 步交付模型")).not.toBeInTheDocument();
+  });
+
+  it("shows an error state with retry when implementation steps cannot be loaded", () => {
+    apiMocks.implementationStepsError = true;
+
+    renderGuide();
+
+    expect(screen.getByText("实施步骤读取失败")).toBeInTheDocument();
+    screen.getByRole("button", { name: "重试" }).click();
+    expect(apiMocks.implementationStepsRefetch).toHaveBeenCalledTimes(1);
+  });
+});
