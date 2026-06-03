@@ -5,11 +5,11 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 import com.medkernel.engine.recommendation.RecommendationEngineService;
+import com.medkernel.engine.recommendation.RecommendationEvaluationResponse;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
-import com.medkernel.engine.recommendation.RecommendationTriggerResponse;
 
 /**
- * 临床事件到 CDSS 推荐触发入口的适配器。
+ * 临床事件到 CDSS 确定性评估入口的适配器。
  */
 @Component
 public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEngineAdapter {
@@ -27,7 +27,7 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
 
     @Override
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
-        RecommendationTriggerResponse response = recommendations.trigger(new RecommendationTriggerRequest(
+        RecommendationEvaluationResponse response = recommendations.evaluate(new RecommendationTriggerRequest(
             "CLINICAL_EVENT_" + context.eventType().name(),
             "CLINICAL_EVENT",
             context.eventId(),
@@ -42,6 +42,6 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
             List.of()
         ));
         return ClinicalEventEngineDispatchResult.dispatched(
-            engine(), response.triggerId(), "CDSS 推荐入口已接收临床事件上下文");
+            engine(), response.triggerId(), "CDSS 推荐已完成确定性评估");
     }
 }

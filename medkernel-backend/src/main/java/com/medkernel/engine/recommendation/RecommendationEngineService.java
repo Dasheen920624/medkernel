@@ -2,6 +2,7 @@ package com.medkernel.engine.recommendation;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +45,7 @@ public class RecommendationEngineService {
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final BusinessMetrics businessMetrics;
+    private final RecommendationDeterministicMatcher deterministicMatcher;
 
     public RecommendationEngineService(
             RecommendationTriggerRepository triggers,
@@ -55,7 +57,8 @@ public class RecommendationEngineService {
             StateTransitionRecorder transitions,
             DiagnoseResponseAssembler diagnoseAssembler,
             IsolatedAuditPublisher isolatedAudit,
-            BusinessMetrics businessMetrics) {
+            BusinessMetrics businessMetrics,
+            RecommendationDeterministicMatcher deterministicMatcher) {
         this.triggers = triggers;
         this.cards = cards;
         this.sources = sources;
@@ -66,6 +69,7 @@ public class RecommendationEngineService {
         this.diagnoseAssembler = diagnoseAssembler;
         this.isolatedAudit = isolatedAudit;
         this.businessMetrics = businessMetrics;
+        this.deterministicMatcher = deterministicMatcher;
     }
 
     /**
@@ -122,16 +126,15 @@ public class RecommendationEngineService {
     }
 
     /**
-     * 客户面推荐评估接口：关模型时只持久化并返回确定性候选卡，同时返回 {@code MODEL_DISABLED}。
+     * 客户面推荐评估接口：关模型时用标准上下文 + 已发布资产生成确定性候选，
+     * 合并调用方传入的非 AI 候选卡后持久化并返回 {@code MODEL_DISABLED}。
      *
      * <p>低/中风险卡在请求携带 fatigueSuppressionThreshold 与 fatigueWindowHours 时按历史低价值信号抑制；
      * 高风险/红线卡永不因疲劳阈值抑制。被抑制卡以 SUPPRESSED 状态留库并写疲劳信号，保证可解释、可审计。
      */
     @Transactional
     public RecommendationEvaluationResponse evaluate(RecommendationTriggerRequest request) {
-        List<RecommendationCardRequest> deterministicCards = request.candidateCards().stream()
-            .filter(card -> !card.aiGenerated())
-            .toList();
+        List<RecommendationCardRequest> deterministicCards = deterministicCards(request);
         try {
             validateCards(deterministicCards);
         } catch (ApiException e) {
@@ -146,6 +149,8 @@ public class RecommendationEngineService {
         String traceId = traceId();
         Instant now = Instant.now();
         String triggerId = "rt-" + UUID.randomUUID();
+        int totalCardCount = deterministicCards.size()
+            + (int) request.candidateCards().stream().filter(RecommendationCardRequest::aiGenerated).count();
         RecommendationTriggerStatus status = deterministicCards.isEmpty()
             ? RecommendationTriggerStatus.NO_CARD
             : RecommendationTriggerStatus.EVALUATED;
@@ -180,8 +185,19 @@ public class RecommendationEngineService {
         auditPublisher.publish(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
             "评估推荐触发 " + request.triggerCode());
         return new RecommendationEvaluationResponse(
-            triggerId, status, request.candidateCards().size(), visibleCards.size(), suppressedCount,
+            triggerId, status, totalCardCount, visibleCards.size(), suppressedCount,
             RecommendationModelStatus.MODEL_DISABLED, visibleCards, traceId);
+    }
+
+    private List<RecommendationCardRequest> deterministicCards(RecommendationTriggerRequest request) {
+        LinkedHashMap<String, RecommendationCardRequest> byCode = new LinkedHashMap<>();
+        for (RecommendationCardRequest card : deterministicMatcher.match(request)) {
+            byCode.put(card.cardCode(), card);
+        }
+        request.candidateCards().stream()
+            .filter(card -> !card.aiGenerated())
+            .forEach(card -> byCode.putIfAbsent(card.cardCode(), card));
+        return List.copyOf(byCode.values());
     }
 
     /**

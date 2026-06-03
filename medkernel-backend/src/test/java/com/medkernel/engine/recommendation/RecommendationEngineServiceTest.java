@@ -44,6 +44,7 @@ class RecommendationEngineServiceTest {
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private BusinessMetrics businessMetrics;
+    private RecommendationDeterministicMatcher deterministicMatcher;
     private RecommendationEngineService service;
 
     @BeforeEach
@@ -58,15 +59,17 @@ class RecommendationEngineServiceTest {
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         businessMetrics = mock(BusinessMetrics.class);
+        deterministicMatcher = mock(RecommendationDeterministicMatcher.class);
         service = new RecommendationEngineService(
             triggers, cards, sources, feedback, fatigueSignals,
-            auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics);
+            auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher);
 
         when(triggers.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cards.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sources.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(feedback.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(fatigueSignals.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(deterministicMatcher.match(any())).thenReturn(List.of());
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -143,6 +146,31 @@ class RecommendationEngineServiceTest {
             .extracting(RecommendationCard::cardCode)
             .containsExactly("CARD.DETERMINISTIC");
         verify(cards, times(1)).save(any());
+    }
+
+    @Test
+    void evaluatePersistsCardsGeneratedFromPublishedAssets() {
+        RecommendationCardRequest generated = cardRequest(
+            "RULE.RISK.v1", false, RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO, false, List.of(
+                new RecommendationSourceRequest(
+                    RecommendationSourceType.RULE, "rule-risk", "1", "风险评估规则",
+                    "rule_version:rv-risk-v1", null, "规则命中"),
+                new RecommendationSourceRequest(
+                    RecommendationSourceType.CONTEXT, "snapshot-1", "1.0.0", "标准临床上下文",
+                    "context_snapshot:snapshot-1", null, "本次评估上下文")
+            ));
+        RecommendationTriggerRequest request = triggerRequest(List.of());
+        when(deterministicMatcher.match(request)).thenReturn(List.of(generated));
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.totalCardCount()).isEqualTo(1);
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.cards()).extracting(RecommendationCard::cardCode)
+            .containsExactly("RULE.RISK.v1");
+        verify(deterministicMatcher).match(request);
+        verify(sources, times(2)).save(any());
     }
 
     @Test
