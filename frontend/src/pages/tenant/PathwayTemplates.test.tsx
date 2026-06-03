@@ -30,7 +30,7 @@ const apiMocks = vi.hoisted(() => ({
   templateListParams: [] as unknown[],
 }));
 
-const PATHWAY_INTERACTION_TIMEOUT_MS = 15_000;
+const PATHWAY_INTERACTION_TIMEOUT_MS = 30_000;
 
 vi.mock("@/shared/api/hooks", () => ({
   usePathwayTemplates: (params?: { templateCode?: string }) => {
@@ -243,6 +243,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 节点画布/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
       expect(
         within(dialog).queryByLabelText("生命周期节点配置 (JSON 列表)"),
@@ -253,12 +255,36 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
-      await user.type(within(dialog).getByLabelText("节点编码"), "ASSESS");
-      await user.type(within(dialog).getByLabelText("节点名称"), "入径评估");
+      fireEvent.change(within(dialog).getByLabelText("节点编码"), {
+        target: { value: "ASSESS" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("节点名称"), {
+        target: { value: "入径评估" },
+      });
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+      expect(within(dialog).queryByLabelText("条件 DSL JSON")).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("边编码"), {
+        target: { value: "EDGE.ASSESS.FOLLOWUP" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("源节点"), {
+        target: { value: "ASSESS" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("目标节点"), {
+        target: { value: "FOLLOWUP" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("条件字段路径"), {
+        target: { value: "context.readyForFollowup" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("条件值"), {
+        target: { value: "true" },
+      });
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("路径 DSL JSON");
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"nodeCode": "ASSESS"');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain(
+        '"fact": "context.readyForFollowup"',
+      );
 
       fireEvent.change(dslEditor, {
         target: {

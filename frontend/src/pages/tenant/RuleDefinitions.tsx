@@ -11,11 +11,13 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Radio,
   Row,
   Select,
   Space,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -110,6 +112,10 @@ const OPERATOR_LABELS: Record<RuleOperator, string> = {
   lte: "小于等于",
   in: "属于集合",
   not_in: "不属于集合",
+  between: "区间比较",
+  unit_compare: "单位换算比较",
+  temporal: "时间窗/连续/趋势",
+  derived: "受控公式",
 };
 
 const VALUE_KIND_LABELS: Record<RuleValueKind, string> = {
@@ -118,7 +124,101 @@ const VALUE_KIND_LABELS: Record<RuleValueKind, string> = {
   number: "数值",
   boolean: "布尔",
   list: "集合",
+  range: "区间",
+  measurement: "带单位阈值",
+  temporal: "时间窗",
+  derived: "受控公式",
 };
+
+const numericComparisonChoices = [
+  { value: "gt", label: "大于" },
+  { value: "gte", label: "大于等于" },
+  { value: "lt", label: "小于" },
+  { value: "lte", label: "小于等于" },
+  { value: "equals", label: "等于" },
+];
+
+const derivedFormulaChoices = [
+  { value: "CKD_EPI_2021_EGFR", label: "eGFR CKD-EPI 2021" },
+  { value: "COCKCROFT_GAULT_CRCL", label: "CrCl Cockcroft-Gault" },
+  { value: "MOSTELLER_BSA", label: "BSA Mosteller" },
+];
+
+const CLINICAL_OPERATOR_SET = new Set<RuleOperator>([
+  "between",
+  "unit_compare",
+  "temporal",
+  "derived",
+]);
+
+function isClinicalOperator(operator: RuleOperator) {
+  return CLINICAL_OPERATOR_SET.has(operator);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function conditionValueRecord(condition: RuleCondition) {
+  return isRecord(condition.value) ? condition.value : {};
+}
+
+function conditionValueString(condition: RuleCondition, key: string) {
+  const value = conditionValueRecord(condition)[key];
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function conditionValueNumber(condition: RuleCondition, key: string) {
+  const value = conditionValueRecord(condition)[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+function conditionValueBoolean(condition: RuleCondition, key: string, fallback = true) {
+  const value = conditionValueRecord(condition)[key];
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function defaultValueForOperator(operator: RuleOperator, currentValue: RuleCondition["value"]) {
+  if (isRecord(currentValue)) return currentValue;
+  switch (operator) {
+    case "between":
+      return { min: "", max: "", includeMin: true, includeMax: true, unit: "" };
+    case "unit_compare":
+      return { comparison: "gte", value: "", unit: "", analyte: "" };
+    case "temporal":
+      return {
+        mode: "consecutive",
+        window: "PT24H",
+        referenceTime: "",
+        count: 2,
+        condition: { operator: "gt", value: "", unit: "" },
+      };
+    case "derived":
+      return {
+        formula: "CKD_EPI_2021_EGFR",
+        comparison: "gte",
+        value: "",
+        unit: "mL/min/1.73m2",
+        parameters: {
+          creatinine: "",
+          age: "",
+          sex: "",
+        },
+      };
+    default:
+      return currentValue ?? "";
+  }
+}
+
+function derivedParameterKeys(formula: string) {
+  if (formula === "MOSTELLER_BSA") {
+    return ["heightCm", "weightKg"];
+  }
+  if (formula === "COCKCROFT_GAULT_CRCL") {
+    return ["creatinine", "age", "sex", "weightKg"];
+  }
+  return ["creatinine", "age", "sex"];
+}
 
 function parseJsonInput(value: string, errorMessage: string, onError: (message: string) => void) {
   try {
@@ -191,6 +291,9 @@ function renderStatus(status: string) {
 function conditionValueText(condition: RuleCondition) {
   if (!conditionNeedsValue(condition.operator)) return "不需要比较值";
   if (Array.isArray(condition.value)) return condition.value.join("、") || "待填写";
+  if (isRecord(condition.value)) {
+    return "结构化临床算子参数";
+  }
   if (condition.value === undefined || condition.value === null || condition.value === "") {
     return "待填写";
   }
@@ -199,12 +302,16 @@ function conditionValueText(condition: RuleCondition) {
 
 function valueKindForOperator(operator: RuleOperator, currentKind: RuleValueKind): RuleValueKind {
   if (!conditionNeedsValue(operator)) return "empty";
+  if (operator === "between") return "range";
+  if (operator === "unit_compare") return "measurement";
+  if (operator === "temporal") return "temporal";
+  if (operator === "derived") return "derived";
   return currentKind === "empty" ? "string" : currentKind;
 }
 
 function valueForOperator(operator: RuleOperator, currentValue: RuleCondition["value"]) {
   if (!conditionNeedsValue(operator)) return undefined;
-  return currentValue ?? "";
+  return defaultValueForOperator(operator, currentValue);
 }
 
 function releaseCaseSummary(testCases: RuleTestCase[]) {
@@ -237,6 +344,8 @@ export default function RuleDefinitions() {
   const [activeDetailLayer, setActiveDetailLayer] = useState<DetailLayerKey>("l2");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
+  const [createExpertMode, setCreateExpertMode] = useState(false);
+  const [detailExpertMode, setDetailExpertMode] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] =
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
   const [conditionTree, setConditionTree] = useState<RuleConditionTree>(createDefaultTree);
@@ -330,8 +439,23 @@ export default function RuleDefinitions() {
 
   const openCreateModal = () => {
     createForm.resetFields();
+    setCreateExpertMode(false);
     resetLayeredAuthoring();
     setCreateModalVisible(true);
+  };
+
+  const toggleCreateExpertMode = (checked: boolean) => {
+    setCreateExpertMode(checked);
+    if (!checked && activeCreateLayer === "l3") {
+      setActiveCreateLayer("l2");
+    }
+  };
+
+  const toggleDetailExpertMode = (checked: boolean) => {
+    setDetailExpertMode(checked);
+    if (!checked && activeDetailLayer === "l3") {
+      setActiveDetailLayer("l2");
+    }
   };
 
   const applyTemplate = (templateKey: RuleTemplateKey) => {
@@ -349,6 +473,7 @@ export default function RuleDefinitions() {
 
   const syncTreeToDsl = () => {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(conditionTree)));
+    setCreateExpertMode(true);
     setActiveCreateLayer("l3");
     message.success("已从 L2 条件树同步到 L3 DSL");
   };
@@ -372,6 +497,431 @@ export default function RuleDefinitions() {
         currentIndex === index ? { ...condition, ...patch } : condition,
       ),
     }));
+  };
+
+  const updateConditionValue = (
+    index: number,
+    condition: RuleCondition,
+    patch: Record<string, unknown>,
+  ) => {
+    updateCondition(index, {
+      value: {
+        ...conditionValueRecord(condition),
+        ...patch,
+      },
+    });
+  };
+
+  const updateTemporalCondition = (
+    index: number,
+    condition: RuleCondition,
+    patch: Record<string, unknown>,
+  ) => {
+    const value = conditionValueRecord(condition);
+    const nested = isRecord(value.condition) ? value.condition : {};
+    updateConditionValue(index, condition, {
+      condition: {
+        ...nested,
+        ...patch,
+      },
+    });
+  };
+
+  const updateDerivedParameter = (
+    index: number,
+    condition: RuleCondition,
+    key: string,
+    value: string,
+  ) => {
+    const current = conditionValueRecord(condition);
+    const parameters = isRecord(current.parameters) ? current.parameters : {};
+    updateConditionValue(index, condition, {
+      parameters: {
+        ...parameters,
+        [key]: value,
+      },
+    });
+  };
+
+  const renderConditionValueEditor = (
+    condition: RuleCondition,
+    index: number,
+    needsValue: boolean,
+  ) => {
+    if (!needsValue) {
+      return (
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item label="比较值类型">
+              <Select value={condition.valueKind} disabled>
+                <Option value="empty">无比较值</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={16}>
+            <Form.Item label="比较值">
+              <Input value="存在性判断不需要比较值" disabled />
+            </Form.Item>
+          </Col>
+        </Row>
+      );
+    }
+
+    if (condition.operator === "between") {
+      return (
+        <Row gutter={16}>
+          <Col span={5}>
+            <Form.Item label="最小值">
+              <InputNumber
+                value={conditionValueNumber(condition, "min")}
+                onChange={(value) => updateConditionValue(index, condition, { min: value ?? "" })}
+                className="mk-full-width"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={5}>
+            <Form.Item label="最大值">
+              <InputNumber
+                value={conditionValueNumber(condition, "max")}
+                onChange={(value) => updateConditionValue(index, condition, { max: value ?? "" })}
+                className="mk-full-width"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={5}>
+            <Form.Item label="单位">
+              <Input
+                value={conditionValueString(condition, "unit")}
+                onChange={(event) =>
+                  updateConditionValue(index, condition, { unit: event.target.value })
+                }
+                placeholder="如 mmol/L"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={4}>
+            <Form.Item label="含最小值">
+              <Switch
+                checked={conditionValueBoolean(condition, "includeMin")}
+                onChange={(checked) =>
+                  updateConditionValue(index, condition, { includeMin: checked })
+                }
+              />
+            </Form.Item>
+          </Col>
+          <Col span={5}>
+            <Form.Item label="含最大值">
+              <Switch
+                checked={conditionValueBoolean(condition, "includeMax")}
+                onChange={(checked) =>
+                  updateConditionValue(index, condition, { includeMax: checked })
+                }
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+      );
+    }
+
+    if (condition.operator === "unit_compare") {
+      return (
+        <Row gutter={16}>
+          <Col span={6}>
+            <Form.Item label="换算比较符">
+              <Select
+                value={conditionValueString(condition, "comparison") || "gte"}
+                onChange={(value) => updateConditionValue(index, condition, { comparison: value })}
+                options={numericComparisonChoices}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={5}>
+            <Form.Item label="换算阈值">
+              <InputNumber
+                value={conditionValueNumber(condition, "value")}
+                onChange={(value) => updateConditionValue(index, condition, { value: value ?? "" })}
+                className="mk-full-width"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={5}>
+            <Form.Item label="目标单位">
+              <Input
+                value={conditionValueString(condition, "unit")}
+                onChange={(event) =>
+                  updateConditionValue(index, condition, { unit: event.target.value })
+                }
+                placeholder="如 mmol/L"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item label="检验项目">
+              <Input
+                value={conditionValueString(condition, "analyte")}
+                onChange={(event) =>
+                  updateConditionValue(index, condition, { analyte: event.target.value })
+                }
+                placeholder="如 glucose"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+      );
+    }
+
+    if (condition.operator === "temporal") {
+      const value = conditionValueRecord(condition);
+      const nested = isRecord(value.condition) ? value.condition : {};
+      const mode = conditionValueString(condition, "mode") || "consecutive";
+      return (
+        <Space direction="vertical" size="small" className="mk-full-width">
+          <Row gutter={16}>
+            <Col span={5}>
+              <Form.Item label="时间窗模式">
+                <Select
+                  value={mode}
+                  onChange={(nextMode) =>
+                    updateConditionValue(index, condition, { mode: nextMode })
+                  }
+                >
+                  <Option value="consecutive">连续命中</Option>
+                  <Option value="trend">趋势判断</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item label="窗口">
+                <Input
+                  value={conditionValueString(condition, "window")}
+                  onChange={(event) =>
+                    updateConditionValue(index, condition, { window: event.target.value })
+                  }
+                  placeholder="PT48H"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={7}>
+              <Form.Item label="参考时间">
+                <Input
+                  value={conditionValueString(condition, "referenceTime")}
+                  onChange={(event) =>
+                    updateConditionValue(index, condition, { referenceTime: event.target.value })
+                  }
+                  placeholder="2026-06-03T00:00:00Z"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item label="次数">
+                <InputNumber
+                  min={1}
+                  precision={0}
+                  value={conditionValueNumber(condition, "count")}
+                  onChange={(count) =>
+                    updateConditionValue(index, condition, { count: count ?? 1 })
+                  }
+                  className="mk-full-width"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={3}>
+              <Form.Item label="单位">
+                <Input
+                  value={conditionValueString(condition, "unit")}
+                  onChange={(event) =>
+                    updateConditionValue(index, condition, { unit: event.target.value })
+                  }
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          {mode === "trend" ? (
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item label="趋势方向">
+                  <Select
+                    value={conditionValueString(condition, "direction") || "up"}
+                    onChange={(direction) => updateConditionValue(index, condition, { direction })}
+                  >
+                    <Option value="up">上升</Option>
+                    <Option value="down">下降</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+          ) : (
+            <Row gutter={16}>
+              <Col span={6}>
+                <Form.Item label="连续条件比较符">
+                  <Select
+                    value={String(nested.operator ?? "gt")}
+                    onChange={(operator) => updateTemporalCondition(index, condition, { operator })}
+                    options={numericComparisonChoices}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={5}>
+                <Form.Item label="连续条件阈值">
+                  <InputNumber
+                    value={typeof nested.value === "number" ? nested.value : undefined}
+                    onChange={(value) =>
+                      updateTemporalCondition(index, condition, { value: value ?? "" })
+                    }
+                    className="mk-full-width"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={5}>
+                <Form.Item label="连续条件单位">
+                  <Input
+                    value={String(nested.unit ?? "")}
+                    onChange={(event) =>
+                      updateTemporalCondition(index, condition, { unit: event.target.value })
+                    }
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
+        </Space>
+      );
+    }
+
+    if (condition.operator === "derived") {
+      const formula = conditionValueString(condition, "formula") || "CKD_EPI_2021_EGFR";
+      const comparison = conditionValueString(condition, "comparison") || "gte";
+      const parameterKeys = derivedParameterKeys(formula);
+      const parameters = isRecord(conditionValueRecord(condition).parameters)
+        ? (conditionValueRecord(condition).parameters as Record<string, unknown>)
+        : {};
+      return (
+        <Space direction="vertical" size="small" className="mk-full-width">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="白名单公式">
+                <Select
+                  value={formula}
+                  options={derivedFormulaChoices}
+                  onChange={(nextFormula) =>
+                    updateConditionValue(index, condition, { formula: nextFormula })
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item label="公式比较符">
+                <Select
+                  value={comparison}
+                  onChange={(nextComparison) =>
+                    updateConditionValue(index, condition, { comparison: nextComparison })
+                  }
+                >
+                  {numericComparisonChoices.map((option) => (
+                    <Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Option>
+                  ))}
+                  <Option value="between">区间</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item label={comparison === "between" ? "区间下限" : "公式阈值"}>
+                <InputNumber
+                  value={
+                    comparison === "between"
+                      ? conditionValueNumber(condition, "min")
+                      : conditionValueNumber(condition, "value")
+                  }
+                  onChange={(value) =>
+                    updateConditionValue(index, condition, {
+                      [comparison === "between" ? "min" : "value"]: value ?? "",
+                    })
+                  }
+                  className="mk-full-width"
+                />
+              </Form.Item>
+            </Col>
+            {comparison === "between" && (
+              <Col span={4}>
+                <Form.Item label="区间上限">
+                  <InputNumber
+                    value={conditionValueNumber(condition, "max")}
+                    onChange={(value) =>
+                      updateConditionValue(index, condition, { max: value ?? "" })
+                    }
+                    className="mk-full-width"
+                  />
+                </Form.Item>
+              </Col>
+            )}
+            <Col span={comparison === "between" ? 2 : 6}>
+              <Form.Item label="单位">
+                <Input
+                  value={conditionValueString(condition, "unit")}
+                  onChange={(event) =>
+                    updateConditionValue(index, condition, { unit: event.target.value })
+                  }
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            {parameterKeys.map((key) => (
+              <Col span={6} key={key}>
+                <Form.Item label={`${key} 字段路径`}>
+                  <Input
+                    value={String(parameters[key] ?? "")}
+                    onChange={(event) =>
+                      updateDerivedParameter(index, condition, key, event.target.value)
+                    }
+                    placeholder={`如 patient.${key}`}
+                  />
+                </Form.Item>
+              </Col>
+            ))}
+          </Row>
+        </Space>
+      );
+    }
+
+    return (
+      <Row gutter={16}>
+        <Col span={8}>
+          <Form.Item label="比较值类型">
+            <Select
+              value={condition.valueKind}
+              onChange={(value: RuleValueKind) => updateCondition(index, { valueKind: value })}
+            >
+              {Object.entries(VALUE_KIND_LABELS)
+                .filter(
+                  ([value]) => !["range", "measurement", "temporal", "derived"].includes(value),
+                )
+                .map(([value, label]) => (
+                  <Option key={value} value={value}>
+                    {label}
+                  </Option>
+                ))}
+            </Select>
+          </Form.Item>
+        </Col>
+        <Col span={16}>
+          <Form.Item label="比较值" htmlFor={index === 0 ? "rule-condition-value" : undefined}>
+            <Input
+              id={index === 0 ? "rule-condition-value" : undefined}
+              value={String(condition.value ?? "")}
+              onChange={(event) => updateCondition(index, { value: event.target.value })}
+              placeholder={
+                condition.valueKind === "list"
+                  ? "多个值用英文逗号分隔"
+                  : "输入来自已审核规则来源的比较值"
+              }
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+    );
   };
 
   const addCondition = () => {
@@ -411,6 +961,7 @@ export default function RuleDefinitions() {
         submitTree = dslToConditionTree(parsedDsl);
       } catch {
         message.error("L3 DSL JSON 不合法，请先从 L2 同步或修正后再提交。");
+        setCreateExpertMode(true);
         setActiveCreateLayer("l3");
         return;
       }
@@ -611,6 +1162,7 @@ export default function RuleDefinitions() {
             setSimulatePayload("");
             setSimulateResult(null);
             setReleaseReason("");
+            setDetailExpertMode(false);
           }}
         >
           查看配置与试运行
@@ -903,30 +1455,34 @@ export default function RuleDefinitions() {
             />
           ),
         },
-        {
-          key: "l3",
-          label: (
-            <span>
-              <CodeOutlined /> L3 DSL
-            </span>
-          ),
-          children: (
-            <Row gutter={16}>
-              <Col span={12}>
-                <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
-                  {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
-                  {detailExplanation
-                    ? formatRuleJson(detailExplanation)
-                    : "当前版本解释模板为空或无法解析"}
-                </div>
-              </Col>
-            </Row>
-          ),
-        },
+        ...(detailExpertMode
+          ? [
+              {
+                key: "l3",
+                label: (
+                  <span>
+                    <CodeOutlined /> L3 DSL
+                  </span>
+                ),
+                children: (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
+                        {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
+                        {detailExplanation
+                          ? formatRuleJson(detailExplanation)
+                          : "当前版本解释模板为空或无法解析"}
+                      </div>
+                    </Col>
+                  </Row>
+                ),
+              },
+            ]
+          : []),
         {
           key: "cases",
           label: (
@@ -1066,27 +1622,36 @@ export default function RuleDefinitions() {
 
               <Row gutter={16}>
                 <Col span={12}>
-                  <Card size="small" title="专家手工 JSON 兜底">
-                    <Form layout="vertical">
-                      <Form.Item label="真实脱敏上下文快照 JSON">
-                        <TextArea
-                          rows={8}
-                          value={simulatePayload}
-                          onChange={(e) => setSimulatePayload(e.target.value)}
-                          placeholder="仅在已知快照 ID 无法检索时使用；仍必须来自真实脱敏上下文。"
-                          className="font-normal text-xs"
-                        />
-                      </Form.Item>
-                      <Button
-                        icon={<PlayCircleOutlined />}
-                        onClick={handleManualSimulate}
-                        loading={simulateMutation.isPending}
-                        block
-                      >
-                        运行手工 JSON 试运行
-                      </Button>
-                    </Form>
-                  </Card>
+                  {detailExpertMode ? (
+                    <Card size="small" title="专家手工 JSON 兜底">
+                      <Form layout="vertical">
+                        <Form.Item label="真实脱敏上下文快照 JSON">
+                          <TextArea
+                            rows={8}
+                            value={simulatePayload}
+                            onChange={(e) => setSimulatePayload(e.target.value)}
+                            placeholder="仅在已知快照 ID 无法检索时使用；仍必须来自真实脱敏上下文。"
+                            className="font-normal text-xs"
+                          />
+                        </Form.Item>
+                        <Button
+                          icon={<PlayCircleOutlined />}
+                          onClick={handleManualSimulate}
+                          loading={simulateMutation.isPending}
+                          block
+                        >
+                          运行手工 JSON 试运行
+                        </Button>
+                      </Form>
+                    </Card>
+                  ) : (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="手工 JSON 试运行已收纳到专家模式"
+                      description="普通流程请先读取标准上下文快照，再使用所选快照试运行。"
+                    />
+                  )}
                 </Col>
                 <Col span={12}>
                   {simulateResult ? (
@@ -1215,12 +1780,22 @@ export default function RuleDefinitions() {
             </Col>
           </Row>
 
+          <Alert
+            type="info"
+            showIcon
+            message="临床算子"
+            description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；L3 JSON 仅保留给专家核查。"
+          />
+
           {conditionTree.conditions.map((condition, index) => {
             const needsValue = conditionNeedsValue(condition.operator);
             return (
               <div key={condition.id} className="rounded-lg border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <Text strong>{condition.label || `条件 ${index + 1}`}</Text>
+                  <Space>
+                    <Text strong>{condition.label || `条件 ${index + 1}`}</Text>
+                    {isClinicalOperator(condition.operator) && <Tag color="volcano">临床算子</Tag>}
+                  </Space>
                   <Button
                     size="small"
                     onClick={() => removeCondition(index)}
@@ -1272,43 +1847,7 @@ export default function RuleDefinitions() {
                     </Form.Item>
                   </Col>
                 </Row>
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item label="比较值类型">
-                      <Select
-                        value={condition.valueKind}
-                        disabled={!needsValue}
-                        onChange={(value: RuleValueKind) =>
-                          updateCondition(index, { valueKind: value })
-                        }
-                      >
-                        {Object.entries(VALUE_KIND_LABELS).map(([value, label]) => (
-                          <Option key={value} value={value}>
-                            {label}
-                          </Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col span={16}>
-                    <Form.Item
-                      label="比较值"
-                      htmlFor={index === 0 ? "rule-condition-value" : undefined}
-                    >
-                      <Input
-                        id={index === 0 ? "rule-condition-value" : undefined}
-                        value={String(condition.value ?? "")}
-                        disabled={!needsValue}
-                        onChange={(event) => updateCondition(index, { value: event.target.value })}
-                        placeholder={
-                          condition.valueKind === "list"
-                            ? "多个值用英文逗号分隔"
-                            : "输入来自已审核规则来源的比较值"
-                        }
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
+                {renderConditionValueEditor(condition, index, needsValue)}
               </div>
             );
           })}
@@ -1370,41 +1909,53 @@ export default function RuleDefinitions() {
         </Space>
       ),
     },
-    {
-      key: "l3",
-      label: (
-        <span>
-          <CodeOutlined /> L3 DSL
-        </span>
-      ),
-      children: (
-        <>
-          <Alert
-            type="warning"
-            showIcon
-            message="L3 是专家模式，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
-            className="mb-4"
-          />
-          <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
-            <TextArea
-              id="ruleDslJson"
-              rows={16}
-              value={dslEditorValue}
-              onChange={(event) => setDslEditorValue(event.target.value)}
-              className="font-normal text-xs"
-            />
-          </Form.Item>
-          <Space>
-            <Button icon={<BranchesOutlined />} aria-label="回填到条件树" onClick={syncDslToTree}>
-              回填到条件树
-            </Button>
-            <Button icon={<FileSearchOutlined />} aria-label="重新生成 DSL" onClick={syncTreeToDsl}>
-              重新生成 DSL
-            </Button>
-          </Space>
-        </>
-      ),
-    },
+    ...(createExpertMode
+      ? [
+          {
+            key: "l3",
+            label: (
+              <span>
+                <CodeOutlined /> L3 DSL
+              </span>
+            ),
+            children: (
+              <>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="L3 是专家模式，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
+                  className="mb-4"
+                />
+                <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
+                  <TextArea
+                    id="ruleDslJson"
+                    rows={16}
+                    value={dslEditorValue}
+                    onChange={(event) => setDslEditorValue(event.target.value)}
+                    className="font-normal text-xs"
+                  />
+                </Form.Item>
+                <Space>
+                  <Button
+                    icon={<BranchesOutlined />}
+                    aria-label="回填到条件树"
+                    onClick={syncDslToTree}
+                  >
+                    回填到条件树
+                  </Button>
+                  <Button
+                    icon={<FileSearchOutlined />}
+                    aria-label="重新生成 DSL"
+                    onClick={syncTreeToDsl}
+                  >
+                    重新生成 DSL
+                  </Button>
+                </Space>
+              </>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const pageState = listIsError ? "error" : "ready";
@@ -1507,6 +2058,7 @@ export default function RuleDefinitions() {
           setSimulatePayload("");
           setSimulateResult(null);
           setReleaseReason("");
+          setDetailExpertMode(false);
         }}
         open={!!selectedRuleId}
         loading={detailLoading}
@@ -1542,6 +2094,18 @@ export default function RuleDefinitions() {
                 {detailData.version?.versionNo || 0} 版
               </Descriptions.Item>
             </Descriptions>
+
+            <Space className="mk-flex-between mk-full-width">
+              <Text type="secondary">技术 DSL、解释模板与手工 JSON 兜底默认隐藏。</Text>
+              <Space>
+                <Text>专家模式</Text>
+                <Switch
+                  aria-label="专家模式"
+                  checked={detailExpertMode}
+                  onChange={toggleDetailExpertMode}
+                />
+              </Space>
+            </Space>
 
             <Tabs
               activeKey={activeDetailLayer}
@@ -1623,6 +2187,18 @@ export default function RuleDefinitions() {
           <Form.Item name="changeSummary" label="初始化变更内容说明" rules={[{ required: true }]}>
             <Input placeholder="本次创建版本的修改概述" />
           </Form.Item>
+
+          <Space className="mk-flex-between mk-full-width mb-4">
+            <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。</Text>
+            <Space>
+              <Text>专家模式</Text>
+              <Switch
+                aria-label="专家模式"
+                checked={createExpertMode}
+                onChange={toggleCreateExpertMode}
+              />
+            </Space>
+          </Space>
 
           <Tabs
             activeKey={activeCreateLayer}

@@ -20,6 +20,22 @@
 - 下一步（精确到动作/命令）：1. 实际 stage 后重跑 changed-mode T-GATE 与 `mvn -q test` 最终全量；2. 提交、推送 `codex/d2-opt-01-fhir-pr3` 并创建 PR；3. 等远端 CI 8/8 后 squash 合并；4. fast-forward main、清理 worktree；5. 继续 OPT-01 PR4（10 类资源 read/search/create 运行覆盖），不得直接跳到下一张卡。
 - 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/fhir/*`、`medkernel-backend/src/test/java/com/medkernel/engine/integration/fhir/*`、`medkernel-backend/src/test/java/com/medkernel/architecture/{IntegrationContractDocumentationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest}.java`、`docs/contracts/integration/*`、`docs/cards/D2/OPT-01.md`。PR3 只声明已落地能力：Observation create + MedicationRequest / ServiceRequest 医师确认；Patient / Encounter / Condition 等 read/search 与 10 类全覆盖仍留 PR4，不能把 OPT-01 标 done。
 
+### 线 2 · 超管工作台访问修复 🚧
+- 类型：软件开发
+- 分支：`codex/superadmin-dashboard-access`
+- 目标：修复内置超级管理员登录后可见菜单但直接访问 `/dashboard` 被前端路由角色白名单拦截的问题，保持“超管不旁路、仍走 RBAC 权限画像”的约束。
+- 状态：本地已完成最小修复：`/dashboard` 与同槽 `/workbench/demo-validation` 的显式 `requiredRoles` 纳入 `system-superadmin`，仍要求 `menu.workbench` / `workbench:demo:view` 权限；已补路由红灯与布局复现测试。
+- 下一步（精确到动作/命令）：1. 视需要提交并推送 `codex/superadmin-dashboard-access`；2. 发布前在目标环境用内置超管登录复验 `/dashboard` 与“演示与校验”Tab；3. 若发 PR，合并后更新本线为归档。
+- 相关文件 / 测试 / 坑：`frontend/src/shared/config/routes.ts`、`frontend/src/shared/config/routes.test.ts`、`frontend/src/widgets/AppLayout.test.tsx`；本地验证：聚焦红灯先失败于缺少 `system-superadmin`，修复后 `npm run test -- --run src/shared/config/routes.test.ts src/widgets/AppLayout.test.tsx` 37/37 通过；`npm run verify` 全绿；`node --test scripts/authenticity-guard.test.mjs` 24/24 通过；`git diff --check origin/main...HEAD` 通过；`npm run build` 通过。`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main` 在未提交状态扫描 0 个文件（脚本仅看已提交 diff，且本次生产改动路径不命中真实性扫描规则）。
+
+### 线 3 · D2 已 done 规则 / 路径引擎复核修复 🚧
+- 类型：审计 + 软件开发
+- 分支：`codex/superadmin-dashboard-access`
+- 目标：按用户要求仅针对已标 `done` 的规则 / 路径引擎等任务线做核查登记与可控修复，优先处理专家模式隔离不明显、规则配置能力未承接已实现算子、路径条件配置仍暴露 JSON 等影响使用的问题；不冒领 D2 域级验收、SVC-PILOT-*、OPT-*、D3+ 或 wave2 pending 能力。
+- 状态：已登记 `docs/audit/D2-done-rule-pathway-verification-2026-06-03.md`；已补红灯并修复：① `RULE-01` L2 条件树支持 `MED-C2` 已实现的 `between` / `unit_compare` / `temporal` / `derived` 临床算子，L2↔L3 无损同步；② 规则 / 路径创建弹窗与详情抽屉默认隐藏 L3，显式“专家模式”才显示 DSL / JSON；③ 规则手工 JSON 试运行兜底收纳到专家模式；④ 路径 L2 流转边条件改为字段路径 / 算子 / 值类型 / 条件值结构化输入，不再在普通 L2 暴露“条件 DSL JSON”；⑤ 路径交互测试长输入改用 `fireEvent.change`，并把高交互用例局部超时调到 30s，解决全量并行压力下 15s 偶发超时。发布前本地验证已完成，待提交、推主线并发布到 192.168.8.191。
+- 下一步（精确到动作/命令）：1. 提交本分支变更；2. fast-forward 合入 `main` 并推送 `origin/main`；3. 打包发布到 192.168.8.191；4. 远端 smoke 通过后归档本线。
+- 相关文件 / 测试 / 坑：`frontend/src/shared/config/ruleLayeredEditor.ts`、`frontend/src/shared/config/ruleLayeredEditor.test.ts`、`frontend/src/pages/tenant/RuleDefinitions.tsx`、`frontend/src/pages/tenant/RuleDefinitions.test.tsx`、`frontend/src/pages/tenant/PathwayTemplates.tsx`、`frontend/src/pages/tenant/PathwayTemplates.test.tsx`、`docs/audit/D2-done-rule-pathway-verification-2026-06-03.md`；本地已跑：`npm run lint`、`npm run typecheck`、`npm run format:check`、目标测试 11/11、`npm run verify` 全绿、`npm run build` 通过、`node --test scripts/authenticity-guard.test.mjs` 24/24、changed-mode 真实性门禁、`git diff --check`、`mvn -B test` 1076 tests / 0 failures / 0 errors / 3 skipped；本地 Playwright smoke 用 dev `specialist` 真实登录 + 首登改密后验证 `/rule/definitions` 与 `/pathway/templates`：L3 默认隐藏、专家模式打开后可见、L2 临床算子与结构化路径条件可见。`DEFER-012` 规则跨域影响反向索引与 `DEFER-017` X6/G6 拖拽图增强仍 open，不得写成已完成。
+
 ## 已归档工作线（最近完成，供回溯）
 
 - D2 OPT-01 PR1 FHIR R4 映射地基 ✅（#297，merge `8bd0a233`）：新增 `com.medkernel.engine.integration.fhir` 包、`FhirR4CanonicalMapper`、`mk_fhir_resource_mapping` / `mk_fhir_mapping_rule` V63 五方言迁移、映射证据仓储与 `mk_fhir_` owner 前缀；Patient 出站不臆造缺失字段，Observation 入站遇到未标准化编码返回 OperationOutcome 风格 warning 与 `PARTIAL`。本地红绿、聚焦 / 后端全量、迁移冒烟、前端 verify/build、生产依赖审计、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后合入；R5、CapabilityStatement、TERM 字典映射、受控 create / 总线 / 断连 / 安全边界留 PR2/PR3，OPT-01 未整卡 done。
