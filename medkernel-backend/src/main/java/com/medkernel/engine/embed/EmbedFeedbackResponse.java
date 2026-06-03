@@ -7,5 +7,7 @@ public record EmbedFeedbackResponse(
     String token,
     String actionType,
     EmbedConnectionStatus callbackStatus,
+    boolean callbackDelivered,
+    String degradationReason,
     String traceId
 ) {}

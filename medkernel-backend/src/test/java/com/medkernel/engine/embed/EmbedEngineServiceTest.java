@@ -343,8 +343,69 @@ class EmbedEngineServiceTest {
 
         assertThat(response.actionType()).isEqualTo("ADOPT");
         assertThat(response.callbackStatus()).isEqualTo(EmbedConnectionStatus.NOT_CONNECTED);
+        assertThat(response.callbackDelivered()).isFalse();
+        assertThat(response.degradationReason()).isEqualTo("HOST_CALLBACK_NOT_CONFIGURED");
         assertThat(response.traceId()).isEqualTo("trace-1");
         verify(auditPublisher).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), eq(tokenVal), any());
+    }
+
+    @Test
+    void feedback_RejectsUnsupportedActionTypeBeforeAuditing() {
+        String tokenVal = "tkn-123456";
+
+        assertThatThrownBy(() -> service.feedback(new EmbedFeedbackRequest(
+                tokenVal, "CALLBACK_SUCCESS", "试图伪造宿主回调成功")))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
+
+        verify(auditPublisher, never()).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
+    void feedback_UnusedTokenRejectsCallbackWithoutSuccessAudit() {
+        String tokenVal = "tkn-unused";
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+
+        assertThatThrownBy(() -> service.feedback(new EmbedFeedbackRequest(tokenVal, "ADOPT", "未消费令牌")))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
+
+        verify(auditPublisher, never()).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
+    void validateAndExchange_AtomicConsumeReplayLosesRaceThrowsUsedWithoutSuccessAudit() {
+        String tokenVal = "tkn-replay";
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
+        );
+        EmbedLaunchToken used = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-2", "trace-1",
+            EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", Instant.now()
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused), Optional.of(used));
+        allowTrustedOrigin();
+        when(tokenRepo.consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"))).thenReturn(0);
+
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                TRUSTED_ORIGIN))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_003);
+
+        verify(auditPublisher, never()).publish(eq(AuditAction.EXECUTE), eq("embed_launch_token"), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
     }
 
     @Test

@@ -28,6 +28,7 @@
 ### 接口契约（引擎/API 卡）
 - 端点：`POST /api/v1/engine/embed/launch-tokens`（签发）· `POST .../embed/launch`（消费换上下文）· `POST .../embed/feedback`（反馈）
 - DTO：`EmbedLaunchTokenRequest` / `EmbedLaunchTokenResponse` / `EmbedLaunchRequest` / `EmbedLaunchContextResponse` / `EmbedFeedbackRequest` / `EmbedFeedbackResponse`（Record + Bean Validation）
+- 反馈降级：`EmbedFeedbackResponse.callbackStatus=NOT_CONNECTED` 时必须同步返回 `callbackDelivered=false` 与真实 `degradationReason`，不得把未配置宿主回调伪造成送达成功。
 - 响应信封：`ApiResult` / `ProblemDetail`；状态机：`UNUSED` → `USED` / `EXPIRED` / `REVOKED`
 - 幂等 / 错误码 / traceId：token 一次性（消费即失效）；trace（[OBS-01](../D0/OBS-01.md)）
 

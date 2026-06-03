@@ -29,6 +29,7 @@ public class EmbedEngineService {
     private static final int DEFAULT_EXPIRE_SECONDS = 60;
     private static final String LAUNCH_ENDPOINT = "/api/v1/engine/embed/launch";
     private static final String CDS_HOOK_VERSION = "1.0";
+    private static final String HOST_CALLBACK_NOT_CONFIGURED = "HOST_CALLBACK_NOT_CONFIGURED";
 
     private final EmbedLaunchTokenRepository tokenRepo;
     private final EmbedOriginWhitelistRepository originRepo;
@@ -183,6 +184,7 @@ public class EmbedEngineService {
      */
     @Transactional
     public EmbedFeedbackResponse feedback(EmbedFeedbackRequest req) {
+        EmbedFeedbackActionType actionType = requireSupportedFeedbackAction(req.actionType());
         EmbedLaunchToken entity = tokenRepo.findByToken(req.token())
             .orElseThrow(() -> {
                 publishFailureAudit(ErrorCode.ENG_EMBED_004, "提交反馈失败，启动令牌不存在 token=" + req.token());
@@ -196,8 +198,9 @@ public class EmbedEngineService {
         // 记录闭环反馈审计事件
         auditPublisher.publish(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
             String.format("医生提交交互反馈 actionType=%s reason=%s patientId=%s",
-                req.actionType(), req.reason() != null ? req.reason() : "", entity.patientId()));
-        return new EmbedFeedbackResponse(req.token(), req.actionType(), EmbedConnectionStatus.NOT_CONNECTED, entity.traceId());
+                actionType.name(), req.reason() != null ? req.reason() : "", entity.patientId()));
+        return new EmbedFeedbackResponse(req.token(), actionType.name(), EmbedConnectionStatus.NOT_CONNECTED,
+            false, HOST_CALLBACK_NOT_CONFIGURED, entity.traceId());
     }
 
     /**
@@ -349,6 +352,15 @@ public class EmbedEngineService {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
                 label + " triggerPoint 与 CDS Hook 不一致 triggerPoint=" + triggerPoint + " hook=" + hook);
             throw new ApiException(ErrorCode.ENG_EMBED_005, label + " triggerPoint 与 CDS Hook 不一致");
+        }
+    }
+
+    private EmbedFeedbackActionType requireSupportedFeedbackAction(String value) {
+        try {
+            return EmbedFeedbackActionType.fromWireValue(value);
+        } catch (IllegalArgumentException ex) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "嵌入反馈动作不受支持 actionType=" + value);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入反馈动作不受支持");
         }
     }
 
