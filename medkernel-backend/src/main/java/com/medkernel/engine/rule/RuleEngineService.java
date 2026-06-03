@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,10 +66,12 @@ public class RuleEngineService {
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
+    private final RuleImpactIndex impactIndex;
 
     /**
      * 注入规则引擎所需仓库、DSL 执行器、审计发布器、状态记录器与 JSON 处理器。
      */
+    @Autowired
     public RuleEngineService(RuleDefinitionRepository definitions,
                              RuleVersionRepository versions,
                              RuleTestCaseRepository testCases,
@@ -76,7 +80,35 @@ public class RuleEngineService {
                              AuditEventPublisher auditPublisher,
                              StateTransitionRecorder transitions,
                              DiagnoseResponseAssembler diagnoseAssembler,
-                             ObjectMapper json) {
+                             ObjectMapper json,
+                             ObjectProvider<RuleImpactIndex> impactIndexProvider) {
+        this(definitions, versions, testCases, executions, evaluator, auditPublisher, transitions,
+            diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty));
+    }
+
+    RuleEngineService(RuleDefinitionRepository definitions,
+                      RuleVersionRepository versions,
+                      RuleTestCaseRepository testCases,
+                      RuleExecutionLogRepository executions,
+                      RuleDslEvaluator evaluator,
+                      AuditEventPublisher auditPublisher,
+                      StateTransitionRecorder transitions,
+                      DiagnoseResponseAssembler diagnoseAssembler,
+                      ObjectMapper json) {
+        this(definitions, versions, testCases, executions, evaluator, auditPublisher, transitions,
+            diagnoseAssembler, json, RuleImpactIndex.empty());
+    }
+
+    RuleEngineService(RuleDefinitionRepository definitions,
+                      RuleVersionRepository versions,
+                      RuleTestCaseRepository testCases,
+                      RuleExecutionLogRepository executions,
+                      RuleDslEvaluator evaluator,
+                      AuditEventPublisher auditPublisher,
+                      StateTransitionRecorder transitions,
+                      DiagnoseResponseAssembler diagnoseAssembler,
+                      ObjectMapper json,
+                      RuleImpactIndex impactIndex) {
         this.definitions = definitions;
         this.versions = versions;
         this.testCases = testCases;
@@ -86,6 +118,7 @@ public class RuleEngineService {
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
         this.json = json;
+        this.impactIndex = impactIndex == null ? RuleImpactIndex.empty() : impactIndex;
     }
 
     /**
@@ -451,25 +484,42 @@ public class RuleEngineService {
     }
 
     private RuleImpactResponse impactFor(RuleDefinition rule, RuleVersion version) {
-        List<String> unavailable = List.of(
-            "PATHWAY_TEMPLATE: 当前缺少规则到路径模板的真实反向索引，未伪造路径影响",
-            "PATIENT_PATHWAY: 当前缺少规则到在径患者的真实反向索引，未伪造患者影响",
-            "SYNC_TARGET: 当前缺少 SYS-04 发布同步目标关联，未伪造同步目标"
-        );
+        RuleImpactIndexSnapshot indexSnapshot = impactIndex.analyze(rule.tenantId(), rule, version);
+        List<String> unavailable = indexSnapshot.unavailableScopes();
         List<RuleImpactObject> affectedRules = List.of(new RuleImpactObject(
             "RULE_DEFINITION", rule.ruleId(), rule.name(), "当前规则版本将被发布或替换"));
-        String status = "PARTIAL";
-        String digest = impactDigest(rule, version, status, unavailable);
+        String status = unavailable.isEmpty() ? "COMPLETE" : "PARTIAL";
+        String digest = impactDigest(
+            rule, version, status, unavailable, affectedRules,
+            indexSnapshot.affectedPathways(), indexSnapshot.inPathPatients(), indexSnapshot.syncTargets());
         return new RuleImpactResponse(
             rule.ruleId(), version.versionId(), rule.riskLevel(), status, digest,
-            affectedRules, List.of(), List.of(), List.of(), unavailable,
+            affectedRules, indexSnapshot.affectedPathways(), indexSnapshot.inPathPatients(),
+            indexSnapshot.syncTargets(), unavailable,
             RequestContext.currentTraceId());
     }
 
-    private String impactDigest(RuleDefinition rule, RuleVersion version, String status, List<String> unavailable) {
+    private String impactDigest(RuleDefinition rule, RuleVersion version, String status, List<String> unavailable,
+                                List<RuleImpactObject> affectedRules,
+                                List<RuleImpactObject> affectedPathways,
+                                List<RuleImpactObject> inPathPatients,
+                                List<RuleImpactObject> syncTargets) {
         return digestText(String.join("|",
             rule.tenantId(), rule.ruleId(), version.versionId(), rule.riskLevel().name(), status,
+            impactObjectSignature(affectedRules),
+            impactObjectSignature(affectedPathways),
+            impactObjectSignature(inPathPatients),
+            impactObjectSignature(syncTargets),
             String.join(";", unavailable)));
+    }
+
+    private String impactObjectSignature(List<RuleImpactObject> objects) {
+        return objects.stream()
+            .map(object -> String.join(":",
+                object.objectType(), object.objectId(), object.displayName(), object.impactReason()))
+            .sorted()
+            .toList()
+            .toString();
     }
 
     private boolean requiresImpact(RuleDefinition rule) {

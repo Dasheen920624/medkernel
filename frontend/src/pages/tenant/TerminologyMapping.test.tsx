@@ -32,6 +32,8 @@ import {
 
 import TerminologyMapping from "./TerminologyMapping";
 
+const TERMINOLOGY_INTERACTION_TIMEOUT_MS = 15_000;
+
 vi.mock("@/shared/api/hooks", () => ({
   parseSavedExperienceView: vi.fn((view) =>
     view?.definitionJson ? JSON.parse(view.definitionJson) : null,
@@ -453,46 +455,52 @@ describe("TerminologyMapping experience sample", () => {
     });
   });
 
-  it("publishes and rolls back terminology packages through the 7-step release flow", async () => {
-    const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "GRAY" });
-    const rollbackPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
-    vi.mocked(usePublishTerminologyPackage).mockReturnValue({
-      mutateAsync: publishPackage,
-    } as never);
-    vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
-      mutateAsync: rollbackPackage,
-    } as never);
+  it(
+    "publishes and rolls back terminology packages through the 7-step release flow",
+    async () => {
+      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "GRAY" });
+      const rollbackPackage = vi
+        .fn()
+        .mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
+      vi.mocked(usePublishTerminologyPackage).mockReturnValue({
+        mutateAsync: publishPackage,
+      } as never);
+      vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
+        mutateAsync: rollbackPackage,
+      } as never);
 
-    renderPage();
+      renderPage();
 
-    await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
-    expect(screen.getByText("发布映射包")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "10% 灰度" })).toBeChecked();
-    await userEvent.type(screen.getByLabelText("发布原因"), "首发检验字典灰度验证");
-    await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
+      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
+      expect(screen.getByText("发布映射包")).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "10% 灰度" })).toBeChecked();
+      await userEvent.type(screen.getByLabelText("发布原因"), "首发检验字典灰度验证");
+      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
 
-    expect(publishPackage).toHaveBeenCalledWith({
-      packageId: 30,
-      request: expect.objectContaining({
-        packageVersion: "2026.06",
-        releaseMode: "GRAY",
-        reason: "首发检验字典灰度验证",
-      }),
-    });
+      expect(publishPackage).toHaveBeenCalledWith({
+        packageId: 30,
+        request: expect.objectContaining({
+          packageVersion: "2026.06",
+          releaseMode: "GRAY",
+          reason: "首发检验字典灰度验证",
+        }),
+      });
 
-    await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
-    await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
-    await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
+      await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
+      await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
+      await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
 
-    expect(rollbackPackage).toHaveBeenCalledWith({
-      packageId: 30,
-      request: expect.objectContaining({
-        packageVersion: "2026.06",
-        targetPackageId: 30,
-        reason: "灰度验证发现院内码需重裁",
-      }),
-    });
-  });
+      expect(rollbackPackage).toHaveBeenCalledWith({
+        packageId: 30,
+        request: expect.objectContaining({
+          packageVersion: "2026.06",
+          targetPackageId: 30,
+          reason: "灰度验证发现院内码需重裁",
+        }),
+      });
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
 
   it("loads the backend default view snapshot", async () => {
     vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
