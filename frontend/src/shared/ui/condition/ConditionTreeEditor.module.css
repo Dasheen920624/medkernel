@@ -1,23 +1,23 @@
 .label {
-  width: 130px;
+  width: 8.125rem;
 }
 
 .fact {
-  width: 220px;
+  width: 13.75rem;
 }
 
 .operator {
-  width: 120px;
+  width: 7.5rem;
 }
 
 .kind {
-  width: 110px;
+  width: 6.875rem;
 }
 
 .value {
-  width: 180px;
+  width: 11.25rem;
 }
 
 .logic {
-  width: 130px;
+  width: 8.125rem;
 }
