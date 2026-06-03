@@ -63,13 +63,19 @@ import { StepFlow } from "@/shared/ui/StepFlow";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
+  conditionNodeToDsl,
   conditionTreeToDsl,
   createExplanationTemplate,
   dslToConditionTree,
+  dslWhenToRootGroup,
+  flatToRootGroup,
   formatRuleJson,
   instantiateRuleTemplate,
+  isConditionGroup,
   parseRuleJson,
   type RuleCondition,
+  type RuleConditionGroup,
+  type RuleConditionNode,
   type RuleConditionTree,
   type RuleLogic,
   type RuleOperator,
@@ -77,6 +83,18 @@ import {
   type RuleTemplateKey,
   type RuleValueKind,
 } from "@/shared/config/ruleLayeredEditor";
+import {
+  MAX_TREE_DEPTH,
+  addNodeToGroup,
+  countConditionLeaves,
+  createConditionGroup,
+  createConditionLeaf,
+  mapConditionById,
+  mapGroupById,
+  removeConditionById,
+  rootDepth,
+  rootHasUnresolvedFact,
+} from "@/shared/config/ruleConditionTreeOps";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -392,6 +410,15 @@ export default function RuleDefinitions() {
     () => toStoredConditionTree(detailData?.version?.dslJson),
     [detailData?.version?.dslJson],
   );
+  const detailRoot = useMemo(() => {
+    const parsed = parseStoredJson(detailData?.version?.dslJson);
+    if (!isRecord(parsed) || !("when" in parsed)) return null;
+    try {
+      return dslWhenToRootGroup((parsed as { when: unknown }).when);
+    } catch {
+      return null;
+    }
+  }, [detailData?.version?.dslJson]);
   const detailExplanation = useMemo(
     () => parseStoredJson(detailData?.version?.explanationJson),
     [detailData?.version?.explanationJson],
@@ -471,18 +498,41 @@ export default function RuleDefinitions() {
     setActiveCreateLayer("l2");
   };
 
+  const buildRuleDslFromRoot = (
+    root: RuleConditionGroup,
+    action: RuleConditionTree["action"],
+    explanationSummary: string,
+  ) => ({
+    when: conditionNodeToDsl(root),
+    then: [{ ...action }],
+    explain: {
+      summary: explanationSummary,
+      authoring: {
+        layer: "L2_VISUAL_TREE" as const,
+        conditionCount: countConditionLeaves(root),
+      },
+    },
+  });
+
   const syncTreeToDsl = () => {
-    setDslEditorValue(formatRuleJson(conditionTreeToDsl(conditionTree)));
-    setCreateExpertMode(true);
-    setActiveCreateLayer("l3");
+    setDslEditorValue(
+      formatRuleJson(
+        buildRuleDslFromRoot(conditionRoot, conditionTree.action, conditionTree.explanationSummary),
+      ),
+    );
+    // 仅静默同步，不强制切到 L3 / 不强开专家模式（修复「同步即跳专家模式」）。
     message.success("已从 L2 条件树同步到 L3 DSL");
   };
 
   const syncDslToTree = () => {
     try {
       const parsed = parseRuleJson(dslEditorValue);
+      if (!isRecord(parsed) || !("when" in parsed)) {
+        throw new Error("缺少 when");
+      }
       const nextTree = dslToConditionTree(parsed);
-      setConditionTree(nextTree);
+      const root = dslWhenToRootGroup((parsed as { when: unknown }).when);
+      setConditionTree({ ...nextTree, root, logic: root.logic, conditions: [] });
       setActiveCreateLayer("l2");
       message.success("已从 L3 DSL 回填到 L2 条件树");
     } catch {
@@ -490,21 +540,37 @@ export default function RuleDefinitions() {
     }
   };
 
-  const updateCondition = (index: number, patch: Partial<RuleCondition>) => {
-    setConditionTree((current) => ({
-      ...current,
-      conditions: current.conditions.map((condition, currentIndex) =>
-        currentIndex === index ? { ...condition, ...patch } : condition,
-      ),
-    }));
+  const conditionRoot = conditionTree.root ?? flatToRootGroup(conditionTree);
+
+  const updateRoot = (updater: (root: RuleConditionGroup) => RuleConditionGroup) => {
+    setConditionTree((current) => {
+      const root = current.root ?? flatToRootGroup(current);
+      return { ...current, root: updater(root) };
+    });
   };
 
-  const updateConditionValue = (
-    index: number,
-    condition: RuleCondition,
-    patch: Record<string, unknown>,
-  ) => {
-    updateCondition(index, {
+  const updateCondition = (id: string, patch: Partial<RuleCondition>) => {
+    updateRoot(
+      (root) => mapConditionById(root, id, (condition) => ({ ...condition, ...patch })) as RuleConditionGroup,
+    );
+  };
+
+  const updateGroup = (id: string, patch: Partial<RuleConditionGroup>) => {
+    updateRoot(
+      (root) => mapGroupById(root, id, (group) => ({ ...group, ...patch })) as RuleConditionGroup,
+    );
+  };
+
+  const addLeafToGroup = (groupId: string) =>
+    updateRoot((root) => addNodeToGroup(root, groupId, createConditionLeaf()));
+
+  const addGroupToGroup = (groupId: string) =>
+    updateRoot((root) => addNodeToGroup(root, groupId, createConditionGroup()));
+
+  const removeNode = (id: string) => updateRoot((root) => removeConditionById(root, id));
+
+  const updateConditionValue = (condition: RuleCondition, patch: Record<string, unknown>) => {
+    updateCondition(condition.id, {
       value: {
         ...conditionValueRecord(condition),
         ...patch,
@@ -512,14 +578,10 @@ export default function RuleDefinitions() {
     });
   };
 
-  const updateTemporalCondition = (
-    index: number,
-    condition: RuleCondition,
-    patch: Record<string, unknown>,
-  ) => {
+  const updateTemporalCondition = (condition: RuleCondition, patch: Record<string, unknown>) => {
     const value = conditionValueRecord(condition);
     const nested = isRecord(value.condition) ? value.condition : {};
-    updateConditionValue(index, condition, {
+    updateConditionValue(condition, {
       condition: {
         ...nested,
         ...patch,
@@ -527,15 +589,10 @@ export default function RuleDefinitions() {
     });
   };
 
-  const updateDerivedParameter = (
-    index: number,
-    condition: RuleCondition,
-    key: string,
-    value: string,
-  ) => {
+  const updateDerivedParameter = (condition: RuleCondition, key: string, value: string) => {
     const current = conditionValueRecord(condition);
     const parameters = isRecord(current.parameters) ? current.parameters : {};
-    updateConditionValue(index, condition, {
+    updateConditionValue(condition, {
       parameters: {
         ...parameters,
         [key]: value,
@@ -545,8 +602,8 @@ export default function RuleDefinitions() {
 
   const renderConditionValueEditor = (
     condition: RuleCondition,
-    index: number,
     needsValue: boolean,
+    isFirstLeaf: boolean,
   ) => {
     if (!needsValue) {
       return (
@@ -574,7 +631,7 @@ export default function RuleDefinitions() {
             <Form.Item label="最小值">
               <InputNumber
                 value={conditionValueNumber(condition, "min")}
-                onChange={(value) => updateConditionValue(index, condition, { min: value ?? "" })}
+                onChange={(value) => updateConditionValue(condition, { min: value ?? "" })}
                 className="mk-full-width"
               />
             </Form.Item>
@@ -583,7 +640,7 @@ export default function RuleDefinitions() {
             <Form.Item label="最大值">
               <InputNumber
                 value={conditionValueNumber(condition, "max")}
-                onChange={(value) => updateConditionValue(index, condition, { max: value ?? "" })}
+                onChange={(value) => updateConditionValue(condition, { max: value ?? "" })}
                 className="mk-full-width"
               />
             </Form.Item>
@@ -593,7 +650,7 @@ export default function RuleDefinitions() {
               <Input
                 value={conditionValueString(condition, "unit")}
                 onChange={(event) =>
-                  updateConditionValue(index, condition, { unit: event.target.value })
+                  updateConditionValue(condition, { unit: event.target.value })
                 }
                 placeholder="如 mmol/L"
               />
@@ -604,7 +661,7 @@ export default function RuleDefinitions() {
               <Switch
                 checked={conditionValueBoolean(condition, "includeMin")}
                 onChange={(checked) =>
-                  updateConditionValue(index, condition, { includeMin: checked })
+                  updateConditionValue(condition, { includeMin: checked })
                 }
               />
             </Form.Item>
@@ -614,7 +671,7 @@ export default function RuleDefinitions() {
               <Switch
                 checked={conditionValueBoolean(condition, "includeMax")}
                 onChange={(checked) =>
-                  updateConditionValue(index, condition, { includeMax: checked })
+                  updateConditionValue(condition, { includeMax: checked })
                 }
               />
             </Form.Item>
@@ -630,7 +687,7 @@ export default function RuleDefinitions() {
             <Form.Item label="换算比较符">
               <Select
                 value={conditionValueString(condition, "comparison") || "gte"}
-                onChange={(value) => updateConditionValue(index, condition, { comparison: value })}
+                onChange={(value) => updateConditionValue(condition, { comparison: value })}
                 options={numericComparisonChoices}
               />
             </Form.Item>
@@ -639,7 +696,7 @@ export default function RuleDefinitions() {
             <Form.Item label="换算阈值">
               <InputNumber
                 value={conditionValueNumber(condition, "value")}
-                onChange={(value) => updateConditionValue(index, condition, { value: value ?? "" })}
+                onChange={(value) => updateConditionValue(condition, { value: value ?? "" })}
                 className="mk-full-width"
               />
             </Form.Item>
@@ -649,7 +706,7 @@ export default function RuleDefinitions() {
               <Input
                 value={conditionValueString(condition, "unit")}
                 onChange={(event) =>
-                  updateConditionValue(index, condition, { unit: event.target.value })
+                  updateConditionValue(condition, { unit: event.target.value })
                 }
                 placeholder="如 mmol/L"
               />
@@ -660,7 +717,7 @@ export default function RuleDefinitions() {
               <Input
                 value={conditionValueString(condition, "analyte")}
                 onChange={(event) =>
-                  updateConditionValue(index, condition, { analyte: event.target.value })
+                  updateConditionValue(condition, { analyte: event.target.value })
                 }
                 placeholder="如 glucose"
               />
@@ -682,7 +739,7 @@ export default function RuleDefinitions() {
                 <Select
                   value={mode}
                   onChange={(nextMode) =>
-                    updateConditionValue(index, condition, { mode: nextMode })
+                    updateConditionValue(condition, { mode: nextMode })
                   }
                 >
                   <Option value="consecutive">连续命中</Option>
@@ -695,7 +752,7 @@ export default function RuleDefinitions() {
                 <Input
                   value={conditionValueString(condition, "window")}
                   onChange={(event) =>
-                    updateConditionValue(index, condition, { window: event.target.value })
+                    updateConditionValue(condition, { window: event.target.value })
                   }
                   placeholder="PT48H"
                 />
@@ -706,7 +763,7 @@ export default function RuleDefinitions() {
                 <Input
                   value={conditionValueString(condition, "referenceTime")}
                   onChange={(event) =>
-                    updateConditionValue(index, condition, { referenceTime: event.target.value })
+                    updateConditionValue(condition, { referenceTime: event.target.value })
                   }
                   placeholder="2026-06-03T00:00:00Z"
                 />
@@ -719,7 +776,7 @@ export default function RuleDefinitions() {
                   precision={0}
                   value={conditionValueNumber(condition, "count")}
                   onChange={(count) =>
-                    updateConditionValue(index, condition, { count: count ?? 1 })
+                    updateConditionValue(condition, { count: count ?? 1 })
                   }
                   className="mk-full-width"
                 />
@@ -730,7 +787,7 @@ export default function RuleDefinitions() {
                 <Input
                   value={conditionValueString(condition, "unit")}
                   onChange={(event) =>
-                    updateConditionValue(index, condition, { unit: event.target.value })
+                    updateConditionValue(condition, { unit: event.target.value })
                   }
                 />
               </Form.Item>
@@ -742,7 +799,7 @@ export default function RuleDefinitions() {
                 <Form.Item label="趋势方向">
                   <Select
                     value={conditionValueString(condition, "direction") || "up"}
-                    onChange={(direction) => updateConditionValue(index, condition, { direction })}
+                    onChange={(direction) => updateConditionValue(condition, { direction })}
                   >
                     <Option value="up">上升</Option>
                     <Option value="down">下降</Option>
@@ -756,7 +813,7 @@ export default function RuleDefinitions() {
                 <Form.Item label="连续条件比较符">
                   <Select
                     value={String(nested.operator ?? "gt")}
-                    onChange={(operator) => updateTemporalCondition(index, condition, { operator })}
+                    onChange={(operator) => updateTemporalCondition(condition, { operator })}
                     options={numericComparisonChoices}
                   />
                 </Form.Item>
@@ -766,7 +823,7 @@ export default function RuleDefinitions() {
                   <InputNumber
                     value={typeof nested.value === "number" ? nested.value : undefined}
                     onChange={(value) =>
-                      updateTemporalCondition(index, condition, { value: value ?? "" })
+                      updateTemporalCondition(condition, { value: value ?? "" })
                     }
                     className="mk-full-width"
                   />
@@ -777,7 +834,7 @@ export default function RuleDefinitions() {
                   <Input
                     value={String(nested.unit ?? "")}
                     onChange={(event) =>
-                      updateTemporalCondition(index, condition, { unit: event.target.value })
+                      updateTemporalCondition(condition, { unit: event.target.value })
                     }
                   />
                 </Form.Item>
@@ -804,7 +861,7 @@ export default function RuleDefinitions() {
                   value={formula}
                   options={derivedFormulaChoices}
                   onChange={(nextFormula) =>
-                    updateConditionValue(index, condition, { formula: nextFormula })
+                    updateConditionValue(condition, { formula: nextFormula })
                   }
                 />
               </Form.Item>
@@ -814,7 +871,7 @@ export default function RuleDefinitions() {
                 <Select
                   value={comparison}
                   onChange={(nextComparison) =>
-                    updateConditionValue(index, condition, { comparison: nextComparison })
+                    updateConditionValue(condition, { comparison: nextComparison })
                   }
                 >
                   {numericComparisonChoices.map((option) => (
@@ -835,7 +892,7 @@ export default function RuleDefinitions() {
                       : conditionValueNumber(condition, "value")
                   }
                   onChange={(value) =>
-                    updateConditionValue(index, condition, {
+                    updateConditionValue(condition, {
                       [comparison === "between" ? "min" : "value"]: value ?? "",
                     })
                   }
@@ -849,7 +906,7 @@ export default function RuleDefinitions() {
                   <InputNumber
                     value={conditionValueNumber(condition, "max")}
                     onChange={(value) =>
-                      updateConditionValue(index, condition, { max: value ?? "" })
+                      updateConditionValue(condition, { max: value ?? "" })
                     }
                     className="mk-full-width"
                   />
@@ -861,7 +918,7 @@ export default function RuleDefinitions() {
                 <Input
                   value={conditionValueString(condition, "unit")}
                   onChange={(event) =>
-                    updateConditionValue(index, condition, { unit: event.target.value })
+                    updateConditionValue(condition, { unit: event.target.value })
                   }
                 />
               </Form.Item>
@@ -874,7 +931,7 @@ export default function RuleDefinitions() {
                   <Input
                     value={String(parameters[key] ?? "")}
                     onChange={(event) =>
-                      updateDerivedParameter(index, condition, key, event.target.value)
+                      updateDerivedParameter(condition, key, event.target.value)
                     }
                     placeholder={`如 patient.${key}`}
                   />
@@ -892,7 +949,9 @@ export default function RuleDefinitions() {
           <Form.Item label="比较值类型">
             <Select
               value={condition.valueKind}
-              onChange={(value: RuleValueKind) => updateCondition(index, { valueKind: value })}
+              onChange={(value: RuleValueKind) =>
+                updateCondition(condition.id, { valueKind: value })
+              }
             >
               {Object.entries(VALUE_KIND_LABELS)
                 .filter(
@@ -907,11 +966,11 @@ export default function RuleDefinitions() {
           </Form.Item>
         </Col>
         <Col span={16}>
-          <Form.Item label="比较值" htmlFor={index === 0 ? "rule-condition-value" : undefined}>
+          <Form.Item label="比较值" htmlFor={isFirstLeaf ? "rule-condition-value" : undefined}>
             <Input
-              id={index === 0 ? "rule-condition-value" : undefined}
+              id={isFirstLeaf ? "rule-condition-value" : undefined}
               value={String(condition.value ?? "")}
-              onChange={(event) => updateCondition(index, { value: event.target.value })}
+              onChange={(event) => updateCondition(condition.id, { value: event.target.value })}
               placeholder={
                 condition.valueKind === "list"
                   ? "多个值用英文逗号分隔"
@@ -924,48 +983,213 @@ export default function RuleDefinitions() {
     );
   };
 
-  const addCondition = () => {
-    setConditionTree((current) => ({
-      ...current,
-      conditions: [
-        ...current.conditions,
-        {
-          id: `condition-${current.conditions.length + 1}`,
-          label: `条件 ${current.conditions.length + 1}`,
-          fact: "",
-          operator: "equals",
-          value: "",
-          valueKind: "string",
-        },
-      ],
-    }));
+  const firstLeafId = ((): string | undefined => {
+    const find = (node: RuleConditionNode): string | undefined => {
+      if (!isConditionGroup(node)) return node.id;
+      for (const child of node.children) {
+        const found = find(child);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    return find(conditionRoot);
+  })();
+
+  const renderConditionLeaf = (condition: RuleCondition) => {
+    const needsValue = conditionNeedsValue(condition.operator);
+    const isFirstLeaf = condition.id === firstLeafId;
+    return (
+      <div key={condition.id} className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <Space>
+            <Text strong>{condition.label || "条件"}</Text>
+            {isClinicalOperator(condition.operator) && <Tag color="volcano">临床算子</Tag>}
+          </Space>
+          <Button
+            size="small"
+            aria-label="移除条件"
+            icon={<DeleteOutlined />}
+            onClick={() => removeNode(condition.id)}
+          />
+        </div>
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item label="条件标签">
+              <Input
+                value={condition.label}
+                onChange={(event) => updateCondition(condition.id, { label: event.target.value })}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={10}>
+            <Form.Item label="上下文字段路径" htmlFor={isFirstLeaf ? "rule-condition-fact" : undefined}>
+              <Input
+                id={isFirstLeaf ? "rule-condition-fact" : undefined}
+                value={condition.fact}
+                onChange={(event) => updateCondition(condition.id, { fact: event.target.value })}
+                placeholder="如 observations.0.value"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item label="算子">
+              <Select
+                value={condition.operator}
+                onChange={(value: RuleOperator) =>
+                  updateCondition(condition.id, {
+                    operator: value,
+                    valueKind: valueKindForOperator(value, condition.valueKind),
+                    value: valueForOperator(value, condition.value),
+                  })
+                }
+              >
+                {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
+                  <Option key={value} value={value}>
+                    {label}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+        {renderConditionValueEditor(condition, needsValue, isFirstLeaf)}
+      </div>
+    );
   };
 
-  const removeCondition = (index: number) => {
-    setConditionTree((current) => {
-      if (current.conditions.length <= 1) return current;
-      return {
-        ...current,
-        conditions: current.conditions.filter((_condition, currentIndex) => currentIndex !== index),
-      };
-    });
+  const renderConditionGroup = (group: RuleConditionGroup, isRoot: boolean) => {
+    const depthReached = rootDepth(conditionRoot) >= MAX_TREE_DEPTH;
+    return (
+      <div
+        key={group.id}
+        className={
+          isRoot
+            ? "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4"
+            : "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 ml-4 border-l-4 border-l-emerald-300"
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <Tag color="green">{isRoot ? "条件根组" : "子条件组"}</Tag>
+          <Select
+            aria-label="条件组关系"
+            size="small"
+            value={group.logic}
+            className="w-[140px]"
+            onChange={(value: RuleLogic) => updateGroup(group.id, { logic: value })}
+          >
+            <Option value="all">全部条件满足</Option>
+            <Option value="any">任一条件满足</Option>
+          </Select>
+          <Space size={4}>
+            <Text type="secondary" className="text-xs">
+              取反
+            </Text>
+            <Switch
+              aria-label="取反"
+              size="small"
+              checked={Boolean(group.negate)}
+              onChange={(checked) => updateGroup(group.id, { negate: checked })}
+            />
+          </Space>
+          {!isRoot && (
+            <Button
+              size="small"
+              aria-label="删除条件组"
+              icon={<DeleteOutlined />}
+              className="ml-auto"
+              onClick={() => removeNode(group.id)}
+            />
+          )}
+        </div>
+        <Space direction="vertical" size="small" className="mk-full-width">
+          {group.children.map((child) =>
+            isConditionGroup(child) ? renderConditionGroup(child, false) : renderConditionLeaf(child),
+          )}
+          <Space wrap>
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              aria-label="新增条件"
+              onClick={() => addLeafToGroup(group.id)}
+            >
+              条件
+            </Button>
+            <Tooltip title={depthReached ? `已达最大嵌套深度 ${MAX_TREE_DEPTH}` : ""}>
+              <Button
+                size="small"
+                icon={<BranchesOutlined />}
+                aria-label="新增子条件组"
+                disabled={depthReached}
+                onClick={() => addGroupToGroup(group.id)}
+              >
+                子条件组
+              </Button>
+            </Tooltip>
+          </Space>
+        </Space>
+      </div>
+    );
+  };
+
+  const renderReadonlyNode = (node: RuleConditionNode): React.ReactNode => {
+    if (isConditionGroup(node)) {
+      return (
+        <div
+          key={node.id}
+          className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 ml-2 border-l-4 border-l-emerald-300"
+        >
+          <Space className="mb-2">
+            <Tag color="green">{node.negate ? "非（NOT）" : "组"}</Tag>
+            <Text type="secondary">
+              {node.logic === "all" ? "全部条件满足" : "任一条件满足"}
+            </Text>
+          </Space>
+          <Space direction="vertical" size="small" className="mk-full-width">
+            {node.children.map((child) => renderReadonlyNode(child))}
+          </Space>
+        </div>
+      );
+    }
+    return (
+      <Descriptions key={node.id} bordered column={2} size="small">
+        <Descriptions.Item label="条件标签">{node.label}</Descriptions.Item>
+        <Descriptions.Item label="字段路径">{node.fact}</Descriptions.Item>
+        <Descriptions.Item label="算子">{OPERATOR_LABELS[node.operator]}</Descriptions.Item>
+        <Descriptions.Item label="比较值">{conditionValueText(node)}</Descriptions.Item>
+      </Descriptions>
+    );
   };
 
   const handleCreateRule = async () => {
     try {
       const values = await createForm.validateFields();
       let parsedDsl: unknown;
-      let submitTree: RuleConditionTree;
+      let submitRoot: RuleConditionGroup;
       try {
-        parsedDsl = parseRuleJson(dslEditorValue);
-        submitTree = dslToConditionTree(parsedDsl);
+        // 专家模式以 L3 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
+        parsedDsl = createExpertMode
+          ? parseRuleJson(dslEditorValue)
+          : buildRuleDslFromRoot(
+              conditionRoot,
+              conditionTree.action,
+              conditionTree.explanationSummary,
+            );
+        if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
+          throw new Error("缺少 when");
+        }
+        submitRoot = dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
         message.error("L3 DSL JSON 不合法，请先从 L2 同步或修正后再提交。");
         setCreateExpertMode(true);
         setActiveCreateLayer("l3");
         return;
       }
-      if (hasUnresolvedPlaceholder(submitTree)) {
+      if (rootDepth(submitRoot) > MAX_TREE_DEPTH) {
+        message.error(`条件嵌套深度超过上限 ${MAX_TREE_DEPTH}，请拆分规则。`);
+        setActiveCreateLayer("l2");
+        return;
+      }
+      if (rootHasUnresolvedFact(submitRoot)) {
         message.error("请在 L2 条件树填写真实上下文字段路径，不能提交模板占位符。");
         setActiveCreateLayer("l2");
         return;
@@ -981,7 +1205,10 @@ export default function RuleDefinitions() {
         sourceRef: values.sourceRef,
         changeSummary: values.changeSummary,
         dslJson: parsedDsl,
-        explanationJson: createExplanationTemplate(submitTree),
+        explanationJson: createExplanationTemplate({
+          ...conditionTree,
+          root: submitRoot,
+        }),
       });
 
       message.success("新规则创建成功，状态为草稿");
@@ -1424,20 +1651,13 @@ export default function RuleDefinitions() {
               <Alert
                 type="info"
                 showIcon
-                message={`当前条件组为「${detailTree.logic === "all" ? "全部满足" : "任一满足"}」，共 ${detailTree.conditions.length} 个条件。`}
+                message={`当前条件根组为「${(detailRoot?.logic ?? detailTree.logic) === "all" ? "全部满足" : "任一满足"}」，支持任意层级嵌套。`}
               />
-              {detailTree.conditions.map((condition) => (
-                <Descriptions key={condition.id} bordered column={2} size="small">
-                  <Descriptions.Item label="条件标签">{condition.label}</Descriptions.Item>
-                  <Descriptions.Item label="字段路径">{condition.fact}</Descriptions.Item>
-                  <Descriptions.Item label="算子">
-                    {OPERATOR_LABELS[condition.operator]}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="比较值">
-                    {conditionValueText(condition)}
-                  </Descriptions.Item>
-                </Descriptions>
-              ))}
+              {detailRoot ? (
+                renderReadonlyNode(detailRoot)
+              ) : (
+                <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 专家视图核查。" />
+              )}
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="命中动作">
                   {detailTree.action.actionCode} · {RISK_LABELS[detailTree.action.severity]}
@@ -1751,106 +1971,26 @@ export default function RuleDefinitions() {
       ),
       children: (
         <Space direction="vertical" size="middle" className="mk-full-width">
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="条件组关系">
-                <Select
-                  value={conditionTree.logic}
-                  onChange={(value: RuleLogic) =>
-                    setConditionTree((current) => ({ ...current, logic: value }))
-                  }
-                >
-                  <Option value="all">全部条件满足</Option>
-                  <Option value="any">任一条件满足</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item label="解释摘要">
-                <Input
-                  value={conditionTree.explanationSummary}
-                  onChange={(event) =>
-                    setConditionTree((current) => ({
-                      ...current,
-                      explanationSummary: event.target.value,
-                    }))
-                  }
-                />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item label="解释摘要">
+            <Input
+              value={conditionTree.explanationSummary}
+              onChange={(event) =>
+                setConditionTree((current) => ({
+                  ...current,
+                  explanationSummary: event.target.value,
+                }))
+              }
+            />
+          </Form.Item>
 
           <Alert
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；L3 JSON 仅保留给专家核查。"
+            description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
           />
 
-          {conditionTree.conditions.map((condition, index) => {
-            const needsValue = conditionNeedsValue(condition.operator);
-            return (
-              <div key={condition.id} className="rounded-lg border border-gray-100 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <Space>
-                    <Text strong>{condition.label || `条件 ${index + 1}`}</Text>
-                    {isClinicalOperator(condition.operator) && <Tag color="volcano">临床算子</Tag>}
-                  </Space>
-                  <Button
-                    size="small"
-                    onClick={() => removeCondition(index)}
-                    disabled={conditionTree.conditions.length <= 1}
-                  >
-                    移除
-                  </Button>
-                </div>
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item label="条件标签">
-                      <Input
-                        value={condition.label}
-                        onChange={(event) => updateCondition(index, { label: event.target.value })}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={10}>
-                    <Form.Item
-                      label="上下文字段路径"
-                      htmlFor={index === 0 ? "rule-condition-fact" : undefined}
-                    >
-                      <Input
-                        id={index === 0 ? "rule-condition-fact" : undefined}
-                        value={condition.fact}
-                        onChange={(event) => updateCondition(index, { fact: event.target.value })}
-                        placeholder="如 observations.0.value"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={6}>
-                    <Form.Item label="算子">
-                      <Select
-                        value={condition.operator}
-                        onChange={(value: RuleOperator) =>
-                          updateCondition(index, {
-                            operator: value,
-                            valueKind: valueKindForOperator(value, condition.valueKind),
-                            value: valueForOperator(value, condition.value),
-                          })
-                        }
-                      >
-                        {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
-                          <Option key={value} value={value}>
-                            {label}
-                          </Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                </Row>
-                {renderConditionValueEditor(condition, index, needsValue)}
-              </div>
-            );
-          })}
+          {renderConditionGroup(conditionRoot, true)}
 
           <Descriptions bordered column={2} size="small">
             <Descriptions.Item label="动作代码">
@@ -1894,9 +2034,6 @@ export default function RuleDefinitions() {
           </Descriptions>
 
           <Space>
-            <Button icon={<PlusOutlined />} onClick={addCondition}>
-              新增条件
-            </Button>
             <Button
               type="primary"
               icon={<SyncOutlined />}
