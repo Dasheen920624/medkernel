@@ -22,7 +22,7 @@
 - [x] FR-2 任务下发：计划展开为带时点的任务（关键时钟 `ClinicalClock`），到期触发。（PR1：计划生成时绑定已有关键时钟；调度执行归 PR2/PR3）
 - [x] FR-3 问卷：模板化问卷下发 + 结构化回收。（PR2：问卷模板 / 作答载荷必须为 JSON 对象，保存前归一化，拒绝数组 / 字符串等非结构化载荷）
 - [x] FR-4 异常回流：异常作答/事件（`FollowupAbnormalReportRequest`）触发回院 + 通知 + 上下文回流。（PR2：异常载荷结构化；返院通知保留来源异常载荷；结果回流按幂等键复用 `RESULT_INFLOW` 事件与上下文快照）
-- [ ] FR-5 B0 降级：智能分层/生成为挂点，关闭按确定性规则计划 `MODEL_DISABLED`。
+- [x] FR-5 B0 降级：智能分层/生成为挂点，关闭按确定性规则计划 `MODEL_DISABLED`。（PR3：请求模型时仍走确定性 B0 主链路，并在生成解释中记录 `requestedModelEnabled` 与 `modelDowngradeReason`）
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -53,7 +53,7 @@
 ## 验收 + 验证
 - [x] AC-1（FR-1/2）：计划由受控事实生成、可解释；任务按时点触发。（PR1：受控事实生成解释 + 任务绑定 `ClinicalClock` 到期时间）
 - [x] AC-2（FR-3/4）：问卷回收结构化；异常触发回院 + 回流。（PR2：结构化问卷 / 异常 / 回流载荷校验，回流幂等不重复创建快照）
-- [ ] AC-3（FR-5）：关模型确定性计划仍可跑。
+- [x] AC-3（FR-5）：关模型确定性计划仍可跑。（PR3：B0 复现覆盖计划 → 问卷 → 异常回院 → 结果回流）
 - 关联 A1–A9 剧本：A7 随访接续。
 - T-GATE：后端真实性门禁全绿（不写死人群 / 无伪造作答）。
 - B0 验收：★关模型随访计划/任务/异常回流全可用。
@@ -71,7 +71,9 @@
 - PR2 实施记录（2026-06-04）：`FollowupEngineService` 对问卷模板 / 作答、异常上报、结果回流载荷统一执行 JSON 对象校验并归一化保存；`submitQuestionnaire` 不再把数组 / 字符串等非结构化内容当作真实作答；异常返院通知事件携带来源异常结构化载荷；`backflowResult` 对同一 `RESULT_INFLOW` 幂等键复用已有事件与 `contextSnapshotId`，避免重复创建上下文快照和重复回流事件。
 - PR2 测试：新增 `submitQuestionnaireRejectsNonJsonObjectAnswer`、`backflowResultReusesExistingResultInflowEventByIdempotencyKey`；红灯先分别失败于旧实现返回 `NOT_FOUND` 和重复查计划创建回流，修复后目标用例通过。
 - PR2 本地验证：`mvn -q -Dtest=FollowupEngineServiceTest#submitQuestionnaireRejectsNonJsonObjectAnswer+backflowResultReusesExistingResultInflowEventByIdempotencyKey test` 通过；`mvn -q -Dtest=FollowupEngineServiceTest,FollowupEngineControllerTest,FollowupEngineControllerSecurityTest test` 通过；`mvn -q test` 通过（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V71 并二次 no-op）；前端新 worktree 首次 `npm run verify` 因未安装依赖出现 `eslint: command not found`，执行 `npm ci --prefer-offline --no-audit` 后 `npm run verify` 51 文件 / 311 测试通过，既有 React Router / act warning 仍归 [DEFER-003](../../audit/deferred-issues.md)；T-GATE 脚本自测 34 项、真实性全量扫描 953 文件、配置边界 inventory 扫描 891 文件、中文注释 0 fail / 0 warn、`git diff --check` 均通过。
-- PR3 剩余：FR-5 的完整 B0 降级 / 复现测试仍未关闭；不得把 FOLLOW-01 整卡写成 done。
+- PR3 实施记录（2026-06-04）：`FollowupEngineService.generatePlan` 保持无模型依赖的确定性 B0 生成；当调用方显式请求模型能力时，计划 `generationExplanation` 记录 `requestedModelEnabled=true`、`modelStatus=MODEL_DISABLED` 与 `modelDowngradeReason=MODEL_DISABLED_DETERMINISTIC_RULES`，避免把模型缺席伪装成智能生成成功；同步清理随访计划接口注释中的旧“智能生成”误导口径。
+- PR3 测试：新增 `b0ReplayRunsFollowupLoopAndRecordsModelDisabledDowngrade`，覆盖 `modelEnabled=true` 下仍按路径 / 诊断 / 风险分层受控事实生成确定性任务，并继续完成问卷下发 / 结构化作答、异常回院任务 + 通知、结果回流上下文快照；红灯先失败于旧解释缺少 `requestedModelEnabled` / `modelDowngradeReason`，修复后目标用例通过。
+- PR3 本地验证：`mvn -q -Dtest=FollowupEngineServiceTest#b0ReplayRunsFollowupLoopAndRecordsModelDisabledDowngrade test` 先红后绿；`mvn -q -Dtest=FollowupEngineServiceTest,FollowupEngineControllerTest,FollowupEngineControllerSecurityTest,EngineEndToEndIntegrationTest test` 通过；`mvn -q test` 通过（H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移至 V71 并二次 no-op）；前端新 worktree 首次 `npm run verify` 因未安装依赖出现 `eslint: command not found`，执行 `npm ci --prefer-offline --no-audit` 后 `npm run verify` 51 文件 / 311 测试通过，既有 React Router / act warning 仍归 [DEFER-003](../../audit/deferred-issues.md)；`npm run build` 通过，既有 `vendor-antd` 大 chunk 警告仍归 [DEFER-003](../../audit/deferred-issues.md)；T-GATE 脚本自测 34 项、真实性全量扫描 953 文件、配置边界 inventory 扫描 891 文件、提交后真实性 / 配置 changed 扫描各 3 文件、迁移 changed 扫描 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均通过。
 - 代码 permalink：`engine/followup` 计划生成 + 异常回流 + B0 降级。
 - 测试：计划复现 / 异常回院 / 回流 / 关模型 B0。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

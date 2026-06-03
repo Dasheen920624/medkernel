@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 /**
- * 随访计划智能生成请求数据契约 (GA-ENG-API-09)。
+ * 随访计划生成请求数据契约 (GA-ENG-API-09)。
  */
 public record FollowupPlanGenerateRequest(
     @NotBlank String patientId,

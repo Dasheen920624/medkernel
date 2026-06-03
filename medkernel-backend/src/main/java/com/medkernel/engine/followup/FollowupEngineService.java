@@ -40,6 +40,7 @@ public class FollowupEngineService {
 
     private static final String SYSTEM = "system";
     private static final String FOLLOWUP_BACKFLOW_UNKNOWN_NAME = "随访回流未提供患者姓名";
+    private static final String MODEL_DOWNGRADE_REASON = "MODEL_DISABLED_DETERMINISTIC_RULES";
     private static final long DEFAULT_TASK_DELAY_SECONDS = 86_400L * 7;
 
     private final FollowupPlanRepository planRepository;
@@ -573,6 +574,12 @@ public class FollowupEngineService {
         explanation.put("sourceFactId", sourceFactId);
         explanation.put("generationRuleCode", ruleCode);
         explanation.put("modelStatus", FollowupModelStatus.MODEL_DISABLED.name());
+        if (request.modelEnabled() != null) {
+            explanation.put("requestedModelEnabled", request.modelEnabled());
+        }
+        if (Boolean.TRUE.equals(request.modelEnabled())) {
+            explanation.put("modelDowngradeReason", MODEL_DOWNGRADE_REASON);
+        }
         if (hasText(request.diseaseCode())) {
             explanation.put("diseaseCode", request.diseaseCode());
         }

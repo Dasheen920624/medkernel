@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -261,6 +262,172 @@ class FollowupEngineServiceTest {
         assertThat(response.modelStatus()).isEqualTo(FollowupModelStatus.MODEL_DISABLED);
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void b0ReplayRunsFollowupLoopAndRecordsModelDisabledDowngrade() {
+        List<FollowupPlan> plans = new ArrayList<>();
+        List<FollowupTask> tasks = new ArrayList<>();
+        List<FollowupQuestionnaire> questionnaires = new ArrayList<>();
+        List<FollowupEvent> events = new ArrayList<>();
+
+        when(clinicalClockRepository.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("path-b0", "tenant-1"))
+            .thenReturn(List.of());
+        when(planRepository.findByTenantIdAndIdempotencyKey("tenant-1", "b0-plan-key"))
+            .thenReturn(Optional.empty());
+        when(planRepository.findByTenantIdAndPathwayId("tenant-1", "path-b0"))
+            .thenReturn(Optional.empty());
+        when(planRepository.findByPlanId(any(String.class))).thenAnswer(inv -> {
+            String planId = inv.getArgument(0);
+            return plans.stream().filter(plan -> plan.planId().equals(planId)).findFirst();
+        });
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(inv -> {
+            FollowupPlan p = inv.getArgument(0);
+            FollowupPlan saved = new FollowupPlan(
+                1L, "PLAN-B0", p.tenantId(), p.patientId(), p.encounterId(), p.pathwayId(),
+                p.diseaseCode(), p.riskLevel(), p.status(), p.idempotencyKey(),
+                p.sourceFactType(), p.sourceFactId(), p.generationRuleCode(), p.generationExplanation(),
+                p.createdAt(), p.createdBy(), p.updatedAt(), p.updatedBy(), p.traceId()
+            );
+            plans.add(saved);
+            return saved;
+        });
+        when(taskRepository.findByTaskId(any(String.class))).thenAnswer(inv -> {
+            String taskId = inv.getArgument(0);
+            return tasks.stream().filter(task -> task.taskId().equals(taskId)).findFirst();
+        });
+        when(taskRepository.findByTenantIdAndIdempotencyKey(eq("tenant-1"), any(String.class))).thenAnswer(inv -> {
+            String idempotencyKey = inv.getArgument(1);
+            return tasks.stream().filter(task -> idempotencyKey.equals(task.idempotencyKey())).findFirst();
+        });
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(inv -> {
+            FollowupTask t = inv.getArgument(0);
+            String taskId = t.taskType() == FollowupTaskType.RETURN_VISIT ? "TASK-B0-RETURN" : "TASK-B0-Q";
+            FollowupTask saved = new FollowupTask(
+                t.id() == null ? (long) tasks.size() + 1 : t.id(),
+                taskId,
+                t.tenantId(),
+                t.planId(),
+                t.taskType(),
+                t.dueDate(),
+                t.status(),
+                t.executorId(),
+                t.executorType(),
+                t.idempotencyKey(),
+                t.clinicalClockId(),
+                t.createdAt(),
+                t.createdBy(),
+                t.updatedAt(),
+                t.updatedBy(),
+                t.traceId()
+            );
+            tasks.removeIf(task -> task.taskId().equals(saved.taskId()));
+            tasks.add(saved);
+            return saved;
+        });
+        when(questionnaireRepository.findByTenantIdAndIdempotencyKey("tenant-1", "b0-questionnaire-key"))
+            .thenReturn(Optional.empty());
+        when(questionnaireRepository.findByQuestionnaireId(any(String.class))).thenAnswer(inv -> {
+            String questionnaireId = inv.getArgument(0);
+            return questionnaires.stream()
+                .filter(questionnaire -> questionnaire.questionnaireId().equals(questionnaireId))
+                .findFirst();
+        });
+        when(questionnaireRepository.save(any(FollowupQuestionnaire.class))).thenAnswer(inv -> {
+            FollowupQuestionnaire q = inv.getArgument(0);
+            FollowupQuestionnaire saved = new FollowupQuestionnaire(
+                1L, "FQ-B0", q.tenantId(), q.planId(), q.taskId(), q.questionnaireTemplateId(),
+                q.formData(), q.answerData(), q.score(), q.status(), q.idempotencyKey(),
+                q.submittedAt(), q.executorId(), q.createdAt(), q.createdBy(), q.updatedAt(),
+                q.updatedBy(), q.traceId()
+            );
+            questionnaires.add(saved);
+            return saved;
+        });
+        when(eventRepository.findByTenantIdAndEventTypeAndIdempotencyKey(
+            eq("tenant-1"), any(FollowupEventType.class), any(String.class))).thenAnswer(inv -> {
+                FollowupEventType eventType = inv.getArgument(1);
+                String idempotencyKey = inv.getArgument(2);
+                return events.stream()
+                    .filter(event -> event.eventType() == eventType)
+                    .filter(event -> idempotencyKey.equals(event.idempotencyKey()))
+                    .findFirst();
+            });
+        when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {
+            FollowupEvent e = inv.getArgument(0);
+            FollowupEvent saved = new FollowupEvent(
+                (long) events.size() + 1,
+                "FE-B0-" + (events.size() + 1),
+                e.tenantId(),
+                e.planId(),
+                e.eventType(),
+                e.payload(),
+                e.triggeredBy(),
+                e.idempotencyKey(),
+                e.createdAt(),
+                e.createdBy(),
+                e.updatedAt(),
+                e.updatedBy(),
+                e.traceId()
+            );
+            events.add(saved);
+            return saved;
+        });
+        when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("b0-result-key")))
+            .thenReturn(new ContextSnapshotResponse(
+                "ctx-b0", ContextSnapshotStatus.ACTIVE, null, null, null, null, null,
+                QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
+            ));
+
+        FollowupPlanDetailResponse plan = service.generatePlan(new FollowupPlanGenerateRequest(
+            "PAT-B0", "ENC-B0", "path-b0", "D-B0", "STANDARD", List.of(), "b0-plan-key", true
+        ));
+        FollowupQuestionnaireResponse questionnaire = service.dispatchQuestionnaire(new FollowupQuestionnaireRequest(
+            plan.tasks().get(0).taskId(),
+            "TPL-B0",
+            "{\"title\":\"B0随访\"}",
+            "{\"painScore\":4}",
+            new BigDecimal("4.00"),
+            "b0-questionnaire-key",
+            "nurse-1",
+            "FOLLOWUP_NURSE"
+        ));
+        FollowupAbnormalReportResponse abnormal = service.reportAbnormal(new FollowupAbnormalReportRequest(
+            plan.planId(),
+            FollowupEventType.ABNORMAL_RETURN,
+            "{\"reason\":\"painScore上升\",\"score\":4}",
+            "nurse-1",
+            "b0-abnormal-key"
+        ));
+        FollowupResultBackflowResponse backflow = service.backflowResult(new FollowupResultBackflowRequest(
+            plan.planId(),
+            plan.tasks().get(0).taskId(),
+            questionnaire.questionnaireId(),
+            "{\"painScore\":4,\"returnTaskId\":\"" + abnormal.returnTaskId() + "\"}",
+            "Y",
+            "pkg-b0",
+            "b0-result-key"
+        ));
+
+        assertThat(plan.modelStatus()).isEqualTo(FollowupModelStatus.MODEL_DISABLED);
+        assertThat(plan.generationExplanation())
+            .contains("\"requestedModelEnabled\":true")
+            .contains("\"modelDowngradeReason\":\"MODEL_DISABLED_DETERMINISTIC_RULES\"");
+        assertThat(plan.tasks())
+            .extracting(FollowupTaskDetailResponse::taskType)
+            .containsExactly(FollowupTaskType.QUESTIONNAIRE);
+        assertThat(questionnaire.status()).isEqualTo("COMPLETED");
+        assertThat(abnormal.returnTaskId()).isEqualTo("TASK-B0-RETURN");
+        assertThat(backflow.contextSnapshotId()).isEqualTo("ctx-b0");
+        assertThat(events)
+            .extracting(FollowupEvent::eventType)
+            .containsExactly(
+                FollowupEventType.ABNORMAL_RETURN,
+                FollowupEventType.NOTIFICATION_REQUESTED,
+                FollowupEventType.RESULT_INFLOW
+            );
+        assertThat(events.get(1).payload()).contains("\"abnormalPayload\":{\"reason\":\"painScore上升\",\"score\":4}");
+        verify(contextSnapshotService).create(any(ContextSnapshotRequest.class), eq("b0-result-key"));
     }
 
     @Test
