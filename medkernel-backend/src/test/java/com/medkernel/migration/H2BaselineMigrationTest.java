@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 57;
+    private static final int LATEST_MIGRATION_VERSION = 58;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -34,7 +34,7 @@ class H2BaselineMigrationTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("H2 baseline migrations succeed").isTrue();
-        assertThat(result.migrationsExecuted).as("V1 至 V57 全部应用").isEqualTo(LATEST_MIGRATION_VERSION);
+        assertThat(result.migrationsExecuted).as("当前全部基线迁移应用").isEqualTo(LATEST_MIGRATION_VERSION);
 
         var applied = flyway.info().applied();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())

@@ -38,6 +38,8 @@ class KnowledgeVersionServiceTest {
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private CandidateClassificationRepository candidateClassificationRepo;
     private ReviewAssignmentRepository reviewAssignmentRepo;
+    private KnowledgeInvalidationRepository invalidationRepo;
+    private AffectedCaseTaskRepository affectedCaseTaskRepo;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -50,9 +52,11 @@ class KnowledgeVersionServiceTest {
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
         candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
+        invalidationRepo = Mockito.mock(KnowledgeInvalidationRepository.class);
+        affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
         service = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
-            candidateClassificationRepo, reviewAssignmentRepo);
+            candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo);
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
@@ -61,6 +65,17 @@ class KnowledgeVersionServiceTest {
         when(supersessionRepo.save(any(KnowledgeSupersession.class))).thenAnswer(inv -> inv.getArgument(0));
         when(candidateClassificationRepo.save(any(CandidateClassification.class))).thenAnswer(inv -> inv.getArgument(0));
         when(reviewAssignmentRepo.save(any(ReviewAssignment.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(invalidationRepo.save(any(KnowledgeInvalidation.class))).thenAnswer(inv -> {
+            KnowledgeInvalidation item = inv.getArgument(0);
+            return new KnowledgeInvalidation(
+                item.id() == null ? 77L : item.id(),
+                item.tenantId(), item.identityId(), item.versionId(), item.invalidationType(), item.status(),
+                item.riskLevel(), item.reason(), item.organizationScope(), item.applicableScope(), item.authorizedBy(),
+                item.invalidatedAt(), item.expeditedReviewRequired(), item.traceId(),
+                item.createdAt(), item.createdBy(), item.updatedAt(), item.updatedBy());
+        });
+        when(affectedCaseTaskRepo.findByTenantIdAndTaskKey(any(), any())).thenReturn(Optional.empty());
+        when(affectedCaseTaskRepo.save(any(AffectedCaseTask.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @AfterEach
@@ -375,6 +390,52 @@ class KnowledgeVersionServiceTest {
         ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
         verify(supersessionRepo).save(spCap.capture());
         assertThat(spCap.getValue().transitionType()).isEqualTo(SupersessionType.WITHDRAW);
+    }
+
+    @Test
+    void withdrawHighRiskVersionCreatesInvalidationTasksAndProjectionRefresh() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.HIGH);
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(active));
+
+        service.withdraw(1L, 5L, "说明书新增禁忌证，立即限制旧版");
+
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo).save(invalidation.capture());
+        assertThat(invalidation.getValue().versionId()).isEqualTo(5L);
+        assertThat(invalidation.getValue().invalidationType()).isEqualTo(KnowledgeInvalidationType.EMERGENCY_WITHDRAW);
+        assertThat(invalidation.getValue().status()).isEqualTo(KnowledgeInvalidationStatus.OPEN);
+        assertThat(invalidation.getValue().expeditedReviewRequired()).isTrue();
+        assertThat(invalidation.getValue().reason()).contains("新增禁忌证");
+
+        ArgumentCaptor<AffectedCaseTask> task = ArgumentCaptor.forClass(AffectedCaseTask.class);
+        verify(affectedCaseTaskRepo, times(3)).save(task.capture());
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::taskType)
+            .containsExactlyInAnyOrder(
+                AffectedCaseTaskType.PHYSICIAN_REVIEW,
+                AffectedCaseTaskType.PACKAGE_RESYNC,
+                AffectedCaseTaskType.SYNC_ALERT);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::status)
+            .containsOnly(AffectedCaseTaskStatus.OPEN);
+        assertThat(task.getAllValues()).extracting(AffectedCaseTask::targetRef)
+            .allSatisfy(ref -> assertThat(ref).contains("version:5"));
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 5L, "u-99", "trace");
+    }
+
+    @Test
+    void activateRejectsWithdrawnHighRiskVersionAsUnsafeRollback() {
+        KnowledgeIdentity identity = identity(1L, null);
+        KnowledgeAssetVersion withdrawn = version(5L, 1L, KnowledgeVersionStatus.WITHDRAWN, KnowledgeRiskLevel.HIGH);
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(withdrawn));
+
+        assertThatThrownBy(() -> service.activate(1L, 5L, "尝试回滚旧版"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ROLLBACK_SAFETY_DENIED);
+        verify(versionRepo, never()).save(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
     }
 
     @Test

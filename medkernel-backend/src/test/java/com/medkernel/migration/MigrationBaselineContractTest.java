@@ -83,12 +83,14 @@ class MigrationBaselineContractTest {
         "V54__asset_version_framework.sql",
         "V55__version_inheritance_override.sql",
         "V56__version_release_replay.sql",
-        "V57__knowledge_effective_scope_unique.sql"
+        "V57__knowledge_effective_scope_unique.sql",
+        "V58__knowledge_invalidation_affected_tasks.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
-        "knowledge_supersession", "knowledge_export_job", "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
+        "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
+        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
         "standard_term", "local_term", "mk_term_high_risk_rule",
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
@@ -141,6 +143,8 @@ class MigrationBaselineContractTest {
         "idx_knowledge_av_tenant_status", "idx_knowledge_av_tenant_updated",
         "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_citation_tenant_av", "idx_citation_fragment",
         "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
+        "idx_mk_knowledge_invalidation_identity", "idx_mk_knowledge_invalidation_status",
+        "idx_mk_knowledge_affected_task_status", "idx_mk_knowledge_affected_task_version",
         "idx_export_job_tenant_status", "idx_export_job_tenant_created",
         "idx_candidate_classification_identity", "idx_candidate_classification_status",
         "idx_candidate_classification_candidate", "idx_review_assignment_identity",
@@ -244,6 +248,11 @@ class MigrationBaselineContractTest {
         "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
         "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
         "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
+        "uk_mk_knowledge_invalidation_key", "ck_mk_knowledge_invalidation_type",
+        "ck_mk_knowledge_invalidation_status", "ck_mk_knowledge_invalidation_risk",
+        "ck_mk_knowledge_invalidation_review", "uk_mk_knowledge_affected_task_key",
+        "ck_mk_knowledge_affected_task_type", "ck_mk_knowledge_affected_task_status",
+        "ck_mk_knowledge_affected_target_type",
         "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
         "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
         "ck_review_assignment_review_status", "ck_review_assignment_decision",
