@@ -42,7 +42,7 @@
     "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store secretKey inline.",
     "degradation": {
       "disconnectedStatus": "NOT_CONNECTED",
-      "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fakes write success."
+      "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fabricates write success."
     },
     "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability declares implemented read/search/create surface only."
   },
@@ -113,7 +113,7 @@
         },
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
-          "note": "Creation records configuration only; it must not fake connectivity."
+          "note": "Creation records configuration only; it must not fabricate connectivity."
         }
       }
     },
@@ -144,6 +144,77 @@
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
           "note": "Missing mappings, stale heartbeats, and disconnected adapters are recorded as gaps, not converted to success."
+        }
+      }
+    },
+    "/api/v1/engine/integration/onboardings": {
+      "get": {
+        "operationId": "listIntegrationOnboardings",
+        "summary": "List third-party business interface onboarding lifecycles for current tenant.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Onboarding may be ONLINE while connectivity remains NOT_CONNECTED; the blocker must stay visible."
+        }
+      },
+      "post": {
+        "operationId": "createIntegrationOnboarding",
+        "summary": "Create an adapter or FHIR facade onboarding lifecycle record.",
+        "permission": "integration.write",
+        "auditTarget": "mk_integration_onboarding",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key and stable onboardingId; duplicate onboardingId in one tenant is rejected."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Creation records lifecycle evidence only; it never fabricates external connectivity."
+        }
+      }
+    },
+    "/api/v1/engine/integration/onboardings/{id}/advance": {
+      "post": {
+        "operationId": "advanceIntegrationOnboarding",
+        "summary": "Advance one onboarding lifecycle stage with operator evidence.",
+        "permission": "integration.execute",
+        "auditTarget": "mk_integration_onboarding",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated stage-advance commands; onboardingId anchors the lifecycle."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Stage advancement is separate from live connector reachability; NOT_CONNECTED remains a blocker."
+        }
+      }
+    },
+    "/api/v1/engine/integration/regional-sources": {
+      "get": {
+        "operationId": "listIntegrationRegionalSources",
+        "summary": "List regional collaboration sources and trust grades for current tenant.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Regional source evidence remains queryable when the external network is disconnected."
+        }
+      },
+      "post": {
+        "operationId": "registerIntegrationRegionalSource",
+        "summary": "Register one regional collaboration source with OPT-07 trust grading evidence.",
+        "permission": "integration.write",
+        "auditTarget": "mk_integration_regional_source",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key and stable sourceId; duplicate sourceId in one tenant is rejected."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Ungraded sources are rejected; disconnected sources do not block clinical flow."
         }
       }
     },
@@ -246,7 +317,7 @@
         },
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
-          "note": "No real connector means NOT_CONNECTED compensation log; never fake sent status."
+          "note": "No real connector means NOT_CONNECTED compensation log; never fabricate sent status."
         }
       }
     },
@@ -277,6 +348,21 @@
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
           "note": "Dead-letter evidence remains visible during outages."
+        }
+      }
+    },
+    "/api/v1/engine/integration/callbacks/dead-letter/{id}/replay": {
+      "post": {
+        "operationId": "replayIntegrationCallbackDeadLetter",
+        "summary": "Replay one callback dead-letter message while preserving original evidence.",
+        "permission": "integration.execute",
+        "auditTarget": "integration_message_log",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated callback replay commands; replay creates a traceable compensation message."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Callback replay must keep honest failure state when no connector is reachable."
         }
       }
     },

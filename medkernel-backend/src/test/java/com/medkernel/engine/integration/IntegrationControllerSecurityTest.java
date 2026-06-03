@@ -38,6 +38,12 @@ class IntegrationControllerSecurityTest {
     private static final String OUTBOUND_BODY = """
         {"messageId":"out-9","traceId":"trace-out-9","adapterId":"adp-9","targetSystem":"HIS","protocolType":"REST","payloadSummary":"异步同步 HIS","payload":{"patientId":"P-9"},"maxRetries":3}
         """;
+    private static final String ONBOARDING_BODY = """
+        {"onboardingId":"onb-9","name":"HIS 业务接口","accessMode":"ADAPTER","adapterId":"adp-9","sourceSystem":"HIS","businessScenario":"S2 院内系统接入","orgPath":"/t-1/hospital-a"}
+        """;
+    private static final String REGIONAL_BODY = """
+        {"sourceId":"regional-9","regionalNetworkName":"医联体平台","sourceOrganizationId":"org-region-9","sourceOrganizationName":"区域影像中心","trustLevel":"HIGH","evidenceText":"OPT-07 已分级证据","orgPath":"/t-1/hospital-a"}
+        """;
 
     @AfterEach
     void clearAll() {
@@ -167,11 +173,65 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
+    void anonymousCannotReadOnboardings() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/onboardings"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymousCannotCreateOnboarding() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/onboardings")
+                .contentType("application/json")
+                .content(ONBOARDING_BODY))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymousCannotReadRegionalSources() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/regional-sources"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anonymousCannotRegisterRegionalSource() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/regional-sources")
+                .contentType("application/json")
+                .content(REGIONAL_BODY))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void outboundMessageFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/messages/outbound")
                 .contentType("application/json")
                 .content(OUTBOUND_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_ENGINEER")
+    void onboardingCreationFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/onboardings")
+                .contentType("application/json")
+                .content(ONBOARDING_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void regionalSourceListFailsOnMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/regional-sources"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void callbackDeadLetterReplayFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/callbacks/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
