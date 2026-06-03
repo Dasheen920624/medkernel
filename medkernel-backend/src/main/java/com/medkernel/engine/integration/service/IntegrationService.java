@@ -1,12 +1,17 @@
 package com.medkernel.engine.integration.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
@@ -18,6 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.integration.domain.*;
 import com.medkernel.engine.integration.dto.*;
 import com.medkernel.engine.integration.repository.*;
+import com.medkernel.engine.terminology.StandardTerm;
+import com.medkernel.engine.terminology.StandardTermRepository;
+import com.medkernel.engine.terminology.TermMapping;
+import com.medkernel.engine.terminology.TermMappingRepository;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.api.error.ApiException;
 
@@ -32,13 +41,22 @@ public class IntegrationService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_SUSPENDED = "SUSPENDED";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
     private static final String HEALTH_HEALTHY = "HEALTHY";
     private static final String HEALTH_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String HEALTH_MISCONFIGURED = "MISCONFIGURED";
+    private static final String DIRECTION_INBOUND = "INBOUND";
+    private static final String PROTOCOL_WEBHOOK = "Webhook";
+    private static final String MAPPING_CONFIRMED = "CONFIRMED";
+    private static final String STANDARD_ACTIVE = "ACTIVE";
+    private static final long WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS = 300L;
 
     private final IntegrationAdapterRepository adapterRepository;
     private final IntegrationWebhookConfigRepository webhookRepository;
     private final IntegrationMessageLogRepository logRepository;
+    private final TermMappingRepository termMappingRepository;
+    private final StandardTermRepository standardTermRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -47,10 +65,14 @@ public class IntegrationService {
     public IntegrationService(IntegrationAdapterRepository adapterRepository,
                               IntegrationWebhookConfigRepository webhookRepository,
                               IntegrationMessageLogRepository logRepository,
+                              TermMappingRepository termMappingRepository,
+                              StandardTermRepository standardTermRepository,
                               ObjectMapper objectMapper) {
         this.adapterRepository = adapterRepository;
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
+        this.termMappingRepository = termMappingRepository;
+        this.standardTermRepository = standardTermRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -260,6 +282,86 @@ public class IntegrationService {
         );
     }
 
+    /**
+     * 接收第三方 Webhook 入站消息，先验签再按 messageId 做租户内幂等处理。
+     *
+     * <p>验签失败必须拒绝并写入失败日志；验签成功后按适配器配置执行字段映射，
+     * 带 {@code termMappingId} 的字段必须经 TERM-01 已确认映射归一，不能猜测标准码。
+     */
+    @Transactional
+    public WebhookInboundResultDto ingestWebhook(String tenantId,
+                                                 String webhookId,
+                                                 String timestamp,
+                                                 String signature,
+                                                 WebhookInboundRequestDto request) {
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId(webhookId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_003, "Webhook订阅不存在: " + webhookId));
+
+        String canonicalPayload = canonicalInboundPayload(request);
+        if (!isWebhookSignatureValid(timestamp, signature, canonicalPayload, webhook.secretKey())) {
+            storeInboundFailure(tenantId, webhook, request, canonicalPayload, "Webhook 消息签名校验失败");
+            throw new ApiException(ErrorCode.ENG_INTEG_004, "Webhook 消息签名校验失败");
+        }
+
+        Optional<IntegrationMessageLog> existing = logRepository.findByMessageIdAndTenantId(request.messageId(), tenantId);
+        if (existing.isPresent()) {
+            return replayExistingInboundResult(webhookId, request, existing.get());
+        }
+
+        try {
+            IntegrationAdapter adapter = adapterRepository.findByAdapterIdAndTenantId(request.adapterId(), tenantId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_002, "适配器不存在: " + request.adapterId()));
+            MappingResult mapped = mapInboundPayload(tenantId, adapter, request.payload());
+
+            ObjectNode stored = objectMapper.createObjectNode();
+            stored.put("webhookId", webhookId);
+            stored.put("adapterId", request.adapterId());
+            stored.set("rawPayload", request.payload());
+            stored.set("mappedPayload", mapped.payload());
+            stored.put("mappedFieldCount", mapped.mappedFieldCount());
+            stored.put("normalizedCodeCount", mapped.normalizedCodeCount());
+            stored.set("warnings", objectMapper.valueToTree(mapped.warnings()));
+
+            IntegrationMessageLog log = new IntegrationMessageLog(
+                null,
+                request.messageId(),
+                tenantId,
+                blankToNull(request.traceId()),
+                DIRECTION_INBOUND,
+                blankToDefault(request.sourceSystem(), webhook.name()),
+                PROTOCOL_WEBHOOK,
+                "Webhook 入站验签通过，映射字段 " + mapped.mappedFieldCount()
+                    + "，编码归一 " + mapped.normalizedCodeCount(),
+                stored.toString(),
+                STATUS_SUCCESS,
+                0,
+                3,
+                null,
+                Instant.now(),
+                "system",
+                Instant.now(),
+                "system"
+            );
+            logRepository.save(log);
+
+            return new WebhookInboundResultDto(
+                request.messageId(),
+                blankToNull(request.traceId()),
+                webhookId,
+                request.adapterId(),
+                STATUS_SUCCESS,
+                mapped.payload(),
+                mapped.mappedFieldCount(),
+                mapped.normalizedCodeCount(),
+                false,
+                mapped.warnings()
+            );
+        } catch (ApiException e) {
+            storeInboundFailure(tenantId, webhook, request, canonicalPayload, e.getMessage());
+            throw e;
+        }
+    }
+
     // ==========================================
     // 3. 死信重试与接口存证服务 (Retry & Dead-Letter)
     // ==========================================
@@ -390,6 +492,242 @@ public class IntegrationService {
         };
     }
 
+    private WebhookInboundResultDto replayExistingInboundResult(String webhookId,
+                                                               WebhookInboundRequestDto request,
+                                                               IntegrationMessageLog existing) {
+        JsonNode mappedPayload = objectMapper.createObjectNode();
+        int mappedFieldCount = 0;
+        int normalizedCodeCount = 0;
+        List<String> warnings = List.of();
+        if (existing.payload() != null && !existing.payload().isBlank()) {
+            try {
+                JsonNode stored = objectMapper.readTree(existing.payload());
+                JsonNode storedMappedPayload = stored.path("mappedPayload");
+                if (!storedMappedPayload.isMissingNode()) {
+                    mappedPayload = storedMappedPayload;
+                }
+                mappedFieldCount = stored.path("mappedFieldCount").asInt(0);
+                normalizedCodeCount = stored.path("normalizedCodeCount").asInt(0);
+                warnings = readWarnings(stored.path("warnings"));
+            } catch (JsonProcessingException ignored) {
+                warnings = List.of("历史入站日志载荷不是标准 JSON，已按幂等结果返回状态");
+            }
+        }
+        return new WebhookInboundResultDto(
+            existing.messageId(),
+            existing.traceId(),
+            webhookId,
+            request.adapterId(),
+            existing.status(),
+            mappedPayload,
+            mappedFieldCount,
+            normalizedCodeCount,
+            true,
+            warnings
+        );
+    }
+
+    private void storeInboundFailure(String tenantId,
+                                     IntegrationWebhookConfig webhook,
+                                     WebhookInboundRequestDto request,
+                                     String canonicalPayload,
+                                     String reason) {
+        if (logRepository.findByMessageIdAndTenantId(request.messageId(), tenantId).isPresent()) {
+            return;
+        }
+        logRepository.save(new IntegrationMessageLog(
+            null,
+            request.messageId(),
+            tenantId,
+            blankToNull(request.traceId()),
+            DIRECTION_INBOUND,
+            blankToDefault(request.sourceSystem(), webhook.name()),
+            PROTOCOL_WEBHOOK,
+            "Webhook 入站处理失败",
+            canonicalPayload,
+            STATUS_FAILED,
+            0,
+            3,
+            reason,
+            Instant.now(),
+            "system",
+            Instant.now(),
+            "system"
+        ));
+    }
+
+    private MappingResult mapInboundPayload(String tenantId, IntegrationAdapter adapter, JsonNode rawPayload) {
+        ObjectNode mappedPayload = objectMapper.createObjectNode();
+        List<String> warnings = new ArrayList<>();
+        int mappedFieldCount = 0;
+        int normalizedCodeCount = 0;
+
+        for (FieldMappingRule rule : fieldMappingRules(adapter)) {
+            JsonNode sourceValue = rawPayload.at(rule.sourcePath());
+            if (sourceValue.isMissingNode() || sourceValue.isNull()) {
+                warnings.add("字段缺失，未映射: " + rule.sourcePath());
+                continue;
+            }
+            JsonNode targetValue = sourceValue.deepCopy();
+            if (rule.termMappingId() != null) {
+                targetValue = normalizeCodeByTermMapping(tenantId, rule.termMappingId(), sourceValue);
+                normalizedCodeCount++;
+            }
+            writeJsonPointer(mappedPayload, rule.targetPath(), targetValue);
+            mappedFieldCount++;
+        }
+
+        return new MappingResult(mappedPayload, mappedFieldCount, normalizedCodeCount, List.copyOf(warnings));
+    }
+
+    private List<FieldMappingRule> fieldMappingRules(IntegrationAdapter adapter) {
+        JsonNode root;
+        try {
+            root = adapter.configJson() == null || adapter.configJson().isBlank()
+                ? objectMapper.createObjectNode()
+                : objectMapper.readTree(adapter.configJson());
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器字段映射配置不是合法 JSON: " + adapter.adapterId());
+        }
+        JsonNode mappings = root.path("fieldMappings");
+        if (!mappings.isArray() || mappings.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器未配置字段映射: " + adapter.adapterId());
+        }
+
+        List<FieldMappingRule> rules = new ArrayList<>();
+        for (JsonNode mapping : mappings) {
+            String sourcePath = requiredText(mapping, "sourcePath", adapter.adapterId());
+            String targetPath = requiredText(mapping, "targetPath", adapter.adapterId());
+            Long termMappingId = mapping.hasNonNull("termMappingId") ? mapping.path("termMappingId").asLong() : null;
+            validateJsonPointer(sourcePath, "sourcePath");
+            validateJsonPointer(targetPath, "targetPath");
+            rules.add(new FieldMappingRule(sourcePath, targetPath, termMappingId));
+        }
+        return List.copyOf(rules);
+    }
+
+    private JsonNode normalizeCodeByTermMapping(String tenantId, Long termMappingId, JsonNode sourceValue) {
+        TermMapping mapping = termMappingRepository.findByTenantIdAndId(tenantId, termMappingId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_001, "术语映射不存在: " + termMappingId));
+        if (!MAPPING_CONFIRMED.equals(mapping.statusName())) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "术语映射尚未确认，禁止入站归一: " + termMappingId);
+        }
+        StandardTerm standard = standardTermRepository.findByTenantIdAndId(tenantId, mapping.standardTermId())
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_001, "标准术语不存在: " + mapping.standardTermId()));
+        if (!STANDARD_ACTIVE.equals(standard.statusName())) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "标准术语已禁用，禁止入站归一: " + standard.termCode());
+        }
+
+        ObjectNode normalized = objectMapper.createObjectNode();
+        normalized.put("system", standard.standardSystem());
+        normalized.put("code", standard.termCode());
+        normalized.put("display", standard.displayName());
+        normalized.put("version", standard.versionNo());
+        normalized.put("sourceValue", sourceValue.isValueNode() ? sourceValue.asText() : sourceValue.toString());
+        normalized.put("termMappingId", termMappingId);
+        return normalized;
+    }
+
+    private void writeJsonPointer(ObjectNode root, String targetPath, JsonNode value) {
+        String[] parts = targetPath.substring(1).split("/");
+        ObjectNode current = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            String part = decodeJsonPointerPart(parts[i]);
+            JsonNode child = current.get(part);
+            if (child == null || child.isNull()) {
+                ObjectNode created = objectMapper.createObjectNode();
+                current.set(part, created);
+                current = created;
+            } else if (child.isObject()) {
+                current = (ObjectNode) child;
+            } else {
+                throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射目标路径冲突: " + targetPath);
+            }
+        }
+        current.set(decodeJsonPointerPart(parts[parts.length - 1]), value.deepCopy());
+    }
+
+    private String requiredText(JsonNode node, String fieldName, String adapterId) {
+        String value = node.path(fieldName).asText(null);
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器字段映射缺少 " + fieldName + ": " + adapterId);
+        }
+        return value;
+    }
+
+    private void validateJsonPointer(String path, String fieldName) {
+        if (!path.startsWith("/") || path.length() == 1) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射 " + fieldName + " 必须使用 JSON Pointer: " + path);
+        }
+    }
+
+    private String decodeJsonPointerPart(String part) {
+        return part.replace("~1", "/").replace("~0", "~");
+    }
+
+    private String canonicalInboundPayload(WebhookInboundRequestDto request) {
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "Webhook 入站载荷无法序列化: " + e.getMessage());
+        }
+    }
+
+    private boolean isWebhookSignatureValid(String timestamp, String signature, String canonicalPayload, String secretKey) {
+        if (timestamp == null || timestamp.isBlank() || signature == null || signature.isBlank()) {
+            return false;
+        }
+        String normalizedTimestamp = timestamp.trim();
+        if (!isWebhookTimestampFresh(normalizedTimestamp)) {
+            return false;
+        }
+        try {
+            String expected = hmacSha256(normalizedTimestamp + "." + canonicalPayload, secretKey);
+            String normalized = normalizeSignature(signature);
+            return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                normalized.getBytes(StandardCharsets.UTF_8)
+            );
+        } catch (Exception e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "HMAC-SHA256 签名校验失败: " + e.getMessage());
+        }
+    }
+
+    private boolean isWebhookTimestampFresh(String timestamp) {
+        try {
+            long signedAt = Long.parseLong(timestamp);
+            long delta = Instant.now().getEpochSecond() - signedAt;
+            return delta >= -WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS && delta <= WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private String normalizeSignature(String signature) {
+        String normalized = signature.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("sha256=")) {
+            return normalized.substring("sha256=".length());
+        }
+        return normalized;
+    }
+
+    private List<String> readWarnings(JsonNode warningsNode) {
+        if (!warningsNode.isArray()) {
+            return List.of();
+        }
+        List<String> warnings = new ArrayList<>();
+        warningsNode.forEach(item -> warnings.add(item.asText()));
+        return List.copyOf(warnings);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private String blankToDefault(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value;
+    }
+
     private String hmacSha256(String data, String key) throws NoSuchAlgorithmException, InvalidKeyException {
         Mac sha256Hmac = Mac.getInstance("HmacSHA256");
         SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -408,5 +746,11 @@ public class IntegrationService {
             hexString.append(hex);
         }
         return hexString.toString();
+    }
+
+    private record FieldMappingRule(String sourcePath, String targetPath, Long termMappingId) {
+    }
+
+    private record MappingResult(JsonNode payload, int mappedFieldCount, int normalizedCodeCount, List<String> warnings) {
     }
 }
