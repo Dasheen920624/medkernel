@@ -59,7 +59,18 @@ class IntegrationContractDocumentationTest {
             .containsExactlyElementsOf(fhirFacadeControllerEndpoints());
         assertThat(document.path("fhirFacade").path("supportedCreates"))
             .extracting(JsonNode::asText)
-            .containsExactly("Observation");
+            .contains(
+                "Patient",
+                "Encounter",
+                "Condition",
+                "Observation",
+                "Medication",
+                "Procedure",
+                "CarePlan",
+                "ServiceRequest",
+                "DiagnosticReport",
+                "DocumentReference"
+            );
         assertThat(document.path("fhirFacade").path("degradation").path("disconnectedStatus").asText())
             .isEqualTo("NOT_CONNECTED");
 
@@ -106,7 +117,9 @@ class IntegrationContractDocumentationTest {
             .contains("验收清单")
             .contains("/api/v1/engine/integration/fhir/{version}/metadata")
             .contains("/api/v1/engine/integration/fhir/{version}/{resourceType}")
+            .contains("/api/v1/engine/integration/fhir/{version}/{resourceType}/{id}")
             .contains("FHIR_PHYSICIAN_CONFIRMATION")
+            .contains("Bundle")
             .contains("OperationOutcome");
         assertThat(guide)
             .as("FHIR 门面挂 INTEG-01 总线，不得回流旧式裸 /api/v1/fhir 幽灵端点")

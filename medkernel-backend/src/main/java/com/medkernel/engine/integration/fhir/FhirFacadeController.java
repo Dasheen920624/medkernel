@@ -37,6 +37,38 @@ public class FhirFacadeController {
         return service.metadata(version);
     }
 
+    @GetMapping("/{version}/{resourceType}/{id}")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ResponseEntity<JsonNode> read(@PathVariable FhirVersion version,
+                                         @PathVariable String resourceType,
+                                         @PathVariable String id,
+                                         @RequestHeader(value = "X-MedKernel-Fhir-Adapter", required = false)
+                                         String adapterId,
+                                         @RequestHeader(value = "X-Forwarded-For", required = false) String forwardedFor,
+                                         @RequestHeader(value = "X-Real-IP", required = false) String realIp) {
+        FhirFacadeResponse response = service.read(new FhirFacadeReadCommand(
+            version, resourceType, id, adapterId, sourceIp(forwardedFor, realIp)));
+        return ResponseEntity.status(response.status())
+            .header("X-Trace-Id", RequestContext.currentTraceId())
+            .body(response.body());
+    }
+
+    @GetMapping("/{version}/{resourceType}")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ResponseEntity<JsonNode> search(@PathVariable FhirVersion version,
+                                           @PathVariable String resourceType,
+                                           @RequestHeader(value = "X-MedKernel-Fhir-Adapter", required = false)
+                                           String adapterId,
+                                           @RequestHeader(value = "X-Forwarded-For", required = false) String forwardedFor,
+                                           @RequestHeader(value = "X-Real-IP", required = false) String realIp,
+                                           @RequestParam(value = "patient", required = false) String patient) {
+        FhirFacadeResponse response = service.search(new FhirFacadeSearchCommand(
+            version, resourceType, adapterId, sourceIp(forwardedFor, realIp), patient));
+        return ResponseEntity.status(response.status())
+            .header("X-Trace-Id", RequestContext.currentTraceId())
+            .body(response.body());
+    }
+
     @PostMapping("/{version}/{resourceType}")
     @PreAuthorize("@perm.has('integration.execute')")
     public ResponseEntity<JsonNode> create(@PathVariable FhirVersion version,

@@ -2,10 +2,8 @@ package com.medkernel.engine.integration.fhir;
 
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.CanonicalResource;
-import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.TerminologyMappingPort;
 
 /**
@@ -21,19 +19,14 @@ public class FhirR5CanonicalMapper {
     }
 
     public FhirResourceMappingResult toR5(CanonicalResource canonical) {
-        if (canonical.resourceType() == CanonicalResourceType.PATIENT) {
-            return support.mapPatient(canonical, "http://hl7.org/fhir/5.0/StructureDefinition/Patient");
-        }
-        throw new IllegalArgumentException("OPT-01 PR2 暂未开放该标准资源的 FHIR R5 出站映射: "
-            + canonical.resourceType());
+        return support.mapCanonical(canonical, FhirVersion.R5, null);
+    }
+
+    public FhirResourceMappingResult toR5(CanonicalResource canonical, String requestedResourceType) {
+        return support.mapCanonical(canonical, FhirVersion.R5, requestedResourceType);
     }
 
     public CanonicalResourceMappingResult fromR5(FhirCanonicalMappingRequest request) {
-        JsonNode resource = request.resource();
-        String resourceType = FhirCanonicalMapperSupport.text(resource.path("resourceType"));
-        if (!"Observation".equals(resourceType)) {
-            throw new IllegalArgumentException("OPT-01 PR2 暂未开放该 FHIR R5 入站资源映射: " + resourceType);
-        }
-        return support.mapObservation(request, FhirVersion.R5);
+        return support.mapInbound(request, FhirVersion.R5);
     }
 }

@@ -13,7 +13,7 @@
 | Webhook | `/api/v1/engine/integration/webhooks/{id}/inbound` | 使用 `X-MedKernel-Timestamp` 和 `X-MedKernel-Signature` 做 HMAC-SHA256 验签 | `NOT_CONNECTED` |
 | REST / WebService / HL7 适配器 | `/api/v1/engine/integration/adapters` | 先登记适配器、字段映射和真实连接配置；没有真实连接器时只登记诚实状态 | `NOT_CONNECTED` |
 | 出站异步同步 | `/api/v1/engine/integration/messages/outbound` | 主流程不等待外部回执；失败进入日志、重试或死信 | `NOT_CONNECTED` / `NOT_SYNCED` |
-| FHIR R4/R5 资源门面 | `/api/v1/engine/integration/fhir/{version}/metadata`、`/api/v1/engine/integration/fhir/{version}/{resourceType}` | OPT-01 所有，挂 INTEG-01 总线；当前只开放 Observation 受控 create，高风险 MedicationRequest / ServiceRequest 只登记医师确认任务 | `NOT_CONNECTED` |
+| FHIR R4/R5 资源门面 | `/api/v1/engine/integration/fhir/{version}/metadata`、`/api/v1/engine/integration/fhir/{version}/{resourceType}`、`/api/v1/engine/integration/fhir/{version}/{resourceType}/{id}` | OPT-01 所有，挂 INTEG-01 总线；开放 10 类核心资源 read/search/create，高风险 ServiceRequest 只登记医师确认任务 | `NOT_CONNECTED` |
 
 ## 数据流
 
@@ -26,9 +26,11 @@
 ## FHIR 运行门面
 
 - `GET /api/v1/engine/integration/fhir/{version}/metadata` 返回真实 `CapabilityStatement`，只声明当前已落地的 R4/R5 能力范围。
+- `GET /api/v1/engine/integration/fhir/{version}/{resourceType}/{id}` 按 `mk_fhir_resource_mapping` 读取已登记映射并返回对应 FHIR resource；未登记映射返回 `OperationOutcome`，不得临时拼装或编造资源。
+- `GET /api/v1/engine/integration/fhir/{version}/{resourceType}` 返回 FHIR `Bundle` searchset；当前只返回已登记映射的标准资源，不把请求中的患者标识回显到响应。
 - `POST /api/v1/engine/integration/fhir/{version}/{resourceType}` 接收原始 FHIR JSON resource，请求头必须带 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`；可选 `X-MedKernel-Package-Version`。适配器配置只能写 `fhir.signatureWebhookId` 引用，禁止内联 `secretKey`。
-- 当前受控 create 只支持 Observation，写入会映射为 `CanonicalResource`、登记 FHIR 映射证据、回流临床事件入口，并把出站补偿交给 INTEG-01；无真实连接器时返回 `NOT_CONNECTED` 证据。
-- MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写病历、不绕引擎。
+- 当前受控 create 支持 Patient、Encounter、Condition、Observation、Medication、Procedure、CarePlan、DiagnosticReport、DocumentReference 等标准资源，写入会映射为 `CanonicalResource`、登记 FHIR 映射证据、回流临床事件入口，并把出站补偿交给 INTEG-01；无真实连接器时返回 `NOT_CONNECTED` 证据。
+- MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写申请单、不直写病历、不绕引擎。
 - 未连接适配器、签名错误、白名单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
 
 ## OpenAPI
@@ -90,7 +92,7 @@
 | 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
 | 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |
 | 回调 | 回调测试目标不可达 | 返回失败或 `NOT_CONNECTED` |
-| FHIR | Observation create | 落 `CanonicalResource`、映射证据和临床事件；断连只返回 `NOT_CONNECTED`，不伪造同步成功 |
+| FHIR | 10 类核心资源 read/search/create | read 返回已登记映射资源；search 返回 `Bundle`；create 落 `CanonicalResource`、映射证据和临床事件；断连只返回 `NOT_CONNECTED`，不伪造同步成功 |
 | FHIR | 高风险医嘱类 create | 只登记医师确认任务，禁止自动开嘱或直写病历 |
 | 降级 | 外部系统关闭 | 主流程不中断，集成状态为 `NOT_CONNECTED` / `NOT_SYNCED` |
 | 审计 | 执行类操作 | 可按 traceId 查到动作、目标、结果和错误码 |

@@ -1,5 +1,6 @@
 package com.medkernel.engine.integration.fhir;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.repository.ListCrudRepository;
@@ -16,4 +17,7 @@ public interface FhirResourceMappingRepository extends ListCrudRepository<FhirRe
 
     Optional<FhirResourceMapping> findByTenantIdAndCanonicalResourceIdAndFhirVersion(
         String tenantId, Long canonicalResourceId, FhirVersion fhirVersion);
+
+    List<FhirResourceMapping> findByTenantIdAndFhirVersionAndFhirResourceTypeOrderByCreatedAtDesc(
+        String tenantId, FhirVersion fhirVersion, String fhirResourceType);
 }

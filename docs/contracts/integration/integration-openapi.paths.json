@@ -13,10 +13,21 @@
     "status": "RUNTIME_AVAILABLE",
     "documentedRuntimePaths": [
       "GET /api/v1/engine/integration/fhir/{version}/metadata",
+      "GET /api/v1/engine/integration/fhir/{version}/{resourceType}",
+      "GET /api/v1/engine/integration/fhir/{version}/{resourceType}/{id}",
       "POST /api/v1/engine/integration/fhir/{version}/{resourceType}"
     ],
     "supportedCreates": [
-      "Observation"
+      "Patient",
+      "Encounter",
+      "Condition",
+      "Observation",
+      "Medication",
+      "Procedure",
+      "CarePlan",
+      "ServiceRequest",
+      "DiagnosticReport",
+      "DocumentReference"
     ],
     "guardedHighRiskCreates": [
       "MedicationRequest",
@@ -33,7 +44,7 @@
       "disconnectedStatus": "NOT_CONNECTED",
       "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fakes write success."
     },
-    "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability intentionally declares only implemented create surface."
+    "note": "FHIR R4/R5 runtime facade is owned by OPT-01 and mounted under the INTEG-01 integration bus. Runtime capability declares implemented read/search/create surface only."
   },
   "commonHeaders": [
     {
@@ -58,7 +69,7 @@
     },
     {
       "name": "X-MedKernel-Fhir-Adapter",
-      "required": "FHIR create",
+      "required": "FHIR read/search/create",
       "purpose": "tenant-scoped FHIR adapter id that references signing webhook, whitelist, and default package version"
     }
   ],

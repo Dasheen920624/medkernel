@@ -3,10 +3,12 @@ package com.medkernel.engine.integration.fhir;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -225,6 +227,172 @@ class FhirFacadeServiceTest {
         verify(events, never()).receiveAsync(any());
     }
 
+    @Test
+    void readsMappedPatientConditionAndObservationAsFhirResourcesWithoutReplayingClinicalEvent() throws Exception {
+        when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
+        when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+            "tenant-A", FhirVersion.R4, "Patient", "pat-1")).thenReturn(Optional.of(new FhirResourceMapping(
+                300L, "tenant-A", "tenant-A/group-A", FhirVersion.R4, "Patient", "pat-1",
+                400L, com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+                new BigDecimal("1.0000"), 0, FhirMappingStatus.ACTIVE, "trace-read",
+                Instant.parse("2026-06-03T00:00:00Z"), "test",
+                Instant.parse("2026-06-03T00:00:00Z"), "test")));
+        when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+            "tenant-A", FhirVersion.R4, "Condition", "cond-1")).thenReturn(Optional.of(new FhirResourceMapping(
+                301L, "tenant-A", "tenant-A/group-A", FhirVersion.R4, "Condition", "cond-1",
+                401L, com.medkernel.engine.context.CanonicalResourceType.CONDITION,
+                new BigDecimal("1.0000"), 0, FhirMappingStatus.ACTIVE, "trace-read",
+                Instant.parse("2026-06-03T00:00:00Z"), "test",
+                Instant.parse("2026-06-03T00:00:00Z"), "test")));
+        when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+            "tenant-A", FhirVersion.R4, "Observation", "obs-1")).thenReturn(Optional.of(new FhirResourceMapping(
+                302L, "tenant-A", "tenant-A/group-A", FhirVersion.R4, "Observation", "obs-1",
+                402L, com.medkernel.engine.context.CanonicalResourceType.OBSERVATION,
+                new BigDecimal("1.0000"), 0, FhirMappingStatus.ACTIVE, "trace-read",
+                Instant.parse("2026-06-03T00:00:00Z"), "test",
+                Instant.parse("2026-06-03T00:00:00Z"), "test")));
+        when(resources.findById(400L)).thenReturn(Optional.of(patientCanonical(400L)));
+        when(resources.findById(401L)).thenReturn(Optional.of(conditionCanonical(401L)));
+        when(resources.findById(402L)).thenReturn(Optional.of(observationCanonical(402L)));
+
+        FhirFacadeResponse patient = service.read(new FhirFacadeReadCommand(
+            FhirVersion.R4, "Patient", "pat-1", "fhir-hub", "10.0.0.8"));
+        FhirFacadeResponse response = service.read(new FhirFacadeReadCommand(
+            FhirVersion.R4, "Condition", "cond-1", "fhir-hub", "10.0.0.8"));
+        FhirFacadeResponse observation = service.read(new FhirFacadeReadCommand(
+            FhirVersion.R4, "Observation", "obs-1", "fhir-hub", "10.0.0.8"));
+
+        assertThat(patient.status()).isEqualTo(HttpStatus.OK);
+        assertThat(patient.body().path("resourceType").asText()).isEqualTo("Patient");
+        assertThat(patient.body().path("id").asText()).isEqualTo("pat-1");
+        assertThat(response.status()).isEqualTo(HttpStatus.OK);
+        assertThat(response.body().path("resourceType").asText()).isEqualTo("Condition");
+        assertThat(response.body().path("id").asText()).isEqualTo("cond-1");
+        assertThat(response.body().path("code").path("coding").get(0).path("code").asText()).isEqualTo("J00");
+        assertThat(response.body().path("meta").path("source").asText())
+            .isEqualTo("canonical_resource/cond-1");
+        assertThat(observation.status()).isEqualTo(HttpStatus.OK);
+        assertThat(observation.body().path("resourceType").asText()).isEqualTo("Observation");
+        assertThat(observation.body().path("id").asText()).isEqualTo("obs-1");
+        verify(events, never()).receiveAsync(any());
+        verify(integration, never()).enqueueOutboundMessage(any(), any());
+    }
+
+    @Test
+    void searchesMappedConditionsAsFhirBundle() throws Exception {
+        when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
+        when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeOrderByCreatedAtDesc(
+            "tenant-A", FhirVersion.R4, "Condition")).thenReturn(List.of(new FhirResourceMapping(
+                301L, "tenant-A", "tenant-A/group-A", FhirVersion.R4, "Condition", "cond-1",
+                401L, com.medkernel.engine.context.CanonicalResourceType.CONDITION,
+                new BigDecimal("1.0000"), 0, FhirMappingStatus.ACTIVE, "trace-search",
+                Instant.parse("2026-06-03T00:00:00Z"), "test",
+                Instant.parse("2026-06-03T00:00:00Z"), "test")));
+        when(resources.findById(401L)).thenReturn(Optional.of(conditionCanonical(401L)));
+
+        FhirFacadeResponse response = service.search(new FhirFacadeSearchCommand(
+            FhirVersion.R4, "Condition", "fhir-hub", "10.0.0.8", "Patient/MPI-001"));
+
+        assertThat(response.status()).isEqualTo(HttpStatus.OK);
+        assertThat(response.body().path("resourceType").asText()).isEqualTo("Bundle");
+        assertThat(response.body().path("type").asText()).isEqualTo("searchset");
+        assertThat(response.body().path("total").asInt()).isEqualTo(1);
+        assertThat(response.body().path("entry").get(0).path("resource").path("resourceType").asText())
+            .isEqualTo("Condition");
+        assertThat(response.body().toString()).doesNotContain("MPI-001");
+    }
+
+    @Test
+    void createsConditionThroughCanonicalResourceClinicalEventAndIntegrationBus() throws Exception {
+        JsonNode condition = json.readTree("""
+            {
+              "resourceType": "Condition",
+              "id": "cond-create-1",
+              "subject": {"reference": "Patient/MPI-001"},
+              "encounter": {"reference": "Encounter/enc-1"},
+              "code": {
+                "coding": [
+                  {"system": "http://hl7.org/fhir/sid/icd-10", "code": "J00", "display": "急性鼻咽炎"}
+                ]
+              },
+              "onsetDateTime": "2026-06-03T00:00:00Z"
+            }
+            """);
+        String signedAt = timestamp();
+        when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
+        when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+            "tenant-A", FhirVersion.R4, "Condition", "cond-create-1")).thenReturn(Optional.empty());
+
+        FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
+            FhirVersion.R4, "Condition", condition, "fhir-hub",
+            signedAt, sign(signedAt, condition), "10.0.0.8", null, null));
+
+        assertThat(response.status()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.body().path("resourceType").asText()).isEqualTo("OperationOutcome");
+        assertThat(response.body().toString()).contains("Condition", "NOT_CONNECTED").doesNotContain("MPI-001");
+
+        ArgumentCaptor<CanonicalResource> resourceCaptor = ArgumentCaptor.forClass(CanonicalResource.class);
+        verify(resources).save(resourceCaptor.capture());
+        assertThat(resourceCaptor.getValue().resourceType())
+            .isEqualTo(com.medkernel.engine.context.CanonicalResourceType.CONDITION);
+        assertThat(resourceCaptor.getValue().sourceSystem()).isEqualTo("FHIR_R4");
+
+        ArgumentCaptor<ClinicalEventRequest> eventCaptor = ArgumentCaptor.forClass(ClinicalEventRequest.class);
+        verify(events).receiveAsync(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().eventType()).isEqualTo(ClinicalEventType.DIAGNOSIS);
+        assertThat(eventCaptor.getValue().patientId()).isEqualTo("MPI-001");
+        assertThat(eventCaptor.getValue().encounterId()).isEqualTo("enc-1");
+
+        ArgumentCaptor<IntegrationOutboundRequestDto> outboundCaptor =
+            ArgumentCaptor.forClass(IntegrationOutboundRequestDto.class);
+        verify(integration).enqueueOutboundMessage(org.mockito.Mockito.eq("tenant-A"), outboundCaptor.capture());
+        assertThat(outboundCaptor.getValue().payload().path("fhirResourceType").asText()).isEqualTo("Condition");
+    }
+
+    @Test
+    void createsPr4StandardResourcesThroughCanonicalResourceWithoutSecondClinicalModel() throws Exception {
+        when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
+
+        List<StandardCreateCase> cases = pr4StandardCreateCases();
+        for (StandardCreateCase current : cases) {
+            when(mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+                "tenant-A", FhirVersion.R4, current.resourceType(), current.fhirId()))
+                .thenReturn(Optional.empty());
+            String signedAt = timestamp();
+
+            FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
+                FhirVersion.R4,
+                current.resourceType(),
+                current.resource(),
+                "fhir-hub",
+                signedAt,
+                sign(signedAt, current.resource()),
+                "10.0.0.8",
+                null,
+                null));
+
+            assertThat(response.status()).as(current.resourceType()).isEqualTo(HttpStatus.CREATED);
+            assertThat(response.body().toString()).as(current.resourceType()).doesNotContain("MPI-001");
+        }
+
+        ArgumentCaptor<CanonicalResource> resourceCaptor = ArgumentCaptor.forClass(CanonicalResource.class);
+        verify(resources, times(cases.size())).save(resourceCaptor.capture());
+        assertThat(resourceCaptor.getAllValues())
+            .extracting(CanonicalResource::resourceType)
+            .containsExactly(
+                com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+                com.medkernel.engine.context.CanonicalResourceType.ENCOUNTER,
+                com.medkernel.engine.context.CanonicalResourceType.CONDITION,
+                com.medkernel.engine.context.CanonicalResourceType.OBSERVATION,
+                com.medkernel.engine.context.CanonicalResourceType.MEDICATION,
+                com.medkernel.engine.context.CanonicalResourceType.PROCEDURE,
+                com.medkernel.engine.context.CanonicalResourceType.CARE_PLAN,
+                com.medkernel.engine.context.CanonicalResourceType.DIAGNOSTIC_REPORT,
+                com.medkernel.engine.context.CanonicalResourceType.DOCUMENT);
+        verify(events, times(cases.size())).receiveAsync(any());
+        verify(integration, times(cases.size())).enqueueOutboundMessage(any(), any());
+    }
+
     private IntegrationAdapter activeFhirAdapter() {
         return new IntegrationAdapter(
             7L,
@@ -287,6 +455,182 @@ class FhirFacadeServiceTest {
             """.formatted(id, patientReference));
     }
 
+    private CanonicalResource conditionCanonical(Long id) throws Exception {
+        return new CanonicalResource(
+            id,
+            "cond-1",
+            "snapshot-read",
+            "tenant-A",
+            com.medkernel.engine.context.CanonicalResourceType.CONDITION,
+            """
+            {
+              "conditionId": "cond-1",
+              "code": "J00",
+              "codeSystem": "http://hl7.org/fhir/sid/icd-10",
+              "displayName": "急性鼻咽炎",
+              "sourceSystem": "FHIR_R4",
+              "sourceRecordId": "Condition/cond-1",
+              "mappedVersion": "FHIR_R4:Condition",
+              "onsetTime": "2026-06-03T00:00:00Z",
+              "receivedTime": "2026-06-03T00:00:10Z",
+              "qualityStatus": "VALID"
+            }
+            """,
+            "FHIR_R4",
+            "Condition/cond-1",
+            "FHIR_R4:Condition",
+            Instant.parse("2026-06-03T00:00:00Z"),
+            Instant.parse("2026-06-03T00:00:10Z"),
+            QualityStatus.VALID,
+            1,
+            "trace-read");
+    }
+
+    private CanonicalResource patientCanonical(Long id) {
+        return new CanonicalResource(
+            id,
+            "pat-1",
+            "snapshot-read",
+            "tenant-A",
+            com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+            """
+            {
+              "mpi": "MPI-001",
+              "name": "患者一",
+              "birthDate": "1980-01-01",
+              "gender": "male",
+              "sourceSystem": "FHIR_R4",
+              "sourceRecordId": "Patient/pat-1",
+              "mappedVersion": "FHIR_R4:Patient",
+              "receivedTime": "2026-06-03T00:00:10Z",
+              "qualityStatus": "VALID"
+            }
+            """,
+            "FHIR_R4",
+            "Patient/pat-1",
+            "FHIR_R4:Patient",
+            null,
+            Instant.parse("2026-06-03T00:00:10Z"),
+            QualityStatus.VALID,
+            1,
+            "trace-read");
+    }
+
+    private CanonicalResource observationCanonical(Long id) {
+        return new CanonicalResource(
+            id,
+            "obs-1",
+            "snapshot-read",
+            "tenant-A",
+            com.medkernel.engine.context.CanonicalResourceType.OBSERVATION,
+            """
+            {
+              "observationId": "obs-1",
+              "code": "718-7",
+              "displayName": "Hemoglobin",
+              "valueNumeric": 128,
+              "unit": "g/L",
+              "sourceSystem": "FHIR_R4",
+              "sourceRecordId": "Observation/obs-1",
+              "mappedVersion": "FHIR_R4:Observation",
+              "eventTime": "2026-06-03T00:00:00Z",
+              "receivedTime": "2026-06-03T00:00:10Z",
+              "qualityStatus": "VALID"
+            }
+            """,
+            "FHIR_R4",
+            "Observation/obs-1",
+            "FHIR_R4:Observation",
+            Instant.parse("2026-06-03T00:00:00Z"),
+            Instant.parse("2026-06-03T00:00:10Z"),
+            QualityStatus.VALID,
+            1,
+            "trace-read");
+    }
+
+    private List<StandardCreateCase> pr4StandardCreateCases() throws Exception {
+        return List.of(
+            createCase("Patient", "pat-1", """
+                {
+                  "resourceType": "Patient",
+                  "id": "pat-1",
+                  "identifier": [{"system": "urn:medkernel:mpi", "value": "MPI-001"}],
+                  "name": [{"text": "患者一"}],
+                  "gender": "male"
+                }
+                """),
+            createCase("Encounter", "enc-1", """
+                {
+                  "resourceType": "Encounter",
+                  "id": "enc-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "class": {"code": "inpatient"},
+                  "period": {"start": "2026-06-03T00:00:00Z"}
+                }
+                """),
+            createCase("Condition", "cond-batch-1", """
+                {
+                  "resourceType": "Condition",
+                  "id": "cond-batch-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "code": {"coding": [{"system": "http://hl7.org/fhir/sid/icd-10", "code": "J00", "display": "急性鼻咽炎"}]},
+                  "onsetDateTime": "2026-06-03T00:00:00Z"
+                }
+                """),
+            new StandardCreateCase("Observation", "obs-batch-1", observation("obs-batch-1", "Patient/MPI-001")),
+            createCase("Medication", "med-batch-1", """
+                {
+                  "resourceType": "Medication",
+                  "id": "med-batch-1",
+                  "extension": [{"url": "urn:medkernel:patient", "valueString": "MPI-001"}],
+                  "code": {"coding": [{"system": "urn:local:drug", "code": "DRUG-001", "display": "药品条目"}]}
+                }
+                """),
+            createCase("Procedure", "proc-batch-1", """
+                {
+                  "resourceType": "Procedure",
+                  "id": "proc-batch-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "code": {"coding": [{"system": "urn:local:procedure", "code": "PROC-001", "display": "操作条目"}]},
+                  "performedDateTime": "2026-06-03T00:00:00Z"
+                }
+                """),
+            createCase("CarePlan", "care-batch-1", """
+                {
+                  "resourceType": "CarePlan",
+                  "id": "care-batch-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "instantiatesCanonical": ["path-1"],
+                  "activity": [{"detail": {"code": {"text": "node-1"}}}]
+                }
+                """),
+            createCase("DiagnosticReport", "report-batch-1", """
+                {
+                  "resourceType": "DiagnosticReport",
+                  "id": "report-batch-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "code": {"text": "exam"},
+                  "conclusion": "报告结论",
+                  "effectiveDateTime": "2026-06-03T00:00:00Z"
+                }
+                """),
+            createCase("DocumentReference", "doc-batch-1", """
+                {
+                  "resourceType": "DocumentReference",
+                  "id": "doc-batch-1",
+                  "subject": {"reference": "Patient/MPI-001"},
+                  "type": {"text": "record"},
+                  "description": "sha256:document-digest",
+                  "date": "2026-06-03T00:00:00Z"
+                }
+                """)
+        );
+    }
+
+    private StandardCreateCase createCase(String resourceType, String fhirId, String resourceJson) throws Exception {
+        return new StandardCreateCase(resourceType, fhirId, json.readTree(resourceJson));
+    }
+
     private String timestamp() {
         return String.valueOf(Instant.now().getEpochSecond());
     }
@@ -327,4 +671,6 @@ class FhirFacadeServiceTest {
             mapping.fieldMappingRate(), mapping.missingFieldCount(), mapping.mappingStatus(),
             mapping.traceId(), mapping.createdAt(), mapping.createdBy(), mapping.updatedAt(), mapping.updatedBy());
     }
+
+    private record StandardCreateCase(String resourceType, String fhirId, JsonNode resource) {}
 }

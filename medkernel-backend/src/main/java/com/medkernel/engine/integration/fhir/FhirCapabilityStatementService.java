@@ -9,8 +9,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * OPT-01 FHIR 映射能力声明生成器。
- *
- * <p>PR2 仅声明已经落地的确定性映射面；运行端点、create 回流与安全边界在 PR3 接入。
  */
 @Component
 public class FhirCapabilityStatementService {
@@ -29,46 +27,64 @@ public class FhirCapabilityStatementService {
         statement.put("name", "MedKernelFhirMappingFacade");
         statement.put("title", "MedKernel FHIR 映射门面能力声明");
         statement.put("publisher", "MedKernel");
-        statement.put("version", "OPT-01-PR2");
+        statement.put("version", "OPT-01-PR4");
         statement.put("fhirVersion", fhirVersionNumber(version));
         statement.putArray("format").add("json");
 
         ObjectNode software = statement.putObject("software");
         software.put("name", "MedKernel");
-        software.put("version", "OPT-01-PR2");
+        software.put("version", "OPT-01-PR4");
 
         ObjectNode implementation = statement.putObject("implementation");
-        implementation.put("description", "OPT-01 PR2 仅声明 CanonicalResource 与 FHIR 的映射能力；"
-            + "运行 read/search/create、医师确认链和安全边界由 PR3 开放。");
+        implementation.put("description", "OPT-01 PR4 声明 CanonicalResource 与 FHIR R4/R5 的确定性映射能力；"
+            + "运行 read/search/create 由受控运行门面开放，高风险申请仍走医师确认。");
 
         ObjectNode rest = json.createObjectNode();
         rest.put("mode", "server");
         ArrayNode resources = rest.putArray("resource");
-        resources.add(resource("Patient", "OUTBOUND", "CanonicalPatient -> FHIR Patient"));
-        resources.add(resource("Observation", "INBOUND", "FHIR Observation -> CanonicalObservation"));
+        resources.add(resource("Patient", "BIDIRECTIONAL", "CanonicalPatient <-> FHIR Patient"));
+        resources.add(resource("Encounter", "BIDIRECTIONAL", "CanonicalEncounter <-> FHIR Encounter"));
+        resources.add(resource("Condition", "BIDIRECTIONAL", "CanonicalCondition <-> FHIR Condition"));
+        resources.add(resource("Observation", "BIDIRECTIONAL", "CanonicalObservation <-> FHIR Observation"));
+        resources.add(resource("Medication", "BIDIRECTIONAL", "CanonicalMedication <-> FHIR Medication"));
+        resources.add(resource("Procedure", "BIDIRECTIONAL", "CanonicalProcedure <-> FHIR Procedure"));
+        resources.add(resource("CarePlan", "BIDIRECTIONAL", "CanonicalCarePlan <-> FHIR CarePlan"));
+        resources.add(resource("DiagnosticReport", "BIDIRECTIONAL",
+            "CanonicalDiagnosticReport <-> FHIR DiagnosticReport"));
+        resources.add(resource("DocumentReference", "BIDIRECTIONAL", "CanonicalDocument <-> FHIR DocumentReference"));
         statement.set("rest", json.createArrayNode().add(rest));
         return statement;
     }
 
     public JsonNode runtimeCapability(FhirVersion version) {
-        ObjectNode statement = baseStatement(version, "OPT-01-PR3");
+        ObjectNode statement = baseStatement(version, "OPT-01-PR4");
         ObjectNode implementation = statement.putObject("implementation");
-        implementation.put("description", "OPT-01 PR3 运行门面仅开放 Observation create；"
-            + "MedicationRequest 与 ServiceRequest create 只登记医师确认任务，不自动写医嘱；"
+        implementation.put("description", "OPT-01 PR4 运行门面开放 10 类核心 FHIR 资源 read/search/create；"
+            + "ServiceRequest create 只登记医师确认任务，不自动写申请单；"
             + "外部连接状态按 INTEG-01 诚实返回 NOT_CONNECTED。");
 
         ObjectNode rest = json.createObjectNode();
         rest.put("mode", "server");
         ArrayNode resources = rest.putArray("resource");
-        resources.add(runtimeResource("Observation",
-            "FHIR Observation create -> CanonicalObservation + 临床事件 REPORT + INTEG-01 NOT_CONNECTED 补偿",
-            "create"));
+        resources.add(runtimeResource("Patient", "FHIR Patient read/search/create -> CanonicalPatient", "read", "search", "create"));
+        resources.add(runtimeResource("Encounter", "FHIR Encounter read/search/create -> CanonicalEncounter", "read", "search", "create"));
+        resources.add(runtimeResource("Condition", "FHIR Condition read/search/create -> CanonicalCondition + 临床事件 DIAGNOSIS", "read", "search", "create"));
+        resources.add(runtimeResource("Observation", "FHIR Observation read/search/create -> CanonicalObservation + 临床事件 REPORT", "read", "search", "create"));
+        resources.add(runtimeResource("Medication", "FHIR Medication read/search/create -> CanonicalMedication + 临床事件 ORDER", "read", "search", "create"));
+        resources.add(runtimeResource("Procedure", "FHIR Procedure read/search/create -> CanonicalProcedure + 临床事件 ORDER", "read", "search", "create"));
+        resources.add(runtimeResource("CarePlan", "FHIR CarePlan read/search/create -> CanonicalCarePlan + 临床事件 ORDER", "read", "search", "create"));
         resources.add(runtimeResource("MedicationRequest",
             "高风险医嘱类 create 需医师确认；FHIR 门面不自动写医嘱",
             "create"));
         resources.add(runtimeResource("ServiceRequest",
             "高风险检查/治疗申请 create 需医师确认；FHIR 门面不自动写申请单",
-            "create"));
+            "read", "search", "create"));
+        resources.add(runtimeResource("DiagnosticReport",
+            "FHIR DiagnosticReport read/search/create -> CanonicalDiagnosticReport + 临床事件 REPORT",
+            "read", "search", "create"));
+        resources.add(runtimeResource("DocumentReference",
+            "FHIR DocumentReference read/search/create -> CanonicalDocument + 临床事件 REPORT",
+            "read", "search", "create"));
         statement.set("rest", json.createArrayNode().add(rest));
         return statement;
     }
