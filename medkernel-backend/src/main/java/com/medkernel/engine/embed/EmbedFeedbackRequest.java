@@ -7,6 +7,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record EmbedFeedbackRequest(
     @NotBlank String token,
-    @NotBlank String actionType, // ACCEPT, REJECT, DISMISS, LATER
+    @NotBlank String actionType, // ADOPT / REJECT，ACCEPT 兼容归一为 ADOPT
     String reason
 ) {}
