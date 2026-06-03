@@ -21,7 +21,7 @@
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 适配器目录**：登记/启停适配器（HIS/EMR/LIS/PACS/医保/病案…），统一 `IntegrationAdapter` + 连通状态。PR1：`adapter_id` 收敛为租户内唯一，清理全局仓储查找，前后端目录继续只按当前租户读取。
-- [ ] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。PR1 已完成手动健康检查与健康目录汇总：`GET /api/v1/engine/integration/health`、`POST /api/v1/engine/integration/adapters/{id}/health-check`；周期调度待真实连接器接入后继续补齐，不伪造成已完成。
+- [x] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。PR1 已完成手动健康检查与健康目录汇总：`GET /api/v1/engine/integration/health`、`POST /api/v1/engine/integration/adapters/{id}/health-check`；PR4 新增周期探活 worker/scheduler，跨租户扫描 `ACTIVE` 适配器，配置合法标 `NOT_CONNECTED`、配置非法标 `MISCONFIGURED`，暂停适配器不改心跳，不伪造 `HEALTHY`。
 - [x] **FR-3 Webhook 签名**：入站 Webhook 验签（`IntegrationWebhookConfig`）；验签失败拒绝 + 记 `IntegrationMessageLog`。PR2：新增 `POST /api/v1/engine/integration/webhooks/{id}/inbound`，按 `timestamp + "." + canonical request` 做 HMAC-SHA256 验签，并校验 5 分钟时间窗口防重放；失败拒绝并写 `FAILED` 入站日志，成功后按 `message_id + tenant_id` 幂等。
 - [x] **FR-4 字段映射**：外部字段 ↔ 标准上下文（[API-01](API-01.md)）字段映射，编码经 [TERM-01](TERM-01.md) 归一。PR2：适配器 `configJson.fieldMappings` 使用 JSON Pointer 映射到标准上下文载荷 `mappedPayload`；带 `termMappingId` 的字段只允许 TERM-01 `CONFIRMED` 映射 + `ACTIVE` 标准术语归一，不猜测标准码、不直写医嘱/病历。
 - [x] **FR-5 重试 + 死信**：失败消息按策略重试，超限入死信队列可人工重放；不静默丢。PR3：`retryMessage` 按 `max_retries` 推进入 `DEAD_LETTER`；`GET /dead-letter` 按租户列出死信；`POST /dead-letter/{id}/replay` 创建新的补偿日志，保留原死信证据不物理删除。
@@ -30,7 +30,7 @@
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
 - 端点：`/api/v1/engine/integration/**`（adapters、webhooks、webhooks/{id}/inbound、health、message-logs、messages/outbound、dead-letter、dead-letter/{id}/replay）。
-- DTO：复用 `AdapterCreateDto`/`UpdateDto`/`WebhookCreateDto`/`TestDto`/`TestResultDto`/`IntegrationMessageLog`；PR2 新增 `WebhookInboundRequestDto` / `WebhookInboundResultDto`；PR3 新增 `IntegrationOutboundRequestDto` / `IntegrationOutboundResultDto` / `IntegrationReplayResultDto`。
+- DTO：复用 `AdapterCreateDto`/`UpdateDto`/`WebhookCreateDto`/`TestDto`/`TestResultDto`/`IntegrationMessageLog`；PR2 新增 `WebhookInboundRequestDto` / `WebhookInboundResultDto`；PR3 新增 `IntegrationOutboundRequestDto` / `IntegrationOutboundResultDto` / `IntegrationReplayResultDto`；PR4 新增 `IntegrationHealthProbeResultDto` / `IntegrationHealthProbeItemDto`。
 - 响应信封：`ApiResult` / `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 - 状态机：消息走 `SUCCESS` / `FAILED` / `RETRYING` / `NOT_CONNECTED` / `DEAD_LETTER`；死信重放只追加补偿日志，不删除原证据；适配器连通态。
 - 幂等 / 错误码 / traceId：入站与出站按 `tenant_id + message_id` 幂等；断连 → `NOT_CONNECTED`；验签失败 → `ENG-INTEG-004`；traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -60,7 +60,7 @@ N·A —— 本卡无页面。呈现在 **D2 适配器中心页**（适配器状
 - 本卡落点：把第三方对接做成统一、可观测、诚实降级、不丢消息的总线。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：登记适配器 + 健康探活；断连 → `NOT_CONNECTED`（不伪造）。PR1 已红绿覆盖跨租户同名适配器、租户内冲突、健康汇总不串租户和不伪造 `HEALTHY`；周期探活未冒领完成。
+- [x] **AC-1（FR-1/2）**：登记适配器 + 健康探活；断连 → `NOT_CONNECTED`（不伪造）。PR1 已红绿覆盖跨租户同名适配器、租户内冲突、健康汇总不串租户和不伪造 `HEALTHY`；PR4 已红绿覆盖周期 worker 跨租户扫描 `ACTIVE` 适配器、跳过 `SUSPENDED`、配置合法只标 `NOT_CONNECTED`、配置非法标 `MISCONFIGURED`、RTT 为 0 且不伪造 `HEALTHY`。
 - [x] **AC-2（FR-3/4）**：Webhook 验签失败拒绝 + 记日志；外部字段映射到标准上下文、编码归一。PR2 已覆盖验签失败日志、验签成功映射、TERM-01 确认映射归一、配置错误失败日志和租户内幂等。
 - [x] **AC-3（FR-5/6）**：失败消息重试 → 超限入死信可重放；同步超时不阻断主流程（降级标记）。PR3 已覆盖出站断连不阻断、超限入 `DEAD_LETTER`、人工重放追加补偿日志且不删除原死信证据、控制器权限与 V62 五方言状态约束。
 - 关联 A1–A9 剧本：A1 接入、A6 合规（对接审计）。
@@ -91,7 +91,14 @@ N·A —— 本卡无页面。呈现在 **D2 适配器中心页**（适配器状
 - 红绿证据：先补 AC-3 测试，红灯在 `testCompile` 暴露缺少 `IntegrationOutboundRequestDto` / `IntegrationOutboundResultDto` / `IntegrationReplayResultDto`、`IntegrationService.getDeadLetters`、`IntegrationService.replayDeadLetter`；实现后目标套件转绿。
 - 已运行：`mvn -q -Dtest=IntegrationServiceTest#outboundMessageIsAcceptedAsNotConnectedWithoutBlockingMainFlow,MigrationBaselineContractTest#integrationMessageStatusAllowsNotConnectedForNonBlockingDegradationInEveryDialect test`（红灯）；`mvn -q -Dtest=IntegrationServiceTest#outboundMessageIsAcceptedAsNotConnectedWithoutBlockingMainFlow+deadLettersAreTenantScopedAndReplayCreatesCompensationLogWithoutDeletingEvidence,MigrationBaselineContractTest#integrationMessageStatusAllowsNotConnectedForNonBlockingDegradationInEveryDialect test`；`mvn -q -Dtest=IntegrationServiceTest#deadLettersAreTenantScopedAndReplayCreatesCompensationLogWithoutDeletingEvidence+testMessageLogsAndRetry,MigrationBaselineContractTest#integrationMessageStatusAllowsNotConnectedForNonBlockingDegradationInEveryDialect test`；`mvn -q -Dtest=IntegrationServiceTest,IntegrationControllerSecurityTest,MigrationBaselineContractTest,ServiceContractGovernanceTest test`；`mvn -q -Dtest=FlywayMultiDialectSmokeTest,H2BaselineMigrationTest,MigrationBaselineContractTest test`（H2 + Docker PostgreSQL 15.18 / Oracle 21.3 均迁移至 v62，二次 migrate 无新迁移）；`mvn -q test`（Surefire XML 汇总 173 files / 1030 tests / 0 failures / 0 errors / 0 skipped）；`npm run build`；`npm run verify`（44 files / 236 tests）；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities）；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`（34 tests passed）；`scripts/check-comment-zh.sh`；`git diff --check`；提交后 changed-mode T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`（扫描 11 文件）、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`（扫描 9 文件）、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`（扫描 5 文件）均通过。
 
+### PR4 证据（周期健康探活 / 配置中心热间隔）
+- 代码范围：`IntegrationService.probeActiveAdapterHealth`、`IntegrationAdapterHealthProbeWorker`、`IntegrationAdapterHealthProbeScheduler`、`IntegrationProperties`、`SystemConfigService.runtimeIntegrationHealthProbeIntervalMs`、`SystemConfigSeeder` 的 `medkernel.integration.health-probe-interval-ms` 种子。
+- 测试：`IntegrationServiceTest.periodicHealthProbeScansActiveAdaptersAcrossTenantsWithoutFakingHealthy` 覆盖 worker 触发单轮周期探活；`SystemConfigServiceTest.runtimeIntegrationHealthProbeIntervalReadsConfigCenterAndFallsBackSafely` 覆盖配置中心读取与非法值安全默认。
+- 红绿证据：先补周期探活与配置中心测试，红灯在 `testCompile` 暴露缺少 `IntegrationHealthProbeResultDto`、`IntegrationService.probeActiveAdapterHealth`、`IntegrationHealthProbeSettings` 与 `INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY`；实现后目标套件转绿。
+- 已运行：`mvn -q -Dtest=IntegrationServiceTest#periodicHealthProbeScansActiveAdaptersAcrossTenantsWithoutFakingHealthy,SystemConfigServiceTest#runtimeIntegrationHealthProbeIntervalReadsConfigCenterAndFallsBackSafely test`（红灯后转绿）；`mvn -q -Dtest=IntegrationServiceTest,IntegrationControllerSecurityTest,SystemConfigServiceTest,ServiceContractGovernanceTest test`；`mvn -q test`（Surefire XML 汇总 173 files / 1032 tests / 0 failures / 0 errors / 0 skipped，H2 + Docker PostgreSQL 15.18 / Oracle 21.3 均迁移至 v62，二次 migrate 无新迁移）；`npm run build`；`npm run verify`（44 files / 236 tests，仍有既有 React Router / act 警告，归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities；`npm ci` 的 dev 依赖告警仍归 `DEFER-002`）；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`（34 tests passed）；`scripts/check-comment-zh.sh`；`git diff --check`；提交后 changed-mode T-GATE：`node scripts/authenticity-guard.mjs --mode=changed --base=origin/main`（扫描 10 文件）、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main`（扫描 10 文件）、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main`（扫描 0 文件）均通过。
+
 ## 大卡工序（6d，后端引擎；按 PR 拆分）
-- PR1：适配器目录 + 手动健康检查 + 健康汇总 + `NOT_CONNECTED` → AC-1 地基（#291 已合入；周期探活不冒领）。
+- PR1：适配器目录 + 手动健康检查 + 健康汇总 + `NOT_CONNECTED` → AC-1 地基（#291 已合入）。
 - PR2：Webhook 验签 + 字段映射接 [TERM-01](TERM-01.md) → AC-2（#292 已合入）。
-- PR3：重试死信 + 重放 + 不阻断主流程降级 → AC-3（本分支实施，本地完整验证、提交前 T-GATE 与提交后 changed-mode 已通过，待 PR / CI）。
+- PR3：重试死信 + 重放 + 不阻断主流程降级 → AC-3（#293 已合入）。
+- PR4：周期健康探活 + 配置中心热间隔 → AC-1 补齐（本分支实施，本地完整验证、前端 build / verify、生产依赖审计、提交前 T-GATE 与提交后 changed-mode 已通过，待 PR / CI）。

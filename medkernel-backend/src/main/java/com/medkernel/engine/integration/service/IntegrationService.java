@@ -164,11 +164,33 @@ public class IntegrationService {
         IntegrationAdapter adapter = adapterRepository.findByAdapterIdAndTenantId(adapterId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_002, "适配器不存在: " + adapterId));
 
-        // 无真实外部连接器：配置合法只能标 NOT_CONNECTED（外部可达性未知），不得伪造 HEALTHY；
-        // 不记录伪造网络 RTT（0 表示未做真实探活）。
-        String healthStatus = isConfigJsonValid(adapter.configJson()) ? HEALTH_NOT_CONNECTED : HEALTH_MISCONFIGURED;
-        IntegrationAdapter checked = adapter.withHealthCheck(healthStatus, 0L, Instant.now());
-        return adapterRepository.save(checked);
+        return adapterRepository.save(checkedAdapterHealth(adapter, Instant.now()));
+    }
+
+    /**
+     * 周期探测所有启用中的第三方适配器健康状态。
+     *
+     * <p>当前未接入真实外部连接器，周期任务只做本地配置预检：
+     * 配置合法标 {@code NOT_CONNECTED}，配置非法标 {@code MISCONFIGURED}；暂停适配器不扫描，且绝不伪造 {@code HEALTHY}。
+     */
+    @Transactional
+    public IntegrationHealthProbeResultDto probeActiveAdapterHealth() {
+        Instant checkedAt = Instant.now();
+        List<IntegrationAdapter> checkedAdapters = adapterRepository.findAllByStatus(STATUS_ACTIVE).stream()
+            .map(adapter -> adapterRepository.save(checkedAdapterHealth(adapter, checkedAt)))
+            .toList();
+        List<IntegrationHealthProbeItemDto> items = checkedAdapters.stream()
+            .map(this::toHealthProbeItem)
+            .toList();
+
+        return new IntegrationHealthProbeResultDto(
+            checkedAdapters.size(),
+            countByHealth(checkedAdapters, HEALTH_HEALTHY),
+            countByHealth(checkedAdapters, HEALTH_NOT_CONNECTED),
+            countByHealth(checkedAdapters, HEALTH_MISCONFIGURED),
+            checkedAt,
+            items
+        );
     }
 
     /**
@@ -559,12 +581,32 @@ public class IntegrationService {
         }
     }
 
+    private IntegrationAdapter checkedAdapterHealth(IntegrationAdapter adapter, Instant checkedAt) {
+        // 无真实外部连接器：配置合法只能标 NOT_CONNECTED（外部可达性未知），不得伪造 HEALTHY；
+        // 不记录伪造网络 RTT（0 表示未做真实探活）。
+        String healthStatus = isConfigJsonValid(adapter.configJson()) ? HEALTH_NOT_CONNECTED : HEALTH_MISCONFIGURED;
+        return adapter.withHealthCheck(healthStatus, 0L, checkedAt);
+    }
+
     private AdapterHealthItemDto toHealthItem(IntegrationAdapter adapter) {
         return new AdapterHealthItemDto(
             adapter.adapterId(),
             adapter.name(),
             adapter.protocolType(),
             adapter.status(),
+            adapter.healthStatus(),
+            adapter.rttMs(),
+            adapter.lastHeartbeatAt(),
+            healthMessage(adapter.healthStatus())
+        );
+    }
+
+    private IntegrationHealthProbeItemDto toHealthProbeItem(IntegrationAdapter adapter) {
+        return new IntegrationHealthProbeItemDto(
+            adapter.tenantId(),
+            adapter.adapterId(),
+            adapter.name(),
+            adapter.protocolType(),
             adapter.healthStatus(),
             adapter.rttMs(),
             adapter.lastHeartbeatAt(),

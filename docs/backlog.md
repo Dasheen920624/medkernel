@@ -167,7 +167,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | PKG-01 | 包发布引擎 | 导入/导出/校验/灰度/全量/同步/回滚/真实证据（无通道返回 NOT_SYNCED 不伪造）| 6d | done |
 | SYS-04 | 版本继承与发布框架 | 资产不可变 + 组织继承 + 灰度 + 回滚 + 历史重放 | 5d | done |
 | SYS-08 | 权威知识版本解析与原子替换框架 | 唯一有效约束 + 替代链 + 紧急失效 + 影响病例任务 | 5d | done |
-| INTEG-01 | 第三方对接总线 | 适配器目录 + FHIR/CDS Hooks 风格门面 + Webhook 签名 + 字段映射 + 健康检查 + 重试死信 | 6d | pending |
+| INTEG-01 | 第三方对接总线 | 适配器目录 + FHIR/CDS Hooks 风格门面 + Webhook 签名 + 字段映射 + 健康检查 + 重试死信 | 6d | done |
 | INTEG-02 | 第三方接口文档与契约模板 | 接入概览 + OpenAPI + 字段映射 + 鉴权 + 幂等 + 回调 + 降级 + 审计 | 3d | pending |
 | MED-C2 | 规则 DSL 补临床算子 | between/unit_compare 单位换算/temporal 时间窗·连续次数/derived 受控算术 eGFR/CrCl/BSA | 5d | pending |
 | OPT-01 | 标准临床模型与 FHIR R4/R5 门面 | Patient/Encounter/Condition/Observation/Medication/Procedure/CarePlan/ServiceRequest/DiagnosticReport/DocumentReference | 6d | pending |

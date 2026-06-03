@@ -104,4 +104,48 @@ class SystemConfigServiceTest {
         assertThat(backup.source()).isEqualTo("SAFE_DEFAULT");
         assertThat(backup.warning()).contains("配置中心读取失败").contains("安全默认");
     }
+
+    @Test
+    void runtimeIntegrationHealthProbeIntervalReadsConfigCenterAndFallsBackSafely() {
+        IntegrationHealthProbeSettings settings = () -> 300_000L;
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
+                "45000",
+                "INTEGER",
+                "第三方适配器周期探活间隔",
+                "MEDIUM",
+                "信息科 / 集成组",
+                "控制第三方适配器周期健康探测间隔。",
+                "API",
+                false,
+                true,
+                3,
+                null)));
+
+        assertThat(service.runtimeIntegrationHealthProbeIntervalMs(settings)).isEqualTo(45_000L);
+
+        when(repository.findActive(
+            SystemConfigService.SYSTEM_TENANT,
+            SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY))
+            .thenReturn(Optional.of(new SystemConfigItem(
+                SystemConfigService.SYSTEM_TENANT,
+                SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
+                "not-a-number",
+                "INTEGER",
+                "第三方适配器周期探活间隔",
+                "MEDIUM",
+                "信息科 / 集成组",
+                "控制第三方适配器周期健康探测间隔。",
+                "API",
+                false,
+                true,
+                4,
+                null)));
+
+        assertThat(service.runtimeIntegrationHealthProbeIntervalMs(settings)).isEqualTo(300_000L);
+    }
 }

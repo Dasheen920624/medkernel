@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.integration.domain.*;
 import com.medkernel.engine.integration.dto.*;
 import com.medkernel.engine.integration.repository.*;
+import com.medkernel.engine.integration.service.IntegrationAdapterHealthProbeWorker;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.shared.api.error.ApiException;
 
@@ -32,6 +33,9 @@ class IntegrationServiceTest {
 
     @Autowired
     private IntegrationService service;
+
+    @Autowired
+    private IntegrationAdapterHealthProbeWorker healthProbeWorker;
 
     @Autowired
     private IntegrationAdapterRepository adapterRepository;
@@ -139,6 +143,40 @@ class IntegrationServiceTest {
         service.createAdapter(tenantId, new AdapterCreateDto("adp-bad", "坏配置", "REST", "{not-json"));
         IntegrationAdapter badCheck = service.checkAdapterHealth(tenantId, "adp-bad");
         assertEquals("MISCONFIGURED", badCheck.healthStatus());
+    }
+
+    @Test
+    void periodicHealthProbeScansActiveAdaptersAcrossTenantsWithoutFakingHealthy() {
+        service.createAdapter(tenantId,
+            new AdapterCreateDto("his-periodic", "一院 HIS", "HL7", "{\"host\":\"his.local\"}"));
+        service.createAdapter(tenantId,
+            new AdapterCreateDto("lis-periodic-bad", "一院 LIS 坏配置", "REST", "{bad-json"));
+        service.createAdapter("tenant-002",
+            new AdapterCreateDto("emr-periodic", "二院 EMR", "FHIR", "{\"baseUrl\":\"http://emr.local\"}"));
+        service.createAdapter("tenant-002",
+            new AdapterCreateDto("pacs-suspended", "二院 PACS 暂停", "DICOM", "{bad-json"));
+        service.updateAdapter("tenant-002", "pacs-suspended",
+            new AdapterUpdateDto("二院 PACS 暂停", "DICOM", "{bad-json", "SUSPENDED"));
+
+        IntegrationHealthProbeResultDto result = healthProbeWorker.probeOnce();
+
+        assertEquals(3, result.total());
+        assertEquals(0, result.healthy());
+        assertEquals(2, result.notConnected());
+        assertEquals(1, result.misconfigured());
+        assertEquals(3, result.adapters().size());
+        assertTrue(result.adapters().stream().anyMatch(item ->
+            "tenant-001".equals(item.tenantId()) && "his-periodic".equals(item.adapterId())));
+        assertTrue(result.adapters().stream().anyMatch(item ->
+            "tenant-002".equals(item.tenantId()) && "emr-periodic".equals(item.adapterId())));
+        assertTrue(result.adapters().stream().noneMatch(item -> "pacs-suspended".equals(item.adapterId())));
+        assertTrue(result.adapters().stream().allMatch(item -> item.lastHeartbeatAt() != null));
+        assertTrue(result.adapters().stream().allMatch(item -> item.rttMs() == 0L));
+        assertTrue(result.adapters().stream().noneMatch(item -> "HEALTHY".equals(item.healthStatus())));
+        IntegrationAdapter suspended = adapterRepository.findByAdapterIdAndTenantId("pacs-suspended", "tenant-002")
+            .orElseThrow();
+        assertNull(suspended.lastHeartbeatAt(), "暂停适配器不应被周期探活改写心跳");
+        assertEquals("NOT_CONNECTED", suspended.healthStatus(), "暂停适配器不应因坏配置被周期任务改为 MISCONFIGURED");
     }
 
     @Test
