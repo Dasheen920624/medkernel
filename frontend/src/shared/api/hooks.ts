@@ -2492,6 +2492,33 @@ export function useContextSnapshots(
   });
 }
 
+export interface ContextFieldDescriptor {
+  resourceType: string;
+  fieldPath: string;
+  displayName: string;
+  dataType: string;
+  unit?: string | null;
+  description?: string | null;
+}
+
+/** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
+export function useContextFieldCatalog(
+  params?: { resourceType?: string; keyword?: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ["context", "field-catalog", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ContextFieldDescriptor[] }>(
+        "/engine/context/field-catalog",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useContextSnapshotDetail(
   snapshotId: string,
   options?: {
