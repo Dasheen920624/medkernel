@@ -30,11 +30,33 @@ final class FhirTerminologyMapper {
                                                String display,
                                                String sourceRecordId,
                                                String mappedVersion) {
-        String targetDictionary = targetDictionaryForObservation(codeSystem);
-        ClinicalCodeMappingAnchor anchor = new ClinicalCodeMappingAnchor(
+        return mapCode(
+            tenantId,
             CanonicalResourceType.OBSERVATION,
             observationId,
             "code",
+            codeSystem,
+            code,
+            display,
+            targetDictionaryForObservation(codeSystem),
+            sourceRecordId,
+            mappedVersion);
+    }
+
+    FhirCodingMappingResult mapCode(String tenantId,
+                                    CanonicalResourceType resourceType,
+                                    String resourceId,
+                                    String fieldName,
+                                    String codeSystem,
+                                    String code,
+                                    String display,
+                                    String targetDictionary,
+                                    String sourceRecordId,
+                                    String mappedVersion) {
+        ClinicalCodeMappingAnchor anchor = new ClinicalCodeMappingAnchor(
+            resourceType,
+            resourceId,
+            fieldName,
             code,
             normalizeCodeSystem(codeSystem),
             display,

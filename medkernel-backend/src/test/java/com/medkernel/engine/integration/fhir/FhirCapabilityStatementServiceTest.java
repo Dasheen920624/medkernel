@@ -14,40 +14,64 @@ class FhirCapabilityStatementServiceTest {
     private final FhirCapabilityStatementService service = new FhirCapabilityStatementService(json);
 
     @Test
-    void declaresR4AndR5MappingSurfaceWithoutOpeningUnsafeRuntimeCreates() {
+    void declaresR4AndR5MappingSurfaceForPr4CanonicalResourcesWithoutRuntimeInteractions() {
         JsonNode r4 = service.mappingCapability(FhirVersion.R4);
         JsonNode r5 = service.mappingCapability(FhirVersion.R5);
 
         assertThat(r4.path("resourceType").asText()).isEqualTo("CapabilityStatement");
+        assertThat(r4.path("software").path("version").asText()).isEqualTo("OPT-01-PR4");
         assertThat(r4.path("fhirVersion").asText()).isEqualTo("4.0.1");
         assertThat(r5.path("fhirVersion").asText()).isEqualTo("5.0.0");
         assertThat(r4.path("status").asText()).isEqualTo("active");
         assertThat(r4.path("kind").asText()).isEqualTo("capability");
         assertThat(r4.path("format")).anySatisfy(format -> assertThat(format.asText()).isEqualTo("json"));
         assertThat(r4.path("implementation").path("description").asText())
-            .contains("OPT-01 PR2", "PR3");
+            .contains("OPT-01 PR4", "确定性映射", "医师确认");
 
         JsonNode resources = r4.path("rest").get(0).path("resource");
-        assertThat(resourceTypes(resources)).containsExactly("Patient", "Observation");
-        assertThat(mappingDirection(resources, "Patient")).isEqualTo("OUTBOUND");
-        assertThat(mappingDirection(resources, "Observation")).isEqualTo("INBOUND");
+        assertThat(resourceTypes(resources)).contains(
+            "Patient",
+            "Encounter",
+            "Condition",
+            "Observation",
+            "Medication",
+            "Procedure",
+            "CarePlan",
+            "DiagnosticReport",
+            "DocumentReference"
+        );
+        assertThat(mappingDirection(resources, "Patient")).isEqualTo("BIDIRECTIONAL");
+        assertThat(mappingDirection(resources, "Observation")).isEqualTo("BIDIRECTIONAL");
         assertThat(interactions(resources)).doesNotContain("create");
     }
 
     @Test
-    void declaresPr3RuntimeSurfaceWithoutClaimingUnsupportedTenResources() {
+    void declaresPr4RuntimeSurfaceForTenCoreResources() {
         JsonNode statement = service.runtimeCapability(FhirVersion.R4);
 
-        assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01-PR3");
+        assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01-PR4");
         assertThat(statement.path("implementation").path("description").asText())
-            .contains("Observation create", "医师确认", "NOT_CONNECTED");
+            .contains("10 类核心 FHIR 资源", "read", "search", "create", "医师确认", "NOT_CONNECTED");
         JsonNode resources = statement.path("rest").get(0).path("resource");
-        assertThat(resourceTypes(resources)).containsExactly("Observation", "MedicationRequest", "ServiceRequest");
-        assertThat(interactionsFor(resources, "Observation")).containsExactly("create");
-        assertThat(interactionsFor(resources, "MedicationRequest")).containsExactly("create");
-        assertThat(interactionsFor(resources, "ServiceRequest")).containsExactly("create");
-        assertThat(resourceTypes(resources)).doesNotContain("Condition", "DiagnosticReport", "DocumentReference");
-        assertThat(documentationFor(resources, "MedicationRequest")).contains("医师确认").contains("不自动写医嘱");
+        assertThat(resourceTypes(resources)).contains(
+            "Patient",
+            "Encounter",
+            "Condition",
+            "Observation",
+            "Medication",
+            "Procedure",
+            "CarePlan",
+            "ServiceRequest",
+            "DiagnosticReport",
+            "DocumentReference"
+        );
+        assertThat(interactionsFor(resources, "Patient")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "Condition")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "Observation")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "DiagnosticReport")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "DocumentReference")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "ServiceRequest")).containsExactly("read", "search", "create");
+        assertThat(documentationFor(resources, "ServiceRequest")).contains("医师确认").contains("不自动写申请单");
     }
 
     private static Iterable<String> resourceTypes(JsonNode resources) {

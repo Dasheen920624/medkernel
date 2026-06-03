@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceRepository;
+import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.ClinicalEventRequest;
 import com.medkernel.engine.context.ClinicalEventService;
 import com.medkernel.engine.context.ClinicalEventType;
@@ -102,16 +103,73 @@ public class FhirFacadeService {
         return capabilities.runtimeCapability(version);
     }
 
+    @Transactional(readOnly = true)
+    public FhirFacadeResponse read(FhirFacadeReadCommand command) {
+        String tenantId = currentTenant();
+        String resourceType = canonicalResourceType(command.resourceType(), null);
+        if (command.id() == null || command.id().isBlank()) {
+            return error(HttpStatus.BAD_REQUEST, "invalid", "FHIR " + resourceType + ".id 不能为空");
+        }
+
+        SecurityDecision security = verifyAdapterAccess(tenantId, command.adapterId(), command.sourceIp());
+        if (!security.allowed()) {
+            return error(security.status(), security.code(), security.message());
+        }
+
+        Optional<FhirResourceMapping> mapping = mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
+            tenantId, command.version(), resourceType, command.id());
+        if (mapping.isEmpty()) {
+            return error(HttpStatus.NOT_FOUND, "not-found", "FHIR " + resourceType + "/" + command.id() + " 未建立标准资源映射");
+        }
+
+        Optional<CanonicalResource> canonical = resources.findById(mapping.get().canonicalResourceId())
+            .filter(resource -> tenantId.equals(resource.tenantId()));
+        if (canonical.isEmpty()) {
+            return error(HttpStatus.NOT_FOUND, "not-found", "FHIR 映射指向的标准资源不存在或不属于当前租户");
+        }
+        return new FhirFacadeResponse(HttpStatus.OK,
+            toFhir(command.version(), canonical.get(), mapping.get().fhirResourceType()).resource());
+    }
+
+    @Transactional(readOnly = true)
+    public FhirFacadeResponse search(FhirFacadeSearchCommand command) {
+        String tenantId = currentTenant();
+        String resourceType = canonicalResourceType(command.resourceType(), null);
+        SecurityDecision security = verifyAdapterAccess(tenantId, command.adapterId(), command.sourceIp());
+        if (!security.allowed()) {
+            return error(security.status(), security.code(), security.message());
+        }
+
+        ArrayNode entries = json.createArrayNode();
+        for (FhirResourceMapping mapping : mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeOrderByCreatedAtDesc(
+            tenantId, command.version(), resourceType)) {
+            resources.findById(mapping.canonicalResourceId())
+                .filter(resource -> tenantId.equals(resource.tenantId()))
+                .ifPresent(resource -> {
+                    ObjectNode entry = json.createObjectNode();
+                    entry.set("resource", toFhir(command.version(), resource, mapping.fhirResourceType()).resource());
+                    entries.add(entry);
+                });
+        }
+
+        ObjectNode bundle = json.createObjectNode();
+        bundle.put("resourceType", "Bundle");
+        bundle.put("type", "searchset");
+        bundle.put("total", entries.size());
+        bundle.set("entry", entries);
+        return new FhirFacadeResponse(HttpStatus.OK, bundle);
+    }
+
     @Transactional
     public FhirFacadeResponse create(FhirFacadeCreateCommand command) {
         String tenantId = currentTenant();
-        String resourceType = canonicalResourceType(command);
+        String resourceType = canonicalResourceType(command.resourceType(), command.resource());
         String fhirId = text(command.resource().path("id"));
         if (fhirId.isBlank()) {
             return error(HttpStatus.BAD_REQUEST, "invalid", "FHIR " + resourceType + ".id 不能为空");
         }
 
-        SecurityDecision security = verifySecurity(tenantId, command);
+        SecurityDecision security = verifyCreateSecurity(tenantId, command);
         if (!security.allowed()) {
             return error(security.status(), security.code(), security.message());
         }
@@ -119,24 +177,21 @@ public class FhirFacadeService {
         if (isHighRiskWrite(resourceType)) {
             return createPhysicianConfirmationTask(command, security.adapter(), resourceType, fhirId);
         }
-        if (!"Observation".equals(resourceType)) {
-            return error(HttpStatus.BAD_REQUEST, "not-supported",
-                "OPT-01 PR3 运行门面暂未开放该 FHIR create 资源: " + resourceType);
-        }
 
-        return createObservation(tenantId, command, security.adapter(), fhirId);
+        return createStandardResource(tenantId, command, security.adapter(), resourceType, fhirId);
     }
 
-    private FhirFacadeResponse createObservation(String tenantId,
-                                                 FhirFacadeCreateCommand command,
-                                                 IntegrationAdapter adapter,
-                                                 String fhirId) {
-        String snapshotId = firstNonBlank(command.snapshotId(), stableId(command.version(), "Observation", fhirId));
+    private FhirFacadeResponse createStandardResource(String tenantId,
+                                                      FhirFacadeCreateCommand command,
+                                                      IntegrationAdapter adapter,
+                                                      String resourceType,
+                                                      String fhirId) {
+        String snapshotId = firstNonBlank(command.snapshotId(), stableId(command.version(), resourceType, fhirId));
         String traceId = RequestContext.currentTraceId();
         String patientId;
         String encounterId;
         try {
-            patientId = patientId(command.resource());
+            patientId = patientId(resourceType, command.resource());
             encounterId = encounterId(command.resource());
         } catch (IllegalArgumentException ex) {
             return error(HttpStatus.BAD_REQUEST, "invalid", ex.getMessage());
@@ -144,14 +199,14 @@ public class FhirFacadeService {
         String packageVersion = firstNonBlank(command.packageVersion(), fhirConfig(adapter).defaultPackageVersion());
         if (packageVersion.isBlank()) {
             return error(HttpStatus.BAD_REQUEST, "invalid",
-                "FHIR Observation create 必须提供 packageVersion 或适配器默认包版本");
+                "FHIR " + resourceType + " create 必须提供 packageVersion 或适配器默认包版本");
         }
         Optional<FhirResourceMapping> existing = mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
-            tenantId, command.version(), "Observation", fhirId);
+            tenantId, command.version(), resourceType, fhirId);
         if (existing.isPresent()) {
             ObjectNode idempotent = outcome(List.of(new FhirOperationOutcomeIssue(
                 "information", "informational",
-                "FHIR Observation create 已按幂等键返回既有映射，不重复写入")));
+                "FHIR " + resourceType + " create 已按幂等键返回既有映射，不重复写入")));
             idempotent.put("idempotentReplay", true);
             idempotent.put("mappingId", String.valueOf(existing.get().id()));
             return new FhirFacadeResponse(HttpStatus.OK, idempotent);
@@ -166,13 +221,13 @@ public class FhirFacadeService {
         }
 
         CanonicalResource saved = resources.save(withStableResourceId(
-            mapped.resource(), stableId(command.version(), "Observation", fhirId), snapshotId));
+            mapped.resource(), stableId(command.version(), resourceType, fhirId), snapshotId));
         FhirResourceMapping mapping = mappings.save(new FhirResourceMapping(
             null,
             tenantId,
             orgPath(RequestContext.currentOrgScope()),
             command.version(),
-            "Observation",
+            resourceType,
             fhirId,
             saved.id(),
             saved.resourceType(),
@@ -187,8 +242,8 @@ public class FhirFacadeService {
         ));
 
         events.receiveAsync(new ClinicalEventRequest(
-            "evt-" + stableId(command.version(), "Observation", fhirId),
-            ClinicalEventType.REPORT,
+            "evt-" + stableId(command.version(), resourceType, fhirId),
+            eventTypeFor(saved.resourceType()),
             patientId,
             encounterId,
             "FHIR_" + command.version().name(),
@@ -197,19 +252,19 @@ public class FhirFacadeService {
             mapped.resource().eventTime() == null ? Instant.now() : mapped.resource().eventTime()));
 
         IntegrationOutboundResultDto outbound = integration.enqueueOutboundMessage(tenantId, new IntegrationOutboundRequestDto(
-            stableId(command.version(), "Observation", fhirId),
+            stableId(command.version(), resourceType, fhirId),
             traceId,
             adapter.adapterId(),
             adapter.name(),
             PROTOCOL_FHIR,
-            "FHIR Observation create 已回流标准引擎并登记外部补偿",
+            "FHIR " + resourceType + " create 已回流标准引擎并登记外部补偿",
             outboundPayload(saved, mapping, command),
             3
         ));
 
         ObjectNode body = outcome(merge(mapped.issues(), new FhirOperationOutcomeIssue(
             "information", "informational",
-            "FHIR Observation 已保存为标准资源并进入临床事件引擎；总线状态 " + outbound.status())));
+            "FHIR " + resourceType + " 已保存为标准资源并进入临床事件引擎；总线状态 " + outbound.status())));
         body.put("canonicalResourceId", String.valueOf(saved.id()));
         body.put("fhirMappingId", String.valueOf(mapping.id()));
         body.put("integrationStatus", outbound.status());
@@ -222,7 +277,7 @@ public class FhirFacadeService {
                                                                String resourceType,
                                                                String fhirId) {
         try {
-            patientId(command.resource());
+            patientId(resourceType, command.resource());
         } catch (IllegalArgumentException ex) {
             return error(HttpStatus.BAD_REQUEST, "invalid", ex.getMessage());
         }
@@ -244,15 +299,37 @@ public class FhirFacadeService {
         return new FhirFacadeResponse(HttpStatus.ACCEPTED, body);
     }
 
-    private SecurityDecision verifySecurity(String tenantId, FhirFacadeCreateCommand command) {
-        if (command.adapterId() == null || command.adapterId().isBlank()) {
+    private SecurityDecision verifyCreateSecurity(String tenantId, FhirFacadeCreateCommand command) {
+        SecurityDecision access = verifyAdapterAccess(tenantId, command.adapterId(), command.sourceIp());
+        if (!access.allowed()) {
+            return access;
+        }
+        FhirAdapterConfig config = fhirConfig(access.adapter());
+        if (!freshTimestamp(command.timestamp())) {
+            return SecurityDecision.denied(HttpStatus.UNAUTHORIZED, "security",
+                "FHIR 签名时间戳缺失或已过期");
+        }
+        String secretKey = signatureSecretKey(tenantId, config);
+        if (secretKey.isBlank()) {
+            return SecurityDecision.denied(HttpStatus.SERVICE_UNAVAILABLE, "not-connected",
+                "FHIR 适配器签名密钥引用不存在，状态 " + STATUS_NOT_CONNECTED);
+        }
+        if (!signatureValid(command.timestamp(), command.signature(), command.resource(), secretKey)) {
+            return SecurityDecision.denied(HttpStatus.UNAUTHORIZED, "security",
+                "FHIR 消息签名校验失败");
+        }
+        return access;
+    }
+
+    private SecurityDecision verifyAdapterAccess(String tenantId, String adapterId, String sourceIp) {
+        if (adapterId == null || adapterId.isBlank()) {
             return SecurityDecision.denied(HttpStatus.SERVICE_UNAVAILABLE, "not-connected",
                 "FHIR 适配器未指定，状态 " + STATUS_NOT_CONNECTED);
         }
-        Optional<IntegrationAdapter> adapter = adapters.findByAdapterIdAndTenantId(command.adapterId(), tenantId);
+        Optional<IntegrationAdapter> adapter = adapters.findByAdapterIdAndTenantId(adapterId, tenantId);
         if (adapter.isEmpty()) {
             return SecurityDecision.denied(HttpStatus.SERVICE_UNAVAILABLE, "not-connected",
-                "FHIR 适配器不存在: " + command.adapterId() + "，状态 " + STATUS_NOT_CONNECTED);
+                "FHIR 适配器不存在: " + adapterId + "，状态 " + STATUS_NOT_CONNECTED);
         }
         IntegrationAdapter found = adapter.get();
         if (!ACTIVE.equals(found.status()) || !PROTOCOL_FHIR.equalsIgnoreCase(found.protocolType())) {
@@ -270,22 +347,9 @@ public class FhirFacadeService {
                 "FHIR 门面已关闭，状态 " + STATUS_NOT_CONNECTED);
         }
         if (!config.allowedSourceIps().isEmpty()
-            && (command.sourceIp() == null || !config.allowedSourceIps().contains(command.sourceIp()))) {
+            && (sourceIp == null || !config.allowedSourceIps().contains(sourceIp))) {
             return SecurityDecision.denied(HttpStatus.FORBIDDEN, "forbidden",
                 "FHIR 来源 IP 不在白名单内");
-        }
-        if (!freshTimestamp(command.timestamp())) {
-            return SecurityDecision.denied(HttpStatus.UNAUTHORIZED, "security",
-                "FHIR 签名时间戳缺失或已过期");
-        }
-        String secretKey = signatureSecretKey(tenantId, config);
-        if (secretKey.isBlank()) {
-            return SecurityDecision.denied(HttpStatus.SERVICE_UNAVAILABLE, "not-connected",
-                "FHIR 适配器签名密钥引用不存在，状态 " + STATUS_NOT_CONNECTED);
-        }
-        if (!signatureValid(command.timestamp(), command.signature(), command.resource(), secretKey)) {
-            return SecurityDecision.denied(HttpStatus.UNAUTHORIZED, "security",
-                "FHIR 消息签名校验失败");
         }
         return SecurityDecision.allowed(found);
     }
@@ -330,6 +394,15 @@ public class FhirFacadeService {
         };
     }
 
+    private FhirResourceMappingResult toFhir(FhirVersion version,
+                                             CanonicalResource canonical,
+                                             String requestedResourceType) {
+        return switch (version) {
+            case R4 -> r4Mapper.toR4(canonical, requestedResourceType);
+            case R5 -> r5Mapper.toR5(canonical, requestedResourceType);
+        };
+    }
+
     private ObjectNode eventPayload(CanonicalResource saved, FhirResourceMapping mapping, FhirFacadeCreateCommand command) {
         ObjectNode payload = json.createObjectNode();
         payload.put("source", "FHIR");
@@ -366,7 +439,7 @@ public class FhirFacadeService {
         payload.put("fhirVersion", command.version().name());
         payload.put("fhirResourceType", resourceType);
         payload.put("fhirId", fhirId);
-        payload.put("patientId", patientId(command.resource()));
+        payload.put("patientId", patientId(resourceType, command.resource()));
         payload.put("policy", "PHYSICIAN_CONFIRMATION_REQUIRED");
         payload.put("safety", "不自动写医嘱/病历/申请单");
         payload.set("resource", command.resource().deepCopy());
@@ -380,7 +453,15 @@ public class FhirFacadeService {
             .orElse("");
     }
 
-    private String patientId(JsonNode resource) {
+    private String patientId(String resourceType, JsonNode resource) {
+        if ("Patient".equals(resourceType)) {
+            String identifier = firstIdentifier(resource.path("identifier"));
+            String id = text(resource.path("id"));
+            String patient = firstNonBlank(identifier, id);
+            if (!patient.isBlank()) {
+                return patient;
+            }
+        }
         String reference = text(resource.path("subject").path("reference"));
         if (reference.startsWith("Patient/")) {
             String patient = reference.substring("Patient/".length());
@@ -392,12 +473,28 @@ public class FhirFacadeService {
         if (!identifier.isBlank()) {
             return identifier;
         }
-        throw new IllegalArgumentException("FHIR create 必须携带 subject.reference=Patient/<mpi> 或 subject.identifier.value");
+        String patientReference = text(resource.path("patient").path("reference"));
+        if (patientReference.startsWith("Patient/")) {
+            String patient = patientReference.substring("Patient/".length());
+            if (!patient.isBlank()) {
+                return patient;
+            }
+        }
+        String extensionPatient = patientContextFromExtension(resource.path("extension"));
+        if (!extensionPatient.isBlank()) {
+            return extensionPatient;
+        }
+        throw new IllegalArgumentException("FHIR " + resourceType
+            + " create 必须携带患者上下文：subject.reference=Patient/<mpi>、subject.identifier.value 或 Patient.id");
     }
 
     private String encounterId(JsonNode resource) {
         String reference = text(resource.path("encounter").path("reference"));
-        return reference.startsWith("Encounter/") ? reference.substring("Encounter/".length()) : null;
+        if (reference.startsWith("Encounter/")) {
+            return reference.substring("Encounter/".length());
+        }
+        String context = text(resource.path("context").path("reference"));
+        return context.startsWith("Encounter/") ? context.substring("Encounter/".length()) : null;
     }
 
     private CanonicalResource withStableResourceId(CanonicalResource resource, String resourceId, String snapshotId) {
@@ -523,10 +620,31 @@ public class FhirFacadeService {
             nonNull(scope.specialtyId()));
     }
 
-    private String canonicalResourceType(FhirFacadeCreateCommand command) {
-        String type = firstNonBlank(command.resourceType(), text(command.resource().path("resourceType")));
+    private ClinicalEventType eventTypeFor(CanonicalResourceType resourceType) {
+        return switch (resourceType) {
+            case PATIENT, ENCOUNTER -> ClinicalEventType.ADMISSION;
+            case CONDITION -> ClinicalEventType.DIAGNOSIS;
+            case OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT -> ClinicalEventType.REPORT;
+            case MEDICATION, PROCEDURE, CARE_PLAN -> ClinicalEventType.ORDER;
+            case FOLLOW_UP -> ClinicalEventType.FOLLOWUP;
+            case NURSING_ASSESSMENT, CLAIM -> ClinicalEventType.REPORT;
+        };
+    }
+
+    private String canonicalResourceType(String requestedResourceType, JsonNode resource) {
+        String type = firstNonBlank(requestedResourceType, resource == null ? "" : text(resource.path("resourceType")));
         return switch (type) {
-            case "Observation", "MedicationRequest", "ServiceRequest" -> type;
+            case "Patient",
+                 "Encounter",
+                 "Condition",
+                 "Observation",
+                 "Medication",
+                 "Procedure",
+                 "CarePlan",
+                 "ServiceRequest",
+                 "MedicationRequest",
+                 "DiagnosticReport",
+                 "DocumentReference" -> type;
             default -> type;
         };
     }
@@ -550,6 +668,38 @@ public class FhirFacadeService {
 
     private String text(JsonNode node) {
         return node == null || node.isMissingNode() || node.isNull() ? "" : node.asText("");
+    }
+
+    private String firstIdentifier(JsonNode identifiers) {
+        if (identifiers instanceof ArrayNode array && !array.isEmpty()) {
+            return text(array.get(0).path("value"));
+        }
+        return "";
+    }
+
+    private String patientContextFromExtension(JsonNode extensions) {
+        if (!(extensions instanceof ArrayNode array)) {
+            return "";
+        }
+        for (JsonNode extension : array) {
+            String url = text(extension.path("url"));
+            if (!"urn:medkernel:patient".equals(url)) {
+                continue;
+            }
+            String reference = text(extension.path("valueReference").path("reference"));
+            if (reference.startsWith("Patient/")) {
+                return reference.substring("Patient/".length());
+            }
+            String identifier = text(extension.path("valueIdentifier").path("value"));
+            if (!identifier.isBlank()) {
+                return identifier;
+            }
+            String value = text(extension.path("valueString"));
+            if (!value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private record FhirAdapterConfig(
