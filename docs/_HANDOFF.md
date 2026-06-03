@@ -20,6 +20,19 @@
 - 下一步（精确到动作/命令）：1. 推送 `codex/d2-svc-pilot-03`、创建 PR；2. 等远端 CI 8/8；3. squash 合并、fast-forward main、清理 worktree；4. 从 backlog 领取下一张 pending 卡 `SVC-INTEGRATION-01`，open deferred 项只登记不阻塞。
 - 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/pkg/*PilotPackage*`、`PackageEngineService`、`PackageEngineController`、V65 五方言迁移、`frontend/src/pages/tenant/ConfigPackages.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D2/SVC-PILOT-03.md`。首发模板不写假 seed，必须由真实导入 / 配置产生；当前运行数据库范围只保障 PostgreSQL + Oracle，DM/Kingbase 真实环境仍按 `DEFER-001` 最终适配。
 
+### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
+- 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
+- 工具/分支前缀：Claude Code（本线分支用 `feat/rule-*`、`feat/path-*`）
+- 设计权威：OpenSpec 变更 `openspec/changes/pathway-rule-authoring-overhaul/`（已合并 main，**先读其 `README.md` 导读**）。10 能力规格 · 52 需求 · 9 设计附录（A 文法 / B 数据模型+API / C 场景矩阵 / D 枚举 / E 公式库 / F 前端架构 / G 体验 / H 非功能 / I 集成落地）。
+- 目标：把试点客户「完全不能用」的路径配置 / 规则库整治为简单可配、可表达复杂临床逻辑（嵌套 + 临床算子）、可批量可复用、界面简洁美观、医学可辩护的创作平台。
+- 已完成（均已 squash 合并 origin/main）：
+  - #306 OpenSpec 完整设计入库
+  - #308 递归条件模型内核 `conditionModel.ts`（9 测试）、#309 通用递归条件树组件 `ConditionTreeEditor`（6 测试）、#310 规则 DSL 桥接 `ruleDsl.ts`（6 测试）—— 这三个是早期并行模型，**择机转用于「路径边守卫」可视化**（路径边目前仍是纯文本 JSON，无编辑器），规则线不再用它们。
+  - #312 **原地扩展** `ruleLayeredEditor.ts` 加递归嵌套（`RuleConditionGroup`/`conditionNodeToDsl`/`dslToConditionNode`/`dslWhenToRootGroup`/`flatToRootGroup` + `RuleConditionTree.root?`），**保留全部已上线临床算子（between/unit_compare/temporal/derived），零回归**（5 新测试 + 既有 4 测试全过）。
+- 关键背景（避免重复踩坑）：main 已是含「专家模式 + 临床算子」的截图版本（`121eb6dc`）；现有 `ruleLayeredEditor` 条件模型已很丰富，**唯一缺多层级嵌套**。方向已与用户确认：**原地扩展现有编辑器**，不要用早期并行模型替换（会回退临床算子）。
+- 下一步（精确到动作）：1. **PR-B**：把 `RuleDefinitions.tsx`（2275 行）L2 渲染改递归——把现有 index 基的丰富叶子编辑器（`renderConditionValueEditor` 等，行 ~500-960）改为 id/onChange 基并按 `root` 组递归渲染（+条件 / +子条件组 / all|any / 取反 / 删除组），复用 #312 的序列化；同时修「同步即跳专家模式」（`syncTreeToDsl` 行 474-479 当前强制 `setActiveCreateLayer("l3")`+`setCreateExpertMode(true)`，应改为静默同步不跳）。UI 要简洁美观（缩进卡片、克制留白、清晰层级）。2. 详情 L2（行 ~1410-1440）同样递归只读渲染。3. 更新 `RuleDefinitions.test.tsx` + 加嵌套 RTL 用例。4. 之后 P3 路径引擎（节点自动编码 / 下拉连边 / 校验前移）、P2 字段目录选择器。
+- 相关文件 / 测试 / 坑：`frontend/src/shared/config/ruleLayeredEditor.ts`（已含递归 helpers）、`frontend/src/pages/tenant/RuleDefinitions.tsx`、`RuleDefinitions.test.tsx`；CI 前端门禁＝`prettier --check` + `eslint`(含 `medkernel/no-inline-style`，**禁内联 style，用 CSS Module**) + `stylelint`(**禁 px，用 rem**) + `test:coverage`。已知 flaky：`ConfigPackages.test.tsx` 离线导出用例在覆盖率并发下偶发 XHR AggregateError（单跑稳过），已登记独立修复任务，绿不了时只重跑该 job。
+
 ## 已归档工作线（最近完成，供回溯）
 
 - D2 SVC-PILOT-02 接入与数据质量服务包 ✅（#307，merge `8450b788`）：新增 `mk_mpi_merge_review` / `mk_integration_data_quality_report` 五方言 V64 迁移；高危 MPI 合并先落审核单并返回 `MPI_MERGE_REQUIRES_REVIEW`，人工确认后才合并；AdapterHub 状态与数据质量报告按真实 adapter / MPI / 字段映射事实计算，断连保持 `NOT_CONNECTED`，不伪造达标；前端适配器中心接入服务端状态和质量快照，MPI 页面展示高危审核提示并清理触碰范围旧文案。后端聚焦 / 全量（H2 / PostgreSQL 15.18 / Oracle 21.3 到 v64 并二次 no-op）、前端 verify / audit / build、脚本自测、inventory 门禁、changed-mode T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后合入；远端分支和本地 worktree 已清理。`DEFER-001/002/003/004` 保持 open 不阻塞主线。
