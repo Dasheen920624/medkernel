@@ -22,12 +22,12 @@ public enum OrgLevel {
     SPECIALTY;
 
     /**
-     * 判断当前层级是否允许挂在指定父层级之下。
+     * 判断当前层级是否允许挂在指定直接父层级之下。
      *
      * @param parent 候选父组织层级
-     * @return 父层级在七层树中低于当前层级时返回 {@code true}
+     * @return 父层级是七层树中的直接上一层时返回 {@code true}
      */
     public boolean canHaveParent(OrgLevel parent) {
-        return parent != null && parent.ordinal() < ordinal();
+        return parent != null && parent.ordinal() + 1 == ordinal();
     }
 }

@@ -197,7 +197,7 @@ public class OrgUnitService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "组织父子链不能形成环路");
         }
         if (!unit.level().canHaveParent(parent.level())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "组织父级层级必须低于子级层级");
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级必须是七层树中的直接上一层");
         }
         if (parent.id().equals(unit.parentId())) {
             return unit;
@@ -280,7 +280,7 @@ public class OrgUnitService {
         }
         if (parent == null) {
             if (input.level() != OrgLevel.TENANT) {
-                throw new ApiException(ErrorCode.BAD_REQUEST, "非租户根组织必须指定父级组织");
+                throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "非租户根组织必须指定直接父级组织");
             }
             if (repository.findByTenantIdAndParentIdIsNull(tenantId).isPresent()) {
                 throw new ApiException(ErrorCode.BAD_REQUEST, "同一租户只能存在一个组织根节点");
@@ -288,10 +288,10 @@ public class OrgUnitService {
             return;
         }
         if (input.level() == OrgLevel.TENANT) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "租户根组织不能挂在其他组织之下");
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "租户根组织不能挂在其他组织之下");
         }
         if (!input.level().canHaveParent(parent.level())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "组织父级层级必须低于子级层级");
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级必须是七层树中的直接上一层");
         }
     }
 
