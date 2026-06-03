@@ -59,6 +59,8 @@ public class KnowledgeExportService {
     private final KnowledgeAssetVersionRepository versionRepository;
     private final KnowledgeSupersessionRepository supersessionRepository;
     private final CitationRepository citationRepository;
+    private final KnowledgeInvalidationRepository invalidationRepository;
+    private final AffectedCaseTaskRepository affectedCaseTaskRepository;
     private final ObjectMapper json;
     private final Executor knowledgeExportExecutor;
     private final Path exportDirectory;
@@ -68,6 +70,8 @@ public class KnowledgeExportService {
                                   KnowledgeAssetVersionRepository versionRepository,
                                   KnowledgeSupersessionRepository supersessionRepository,
                                   CitationRepository citationRepository,
+                                  KnowledgeInvalidationRepository invalidationRepository,
+                                  AffectedCaseTaskRepository affectedCaseTaskRepository,
                                   ObjectMapper json,
                                   @Qualifier("knowledgeExportExecutor") Executor knowledgeExportExecutor) {
         this.jobRepository = jobRepository;
@@ -75,6 +79,8 @@ public class KnowledgeExportService {
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
         this.citationRepository = citationRepository;
+        this.invalidationRepository = invalidationRepository;
+        this.affectedCaseTaskRepository = affectedCaseTaskRepository;
         this.json = json;
         this.knowledgeExportExecutor = knowledgeExportExecutor;
         this.exportDirectory = Path.of(System.getProperty("java.io.tmpdir"), "medkernel-knowledge-exports");
@@ -247,6 +253,8 @@ public class KnowledgeExportService {
         count += writeVersions(writer, tenantId);
         count += writePaged(writer, "knowledge_supersession",
             (offset, limit) -> supersessionRepository.pageByTenantId(tenantId, offset, limit));
+        count += writeInvalidations(writer, tenantId);
+        count += writeAffectedCaseTasks(writer, tenantId);
         return count;
     }
 
@@ -257,6 +265,16 @@ public class KnowledgeExportService {
 
     private long writeFullTenant(BufferedWriter writer, String tenantId) throws IOException {
         return writeLineage(writer, tenantId) + writeCitations(writer, tenantId);
+    }
+
+    private long writeInvalidations(BufferedWriter writer, String tenantId) throws IOException {
+        return writePaged(writer, "knowledge_invalidation",
+            (offset, limit) -> invalidationRepository.pageByTenantId(tenantId, offset, limit));
+    }
+
+    private long writeAffectedCaseTasks(BufferedWriter writer, String tenantId) throws IOException {
+        return writePaged(writer, "affected_case_task",
+            (offset, limit) -> affectedCaseTaskRepository.pageByTenantId(tenantId, offset, limit));
     }
 
     private <T> long writePaged(BufferedWriter writer, String recordType, PageFetcher<T> fetcher) throws IOException {

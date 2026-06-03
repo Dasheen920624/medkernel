@@ -1,5 +1,6 @@
 package com.medkernel.engine.knowledge;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +47,8 @@ public class KnowledgeVersionService {
     private final KnowledgeProjectionRefreshPort projectionRefreshPort;
     private final CandidateClassificationRepository candidateClassificationRepository;
     private final ReviewAssignmentRepository reviewAssignmentRepository;
+    private final KnowledgeInvalidationRepository invalidationRepository;
+    private final AffectedCaseTaskRepository affectedCaseTaskRepository;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -54,7 +57,9 @@ public class KnowledgeVersionService {
                                    SourceDocumentRepository sourceDocumentRepository,
                                    KnowledgeProjectionRefreshPort projectionRefreshPort,
                                    CandidateClassificationRepository candidateClassificationRepository,
-                                   ReviewAssignmentRepository reviewAssignmentRepository) {
+                                   ReviewAssignmentRepository reviewAssignmentRepository,
+                                   KnowledgeInvalidationRepository invalidationRepository,
+                                   AffectedCaseTaskRepository affectedCaseTaskRepository) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -63,6 +68,8 @@ public class KnowledgeVersionService {
         this.projectionRefreshPort = projectionRefreshPort;
         this.candidateClassificationRepository = candidateClassificationRepository;
         this.reviewAssignmentRepository = reviewAssignmentRepository;
+        this.invalidationRepository = invalidationRepository;
+        this.affectedCaseTaskRepository = affectedCaseTaskRepository;
     }
 
     public List<KnowledgeAssetVersion> listByIdentity(Long identityId) {
@@ -429,6 +436,12 @@ public class KnowledgeVersionService {
         if (!target.identityId().equals(identityId)) {
             throw new ApiException(ErrorCode.CONFLICT, "版本 " + versionId + " 不属于身份 " + identityId);
         }
+        if (target.status() == KnowledgeVersionStatus.WITHDRAWN && target.isHighRisk()) {
+            throw new ApiException(
+                ErrorCode.ROLLBACK_SAFETY_DENIED,
+                "ROLLBACK_SAFETY_DENIED：被撤回的高风险知识版本禁止一键回滚"
+            );
+        }
         if (target.status() == null || !target.status().isActivatable()) {
             throw new ApiException(ErrorCode.CONFLICT,
                 "版本当前状态 " + target.status() + " 不可激活（需 UNDER_REVIEW、CANDIDATE 或 PENDING_REPLACEMENT_REVIEW）");
@@ -676,8 +689,81 @@ public class KnowledgeVersionService {
             SupersessionType.WITHDRAW, reason.trim(),
             now, actor
         ));
+        KnowledgeInvalidation invalidation = invalidationRepository.save(new KnowledgeInvalidation(
+            null,
+            tenantId,
+            identityId,
+            saved.id(),
+            KnowledgeInvalidationType.EMERGENCY_WITHDRAW,
+            KnowledgeInvalidationStatus.OPEN,
+            saved.riskLevel(),
+            reason.trim(),
+            saved.effectiveOrganizationScope(),
+            saved.effectiveApplicableScope(),
+            actor,
+            now,
+            true,
+            RequestContext.currentTraceId(),
+            now,
+            actor,
+            now,
+            actor
+        ));
+        createAffectedCaseTasks(invalidation, saved, reason.trim(), now, actor);
+        projectionRefreshPort.refreshPublishedVersion(
+            tenantId,
+            identityId,
+            saved.id(),
+            actor,
+            RequestContext.currentTraceId());
 
         return saved;
+    }
+
+    private void createAffectedCaseTasks(KnowledgeInvalidation invalidation, KnowledgeAssetVersion version,
+            String reason, Instant now, String actor) {
+        saveAffectedTask(invalidation, version, AffectedCaseTaskType.PHYSICIAN_REVIEW,
+            AffectedCaseTargetType.KNOWLEDGE_VERSION, "identity:" + version.identityId() + "/version:" + version.id(),
+            reason, now, actor);
+        saveAffectedTask(invalidation, version, AffectedCaseTaskType.PACKAGE_RESYNC,
+            AffectedCaseTargetType.PACKAGE_DEPENDENCY, "package-dependency/version:" + version.id(),
+            reason, now, actor);
+        saveAffectedTask(invalidation, version, AffectedCaseTaskType.SYNC_ALERT,
+            AffectedCaseTargetType.SYNC_TARGET,
+            "sync-target/version:" + version.id() + "/scope:" + version.activeScopeKeyForActiveStatus(),
+            reason, now, actor);
+    }
+
+    private void saveAffectedTask(KnowledgeInvalidation invalidation, KnowledgeAssetVersion version,
+            AffectedCaseTaskType taskType, AffectedCaseTargetType targetType, String targetRef,
+            String reason, Instant now, String actor) {
+        String taskKey = affectedTaskKey(invalidation, taskType, targetRef);
+        affectedCaseTaskRepository.findByTenantIdAndTaskKey(version.tenantId(), taskKey)
+            .orElseGet(() -> affectedCaseTaskRepository.save(new AffectedCaseTask(
+                null,
+                version.tenantId(),
+                taskKey,
+                invalidation.id(),
+                version.identityId(),
+                version.id(),
+                taskType,
+                AffectedCaseTaskStatus.OPEN,
+                targetType,
+                targetRef,
+                reason,
+                now.plus(Duration.ofDays(1)),
+                actor,
+                RequestContext.currentTraceId(),
+                now,
+                actor,
+                now,
+                actor
+            )));
+    }
+
+    private String affectedTaskKey(KnowledgeInvalidation invalidation, AffectedCaseTaskType taskType, String targetRef) {
+        String invalidationPart = invalidation.id() == null ? "pending" : String.valueOf(invalidation.id());
+        return "knowledge-invalidation:" + invalidationPart + ":" + taskType + ":" + targetRef;
     }
 
     private String requireCurrentTenant() {

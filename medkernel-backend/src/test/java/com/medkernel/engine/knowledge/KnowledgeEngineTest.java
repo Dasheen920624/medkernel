@@ -46,6 +46,8 @@ class KnowledgeEngineTest {
     private KnowledgeProjectionRefreshPort projectionRefreshPort;
     private CandidateClassificationRepository candidateClassificationRepo;
     private ReviewAssignmentRepository reviewAssignmentRepo;
+    private KnowledgeInvalidationRepository invalidationRepo;
+    private AffectedCaseTaskRepository affectedCaseTaskRepo;
 
     private KnowledgeIdentityService identityService;
     private KnowledgeVersionService versionService;
@@ -62,6 +64,8 @@ class KnowledgeEngineTest {
         projectionRefreshPort = Mockito.mock(KnowledgeProjectionRefreshPort.class);
         candidateClassificationRepo = Mockito.mock(CandidateClassificationRepository.class);
         reviewAssignmentRepo = Mockito.mock(ReviewAssignmentRepository.class);
+        invalidationRepo = Mockito.mock(KnowledgeInvalidationRepository.class);
+        affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
 
         identityService = new KnowledgeIdentityService(
             identityRepo, versionRepo, supersessionRepo, sourceDocRepo, sourceVerRepo, sourceFragRepo, citationRepo
@@ -69,7 +73,7 @@ class KnowledgeEngineTest {
 
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, projectionRefreshPort,
-            candidateClassificationRepo, reviewAssignmentRepo
+            candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo
         );
 
         // 初始化租户与用户上下文环境

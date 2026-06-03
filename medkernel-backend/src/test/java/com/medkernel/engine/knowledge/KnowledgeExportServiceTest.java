@@ -33,6 +33,8 @@ class KnowledgeExportServiceTest {
     private KnowledgeAssetVersionRepository versionRepo;
     private KnowledgeSupersessionRepository supersessionRepo;
     private CitationRepository citationRepo;
+    private KnowledgeInvalidationRepository invalidationRepo;
+    private AffectedCaseTaskRepository affectedCaseTaskRepo;
     private KnowledgeExportService service;
 
     @BeforeEach
@@ -42,8 +44,10 @@ class KnowledgeExportServiceTest {
         versionRepo = Mockito.mock(KnowledgeAssetVersionRepository.class);
         supersessionRepo = Mockito.mock(KnowledgeSupersessionRepository.class);
         citationRepo = Mockito.mock(CitationRepository.class);
+        invalidationRepo = Mockito.mock(KnowledgeInvalidationRepository.class);
+        affectedCaseTaskRepo = Mockito.mock(AffectedCaseTaskRepository.class);
         service = new KnowledgeExportService(jobRepo, identityRepo, versionRepo,
-            supersessionRepo, citationRepo, objectMapper(), command -> { });
+            supersessionRepo, citationRepo, invalidationRepo, affectedCaseTaskRepo, objectMapper(), command -> { });
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         when(jobRepo.save(any(KnowledgeExportJob.class))).thenAnswer(inv -> {
@@ -82,7 +86,7 @@ class KnowledgeExportServiceTest {
     void submitDefersWorkerDispatchUntilCommit() {
         List<Runnable> dispatched = new ArrayList<>();
         service = new KnowledgeExportService(jobRepo, identityRepo, versionRepo,
-            supersessionRepo, citationRepo, objectMapper(), dispatched::add);
+            supersessionRepo, citationRepo, invalidationRepo, affectedCaseTaskRepo, objectMapper(), dispatched::add);
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -166,6 +170,26 @@ class KnowledgeExportServiceTest {
     }
 
     @Test
+    void lineageExportIncludesInvalidationAndAffectedCaseTaskEvidence() throws Exception {
+        KnowledgeExportJob pending = job("job-lineage", ExportType.LINEAGE, ExportStatus.PENDING);
+        when(jobRepo.findByTenantIdAndJobCode("t-1", "job-lineage")).thenReturn(Optional.of(pending));
+        when(identityRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
+        when(versionRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
+        when(supersessionRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of());
+        when(invalidationRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of(invalidation()));
+        when(affectedCaseTaskRepo.pageByTenantId("t-1", 0, 500)).thenReturn(List.of(affectedTask()));
+
+        service.executeJob("job-lineage");
+
+        String exported = Files.readString(service.physicalExportPathForTest("job-lineage"));
+        assertThat(exported)
+            .contains("\"recordType\":\"knowledge_invalidation\"")
+            .contains("\"recordType\":\"affected_case_task\"")
+            .contains("INV-77")
+            .contains("PHYSICIAN_REVIEW");
+    }
+
+    @Test
     void markFailedRecordsErrorMessage() {
         KnowledgeExportJob running = job("job-f", ExportStatus.RUNNING);
         when(jobRepo.findByTenantIdAndJobCode("t-1", "job-f")).thenReturn(Optional.of(running));
@@ -179,11 +203,55 @@ class KnowledgeExportServiceTest {
     }
 
     private KnowledgeExportJob job(String code, ExportStatus status) {
+        return job(code, ExportType.IDENTITIES, status);
+    }
+
+    private KnowledgeExportJob job(String code, ExportType type, ExportStatus status) {
         Instant now = Instant.now();
         return new KnowledgeExportJob(
-            1L, "t-1", code, "u-99", ExportType.IDENTITIES, null,
+            1L, "t-1", code, "u-99", type, null,
             status, 0, null, null, null,
             now, null, null, null
+        );
+    }
+
+    private KnowledgeInvalidation invalidation() {
+        Instant now = Instant.now();
+        return new KnowledgeInvalidation(
+            77L, "t-1", 1L, 5L,
+            KnowledgeInvalidationType.EMERGENCY_WITHDRAW,
+            KnowledgeInvalidationStatus.OPEN,
+            KnowledgeRiskLevel.HIGH,
+            "说明书新增禁忌证",
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            "u-99",
+            now,
+            true,
+            "trace",
+            now,
+            "u-99",
+            now,
+            "u-99"
+        );
+    }
+
+    private AffectedCaseTask affectedTask() {
+        Instant now = Instant.now();
+        return new AffectedCaseTask(
+            88L, "t-1", "INV-77:PHYSICIAN_REVIEW:version:5", 77L, 1L, 5L,
+            AffectedCaseTaskType.PHYSICIAN_REVIEW,
+            AffectedCaseTaskStatus.OPEN,
+            AffectedCaseTargetType.KNOWLEDGE_VERSION,
+            "identity:1/version:5",
+            "说明书新增禁忌证",
+            now.plusSeconds(86_400),
+            "u-99",
+            "trace",
+            now,
+            "u-99",
+            now,
+            "u-99"
         );
     }
 
