@@ -271,6 +271,8 @@ class KnowledgeEngineTest {
             12L, "t-1", 5L, "v1.0", "旧标签", null, null, computedHash, "anchors",
             KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.MEDIUM,
             SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
+            "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeAssetVersion.activeScopeKey(5L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             null, null, null, null, null, null, null, null,
             Instant.now(), "system", Instant.now(), "system"
         );

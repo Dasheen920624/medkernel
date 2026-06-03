@@ -117,7 +117,9 @@ class KnowledgeProjectionSourceTest {
             10L, "t-1", 1L, "2026.1", "2026 说明书", 7L, 8L,
             "a".repeat(64), "anchors", KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.HIGH,
             SourceAuthorityLevel.A_REGULATION, GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG,
-            "A 法规优先", now, null, "reviewer", now, now, null, null, null,
+            "A 法规优先", "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeAssetVersion.activeScopeKey(1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
+            now, null, "reviewer", now, now, null, null, null,
             now, "tester", now, "tester");
     }
 

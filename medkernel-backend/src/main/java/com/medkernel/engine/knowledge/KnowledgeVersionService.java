@@ -106,6 +106,8 @@ public class KnowledgeVersionService {
             target.contentHash(), target.anchors(),
             KnowledgeVersionStatus.UNDER_REVIEW, target.riskLevel(),
             target.authorityLevel(), target.gradeQuality(), target.gradeStrength(), target.conflictArbitration(),
+            target.effectiveOrganizationScope(), target.effectiveApplicableScope(),
+            target.scopeKeyForStatus(KnowledgeVersionStatus.UNDER_REVIEW),
             target.effectiveFrom(), target.effectiveTo(),
             target.reviewedBy(), target.reviewedAt(),
             target.activatedAt(), target.supersededAt(),
@@ -174,9 +176,12 @@ public class KnowledgeVersionService {
     @Transactional
     public KnowledgeCandidateResponse classifyCandidate(Long identityId, KnowledgeVersionCreateRequest request) {
         String tenantId = requireCurrentTenant();
-        validateContext(request.context(), tenantId);
+        KnowledgeApiContext context = request.context();
+        validateContext(context, tenantId);
         String actor = currentActor();
         String orgPath = currentOrgPath();
+        String organizationScope = organizationScope(context, tenantId);
+        String applicableScope = applicableScope(context);
         Instant now = Instant.now();
         KnowledgeIdentity identity = identityRepository.findByTenantIdAndId(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
@@ -241,6 +246,9 @@ public class KnowledgeVersionService {
             request.gradeQuality(),
             request.gradeStrength(),
             null,
+            organizationScope,
+            applicableScope,
+            pendingScopeKey(identity.id(), request.versionNo()),
             null,
             null,
             null,
@@ -339,6 +347,8 @@ public class KnowledgeVersionService {
             candidate.contentHash(), candidate.anchors(),
             KnowledgeVersionStatus.REJECTED, candidate.riskLevel(),
             candidate.authorityLevel(), candidate.gradeQuality(), candidate.gradeStrength(), candidate.conflictArbitration(),
+            candidate.effectiveOrganizationScope(), candidate.effectiveApplicableScope(),
+            candidate.scopeKeyForStatus(KnowledgeVersionStatus.REJECTED),
             candidate.effectiveFrom(), candidate.effectiveTo(),
             candidate.reviewedBy(), candidate.reviewedAt(),
             candidate.activatedAt(), candidate.supersededAt(),
@@ -428,8 +438,11 @@ public class KnowledgeVersionService {
         }
         requireCitation(tenantId, target.id());
 
-        // 3) 当前 ACTIVE 版本（如有）→ SUPERSEDED
-        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByIdentity(tenantId, identityId);
+        // 3) 同一完整适用域内的当前 ACTIVE 版本（如有）→ SUPERSEDED
+        String organizationScope = target.effectiveOrganizationScope();
+        String applicableScope = target.effectiveApplicableScope();
+        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByEffectiveScope(
+            tenantId, identityId, organizationScope, applicableScope);
         Long oldVersionId = null;
         SupersessionType transitionType = SupersessionType.ACTIVATE;
         ConflictArbitration arbitration = null;
@@ -449,6 +462,8 @@ public class KnowledgeVersionService {
                 oldActive.contentHash(), oldActive.anchors(),
                 KnowledgeVersionStatus.SUPERSEDED, oldActive.riskLevel(),
                 oldActive.authorityLevel(), oldActive.gradeQuality(), oldActive.gradeStrength(), oldActive.conflictArbitration(),
+                oldActive.effectiveOrganizationScope(), oldActive.effectiveApplicableScope(),
+                oldActive.scopeKeyForStatus(KnowledgeVersionStatus.SUPERSEDED),
                 oldActive.effectiveFrom(), now /* effective_to = activate 时刻 */,
                 oldActive.reviewedBy(), oldActive.reviewedAt(),
                 oldActive.activatedAt(), now /* superseded_at */,
@@ -468,6 +483,7 @@ public class KnowledgeVersionService {
             KnowledgeVersionStatus.ACTIVE, target.riskLevel(),
             target.authorityLevel(), target.gradeQuality(), target.gradeStrength(),
             arbitration != null && arbitration.hasSummary() ? arbitration.summary() : target.conflictArbitration(),
+            organizationScope, applicableScope, target.activeScopeKeyForActiveStatus(),
             now /* effective_from = 激活时刻 */, null /* effective_to 由后续 supersede 写 */,
             actor, now /* reviewed_at */,
             now /* activated_at */, null, null, null,
@@ -634,6 +650,8 @@ public class KnowledgeVersionService {
             target.contentHash(), target.anchors(),
             KnowledgeVersionStatus.WITHDRAWN, target.riskLevel(),
             target.authorityLevel(), target.gradeQuality(), target.gradeStrength(), target.conflictArbitration(),
+            target.effectiveOrganizationScope(), target.effectiveApplicableScope(),
+            target.scopeKeyForStatus(KnowledgeVersionStatus.WITHDRAWN),
             target.effectiveFrom(), now,
             target.reviewedBy(), target.reviewedAt(),
             target.activatedAt(), target.supersededAt(),
@@ -678,6 +696,30 @@ public class KnowledgeVersionService {
 
     private String currentOrgPath() {
         return AuditEvent.orgPath(RequestContext.currentOrgScope());
+    }
+
+    private String organizationScope(KnowledgeApiContext context, String tenantId) {
+        OrgScope scope = new OrgScope(
+            tenantId,
+            context.groupId(),
+            context.hospitalId(),
+            context.campusId(),
+            context.siteId(),
+            context.departmentId(),
+            context.specialtyId());
+        String orgPath = AuditEvent.orgPath(scope);
+        return orgPath == null || orgPath.isBlank() ? "tenant:" + tenantId : orgPath;
+    }
+
+    private String applicableScope(KnowledgeApiContext context) {
+        return context.specialtyId() == null || context.specialtyId().isBlank()
+            ? KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+            : "specialty:" + context.specialtyId().trim();
+    }
+
+    private String pendingScopeKey(Long identityId, String versionNo) {
+        String stableVersionNo = versionNo == null || versionNo.isBlank() ? "unknown" : versionNo.trim();
+        return "version-pending:" + identityId + ":" + stableVersionNo;
     }
 
     private void validateContext(KnowledgeApiContext context, String tenantId) {

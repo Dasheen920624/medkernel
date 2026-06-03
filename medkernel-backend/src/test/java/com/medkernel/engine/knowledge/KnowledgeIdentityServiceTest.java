@@ -171,6 +171,19 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
+    void getActiveVersionPrefersCurrentVersionPointerForMultiScopeActiveIdentities() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L))
+            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 22L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L))
+            .thenReturn(Optional.of(versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE)));
+
+        KnowledgeAssetVersion active = service.getActiveVersion(1L);
+
+        assertThat(active.id()).isEqualTo(22L);
+        Mockito.verify(versionRepo, Mockito.never()).findActiveByIdentity(any(), any());
+    }
+
+    @Test
     void lineageBundlesIdentityVersionsAndSupersessions() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
         when(versionRepo.listByIdentity("t-1", 1L)).thenReturn(List.of());
@@ -421,15 +434,35 @@ class KnowledgeIdentityServiceTest {
         assertThat(citations.get(0).assetVersionId()).isEqualTo(20L);
     }
 
+    @Test
+    void listCitationsPrefersCurrentVersionPointerForMultiScopeActiveIdentities() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L))
+            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 22L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L))
+            .thenReturn(Optional.of(versionRow(22L, 1L, KnowledgeVersionStatus.ACTIVE)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(8L, 22L, 90)));
+
+        List<Citation> citations = service.listCitations(1L);
+
+        assertThat(citations).hasSize(1);
+        assertThat(citations.get(0).assetVersionId()).isEqualTo(22L);
+        Mockito.verify(versionRepo, Mockito.never()).findActiveByIdentity(any(), any());
+    }
+
     private KnowledgeIdentity identityRow(Long id) {
         return identityRow(id, "t-1", "DRUG.X");
     }
 
     private KnowledgeIdentity identityRow(Long id, String tenantId, String identityCode) {
+        return identityRow(id, tenantId, identityCode, null);
+    }
+
+    private KnowledgeIdentity identityRow(Long id, String tenantId, String identityCode, Long currentVersionId) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
             id, tenantId, identityCode, KnowledgeDomain.DRUG, "测试主题", null, null,
-            KnowledgeIdentityStatus.ACTIVE, null,
+            KnowledgeIdentityStatus.ACTIVE, currentVersionId,
             now, "u", now, "u"
         );
     }
@@ -453,11 +486,17 @@ class KnowledgeIdentityServiceTest {
 
     private KnowledgeAssetVersion versionRow(Long id, Long identityId, KnowledgeVersionStatus status) {
         Instant now = Instant.now();
+        String organizationScope = "tenant:t-1";
+        String applicableScope = KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE;
+        String activeScopeKey = status == KnowledgeVersionStatus.ACTIVE
+            ? KnowledgeAssetVersion.activeScopeKey(identityId, organizationScope, applicableScope)
+            : "version:" + id;
         return new KnowledgeAssetVersion(
             id, "t-1", identityId, "v1", "label",
             null, null, sha256("知识版本夹具内容-" + id), null,
             status, KnowledgeRiskLevel.LOW,
             SourceAuthorityLevel.B_GUIDELINE, null, null, null,
+            organizationScope, applicableScope, activeScopeKey,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,

@@ -1,5 +1,6 @@
 package com.medkernel.engine.knowledge;
 
+import java.lang.reflect.RecordComponent;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -68,6 +69,16 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void knowledgeAssetVersionDeclaresEffectiveScopeFieldsAndScopedActiveLookup() {
+        assertThat(java.util.Arrays.stream(KnowledgeAssetVersion.class.getRecordComponents())
+            .map(RecordComponent::getName))
+            .contains("organizationScope", "applicableScope", "activeScopeKey");
+        assertThat(java.util.Arrays.stream(KnowledgeAssetVersionRepository.class.getMethods())
+            .map(method -> method.getName()))
+            .contains("findActiveByEffectiveScope");
+    }
+
+    @Test
     void activateFirstVersionTransitionsToActiveAndWritesSupersession() {
         // 给一个无 active 版本的身份 + 一个 UNDER_REVIEW 候选版本
         KnowledgeIdentity identity = identity(1L, null);
@@ -75,7 +86,8 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.empty());
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 10L))
             .thenReturn(List.of(citation(10L)));
 
@@ -112,7 +124,8 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(oldActive));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
@@ -144,13 +157,44 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void activateKeepsOtherEffectiveScopeActiveWhenPublishingScopedVersion() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion otherScopeActive = version(
+            5L, "t-1", 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE, "tenant:t-1", "specialty:ENDO");
+        KnowledgeAssetVersion cardiologyCandidate = version(
+            11L, "t-1", 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE, "tenant:t-1", "specialty:CARD");
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(cardiologyCandidate));
+        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(otherScopeActive));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", "specialty:CARD")).thenReturn(Optional.empty());
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+
+        KnowledgeAssetVersion activated = service.activate(1L, 11L, "心内科专项版本");
+
+        verify(versionRepo, times(1)).save(any(KnowledgeAssetVersion.class));
+        verify(versionRepo, never()).findActiveByIdentity("t-1", 1L);
+        assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        assertThat(activated.activeScopeKey()).isEqualTo("1|tenant:t-1|specialty:CARD");
+        ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);
+        verify(supersessionRepo).save(spCap.capture());
+        assertThat(spCap.getValue().transitionType()).isEqualTo(SupersessionType.ACTIVATE);
+        assertThat(spCap.getValue().oldVersionId()).isNull();
+    }
+
+    @Test
     void activateRefreshesKnowledgeGraphAndSearchProjectionAfterPublication() {
         KnowledgeIdentity identity = identity(1L, null);
         KnowledgeAssetVersion candidate = version(10L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW);
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.empty());
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 10L))
             .thenReturn(List.of(citation(10L)));
 
@@ -170,7 +214,8 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(oldActive));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
@@ -196,7 +241,8 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(oldActive));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
@@ -219,7 +265,8 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(newCandidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(oldActive));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(oldActive));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
@@ -555,7 +602,9 @@ class KnowledgeVersionServiceTest {
                 22L, candidate.tenantId(), candidate.identityId(), candidate.versionNo(), candidate.versionLabel(),
                 candidate.sourceDocumentId(), candidate.sourceVersionId(), candidate.contentHash(), candidate.anchors(),
                 candidate.status(), candidate.riskLevel(), candidate.authorityLevel(), candidate.gradeQuality(),
-                candidate.gradeStrength(), candidate.conflictArbitration(), candidate.effectiveFrom(), candidate.effectiveTo(),
+                candidate.gradeStrength(), candidate.conflictArbitration(),
+                candidate.effectiveOrganizationScope(), candidate.effectiveApplicableScope(), candidate.activeScopeKey(),
+                candidate.effectiveFrom(), candidate.effectiveTo(),
                 candidate.reviewedBy(), candidate.reviewedAt(), candidate.activatedAt(), candidate.supersededAt(),
                 candidate.withdrawnAt(), candidate.withdrawnReason(), candidate.createdAt(), candidate.createdBy(),
                 candidate.updatedAt(), candidate.updatedBy());
@@ -607,7 +656,8 @@ class KnowledgeVersionServiceTest {
         when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(active));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
             .thenReturn(List.of(citation(22L)));
 
@@ -817,12 +867,32 @@ class KnowledgeVersionServiceTest {
     private KnowledgeAssetVersion version(Long id, String tenantId, Long identityId,
                                           KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
                                           SourceAuthorityLevel authorityLevel) {
+        return version(
+            id,
+            tenantId,
+            identityId,
+            status,
+            risk,
+            authorityLevel,
+            "tenant:" + tenantId,
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+        );
+    }
+
+    private KnowledgeAssetVersion version(Long id, String tenantId, Long identityId,
+                                          KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
+                                          SourceAuthorityLevel authorityLevel,
+                                          String organizationScope, String applicableScope) {
         Instant now = Instant.now();
+        String activeScopeKey = status == KnowledgeVersionStatus.ACTIVE
+            ? KnowledgeAssetVersion.activeScopeKey(identityId, organizationScope, applicableScope)
+            : "version:" + id;
         return new KnowledgeAssetVersion(
             id, tenantId, identityId, "v1", "label",
             null, null, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
             status, risk,
             authorityLevel, null, null, null,
+            organizationScope, applicableScope, activeScopeKey,
             null, null, null, null,
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
