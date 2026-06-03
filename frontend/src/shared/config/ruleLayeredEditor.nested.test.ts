@@ -1,0 +1,97 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  conditionNodeToDsl,
+  dslToConditionNode,
+  dslWhenToRootGroup,
+  flatToRootGroup,
+  isConditionGroup,
+  type RuleConditionGroup,
+  type RuleConditionTree,
+} from "./ruleLayeredEditor";
+
+function leaf(fact: string, operator = "exists") {
+  return {
+    id: `c-${fact}`,
+    label: fact,
+    fact,
+    operator: operator as never,
+    valueKind: "empty" as never,
+  };
+}
+
+describe("ruleLayeredEditor 嵌套条件（P1-2 原地扩展）", () => {
+  it("递归序列化 A 且 (B 或 C) 为 when 结构", () => {
+    const root: RuleConditionGroup = {
+      id: "g-root",
+      logic: "all",
+      children: [
+        leaf("a", "equals"),
+        { id: "g-1", logic: "any", children: [leaf("b"), leaf("c")] },
+      ],
+    };
+    const dsl = conditionNodeToDsl(root) as { all: unknown[] };
+    expect(dsl.all).toHaveLength(2);
+    const nested = dsl.all[1] as { any: unknown[] };
+    expect(nested.any).toHaveLength(2);
+  });
+
+  it("往返：节点序列化后能还原为等价结构", () => {
+    const root: RuleConditionGroup = {
+      id: "g-root",
+      logic: "all",
+      children: [
+        leaf("a", "equals"),
+        {
+          id: "g-1",
+          logic: "any",
+          children: [leaf("b"), { id: "g-2", logic: "all", children: [leaf("c")] }],
+        },
+      ],
+    };
+    const restored = dslToConditionNode(conditionNodeToDsl(root));
+    expect(isConditionGroup(restored)).toBe(true);
+    // 再次序列化应与首次一致
+    expect(conditionNodeToDsl(restored)).toEqual(conditionNodeToDsl(root));
+  });
+
+  it("支持 not 取反并能还原", () => {
+    const root: RuleConditionGroup = {
+      id: "g",
+      logic: "any",
+      negate: true,
+      children: [leaf("x", "equals")],
+    };
+    const dsl = conditionNodeToDsl(root) as { not: { any: unknown[] } };
+    expect(dsl.not).toBeDefined();
+    const restored = dslWhenToRootGroup(dsl);
+    expect(restored.negate).toBe(true);
+    expect(restored.logic).toBe("any");
+  });
+
+  it("dslWhenToRootGroup 兼容旧扁平 when", () => {
+    const when = { all: [{ fact: "context.scr", operator: "gte", value: 2 }] };
+    const root = dslWhenToRootGroup(when);
+    expect(root.logic).toBe("all");
+    expect(root.children).toHaveLength(1);
+    expect(isConditionGroup(root.children[0])).toBe(false);
+  });
+
+  it("flatToRootGroup 把扁平树提升为根组", () => {
+    const tree: RuleConditionTree = {
+      logic: "any",
+      conditions: [leaf("a"), leaf("b")],
+      action: {
+        actionCode: "REVIEW_REQUIRED",
+        severity: "LOW",
+        message: "复核",
+        requiresPhysicianConfirmation: true,
+      },
+      explanationSummary: "摘要",
+    };
+    const root = flatToRootGroup(tree);
+    expect(root.logic).toBe("any");
+    expect(root.children).toHaveLength(2);
+    expect(root.children.every((c) => !isConditionGroup(c))).toBe(true);
+  });
+});
