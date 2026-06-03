@@ -2929,12 +2929,21 @@ export interface IntegrationMessageLog {
   protocolType: string;
   payloadSummary: string;
   payload: string;
-  status: "SUCCESS" | "FAILED" | "RETRYING" | "DEAD_LETTER" | string;
+  status: "SUCCESS" | "FAILED" | "RETRYING" | "NOT_CONNECTED" | "DEAD_LETTER" | string;
   retryCount: number;
   maxRetries: number;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntegrationReplayResult {
+  sourceMessageId: string;
+  replayMessageId: string;
+  traceId: string;
+  status: "SUCCESS" | "FAILED" | "RETRYING" | "NOT_CONNECTED" | "DEAD_LETTER" | string;
+  blocksMainFlow: boolean;
+  message: string;
 }
 
 export interface AdapterCreatePayload {
@@ -3114,12 +3123,12 @@ export function useRetryMessage() {
   });
 }
 
-// 10. 删除日志记录 (已解决 / 已补偿)
-export function useDeleteMessage() {
+// 10. 人工重放死信，原始证据保留
+export function useReplayDeadLetter() {
   return useMutation({
     mutationFn: async (messageId: string) => {
-      const { data } = await apiClient.delete<IntegrationEnvelope<void>>(
-        `/api/v1/engine/integration/logs/${messageId}`,
+      const { data } = await apiClient.post<IntegrationEnvelope<IntegrationReplayResult>>(
+        `/api/v1/engine/integration/dead-letter/${messageId}/replay`,
       );
       return data.data;
     },

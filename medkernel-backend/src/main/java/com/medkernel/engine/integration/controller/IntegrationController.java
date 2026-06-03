@@ -279,6 +279,41 @@ public class IntegrationController {
     }
 
     /**
+     * 登记第三方出站异步同步消息。
+     *
+     * <p>外部系统断连或尚未接入真实连接器时，服务层只登记 {@code NOT_CONNECTED} 补偿日志，
+     * 不等待外部回执，也不伪造发送成功，从而避免阻断医生主流程。
+     *
+     * @param dto 出站异步同步消息
+     * @return 不阻断主流程的登记结果
+     */
+    @PostMapping("/messages/outbound")
+    @PreAuthorize("@perm.has('integration.execute')")
+    public ApiResult<IntegrationOutboundResultDto> enqueueOutboundMessage(
+            @Validated @RequestBody IntegrationOutboundRequestDto dto) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        try {
+            IntegrationOutboundResultDto result = integrationService.enqueueOutboundMessage(tenantId, dto);
+            auditEventPublisher.publish(AuditEvent.of(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                dto.messageId(),
+                "登记第三方出站异步补偿消息，状态: " + result.status()
+            ));
+            return ApiResult.ok(result);
+        } catch (ApiException e) {
+            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE,
+                "integration_message_log",
+                dto.messageId(),
+                e.errorCode().code(),
+                "登记第三方出站异步补偿失败: " + e.getMessage()
+            ));
+            throw e;
+        }
+    }
+
+    /**
      * 分页查询当前租户下所有第三方集成流审计日志 (支持死信队列的查看)。
      *
      * @param page 页码，从 1 开始，默认 1
@@ -295,6 +330,21 @@ public class IntegrationController {
         long total = integrationService.getMessageLogsCount(tenantId);
         PageResponse<IntegrationMessageLog> response = PageResponse.of(list, pageReq, total);
         return ApiResult.ok(response);
+    }
+
+    /**
+     * 分页查询当前租户下所有集成死信消息。
+     */
+    @GetMapping("/dead-letter")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<PageResponse<IntegrationMessageLog>> getDeadLetters(
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        PageRequest pageReq = new PageRequest(page, size, null);
+        List<IntegrationMessageLog> list = integrationService.getDeadLetters(tenantId, pageReq.offset(), pageReq.safeSize());
+        long total = integrationService.getDeadLettersCount(tenantId);
+        return ApiResult.ok(PageResponse.of(list, pageReq, total));
     }
 
     /**
@@ -329,31 +379,31 @@ public class IntegrationController {
     }
 
     /**
-     * 手动物理或逻辑删除指定集成流审计日志，通常用于已补偿且已结案的高危警报归档。
+     * 人工重放指定集成死信消息；原死信证据保留，新建补偿消息。
      *
      * @param messageId 流日志 ID
-     * @return 空返回实体
+     * @return 死信重放结果
      */
-    @DeleteMapping("/logs/{id}")
+    @PostMapping("/dead-letter/{id}/replay")
     @PreAuthorize("@perm.has('integration.execute')")
-    public ApiResult<Void> deleteMessage(@PathVariable("id") String messageId) {
+    public ApiResult<IntegrationReplayResultDto> replayDeadLetter(@PathVariable("id") String messageId) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
-            integrationService.deleteMessage(tenantId, messageId);
+            IntegrationReplayResultDto result = integrationService.replayDeadLetter(tenantId, messageId);
             auditEventPublisher.publish(AuditEvent.of(
-                AuditAction.DELETE,
+                AuditAction.EXECUTE,
                 "integration_message_log",
                 messageId,
-                "手动删除接口集成流审计日志与重试项"
+                "人工重放集成死信消息，新消息: " + result.replayMessageId()
             ));
-            return ApiResult.empty();
+            return ApiResult.ok(result);
         } catch (ApiException e) {
             isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
-                AuditAction.DELETE,
+                AuditAction.EXECUTE,
                 "integration_message_log",
                 messageId,
                 e.errorCode().code(),
-                "手动删除接口审计日志失败: " + e.getMessage()
+                "人工重放集成死信消息失败: " + e.getMessage()
             ));
             throw e;
         }

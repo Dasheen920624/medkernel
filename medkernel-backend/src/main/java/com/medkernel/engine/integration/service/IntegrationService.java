@@ -43,10 +43,13 @@ public class IntegrationService {
     private static final String STATUS_SUSPENDED = "SUSPENDED";
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_DEAD_LETTER = "DEAD_LETTER";
+    private static final String STATUS_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String HEALTH_HEALTHY = "HEALTHY";
     private static final String HEALTH_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String HEALTH_MISCONFIGURED = "MISCONFIGURED";
     private static final String DIRECTION_INBOUND = "INBOUND";
+    private static final String DIRECTION_OUTBOUND = "OUTBOUND";
     private static final String PROTOCOL_WEBHOOK = "Webhook";
     private static final String MAPPING_CONFIRMED = "CONFIRMED";
     private static final String STANDARD_ACTIVE = "ACTIVE";
@@ -367,6 +370,58 @@ public class IntegrationService {
     // ==========================================
 
     /**
+     * 登记出站异步同步消息；外部系统未连接时只写补偿日志，不阻断医生主流程。
+     *
+     * <p>当前总线尚未接入真实发送连接器，所有出站请求均按 {@code NOT_CONNECTED}
+     * 诚实落库，等待后续人工重试或死信重放，不伪造发送成功。
+     */
+    @Transactional
+    public IntegrationOutboundResultDto enqueueOutboundMessage(String tenantId, IntegrationOutboundRequestDto request) {
+        Optional<IntegrationMessageLog> existing = logRepository.findByMessageIdAndTenantId(request.messageId(), tenantId);
+        if (existing.isPresent()) {
+            return outboundResultFromLog(request.adapterId(), existing.get());
+        }
+
+        Optional<IntegrationAdapter> adapter = adapterRepository.findByAdapterIdAndTenantId(request.adapterId(), tenantId);
+        String systemName = adapter.map(IntegrationAdapter::name)
+            .orElseGet(() -> blankToDefault(request.targetSystem(), request.adapterId()));
+        String protocolType = adapter.map(IntegrationAdapter::protocolType)
+            .orElseGet(() -> blankToDefault(request.protocolType(), "REST"));
+        String reason = adapter.isPresent()
+            ? "未接入真实外部发送连接器，已登记异步补偿，不阻断主流程"
+            : "适配器不存在或未接入，已登记异步补偿，不阻断主流程";
+
+        ObjectNode stored = objectMapper.createObjectNode();
+        stored.put("adapterId", request.adapterId());
+        stored.put("targetSystem", request.targetSystem());
+        stored.put("protocolType", request.protocolType());
+        stored.set("payload", request.payload());
+        stored.put("degradeReason", reason);
+
+        IntegrationMessageLog saved = logRepository.save(new IntegrationMessageLog(
+            null,
+            request.messageId(),
+            tenantId,
+            blankToNull(request.traceId()),
+            DIRECTION_OUTBOUND,
+            systemName,
+            protocolType,
+            truncate(blankToDefault(request.payloadSummary(), "第三方出站同步已登记异步补偿"), 512),
+            stored.toString(),
+            STATUS_NOT_CONNECTED,
+            0,
+            sanitizedMaxRetries(request.maxRetries()),
+            reason,
+            Instant.now(),
+            "system",
+            Instant.now(),
+            "system"
+        ));
+
+        return outboundResultFromLog(request.adapterId(), saved);
+    }
+
+    /**
      * 分页查询当前租户名下所有的第三方对接数据流审计与死信日志。
      *
      * @param tenantId 租户标识
@@ -391,6 +446,22 @@ public class IntegrationService {
     }
 
     /**
+     * 分页查询当前租户的集成死信日志，供人工排查与重放。
+     */
+    @Transactional(readOnly = true)
+    public List<IntegrationMessageLog> getDeadLetters(String tenantId, int offset, int limit) {
+        return logRepository.pageByTenantIdAndStatusOrderByUpdatedAtDesc(tenantId, STATUS_DEAD_LETTER, offset, limit);
+    }
+
+    /**
+     * 查询当前租户死信日志数量。
+     */
+    @Transactional(readOnly = true)
+    public long getDeadLettersCount(String tenantId) {
+        return logRepository.countByTenantIdAndStatus(tenantId, STATUS_DEAD_LETTER);
+    }
+
+    /**
      * 手动触发对指定已失败（FAILED）或死信（DEAD_LETTER）队列的消息投递重试补偿。
      *
      * <p>根据幂等规则校验，已成功的消息不再重投；每次重试累加 retry_count，达到 max_retries 后归档进 DEAD_LETTER。
@@ -409,7 +480,7 @@ public class IntegrationService {
         IntegrationMessageLog msgLog = logRepository.findByMessageIdAndTenantId(messageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_005, "接口流日志不存在: " + messageId));
 
-        if ("SUCCESS".equals(msgLog.status())) {
+        if (STATUS_SUCCESS.equals(msgLog.status())) {
             throw new ApiException(ErrorCode.ENG_INTEG_006, "交易已成功，无需重复投递: " + messageId);
         }
 
@@ -423,27 +494,56 @@ public class IntegrationService {
 
         IntegrationMessageLog retried;
         if (newRetryCount >= msgLog.maxRetries()) {
-            retried = msgLog.withRetry("DEAD_LETTER", newRetryCount,
-                "投递重试超限，已强制移入死信隔离舱！根因: " + cause);
+            retried = msgLog.withRetry(STATUS_DEAD_LETTER, newRetryCount,
+                "投递重试超限，已进入死信等待人工重放；根因: " + cause);
         } else {
-            retried = msgLog.withRetry("FAILED", newRetryCount, "重新投递失败: " + cause);
+            String retryStatus = payloadValid ? STATUS_NOT_CONNECTED : STATUS_FAILED;
+            retried = msgLog.withRetry(retryStatus, newRetryCount,
+                "重新投递未完成，已保留异步补偿且不阻断主流程；根因: " + cause);
         }
 
         return logRepository.save(retried);
     }
 
     /**
-     * 根据主键手动物理/逻辑删除指定的接口集成审计或死信消息日志。
-     *
-     * @param tenantId  租户标识
-     * @param messageId 接口流日志 UUID
-     * @throws ApiException 若流日志不存在，抛出 ENG_INTEG_005 错误
+     * 人工重放死信消息，保留原始死信作为审计证据，并创建新的异步补偿消息。
      */
     @Transactional
-    public void deleteMessage(String tenantId, String messageId) {
-        IntegrationMessageLog msgLog = logRepository.findByMessageIdAndTenantId(messageId, tenantId)
+    public IntegrationReplayResultDto replayDeadLetter(String tenantId, String messageId) {
+        IntegrationMessageLog deadLetter = logRepository.findByMessageIdAndTenantId(messageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_005, "接口流日志不存在: " + messageId));
-        logRepository.delete(msgLog);
+        if (!STATUS_DEAD_LETTER.equals(deadLetter.status())) {
+            throw new ApiException(ErrorCode.ENG_INTEG_006, "只有 DEAD_LETTER 状态的接口日志可以人工重放: " + messageId);
+        }
+
+        String replayMessageId = "replay-" + UUID.randomUUID().toString().replace("-", "");
+        IntegrationMessageLog replay = logRepository.save(new IntegrationMessageLog(
+            null,
+            replayMessageId,
+            tenantId,
+            deadLetter.traceId(),
+            deadLetter.direction(),
+            deadLetter.systemName(),
+            deadLetter.protocolType(),
+            truncate("死信人工重放: " + blankToDefault(deadLetter.payloadSummary(), messageId), 512),
+            deadLetter.payload(),
+            STATUS_NOT_CONNECTED,
+            0,
+            deadLetter.maxRetries(),
+            "死信已人工重放为新的异步补偿消息；原死信保留为审计证据，不阻断主流程",
+            Instant.now(),
+            "system",
+            Instant.now(),
+            "system"
+        ));
+        return new IntegrationReplayResultDto(
+            messageId,
+            replay.messageId(),
+            replay.traceId(),
+            replay.status(),
+            false,
+            "死信已创建重放补偿消息，原始证据已保留"
+        );
     }
 
 
@@ -718,6 +818,32 @@ public class IntegrationService {
         List<String> warnings = new ArrayList<>();
         warningsNode.forEach(item -> warnings.add(item.asText()));
         return List.copyOf(warnings);
+    }
+
+    private IntegrationOutboundResultDto outboundResultFromLog(String adapterId, IntegrationMessageLog log) {
+        return new IntegrationOutboundResultDto(
+            log.messageId(),
+            log.traceId(),
+            adapterId,
+            log.status(),
+            false,
+            !STATUS_SUCCESS.equals(log.status()),
+            log.errorMessage() == null ? "出站消息已登记" : log.errorMessage()
+        );
+    }
+
+    private int sanitizedMaxRetries(Integer maxRetries) {
+        if (maxRetries == null) {
+            return 3;
+        }
+        return Math.max(1, Math.min(maxRetries, 10));
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     private String blankToNull(String value) {

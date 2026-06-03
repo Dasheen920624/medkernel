@@ -359,10 +359,10 @@ class IntegrationServiceTest {
         assertEquals(1, logsPage.size());
         assertEquals("msg-1", logsPage.get(0).messageId());
 
-        // 执行重试：未接入真实外部连接器，即便 payload 合法也绝不伪造 SUCCESS（retryCount 1 < maxRetries 3 → FAILED）
+        // 执行重试：未接入真实外部连接器，即便 payload 合法也绝不伪造 SUCCESS（retryCount 1 < maxRetries 3 → NOT_CONNECTED）
         IntegrationMessageLog retried = service.retryMessage(tenantId, "msg-1");
         assertEquals(1, retried.retryCount());
-        assertEquals("FAILED", retried.status());
+        assertEquals("NOT_CONNECTED", retried.status());
         assertTrue(retried.errorMessage().contains("未接入真实外部连接器"));
 
         // 插入一条空 payload 的失败消息日志，测试其重试失败
@@ -399,14 +399,9 @@ class IntegrationServiceTest {
         assertEquals("DEAD_LETTER", retriedDead.status());
         assertTrue(retriedDead.errorMessage().contains("投递重试超限"));
 
-        // 删除日志
-        service.deleteMessage(tenantId, "msg-1");
-        Optional<IntegrationMessageLog> deleted = logRepository.findByMessageIdAndTenantId("msg-1", tenantId);
-        assertFalse(deleted.isPresent());
-
-        service.deleteMessage(tenantId, "msg-2");
-        Optional<IntegrationMessageLog> deletedEmpty = logRepository.findByMessageIdAndTenantId("msg-2", tenantId);
-        assertFalse(deletedEmpty.isPresent());
+        // 接口日志是审计证据：重试或死信后必须保留，不能通过生产接口物理删除。
+        assertTrue(logRepository.findByMessageIdAndTenantId("msg-1", tenantId).isPresent());
+        assertTrue(logRepository.findByMessageIdAndTenantId("msg-2", tenantId).isPresent());
     }
 
     private WebhookInboundRequestDto inboundRequest(String messageId, String traceId, String adapterId, String payload)
@@ -479,5 +474,80 @@ class IntegrationServiceTest {
             SELECT id FROM term_mapping
             WHERE tenant_id = ? AND local_term_id = ? AND standard_term_id = ? AND status = 'CONFIRMED'
             """, Long.class, tenantId, localTermId, standardTermId);
+    }
+
+    @Test
+    void outboundMessageIsAcceptedAsNotConnectedWithoutBlockingMainFlow() throws Exception {
+        IntegrationOutboundRequestDto outbound = new IntegrationOutboundRequestDto(
+            "out-main-1",
+            "trace-main-1",
+            "his-missing",
+            "HIS",
+            "REST",
+            "医生主流程异步同步 HIS",
+            objectMapper.readTree("{\"patientId\":\"P-200\",\"event\":\"ORDER_SUBMITTED\"}"),
+            2
+        );
+
+        IntegrationOutboundResultDto result = service.enqueueOutboundMessage(tenantId, outbound);
+
+        assertEquals("out-main-1", result.messageId());
+        assertEquals("NOT_CONNECTED", result.status());
+        assertFalse(result.blocksMainFlow());
+        assertTrue(result.compensationRequired());
+        assertTrue(result.message().contains("不阻断主流程"));
+        IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("out-main-1", tenantId).orElseThrow();
+        assertEquals("OUTBOUND", log.direction());
+        assertEquals("NOT_CONNECTED", log.status());
+        assertEquals(0, log.retryCount());
+        assertEquals(2, log.maxRetries());
+        assertTrue(log.errorMessage().contains("异步补偿"));
+        assertTrue(log.payload().contains("ORDER_SUBMITTED"));
+    }
+
+    @Test
+    void deadLettersAreTenantScopedAndReplayCreatesCompensationLogWithoutDeletingEvidence() throws Exception {
+        String sourceMessageId = "out-dead-" + "x".repeat(55);
+        IntegrationOutboundResultDto queued = service.enqueueOutboundMessage(tenantId, new IntegrationOutboundRequestDto(
+            sourceMessageId,
+            "trace-dead-1",
+            "his-missing",
+            "HIS",
+            "REST",
+            "同步 HIS 失败待死信",
+            objectMapper.readTree("{\"patientId\":\"P-201\"}"),
+            1
+        ));
+        service.enqueueOutboundMessage("tenant-002", new IntegrationOutboundRequestDto(
+            "out-dead-other",
+            "trace-dead-other",
+            "his-missing",
+            "HIS",
+            "REST",
+            "其他租户同步失败待死信",
+            objectMapper.readTree("{\"patientId\":\"P-202\"}"),
+            1
+        ));
+
+        IntegrationMessageLog dead = service.retryMessage(tenantId, queued.messageId());
+        service.retryMessage("tenant-002", "out-dead-other");
+        List<IntegrationMessageLog> deadLetters = service.getDeadLetters(tenantId, 0, 10);
+        IntegrationReplayResultDto replay = service.replayDeadLetter(tenantId, dead.messageId());
+
+        assertEquals("DEAD_LETTER", dead.status());
+        assertEquals(1, deadLetters.size());
+        assertEquals(sourceMessageId, deadLetters.get(0).messageId());
+        assertEquals(sourceMessageId, replay.sourceMessageId());
+        assertTrue(replay.replayMessageId().startsWith("replay-"));
+        assertTrue(replay.replayMessageId().length() <= 64);
+        assertEquals("NOT_CONNECTED", replay.status());
+        assertFalse(replay.blocksMainFlow());
+        assertTrue(logRepository.findByMessageIdAndTenantId(sourceMessageId, tenantId).isPresent(),
+            "原始死信必须保留为审计证据，不能因回放被删除");
+        IntegrationMessageLog replayLog = logRepository.findByMessageIdAndTenantId(replay.replayMessageId(), tenantId)
+            .orElseThrow();
+        assertEquals("NOT_CONNECTED", replayLog.status());
+        assertEquals(0, replayLog.retryCount());
+        assertTrue(replayLog.payloadSummary().contains("死信人工重放"));
     }
 }

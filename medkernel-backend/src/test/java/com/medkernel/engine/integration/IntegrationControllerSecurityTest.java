@@ -35,6 +35,9 @@ class IntegrationControllerSecurityTest {
     private static final String INBOUND_BODY = """
         {"messageId":"msg-9","traceId":"trace-9","adapterId":"adp-9","sourceSystem":"HIS","eventType":"DIAGNOSIS","payload":{"patientId":"P-9"}}
         """;
+    private static final String OUTBOUND_BODY = """
+        {"messageId":"out-9","traceId":"trace-out-9","adapterId":"adp-9","targetSystem":"HIS","protocolType":"REST","payloadSummary":"异步同步 HIS","payload":{"patientId":"P-9"},"maxRetries":3}
+        """;
 
     @AfterEach
     void clearAll() {
@@ -128,9 +131,43 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
+    void anonymousCannotEnqueueOutboundMessage() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/messages/outbound")
+                .contentType("application/json")
+                .content(OUTBOUND_BODY))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void outboundMessageFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/messages/outbound")
+                .contentType("application/json")
+                .content(OUTBOUND_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void logsListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/logs"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void deadLetterListFailsOnMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/dead-letter"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void deadLetterReplayFailsOnMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/integration/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
