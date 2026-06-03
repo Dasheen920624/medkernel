@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * CDS Hooks 风格临床事件触发点，锁定 D3 API-02 的 6 类客户面入口。
+ * CDS Hooks 风格临床触发点，作为 D3 OPT-02 事件、推荐与嵌入共享的 6 类客户面入口。
  */
 public enum ClinicalEventTriggerPoint {
     PATIENT_VIEW("patient-view"),
