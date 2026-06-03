@@ -24,8 +24,8 @@
 - 类型：软件开发（设计阶段）
 - 分支：`claude/diagnosis-knowledge-cdss`
 - 目标：补 S16 辅助诊疗/鉴别诊断缺口——新建“诊断知识资产”（KNOW-01 新 `domain=DIAGNOSIS` + 诊断标准/鉴别清单/诊疗指针/测试病例子表），CDSS-01 运行时确定性命中产出可解释鉴别诊断卡，红线走规则引擎 OPT-04 合流；置信用分级（非百分比概率，守 NMPA 三类器械边界）、无候选≠排除、不写死医学常量。
-- 状态：设计稿已评审深化定稿，提交于 `docs/superpowers/specs/2026-06-03-diagnosis-knowledge-cdss-design.md`；方案 C（诊断知识资产 + 规则红线）+ 4 补充点（时序/病程、置信映射可配置、无候选≠排除、防知识层爆炸）+ 竞争假设并列、标准化部分可用降级、测试病例发布门禁、AI 标识、性能反向索引 全纳入。**尚未写实现计划、未写代码。**
-- 下一步（精确到动作/命令）：1. 经 writing-plans 把 Spec 1 拆成 TDD 实现计划；2. 按计划 TDD（V67 五方言迁移 `mk_diagnosis_*` + 诊断知识资产 + 可配置置信策略 + 命中编排 + 红线合流 + `POST /engine/recommendations/diagnosis-assist`）；3. 动手前建绿色基线、先失败测试 → 实现 → 绿；4. T-GATE 前后端全绿 → PR → CI 8/8 → 合并。Spec 2（诊断-治疗映射）/ Spec 3（路径软衔接 + AI 工厂草案生成）后置。
+- 状态：设计稿 + 实现计划 Plan A（建模与维护）+ Plan B（运行时鉴别诊断）均已定稿，分别在 `docs/superpowers/specs/2026-06-03-diagnosis-knowledge-cdss-design.md`、`docs/superpowers/plans/2026-06-04-diagnosis-knowledge-asset.md`、`docs/superpowers/plans/2026-06-04-diagnosis-runtime-cdss.md`，均在 **PR #320**。方案 C + 4 补充点 + 竞争假设/部分可用/测试病例门禁/AI 标识/反向索引 全纳入；Plan A 9 任务、Plan B 6 任务，均含 self-review。**计划已就绪，待统一 review 后按 Plan A→B 逐任务 TDD 执行（尚未写代码）。**
+- 下一步（精确到动作/命令）：1. PR #320 文档（spec + 两计划 + handoff）走 CI 合并进 main，供其他 AI 同步；2. 按 Plan A→Plan B 顺序逐任务 TDD（动手前建绿色基线、先失败测试→实现→绿）；3. 每逻辑单元 T-GATE 全绿 → PR → CI → 合并；4. Plan B 实现时核对真实签名（`ContextSnapshotService` 取快照方法、`Canonical*.code()`、`RecommendationTriggerRequest` 构造参数等，见 Plan B self-review）。Spec 2（诊断-治疗映射）/ Spec 3（路径软衔接 + AI 工厂草案生成）后置。
 - 相关文件 / 测试 / 坑：设计 `docs/superpowers/specs/2026-06-03-diagnosis-knowledge-cdss-design.md`；复用 `engine/knowledge`（KnowledgeIdentity / KnowledgeAssetVersion / Citation）、`engine/recommendation`（RecommendationCard 治理）、`RuleDslEvaluator`（temporal/between/unit_compare 算子）、TERM-01 标准化、API-01 上下文快照；新表 `mk_diagnosis_*` + `mk_diagnosis_confidence_policy` V67 五方言；新枚举 `KnowledgeDomain.DIAGNOSIS` / `RecommendationCardType.DIAGNOSIS_ASSIST`。坑：置信**不得输出百分比概率**（监管）、阈值**不得硬编码**（T-GATE）、空态**不得被读成排除诊断**（医疗安全）。
 
 ## 已归档工作线（最近完成，供回溯）
