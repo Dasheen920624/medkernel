@@ -72,6 +72,10 @@ class RecommendationRepositoryTest {
         assertThat(feedback.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, "tenant-A"))
             .extracting(RecommendationFeedback::feedbackType)
             .containsExactly(RecommendationFeedbackType.ACCEPT);
+        assertThat(feedback.findByCardIdAndTenantIdAndIdempotencyKey(
+                cardId, "tenant-A", "idem-" + cardId))
+            .map(RecommendationFeedback::feedbackId)
+            .contains(savedFeedback.feedbackId());
         assertThat(fatigueSignals.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, "tenant-A"))
             .extracting(RecommendationFatigueSignal::signalType)
             .containsExactly(RecommendationFatigueSignalType.ACCEPTED);
@@ -90,10 +94,45 @@ class RecommendationRepositoryTest {
         // CDSS-M-04：卡片维度同样零泄露——错误租户查不到该卡、按 triggerId 列不出、按租户计数为 0
         assertThat(cards.findByCardIdAndTenantId(cardId, "tenant-B")).isEmpty();
         assertThat(cards.findByTriggerIdAndTenantIdOrderByCreatedAtAsc(triggerId, "tenant-B")).isEmpty();
-        assertThat(cards.countByFilter("tenant-B", null, null, null, null)).isZero();
+        assertThat(cards.countByFilter("tenant-B", null, null, null, null, null, null)).isZero();
 
         // 正确租户下可正常读到，证明隔离来自 tenant 过滤而非数据缺失
         assertThat(cards.findByCardIdAndTenantId(cardId, "tenant-A")).isPresent();
+    }
+
+    @Test
+    void cardListFiltersByPatientEncounterAndTriggerPoint() {
+        String triggerId = "rt-" + UUID.randomUUID();
+        String cardId = "rc-" + UUID.randomUUID();
+        triggers.save(sampleTrigger(triggerId, "tenant-A"));
+        cards.save(sampleCard(cardId, "tenant-A", triggerId));
+
+        assertThat(cards.countByFilter("tenant-A", null, null, "WARD_ORDER",
+            "patient-1", "enc-1", "ORDER_SIGN")).isEqualTo(1);
+        assertThat(cards.countByFilter("tenant-A", null, null, "WARD_ORDER",
+            "patient-1", "enc-other", "ORDER_SIGN")).isZero();
+        assertThat(cards.pageByFilter("tenant-A", null, null, "WARD_ORDER",
+                "patient-1", "enc-1", "ORDER_SIGN", 0, 10))
+            .extracting(RecommendationCard::cardId)
+            .containsExactly(cardId);
+    }
+
+    @Test
+    void fatigueRepositoryCountsRecentLowValueSignalsForSuppression() {
+        String triggerId = "rt-" + UUID.randomUUID();
+        String cardId = "rc-" + UUID.randomUUID();
+        triggers.save(sampleTrigger(triggerId, "tenant-A"));
+        cards.save(sampleCard(cardId, "tenant-A", triggerId));
+        fatigueSignals.save(sampleFatigueSignal("rfs-accepted", "tenant-A", triggerId, cardId,
+            RecommendationFatigueSignalType.ACCEPTED));
+        fatigueSignals.save(sampleFatigueSignal("rfs-rejected", "tenant-A", triggerId, cardId,
+            RecommendationFatigueSignalType.REJECTED));
+        fatigueSignals.save(sampleFatigueSignal("rfs-dismissed", "tenant-A", triggerId, cardId,
+            RecommendationFatigueSignalType.DISMISSED));
+
+        assertThat(fatigueSignals.countLowValueSignals(
+                "tenant-A", "patient-1", "WARD_ORDER:ANTICOAG", Instant.now().minusSeconds(3600)))
+            .isEqualTo(2);
     }
 
     private RecommendationTrigger sampleTrigger(String triggerId, String tenantId) {
@@ -129,17 +168,26 @@ class RecommendationRepositoryTest {
     private RecommendationFeedback sampleFeedback(String feedbackId, String tenantId, String cardId) {
         Instant now = Instant.now();
         return new RecommendationFeedback(
-            null, feedbackId, tenantId, cardId, RecommendationFeedbackType.ACCEPT,
+            null, feedbackId, tenantId, cardId, "idem-" + cardId, RecommendationFeedbackType.ACCEPT,
             "CONFIRMED", "已完成出血风险评估", "doctor-1", "DOCTOR",
             now, "doctor-1", now, "doctor-1", "trace-recommendation");
     }
 
     private RecommendationFatigueSignal sampleFatigueSignal(
             String signalId, String tenantId, String triggerId, String cardId) {
+        return sampleFatigueSignal(signalId, tenantId, triggerId, cardId, RecommendationFatigueSignalType.ACCEPTED);
+    }
+
+    private RecommendationFatigueSignal sampleFatigueSignal(
+            String signalId,
+            String tenantId,
+            String triggerId,
+            String cardId,
+            RecommendationFatigueSignalType signalType) {
         Instant now = Instant.now();
         return new RecommendationFatigueSignal(
             null, signalId, tenantId, triggerId, cardId, "WARD_ORDER:ANTICOAG",
-            "patient-1", "enc-1", "doctor-1", RecommendationFatigueSignalType.ACCEPTED,
+            "patient-1", "enc-1", "doctor-1", signalType,
             1, now.minusSeconds(300), now, "doctor-1", now, "doctor-1", "trace-recommendation");
     }
 }

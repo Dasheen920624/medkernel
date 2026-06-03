@@ -1,5 +1,6 @@
 package com.medkernel.engine.recommendation;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.data.jdbc.repository.query.Query;
@@ -28,4 +29,16 @@ public interface RecommendationFatigueSignalRepository extends ListCrudRepositor
         """)
     List<RecommendationFatigueSignal> pageByFilter(String tenantId, String fatigueKey, String signalType,
                                                    int offset, int limit);
+
+    /** 统计疲劳窗口内同患者同 fatigueKey 的低价值反馈信号数量，用于 explainable suppression。 */
+    @Query("""
+        SELECT COALESCE(SUM(occurrence_count), 0)
+        FROM recommendation_fatigue_signal
+        WHERE tenant_id = :tenantId
+          AND patient_id = :patientId
+          AND fatigue_key = :fatigueKey
+          AND signal_type IN ('REJECTED', 'DISMISSED')
+          AND created_at >= :windowStartedAt
+        """)
+    long countLowValueSignals(String tenantId, String patientId, String fatigueKey, Instant windowStartedAt);
 }
