@@ -25,6 +25,28 @@ public interface TermMappingRepository extends ListCrudRepository<TermMapping, L
                                                                TermMappingStatus status);
 
     /**
+     * 根据上下文 / FHIR 编码锚点查询已确认的本地术语到目标标准字典映射。
+     */
+    @Query("""
+        SELECT tm.* FROM term_mapping tm
+        JOIN local_term lt ON lt.id = tm.local_term_id AND lt.tenant_id = tm.tenant_id
+        JOIN standard_term st ON st.id = tm.standard_term_id AND st.tenant_id = tm.tenant_id
+        WHERE tm.tenant_id = :tenantId
+          AND tm.status = 'CONFIRMED'
+          AND st.status = 'ACTIVE'
+          AND lt.local_code = :localCode
+          AND (:sourceSystem IS NULL OR lt.source_system = :sourceSystem)
+          AND (:targetDictionaryKey IS NULL OR st.standard_system = :targetDictionaryKey)
+          AND (:category IS NULL OR tm.category = :category)
+        ORDER BY tm.confirmed_at DESC, tm.id DESC
+        """)
+    List<TermMapping> findConfirmedByTenantIdAndAnchor(String tenantId,
+                                                       String sourceSystem,
+                                                       String localCode,
+                                                       String targetDictionaryKey,
+                                                       String category);
+
+    /**
      * 按租户 + 可选过滤条件（来源系统 / 分类 / 状态 / 证据关键词）统计映射数量。
      */
     @Query("""

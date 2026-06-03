@@ -4,18 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.TerminologyMappingPort;
 import org.junit.jupiter.api.Test;
 
 class FhirR4CanonicalMapperTest {
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
-    private final FhirR4CanonicalMapper mapper = new FhirR4CanonicalMapper(json);
+    private final FhirR4CanonicalMapper mapper = new FhirR4CanonicalMapper(json, terminologyReturning("UNKNOWN"));
 
     @Test
     void mapsCanonicalPatientToR4PatientWithoutInventingFields() throws Exception {
@@ -130,5 +132,50 @@ class FhirR4CanonicalMapperTest {
             assertThat(issue.code()).isEqualTo("not-supported");
             assertThat(issue.diagnostics()).contains("TERM-01").contains("urn:local:lis");
         });
+    }
+
+    @Test
+    void mapsR4ObservationThroughTerminologyPortWhenConfirmed() throws Exception {
+        FhirR4CanonicalMapper confirmedMapper = new FhirR4CanonicalMapper(json, terminologyReturning("VALID"));
+        JsonNode observation = json.readTree("""
+            {
+              "resourceType": "Observation",
+              "id": "obs-confirmed",
+              "code": {
+                "coding": [
+                  {
+                    "system": "urn:local:lis",
+                    "code": "HB",
+                    "display": "血红蛋白"
+                  }
+                ]
+              },
+              "effectiveDateTime": "2026-06-03T00:00:00Z",
+              "valueQuantity": {
+                "value": 128,
+                "unit": "g/L"
+              }
+            }
+            """);
+
+        CanonicalResourceMappingResult result = confirmedMapper.fromR4(new FhirCanonicalMappingRequest(
+            "tenant-A",
+            "snapshot-fhir-2",
+            3,
+            "trace-fhir-confirmed",
+            Instant.parse("2026-06-03T00:00:10Z"),
+            observation));
+
+        assertThat(result.issues()).isEmpty();
+        assertThat(result.mappingRate()).isEqualByComparingTo(new BigDecimal("1.0000"));
+        assertThat(result.resource().qualityStatus()).isEqualTo(QualityStatus.VALID);
+        JsonNode payload = json.readTree(result.resource().resourcePayloadJson());
+        assertThat(payload.path("sourceSystem").asText()).isEqualTo("FHIR_R4");
+        assertThat(payload.path("mappedVersion").asText()).isEqualTo("FHIR_R4:Observation");
+    }
+
+    private static TerminologyMappingPort terminologyReturning(String status) {
+        return (tenantId, anchors) -> anchors.stream()
+            .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));
     }
 }

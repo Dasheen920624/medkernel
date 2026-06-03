@@ -21,7 +21,8 @@
 
 - 已有 [SYS-01](../D0/SYS-01.md) 标准临床模型与 `StandardClinicalFhirMappingRegistry`，可声明 12 类 `CanonicalResourceType` 到 FHIR R4 资源类型的参考映射；本卡必须复用该模型，**不得重定义第二份临床模型**。
 - 已有自有 `CanonicalResource(+Type/Repository)` 与 `engine/context/canonical/` 12 子类型（[API-01](API-01.md)/[SYS-01](../D0/SYS-01.md)）——这是门面的映射目标。
-- PR1 新增 `com.medkernel.engine.integration.fhir` 下的 R4 映射层与映射证据仓储，先覆盖 Patient 出站与 Observation 入站的确定性映射；FHIR 运行端点、R5、CapabilityStatement、受控 create 回流、断连 `NOT_CONNECTED` 和安全边界仍在 PR2/PR3，未完成前不得冒领整卡。
+- PR1 新增 `com.medkernel.engine.integration.fhir` 下的 R4 映射层与映射证据仓储，先覆盖 Patient 出站与 Observation 入站的确定性映射。
+- PR2 新增 R5 映射器、R4/R5 共用映射支持、CapabilityStatement 映射能力声明、TERM-01 真实字典映射端口和 FHIR `OperationOutcome` JSON 工厂；FHIR 运行端点、受控 create 回流、INTEG-01 总线、断连 `NOT_CONNECTED` 和签名 / 白名单 / 脱敏安全边界仍在 PR3，未完成前不得冒领整卡。
 
 ## 功能要求（原子可测条目）
 
@@ -89,6 +90,18 @@ N·A —— 本卡无独立页面。门面健康/字段映射率在 **D2 适配�
 - 本地红绿证据：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirResourceMappingRepositoryTest test`；聚焦回归：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirResourceMappingRepositoryTest,StandardClinicalFhirMappingRegistryTest,StandardClinicalModelContractTest,CanonicalResourceRepositoryTest,ContextSnapshotRepositoryTest,DomainOwnershipContractTest test`。
 - 本地全量证据：`mvn -q test`（Surefire XML 汇总 176 files / 1057 tests / 0 failures / 0 errors / 0 skipped；H2/PostgreSQL 15.18/Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate 无新迁移）；`npm run verify`（44 files / 236 tests）；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities）；`npm run build`（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
 - 提交后 changed-mode T-GATE：真实性门禁扫描 12 个文件、配置边界门禁扫描 12 个文件、迁移规约门禁扫描 5 个 SQL，均无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check HEAD~1..HEAD` 通过。
+
+### PR2 阶段证据（R5 + 能力声明 + TERM 字典映射，不代表整卡完成）
+- 新增 `FhirR5CanonicalMapper` 与 `FhirCanonicalMapperSupport`：R4/R5 复用同一套 Patient 出站与 Observation 入站确定性映射，不复制第二套临床模型；R5 Patient 带 R5 profile 元数据，Observation 入站写 `FHIR_R5:Observation`。
+- 新增 `FhirCapabilityStatementService`：只声明 PR2 已落地的映射能力面（Patient 出站、Observation 入站），不声明未开放的 unsafe create；运行 read/search/create、医师确认链、INTEG-01 总线和安全边界留 PR3。
+- 新增 `TerminologyMappingPortAdapter`：使用 `standard_term` ACTIVE 和 `term_mapping` CONFIRMED 判断编码映射状态，返回 `VALID` / `PARTIAL` / `UNKNOWN`；FHIR Observation 的本地编码经 TERM-01 端口评估，未映射返回 `OperationOutcome` warning，禁止字符近似兜底。
+- 新增 `FhirOperationOutcomeFactory`：从 issue 列表生成 FHIR JSON `OperationOutcome`，用于未映射 / 不支持项的诚实响应。
+- 本地红绿证据：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirR5CanonicalMapperTest,FhirCapabilityStatementServiceTest,FhirOperationOutcomeFactoryTest,TerminologyMappingPortAdapterTest test` 先红灯于缺少 PR2 生产类型与仓储查询方法，补实现后退出码 0。
+- 聚焦回归：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirR5CanonicalMapperTest,FhirCapabilityStatementServiceTest,FhirOperationOutcomeFactoryTest,FhirResourceMappingRepositoryTest,TerminologyMappingPortAdapterTest,TerminologyMappingConfigTest,ContextSnapshotServiceTest,StandardClinicalFhirMappingRegistryTest,StandardClinicalModelContractTest,CanonicalResourceRepositoryTest,DomainOwnershipContractTest test` 退出码 0。
+- 后端全量：`mvn -q test`（Surefire XML 汇总 180 files / 1065 tests / 0 failures / 0 errors / 0 skipped；H2 / PostgreSQL 15.18 / Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate no-op）。
+- 前端验证：首次 `npm run verify` 因新 worktree 缺 `node_modules` 停在 `eslint: command not found`，经 `npm ci` 恢复依赖后重跑通过（44 files / 236 tests；既有 React Router / act 噪声归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate` 0 vulnerabilities；`npm run build` 通过（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
+- 提交后 changed-mode T-GATE：真实性门禁扫描 10 个文件、配置边界门禁扫描 10 个文件、迁移规约门禁扫描 0 个 SQL，均无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check HEAD~1..HEAD` 通过。
+- 待补证据：远端 CI 8/8、PR 合并后回填。
 
 ## 大卡工序（6d，后端为主；按 PR 拆分）
 - PR1：FHIR 资源映射数据模型 + `mk_fhir_mapping_rule` + 5 方言迁移 + Canonical↔FHIR 映射层（R4）→ AC-1 地基。
