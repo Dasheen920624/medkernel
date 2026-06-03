@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS mk_diagnosis_confidence_policy (
 COMMENT ON TABLE mk_diagnosis_criterion IS '诊断标准：支持/反对/必需/排除某诊断的发现项（引用标准术语编码）及权重';
 COMMENT ON COLUMN mk_diagnosis_criterion.finding_term_code IS '发现项标准术语编码（TERM-01），不写死中文';
 COMMENT ON COLUMN mk_diagnosis_criterion.direction IS '方向：SUPPORTING 支持 / REFUTING 反对 / REQUIRED 必需 / EXCLUSION 排除';
-COMMENT ON COLUMN mk_diagnosis_criterion.temporal_constraint IS '时序/趋势约束（可选，Plan B 接 RuleDslEvaluator temporal 算子求值）';
+COMMENT ON COLUMN mk_diagnosis_criterion.temporal_constraint IS '时序/趋势约束（可选，求值留后续阶段接 RuleDslEvaluator，Spec 1 命中到编码级）';
 COMMENT ON TABLE mk_diagnosis_differential IS '鉴别清单：与本诊断需鉴别的疾病、鉴别要点与建议补充检查';
 COMMENT ON TABLE mk_diagnosis_care_pointer IS '诊疗指针：确诊后指向治疗/检查（规则·知识）或专病路径（恒软建议）';
 COMMENT ON TABLE mk_diagnosis_test_case IS '诊断测试病例：发现集→期望候选/置信，作为发布门禁回归集';
@@ -320,7 +320,7 @@ public interface DiagnosisCriterionRepository extends ListCrudRepository<Diagnos
 **Files:**
 - Modify: `shared/api/error/ErrorCode.java`
 - Modify: `shared/architecture/DomainOwnershipCatalog.java:33`
-- Test: `DomainOwnershipCatalogTest`（若存在则复跑；否则靠 Task 2 迁移 + 既有架构测试）
+- Test: `DomainOwnershipContractTest`（架构 owner 契约测试，复跑验证每张 `mk_diagnosis_*` 有唯一 owner）
 
 - [ ] **Step 1: 加错误码** — 在 `ErrorCode` 枚举按真实签名 `(String code, int httpStatus, String message, ErrorClass class, boolean retryable)` 新增（4 个）：
 
