@@ -24,6 +24,7 @@ import {
   useInstantiatePilotTemplate,
   useOnboardingReadiness,
   useOrgUnits,
+  usePackages,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePilotPackageTemplates,
@@ -205,6 +206,30 @@ describe("package export api helpers", () => {
       ]),
     );
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
+  });
+
+  it("loads package list through API-13 style server-side paging and filters", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 1,
+          size: 10,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      usePackages({ page: 0, size: 10, keyword: "COPD", status: "DRAFT" }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages", {
+      params: { page: 0, size: 10, keyword: "COPD", status: "DRAFT" },
+    });
   });
 
   it("loads pilot package templates from the dedicated API-10 endpoint", async () => {

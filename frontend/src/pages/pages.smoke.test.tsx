@@ -115,7 +115,7 @@ describe("page smoke coverage", () => {
   it("renders the tenant config-packages console", () => {
     renderPage(<ConfigPackages />);
     expect(screen.getByRole("heading", { name: "配置包中心" })).toBeInTheDocument();
-    expect(screen.getByText(/一键创建知识配置包草稿/)).toBeInTheDocument();
+    expect(screen.getByText("正在加载配置包中心")).toBeInTheDocument();
   });
 
   it("renders the tenant adapter-hub console", () => {

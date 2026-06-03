@@ -2526,19 +2526,32 @@ export function useCreatePackage() {
 }
 
 // 3. 分页查询知识包列表
-export function usePackages(page = 0, size = 10) {
+export interface PackageListParams {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  status?: string;
+}
+
+export function usePackages(params: PackageListParams = {}) {
+  const requestParams = {
+    page: params.page ?? 0,
+    size: params.size ?? 10,
+    ...(params.keyword ? { keyword: params.keyword } : {}),
+    ...(params.status ? { status: params.status } : {}),
+  };
   return useQuery({
-    queryKey: ["packages", "list", page, size],
+    queryKey: ["packages", "list", requestParams],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
         PACKAGE_API_ROOT,
-        { params: { page, size } },
+        { params: requestParams },
       );
       return (
         data.data ?? {
           items: [],
-          page: page + 1,
-          size,
+          page: requestParams.page + 1,
+          size: requestParams.size,
           total: 0,
           hasNext: false,
           totalEstimated: false,

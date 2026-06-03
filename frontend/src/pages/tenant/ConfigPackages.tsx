@@ -1,87 +1,106 @@
 import { useState } from "react";
 import {
-  Table,
-  Button,
-  Drawer,
-  Tag,
-  Modal,
-  Form,
-  Input,
-  Select,
-  Card,
-  Descriptions,
-  Badge,
   Alert,
   App as AntdApp,
-  Upload,
-  Row,
-  Col,
-  Timeline,
-  Statistic,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Drawer,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
   Progress,
   Radio,
-  Popconfirm,
-  Checkbox,
-  theme as antdTheme,
+  Select,
   Space,
+  Statistic,
+  Table,
+  Tag,
+  Timeline,
+  Typography,
+  Upload,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
-  PlusOutlined,
-  CloudSyncOutlined,
-  HistoryOutlined,
-  SettingOutlined,
   CheckCircleOutlined,
-  WarningOutlined,
-  InfoCircleOutlined,
-  CompassOutlined,
-  ArrowRightOutlined,
-  DatabaseOutlined,
-  AuditOutlined,
-  FileProtectOutlined,
-  SearchOutlined,
+  CloudSyncOutlined,
   DownloadOutlined,
+  FileProtectOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  SearchOutlined,
   UploadOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
+
+import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import {
-  useSyncTargets,
-  useCreatePackage,
-  usePackages,
-  usePackageDetail,
-  useAddPackageItem,
-  useCalculateDiff,
-  useReleasePackage,
-  usePackageSyncLogs,
-  useRollbackPackage,
-  useRuleDefinitions,
-  usePathwayTemplates,
-  useEvaluationIndicators,
-  useTerminologyPackages,
-  useImportOfflinePackage,
-  usePilotPackageTemplates,
-  usePackageAssetReadiness,
-  useInstantiatePilotTemplate,
-  useSecurityProfile,
   downloadPackageDiffExport,
   downloadPackageOfflineExport,
   downloadPackageSyncEvidenceExport,
+  useAddPackageItem,
+  useCalculateDiff,
+  useCreatePackage,
+  useEvaluationIndicators,
+  useImportOfflinePackage,
+  useInstantiatePilotTemplate,
+  usePackageAssetReadiness,
+  usePackageDetail,
+  usePackages,
+  usePackageSyncLogs,
+  usePathwayTemplates,
+  usePilotPackageTemplates,
+  useReleasePackage,
+  useRollbackPackage,
+  useRuleDefinitions,
+  useSecurityProfile,
+  useSyncTargets,
+  useTerminologyPackages,
 } from "@/shared/api/hooks";
 import type {
   EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
   PilotPackageTemplate,
-  PathwayTemplate,
   RuleDefinition,
   SyncLogResponse,
   TermMappingPackage,
 } from "@/shared/api/hooks";
-import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { PageShell } from "@/shared/ui/PageShell";
+import { StepFlow } from "@/shared/ui/StepFlow";
+import type { StepKey } from "@/shared/ui/StepFlow.contract";
+import styles from "./ConfigPackages.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
+const { Text } = Typography;
 
+type PackageStatusFilter = "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE";
 type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
+
+const statusText: Record<string, string> = {
+  DRAFT: "草案",
+  PUBLISHED: "已发布",
+  ACTIVE: "生效中",
+  OFFLINE: "已下线",
+};
+
+const statusBadge: Record<string, BadgeStatus> = {
+  DRAFT: "default",
+  PUBLISHED: "processing",
+  ACTIVE: "success",
+  OFFLINE: "error",
+};
+
+const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }> = [
+  { value: "DRAFT", label: "草案" },
+  { value: "PUBLISHED", label: "已发布" },
+  { value: "ACTIVE", label: "生效中" },
+  { value: "OFFLINE", label: "已下线" },
+];
 
 function hasHospitalAdminRole(roles: Array<{ code?: string }> | undefined) {
   return (roles ?? []).some((role) => {
@@ -123,72 +142,118 @@ function defaultPilotPackageCode(template: PilotPackageTemplate) {
   return `${template.packageCodePrefix}.${suffix}`;
 }
 
-export default function ConfigPackages() {
-  const { token } = antdTheme.useToken();
-  const { message } = AntdApp.useApp();
+function safeFilename(value: string) {
+  return value.replace(/[^\w.-]/g, "_");
+}
 
-  // 1. API 数据拉取
-  const [currentPage, setCurrentPage] = useState<number>(1);
+function currentStepFor(
+  selectedPackage: KnowledgePackage | undefined,
+  currentItems: PackageItem[],
+  visibleSyncLogs: SyncLogResponse[],
+): StepKey {
+  if (!selectedPackage) return "select_template";
+  if (visibleSyncLogs.length > 0) return "evidence_rollback";
+  if (selectedPackage.status === "DRAFT") {
+    return currentItems.length > 0 ? "impact_preview" : "auto_validate";
+  }
+  if (selectedPackage.status === "PUBLISHED") return "canary_release";
+  if (selectedPackage.status === "ACTIVE") return "full_rollout";
+  if (selectedPackage.status === "OFFLINE") return "evidence_rollback";
+  return "select_template";
+}
+
+function syncLogStatusColor(status: string) {
+  if (status === "SUCCESS") return "green";
+  if (status === "NOT_SYNCED") return "orange";
+  if (status === "RUNNING") return "blue";
+  return "red";
+}
+
+function syncLogStatusText(status: string) {
+  if (status === "NOT_SYNCED") return "未接入";
+  if (status === "SUCCESS") return "成功";
+  if (status === "FAILED") return "失败";
+  if (status === "RUNNING") return "执行中";
+  return status;
+}
+
+export default function ConfigPackages() {
+  const { message } = AntdApp.useApp();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [statusInput, setStatusInput] = useState<PackageStatusFilter | undefined>(undefined);
+  const [filters, setFilters] = useState<{
+    keyword?: string;
+    status?: PackageStatusFilter;
+  }>({});
+
   const { data: securityProfile } = useSecurityProfile();
-  const { data: apiPackagesData, refetch: refetchPackages } = usePackages(currentPage - 1, 10);
+  const packageQuery = usePackages({
+    page: currentPage - 1,
+    size: 10,
+    keyword: filters.keyword,
+    status: filters.status,
+  });
   const { data: apiSyncTargets } = useSyncTargets();
-  const { data: pilotTemplates = [], isLoading: pilotTemplatesLoading } =
+  const { data: pilotTemplates = [], isLoading: pilotTemplatesLoading = false } =
     usePilotPackageTemplates();
   const {
     data: assetReadiness,
     refetch: refetchAssetReadiness,
-    isLoading: readinessLoading,
+    isLoading: readinessLoading = false,
+    isError: readinessError = false,
   } = usePackageAssetReadiness();
+
+  const apiPackagesData = packageQuery.data;
+  const apiPackages = apiPackagesData?.items ?? [];
+  const totalPackagesCount = apiPackagesData?.total ?? 0;
+  const displayTargets = apiSyncTargets ?? [];
   const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
 
-  const [searchKeyword, setSearchKeyword] = useState<string>("");
-
-  const apiPackages = apiPackagesData?.items ?? [];
-  const normalizedKeyword = searchKeyword.trim().toLowerCase();
-  const displayPackages = apiPackages.filter(
-    (p) =>
-      !normalizedKeyword ||
-      p.name.toLowerCase().includes(normalizedKeyword) ||
-      p.packageCode.toLowerCase().includes(normalizedKeyword),
-  );
-
-  const totalPackagesCount =
-    normalizedKeyword.length > 0 ? displayPackages.length : (apiPackagesData?.total ?? 0);
-
-  const displayTargets = apiSyncTargets ?? [];
-
-  // 3. UI 模态窗控制状态
-  const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
-  const [detailDrawerVisible, setDetailDrawerVisible] = useState<boolean>(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
-
-  const [diffModalVisible, setDiffModalVisible] = useState<boolean>(false);
+  const [diffModalVisible, setDiffModalVisible] = useState(false);
   const [basePackageIdForDiff, setBasePackageIdForDiff] = useState<string | undefined>(undefined);
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
+  const [rollbackModalVisible, setRollbackModalVisible] = useState(false);
+  const [offlineImportModalVisible, setOfflineImportModalVisible] = useState(false);
+  const [pilotTemplateModalVisible, setPilotTemplateModalVisible] = useState(false);
+  const [selectedPilotTemplateCode, setSelectedPilotTemplateCode] = useState<string | undefined>();
+  const [offlineImportContent, setOfflineImportContent] = useState("");
+  const [rollbackReason, setRollbackReason] = useState("");
+  const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
+  const [selectedAssetType, setSelectedAssetType] = useState<string>("RULE");
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
+  const [syncExecuting, setSyncExecuting] = useState(false);
+  const [diffExporting, setDiffExporting] = useState(false);
+  const [offlineExportingId, setOfflineExportingId] = useState<string | null>(null);
+  const [syncEvidenceExporting, setSyncEvidenceExporting] = useState(false);
 
-  const [syncModalVisible, setSyncModalVisible] = useState<boolean>(false);
-  const [rollbackModalVisible, setRollbackModalVisible] = useState<boolean>(false);
-  const [offlineImportModalVisible, setOfflineImportModalVisible] = useState<boolean>(false);
-  const [pilotTemplateModalVisible, setPilotTemplateModalVisible] = useState<boolean>(false);
-  const [selectedPilotTemplateCode, setSelectedPilotTemplateCode] = useState<string | undefined>(
-    undefined,
+  const [createForm] = Form.useForm();
+  const [itemForm] = Form.useForm();
+  const [syncForm] = Form.useForm();
+  const [pilotTemplateForm] = Form.useForm();
+
+  const effectivePackageId = selectedPackageId ?? apiPackages[0]?.packageId ?? null;
+  const selectedPackage = apiPackages.find((p) => p.packageId === effectivePackageId);
+  const selectedPilotTemplate =
+    pilotTemplates.find((template) => template.templateCode === selectedPilotTemplateCode) ??
+    pilotTemplates[0];
+
+  const { data: apiDetail, refetch: refetchPackageDetail } = usePackageDetail(
+    effectivePackageId || "",
   );
-  const [offlineImportContent, setOfflineImportContent] = useState<string>("");
-  const [rollbackReason, setRollbackReason] = useState<string>("");
-  const [rollbackConfirmed, setRollbackConfirmed] = useState<boolean>(false);
+  const currentItems = apiDetail?.items ?? [];
+  const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
+  const { data: apiDiffData } = useCalculateDiff(effectivePackageId || "", basePackageIdForDiff);
 
-  const closeRollbackModal = () => {
-    setRollbackModalVisible(false);
-    setRollbackReason("");
-    setRollbackConfirmed(false);
-  };
-
-  // 资产入包选项（RULE/PATHWAY/EVALUATION/TERMINOLOGY）
   const { data: activeRules } = useRuleDefinitions({ size: 100 });
   const { data: activePathways } = usePathwayTemplates({ size: 100 });
   const { data: activeEvaluations } = useEvaluationIndicators({ size: 100 });
   const { data: activeTerminologyPackages } = useTerminologyPackages({ size: 100 });
 
-  // 4. API 突变 Hooks
   const createPackageMutation = useCreatePackage();
   const addPackageItemMutation = useAddPackageItem();
   const releasePackageMutation = useReleasePackage();
@@ -196,49 +261,48 @@ export default function ConfigPackages() {
   const importOfflinePackageMutation = useImportOfflinePackage();
   const instantiatePilotTemplateMutation = useInstantiatePilotTemplate();
 
-  // 5. 表单定义
-  const [createForm] = Form.useForm();
-  const [itemForm] = Form.useForm();
-  const [syncForm] = Form.useForm();
-  const [pilotTemplateForm] = Form.useForm();
-
-  // 选中包的详情与细项
-  const selectedPackage = displayPackages.find((p) => p.packageId === selectedPackageId);
-  const { data: apiDetail, refetch: refetchPackageDetail } = usePackageDetail(
-    selectedPackageId || "",
+  const activeCount = apiPackages.filter((p) => p.status === "ACTIVE").length;
+  const publishedCount = apiPackages.filter((p) => p.status === "PUBLISHED").length;
+  const draftCount = apiPackages.filter((p) => p.status === "DRAFT").length;
+  const offlineCount = apiPackages.filter((p) => p.status === "OFFLINE").length;
+  const readinessBlockers = assetReadiness?.blockers ?? [];
+  const canInstantiatePilotTemplate = pilotTemplates.length > 0 && !pilotTemplatesLoading;
+  const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
+  const attentionSyncLogs = visibleSyncLogs.filter(
+    (log) => log.status === "FAILED" || log.status === "NOT_SYNCED",
   );
-  const { data: persistedSyncLogs } = usePackageSyncLogs(selectedPackageId || "");
-  const currentItems = apiDetail?.items || [];
-  const selectedPilotTemplate =
-    pilotTemplates.find((template) => template.templateCode === selectedPilotTemplateCode) ??
-    pilotTemplates[0];
+  const rollbackActionDisabled = !rollbackReason.trim() || !rollbackConfirmed;
+  const availableRollbackPackages = selectedPackage
+    ? apiPackages.filter(
+        (p) =>
+          p.packageId !== selectedPackage.packageId &&
+          p.status === "OFFLINE" &&
+          p.packageCode === selectedPackage.packageCode,
+      )
+    : [];
+  const currentStep = currentStepFor(selectedPackage, currentItems, visibleSyncLogs);
 
-  // 计算多版本差异 API
-  const { data: apiDiffData } = useCalculateDiff(selectedPackageId || "", basePackageIdForDiff);
-  const [diffExporting, setDiffExporting] = useState<boolean>(false);
-  const [offlineExportingId, setOfflineExportingId] = useState<string | null>(null);
+  const terminologyPackageOptions = (activeTerminologyPackages?.items ?? []).filter(
+    (item) => item.status === "PUBLISHED" || item.status === "GRAY",
+  );
+  const terminologyAssetId = (item: TermMappingPackage) =>
+    `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
+  const syncTargetName = (targetId: string) =>
+    displayTargets.find((target) => target.targetId === targetId)?.targetName || targetId;
 
-  // 6. 核心动作逻辑
+  const applyFilters = () => {
+    setCurrentPage(1);
+    setFilters({
+      keyword: keywordInput.trim() || undefined,
+      status: statusInput,
+    });
+  };
 
-  // A. 创建包草稿
-  const handleCreatePackage = async () => {
-    try {
-      const values = await createForm.validateFields();
-      const res = await createPackageMutation.mutateAsync({
-        packageCode: values.packageCode,
-        packageVersion: values.packageVersion,
-        name: values.name,
-        description: values.description,
-      });
-
-      message.success(`知识配置包草稿创建成功！编码: ${res?.packageCode}`);
-      setCreateModalVisible(false);
-      createForm.resetFields();
-      refetchPackages();
-    } catch (err: unknown) {
-      if (applyApiFieldErrors(createForm, err)) return;
-      message.error(getApiErrorMessage(err, "配置包草稿创建失败，请检查接口状态后重试。"));
-    }
+  const clearFilters = () => {
+    setCurrentPage(1);
+    setKeywordInput("");
+    setStatusInput(undefined);
+    setFilters({});
   };
 
   const openPilotTemplateModal = () => {
@@ -273,6 +337,52 @@ export default function ConfigPackages() {
     pilotTemplateForm.resetFields();
   };
 
+  const openSyncModal = (packageId?: string) => {
+    const nextPackageId = packageId ?? effectivePackageId;
+    if (!nextPackageId) {
+      message.warning("请先创建或选择配置包。");
+      return;
+    }
+    setSelectedPackageId(nextPackageId);
+    setSyncLogs([]);
+    setSyncProgress(0);
+    syncForm.setFieldsValue({ strategy: "GRAYSCALE" });
+    setSyncModalVisible(true);
+  };
+
+  const closeSyncModal = () => {
+    setSyncModalVisible(false);
+    setSyncLogs([]);
+    setSyncProgress(0);
+    syncForm.resetFields();
+  };
+
+  const closeRollbackModal = () => {
+    setRollbackModalVisible(false);
+    setRollbackReason("");
+    setRollbackConfirmed(false);
+  };
+
+  const handleCreatePackage = async () => {
+    try {
+      const values = await createForm.validateFields();
+      const res = await createPackageMutation.mutateAsync({
+        packageCode: values.packageCode,
+        packageVersion: values.packageVersion,
+        name: values.name,
+        description: values.description,
+      });
+
+      message.success(`配置包草案已创建：${res?.packageCode}`);
+      setCreateModalVisible(false);
+      createForm.resetFields();
+      void packageQuery.refetch();
+    } catch (err: unknown) {
+      if (applyApiFieldErrors(createForm, err)) return;
+      message.error(getApiErrorMessage(err, "配置包草案创建失败"));
+    }
+  };
+
   const handleInstantiatePilotTemplate = async () => {
     try {
       const values = await pilotTemplateForm.validateFields();
@@ -287,28 +397,20 @@ export default function ConfigPackages() {
       });
       message.success(`首发配置包草案已生成：${instantiated.packageInfo.packageCode}`);
       closePilotTemplateModal();
-      refetchPackages();
-      refetchAssetReadiness();
+      void packageQuery.refetch();
+      void refetchAssetReadiness();
     } catch (err: unknown) {
       if (applyApiFieldErrors(pilotTemplateForm, err)) return;
-      message.error(getApiErrorMessage(err, "首发配置包草案生成失败，请先核对模板资产依赖。"));
+      message.error(getApiErrorMessage(err, "首发配置包草案生成失败，请核对模板资产依赖"));
     }
   };
 
-  // B. 细项管理：添加资产
-  const [selectedAssetType, setSelectedAssetType] = useState<string>("RULE");
-  const terminologyPackageOptions = (activeTerminologyPackages?.items || []).filter(
-    (item) => item.status === "PUBLISHED" || item.status === "GRAY",
-  );
-  const terminologyAssetId = (item: TermMappingPackage) =>
-    `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
-
   const handleAddItem = async () => {
-    if (!selectedPackageId) return;
+    if (!effectivePackageId) return;
     try {
       const values = await itemForm.validateFields();
       await addPackageItemMutation.mutateAsync({
-        packageId: selectedPackageId,
+        packageId: effectivePackageId,
         request: {
           assetType: values.assetType,
           assetId: values.assetId,
@@ -317,24 +419,18 @@ export default function ConfigPackages() {
         },
       });
 
-      message.success("资产细项添加成功！");
+      message.success("资产条目已加入草案");
       itemForm.resetFields(["assetId", "assetVersion"]);
-      refetchPackageDetail();
-      refetchPackages();
+      void refetchPackageDetail();
+      void packageQuery.refetch();
     } catch (err: unknown) {
       if (applyApiFieldErrors(itemForm, err)) return;
-      message.error(getApiErrorMessage(err, "资产细项添加失败，请检查接口状态后重试。"));
+      message.error(getApiErrorMessage(err, "资产条目添加失败"));
     }
   };
 
-  // D. 院内同步发布
-  const [syncProgress, setSyncProgress] = useState<number>(0);
-  const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
-  const [syncExecuting, setSyncExecuting] = useState<boolean>(false);
-  const [syncEvidenceExporting, setSyncEvidenceExporting] = useState<boolean>(false);
-
   const handleSyncPackage = async () => {
-    if (!selectedPackageId) return;
+    if (!effectivePackageId) return;
     try {
       const values = await syncForm.validateFields();
       const strategy = values.strategy || "GRAYSCALE";
@@ -346,7 +442,7 @@ export default function ConfigPackages() {
       setSyncProgress(20);
 
       const res = await releasePackageMutation.mutateAsync({
-        packageId: selectedPackageId,
+        packageId: effectivePackageId,
         request: {
           targetOrgUnitId: values.targetOrgUnitId,
           strategy,
@@ -359,35 +455,35 @@ export default function ConfigPackages() {
 
       setSyncProgress(100);
       setSyncLogs(res?.logs || []);
-      setSyncExecuting(false);
-      const hasNotConnectedTarget =
+      const hasNotSynced =
         res?.status === "NOT_SYNCED" ||
         (res?.logs || []).some((log) => log.status === "NOT_SYNCED");
-      if (hasNotConnectedTarget) {
-        message.warning("发布计划已记录，当前未接入真实同步通道。");
-      } else {
-        message.success("院内同步发布完成。");
-      }
-      refetchPackages();
+      message[hasNotSynced ? "warning" : "success"](
+        hasNotSynced ? "发布计划已记录，存在未接入同步目标。" : "院内同步发布完成。",
+      );
+      void packageQuery.refetch();
     } catch (err: unknown) {
-      setSyncExecuting(false);
       setSyncProgress(0);
       setSyncLogs([]);
       if (applyApiFieldErrors(syncForm, err)) return;
-      message.error(getApiErrorMessage(err, "同步发布失败，未生成同步证据。"));
+      message.error(getApiErrorMessage(err, "同步发布失败，未生成同步证据"));
+    } finally {
+      setSyncExecuting(false);
     }
   };
 
   const handleExportDiffEvidence = async () => {
-    if (!selectedPackageId || !apiDiffData) return;
+    if (!effectivePackageId || !apiDiffData) return;
     setDiffExporting(true);
     try {
-      const blob = await downloadPackageDiffExport(selectedPackageId, basePackageIdForDiff);
-      const safeName = (selectedPackage?.packageCode || selectedPackageId).replace(/[^\w.-]/g, "_");
-      triggerBlobDownload(blob, `package-diff-${safeName}.jsonl`);
+      const blob = await downloadPackageDiffExport(effectivePackageId, basePackageIdForDiff);
+      triggerBlobDownload(
+        blob,
+        `package-diff-${safeFilename(selectedPackage?.packageCode || effectivePackageId)}.jsonl`,
+      );
       message.success("影响范围证据已开始下载。");
     } catch (err: unknown) {
-      message.error(getApiErrorMessage(err, "影响范围证据导出失败，请稍后重试。"));
+      message.error(getApiErrorMessage(err, "影响范围证据导出失败"));
     } finally {
       setDiffExporting(false);
     }
@@ -397,26 +493,27 @@ export default function ConfigPackages() {
     setOfflineExportingId(record.packageId);
     try {
       const blob = await downloadPackageOfflineExport(record.packageId);
-      const safeName = (record.packageCode || record.packageId).replace(/[^\w.-]/g, "_");
-      triggerBlobDownload(blob, `package-offline-${safeName}.json`);
+      triggerBlobDownload(blob, `package-offline-${safeFilename(record.packageCode)}.json`);
       message.success("离线包已开始下载，文件内包含完整性摘要。");
     } catch (err: unknown) {
-      message.error(getApiErrorMessage(err, "离线包导出失败，请检查接口状态后重试。"));
+      message.error(getApiErrorMessage(err, "离线包导出失败"));
     } finally {
       setOfflineExportingId(null);
     }
   };
 
   const handleExportSyncEvidence = async () => {
-    if (!selectedPackageId) return;
+    if (!effectivePackageId) return;
     setSyncEvidenceExporting(true);
     try {
-      const blob = await downloadPackageSyncEvidenceExport(selectedPackageId);
-      const safeName = (selectedPackage?.packageCode || selectedPackageId).replace(/[^\w.-]/g, "_");
-      triggerBlobDownload(blob, `package-sync-evidence-${safeName}.jsonl`);
+      const blob = await downloadPackageSyncEvidenceExport(effectivePackageId);
+      triggerBlobDownload(
+        blob,
+        `package-sync-evidence-${safeFilename(selectedPackage?.packageCode || effectivePackageId)}.jsonl`,
+      );
       message.success("同步证据已开始下载。");
     } catch (err: unknown) {
-      message.error(getApiErrorMessage(err, "同步证据导出失败，请检查同步日志后重试。"));
+      message.error(getApiErrorMessage(err, "同步证据导出失败"));
     } finally {
       setSyncEvidenceExporting(false);
     }
@@ -447,15 +544,14 @@ export default function ConfigPackages() {
         `离线包已导入为草案：${imported.packageCode} / ${imported.packageVersion}，共 ${imported.itemCount} 个资产条目。`,
       );
       closeOfflineImportModal();
-      refetchPackages();
+      void packageQuery.refetch();
     } catch (err: unknown) {
-      message.error(getApiErrorMessage(err, "离线包导入失败，未通过完整性校验或发布门禁。"));
+      message.error(getApiErrorMessage(err, "离线包导入失败，未通过完整性校验或发布门禁"));
     }
   };
 
-  // E. 版本一键回滚
   const handleRollback = async (targetPackage: KnowledgePackage) => {
-    if (!selectedPackageId || !selectedPackage) return;
+    if (!effectivePackageId || !selectedPackage) return;
     const reason = rollbackReason.trim();
     if (!reason || !rollbackConfirmed) {
       message.error("请填写回滚原因，并完成高危影响确认。");
@@ -463,7 +559,7 @@ export default function ConfigPackages() {
     }
     try {
       await rollbackPackageMutation.mutateAsync({
-        packageId: selectedPackageId,
+        packageId: effectivePackageId,
         request: {
           targetPackageId: targetPackage.packageId,
           confirmedCurrentVersion: selectedPackage.packageVersion,
@@ -475,84 +571,47 @@ export default function ConfigPackages() {
       });
       message.success("版本回滚成功，目标版本已启用，当前版本已下线。");
       closeRollbackModal();
-      refetchPackages();
+      void packageQuery.refetch();
     } catch (err: unknown) {
-      message.error(getApiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换。"));
+      message.error(getApiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换"));
     }
   };
 
-  // 7. 看板指标统计 (Metric Card Calculations)
-  const activeCount = displayPackages.filter((p) => p.status === "ACTIVE").length;
-  const publishedCount = displayPackages.filter((p) => p.status === "PUBLISHED").length;
-  const draftCount = displayPackages.filter((p) => p.status === "DRAFT").length;
-  const offlineCount = displayPackages.filter((p) => p.status === "OFFLINE").length;
-  const readinessBlockers = assetReadiness?.blockers ?? [];
-  const canInstantiatePilotTemplate = pilotTemplates.length > 0;
-  const readinessStatusText = assetReadiness?.ready ? "已具备首发条件" : "仍有待处理项";
-  const readinessAlertType = assetReadiness?.ready ? "success" : "warning";
-  const rollbackActionDisabled = !rollbackReason.trim() || !rollbackConfirmed;
-  const availableRollbackPackages = selectedPackage
-    ? displayPackages.filter(
-        (p) =>
-          p.packageId !== selectedPackageId &&
-          p.status === "OFFLINE" &&
-          p.packageCode === selectedPackage.packageCode,
-      )
-    : [];
-  const visibleSyncLogs = syncLogs.length > 0 ? syncLogs : (persistedSyncLogs ?? []);
-  const attentionSyncLogs = visibleSyncLogs.filter(
-    (log) => log.status === "FAILED" || log.status === "NOT_SYNCED",
-  );
-  const syncTargetName = (targetId: string) =>
-    displayTargets.find((target) => target.targetId === targetId)?.targetName || targetId;
-  const syncLogStatusColor = (status: string) => {
-    if (status === "SUCCESS") return "green";
-    if (status === "NOT_SYNCED") return "orange";
-    return "red";
-  };
-  const syncLogStatusText = (status: string) => {
-    if (status === "NOT_SYNCED") return "未接入";
-    if (status === "SUCCESS") return "成功";
-    if (status === "FAILED") return "失败";
-    return status;
-  };
-
-  // 8. 表格列定义
-  const columns = [
+  const columns: ColumnsType<KnowledgePackage> = [
     {
       title: "配置包编码",
       dataIndex: "packageCode",
       key: "packageCode",
-      render: (text: string) => <span className="font-normal text-xs font-semibold">{text}</span>,
+      width: 150,
+      render: (text: string) => <span className={styles.codeText}>{text}</span>,
     },
     {
-      title: "包名称",
+      title: "名称",
       dataIndex: "name",
       key: "name",
-      className: "font-semibold text-slate-800",
+      width: 180,
+      render: (text: string) => <Text strong>{text}</Text>,
     },
     {
-      title: "发布版本",
+      title: "版本",
       dataIndex: "packageVersion",
       key: "packageVersion",
-      render: (text: string) => (
-        <Tag color="purple" className="font-normal">
-          {text}
-        </Tag>
-      ),
+      width: 110,
+      render: (text: string) => <Tag color="purple">{text}</Tag>,
     },
     {
-      title: "配置细项",
+      title: "资产条目",
       key: "itemCount",
+      width: 120,
       render: (_: unknown, record: KnowledgePackage) => {
         const count =
-          record.packageId === selectedPackageId && apiDetail?.items
+          record.packageId === effectivePackageId && apiDetail?.items
             ? apiDetail.items.length
             : null;
         return (
-          <span className="font-normal font-medium">
+          <Text type="secondary" className={styles.nowrap}>
             {count === null ? "打开后查看" : `${count} 个资产`}
-          </span>
+          </Text>
         );
       },
     },
@@ -560,360 +619,467 @@ export default function ConfigPackages() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (status: string) => {
-        const config: Record<string, { status: BadgeStatus; text: string }> = {
-          DRAFT: { status: "default", text: "草案 (DRAFT)" },
-          PUBLISHED: { status: "processing", text: "已发布 (PUBLISHED)" },
-          ACTIVE: { status: "success", text: "执行中 (ACTIVE)" },
-          OFFLINE: { status: "error", text: "已下线 (OFFLINE)" },
-        };
-        const current = config[status] || { status: "default", text: status };
-        return <Badge status={current.status} text={current.text} className="font-medium" />;
-      },
+      width: 110,
+      render: (status: string) => (
+        <Badge status={statusBadge[status] ?? "default"} text={statusText[status] ?? status} />
+      ),
     },
     {
-      title: "创建人 / 创建日期",
-      key: "creator",
+      title: "创建信息",
+      key: "created",
+      width: 170,
       render: (_: unknown, record: KnowledgePackage) => (
-        <div className="text-xs text-slate-500">
-          <div>{record.createdBy}</div>
-          <div className="font-normal text-[10px] text-slate-400">
+        <Space direction="vertical" size={0}>
+          <Text className={styles.nowrap}>{record.createdBy}</Text>
+          <Text type="secondary" className={styles.nowrap}>
             {new Date(record.createdAt).toLocaleDateString()}
-          </div>
-        </div>
+          </Text>
+        </Space>
       ),
     },
     {
       title: "操作",
       key: "actions",
-      render: (_: unknown, record: KnowledgePackage) => {
-        const isActive = record.status === "ACTIVE";
-        return (
-          <Space size="middle">
+      width: 260,
+      render: (_: unknown, record: KnowledgePackage) => (
+        <Space wrap>
+          <Button
+            type="link"
+            onClick={() => {
+              setSelectedPackageId(record.packageId);
+              setDetailDrawerVisible(true);
+            }}
+          >
+            办理细项
+          </Button>
+          <Button
+            type="link"
+            onClick={() => {
+              setSelectedPackageId(record.packageId);
+              setDiffModalVisible(true);
+            }}
+          >
+            看影响
+          </Button>
+          <Button
+            type="link"
+            loading={offlineExportingId === record.packageId}
+            onClick={() => handleExportOfflinePackage(record)}
+          >
+            导出离线包
+          </Button>
+          <Button type="link" onClick={() => openSyncModal(record.packageId)}>
+            院内同步发布
+          </Button>
+          {record.status === "ACTIVE" && (
             <Button
               type="link"
+              danger
               onClick={() => {
                 setSelectedPackageId(record.packageId);
-                setDetailDrawerVisible(true);
+                setRollbackModalVisible(true);
               }}
-              className="p-0 font-semibold text-sky-600 hover:text-sky-800"
             >
-              办理细项
+              回滚
             </Button>
-            <Button
-              type="link"
-              onClick={() => {
-                setSelectedPackageId(record.packageId);
-                setDiffModalVisible(true);
-              }}
-              className="p-0 font-semibold text-indigo-600 hover:text-indigo-800"
-            >
-              变动差异比对
-            </Button>
-            <Button
-              type="link"
-              icon={<DownloadOutlined aria-hidden="true" />}
-              aria-label="导出离线包"
-              loading={offlineExportingId === record.packageId}
-              onClick={() => handleExportOfflinePackage(record)}
-              className="p-0 font-semibold text-cyan-700 hover:text-cyan-900"
-            >
-              导出离线包
-            </Button>
-            <Button
-              type="link"
-              onClick={() => {
-                setSelectedPackageId(record.packageId);
-                setSyncModalVisible(true);
-              }}
-              className="p-0 font-semibold text-emerald-600 hover:text-emerald-800"
-            >
-              院内同步发布
-            </Button>
-            {isActive && (
-              <Button
-                type="link"
-                danger
-                onClick={() => {
-                  setSelectedPackageId(record.packageId);
-                  setRollbackModalVisible(true);
-                }}
-                className="p-0 font-semibold"
-              >
-                一键回滚
-              </Button>
-            )}
-          </Space>
-        );
-      },
+          )}
+        </Space>
+      ),
     },
   ];
+
+  const stepPanels: Partial<Record<StepKey, React.ReactNode>> = {
+    select_template: (
+      <Space direction="vertical" className="mk-full-width">
+        <Text>从首发模板、离线包或手工草案进入发布流。当前模板 {pilotTemplates.length} 个。</Text>
+        <Space wrap>
+          <Button onClick={openPilotTemplateModal} disabled={!canInstantiatePilotTemplate}>
+            从首发模板创建
+          </Button>
+          <Button onClick={() => setOfflineImportModalVisible(true)}>导入离线包</Button>
+        </Space>
+      </Space>
+    ),
+    auto_validate: (
+      <Space direction="vertical" className="mk-full-width">
+        <Text>后端按真实资产依赖复算首发就绪门，不在前端伪造通过状态。</Text>
+        {readinessBlockers.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="依赖仍有阻塞"
+            description={readinessBlockers.join("；")}
+          />
+        ) : (
+          <Alert type="success" showIcon message="未返回阻塞项" />
+        )}
+      </Space>
+    ),
+    impact_preview: (
+      <Space direction="vertical" className="mk-full-width">
+        <Text>包内资产 {currentItems.length} 个。选择基准版本后展示后端差异与影响科室。</Text>
+        {apiDiffData && (
+          <Space wrap>
+            <Tag color="green">新增 {apiDiffData.addedCount}</Tag>
+            <Tag color="blue">更新 {apiDiffData.updatedCount}</Tag>
+            <Tag color="red">移除 {apiDiffData.removedCount}</Tag>
+          </Space>
+        )}
+      </Space>
+    ),
+    submit_review: (
+      <Text>
+        当前状态：
+        {selectedPackage
+          ? (statusText[selectedPackage.status] ?? selectedPackage.status)
+          : "未选择"}
+        。
+      </Text>
+    ),
+    canary_release: (
+      <Text>灰度默认 10% 床位或指定组织范围；无真实同步通道时后端保持 NOT_SYNCED。</Text>
+    ),
+    full_rollout: <Text>全量发布仅院级管理员可直接触发，其他角色先走灰度并提交审核。</Text>,
+    evidence_rollback: (
+      <Space direction="vertical" className="mk-full-width">
+        <Text>同步日志 {visibleSyncLogs.length} 条，可导出证据；已下线同编码版本可回滚。</Text>
+        {attentionSyncLogs.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`失败 / 未接入站点 ${attentionSyncLogs.length} 个`}
+          />
+        )}
+      </Space>
+    ),
+  };
+
+  const pageStateLoading = packageQuery.isLoading || pilotTemplatesLoading || readinessLoading;
+  const pageStateError = packageQuery.isError || readinessError;
+  const hasActiveFilters = Boolean(filters.keyword || filters.status);
+
+  if (pageStateLoading) {
+    return (
+      <PageShell
+        title="配置包中心"
+        description="读取配置包发布事实"
+        state="loading"
+        stateProps={{
+          title: "正在加载配置包中心",
+          description: "正在读取配置包列表、首发模板和资产就绪门。",
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  if (pageStateError) {
+    return (
+      <PageShell
+        title="配置包中心"
+        description="请重试或联系信息科"
+        state="error"
+        stateProps={{
+          title: "配置包中心读取失败",
+          description: "请重试；若持续失败，请带 traceId 排查配置包和资产准备接口。",
+          onRetry: () => {
+            void packageQuery.refetch();
+            void refetchAssetReadiness();
+          },
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  if (apiPackages.length === 0 && !hasActiveFilters) {
+    return (
+      <PageShell
+        title="配置包中心"
+        description="等待首个配置包草案"
+        state="empty"
+        stateProps={{
+          title: "暂无配置包",
+          description: "当前租户尚未生成配置包；可从首发模板或离线包创建草案。",
+          onRetry: () => {
+            void packageQuery.refetch();
+            void refetchAssetReadiness();
+          },
+        }}
+        primary={
+          <Button
+            type="primary"
+            icon={<PlusOutlined aria-hidden="true" />}
+            disabled={!canInstantiatePilotTemplate}
+            onClick={openPilotTemplateModal}
+          >
+            从首发模板创建
+          </Button>
+        }
+      >
+        <></>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell
       title="配置包中心"
-      description="提供配置包发布工作台。支持规则、路径、指标、术语字典统一打包、版本差异影响分析、院内同步、灰度 / 全量发布和高危回滚审计。"
-    >
-      {/* 1. 顶端宏观数据 Metric 看板 Grid */}
-      <Row gutter={16} className="mb-6">
-        <Col span={6}>
-          <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-            <Statistic
-              title={<span className="text-slate-500 font-medium">总配置包版本 (累计)</span>}
-              value={totalPackagesCount}
-              valueStyle={{ color: token.colorPrimary, fontWeight: "bold", fontSize: "28px" }}
-              prefix={<DatabaseOutlined className="mr-2 text-slate-500" />}
-            />
-            <div className="text-xs text-slate-400 mt-2">基于多租户权限隔离的版本快照</div>
-          </div>
-        </Col>
-        <Col span={6}>
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-            <Statistic
-              title={<span className="text-emerald-600 font-medium">运行执行中 (ACTIVE)</span>}
-              value={activeCount}
-              valueStyle={{ color: token.colorSuccess, fontWeight: "bold", fontSize: "28px" }}
-              prefix={<CheckCircleOutlined className="mr-2 text-emerald-500 animate-pulse" />}
-            />
-            <div className="text-xs text-emerald-600 font-semibold mt-2 flex items-center gap-1">
-              <span>当前主干正承载临床决策流转运行</span>
-            </div>
-          </div>
-        </Col>
-        <Col span={6}>
-          <div className="bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-            <Statistic
-              title={<span className="text-blue-600 font-medium">已发布待激活 (PUBLISHED)</span>}
-              value={publishedCount}
-              valueStyle={{ color: token.colorInfo, fontWeight: "bold", fontSize: "28px" }}
-              prefix={<CloudSyncOutlined className="mr-2 text-blue-500" />}
-            />
-            <div className="text-xs text-slate-400 mt-2">已完成发布，尚未成为历史回滚点</div>
-          </div>
-        </Col>
-        <Col span={6}>
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-            <Statistic
-              title={<span className="text-amber-600 font-medium">未发布草案 / 下线</span>}
-              value={draftCount + offlineCount}
-              valueStyle={{ color: token.colorWarning, fontWeight: "bold", fontSize: "28px" }}
-              prefix={<WarningOutlined className="mr-2 text-amber-500" />}
-            />
-            <div className="text-xs text-orange-600 font-semibold mt-2">
-              草案: {draftCount} 个 · 已下线: {offlineCount} 个
-            </div>
-          </div>
-        </Col>
-      </Row>
-
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm mb-6 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
-              <FileProtectOutlined />
-            </div>
-            <div>
-              <div className="font-semibold text-slate-900">首发资产准备</div>
-              <div className="text-xs text-slate-500 mt-0.5">
-                模板 {assetReadiness?.templateCount ?? pilotTemplates.length} 个 · 草案{" "}
-                {assetReadiness?.draftPackageCount ?? draftCount} 个 · 已发布{" "}
-                {assetReadiness?.releasedPackageCount ?? publishedCount + activeCount} 个
-              </div>
-            </div>
-          </div>
+      description="按 7 步流发布、同步、留证和回滚"
+      primary={
+        <Button
+          type="primary"
+          icon={<CloudSyncOutlined aria-hidden="true" />}
+          disabled={!selectedPackage}
+          onClick={() => openSyncModal()}
+        >
+          发布配置包
+        </Button>
+      }
+      extras={
+        <Space wrap>
           <Button
-            type="primary"
-            aria-label="从首发模板创建"
-            icon={<PlusOutlined aria-hidden="true" />}
+            icon={<UploadOutlined aria-hidden="true" />}
+            onClick={() => setOfflineImportModalVisible(true)}
+          >
+            导入离线包
+          </Button>
+          <Button
+            icon={<FileProtectOutlined aria-hidden="true" />}
             disabled={!canInstantiatePilotTemplate}
             loading={pilotTemplatesLoading || readinessLoading}
             onClick={openPilotTemplateModal}
-            className="rounded-lg bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
           >
             从首发模板创建
           </Button>
-        </div>
-        <div className="px-5 py-4">
+          <Button
+            icon={<PlusOutlined aria-hidden="true" />}
+            onClick={() => setCreateModalVisible(true)}
+          >
+            新建配置包草案
+          </Button>
+        </Space>
+      }
+    >
+      <Space direction="vertical" size="large" className="mk-full-width">
+        <section className={styles.summaryGrid}>
+          <Card className={styles.summaryCard}>
+            <Statistic
+              title="总配置包版本 (累计)"
+              value={totalPackagesCount}
+              prefix={<FileProtectOutlined />}
+            />
+            <Text type="secondary">服务端分页总数</Text>
+          </Card>
+          <Card className={styles.summaryCard}>
+            <Statistic title="生效中" value={activeCount} prefix={<CheckCircleOutlined />} />
+            <Text type="secondary">当前 ACTIVE 版本</Text>
+          </Card>
+          <Card className={styles.summaryCard}>
+            <Statistic title="待全量" value={publishedCount} prefix={<CloudSyncOutlined />} />
+            <Text type="secondary">已发布但未成为主版本</Text>
+          </Card>
+          <Card className={styles.summaryCard}>
+            <Statistic
+              title="草案 / 已下线"
+              value={draftCount + offlineCount}
+              prefix={<WarningOutlined />}
+            />
+            <Text type="secondary">
+              草案 {draftCount} 个 · 已下线 {offlineCount} 个
+            </Text>
+          </Card>
+        </section>
+
+        <Card title="首发资产准备" className={styles.sectionCard}>
           <Alert
-            type={readinessAlertType}
+            type={assetReadiness?.ready ? "success" : "warning"}
             showIcon
-            className="rounded-lg"
             message={
-              <div className="flex flex-wrap items-center gap-2">
-                <span>{readinessStatusText}</span>
+              <Space wrap>
+                <span>{assetReadiness?.ready ? "已具备首发条件" : "仍有待处理项"}</span>
                 <Tag color={assetReadiness?.grayscaleReady ? "green" : "orange"}>
                   灰度证据 {assetReadiness?.grayscaleReady ? "已满足" : "待完成"}
                 </Tag>
                 {assetReadiness?.readyPackageId && (
                   <Tag color="cyan">就绪包 {assetReadiness.readyPackageId}</Tag>
                 )}
-              </div>
+              </Space>
             }
             description={
               readinessBlockers.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <Space wrap>
                   {readinessBlockers.map((blocker) => (
-                    <Tag key={blocker} color="orange" className="m-0">
+                    <Tag key={blocker} color="orange">
                       {blocker}
                     </Tag>
                   ))}
-                </div>
+                </Space>
               ) : (
-                <span>模板、资产依赖和发布证据将由后端事实复算，页面不伪造准备状态。</span>
+                <span>
+                  模板 {assetReadiness?.templateCount ?? pilotTemplates.length} 个 · 草案{" "}
+                  {assetReadiness?.draftPackageCount ?? draftCount} 个 · 已发布{" "}
+                  {assetReadiness?.releasedPackageCount ?? publishedCount + activeCount} 个
+                </span>
               )
             }
           />
-        </div>
-      </div>
+        </Card>
 
-      {/* 2. 检索及操作 Form */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
-          <Form.Item label="专病包搜索" className="mb-0">
-            <Input
-              placeholder="请输入配置包名称或编码..."
-              allowClear
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              prefix={<SearchOutlined className="text-slate-400" />}
-              className="w-[280px] rounded-lg"
+        <StepFlow currentStep={currentStep} panelByStep={stepPanels} />
+
+        <Card title="配置包台账" className={styles.sectionCard}>
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Form layout="inline" className={styles.filterBar}>
+              <Form.Item label="关键字">
+                <Input
+                  placeholder="配置包名称或编码"
+                  allowClear
+                  value={keywordInput}
+                  onChange={(event) => setKeywordInput(event.target.value)}
+                  prefix={<SearchOutlined />}
+                />
+              </Form.Item>
+              <Form.Item label="状态">
+                <Select
+                  placeholder="全部状态"
+                  allowClear
+                  value={statusInput}
+                  onChange={(value) => setStatusInput(value)}
+                  className={styles.statusSelect}
+                >
+                  {packageStatusOptions.map((option) => (
+                    <Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+              <Space>
+                <Button onClick={applyFilters}>查询</Button>
+                <Button onClick={clearFilters}>重置</Button>
+              </Space>
+            </Form>
+
+            <Table
+              columns={columns}
+              dataSource={apiPackages}
+              rowKey="packageId"
+              scroll={{ x: 1100 }}
+              rowSelection={{
+                type: "radio",
+                selectedRowKeys: effectivePackageId ? [effectivePackageId] : [],
+                onChange: (keys) => setSelectedPackageId(String(keys[0])),
+              }}
+              pagination={{
+                current: currentPage,
+                pageSize: 10,
+                total: totalPackagesCount,
+                onChange: (page) => setCurrentPage(page),
+                showTotal: (total) => `共 ${total} 个配置包版本`,
+              }}
+              locale={{ emptyText: hasActiveFilters ? "没有匹配的配置包" : "暂无配置包" }}
             />
-          </Form.Item>
-          <Form.Item className="ml-auto mb-0">
-            <Button
-              icon={<UploadOutlined aria-hidden="true" />}
-              onClick={() => setOfflineImportModalVisible(true)}
-              className="rounded-lg font-medium flex items-center gap-1"
-            >
-              导入离线包
-            </Button>
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateModalVisible(true)}
-              className="rounded-lg font-medium bg-sky-600 border-sky-600 hover:bg-sky-700 hover:border-sky-700 flex items-center gap-1"
-            >
-              一键创建知识配置包草稿
-            </Button>
-          </Form.Item>
-        </Form>
-      </div>
+          </Space>
+        </Card>
 
-      {/* 3. 配置包主台账列表 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
-        <Table
-          columns={columns}
-          dataSource={displayPackages}
-          rowKey="packageId"
-          pagination={{
-            current: currentPage,
-            pageSize: 10,
-            total: totalPackagesCount,
-            onChange: (page) => setCurrentPage(page),
-            showTotal: (total) => `共 ${total} 个配置包版本`,
-          }}
-          className="medkernel-table"
-        />
-      </div>
+        {!syncModalVisible && attentionSyncLogs.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message="失败 / 未接入站点"
+            description={
+              <Space direction="vertical" className="mk-full-width">
+                {attentionSyncLogs.map((log) => (
+                  <div key={log.logId} className={styles.syncIssue}>
+                    <Space className="mk-flex-between">
+                      <Text strong>{syncTargetName(log.targetId)}</Text>
+                      <Tag color={syncLogStatusColor(log.status)}>
+                        {syncLogStatusText(log.status)}
+                      </Tag>
+                    </Space>
+                    {log.errorMessage && <Text type="secondary">{log.errorMessage}</Text>}
+                    {!log.syncEvidence && (
+                      <Text type="secondary">该站点没有成功同步水位，系统不会伪造成已同步。</Text>
+                    )}
+                  </div>
+                ))}
+              </Space>
+            }
+            action={
+              <Button loading={syncEvidenceExporting} onClick={handleExportSyncEvidence}>
+                导出同步证据
+              </Button>
+            }
+          />
+        )}
+      </Space>
 
-      {/* ────────────────── Modal: 一键创建知识配置包草稿 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-sky-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <PlusOutlined />
-            <span>新建配置包草案</span>
-          </div>
-        }
+        title="新建配置包草案"
         open={createModalVisible}
         onOk={handleCreatePackage}
         onCancel={() => setCreateModalVisible(false)}
-        width={580}
         confirmLoading={createPackageMutation.isPending}
         destroyOnClose
         okText="提交创建草案"
         cancelText="取消"
-        okButtonProps={{ className: "bg-sky-600 border-sky-600 hover:bg-sky-700" }}
       >
-        <Form form={createForm} layout="vertical" className="mt-4">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="packageCode"
-                label="配置包全局唯一编码 (Package Code)"
-                rules={[{ required: true, message: "请输入配置包唯一识别编码" }]}
-              >
-                <Input placeholder="请输入全局唯一编码" className="rounded-lg" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="packageVersion"
-                label="发布版本号 (Package Version)"
-                rules={[{ required: true, message: "请输入版本号" }]}
-              >
-                <Input placeholder="请输入版本号" className="rounded-lg font-normal" />
-              </Form.Item>
-            </Col>
-          </Row>
-
+        <Form form={createForm} layout="vertical">
+          <Form.Item
+            name="packageCode"
+            label="配置包编码"
+            rules={[{ required: true, message: "请输入配置包编码" }]}
+          >
+            <Input placeholder="输入租户内唯一配置包编码" />
+          </Form.Item>
+          <Form.Item
+            name="packageVersion"
+            label="配置包版本"
+            rules={[{ required: true, message: "请输入配置包版本" }]}
+          >
+            <Input placeholder="输入版本号" />
+          </Form.Item>
           <Form.Item
             name="name"
             label="配置包名称"
             rules={[{ required: true, message: "请输入配置包名称" }]}
           >
-            <Input placeholder="请输入配置包名称" className="rounded-lg" />
+            <Input placeholder="输入配置包名称" />
           </Form.Item>
-
-          <Form.Item name="description" label="包核心资产及发布范围描述">
-            <TextArea
-              rows={3}
-              placeholder="请填写该配置包版本所包含的核心资产及本次发布计划摘要..."
-              className="rounded-lg"
-            />
+          <Form.Item name="description" label="发布范围说明">
+            <TextArea rows={3} placeholder="填写资产范围、适用组织和发布计划摘要" />
           </Form.Item>
-
           <Alert
-            message="安全审计约束规范"
-            description="新创建的配置包版本默认置为 DRAFT (草案) 状态。只有加入并关联经过临床审核通过的医疗资产，方可触发发布。"
             type="info"
             showIcon
-            className="rounded-lg border-sky-100 bg-sky-50 text-sky-900"
+            message="新包默认保持草案状态"
+            description="只有通过资产依赖校验、影响分析和发布门禁后，才可进入灰度或全量。"
           />
         </Form>
       </Modal>
 
-      {/* ────────────────── Modal: 从首发模板创建配置包草案 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-emerald-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <FileProtectOutlined />
-            <span>从首发模板创建配置包草案</span>
-          </div>
-        }
+        title="从首发模板创建配置包草案"
         open={pilotTemplateModalVisible}
         onOk={handleInstantiatePilotTemplate}
         onCancel={closePilotTemplateModal}
-        width={760}
         confirmLoading={instantiatePilotTemplateMutation.isPending}
         destroyOnClose
         forceRender
         okText="生成配置包草案"
         cancelText="取消"
-        okButtonProps={{ className: "bg-emerald-600 border-emerald-600 hover:bg-emerald-700" }}
+        width={760}
       >
-        <Form form={pilotTemplateForm} layout="vertical" className="mt-4">
+        <Form form={pilotTemplateForm} layout="vertical">
           <Form.Item
             name="templateCode"
             label="首发模板"
             rules={[{ required: true, message: "请选择首发模板" }]}
           >
-            <Select
-              placeholder="请选择首发模板"
-              className="rounded-lg"
-              onChange={handlePilotTemplateChange}
-            >
+            <Select placeholder="请选择首发模板" onChange={handlePilotTemplateChange}>
               {pilotTemplates.map((template) => (
                 <Option key={template.templateCode} value={template.templateCode}>
                   {template.name}
@@ -921,104 +1087,84 @@ export default function ConfigPackages() {
               ))}
             </Select>
           </Form.Item>
-
           {selectedPilotTemplate && (
-            <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50/40 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="font-semibold text-slate-900">
-                    当前模板：{selectedPilotTemplate.name}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {selectedPilotTemplate.description || "该模板未填写说明"}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
-                  <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedPilotTemplate.items.map((item) => (
-                  <Tag
-                    key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
-                    color={assetTypeColor(item.assetType)}
-                    className="m-0"
-                  >
-                    {item.assetType} · {item.assetId} · {item.assetVersion}
-                  </Tag>
-                ))}
-              </div>
-            </div>
+            <Card size="small" className={styles.templatePreview}>
+              <Space direction="vertical" className="mk-full-width">
+                <Space className="mk-flex-between" wrap>
+                  <Space direction="vertical" size={0}>
+                    <Text strong>当前模板：{selectedPilotTemplate.name}</Text>
+                    <Text type="secondary">
+                      {selectedPilotTemplate.description || "该模板未填写说明"}
+                    </Text>
+                  </Space>
+                  <Space wrap>
+                    <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
+                    <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
+                  </Space>
+                </Space>
+                <Space wrap>
+                  {selectedPilotTemplate.items.map((item) => (
+                    <Tag
+                      key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
+                      color={assetTypeColor(item.assetType)}
+                    >
+                      {item.assetType} · {item.assetId} · {item.assetVersion}
+                    </Tag>
+                  ))}
+                </Space>
+              </Space>
+            </Card>
           )}
-
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="packageCode"
-                label="配置包编码"
-                rules={[{ required: true, message: "请输入配置包编码" }]}
-              >
-                <Input placeholder="请输入配置包编码" className="rounded-lg font-normal" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="packageVersion"
-                label="配置包版本"
-                rules={[{ required: true, message: "请输入配置包版本" }]}
-              >
-                <Input placeholder="请输入配置包版本" className="rounded-lg font-normal" />
-              </Form.Item>
-            </Col>
-          </Row>
-
+          <Form.Item
+            name="packageCode"
+            label="配置包编码"
+            rules={[{ required: true, message: "请输入配置包编码" }]}
+          >
+            <Input placeholder="输入配置包编码" />
+          </Form.Item>
+          <Form.Item
+            name="packageVersion"
+            label="配置包版本"
+            rules={[{ required: true, message: "请输入配置包版本" }]}
+          >
+            <Input placeholder="输入配置包版本" />
+          </Form.Item>
           <Form.Item
             name="name"
             label="配置包名称"
             rules={[{ required: true, message: "请输入配置包名称" }]}
           >
-            <Input placeholder="请输入配置包名称" className="rounded-lg" />
+            <Input placeholder="输入配置包名称" />
           </Form.Item>
-
           <Form.Item name="description" label="说明">
-            <TextArea rows={3} placeholder="请输入本次首发准备说明" className="rounded-lg" />
+            <TextArea rows={3} placeholder="输入本次首发准备说明" />
           </Form.Item>
-
           <Alert
-            message="只生成草案，不绕过发布门禁"
-            description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
             type="info"
             showIcon
-            className="rounded-lg"
+            message="只生成草案，不绕过发布门禁"
+            description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
           />
         </Form>
       </Modal>
 
-      {/* ────────────────── Modal: 导入离线配置包 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-cyan-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <UploadOutlined />
-            <span>导入离线包</span>
-          </div>
-        }
+        title="导入离线包"
         open={offlineImportModalVisible}
         onOk={handleImportOfflinePackage}
         onCancel={closeOfflineImportModal}
-        width={680}
         confirmLoading={importOfflinePackageMutation.isPending}
         destroyOnClose
         okText="导入并校验"
         cancelText="取消"
+        width={680}
       >
-        <div className="mt-4 flex flex-col gap-4">
+        <Space direction="vertical" size="middle" className="mk-full-width">
           <Alert
-            message="导入后保持草案状态"
-            description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
             type="info"
             showIcon
-            className="rounded-lg border-cyan-100 bg-cyan-50 text-cyan-900"
+            message="导入后保持草案状态"
+            description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
           />
           <Upload
             accept=".json,application/json"
@@ -1035,21 +1181,14 @@ export default function ConfigPackages() {
                 value={offlineImportContent}
                 onChange={(event) => setOfflineImportContent(event.target.value)}
                 placeholder="粘贴离线包 JSON 内容"
-                className="rounded-lg font-normal"
               />
             </Form.Item>
           </Form>
-        </div>
+        </Space>
       </Modal>
 
-      {/* ────────────────── Drawer: 办理包内资产细项 ────────────────── */}
       <Drawer
-        title={
-          <div className="flex items-center gap-2 text-sky-700 font-semibold">
-            <SettingOutlined />
-            <span>医学核心资产细项配置管理台</span>
-          </div>
-        }
+        title="办理包内资产细项"
         width={920}
         onClose={() => {
           setDetailDrawerVisible(false);
@@ -1059,251 +1198,150 @@ export default function ConfigPackages() {
         destroyOnClose
       >
         {selectedPackage && (
-          <div className="flex flex-col gap-6">
-            <Descriptions
-              title={
-                <div className="flex items-center gap-2 text-slate-800 text-sm font-semibold border-l-4 border-sky-500 pl-2">
-                  <span>归属包元信息 facts</span>
-                </div>
-              }
-              bordered
-              column={3}
-              size="small"
-              className="bg-slate-50 p-4 rounded-xl border border-slate-200"
-            >
-              <Descriptions.Item label="包编码">
-                <span className="font-normal text-xs font-semibold">
-                  {selectedPackage.packageCode}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="版本号">
+          <Space direction="vertical" size="large" className="mk-full-width">
+            <Descriptions bordered column={3} size="small">
+              <Descriptions.Item label="包编码">{selectedPackage.packageCode}</Descriptions.Item>
+              <Descriptions.Item label="版本">
                 <Tag color="purple">{selectedPackage.packageVersion}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="生命周期状态">
+              <Descriptions.Item label="状态">
                 <Badge
-                  status={selectedPackage.status === "ACTIVE" ? "processing" : "default"}
-                  text={selectedPackage.status}
+                  status={statusBadge[selectedPackage.status] ?? "default"}
+                  text={statusText[selectedPackage.status] ?? selectedPackage.status}
                 />
               </Descriptions.Item>
-              <Descriptions.Item label="配置包名称" span={3}>
-                <span className="font-medium text-slate-800">{selectedPackage.name}</span>
+              <Descriptions.Item label="名称" span={3}>
+                {selectedPackage.name}
               </Descriptions.Item>
-              <Descriptions.Item label="包描述说明" span={3}>
-                <span className="text-xs text-slate-500">{selectedPackage.description}</span>
+              <Descriptions.Item label="说明" span={3}>
+                {selectedPackage.description}
               </Descriptions.Item>
             </Descriptions>
 
-            {/* 新增资产入包表单 (仅在 DRAFT 状态允许编辑修改) */}
             {selectedPackage.status === "DRAFT" ? (
-              <Card
-                title={
-                  <div className="flex items-center gap-2 text-sky-600 font-semibold text-xs">
-                    <PlusOutlined />
-                    <span>追加临床资产细项入包</span>
-                  </div>
-                }
-                size="small"
-                className="rounded-xl border-sky-100 bg-sky-50/20"
-              >
+              <Card title="追加临床资产条目" size="small">
                 <Form form={itemForm} layout="vertical" onFinish={handleAddItem}>
-                  <Row gutter={12}>
-                    <Col span={6}>
-                      <Form.Item
-                        name="assetType"
-                        label="资产类型"
-                        rules={[{ required: true }]}
-                        initialValue="RULE"
-                      >
-                        <Select
-                          onChange={(val) => {
-                            setSelectedAssetType(val);
-                            itemForm.resetFields(["assetId", "assetVersion"]);
-                          }}
-                          className="rounded-lg"
-                        >
-                          <Option value="RULE">规则引擎 (RULE)</Option>
-                          <Option value="PATHWAY">临床路径 (PATHWAY)</Option>
-                          <Option value="EVALUATION">质控评估指标 (EVALUATION)</Option>
-                          <Option value="TERMINOLOGY">术语字典映射 (TERMINOLOGY)</Option>
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item
-                        name="assetId"
-                        label="选择已发布的临床资产"
-                        rules={[{ required: true, message: "请选择有效资产" }]}
-                      >
-                        <Select
-                          placeholder="请选择已发布资产"
-                          showSearch
-                          allowClear
-                          className="rounded-lg"
-                          onChange={(value) => {
-                            if (selectedAssetType !== "TERMINOLOGY") return;
-                            const selected = terminologyPackageOptions.find(
-                              (item) => terminologyAssetId(item) === value,
-                            );
-                            if (selected) {
-                              itemForm.setFieldsValue({ assetVersion: selected.packageVersion });
-                            } else {
-                              itemForm.setFieldsValue({ assetVersion: undefined });
-                            }
-                          }}
-                        >
-                          {selectedAssetType === "RULE" &&
-                            (activeRules?.items || []).map((r: RuleDefinition) => (
-                              <Option key={r.ruleId} value={r.ruleId}>
-                                {r.name} ({r.ruleId})
-                              </Option>
-                            ))}
-
-                          {selectedAssetType === "PATHWAY" &&
-                            (activePathways?.items || []).map((p: PathwayTemplate) => (
-                              <Option key={p.templateId} value={p.templateId}>
-                                {p.name} ({p.templateId})
-                              </Option>
-                            ))}
-
-                          {selectedAssetType === "EVALUATION" &&
-                            (activeEvaluations?.items || []).map((e: EvaluationIndicator) => (
-                              <Option key={e.indicatorId} value={e.indicatorId}>
-                                {e.name} ({e.indicatorId})
-                              </Option>
-                            ))}
-
-                          {selectedAssetType === "TERMINOLOGY" &&
-                            terminologyPackageOptions.map((t: TermMappingPackage) => (
-                              <Option
-                                key={`${t.packageCode}-${t.packageVersion}-${t.scopeLevel}-${t.scopeCode}`}
-                                value={terminologyAssetId(t)}
-                              >
-                                {t.displayName} ({t.packageCode} / {t.scopeLevel}:{t.scopeCode})
-                              </Option>
-                            ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    <Col span={6}>
-                      <Form.Item
-                        name="assetVersion"
-                        label="资产快照版本"
-                        rules={[{ required: true }]}
-                      >
-                        <Input
-                          placeholder={
-                            selectedAssetType === "TERMINOLOGY"
-                              ? "选择术语包后自动带出版本"
-                              : "请输入资产快照版本"
-                          }
-                          readOnly={selectedAssetType === "TERMINOLOGY"}
-                          className="rounded-lg font-normal"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={addPackageItemMutation.isPending}
-                    className="w-full bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-lg font-semibold"
+                  <Form.Item
+                    name="assetType"
+                    label="资产类型"
+                    rules={[{ required: true }]}
+                    initialValue="RULE"
                   >
+                    <Select
+                      onChange={(value) => {
+                        setSelectedAssetType(value);
+                        itemForm.resetFields(["assetId", "assetVersion"]);
+                      }}
+                    >
+                      <Option value="RULE">规则引擎 (RULE)</Option>
+                      <Option value="PATHWAY">临床路径 (PATHWAY)</Option>
+                      <Option value="EVALUATION">质控评估指标 (EVALUATION)</Option>
+                      <Option value="TERMINOLOGY">术语字典映射 (TERMINOLOGY)</Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="assetId"
+                    label="选择已发布的临床资产"
+                    rules={[{ required: true, message: "请选择有效资产" }]}
+                  >
+                    <Select
+                      placeholder="请选择已发布资产"
+                      showSearch
+                      allowClear
+                      onChange={(value) => {
+                        if (selectedAssetType !== "TERMINOLOGY") return;
+                        const selected = terminologyPackageOptions.find(
+                          (item) => terminologyAssetId(item) === value,
+                        );
+                        itemForm.setFieldsValue({
+                          assetVersion: selected?.packageVersion,
+                        });
+                      }}
+                    >
+                      {selectedAssetType === "RULE" &&
+                        (activeRules?.items ?? []).map((rule: RuleDefinition) => (
+                          <Option key={rule.ruleId} value={rule.ruleId}>
+                            {rule.name} ({rule.ruleId})
+                          </Option>
+                        ))}
+                      {selectedAssetType === "PATHWAY" &&
+                        (activePathways?.items ?? []).map((pathway) => (
+                          <Option key={pathway.templateId} value={pathway.templateId}>
+                            {pathway.name} ({pathway.templateId})
+                          </Option>
+                        ))}
+                      {selectedAssetType === "EVALUATION" &&
+                        (activeEvaluations?.items ?? []).map((evaluation: EvaluationIndicator) => (
+                          <Option key={evaluation.indicatorId} value={evaluation.indicatorId}>
+                            {evaluation.name} ({evaluation.indicatorId})
+                          </Option>
+                        ))}
+                      {selectedAssetType === "TERMINOLOGY" &&
+                        terminologyPackageOptions.map((termPackage: TermMappingPackage) => (
+                          <Option
+                            key={`${termPackage.packageCode}-${termPackage.packageVersion}-${termPackage.scopeLevel}-${termPackage.scopeCode}`}
+                            value={terminologyAssetId(termPackage)}
+                          >
+                            {termPackage.displayName} ({termPackage.packageCode} /{" "}
+                            {termPackage.scopeLevel}:{termPackage.scopeCode})
+                          </Option>
+                        ))}
+                    </Select>
+                  </Form.Item>
+                  <Form.Item name="assetVersion" label="资产快照版本" rules={[{ required: true }]}>
+                    <Input
+                      placeholder={
+                        selectedAssetType === "TERMINOLOGY"
+                          ? "选择术语包后自动带出版本"
+                          : "输入资产快照版本"
+                      }
+                      readOnly={selectedAssetType === "TERMINOLOGY"}
+                    />
+                  </Form.Item>
+                  <Button htmlType="submit" loading={addPackageItemMutation.isPending}>
                     确认将此资产关联加入当前包草稿
                   </Button>
                 </Form>
               </Card>
             ) : (
               <Alert
-                message="编辑权限受限说明"
-                description="当前配置包已处于发布/激活生命周期中，资产条目已版本锁定，无法进行追加或删除修改。如需修改资产，请创建新的配置包草稿版本。"
                 type="warning"
                 showIcon
-                className="rounded-lg"
+                message="资产条目已锁定"
+                description="当前配置包不处于草案状态，如需修改资产，请创建新的配置包草案版本。"
               />
             )}
 
-            {/* 配置资产细项列表 Table */}
-            <Card
-              title={
-                <div className="font-semibold text-slate-700">
-                  配置包包含的核心资产条目 ({currentItems.length})
-                </div>
-              }
-              className="rounded-xl"
-            >
+            <Card title={`配置包包含的核心资产条目 (${currentItems.length})`}>
               <Table
                 dataSource={currentItems}
                 rowKey="itemId"
                 size="small"
                 pagination={false}
                 columns={[
-                  {
-                    title: "资产细项 ID",
-                    dataIndex: "itemId",
-                    key: "itemId",
-                    render: (text: string) => (
-                      <span className="font-normal text-[10px] text-slate-400">{text}</span>
-                    ),
-                  },
+                  { title: "资产条目", dataIndex: "itemId", key: "itemId" },
                   {
                     title: "资产类型",
                     dataIndex: "assetType",
                     key: "assetType",
-                    render: (type: string) => {
-                      const colors: Record<string, string> = {
-                        RULE: "blue",
-                        PATHWAY: "purple",
-                        EVALUATION: "cyan",
-                        TERMINOLOGY: "orange",
-                      };
-                      return <Tag color={colors[type] || "default"}>{type}</Tag>;
-                    },
+                    render: (type: string) => <Tag color={assetTypeColor(type)}>{type}</Tag>,
                   },
+                  { title: "资产 ID", dataIndex: "assetId", key: "assetId" },
                   {
-                    title: "关联资产 ID",
-                    dataIndex: "assetId",
-                    key: "assetId",
-                    className: "font-normal font-semibold text-slate-700",
-                  },
-                  {
-                    title: "引入资产版本",
+                    title: "资产版本",
                     dataIndex: "assetVersion",
                     key: "assetVersion",
-                    render: (v: string) => <Tag className="font-normal text-[10px]">{v}</Tag>,
-                  },
-                  {
-                    title: "加入时间 / 操作人",
-                    key: "time",
-                    render: (_: unknown, record: PackageItem) => (
-                      <span className="text-[11px] text-slate-400">
-                        {record.createdBy} · {new Date(record.createdAt).toLocaleDateString()}
-                      </span>
-                    ),
-                  },
-                  {
-                    title: "操作",
-                    key: "action",
-                    render: (_: unknown, record: PackageItem) => (
-                      <span className="text-xs text-slate-400" title={record.itemId}>
-                        已记录
-                      </span>
-                    ),
+                    render: (version: string) => <Tag>{version}</Tag>,
                   },
                 ]}
               />
             </Card>
-          </div>
+          </Space>
         )}
       </Drawer>
 
-      {/* ────────────────── Modal: 变动差异与临床影响比对 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-indigo-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <AuditOutlined />
-            <span>配置包多版本变动差异与临床影响分析</span>
-          </div>
-        }
+        title="配置包多版本变动差异与临床影响分析"
         open={diffModalVisible}
         onCancel={() => {
           setDiffModalVisible(false);
@@ -1313,31 +1351,25 @@ export default function ConfigPackages() {
         footer={null}
         destroyOnClose
       >
-        <div className="mt-4 flex flex-col gap-6">
-          <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex flex-wrap gap-4 items-center justify-between">
-            <div className="font-medium text-indigo-900">
-              当前比对目标版本:{" "}
-              <Tag color="indigo" className="font-normal">
-                {selectedPackage?.packageVersion || "未选择"}
-              </Tag>
-            </div>
-            <div>
-              <span className="text-slate-500 mr-2">基准比对版本:</span>
-              <Select
-                placeholder="请选择基准对比版本"
-                value={basePackageIdForDiff}
-                onChange={(val) => setBasePackageIdForDiff(val)}
-                className="w-[260px] rounded-lg"
-              >
-                {displayPackages
-                  .filter((p) => p.packageId !== selectedPackageId)
-                  .map((p) => (
-                    <Option key={p.packageId} value={p.packageId}>
-                      {p.name} ({p.packageVersion})
-                    </Option>
-                  ))}
-              </Select>
-            </div>
+        <Space direction="vertical" size="large" className="mk-full-width">
+          <Space wrap className="mk-flex-between">
+            <Text>
+              当前版本：<Tag color="purple">{selectedPackage?.packageVersion || "未选择"}</Tag>
+            </Text>
+            <Select
+              placeholder="请选择基准对比版本"
+              value={basePackageIdForDiff}
+              onChange={(value) => setBasePackageIdForDiff(value)}
+              className={styles.diffSelect}
+            >
+              {apiPackages
+                .filter((pkg) => pkg.packageId !== effectivePackageId)
+                .map((pkg) => (
+                  <Option key={pkg.packageId} value={pkg.packageId}>
+                    {pkg.name} ({pkg.packageVersion})
+                  </Option>
+                ))}
+            </Select>
             <Button
               icon={<DownloadOutlined />}
               disabled={!apiDiffData}
@@ -1346,320 +1378,191 @@ export default function ConfigPackages() {
             >
               导出影响证据
             </Button>
-          </div>
+          </Space>
 
           {apiDiffData ? (
-            <div className="flex flex-col gap-6">
-              {/* 比对数据 KPI Row */}
-              <Row gutter={16}>
-                <Col span={8}>
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
-                    <div className="text-xs text-slate-500 font-medium mb-1">新增引入资产</div>
-                    <div className="text-2xl font-bold font-normal text-emerald-600">
-                      +{apiDiffData.addedCount}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
-                    <div className="text-xs text-slate-500 font-medium mb-1">升级改动资产</div>
-                    <div className="text-2xl font-bold font-normal text-indigo-600">
-                      {apiDiffData.updatedCount}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
-                    <div className="text-xs text-slate-500 font-medium mb-1">废弃移除资产</div>
-                    <div className="text-2xl font-bold font-normal text-rose-600">
-                      -{apiDiffData.removedCount}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-
-              {/* 临床受影响责任科室分析 */}
-              <Card
-                title={
-                  <div className="flex items-center gap-2 text-indigo-700 text-xs font-semibold">
-                    <CompassOutlined />
-                    <span>临床责任受影响科室深度分析 (PDCA 追溯)</span>
-                  </div>
-                }
-                className="rounded-xl border-indigo-100"
-              >
-                <div className="flex flex-col gap-3">
-                  <div className="text-xs text-slate-500 leading-relaxed">
-                    依据该配置包中“规则/路径/指标”的绑定属性，系统计算本次同步发布后，将直接或间接影响以下临床专科诊疗路径动作及指标核查：
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {(apiDiffData.affectedDepartments ?? []).map((dept: string) => (
-                      <Tag color="geekblue" key={dept} className="py-1 px-3 rounded-md font-medium">
-                        {dept}
-                      </Tag>
-                    ))}
-                  </div>
-                </div>
+            <>
+              <section className={styles.diffGrid}>
+                <Card size="small">
+                  <Statistic title="新增引入资产" value={apiDiffData.addedCount} />
+                </Card>
+                <Card size="small">
+                  <Statistic title="升级改动资产" value={apiDiffData.updatedCount} />
+                </Card>
+                <Card size="small">
+                  <Statistic title="废弃移除资产" value={apiDiffData.removedCount} />
+                </Card>
+              </section>
+              <Card title="临床责任受影响科室">
+                <Space wrap>
+                  {(apiDiffData.affectedDepartments ?? []).map((dept) => (
+                    <Tag color="geekblue" key={dept}>
+                      {dept}
+                    </Tag>
+                  ))}
+                </Space>
               </Card>
-
-              {/* 可信溯源安全审计凭证 */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between text-xs text-slate-500">
-                <span className="flex items-center gap-1 font-medium text-slate-600">
-                  <AuditOutlined /> 审计诊断解释追踪凭证 traceId
-                </span>
-                <span className="font-normal bg-slate-200 px-2 py-0.5 rounded font-semibold">
-                  {selectedPackage?.traceId || "后端未返回审计追踪号"}
-                </span>
-              </div>
-            </div>
+              <Text type="secondary">
+                审计追踪号：{selectedPackage?.traceId || "后端未返回审计追踪号"}
+              </Text>
+            </>
           ) : (
-            <div className="text-center py-16 text-slate-400">
-              <InfoCircleOutlined className="text-lg mb-2" />
-              <div>请在上方下拉框中选择一个基准配置包，以自动触发多版本临床影响差异比对。</div>
-            </div>
+            <Alert
+              type="info"
+              showIcon
+              message="请选择基准配置包"
+              description="选择后由后端计算新增、更新、移除和影响科室，不在前端伪造差异。"
+            />
           )}
-        </div>
+        </Space>
       </Modal>
 
-      {/* ────────────────── Modal: 院内同步发布中心 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-emerald-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <CloudSyncOutlined />
-            <span>院内同步发布中心</span>
-          </div>
-        }
+        title="院内同步发布中心"
         open={syncModalVisible}
-        onCancel={() => {
-          setSyncModalVisible(false);
-          setSyncLogs([]);
-          setSyncProgress(0);
-          syncForm.resetFields();
-        }}
+        onCancel={closeSyncModal}
         width={780}
         footer={null}
         destroyOnClose
       >
-        <Form form={syncForm} layout="vertical" className="mt-4" onFinish={handleSyncPackage}>
-          {/* 基本发布事实对照 */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between mb-4 text-xs font-semibold text-slate-600">
-            <div>包名称: {selectedPackage?.name}</div>
-            <div>
-              发布版本: <Tag color="purple">{selectedPackage?.packageVersion}</Tag>
-            </div>
-          </div>
+        <Form form={syncForm} layout="vertical" onFinish={handleSyncPackage}>
+          <Descriptions bordered size="small" column={2}>
+            <Descriptions.Item label="包名称">{selectedPackage?.name}</Descriptions.Item>
+            <Descriptions.Item label="发布版本">
+              <Tag color="purple">{selectedPackage?.packageVersion}</Tag>
+            </Descriptions.Item>
+          </Descriptions>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="strategy"
-                label="发布投放策略"
-                rules={[{ required: true, message: "请选择同步发布策略" }]}
-                initialValue="GRAYSCALE"
-              >
-                <Radio.Group className="w-full">
-                  <Radio.Button
-                    value="GRAYSCALE"
-                    className="w-1/2 text-center py-1.5 h-auto font-semibold"
-                  >
-                    灰度发布 (GRAYSCALE)
-                  </Radio.Button>
-                  <Radio.Button
-                    value="FULL"
-                    disabled={!canDirectFullRelease}
-                    className="w-1/2 text-center py-1.5 h-auto font-semibold"
-                  >
-                    全量发布 (FULL)
-                  </Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="targetIds"
-                label="选择同步通道目标"
-                rules={[{ required: true, message: "请至少选择一个同步目标" }]}
-              >
-                <Select mode="multiple" placeholder="请选择同步目标通道" className="rounded-lg">
-                  {displayTargets.map((t) => (
-                    <Option key={t.targetId} value={t.targetId}>
-                      {t.targetName}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-
-          {/* 灰度发布下的默认门禁 */}
+          <Form.Item
+            name="strategy"
+            label="发布投放策略"
+            rules={[{ required: true, message: "请选择同步发布策略" }]}
+            initialValue="GRAYSCALE"
+          >
+            <Radio.Group>
+              <Radio.Button value="GRAYSCALE">灰度发布 (GRAYSCALE)</Radio.Button>
+              <Radio.Button value="FULL" disabled={!canDirectFullRelease}>
+                全量发布 (FULL)
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, curr) => prev.strategy !== curr.strategy}>
             {({ getFieldValue }) =>
               getFieldValue("strategy") === "GRAYSCALE" ? (
                 <Alert
-                  message="默认灰度策略"
-                  description="默认按接收组织内 10% 床位进入灰度，不覆盖当前 ACTIVE 版本；需要直接全量时必须由院级管理员确认。"
                   type="info"
                   showIcon
-                  className="mb-4 rounded-lg"
+                  className={styles.formAlert}
+                  message="默认灰度策略"
+                  description="默认按接收组织内 10% 床位进入灰度，不覆盖当前 ACTIVE 版本；需要直接全量时必须由院级管理员确认。"
                 />
-              ) : null
+              ) : (
+                <Alert
+                  type="error"
+                  showIcon
+                  className={styles.formAlert}
+                  message="全量发布"
+                  description="全量发布成功后，当前配置包将激活为 ACTIVE。同编码旧版 ACTIVE 包会降级为 OFFLINE，确保版本切换可追溯。"
+                />
+              )
             }
           </Form.Item>
-
+          <Form.Item
+            name="targetIds"
+            label="选择同步通道目标"
+            rules={[{ required: true, message: "请至少选择一个同步目标" }]}
+          >
+            <Select mode="multiple" placeholder="请选择同步目标通道">
+              {displayTargets.map((target) => (
+                <Option key={target.targetId} value={target.targetId}>
+                  {target.targetName}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
           <Form.Item
             name="targetOrgUnitId"
             label="接收组织单元"
             rules={[{ required: true, message: "请输入接收组织单元 ID" }]}
           >
-            <Input placeholder="请输入真实组织单元 ID" className="rounded-lg font-normal" />
+            <Input placeholder="请输入真实组织单元 ID" />
           </Form.Item>
 
-          {/* 安全说明 Alert */}
-          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.strategy !== curr.strategy}>
-            {({ getFieldValue }) => {
-              const isFull = getFieldValue("strategy") === "FULL";
-              return (
-                <Alert
-                  message={isFull ? "【强安全提醒】全量发布" : "灰度发布策略"}
-                  description={
-                    isFull
-                      ? "全量同步发布成功后，当前配置包将激活为 ACTIVE。同编码 packageCode 的旧版 ACTIVE 包会原子降级为 OFFLINE，确保版本切换可追溯。"
-                      : "灰度发布成功后，配置包进入 PUBLISHED 状态，不覆盖主运行版本；后端会写入 10% 床位灰度范围快照。"
-                  }
-                  type={isFull ? "error" : "info"}
-                  showIcon
-                  className="mb-4 rounded-lg"
-                />
-              );
-            }}
-          </Form.Item>
-
-          {/* 实时同步执行进度 & 证据链渲染 */}
           {(syncExecuting || syncProgress > 0 || visibleSyncLogs.length > 0) && (
-            <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-slate-700 text-xs">同步发布执行进度:</span>
-                <span className="font-normal text-xs font-bold text-sky-600">{syncProgress}%</span>
-              </div>
-              <Progress
-                percent={syncProgress}
-                status={syncExecuting ? "active" : "normal"}
-                strokeColor={{ "0%": token.colorPrimary, "100%": token.colorSuccess }}
-                className="mb-4"
-              />
-
-              {attentionSyncLogs.length > 0 && (
-                <Alert
-                  type="warning"
-                  showIcon
-                  className="mb-4 rounded-lg"
-                  message={
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold">失败 / 未接入站点</span>
-                      <Button
-                        size="small"
-                        icon={<DownloadOutlined aria-hidden="true" />}
-                        loading={syncEvidenceExporting}
-                        onClick={handleExportSyncEvidence}
-                      >
+            <Card size="small" className={styles.syncProgress}>
+              <Space direction="vertical" className="mk-full-width">
+                <Space className="mk-flex-between">
+                  <Text strong>同步发布执行进度</Text>
+                  <Text>{syncProgress}%</Text>
+                </Space>
+                <Progress percent={syncProgress} status={syncExecuting ? "active" : "normal"} />
+                {attentionSyncLogs.length > 0 && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="失败 / 未接入站点"
+                    description={
+                      <Space direction="vertical" className="mk-full-width">
+                        {attentionSyncLogs.map((log) => (
+                          <div key={log.logId} className={styles.syncIssue}>
+                            <Space className="mk-flex-between">
+                              <Text strong>{syncTargetName(log.targetId)}</Text>
+                              <Tag color={syncLogStatusColor(log.status)}>
+                                {syncLogStatusText(log.status)}
+                              </Tag>
+                            </Space>
+                            {log.errorMessage && <Text type="secondary">{log.errorMessage}</Text>}
+                            {!log.syncEvidence && (
+                              <Text type="secondary">
+                                该站点没有成功同步水位，系统不会伪造成已同步。
+                              </Text>
+                            )}
+                          </div>
+                        ))}
+                      </Space>
+                    }
+                    action={
+                      <Button loading={syncEvidenceExporting} onClick={handleExportSyncEvidence}>
                         导出同步证据
                       </Button>
-                    </div>
-                  }
-                  description={
-                    <div className="mt-1 flex flex-col gap-2">
-                      {attentionSyncLogs.map((log) => (
-                        <div
-                          key={log.logId}
-                          className="flex flex-col gap-1 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-slate-800">
-                              {syncTargetName(log.targetId)}
-                            </span>
-                            <Tag color={syncLogStatusColor(log.status)} className="m-0 text-[10px]">
-                              {syncLogStatusText(log.status)}
-                            </Tag>
-                          </div>
-                          {log.errorMessage && (
-                            <span className="text-slate-600">原因：{log.errorMessage}</span>
-                          )}
-                          {!log.syncEvidence && (
-                            <span className="text-slate-500">
-                              该站点没有成功同步水位，系统不会伪造成已同步。
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  }
-                />
-              )}
-
-              {/* 实时同步证据 Timeline */}
-              {visibleSyncLogs.length > 0 && (
-                <div className="mt-4">
-                  <div className="font-semibold text-slate-700 text-xs mb-3 flex items-center gap-1">
-                    <FileProtectOutlined className="text-emerald-600" />
-                    <span>多通道同步证据链</span>
-                  </div>
+                    }
+                  />
+                )}
+                {visibleSyncLogs.length > 0 && (
                   <Timeline
-                    className="ml-2"
                     items={visibleSyncLogs.map((log) => ({
                       key: log.logId,
                       color: syncLogStatusColor(log.status),
                       children: (
-                        <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex flex-col gap-1.5">
-                          <div className="flex justify-between items-center text-xs font-semibold">
-                            <span className="text-slate-800">
-                              通道: {syncTargetName(log.targetId)}
-                            </span>
-                            <Tag color={syncLogStatusColor(log.status)} className="m-0 text-[10px]">
-                              {syncLogStatusText(log.status)}
-                            </Tag>
-                          </div>
-                          {log.errorMessage && (
-                            <div className="text-[10px] text-slate-500">{log.errorMessage}</div>
-                          )}
-                          {log.syncEvidence && (
-                            <div className="flex items-center justify-between gap-4 mt-1 bg-slate-50 p-2 rounded border border-slate-200">
-                              <span className="text-[10px] text-slate-400 font-normal flex items-center gap-1">
-                                <AuditOutlined /> 同步证据:
-                              </span>
-                              <span className="font-normal text-[10px] text-emerald-700 font-bold break-all bg-emerald-50 px-1 py-0.5 rounded">
-                                {log.syncEvidence}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                        <Space direction="vertical" size={0}>
+                          <Text>通道: {syncTargetName(log.targetId)}</Text>
+                          <Tag color={syncLogStatusColor(log.status)}>
+                            {syncLogStatusText(log.status)}
+                          </Tag>
+                          {log.errorMessage && <Text type="secondary">{log.errorMessage}</Text>}
+                          {log.syncEvidence && <Text type="secondary">{log.syncEvidence}</Text>}
+                        </Space>
                       ),
                     }))}
                   />
-                </div>
-              )}
-            </div>
+                )}
+              </Space>
+            </Card>
           )}
 
           <Button
-            type="primary"
             htmlType="submit"
             loading={syncExecuting}
-            icon={<CloudSyncOutlined />}
-            className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700 rounded-lg py-5 font-semibold text-center flex items-center justify-center gap-1 mt-2"
+            icon={<CloudSyncOutlined aria-hidden="true" />}
+            block
           >
             {syncExecuting ? "正在执行同步并写入证据..." : "开始同步发布"}
           </Button>
         </Form>
       </Modal>
 
-      {/* ────────────────── Modal: 版本一键安全回滚 ────────────────── */}
       <Modal
-        title={
-          <div className="flex items-center gap-2 text-rose-700 font-semibold text-lg border-b border-slate-100 pb-3">
-            <HistoryOutlined />
-            <span>高危决策：配置包版本安全回滚</span>
-          </div>
-        }
+        title="配置包版本安全回滚"
         open={rollbackModalVisible}
         onCancel={closeRollbackModal}
         width={680}
@@ -1667,133 +1570,79 @@ export default function ConfigPackages() {
         destroyOnClose
       >
         {selectedPackage && (
-          <div className="mt-4 flex flex-col gap-6">
+          <Space direction="vertical" size="large" className="mk-full-width">
             <Alert
-              message="高危操作警告"
-              description="版本回滚会下线当前执行中 (ACTIVE) 版本，并启用指定历史版本。此动作可能直接影响临床在用诊断流程，请务必核实并由专家确认。"
               type="error"
               showIcon
-              className="rounded-lg font-medium"
+              message="高危操作警告"
+              description="版本回滚会下线当前执行中版本，并启用指定历史版本。此动作可能影响临床在用流程，请核实并由专家确认。"
             />
-
-            {/* 回滚对照面板 */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <Row gutter={16} align="middle">
-                <Col span={10} className="text-center">
-                  <div className="text-xs text-slate-400 font-medium mb-1">当前执行版本</div>
-                  <Tag color="red" className="font-normal py-1 px-3 text-sm font-bold">
-                    {selectedPackage.packageVersion}
-                  </Tag>
-                  <div className="text-xs text-slate-500 mt-2 font-medium">
-                    {selectedPackage.name}
-                  </div>
-                </Col>
-                <Col span={4} className="text-center text-slate-300">
-                  <ArrowRightOutlined className="text-2xl text-slate-400 animate-pulse" />
-                </Col>
-                <Col span={10} className="text-center">
-                  <div className="text-xs text-slate-400 font-medium mb-1">安全原子回退至</div>
-                  <Tag color="green" className="font-normal py-1 px-3 text-sm font-bold">
-                    历史版本点
-                  </Tag>
-                  <div className="text-xs text-slate-500 mt-2 font-medium">
-                    请在下方选择同一配置包编码下曾经执行并已下线的历史版本
-                  </div>
-                </Col>
-              </Row>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-rose-100">
-              <Form layout="vertical">
-                <Form.Item label="回滚原因（写入审计）" required className="mb-3">
-                  <TextArea
-                    rows={3}
-                    maxLength={500}
-                    showCount
-                    value={rollbackReason}
-                    onChange={(event) => setRollbackReason(event.target.value)}
-                    placeholder="请填写临床专家确认、回滚窗口、影响范围或故障原因。"
-                    className="rounded-lg"
-                  />
-                </Form.Item>
-                <Checkbox
-                  checked={rollbackConfirmed}
-                  onChange={(event) => setRollbackConfirmed(event.target.checked)}
-                >
-                  我已核对当前版本与目标版本，并确认该回滚会影响临床在用流程。
-                </Checkbox>
-              </Form>
-            </div>
-
-            {/* 历史版本列表表格 (排除当前选中的 ACTIVE 版本) */}
-            <Card
-              title={
-                <div className="font-semibold text-slate-700 text-xs">
-                  可供回退激活的已下线历史版本库
-                </div>
-              }
+            <Form layout="vertical">
+              <Form.Item label="回滚原因（写入审计）" required>
+                <TextArea
+                  rows={3}
+                  maxLength={500}
+                  showCount
+                  value={rollbackReason}
+                  onChange={(event) => setRollbackReason(event.target.value)}
+                  placeholder="填写临床专家确认、回滚窗口、影响范围或故障原因"
+                />
+              </Form.Item>
+              <Checkbox
+                checked={rollbackConfirmed}
+                onChange={(event) => setRollbackConfirmed(event.target.checked)}
+              >
+                我已核对当前版本与目标版本，并确认该回滚会影响临床在用流程。
+              </Checkbox>
+            </Form>
+            <Table
+              dataSource={availableRollbackPackages}
+              rowKey="packageId"
               size="small"
-              className="rounded-xl"
-            >
-              <Table
-                dataSource={availableRollbackPackages}
-                rowKey="packageId"
-                size="small"
-                pagination={false}
-                locale={{ emptyText: "暂无可回滚的已下线历史版本" }}
-                columns={[
-                  {
-                    title: "配置包版本",
-                    dataIndex: "packageVersion",
-                    key: "packageVersion",
-                    render: (text: string) => (
-                      <Tag color="purple" className="font-normal font-semibold">
-                        {text}
-                      </Tag>
-                    ),
-                  },
-                  {
-                    title: "包名称",
-                    dataIndex: "name",
-                    key: "name",
-                  },
-                  {
-                    title: "历史状态",
-                    dataIndex: "status",
-                    key: "status",
-                    render: () => <Tag color="default">已下线 (OFFLINE)</Tag>,
-                  },
-                  {
-                    title: "操作",
-                    key: "rollback",
-                    render: (_: unknown, record: KnowledgePackage) => (
-                      <Popconfirm
-                        title={`确认将 ${selectedPackage.packageVersion} 回滚至 ${record.packageVersion}？`}
-                        description="系统会再次核对版本、原因与高危确认，校验失败不会变更包状态。"
-                        onConfirm={() => handleRollback(record)}
-                        okText="确认回退"
-                        cancelText="我再想想"
+              pagination={false}
+              locale={{ emptyText: "暂无可回滚的已下线历史版本" }}
+              columns={[
+                {
+                  title: "配置包版本",
+                  dataIndex: "packageVersion",
+                  key: "packageVersion",
+                  render: (text: string) => <Tag color="purple">{text}</Tag>,
+                },
+                { title: "包名称", dataIndex: "name", key: "name" },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  key: "status",
+                  render: () => <Tag>已下线</Tag>,
+                },
+                {
+                  title: "操作",
+                  key: "rollback",
+                  render: (_: unknown, record: KnowledgePackage) => (
+                    <Popconfirm
+                      title={`确认将 ${selectedPackage.packageVersion} 回滚至 ${record.packageVersion}？`}
+                      description="系统会再次核对版本、原因与高危确认，校验失败不会变更包状态。"
+                      onConfirm={() => handleRollback(record)}
+                      okText="确认回退"
+                      cancelText="我再想想"
+                      disabled={rollbackActionDisabled}
+                      okButtonProps={{ danger: true, loading: rollbackPackageMutation.isPending }}
+                    >
+                      <Button
+                        danger
+                        size="small"
+                        icon={<HistoryOutlined aria-hidden="true" />}
                         disabled={rollbackActionDisabled}
-                        okButtonProps={{ danger: true, loading: rollbackPackageMutation.isPending }}
+                        loading={rollbackPackageMutation.isPending}
                       >
-                        <Button
-                          type="primary"
-                          danger
-                          size="small"
-                          icon={<HistoryOutlined />}
-                          disabled={rollbackActionDisabled}
-                          loading={rollbackPackageMutation.isPending}
-                          className="rounded-md text-xs font-semibold"
-                        >
-                          确认回滚
-                        </Button>
-                      </Popconfirm>
-                    ),
-                  },
-                ]}
-              />
-            </Card>
-          </div>
+                        确认回滚
+                      </Button>
+                    </Popconfirm>
+                  ),
+                },
+              ]}
+            />
+          </Space>
         )}
       </Modal>
     </PageShell>
