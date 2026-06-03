@@ -11,8 +11,9 @@ import jakarta.validation.constraints.NotBlank;
  * 可携带候选 {@link RecommendationCardRequest} 列表；评估接口会先基于标准上下文与已发布资产
  * 生成确定性候选，再合并调用方提交的非 AI 候选卡。
  *
- * <p>fatigueSuppressionThreshold / fatigueWindowHours 为调用方传入的疲劳抑制策略；
- * 未传时只采集信号不自动抑制。modelEnhancementEnabled 是预留挂点，当前无真实模型网关时仍按
+ * <p>疲劳抑制优先读取配置中心 {@code medkernel.cdss.fatigue.policy}；
+ * fatigueSuppressionThreshold / fatigueWindowHours 仅作为旧调用方兼容策略。两者都没有时只采集信号不自动抑制。
+ * modelEnhancementEnabled 是预留挂点，当前无真实模型网关时仍按
  * {@link RecommendationModelStatus#MODEL_DISABLED} 降级。
  */
 public record RecommendationTriggerRequest(

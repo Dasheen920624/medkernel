@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.medkernel.shared.api.PageRequest;
@@ -46,6 +47,7 @@ public class RecommendationEngineService {
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final BusinessMetrics businessMetrics;
     private final RecommendationDeterministicMatcher deterministicMatcher;
+    private final RecommendationFatiguePolicyResolver fatiguePolicyResolver;
 
     public RecommendationEngineService(
             RecommendationTriggerRepository triggers,
@@ -58,7 +60,8 @@ public class RecommendationEngineService {
             DiagnoseResponseAssembler diagnoseAssembler,
             IsolatedAuditPublisher isolatedAudit,
             BusinessMetrics businessMetrics,
-            RecommendationDeterministicMatcher deterministicMatcher) {
+            RecommendationDeterministicMatcher deterministicMatcher,
+            RecommendationFatiguePolicyResolver fatiguePolicyResolver) {
         this.triggers = triggers;
         this.cards = cards;
         this.sources = sources;
@@ -70,6 +73,7 @@ public class RecommendationEngineService {
         this.isolatedAudit = isolatedAudit;
         this.businessMetrics = businessMetrics;
         this.deterministicMatcher = deterministicMatcher;
+        this.fatiguePolicyResolver = fatiguePolicyResolver;
     }
 
     /**
@@ -129,7 +133,7 @@ public class RecommendationEngineService {
      * 客户面推荐评估接口：关模型时用标准上下文 + 已发布资产生成确定性候选，
      * 合并调用方传入的非 AI 候选卡后持久化并返回 {@code MODEL_DISABLED}。
      *
-     * <p>低/中风险卡在请求携带 fatigueSuppressionThreshold 与 fatigueWindowHours 时按历史低价值信号抑制；
+     * <p>低/中风险卡按配置中心疲劳策略或旧请求兼容阈值做历史低价值信号抑制；
      * 高风险/红线卡永不因疲劳阈值抑制。被抑制卡以 SUPPRESSED 状态留库并写疲劳信号，保证可解释、可审计。
      */
     @Transactional
@@ -426,32 +430,35 @@ public class RecommendationEngineService {
 
     private boolean shouldSuppress(RecommendationTriggerRequest request, RecommendationCardRequest cardRequest,
                                    String tenantId, Instant now) {
-        if (!suppressionPolicyEnabled(request) || isHighRisk(cardRequest.riskLevel())) {
+        if (isHighRisk(cardRequest.riskLevel())) {
             return false;
         }
         if (request.patientId() == null || request.patientId().isBlank()
                 || cardRequest.fatigueKey() == null || cardRequest.fatigueKey().isBlank()) {
             return false;
         }
-        Instant windowStartedAt = now.minusSeconds(request.fatigueWindowHours().longValue() * 3600L);
+        Optional<RecommendationFatiguePolicy> policy = fatiguePolicyResolver.resolve(request);
+        if (policy.isEmpty()) {
+            return false;
+        }
+        RecommendationFatiguePolicy resolvedPolicy = policy.get();
+        Instant windowStartedAt = now.minusSeconds(resolvedPolicy.windowHours() * 3600L);
         return fatigueSignals.countLowValueSignals(
             tenantId, request.patientId(), cardRequest.fatigueKey(), windowStartedAt)
-            >= request.fatigueSuppressionThreshold();
-    }
-
-    private boolean suppressionPolicyEnabled(RecommendationTriggerRequest request) {
-        return request.fatigueSuppressionThreshold() != null
-            && request.fatigueSuppressionThreshold() > 0
-            && request.fatigueWindowHours() != null
-            && request.fatigueWindowHours() > 0;
+            >= resolvedPolicy.threshold();
     }
 
     private void validateFeedbackReason(RecommendationFeedbackRequest request) {
         if ((request.feedbackType() == RecommendationFeedbackType.ACCEPT
-                || request.feedbackType() == RecommendationFeedbackType.REJECT)
-                && (request.reasonCode() == null || request.reasonText() == null)) {
+                || request.feedbackType() == RecommendationFeedbackType.REJECT
+                || request.feedbackType() == RecommendationFeedbackType.DISMISS)
+                && (!hasText(request.reasonCode()) || !hasText(request.reasonText()))) {
             throw new ApiException(ErrorCode.ENG_REC_007);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private boolean isHighRisk(RecommendationRiskLevel riskLevel) {

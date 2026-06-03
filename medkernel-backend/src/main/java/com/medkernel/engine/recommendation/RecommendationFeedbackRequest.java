@@ -3,7 +3,7 @@ package com.medkernel.engine.recommendation;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 医师反馈入参：反馈类型必填；ACCEPT / REJECT 必须带结构化原因代码和说明。
+ * 医师反馈入参：反馈类型必填；ACCEPT / REJECT / DISMISS 必须带结构化原因代码和说明。
  *
  * <p>操作者 id 由 RequestContext 取，角色由前端附带；idempotencyKey 用于同一卡同一反馈请求幂等。
  */

@@ -45,6 +45,7 @@ class RecommendationEngineServiceTest {
     private DiagnoseResponseAssembler diagnoseAssembler;
     private BusinessMetrics businessMetrics;
     private RecommendationDeterministicMatcher deterministicMatcher;
+    private RecommendationFatiguePolicyResolver fatiguePolicyResolver;
     private RecommendationEngineService service;
 
     @BeforeEach
@@ -60,9 +61,11 @@ class RecommendationEngineServiceTest {
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         businessMetrics = mock(BusinessMetrics.class);
         deterministicMatcher = mock(RecommendationDeterministicMatcher.class);
+        fatiguePolicyResolver = mock(RecommendationFatiguePolicyResolver.class);
         service = new RecommendationEngineService(
             triggers, cards, sources, feedback, fatigueSignals,
-            auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher);
+            auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher,
+            fatiguePolicyResolver);
 
         when(triggers.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cards.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -70,6 +73,7 @@ class RecommendationEngineServiceTest {
         when(feedback.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(fatigueSignals.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(deterministicMatcher.match(any())).thenReturn(List.of());
+        when(fatiguePolicyResolver.resolve(any())).thenReturn(Optional.empty());
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -184,6 +188,8 @@ class RecommendationEngineServiceTest {
             3,
             24,
             false);
+        when(fatiguePolicyResolver.resolve(request))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(3, 24, "REQUEST")));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
@@ -199,6 +205,29 @@ class RecommendationEngineServiceTest {
         assertThat(cardCap.getValue().status()).isEqualTo(RecommendationCardStatus.SUPPRESSED);
         assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.SUPPRESSED);
         verify(businessMetrics, never()).incCdssAlerts();
+    }
+
+    @Test
+    void evaluateSuppressesByConfiguredDepartmentPolicyWhenRequestThresholdIsAbsent() {
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+                eq("WARD_ORDER:ANTICOAG"), any()))
+            .thenReturn(2L);
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(RecommendationRiskLevel.MEDIUM, RecommendationInterruptLevel.INFO,
+                false, List.of(sourceRequest()))),
+            null,
+            null,
+            false);
+        when(fatiguePolicyResolver.resolve(request))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(2, 12, "CONFIG_CENTER")));
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isZero();
+        assertThat(response.suppressedCardCount()).isEqualTo(1);
+        verify(fatiguePolicyResolver).resolve(request);
+        verify(fatigueSignals).countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+            eq("WARD_ORDER:ANTICOAG"), any());
     }
 
     @Test
@@ -220,6 +249,26 @@ class RecommendationEngineServiceTest {
         assertThat(response.cards()).extracting(RecommendationCard::status)
             .containsExactly(RecommendationCardStatus.PENDING);
         verify(businessMetrics).incCdssAlerts();
+    }
+
+    @Test
+    void evaluateDoesNotSuppressCriticalRedlineCardEvenWhenConfiguredThresholdReached() {
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(RecommendationRiskLevel.CRITICAL, RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
+                true, List.of(sourceRequest()))),
+            null,
+            null,
+            false);
+        when(fatiguePolicyResolver.resolve(request))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(1, 24, "CONFIG_CENTER")));
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.suppressedCardCount()).isZero();
+        assertThat(response.cards()).extracting(RecommendationCard::riskLevel)
+            .containsExactly(RecommendationRiskLevel.CRITICAL);
+        verify(fatigueSignals, never()).countLowValueSignals(any(), any(), any(), any());
     }
 
     @Test
@@ -281,7 +330,7 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
-    void feedbackRequiresStructuredReasonForAcceptAndReject() {
+    void feedbackRequiresStructuredReasonForAcceptRejectAndDismiss() {
         RecommendationCard pending = card("card-1", RecommendationCardStatus.PENDING);
         when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(pending));
 
@@ -293,6 +342,12 @@ class RecommendationEngineServiceTest {
 
         assertThatThrownBy(() -> service.feedback("card-1", new RecommendationFeedbackRequest(
                 RecommendationFeedbackType.REJECT, "FALSE_POSITIVE", " ", "DOCTOR", null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_REC_007);
+
+        assertThatThrownBy(() -> service.feedback("card-1", new RecommendationFeedbackRequest(
+                RecommendationFeedbackType.DISMISS, null, null, "DOCTOR", null)))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_REC_007);

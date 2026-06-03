@@ -5,7 +5,7 @@ package com.medkernel.engine.recommendation;
  * ACCEPTED 用户采纳 / REJECTED 用户不采纳 / DEFERRED 稍后处理 / DISMISSED 关闭忽略 /
  * SUPPRESSED 疲劳治理抑制。
  *
- * <p>API-07 只按调用方阈值做可解释抑制，高风险/红线卡不进入疲劳抑制。
+ * <p>CDSS 优先按配置中心阈值做可解释抑制；高风险/红线卡不进入疲劳抑制。
  */
 public enum RecommendationFatigueSignalType {
     SHOWN,
