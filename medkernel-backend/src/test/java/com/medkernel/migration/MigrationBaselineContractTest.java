@@ -84,7 +84,8 @@ class MigrationBaselineContractTest {
         "V55__version_inheritance_override.sql",
         "V56__version_release_replay.sql",
         "V57__knowledge_effective_scope_unique.sql",
-        "V58__knowledge_invalidation_affected_tasks.sql"
+        "V58__knowledge_invalidation_affected_tasks.sql",
+        "V59__integration_adapter_tenant_unique.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -540,6 +541,21 @@ class MigrationBaselineContractTest {
             assertThat(migrationFiles(dialect))
                 .as("%s 权威迁移序列", dialect)
                 .containsExactlyElementsOf(EXPECTED_MIGRATIONS);
+        }
+    }
+
+    @Test
+    void integrationAdapterUniqueConstraintIsTenantScopedInEveryDialect() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V59__integration_adapter_tenant_unique.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 适配器唯一约束必须收窄到租户作用域", dialect)
+                .contains("drop constraint")
+                .contains("uk_integration_adapter")
+                .contains("unique (tenant_id, adapter_id)");
         }
     }
 

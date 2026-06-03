@@ -51,6 +51,8 @@ class IntegrationServiceTest {
         assertEquals("HIS集成", created.name());
         assertEquals("HL7", created.protocolType());
         assertEquals("ACTIVE", created.status());
+        assertEquals("NOT_CONNECTED", created.healthStatus());
+        assertNull(created.lastHeartbeatAt(), "新建适配器尚未健康检查，不应伪造心跳时间");
 
         // 获取列表
         List<IntegrationAdapter> list = service.getAdapters(tenantId);
@@ -63,28 +65,69 @@ class IntegrationServiceTest {
         assertEquals("REST", updated.protocolType());
         assertEquals("SUSPENDED", updated.status());
 
-        // 自检：未接入真实外部连接器 → 配置合法只标 NOT_CONNECTED，不伪造 HEALTHY/网络 RTT，且不覆盖 configJson
-        IntegrationAdapter pinged = service.pingAdapter(tenantId, "adp-1");
-        assertEquals("NOT_CONNECTED", pinged.healthStatus());
-        assertEquals(0L, pinged.rttMs());
-        assertEquals("{}", pinged.configJson());
-        assertFalse(pinged.configJson().contains("dataQuality"));
+        // 健康检查：未接入真实外部连接器 → 配置合法只标 NOT_CONNECTED，不伪造 HEALTHY/网络 RTT，且不覆盖 configJson
+        IntegrationAdapter checked = service.checkAdapterHealth(tenantId, "adp-1");
+        assertEquals("NOT_CONNECTED", checked.healthStatus());
+        assertEquals(0L, checked.rttMs());
+        assertEquals("{}", checked.configJson());
+        assertFalse(checked.configJson().contains("dataQuality"));
     }
 
     @Test
-    void pingHonestlyReportsConfigStateNeverFakesHealthy() {
+    void adapterCodeIsUniqueOnlyInsideTenantScope() {
+        IntegrationAdapter tenantOne = service.createAdapter(tenantId,
+            new AdapterCreateDto("his-core", "一院 HIS", "HL7", "{}"));
+        IntegrationAdapter tenantTwo = service.createAdapter("tenant-002",
+            new AdapterCreateDto("his-core", "二院 HIS", "HL7", "{}"));
+
+        assertEquals("tenant-001", tenantOne.tenantId());
+        assertEquals("tenant-002", tenantTwo.tenantId());
+        assertEquals(1, service.getAdapters(tenantId).size());
+        assertEquals(1, service.getAdapters("tenant-002").size());
+
+        assertThrows(ApiException.class, () ->
+            service.createAdapter(tenantId, new AdapterCreateDto("his-core", "重复 HIS", "REST", "{}")));
+    }
+
+    @Test
+    void healthSummaryIsTenantScopedAndNeverFakesConnectivity() {
+        service.createAdapter(tenantId,
+            new AdapterCreateDto("his-ok", "HIS 合法配置", "HL7", "{\"host\":\"his.local\"}"));
+        service.createAdapter(tenantId,
+            new AdapterCreateDto("lis-bad", "LIS 非法配置", "REST", "{bad-json"));
+        service.createAdapter("tenant-002",
+            new AdapterCreateDto("his-other", "其他租户 HIS", "HL7", "{\"host\":\"other.local\"}"));
+
+        service.checkAdapterHealth(tenantId, "his-ok");
+        service.checkAdapterHealth(tenantId, "lis-bad");
+        service.checkAdapterHealth("tenant-002", "his-other");
+
+        AdapterHealthSummaryDto summary = service.getAdapterHealthSummary(tenantId);
+
+        assertEquals(2, summary.total());
+        assertEquals(2, summary.active());
+        assertEquals(0, summary.healthy());
+        assertEquals(1, summary.notConnected());
+        assertEquals(1, summary.misconfigured());
+        assertEquals(2, summary.adapters().size());
+        assertTrue(summary.adapters().stream().noneMatch(item -> "his-other".equals(item.adapterId())));
+        assertTrue(summary.adapters().stream().allMatch(item -> item.message().contains("不伪造")));
+    }
+
+    @Test
+    void healthCheckHonestlyReportsConfigStateNeverFakesHealthy() {
         // 配置合法 → NOT_CONNECTED（外部可达性未知，绝不伪造 HEALTHY）
         service.createAdapter(tenantId, new AdapterCreateDto("adp-ok", "LIS集成", "HL7", "{\"host\":\"lis.local\"}"));
-        IntegrationAdapter okPing = service.pingAdapter(tenantId, "adp-ok");
-        assertEquals("NOT_CONNECTED", okPing.healthStatus());
-        assertNotEquals("HEALTHY", okPing.healthStatus());
-        assertEquals(0L, okPing.rttMs());
-        assertTrue(okPing.configJson().contains("lis.local"), "配置原值应被保留，不被体检报告覆盖");
+        IntegrationAdapter okCheck = service.checkAdapterHealth(tenantId, "adp-ok");
+        assertEquals("NOT_CONNECTED", okCheck.healthStatus());
+        assertNotEquals("HEALTHY", okCheck.healthStatus());
+        assertEquals(0L, okCheck.rttMs());
+        assertTrue(okCheck.configJson().contains("lis.local"), "配置原值应被保留，不被体检报告覆盖");
 
         // 配置非法 → MISCONFIGURED
         service.createAdapter(tenantId, new AdapterCreateDto("adp-bad", "坏配置", "REST", "{not-json"));
-        IntegrationAdapter badPing = service.pingAdapter(tenantId, "adp-bad");
-        assertEquals("MISCONFIGURED", badPing.healthStatus());
+        IntegrationAdapter badCheck = service.checkAdapterHealth(tenantId, "adp-bad");
+        assertEquals("MISCONFIGURED", badCheck.healthStatus());
     }
 
     @Test
@@ -187,11 +230,11 @@ class IntegrationServiceTest {
 
         // 删除日志
         service.deleteMessage(tenantId, "msg-1");
-        Optional<IntegrationMessageLog> deleted = logRepository.findByMessageId("msg-1");
+        Optional<IntegrationMessageLog> deleted = logRepository.findByMessageIdAndTenantId("msg-1", tenantId);
         assertFalse(deleted.isPresent());
 
         service.deleteMessage(tenantId, "msg-2");
-        Optional<IntegrationMessageLog> deletedEmpty = logRepository.findByMessageId("msg-2");
+        Optional<IntegrationMessageLog> deletedEmpty = logRepository.findByMessageIdAndTenantId("msg-2", tenantId);
         assertFalse(deletedEmpty.isPresent());
     }
 }

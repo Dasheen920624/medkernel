@@ -14,11 +14,11 @@
 
 ### 线 1 · D2 INTEG-01 第三方对接总线 🚧
 - 类型：软件开发
-- 分支：待创建 `codex/d2-integ-01-bus`
+- 分支：`codex/d2-integ-01-bus`
 - 目标：完成 INTEG-01：适配器目录、FHIR/CDS Hooks 风格门面、Webhook 签名、字段映射、健康检查与重试死信；外部系统断连必须诚实 `NOT_CONNECTED`，不得伪造同步或回调成功。
-- 状态：SYS-08 已通过 #287/#288/#289 完成并在本收口中同步为 done；下一张 backlog pending 为 INTEG-01。尚未实施代码，需先按卡做现状核查和红灯测试。
-- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 创建 `codex/d2-integ-01-bus`；2. 读取 `docs/CONSTITUTION.md`、`docs/cards/D2/_brief.md`、`docs/cards/D2/INTEG-01.md`、相关 [INTEG-02](cards/D2/INTEG-02.md) / [OPT-01](cards/D2/OPT-01.md) / [SYS-05](cards/D0/SYS-05.md)；3. `rg` 核查 `engine/integration`、`engine/context`、`shared/runtime/task`、`frontend/src/pages/tenant/AdapterHub*` 真实现状；4. 建绿色基线与红灯测试；5. 实现最小 PR1 范围，跑后端 / 前端 / T-GATE / CI 后合并。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/**`、`IntegrationController`、`IntegrationAdapterRepository`、`shared.runtime.task`、`frontend/src/pages/tenant/AdapterHub.tsx`；FHIR R4/R5 完整资源门面在 OPT-01，INTEG-01 只做对接总线与门面挂点，不冒领完整临床资源实现；外部 HIS/EMR/LIS/PACS 真实环境不可用时登记问题并继续 B0，总线需返回 `NOT_CONNECTED`。
+- 状态：PR1 已完成适配器目录地基、租户内唯一约束、手动健康检查、健康汇总与 `NOT_CONNECTED` 诚实状态；本地后端全量、前端 verify/build、迁移 smoke、脚本自测、提交后 changed-mode T-GATE（真实性 12 文件 / 配置边界 10 文件 / 迁移 5 文件）、中文注释与 diff 检查已通过。AC-1 仍不勾选：周期探活未完成，不冒领。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d2-integ-01-bus`，开 PR，等待远端 CI 8/8 通过后 squash 合并；2. 合并并 fetch 最新 `origin/main` 后继续 INTEG-01 PR2：Webhook 入站验签 + 字段映射接 TERM-01；3. PR2 仍按 TDD + 提交后 changed-mode T-GATE，不复用 PR1 证据。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/**`、`IntegrationController`、`IntegrationAdapterRepository`、`frontend/src/pages/tenant/AdapterHub.tsx`、`medkernel-backend/src/main/resources/db/migration/*/V59__integration_adapter_tenant_unique.sql`；FHIR R4/R5 完整资源门面在 OPT-01，INTEG-01 只做对接总线与门面挂点，不冒领完整临床资源实现；外部 HIS/EMR/LIS/PACS 真实环境不可用时登记问题并继续 B0，总线需返回 `NOT_CONNECTED`。历史迁移中的旧 QA-08/INTEG-02 文案不改写，避免破坏已发布 Flyway checksum；生产代码触碰范围已清理旧 ping/自检口径。
 
 ## 已归档工作线（最近完成，供回溯）
 

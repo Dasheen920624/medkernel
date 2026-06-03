@@ -26,12 +26,11 @@ public record IntegrationAdapter(
     @Column("updated_by") String updatedBy
 ) {
     /**
-     * 记录一次自检结果：更新 healthStatus、rttMs 与心跳时间。
+     * 记录一次健康检查结果：更新 healthStatus、rttMs 与心跳时间。
      *
-     * <p>修复原实现的字段错位 bug——此前把体检报告写入 configJson（覆盖真实配置）且从不更新 healthStatus；
-     * 现保留 configJson 原值，仅更新自检相关字段。
+     * <p>保留 configJson 原值，仅更新健康检查相关字段。
      */
-    public IntegrationAdapter withPing(String newHealthStatus, Long newRtt, Instant timestamp) {
+    public IntegrationAdapter withHealthCheck(String newHealthStatus, Long newRtt, Instant timestamp) {
         return new IntegrationAdapter(id, adapterId, tenantId, name, protocolType, status, configJson, newHealthStatus, newRtt, timestamp, createdAt, createdBy, Instant.now(), updatedBy);
     }
 

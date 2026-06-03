@@ -2877,11 +2877,33 @@ export interface IntegrationAdapter {
   protocolType: "HL7" | "FHIR" | "Webhook" | "REST" | "WebService" | string;
   status: "ACTIVE" | "SUSPENDED" | string;
   configJson: string;
-  healthStatus: "HEALTHY" | "UNHEALTHY" | string;
+  healthStatus: "HEALTHY" | "NOT_CONNECTED" | "MISCONFIGURED" | string;
   rttMs: number;
   lastHeartbeatAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdapterHealthItem {
+  adapterId: string;
+  name: string;
+  protocolType: string;
+  status: string;
+  healthStatus: IntegrationAdapter["healthStatus"];
+  rttMs: number;
+  lastHeartbeatAt: string | null;
+  message: string;
+}
+
+export interface AdapterHealthSummary {
+  total: number;
+  active: number;
+  suspended: number;
+  healthy: number;
+  notConnected: number;
+  misconfigured: number;
+  checkedAt: string;
+  adapters: AdapterHealthItem[];
 }
 
 export interface IntegrationWebhookConfig {
@@ -3002,12 +3024,24 @@ export function useUpdateAdapter() {
   });
 }
 
-// 4. 自检测心跳自检体检
-export function usePingAdapter() {
+export function useIntegrationHealthSummary() {
+  return useQuery({
+    queryKey: ["integration", "health"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<AdapterHealthSummary>>(
+        "/api/v1/engine/integration/health",
+      );
+      return data.data;
+    },
+  });
+}
+
+// 4. 健康检查：无真实连接器时只返回 NOT_CONNECTED/MISCONFIGURED，不伪造 HEALTHY。
+export function useCheckAdapterHealth() {
   return useMutation({
     mutationFn: async (adapterId: string) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationAdapter>>(
-        `/api/v1/engine/integration/adapters/${adapterId}/ping`,
+        `/api/v1/engine/integration/adapters/${adapterId}/health-check`,
       );
       return data.data;
     },

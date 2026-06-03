@@ -27,6 +27,4 @@ public interface IntegrationMessageLogRepository extends ListCrudRepository<Inte
     long countByTenantId(String tenantId);
 
     Optional<IntegrationMessageLog> findByMessageIdAndTenantId(String messageId, String tenantId);
-
-    Optional<IntegrationMessageLog> findByMessageId(String messageId);
 }

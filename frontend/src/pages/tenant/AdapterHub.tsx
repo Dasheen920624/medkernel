@@ -44,7 +44,7 @@ import {
   useIntegrationAdapters,
   useCreateAdapter,
   useUpdateAdapter,
-  usePingAdapter,
+  useCheckAdapterHealth,
   useWebhooks,
   useCreateWebhook,
   useTestWebhookSignature,
@@ -101,7 +101,7 @@ function renderDiagnosticAlert(report: QualityDiagnosticReport) {
       <Alert
         type="error"
         showIcon
-        message="自检请求失败"
+        message="健康检查请求失败"
         description={report.errorMessage}
         className="mt-3 rounded-lg text-xs"
       />
@@ -124,8 +124,8 @@ function renderDiagnosticAlert(report: QualityDiagnosticReport) {
     <Alert
       type="info"
       showIcon
-      message="本地配置校验通过，外部连通性未探活 (NOT_CONNECTED)"
-      description="当前未接入真实外部连接器（ExternalSystemConnectorPort，由 INTEG-02 / QA-08 落地），无法判定外部可达性；据实不伪造 HEALTHY 或网络 RTT。"
+      message="本地配置校验通过，外部连通性未知 (NOT_CONNECTED)"
+      description="当前未接入真实外部连接器，无法判定外部可达性；据实不伪造 HEALTHY 或网络 RTT。"
       className="mt-3 rounded-lg text-xs"
     />
   );
@@ -149,7 +149,7 @@ export default function AdapterHub() {
   } = useIntegrationAdapters();
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
-  const pingAdapterMutation = usePingAdapter();
+  const healthCheckMutation = useCheckAdapterHealth();
 
   const { data: apiWebhooks, refetch: refetchWebhooks } = useWebhooks();
   const createWebhookMutation = useCreateWebhook();
@@ -180,7 +180,7 @@ export default function AdapterHub() {
   // 适配器 & Webhook 控制表单状态
   const [adapterModalVisible, setAdapterModalVisible] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
-  const [pingLoadingMap, setPingLoadingMap] = useState<Record<string, boolean>>({});
+  const [healthCheckLoadingMap, setHealthCheckLoadingMap] = useState<Record<string, boolean>>({});
   const [qualityDiagnosticReport, setQualityDiagnosticReport] =
     useState<QualityDiagnosticReport | null>(null);
 
@@ -290,11 +290,11 @@ export default function AdapterHub() {
     }
   };
 
-  const handlePingAdapter = async (adapterId: string) => {
-    setPingLoadingMap((prev) => ({ ...prev, [adapterId]: true }));
+  const handleCheckAdapterHealth = async (adapterId: string) => {
+    setHealthCheckLoadingMap((prev) => ({ ...prev, [adapterId]: true }));
     try {
-      const res = await pingAdapterMutation.mutateAsync(adapterId);
-      // 仅展示后端真实自检结果（healthStatus / rttMs / lastHeartbeatAt），不再从 configJson 反解伪造体检报告。
+      const res = await healthCheckMutation.mutateAsync(adapterId);
+      // 仅展示后端真实健康检查结果，不从 configJson 反解伪造体检报告。
       setQualityDiagnosticReport({
         adapterId: res.adapterId,
         healthStatus: res.healthStatus,
@@ -304,22 +304,22 @@ export default function AdapterHub() {
       if (res.healthStatus === "MISCONFIGURED") {
         message.error(`适配器 [${adapterId}] 配置非法 (MISCONFIGURED)，请修正 configJson 后重试`);
       } else {
-        message.success(
-          `适配器 [${adapterId}] 本地配置校验通过；外部连通性未探活 (NOT_CONNECTED)，待接入真实连接器`,
+        message.info(
+          `适配器 [${adapterId}] 本地配置校验通过；外部连通性未知 (NOT_CONNECTED)，待接入真实连接器`,
         );
       }
       refetchAdapters();
     } catch (error: unknown) {
-      const errMsg = getApiErrorMessage(error, "自检请求失败，请稍后重试");
+      const errMsg = getApiErrorMessage(error, "健康检查请求失败，请稍后重试");
       setQualityDiagnosticReport({
         adapterId,
         healthStatus: "ERROR",
         rttMs: null,
         errorMessage: errMsg,
       });
-      message.error(`[自检失败] ${adapterId}：${errMsg}`);
+      message.error(`[健康检查失败] ${adapterId}：${errMsg}`);
     } finally {
-      setPingLoadingMap((prev) => ({ ...prev, [adapterId]: false }));
+      setHealthCheckLoadingMap((prev) => ({ ...prev, [adapterId]: false }));
     }
   };
 
@@ -359,12 +359,12 @@ export default function AdapterHub() {
 
   const handleTestWebhookSignature = async () => {
     if (!selectedWebhookId) {
-      message.warning("请先在左侧选择需要自检测试的 Webhook 订阅通道！");
+      message.warning("请先在左侧选择需要测试的 Webhook 订阅通道！");
       return;
     }
     const payload = webhookTestPayload.trim();
     if (!payload) {
-      message.warning("请粘贴真实脱敏 Webhook 报文后再发起签名自检。");
+      message.warning("请粘贴真实脱敏 Webhook 报文后再发起签名测试。");
       return;
     }
     try {
@@ -383,7 +383,7 @@ export default function AdapterHub() {
       message.success("HMAC-SHA256 签名双向安全校准握手测试成功！");
     } catch (error: unknown) {
       message.error(
-        getApiErrorMessage(error, "Webhook 签名自检失败，请确认订阅通道存在且报文为合法 JSON"),
+        getApiErrorMessage(error, "Webhook 签名测试失败，请确认订阅通道存在且报文为合法 JSON"),
       );
     } finally {
       setTestLogLoading(false);
@@ -453,7 +453,7 @@ export default function AdapterHub() {
         <Col span={6}>
           <Card bordered={false} className="shadow-sm hover:shadow transition-shadow">
             <Statistic
-              title="健康接入率 (HEALTHY)"
+              title="真实连通率 (HEALTHY)"
               value={
                 displayAdapters.length === 0
                   ? 0
@@ -511,7 +511,7 @@ export default function AdapterHub() {
                       type="info"
                       showIcon
                       message="系统级适配器连接诊断"
-                      description="通过配置各异构适配器可直接接入 HIS/EMR 等实时数据，支持一键健康握手自检体检，检测数据缺失度等指标。"
+                      description="通过配置各异构适配器接入 HIS/EMR 等实时数据，支持一键健康检查与诚实断连标记。"
                       className="w-3/4 rounded-lg text-xs"
                     />
                     <Button
@@ -554,7 +554,7 @@ export default function AdapterHub() {
                         ),
                       },
                       {
-                        title: "自检状态",
+                        title: "健康状态",
                         key: "healthStatus",
                         render: (_, record) => {
                           const statusMap: Record<
@@ -576,7 +576,7 @@ export default function AdapterHub() {
                         },
                       },
                       {
-                        title: "握手延迟",
+                        title: "真实探活延迟",
                         dataIndex: "rttMs",
                         key: "rttMs",
                         render: (rtt) => (
@@ -594,7 +594,7 @@ export default function AdapterHub() {
                         ),
                       },
                       {
-                        title: "最近握手心跳",
+                        title: "最近健康检查",
                         dataIndex: "lastHeartbeatAt",
                         key: "lastHeartbeatAt",
                         render: (t) => (
@@ -604,15 +604,15 @@ export default function AdapterHub() {
                         ),
                       },
                       {
-                        title: "连接操作项",
+                        title: "健康操作",
                         key: "actions",
                         render: (_, record) => (
                           <Space size="middle">
                             <Button
                               size="small"
                               icon={<HeartOutlined />}
-                              loading={pingLoadingMap[record.adapterId]}
-                              onClick={() => handlePingAdapter(record.adapterId)}
+                              loading={healthCheckLoadingMap[record.adapterId]}
+                              onClick={() => handleCheckAdapterHealth(record.adapterId)}
                               className="hover:border-sky-500 hover:text-sky-500"
                             >
                               健康诊断
@@ -631,13 +631,13 @@ export default function AdapterHub() {
                     ]}
                   />
 
-                  {/* 适配器自检结果（仅展示后端真实返回，不伪造体检指标） */}
+                  {/* 适配器健康检查结果（仅展示后端真实返回，不伪造体检指标） */}
                   {qualityDiagnosticReport && (
                     <Card
                       title={
                         <span className="flex items-center gap-1.5 text-xs text-sky-600 font-semibold">
                           <CompassOutlined />
-                          <span>适配器自检结果</span>
+                          <span>适配器健康检查结果</span>
                         </span>
                       }
                       className={getDiagnosticCardClassName(qualityDiagnosticReport)}
@@ -649,7 +649,7 @@ export default function AdapterHub() {
                             {qualityDiagnosticReport.adapterId}
                           </span>
                         </Descriptions.Item>
-                        <Descriptions.Item label="自检状态">
+                        <Descriptions.Item label="健康状态">
                           <Tag
                             color={getHealthTagColor(qualityDiagnosticReport.healthStatus)}
                             className="font-bold"
@@ -796,7 +796,7 @@ export default function AdapterHub() {
                           onClick={handleTestWebhookSignature}
                           className="bg-sky-600 border-sky-600 hover:bg-sky-700 rounded-md text-xs"
                         >
-                          发送通知并自检生成 HMAC-SHA256 安全签名
+                          发送通知并生成 HMAC-SHA256 安全签名
                         </Button>
 
                         {testResultSummary && (
@@ -814,7 +814,7 @@ export default function AdapterHub() {
                               </div>
                               <div>
                                 <span className="font-bold text-slate-400">
-                                  自检测时间戳 (Timestamp Header):
+                                  测试时间戳 (Timestamp Header):
                                 </span>{" "}
                                 {testResultSummary.timestamp}
                               </div>
