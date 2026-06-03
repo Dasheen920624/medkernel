@@ -73,6 +73,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedAuthPolicy(seededAt);
         seedLoggingPolicy(seededAt);
         seedRuntimeBoundaryPolicy(seededAt);
+        seedCdssPolicy(seededAt);
         service.applyRuntimeLogLevels();
     }
 
@@ -215,6 +216,14 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(integrationHealthProbeSettings.healthProbeIntervalMs()),
             "INTEGER", "第三方适配器周期探活间隔", "MEDIUM", "信息科 / 集成组",
             "控制第三方适配器周期健康探测间隔，变更后下一轮调度生效。", false, seededAt);
+    }
+
+    private void seedCdssPolicy(Instant seededAt) {
+        seedConfigValue("medkernel.cdss.fatigue.policy",
+            "{\"default\":{},\"scenarios\":{},\"departments\":{},\"departmentScenarios\":{}}",
+            "JSON", "CDSS 疲劳治理策略", "MEDIUM", "医务处 / 信息科",
+            "按场景、科室或科室+场景配置 CDSS 低价值提醒抑制阈值；红线和高风险提醒不可被抑制。",
+            false, seededAt);
     }
 
     private void seedConfigValue(String key,

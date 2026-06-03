@@ -20,8 +20,8 @@
 ## 功能要求（原子可测条目）
 - [ ] FR-1 综合命中：对临床上下文（[API-01](../D2/API-01.md)）跑规则（[RULE-01](../D2/RULE-01.md)）+ 路径节点（[PATH-01](../D2/PATH-01.md)）+ 知识（[KNOW-01](../D2/KNOW-01.md)）产出推荐卡。
 - [ ] FR-2 解释追溯：每张卡记录命中的规则/路径/知识 **ID + 版本**，可回链来源。
-- [ ] FR-3 反馈闭环：采纳/不采纳带**结构化原因**，回写影响疲劳与统计。
-- [ ] FR-4 疲劳治理：同患者重复/低价值卡按阈值抑制，抑制可解释、可审计、阈值按科室可配。
+- [x] FR-3 反馈闭环：采纳/不采纳带**结构化原因**，回写影响疲劳与统计。
+- [x] FR-4 疲劳治理：同患者重复/低价值卡按阈值抑制，抑制可解释、可审计、阈值按科室可配。
 - [ ] FR-5 红线优先：命中 [OPT-04](OPT-04.md) 红线（DDI/危急值/禁忌）的卡强制高优先、不可被疲劳抑制。
 - [ ] FR-6 B0 降级：模型语义增强为挂点，关闭只用确定性命中 + `MODEL_DISABLED`。
 
@@ -53,7 +53,7 @@
 
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：命中产出卡且可追溯到规则/路径/知识版本。
-- [ ] AC-2（FR-3/4）：反馈带原因回写疲劳；抑制可解释可审计。
+- [x] AC-2（FR-3/4）：反馈带原因回写疲劳；抑制可解释可审计。
 - [ ] AC-3（FR-5/6）：红线卡强优先不被抑制；关模型确定性命中仍跑。
 - 关联 A1–A9 剧本：A5 推荐 · A6 鉴别诊断。
 - T-GATE：前后端真实性门禁全绿（无写死医学常量 / 无假命中）。
@@ -70,6 +70,13 @@
 - `RecommendationEngineService.evaluate` 先聚合确定性命中，再合并调用方提交的非 AI 候选，按卡编码去重后进入既有状态机、来源落库、疲劳信号和 `MODEL_DISABLED` 诚实返回；AI 候选只计入总数，不落库成 B0 卡。
 - 临床事件到推荐的适配器改走 `evaluate`，避免临床事件只创建空触发而不执行确定性推荐。
 - 未在 PR1 冒领：知识全文/语义命中、反馈闭环、疲劳阈值配置、红线优先和复现/回放仍归 PR2/PR3；完整 AC-1 需后续补齐知识来源后再勾选。
+
+### PR2 实施记录（2026-06-04）
+- 本轮收口反馈闭环、疲劳治理和 CDSS 层红线优先，不冒领完整 OPT-04 红线库：`RecommendationEngineService` 继续在反馈后回写疲劳信号，并把 `ACCEPT` / `REJECT` / `DISMISS` 都收紧为必须携带结构化原因代码和说明，避免“关闭忽略”变成不可解释的低价值信号。
+- 新增 `RecommendationFatiguePolicyResolver` 与 `RecommendationFatiguePolicy`，疲劳抑制优先读取配置中心键 `medkernel.cdss.fatigue.policy`，支持 `departmentScenarios`（科室+场景）＞ `departments` ＞ `scenarios` ＞ `default` 的覆盖顺序；配置缺失时只兼容旧请求阈值，配置存在但非法时安全不抑制，避免错误配置静默压掉临床提醒。
+- `SystemConfigSeeder` 播种默认空 JSON 策略，配置中心可展示和审计该键，但默认 `{}` 不开启自动抑制；低/中风险只有在解析到正整数阈值与回看窗口时才统计低价值信号并落 `SUPPRESSED`。
+- `RecommendationRiskLevel.HIGH` / `CRITICAL` 在疲劳策略解析与历史低价值计数前直接返回不可抑制，CRITICAL + 强打断 + 医师确认作为 CDSS 层红线级推荐卡验证；完整 DDI / 危急值 / 禁忌红线资产库仍归 [OPT-04](OPT-04.md) 后续卡，不在本 PR 伪造。
+- 已跑证据：`mvn -q -Dtest=RecommendationDeterministicMatcherTest,RecommendationFatiguePolicyResolverTest,RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationRepositoryTest,ClinicalEventEngineAdapterTest test` 通过；`mvn -q -Dtest=SystemConfigServiceTest,SystemConfigControllerTest test` 通过；最终代码清理后复跑后端全量 `mvn -q test` 192 reports / 1177 tests / 0 failures / 0 errors / 0 skipped（本机 Docker PostgreSQL 15.18 与 Oracle 21.3 迁移冒烟均运行至 V70 并二次 no-op）；前端 `npm run verify` 51 files / 311 tests 通过（既有 React Router/act warning 仍归 [DEFER-003](../../audit/deferred-issues.md)）；T-GATE 脚本自测 34 项、提交后 changed-mode 真实性扫描 7 文件 / 配置边界 7 文件 / 迁移 0 文件、中文注释和 diff 检查通过。完整 AC-3 和 B0 回放仍归 PR3。
 
 ## 完工证据
 - 代码 permalink：`engine/recommendation` 命中/解释/疲劳 + B0 降级。

@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 CDSS-01 推荐/CDSS 引擎 PR1 🚧
+### 线 1 · D3 CDSS-01 推荐/CDSS 引擎 PR2 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-cdss-01-recommendation-engine`
-- 目标：领取 D3 [CDSS-01](cards/D3/CDSS-01.md) PR1，把推荐/CDSS B0 确定性命中从“调用方传候选卡”推进到“读取 API-01 上下文 + 已发布 D2 规则/路径来源 → 生成可解释推荐卡”，并保持关模型 `MODEL_DISABLED` 诚实返回。
-- 状态：API-11 已经 #328 squash 合入 `origin/main`（merge `159fd636ca4880943facaad8d3eabb576037c3a2`）并清理工作树；当前 CDSS-01 PR1 本地已新增 `RecommendationDeterministicMatcher`，`evaluate` 聚合已发布规则命中 + 非 AI 候选并走既有状态机 / 来源落库 / 疲劳信号，临床事件适配器已改走 `evaluate` 避免空触发。PR1 只完成规则命中 + 上下文 / 路径来源追溯，不勾整卡；反馈闭环、疲劳阈值、红线优先、知识命中和复现/回放继续留 PR2/PR3。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
-- 下一步（精确到动作/命令）：1. 跑提交前 T-GATE（脚本自测、changed-mode 真实性 / 配置边界 / 迁移规约、中文注释、diff 检查）；2. 提交并推送 `codex/d3-cdss-01-recommendation-engine` 创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理工作树并继续 CDSS-01 PR2（反馈闭环 + 疲劳治理 + 红线优先），不得跳过阶段。
-- 相关文件 / 测试 / 坑：核心文件 `medkernel-backend/src/main/java/com/medkernel/engine/recommendation/RecommendationDeterministicMatcher.java`、`RecommendationEngineService.java`、`ClinicalEventRecommendationEngineAdapter.java`；新增/调整测试 `RecommendationDeterministicMatcherTest`、`RecommendationEngineServiceTest`、`ClinicalEventEngineAdapterTest`。已跑红绿：新增 matcher 测试先因类缺失失败；适配器测试先因生产仍调用 `trigger` 失败；修复后聚焦套件通过。已跑本地证据：`mvn -q -Dtest=RecommendationDeterministicMatcherTest,RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationRepositoryTest,ClinicalEventEngineAdapterTest test` 通过；后端全量 `mvn -q test` 191 reports / 1172 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 51 files / 311 tests 通过（既有 React Router/act warning 仍归 [DEFER-003](audit/deferred-issues.md)）。当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。
+- 分支：`codex/d3-cdss-01-pr2-feedback-fatigue`
+- 目标：继续 D3 [CDSS-01](cards/D3/CDSS-01.md) PR2，收口反馈闭环 + 疲劳治理 + 红线优先：反馈必须有结构化原因，低/中风险按配置中心科室/场景阈值可解释抑制，高风险/红线卡不可被疲劳抑制。
+- 状态：CDSS-01 PR1 已 #329 squash 合入 `origin/main`（merge `0fbee2e6aa3baa96ae90d7df4110c59eebf0add2`）并清理工作树。当前 PR2 本地已新增 `RecommendationFatiguePolicy` / `RecommendationFatiguePolicyResolver`，配置中心键 `medkernel.cdss.fatigue.policy` 支持 `default`、`scenarios`、`departments`、`departmentScenarios` 四级策略；缺配置时兼容旧请求阈值，配置非法时安全地不抑制。`RecommendationEngineService` 已改为高风险/CRITICAL 先跳过疲劳统计；`ACCEPT` / `REJECT` / `DISMISS` 均要求结构化原因；`SystemConfigSeeder` 已播种空 JSON 策略，默认不打开抑制。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d3-cdss-01-pr2-feedback-fatigue` 创建 PR；2. 远端 CI 8/8 全绿后 squash merge；3. 合并确认 `origin/main` 后清理工作树并继续 CDSS-01 PR3（B0 降级挂点 + 复现/回放测试），不得跳过阶段。
+- 相关文件 / 测试 / 坑：核心文件 `RecommendationEngineService.java`、`RecommendationFatiguePolicy.java`、`RecommendationFatiguePolicyResolver.java`、`RecommendationFeedbackRequest.java`、`SystemConfigSeeder.java`；新增/调整测试 `RecommendationFatiguePolicyResolverTest`、`RecommendationEngineServiceTest`。已跑红绿：PR2 新增服务测试先因策略解析器/策略对象缺失失败；实现后聚焦套件通过；配置非法不应回落请求阈值的测试先失败，修正为配置非法时不抑制后通过。已跑本地证据：`mvn -q -Dtest=RecommendationDeterministicMatcherTest,RecommendationFatiguePolicyResolverTest,RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationRepositoryTest,ClinicalEventEngineAdapterTest test` 通过；`mvn -q -Dtest=SystemConfigServiceTest,SystemConfigControllerTest test` 通过；最终代码清理后复跑后端全量 `mvn -q test` 192 reports / 1177 tests / 0 failures / 0 errors / 0 skipped（本机 Docker PostgreSQL 15.18 与 Oracle 21.3 迁移冒烟均运行至 V70 并二次 no-op）；前端 `npm run verify` 51 files / 311 tests 通过（既有 React Router/act warning 仍归 [DEFER-003](audit/deferred-issues.md)）；T-GATE 脚本自测 34 项通过；提交后 changed-mode 真实性扫描 7 文件、配置边界扫描 7 文件、迁移扫描 0 文件均通过；中文注释门禁和 `git diff --check origin/main..HEAD` 通过。当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -198,4 +198,4 @@
 
 ---
 
-> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `API-11` 已 #328 squash 合入 `origin/main`（merge `159fd636ca4880943facaad8d3eabb576037c3a2`）并清理工作树，当前在途线为 D3 `CDSS-01` PR1。CDSS-01 PR1 本地实现与文档同步已完成，后端聚焦套件、最终 `mvn -q test`（191 reports / 1172 tests / 0 failures / 0 errors / 0 skipped）通过；前端 `npm run verify`（51 files / 311 tests）通过；下一步跑 T-GATE、提交、推送、PR、远端 CI 与合并，合并后继续 CDSS-01 PR2。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `CDSS-01` PR1 已 #329 squash 合入 `origin/main`（merge `0fbee2e6aa3baa96ae90d7df4110c59eebf0add2`）并清理工作树，当前在途线为 D3 `CDSS-01` PR2（反馈闭环 + 疲劳治理 + 红线优先）。PR2 本地已完成策略解析器、配置中心空策略种子、DISMISS 结构化原因校验、CRITICAL/高风险不抑制逻辑；后端聚焦、配置中心聚焦、最终后端全量（含本机 Docker PostgreSQL / Oracle 迁移冒烟）、前端 verify、T-GATE 脚本自测、提交后 changed-mode、中文注释和 diff 检查已通过；下一步推送、PR、远端 CI 与合并，合并后继续 CDSS-01 PR3。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
