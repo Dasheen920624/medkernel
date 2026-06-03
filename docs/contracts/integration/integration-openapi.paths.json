@@ -74,6 +74,21 @@
     }
   ],
   "paths": {
+    "/api/v1/engine/integration/adapter-hub/status": {
+      "get": {
+        "operationId": "getAdapterHubStatus",
+        "summary": "Read AdapterHub orchestration status and source-level degradation for current tenant.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Disconnected or missing source adapters are reported honestly and do not block clinical flow."
+        }
+      }
+    },
     "/api/v1/engine/integration/adapters": {
       "get": {
         "operationId": "listIntegrationAdapters",
@@ -114,6 +129,21 @@
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
           "note": "Updating configuration does not imply a successful connection."
+        }
+      }
+    },
+    "/api/v1/engine/integration/data-quality/reports": {
+      "post": {
+        "operationId": "generateDataQualityReport",
+        "summary": "Generate a persisted data quality snapshot from current MPI and adapter facts.",
+        "permission": "integration.execute",
+        "auditTarget": "mk_integration_data_quality_report",
+        "idempotency": {
+          "requirement": "Provide Idempotency-Key for repeated operator report-generation commands."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "Missing mappings, stale heartbeats, and disconnected adapters are recorded as gaps, not converted to success."
         }
       }
     },

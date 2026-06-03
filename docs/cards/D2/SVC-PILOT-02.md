@@ -20,11 +20,11 @@
 - 缺口（本卡补）：① **AdapterHub** 编排多适配器接入向导；② **MPI 匹配/合并去重**（同患者跨系统归一，高危合并人工确认）；③ **数据质量核查**（必填率/编码映射率/时效，诚实暴露缺口）；④ 字段映射接 [TERM-01](TERM-01.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 接入编排**：登记并启停 HIS/EMR/LIS/PACS/医保/病案/随访适配器（经 [INTEG-01](INTEG-01.md)）；向导式逐源接入 + 连通核查。
-- [ ] **FR-2 MPI 匹配/合并**：跨系统患者按规则匹配 `MpiPatient`；**高危合并（不同患者疑似同人）人工确认**，不自动合并。
-- [ ] **FR-3 字段映射**：外部字段 ↔ 标准上下文（[API-01](API-01.md)）+ 编码归一（[TERM-01](TERM-01.md)）。
-- [ ] **FR-4 数据质量核查**：核心字段必填率/编码映射率/时效统计（`MpiStatsResponse` 扩展），**缺口诚实暴露**，不伪造达标。
-- [ ] **FR-5 不阻断主流程**：接入/同步异常降级标记（`NOT_CONNECTED`/`NOT_SYNCED`），不阻断临床。
+- [x] **FR-1 接入编排**：登记并启停 HIS/EMR/LIS/PACS/医保/病案/随访适配器（经 [INTEG-01](INTEG-01.md)）；向导式逐源接入 + 连通核查。
+- [x] **FR-2 MPI 匹配/合并**：跨系统患者按规则匹配 `MpiPatient`；**高危合并（不同患者疑似同人）人工确认**，不自动合并。
+- [x] **FR-3 字段映射**：外部字段 ↔ 标准上下文（[API-01](API-01.md)）+ 编码归一（[TERM-01](TERM-01.md)）。
+- [x] **FR-4 数据质量核查**：核心字段必填率/编码映射率/时效统计（`MpiStatsResponse` 扩展），**缺口诚实暴露**，不伪造达标。
+- [x] **FR-5 不阻断主流程**：接入/同步异常降级标记（`NOT_CONNECTED`/`NOT_SYNCED`），不阻断临床。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -37,7 +37,7 @@
 N·A —— 本卡为服务包后端。页面在 [ADAPTER-01](ADAPTER-01.md)（适配器中心，含数据质量看板）。
 
 ## 数据与迁移
-- 表族（已有）：`mpi_patient`、`integration_adapter`/`message_log`；本卡补 `data_quality_report`/`mpi_merge_review`。
+- 表族（已有）：`mpi_patient`、`integration_adapter`/`message_log`；本卡补 `mk_integration_data_quality_report`/`mk_mpi_merge_review`。
 - 主键 ULID；索引：`mpi_id`、`adapter_code`、`org_path`。
 - 5 方言迁移一致 + 中文注释。
 
@@ -59,14 +59,18 @@ N·A —— 本卡为服务包后端。页面在 [ADAPTER-01](ADAPTER-01.md)（�
 - 本卡落点：把"接入 + 患者归一 + 数据质量"编排为可信、可核查、安全的服务包。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/3）**：向导式接入一源 + 字段映射 + 连通核查；断连 `NOT_CONNECTED`。
-- [ ] **AC-2（FR-2）**：高危疑似同人 → `MPI_MERGE_REQUIRES_REVIEW`，人工确认后合并。
-- [ ] **AC-3（FR-4）**：数据质量报告必填/映射/时效真实统计，缺口暴露不伪造。
+- [x] **AC-1（FR-1/3）**：向导式接入一源 + 字段映射 + 连通核查；断连 `NOT_CONNECTED`。
+- [x] **AC-2（FR-2）**：高危疑似同人 → `MPI_MERGE_REQUIRES_REVIEW`，人工确认后合并。
+- [x] **AC-3（FR-4）**：数据质量报告必填/映射/时效真实统计，缺口暴露不伪造。
 - 关联 A1–A9 剧本：A1 接入、A6 合规（数据质量证据）。
 - T-GATE：真实性门禁全绿。
 - B0 验收：规则匹配 + 确定性核查，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：`AdapterHubStatus` + MPI 合并审核 + `DataQualityReport` + 5 方言迁移。
-- 测试：接入编排测试 + 高危合并审核测试 + 数据质量统计测试 + 不阻断主流程测试。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码：`AdapterHubStatus` + `DataQualityReport` + `MpiMergeReview` / `MpiMergeResult` + `/api/v1/engine/mpi/**` 高危审核接口 + 5 方言 V64 迁移。
+- 后端聚焦：`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,DomainOwnershipContractTest test` 通过；H2 / PostgreSQL 15.18 / Oracle 21.3 应用 64 版迁移并二次 no-op。
+- 后端业务：`mvn -q -Dtest=MpiServiceTest,MpiServiceIntegrationTest,MpiControllerContractTest,IntegrationServiceTest,IntegrationControllerSecurityTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,IntegrationContractDocumentationTest test` 通过；覆盖高危合并审核、人工确认、AdapterHub 状态、数据质量报告和契约文档。
+- 后端全量：`mvn -q test` 通过；Surefire 汇总 `files=186 tests=1106 failures=0 errors=0 skipped=0`。
+- 前端：`npm run verify` 通过（44 文件 / 242 测试）；`npm audit --omit=dev --audit-level=moderate` 0 漏洞；`npm run build` 通过，保留既有 `vendor-antd` chunk 提示，归 `DEFER-003`。
+- T-GATE：脚本自测 34/34；真实性 inventory 扫描 889 文件 0 阻断；配置边界 inventory 扫描 831 文件 0 阻断；V64 五方言迁移规约 files 扫描 5 文件 0 阻断；提交后 changed-mode 真实性 21 文件 / 配置边界 18 文件 / 迁移 5 文件均 0 阻断；中文注释门禁 0 fail / 0 warn；`git diff --check origin/main...HEAD` 通过。
+- 审计员签字：待 PR reviewer（owner ≠ reviewer）。

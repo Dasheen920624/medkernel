@@ -82,6 +82,14 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).toContain("/engine/tenant/success-plan");
   });
 
+  it("uses the engine MPI API roots for SVC-PILOT-02 hooks", () => {
+    const hooksSource = readSource("src/shared/api/hooks.ts");
+
+    expect(hooksSource).not.toContain("/clinical/mpi");
+    expect(hooksSource).toContain("/api/v1/engine/mpi/patients");
+    expect(hooksSource).toContain("/api/v1/engine/mpi/stats");
+  });
+
   it("does not keep pathway hard-coded topology defaults or paste-style snapshot simulation", () => {
     const pathwaySource = readSource("src/pages/tenant/PathwayTemplates.tsx");
 

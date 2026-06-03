@@ -38,6 +38,18 @@ public interface MpiPatientRepository extends ListCrudRepository<MpiPatient, Lon
     @Query("SELECT COUNT(*) FROM mpi_patient WHERE tenant_id = :tenantId AND status = 'ACTIVE'")
     long countActive(@Param("tenantId") String tenantId);
 
+    @Query("""
+        SELECT COALESCE(SUM(
+            CASE WHEN masked_name IS NOT NULL AND TRIM(masked_name) <> '' THEN 1 ELSE 0 END
+          + CASE WHEN gender IS NOT NULL AND TRIM(gender) <> '' THEN 1 ELSE 0 END
+          + CASE WHEN age IS NOT NULL AND age > 0 THEN 1 ELSE 0 END
+          + CASE WHEN id_last4 IS NOT NULL AND TRIM(id_last4) <> '' THEN 1 ELSE 0 END
+        ), 0)
+        FROM mpi_patient
+        WHERE tenant_id = :tenantId AND status = 'ACTIVE'
+        """)
+    long countActiveRequiredFieldsPresent(@Param("tenantId") String tenantId);
+
     @Query("SELECT COUNT(*) FROM mpi_patient WHERE tenant_id = :tenantId AND status = 'MERGED_INTO'")
     long countMerged(@Param("tenantId") String tenantId);
 

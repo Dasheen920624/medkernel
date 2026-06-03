@@ -24,6 +24,8 @@ import com.medkernel.engine.integration.dto.*;
 import com.medkernel.engine.integration.repository.*;
 import com.medkernel.engine.integration.service.IntegrationAdapterHealthProbeWorker;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.mpi.MpiPatient;
+import com.medkernel.engine.mpi.MpiPatientRepository;
 import com.medkernel.shared.api.error.ApiException;
 
 @SpringBootTest
@@ -45,6 +47,12 @@ class IntegrationServiceTest {
 
     @Autowired
     private IntegrationMessageLogRepository logRepository;
+
+    @Autowired
+    private DataQualityReportRepository dataQualityReportRepository;
+
+    @Autowired
+    private MpiPatientRepository mpiPatientRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -143,6 +151,53 @@ class IntegrationServiceTest {
         service.createAdapter(tenantId, new AdapterCreateDto("adp-bad", "坏配置", "REST", "{not-json"));
         IntegrationAdapter badCheck = service.checkAdapterHealth(tenantId, "adp-bad");
         assertEquals("MISCONFIGURED", badCheck.healthStatus());
+    }
+
+    @Test
+    void dataQualityReportUsesTenantFactsAndPersistsHonestGapSnapshot() {
+        mpiPatientRepository.save(new MpiPatient(
+            null, "mpi-quality-ok", tenantId, "张*三", "M", 35, "1234", 0, "ACTIVE",
+            null, Instant.now(), "test", Instant.now(), "test"
+        ));
+        mpiPatientRepository.save(new MpiPatient(
+            null, "mpi-quality-gap", tenantId, "", "F", 0, "", 0, "ACTIVE",
+            null, Instant.now(), "test", Instant.now(), "test"
+        ));
+        mpiPatientRepository.save(new MpiPatient(
+            null, "mpi-quality-other", "tenant-002", "", "M", 0, "", 0, "ACTIVE",
+            null, Instant.now(), "test", Instant.now(), "test"
+        ));
+        service.createAdapter(tenantId, new AdapterCreateDto("his-quality", "HIS 质量接入", "Webhook", """
+            {"fieldMappings":[{"sourcePath":"/patientId","targetPath":"/patient/id"}]}
+            """));
+        service.createAdapter(tenantId, new AdapterCreateDto("lis-quality", "LIS 未映射", "Webhook", "{}"));
+        service.createAdapter("tenant-002", new AdapterCreateDto("his-quality-other", "其他租户 HIS", "Webhook", "{}"));
+        service.checkAdapterHealth(tenantId, "his-quality");
+
+        DataQualityReport report = service.generateDataQualityReport(tenantId);
+        AdapterHubStatus status = service.getAdapterHubStatus(tenantId);
+
+        assertNotNull(report.reportId());
+        assertEquals(tenantId, report.tenantId());
+        assertEquals(8, report.requiredFieldTotal());
+        assertEquals(5, report.requiredFieldPresent());
+        assertEquals(62.5, report.requiredFieldRate(), 0.01);
+        assertEquals(2, report.adapterTotal());
+        assertEquals(1, report.mappedAdapterCount());
+        assertEquals(50.0, report.mappingRate(), 0.01);
+        assertEquals(1, report.timelyAdapterCount());
+        assertEquals(50.0, report.timelinessRate(), 0.01);
+        assertTrue(report.gapSummary().contains("必填字段缺口"));
+        assertTrue(report.gapSummary().contains("未配置字段映射"));
+        assertTrue(dataQualityReportRepository.findById(report.reportId()).isPresent());
+
+        assertEquals(2, status.totalAdapters());
+        assertEquals(1, status.mappedAdapters());
+        assertEquals(2, status.notConnectedAdapters());
+        assertEquals(0, status.healthyAdapters());
+        assertTrue(status.sources().stream().noneMatch(item -> "his-quality-other".equals(item.adapterId())));
+        assertTrue(status.sources().stream().anyMatch(item ->
+            "lis-quality".equals(item.adapterId()) && item.gaps().contains("未配置字段映射")));
     }
 
     @Test
@@ -371,7 +426,7 @@ class IntegrationServiceTest {
 
     @Test
     void testMessageLogsAndRetry() {
-        // 先手动插入一条失败的消息日志，物理报文 payload 非空
+        // 先手动插入一条失败的消息日志，原始报文 payload 非空
         IntegrationMessageLog log = new IntegrationMessageLog(
             null,
             "msg-1",
@@ -428,7 +483,7 @@ class IntegrationServiceTest {
         IntegrationMessageLog retriedEmpty = service.retryMessage(tenantId, "msg-2");
         assertEquals(1, retriedEmpty.retryCount());
         assertEquals("FAILED", retriedEmpty.status());
-        assertTrue(retriedEmpty.errorMessage().contains("物理载荷报文为空"));
+        assertTrue(retriedEmpty.errorMessage().contains("原始载荷报文为空"));
 
         // 重试次数累加到 maxRetries 时强制移入死信队列
         service.retryMessage(tenantId, "msg-2"); // retryCount = 2, FAILED
@@ -437,7 +492,7 @@ class IntegrationServiceTest {
         assertEquals("DEAD_LETTER", retriedDead.status());
         assertTrue(retriedDead.errorMessage().contains("投递重试超限"));
 
-        // 接口日志是审计证据：重试或死信后必须保留，不能通过生产接口物理删除。
+        // 接口日志是审计证据：重试或死信后必须保留，不能通过生产接口删除。
         assertTrue(logRepository.findByMessageIdAndTenantId("msg-1", tenantId).isPresent());
         assertTrue(logRepository.findByMessageIdAndTenantId("msg-2", tenantId).isPresent());
     }

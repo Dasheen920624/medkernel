@@ -2,6 +2,7 @@ package com.medkernel.engine.mpi;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +23,7 @@ import jakarta.validation.Valid;
  * 全线经过 @DataScope(requireTenant = true) 隔离校验，防止垂直越权。
  */
 @RestController
-@RequestMapping("/api/v1/clinical/mpi")
+@RequestMapping({"/api/v1/engine/mpi", "/api/v1/clinical/mpi"})
 @DataScope(requireTenant = true)
 public class MpiController {
 
@@ -66,15 +67,34 @@ public class MpiController {
     }
 
     /**
-     * 物理合并源与目标患者主索引。
+     * 合并源与目标患者主索引。
      *
      * @param request 患者合并请求负载，包含源 MPI ID 与目标 MPI ID
-     * @return 空成功响应
+     * @return 合并结果
      */
     @PostMapping("/patients/merge")
     @PreAuthorize("@perm.has('mpi.write')")
-    public ApiResult<Void> mergePatients(@Valid @RequestBody MpiMergeRequest request) {
-        service.mergePatients(request.sourceMpiId(), request.targetMpiId());
-        return ApiResult.empty();
+    public ApiResult<MpiMergeResult> mergePatients(@Valid @RequestBody MpiMergeRequest request) {
+        return ApiResult.ok(service.mergePatients(request.sourceMpiId(), request.targetMpiId()));
+    }
+
+    /**
+     * 查询高危 MPI 合并审核单，默认返回待确认项。
+     */
+    @GetMapping("/merge-reviews")
+    @PreAuthorize("@perm.has('mpi.read')")
+    public ApiResult<java.util.List<MpiMergeReview>> getMergeReviews(
+            @RequestParam(required = false) String status) {
+        return ApiResult.ok(service.getMergeReviews(status));
+    }
+
+    /**
+     * 人工确认高危 MPI 合并审核单后执行真实合并。
+     */
+    @PostMapping("/merge-reviews/{reviewId}/confirm")
+    @PreAuthorize("@perm.has('mpi.write')")
+    public ApiResult<MpiMergeResult> confirmMergeReview(@PathVariable String reviewId,
+                                                        @Valid @RequestBody MpiMergeReviewConfirmRequest request) {
+        return ApiResult.ok(service.confirmMergeReview(reviewId, request));
     }
 }

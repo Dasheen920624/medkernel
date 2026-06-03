@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +28,10 @@ import com.medkernel.engine.terminology.StandardTerm;
 import com.medkernel.engine.terminology.StandardTermRepository;
 import com.medkernel.engine.terminology.TermMapping;
 import com.medkernel.engine.terminology.TermMappingRepository;
+import com.medkernel.engine.mpi.MpiPatientRepository;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.context.RequestContext;
 
 /**
  * 外部第三方系统对接及集成核心业务逻辑服务。
@@ -58,8 +61,10 @@ public class IntegrationService {
     private final IntegrationAdapterRepository adapterRepository;
     private final IntegrationWebhookConfigRepository webhookRepository;
     private final IntegrationMessageLogRepository logRepository;
+    private final DataQualityReportRepository dataQualityReportRepository;
     private final TermMappingRepository termMappingRepository;
     private final StandardTermRepository standardTermRepository;
+    private final MpiPatientRepository mpiPatientRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -68,14 +73,18 @@ public class IntegrationService {
     public IntegrationService(IntegrationAdapterRepository adapterRepository,
                               IntegrationWebhookConfigRepository webhookRepository,
                               IntegrationMessageLogRepository logRepository,
+                              DataQualityReportRepository dataQualityReportRepository,
                               TermMappingRepository termMappingRepository,
                               StandardTermRepository standardTermRepository,
+                              MpiPatientRepository mpiPatientRepository,
                               ObjectMapper objectMapper) {
         this.adapterRepository = adapterRepository;
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
+        this.dataQualityReportRepository = dataQualityReportRepository;
         this.termMappingRepository = termMappingRepository;
         this.standardTermRepository = standardTermRepository;
+        this.mpiPatientRepository = mpiPatientRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -84,7 +93,7 @@ public class IntegrationService {
     // ==========================================
 
     /**
-     * 根据租户 ID 检索其名下所有异构适配器列表（物理多租户隔离）。
+     * 根据租户 ID 检索其名下所有异构适配器列表（多租户隔离）。
      *
      * @param tenantId 租户标识
      * @return 适配器实体列表
@@ -213,6 +222,95 @@ public class IntegrationService {
             Instant.now(),
             items
         );
+    }
+
+    /**
+     * 汇总 AdapterHub 当前接入编排状态，供适配器中心页读取。
+     */
+    @Transactional(readOnly = true)
+    public AdapterHubStatus getAdapterHubStatus(String tenantId) {
+        Instant generatedAt = Instant.now();
+        List<IntegrationAdapter> adapters = adapterRepository.findAllByTenantId(tenantId);
+        List<AdapterHubSourceStatus> sources = adapters.stream()
+            .map(adapter -> toAdapterHubSourceStatus(adapter, generatedAt))
+            .toList();
+
+        return new AdapterHubStatus(
+            adapters.size(),
+            countByStatus(adapters, STATUS_ACTIVE),
+            countByStatus(adapters, STATUS_SUSPENDED),
+            countByHealth(adapters, HEALTH_HEALTHY),
+            countByHealth(adapters, HEALTH_NOT_CONNECTED),
+            countByHealth(adapters, HEALTH_MISCONFIGURED),
+            (int) sources.stream().filter(source -> source.mappedFieldCount() > 0).count(),
+            generatedAt,
+            sources
+        );
+    }
+
+    /**
+     * 生成并持久化一次数据质量报告快照。
+     */
+    @Transactional
+    public DataQualityReport generateDataQualityReport(String tenantId) {
+        Instant generatedAt = Instant.now();
+        List<IntegrationAdapter> adapters = adapterRepository.findAllByTenantId(tenantId);
+        long activePatientCount = mpiPatientRepository.countActive(tenantId);
+        int requiredFieldTotal = safeToInt(activePatientCount * 4);
+        int requiredFieldPresent = safeToInt(mpiPatientRepository.countActiveRequiredFieldsPresent(tenantId));
+        int adapterTotal = adapters.size();
+        int mappedAdapterCount = (int) adapters.stream()
+            .filter(adapter -> mappedFieldCount(adapter) > 0)
+            .count();
+        int timelyAdapterCount = (int) adapters.stream()
+            .filter(adapter -> isTimely(adapter, generatedAt))
+            .count();
+        int notConnectedCount = countByHealth(adapters, HEALTH_NOT_CONNECTED);
+        int misconfiguredCount = countByHealth(adapters, HEALTH_MISCONFIGURED);
+
+        List<String> gaps = new ArrayList<>();
+        if (requiredFieldTotal == 0) {
+            gaps.add("暂无 ACTIVE MPI 患者，必填字段达标情况无法证明");
+        } else if (requiredFieldPresent < requiredFieldTotal) {
+            gaps.add("必填字段缺口：" + (requiredFieldTotal - requiredFieldPresent) + "/" + requiredFieldTotal);
+        }
+        if (adapterTotal == 0) {
+            gaps.add("未登记院内系统适配器");
+        } else {
+            if (mappedAdapterCount < adapterTotal) {
+                gaps.add("未配置字段映射：" + (adapterTotal - mappedAdapterCount) + "/" + adapterTotal);
+            }
+            if (timelyAdapterCount < adapterTotal) {
+                gaps.add("连通核查时效缺口：" + (adapterTotal - timelyAdapterCount) + "/" + adapterTotal);
+            }
+        }
+        if (notConnectedCount > 0) {
+            gaps.add("NOT_CONNECTED 适配器：" + notConnectedCount);
+        }
+        if (misconfiguredCount > 0) {
+            gaps.add("MISCONFIGURED 适配器：" + misconfiguredCount);
+        }
+
+        DataQualityReport report = new DataQualityReport(
+            null,
+            tenantId,
+            generatedAt,
+            requiredFieldTotal,
+            requiredFieldPresent,
+            rate(requiredFieldPresent, requiredFieldTotal),
+            adapterTotal,
+            mappedAdapterCount,
+            rate(mappedAdapterCount, adapterTotal),
+            timelyAdapterCount,
+            rate(timelyAdapterCount, adapterTotal),
+            notConnectedCount,
+            misconfiguredCount,
+            gaps.isEmpty() ? "未发现数据质量缺口" : String.join("；", gaps),
+            generatedAt,
+            RequestContext.currentUserId().orElse("system"),
+            RequestContext.currentTraceId()
+        );
+        return dataQualityReportRepository.save(report);
     }
 
     // ==========================================
@@ -512,7 +610,7 @@ public class IntegrationService {
         // 根因：空载荷无法投递；载荷合法但无外部连接器同样无法真实重投递。两者均不得标 SUCCESS。
         String cause = payloadValid
             ? "未接入真实外部连接器，无法完成真实重投递"
-            : "物理载荷报文为空(Payload is empty)";
+            : "原始载荷报文为空(Payload is empty)";
 
         IntegrationMessageLog retried;
         if (newRetryCount >= msgLog.maxRetries()) {
@@ -601,6 +699,33 @@ public class IntegrationService {
         );
     }
 
+    private AdapterHubSourceStatus toAdapterHubSourceStatus(IntegrationAdapter adapter, Instant generatedAt) {
+        List<String> gaps = new ArrayList<>();
+        int mappedFieldCount = mappedFieldCount(adapter);
+        if (mappedFieldCount == 0) {
+            gaps.add("未配置字段映射");
+        }
+        if (HEALTH_MISCONFIGURED.equals(adapter.healthStatus())) {
+            gaps.add("适配器配置非法");
+        }
+        if (HEALTH_NOT_CONNECTED.equals(adapter.healthStatus())) {
+            gaps.add("未连接真实外部系统");
+        }
+        if (!isTimely(adapter, generatedAt)) {
+            gaps.add("未完成 24 小时内连通核查");
+        }
+        return new AdapterHubSourceStatus(
+            adapter.adapterId(),
+            adapter.name(),
+            adapter.protocolType(),
+            adapter.status(),
+            adapter.healthStatus(),
+            mappedFieldCount,
+            adapter.lastHeartbeatAt(),
+            List.copyOf(gaps)
+        );
+    }
+
     private IntegrationHealthProbeItemDto toHealthProbeItem(IntegrationAdapter adapter) {
         return new IntegrationHealthProbeItemDto(
             adapter.tenantId(),
@@ -624,6 +749,34 @@ public class IntegrationService {
         return (int) adapters.stream()
             .filter(adapter -> healthStatus.equals(adapter.healthStatus()))
             .count();
+    }
+
+    private int mappedFieldCount(IntegrationAdapter adapter) {
+        if (adapter.configJson() == null || adapter.configJson().isBlank()) {
+            return 0;
+        }
+        try {
+            JsonNode mappings = objectMapper.readTree(adapter.configJson()).path("fieldMappings");
+            return mappings.isArray() ? mappings.size() : 0;
+        } catch (JsonProcessingException e) {
+            return 0;
+        }
+    }
+
+    private boolean isTimely(IntegrationAdapter adapter, Instant now) {
+        return adapter.lastHeartbeatAt() != null
+            && !adapter.lastHeartbeatAt().isBefore(now.minus(Duration.ofHours(24)));
+    }
+
+    private double rate(int numerator, int denominator) {
+        if (denominator <= 0) {
+            return 0.0;
+        }
+        return Math.round((numerator * 10000.0 / denominator)) / 100.0;
+    }
+
+    private int safeToInt(long value) {
+        return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
     }
 
     private String healthMessage(String healthStatus) {

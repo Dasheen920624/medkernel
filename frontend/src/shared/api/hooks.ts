@@ -2906,6 +2906,49 @@ export interface AdapterHealthSummary {
   adapters: AdapterHealthItem[];
 }
 
+export interface AdapterHubSourceStatus {
+  adapterId: string;
+  name: string;
+  protocolType: string;
+  status: string;
+  healthStatus: IntegrationAdapter["healthStatus"];
+  mappedFieldCount: number;
+  lastHeartbeatAt: string | null;
+  gaps: string[];
+}
+
+export interface AdapterHubStatus {
+  totalAdapters: number;
+  activeAdapters: number;
+  suspendedAdapters: number;
+  healthyAdapters: number;
+  notConnectedAdapters: number;
+  misconfiguredAdapters: number;
+  mappedAdapters: number;
+  generatedAt: string;
+  sources: AdapterHubSourceStatus[];
+}
+
+export interface DataQualityReport {
+  reportId: string;
+  tenantId: string;
+  generatedAt: string;
+  requiredFieldTotal: number;
+  requiredFieldPresent: number;
+  requiredFieldRate: number;
+  adapterTotal: number;
+  mappedAdapterCount: number;
+  mappingRate: number;
+  timelyAdapterCount: number;
+  timelinessRate: number;
+  notConnectedCount: number;
+  misconfiguredCount: number;
+  gapSummary: string;
+  createdAt: string;
+  createdBy: string;
+  traceId?: string | null;
+}
+
 export interface IntegrationWebhookConfig {
   id: number;
   webhookId: string;
@@ -3039,6 +3082,29 @@ export function useIntegrationHealthSummary() {
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<AdapterHealthSummary>>(
         "/api/v1/engine/integration/health",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useAdapterHubStatus() {
+  return useQuery({
+    queryKey: ["integration", "adapter-hub", "status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<AdapterHubStatus>>(
+        "/api/v1/engine/integration/adapter-hub/status",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useGenerateDataQualityReport() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post<IntegrationEnvelope<DataQualityReport>>(
+        "/api/v1/engine/integration/data-quality/reports",
       );
       return data.data;
     },
@@ -3402,14 +3468,23 @@ export interface MpiStatsResponse {
   genderCounts: Record<string, number>;
 }
 
+export interface MpiMergeResult {
+  status: "MERGED" | string;
+  sourceMpiId: string;
+  targetMpiId: string;
+  reviewId?: string | null;
+  riskLevel?: string | null;
+  message: string;
+}
+
 export function useMpiPatients(
   params: { keyword?: string; status?: string; page?: number; size?: number } = {},
 ) {
   return useQuery({
-    queryKey: ["clinical", "mpi", "patients", params],
+    queryKey: ["engine", "mpi", "patients", params],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: { items: MpiPatient[]; total: number } }>(
-        "/clinical/mpi/patients",
+        "/api/v1/engine/mpi/patients",
         { params },
       );
       return data.data;
@@ -3419,9 +3494,9 @@ export function useMpiPatients(
 
 export function useMpiStats() {
   return useQuery({
-    queryKey: ["clinical", "mpi", "stats"],
+    queryKey: ["engine", "mpi", "stats"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/clinical/mpi/stats");
+      const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/api/v1/engine/mpi/stats");
       return data.data;
     },
   });
@@ -3435,8 +3510,8 @@ export interface MergeMpiPayload {
 export function useMergeMpiPatients() {
   return useMutation({
     mutationFn: async (payload: MergeMpiPayload) => {
-      const { data } = await apiClient.post<{ data: void }>(
-        "/clinical/mpi/patients/merge",
+      const { data } = await apiClient.post<{ data: MpiMergeResult }>(
+        "/api/v1/engine/mpi/patients/merge",
         payload,
       );
       return data.data;
