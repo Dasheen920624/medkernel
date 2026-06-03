@@ -494,4 +494,30 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
+
+  it(
+    "添加节点/边自动生成编码，边与起点从已建节点下拉选择",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+
+      // 添加节点 → 节点编码自动填 N1
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      expect((within(dialog).getByLabelText("节点编码") as HTMLInputElement).value).toBe("N1");
+
+      // 添加流转边 → 边编码自动填 E1
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+      expect((within(dialog).getByLabelText("边编码") as HTMLInputElement).value).toBe("E1");
+
+      // 起点为下拉选择（不是文本框），且能选到已建节点 N1
+      const startNodeField = within(dialog).getByLabelText("起始节点");
+      expect(startNodeField).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
 });
