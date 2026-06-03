@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,6 +124,77 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
+    void evaluateReturnsDeterministicCardsOnlyWhenModelDisabled() {
+        RecommendationCardRequest deterministic = cardRequest(
+            "CARD.DETERMINISTIC", false, RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO, false, List.of(sourceRequest()));
+        RecommendationCardRequest modelGenerated = cardRequest(
+            "CARD.MODEL", true, RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO, false, List.of(sourceRequest()));
+
+        RecommendationEvaluationResponse response = service.evaluate(
+            triggerRequest(List.of(deterministic, modelGenerated)));
+
+        assertThat(response.modelStatus()).isEqualTo(RecommendationModelStatus.MODEL_DISABLED);
+        assertThat(response.totalCardCount()).isEqualTo(2);
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.suppressedCardCount()).isZero();
+        assertThat(response.cards())
+            .extracting(RecommendationCard::cardCode)
+            .containsExactly("CARD.DETERMINISTIC");
+        verify(cards, times(1)).save(any());
+    }
+
+    @Test
+    void evaluateSuppressesLowValueRepeatedCardByRequestThreshold() {
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+                eq("WARD_ORDER:ANTICOAG"), any()))
+            .thenReturn(3L);
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(RecommendationRiskLevel.MEDIUM, RecommendationInterruptLevel.INFO,
+                false, List.of(sourceRequest()))),
+            3,
+            24,
+            false);
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isZero();
+        assertThat(response.suppressedCardCount()).isEqualTo(1);
+        assertThat(response.cards()).isEmpty();
+
+        ArgumentCaptor<RecommendationCard> cardCap = ArgumentCaptor.forClass(RecommendationCard.class);
+        ArgumentCaptor<RecommendationFatigueSignal> signalCap =
+            ArgumentCaptor.forClass(RecommendationFatigueSignal.class);
+        verify(cards).save(cardCap.capture());
+        verify(fatigueSignals).save(signalCap.capture());
+        assertThat(cardCap.getValue().status()).isEqualTo(RecommendationCardStatus.SUPPRESSED);
+        assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.SUPPRESSED);
+        verify(businessMetrics, never()).incCdssAlerts();
+    }
+
+    @Test
+    void evaluateDoesNotSuppressHighRiskCardEvenWhenFatigueThresholdReached() {
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+                eq("WARD_ORDER:ANTICOAG"), any()))
+            .thenReturn(99L);
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(RecommendationRiskLevel.HIGH, RecommendationInterruptLevel.WEAK_INTERRUPTIVE,
+                true, List.of(sourceRequest()))),
+            3,
+            24,
+            false);
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.suppressedCardCount()).isZero();
+        assertThat(response.cards()).extracting(RecommendationCard::status)
+            .containsExactly(RecommendationCardStatus.PENDING);
+        verify(businessMetrics).incCdssAlerts();
+    }
+
+    @Test
     void triggerRejectsCardWithoutSources() {
         RecommendationCardRequest request = cardRequest(
             RecommendationRiskLevel.MEDIUM,
@@ -181,6 +253,46 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
+    void feedbackRequiresStructuredReasonForAcceptAndReject() {
+        RecommendationCard pending = card("card-1", RecommendationCardStatus.PENDING);
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(pending));
+
+        assertThatThrownBy(() -> service.feedback("card-1", new RecommendationFeedbackRequest(
+                RecommendationFeedbackType.ACCEPT, "", "已确认风险", "DOCTOR", null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_REC_007);
+
+        assertThatThrownBy(() -> service.feedback("card-1", new RecommendationFeedbackRequest(
+                RecommendationFeedbackType.REJECT, "FALSE_POSITIVE", " ", "DOCTOR", null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_REC_007);
+
+        verify(feedback, never()).save(any());
+        verify(cards, never()).save(any());
+    }
+
+    @Test
+    void feedbackReturnsExistingIdempotentResultBeforeClosedCheck() {
+        RecommendationCard closed = card("card-1", RecommendationCardStatus.ACCEPTED);
+        RecommendationFeedback existing = feedback("feedback-1", "card-1", "idem-1",
+            RecommendationFeedbackType.ACCEPT);
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(closed));
+        when(feedback.findByCardIdAndTenantIdAndIdempotencyKey("card-1", "tenant-A", "idem-1"))
+            .thenReturn(Optional.of(existing));
+
+        RecommendationFeedbackResponse response = service.feedback("card-1", new RecommendationFeedbackRequest(
+            RecommendationFeedbackType.ACCEPT, "CONFIRMED", "已确认风险", "DOCTOR", "idem-1"));
+
+        assertThat(response.feedbackId()).isEqualTo("feedback-1");
+        assertThat(response.cardStatus()).isEqualTo(RecommendationCardStatus.ACCEPTED);
+        verify(cards, never()).save(any());
+        verify(feedback, never()).save(any());
+        verify(fatigueSignals, never()).save(any());
+    }
+
+    @Test
     void feedbackRejectsClosedCard() {
         when(cards.findByCardIdAndTenantId("card-1", "tenant-A"))
             .thenReturn(Optional.of(card("card-1", RecommendationCardStatus.ACCEPTED)));
@@ -227,15 +339,37 @@ class RecommendationEngineServiceTest {
             "1.0.0", "sha256:trigger", Instant.now(), candidateCards);
     }
 
+    private RecommendationTriggerRequest triggerRequest(
+            List<RecommendationCardRequest> candidateCards,
+            Integer fatigueSuppressionThreshold,
+            Integer fatigueWindowHours,
+            boolean modelEnhancementEnabled) {
+        return new RecommendationTriggerRequest(
+            "TRG.ORDER", "ORDER_SIGN", "event-1", "snapshot-1",
+            "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
+            "1.0.0", "sha256:trigger", Instant.now(), candidateCards,
+            fatigueSuppressionThreshold, fatigueWindowHours, modelEnhancementEnabled);
+    }
+
     private RecommendationCardRequest cardRequest(
             RecommendationRiskLevel riskLevel,
             RecommendationInterruptLevel interruptLevel,
             boolean requiresConfirmation,
             List<RecommendationSourceRequest> sourceRequests) {
+        return cardRequest("CARD.ANTICOAG", false, riskLevel, interruptLevel, requiresConfirmation, sourceRequests);
+    }
+
+    private RecommendationCardRequest cardRequest(
+            String cardCode,
+            boolean aiGenerated,
+            RecommendationRiskLevel riskLevel,
+            RecommendationInterruptLevel interruptLevel,
+            boolean requiresConfirmation,
+            List<RecommendationSourceRequest> sourceRequests) {
         return new RecommendationCardRequest(
-            "CARD.ANTICOAG", RecommendationCardType.MEDICATION,
+            cardCode, RecommendationCardType.MEDICATION,
             "抗凝用药风险提醒", "患者当前医嘱满足抗凝风险规则", "请确认出血风险评估",
-            riskLevel, interruptLevel, requiresConfirmation, false,
+            riskLevel, interruptLevel, requiresConfirmation, aiGenerated,
             "来源：抗凝用药规则 v1", "{\"reason\":\"规则命中\"}",
             "WARD_ORDER:ANTICOAG", Instant.now().plusSeconds(3600), sourceRequests);
     }
@@ -268,9 +402,17 @@ class RecommendationEngineServiceTest {
     }
 
     private RecommendationFeedback feedback(String feedbackId, String cardId) {
+        return feedback(feedbackId, cardId, null, RecommendationFeedbackType.VIEW_SOURCE);
+    }
+
+    private RecommendationFeedback feedback(
+            String feedbackId,
+            String cardId,
+            String idempotencyKey,
+            RecommendationFeedbackType feedbackType) {
         Instant now = Instant.now();
         return new RecommendationFeedback(
-            null, feedbackId, "tenant-A", cardId, RecommendationFeedbackType.VIEW_SOURCE,
+            null, feedbackId, "tenant-A", cardId, idempotencyKey, feedbackType,
             null, null, "doctor-1", "DOCTOR",
             now, "doctor-1", now, "doctor-1", "trace-rec");
     }

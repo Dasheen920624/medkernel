@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 API-02 临床事件 API 🚧
+### 线 1 · D3 API-07 推荐 / CDSS API 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-api-02-clinical-event-api`
-- 目标：领取 D3 第一闸 [API-02](cards/D3/API-02.md)，实现临床事件同步 / 异步 / 批量 / 回放 / 重试 / 死信 / 回调客户面 API；必须消费 D2 已发布规则 / 路径 / 知识 / 字典的 B0 真实资产，不绕过关系库权威，不自动开医嘱或写病历。
-- 状态：本地实现、提交与 changed-mode 门禁完成，待推送 / PR / 远端 CI / 合并；`docs/backlog.md` 已将 API-02 标 done，合并后才能领取 D3 下一卡 [API-07](cards/D3/API-07.md)。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
-- 下一步（精确到动作/命令）：1. 推送 `codex/d3-api-02-clinical-event-api` 并创建 PR；2. 等待远端 CI 全绿后 squash merge；3. 合并确认 `origin/main` 后清理工作树并领取 D3 [API-07](cards/D3/API-07.md)。
-- 相关文件 / 测试 / 坑：本轮新增临床事件触发点、客户面幂等键、回调 webhook 白名单、批量逐条失败、死信查询 / 回放、`clinical-event.v1` schema、V67 五方言迁移；回调经 INTEG-01 出站总线，未接真实外部通道时只落 `NOT_CONNECTED` / `NOT_SYNCED` 诚实状态，不伪造外部送达。已跑证据见 [API-02](cards/D3/API-02.md)；当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。`DEFER-019` 随访模板资产化归 D3 `FOLLOW-01` 后回接 D2，不得把患者运行计划打进配置包。
+- 分支：`codex/d3-api-07-recommendation-cdss-api`
+- 目标：领取 D3 第二闸 [API-07](cards/D3/API-07.md)，把推荐 / CDSS 契约化为触发评估、列表、详情解释、反馈幂等与疲劳治理；只返回真实确定性推荐卡，模型未接入时显式 `MODEL_DISABLED`，不自动开医嘱、不写病历。
+- 状态：API-02 已经 #325 squash 合入 `origin/main`（merge `99f53b3337aeb3053ff2ca6737fcbce5f9faf727`）并清理工作树；当前 API-07 本地实现、文档同步、提交、提交前工作树 T-GATE、提交后 changed-mode T-GATE 与最终后端全量测试完成，`docs/backlog.md` 已将 API-07 标 `done`，待推送、PR、远端 CI 与合并。当前长期目标继续 active / usageLimited，遇到非当前卡外部环境问题继续登记 [待处理问题清单](audit/deferred-issues.md)，不得把长期目标标记 blocked。
+- 下一步（精确到动作/命令）：1. 推送 `codex/d3-api-07-recommendation-cdss-api` 并创建 PR；2. 远端 CI 8/8 全绿后 squash merge；3. 合并确认 `origin/main` 后清理工作树并领取 D3 [API-09](cards/D3/API-09.md)。
+- 相关文件 / 测试 / 坑：新增 `RecommendationEvaluateSuffixController` / `RecommendationEvaluationResponse` / `RecommendationModelStatus`，扩展 `RecommendationEngineService` 的 `evaluate`、反馈原因强制、反馈幂等与低价值疲劳抑制；`RecommendationCardRepository` 支持患者 / 就诊 / 触发点分页筛选；V68 五方言迁移补 `recommendation_feedback.idempotency_key`、`uk_rec_feedback_idempotency` 与 `SUPPRESSED` 约束。已跑证据见 [API-07](cards/D3/API-07.md)：红灯编译失败已确认，聚焦套件、跨模块套件、迁移套件、最终 `mvn -q test`（190 reports / 1149 tests / 0 failures / 0 errors / 0 skipped）通过，H2 / PostgreSQL / Oracle 迁移到 V68 且二次 migrate no-op；工作树 T-GATE 与提交后 changed-mode 真实性 / 配置边界 / 迁移规约 / 脚本自测 / 中文注释 / diff 检查通过。当前真实数据库运行保障为 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境继续归 [DEFER-001](audit/deferred-issues.md)。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -197,4 +197,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active / usageLimited 语义继续推进；当前 D2 试点准备域级验收已在 `codex/d2-domain-acceptance` 完成本地收口，下一条在途线为 D3 `API-02`。本轮关闭 `DEFER-012`：新增关系库只读规则影响索引，真实返回路径模板、在径患者和发布同步目标；D2 `D2-验收` 已同步为 `done`。本地后端全量、前端全量、构建、生产依赖审计、T-GATE、中文注释、diff 检查与 Browser 路由/控制台证据已通过；远端 PR / CI / 合并仍按门禁执行。ADAPTER-01 已 #318 squash 合入 `origin/main`（merge `2b4e7fd1`）并清理 worktree。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `API-02` 已 #325 squash 合入 `origin/main`（merge `99f53b3337aeb3053ff2ca6737fcbce5f9faf727`）并清理工作树，当前在途线为 D3 `API-07`。API-07 本地实现与文档同步已完成，后端聚焦套件、跨模块套件、迁移套件、最终 `mvn -q test`（190 reports / 1149 tests / 0 failures / 0 errors / 0 skipped）通过；工作树 T-GATE 与提交后 changed-mode 真实性 / 配置边界 / 迁移规约 / 脚本自测 / 中文注释 / diff 检查通过；下一步推送、PR、远端 CI 与合并，合并后领取 D3 `API-09`。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。

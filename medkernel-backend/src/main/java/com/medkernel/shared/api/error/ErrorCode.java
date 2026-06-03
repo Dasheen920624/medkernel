@@ -84,6 +84,7 @@ public enum ErrorCode {
     ENG_REC_004("ENG-REC-004", 409, "推荐卡当前状态不允许反馈", ErrorClass.DATA, false),
     ENG_REC_005("ENG-REC-005", 400, "推荐来源解释不完整", ErrorClass.INPUT, false),
     ENG_REC_006("ENG-REC-006", 409, "高风险推荐缺少医师确认门禁", ErrorClass.DATA, false),
+    ENG_REC_007("ENG-REC-007", 400, "推荐反馈缺少结构化原因", ErrorClass.INPUT, false),
 
     ENG_EVAL_001("ENG-EVAL-001", 400, "评估指标或运行请求校验失败", ErrorClass.INPUT, false),
     ENG_EVAL_002("ENG-EVAL-002", 404, "评估指标不存在", ErrorClass.DATA, false),

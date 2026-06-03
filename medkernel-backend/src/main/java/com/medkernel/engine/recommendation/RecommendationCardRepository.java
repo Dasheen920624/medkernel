@@ -17,7 +17,7 @@ public interface RecommendationCardRepository extends ListCrudRepository<Recomme
 
     List<RecommendationCard> findByTriggerIdAndTenantIdOrderByCreatedAtAsc(String triggerId, String tenantId);
 
-    /** 按状态/风险/场景/患者过滤当前租户的推荐卡总数。 */
+    /** 按状态/风险/场景/患者/就诊/触发点过滤当前租户的推荐卡总数。 */
     @Query("""
         SELECT COUNT(*)
         FROM recommendation_card c
@@ -27,10 +27,13 @@ public interface RecommendationCardRepository extends ListCrudRepository<Recomme
           AND (:riskLevel IS NULL OR c.risk_level = :riskLevel)
           AND (:scenarioCode IS NULL OR t.scenario_code = :scenarioCode)
           AND (:patientId IS NULL OR t.patient_id = :patientId)
+          AND (:encounterId IS NULL OR t.encounter_id = :encounterId)
+          AND (:triggerPoint IS NULL OR t.trigger_type = :triggerPoint)
         """)
-    long countByFilter(String tenantId, String status, String riskLevel, String scenarioCode, String patientId);
+    long countByFilter(String tenantId, String status, String riskLevel, String scenarioCode, String patientId,
+                       String encounterId, String triggerPoint);
 
-    /** 按状态/风险/场景/患者过滤分页返回推荐卡，默认按 created_at 倒序。 */
+    /** 按状态/风险/场景/患者/就诊/触发点过滤分页返回推荐卡，默认按 created_at 倒序。 */
     @Query("""
         SELECT c.*
         FROM recommendation_card c
@@ -40,10 +43,12 @@ public interface RecommendationCardRepository extends ListCrudRepository<Recomme
           AND (:riskLevel IS NULL OR c.risk_level = :riskLevel)
           AND (:scenarioCode IS NULL OR t.scenario_code = :scenarioCode)
           AND (:patientId IS NULL OR t.patient_id = :patientId)
+          AND (:encounterId IS NULL OR t.encounter_id = :encounterId)
+          AND (:triggerPoint IS NULL OR t.trigger_type = :triggerPoint)
         ORDER BY c.created_at DESC, c.id DESC
         LIMIT :limit OFFSET :offset
         """)
     List<RecommendationCard> pageByFilter(
         String tenantId, String status, String riskLevel, String scenarioCode, String patientId,
-        int offset, int limit);
+        String encounterId, String triggerPoint, int offset, int limit);
 }

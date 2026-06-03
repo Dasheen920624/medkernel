@@ -75,6 +75,16 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanReadAndFeedbackButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/recommendations/card-1"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(post("/api/v1/engine/recommendations/card-1/feedback")
+                .contentType("application/json")
+                .content(FEEDBACK_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
         mvc.perform(get("/api/v1/engine/recommendations/cards/card-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
@@ -93,6 +103,11 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotCreateRecommendationTrigger() throws Exception {
+        mvc.perform(post("/api/v1/engine/recommendations:evaluate")
+                .contentType("application/json")
+                .content(TRIGGER_BODY))
+            .andExpect(status().isForbidden());
+
         mvc.perform(post("/api/v1/engine/recommendations/triggers")
                 .contentType("application/json")
                 .content(TRIGGER_BODY))
@@ -102,6 +117,12 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void itOpsCanCreateTriggerButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/recommendations:evaluate")
+                .contentType("application/json")
+                .content(TRIGGER_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
         mvc.perform(post("/api/v1/engine/recommendations/triggers")
                 .contentType("application/json")
                 .content(TRIGGER_BODY))
@@ -120,6 +141,9 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadRecommendationCards() throws Exception {
+        mvc.perform(get("/api/v1/engine/recommendations"))
+            .andExpect(status().isForbidden());
+
         mvc.perform(get("/api/v1/engine/recommendations/cards"))
             .andExpect(status().isForbidden());
     }

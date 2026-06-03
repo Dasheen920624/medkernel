@@ -93,7 +93,8 @@ class MigrationBaselineContractTest {
         "V64__mpi_merge_review_data_quality_report.sql",
         "V65__pilot_package_template.sql",
         "V66__integration_business_service_package.sql",
-        "V67__clinical_event_api_contract.sql"
+        "V67__clinical_event_api_contract.sql",
+        "V68__recommendation_cdss_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -198,8 +199,8 @@ class MigrationBaselineContractTest {
         "idx_rec_trigger_tenant_time", "idx_rec_trigger_patient", "idx_rec_trigger_status",
         "idx_rec_trigger_scenario", "idx_rec_card_trigger", "idx_rec_card_tenant_status",
         "idx_rec_card_risk", "idx_rec_card_fatigue", "idx_rec_source_card",
-        "idx_rec_feedback_card_time", "idx_rec_fatigue_card", "idx_rec_fatigue_key",
-        "idx_rec_fatigue_tenant_time",
+        "idx_rec_feedback_card_time", "uk_rec_feedback_idempotency",
+        "idx_rec_fatigue_card", "idx_rec_fatigue_key", "idx_rec_fatigue_tenant_time",
         "idx_eval_indicator_tenant_status", "idx_eval_indicator_code_status",
         "idx_eval_run_tenant_time", "idx_eval_run_context",
         "idx_eval_result_run", "idx_eval_result_indicator",
@@ -1159,6 +1160,26 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V67__clinical_event_api_contract.sql"))
                 .as("dialect %s must ship V67", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v68ShouldDeclareRecommendationFeedbackIdempotencyAndSuppressionContract() {
+        String h2 = readMigration("h2", "V68__recommendation_cdss_contract.sql");
+        assertThat(h2).contains("recommendation_feedback");
+        assertThat(h2).contains("idempotency_key");
+        assertThat(h2).contains("uk_rec_feedback_idempotency");
+        assertThat(h2).contains("recommendation_fatigue_signal");
+        assertThat(h2).contains("SUPPRESSED");
+        assertThat(h2).contains("COMMENT ON COLUMN recommendation_feedback.idempotency_key");
+    }
+
+    @Test
+    void v68ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V68__recommendation_cdss_contract.sql"))
+                .as("dialect %s must ship V68", dialect)
                 .exists();
         }
     }
