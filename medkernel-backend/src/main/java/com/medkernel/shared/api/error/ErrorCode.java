@@ -114,6 +114,7 @@ public enum ErrorCode {
     ENG_EMBED_002("ENG-EMBED-002", 400, "非法的 Origin 域名", ErrorClass.INPUT, false),
     ENG_EMBED_003("ENG-EMBED-003", 409, "启动令牌已被使用", ErrorClass.DATA, false),
     ENG_EMBED_004("ENG-EMBED-004", 404, "启动令牌不存在", ErrorClass.DATA, false),
+    ENG_EMBED_005("ENG-EMBED-005", 409, "启动令牌状态或嵌入契约不匹配", ErrorClass.DATA, false),
     ENG_LLM_001("ENG-LLM-001", 400, "能力尚未在该组织激活或不可用", ErrorClass.INPUT, false),
     ENG_LLM_002("ENG-LLM-002", 422, "模型输出不匹配期望结构Schema", ErrorClass.DATA, false),
     ENG_LLM_003("ENG-LLM-003", 504, "调用模型接口超时", ErrorClass.EXTERNAL, true),

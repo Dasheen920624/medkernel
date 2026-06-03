@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +65,24 @@ class EmbedEngineServiceTest {
     }
 
     @Test
+    void generateToken_PersistsThreeRouteAndCdsHookContract() {
+        EmbedLaunchTokenRequest req = new EmbedLaunchTokenRequest(
+            "user-1", "doctor", "P100", "E200", "patient-view", 60,
+            EmbedIntegrationMode.SDK, "patient-view", "hook-instance-001");
+        when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmbedLaunchTokenResponse res = service.generateToken(req);
+
+        assertThat(res.integrationMode()).isEqualTo(EmbedIntegrationMode.SDK);
+        assertThat(res.launchEndpoint()).isEqualTo("/api/v1/engine/embed/launch");
+        verify(tokenRepo).save(org.mockito.ArgumentMatchers.argThat(saved ->
+            saved.integrationMode().equals(EmbedIntegrationMode.SDK.name())
+                && saved.hook().equals("patient-view")
+                && saved.hookInstance().equals("hook-instance-001")
+                && saved.status().equals("UNUSED")));
+    }
+
+    @Test
     void validateAndExchange_UNUSEDToken_SucceedsAndAtomicallyLocksUSED() {
         String tokenVal = "tkn-123456";
         Instant expiredAt = Instant.now().plusSeconds(60);
@@ -73,17 +92,63 @@ class EmbedEngineServiceTest {
         );
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
-        when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tokenRepo.consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"))).thenReturn(1);
 
-        EmbedLaunchContextResponse res = service.validateAndExchange(tokenVal, null);
+        EmbedLaunchContextResponse res = service.validateAndExchange(
+            new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null);
 
         assertThat(res.active()).isTrue();
         assertThat(res.userId()).isEqualTo("user-1");
         assertThat(res.tenantId()).isEqualTo("tenant-1");
         assertThat(res.patientId()).isEqualTo("P100");
+        assertThat(res.integrationMode()).isEqualTo(EmbedIntegrationMode.IFRAME);
+        assertThat(res.modelStatus()).isEqualTo(EmbedModelStatus.MODEL_DISABLED);
+        assertThat(res.connectionStatus()).isEqualTo(EmbedConnectionStatus.CONNECTED);
+        assertThat(res.cdsHookVersion()).isEqualTo("1.0");
 
-        verify(tokenRepo).save(any(EmbedLaunchToken.class));
+        verify(tokenRepo).consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"));
+        verify(tokenRepo, never()).save(any(EmbedLaunchToken.class));
         verify(auditPublisher).publish(eq(AuditAction.EXECUTE), eq("embed_launch_token"), eq(tokenVal), any());
+    }
+
+    @Test
+    void validateAndExchange_ModeMismatchThrowsBadRequestBeforeConsumingToken() {
+        String tokenVal = "tkn-123456";
+        EmbedLaunchToken unused = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            EmbedIntegrationMode.SDK.name(), "patient-view", "hook-instance-001", null
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.API, "patient-view", "hook-instance-001"), null))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
+
+        verify(tokenRepo, never()).consumeUnusedToken(any(), any(), any(), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
+    void validateAndExchange_RevokedTokenThrowsConflict() {
+        String tokenVal = "tkn-revoked";
+        EmbedLaunchToken revoked = new EmbedLaunchToken(
+            1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "patient-view",
+            "REVOKED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1",
+            EmbedIntegrationMode.IFRAME.name(), "patient-view", "hook-instance-001", null
+        );
+
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(revoked));
+
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
+
+        verify(tokenRepo, never()).consumeUnusedToken(any(), any(), any(), any(), any());
+        verify(isolatedAudit).publishInNewTx(any());
     }
 
     @Test
@@ -96,7 +161,8 @@ class EmbedEngineServiceTest {
 
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(used));
 
-        assertThatThrownBy(() -> service.validateAndExchange(tokenVal, null))
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_003);
 
@@ -114,7 +180,8 @@ class EmbedEngineServiceTest {
         when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> service.validateAndExchange(tokenVal, null))
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"), null))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_001);
 
@@ -125,15 +192,17 @@ class EmbedEngineServiceTest {
     @Test
     void validateAndExchange_OriginNotInWhitelist_ThrowsForbidden() {
         String tokenVal = "tkn-123456";
-        EmbedLaunchToken unused = new EmbedLaunchToken(
+        EmbedLaunchToken used = new EmbedLaunchToken(
             1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
-            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
+            "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
-        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(used));
         when(originRepo.findByTenantIdAndOrigin("tenant-1", "https://unauthorized.domain.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.validateAndExchange(tokenVal, "https://unauthorized.domain.com"))
+        assertThatThrownBy(() -> service.validateAndExchange(
+                new EmbedLaunchRequest(tokenVal, EmbedIntegrationMode.IFRAME, "patient-view", "hook-instance-001"),
+                "https://unauthorized.domain.com"))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_002);
 
@@ -143,16 +212,19 @@ class EmbedEngineServiceTest {
     @Test
     void feedback_SucceedsAndPublishesAudit() {
         String tokenVal = "tkn-123456";
-        EmbedLaunchToken unused = new EmbedLaunchToken(
+        EmbedLaunchToken used = new EmbedLaunchToken(
             1L, tokenVal, "tenant-1", "user-1", "doctor", "P100", "E200", "OUTPATIENT",
-            "UNUSED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
+            "USED", Instant.now().plusSeconds(60), Instant.now(), "user-1", Instant.now(), "user-1", "trace-1"
         );
 
-        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(unused));
-        EmbedFeedbackRequest req = new EmbedFeedbackRequest(tokenVal, "ACCEPT", "患者风险已确认，安排开医嘱");
+        when(tokenRepo.findByToken(tokenVal)).thenReturn(Optional.of(used));
+        EmbedFeedbackRequest req = new EmbedFeedbackRequest(tokenVal, "ADOPT", "患者风险已确认，安排开医嘱");
 
-        service.feedback(req);
+        EmbedFeedbackResponse response = service.feedback(req);
 
+        assertThat(response.actionType()).isEqualTo("ADOPT");
+        assertThat(response.callbackStatus()).isEqualTo(EmbedConnectionStatus.NOT_CONNECTED);
+        assertThat(response.traceId()).isEqualTo("trace-1");
         verify(auditPublisher).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), eq(tokenVal), any());
     }
 

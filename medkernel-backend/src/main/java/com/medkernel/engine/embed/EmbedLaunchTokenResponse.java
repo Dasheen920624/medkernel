@@ -8,5 +8,12 @@ import java.time.Instant;
 public record EmbedLaunchTokenResponse(
     String token,
     Instant expiredAt,
-    String embedUrl
-) {}
+    String embedUrl,
+    EmbedIntegrationMode integrationMode,
+    String launchEndpoint,
+    String hook
+) {
+    public EmbedLaunchTokenResponse(String token, Instant expiredAt, String embedUrl) {
+        this(token, expiredAt, embedUrl, EmbedIntegrationMode.IFRAME, "/api/v1/engine/embed/launch", null);
+    }
+}

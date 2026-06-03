@@ -95,7 +95,8 @@ class MigrationBaselineContractTest {
         "V66__integration_business_service_package.sql",
         "V67__clinical_event_api_contract.sql",
         "V68__recommendation_cdss_contract.sql",
-        "V69__followup_api09_contract.sql"
+        "V69__followup_api09_contract.sql",
+        "V70__embed_api11_contract.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -218,7 +219,8 @@ class MigrationBaselineContractTest {
         "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
         "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
         "idx_followup_event_type", "uk_followup_event_idempotency",
-        "idx_embed_token_tenant", "idx_model_task_tenant",
+        "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
+        "idx_model_task_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
         "idx_export_task_status", "idx_export_task_resource",
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
@@ -548,6 +550,7 @@ class MigrationBaselineContractTest {
         Map.entry("followup_task", Set.of("status", "task_type")),
         Map.entry("followup_questionnaire", Set.of("status")),
         Map.entry("followup_event", Set.of("event_type")),
+        Map.entry("embed_launch_token", Set.of("status")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
@@ -1220,6 +1223,33 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V69__followup_api09_contract.sql"))
                 .as("dialect %s must ship V69", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v70ShouldDeclareEmbedApi11ContractColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V70__embed_api11_contract.sql");
+        assertThat(h2).contains(
+            "embed_launch_token",
+            "integration_mode",
+            "hook",
+            "hook_instance",
+            "consumed_at",
+            "idx_embed_token_status_expired",
+            "idx_embed_token_hook",
+            "IFRAME",
+            "SDK",
+            "API",
+            "REVOKED",
+            "COMMENT ON COLUMN embed_launch_token.integration_mode");
+    }
+
+    @Test
+    void v70ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V70__embed_api11_contract.sql"))
+                .as("dialect %s must ship V70", dialect)
                 .exists();
         }
     }
