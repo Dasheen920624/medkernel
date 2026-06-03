@@ -124,13 +124,24 @@ class FollowupEngineControllerTest {
     }
 
     @Test
-    void generatePlan_MissingTaskTypes_ReturnsBadRequest() throws Exception {
+    void generatePlan_MissingTaskTypesWithControlledFacts_ReturnsOk() throws Exception {
         String bodyMissingTaskTypes = """
             {
               "patientId": "P1001",
-              "encounterId": "E2001"
+              "encounterId": "E2001",
+              "pathwayId": "PATH01",
+              "diseaseCode": "I21.900",
+              "riskLevel": "HIGH"
             }
             """;
+        FollowupPlanDetailResponse mockResponse = new FollowupPlanDetailResponse(
+            "PLAN-001", "tenant-1", "P1001", "E2001", "I21.900",
+            FollowupPlanStatus.ACTIVE,
+            List.of(new FollowupTaskDetailResponse(
+                "TASK-001", FollowupTaskType.QUESTIONNAIRE, null, FollowupTaskStatus.PENDING
+            ))
+        );
+        when(service.generatePlan(any(FollowupPlanGenerateRequest.class))).thenReturn(mockResponse);
 
         mockMvc.perform(post("/api/v1/engine/followup/plans/generate")
                 .with(jwt().jwt(token -> token
@@ -140,7 +151,10 @@ class FollowupEngineControllerTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyMissingTaskTypes))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.planId").value("PLAN-001"));
+
+        verify(service).generatePlan(any(FollowupPlanGenerateRequest.class));
     }
 
     @Test

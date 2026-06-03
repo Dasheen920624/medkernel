@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,9 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.pathway.ClinicalClock;
+import com.medkernel.engine.pathway.ClinicalClockRepository;
+import com.medkernel.engine.pathway.ClinicalClockStatus;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -60,6 +64,8 @@ class FollowupEngineServiceTest {
     private FollowupEventRepository eventRepository;
     @Mock
     private ContextSnapshotService contextSnapshotService;
+    @Mock
+    private ClinicalClockRepository clinicalClockRepository;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -121,6 +127,92 @@ class FollowupEngineServiceTest {
         assertEquals(1, response.tasks().size());
         verify(planRepository, never()).save(any(FollowupPlan.class));
         verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void generatePlanRejectsTaskTypesWithoutControlledFacts() {
+        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
+            "PAT01", "ENC01", null, null, null, List.of("QUESTIONNAIRE"), "unsafe-task-only", false
+        );
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.generatePlan(request));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void generatePlanRejectsIdempotencyReplayWithoutControlledFacts() {
+        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
+            "PAT01", "ENC01", null, null, null, List.of("QUESTIONNAIRE"), "replay-without-fact", false
+        );
+        FollowupPlan existing = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", null, null, null,
+            FollowupPlanStatus.ACTIVE, "replay-without-fact", Instant.now(), "sys", Instant.now(), "sys",
+            "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.PENDING, null, null, "task-key-1", Instant.now(), "sys",
+            Instant.now(), "sys", "trace-123");
+        lenient().when(planRepository.findByTenantIdAndIdempotencyKey("tenant-1", "replay-without-fact"))
+            .thenReturn(Optional.of(existing));
+        lenient().when(taskRepository.findByTenantIdAndPlanId("tenant-1", "PLAN01"))
+            .thenReturn(List.of(task));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.generatePlan(request));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void generatePlanDerivesTasksFromControlledFactsAndBindsClinicalClock() {
+        Instant startedAt = Instant.parse("2026-06-01T00:00:00Z");
+        Instant dueAt = Instant.parse("2026-06-08T00:00:00Z");
+        ClinicalClock clock = new ClinicalClock(
+            1L, "clock-followup-1", "tenant-1", "pp-1", "FOLLOWUP", "FOLLOWUP_7D",
+            startedAt, dueAt, null, ClinicalClockStatus.RUNNING,
+            startedAt, "pathway", startedAt, "pathway", "trace-pathway"
+        );
+        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
+            "PAT01", "ENC01", "pp-1", "D01", "HIGH", List.of(), "fact-plan-key-1", false
+        );
+
+        when(clinicalClockRepository.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-1"))
+            .thenReturn(List.of(clock));
+        when(planRepository.save(any(FollowupPlan.class))).thenAnswer(inv -> {
+            FollowupPlan p = inv.getArgument(0);
+            return new FollowupPlan(
+                1L, "PLAN01", p.tenantId(), p.patientId(), p.encounterId(), p.pathwayId(),
+                p.diseaseCode(), p.riskLevel(), p.status(), p.idempotencyKey(),
+                p.sourceFactType(), p.sourceFactId(), p.generationRuleCode(), p.generationExplanation(),
+                p.createdAt(), p.createdBy(), p.updatedAt(), p.updatedBy(), p.traceId()
+            );
+        });
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(inv -> {
+            FollowupTask t = inv.getArgument(0);
+            return new FollowupTask(
+                1L, "TASK-" + t.taskType().name(), t.tenantId(), t.planId(), t.taskType(),
+                t.dueDate(), t.status(), t.executorId(), t.executorType(), t.idempotencyKey(),
+                t.clinicalClockId(), t.createdAt(), t.createdBy(), t.updatedAt(), t.updatedBy(), t.traceId()
+            );
+        });
+
+        FollowupPlanDetailResponse response = service.generatePlan(request);
+
+        assertThat(response.sourceFactType()).isEqualTo("PATHWAY");
+        assertThat(response.sourceFactId()).isEqualTo("pp-1");
+        assertThat(response.generationRuleCode()).isEqualTo("CONTROLLED_FACT_PATHWAY_HIGH");
+        assertThat(response.generationExplanation()).contains("clock-followup-1");
+        assertThat(response.tasks())
+            .extracting(FollowupTaskDetailResponse::taskType)
+            .containsExactly(FollowupTaskType.QUESTIONNAIRE, FollowupTaskType.OUTPATIENT);
+        assertThat(response.tasks())
+            .extracting(FollowupTaskDetailResponse::dueDate)
+            .containsExactly(dueAt, dueAt);
+        assertThat(response.tasks())
+            .extracting(FollowupTaskDetailResponse::clinicalClockId)
+            .containsExactly("clock-followup-1", "clock-followup-1");
     }
 
     @Test

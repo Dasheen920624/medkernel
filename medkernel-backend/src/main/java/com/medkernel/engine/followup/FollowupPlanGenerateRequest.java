@@ -1,7 +1,6 @@
 package com.medkernel.engine.followup;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 /**
@@ -13,7 +12,7 @@ public record FollowupPlanGenerateRequest(
     String pathwayId,
     String diseaseCode,
     String riskLevel,
-    @NotEmpty List<String> taskTypes,
+    List<String> taskTypes,
     String idempotencyKey,
     Boolean modelEnabled
 ) {
