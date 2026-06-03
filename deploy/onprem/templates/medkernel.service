@@ -1,0 +1,33 @@
+# MedKernel 后端 systemd 单元模板
+# 安装：cp 到 /etc/systemd/system/medkernel.service → systemctl daemon-reload → systemctl enable --now medkernel
+# 前置：已建运行用户 medkernel、目录 /zoesoft/medkernel/{lib,frontend,conf,logs,tmp,jre}，
+#       jar 在 lib/medkernel.jar，自带 JRE21 在 jre/，环境变量在 conf/medkernel.env（600）。
+[Unit]
+Description=MedKernel backend v1.0 GA
+Documentation=https://github.com/Dasheen920624/medkernel
+After=network.target
+
+[Service]
+Type=simple
+User=medkernel
+Group=medkernel
+WorkingDirectory=/zoesoft/medkernel
+EnvironmentFile=/zoesoft/medkernel/conf/medkernel.env
+ExecStart=/bin/bash -lc 'set -a; source /zoesoft/medkernel/conf/medkernel.env; set +a; exec /zoesoft/medkernel/jre/bin/java $JAVA_OPTS -jar /zoesoft/medkernel/lib/medkernel.jar'
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStartSec=240
+TimeoutStopSec=30
+KillMode=process
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=120
+StartLimitBurst=5
+LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/zoesoft/medkernel/logs /zoesoft/medkernel/tmp
+StandardOutput=append:/zoesoft/medkernel/logs/stdout.log
+StandardError=append:/zoesoft/medkernel/logs/stderr.log
+
+[Install]
+WantedBy=multi-user.target
