@@ -13,7 +13,11 @@ public record FollowupPlanDetailResponse(
     String diseaseCode,
     FollowupPlanStatus status,
     List<FollowupTaskDetailResponse> tasks,
-    FollowupModelStatus modelStatus
+    FollowupModelStatus modelStatus,
+    String sourceFactType,
+    String sourceFactId,
+    String generationRuleCode,
+    String generationExplanation
 ) {
     public FollowupPlanDetailResponse {
         tasks = tasks == null ? List.of() : List.copyOf(tasks);
@@ -28,6 +32,20 @@ public record FollowupPlanDetailResponse(
             String diseaseCode,
             FollowupPlanStatus status,
             List<FollowupTaskDetailResponse> tasks) {
-        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, FollowupModelStatus.MODEL_DISABLED);
+        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, FollowupModelStatus.MODEL_DISABLED,
+            null, null, null, null);
+    }
+
+    public FollowupPlanDetailResponse(
+            String planId,
+            String tenantId,
+            String patientId,
+            String encounterId,
+            String diseaseCode,
+            FollowupPlanStatus status,
+            List<FollowupTaskDetailResponse> tasks,
+            FollowupModelStatus modelStatus) {
+        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, modelStatus,
+            null, null, null, null);
     }
 }

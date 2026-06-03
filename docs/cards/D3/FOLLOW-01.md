@@ -18,8 +18,8 @@
 已有实质基础：`engine/followup/` 下 `FollowupEngineService` / `FollowupEngineController` + `FollowupEvent(+Repository)` + `FollowupAbnormalReportRequest` + 安全/契约测试。本卡＝把"受控事实驱动的计划生成 + 任务/问卷/异常回流"框架化为引擎核心，对外契约归 [API-09](API-09.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 计划生成：按路径节点/诊断/事件等**受控事实**生成随访计划（规则可解释，不写死人群）。
-- [ ] FR-2 任务下发：计划展开为带时点的任务（关键时钟 `ClinicalClock`），到期触发。
+- [x] FR-1 计划生成：按路径节点/诊断/事件等**受控事实**生成随访计划（规则可解释，不写死人群）。（PR1：路径/诊断/风险分层受控事实；事件触发归 PR2）
+- [x] FR-2 任务下发：计划展开为带时点的任务（关键时钟 `ClinicalClock`），到期触发。（PR1：计划生成时绑定已有关键时钟；调度执行归 PR2/PR3）
 - [ ] FR-3 问卷：模板化问卷下发 + 结构化回收。
 - [ ] FR-4 异常回流：异常作答/事件（`FollowupAbnormalReportRequest`）触发回院 + 通知 + 上下文回流。
 - [ ] FR-5 B0 降级：智能分层/生成为挂点，关闭按确定性规则计划 `MODEL_DISABLED`。
@@ -51,7 +51,7 @@
 - 本卡落点：受控事实驱动的确定性随访计划 + 异常回流闭环。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：计划由受控事实生成、可解释；任务按时点触发。
+- [x] AC-1（FR-1/2）：计划由受控事实生成、可解释；任务按时点触发。（PR1：受控事实生成解释 + 任务绑定 `ClinicalClock` 到期时间）
 - [ ] AC-2（FR-3/4）：问卷回收结构化；异常触发回院 + 回流。
 - [ ] AC-3（FR-5）：关模型确定性计划仍可跑。
 - 关联 A1–A9 剧本：A7 随访接续。
@@ -64,6 +64,11 @@
 - PR3：B0 降级 + 复现测试 → 验收
 
 ## 完工证据
+- PR1 实施记录（2026-06-04）：`FollowupEngineService.generatePlan` 先校验路径 / 诊断 / 风险分层受控事实，再复用幂等或患者路径计划；新计划持久化 `source_fact_type`、`source_fact_id`、`generation_rule_code`、`generation_explanation`，无 `taskTypes` 时按受控事实确定性派生 `QUESTIONNAIRE`，高风险追加 `OUTPATIENT`；存在患者路径 `ClinicalClock` 时任务绑定 `clinical_clock_id` 并继承 `due_at`。
+- PR1 迁移：V71 五方言新增随访计划来源事实 / 规则解释字段与随访任务 `clinical_clock_id`，索引 `idx_followup_plan_fact`、`idx_followup_task_clock`，保留中文 COMMENT 与回滚说明。
+- PR1 测试：新增 `generatePlanRejectsTaskTypesWithoutControlledFacts`、`generatePlanRejectsIdempotencyReplayWithoutControlledFacts`、`generatePlanDerivesTasksFromControlledFactsAndBindsClinicalClock`，覆盖无受控事实拒绝、幂等重放不可绕过红线、时钟绑定。
+- PR1 本地验证：`mvn -q -Dtest=FollowupEngineServiceTest#generatePlanRejectsIdempotencyReplayWithoutControlledFacts test` 先失败后通过；`mvn -q -Dtest=FollowupEngineServiceTest,FollowupEngineControllerTest,FollowupEngineControllerSecurityTest,PathwayEngineServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过；`mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 通过（H2 / PostgreSQL 15.18 / Oracle 21.3 迁移至 V71 并二次 no-op）；`mvn -q test` 通过；前端 `npm run verify` 51 文件 / 311 测试通过；T-GATE 脚本自测 34 项、真实性全量、配置边界 inventory、V71 迁移 files-mode、中文注释、`git diff --check` 均通过。
+- PR2/PR3 剩余：FR-3/FR-4 的问卷、异常回院、结果回流增强，以及 FR-5 的完整 B0 降级 / 复现测试仍未关闭；不得把本 PR1 写成 FOLLOW-01 整卡 done。
 - 代码 permalink：`engine/followup` 计划生成 + 异常回流 + B0 降级。
 - 测试：计划复现 / 异常回院 / 回流 / 关模型 B0。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

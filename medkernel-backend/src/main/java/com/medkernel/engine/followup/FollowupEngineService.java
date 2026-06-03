@@ -1,6 +1,7 @@
 package com.medkernel.engine.followup;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,9 @@ import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
+import com.medkernel.engine.pathway.ClinicalClock;
+import com.medkernel.engine.pathway.ClinicalClockRepository;
+import com.medkernel.engine.pathway.ClinicalClockStatus;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -42,6 +46,7 @@ public class FollowupEngineService {
     private final FollowupQuestionnaireRepository questionnaireRepository;
     private final FollowupEventRepository eventRepository;
     private final ContextSnapshotService contextSnapshotService;
+    private final ClinicalClockRepository clinicalClockRepository;
     private final ObjectMapper json = new ObjectMapper();
 
     public FollowupEngineService(
@@ -49,13 +54,15 @@ public class FollowupEngineService {
         FollowupTaskRepository taskRepository,
         FollowupQuestionnaireRepository questionnaireRepository,
         FollowupEventRepository eventRepository,
-        ContextSnapshotService contextSnapshotService
+        ContextSnapshotService contextSnapshotService,
+        ClinicalClockRepository clinicalClockRepository
     ) {
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
         this.questionnaireRepository = questionnaireRepository;
         this.eventRepository = eventRepository;
         this.contextSnapshotService = contextSnapshotService;
+        this.clinicalClockRepository = clinicalClockRepository;
     }
 
     /**
@@ -67,6 +74,7 @@ public class FollowupEngineService {
         String tenantId = ctx.orgScope().tenantId();
         String traceId = ctx.traceId();
         String actor = actor(ctx);
+        requireControlledFacts(request);
 
         Optional<FollowupPlan> existingPlan = existingPlanByIdempotency(tenantId, request.idempotencyKey())
             .or(() -> existingPlanByPathway(tenantId, request.pathwayId()));
@@ -75,6 +83,7 @@ public class FollowupEngineService {
         }
 
         Instant now = Instant.now();
+        ControlledPlan controlledPlan = resolveControlledPlan(request, tenantId);
         FollowupPlan plan = new FollowupPlan(
             null,
             "fp-" + UUID.randomUUID(),
@@ -86,6 +95,10 @@ public class FollowupEngineService {
             request.riskLevel(),
             FollowupPlanStatus.ACTIVE,
             blankToNull(request.idempotencyKey()),
+            controlledPlan.sourceFactType(),
+            controlledPlan.sourceFactId(),
+            controlledPlan.ruleCode(),
+            controlledPlan.explanation(),
             now,
             actor,
             now,
@@ -96,20 +109,23 @@ public class FollowupEngineService {
 
         int index = 0;
         List<FollowupTaskDetailResponse> taskResponses = new java.util.ArrayList<>();
-        for (String typeStr : request.taskTypes()) {
-            FollowupTaskType taskType = FollowupTaskType.valueOf(typeStr);
+        for (FollowupTaskType taskType : controlledPlan.taskTypes()) {
             Instant taskNow = Instant.now();
+            Instant dueDate = controlledPlan.dueAt() == null
+                ? taskNow.plusSeconds(DEFAULT_TASK_DELAY_SECONDS)
+                : controlledPlan.dueAt();
             FollowupTask task = new FollowupTask(
                 null,
                 "ft-" + UUID.randomUUID(),
                 tenantId,
                 plan.planId(),
                 taskType,
-                taskNow.plusSeconds(DEFAULT_TASK_DELAY_SECONDS),
+                dueDate,
                 FollowupTaskStatus.PENDING,
                 null,
                 null,
                 taskIdempotencyKey(request.idempotencyKey(), index++),
+                controlledPlan.clinicalClockId(),
                 taskNow,
                 actor,
                 taskNow,
@@ -128,7 +144,11 @@ public class FollowupEngineService {
             plan.diseaseCode(),
             plan.status(),
             taskResponses,
-            FollowupModelStatus.MODEL_DISABLED
+            FollowupModelStatus.MODEL_DISABLED,
+            plan.sourceFactType(),
+            plan.sourceFactId(),
+            plan.generationRuleCode(),
+            plan.generationExplanation()
         );
     }
 
@@ -276,6 +296,7 @@ public class FollowupEngineService {
             null,
             null,
             idempotencyKey == null ? null : abnormalTaskKey(idempotencyKey),
+            null,
             now,
             actor,
             now,
@@ -438,6 +459,7 @@ public class FollowupEngineService {
             executorId,
             executorType,
             task.idempotencyKey(),
+            task.clinicalClockId(),
             task.createdAt(),
             task.createdBy(),
             now,
@@ -450,6 +472,113 @@ public class FollowupEngineService {
         if (eventType != FollowupEventType.ABNORMAL_RETURN) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "异常回院上报仅允许 ABNORMAL_RETURN 事件");
         }
+    }
+
+    private ControlledPlan resolveControlledPlan(FollowupPlanGenerateRequest request, String tenantId) {
+        requireControlledFacts(request);
+        String sourceFactType;
+        String sourceFactId;
+        if (hasText(request.pathwayId())) {
+            sourceFactType = "PATHWAY";
+            sourceFactId = request.pathwayId();
+        } else if (hasText(request.diseaseCode())) {
+            sourceFactType = "DIAGNOSIS";
+            sourceFactId = request.diseaseCode();
+        } else {
+            sourceFactType = "RISK";
+            sourceFactId = request.riskLevel();
+        }
+
+        Optional<ClinicalClock> clock = controlledClock(request.pathwayId(), tenantId);
+        List<FollowupTaskType> taskTypes = resolveTaskTypes(request);
+        String riskBucket = "HIGH".equalsIgnoreCase(blankToNull(request.riskLevel())) ? "HIGH" : "STANDARD";
+        String ruleCode = "CONTROLLED_FACT_" + sourceFactType + "_" + riskBucket;
+        String explanation = controlledExplanation(request, sourceFactType, sourceFactId, ruleCode, taskTypes, clock);
+        return new ControlledPlan(
+            sourceFactType,
+            sourceFactId,
+            ruleCode,
+            explanation,
+            taskTypes,
+            clock.map(ClinicalClock::dueAt).orElse(null),
+            clock.map(ClinicalClock::clockId).orElse(null)
+        );
+    }
+
+    private void requireControlledFacts(FollowupPlanGenerateRequest request) {
+        boolean hasPathway = hasText(request.pathwayId());
+        boolean hasDiagnosis = hasText(request.diseaseCode());
+        boolean hasRisk = hasText(request.riskLevel());
+        if (!hasPathway && !hasDiagnosis && !hasRisk) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划生成缺少路径、诊断或风险分层受控事实");
+        }
+    }
+
+    private Optional<ClinicalClock> controlledClock(String pathwayId, String tenantId) {
+        if (!hasText(pathwayId)) {
+            return Optional.empty();
+        }
+        List<ClinicalClock> clocks = clinicalClockRepository
+            .findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(pathwayId, tenantId);
+        Optional<ClinicalClock> runningClock = clocks.stream()
+            .filter(clock -> clock.status() == ClinicalClockStatus.RUNNING)
+            .filter(clock -> clock.dueAt() != null)
+            .findFirst();
+        return runningClock.or(() -> clocks.stream().filter(clock -> clock.dueAt() != null).findFirst());
+    }
+
+    private List<FollowupTaskType> resolveTaskTypes(FollowupPlanGenerateRequest request) {
+        List<FollowupTaskType> explicit = request.taskTypes().stream()
+            .filter(FollowupEngineService::hasText)
+            .map(this::parseTaskType)
+            .distinct()
+            .toList();
+        if (!explicit.isEmpty()) {
+            return explicit;
+        }
+        List<FollowupTaskType> derived = new java.util.ArrayList<>();
+        derived.add(FollowupTaskType.QUESTIONNAIRE);
+        if ("HIGH".equalsIgnoreCase(blankToNull(request.riskLevel()))) {
+            derived.add(FollowupTaskType.OUTPATIENT);
+        }
+        return List.copyOf(derived);
+    }
+
+    private FollowupTaskType parseTaskType(String type) {
+        try {
+            return FollowupTaskType.valueOf(type);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "不支持的随访任务类型: " + type);
+        }
+    }
+
+    private String controlledExplanation(
+            FollowupPlanGenerateRequest request,
+            String sourceFactType,
+            String sourceFactId,
+            String ruleCode,
+            List<FollowupTaskType> taskTypes,
+            Optional<ClinicalClock> clock) {
+        Map<String, Object> explanation = new LinkedHashMap<>();
+        explanation.put("sourceFactType", sourceFactType);
+        explanation.put("sourceFactId", sourceFactId);
+        explanation.put("generationRuleCode", ruleCode);
+        explanation.put("modelStatus", FollowupModelStatus.MODEL_DISABLED.name());
+        if (hasText(request.diseaseCode())) {
+            explanation.put("diseaseCode", request.diseaseCode());
+        }
+        if (hasText(request.riskLevel())) {
+            explanation.put("riskLevel", request.riskLevel());
+        }
+        if (!request.taskTypes().isEmpty()) {
+            explanation.put("requestedTaskTypes", request.taskTypes());
+        }
+        explanation.put("generatedTaskTypes", taskTypes.stream().map(Enum::name).toList());
+        clock.ifPresent(value -> {
+            explanation.put("clinicalClockId", value.clockId());
+            explanation.put("clinicalClockDueAt", value.dueAt().toString());
+        });
+        return writeJson(explanation);
     }
 
     private FollowupPlanDetailResponse toDetailResponse(FollowupPlan plan) {
@@ -467,7 +596,11 @@ public class FollowupEngineService {
             plan.diseaseCode(),
             plan.status(),
             taskResponses,
-            FollowupModelStatus.MODEL_DISABLED
+            FollowupModelStatus.MODEL_DISABLED,
+            plan.sourceFactType(),
+            plan.sourceFactId(),
+            plan.generationRuleCode(),
+            plan.generationExplanation()
         );
     }
 
@@ -479,7 +612,8 @@ public class FollowupEngineService {
             task.dueDate(),
             task.status(),
             task.executorId(),
-            task.executorType()
+            task.executorType(),
+            task.clinicalClockId()
         );
     }
 
@@ -630,4 +764,14 @@ public class FollowupEngineService {
         }
         return null;
     }
+
+    private record ControlledPlan(
+        String sourceFactType,
+        String sourceFactId,
+        String ruleCode,
+        String explanation,
+        List<FollowupTaskType> taskTypes,
+        Instant dueAt,
+        String clinicalClockId
+    ) {}
 }

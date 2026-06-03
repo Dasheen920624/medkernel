@@ -21,6 +21,7 @@ public record FollowupTask(
     @Column("executor_id") String executorId,
     @Column("executor_type") String executorType,
     @Column("idempotency_key") String idempotencyKey,
+    @Column("clinical_clock_id") String clinicalClockId,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
@@ -42,7 +43,27 @@ public record FollowupTask(
             Instant updatedAt,
             String updatedBy,
             String traceId) {
-        this(id, taskId, tenantId, planId, taskType, dueDate, status, executorId, executorType, null,
+        this(id, taskId, tenantId, planId, taskType, dueDate, status, executorId, executorType, null, null,
+            createdAt, createdBy, updatedAt, updatedBy, traceId);
+    }
+
+    public FollowupTask(
+            Long id,
+            String taskId,
+            String tenantId,
+            String planId,
+            FollowupTaskType taskType,
+            Instant dueDate,
+            FollowupTaskStatus status,
+            String executorId,
+            String executorType,
+            String idempotencyKey,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        this(id, taskId, tenantId, planId, taskType, dueDate, status, executorId, executorType, idempotencyKey, null,
             createdAt, createdBy, updatedAt, updatedBy, traceId);
     }
 }

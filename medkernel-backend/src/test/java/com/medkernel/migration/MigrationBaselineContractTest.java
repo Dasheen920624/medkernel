@@ -96,7 +96,8 @@ class MigrationBaselineContractTest {
         "V67__clinical_event_api_contract.sql",
         "V68__recommendation_cdss_contract.sql",
         "V69__followup_api09_contract.sql",
-        "V70__embed_api11_contract.sql"
+        "V70__embed_api11_contract.sql",
+        "V71__followup_controlled_plan_clock.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -212,10 +213,10 @@ class MigrationBaselineContractTest {
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
         "idx_release_plan_pkg", "idx_sync_target_tenant", "idx_sync_log_plan",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
-        "idx_followup_plan_tenant_patient", "idx_followup_plan_status",
+        "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
         "uk_followup_plan_idempotency",
         "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
-        "uk_followup_task_idempotency", "idx_followup_task_status_due",
+        "uk_followup_task_idempotency", "idx_followup_task_status_due", "idx_followup_task_clock",
         "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
         "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
         "idx_followup_event_type", "uk_followup_event_idempotency",
@@ -1250,6 +1251,30 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V70__embed_api11_contract.sql"))
                 .as("dialect %s must ship V70", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v71ShouldDeclareFollowupControlledPlanClockColumnsAndIndexes() {
+        String h2 = readMigration("h2", "V71__followup_controlled_plan_clock.sql");
+        assertThat(h2).contains(
+            "source_fact_type",
+            "source_fact_id",
+            "generation_rule_code",
+            "generation_explanation",
+            "clinical_clock_id",
+            "idx_followup_plan_fact",
+            "idx_followup_task_clock",
+            "COMMENT ON COLUMN followup_plan.generation_explanation",
+            "COMMENT ON COLUMN followup_task.clinical_clock_id");
+    }
+
+    @Test
+    void v71ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V71__followup_controlled_plan_clock.sql"))
+                .as("dialect %s must ship V71", dialect)
                 .exists();
         }
     }
