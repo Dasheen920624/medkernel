@@ -57,8 +57,30 @@ export interface RuleActionDraft {
 export interface RuleConditionTree {
   logic: RuleLogic;
   conditions: RuleCondition[];
+  /**
+   * 递归条件根组（P1-2 嵌套支持，可选）。存在时作为权威条件结构，支持任意深度
+   * 「条件组(all/any/可取反)+叶子」；不存在时回退到扁平 logic+conditions（向后兼容）。
+   */
+  root?: RuleConditionGroup;
   action: RuleActionDraft;
   explanationSummary: string;
+}
+
+/** 递归条件组：可嵌套的逻辑容器（与后端 RuleDslEvaluator 递归 all/any 对齐）。 */
+export interface RuleConditionGroup {
+  id: string;
+  logic: RuleLogic;
+  /** 取反语义，映射为 DSL 的 `not` 包裹。 */
+  negate?: boolean;
+  children: RuleConditionNode[];
+}
+
+/** 条件树节点：丰富叶子（RuleCondition，保留全部临床算子）或嵌套组。 */
+export type RuleConditionNode = RuleCondition | RuleConditionGroup;
+
+/** 结构判别：是否为条件组。 */
+export function isConditionGroup(node: RuleConditionNode): node is RuleConditionGroup {
+  return (node as RuleConditionGroup).children !== undefined;
 }
 
 export interface RuleLayerTemplate {
@@ -313,6 +335,77 @@ export function normalizeConditionValue(value: unknown, kind: RuleValueKind) {
       .filter(Boolean);
   }
   return String(value ?? "");
+}
+
+/** 递归 DSL 节点：`{all:[...]}` | `{any:[...]}` | `{not:节点}` | 叶子。 */
+export type RuleDslNode =
+  | { all: RuleDslNode[] }
+  | { any: RuleDslNode[] }
+  | { not: RuleDslNode }
+  | RuleDslCondition;
+
+let nestedNodeSeq = 0;
+
+function nextNestedId(prefix: "group" | "condition"): string {
+  nestedNodeSeq += 1;
+  return `${prefix}-${prefix === "group" ? "g" : "c"}${nestedNodeSeq}`;
+}
+
+/** 递归把条件节点（组或叶子）序列化为 DSL，复用既有叶子序列化以保留临床算子。 */
+export function conditionNodeToDsl(node: RuleConditionNode): RuleDslNode {
+  if (isConditionGroup(node)) {
+    const children = node.children.map(conditionNodeToDsl);
+    const grouped: RuleDslNode = node.logic === "any" ? { any: children } : { all: children };
+    return node.negate ? { not: grouped } : grouped;
+  }
+  return conditionToDsl(node);
+}
+
+/** 递归把 DSL 还原为条件节点；兼容 all/any/not 与扁平叶子，叶子复用既有解析。 */
+export function dslToConditionNode(dsl: unknown, index = 0): RuleConditionNode {
+  if (!isRecord(dsl)) {
+    throw new Error("规则 DSL 条件节点必须为对象");
+  }
+  if (Array.isArray(dsl.all)) {
+    return {
+      id: nextNestedId("group"),
+      logic: "all",
+      children: dsl.all.map((child, childIndex) => dslToConditionNode(child, childIndex)),
+    };
+  }
+  if (Array.isArray(dsl.any)) {
+    return {
+      id: nextNestedId("group"),
+      logic: "any",
+      children: dsl.any.map((child, childIndex) => dslToConditionNode(child, childIndex)),
+    };
+  }
+  if (isRecord(dsl.not)) {
+    const inner = dslToConditionNode(dsl.not, index);
+    if (isConditionGroup(inner)) {
+      return { ...inner, negate: true };
+    }
+    return { id: nextNestedId("group"), logic: "all", negate: true, children: [inner] };
+  }
+  return dslConditionToTree(dsl, index);
+}
+
+/** 把 DSL 的 when 还原为递归根组（顶层为叶子时用单叶 all 组包裹）。 */
+export function dslWhenToRootGroup(when: unknown): RuleConditionGroup {
+  const node = dslToConditionNode(when, 0);
+  return isConditionGroup(node)
+    ? node
+    : { id: nextNestedId("group"), logic: "all", children: [node] };
+}
+
+/** 把扁平 logic+conditions 提升为递归根组（供页面迁移到嵌套模型）。 */
+export function flatToRootGroup(tree: RuleConditionTree): RuleConditionGroup {
+  if (tree.root) return tree.root;
+  return {
+    id: nextNestedId("group"),
+    logic: tree.logic,
+    children: tree.conditions.map((condition) => ({ ...condition })),
+  };
 }
 
 function conditionToDsl(condition: RuleCondition): RuleDslCondition {
