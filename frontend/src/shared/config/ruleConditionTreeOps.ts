@@ -36,7 +36,9 @@ export function createConditionLeaf(partial: Partial<RuleCondition> = {}): RuleC
 }
 
 /** 新建条件组（默认全部满足，含一个叶子）。 */
-export function createConditionGroup(partial: Partial<RuleConditionGroup> = {}): RuleConditionGroup {
+export function createConditionGroup(
+  partial: Partial<RuleConditionGroup> = {},
+): RuleConditionGroup {
   return {
     id: partial.id ?? nextId("group"),
     logic: partial.logic ?? "all",

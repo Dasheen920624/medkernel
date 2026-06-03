@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   App as AntdApp,
   Alert,
@@ -31,6 +31,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CodeOutlined,
+  DeleteOutlined,
   DeploymentUnitOutlined,
   FileSearchOutlined,
   InfoCircleOutlined,
@@ -264,12 +265,6 @@ function toStoredConditionTree(value?: string | null) {
   } catch {
     return null;
   }
-}
-
-function hasUnresolvedPlaceholder(tree: RuleConditionTree) {
-  return tree.conditions.some(
-    (condition) => !condition.fact.trim() || condition.fact.includes("<字段路径>"),
-  );
 }
 
 function findTemplate(key: RuleTemplateKey) {
@@ -551,7 +546,11 @@ export default function RuleDefinitions() {
 
   const updateCondition = (id: string, patch: Partial<RuleCondition>) => {
     updateRoot(
-      (root) => mapConditionById(root, id, (condition) => ({ ...condition, ...patch })) as RuleConditionGroup,
+      (root) =>
+        mapConditionById(root, id, (condition) => ({
+          ...condition,
+          ...patch,
+        })) as RuleConditionGroup,
     );
   };
 
@@ -649,9 +648,7 @@ export default function RuleDefinitions() {
             <Form.Item label="单位">
               <Input
                 value={conditionValueString(condition, "unit")}
-                onChange={(event) =>
-                  updateConditionValue(condition, { unit: event.target.value })
-                }
+                onChange={(event) => updateConditionValue(condition, { unit: event.target.value })}
                 placeholder="如 mmol/L"
               />
             </Form.Item>
@@ -660,9 +657,7 @@ export default function RuleDefinitions() {
             <Form.Item label="含最小值">
               <Switch
                 checked={conditionValueBoolean(condition, "includeMin")}
-                onChange={(checked) =>
-                  updateConditionValue(condition, { includeMin: checked })
-                }
+                onChange={(checked) => updateConditionValue(condition, { includeMin: checked })}
               />
             </Form.Item>
           </Col>
@@ -670,9 +665,7 @@ export default function RuleDefinitions() {
             <Form.Item label="含最大值">
               <Switch
                 checked={conditionValueBoolean(condition, "includeMax")}
-                onChange={(checked) =>
-                  updateConditionValue(condition, { includeMax: checked })
-                }
+                onChange={(checked) => updateConditionValue(condition, { includeMax: checked })}
               />
             </Form.Item>
           </Col>
@@ -705,9 +698,7 @@ export default function RuleDefinitions() {
             <Form.Item label="目标单位">
               <Input
                 value={conditionValueString(condition, "unit")}
-                onChange={(event) =>
-                  updateConditionValue(condition, { unit: event.target.value })
-                }
+                onChange={(event) => updateConditionValue(condition, { unit: event.target.value })}
                 placeholder="如 mmol/L"
               />
             </Form.Item>
@@ -738,9 +729,7 @@ export default function RuleDefinitions() {
               <Form.Item label="时间窗模式">
                 <Select
                   value={mode}
-                  onChange={(nextMode) =>
-                    updateConditionValue(condition, { mode: nextMode })
-                  }
+                  onChange={(nextMode) => updateConditionValue(condition, { mode: nextMode })}
                 >
                   <Option value="consecutive">连续命中</Option>
                   <Option value="trend">趋势判断</Option>
@@ -775,9 +764,7 @@ export default function RuleDefinitions() {
                   min={1}
                   precision={0}
                   value={conditionValueNumber(condition, "count")}
-                  onChange={(count) =>
-                    updateConditionValue(condition, { count: count ?? 1 })
-                  }
+                  onChange={(count) => updateConditionValue(condition, { count: count ?? 1 })}
                   className="mk-full-width"
                 />
               </Form.Item>
@@ -822,9 +809,7 @@ export default function RuleDefinitions() {
                 <Form.Item label="连续条件阈值">
                   <InputNumber
                     value={typeof nested.value === "number" ? nested.value : undefined}
-                    onChange={(value) =>
-                      updateTemporalCondition(condition, { value: value ?? "" })
-                    }
+                    onChange={(value) => updateTemporalCondition(condition, { value: value ?? "" })}
                     className="mk-full-width"
                   />
                 </Form.Item>
@@ -905,9 +890,7 @@ export default function RuleDefinitions() {
                 <Form.Item label="区间上限">
                   <InputNumber
                     value={conditionValueNumber(condition, "max")}
-                    onChange={(value) =>
-                      updateConditionValue(condition, { max: value ?? "" })
-                    }
+                    onChange={(value) => updateConditionValue(condition, { max: value ?? "" })}
                     className="mk-full-width"
                   />
                 </Form.Item>
@@ -930,9 +913,7 @@ export default function RuleDefinitions() {
                 <Form.Item label={`${key} 字段路径`}>
                   <Input
                     value={String(parameters[key] ?? "")}
-                    onChange={(event) =>
-                      updateDerivedParameter(condition, key, event.target.value)
-                    }
+                    onChange={(event) => updateDerivedParameter(condition, key, event.target.value)}
                     placeholder={`如 patient.${key}`}
                   />
                 </Form.Item>
@@ -1022,7 +1003,10 @@ export default function RuleDefinitions() {
             </Form.Item>
           </Col>
           <Col span={10}>
-            <Form.Item label="上下文字段路径" htmlFor={isFirstLeaf ? "rule-condition-fact" : undefined}>
+            <Form.Item
+              label="上下文字段路径"
+              htmlFor={isFirstLeaf ? "rule-condition-fact" : undefined}
+            >
               <Input
                 id={isFirstLeaf ? "rule-condition-fact" : undefined}
                 value={condition.fact}
@@ -1103,7 +1087,9 @@ export default function RuleDefinitions() {
         </div>
         <Space direction="vertical" size="small" className="mk-full-width">
           {group.children.map((child) =>
-            isConditionGroup(child) ? renderConditionGroup(child, false) : renderConditionLeaf(child),
+            isConditionGroup(child)
+              ? renderConditionGroup(child, false)
+              : renderConditionLeaf(child),
           )}
           <Space wrap>
             <Button
@@ -1131,7 +1117,7 @@ export default function RuleDefinitions() {
     );
   };
 
-  const renderReadonlyNode = (node: RuleConditionNode): React.ReactNode => {
+  const renderReadonlyNode = (node: RuleConditionNode): ReactNode => {
     if (isConditionGroup(node)) {
       return (
         <div
@@ -1140,9 +1126,7 @@ export default function RuleDefinitions() {
         >
           <Space className="mb-2">
             <Tag color="green">{node.negate ? "非（NOT）" : "组"}</Tag>
-            <Text type="secondary">
-              {node.logic === "all" ? "全部条件满足" : "任一条件满足"}
-            </Text>
+            <Text type="secondary">{node.logic === "all" ? "全部条件满足" : "任一条件满足"}</Text>
           </Space>
           <Space direction="vertical" size="small" className="mk-full-width">
             {node.children.map((child) => renderReadonlyNode(child))}
