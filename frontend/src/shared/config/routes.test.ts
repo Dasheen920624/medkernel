@@ -42,16 +42,18 @@ describe("route metadata", () => {
       "it-ops",
       "hospital-admin",
       "platform-admin",
+      "system-superadmin",
     ]);
   });
 
-  it("makes the dashboard an explicit default landing route for all 13 customer roles", () => {
+  it("makes the dashboard an explicit default landing route for customer roles and system superadmin", () => {
     const route = findRouteByPath("/dashboard");
     const customerRoleCodes = ROLE_OPTIONS.map((role) => role.code);
+    const dashboardRoleCodes = [...customerRoleCodes, "system-superadmin"];
 
     expect(route?.requiredPermissions).toEqual(["menu.workbench"]);
-    expect(route?.requiredRoles).toEqual(customerRoleCodes);
-    customerRoleCodes.forEach((roleCode) => {
+    expect(route?.requiredRoles).toEqual(dashboardRoleCodes);
+    dashboardRoleCodes.forEach((roleCode) => {
       expect(
         canAccessRoute(route, {
           roles: [{ code: roleCode }],

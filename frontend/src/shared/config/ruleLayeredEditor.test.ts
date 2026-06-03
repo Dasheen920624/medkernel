@@ -102,6 +102,100 @@ describe("RULE-01 三层规则编辑模型", () => {
     expect(dslToConditionTree(dsl)).toEqual(tree);
   });
 
+  it("L2 条件树可配置 MED-C2 已实现的临床算子并无损回填", () => {
+    const tree: RuleConditionTree = {
+      logic: "all",
+      conditions: [
+        {
+          id: "condition-between",
+          label: "血钾目标区间",
+          fact: "lab.potassium",
+          operator: "between",
+          value: {
+            min: 3.5,
+            max: 5.5,
+            includeMin: true,
+            includeMax: false,
+            unit: "mmol/L",
+          },
+          valueKind: "range",
+        },
+        {
+          id: "condition-unit",
+          label: "血糖跨单位比较",
+          fact: "lab.glucose",
+          operator: "unit_compare",
+          value: {
+            comparison: "gte",
+            value: 7,
+            unit: "mmol/L",
+            analyte: "glucose",
+          },
+          valueKind: "measurement",
+        },
+        {
+          id: "condition-temporal",
+          label: "48 小时连续高钾",
+          fact: "observations.potassium",
+          operator: "temporal",
+          value: {
+            mode: "consecutive",
+            window: "PT48H",
+            referenceTime: "2026-06-03T00:00:00Z",
+            count: 2,
+            condition: { operator: "gt", value: 6, unit: "mmol/L" },
+          },
+          valueKind: "temporal",
+        },
+        {
+          id: "condition-derived",
+          label: "eGFR 白名单公式",
+          fact: "derived.egfr",
+          operator: "derived",
+          value: {
+            formula: "CKD_EPI_2021_EGFR",
+            comparison: "gte",
+            value: 60,
+            unit: "mL/min/1.73m2",
+            parameters: {
+              creatinine: "labs.creatinine",
+              age: "patient.age",
+              sex: "patient.sex",
+            },
+          },
+          valueKind: "derived",
+        },
+      ],
+      action: {
+        actionCode: "REVIEW_REQUIRED",
+        severity: "HIGH",
+        message: "命中后提交人工审核，不自动写入医嘱",
+        requiresPhysicianConfirmation: true,
+      },
+      explanationSummary: "依据 MED-C2 临床算子进行确定性判断",
+    };
+
+    const dsl = conditionTreeToDsl(tree);
+
+    expect(dsl.when.all?.map((condition) => condition.operator)).toEqual([
+      "between",
+      "unit_compare",
+      "temporal",
+      "derived",
+    ]);
+    expect(dsl.when.all?.[0].value).toMatchObject({ min: 3.5, max: 5.5, unit: "mmol/L" });
+    expect(dsl.when.all?.[1].value).toMatchObject({ analyte: "glucose", comparison: "gte" });
+    expect(dsl.when.all?.[2].value).toMatchObject({
+      mode: "consecutive",
+      condition: { operator: "gt", unit: "mmol/L" },
+    });
+    expect(dsl.when.all?.[3].value).toMatchObject({
+      formula: "CKD_EPI_2021_EGFR",
+      parameters: { creatinine: "labs.creatinine" },
+    });
+    expect(dslToConditionTree(dsl)).toEqual(tree);
+  });
+
   it("解释模板由同一棵条件树生成，供 API explanation 字段留证", () => {
     const tree = instantiateRuleTemplate("clinical_quality_monitor");
 

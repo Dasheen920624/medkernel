@@ -450,6 +450,52 @@ class KnowledgeIdentityServiceTest {
         Mockito.verify(versionRepo, Mockito.never()).findActiveByIdentity(any(), any());
     }
 
+    @Test
+    void listSourceEvidenceRanksHighAuthorityAsPrimaryAndLabelsLowAuthoritySupplemental() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L))
+            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 20L))
+            .thenReturn(Optional.of(versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
+            .thenReturn(List.of(
+                citation(1L, 20L, 100, 100L),
+                citation(2L, 20L, 10, 200L)
+            ));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(sourceFragment(100L, 1000L)));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 200L))
+            .thenReturn(Optional.of(sourceFragment(200L, 2000L)));
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 1000L))
+            .thenReturn(Optional.of(sourceVersion(1000L, 10L, Instant.parse("2024-01-01T00:00:00Z"))));
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 2000L))
+            .thenReturn(Optional.of(sourceVersion(2000L, 20L, Instant.parse("2026-01-01T00:00:00Z"))));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.D_HOSPITAL, "院内 SOP")));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 20L))
+            .thenReturn(Optional.of(sourceDocument(20L, SourceAuthorityLevel.A_REGULATION, "国家法规")));
+
+        List<KnowledgeSourceEvidence> evidence = service.listSourceEvidence(1L);
+
+        assertThat(evidence).hasSize(2);
+        assertThat(evidence.get(0))
+            .satisfies(item -> {
+                assertThat(item.authorityLevel()).isEqualTo(SourceAuthorityLevel.A_REGULATION);
+                assertThat(item.displayRole()).isEqualTo(KnowledgeSourceEvidenceRole.PRIMARY);
+                assertThat(item.recommendedByDefault()).isTrue();
+                assertThat(item.supplementary()).isFalse();
+                assertThat(item.displayLabel()).contains("A 法规").contains("主证据");
+                assertThat(item.rankingReason()).contains("可信分级").contains("2026-01-01");
+            });
+        assertThat(evidence.get(1))
+            .satisfies(item -> {
+                assertThat(item.authorityLevel()).isEqualTo(SourceAuthorityLevel.D_HOSPITAL);
+                assertThat(item.displayRole()).isEqualTo(KnowledgeSourceEvidenceRole.SUPPLEMENTARY);
+                assertThat(item.recommendedByDefault()).isFalse();
+                assertThat(item.supplementary()).isTrue();
+                assertThat(item.displayLabel()).contains("D 院内").contains("补充证据");
+            });
+    }
+
     private KnowledgeIdentity identityRow(Long id) {
         return identityRow(id, "t-1", "DRUG.X");
     }
@@ -505,8 +551,34 @@ class KnowledgeIdentityServiceTest {
     }
 
     private Citation citation(Long id, Long assetVersionId, int weight) {
+        return citation(id, assetVersionId, weight, 100L);
+    }
+
+    private Citation citation(Long id, Long assetVersionId, int weight, Long sourceFragmentId) {
         return new Citation(
-            id, "t-1", assetVersionId, 100L, CitationRelation.DERIVED_FROM, weight, null, null, Instant.now(), "u"
+            id, "t-1", assetVersionId, sourceFragmentId, CitationRelation.DERIVED_FROM, weight, null, null, Instant.now(), "u"
+        );
+    }
+
+    private SourceFragment sourceFragment(Long id, Long sourceVersionId) {
+        return new SourceFragment(
+            id, "t-1", sourceVersionId, "§" + id, "条款 " + id,
+            "真实来源片段 " + id, sha256("真实来源片段 " + id), Instant.now()
+        );
+    }
+
+    private SourceVersion sourceVersion(Long id, Long sourceDocumentId, Instant publishedAt) {
+        return new SourceVersion(
+            id, "t-1", sourceDocumentId, "v" + id, publishedAt, sha256("来源版本 " + id),
+            "s3://source-" + id + ".pdf", "zh-CN", Instant.now(), "u"
+        );
+    }
+
+    private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel, String title) {
+        Instant now = Instant.now();
+        return new SourceDocument(
+            id, "t-1", "SRC." + id, SourceType.GUIDELINE, authorityLevel,
+            "分级依据 " + title, title, "发布机构", "LICENSE", "zh-CN", now, "u", now, "u"
         );
     }
 

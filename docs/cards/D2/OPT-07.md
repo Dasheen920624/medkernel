@@ -18,19 +18,20 @@
 `engine/knowledge` **已有分级枚举雏形**，本卡＝**框架化分级 + GRADE + 仲裁**：
 - 已有：`SourceAuthorityLevel`、`SourceType`、`Citation`/`CitationRelation`、`KnowledgeRiskLevel`。
 - 缺口（本卡补）：① **A/B/C/D/E 五级**标准化 + 判定规则；② **GRADE 兼容**字段（证据质量/推荐强度）；③ **冲突仲裁**算法（分级 + 时效 + 适用域，默认高阶）；④ 低阶覆盖高阶的**显式理由 + 审核**门禁。
-- 2026-06-02 阶段证据：`KNOW-01` PR2 已落地引擎底座（A/B/C/D/E 枚举与依据、GRADE 字段、资产版本快照、冲突仲裁摘要、低阶覆盖高阶显式理由门禁、V50 数据列与约束）。本卡仍不整体标 done：FR-5 展示/默认推荐优先级需等 D4/D6 页面或临床消费面接入后验收。
+- 2026-06-02 阶段证据：`KNOW-01` PR2 已落地引擎底座（A/B/C/D/E 枚举与依据、GRADE 字段、资产版本快照、冲突仲裁摘要、低阶覆盖高阶显式理由门禁、V50 数据列与约束）。
+- 2026-06-03 收口：本卡在 API-03 增补 `GET /identities/{id}/source-evidence`，输出当前权威版本的来源证据展示视图；仲裁补齐“分级 > 来源发布时间 > 适用域精确度”，展示视图补齐“高阶主证据 / 低阶补充证据”角色，不再把 FR-5 推迟到页面卡。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 五级分级**：来源标 A 法规 / B 国家指南 / C 共识文献 / D 院内 / E 反馈；分级有判定依据可溯。
-- [ ] **FR-2 GRADE 兼容**：资产可附 GRADE 证据质量（高/中/低/极低）+ 推荐强度（强/弱），与五级并存。
-- [ ] **FR-3 冲突仲裁**：同主题多来源冲突 → 按 `分级 > 时效 > 适用域精确度` 仲裁，**默认取高阶**，输出仲裁理由。
-- [ ] **FR-4 低阶覆盖门禁**：D 院内/E 反馈覆盖 A/B 高阶 → **必须显式理由 + 审核**，否则拒（核心 §9 安全红线不可下级静默关）。
-- [ ] **FR-5 分级驱动展示/默认**：临床展示与默认推荐优先高阶来源；低阶仅作补充并标识。
+- [x] **FR-1 五级分级**：来源标 A 法规 / B 国家指南 / C 共识文献 / D 院内 / E 反馈；分级有判定依据可溯。
+- [x] **FR-2 GRADE 兼容**：资产可附 GRADE 证据质量（高/中/低/极低）+ 推荐强度（强/弱），与五级并存。
+- [x] **FR-3 冲突仲裁**：同主题多来源冲突 → 按 `分级 > 时效 > 适用域精确度` 仲裁，**默认取高阶**，输出仲裁理由。
+- [x] **FR-4 低阶覆盖门禁**：D 院内/E 反馈覆盖 A/B 高阶 → **必须显式理由 + 审核**，否则拒（核心 §9 安全红线不可下级静默关）。
+- [x] **FR-5 分级驱动展示/默认**：临床展示与默认推荐优先高阶来源；低阶仅作补充并标识。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/框架卡）
-- 端点：分级/仲裁为**框架能力**，经 [API-03](API-03.md) 知识 API 暴露（资产分级、冲突仲裁结果）。
-- DTO：扩 `SourceAuthorityLevel` 五级 + `GradeRating`（质量/强度）· `ConflictArbitration`（参与来源/裁决/理由）。
+- 端点：分级/仲裁为**框架能力**，经 [API-03](API-03.md) 知识 API 暴露（资产分级、冲突仲裁结果）；来源展示优先级由 `GET /api/v1/engine/knowledge/identities/{id}/source-evidence` 暴露。
+- DTO：`SourceAuthorityLevel` 五级 + `GradeEvidenceQuality` / `GradeRecommendationStrength`（质量/强度）· `ConflictArbitration`（参与来源/裁决/理由）· `KnowledgeSourceEvidence`（主证据 / 补充证据展示角色、默认推荐标记、排序理由）。
 - 响应信封：`ApiResult` / `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 - 状态机：N·A（分级/仲裁框架）；覆盖审核走核心 §3。
 - 幂等 / 错误码 / traceId：低阶覆盖高阶无理由 → `AUTHORITY_OVERRIDE_DENIED`；traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -38,7 +39,7 @@
 N·A —— 本卡无页面。分级/仲裁结果在 D6 来源追溯页 / D4 知识审核页呈现；本卡供框架。
 
 ## 数据与迁移
-- 表族：来源/资产增 `authority_level`（A–E）+ `grade_quality`/`grade_strength` + `conflict_arbitration`（裁决记录）。
+- 表族：来源/资产已由 V50 增 `authority_level`（A–E）+ `grade_quality`/`grade_strength` + `conflict_arbitration`（裁决记录）；本卡收口不新增迁移。
 - 主键 ULID；索引：`authority_level`、`knowledge_identity`。
 - 5 方言迁移一致 + 中文注释（在 [KNOW-01](KNOW-01.md) 表族上增量）。
 
@@ -60,16 +61,16 @@ N·A —— 本卡无页面。分级/仲裁结果在 D6 来源追溯页 / D4 知
 - 本卡落点：把"哪条来源更可信、冲突听谁的"做成确定性、可解释、可审计的分级仲裁框架。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1/2）**：来源标 A–E + GRADE；分级依据可溯。
-- [ ] **AC-2（FR-3）**：A 指南与 D 院内冲突 → 默认取 A，输出仲裁理由。
-- [ ] **AC-3（FR-4）**：D 院内覆盖 A 法规无理由 → `AUTHORITY_OVERRIDE_DENIED`；带理由 → 入审核。
-- [ ] **AC-4（FR-5）**：临床展示/默认优先高阶来源，低阶标识补充。
+- [x] **AC-1（FR-1/2）**：来源标 A–E + GRADE；分级依据可溯。
+- [x] **AC-2（FR-3）**：A 指南与 D 院内冲突 → 默认取 A，输出仲裁理由；同级冲突按来源发布时间，再按适用域精确度裁决。
+- [x] **AC-3（FR-4）**：D 院内覆盖 A 法规无理由 → `AUTHORITY_OVERRIDE_DENIED`；带理由 → 入审核。
+- [x] **AC-4（FR-5）**：临床展示/默认优先高阶来源，低阶标识补充。
 - 关联 A1–A9 剧本：A2 知识沉淀、A6 合规（仲裁证据导出）。
 - T-GATE：真实性门禁全绿（仲裁可复算、覆盖门禁生效）。
 - B0 验收：规则分级仲裁纯确定性，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：`SourceAuthorityLevel` 五级 + `GradeRating` + `ConflictArbitration` + 覆盖门禁 + 5 方言增量迁移。
+- 代码 permalink：`SourceAuthorityLevel` 五级 + `GradeEvidenceQuality` / `GradeRecommendationStrength` + `ConflictArbitration` + `KnowledgeSourceEvidence` + 覆盖门禁 + V50 五方言迁移。
 - 测试：分级判定测试 + 冲突仲裁测试 + 低阶覆盖门禁测试 + 展示优先级测试。
-- 阶段证据：`KNOW-01` PR2 已覆盖分级判定、GRADE 入参、冲突仲裁、低阶覆盖门禁与 PostgreSQL/Oracle/H2 V50 迁移烟测；展示优先级测试仍待页面/消费端接入。
+- 本轮证据：`KnowledgeVersionServiceTest` 覆盖来源发布时间与适用域仲裁；`KnowledgeIdentityServiceTest` 覆盖 A 法规优先于高权重 D 院内并标主证据 / 补充证据；`KnowledgeAssetApiContractTest` 覆盖 `/source-evidence` REST 合同；`KnowledgeEngineTest` 回归构造链路。聚焦套件 `mvn -q -Dtest=KnowledgeIdentityServiceTest,KnowledgeVersionServiceTest,KnowledgeAssetApiContractTest,KnowledgeEngineTest test` 退出码 0；后端全量 `mvn -q test` 退出码 0，H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移到 v63 并二次校验；前端 `npm run verify` 44 files / 238 tests、生产依赖审计 0 vulnerabilities、`npm run build` 退出码 0；门禁脚本自测 34/34、中文注释与 diff 检查通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

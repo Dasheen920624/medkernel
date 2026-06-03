@@ -19,14 +19,26 @@ public interface IntegrationMessageLogRepository extends ListCrudRepository<Inte
         SELECT * FROM integration_message_log
         WHERE tenant_id = :tenantId
         ORDER BY created_at DESC
-        LIMIT :limit OFFSET :offset
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<IntegrationMessageLog> pageByTenantIdOrderByCreatedAtDesc(String tenantId, int offset, int limit);
 
     @Query("SELECT COUNT(*) FROM integration_message_log WHERE tenant_id = :tenantId")
     long countByTenantId(String tenantId);
 
-    Optional<IntegrationMessageLog> findByMessageIdAndTenantId(String messageId, String tenantId);
+    @Query("""
+        SELECT * FROM integration_message_log
+        WHERE tenant_id = :tenantId AND status = :status
+        ORDER BY updated_at DESC, created_at DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<IntegrationMessageLog> pageByTenantIdAndStatusOrderByUpdatedAtDesc(String tenantId,
+                                                                             String status,
+                                                                             int offset,
+                                                                             int limit);
 
-    Optional<IntegrationMessageLog> findByMessageId(String messageId);
+    @Query("SELECT COUNT(*) FROM integration_message_log WHERE tenant_id = :tenantId AND status = :status")
+    long countByTenantIdAndStatus(String tenantId, String status);
+
+    Optional<IntegrationMessageLog> findByMessageIdAndTenantId(String messageId, String tenantId);
 }

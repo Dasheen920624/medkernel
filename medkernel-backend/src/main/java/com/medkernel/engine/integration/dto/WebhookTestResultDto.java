@@ -1,7 +1,7 @@
 package com.medkernel.engine.integration.dto;
 
 /**
- * 外部 Webhook 签名与连通性自检测推导结果契约 DTO Record。
+ * 外部 Webhook 签名测试推导结果契约 DTO Record。
  *
  * <p>提供类型安全与标准契约的签名测试返回值，杜绝使用裸 Map 进行非类型安全传递。
  */

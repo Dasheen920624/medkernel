@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -173,13 +173,16 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
 
       await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      await user.clear(within(dialog).getByLabelText("上下文字段路径"));
-      await user.type(within(dialog).getByLabelText("上下文字段路径"), "observations.0.value");
-      await user.clear(within(dialog).getByLabelText("比较值"));
-      await user.type(within(dialog).getByLabelText("比较值"), "6");
+      expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("上下文字段路径"), {
+        target: { value: "observations.0.value" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("比较值"), { target: { value: "6" } });
       await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
 
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));

@@ -38,6 +38,7 @@ public enum ErrorCode {
     TENANT_FORBIDDEN("ENG-BASE-002", 403, "无权访问该租户数据", ErrorClass.AUTH, false),
     DATA_SCOPE_DENIED("ENG-BASE-003", 403, "数据范围权限不足", ErrorClass.AUTH, false),
     ORG_SCOPE_DENIED("ENG-BASE-004", 403, "组织作用域权限不足", ErrorClass.AUTH, false),
+    ORG_LEVEL_INVALID("ORG_LEVEL_INVALID", 400, "组织层级关系不合法", ErrorClass.INPUT, false),
 
     INTERNAL_ERROR("ENG-SYS-001", 500, "服务内部错误", ErrorClass.INTERNAL, false),
     DOWNSTREAM_UNAVAILABLE("ENG-SYS-002", 503, "下游服务不可用", ErrorClass.EXTERNAL, true),
@@ -64,6 +65,9 @@ public enum ErrorCode {
     ENG_RULE_004("ENG-RULE-004", 409, "发布门禁失败", ErrorClass.DATA, false),
     ENG_RULE_005("ENG-RULE-005", 500, "规则执行失败", ErrorClass.INTERNAL, false),
     ENG_RULE_006("ENG-RULE-006", 409, "当前规则状态不允许该操作", ErrorClass.DATA, false),
+    DSL_OPERATOR_INVALID("DSL_OPERATOR_INVALID", 400, "规则 DSL 算子无效", ErrorClass.INPUT, false),
+    UNIT_INCOMPATIBLE("UNIT_INCOMPATIBLE", 400, "临床单位不可安全换算", ErrorClass.INPUT, false),
+    INSUFFICIENT_DATA("INSUFFICIENT_DATA", 400, "临床计算缺少必要数据", ErrorClass.DATA, false),
 
     ENG_PATHWAY_001("ENG-PATHWAY-001", 400, "路径模板校验失败", ErrorClass.INPUT, false),
     ENG_PATHWAY_002("ENG-PATHWAY-002", 404, "路径模板不存在", ErrorClass.DATA, false),
@@ -156,6 +160,7 @@ public enum ErrorCode {
     PWD_POLICY_VIOLATION("PWD_POLICY_VIOLATION", 400, "新密码不符合强密码策略", ErrorClass.INPUT, false),
     SUPERADMIN_IMMUTABLE("SUPERADMIN_IMMUTABLE", 403, "内置超级管理员不可降权、删除或移出超管组", ErrorClass.AUTH, false),
     ENG_TENANT_001("ENG-TENANT-001", 409, "租户已存在，无法重复开通", ErrorClass.DATA, false),
+    TENANT_ONBOARD_NOT_READY("TENANT_ONBOARD_NOT_READY", 409, "租户开通就绪检查未通过", ErrorClass.DATA, false),
     ENG_CONFIG_001("ENG-CONFIG-001", 403, "高危运行配置禁止从界面关闭", ErrorClass.AUTH, false),
     ENG_CONFIG_002("ENG-CONFIG-002", 409, "高危配置变更需要二次确认和变更原因", ErrorClass.AUTH, false),
     ENG_AUDIT_001("ENG-AUDIT-001", 403, "审计持久化为高危配置，禁止从界面关闭", ErrorClass.AUTH, false);

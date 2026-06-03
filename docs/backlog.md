@@ -166,13 +166,13 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | PATH-01 | 路径引擎（后端 + 三层前端）| L1 模板 + L2 节点画布（X6/G6）+ L3 DSL + 7 步流 + 仿真 + 关键时钟绑定质控 + 随访接续 | 16d | done |
 | PKG-01 | 包发布引擎 | 导入/导出/校验/灰度/全量/同步/回滚/真实证据（无通道返回 NOT_SYNCED 不伪造）| 6d | done |
 | SYS-04 | 版本继承与发布框架 | 资产不可变 + 组织继承 + 灰度 + 回滚 + 历史重放 | 5d | done |
-| SYS-08 | 权威知识版本解析与原子替换框架 | 唯一有效约束 + 替代链 + 紧急失效 + 影响病例任务 | 5d | pending |
-| INTEG-01 | 第三方对接总线 | 适配器目录 + FHIR/CDS Hooks 风格门面 + Webhook 签名 + 字段映射 + 健康检查 + 重试死信 | 6d | pending |
-| INTEG-02 | 第三方接口文档与契约模板 | 接入概览 + OpenAPI + 字段映射 + 鉴权 + 幂等 + 回调 + 降级 + 审计 | 3d | pending |
-| MED-C2 | 规则 DSL 补临床算子 | between/unit_compare 单位换算/temporal 时间窗·连续次数/derived 受控算术 eGFR/CrCl/BSA | 5d | pending |
-| OPT-01 | 标准临床模型与 FHIR R4/R5 门面 | Patient/Encounter/Condition/Observation/Medication/Procedure/CarePlan/ServiceRequest/DiagnosticReport/DocumentReference | 6d | pending |
-| OPT-07 | 来源证据分级与冲突仲裁 | A 法规/B 国家指南/C 共识文献/D 院内/E 反馈 + GRADE 兼容 | 5d | pending |
-| SVC-PILOT-01 | 租户与组织服务包 | TenantOnboarding + ImplementationGuide + 组织树（核心 §9 七层：平台/集团/医院/院区/社区服务点/科室/专病）| 4d | pending |
+| SYS-08 | 权威知识版本解析与原子替换框架 | 唯一有效约束 + 替代链 + 紧急失效 + 影响病例任务 | 5d | done |
+| INTEG-01 | 第三方对接总线 | 适配器目录 + FHIR/CDS Hooks 风格门面 + Webhook 签名 + 字段映射 + 健康检查 + 重试死信 | 6d | done |
+| INTEG-02 | 第三方接口文档与契约模板 | 接入概览 + OpenAPI + 字段映射 + 鉴权 + 幂等 + 回调 + 降级 + 审计 | 3d | done |
+| MED-C2 | 规则 DSL 补临床算子 | between/unit_compare 单位换算/temporal 时间窗·连续次数/derived 受控算术 eGFR/CrCl/BSA | 5d | done |
+| OPT-01 | 标准临床模型与 FHIR R4/R5 门面 | Patient/Encounter/Condition/Observation/Medication/Procedure/CarePlan/ServiceRequest/DiagnosticReport/DocumentReference | 6d | done |
+| OPT-07 | 来源证据分级与冲突仲裁 | A 法规/B 国家指南/C 共识文献/D 院内/E 反馈 + GRADE 兼容 | 5d | done |
+| SVC-PILOT-01 | 租户与组织服务包 | TenantOnboarding + ImplementationGuide + 组织树（核心 §9 七层：租户根/集团/医院/院区/社区服务点/科室/专病）| 4d | done |
 | SVC-PILOT-02 | 接入与数据质量服务包 | HIS/EMR/LIS/PACS/医保/病案/随访适配 + AdapterHub + 字段映射 | 5d | pending |
 | SVC-PILOT-03 | 资产准备服务包 | 知识包/配置包/字典/规则/路径 + ConfigPackages + 灰度全量回滚 | 4d | pending |
 | SVC-INTEGRATION-01 | 第三方业务接口服务包 | 接入管理 + 字段映射 + 健康检查 + FHIR 门面 + 回调 + 区域协同 | 5d | pending |

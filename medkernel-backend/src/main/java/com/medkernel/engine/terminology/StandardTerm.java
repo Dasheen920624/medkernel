@@ -31,4 +31,7 @@ public record StandardTerm(
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy
 ) {
+    public String statusName() {
+        return status == null ? null : status.name();
+    }
 }

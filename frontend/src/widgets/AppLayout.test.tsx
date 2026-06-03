@@ -153,6 +153,26 @@ function permissionProfile(menuKeys: string[]) {
   };
 }
 
+function superAdminProfile() {
+  return {
+    ...permissionProfile(allMenuKeys),
+    userId: "system-superadmin-1",
+    username: "medkernel",
+    roles: [{ code: "system-superadmin", displayName: "内置超级管理员" }],
+    permissions: [
+      ...allMenuKeys.map(menuPermission),
+      {
+        code: "workbench:demo:view",
+        dimension: "ACTION",
+        target: "workbench:demo:view",
+        displayName: "查看演示与校验",
+        risk: "LOW",
+      },
+    ],
+    dataScope: { tenantId: "t-1", hospitalId: null, departmentId: null },
+  };
+}
+
 const allMenuKeys = [
   "workbench",
   "implementation-guide",
@@ -358,6 +378,16 @@ describe("AppLayout", () => {
     renderLayout();
 
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.queryByText("当前权限不足")).toBeNull();
+  });
+
+  it("lets the built-in superadmin open the dashboard through RBAC permissions", () => {
+    securityProfileState.value = { data: superAdminProfile() };
+    mockViewport(1280);
+
+    renderLayout("/dashboard");
+
+    expect(screen.getByText("工作台内容")).toBeInTheDocument();
     expect(screen.queryByText("当前权限不足")).toBeNull();
   });
 

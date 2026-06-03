@@ -1,7 +1,8 @@
 export type RuleTemplateKey =
   | "clinical_quality_monitor"
   | "drug_safety_review"
-  | "insurance_policy_review";
+  | "insurance_policy_review"
+  | "clinical_operator_review";
 
 export type RuleLogic = "all" | "any";
 export type RuleOperator =
@@ -14,16 +15,35 @@ export type RuleOperator =
   | "lt"
   | "lte"
   | "in"
-  | "not_in";
-export type RuleValueKind = "empty" | "string" | "number" | "boolean" | "list";
+  | "not_in"
+  | "between"
+  | "unit_compare"
+  | "temporal"
+  | "derived";
+export type RuleValueKind =
+  | "empty"
+  | "string"
+  | "number"
+  | "boolean"
+  | "list"
+  | "range"
+  | "measurement"
+  | "temporal"
+  | "derived";
 export type RuleSeverity = "LOW" | "MEDIUM" | "HIGH";
+export type RuleConditionValue =
+  | string
+  | number
+  | boolean
+  | Array<string | number | boolean>
+  | Record<string, unknown>;
 
 export interface RuleCondition {
   id: string;
   label: string;
   fact: string;
   operator: RuleOperator;
-  value?: string | number | boolean | Array<string | number | boolean>;
+  value?: RuleConditionValue;
   valueKind: RuleValueKind;
 }
 
@@ -152,6 +172,37 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
       explanationSummary: "依据真实上下文快照中的编码或状态集合进行确定性判断",
     },
   },
+  {
+    key: "clinical_operator_review",
+    title: "临床算子复核",
+    description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或受控公式判断。",
+    ruleType: "CLINICAL_QUALITY",
+    riskLevel: "HIGH",
+    tree: {
+      logic: "all",
+      conditions: [
+        {
+          id: "condition-1",
+          label: "临床算子字段",
+          fact: "context.<字段路径>",
+          operator: "between",
+          value: {
+            min: "",
+            max: "",
+            includeMin: true,
+            includeMax: true,
+            unit: "",
+          },
+          valueKind: "range",
+        },
+      ],
+      action: {
+        ...DEFAULT_ACTION,
+        severity: "HIGH",
+      },
+      explanationSummary: "依据 MED-C2 临床算子对真实上下文快照进行确定性判断",
+    },
+  },
 ];
 
 export function instantiateRuleTemplate(key: RuleTemplateKey): RuleConditionTree {
@@ -242,6 +293,9 @@ export function conditionNeedsValue(operator: RuleOperator): boolean {
 
 export function normalizeConditionValue(value: unknown, kind: RuleValueKind) {
   if (kind === "empty") return undefined;
+  if (kind === "range" || kind === "measurement" || kind === "temporal" || kind === "derived") {
+    return isRecord(value) ? cloneJsonRecord(value) : {};
+  }
   if (kind === "number") {
     if (typeof value === "number") return value;
     const numeric = Number(String(value ?? "").trim());
@@ -337,13 +391,27 @@ function readOperator(source: unknown, key: string): RuleOperator {
     "lte",
     "in",
     "not_in",
+    "between",
+    "unit_compare",
+    "temporal",
+    "derived",
   ];
   return operators.includes(value as RuleOperator) ? (value as RuleOperator) : "exists";
 }
 
 function readValueKind(source: unknown, key: string, fallback: RuleValueKind): RuleValueKind {
   const value = readString(source, key, fallback);
-  const kinds: RuleValueKind[] = ["empty", "string", "number", "boolean", "list"];
+  const kinds: RuleValueKind[] = [
+    "empty",
+    "string",
+    "number",
+    "boolean",
+    "list",
+    "range",
+    "measurement",
+    "temporal",
+    "derived",
+  ];
   return kinds.includes(value as RuleValueKind) ? (value as RuleValueKind) : fallback;
 }
 
@@ -352,5 +420,15 @@ function inferValueKind(value: unknown): RuleValueKind {
   if (typeof value === "boolean") return "boolean";
   if (Array.isArray(value)) return "list";
   if (value === undefined || value === null) return "empty";
+  if (isRecord(value)) {
+    if ("formula" in value || "parameters" in value) return "derived";
+    if ("mode" in value || "window" in value || "referenceTime" in value) return "temporal";
+    if ("analyte" in value || "comparison" in value) return "measurement";
+    if ("min" in value || "max" in value) return "range";
+  }
   return "string";
+}
+
+function cloneJsonRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }

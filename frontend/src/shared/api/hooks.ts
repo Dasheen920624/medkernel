@@ -2877,11 +2877,33 @@ export interface IntegrationAdapter {
   protocolType: "HL7" | "FHIR" | "Webhook" | "REST" | "WebService" | string;
   status: "ACTIVE" | "SUSPENDED" | string;
   configJson: string;
-  healthStatus: "HEALTHY" | "UNHEALTHY" | string;
+  healthStatus: "HEALTHY" | "NOT_CONNECTED" | "MISCONFIGURED" | string;
   rttMs: number;
   lastHeartbeatAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdapterHealthItem {
+  adapterId: string;
+  name: string;
+  protocolType: string;
+  status: string;
+  healthStatus: IntegrationAdapter["healthStatus"];
+  rttMs: number;
+  lastHeartbeatAt: string | null;
+  message: string;
+}
+
+export interface AdapterHealthSummary {
+  total: number;
+  active: number;
+  suspended: number;
+  healthy: number;
+  notConnected: number;
+  misconfigured: number;
+  checkedAt: string;
+  adapters: AdapterHealthItem[];
 }
 
 export interface IntegrationWebhookConfig {
@@ -2907,12 +2929,21 @@ export interface IntegrationMessageLog {
   protocolType: string;
   payloadSummary: string;
   payload: string;
-  status: "SUCCESS" | "FAILED" | "RETRYING" | "DEAD_LETTER" | string;
+  status: "SUCCESS" | "FAILED" | "RETRYING" | "NOT_CONNECTED" | "DEAD_LETTER" | string;
   retryCount: number;
   maxRetries: number;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntegrationReplayResult {
+  sourceMessageId: string;
+  replayMessageId: string;
+  traceId: string;
+  status: "SUCCESS" | "FAILED" | "RETRYING" | "NOT_CONNECTED" | "DEAD_LETTER" | string;
+  blocksMainFlow: boolean;
+  message: string;
 }
 
 export interface AdapterCreatePayload {
@@ -3002,12 +3033,24 @@ export function useUpdateAdapter() {
   });
 }
 
-// 4. 自检测心跳自检体检
-export function usePingAdapter() {
+export function useIntegrationHealthSummary() {
+  return useQuery({
+    queryKey: ["integration", "health"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<AdapterHealthSummary>>(
+        "/api/v1/engine/integration/health",
+      );
+      return data.data;
+    },
+  });
+}
+
+// 4. 健康检查：无真实连接器时只返回 NOT_CONNECTED/MISCONFIGURED，不伪造 HEALTHY。
+export function useCheckAdapterHealth() {
   return useMutation({
     mutationFn: async (adapterId: string) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationAdapter>>(
-        `/api/v1/engine/integration/adapters/${adapterId}/ping`,
+        `/api/v1/engine/integration/adapters/${adapterId}/health-check`,
       );
       return data.data;
     },
@@ -3080,12 +3123,12 @@ export function useRetryMessage() {
   });
 }
 
-// 10. 删除日志记录 (已解决 / 已补偿)
-export function useDeleteMessage() {
+// 10. 人工重放死信，原始证据保留
+export function useReplayDeadLetter() {
   return useMutation({
     mutationFn: async (messageId: string) => {
-      const { data } = await apiClient.delete<IntegrationEnvelope<void>>(
-        `/api/v1/engine/integration/logs/${messageId}`,
+      const { data } = await apiClient.post<IntegrationEnvelope<IntegrationReplayResult>>(
+        `/api/v1/engine/integration/dead-letter/${messageId}/replay`,
       );
       return data.data;
     },
@@ -3240,9 +3283,9 @@ export interface SuccessPlan {
 
 export function useBranding() {
   return useQuery({
-    queryKey: ["platform", "branding"],
+    queryKey: ["engine", "tenant", "branding"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: Branding }>("/platform/branding");
+      const { data } = await apiClient.get<{ data: Branding }>("/engine/tenant/branding");
       return data.data;
     },
   });
@@ -3251,7 +3294,7 @@ export function useBranding() {
 export function useUpdateBranding() {
   return useMutation({
     mutationFn: async (payload: Partial<Branding>) => {
-      const { data } = await apiClient.post<{ data: Branding }>("/platform/branding", payload);
+      const { data } = await apiClient.post<{ data: Branding }>("/engine/tenant/branding", payload);
       return data.data;
     },
   });
@@ -3259,9 +3302,9 @@ export function useUpdateBranding() {
 
 export function useSuccessPlan(enabled = true) {
   return useQuery({
-    queryKey: ["platform", "success", "lifecycle"],
+    queryKey: ["engine", "tenant", "success-plan"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: SuccessPlan }>("/platform/success/lifecycle");
+      const { data } = await apiClient.get<{ data: SuccessPlan }>("/engine/tenant/success-plan");
       return data.data;
     },
     enabled,
@@ -3272,7 +3315,7 @@ export function useTransitionSuccessStage() {
   return useMutation({
     mutationFn: async (nextStage: string) => {
       const { data } = await apiClient.post<{ data: SuccessPlan }>(
-        "/platform/success/lifecycle/transition",
+        "/engine/tenant/success-plan/transition",
         { nextStage },
       );
       return data.data;

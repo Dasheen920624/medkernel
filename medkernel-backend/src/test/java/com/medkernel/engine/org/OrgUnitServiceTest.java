@@ -100,7 +100,7 @@ class OrgUnitServiceTest {
         Mockito.verify(repository, Mockito.never()).pageByTenantId(any(), anyInt(), anyInt());
     }
 
-        @Test
+    @Test
     void createOrgUnitSuccessfully() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
         OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
@@ -116,6 +116,37 @@ class OrgUnitServiceTest {
         assertThat(saved.id()).isEqualTo("20");
         assertThat(saved.code()).isEqualTo("CAMP-002");
         assertThat(saved.tenantId()).isEqualTo("t-1");
+    }
+
+    @Test
+    void rejectsCrossLayerCreateWithOrgLevelInvalid() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
+        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
+        OrgUnit input = sample("t-1", "parent-1", OrgLevel.SPECIALTY, "SP-001", null);
+
+        Mockito.when(repository.findByTenantIdAndCode("t-1", "SP-001")).thenReturn(Optional.empty());
+        Mockito.when(repository.findByTenantIdAndId("t-1", "parent-1")).thenReturn(Optional.of(parent));
+
+        assertThatThrownBy(() -> service.createOrgUnit(input))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_LEVEL_INVALID);
+    }
+
+    @Test
+    void rejectsCrossLayerReparentWithOrgLevelInvalid() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
+        OrgUnit unit = sample("t-1", "site-1", OrgLevel.DEPARTMENT, "DEPT-001", "dept-1");
+        OrgUnit parent = sample("t-1", "tenant-1", OrgLevel.GROUP, "GROUP-001", "group-1");
+
+        Mockito.when(repository.findByTenantIdAndId("t-1", "dept-1")).thenReturn(Optional.of(unit));
+        Mockito.when(repository.findByTenantIdAndId("t-1", "group-1")).thenReturn(Optional.of(parent));
+        Mockito.when(hierarchyRepository.isDescendant("t-1", "dept-1", "group-1")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.reparentOrgUnit("dept-1", "group-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ORG_LEVEL_INVALID);
     }
 
     @Test

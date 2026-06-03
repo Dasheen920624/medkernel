@@ -25,6 +25,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private final AuthSessionProperties sessionProperties;
     private final AuditFallbackProperties auditFallbackProperties;
     private final ClinicalEventWorkerSettings clinicalEventProperties;
+    private final IntegrationHealthProbeSettings integrationHealthProbeSettings;
     private final Environment environment;
     private final SystemConfigService service;
 
@@ -34,6 +35,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
                               AuthSessionProperties sessionProperties,
                               AuditFallbackProperties auditFallbackProperties,
                               ClinicalEventWorkerSettings clinicalEventProperties,
+                              IntegrationHealthProbeSettings integrationHealthProbeSettings,
                               Environment environment,
                               SystemConfigService service) {
         this.runtimeProperties = runtimeProperties;
@@ -42,6 +44,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         this.sessionProperties = sessionProperties;
         this.auditFallbackProperties = auditFallbackProperties;
         this.clinicalEventProperties = clinicalEventProperties;
+        this.integrationHealthProbeSettings = integrationHealthProbeSettings;
         this.environment = environment;
         this.service = service;
     }
@@ -208,6 +211,10 @@ public class SystemConfigSeeder implements ApplicationRunner {
             Long.toString(clinicalEventProperties.workerPollIntervalMs()),
             "INTEGER", "临床事件轮询间隔", "MEDIUM", "信息科 / 运维组",
             "控制临床事件 outbox worker 的轮询间隔，变更后下一轮调度生效。", false, seededAt);
+        seedConfigValue(SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
+            Long.toString(integrationHealthProbeSettings.healthProbeIntervalMs()),
+            "INTEGER", "第三方适配器周期探活间隔", "MEDIUM", "信息科 / 集成组",
+            "控制第三方适配器周期健康探测间隔，变更后下一轮调度生效。", false, seededAt);
     }
 
     private void seedConfigValue(String key,

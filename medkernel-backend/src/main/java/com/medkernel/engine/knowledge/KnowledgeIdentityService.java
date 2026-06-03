@@ -1,9 +1,11 @@
 package com.medkernel.engine.knowledge;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
-import java.time.Instant;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.shared.api.PageRequest;
@@ -233,6 +235,32 @@ public class KnowledgeIdentityService {
             effective.sourceTenantId(), active.get().id());
     }
 
+    /**
+     * 查询当前权威版本可展示的来源证据视图。排序规则固定为分级 > 时效 > 适用域 > 引用权重。
+     */
+    public List<KnowledgeSourceEvidence> listSourceEvidence(Long identityId) {
+        String tenantId = requireCurrentTenant();
+        EffectiveKnowledgeIdentity effective = findEffectiveIdentity(identityId, tenantId);
+        Optional<KnowledgeAssetVersion> activeOpt = findDefaultActiveVersion(effective);
+        if (activeOpt.isEmpty()) {
+            return List.of();
+        }
+        KnowledgeAssetVersion active = activeOpt.get();
+        List<Citation> citations = citationRepository.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc(
+            effective.sourceTenantId(), active.id());
+        List<SourceEvidenceDraft> drafts = new ArrayList<>();
+        for (Citation citation : citations) {
+            resolveSourceEvidence(effective.sourceTenantId(), active, citation).ifPresent(drafts::add);
+        }
+        drafts.sort(this::compareSourceEvidence);
+        int primaryIndex = primaryIndex(drafts);
+        List<KnowledgeSourceEvidence> evidence = new ArrayList<>();
+        for (int i = 0; i < drafts.size(); i++) {
+            evidence.add(toSourceEvidence(drafts.get(i), i == primaryIndex));
+        }
+        return List.copyOf(evidence);
+    }
+
     private Optional<KnowledgeAssetVersion> findDefaultActiveVersion(EffectiveKnowledgeIdentity effective) {
         KnowledgeIdentity identity = effective.identity();
         if (identity.currentVersionId() != null) {
@@ -240,6 +268,119 @@ public class KnowledgeIdentityService {
                 .filter(KnowledgeAssetVersion::isAuthoritative);
         }
         return versionRepository.findActiveByIdentity(effective.sourceTenantId(), identity.id());
+    }
+
+    private Optional<SourceEvidenceDraft> resolveSourceEvidence(String tenantId, KnowledgeAssetVersion active,
+            Citation citation) {
+        Optional<SourceFragment> fragmentOpt =
+            sourceFragmentRepository.findByTenantIdAndId(tenantId, citation.sourceFragmentId());
+        if (fragmentOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        SourceFragment fragment = fragmentOpt.get();
+        Optional<SourceVersion> sourceVersionOpt =
+            sourceVersionRepository.findByTenantIdAndId(tenantId, fragment.sourceVersionId());
+        if (sourceVersionOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        SourceVersion sourceVersion = sourceVersionOpt.get();
+        Optional<SourceDocument> sourceDocumentOpt =
+            sourceDocumentRepository.findByTenantIdAndId(tenantId, sourceVersion.sourceDocumentId());
+        return sourceDocumentOpt.map(sourceDocument ->
+            new SourceEvidenceDraft(active, citation, fragment, sourceVersion, sourceDocument));
+    }
+
+    private int compareSourceEvidence(SourceEvidenceDraft left, SourceEvidenceDraft right) {
+        int authority = Integer.compare(
+            SourceEvidencePriority.authorityRank(left.sourceDocument().authorityLevel()),
+            SourceEvidencePriority.authorityRank(right.sourceDocument().authorityLevel()));
+        if (authority != 0) {
+            return authority;
+        }
+        int recency = -SourceEvidencePriority.compareRecency(left.sourceVersion().publishedAt(), right.sourceVersion().publishedAt());
+        if (recency != 0) {
+            return recency;
+        }
+        int scope = Integer.compare(
+            SourceEvidencePriority.scopeSpecificity(right.activeVersion()),
+            SourceEvidencePriority.scopeSpecificity(left.activeVersion()));
+        if (scope != 0) {
+            return scope;
+        }
+        int weight = Integer.compare(weight(right.citation()), weight(left.citation()));
+        if (weight != 0) {
+            return weight;
+        }
+        return Comparator.nullsLast(Long::compareTo).compare(left.citation().id(), right.citation().id());
+    }
+
+    private int primaryIndex(List<SourceEvidenceDraft> drafts) {
+        for (int i = 0; i < drafts.size(); i++) {
+            SourceAuthorityLevel level = drafts.get(i).sourceDocument().authorityLevel();
+            if (level != null && !level.isLowAuthority()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private KnowledgeSourceEvidence toSourceEvidence(SourceEvidenceDraft draft, boolean primary) {
+        SourceDocument source = draft.sourceDocument();
+        SourceVersion version = draft.sourceVersion();
+        Citation citation = draft.citation();
+        KnowledgeAssetVersion active = draft.activeVersion();
+        SourceAuthorityLevel authority = source.authorityLevel();
+        String authorityLabel = authority == null ? "未知分级" : authority.label();
+        KnowledgeSourceEvidenceRole role = primary
+            ? KnowledgeSourceEvidenceRole.PRIMARY
+            : KnowledgeSourceEvidenceRole.SUPPLEMENTARY;
+        return new KnowledgeSourceEvidence(
+            active.id(),
+            citation.id(),
+            draft.fragment().id(),
+            source.id(),
+            version.id(),
+            source.sourceCode(),
+            source.title(),
+            source.sourceType(),
+            authority,
+            authorityLabel,
+            source.authorityBasis(),
+            active.gradeQuality(),
+            active.gradeStrength(),
+            version.publishedAt(),
+            citation.relation(),
+            citation.weight(),
+            active.effectiveOrganizationScope(),
+            active.effectiveApplicableScope(),
+            role,
+            primary,
+            !primary,
+            authorityLabel + (primary ? " · 主证据" : " · 补充证据"),
+            rankingReason(authorityLabel, version.publishedAt(), active, citation),
+            active.conflictArbitration()
+        );
+    }
+
+    private String rankingReason(String authorityLabel, Instant publishedAt, KnowledgeAssetVersion active,
+            Citation citation) {
+        return "按可信分级 " + authorityLabel
+            + "、来源发布时间 " + SourceEvidencePriority.evidenceDate(publishedAt)
+            + "、适用域 " + active.effectiveOrganizationScope() + "/" + active.effectiveApplicableScope()
+            + "、引用权重 " + weight(citation) + " 排序";
+    }
+
+    private int weight(Citation citation) {
+        return citation.weight() == null ? 0 : citation.weight();
+    }
+
+    private record SourceEvidenceDraft(
+        KnowledgeAssetVersion activeVersion,
+        Citation citation,
+        SourceFragment fragment,
+        SourceVersion sourceVersion,
+        SourceDocument sourceDocument
+    ) {
     }
 
     /**

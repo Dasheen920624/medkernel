@@ -1,12 +1,27 @@
 package com.medkernel.engine.tenant;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.pkg.ReleasePlanRepository;
+import com.medkernel.engine.pkg.ReleasePlanStatus;
+import com.medkernel.engine.pkg.ReleaseStrategy;
+import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 
@@ -18,16 +33,37 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
 @Service
 public class TenantPilotService {
 
+    private static final String DEFAULT_HOSPITAL_NAME = "未配置医院名称";
+    private static final String DEFAULT_THEME_COLOR = "var(--mk-theme-navy)";
+
     private final BrandingRepository brandingRepository;
     private final SuccessPlanRepository successPlanRepository;
     private final StateTransitionRecorder transitionRecorder;
+    private final OrgUnitRepository orgUnitRepository;
+    private final PlatformCredentialRepository credentialRepository;
+    private final UserRoleAssignmentRepository roleAssignmentRepository;
+    private final IntegrationAdapterRepository adapterRepository;
+    private final KnowledgePackageRepository packageRepository;
+    private final ReleasePlanRepository releasePlanRepository;
 
     public TenantPilotService(BrandingRepository brandingRepository,
                               SuccessPlanRepository successPlanRepository,
-                              StateTransitionRecorder transitionRecorder) {
+                              StateTransitionRecorder transitionRecorder,
+                              OrgUnitRepository orgUnitRepository,
+                              PlatformCredentialRepository credentialRepository,
+                              UserRoleAssignmentRepository roleAssignmentRepository,
+                              IntegrationAdapterRepository adapterRepository,
+                              KnowledgePackageRepository packageRepository,
+                              ReleasePlanRepository releasePlanRepository) {
         this.brandingRepository = brandingRepository;
         this.successPlanRepository = successPlanRepository;
         this.transitionRecorder = transitionRecorder;
+        this.orgUnitRepository = orgUnitRepository;
+        this.credentialRepository = credentialRepository;
+        this.roleAssignmentRepository = roleAssignmentRepository;
+        this.adapterRepository = adapterRepository;
+        this.packageRepository = packageRepository;
+        this.releasePlanRepository = releasePlanRepository;
     }
 
     /**
@@ -43,9 +79,9 @@ public class TenantPilotService {
                 Branding defaultBranding = new Branding(
                     null,
                     tenantId,
-                    "MedKernel 智能示范医院",
-                    "http://assets/logo-hospital-default.png",
-                    "#0F172A",
+                    DEFAULT_HOSPITAL_NAME,
+                    null,
+                    DEFAULT_THEME_COLOR,
                     false,
                     "{}",
                     Instant.now(),
@@ -88,9 +124,9 @@ public class TenantPilotService {
             toSave = new Branding(
                 null,
                 tenantId,
-                input.hospitalName() == null ? "MedKernel 智能示范医院" : input.hospitalName(),
-                input.logoUrl() == null ? "http://assets/logo-hospital-default.png" : input.logoUrl(),
-                input.themeColor() == null ? "#0F172A" : input.themeColor(),
+                input.hospitalName() == null ? DEFAULT_HOSPITAL_NAME : input.hospitalName(),
+                input.logoUrl(),
+                input.themeColor() == null ? DEFAULT_THEME_COLOR : input.themeColor(),
                 input.expertMode() != null && input.expertMode(),
                 input.customBrandingJson() == null ? "{}" : input.customBrandingJson(),
                 Instant.now(),
@@ -115,10 +151,10 @@ public class TenantPilotService {
                 SuccessPlan defaultPlan = new SuccessPlan(
                     null,
                     tenantId,
-                    "PREPARATION", // 起始准备阶段
-                    80, // 初始健康得分
-                    "CDSS,QC,FOLLOWUP", // 已激活模块
-                    "Stroke,ChestPain", // 已激活专病包
+                    "PREPARATION",
+                    0,
+                    "",
+                    "",
                     Instant.now(),
                     currentActor(),
                     Instant.now(),
@@ -137,6 +173,7 @@ public class TenantPilotService {
      */
     @Transactional
     public SuccessPlan transitionStage(String tenantId, String nextStage) {
+        validateStage(nextStage);
         SuccessPlan plan = getSuccessPlan(tenantId);
         String currentStage = plan.currentStage();
 
@@ -144,7 +181,9 @@ public class TenantPilotService {
             return plan;
         }
 
-        validateStage(nextStage);
+        if ("PILOT".equals(nextStage)) {
+            assertOnboardingReady(tenantId);
+        }
 
         SuccessPlan updated = new SuccessPlan(
             plan.id(),
@@ -173,6 +212,60 @@ public class TenantPilotService {
         return result;
     }
 
+    /**
+     * 复算当前租户实施向导步骤，不落重复状态表。
+     *
+     * @param tenantId 租户 ID
+     * @return 实施步骤真实状态
+     */
+    public List<ImplementationStep> getImplementationSteps(String tenantId) {
+        String normalizedTenantId = requireTenantId(tenantId);
+        return List.of(
+            organizationStep(normalizedTenantId),
+            usersStep(normalizedTenantId),
+            permissionsStep(normalizedTenantId),
+            adaptersStep(normalizedTenantId),
+            assetsStep(normalizedTenantId),
+            grayscaleStep(normalizedTenantId)
+        );
+    }
+
+    /**
+     * 复算租户开通就绪门。
+     *
+     * @param tenantId 租户 ID
+     * @return 开通就绪结果
+     */
+    public OnboardingReadiness getOnboardingReadiness(String tenantId) {
+        String normalizedTenantId = requireTenantId(tenantId);
+        List<ImplementationStep> steps = getImplementationSteps(normalizedTenantId);
+        List<String> blockers = steps.stream()
+            .flatMap(step -> step.blockers().stream())
+            .toList();
+        return new OnboardingReadiness(
+            normalizedTenantId,
+            blockers.isEmpty(),
+            steps,
+            blockers,
+            Instant.now()
+        );
+    }
+
+    /**
+     * 开通前置门禁：任一步骤未完成时抛出业务错误。
+     *
+     * @param tenantId 租户 ID
+     */
+    public void assertOnboardingReady(String tenantId) {
+        OnboardingReadiness readiness = getOnboardingReadiness(tenantId);
+        if (!readiness.ready()) {
+            throw new ApiException(
+                ErrorCode.TENANT_ONBOARD_NOT_READY,
+                "租户开通未就绪：" + String.join("；", readiness.blockers())
+            );
+        }
+    }
+
     private void validateStage(String stage) {
         switch (stage) {
             case "PREPARATION":
@@ -185,6 +278,96 @@ public class TenantPilotService {
             default:
                 throw new ApiException(ErrorCode.BAD_REQUEST, "非法的生命周期阶段名称: " + stage);
         }
+    }
+
+    private ImplementationStep organizationStep(String tenantId) {
+        boolean hasTenantRoot = orgUnitRepository.findByTenantIdAndParentIdIsNull(tenantId)
+            .filter(root -> root.level() == OrgLevel.TENANT)
+            .filter(OrgUnit::isActive)
+            .isPresent();
+        boolean hasHospital = orgUnitRepository.findByTenantIdAndLevelOrderByCodeAsc(tenantId, OrgLevel.HOSPITAL)
+            .stream()
+            .anyMatch(OrgUnit::isActive);
+        if (hasTenantRoot && hasHospital) {
+            return done("ORGANIZATION", "组织树", "/tenant/onboarding", "已建立租户根与医院节点");
+        }
+        return blocked("ORGANIZATION", "组织树", "/tenant/onboarding", "组织树缺少租户根或医院节点");
+    }
+
+    private ImplementationStep usersStep(String tenantId) {
+        boolean hasActiveUser = credentialRepository.findByTenantIdOrderByUsernameAsc(tenantId)
+            .stream()
+            .anyMatch(credential -> credential.active());
+        if (hasActiveUser) {
+            return done("USERS", "用户", "/admin/credentials", "已存在启用的平台成员账号");
+        }
+        return blocked("USERS", "用户", "/admin/credentials", "用户未配置启用账号");
+    }
+
+    private ImplementationStep permissionsStep(String tenantId) {
+        boolean hasActiveAssignment = roleAssignmentRepository.findByTenantId(tenantId)
+            .stream()
+            .anyMatch(assignment -> assignment.active());
+        if (hasActiveAssignment) {
+            return done("PERMISSIONS", "权限", "/compliance/user-roles", "已存在启用的角色分配");
+        }
+        return blocked("PERMISSIONS", "权限", "/compliance/user-roles", "权限未配置启用角色分配");
+    }
+
+    private ImplementationStep adaptersStep(String tenantId) {
+        boolean hasActiveAdapter = adapterRepository.findAllByTenantId(tenantId)
+            .stream()
+            .anyMatch(this::activeAdapter);
+        if (hasActiveAdapter) {
+            return done("ADAPTERS", "适配器", "/integration/adapters", "已登记启用适配器");
+        }
+        return blocked("ADAPTERS", "适配器", "/integration/adapters", "适配器未登记或未启用");
+    }
+
+    private ImplementationStep assetsStep(String tenantId) {
+        boolean hasReleasedAssets = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId)
+            .stream()
+            .anyMatch(this::releasedPackage);
+        if (hasReleasedAssets) {
+            return done("ASSETS", "资产", "/config/packages", "已存在发布或启用的配置资产包");
+        }
+        return blocked("ASSETS", "资产", "/config/packages", "资产未发布或未启用");
+    }
+
+    private ImplementationStep grayscaleStep(String tenantId) {
+        boolean hasSuccessfulGrayscale = releasePlanRepository.findByTenantIdOrderByCreatedAtDesc(tenantId)
+            .stream()
+            .anyMatch(plan -> plan.strategy() == ReleaseStrategy.GRAYSCALE
+                && plan.status() == ReleasePlanStatus.SUCCESS);
+        if (hasSuccessfulGrayscale) {
+            return done("GRAYSCALE", "灰度", "/config/packages", "已存在成功的灰度发布计划");
+        }
+        return blocked("GRAYSCALE", "灰度", "/config/packages", "灰度发布尚未成功");
+    }
+
+    private ImplementationStep done(String key, String title, String targetPath, String evidence) {
+        return new ImplementationStep(key, title, "DONE", List.of(), targetPath, evidence);
+    }
+
+    private ImplementationStep blocked(String key, String title, String targetPath, String blocker) {
+        return new ImplementationStep(key, title, "BLOCKED", List.of(blocker), targetPath, null);
+    }
+
+    private boolean activeAdapter(IntegrationAdapter adapter) {
+        return adapter != null && "ACTIVE".equalsIgnoreCase(adapter.status());
+    }
+
+    private boolean releasedPackage(KnowledgePackage knowledgePackage) {
+        return knowledgePackage != null
+            && Stream.of(KnowledgePackageStatus.PUBLISHED, KnowledgePackageStatus.ACTIVE)
+                .anyMatch(status -> status == knowledgePackage.status());
+    }
+
+    private String requireTenantId(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw ApiException.tenantMissing();
+        }
+        return tenantId;
     }
 
     private String currentActor() {

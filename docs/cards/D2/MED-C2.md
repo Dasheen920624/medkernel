@@ -20,12 +20,12 @@
 - 缺口（本卡补）：① `between`；② `unit_compare`（单位换算表 + 量纲校验，接 [TERM-01](TERM-01.md) 单位标准）；③ `temporal`（时间窗、连续 N 次、趋势）；④ `derived`（受控公式白名单：eGFR/CrCl/BSA，参数缺失诚实标 `INSUFFICIENT_DATA`，不臆测）。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 between**：`value between [lo, hi]`（含/不含边界可配），类型/单位一致校验。
-- [ ] **FR-2 unit_compare**：跨单位比较先**换算到基准单位**（如 mg/dL ↔ mmol/L）；**无换算关系 → 报错不臆测**（`UNIT_INCOMPATIBLE`）。
-- [ ] **FR-3 temporal**：时间窗（"近 48h"）、连续 N 次（"连续 2 次 > X"）、趋势（升/降）；基于标准上下文时间序列。
-- [ ] **FR-4 derived**：受控公式**白名单**（eGFR/CrCl/BSA…），参数与单位校验；**参数缺失 → `INSUFFICIENT_DATA`**，绝不用默认值臆测。
-- [ ] **FR-5 可解释**：每算子输出**取值 + 单位 + 来源 + 计算式**，纳入 `RuleActionResult` 解释。
-- [ ] **FR-6 确定性 B0**：全算子纯确定性，无模型依赖；非法表达式编译期/求值期报错带定位。
+- [x] **FR-1 between**：`value between [lo, hi]`（含/不含边界可配），类型/单位一致校验。
+- [x] **FR-2 unit_compare**：跨单位比较先**换算到基准单位**（如 mg/dL ↔ mmol/L）；**无换算关系 → 报错不臆测**（`UNIT_INCOMPATIBLE`）。
+- [x] **FR-3 temporal**：时间窗（"近 48h"）、连续 N 次（"连续 2 次 > X"）、趋势（升/降）；基于标准上下文时间序列。
+- [x] **FR-4 derived**：受控公式**白名单**（eGFR/CrCl/BSA…），参数与单位校验；**参数缺失 → `INSUFFICIENT_DATA`**，绝不用默认值臆测。
+- [x] **FR-5 可解释**：每算子输出**取值 + 单位 + 来源 + 计算式**，纳入 `RuleActionResult` 解释。
+- [x] **FR-6 确定性 B0**：全算子纯确定性，无模型依赖；非法表达式编译期/求值期报错带定位。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/框架卡）
@@ -38,7 +38,7 @@ N·A —— 本卡无页面。算子在 [RULE-01](RULE-01.md) 规则库页的 L3
 
 ## 数据与迁移
 - 无独立表族——算子为代码 + `derived` 公式白名单（配置外置）。`unit_compare` 换算表可入字典（[TERM-01](TERM-01.md)）或迁移种子。
-- 若落换算表/公式注册表：5 方言一致 + 中文注释；否则注明"算子为确定性代码，不落库"。
+- 本轮实现选择确定性代码白名单，不新增表 / 不落迁移；后续若治理到 TERM-01 字典或配置中心，必须另走 5 方言一致 + 中文注释 + 回归测试。
 
 ## 视角清单（11 视角逐条）
 1. **产品架构**：让规则 DSL 能表达真实临床判断的算子底座。
@@ -58,15 +58,16 @@ N·A —— 本卡无页面。算子在 [RULE-01](RULE-01.md) 规则库页的 L3
 - 本卡落点：补 4 类临床算子，使规则可表达单位安全、时序精确、公式受控的真实判断。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-2）**：mg/dL 与 mmol/L 比较自动换算正确；无换算关系 → `UNIT_INCOMPATIBLE` 不臆测。
-- [ ] **AC-2（FR-3）**：表达"48h 内连续 2 次血钾 > 6.0" → 对时间序列判定正确（边界用例覆盖）。
-- [ ] **AC-3（FR-4）**：eGFR 缺肌酐 → `INSUFFICIENT_DATA`；参数齐全 → 结果与标准公式一致。
-- [ ] **AC-4（FR-5/6）**：求值输出取值/单位/来源/计算式；非法表达式带行列报错；关模型不影响。
+- [x] **AC-1（FR-2）**：mg/dL 与 mmol/L 比较自动换算正确；无换算关系 → `UNIT_INCOMPATIBLE` 不臆测。
+- [x] **AC-2（FR-3）**：表达"48h 内连续 2 次血钾 > 6.0" → 对时间序列判定正确（边界用例覆盖）。
+- [x] **AC-3（FR-4）**：eGFR 缺肌酐 → `INSUFFICIENT_DATA`；参数齐全 → 结果与标准公式一致。
+- [x] **AC-4（FR-5/6）**：求值输出取值/单位/来源/计算式；非法表达式带行列报错；关模型不影响。
 - 关联 A1–A9 剧本：A3 规则配置（临床算子用例）。
 - T-GATE：真实性门禁全绿（公式可复算、无伪造、缺参不造数）。
 - B0 验收：纯确定性算子，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：`between`/`unit_compare`/`temporal`/`derived` 算子 + 单位换算表 + 公式白名单 + 解释输出。
-- 测试：单位换算/不兼容测试 + 时间窗/连续次数边界测试 + derived 缺参/正确测试 + 解释输出测试。
+- 代码 permalink：待 PR 创建后补；本轮落点为 `RuleDslEvaluator` 调度、`ClinicalRuleOperatorSupport` 临床算子支持库、`ErrorCode` 契约错误码。
+- 测试：`RuleDslEvaluatorTest` 覆盖 between 边界 / 反向区间 / 单位不一致、glucose mg/dL↔mmol/L 换算、未知换算拒绝、48h 连续 2 次高钾、非数值 count、非正时间窗、趋势、趋势 count<2、非法方向、eGFR 缺参 / 0 肌酐 / 正确计算、CrCl / BSA 白名单；`ErrorCodeTest` 覆盖 `UNIT_INCOMPATIBLE` / `INSUFFICIENT_DATA` / `DSL_OPERATOR_INVALID`。
+- 本地验证：`mvn -q -Dtest=RuleDslEvaluatorTest#betweenOperatorRejectsInvertedRange+temporalOperatorRejectsNonNumericCountWithoutDefaulting+temporalOperatorRejectsNonPositiveWindow+temporalTrendRejectsCountLessThanTwo+derivedFormulaRejectsNonPositiveClinicalParametersWithoutInternalError test` 红灯后转绿；`mvn -q -Dtest=RuleDslEvaluatorTest,RuleEngineServiceTest,RuleEngineApiContractTest,ErrorCodeTest test`；`mvn -q test`（Surefire XML 汇总 174 files / 1052 tests / 0 failures / 0 errors / 0 skipped，H2 + Docker PostgreSQL 15.18 / Oracle 21.3 均迁移至 v62 且二次 migrate 无新迁移）；`npm ci`（既有 dev 依赖告警归 `DEFER-002`）；`npm run verify`（44 files / 236 tests，既有 React Router / act 警告归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities）；`npm run build`（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）；changed-mode T-GATE：真实性 / 配置边界 / 迁移规约均通过；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
