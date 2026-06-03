@@ -12,16 +12,17 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D2 SYS-08 PR3 紧急失效与影响任务 🚧
+### 线 1 · D2 INTEG-01 第三方对接总线 🚧
 - 类型：软件开发
-- 分支：`codex/d2-sys-08-pr3-invalidation-tasks`
-- 目标：完成 SYS-08 PR3：新增紧急失效证据 `knowledge_invalidation`（物理表 `mk_knowledge_invalidation`）与影响处置任务 `affected_case_task`（物理表 `mk_knowledge_affected_case_task`），撤回高危知识版本时即时留证、派发复核 / 补同步 / 同步告警任务，禁止被撤回高危版本一键回滚，并把失效与影响任务纳入 lineage 导出；覆盖 SYS-08 AC-3/AC-5。
-- 状态：SYS-08 PR2 已通过 #288 合并到 `origin/main`（merge `b15ef4fb`）。当前 PR3 已完成 TDD 红绿实现：`KnowledgeVersionService.withdraw` 写紧急失效记录、scope 级影响任务并刷新投影；`activate` 对 `WITHDRAWN + HIGH` 目标返回 `ROLLBACK_SAFETY_DENIED`；`KnowledgeExportService` 的 LINEAGE/FULL_TENANT 导出包含 `knowledge_invalidation` 与 `affected_case_task`；V58 五方言迁移新增两张 `mk_knowledge_*` 表、索引、约束和中文 COMMENT；表 owner 已登记到 `engine-knowledge`。本地聚焦、迁移 smoke、后端全量和脚本门禁已跑通，待暂存后重跑 changed 门禁、提交、PR、远端 CI 与合并。
-- 下一步（精确到动作/命令）：1. `git add` 暂存 PR3 文件；2. 重跑 changed 真实性 / 配置边界 / 迁移规约、`scripts/check-comment-zh.sh`、`git diff --check`，必要时重跑 `mvn -q test`；3. 中文 commit；4. 推送 `codex/d2-sys-08-pr3-invalidation-tasks`、创建 PR；5. 等待远端 CI 8/8 通过；6. squash 合并后从最新 `origin/main` 领取下一张 backlog 任务。
-- 相关文件 / 测试 / 坑：`docs/cards/D2/SYS-08.md`、`medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeVersionService.java`、`KnowledgeInvalidation.java`、`AffectedCaseTask.java`、`KnowledgeExportService.java`、V58 五方言迁移、`KnowledgeVersionServiceTest`、`KnowledgeExportServiceTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`；当前 B0 不伪造患者 / 路径影响清单，只在已有真实索引命中时才允许 `PATIENT_CASE` / `PATIENT_PATHWAY` 任务，否则落知识版本、配置包依赖和同步范围级任务；真实运行范围仍只保障 PostgreSQL + Oracle，达梦 / 人大金仓真实环境继续登记在 `DEFER-001`，不阻塞当前主线。
+- 分支：待创建 `codex/d2-integ-01-bus`
+- 目标：完成 INTEG-01：适配器目录、FHIR/CDS Hooks 风格门面、Webhook 签名、字段映射、健康检查与重试死信；外部系统断连必须诚实 `NOT_CONNECTED`，不得伪造同步或回调成功。
+- 状态：SYS-08 已通过 #287/#288/#289 完成并在本收口中同步为 done；下一张 backlog pending 为 INTEG-01。尚未实施代码，需先按卡做现状核查和红灯测试。
+- 下一步（精确到动作/命令）：1. 从最新 `origin/main` 创建 `codex/d2-integ-01-bus`；2. 读取 `docs/CONSTITUTION.md`、`docs/cards/D2/_brief.md`、`docs/cards/D2/INTEG-01.md`、相关 [INTEG-02](cards/D2/INTEG-02.md) / [OPT-01](cards/D2/OPT-01.md) / [SYS-05](cards/D0/SYS-05.md)；3. `rg` 核查 `engine/integration`、`engine/context`、`shared/runtime/task`、`frontend/src/pages/tenant/AdapterHub*` 真实现状；4. 建绿色基线与红灯测试；5. 实现最小 PR1 范围，跑后端 / 前端 / T-GATE / CI 后合并。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/integration/**`、`IntegrationController`、`IntegrationAdapterRepository`、`shared.runtime.task`、`frontend/src/pages/tenant/AdapterHub.tsx`；FHIR R4/R5 完整资源门面在 OPT-01，INTEG-01 只做对接总线与门面挂点，不冒领完整临床资源实现；外部 HIS/EMR/LIS/PACS 真实环境不可用时登记问题并继续 B0，总线需返回 `NOT_CONNECTED`。
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D2 SYS-08 PR3 紧急失效与影响任务 ✅（#289，merge `2d72aaa`）：新增 `mk_knowledge_invalidation` 与 `mk_knowledge_affected_case_task` V58 五方言迁移；`withdraw` 写紧急失效记录、派发医师复核 / 配置包补同步 / 同步告警任务并刷新投影；`activate` 对 `WITHDRAWN + HIGH` 返回 `ROLLBACK_SAFETY_DENIED`；LINEAGE / FULL_TENANT 导出包含失效与影响任务。本地 `mvn -q test` 1008 tests / 0 failures / 0 errors / 0 skipped，H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移至 v58 并二次 migrate 无新迁移；脚本门禁、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合并。SYS-08 已同步为 done；`DEFER-001` 国产化真实环境仍 open。
 - D2 SYS-08 PR2 投影同步与运行解析隔离 ✅（#288，merge `b15ef4fb`）：新增 `KnowledgeProjectionRefreshResult`，`KnowledgeProjectionRefreshPort` 返回图谱 / 搜索同步任务证据，`KnowledgeProjectionRefreshAdapter` 汇总 `ProjectionSyncService` 的重建结果；图谱 / 搜索事实载荷携带 `organizationScope`、`applicableScope`、`activeScopeKey`，权威源只剩新版时旧版本投影残留会进入 `extra` 并标记一致性失败；激活路径同步刷新投影，运行解析继续只取当前适用域 ACTIVE。验证：聚焦套件、后端全量、真实性 / 配置边界 / 迁移规约 / 中文注释 / diff 门禁通过；远端 CI 8/8 通过后 squash 合并。PR3 紧急失效 / 影响任务未在 PR2 冒领，`DEFER-001` 国产化真实环境仍 open。
 - D2 SYS-08 PR1 完整适用域唯一约束 ✅（#287，merge `deb31977`）：`knowledge_asset_version` 增加 `organization_scope`、`applicable_scope`、`active_scope_key`，V57 五方言迁移补字段、回填、唯一约束和索引；激活事务按同一有效域替换 ACTIVE，不影响其他有效域；无适用域旧入口改读 `current_version_id` 默认指针，离线包导入同步写入有效域字段。本地聚焦 / 后端全量通过，Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 迁移至 V57 并二次 migrate 无新迁移；真实性 / 配置边界 / 迁移规约 / 中文注释 / diff 门禁通过；远端 CI 8/8 通过后 squash 合并。PR2 投影同步与 PR3 紧急失效 / 影响病例任务未在 PR1 冒领，`DEFER-001` 国产化真实环境仍 open。
 - D2 SYS-04 PR3 发布流 / 回滚 / 历史重放 ✅（#286，merge `8d4fc0cd`）：新增通用 `ReleasePort` / `ReplayPort`、`VersionReleaseService`、`VersionReplayService`，交付审核、静默观察、灰度默认 10%、院级管理员全量、回滚安全门禁、历史重放绑定和激活 / 回滚幂等重试；新增 `mk_version_release_plan` / `mk_version_activation_transaction` / `mk_version_replay_binding` V56 五方言迁移，激活事务唯一约束兜底；明确不复用包域 `release_plan` 旧表。本地聚焦 / 迁移 / 后端全量测试通过，Docker Testcontainers PostgreSQL 15.18 / Oracle 21.3 迁移至 V56；真实性 / 配置边界 / 迁移规约 / 中文注释 / diff 门禁通过；远端 CI 8/8 通过后 squash 合并。`DEFER-001` 国产化真实环境仍 open。
@@ -162,4 +163,4 @@
 
 ---
 
-> 末次更新：2026-06-03 · 长期目标保持 active；SYS-08 PR2 已合并，当前执行 SYS-08 PR3 紧急失效与影响任务，待完成暂存后 changed 门禁、提交、PR、远端 CI 与合并后再领取下一张 backlog 任务。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-03 · 长期目标保持 active；SYS-08 已通过 #287/#288/#289 完成并收口为 done，当前下一任务为 D2 INTEG-01 第三方对接总线，需从最新 `origin/main` 新建分支后实施。`DEFER-001` 国产化真实环境、`DEFER-019` 随访模板资产化缺口、`DEFER-004` 本机 in-app browser 不可用保持 `open`；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，`open` 项不阻塞主线但不得宣称清零，遇到新的非当前阶段阻塞必须当轮登记后继续主线，不能把长期目标标记 blocked。

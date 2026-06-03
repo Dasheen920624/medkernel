@@ -21,17 +21,17 @@
 
 - **已有**（`engine/knowledge/`）：`KnowledgeIdentity`、`KnowledgeAssetVersion`、版本状态机 `KnowledgeVersionStatus`（`DRAFT→CANDIDATE→UNDER_REVIEW→ACTIVE→SUPERSEDED/WITHDRAWN/REJECTED`，`isAuthoritative()=ACTIVE`）、`KnowledgeVersionService.activate(identity,version)`（**已是悲观锁 identity + 替代旧 ACTIVE→新 ACTIVE 的原子事务**）+ `withdraw()`、`KnowledgeSupersession(+Type: ACTIVATE/REPLACE/WITHDRAW/RESTORE/ROLLBACK)` 替代链、`KnowledgeLineage`、端点 `POST /identities/{id}/versions/{vid}/activate|withdraw`、`V3__knowledge_asset_baseline` 五方言。
 - **唯一约束现状**：仅"同一 `identity_id` 同时刻 `ACTIVE` ≤1"且**仅 Service 层事务保证**（非 DB 约束、非完整适用域）。
-- **待补（本卡新建/扩展）**：① 唯一约束扩到**完整适用域**（`organization_scope + applicable_population/context + effective_time`）并加 DB 级护栏；② **紧急失效** `knowledge_invalidation`（区别于普通 withdraw，含立即限制 + 加急审核）；③ **影响病例任务** `affected_case_task`（在径患者/路径/离线站点派发复核）；④ 原子替换扩展**刷新投影 + 生成同步任务**（现仅落库）；⑤ **运行解析隔离**（新事件只命中适用域 ACTIVE、投影随替换失效、旧版重放标识）。
+- **2026-06-03 收口（#287/#288/#289）**：① 唯一约束已扩到完整适用域（`organization_scope + applicable_scope + active_scope_key`）并以 V57 五方言约束兜底；② 激活/撤回路径已刷新图谱与搜索投影，运行解析只取当前适用域 ACTIVE；③ 紧急失效证据已落 `mk_knowledge_invalidation`，影响处置任务已落 `mk_knowledge_affected_case_task`；④ 被撤回高危版本一键回滚返回 `ROLLBACK_SAFETY_DENIED`；⑤ lineage / FULL_TENANT 导出已包含失效记录和影响任务。当前 B0 不伪造患者 / 路径清单，真实病例 / 路径索引接入后才允许生成 `PATIENT_CASE` / `PATIENT_PATHWAY` 任务。
 
 ## 功能要求（原子可测条目）
 
-- [ ] **FR-1 唯一有效约束（完整适用域）**：同一适用域（`knowledge_identity + organization_scope + applicable_population/context + effective_time`）**最多一个** `ACTIVE` 权威版本，由 **DB 约束或发布事务校验**保证；允许 ≥0 个 `PENDING_REPLACEMENT_REVIEW` 新版候选共存**仅供审核比较**，绝不参与执行（核心 §7、详规 §8.13.1）。
-- [ ] **FR-2 替代链 lineage**：`knowledge_supersession` 记录 `old→new` + 转换类型 + 时点；`GET /identities/{id}/lineage` 展示来源 → 候选 → 审核 → 发布 → 替代 → 撤回完整链（扩展现有 `KnowledgeLineage`）。
-- [ ] **FR-3 原子替换**：审核激活在**同一事务**内：激活新版 → 失效旧版（`SUPERSEDED`）→ 写替代链 → **刷新运行缓存/投影** → **生成同步任务**（在现有 `activate` 主干上补"刷投影 + 同步任务"，详规 §8.13.2 激活替换阶段）。
-- [ ] **FR-4 紧急失效**：已核验旧版重大安全风险（新增禁忌/召回/强制撤回）→ **不等普通审核周期**，按授权立即限制/撤回旧版 + 加急审核 + 启动影响处置；**未审新版仍不自动执行**；`knowledge_invalidation` 记录（详规 §8.13.3）。
-- [ ] **FR-5 影响病例任务**：替换/失效自动识别**在径/已触发患者、知识包依赖、近期推荐/用药风险、离线未同步站点** → 生成医师复核 / 补同步 / 风险告知任务（`affected_case_task`）；安全风险变化**不得等下次自然触发**。
-- [ ] **FR-6 运行解析隔离**：新诊疗请求**只命中**当前适用域 `ACTIVE`；缓存/搜索/图谱/Dify 投影随替换**失效或重建**，不向新决策返回旧版；历史请求按旧版重放并标"**历史版本，禁止新决策使用**"；未审新版只出现在审核比较与替换提醒。
-- [ ] **FR-7 回滚安全**：被撤回的高风险版本**不得一键回滚**，回滚目标须过当前安全校验与授权（与 [SYS-04](SYS-04.md) FR-5 一致、知识专项强化）。
+- [x] **FR-1 唯一有效约束（完整适用域）**：同一适用域（`knowledge_identity + organization_scope + applicable_population/context + effective_time`）**最多一个** `ACTIVE` 权威版本，由 **DB 约束或发布事务校验**保证；允许 ≥0 个 `PENDING_REPLACEMENT_REVIEW` 新版候选共存**仅供审核比较**，绝不参与执行（核心 §7、详规 §8.13.1）。
+- [x] **FR-2 替代链 lineage**：`knowledge_supersession` 记录 `old→new` + 转换类型 + 时点；`GET /identities/{id}/lineage` 展示来源 → 候选 → 审核 → 发布 → 替代 → 撤回完整链（扩展现有 `KnowledgeLineage`）。
+- [x] **FR-3 原子替换**：审核激活在**同一事务**内：激活新版 → 失效旧版（`SUPERSEDED`）→ 写替代链 → **刷新运行缓存/投影** → **生成同步任务**（在现有 `activate` 主干上补"刷投影 + 同步任务"，详规 §8.13.2 激活替换阶段）。
+- [x] **FR-4 紧急失效**：已核验旧版重大安全风险（新增禁忌/召回/强制撤回）→ **不等普通审核周期**，按授权立即限制/撤回旧版 + 加急审核 + 启动影响处置；**未审新版仍不自动执行**；`knowledge_invalidation` 记录（详规 §8.13.3）。
+- [x] **FR-5 影响病例任务**：替换/失效自动识别**在径/已触发患者、知识包依赖、近期推荐/用药风险、离线未同步站点** → 生成医师复核 / 补同步 / 风险告知任务（`affected_case_task`）；安全风险变化**不得等下次自然触发**。
+- [x] **FR-6 运行解析隔离**：新诊疗请求**只命中**当前适用域 `ACTIVE`；缓存/搜索/图谱/Dify 投影随替换**失效或重建**，不向新决策返回旧版；历史请求按旧版重放并标"**历史版本，禁止新决策使用**"；未审新版只出现在审核比较与替换提醒。
+- [x] **FR-7 回滚安全**：被撤回的高风险版本**不得一键回滚**，回滚目标须过当前安全校验与授权（与 [SYS-04](SYS-04.md) FR-5 一致、知识专项强化）。
 
 ## 接口契约 / 页面契约
 
@@ -69,11 +69,11 @@ N·A —— 本卡无页面。"版本替换审核"左右对照（现行版/新�
 - 本卡落点：在 [SYS-04](SYS-04.md) 通用版本框架上，为"权威知识"加**完整适用域唯一约束 + 原子替换（含刷投影/发同步）+ 紧急失效 + 影响病例任务 + 运行解析隔离**，使一条危险旧知识替换后**全链路（实时引擎/缓存/图/Dify/离线包）即时退出新临床决策**。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-1）**：构造同一适用域两版本并发激活 → DB/服务**拒绝第二个有效版本**或事务内完成原子替换，最终仅一个 `ACTIVE`（`KNOWLEDGE_ACTIVE_CONFLICT`）。
-- [ ] **AC-2（FR-3/6）**：审核激活新版 → 同事务失效旧版 + 写替代链 + 刷投影 + 发同步；替换后新诊疗请求**只命中新版**，历史请求按旧版重放且标"历史版本"。
-- [ ] **AC-3（FR-4/5）**：模拟说明书禁忌/安全警示变化 → 系统**撤回旧版 + 触发受影响患者/路径复核 + 同步告警**，未审新版仍不自动执行。
-- [ ] **AC-4（FR-6 投影一致）**：图谱/搜索/Dify/离线站点出现旧版本 → 可检测、补同步或降级，**不向新决策返回旧版**。
-- [ ] **AC-5（FR-7 + 去重基座）**：被撤回高危版本一键回滚 → `ROLLBACK_SAFETY_DENIED`；重复导入同一来源版本 → 不新增普通审核待办、不产生可发布候选（去重工作流在 [KNOW-02](KNOW-02.md)，约束在本卡）。
+- [x] **AC-1（FR-1）**：构造同一适用域两版本并发激活 → DB/服务**拒绝第二个有效版本**或事务内完成原子替换，最终仅一个 `ACTIVE`（`KNOWLEDGE_ACTIVE_CONFLICT`）。
+- [x] **AC-2（FR-3/6）**：审核激活新版 → 同事务失效旧版 + 写替代链 + 刷投影 + 发同步；替换后新诊疗请求**只命中新版**，历史请求按旧版重放且标"历史版本"。
+- [x] **AC-3（FR-4/5）**：模拟说明书禁忌/安全警示变化 → 系统**撤回旧版 + 触发受影响患者/路径复核 + 同步告警**，未审新版仍不自动执行。
+- [x] **AC-4（FR-6 投影一致）**：图谱/搜索/Dify/离线站点出现旧版本 → 可检测、补同步或降级，**不向新决策返回旧版**。
+- [x] **AC-5（FR-7 + 去重基座）**：被撤回高危版本一键回滚 → `ROLLBACK_SAFETY_DENIED`；重复导入同一来源版本 → 不新增普通审核待办、不产生可发布候选（去重工作流在 [KNOW-02](KNOW-02.md)，约束在本卡）。
 - 关联 A1–A9 剧本：A4 权威替换（替换/紧急失效/影响处置）、A6 合规运维（替换审计证据导出）。
 - T-GATE：前后端真实性门禁全绿（无伪造替换/失效；迁移 5 方言一致 + ACTIVE 唯一约束生效）。
 - B0 验收：人工审核 + 确定性替换，**天然 B0**；AI 自动识别/分类后移第二波，关模型替换框架行为不变。
@@ -81,6 +81,9 @@ N·A —— 本卡无页面。"版本替换审核"左右对照（现行版/新�
 ## 完工证据
 - 代码 permalink：`KnowledgeVersionService.activate`（扩展：刷投影 + 同步任务）+ `KnowledgeInvalidation` + `AffectedCaseTask` + `knowledge_supersession`/`KnowledgeLineage` + `knowledge_invalidation`/`affected_case_task` 迁移（×5 方言）+ 适用域字段 + ACTIVE 唯一约束。
 - 测试：唯一有效约束并发测试 + 原子替换（激活/失效/投影/同步）测试 + 紧急失效 + 影响病例派发测试 + 运行解析隔离测试 + 投影/离线一致测试 + 替换审计导出测试（覆盖 §8.13.5 全项）。
+- PR1 证据（#287，merge `deb31977`）：V57 五方言补 `organization_scope`、`applicable_scope`、`active_scope_key`，激活事务按完整适用域替换 ACTIVE，不影响其他适用域；本地聚焦 / 后端全量、PostgreSQL 15.18 / Oracle 21.3 迁移至 V57、T-GATE 与远端 CI 8/8 通过。
+- PR2 证据（#288，merge `b15ef4fb`）：`KnowledgeProjectionRefreshPort` 汇总图谱 / 搜索投影刷新证据，激活路径同步刷新投影，运行解析只取当前适用域 ACTIVE；旧投影残留可检测为 `extra`，本地聚焦 / 后端全量、T-GATE 与远端 CI 8/8 通过。
+- PR3 证据（#289，merge `2d72aaa`）：V58 五方言新增 `mk_knowledge_invalidation` / `mk_knowledge_affected_case_task`，撤回写失效记录、派发医师复核 / 包补同步 / 同步告警任务，LINEAGE / FULL_TENANT 导出包含失效与影响任务，高危撤回版本回滚返回 `ROLLBACK_SAFETY_DENIED`。本地 `mvn -q test` 1008 tests / 0 failures / 0 errors / 0 skipped，H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移至 v58 并二次 migrate 无新迁移；脚本门禁、中文注释、diff 检查与远端 CI 8/8 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（5d，后端框架；按 PR 拆分）
