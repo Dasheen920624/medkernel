@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import com.medkernel.shared.api.PageResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -199,7 +200,38 @@ class FollowupEngineControllerTest {
             .andExpect(status().isForbidden());
     }
 
-    // ── 3. POST /tasks/{taskId}/questionnaires ─────────────────────────
+    // ── 3. GET /tasks ─────────────────────────────────────────────────
+
+    @Test
+    void listTasks_ReturnsApi13Page() throws Exception {
+        when(service.listTasks(any(FollowupTaskFilter.class), any(com.medkernel.shared.api.PageRequest.class)))
+            .thenReturn(PageResponse.of(
+                List.of(new FollowupTaskDetailResponse(
+                    "TASK-001", "PLAN-001", FollowupTaskType.QUESTIONNAIRE, null,
+                    FollowupTaskStatus.PENDING, null, null
+                )),
+                new com.medkernel.shared.api.PageRequest(1, 20, null),
+                1
+            ));
+
+        mockMvc.perform(get("/api/v1/engine/followup/tasks")
+                .param("patientId", "P1001")
+                .param("planId", "PLAN-001")
+                .param("status", "PENDING")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[0].taskId").value("TASK-001"))
+            .andExpect(jsonPath("$.data.items[0].planId").value("PLAN-001"))
+            .andExpect(jsonPath("$.data.total").value(1));
+
+        verify(service).listTasks(any(FollowupTaskFilter.class), any(com.medkernel.shared.api.PageRequest.class));
+    }
+
+    // ── 4. POST /questionnaires 与旧任务下问卷提交 ─────────────────────
 
     private static final String QUESTIONNAIRE_BODY = """
         {
@@ -246,7 +278,40 @@ class FollowupEngineControllerTest {
             .andExpect(status().isBadRequest());
     }
 
-    // ── 4. POST /events/report-abnormal ────────────────────────────────
+    private static final String QUESTIONNAIRE_DISPATCH_BODY = """
+        {
+          "taskId": "TASK-001",
+          "questionnaireTemplateId": "Q-TPL-1",
+          "formData": "{\\"title\\": \\"出院后症状随访\\"}",
+          "idempotencyKey": "questionnaire-key-1",
+          "executorId": "FOLLOWUP-NURSE-001",
+          "executorType": "FOLLOWUP_NURSE"
+        }
+        """;
+
+    @Test
+    void dispatchQuestionnaire_TopLevelRoute_ReturnsQuestionnaireId() throws Exception {
+        when(service.dispatchQuestionnaire(any(FollowupQuestionnaireRequest.class)))
+            .thenReturn(new FollowupQuestionnaireResponse(
+                "FQ-001", "TASK-001", "Q-TPL-1", "DISPATCHED", "trace-test"
+            ));
+
+        mockMvc.perform(post("/api/v1/engine/followup/questionnaires")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("medical-affairs")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(QUESTIONNAIRE_DISPATCH_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.questionnaireId").value("FQ-001"))
+            .andExpect(jsonPath("$.data.status").value("DISPATCHED"));
+
+        verify(service).dispatchQuestionnaire(any(FollowupQuestionnaireRequest.class));
+    }
+
+    // ── 5. POST /abnormal-reports ─────────────────────────────────────
 
     private static final String ABNORMAL_BODY = """
         {
@@ -259,7 +324,8 @@ class FollowupEngineControllerTest {
 
     @Test
     void reportAbnormal_ReturnsOk() throws Exception {
-        doNothing().when(service).reportAbnormal(any(FollowupAbnormalReportRequest.class));
+        when(service.reportAbnormal(any(FollowupAbnormalReportRequest.class)))
+            .thenReturn(new FollowupAbnormalReportResponse("FE-001", "TASK-RETURN-001", "FE-NOTIFY-001", "trace-test"));
 
         mockMvc.perform(post("/api/v1/engine/followup/events/report-abnormal")
                 .with(jwt().jwt(token -> token
@@ -270,6 +336,38 @@ class FollowupEngineControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ABNORMAL_BODY))
             .andExpect(status().isOk());
+
+        verify(service).reportAbnormal(any(FollowupAbnormalReportRequest.class));
+    }
+
+    private static final String ABNORMAL_REPORT_BODY = """
+        {
+          "planId": "PLAN-001",
+          "eventType": "ABNORMAL_RETURN",
+          "payload": "{\\"reason\\": \\"血压异常升高\\"}",
+          "triggeredBy": "FOLLOWUP_NURSE_001",
+          "idempotencyKey": "abnormal-key-1"
+        }
+        """;
+
+    @Test
+    void reportAbnormal_TopLevelRoute_ReturnsReturnVisitTask() throws Exception {
+        when(service.reportAbnormal(any(FollowupAbnormalReportRequest.class)))
+            .thenReturn(new FollowupAbnormalReportResponse(
+                "FE-001", "TASK-RETURN-001", "FE-NOTIFY-001", "trace-test"
+            ));
+
+        mockMvc.perform(post("/api/v1/engine/followup/abnormal-reports")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("medical-affairs")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(ABNORMAL_REPORT_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.returnTaskId").value("TASK-RETURN-001"))
+            .andExpect(jsonPath("$.data.notificationEventId").value("FE-NOTIFY-001"));
 
         verify(service).reportAbnormal(any(FollowupAbnormalReportRequest.class));
     }
@@ -300,5 +398,38 @@ class FollowupEngineControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(ABNORMAL_BODY))
             .andExpect(status().isUnauthorized());
+    }
+
+    // ── 6. POST /results ──────────────────────────────────────────────
+
+    private static final String RESULT_BODY = """
+        {
+          "planId": "PLAN-001",
+          "taskId": "TASK-001",
+          "questionnaireId": "FQ-001",
+          "resultPayload": "{\\"painScore\\": 2}",
+          "abnormalFlag": "N",
+          "packageVersion": "pkg-2026.06",
+          "idempotencyKey": "result-key-1"
+        }
+        """;
+
+    @Test
+    void backflowResult_TopLevelRoute_ReturnsContextSnapshotId() throws Exception {
+        when(service.backflowResult(any(FollowupResultBackflowRequest.class)))
+            .thenReturn(new FollowupResultBackflowResponse("FE-RESULT-001", "ctx-follow-1", "trace-test"));
+
+        mockMvc.perform(post("/api/v1/engine/followup/results")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("medical-affairs")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(RESULT_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.contextSnapshotId").value("ctx-follow-1"));
+
+        verify(service).backflowResult(any(FollowupResultBackflowRequest.class));
     }
 }

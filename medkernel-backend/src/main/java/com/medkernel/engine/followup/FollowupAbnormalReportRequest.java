@@ -10,5 +10,14 @@ public record FollowupAbnormalReportRequest(
     @NotBlank String planId,
     @NotNull FollowupEventType eventType,
     @NotBlank String payload,
-    String triggeredBy
-) {}
+    String triggeredBy,
+    String idempotencyKey
+) {
+    public FollowupAbnormalReportRequest(
+            String planId,
+            FollowupEventType eventType,
+            String payload,
+            String triggeredBy) {
+        this(planId, eventType, payload, triggeredBy, null);
+    }
+}

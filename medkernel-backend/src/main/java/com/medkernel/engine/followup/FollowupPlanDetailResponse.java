@@ -12,5 +12,22 @@ public record FollowupPlanDetailResponse(
     String encounterId,
     String diseaseCode,
     FollowupPlanStatus status,
-    List<FollowupTaskDetailResponse> tasks
-) {}
+    List<FollowupTaskDetailResponse> tasks,
+    FollowupModelStatus modelStatus
+) {
+    public FollowupPlanDetailResponse {
+        tasks = tasks == null ? List.of() : List.copyOf(tasks);
+        modelStatus = modelStatus == null ? FollowupModelStatus.MODEL_DISABLED : modelStatus;
+    }
+
+    public FollowupPlanDetailResponse(
+            String planId,
+            String tenantId,
+            String patientId,
+            String encounterId,
+            String diseaseCode,
+            FollowupPlanStatus status,
+            List<FollowupTaskDetailResponse> tasks) {
+        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, FollowupModelStatus.MODEL_DISABLED);
+    }
+}

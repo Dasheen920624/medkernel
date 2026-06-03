@@ -117,4 +117,40 @@ class FollowupEngineControllerSecurityTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
+
+    @Test
+    void testTopLevelQuestionnaireWithReadOnlyRole_ShouldReturnForbidden() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/followup/questionnaires")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "taskId": "TASK-001",
+                      "questionnaireTemplateId": "Q-TPL-1",
+                      "formData": "{\\"title\\": \\"出院后症状随访\\"}",
+                      "idempotencyKey": "questionnaire-key-1"
+                    }
+                    """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testTopLevelResultWithoutAuth_ShouldReturnUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/followup/results")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "planId": "PLAN-001",
+                      "taskId": "TASK-001",
+                      "questionnaireId": "FQ-001",
+                      "resultPayload": "{\\"painScore\\": 2}",
+                      "idempotencyKey": "result-key-1"
+                    }
+                    """))
+                .andExpect(status().isUnauthorized());
+    }
 }

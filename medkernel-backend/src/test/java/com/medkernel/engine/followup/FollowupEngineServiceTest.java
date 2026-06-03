@@ -1,24 +1,37 @@
 package com.medkernel.engine.followup;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import com.medkernel.engine.context.ContextSnapshotRequest;
+import com.medkernel.engine.context.ContextSnapshotResponse;
+import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -45,6 +58,8 @@ class FollowupEngineServiceTest {
     private FollowupQuestionnaireRepository questionnaireRepository;
     @Mock
     private FollowupEventRepository eventRepository;
+    @Mock
+    private ContextSnapshotService contextSnapshotService;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -129,5 +144,169 @@ class FollowupEngineServiceTest {
         assertNotNull(response);
         assertEquals(1, response.items().size());
         assertEquals("PLAN01", response.items().get(0).planId());
+    }
+
+    @Test
+    void generatePlanReusesIdempotencyKeyAndReportsModelDisabled() {
+        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
+            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE"),
+            "follow-plan-key-1", false
+        );
+        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.PENDING, null, null, "task-key-1", Instant.now(), "sys", Instant.now(),
+            "sys", "trace-123");
+
+        when(planRepository.findByTenantIdAndIdempotencyKey("tenant-1", "follow-plan-key-1"))
+            .thenReturn(Optional.of(plan));
+        when(taskRepository.findByTenantIdAndPlanId("tenant-1", "PLAN01"))
+            .thenReturn(List.of(task));
+
+        FollowupPlanDetailResponse response = service.generatePlan(request);
+
+        assertThat(response.planId()).isEqualTo("PLAN01");
+        assertThat(response.modelStatus()).isEqualTo(FollowupModelStatus.MODEL_DISABLED);
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void listTasksUsesPatientScopedServerPagination() {
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.parse("2026-06-04T00:00:00Z"), FollowupTaskStatus.PENDING, null, null, "task-key-1",
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+
+        when(taskRepository.countByTenantIdAndFilters("tenant-1", "PAT01", "PLAN01", "PENDING"))
+            .thenReturn(1L);
+        when(taskRepository.pageByTenantIdAndFilters("tenant-1", "PAT01", "PLAN01", "PENDING", 0, 10))
+            .thenReturn(List.of(task));
+
+        PageResponse<FollowupTaskDetailResponse> response = service.listTasks(
+            new FollowupTaskFilter("PAT01", "PLAN01", FollowupTaskStatus.PENDING),
+            new PageRequest(1, 10, null)
+        );
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).taskId()).isEqualTo("TASK01");
+        assertThat(response.items().get(0).planId()).isEqualTo("PLAN01");
+    }
+
+    @Test
+    void dispatchQuestionnaireIsIdempotentAndMarksTaskInProgress() {
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.PENDING, null, null, "task-key-1", Instant.now(), "sys", Instant.now(),
+            "sys", "trace-123");
+        FollowupQuestionnaire existing = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", null, null, "DISPATCHED", "questionnaire-key-1",
+            null, "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1", "trace-123"
+        );
+
+        when(questionnaireRepository.findByTenantIdAndIdempotencyKey("tenant-1", "questionnaire-key-1"))
+            .thenReturn(Optional.of(existing));
+
+        FollowupQuestionnaireResponse response = service.dispatchQuestionnaire(new FollowupQuestionnaireRequest(
+            "TASK01", "Q-TPL-1", "{\"title\":\"出院后症状随访\"}", null, null,
+            "questionnaire-key-1", "nurse-1", "FOLLOWUP_NURSE"
+        ));
+
+        assertThat(response.questionnaireId()).isEqualTo("FQ01");
+        assertThat(response.status()).isEqualTo("DISPATCHED");
+        verify(questionnaireRepository, never()).save(any(FollowupQuestionnaire.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+    }
+
+    @Test
+    void reportAbnormalCreatesReturnVisitTaskAndNotificationEvent() {
+        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.save(any(FollowupTask.class))).thenAnswer(inv -> {
+            FollowupTask t = inv.getArgument(0);
+            return new FollowupTask(10L, "TASK-RETURN", t.tenantId(), t.planId(), t.taskType(), t.dueDate(),
+                t.status(), t.executorId(), t.executorType(), t.idempotencyKey(), t.createdAt(), t.createdBy(),
+                t.updatedAt(), t.updatedBy(), t.traceId());
+        });
+        when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {
+            FollowupEvent e = inv.getArgument(0);
+            return new FollowupEvent(10L, e.eventId(), e.tenantId(), e.planId(), e.eventType(), e.payload(),
+                e.triggeredBy(), e.createdAt(), e.createdBy(), e.updatedAt(), e.updatedBy(), e.traceId());
+        });
+
+        FollowupAbnormalReportResponse response = service.reportAbnormal(new FollowupAbnormalReportRequest(
+            "PLAN01", FollowupEventType.ABNORMAL_RETURN, "{\"reason\":\"异常症状加重\"}",
+            "nurse-1", "abnormal-key-1"
+        ));
+
+        assertThat(response.returnTaskId()).isEqualTo("TASK-RETURN");
+        ArgumentCaptor<FollowupTask> taskCaptor = ArgumentCaptor.forClass(FollowupTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().taskType()).isEqualTo(FollowupTaskType.RETURN_VISIT);
+        assertThat(taskCaptor.getValue().status()).isEqualTo(FollowupTaskStatus.ABNORMAL_RETURN);
+
+        ArgumentCaptor<FollowupEvent> eventCaptor = ArgumentCaptor.forClass(FollowupEvent.class);
+        verify(eventRepository, org.mockito.Mockito.times(2)).save(eventCaptor.capture());
+        assertThat(eventCaptor.getAllValues())
+            .extracting(FollowupEvent::eventType)
+            .containsExactly(FollowupEventType.ABNORMAL_RETURN, FollowupEventType.NOTIFICATION_REQUESTED);
+    }
+
+    @Test
+    void reportAbnormalRejectsNonAbnormalEventType() {
+        ApiException exception = assertThrows(ApiException.class, () -> service.reportAbnormal(
+            new FollowupAbnormalReportRequest("PLAN01", FollowupEventType.RESULT_INFLOW, "{}", "nurse-1",
+                "abnormal-key-1")
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        verify(planRepository, never()).findByPlanId(any(String.class));
+        verify(taskRepository, never()).save(any(FollowupTask.class));
+        verify(eventRepository, never()).save(any(FollowupEvent.class));
+    }
+
+    @Test
+    void backflowResultCreatesFollowupContextSnapshot() {
+        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
+            Instant.now(), FollowupTaskStatus.COMPLETED, "nurse-1", "FOLLOWUP_NURSE", "task-key-1", Instant.now(),
+            "sys", Instant.now(), "nurse-1", "trace-123");
+        FollowupQuestionnaire questionnaire = new FollowupQuestionnaire(
+            1L, "FQ01", "tenant-1", "PLAN01", "TASK01", "Q-TPL-1",
+            "{\"title\":\"出院后症状随访\"}", "{\"painScore\":2}", new BigDecimal("2.00"), "COMPLETED",
+            "questionnaire-key-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1", Instant.now(), "nurse-1",
+            "trace-123"
+        );
+
+        when(planRepository.findByPlanId("PLAN01")).thenReturn(Optional.of(plan));
+        when(taskRepository.findByTaskId("TASK01")).thenReturn(Optional.of(task));
+        when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
+        when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("result-key-1")))
+            .thenReturn(new ContextSnapshotResponse(
+                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, null, null, null, null,
+                QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
+            ));
+        when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {
+            FollowupEvent e = inv.getArgument(0);
+            return new FollowupEvent(10L, "FE01", e.tenantId(), e.planId(), e.eventType(), e.payload(),
+                e.triggeredBy(), e.createdAt(), e.createdBy(), e.updatedAt(), e.updatedBy(), e.traceId());
+        });
+
+        FollowupResultBackflowResponse response = service.backflowResult(new FollowupResultBackflowRequest(
+            "PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
+            "pkg-2026.06", "result-key-1"
+        ));
+
+        assertThat(response.contextSnapshotId()).isEqualTo("ctx-follow-1");
+        ArgumentCaptor<ContextSnapshotRequest> snapshotCaptor = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
+        verify(contextSnapshotService).create(snapshotCaptor.capture(), eq("result-key-1"));
+        assertThat(snapshotCaptor.getValue().resources().patient().name()).isEqualTo("随访回流未提供患者姓名");
+        assertThat(snapshotCaptor.getValue().resources().patient().qualityStatus()).isEqualTo(QualityStatus.PARTIAL);
+        assertThat(snapshotCaptor.getValue().resources().followUps()).hasSize(1);
+        assertThat(snapshotCaptor.getValue().resources().followUps().get(0).followUpId()).isEqualTo("FQ01");
+        assertThat(snapshotCaptor.getValue().resources().followUps().get(0).abnormalFlag()).isEqualTo("N");
+        verify(eventRepository).save(any(FollowupEvent.class));
     }
 }

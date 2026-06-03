@@ -5,7 +5,9 @@ package com.medkernel.engine.followup;
  */
 public enum FollowupTaskStatus {
     PENDING,
+    IN_PROGRESS,
     COMPLETED,
+    ABNORMAL_RETURN,
     OVERDUE,
     CANCELLED
 }
