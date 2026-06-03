@@ -131,6 +131,10 @@ type PathwayEdgeFormValue = {
   fromNodeCode?: string;
   toNodeCode?: string;
   edgeType?: PathwayEdgeType;
+  conditionFact?: string;
+  conditionOperator?: "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
+  conditionValue?: string;
+  conditionValueKind?: "string" | "number" | "boolean";
   conditionJson?: string;
   priority?: number;
 };
@@ -181,6 +185,21 @@ const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
   { value: "PHYSICIAN_DECISION", label: "PHYSICIAN_DECISION 医师决策" },
 ];
 
+const pathwayConditionOperatorOptions = [
+  { value: "equals", label: "等于" },
+  { value: "not_equals", label: "不等于" },
+  { value: "gt", label: "大于" },
+  { value: "gte", label: "大于等于" },
+  { value: "lt", label: "小于" },
+  { value: "lte", label: "小于等于" },
+];
+
+const pathwayConditionValueKindOptions = [
+  { value: "string", label: "文本" },
+  { value: "number", label: "数值" },
+  { value: "boolean", label: "布尔" },
+];
+
 function cleanText(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
@@ -208,6 +227,39 @@ function parseLooseJson(value?: string | null) {
 
 function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
+}
+
+function normalizePathwayConditionValue(value?: string, kind = "string") {
+  const normalized = cleanText(value);
+  if (normalized === undefined) return undefined;
+  if (kind === "number") {
+    const numeric = Number(normalized);
+    return Number.isFinite(numeric) ? numeric : normalized;
+  }
+  if (kind === "boolean") {
+    return normalized.toLowerCase() === "true";
+  }
+  return normalized;
+}
+
+function inferPathwayConditionValueKind(
+  value: unknown,
+): NonNullable<PathwayEdgeFormValue["conditionValueKind"]> {
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  return "string";
+}
+
+function normalizeEdgeCondition(edge: PathwayEdgeFormValue) {
+  const fact = cleanText(edge.conditionFact);
+  if (fact) {
+    return {
+      fact,
+      operator: edge.conditionOperator ?? "equals",
+      value: normalizePathwayConditionValue(edge.conditionValue, edge.conditionValueKind),
+    };
+  }
+  return parseConditionJson(edge.conditionJson);
 }
 
 function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
@@ -238,7 +290,7 @@ function normalizeEdges(edges?: PathwayEdgeFormValue[]) {
       fromNodeCode: cleanText(edge.fromNodeCode) ?? "",
       toNodeCode: cleanText(edge.toNodeCode) ?? "",
       edgeType: edge.edgeType ?? "DEFAULT",
-      condition: parseConditionJson(edge.conditionJson),
+      condition: normalizeEdgeCondition(edge),
       priority: Number(edge.priority ?? index + 1),
     }));
 }
@@ -349,6 +401,40 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       .map((binding) => [binding.nodeCode, binding.metricCode]),
   );
 
+  const edgeValues = (payload.edges ?? []).map<PathwayEdgeFormValue>((edge, index) => {
+    const condition = edge.condition;
+    const base: PathwayEdgeFormValue = {
+      edgeCode: cleanText(edge.edgeCode),
+      fromNodeCode: cleanText(edge.fromNodeCode),
+      toNodeCode: cleanText(edge.toNodeCode),
+      edgeType: edge.edgeType ?? "DEFAULT",
+      priority: Number(edge.priority ?? index + 1),
+    };
+    if (
+      condition &&
+      typeof condition === "object" &&
+      !Array.isArray(condition) &&
+      typeof (condition as Record<string, unknown>).fact === "string"
+    ) {
+      const conditionRecord = condition as Record<string, unknown>;
+      const value = conditionRecord.value;
+      return {
+        ...base,
+        conditionFact: cleanText(conditionRecord.fact as string),
+        conditionOperator:
+          typeof conditionRecord.operator === "string"
+            ? (conditionRecord.operator as PathwayEdgeFormValue["conditionOperator"])
+            : "equals",
+        conditionValue: value === undefined || value === null ? undefined : String(value),
+        conditionValueKind: inferPathwayConditionValueKind(value),
+      };
+    }
+    return {
+      ...base,
+      conditionJson: condition === undefined ? undefined : formatJson(condition),
+    };
+  });
+
   return {
     nodes: (payload.nodes ?? []).map<PathwayNodeFormValue>((node, index) => ({
       nodeCode: cleanText(node.nodeCode),
@@ -363,14 +449,7 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       terminal: Boolean(node.terminal),
       metricCode: metricByNode.get(node.nodeCode),
     })),
-    edges: (payload.edges ?? []).map<PathwayEdgeFormValue>((edge, index) => ({
-      edgeCode: cleanText(edge.edgeCode),
-      fromNodeCode: cleanText(edge.fromNodeCode),
-      toNodeCode: cleanText(edge.toNodeCode),
-      edgeType: edge.edgeType ?? "DEFAULT",
-      conditionJson: edge.condition === undefined ? undefined : formatJson(edge.condition),
-      priority: Number(edge.priority ?? index + 1),
-    })),
+    edges: edgeValues,
   };
 }
 
@@ -460,6 +539,8 @@ export default function PathwayTemplates() {
 
   const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
+  const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
+  const [detailExpertMode, setDetailExpertMode] = useState<boolean>(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [detailActiveTab, setDetailActiveTab] = useState<string>("l1");
   const [releaseReason, setReleaseReason] = useState<string>("");
@@ -549,6 +630,17 @@ export default function PathwayTemplates() {
     setSimulationResponse(null);
   };
 
+  const toggleCreateExpertMode = (checked: boolean) => {
+    setCreateExpertMode(checked);
+  };
+
+  const toggleDetailExpertMode = (checked: boolean) => {
+    setDetailExpertMode(checked);
+    if (!checked && detailActiveTab === "l3") {
+      setDetailActiveTab("l2");
+    }
+  };
+
   const handleCreatePackage = async () => {
     try {
       const values = await packageForm.validateFields();
@@ -624,6 +716,7 @@ export default function PathwayTemplates() {
     try {
       const values = templateForm.getFieldsValue();
       setPathwayDslJson(formatJson(buildDraftDsl(values.nodes, values.edges)));
+      setCreateExpertMode(true);
       messageApi.success("已从 L2 节点画布同步到 L3 DSL");
     } catch (error: unknown) {
       messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成 DSL");
@@ -855,6 +948,7 @@ export default function PathwayTemplates() {
           onClick={() => {
             setSelectedTemplateId(record.templateId);
             setDetailActiveTab("l1");
+            setDetailExpertMode(false);
             setReleaseReason("");
             setRollbackTargetTemplateId(undefined);
             setSimulateStartNode(record.startNodeCode ?? "");
@@ -1193,16 +1287,40 @@ export default function PathwayTemplates() {
                             <InputNumber min={1} precision={0} className="w-full" />
                           </Form.Item>
                         </Col>
-                        <Col span={18}>
+                        <Col span={6}>
                           <Form.Item
                             {...fieldProps}
-                            name={[field.name, "conditionJson"]}
-                            label="条件 DSL JSON"
+                            name={[field.name, "conditionFact"]}
+                            label="条件字段路径"
                           >
-                            <TextArea
-                              rows={2}
-                              placeholder='{"fact":"...","operator":"equals","value":true}'
-                            />
+                            <Input placeholder="如 context.readyForFollowup" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={5}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "conditionOperator"]}
+                            label="条件算子"
+                          >
+                            <Select options={pathwayConditionOperatorOptions} />
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "conditionValueKind"]}
+                            label="值类型"
+                          >
+                            <Select options={pathwayConditionValueKindOptions} />
+                          </Form.Item>
+                        </Col>
+                        <Col span={3}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "conditionValue"]}
+                            label="条件值"
+                          >
+                            <Input placeholder="如 true" />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1214,6 +1332,8 @@ export default function PathwayTemplates() {
                   onClick={() =>
                     add({
                       edgeType: "DEFAULT",
+                      conditionOperator: "equals",
+                      conditionValueKind: "string",
                       priority: fields.length + 1,
                     })
                   }
@@ -1226,36 +1346,45 @@ export default function PathwayTemplates() {
         </div>
       ),
     },
-    {
-      key: "l3",
-      label: "L3 DSL",
-      children: (
-        <div className="pt-3">
-          <Space direction="vertical" size="middle" className="mk-full-width">
-            <Space className="mk-flex-between mk-full-width">
-              <div className="text-sm font-semibold text-gray-800">路径 DSL JSON</div>
-              <Space>
-                <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
-                  重新从 L2 生成
-                </Button>
-                <Button type="primary" icon={<SwapOutlined />} onClick={syncDslToCanvas}>
-                  回填到 L2
-                </Button>
-              </Space>
-            </Space>
-            <Form.Item label="路径 DSL JSON" htmlFor="pathway-dsl-json" className="mb-0">
-              <TextArea
-                id="pathway-dsl-json"
-                value={pathwayDslJson}
-                rows={18}
-                onChange={(event) => setPathwayDslJson(event.target.value)}
-                className="font-normal text-xs"
-              />
-            </Form.Item>
-          </Space>
-        </div>
-      ),
-    },
+    ...(createExpertMode
+      ? [
+          {
+            key: "l3",
+            label: "L3 DSL",
+            children: (
+              <div className="pt-3">
+                <Space direction="vertical" size="middle" className="mk-full-width">
+                  <Space className="mk-flex-between mk-full-width">
+                    <div className="text-sm font-semibold text-gray-800">路径 DSL JSON</div>
+                    <Space>
+                      <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
+                        重新从 L2 生成
+                      </Button>
+                      <Button type="primary" icon={<SwapOutlined />} onClick={syncDslToCanvas}>
+                        回填到 L2
+                      </Button>
+                    </Space>
+                  </Space>
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="L3 是专家模式，普通路径配置请优先使用 L2 节点画布。"
+                  />
+                  <Form.Item label="路径 DSL JSON" htmlFor="pathway-dsl-json" className="mb-0">
+                    <TextArea
+                      id="pathway-dsl-json"
+                      value={pathwayDslJson}
+                      rows={18}
+                      onChange={(event) => setPathwayDslJson(event.target.value)}
+                      className="font-normal text-xs"
+                    />
+                  </Form.Item>
+                </Space>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const snapshotList = snapshotsData?.items ?? [];
@@ -1485,18 +1614,22 @@ export default function PathwayTemplates() {
             </Space>
           ),
         },
-        {
-          key: "l3",
-          label: "L3 DSL",
-          children: (
-            <TextArea
-              value={buildDetailDslPreview(detailData)}
-              rows={22}
-              readOnly
-              className="font-normal text-xs mt-3"
-            />
-          ),
-        },
+        ...(detailExpertMode
+          ? [
+              {
+                key: "l3",
+                label: "L3 DSL",
+                children: (
+                  <TextArea
+                    value={buildDetailDslPreview(detailData)}
+                    rows={22}
+                    readOnly
+                    className="font-normal text-xs mt-3"
+                  />
+                ),
+              },
+            ]
+          : []),
         {
           key: "simulate",
           label: (
@@ -1755,6 +1888,7 @@ export default function PathwayTemplates() {
                   edges: [],
                 });
                 setPathwayDslJson(buildDraftDslPreview([], []));
+                setCreateExpertMode(false);
                 setCreateTemplateVisible(true);
               }}
               className="rounded-lg font-medium bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
@@ -1875,6 +2009,19 @@ export default function PathwayTemplates() {
         destroyOnClose
       >
         <Form form={templateForm} layout="vertical" className="mt-4">
+          <Space className="mk-flex-between mk-full-width mb-4">
+            <span className="text-sm text-gray-500">
+              普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。
+            </span>
+            <Space>
+              <span>专家模式</span>
+              <Switch
+                aria-label="专家模式"
+                checked={createExpertMode}
+                onChange={toggleCreateExpertMode}
+              />
+            </Space>
+          </Space>
           <Tabs defaultActiveKey="l1" items={createLayerItems} />
         </Form>
       </Modal>
@@ -1899,6 +2046,7 @@ export default function PathwayTemplates() {
         onClose={() => {
           setSelectedTemplateId(null);
           setDetailActiveTab("l1");
+          setDetailExpertMode(false);
           setReleaseReason("");
           setRollbackTargetTemplateId(undefined);
           setSimulateStartNode("");
@@ -1920,6 +2068,19 @@ export default function PathwayTemplates() {
               showIcon
               className="mb-6 rounded-lg"
             />
+            <Space className="mk-flex-between mk-full-width mb-4">
+              <span className="text-sm text-gray-500">
+                路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在专家模式显示。
+              </span>
+              <Space>
+                <span>专家模式</span>
+                <Switch
+                  aria-label="专家模式"
+                  checked={detailExpertMode}
+                  onChange={toggleDetailExpertMode}
+                />
+              </Space>
+            </Space>
             <Tabs
               activeKey={detailActiveTab}
               onChange={setDetailActiveTab}
