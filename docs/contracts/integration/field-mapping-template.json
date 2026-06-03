@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "medkernel.integration.field-mapping.v1",
+  "ownerCard": "INTEG-02",
+  "targetContract": "API-01 standard context snapshot",
+  "terminologyOwner": "TERM-01",
+  "requiredColumns": [
+    "externalField",
+    "standardResource",
+    "standardPath",
+    "terminologyStrategy",
+    "required",
+    "sourceEvidence"
+  ],
+  "columns": [
+    {
+      "name": "externalField",
+      "description": "External system field identifier, such as HL7 segment path, FHIR element path, REST JSON path, or file column name."
+    },
+    {
+      "name": "externalName",
+      "description": "Vendor-facing field label."
+    },
+    {
+      "name": "standardResource",
+      "description": "One API-01 standard context resource: Patient, Encounter, Condition, Observation, Medication, Procedure, DiagnosticReport, Document, NursingAssessment, CarePlan, FollowUp, or Claim."
+    },
+    {
+      "name": "standardPath",
+      "description": "MedKernel canonical path inside the target standard resource."
+    },
+    {
+      "name": "required",
+      "description": "Whether missing value blocks ingestion for the current event type."
+    },
+    {
+      "name": "terminologyStrategy",
+      "description": "NONE, EXACT_CODE, TERM_01_MAPPING, or MANUAL_REVIEW. Clinical codes must not be silently guessed."
+    },
+    {
+      "name": "sourceEvidence",
+      "description": "Whether the original source field and raw value must be retained in audit evidence."
+    },
+    {
+      "name": "missingBehavior",
+      "description": "REJECT, ACCEPT_WITH_QUALITY_WARNING, or OPTIONAL_EMPTY."
+    }
+  ],
+  "mappingRule": {
+    "tenantScopeRequired": true,
+    "orgScopeRequired": true,
+    "traceIdRequired": true,
+    "rawPayloadRetention": "Store only governed audit evidence; do not persist secrets or excessive patient payload in connector config.",
+    "terminology": {
+      "normalizationOwnerCard": "TERM-01",
+      "highRiskAmbiguity": "MANUAL_REVIEW",
+      "unmappedCodeBehavior": "ACCEPT_WITH_QUALITY_WARNING_OR_REJECT_BY_EVENT_POLICY"
+    }
+  }
+}

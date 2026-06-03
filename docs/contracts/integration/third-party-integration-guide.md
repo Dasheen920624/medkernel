@@ -1,0 +1,85 @@
+# 第三方接入契约指南（INTEG-02）
+
+> 适用对象：院内信息科、第三方厂商、实施工程师。本文档只描述当前已经存在的 INTEG-01 对接总线端点；FHIR R4/R5 资源门面由 OPT-01 交付前，不发布运行 URL。
+
+## 接入边界
+
+所有 HIS、EMR、LIS、PACS、医保、病案、护理、手麻、区域平台和 Provider 接入都必须走统一对接链路：适配器、标准上下文、临床事件、嵌入、回调、包发布同步和审计证据。外部系统不绕引擎直写医疗结论、医嘱、病历、法定上报、支付或设备控制。
+
+## 协议矩阵
+
+| 协议 | 当前入口 | 说明 | 断连状态 |
+| --- | --- | --- | --- |
+| Webhook | `/api/v1/engine/integration/webhooks/{id}/inbound` | 使用 `X-MedKernel-Timestamp` 和 `X-MedKernel-Signature` 做 HMAC-SHA256 验签 | `NOT_CONNECTED` |
+| REST / WebService / HL7 适配器 | `/api/v1/engine/integration/adapters` | 先登记适配器、字段映射和真实连接配置；没有真实连接器时只登记诚实状态 | `NOT_CONNECTED` |
+| 出站异步同步 | `/api/v1/engine/integration/messages/outbound` | 主流程不等待外部回执；失败进入日志、重试或死信 | `NOT_CONNECTED` / `NOT_SYNCED` |
+| FHIR / CDS Hooks 风格门面 | OPT-01 待交付 | INTEG-02 只保留接入指引，不写不存在的运行端点 | N/A |
+
+## 数据流
+
+1. 信息科登记适配器或 Webhook 订阅，配置租户、组织作用域、协议类型和字段映射。
+2. 外部系统发送入站消息或 MedKernel 登记出站同步消息。
+3. 服务端校验租户、权限、签名、幂等键和字段映射。
+4. 字段映射进入 API-01 标准上下文；临床编码经 TERM-01 字典映射归一，无法确定时进入人工待裁或质量告警。
+5. 对接日志、traceId、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
+
+## OpenAPI
+
+- 统一服务契约组：`/v3/api-docs/medkernel-service-contracts`
+- 第三方接入独立组：`/v3/api-docs/medkernel-third-party-integration`
+- 本仓库快照：`docs/contracts/integration/integration-openapi.paths.json`
+- CI 一致性：`IntegrationContractDocumentationTest` 通过反射比对 `IntegrationController` 当前端点与快照，防止幽灵端点和遗漏端点。
+
+## 字段映射
+
+字段映射模板见 `field-mapping-template.json`，样例见 `field-mapping-example-his-adt.json`。所有映射必须写明：
+
+- 外部字段路径和外部字段名；
+- API-01 标准资源与标准路径；
+- 是否必填、缺失行为和原始字段证据；
+- 临床编码是否经 TERM-01 归一；
+- 无法确认的高风险编码不得自动猜测，必须进入人工复核。
+
+## 鉴权与签名
+
+- 平台账号或受委托身份完成认证后访问管理端点；接口权限由 `integration.read`、`integration.write`、`integration.execute` 控制。
+- Webhook 入站必须带 `X-MedKernel-Timestamp` 与 `X-MedKernel-Signature`。
+- 签名基于租户内 Webhook 密钥和原始 payload 计算 HMAC-SHA256；服务端常量时间比较，失败拒绝并审计。
+- 密钥、令牌、患者原始 payload 不得写入适配器配置、日志或文档样例。
+
+## 幂等
+
+- 写操作建议传 `Idempotency-Key`，同一操作重试不得产生重复副作用。
+- 入站 Webhook 使用 `messageId` 作为业务幂等键。
+- 出站同步使用 `messageId` 作为业务幂等键。
+- 人工重试和死信重放必须保留原消息证据，新建补偿消息也要有 traceId。
+
+## 回调约定
+
+- 回调目标必须登记在 Webhook 订阅内，事件列表必须可审计。
+- 回调测试失败只能返回失败或 `NOT_CONNECTED`，不能写成成功。
+- 第三方系统重放同一消息时必须复用同一 `messageId`。
+
+## 降级
+
+- 外部系统断连：`NOT_CONNECTED`。
+- 包发布或同步无真实通道：`NOT_SYNCED`。
+- 字段映射缺失但可留待质量治理：返回部分成功或质量告警；高风险必填字段缺失必须拒绝。
+- 降级不阻断院内主流程，但必须留下日志、traceId、审计和可重试证据。
+
+## 审计
+
+所有创建、更新、健康检查、Webhook 测试、入站消息、出站消息、重试和死信重放都必须写审计。审计记录至少包含租户、组织作用域、用户、traceId、动作、目标对象、结果、错误码和时间。读操作通过日志与 traceId 支撑问题定位。
+
+## 验收清单
+
+| 类别 | 检查项 | 通过标准 |
+| --- | --- | --- |
+| 连通 | 适配器登记后健康检查 | 无真实连接器时为 `NOT_CONNECTED`，不得伪造 `HEALTHY` |
+| 字段 | 按模板映射到 API-01 标准上下文 | 必填字段有来源证据，编码经 TERM-01 或进入人工待裁 |
+| 鉴权 | 缺权限访问管理端点 | 返回 403 ProblemDetail，带 traceId |
+| 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
+| 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |
+| 回调 | 回调测试目标不可达 | 返回失败或 `NOT_CONNECTED` |
+| 降级 | 外部系统关闭 | 主流程不中断，集成状态为 `NOT_CONNECTED` / `NOT_SYNCED` |
+| 审计 | 执行类操作 | 可按 traceId 查到动作、目标、结果和错误码 |

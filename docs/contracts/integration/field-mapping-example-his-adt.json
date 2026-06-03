@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "medkernel.integration.field-mapping.v1",
+  "exampleName": "De-identified HIS ADT A08 to API-01 context snapshot",
+  "sourceSystem": {
+    "adapterId": "his-adt-main",
+    "protocolType": "HL7",
+    "messageType": "ADT_A08"
+  },
+  "target": {
+    "apiCard": "API-01",
+    "contextResourceSet": [
+      "Patient",
+      "Encounter",
+      "Observation"
+    ]
+  },
+  "mappings": [
+    {
+      "externalField": "PID-3.1",
+      "externalName": "patient identifier",
+      "standardResource": "Patient",
+      "standardPath": "identifiers[].value",
+      "required": true,
+      "terminologyStrategy": "NONE",
+      "sourceEvidence": true,
+      "missingBehavior": "REJECT",
+      "terminology": {
+        "mappingRequired": false,
+        "ownerCard": "N/A"
+      }
+    },
+    {
+      "externalField": "PID-5.1",
+      "externalName": "patient display name",
+      "standardResource": "Patient",
+      "standardPath": "name.display",
+      "required": true,
+      "terminologyStrategy": "NONE",
+      "sourceEvidence": true,
+      "missingBehavior": "REJECT",
+      "terminology": {
+        "mappingRequired": false,
+        "ownerCard": "N/A"
+      }
+    },
+    {
+      "externalField": "PV1-19.1",
+      "externalName": "visit number",
+      "standardResource": "Encounter",
+      "standardPath": "identifier.value",
+      "required": true,
+      "terminologyStrategy": "NONE",
+      "sourceEvidence": true,
+      "missingBehavior": "REJECT",
+      "terminology": {
+        "mappingRequired": false,
+        "ownerCard": "N/A"
+      }
+    },
+    {
+      "externalField": "PV1-2",
+      "externalName": "patient class",
+      "standardResource": "Encounter",
+      "standardPath": "class.code",
+      "required": true,
+      "terminologyStrategy": "TERM_01_MAPPING",
+      "sourceEvidence": true,
+      "missingBehavior": "ACCEPT_WITH_QUALITY_WARNING",
+      "terminology": {
+        "mappingRequired": true,
+        "ownerCard": "TERM-01",
+        "standardCodeSystem": "MEDKERNEL_ENCOUNTER_CLASS"
+      }
+    },
+    {
+      "externalField": "OBX-3.1",
+      "externalName": "observation code",
+      "standardResource": "Observation",
+      "standardPath": "code.code",
+      "required": false,
+      "terminologyStrategy": "TERM_01_MAPPING",
+      "sourceEvidence": true,
+      "missingBehavior": "ACCEPT_WITH_QUALITY_WARNING",
+      "terminology": {
+        "mappingRequired": true,
+        "ownerCard": "TERM-01",
+        "standardCodeSystem": "LOINC"
+      }
+    },
+    {
+      "externalField": "OBX-5",
+      "externalName": "observation value",
+      "standardResource": "Observation",
+      "standardPath": "value.raw",
+      "required": false,
+      "terminologyStrategy": "NONE",
+      "sourceEvidence": true,
+      "missingBehavior": "OPTIONAL_EMPTY",
+      "terminology": {
+        "mappingRequired": false,
+        "ownerCard": "N/A"
+      }
+    }
+  ],
+  "acceptanceChecks": [
+    "All required fields have source evidence.",
+    "Unmapped clinical codes are routed to TERM-01 mapping or manual review.",
+    "No mapping grants permission to write orders, medical records, reporting, payment, or device control directly."
+  ]
+}

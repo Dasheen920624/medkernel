@@ -23,4 +23,12 @@ public class OpenApiContractConfiguration {
             .pathsToMatch(paths.toArray(String[]::new))
             .build();
     }
+
+    @Bean
+    public GroupedOpenApi medkernelThirdPartyIntegrationOpenApi() {
+        return GroupedOpenApi.builder()
+            .group("medkernel-third-party-integration")
+            .pathsToMatch("/api/v1/engine/integration/**")
+            .build();
+    }
 }

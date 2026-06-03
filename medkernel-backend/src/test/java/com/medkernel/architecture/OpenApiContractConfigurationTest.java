@@ -20,4 +20,12 @@ class OpenApiContractConfigurationTest {
             .contains("/api/v1/engine/rule/**")
             .contains("/api/v1/engine/pathway/**");
     }
+
+    @Test
+    void thirdPartyIntegrationOpenApiGroupIsDeclaredForVendorOnboarding() {
+        GroupedOpenApi api = new OpenApiContractConfiguration().medkernelThirdPartyIntegrationOpenApi();
+
+        assertThat(api).isNotNull();
+        assertThat(ServiceContractCatalog.openApiPaths()).contains("/api/v1/engine/integration/**");
+    }
 }
