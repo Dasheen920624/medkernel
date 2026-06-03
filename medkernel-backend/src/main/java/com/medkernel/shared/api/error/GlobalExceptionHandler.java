@@ -17,6 +17,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -40,6 +41,7 @@ import jakarta.validation.ConstraintViolationException;
  *   <tr><td>{@link MethodArgumentNotValidException}（{@code @Valid} 失败）</td><td>{@link ErrorCode#VALIDATION_FAILED}</td><td>400</td></tr>
  *   <tr><td>{@link ConstraintViolationException}（路径 / 查询参数校验失败）</td><td>{@link ErrorCode#VALIDATION_FAILED}</td><td>400</td></tr>
  *   <tr><td>{@link HttpMessageNotReadableException}（JSON 损坏）</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
+ *   <tr><td>{@link MissingRequestHeaderException}</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
  *   <tr><td>{@link MissingServletRequestParameterException}</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
  *   <tr><td>{@link MethodArgumentTypeMismatchException}</td><td>{@link ErrorCode#BAD_REQUEST}</td><td>400</td></tr>
  *   <tr><td>{@link AuthenticationException}</td><td>{@link ErrorCode#UNAUTHORIZED}</td><td>401</td></tr>
@@ -98,6 +100,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ProblemDetail> handleMissingParam(MissingServletRequestParameterException ex) {
         String message = "缺少必填参数 " + ex.getParameterName();
+        return problemResponse(ErrorCode.BAD_REQUEST, message);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ProblemDetail> handleMissingHeader(MissingRequestHeaderException ex) {
+        String message = "缺少必填请求头 " + ex.getHeaderName();
         return problemResponse(ErrorCode.BAD_REQUEST, message);
     }
 

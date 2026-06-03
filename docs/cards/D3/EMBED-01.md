@@ -18,8 +18,8 @@
 已有实质基础：`engine/embed/` 下 `EmbedEngineService` / `EmbedEngineController` + `EmbedLaunchToken` + `EmbedLaunchContextResponse` + `EmbedFeedbackRequest` + 安全/契约测试；前端 `clinical/EmbedLaunch.tsx`（路由 `/embed/launch`）。本卡＝把 token 一次性/过期/白名单 + 三路集成 + 事件契约框架化为引擎核心。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 token 生命周期：签发→一次性消费→失效；过期/已用/撤销均拒绝。
-- [ ] FR-2 白名单：消费时校验 origin/宿主在白名单；越权拒绝并审计。
+- [x] FR-1 token 生命周期：签发→一次性消费→失效；过期/已用/撤销均拒绝。
+- [x] FR-2 白名单：消费时校验 origin/宿主在白名单；越权拒绝并审计。
 - [ ] FR-3 三路集成：iframe / SDK / 纯 API 共享同一 token + 上下文契约。
 - [ ] FR-4 事件契约：CDS Hooks 风格 6 触发点（[OPT-02](OPT-02.md)）+ 反馈回调。
 - [ ] FR-5 降级：宿主断连/引擎不可用 → `NOT_CONNECTED`/`MODEL_DISABLED`，不阻断宿主、不伪造卡。
@@ -53,7 +53,7 @@
 - 本卡落点：安全可控三路嵌入 + token 生命周期，对外契约归 [API-11](API-11.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：token 一次性、过期/越权/非白名单拒绝且审计。
+- [x] AC-1（FR-1/2）：token 一次性、过期/越权/非白名单拒绝且审计。
 - [ ] AC-2（FR-3/4）：三路集成契约一致；事件/回调可达。
 - [ ] AC-3（FR-5）：断连/关模型诚实降级、不阻断宿主。
 - 关联 A1–A9 剧本：A4 嵌入触发。
@@ -69,3 +69,10 @@
 - 代码 permalink：`engine/embed` token + 三路集成 + 白名单。
 - 测试：token 一次性/过期/白名单/降级 + 安全测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
+
+## PR1 证据（token 生命周期 + 白名单）
+
+- 代码范围：`EmbedEngineService.validateAndExchange` 强制非空 `Origin` 白名单校验，校验失败写失败审计并拒绝消费；`EmbedEngineController` 将 `/launch` 的 `Origin` 请求头改为必填；`GlobalExceptionHandler` 补齐缺少请求头的 400 标准 `ProblemDetail`，避免误报 500。
+- 红绿证据：新增 `validateAndExchange_MissingOriginThrowsForbiddenBeforeConsumingToken` 与 `launchExchangeWithReadRoleButMissingOrigin_ShouldReturnBadRequest`，红灯先分别失败于旧逻辑返回 `ENG_EMBED_005` 与 200；修复后目标测试转绿。
+- 本地验证：`mvn -q -Dtest=EmbedEngineServiceTest,EmbedEngineControllerTest,EmbedEngineControllerSecurityTest test` 通过；`mvn -q test` 通过，H2 / PostgreSQL 15.18 / Oracle 21.3 均迁移至 V71 并二次 no-op；`npm run verify` 51 文件 / 311 测试通过；`npm run build` 通过，既有 React Router / act warning 与 `vendor-antd` 大 chunk 警告仍归 [DEFER-003](../../audit/deferred-issues.md)。
+- T-GATE：脚本自测 34/34、真实性全量扫描 953 文件、配置边界 inventory 扫描 891 文件、迁移 changed 扫描 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 通过；提交后需复跑 changed-mode T-GATE。

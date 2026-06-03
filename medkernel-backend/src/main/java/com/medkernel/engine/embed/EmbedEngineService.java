@@ -113,16 +113,8 @@ public class EmbedEngineService {
             });
 
         String tenantId = entity.tenantId();
+        requireAllowedOrigin(tenantId, originHeader, request.token());
         validateLaunchContract(request, entity);
-
-        // 1. 域名白名单校验
-        if (originHeader != null && !originHeader.isBlank()) {
-            boolean allowed = originRepo.findByTenantIdAndOrigin(tenantId, originHeader).isPresent();
-            if (!allowed) {
-                publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + originHeader);
-                throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + originHeader);
-            }
-        }
 
         // 2. 令牌状态与时效性校验
         if (EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
@@ -276,6 +268,19 @@ public class EmbedEngineService {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
                 "CDS Hook 实例不匹配 token=" + request.token());
             throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 实例与启动令牌不匹配");
+        }
+    }
+
+    private void requireAllowedOrigin(String tenantId, String originHeader, String token) {
+        if (!hasText(originHeader)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息 token=" + token);
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息");
+        }
+        String origin = originHeader.trim();
+        boolean allowed = originRepo.findByTenantIdAndOrigin(tenantId, origin).isPresent();
+        if (!allowed) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + origin);
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + origin);
         }
     }
 

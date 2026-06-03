@@ -26,6 +26,8 @@ import com.medkernel.shared.context.RequestContext;
 @ActiveProfiles("dev")
 class EmbedEngineControllerSecurityTest {
 
+    private static final String TRUSTED_ORIGIN = "https://his.hospital.com";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -123,8 +125,23 @@ class EmbedEngineControllerSecurityTest {
                     .claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("doctor")))
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .header("Origin", TRUSTED_ORIGIN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LAUNCH_EXCHANGE_BODY))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void launchExchangeWithReadRoleButMissingOrigin_ShouldReturnBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/embed/launch")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(LAUNCH_EXCHANGE_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-001"));
     }
 }
