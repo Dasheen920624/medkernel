@@ -19,11 +19,11 @@
 页面**已存在待真实化**：`pages/tenant/TerminologyMapping`（路由 `/terminology/mapping` 已注册 sectionKey `pilot-setup`，`routes.ts` 有 `terminologyMappingExperience` 占位：实施/信息科/医务处核查映射）。本卡＝接 [API-04](API-04.md) 真实候选/高危/发布 + 六态/RBAC。
 
 ## 功能要求（原子可测条目）
-- [ ] **FR-1 字典浏览**：标准（ICD-10/ICD-9-CM-3/药品本位码/LOINC）+ 院内字典分页（[API-13](../D0/API-13.md)）。
-- [ ] **FR-2 候选 + 高危红标**：候选含语义匹配分；**高危近似（钾/钠、肌钙蛋白 T/I、左/右、剂量量级）红标 + 禁批量确认按钮置灰**（[TERM-01](TERM-01.md) MED-C1）。
-- [ ] **FR-3 逐条确认**：高危映射逐条 + 二次确认弹层；普通映射可常规确认；冲突待裁可见。
-- [ ] **FR-4 映射包发布**：映射包 7 步流灰度/全量/回滚（[SYS-04](SYS-04.md)，StepFlow [INFRA-09](../D1/INFRA-09.md)）。
-- [ ] **FR-5 六态 + RBAC**：六态齐全；仅信息科/专科专家·医务处可操作；数据按 `OrgContext`。
+- [x] **FR-1 字典浏览**：标准（ICD-10/ICD-9-CM-3/药品本位码/LOINC）+ 院内字典分页（[API-13](../D0/API-13.md)）。
+- [x] **FR-2 候选 + 高危红标**：候选含语义匹配分；**高危近似（钾/钠、肌钙蛋白 T/I、左/右、剂量量级）红标 + 禁批量确认按钮置灰**（[TERM-01](TERM-01.md) MED-C1）。
+- [x] **FR-3 逐条确认**：高危映射逐条 + 二次确认弹层；普通映射可常规确认；冲突待裁可见。
+- [x] **FR-4 映射包发布**：映射包 7 步流灰度/全量/回滚（[SYS-04](SYS-04.md)，StepFlow [INFRA-09](../D1/INFRA-09.md)）。
+- [x] **FR-5 六态 + RBAC**：六态齐全；仅信息科/专科专家·医务处可操作；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -56,14 +56,16 @@ N·A —— 页面卡不落库；消费 [TERM-01](TERM-01.md) 表族。
 - 本卡落点：把字典映射从占位页变为含高危红标、禁批量、逐条确认、可发布的安全工作台。
 
 ## 验收 + 验证
-- [ ] **AC-1（FR-2/3）**：高危候选红标 + 批量按钮置灰；逐条二次确认才能落；普通映射常规确认。
-- [ ] **AC-2（FR-1/4）**：字典分页真实；映射包 7 步流灰度→全量→回滚。
-- [ ] **AC-3（FR-5）**：六态齐全；非授权角色无访问。
+- [x] **AC-1（FR-2/3）**：高危候选红标 + 批量按钮置灰；逐条二次确认才能落；普通映射常规确认。
+- [x] **AC-2（FR-1/4）**：字典分页真实；映射包 7 步流灰度→全量→回滚。
+- [x] **AC-3（FR-5）**：六态齐全；非授权角色无访问。
 - 关联 A1–A9 剧本：A3 字典映射。
 - T-GATE：前端真实性门禁全绿（no-page-mock、高危禁批量、无伪造候选分）。
 - B0 验收：确定性候选 + 人工确认，**天然 B0**。
 
 ## 完工证据
-- 代码 permalink：`pages/tenant/TerminologyMapping` 真实化 + 接 [API-04](API-04.md) + 高危红标/禁批量 + 7 步流。
-- 测试：高危红标/禁批量测试 + 逐条确认测试 + 字典分页测试 + 映射包发布测试 + no-page-mock 门禁。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码：`frontend/src/pages/tenant/TerminologyMapping.tsx` / `TerminologyMapping.module.css` 接 `/engine/terminology/**` 真实 hook；`frontend/src/shared/api/hooks.ts` 新增标准/院内字典、候选、冲突、映射包构建/发布/回滚 hook；`frontend/src/shared/config/routes.ts` 收紧 `menu.terminology-mapping + term.read/write/publish` 与 `it-ops/specialist/medical-admin`；`PageShell` / `PageExperienceShell` 修正窄屏 header action wrap。
+- 测试：`npm test -- src/pages/tenant/TerminologyMapping.test.tsx src/shared/api/hooks.test.ts src/shared/config/routes.test.ts src/pages/tenant/RulePathwayCleanliness.test.ts`（4 files / 65 tests）；`npm test -- src/pages/tenant/TerminologyMapping.test.tsx src/shared/ui/PageShell.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/pages/pages.smoke.test.tsx`（4 files / 33 tests）。
+- 全量与门禁：`npm run verify`（50 files / 299 tests）、`npm audit --omit=dev --json`（生产依赖漏洞 0）、`npm run build`、`node --test scripts/authenticity-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/config-boundary-guard.test.mjs`（34/34）、`scripts/check-comment-zh.sh`（0 fail / 0 warn）、`git diff --check`。
+- 浏览器验收：项目 Playwright 控制真实页面与 API 拦截验证 `/terminology/mapping` 桌面/移动端无运行时错误、主按钮唯一、高危批量禁用、逐条二次确认请求含标准上下文、发布请求含 10% 灰度上下文；截图 `/tmp/medkernel-dictmap-01-terminology-mapping.png`、`/tmp/medkernel-dictmap-01-terminology-mapping-mobile.png`。
+- 未冒领：`DEFER-004` in-app browser 后端登录链路仍 open；`DEFER-010` 10 万级字典压测仍 open；backlog “7 页面真实化”整行仍 pending，未冒领 ADAPTER-01。

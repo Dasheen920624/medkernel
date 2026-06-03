@@ -97,7 +97,7 @@ function readonlyExperience(
 }
 
 const terminologyMappingExperience: RouteExperience = {
-  primaryRole: "实施工程师 / 信息科 / 医务处",
+  primaryRole: "信息科 / 专科专家 / 医务处",
   goal: "核查院内码与标准码的映射关系，降低后续规则和路径执行风险",
   defaultView: "最近更新的待确认和高风险映射优先",
   defaultFilters: [
@@ -129,8 +129,8 @@ const terminologyMappingExperience: RouteExperience = {
   ],
   expertContent: ["映射 ID", "院内编码 ID", "标准编码 ID", "traceId", "接口原始状态"],
   interruptionLevel: "info",
-  evidence: "详情抽屉展示证据文本、确认人、确认时间和审计入口",
-  dataScale: { expected: "large", pagination: "page", exportStrategy: "disabled" },
+  evidence: "候选、高危确认、冲突处置、发布和回滚均保留审计与证据入口",
+  dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
   riskLevel: "medium",
 };
 
@@ -310,6 +310,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "terminology-mapping",
     menuLabel: "字典映射",
+    requiredPermissions: ["menu.terminology-mapping", "term.read", "term.write", "term.publish"],
+    requiredRoles: ["it-ops", "specialist", "medical-admin"],
     experience: terminologyMappingExperience,
     pageType: "configuration",
     stateMachine: "config",

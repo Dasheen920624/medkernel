@@ -139,6 +139,39 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("limits terminology mapping to terminology operators with read/write/publish permissions", () => {
+    const route = findRouteByPath("/terminology/mapping");
+
+    expect(route?.requiredPermissions).toEqual([
+      "menu.terminology-mapping",
+      "term.read",
+      "term.write",
+      "term.publish",
+    ]);
+    expect(route?.requiredRoles).toEqual(["it-ops", "specialist", "medical-admin"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(false);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "term.read" }],
+        menuKeys: ["terminology-mapping"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires breadcrumb metadata for authenticated pages", () => {
     routeMetas
       .filter((route) => route.requireAuth)
