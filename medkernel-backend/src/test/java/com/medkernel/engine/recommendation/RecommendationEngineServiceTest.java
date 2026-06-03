@@ -143,12 +143,36 @@ class RecommendationEngineServiceTest {
             triggerRequest(List.of(deterministic, modelGenerated)));
 
         assertThat(response.modelStatus()).isEqualTo(RecommendationModelStatus.MODEL_DISABLED);
-        assertThat(response.totalCardCount()).isEqualTo(2);
+        assertThat(response.totalCardCount()).isEqualTo(1);
         assertThat(response.visibleCardCount()).isEqualTo(1);
         assertThat(response.suppressedCardCount()).isZero();
         assertThat(response.cards())
             .extracting(RecommendationCard::cardCode)
             .containsExactly("CARD.DETERMINISTIC");
+        verify(cards, times(1)).save(any());
+    }
+
+    @Test
+    void evaluateUsesDeterministicReplayWhenModelEnhancementIsRequestedButUnavailable() {
+        RecommendationCardRequest deterministic = cardRequest(
+            "RULE.REPLAY.v3", false, RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO, false, List.of(sourceRequest()));
+        RecommendationCardRequest modelGenerated = cardRequest(
+            "AI.REPLAY", true, RecommendationRiskLevel.MEDIUM,
+            RecommendationInterruptLevel.INFO, false, List.of(sourceRequest()));
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(modelGenerated), null, null, true);
+        when(deterministicMatcher.match(request)).thenReturn(List.of(deterministic));
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.modelStatus()).isEqualTo(RecommendationModelStatus.MODEL_DISABLED);
+        assertThat(response.totalCardCount()).isEqualTo(1);
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.cards())
+            .extracting(RecommendationCard::cardCode)
+            .containsExactly("RULE.REPLAY.v3");
+        verify(deterministicMatcher).match(request);
         verify(cards, times(1)).save(any());
     }
 

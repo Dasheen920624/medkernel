@@ -153,8 +153,7 @@ public class RecommendationEngineService {
         String traceId = traceId();
         Instant now = Instant.now();
         String triggerId = "rt-" + UUID.randomUUID();
-        int totalCardCount = deterministicCards.size()
-            + (int) request.candidateCards().stream().filter(RecommendationCardRequest::aiGenerated).count();
+        int totalCardCount = deterministicCards.size();
         RecommendationTriggerStatus status = deterministicCards.isEmpty()
             ? RecommendationTriggerStatus.NO_CARD
             : RecommendationTriggerStatus.EVALUATED;
