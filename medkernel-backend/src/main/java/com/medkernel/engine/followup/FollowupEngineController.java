@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 随访引擎控制器 (GA-ENG-API-09)。
  *
- * <p>提供随访计划智能生成、分期任务调度、问卷回收提交、以及临床异常事件上报等 REST 服务接口。
+ * <p>提供随访计划生成、分期任务调度、问卷回收提交、以及临床异常事件上报等 REST 服务接口。
  * 全线受 {@link DataScope} 与权限切面拦截，确保多租户数据严格物理隔离。
  */
 @RestController
@@ -26,7 +26,7 @@ public class FollowupEngineController {
     }
 
     /**
-     * 智能生成随访计划。
+     * 根据受控事实生成随访计划。
      *
      * @param request 随访计划生成请求，包含患者、就诊、路径、病种与风险分层等数据
      * @return 随访计划详情及生成的下属随访任务列表
