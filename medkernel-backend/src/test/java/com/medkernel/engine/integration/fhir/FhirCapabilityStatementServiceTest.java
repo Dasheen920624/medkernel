@@ -34,6 +34,22 @@ class FhirCapabilityStatementServiceTest {
         assertThat(interactions(resources)).doesNotContain("create");
     }
 
+    @Test
+    void declaresPr3RuntimeSurfaceWithoutClaimingUnsupportedTenResources() {
+        JsonNode statement = service.runtimeCapability(FhirVersion.R4);
+
+        assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01-PR3");
+        assertThat(statement.path("implementation").path("description").asText())
+            .contains("Observation create", "医师确认", "NOT_CONNECTED");
+        JsonNode resources = statement.path("rest").get(0).path("resource");
+        assertThat(resourceTypes(resources)).containsExactly("Observation", "MedicationRequest", "ServiceRequest");
+        assertThat(interactionsFor(resources, "Observation")).containsExactly("create");
+        assertThat(interactionsFor(resources, "MedicationRequest")).containsExactly("create");
+        assertThat(interactionsFor(resources, "ServiceRequest")).containsExactly("create");
+        assertThat(resourceTypes(resources)).doesNotContain("Condition", "DiagnosticReport", "DocumentReference");
+        assertThat(documentationFor(resources, "MedicationRequest")).contains("医师确认").contains("不自动写医嘱");
+    }
+
     private static Iterable<String> resourceTypes(JsonNode resources) {
         return StreamSupport.stream(resources.spliterator(), false)
             .map(resource -> resource.path("type").asText())
@@ -45,6 +61,22 @@ class FhirCapabilityStatementServiceTest {
             .flatMap(resource -> StreamSupport.stream(resource.path("interaction").spliterator(), false))
             .map(interaction -> interaction.path("code").asText())
             .toList();
+    }
+
+    private static Iterable<String> interactionsFor(JsonNode resources, String type) {
+        return StreamSupport.stream(resources.spliterator(), false)
+            .filter(resource -> type.equals(resource.path("type").asText()))
+            .flatMap(resource -> StreamSupport.stream(resource.path("interaction").spliterator(), false))
+            .map(interaction -> interaction.path("code").asText())
+            .toList();
+    }
+
+    private static String documentationFor(JsonNode resources, String type) {
+        return StreamSupport.stream(resources.spliterator(), false)
+            .filter(resource -> type.equals(resource.path("type").asText()))
+            .map(resource -> resource.path("documentation").asText())
+            .findFirst()
+            .orElseThrow();
     }
 
     private static String mappingDirection(JsonNode resources, String type) {

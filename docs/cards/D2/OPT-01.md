@@ -15,14 +15,15 @@
 
 提供 **FHIR R4/R5 标准互操作门面**：把 10 类核心 FHIR 资源（Patient / Encounter / Condition / Observation / Medication / Procedure / CarePlan / ServiceRequest / DiagnosticReport / DocumentReference）**双向映射**到院内 `CanonicalResource`，让标准化程度高的医院/集团平台经 FHIR 接入，**同时保留院内私有适配器**；门面是**协议转换层**，不替代院内适配、不绕引擎直写医疗结论（核心 §10）。
 
-## 现状（搬迁时核查 2026-05-30；2026-06-03 PR1 施工复核）
+## 现状（搬迁时核查 2026-05-30；2026-06-03 PR3 施工复核）
 
 本卡仍按 PR 拆分推进，现状以 `medkernel-backend/src` 为准：
 
 - 已有 [SYS-01](../D0/SYS-01.md) 标准临床模型与 `StandardClinicalFhirMappingRegistry`，可声明 12 类 `CanonicalResourceType` 到 FHIR R4 资源类型的参考映射；本卡必须复用该模型，**不得重定义第二份临床模型**。
 - 已有自有 `CanonicalResource(+Type/Repository)` 与 `engine/context/canonical/` 12 子类型（[API-01](API-01.md)/[SYS-01](../D0/SYS-01.md)）——这是门面的映射目标。
 - PR1 新增 `com.medkernel.engine.integration.fhir` 下的 R4 映射层与映射证据仓储，先覆盖 Patient 出站与 Observation 入站的确定性映射。
-- PR2 新增 R5 映射器、R4/R5 共用映射支持、CapabilityStatement 映射能力声明、TERM-01 真实字典映射端口和 FHIR `OperationOutcome` JSON 工厂；FHIR 运行端点、受控 create 回流、INTEG-01 总线、断连 `NOT_CONNECTED` 和签名 / 白名单 / 脱敏安全边界仍在 PR3，未完成前不得冒领整卡。
+- PR2 新增 R5 映射器、R4/R5 共用映射支持、CapabilityStatement 映射能力声明、TERM-01 真实字典映射端口和 FHIR `OperationOutcome` JSON 工厂。
+- PR3 新增运行门面 `/api/v1/engine/integration/fhir/{version}/metadata` 与 `/api/v1/engine/integration/fhir/{version}/{resourceType}`，挂 INTEG-01 总线，完成 Observation 受控 create、`NOT_CONNECTED`、签名 / 白名单 / 脱敏响应和 MedicationRequest / ServiceRequest 医师确认任务；仍未完成 10 类资源 read/search/create 全覆盖，后续 PR4 继续补齐，整卡不得冒领 done。
 
 ## 功能要求（原子可测条目）
 
@@ -101,9 +102,22 @@ N·A —— 本卡无独立页面。门面健康/字段映射率在 **D2 适配�
 - 后端全量：`mvn -q test`（Surefire XML 汇总 180 files / 1065 tests / 0 failures / 0 errors / 0 skipped；H2 / PostgreSQL 15.18 / Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate no-op）。
 - 前端验证：首次 `npm run verify` 因新 worktree 缺 `node_modules` 停在 `eslint: command not found`，经 `npm ci` 恢复依赖后重跑通过（44 files / 236 tests；既有 React Router / act 噪声归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate` 0 vulnerabilities；`npm run build` 通过（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
 - 提交后 changed-mode T-GATE：真实性门禁扫描 10 个文件、配置边界门禁扫描 10 个文件、迁移规约门禁扫描 0 个 SQL，均无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check HEAD~1..HEAD` 通过。
-- 待补证据：远端 CI 8/8、PR 合并后回填。
+
+### PR3 阶段证据（受控 create + 总线 + 安全边界，不代表整卡完成）
+- 新增 `FhirFacadeController` / `FhirFacadeService`：FHIR 运行端点挂 `/api/v1/engine/integration/fhir`，`GET {version}/metadata` 返回运行 CapabilityStatement，`POST {version}/{resourceType}` 接收原始 FHIR JSON resource；HTTP 入参使用 `FhirFacadeCreateRequest` Record DTO + Bean Validation，保持 BASE-03 契约，不暴露裸 `JsonNode` 请求体。
+- 安全边界：FHIR create 读取租户内 `IntegrationAdapter` 配置，要求 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`；适配器仅保存 `fhir.signatureWebhookId` 密钥引用，实际 HMAC-SHA256 密钥由既有 Webhook 安全配置仓储提供；可配置来源 IP 白名单和默认 packageVersion；缺适配器 / 断连 / 签名错误 / 白名单不匹配均返回 FHIR `OperationOutcome`，不写假成功。
+- Observation create：R4/R5 确定性映射到 `CanonicalResource`，登记 `mk_fhir_resource_mapping`，经 `ClinicalEventService.receiveAsync` 回流引擎，并通过 `IntegrationService.enqueueOutboundMessage` 登记 INTEG-01 异步补偿；当前无真实连接器时保留 `NOT_CONNECTED` 证据。
+- 高风险 create：MedicationRequest / ServiceRequest 不直写医嘱 / 病历，不自动生成临床结论，只创建 `FHIR_PHYSICIAN_CONFIRMATION` 运行任务等待医师确认。
+- 契约同步：`ServiceContractCatalog` 新增 `fhir-facade` 服务契约；`docs/contracts/integration` 从“FHIR 待交付”改为真实运行门面，并由 `IntegrationContractDocumentationTest` 反射比对控制器端点。
+- 本地红绿证据：新增 PR3 测试先红灯于缺少 `FhirFacadeService`、`FhirFacadeResponse`、`FhirFacadeCreateCommand` 与运行 CapabilityStatement；实现后 `mvn -q -Dtest=FhirCapabilityStatementServiceTest,FhirFacadeServiceTest,FhirFacadeControllerSecurityTest test` 退出码 0。
+- 聚焦回归：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirR5CanonicalMapperTest,FhirCapabilityStatementServiceTest,FhirOperationOutcomeFactoryTest,FhirResourceMappingRepositoryTest,FhirFacadeServiceTest,FhirFacadeControllerSecurityTest,TerminologyMappingPortAdapterTest,IntegrationServiceTest,IntegrationControllerSecurityTest,ClinicalEventServiceTest,ClinicalEventControllerSecurityTest,RuntimeTaskServiceTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test` 退出码 0。
+- 后端全量：`mvn -q test`（Surefire XML 汇总 182 files / 1075 tests / 0 failures / 0 errors / 0 skipped；H2 / PostgreSQL / Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate no-op）。首次全量曾被 `ApiContractGovernanceTest` 抓到裸 `JsonNode` 请求体，已改为 Record DTO 并重跑通过。
+- 前端验证：新 worktree 先 `npm ci` 恢复依赖；`npm run verify` 通过（44 files / 236 tests；既有 React Router / act 噪声归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate` 0 vulnerabilities；`npm run build` 通过（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
+- 提交前 changed-mode T-GATE：真实性门禁、配置边界门禁、迁移规约门禁、中文注释门禁与 `git diff --check` 已初跑通过；最终提交后需以 `HEAD~1..HEAD` 重跑并回填。
+- 剩余范围：10 类资源 read/search/create 全覆盖、Patient / Condition / Encounter 等 read/search 运行端点与 Bundle 响应仍需 OPT-01 PR4，不作为外部阻塞，不登记 deferred，也不得宣称 OPT-01 整卡 done。
 
 ## 大卡工序（6d，后端为主；按 PR 拆分）
 - PR1：FHIR 资源映射数据模型 + `mk_fhir_mapping_rule` + 5 方言迁移 + Canonical↔FHIR 映射层（R4）→ AC-1 地基。
 - PR2：R5 双版本 + CapabilityStatement + 编码经 TERM 字典映射 + 未映射诚实 `OperationOutcome` → AC-2/4。
 - PR3：受控 create 回流引擎（不绕引擎 + 医师确认）+ 门面挂 INTEG-01 总线 + 断连 `NOT_CONNECTED` + 安全（签名/白名单/脱敏）→ AC-3/5。
+- PR4（待领取）：10 类资源 read/search/create 运行覆盖、FHIR `Bundle` 响应、剩余资源映射与整卡 AC-1/2/4/FR-1/2 补齐；完成前 OPT-01 不得标 done。
