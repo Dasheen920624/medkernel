@@ -19,7 +19,7 @@ public record IntegrationMessageLog(
     @Column("protocol_type") String protocolType,
     @Column("payload_summary") String payloadSummary,
     @Column("payload") String payload,
-    @Column("status") String status, // SUCCESS, FAILED, RETRYING, DEAD_LETTER
+    @Column("status") String status, // SUCCESS, FAILED, RETRYING, NOT_CONNECTED, DEAD_LETTER
     @Column("retry_count") Integer retryCount,
     @Column("max_retries") Integer maxRetries,
     @Column("error_message") String errorMessage,

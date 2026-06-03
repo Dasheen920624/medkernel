@@ -87,7 +87,8 @@ class MigrationBaselineContractTest {
         "V58__knowledge_invalidation_affected_tasks.sql",
         "V59__integration_adapter_tenant_unique.sql",
         "V60__integration_message_tenant_unique.sql",
-        "V61__integration_webhook_tenant_unique.sql"
+        "V61__integration_webhook_tenant_unique.sql",
+        "V62__integration_message_not_connected_status.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -588,6 +589,21 @@ class MigrationBaselineContractTest {
                 .contains("drop constraint")
                 .contains("uk_integration_webhook")
                 .contains("unique (tenant_id, webhook_id)");
+        }
+    }
+
+    @Test
+    void integrationMessageStatusAllowsNotConnectedForNonBlockingDegradationInEveryDialect() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V62__integration_message_not_connected_status.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 集成消息状态必须支持断连降级且不伪造成功", dialect)
+                .contains("ck_integration_message_status")
+                .contains("not_connected")
+                .contains("dead_letter");
         }
     }
 

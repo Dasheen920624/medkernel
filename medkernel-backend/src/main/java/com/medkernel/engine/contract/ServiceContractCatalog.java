@@ -71,8 +71,7 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "integration_adapter", "创建适配器和 Webhook"),
                 audit(AuditAction.UPDATE, "integration_adapter", "更新适配器和 Webhook"),
-                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签和死信重试"),
-                audit(AuditAction.DELETE, "integration_message_log", "归档集成死信日志"))),
+                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签 / 出站补偿 / 死信重放"))),
         contract("knowledge-export", "知识导出服务",
             "com.medkernel.engine.knowledge.KnowledgeExportController", "/api/v1/engine/knowledge/exports",
             permissions("knowledge.export"),

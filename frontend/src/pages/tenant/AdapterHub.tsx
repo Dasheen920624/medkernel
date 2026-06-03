@@ -32,7 +32,6 @@ import {
   DisconnectOutlined,
   HeartOutlined,
   ReloadOutlined,
-  DeleteOutlined,
   LockOutlined,
   CompassOutlined,
 } from "@ant-design/icons";
@@ -50,7 +49,7 @@ import {
   useTestWebhookSignature,
   useIntegrationLogs,
   useRetryMessage,
-  useDeleteMessage,
+  useReplayDeadLetter,
 } from "@/shared/api/hooks";
 import type { IntegrationAdapter, WebhookSignatureTestResult } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
@@ -162,7 +161,7 @@ export default function AdapterHub() {
     isLoading: loadingLogs,
   } = useIntegrationLogs(logPage, 5);
   const retryMessageMutation = useRetryMessage();
-  const deleteMessageMutation = useDeleteMessage();
+  const replayDeadLetterMutation = useReplayDeadLetter();
 
   // ==========================================
   // 2. 嵌入交互状态
@@ -405,13 +404,13 @@ export default function AdapterHub() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleReplayDeadLetter = async (messageId: string) => {
     try {
-      await deleteMessageMutation.mutateAsync(messageId);
-      message.success("成功删除该重试死信项并标记已解决");
+      const res = await replayDeadLetterMutation.mutateAsync(messageId);
+      message.warning(`死信已重放为补偿消息，当前状态: ${res.status}`);
       refetchLogs();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "删除消息失败，请稍后重试"));
+      message.error(getApiErrorMessage(error, "死信重放失败，请确认状态为 DEAD_LETTER"));
     }
   };
 
@@ -869,7 +868,7 @@ export default function AdapterHub() {
                       type="warning"
                       showIcon
                       message="死信队列与失败重试规则"
-                      description="数据总线交换发生失败时，最多自动重试投递 3 次。超限仍失败将降级挂起归档为 DEAD_LETTER。支持手动补录后一键重试或删除项。"
+                      description="数据总线交换发生失败时保留完整审计证据；断连标记为 NOT_CONNECTED，不阻断医生主流程，重试超限后进入 DEAD_LETTER，可人工重放为新的补偿消息。"
                       className="w-3/4 rounded-lg text-xs"
                     />
                     <Button
@@ -944,6 +943,7 @@ export default function AdapterHub() {
                         render: (_, record) => {
                           let color = "green";
                           if (record.status === "FAILED") color = "orange";
+                          if (record.status === "NOT_CONNECTED") color = "default";
                           if (record.status === "DEAD_LETTER") color = "red";
                           return (
                             <Tag color={color} className="font-normal">
@@ -970,13 +970,14 @@ export default function AdapterHub() {
                         key: "actions",
                         render: (_, record) => {
                           const isSuccess = record.status === "SUCCESS";
+                          const isDeadLetter = record.status === "DEAD_LETTER";
                           return (
                             <Space size="middle">
                               <Button
                                 size="small"
                                 type="primary"
                                 icon={<ReloadOutlined />}
-                                disabled={isSuccess}
+                                disabled={isSuccess || isDeadLetter}
                                 onClick={() => handleRetryMessage(record.messageId)}
                                 className="bg-sky-600 border-sky-600 hover:bg-sky-700 text-xs rounded-md"
                               >
@@ -984,11 +985,11 @@ export default function AdapterHub() {
                               </Button>
                               <Button
                                 size="small"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => handleDeleteMessage(record.messageId)}
+                                icon={<PlayCircleOutlined />}
+                                disabled={!isDeadLetter}
+                                onClick={() => handleReplayDeadLetter(record.messageId)}
                               >
-                                已补
+                                重放
                               </Button>
                             </Space>
                           );
