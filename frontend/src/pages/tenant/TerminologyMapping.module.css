@@ -1,0 +1,26 @@
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 220), 1fr));
+  gap: calc(var(--mk-unit) * 16);
+}
+
+.summaryCard {
+  height: 100%;
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+.sectionCard {
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+.sectionAlert {
+  margin-bottom: calc(var(--mk-unit) * 16);
+}
+
+.descriptionScroll {
+  overflow-x: auto;
+}
+
+.descriptionScroll :global(.ant-descriptions) {
+  min-width: calc(var(--mk-unit) * 760);
+}

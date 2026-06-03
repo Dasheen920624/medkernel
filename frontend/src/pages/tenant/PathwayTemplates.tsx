@@ -619,6 +619,34 @@ export default function PathwayTemplates() {
   const canvasNodes = useMemo(() => normalizeNodes(watchedNodes), [watchedNodes]);
   const canvasEdges = useMemo(() => normalizeEdgesForCanvas(watchedEdges), [watchedEdges]);
 
+  // 已建节点下拉选项：边的源/目标与起始节点从此选择，杜绝手敲断链。
+  const nodeSelectOptions = useMemo(
+    () =>
+      canvasNodes
+        .filter((node) => cleanText(node.nodeCode))
+        .map((node) => ({
+          value: node.nodeCode,
+          label: `${cleanText(node.name) ?? "未命名节点"}（${node.nodeCode}）`,
+        })),
+    [canvasNodes],
+  );
+
+  // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
+  const nextSeqCode = (
+    listName: "nodes" | "edges",
+    field: "nodeCode" | "edgeCode",
+    prefix: string,
+  ) => {
+    const list =
+      (templateForm.getFieldValue(listName) as Array<Record<string, unknown>> | undefined) ?? [];
+    const used = new Set(
+      list.map((item) => (item && typeof item[field] === "string" ? (item[field] as string) : "")),
+    );
+    let index = 1;
+    while (used.has(`${prefix}${index}`)) index += 1;
+    return `${prefix}${index}`;
+  };
+
   const packageVersionFor = (packageId?: string | null) =>
     packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
 
@@ -1067,8 +1095,14 @@ export default function PathwayTemplates() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="startNodeCode" label="起始节点编码" rules={[{ required: true }]}>
-                <Input placeholder="输入 L2 中已定义的节点编码" />
+              <Form.Item name="startNodeCode" label="起始节点" rules={[{ required: true }]}>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="从 L2 已建节点中选择"
+                  options={nodeSelectOptions}
+                  notFoundContent="请先在 L2 节点画布添加节点"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -1122,9 +1156,10 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "nodeCode"]}
                             label="节点编码"
+                            tooltip="新增时自动生成（N1/N2…），可改；用于边连接与起点引用"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="输入节点编码" />
+                            <Input placeholder="自动生成，可改" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1182,6 +1217,24 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
                             label="时钟指标编码"
+                            tooltip="设置时窗分钟后必填，用于时窗门禁与质控时钟"
+                            rules={[
+                              ({ getFieldValue }) => ({
+                                validator(_rule, value) {
+                                  const minutes = getFieldValue([
+                                    "nodes",
+                                    field.name,
+                                    "timeWindowMinutes",
+                                  ]);
+                                  if (Number(minutes) > 0 && !cleanText(value)) {
+                                    return Promise.reject(
+                                      new Error("已设置时窗，请填写时钟指标编码"),
+                                    );
+                                  }
+                                  return Promise.resolve();
+                                },
+                              }),
+                            ]}
                           >
                             <Input placeholder="设置时窗时必填" />
                           </Form.Item>
@@ -1204,6 +1257,7 @@ export default function PathwayTemplates() {
                   icon={<PlusOutlined />}
                   onClick={() =>
                     add({
+                      nodeCode: nextSeqCode("nodes", "nodeCode", "N"),
                       nodeType: "ASSESSMENT",
                       sortOrder: fields.length + 1,
                       terminal: false,
@@ -1240,9 +1294,10 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "edgeCode"]}
                             label="边编码"
+                            tooltip="新增时自动生成（E1/E2…），可改"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="输入边编码" />
+                            <Input placeholder="自动生成，可改" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1252,7 +1307,13 @@ export default function PathwayTemplates() {
                             label="源节点"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="输入源节点编码" />
+                            <Select
+                              showSearch
+                              optionFilterProp="label"
+                              placeholder="选择源节点"
+                              options={nodeSelectOptions}
+                              notFoundContent="请先添加节点"
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1262,7 +1323,13 @@ export default function PathwayTemplates() {
                             label="目标节点"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="输入目标节点编码" />
+                            <Select
+                              showSearch
+                              optionFilterProp="label"
+                              placeholder="选择目标节点"
+                              options={nodeSelectOptions}
+                              notFoundContent="请先添加节点"
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1331,6 +1398,7 @@ export default function PathwayTemplates() {
                   icon={<PlusOutlined />}
                   onClick={() =>
                     add({
+                      edgeCode: nextSeqCode("edges", "edgeCode", "E"),
                       edgeType: "DEFAULT",
                       conditionOperator: "equals",
                       conditionValueKind: "string",
