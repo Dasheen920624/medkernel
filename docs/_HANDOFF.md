@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 SVC-CLINICAL-03 临床协同服务包 PR2 🚧
+### 线 1 · D3 SVC-CLINICAL-03 临床协同服务包 PR2 收口 / PR3 待领取 🚧
 
 - 类型：软件开发
-- 分支：下一步新建 `codex/d3-svc-clinical-03-pr2`
-- 目标：继续 D3 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) PR2，在 PR1 统一待办 / 通知最小闭环基础上，补齐下一组真实协同闭环，优先收口 [TODO-01](cards/D3/TODO-01.md) 转交处理与 [NOTIFY-01](cards/D3/NOTIFY-01.md) 免打扰设置，仍坚持不造护理 / 报告 / 床旁来源假数据。
-- 状态：PR1 已通过 PR #368 squash 合入 `origin/main`（merge `99d33dbd`），远端 CI 8/8 通过，远端分支已删除。当前尚未开始 PR2 代码，不能标 done。
-- 下一步（精确到动作/命令）：1. 基于最新 `origin/main` 新建 `codex/d3-svc-clinical-03-pr2`；2. 读核心 [CONSTITUTION](CONSTITUTION.md)、D3 `_brief`、[SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md)、[TODO-01](cards/D3/TODO-01.md)、[NOTIFY-01](cards/D3/NOTIFY-01.md)；3. TDD 先写失败测试，优先做待办转交后端状态机 / 审计字段 + 前端转交入口，随后做通知免打扰设置真实存取；4. 完整本地验证、Browser、changed-mode T-GATE、PR、远端 CI 8/8、squash merge 后才能领取下一阶段。
-- 相关文件 / 测试 / 坑：PR1 已建立 `medkernel-backend/src/main/java/com/medkernel/engine/workflow/**`、V77、`frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`。PR2 不得把护理任务、报告解读、床旁知识卡、外发投递、待办派生通知写成已完成；若真实来源缺上游契约，登记清楚并选下一可测闭环继续。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实运行继续后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不阻塞主线。
+- 分支：PR2 代码分支 `codex/d3-svc-clinical-03-pr2` 已合并；下一步新建 `codex/d3-svc-clinical-03-pr3`
+- 目标：继续 D3 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md)，在 PR1 统一待办 / 通知最小闭环与 PR2 转交 / 通知偏好基础上，补齐剩余真实协同闭环；不得前端造护理 / 报告 / 床旁来源假数据，不得伪造外发投递成功。
+- 状态：PR2 已通过 PR #371 squash 合入 `origin/main`（merge `c0f5afa0`），远端 CI 8/8 通过，远端分支已清理。已实现待办转交接口 / 状态机 / 转交原因持久化 / 前端转交弹窗，以及通知偏好后端个人偏好存取和设置页真实化；运行验证范围按用户修正仅覆盖 PostgreSQL + Oracle，达梦 / 人大金仓真实运行继续后置。
+- 下一步（精确到动作/命令）：1. 等本接力收口 PR 合并到 `origin/main` 后，基于最新 `origin/main` 新建 `codex/d3-svc-clinical-03-pr3`；2. 读核心 [CONSTITUTION](CONSTITUTION.md)、D3 `_brief`、[SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md)、[TODO-01](cards/D3/TODO-01.md)、[NOTIFY-01](cards/D3/NOTIFY-01.md)，并核查当前 `engine/workflow` 真实来源覆盖；3. TDD 先写失败测试，优先选剩余可测真实闭环（如待办派生通知 / 同步事件通知 / 外发投递状态诚实降级，或护理 / 报告 / 床旁知识真实上游已存在的来源接入）；4. 若某来源缺上游契约或客户现场资源，登记到 [待处理问题清单](audit/deferred-issues.md) 并继续下一可测主线；5. 完整本地验证、Browser、changed-mode T-GATE、PR、远端 CI 8/8、squash merge 后才能领取下一阶段。
+- 相关文件 / 测试 / 坑：PR1 建立 `medkernel-backend/src/main/java/com/medkernel/engine/workflow/**`、V77、`frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`；PR2 新增 V80 `workflow_transfer_reason`、`WorkflowTodoTransferRequest`、`WorkflowNotificationSettingsService`、`NotificationSettings.tsx` 真实存取。PR3 不得把护理任务、报告解读、床旁知识卡、外发真实投递写成已完成；通知外部通道当前只保存偏好，不代表投递已接通。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实运行继续后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不阻塞主线。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
