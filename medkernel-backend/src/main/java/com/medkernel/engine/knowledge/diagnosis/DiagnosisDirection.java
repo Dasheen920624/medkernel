@@ -1,6 +1,8 @@
 package com.medkernel.engine.knowledge.diagnosis;
 
-/** 诊断标准方向：发现项对某诊断的作用。SUPPORTING 支持 / REFUTING 反对 / REQUIRED 必需 / EXCLUSION 排除。 */
+/**
+ * 诊断标准方向：发现项对某诊断的作用。SUPPORTING 支持 / REFUTING 反对 / REQUIRED 必需 / EXCLUSION 排除。
+ */
 public enum DiagnosisDirection {
     /** 支持：命中则增加该诊断证据。 */
     SUPPORTING,

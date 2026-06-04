@@ -7,7 +7,9 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
-/** 鉴别清单仓储：按租户 + 诊断版本读取（id 升序），删除收窄到租户。 */
+/**
+ * 鉴别清单仓储：按租户 + 诊断版本读取（id 升序），删除收窄到租户。
+ */
 @Repository
 public interface DiagnosisDifferentialRepository extends ListCrudRepository<DiagnosisDifferential, Long> {
 

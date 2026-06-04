@@ -7,7 +7,9 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
-/** 诊断测试病例仓储：按租户 + 诊断版本读取（id 升序，发布门禁回归集），删除收窄到租户。 */
+/**
+ * 诊断测试病例仓储：按租户 + 诊断版本读取（id 升序，发布门禁回归集），删除收窄到租户。
+ */
 @Repository
 public interface DiagnosisTestCaseRepository extends ListCrudRepository<DiagnosisTestCase, Long> {
 

@@ -2,7 +2,9 @@ package com.medkernel.engine.knowledge.diagnosis;
 
 import org.springframework.stereotype.Component;
 
-/** 确定性置信分级：仅输出等级，绝不输出百分比概率（守 NMPA 边界）。阈值取自可配置策略，不硬编码。 */
+/**
+ * 确定性置信分级：仅输出等级，绝不输出百分比概率（守 NMPA 边界）。阈值取自可配置策略，不硬编码。
+ */
 @Component
 public class DiagnosisConfidenceEvaluator {
 
