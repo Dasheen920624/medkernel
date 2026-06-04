@@ -170,6 +170,23 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void listPatientPathwaysUsesTenantScopedServerPagination() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
+        when(patientPathways.countByTenantIdAndFilters("tenant-A", "patient-1", "NODE_EXECUTING"))
+            .thenReturn(1L);
+        when(patientPathways.pageByTenantIdAndFilters("tenant-A", "patient-1", "NODE_EXECUTING", 0, 20))
+            .thenReturn(List.of(runtime));
+
+        PageResponse<PatientPathway> response = service.listPatientPathways(
+            "patient-1", PatientPathwayStatus.NODE_EXECUTING, PageRequest.defaults());
+
+        assertThat(response.total()).isEqualTo(1L);
+        assertThat(response.items()).containsExactly(runtime);
+        verify(patientPathways).countByTenantIdAndFilters("tenant-A", "patient-1", "NODE_EXECUTING");
+        verify(patientPathways).pageByTenantIdAndFilters("tenant-A", "patient-1", "NODE_EXECUTING", 0, 20);
+    }
+
+    @Test
     void publishFailsWhenStartNodeIsMissing() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));

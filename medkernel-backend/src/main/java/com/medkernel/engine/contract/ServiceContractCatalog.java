@@ -152,7 +152,9 @@ public final class ServiceContractCatalog {
             openApiPaths("/api/v1/engine/mpi/**", "/api/v1/clinical/mpi/**"),
             permissions("mpi.read", "mpi.write"),
             audits(
+                audit(AuditAction.CREATE, "mpi_patient", "创建患者主索引"),
                 audit(AuditAction.UPDATE, "mpi_patient", "合并患者主索引"),
+                audit(AuditAction.UPDATE, "mpi_patient", "拆分患者主索引合并关系"),
                 audit(AuditAction.REVIEW, "mk_mpi_merge_review", "确认高危 MPI 合并审核单"))),
         contractWithOpenApiPaths("org-unit", "组织单元服务",
             "com.medkernel.engine.org.OrgUnitController", "/api/v1/engine/org/org-units",
