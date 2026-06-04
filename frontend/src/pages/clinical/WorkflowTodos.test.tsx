@@ -96,8 +96,76 @@ describe("WorkflowTodos", () => {
     expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
-    expect(screen.getByText("FOLLOWUP_TASK")).toBeInTheDocument();
+    expect(screen.getByText("随访任务")).toBeInTheDocument();
+    expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("renders clinical collaboration source labels without exposing backend enum names", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-nursing-1",
+            sourceType: "NURSING_TASK",
+            sourceId: "card-nursing-1",
+            title: "压疮风险评估",
+            summary: "护理评估提示风险升高",
+            priority: "HIGH",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-report-1",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "card-report-1",
+            title: "检验结果复核",
+            summary: "报告结果触发复核建议",
+            priority: "MEDIUM",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-knowledge-1",
+            sourceType: "BEDSIDE_KNOWLEDGE",
+            sourceId: "card-knowledge-1",
+            title: "知识卡复核",
+            summary: "当前诊疗上下文命中知识卡",
+            priority: "LOW",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-card-1",
+            sourceType: "RECOMMENDATION_CARD",
+            sourceId: "card-risk-1",
+            title: "用药风险提醒",
+            summary: "医嘱触发风险规则",
+            priority: "HIGH",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 4,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("护理任务")).toBeInTheDocument();
+    expect(screen.getByText("报告解读")).toBeInTheDocument();
+    expect(screen.getByText("床旁知识")).toBeInTheDocument();
+    expect(screen.getByText("临床提醒")).toBeInTheDocument();
+    expect(screen.queryByText("NURSING_TASK")).not.toBeInTheDocument();
+    expect(screen.queryByText("REPORT_INTERPRETATION")).not.toBeInTheDocument();
+    expect(screen.queryByText("BEDSIDE_KNOWLEDGE")).not.toBeInTheDocument();
+    expect(screen.queryByText("RECOMMENDATION_CARD")).not.toBeInTheDocument();
   });
 
   it("keeps safety review todos ahead of lower-risk follow-up rows", () => {

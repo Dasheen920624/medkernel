@@ -117,6 +117,30 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void recommendationDerivedLookupPreventsDuplicateTypedTodoRows() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-card-legacy",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-nursing-1",
+            WorkflowPriority.HIGH,
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-followup-same-source",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "card-nursing-1",
+            WorkflowPriority.HIGH,
+            now.plusSeconds(900)));
+
+        var existing = repository.findRecommendationDerivedByTenantIdAndSourceId(
+            "tenant-A",
+            "card-nursing-1");
+
+        assertThat(existing).isPresent();
+        assertThat(existing.orElseThrow().todoId()).isEqualTo("todo-card-legacy");
+    }
+
+    @Test
     void followupRowsProjectToWorkflowTodoAndNotificationSources() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         followupPlans.save(new FollowupPlan(

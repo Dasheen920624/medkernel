@@ -76,6 +76,15 @@ const sourceRank: Record<WorkflowTodoSourceType, number> = {
   BEDSIDE_KNOWLEDGE: 5,
 };
 
+const sourceText: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "随访任务",
+  SAFETY_REVIEW: "安全复核",
+  RECOMMENDATION_CARD: "临床提醒",
+  NURSING_TASK: "护理任务",
+  REPORT_INTERPRETATION: "报告解读",
+  BEDSIDE_KNOWLEDGE: "床旁知识",
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -182,7 +191,7 @@ export default function WorkflowTodos() {
       title: "来源",
       dataIndex: "sourceType",
       key: "sourceType",
-      render: (value: WorkflowTodoSourceType) => <Tag>{value}</Tag>,
+      render: (value: WorkflowTodoSourceType) => <Tag>{sourceText[value]}</Tag>,
     },
     {
       title: "患者",
@@ -316,6 +325,9 @@ export default function WorkflowTodos() {
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
               { value: "RECOMMENDATION_CARD", label: "临床提醒" },
+              { value: "NURSING_TASK", label: "护理任务" },
+              { value: "REPORT_INTERPRETATION", label: "报告解读" },
+              { value: "BEDSIDE_KNOWLEDGE", label: "床旁知识" },
             ]}
           />
         </Space>
