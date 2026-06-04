@@ -93,6 +93,18 @@ public class TerminologyController {
     }
 
     /**
+     * 对照覆盖分析（P5，advisory）：给定标准字典与一组标准编码，返回每个编码的院内→标准
+     * 对照覆盖情况，供规则/路径发布前提示缺对照编码。
+     */
+    @GetMapping("/mappings/coverage")
+    @PreAuthorize("@perm.has('term.read')")
+    public ApiResult<java.util.List<MappingCoverageItem>> mappingCoverage(
+            @RequestParam String standardSystem,
+            @RequestParam java.util.List<String> codes) {
+        return ApiResult.ok(service.evaluateCoverage(standardSystem, codes));
+    }
+
+    /**
      * 分页查询当前租户的候选映射，支持按 status / riskLevel / conflictFlag 过滤。
      */
     @GetMapping("/mappings/candidates")
