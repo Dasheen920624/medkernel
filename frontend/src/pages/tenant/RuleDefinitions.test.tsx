@@ -42,6 +42,7 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
   useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
+  useMappingCoverage: () => ({ data: [], isLoading: false, isError: false }),
   useCreateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useContextSnapshotDetail: () => ({
