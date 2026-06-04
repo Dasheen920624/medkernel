@@ -18,6 +18,11 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/PatientPathways.tsx`（路由 `/pathway/patients` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接路径实例/节点推进/时钟 API + 六态/五维 RBAC 齐全。
 
+## SVC-CLINICAL-01 PR1 增量（2026-06-04）
+- 已新增 `GET /api/v1/engine/pathway/patient-pathways` 服务端分页列表，页面列表改为消费真实后端数据。
+- 已清理页面本地 `sessionPathways` 会话态运行台账，入径、推进、变异、退出后统一 refetch 后端列表，不再在前端伪造路径运行结果。
+- 仍未在本页收口：关键时钟到期的完整页面呈现、六态逐态验收、五维 RBAC 与页面 E2E。本页后续实现不得回退为写死节点或本地假进度。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 路径概览：列患者在径路径 + 当前节点 + 进度，数据真实。
 - [ ] FR-2 节点推进：推进节点状态（调 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) advance），关键时钟到期可见。
@@ -66,4 +71,5 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) �
 ## 完工证据
 - 代码 permalink：`pages/clinical/PatientPathways` 真实化 + 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) + 六态。
 - 测试：路径/推进/变异 + 六态 + RBAC + no-page-mock 门禁。
+- PR1 增量证据：`frontend/src/pages/clinical/PatientPathways.test.tsx` 覆盖页面调用后端患者路径分页 hook 并渲染真实后端行；完整页面卡仍待后续验收。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

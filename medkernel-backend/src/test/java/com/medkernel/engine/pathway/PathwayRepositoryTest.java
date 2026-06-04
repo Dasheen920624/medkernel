@@ -134,6 +134,30 @@ class PathwayRepositoryTest {
         assertThat(codeRows).extracting(PathwayTemplate::templateId).containsExactly("pt-a");
     }
 
+    @Test
+    void pagesPatientPathwaysByTenantPatientAndStatusWithoutCrossTenantLeakage() {
+        patientPathways.save(samplePatientPathway(
+            "pp-active-a", "tenant-A", "pt-1", "patient-1", PatientPathwayStatus.NODE_EXECUTING));
+        patientPathways.save(samplePatientPathway(
+            "pp-completed-a", "tenant-A", "pt-1", "patient-1", PatientPathwayStatus.COMPLETED));
+        patientPathways.save(samplePatientPathway(
+            "pp-active-b", "tenant-B", "pt-1", "patient-1", PatientPathwayStatus.NODE_EXECUTING));
+
+        long filteredTotal = patientPathways.countByTenantIdAndFilters(
+            "tenant-A", "patient-1", PatientPathwayStatus.NODE_EXECUTING.name());
+        List<PatientPathway> filteredRows = patientPathways.pageByTenantIdAndFilters(
+            "tenant-A", "patient-1", PatientPathwayStatus.NODE_EXECUTING.name(), 0, 20);
+
+        assertThat(filteredTotal).isEqualTo(1L);
+        assertThat(filteredRows).extracting(PatientPathway::patientPathwayId).containsExactly("pp-active-a");
+        assertThat(patientPathways.countActiveByTenantId("tenant-A")).isEqualTo(1L);
+        assertThat(patientPathways.countActiveByTenantIdAndPatientId("tenant-A", "patient-1")).isEqualTo(1L);
+        assertThat(patientPathways.findActiveByTenantIdAndPatientIdOrderByEnteredAtDesc(
+                "tenant-A", "patient-1", 0, 5))
+            .extracting(PatientPathway::patientPathwayId)
+            .containsExactly("pp-active-a");
+    }
+
     private SpecialtyPackage samplePackage(String packageId, String tenantId, String diseaseCode) {
         Instant now = Instant.now();
         return new SpecialtyPackage(
@@ -180,10 +204,16 @@ class PathwayRepositoryTest {
     }
 
     private PatientPathway samplePatientPathway(String patientPathwayId, String tenantId, String templateId) {
+        return samplePatientPathway(
+            patientPathwayId, tenantId, templateId, "patient-1", PatientPathwayStatus.NODE_EXECUTING);
+    }
+
+    private PatientPathway samplePatientPathway(String patientPathwayId, String tenantId, String templateId,
+                                                String patientId, PatientPathwayStatus status) {
         Instant now = Instant.now();
         return new PatientPathway(
-            null, patientPathwayId, tenantId, "patient-1", "enc-1", templateId,
-            "ASSESS", PatientPathwayStatus.NODE_EXECUTING, now, null, null, null, null,
+            null, patientPathwayId, tenantId, patientId, "enc-1", templateId,
+            "ASSESS", status, now, null, null, null, null,
             now, "tester", now, "tester", "trace-pathway");
     }
 

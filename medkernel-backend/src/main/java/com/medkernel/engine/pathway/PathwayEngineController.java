@@ -195,6 +195,22 @@ public class PathwayEngineController {
     }
 
     /**
+     * 分页查询患者路径运行实例。
+     *
+     * <p>权限：{@code pathway.read}；列表来自关系库运行事实，可按患者和状态过滤。
+     */
+    @GetMapping("/patient-pathways")
+    @PreAuthorize("@perm.has('pathway.read')")
+    public ApiResult<PageResponse<PatientPathway>> listPatientPathways(
+            @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) PatientPathwayStatus status,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.listPatientPathways(patientId, status, new PageRequest(page, size, sort)));
+    }
+
+    /**
      * 查看患者路径实例详情。
      *
      * <p>权限：{@code pathway.read}；返回当前节点、累计变异和关键时钟事实。

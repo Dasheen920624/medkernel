@@ -3,6 +3,7 @@ import {
   Table,
   Button,
   Input,
+  InputNumber,
   Select,
   Modal,
   Form,
@@ -21,12 +22,17 @@ import {
   WarningOutlined,
   TeamOutlined,
   CalendarOutlined,
+  UserAddOutlined,
+  BranchesOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
+  useCreateMpiPatient,
   useMpiPatients,
   useMpiStats,
   useMergeMpiPatients,
+  useSplitMpiPatient,
+  type MpiPatientCreatePayload,
   type MpiPatient,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
@@ -60,11 +66,18 @@ export default function Mpi() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useMpiStats();
 
   // 合并数据突变
+  const createMutation = useCreateMpiPatient();
   const mergeMutation = useMergeMpiPatients();
+  const splitMutation = useSplitMpiPatient();
 
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   // 合并弹窗状态
   const [isMergeModalVisible, setIsMergeModalVisible] = useState(false);
-  const [form] = Form.useForm();
+  const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
+  const [splitPatientRecord, setSplitPatientRecord] = useState<MpiPatient | null>(null);
+  const [createForm] = Form.useForm<MpiPatientCreatePayload>();
+  const [mergeForm] = Form.useForm();
+  const [splitForm] = Form.useForm<{ reviewReason: string }>();
 
   // 触发查询
   const handleSearch = () => {
@@ -85,21 +98,78 @@ export default function Mpi() {
   // 打开合并弹窗
   const showMergeModal = useCallback(
     (record?: MpiPatient) => {
-      form.resetFields();
+      mergeForm.resetFields();
       if (record) {
-        form.setFieldsValue({
+        mergeForm.setFieldsValue({
           sourceMpiId: record.mpiId,
         });
       }
       setIsMergeModalVisible(true);
     },
-    [form],
+    [mergeForm],
   );
+
+  const showCreateModal = () => {
+    createForm.resetFields();
+    setIsCreateModalVisible(true);
+  };
+
+  const showSplitModal = useCallback(
+    (record: MpiPatient) => {
+      splitForm.resetFields();
+      setSplitPatientRecord(record);
+      setIsSplitModalVisible(true);
+    },
+    [splitForm],
+  );
+
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      await createMutation.mutateAsync({
+        mpiId: values.mpiId.trim(),
+        maskedName: values.maskedName.trim(),
+        gender: values.gender,
+        age: Number(values.age),
+        idLast4: values.idLast4.trim(),
+      });
+
+      message.success("患者主索引已创建，列表和统计已刷新");
+      setIsCreateModalVisible(false);
+      createForm.resetFields();
+      refetchList();
+      refetchStats();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(createForm, error)) return;
+      message.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
+    }
+  };
+
+  const handleSplitSubmit = async () => {
+    if (!splitPatientRecord) return;
+    try {
+      const values = await splitForm.validateFields();
+      const result = await splitMutation.mutateAsync({
+        sourceMpiId: splitPatientRecord.mpiId,
+        reviewReason: values.reviewReason.trim(),
+      });
+
+      message.success(result?.message || "患者主索引合并关系已拆分");
+      setIsSplitModalVisible(false);
+      setSplitPatientRecord(null);
+      splitForm.resetFields();
+      refetchList();
+      refetchStats();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(splitForm, error)) return;
+      message.error(getApiErrorMessage(error, "拆分失败，请检查主索引状态"));
+    }
+  };
 
   // 执行患者合并
   const handleMergeSubmit = async () => {
     try {
-      const values = await form.validateFields();
+      const values = await mergeForm.validateFields();
       if (values.sourceMpiId === values.targetMpiId) {
         message.error("源患者与目标患者不能是同一个患者，无法合并！");
         return;
@@ -112,13 +182,13 @@ export default function Mpi() {
 
       message.success(result?.message || "患者主索引合并成功，已记录审计证据");
       setIsMergeModalVisible(false);
-      form.resetFields();
+      mergeForm.resetFields();
 
       // 刷新数据
       refetchList();
       refetchStats();
     } catch (error: unknown) {
-      if (applyApiFieldErrors(form, error)) return;
+      if (applyApiFieldErrors(mergeForm, error)) return;
       const parsed = parseApiError(error, "合并失败，请检查主索引ID是否正确");
       if (parsed.code === "MPI_MERGE_REQUIRES_REVIEW") {
         message.warning(parsed.message);
@@ -219,7 +289,6 @@ export default function Mpi() {
           <Space size="middle">
             {record.status === "ACTIVE" ? (
               <Button
-                type="primary"
                 size="small"
                 icon={<MergeCellsOutlined />}
                 onClick={() => showMergeModal(record)}
@@ -227,9 +296,13 @@ export default function Mpi() {
                 合并患者
               </Button>
             ) : (
-              <Tooltip title="已合并的患者主索引无法再次作为源记录合并">
-                <Button type="primary" size="small" disabled icon={<MergeCellsOutlined />}>
-                  已归并
+              <Tooltip title="需要人工核查理由，拆分后源主索引恢复为活跃">
+                <Button
+                  size="small"
+                  icon={<BranchesOutlined />}
+                  onClick={() => showSplitModal(record)}
+                >
+                  拆分归并
                 </Button>
               </Tooltip>
             )}
@@ -237,13 +310,18 @@ export default function Mpi() {
         ),
       },
     ],
-    [showMergeModal],
+    [showMergeModal, showSplitModal],
   );
 
   return (
     <PageShell
       title="患者主索引 MPI"
-      description="跨院区、跨系统归一患者身份。支持基于唯一识别符的聚合呈现，并对高风险合并保留人工审核与审计证据。"
+      description="跨系统归一患者身份，保留合并审核证据。"
+      primary={
+        <Button type="primary" icon={<UserAddOutlined />} onClick={showCreateModal}>
+          新增患者
+        </Button>
+      }
     >
       <div className={styles.container}>
         {/* 驾驶舱统计指标 */}
@@ -256,7 +334,10 @@ export default function Mpi() {
             <div className={styles.statValue}>
               {statsLoading ? "..." : (stats?.activeCount ?? 0)}
             </div>
-            <div className={styles.statSubtext}>当前租户下仍作为主记录使用的患者数</div>
+            <div className={styles.statSubtext}>
+              当前租户下仍作为主记录使用的患者数；在径路径实例{" "}
+              {statsLoading ? "..." : (stats?.activePathwayCount ?? 0)} 个
+            </div>
           </div>
 
           <div className={styles.statCard}>
@@ -328,7 +409,7 @@ export default function Mpi() {
             </div>
 
             <Space>
-              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+              <Button icon={<SearchOutlined />} onClick={handleSearch}>
                 检索过滤
               </Button>
               <Button icon={<ReloadOutlined />} onClick={handleReset}>
@@ -362,6 +443,109 @@ export default function Mpi() {
           />
         </div>
 
+        <Modal
+          title={
+            <Space>
+              <UserAddOutlined />
+              <span>新增患者主索引</span>
+            </Space>
+          }
+          open={isCreateModalVisible}
+          onOk={handleCreateSubmit}
+          onCancel={() => setIsCreateModalVisible(false)}
+          confirmLoading={createMutation.isPending}
+          okText="保存患者"
+          cancelText="取消返回"
+          width={560}
+          destroyOnClose
+        >
+          <Form form={createForm} layout="vertical">
+            <Form.Item
+              name="mpiId"
+              label="患者主索引 ID"
+              rules={[{ required: true, message: "请输入患者主索引 ID" }]}
+            >
+              <Input placeholder="例如：mpi-new" />
+            </Form.Item>
+            <Form.Item
+              name="maskedName"
+              label="脱敏姓名"
+              rules={[{ required: true, message: "请输入脱敏姓名" }]}
+            >
+              <Input placeholder="例如：李*四" />
+            </Form.Item>
+            <Form.Item
+              name="gender"
+              label="性别"
+              rules={[{ required: true, message: "请选择性别" }]}
+            >
+              <Select placeholder="请选择性别" aria-label="性别">
+                <Option value="M">男 (M)</Option>
+                <Option value="F">女 (F)</Option>
+                <Option value="UNKNOWN">未知 (UNKNOWN)</Option>
+              </Select>
+            </Form.Item>
+            <Form.Item name="age" label="年龄" rules={[{ required: true, message: "请输入年龄" }]}>
+              <InputNumber
+                min={0}
+                precision={0}
+                placeholder="例如：36"
+                className={styles.fullWidth}
+              />
+            </Form.Item>
+            <Form.Item
+              name="idLast4"
+              label="身份证后四位"
+              rules={[
+                { required: true, message: "请输入身份证后四位" },
+                { pattern: /^\d{4}$/, message: "身份证后四位必须为 4 位数字" },
+              ]}
+            >
+              <Input placeholder="例如：9876" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={
+            <Space>
+              <BranchesOutlined className={styles.warningIcon} />
+              <span>拆分患者主索引归并关系</span>
+            </Space>
+          }
+          open={isSplitModalVisible}
+          onOk={handleSplitSubmit}
+          onCancel={() => {
+            setIsSplitModalVisible(false);
+            setSplitPatientRecord(null);
+          }}
+          confirmLoading={splitMutation.isPending}
+          okText="确认拆分"
+          cancelText="取消返回"
+          width={560}
+          destroyOnClose
+        >
+          <div className={styles.warningBox}>
+            <div className={styles.warningTitle}>
+              <WarningOutlined />
+              <span>拆分前必须完成人工核查</span>
+            </div>
+            <div className={styles.warningText}>
+              源主索引 {splitPatientRecord?.mpiId ?? "-"} 将恢复为活跃状态，目标主索引{" "}
+              {splitPatientRecord?.mergedIntoMpiId ?? "-"} 的合并计数会同步扣减。
+            </div>
+          </div>
+          <Form form={splitForm} layout="vertical">
+            <Form.Item
+              name="reviewReason"
+              label={<Text strong>人工核查结论</Text>}
+              rules={[{ required: true, message: "请输入人工核查结论" }]}
+            >
+              <Input.TextArea placeholder="请输入人工核查结论" rows={4} />
+            </Form.Item>
+          </Form>
+        </Modal>
+
         {/* 合并弹窗 */}
         <Modal
           title={
@@ -386,18 +570,18 @@ export default function Mpi() {
               <span>高风险医疗合规安全警示</span>
             </div>
             <div className={styles.warningText}>
-              合并患者主索引是<strong>不可逆</strong>操作。合并后：
+              合并患者主索引是<strong>高风险</strong>操作。合并后：
               <br />
               1. <strong>源患者（被合并人）</strong>
               将归档为已合并，后续以目标患者主索引为准。
               <br />
-              2. 就诊、随访等关联记录会随目标主索引统一查看。
+              2. 如人工核查发现合并错误，必须通过拆分归并流程留痕恢复。
               <br />
               3. 身份证后四位、性别或年龄存在风险差异时，系统会生成审核单，不会自动合并。
             </div>
           </div>
 
-          <Form form={form} layout="vertical">
+          <Form form={mergeForm} layout="vertical">
             <Form.Item
               name="sourceMpiId"
               label={<Text strong>源患者主索引 ID（合并后归档）</Text>}

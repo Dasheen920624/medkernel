@@ -1779,6 +1779,27 @@ export function useSimulatePathway(templateId: string) {
 }
 
 // 3. PatientPathway Hooks
+export function usePatientPathways(
+  params: {
+    patientId?: string;
+    status?: PatientPathwayStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ["pathways", "patient-pathways", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<PatientPathway> }>(
+        "/engine/pathway/patient-pathways",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useEnterPatientPathway() {
   const security = useSecurityProfile();
   return useMutation({
@@ -4182,8 +4203,26 @@ export interface MpiPatient {
 export interface MpiStatsResponse {
   activeCount: number;
   mergedCount: number;
+  activePathwayCount: number;
   averageAge: number;
   genderCounts: Record<string, number>;
+}
+
+export interface MpiPatientDetailResponse {
+  patient: MpiPatient;
+  latestContextSnapshot?: ContextSnapshotSummary | null;
+  contextSnapshot?: ContextSnapshotResponse | null;
+  activePathwayCount: number;
+  activePathways: PatientPathway[];
+  traceId: string;
+}
+
+export interface MpiPatientCreatePayload {
+  mpiId: string;
+  maskedName: string;
+  gender: "M" | "F" | "UNKNOWN";
+  age: number;
+  idLast4: string;
 }
 
 export interface MpiMergeResult {
@@ -4192,6 +4231,18 @@ export interface MpiMergeResult {
   targetMpiId: string;
   reviewId?: string | null;
   riskLevel?: string | null;
+  message: string;
+}
+
+export interface MpiSplitPayload {
+  sourceMpiId: string;
+  reviewReason: string;
+}
+
+export interface MpiSplitResult {
+  status: "SPLIT" | string;
+  sourceMpiId: string;
+  targetMpiId: string;
   message: string;
 }
 
@@ -4210,6 +4261,18 @@ export function useMpiPatients(
   });
 }
 
+export function useCreateMpiPatient() {
+  return useMutation({
+    mutationFn: async (payload: MpiPatientCreatePayload) => {
+      const { data } = await apiClient.post<{ data: MpiPatient }>(
+        "/api/v1/engine/mpi/patients",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useMpiStats() {
   return useQuery({
     queryKey: ["engine", "mpi", "stats"],
@@ -4217,6 +4280,20 @@ export function useMpiStats() {
       const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/api/v1/engine/mpi/stats");
       return data.data;
     },
+  });
+}
+
+export function useMpiPatientDetail(mpiId?: string) {
+  return useQuery({
+    queryKey: ["engine", "mpi", "patients", mpiId],
+    queryFn: async () => {
+      if (!mpiId) return null;
+      const { data } = await apiClient.get<{ data: MpiPatientDetailResponse }>(
+        `/api/v1/engine/mpi/patients/${mpiId}`,
+      );
+      return data.data;
+    },
+    enabled: !!mpiId,
   });
 }
 
@@ -4229,8 +4306,20 @@ export function useMergeMpiPatients() {
   return useMutation({
     mutationFn: async (payload: MergeMpiPayload) => {
       const { data } = await apiClient.post<{ data: MpiMergeResult }>(
-        "/api/v1/engine/mpi/patients/merge",
+        "/api/v1/engine/mpi/patients:merge",
         payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSplitMpiPatient() {
+  return useMutation({
+    mutationFn: async (payload: MpiSplitPayload) => {
+      const { data } = await apiClient.post<{ data: MpiSplitResult }>(
+        `/api/v1/engine/mpi/patients/${encodeURIComponent(payload.sourceMpiId)}:split`,
+        { reviewReason: payload.reviewReason },
       );
       return data.data;
     },

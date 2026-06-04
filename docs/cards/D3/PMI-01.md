@@ -18,6 +18,11 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/Mpi.tsx`（路由 `/mpi` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) 真实患者/合并/统计 API + 六态/五维 RBAC 齐全。
 
+## SVC-CLINICAL-01 PR1 增量（2026-06-04）
+- 已接真实 MPI 建患者、列表、统计、合并和拆分归并 hook；页面新增“新增患者”主按钮与拆分归并弹窗，拆分必须填写人工核查结论。
+- 已移除把合并说成“不可逆”的旧口径；合并错误应走可追溯拆分流程。
+- 仍未在本页收口：患者 360 抽屉完整呈现、六态逐态验收、五维 RBAC 与页面 E2E。本页后续实现不得回退为前端本地患者或演示数据。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 搜索筛选：按标识/姓名/院区搜患者（[API-13](../D0/API-13.md) 分页），结果真实。
 - [ ] FR-2 患者 360：查看聚合上下文（[API-01](../D2/API-01.md)），不前端拼假数据。
@@ -66,4 +71,5 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) �
 ## 完工证据
 - 代码 permalink：`pages/clinical/Mpi` 真实化 + 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) API + 六态。
 - 测试：搜索/合并/360 + 六态 + RBAC + no-page-mock 门禁。
+- PR1 增量证据：`frontend/src/pages/clinical/Mpi.test.tsx` 覆盖真实 MPI 行渲染、建患者 mutation 和拆分归并 mutation；完整页面卡仍待后续验收。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

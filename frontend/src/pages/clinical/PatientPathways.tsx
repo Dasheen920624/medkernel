@@ -34,6 +34,7 @@ import {
   usePathwayTemplates,
   usePathwayTemplateDetail,
   useEnterPatientPathway,
+  usePatientPathways,
   usePatientPathwayDetail,
   useAdvancePatientPathway,
   usePatientPathwayClocks,
@@ -72,12 +73,16 @@ export default function PatientPathways() {
     size: 100,
   });
 
-  const [sessionPathways, setSessionPathways] = useState<PatientPathway[]>([]);
-
-  const filteredPathways = sessionPathways.filter((p) => {
-    if (!patientFilter) return true;
-    return p.patientId.includes(patientFilter) || p.patientPathwayId.includes(patientFilter);
+  const {
+    data: patientPathwaysData,
+    isLoading: patientPathwaysLoading,
+    refetch: refetchPathways,
+  } = usePatientPathways({
+    patientId: patientFilter.trim() || undefined,
+    page,
+    size,
   });
+  const patientPathwayRows = patientPathwaysData?.items ?? [];
 
   // 获得已选择的患者入径实例的详情事实
   const { data: detailData, refetch: refetchDetail } = usePatientPathwayDetail(
@@ -140,12 +145,7 @@ export default function PatientPathways() {
       message.success(`患者 ${values.patientId} 入径成功，Trace ID: ${res?.traceId || ""}`);
       setEnterModalVisible(false);
       enterForm.resetFields();
-
-      if (res?.patientPathway) {
-        setSessionPathways((prev) => [res.patientPathway, ...prev]);
-      } else {
-        message.warning("入径请求已提交，但接口未返回路径实例，列表未新增。");
-      }
+      refetchPathways();
     } catch (error: unknown) {
       if (applyApiFieldErrors(enterForm, error)) return;
       message.error(getApiErrorMessage(error, "办理患者入径失败"));
@@ -157,7 +157,7 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await advanceForm.validateFields();
-      const res = await advancePathwayMutation.mutateAsync({
+      await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
         packageVersion: selectedTemplatePackageVersion(),
         eventType: "COMPLETE",
@@ -168,21 +168,10 @@ export default function PatientPathways() {
       message.success("患者路径节点标准流转成功");
       advanceForm.resetFields();
 
-      setSessionPathways((prev) =>
-        prev.map((p) =>
-          p.patientPathwayId === selectedPathwayId
-            ? {
-                ...p,
-                currentNodeCode: values.requestedNextNodeCode,
-                status: res?.status || p.status,
-              }
-            : p,
-        ),
-      );
-
       refetchDetail();
       refetchClocks();
       refetchVariances();
+      refetchPathways();
     } catch (error: unknown) {
       if (applyApiFieldErrors(advanceForm, error)) return;
       message.error(getApiErrorMessage(error, "节点流转失败"));
@@ -194,7 +183,7 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await varianceForm.validateFields();
-      const res = await advancePathwayMutation.mutateAsync({
+      await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
         packageVersion: selectedTemplatePackageVersion(),
         eventType: "VARIANCE",
@@ -208,21 +197,10 @@ export default function PatientPathways() {
       message.warning("患者路径偏离事实变异登记成功");
       varianceForm.resetFields();
 
-      setSessionPathways((prev) =>
-        prev.map((p) =>
-          p.patientPathwayId === selectedPathwayId
-            ? {
-                ...p,
-                currentNodeCode: values.continueNodeCode || p.currentNodeCode,
-                status: res?.status || p.status,
-              }
-            : p,
-        ),
-      );
-
       refetchDetail();
       refetchClocks();
       refetchVariances();
+      refetchPathways();
     } catch (error: unknown) {
       if (applyApiFieldErrors(varianceForm, error)) return;
       message.error(getApiErrorMessage(error, "变异登记流转失败"));
@@ -245,20 +223,10 @@ export default function PatientPathways() {
       message.info("患者已退出临床路径");
       exitForm.resetFields();
 
-      setSessionPathways((prev) =>
-        prev.map((p) =>
-          p.patientPathwayId === selectedPathwayId
-            ? {
-                ...p,
-                status: "EXITED",
-              }
-            : p,
-        ),
-      );
-
       refetchDetail();
       refetchClocks();
       refetchVariances();
+      refetchPathways();
     } catch (error: unknown) {
       if (applyApiFieldErrors(exitForm, error)) return;
       message.error(getApiErrorMessage(error, "路径退径失败"));
@@ -369,16 +337,18 @@ export default function PatientPathways() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <Table
           columns={columns}
-          dataSource={filteredPathways}
+          dataSource={patientPathwayRows}
           rowKey="patientPathwayId"
+          loading={patientPathwaysLoading}
           pagination={{
             current: page,
             pageSize: size,
+            total: patientPathwaysData?.total ?? 0,
             onChange: (p) => setPage(p),
             showTotal: (t) => `共 ${t} 个临床运行中的患者实例`,
           }}
           locale={{
-            emptyText: "暂无已办理入径的真实患者路径。本页只展示接口成功返回的入径实例。",
+            emptyText: "暂无患者路径实例。请先办理患者入径，或调整检索条件。",
           }}
           className="medkernel-table"
         />
