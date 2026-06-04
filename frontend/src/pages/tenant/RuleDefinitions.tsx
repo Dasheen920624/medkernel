@@ -1092,17 +1092,15 @@ export default function RuleDefinitions() {
     );
   };
 
-  const renderConditionGroup = (group: RuleConditionGroup, isRoot: boolean) => {
+  const renderConditionGroup = (group: RuleConditionGroup, depth = 0) => {
+    const isRoot = depth === 0;
     const depthReached = rootDepth(conditionRoot) >= MAX_TREE_DEPTH;
+    // 根组用中性白底；子组按深度加淡绿底 + 左边线 + 缩进，使嵌套层级清晰可读。
+    const groupClassName = isRoot
+      ? "rounded-lg border border-gray-200 bg-white p-4"
+      : "rounded-lg border border-emerald-100 bg-emerald-50/30 p-3 ml-4 border-l-4 border-l-emerald-300";
     return (
-      <div
-        key={group.id}
-        className={
-          isRoot
-            ? "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4"
-            : "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 ml-4 border-l-4 border-l-emerald-300"
-        }
-      >
+      <div key={group.id} className={groupClassName}>
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <Tag color="green">{isRoot ? "条件根组" : "子条件组"}</Tag>
           <Select
@@ -1139,7 +1137,7 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size="small" className="mk-full-width">
           {group.children.map((child) =>
             isConditionGroup(child)
-              ? renderConditionGroup(child, false)
+              ? renderConditionGroup(child, depth + 1)
               : renderConditionLeaf(child),
           )}
           <Space wrap>
@@ -2028,7 +2026,7 @@ export default function RuleDefinitions() {
             description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
           />
 
-          {renderConditionGroup(conditionRoot, true)}
+          {renderConditionGroup(conditionRoot, 0)}
 
           <Descriptions bordered column={2} size="small">
             <Descriptions.Item label="动作代码">
