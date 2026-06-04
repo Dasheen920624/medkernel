@@ -50,6 +50,8 @@ public final class DomainOwnershipCatalog {
             prefixes("integration_", "mk_fhir_", "mk_integration_"), tables()),
         module("engine-mpi", packages("com.medkernel.engine.mpi"), prefixes("mpi_"),
             tables("mk_mpi_merge_review")),
+        module("engine-safety", packages("com.medkernel.engine.safety"), prefixes(),
+            tables("mk_engine_clinical_redline")),
         module("engine-recommendation",
             packages("com.medkernel.engine.recommendation", "com.medkernel.engine.cdss.risk"),
             prefixes("recommendation_"),
