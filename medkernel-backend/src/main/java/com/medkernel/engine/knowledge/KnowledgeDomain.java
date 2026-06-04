@@ -28,5 +28,7 @@ public enum KnowledgeDomain {
     /** 学术文献（个案、综述、RCT） */
     LITERATURE,
     /** 其他 */
-    OTHER
+    OTHER,
+    /** 诊断知识：疾病诊断标准、鉴别与诊疗指针（CDSS 辅助诊断）。 */
+    DIAGNOSIS
 }

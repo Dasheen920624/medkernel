@@ -31,7 +31,7 @@ public final class DomainOwnershipCatalog {
         module("engine-pathway", packages("com.medkernel.engine.pathway"), prefixes("pathway_", "specialty_"),
             tables("patient_pathway", "clinical_clock")),
         module("engine-knowledge", packages("com.medkernel.engine.knowledge"),
-            prefixes("knowledge_asset_", "knowledge_export_", "source_"),
+            prefixes("knowledge_asset_", "knowledge_export_", "source_", "mk_diagnosis_"),
             tables("knowledge_identity", "knowledge_supersession", "citation",
                 "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
                 "mk_knowledge_invalidation", "mk_knowledge_affected_case_task")),

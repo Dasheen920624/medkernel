@@ -168,7 +168,13 @@ public enum ErrorCode {
     TENANT_ONBOARD_NOT_READY("TENANT_ONBOARD_NOT_READY", 409, "租户开通就绪检查未通过", ErrorClass.DATA, false),
     ENG_CONFIG_001("ENG-CONFIG-001", 403, "高危运行配置禁止从界面关闭", ErrorClass.AUTH, false),
     ENG_CONFIG_002("ENG-CONFIG-002", 409, "高危配置变更需要二次确认和变更原因", ErrorClass.AUTH, false),
-    ENG_AUDIT_001("ENG-AUDIT-001", 403, "审计持久化为高危配置，禁止从界面关闭", ErrorClass.AUTH, false);
+    ENG_AUDIT_001("ENG-AUDIT-001", 403, "审计持久化为高危配置，禁止从界面关闭", ErrorClass.AUTH, false),
+
+    // 诊断知识与鉴别诊断（CDSS Spec 1 / Plan A）。运行时空态/部分可用是正常响应字段而非异常，不再新增 DX 错误码。
+    ENG_DX_001("ENG-DX-001", 409, "诊断知识版本无效或未发布", ErrorClass.DATA, false),
+    ENG_DX_004("ENG-DX-004", 400, "鉴别引用的诊断身份不存在", ErrorClass.DATA, false),
+    ENG_DX_005("ENG-DX-005", 409, "诊断置信策略缺失或非法", ErrorClass.DATA, false),
+    ENG_DX_006("ENG-DX-006", 409, "诊断测试病例未通过，不得发布", ErrorClass.DATA, false);
 
     /** API-05 业务语义别名，保持对外错误码与既有 {@code ENG-RULE-001} 单一真相一致。 */
     public static final ErrorCode RULE_DSL_INVALID = ENG_RULE_001;

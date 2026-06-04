@@ -1,0 +1,23 @@
+package com.medkernel.engine.knowledge.diagnosis;
+
+import java.util.List;
+
+import org.springframework.data.jdbc.repository.query.Modifying;
+import org.springframework.data.jdbc.repository.query.Query;
+import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.stereotype.Repository;
+
+/**
+ * 鉴别清单仓储：按租户 + 诊断版本读取（id 升序），删除收窄到租户。
+ */
+@Repository
+public interface DiagnosisDifferentialRepository extends ListCrudRepository<DiagnosisDifferential, Long> {
+
+    @Query("SELECT * FROM mk_diagnosis_differential WHERE tenant_id = :tenantId "
+         + "AND diagnosis_version_id = :versionId ORDER BY id ASC")
+    List<DiagnosisDifferential> findByTenantIdAndDiagnosisVersionId(String tenantId, Long versionId);
+
+    @Modifying
+    @Query("DELETE FROM mk_diagnosis_differential WHERE tenant_id = :tenantId AND id = :id")
+    void deleteByTenantIdAndId(String tenantId, Long id);
+}
