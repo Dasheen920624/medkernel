@@ -247,7 +247,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         hit: true,
         severity: "HIGH",
         actionCode: "REVIEW_REQUIRED",
-        explanation: "命中真实快照字段",
+        explanation: { summary: "命中真实快照字段", evidence: ["OBS.TEST"] },
       });
 
       const user = await openDraftRuleDrawer();
@@ -267,7 +267,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           }),
         }),
       );
-      expect(await screen.findByText("命中真实快照字段")).toBeInTheDocument();
+      expect(await screen.findByText(/命中真实快照字段/)).toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

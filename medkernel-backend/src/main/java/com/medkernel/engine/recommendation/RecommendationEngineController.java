@@ -71,6 +71,42 @@ public class RecommendationEngineController {
     }
 
     /**
+     * 分页查询医生端临床提醒卡聚合视图，返回卡片与触发上下文，避免页面拼接实体内部字段。
+     */
+    @GetMapping("/clinical-cards")
+    @PreAuthorize("@perm.has('recommendation.read')")
+    public ApiResult<PageResponse<RecommendationClinicalCardResponse>> clinicalCards(
+            @RequestParam(required = false) RecommendationCardStatus status,
+            @RequestParam(required = false) RecommendationRiskLevel riskLevel,
+            @RequestParam(required = false) String scenarioCode,
+            @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) String encounterId,
+            @RequestParam(required = false) String triggerPoint,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        return ApiResult.ok(service.listClinicalCards(
+            new RecommendationCardFilter(status, riskLevel, scenarioCode, patientId, encounterId, triggerPoint),
+            new PageRequest(page, size, sort)));
+    }
+
+    /**
+     * 查询推荐提醒闭环真实统计，供采纳率、拒绝率和疲劳治理看板只读复用。
+     */
+    @GetMapping("/stats")
+    @PreAuthorize("@perm.has('recommendation.read')")
+    public ApiResult<RecommendationStatsResponse> stats(
+            @RequestParam(required = false) RecommendationCardStatus status,
+            @RequestParam(required = false) RecommendationRiskLevel riskLevel,
+            @RequestParam(required = false) String scenarioCode,
+            @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) String encounterId,
+            @RequestParam(required = false) String triggerPoint) {
+        return ApiResult.ok(service.stats(
+            new RecommendationCardFilter(status, riskLevel, scenarioCode, patientId, encounterId, triggerPoint)));
+    }
+
+    /**
      * 查询推荐卡详情，聚合来源、反馈和疲劳治理信号。
      */
     @GetMapping({"/{cardId}", "/cards/{cardId}"})

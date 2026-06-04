@@ -25,7 +25,7 @@ public interface RecommendationFatigueSignalRepository extends ListCrudRepositor
           AND (:fatigueKey IS NULL OR fatigue_key = :fatigueKey)
           AND (:signalType IS NULL OR signal_type = :signalType)
         ORDER BY created_at DESC, id DESC
-        LIMIT :limit OFFSET :offset
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<RecommendationFatigueSignal> pageByFilter(String tenantId, String fatigueKey, String signalType,
                                                    int offset, int limit);

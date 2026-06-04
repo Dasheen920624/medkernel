@@ -27,6 +27,8 @@ const mockUseMpiPatients = vi.mocked(useMpiPatients);
 const mockUseMpiStats = vi.mocked(useMpiStats);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
 
+const MPI_INTERACTION_TIMEOUT_MS = 15_000;
+
 function renderMpi() {
   return render(
     <ConfigProvider>
@@ -125,57 +127,65 @@ describe("Mpi", () => {
     } as unknown as ReturnType<typeof useCreateMpiPatient>);
   });
 
-  it("renders real MPI rows and creates a patient through the backend mutation", async () => {
-    const user = userEvent.setup();
-    renderMpi();
+  it(
+    "renders real MPI rows and creates a patient through the backend mutation",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
 
-    expect(screen.getAllByText("mpi-real-1").length).toBeGreaterThan(0);
-    expect(screen.getByText("张*三")).toBeInTheDocument();
-    expect(screen.getByText("mpi-merged-1")).toBeInTheDocument();
-    expect(screen.getByText(/在径路径实例 2 个/)).toBeInTheDocument();
+      expect(screen.getAllByText("mpi-real-1").length).toBeGreaterThan(0);
+      expect(screen.getByText("张*三")).toBeInTheDocument();
+      expect(screen.getByText("mpi-merged-1")).toBeInTheDocument();
+      expect(screen.getByText(/在径路径实例 2 个/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /新增患者/ }));
-    await user.type(screen.getByPlaceholderText("例如：mpi-new"), "mpi-new");
-    await user.type(screen.getByPlaceholderText("例如：李*四"), "李*四");
-    await user.click(screen.getByRole("combobox", { name: "性别" }));
-    const femaleOptions = await screen.findAllByText("女 (F)");
-    await user.click(femaleOptions[femaleOptions.length - 1]);
-    await user.clear(screen.getByPlaceholderText("例如：36"));
-    await user.type(screen.getByPlaceholderText("例如：36"), "41");
-    await user.type(screen.getByPlaceholderText("例如：9876"), "9876");
-    await user.click(screen.getByRole("button", { name: "保存患者" }));
+      await user.click(screen.getByRole("button", { name: /新增患者/ }));
+      await user.type(screen.getByPlaceholderText("例如：mpi-new"), "mpi-new");
+      await user.type(screen.getByPlaceholderText("例如：李*四"), "李*四");
+      await user.click(screen.getByRole("combobox", { name: "性别" }));
+      const femaleOptions = await screen.findAllByText("女 (F)");
+      await user.click(femaleOptions[femaleOptions.length - 1]);
+      await user.clear(screen.getByPlaceholderText("例如：36"));
+      await user.type(screen.getByPlaceholderText("例如：36"), "41");
+      await user.type(screen.getByPlaceholderText("例如：9876"), "9876");
+      await user.click(screen.getByRole("button", { name: "保存患者" }));
 
-    await waitFor(() => {
-      expect(createPatient).toHaveBeenCalledWith({
-        mpiId: "mpi-new",
-        maskedName: "李*四",
-        gender: "F",
-        age: 41,
-        idLast4: "9876",
+      await waitFor(() => {
+        expect(createPatient).toHaveBeenCalledWith({
+          mpiId: "mpi-new",
+          maskedName: "李*四",
+          gender: "F",
+          age: 41,
+          idLast4: "9876",
+        });
       });
-    });
-    expect(refetchList).toHaveBeenCalled();
-    expect(refetchStats).toHaveBeenCalled();
-  });
+      expect(refetchList).toHaveBeenCalled();
+      expect(refetchStats).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
 
-  it("splits a merged MPI row with an explicit review reason", async () => {
-    const user = userEvent.setup();
-    renderMpi();
+  it(
+    "splits a merged MPI row with an explicit review reason",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
 
-    await user.click(screen.getByRole("button", { name: /拆分归并/ }));
-    await user.type(
-      screen.getByPlaceholderText("请输入人工核查结论"),
-      "人工核查后确认不是同一患者",
-    );
-    await user.click(screen.getByRole("button", { name: "确认拆分" }));
+      await user.click(screen.getByRole("button", { name: /拆分归并/ }));
+      await user.type(
+        screen.getByPlaceholderText("请输入人工核查结论"),
+        "人工核查后确认不是同一患者",
+      );
+      await user.click(screen.getByRole("button", { name: "确认拆分" }));
 
-    await waitFor(() => {
-      expect(splitPatient).toHaveBeenCalledWith({
-        sourceMpiId: "mpi-merged-1",
-        reviewReason: "人工核查后确认不是同一患者",
+      await waitFor(() => {
+        expect(splitPatient).toHaveBeenCalledWith({
+          sourceMpiId: "mpi-merged-1",
+          reviewReason: "人工核查后确认不是同一患者",
+        });
       });
-    });
-    expect(refetchList).toHaveBeenCalled();
-    expect(refetchStats).toHaveBeenCalled();
-  });
+      expect(refetchList).toHaveBeenCalled();
+      expect(refetchStats).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
 });

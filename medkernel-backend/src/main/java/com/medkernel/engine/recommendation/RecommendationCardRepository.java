@@ -46,7 +46,7 @@ public interface RecommendationCardRepository extends ListCrudRepository<Recomme
           AND (:encounterId IS NULL OR t.encounter_id = :encounterId)
           AND (:triggerPoint IS NULL OR t.trigger_type = :triggerPoint)
         ORDER BY c.created_at DESC, c.id DESC
-        LIMIT :limit OFFSET :offset
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<RecommendationCard> pageByFilter(
         String tenantId, String status, String riskLevel, String scenarioCode, String patientId,

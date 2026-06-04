@@ -233,8 +233,7 @@ public class RecommendationEngineService {
     @Transactional(readOnly = true)
     public PageResponse<RecommendationCard> listCards(RecommendationCardFilter filter, PageRequest pageRequest) {
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        RecommendationCardFilter f = filter == null ? new RecommendationCardFilter(null, null, null, null, null, null)
-            : filter;
+        RecommendationCardFilter f = normalizeFilter(filter);
         String status = f.status() == null ? null : f.status().name();
         String risk = f.riskLevel() == null ? null : f.riskLevel().name();
         long total = cards.countByFilter(
@@ -246,13 +245,60 @@ public class RecommendationEngineService {
     }
 
     /**
+     * 分页查询医生端临床提醒卡聚合视图，补齐患者、就诊、路径和触发点上下文。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<RecommendationClinicalCardResponse> listClinicalCards(
+            RecommendationCardFilter filter,
+            PageRequest pageRequest) {
+        PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        RecommendationCardFilter f = normalizeFilter(filter);
+        String tenantId = tenantId();
+        String status = f.status() == null ? null : f.status().name();
+        String risk = f.riskLevel() == null ? null : f.riskLevel().name();
+        long total = cards.countByFilter(
+            tenantId, status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint());
+        List<RecommendationClinicalCardResponse> rows = cards.pageByFilter(
+                tenantId, status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint(),
+                req.offset(), req.safeSize())
+            .stream()
+            .map(card -> RecommendationClinicalCardResponse.from(card, findTrigger(card.triggerId(), tenantId)))
+            .toList();
+        return PageResponse.of(rows, req, total);
+    }
+
+    /**
+     * 统计当前筛选范围内的推荐提醒闭环状态，供 D4 只读采纳率与疲劳治理分析复用。
+     */
+    @Transactional(readOnly = true)
+    public RecommendationStatsResponse stats(RecommendationCardFilter filter) {
+        RecommendationCardFilter f = normalizeFilter(filter);
+        String tenantId = tenantId();
+        String risk = f.riskLevel() == null ? null : f.riskLevel().name();
+        RecommendationCardStatus requestedStatus = f.status();
+        long total = countByStatus(tenantId, requestedStatus, risk, f);
+        long pending = countBucket(tenantId, RecommendationCardStatus.PENDING, requestedStatus, risk, f);
+        long accepted = countBucket(tenantId, RecommendationCardStatus.ACCEPTED, requestedStatus, risk, f);
+        long rejected = countBucket(tenantId, RecommendationCardStatus.REJECTED, requestedStatus, risk, f);
+        long dismissed = countBucket(tenantId, RecommendationCardStatus.DISMISSED, requestedStatus, risk, f);
+        long deferred = countBucket(tenantId, RecommendationCardStatus.DEFERRED, requestedStatus, risk, f);
+        long suppressed = countBucket(tenantId, RecommendationCardStatus.SUPPRESSED, requestedStatus, risk, f);
+        long expired = countBucket(tenantId, RecommendationCardStatus.EXPIRED, requestedStatus, risk, f);
+        return new RecommendationStatsResponse(
+            total, pending, accepted, rejected, dismissed, deferred, suppressed, expired,
+            rate(accepted, accepted + rejected), traceId());
+    }
+
+    /**
      * 查询推荐卡详情（含来源、反馈、疲劳信号），卡不存在抛 {@code ENG_REC_003}。
      */
     @Transactional(readOnly = true)
     public RecommendationCardDetailResponse cardDetail(String cardId) {
         RecommendationCard card = findCard(cardId);
+        RecommendationTrigger trigger = findTrigger(card.triggerId(), tenantId());
         return new RecommendationCardDetailResponse(
             card,
+            trigger,
             sources.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId()),
             feedback.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId()),
             fatigueSignals.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId())
@@ -455,6 +501,49 @@ public class RecommendationEngineService {
     private RecommendationCard findCard(String cardId) {
         return cards.findByCardIdAndTenantId(cardId, tenantId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_REC_003));
+    }
+
+    private RecommendationTrigger findTrigger(String triggerId, String tenantId) {
+        return triggers.findByTriggerIdAndTenantId(triggerId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_REC_002));
+    }
+
+    private RecommendationCardFilter normalizeFilter(RecommendationCardFilter filter) {
+        return filter == null ? new RecommendationCardFilter(null, null, null, null, null, null) : filter;
+    }
+
+    private long countByStatus(
+            String tenantId,
+            RecommendationCardStatus status,
+            String risk,
+            RecommendationCardFilter filter) {
+        return cards.countByFilter(
+            tenantId,
+            status == null ? null : status.name(),
+            risk,
+            filter.scenarioCode(),
+            filter.patientId(),
+            filter.encounterId(),
+            filter.triggerPoint());
+    }
+
+    private long countBucket(
+            String tenantId,
+            RecommendationCardStatus bucket,
+            RecommendationCardStatus requestedStatus,
+            String risk,
+            RecommendationCardFilter filter) {
+        if (requestedStatus != null && requestedStatus != bucket) {
+            return 0L;
+        }
+        return countByStatus(tenantId, bucket, risk, filter);
+    }
+
+    private double rate(long numerator, long denominator) {
+        if (denominator <= 0) {
+            return 0.0;
+        }
+        return Math.round((numerator * 1000.0) / denominator) / 10.0;
     }
 
     private RecommendationCard rewriteStatus(RecommendationCard card, RecommendationCardStatus status,
