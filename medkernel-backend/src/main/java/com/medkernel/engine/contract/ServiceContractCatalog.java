@@ -207,6 +207,11 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.EXECUTE, "recommendation_trigger", "创建或评估推荐触发"),
                 audit(AuditAction.FEEDBACK, "recommendation_card", "记录提醒反馈"))),
+        contract("diagnosis-assist", "运行时鉴别诊断服务",
+            "com.medkernel.engine.knowledge.diagnosis.runtime.DiagnosisAssistController",
+            "/api/v1/engine/recommendations",
+            permissions("recommendation.write"),
+            audits(audit(AuditAction.EXECUTE, "recommendation_trigger", "鉴别诊断候选经触发落库为推荐卡"))),
         contract("recommendation-evaluate-suffix", "推荐评估 suffix 服务",
             "com.medkernel.engine.recommendation.RecommendationEvaluateSuffixController",
             "/api/v1/engine/recommendations:evaluate",

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -11,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
@@ -33,14 +36,18 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisDirection;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatcher;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisWeight;
+import com.medkernel.engine.recommendation.RecommendationCardType;
+import com.medkernel.engine.recommendation.RecommendationEngineService;
+import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
-/** 鉴别诊断编排：命中产候选 + 高危/证据排序 + 空态非排除（确定性、置信分级非概率）。 */
+/** 鉴别诊断编排：命中产候选 + 高危/证据排序 + 空态非排除 + 落库治理（trigger DIAGNOSIS 卡 / 空态不落库）。 */
 class DiagnosisAssistServiceTest {
 
     private ContextSnapshotService snapshots;
@@ -50,6 +57,7 @@ class DiagnosisAssistServiceTest {
     private DiagnosisConfidencePolicyRepository policies;
     private DiagnosisFindingExtractor extractor;
     private DiagnosisRedlinePort redlinePort;
+    private RecommendationEngineService recommendationEngine;
     private DiagnosisAssistService service;
 
     private final DiagnosisConfidencePolicy policy = new DiagnosisConfidencePolicy(
@@ -64,9 +72,10 @@ class DiagnosisAssistServiceTest {
         policies = mock(DiagnosisConfidencePolicyRepository.class);
         extractor = mock(DiagnosisFindingExtractor.class);
         redlinePort = mock(DiagnosisRedlinePort.class);
+        recommendationEngine = mock(RecommendationEngineService.class);
         DiagnosisMatcher matcher = new DiagnosisMatcher(new DiagnosisConfidenceEvaluator());
         service = new DiagnosisAssistService(snapshots, versions, identities, criteria, policies,
-            matcher, extractor, redlinePort);
+            matcher, extractor, redlinePort, recommendationEngine, new ObjectMapper());
 
         when(snapshots.findById(any())).thenReturn(new ContextSnapshotResponse(
             "snap-1", null, null, null, null, Instant.now(), "trace-dx"));
@@ -83,15 +92,7 @@ class DiagnosisAssistServiceTest {
 
     @Test
     void hitProducesExplainableStrongCandidate() {
-        when(extractor.extract(eq("t-1"), any()))
-            .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH"), List.of("LOCALX")));
-        when(versions.findActiveDiagnosisVersions("t-1"))
-            .thenReturn(List.of(version(10L, 100L, SourceAuthorityLevel.A_REGULATION)));
-        when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
-            crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
-            crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
-        when(identities.findByTenantIdAndId("t-1", 100L))
-            .thenReturn(Optional.of(identity(100L, "DX.PNEU", "社区获得性肺炎")));
+        stubStrongHit();
 
         DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
 
@@ -108,12 +109,31 @@ class DiagnosisAssistServiceTest {
     }
 
     @Test
+    void persistsDiagnosisCardsViaRecommendationTrigger() {
+        stubStrongHit();
+
+        service.assist(new DiagnosisAssistRequest("snap-1"));
+
+        ArgumentCaptor<RecommendationTriggerRequest> cap = ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
+        verify(recommendationEngine).trigger(cap.capture());
+        RecommendationTriggerRequest req = cap.getValue();
+        assertThat(req.triggerType()).isEqualTo("patient-view"); // 合法 CDS Hook
+        assertThat(req.scenarioCode()).isEqualTo("S16");
+        assertThat(req.candidateCards()).singleElement().satisfies(card -> {
+            assertThat(card.cardType()).isEqualTo(RecommendationCardType.DIAGNOSIS);
+            assertThat(card.requiresPhysicianConfirmation()).isTrue();
+            assertThat(card.aiGenerated()).isFalse();
+            assertThat(card.sources()).hasSize(1);
+        });
+    }
+
+    @Test
     void ranksStrongBeforeModerate() {
         when(extractor.extract(eq("t-1"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH", "RASH"), List.of()));
         when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of(
             version(20L, 200L, SourceAuthorityLevel.A_REGULATION),   // 故意先放 MODERATE
-            version(10L, 100L, SourceAuthorityLevel.B_GUIDELINE))); // STRONG
+            version(10L, 100L, SourceAuthorityLevel.B_GUIDELINE)));  // STRONG
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
             crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
@@ -130,7 +150,7 @@ class DiagnosisAssistServiceTest {
     }
 
     @Test
-    void emptyStateIsAdvisoryNotExclusion() {
+    void emptyStateIsAdvisoryNotExclusionAndDoesNotPersist() {
         when(extractor.extract(eq("t-1"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER"), List.of()));
         when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of()); // 无 ACTIVE 诊断版本
@@ -140,6 +160,19 @@ class DiagnosisAssistServiceTest {
         assertThat(response.candidates()).isEmpty();
         assertThat(response.advisoryNote()).isEqualTo(DiagnosisAssistService.ADVISORY_EMPTY);
         assertThat(response.advisoryNote()).contains("不是排除诊断");
+        verify(recommendationEngine, never()).trigger(any()); // 空态不落库
+    }
+
+    private void stubStrongHit() {
+        when(extractor.extract(eq("t-1"), any()))
+            .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH"), List.of("LOCALX")));
+        when(versions.findActiveDiagnosisVersions("t-1"))
+            .thenReturn(List.of(version(10L, 100L, SourceAuthorityLevel.A_REGULATION)));
+        when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
+            crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
+            crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
+        when(identities.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(identity(100L, "DX.PNEU", "社区获得性肺炎")));
     }
 
     private DiagnosisCriterion crit(Long versionId, String code, DiagnosisDirection dir, DiagnosisWeight w) {
