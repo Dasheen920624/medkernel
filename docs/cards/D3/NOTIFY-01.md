@@ -23,6 +23,11 @@
 - 已覆盖：随访异常通知事件从后端真实关系库投影，按 `dedupeKey` 去重，已读回执持久化；页面默认未读视图 + 级别筛选，低打扰原则下不展示前端造通知；列表请求使用后端 1 基分页。
 - 未冒领：通知免打扰时段设置仍在 `/notifications/settings` 后续收口；待办派生通知、外发投递、同步事件通知需要后续 PR 按真实来源接入，不得伪造投递成功。
 
+## PR2 实施边界（2026-06-04，PR #371 已合并）
+- 已实现：`/notifications/settings` 删除静态假默认，改为通过 `GET/PUT /api/v1/engine/notifications/settings` 读取 / 保存个人通知偏好；偏好复用 `mk_experience_user_pref`，不新增外发投递假表。
+- 已覆盖：免打扰启用、时段、CRITICAL/HIGH 绕过、院内 / 邮件 / 短信 / Webhook 通道偏好均回写后端；页面明确外部通道当前只保存个人偏好，真实投递需后续接入。
+- 未冒领：待办派生通知、同步事件通知和真实外发投递仍需后续 PR；安全 / 危急通知不得被免打扰静默。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 通知聚合：列多源通知（来源/级别/时间），去重、真实（[API-13](../D0/API-13.md) 分页）。
 - [ ] FR-2 已读回执：标记已读/全部已读，回执真实回写。
@@ -36,7 +41,7 @@ N·A —— 消费 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 通知 API。
 ### 页面契约（页面卡）
 - 路由元数据：sectionKey `clinical-run` / menuKey `notifications` / menuLabel `通知中心` / path `/notifications`（设置 `/notifications/settings`）/ requiredPermissions 通知查看 / requiredRoles 全临床角色（本人范围）。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 通知列表（级别色阶）+ 筛选 + 已读操作 + 六态。
-- 主按钮 ≤1（全部已读）/ 默认筛选 ≤3（未读/今日/高优先）/ 默认角色视图（本人）。
+- 主按钮 ≤1（全部已读；设置页为保存设置）/ 默认筛选 ≤3（未读/今日/高优先）/ 默认角色视图（本人）。
 - 五维 RBAC：菜单 / 动作（已读/设置）/ 数据（本人/org）/ 资产 / 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码 hex/px。
 

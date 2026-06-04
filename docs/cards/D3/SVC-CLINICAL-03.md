@@ -23,6 +23,12 @@
 - 已覆盖闭环：待办完成持久化 `completionReason/completedBy/completedAt`；通知单条已读与当前页全部已读均回写后端；待办分页层安全复核 + 高风险优先排序，前端再做同口径展示保护。
 - 未冒领范围：护理任务、报告解读、床旁知识卡、通知免打扰设置与外发投递仍属于本卡后续 PR 或 X-DOMAIN/wave2 接入点；不是外部环境阻塞，后续必须继续实现，不得写成已完成。
 
+## PR2 实施边界（2026-06-04，PR #371 已合并）
+- 已实现：新增待办转交端点 `POST /api/v1/engine/workflow/todos/{todoId}/transfer`，待办状态可从 `PENDING` / `IN_PROGRESS` 流转到 `TRANSFERRED`，并持久化 `transferredTo`、`transferReason`、新责任人 / 角色、traceId 与更新时间；新增通知偏好 `GET/PUT /api/v1/engine/notifications/settings`，复用 `mk_experience_user_pref` 存取个人免打扰与通道偏好，不新增伪投递表。
+- 已覆盖闭环：前端待办中心提供转交弹窗并回写后端；通知设置页从后端加载 / 保存偏好，明确 CRITICAL / HIGH 不被免打扰静默，外部通道当前只保存个人偏好，不伪造短信 / 院内消息投递成功。
+- 验证证据：本地 `npm run verify`、`mvn -q clean test`、`npm run build`、`npm audit --omit=dev --audit-level=moderate`、changed-mode T-GATE 与远端 CI 8/8 通过；PostgreSQL + Oracle 校验并应用到 V80。达梦 / 人大金仓真实运行按当前阶段边界后置，不作为本 PR 阻塞。
+- 未冒领范围：护理任务、报告解读、床旁知识卡、待办派生通知、同步事件通知与真实外发投递仍待后续 PR；缺上游真实来源时登记待处理问题后继续下一可测闭环。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 统一待办：CDSS 复核/随访/安全复核（[MED-C3](MED-C3.md)）任务统一进待办，带责任人/截止/来源。
 - [ ] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。
@@ -32,7 +38,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET /api/v1/engine/workflow/todos` · `POST .../workflow/todos/{id}/complete` · `GET .../notifications` · `POST .../notifications/{id}/read`
+- 端点：`GET /api/v1/engine/workflow/todos` · `POST .../workflow/todos/{id}/complete` · `POST .../workflow/todos/{id}/transfer` · `GET .../notifications` · `POST .../notifications/{id}/read` · `GET/PUT .../notifications/settings`
 - DTO：待办/通知 Record（来源/责任人/截止/状态/组织字段）；信封 `ApiResult`/`ProblemDetail` + 大列表 [API-13](../D0/API-13.md)
 - 状态机：待办类（待处理→进行中→完成/转交）
 - 幂等 / traceId：任务注入幂等键；trace（[OBS-01](../D0/OBS-01.md)）
