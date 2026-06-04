@@ -38,6 +38,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import {
   useContextFieldCatalog,
   useContextSnapshotDetail,
@@ -1427,7 +1428,17 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionValue"]}
                             label="条件值"
                           >
-                            <Input placeholder="如 true" />
+                            {(() => {
+                              const edgeFact = watchedEdges?.[field.name]?.conditionFact;
+                              const edgeCodeSystem = edgeFact
+                                ? fieldByPath.get(edgeFact)?.codeSystem
+                                : undefined;
+                              return edgeCodeSystem ? (
+                                <StandardTermValueAutoComplete codeSystem={edgeCodeSystem} />
+                              ) : (
+                                <Input placeholder="如 true" />
+                              );
+                            })()}
                           </Form.Item>
                         </Col>
                       </Row>
