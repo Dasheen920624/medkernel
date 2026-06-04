@@ -60,7 +60,9 @@ class KnowledgeDomainTest {
 
 - [ ] **Step 2: 运行验证失败** — Run: `cd medkernel-backend && mvn -q -Dtest=KnowledgeDomainTest test` — Expected: 编译失败 / `IllegalArgumentException: No enum constant ... DIAGNOSIS`
 
-- [ ] **Step 3: 实现** — 在 `KnowledgeDomain` 枚举体内现有值（`GUIDELINE`/`DRUG`…）后追加 `DIAGNOSIS,`，并补中文 Javadoc 行（如 `/** 诊断知识：疾病诊断标准、鉴别与诊疗指针。 */`）。
+- [ ] **Step 3: 实现** — 在 `KnowledgeDomain` 枚举体内现有值（`GUIDELINE`/`DRUG`…）后追加 `DIAGNOSIS`，并补中文 Javadoc 行（如 `/** 诊断知识：疾病诊断标准、鉴别与诊疗指针。 */`）。
+
+> **⚠️ 动手验证发现（必读，否则诊断身份插不进库）**：`knowledge_identity.domain` 有 `ck_knowledge_identity_domain CHECK (domain IN (...))` 约束（`V3__knowledge_asset_baseline.sql` 第 73 行，五方言一致）。因此 **Task 2 的迁移必须同时 `ALTER`**：DROP 旧约束 + ADD 含 `DIAGNOSIS` 的新 CHECK（五方言），否则插入 `domain='DIAGNOSIS'` 会被约束拒。**迁移号**：Plan 原写 V67 已被 main 超越，实际用当时最大 +1（已核验 main 最大 V74 → 用 **V75**）。Java 枚举层（本 Task）与 DB CHECK 层（Task 2）缺一不可。
 
 - [ ] **Step 4: 运行验证通过** — Run: `mvn -q -Dtest=KnowledgeDomainTest test` — Expected: PASS
 
