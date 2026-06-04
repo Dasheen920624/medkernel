@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 SVC-CLINICAL-03 临床协同服务包 PR1 🚧
+### 线 1 · D3 SVC-CLINICAL-03 临床协同服务包 PR2 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-svc-clinical-03-pr1`
-- 目标：完成 D3 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) PR1：把 CDSS 复核、随访、安全复核等多源任务编排为统一待办 / 通知协同契约，并真实化 [TODO-01](cards/D3/TODO-01.md) / [NOTIFY-01](cards/D3/NOTIFY-01.md) 的最小闭环入口。
-- 状态：PR1 代码已在本地分支实现，已补统一待办 / 通知表 V77（五方言静态迁移，当前真实运行只保障 PostgreSQL + Oracle）、`engine/workflow` 服务包、权限 / 契约 / 领域归属、TODO/NOTIFY 页面真实化。已覆盖 CDSS 推荐卡、随访任务、安全撤回复核任务进入统一待办，随访异常通知去重 + 已读回写；安全复核在后端分页层置顶，前端再按同口径排序；已补 patientId 过滤、1 基分页、随访投影仓储用例，并修正通知收件人从随访任务执行人投影而非查询用户。完整本地验证已通过：`mvn -q test`（含 PostgreSQL + Oracle V77 迁移）、`npm run verify`、`npm run build`、`npm audit --omit=dev --audit-level=moderate`（0 漏洞）、Browser 复验 `/workflow/todos` 与 `/notifications` 均未登录重定向 `/login` 且控制台 error 为空。尚未提交 / 创建 PR，不能标 done。
-- 下一步（精确到动作/命令）：1. 提交后重跑 changed-mode T-GATE（真实性 / 迁移 / 配置边界 / 中文注释 / diff）；2. 推送并创建 PR，等远端 CI 8/8 通过后 squash merge；3. 合并后更新本线为归档，再继续本卡后续 PR 或下一阶段任务。
-- 相关文件 / 测试 / 坑：后端新增 `medkernel-backend/src/main/java/com/medkernel/engine/workflow/**`，并扩展 `RecommendationCardRepository`、`FollowupTaskRepository`、`FollowupEventRepository`；前端重点 `frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`。PR1 未冒领护理任务、报告解读、床旁知识卡、通知免打扰设置、外发投递、待办派生通知等后续范围；这些是后续实现项，不是外部阻塞。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不得阻塞长任务。
+- 分支：下一步新建 `codex/d3-svc-clinical-03-pr2`
+- 目标：继续 D3 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) PR2，在 PR1 统一待办 / 通知最小闭环基础上，补齐下一组真实协同闭环，优先收口 [TODO-01](cards/D3/TODO-01.md) 转交处理与 [NOTIFY-01](cards/D3/NOTIFY-01.md) 免打扰设置，仍坚持不造护理 / 报告 / 床旁来源假数据。
+- 状态：PR1 已通过 PR #368 squash 合入 `origin/main`（merge `99d33dbd`），远端 CI 8/8 通过，远端分支已删除。当前尚未开始 PR2 代码，不能标 done。
+- 下一步（精确到动作/命令）：1. 基于最新 `origin/main` 新建 `codex/d3-svc-clinical-03-pr2`；2. 读核心 [CONSTITUTION](CONSTITUTION.md)、D3 `_brief`、[SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md)、[TODO-01](cards/D3/TODO-01.md)、[NOTIFY-01](cards/D3/NOTIFY-01.md)；3. TDD 先写失败测试，优先做待办转交后端状态机 / 审计字段 + 前端转交入口，随后做通知免打扰设置真实存取；4. 完整本地验证、Browser、changed-mode T-GATE、PR、远端 CI 8/8、squash merge 后才能领取下一阶段。
+- 相关文件 / 测试 / 坑：PR1 已建立 `medkernel-backend/src/main/java/com/medkernel/engine/workflow/**`、V77、`frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`。PR2 不得把护理任务、报告解读、床旁知识卡、外发投递、待办派生通知写成已完成；若真实来源缺上游契约，登记清楚并选下一可测闭环继续。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓真实运行继续后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不阻塞主线。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -71,6 +71,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D3 SVC-CLINICAL-03 临床协同服务包 PR1 ✅（#368，squash merge `99d33dbd`）：新增 `engine/workflow` 统一待办 / 通知服务包、V77 `mk_engine_workflow_todo` / `mk_engine_notification` 五方言静态迁移、权限 / 服务契约 / 领域归属登记；随访任务、安全撤回复核、推荐卡投影为统一待办，随访异常通知按真实事件 `dedupeKey` 去重并使用随访任务执行人作为收件人；`/workflow/todos`、`/notifications` 删除旧占位并接真实 API。验证：TDD 红绿覆盖 patientId 过滤、1 基分页、随访投影、通知收件人；本地 `mvn -q test`（含 PostgreSQL 15.18 + Oracle 21.3 Testcontainers V77 迁移）、`npm run verify`、`npm run build`、生产依赖审计 0 漏洞、Browser 两路由未登录重定向 `/login` 且 console error=0、changed-mode 真实性 / 迁移 / 配置边界 / 中文注释 / diff 全通过；远端 CI 8/8 通过后合入，远端分支已删除。未冒领：护理任务、报告解读、床旁知识卡、通知免打扰设置、外发投递、待办派生通知仍属后续 PR；达梦 / 人大金仓真实运行继续后置。
 - D3 SVC-CLINICAL-02 临床提醒与反馈服务包 PR1 ✅（#365，squash merge `ff63d1ac`）：交付临床提醒聚合读模型 `/api/v1/engine/recommendations/clinical-cards`、真实统计 `/stats`（含显式 `status` 筛选桶计数一致性）、推荐详情 trigger 上下文、推荐卡/疲劳信号 PostgreSQL + Oracle 兼容分页 SQL；前端 `CdssFatigue` 接真实聚合/统计并展示后端医师反馈署名，提交反馈不带浏览器伪造 `operatorId`；`RuleValidate` 接真实 `ruleId/versionId/actions/explanation`，租户规则页兼容对象型解释，MPI 交互测试消除全量并发 5s 误伤。本地后端聚焦、后端全量 `mvn -q test`（PostgreSQL 15.18 + Oracle 21.3 Testcontainers 迁移至 V76）、前端聚焦、`npm run verify` 57 文件 / 323 测试、`npm run build`、生产依赖 audit 0 漏洞、T-GATE 和远端 CI 8/8 均通过后合入；远端分支已删除。历史迁移 inventory 债仍按 `DEFER-016` open，不得冒领清零。
 - D3 SVC-CLINICAL-01 患者与路径运行服务包 PR1 ✅（#364，squash merge `bc71a8b1`）：交付 MPI 建患者 / 患者详情 360 / 合并 / 拆分、真实在径统计、患者路径服务端分页列表，并清理 PMI/PPATH 两页本地会话态假运行数据。验证：后端聚焦、后端全量 `mvn -q test`（含 H2、PostgreSQL 15.18、Oracle 21.3 迁移到 V76 并二次 no-op）、前端聚焦、`npm run verify` 55 文件 / 320 测试、`npm run build`、生产依赖审计 0 漏洞、changed-mode T-GATE、中文注释、diff 检查、Playwright `/login` 与 `/pathway/patients` 未登录重定向通过后合入 `origin/main`；远端分支已删除。`DEFER-020` 登记旧本地 Docker 容器与当前源码可能不一致，不阻塞后续主线。
 - D3 OPT-04 临床安全红线规则库 PR3 ✅（#359，merge `cb792e93`）：红线运行时确定性命中接入推荐主链路，平台 ACTIVE 红线强优先，禁止被租户弱化或疲劳抑制；推荐来源新增 `REDLINE`，推荐服务运行时兜底提升为 `CRITICAL + DUAL_REVIEW + OPT04_REDLINE_RUNTIME_GUARD` 并保留 `REDLINE` / `KNOWLEDGE` / `CONTEXT` 追溯来源；V76 五方言扩展 `recommendation_source.source_type`，不种医学常量。本地后端聚焦、后端全量、前端 verify/build、生产依赖 audit、真实性 / 配置边界、迁移规约、中文注释、`git diff --check` 和远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。达梦 / 人大金仓真实运行仍按 `DEFER-001` 后置。
@@ -245,4 +246,4 @@
 
 ---
 
-> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `SVC-CLINICAL-02` 临床提醒与反馈服务包 PR #365 已远端 CI 8/8 通过并 squash 合入 `origin/main` `ff63d1ac`，backlog 已置 `done`，归档证据见“已归档工作线”。当前在途线切换为 D3 `SVC-CLINICAL-03` 临床协同服务包 PR1：下一步基于最新 `origin/main` 创建 `codex/d3-svc-clinical-03-pr1`，读卡后 TDD 实现统一待办 / 通知协同最小闭环。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。另：Claude 线 3 `claude/diagnosis-knowledge-cdss` 诊断 CDSS 设计稿 + Plan A/B 已就绪在 PR #320（四轮 self-review 加固），待 review 合并；已登记可借鉴增量（诊断图投影、治疗禁忌/DDI 图谱化）入线 3；Plan A 迁移号 V67 已被 main 超越，执行时刷新为当时最大+1。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `SVC-CLINICAL-03` 临床协同服务包 PR1 已远端 CI 8/8 通过并 squash 合入 `origin/main` `99d33dbd`，归档证据见“已归档工作线”，远端分支已删除。当前在途线切换为 D3 `SVC-CLINICAL-03` PR2：下一步基于最新 `origin/main` 创建 `codex/d3-svc-clinical-03-pr2`，读核心 / D3 `_brief` / SVC-CLINICAL-03 / TODO-01 / NOTIFY-01 后按 TDD 优先补待办转交与通知免打扰真实闭环；SVC-CLINICAL-03 整卡尚未 done，护理任务、报告解读、床旁知识卡、外发投递、待办派生通知仍是后续范围。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。另：Claude 线 3 `claude/diagnosis-knowledge-cdss` 诊断 CDSS 设计稿 + Plan A/B 已就绪在 PR #320（四轮 self-review 加固），待 review 合并；已登记可借鉴增量（诊断图投影、治疗禁忌/DDI 图谱化）入线 3；Plan A 迁移号 V67 已被 main 超越，执行时刷新为当时最大+1。
