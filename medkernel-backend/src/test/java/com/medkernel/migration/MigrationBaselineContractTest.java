@@ -101,7 +101,8 @@ class MigrationBaselineContractTest {
         "V72__cdss_risk_matrix.sql",
         "V73__clinical_redline.sql",
         "V74__context_field_catalog.sql",
-        "V75__clinical_redline_silent_trial.sql"
+        "V75__clinical_redline_silent_trial.sql",
+        "V76__recommendation_source_redline_type.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -1390,6 +1391,26 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V75__clinical_redline_silent_trial.sql"))
                 .as("dialect %s must ship V75", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v76ShouldExtendRecommendationSourceTypeForClinicalRedlineWithoutSeededMedicalConstants() {
+        String h2 = readMigration("h2", "V76__recommendation_source_redline_type.sql");
+        assertThat(h2).contains(
+            "recommendation_source",
+            "ck_rec_source_type",
+            "'REDLINE'",
+            "COMMENT ON COLUMN recommendation_source.source_type");
+        assertThat(h2).doesNotContain("INSERT INTO recommendation_source");
+    }
+
+    @Test
+    void v76ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V76__recommendation_source_redline_type.sql"))
+                .as("dialect %s must ship V76", dialect)
                 .exists();
         }
     }

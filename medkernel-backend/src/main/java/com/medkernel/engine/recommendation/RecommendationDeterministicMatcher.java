@@ -30,6 +30,7 @@ import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
+import com.medkernel.engine.safety.ClinicalRedlineMatcher;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -56,6 +57,7 @@ public class RecommendationDeterministicMatcher {
     private final PathwayTemplateRepository pathwayTemplates;
     private final KnowledgeIdentityRepository knowledgeIdentities;
     private final KnowledgeAssetVersionRepository knowledgeVersions;
+    private final ClinicalRedlineMatcher redlineMatcher;
     private final ObjectMapper json;
 
     public RecommendationDeterministicMatcher(
@@ -67,6 +69,7 @@ public class RecommendationDeterministicMatcher {
             PathwayTemplateRepository pathwayTemplates,
             KnowledgeIdentityRepository knowledgeIdentities,
             KnowledgeAssetVersionRepository knowledgeVersions,
+            ClinicalRedlineMatcher redlineMatcher,
             ObjectMapper json) {
         this.snapshots = snapshots;
         this.ruleDefinitions = ruleDefinitions;
@@ -76,6 +79,7 @@ public class RecommendationDeterministicMatcher {
         this.pathwayTemplates = pathwayTemplates;
         this.knowledgeIdentities = knowledgeIdentities;
         this.knowledgeVersions = knowledgeVersions;
+        this.redlineMatcher = redlineMatcher;
         this.json = json;
     }
 
@@ -94,6 +98,7 @@ public class RecommendationDeterministicMatcher {
                 matched.add(toCard(request, snapshot, rule, version, evaluation, tenantId));
             }
         }
+        matched.addAll(redlineMatcher.match(request, snapshot, context));
         return List.copyOf(matched);
     }
 

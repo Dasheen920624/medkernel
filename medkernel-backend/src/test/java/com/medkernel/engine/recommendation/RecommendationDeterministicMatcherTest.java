@@ -1,6 +1,7 @@
 package com.medkernel.engine.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotService;
@@ -43,9 +45,11 @@ import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
+import com.medkernel.engine.safety.ClinicalRedlineMatcher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class RecommendationDeterministicMatcherTest {
@@ -57,6 +61,7 @@ class RecommendationDeterministicMatcherTest {
     private final PathwayTemplateRepository pathwayTemplates = mock(PathwayTemplateRepository.class);
     private final KnowledgeIdentityRepository knowledgeIdentities = mock(KnowledgeIdentityRepository.class);
     private final KnowledgeAssetVersionRepository knowledgeVersions = mock(KnowledgeAssetVersionRepository.class);
+    private final ClinicalRedlineMatcher redlineMatcher = mock(ClinicalRedlineMatcher.class);
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final RecommendationDeterministicMatcher matcher = new RecommendationDeterministicMatcher(
         snapshots,
@@ -67,8 +72,14 @@ class RecommendationDeterministicMatcherTest {
         pathwayTemplates,
         knowledgeIdentities,
         knowledgeVersions,
+        redlineMatcher,
         json
     );
+
+    @BeforeEach
+    void setUp() {
+        when(redlineMatcher.match(any(), any(), any())).thenReturn(List.of());
+    }
 
     @AfterEach
     void clear() {
@@ -158,6 +169,27 @@ class RecommendationDeterministicMatcherTest {
             );
     }
 
+    @Test
+    void appendsClinicalRedlineMatchesFromRuntimeMatcher() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of());
+        when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(redlineMatcher.match(any(), any(), any())).thenReturn(List.of(redlineCard()));
+
+        List<RecommendationCardRequest> matches = matcher.match(triggerRequest());
+
+        assertThat(matches).hasSize(1);
+        RecommendationCardRequest card = matches.get(0);
+        assertThat(card.cardCode()).isEqualTo("REDLINE.RDL-DDI-001.v2026.2");
+        assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+        assertThat(card.interruptLevel()).isEqualTo(RecommendationInterruptLevel.STRONG_INTERRUPTIVE);
+        assertThat(card.sources())
+            .extracting(RecommendationSourceRequest::sourceType)
+            .containsExactly(RecommendationSourceType.REDLINE, RecommendationSourceType.KNOWLEDGE);
+    }
+
     private RecommendationTriggerRequest triggerRequest() {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
@@ -182,6 +214,41 @@ class RecommendationDeterministicMatcherTest {
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
             "1.0.0", "knowledge-1", "rule-1", "pathway-1",
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-cdss");
+    }
+
+    private RecommendationCardRequest redlineCard() {
+        return new RecommendationCardRequest(
+            "REDLINE.RDL-DDI-001.v2026.2",
+            RecommendationCardType.MEDICATION,
+            "华法林与 NSAID 联用红线",
+            "患者当前上下文命中临床安全红线",
+            "立即复核并按院内安全流程处理，不得自动执行医嘱",
+            RecommendationRiskLevel.CRITICAL,
+            RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
+            true,
+            false,
+            "临床安全红线 RDL-DDI-001 v2026.2 命中",
+            "{\"matchType\":\"CLINICAL_REDLINE\"}",
+            "REDLINE:RDL-DDI-001",
+            null,
+            CdssAutomationLevel.INTERRUPTIVE,
+            List.of(
+                new RecommendationSourceRequest(
+                    RecommendationSourceType.REDLINE,
+                    "redline-ddi-warfarin-nsaid",
+                    "2026.2",
+                    "华法林与 NSAID 联用红线",
+                    "clinical_redline:redline-ddi-warfarin-nsaid",
+                    null,
+                    "临床安全红线命中"),
+                new RecommendationSourceRequest(
+                    RecommendationSourceType.KNOWLEDGE,
+                    "knowledge-version:42",
+                    "42",
+                    "红线来源知识版本",
+                    "knowledge_version:42",
+                    null,
+                    "召回链来源")));
     }
 
     private RuleDefinition ruleDefinition() {

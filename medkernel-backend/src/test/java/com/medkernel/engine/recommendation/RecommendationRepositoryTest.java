@@ -103,6 +103,19 @@ class RecommendationRepositoryTest {
     }
 
     @Test
+    void acceptsClinicalRedlineSourceTypeForRecallEvidence() {
+        String triggerId = "rt-" + UUID.randomUUID();
+        String cardId = "rc-" + UUID.randomUUID();
+        triggers.save(sampleTrigger(triggerId, "tenant-A"));
+        cards.save(sampleCard(cardId, "tenant-A", triggerId));
+        sources.save(sampleSource("rs-redline", "tenant-A", cardId, RecommendationSourceType.REDLINE));
+
+        assertThat(sources.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, "tenant-A"))
+            .extracting(RecommendationSource::sourceType)
+            .containsExactly(RecommendationSourceType.REDLINE);
+    }
+
+    @Test
     void cardListFiltersByPatientEncounterAndTriggerPoint() {
         String triggerId = "rt-" + UUID.randomUUID();
         String cardId = "rc-" + UUID.randomUUID();
@@ -162,9 +175,14 @@ class RecommendationRepositoryTest {
     }
 
     private RecommendationSource sampleSource(String sourceId, String tenantId, String cardId) {
+        return sampleSource(sourceId, tenantId, cardId, RecommendationSourceType.RULE);
+    }
+
+    private RecommendationSource sampleSource(
+            String sourceId, String tenantId, String cardId, RecommendationSourceType sourceType) {
         Instant now = Instant.now();
         return new RecommendationSource(
-            null, sourceId, tenantId, cardId, RecommendationSourceType.RULE,
+            null, sourceId, tenantId, cardId, sourceType,
             "rule-1", "v1", "抗凝用药规则", "§2.1",
             "sha256:source", "规则命中抗凝药品类别",
             now, "tester", now, "tester", "trace-recommendation");
