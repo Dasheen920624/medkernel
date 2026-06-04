@@ -282,7 +282,7 @@ class MigrationBaselineContractTest {
         "idx_mk_ctx_field_catalog_tenant",
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
         "idx_mk_diagnosis_differential_version", "idx_mk_diagnosis_pointer_version",
-        "idx_mk_diagnosis_testcase_version"
+        "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",

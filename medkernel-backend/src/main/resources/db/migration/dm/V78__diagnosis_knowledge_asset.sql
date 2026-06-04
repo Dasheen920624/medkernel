@@ -107,3 +107,6 @@ COMMENT ON TABLE mk_diagnosis_confidence_policy IS '置信分级策略：权重�
 INSERT INTO mk_diagnosis_confidence_policy
     (tenant_id, scope_key, strong_min_major, require_all_required, moderate_min_hits, created_at, created_by, updated_at, updated_by)
 VALUES ('t-1', 'DEFAULT', 2, 1, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+
+-- 租户索引（迁移规约 migration.tenant-index：带 tenant_id 业务表须声明租户索引）
+CREATE INDEX idx_mk_diagnosis_confpolicy_tenant ON mk_diagnosis_confidence_policy (tenant_id);
