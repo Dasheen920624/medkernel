@@ -38,15 +38,16 @@ import { PageState } from "@/shared/ui/PageState";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import {
   useCreateRecommendationTrigger,
-  useRecommendationCards,
+  useClinicalRecommendationCards,
   useRecommendationCardDetail,
   useRecommendationCardSources,
+  useRecommendationStats,
   useSubmitRecommendationFeedback,
   useRecommendationFatigueSignals,
   useRecommendationTriggerDiagnose,
 } from "@/shared/api/hooks";
 import type {
-  RecommendationCard,
+  ClinicalRecommendationCard,
   RecommendationSource,
   RecommendationFatigueSignal,
   RecommendationCardStatus,
@@ -90,14 +91,20 @@ export default function CdssFatigue() {
     isLoading: cardsLoading,
     isError: cardsError,
     refetch: refetchCards,
-  } = useRecommendationCards({
+  } = useClinicalRecommendationCards({
     status: statusFilter,
     riskLevel: riskFilter,
     patientId: patientIdFilter || undefined,
     page,
     size,
   });
-  const cards: RecommendationCard[] = cardsPage?.items ?? [];
+  const cards: ClinicalRecommendationCard[] = cardsPage?.items ?? [];
+
+  const { data: statsData } = useRecommendationStats({
+    status: statusFilter,
+    riskLevel: riskFilter,
+    patientId: patientIdFilter || undefined,
+  });
 
   const { data: detailData, refetch: refetchDetail } = useRecommendationCardDetail(
     selectedCardId || "",
@@ -109,7 +116,7 @@ export default function CdssFatigue() {
 
   // 获取该卡片相关的疲劳静音治理信号
   const { data: fatigueSignalsData, refetch: refetchFatigue } = useRecommendationFatigueSignals({
-    fatigueKey: detailData?.card.scenarioCode || undefined,
+    fatigueKey: detailData?.card.fatigueKey || undefined,
     page: 1,
     size: 20,
   });
@@ -167,8 +174,10 @@ export default function CdssFatigue() {
       const values = await feedbackForm.validateFields();
       await feedbackMutation.mutateAsync({
         feedbackType,
-        reasonCode: feedbackType === "REJECT" ? values.rejectReason : undefined,
-        reasonText: values.comments,
+        reasonCode: feedbackType === "ACCEPT" ? "CONFIRMED" : values.rejectReason,
+        reasonText:
+          feedbackType === "ACCEPT" ? values.comments || "医师确认采纳提醒建议" : values.comments,
+        operatorRole: "DOCTOR",
       });
 
       message.success(
@@ -191,7 +200,7 @@ export default function CdssFatigue() {
   };
 
   // 表格列
-  const columns: TableProps<RecommendationCard>["columns"] = [
+  const columns: TableProps<ClinicalRecommendationCard>["columns"] = [
     {
       title: "卡片编号",
       dataIndex: "cardId",
@@ -215,7 +224,12 @@ export default function CdssFatigue() {
       dataIndex: "riskLevel",
       key: "riskLevel",
       render: (level: RecommendationRiskLevel) => {
-        const colors: Record<string, string> = { HIGH: "red", MEDIUM: "orange", LOW: "green" };
+        const colors: Record<string, string> = {
+          CRITICAL: "red",
+          HIGH: "red",
+          MEDIUM: "orange",
+          LOW: "green",
+        };
         return <Tag color={colors[level] || "blue"}>{level}</Tag>;
       },
     },
@@ -241,8 +255,12 @@ export default function CdssFatigue() {
       render: (status: RecommendationCardStatus) => {
         const config: Record<string, { status: RecommendationBadgeStatus; text: string }> = {
           PENDING: { status: "warning", text: "待处理 (PENDING)" },
+          VIEWED: { status: "processing", text: "已查看依据 (VIEWED)" },
           ACCEPTED: { status: "success", text: "已采纳 (ACCEPTED)" },
           REJECTED: { status: "error", text: "已驳回 (REJECTED)" },
+          DEFERRED: { status: "default", text: "稍后处理 (DEFERRED)" },
+          DISMISSED: { status: "default", text: "已关闭 (DISMISSED)" },
+          SUPPRESSED: { status: "default", text: "疲劳抑制 (SUPPRESSED)" },
           EXPIRED: { status: "default", text: "已失效 (EXPIRED)" },
         };
         const current = config[status] ?? { status: "default", text: status };
@@ -252,7 +270,7 @@ export default function CdssFatigue() {
     {
       title: "管理",
       key: "action",
-      render: (record: RecommendationCard) => (
+      render: (record: ClinicalRecommendationCard) => (
         <Button
           type="link"
           icon={<AuditOutlined />}
@@ -332,6 +350,33 @@ export default function CdssFatigue() {
             </Button>
           </Form.Item>
         </Form>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="bg-white border border-gray-100 rounded-lg p-4">
+          <div className="text-xs text-gray-500">提醒总数</div>
+          <div className="text-xl font-semibold text-gray-900">{statsData?.totalCount ?? 0}</div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-lg p-4">
+          <div className="text-xs text-gray-500">待处理</div>
+          <div className="text-xl font-semibold text-amber-700">{statsData?.pendingCount ?? 0}</div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-lg p-4">
+          <div className="text-xs text-gray-500">已采纳</div>
+          <div className="text-xl font-semibold text-emerald-700">
+            {statsData?.acceptedCount ?? 0}
+          </div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-lg p-4">
+          <div className="text-xs text-gray-500">不采纳</div>
+          <div className="text-xl font-semibold text-rose-700">{statsData?.rejectedCount ?? 0}</div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-lg p-4">
+          <div className="text-xs text-gray-500">采纳率</div>
+          <div className="text-xl font-semibold text-indigo-700">
+            {statsData?.acceptanceRatePercent ?? 0}%
+          </div>
+        </div>
       </div>
 
       {/* 主表格数据 */}
@@ -430,7 +475,7 @@ export default function CdssFatigue() {
         width={900}
         onClose={() => setSelectedCardId(null)}
         open={!!selectedCardId}
-        destroyOnClose
+        forceRender
       >
         {detailData && (
           <div>
@@ -445,16 +490,24 @@ export default function CdssFatigue() {
                 <span className="font-normal text-xs font-semibold">{detailData.card.cardId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="患者 ID">
-                <span className="font-semibold">{detailData.card.patientId}</span>
+                <span className="font-semibold">{detailData.trigger?.patientId || "未关联"}</span>
               </Descriptions.Item>
               <Descriptions.Item label="就诊编码">
-                <span className="font-normal text-xs">{detailData.card.encounterId}</span>
+                <span className="font-normal text-xs">
+                  {detailData.trigger?.encounterId || "未关联"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="决策场景">
-                <Tag color="cyan">{detailData.card.scenarioCode}</Tag>
+                <Tag color="cyan">{detailData.trigger?.scenarioCode || "未关联"}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="风险分级">
-                <Tag color={detailData.card.riskLevel === "HIGH" ? "red" : "orange"}>
+                <Tag
+                  color={
+                    detailData.card.riskLevel === "CRITICAL" || detailData.card.riskLevel === "HIGH"
+                      ? "red"
+                      : "orange"
+                  }
+                >
                   {detailData.card.riskLevel}
                 </Tag>
               </Descriptions.Item>
@@ -468,8 +521,30 @@ export default function CdssFatigue() {
               </Descriptions.Item>
             </Descriptions>
 
+            {detailData.feedback.length > 0 && (
+              <Card size="small" className="mb-6 border-gray-200 rounded-lg">
+                <div className="text-sm font-semibold text-gray-800 mb-3">已记录医师反馈</div>
+                <Timeline
+                  items={detailData.feedback.map((item) => ({
+                    key: item.feedbackId,
+                    color: item.feedbackType === "ACCEPT" ? "green" : "red",
+                    children: (
+                      <div>
+                        <div className="text-sm font-semibold text-gray-800">
+                          {item.operatorId} · {item.operatorRole || "DOCTOR"} · {item.feedbackType}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          {item.reasonText || item.reasonCode || "未记录说明"}
+                        </div>
+                      </div>
+                    ),
+                  }))}
+                />
+              </Card>
+            )}
+
             <Tabs
-              defaultActiveKey="sources"
+              defaultActiveKey={detailData.card.status === "PENDING" ? "feedback" : "sources"}
               items={[
                 {
                   key: "sources",

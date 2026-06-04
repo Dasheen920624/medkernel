@@ -21,6 +21,7 @@ import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -588,6 +589,99 @@ class RecommendationEngineServiceTest {
         DiagnoseResponse actual = service.diagnose("trigger-1");
 
         assertThat(actual).isSameAs(expected);
+    }
+
+    @Test
+    void clinicalCardsExposeTriggerContextInsteadOfLeakingRawCardEntityShape() {
+        RecommendationTrigger trigger = trigger("trigger-1", RecommendationTriggerStatus.EVALUATED);
+        RecommendationCard card = card("card-1", RecommendationCardStatus.PENDING);
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenReturn(1L);
+        when(cards.pageByFilter("tenant-A", null, null, null, null, null, null, 0, 10))
+            .thenReturn(List.of(card));
+        when(triggers.findByTriggerIdAndTenantId("trigger-1", "tenant-A"))
+            .thenReturn(Optional.of(trigger));
+
+        PageResponse<RecommendationClinicalCardResponse> page = service.listClinicalCards(
+            new RecommendationCardFilter(null, null, null, null, null, null),
+            new com.medkernel.shared.api.PageRequest(1, 10, null));
+
+        assertThat(page.items()).singleElement().satisfies(row -> {
+            assertThat(row.cardId()).isEqualTo("card-1");
+            assertThat(row.patientId()).isEqualTo("patient-1");
+            assertThat(row.encounterId()).isEqualTo("enc-1");
+            assertThat(row.patientPathwayId()).isEqualTo("pathway-1");
+            assertThat(row.scenarioCode()).isEqualTo("WARD_ORDER");
+            assertThat(row.triggerType()).isEqualTo("order-sign");
+            assertThat(row.requiresPhysicianConfirmation()).isTrue();
+        });
+    }
+
+    @Test
+    void cardDetailIncludesTriggerContextAndFeedbackHistoryForRealDoctorSignature() {
+        RecommendationTrigger trigger = trigger("trigger-1", RecommendationTriggerStatus.EVALUATED);
+        RecommendationCard card = card("card-1", RecommendationCardStatus.PENDING);
+        RecommendationFeedback userFeedback = feedback("feedback-1", "card-1");
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(card));
+        when(triggers.findByTriggerIdAndTenantId("trigger-1", "tenant-A"))
+            .thenReturn(Optional.of(trigger));
+        when(feedback.findByCardIdAndTenantIdOrderByCreatedAtAsc("card-1", "tenant-A"))
+            .thenReturn(List.of(userFeedback));
+
+        RecommendationCardDetailResponse detail = service.cardDetail("card-1");
+
+        assertThat(detail.trigger()).isEqualTo(trigger);
+        assertThat(detail.feedback()).singleElement().satisfies(savedFeedback -> {
+            assertThat(savedFeedback.feedbackId()).isEqualTo("feedback-1");
+            assertThat(savedFeedback.operatorId()).isEqualTo("doctor-1");
+        });
+    }
+
+    @Test
+    void recommendationStatsAreComputedFromPersistedCardStatuses() {
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenAnswer(inv -> {
+                String status = inv.getArgument(1);
+                if (status == null) {
+                    return 5L;
+                }
+                return switch (status) {
+                    case "PENDING" -> 1L;
+                    case "ACCEPTED" -> 2L;
+                    case "REJECTED" -> 1L;
+                    case "SUPPRESSED" -> 1L;
+                    default -> 0L;
+                };
+            });
+
+        RecommendationStatsResponse stats = service.stats(
+            new RecommendationCardFilter(null, null, null, null, null, null));
+
+        assertThat(stats.totalCount()).isEqualTo(5L);
+        assertThat(stats.pendingCount()).isEqualTo(1L);
+        assertThat(stats.acceptedCount()).isEqualTo(2L);
+        assertThat(stats.rejectedCount()).isEqualTo(1L);
+        assertThat(stats.suppressedCount()).isEqualTo(1L);
+        assertThat(stats.acceptanceRatePercent()).isEqualTo(66.7);
+        assertThat(stats.traceId()).isEqualTo("trace-rec");
+    }
+
+    @Test
+    void recommendationStatsRespectExplicitStatusFilter() {
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenAnswer(inv -> {
+                String status = inv.getArgument(1);
+                return "PENDING".equals(status) ? 4L : 99L;
+            });
+
+        RecommendationStatsResponse stats = service.stats(
+            new RecommendationCardFilter(RecommendationCardStatus.PENDING, null, null, null, null, null));
+
+        assertThat(stats.totalCount()).isEqualTo(4L);
+        assertThat(stats.pendingCount()).isEqualTo(4L);
+        assertThat(stats.acceptedCount()).isZero();
+        assertThat(stats.rejectedCount()).isZero();
+        assertThat(stats.acceptanceRatePercent()).isZero();
     }
 
     private RecommendationTriggerRequest triggerRequest(List<RecommendationCardRequest> candidateCards) {

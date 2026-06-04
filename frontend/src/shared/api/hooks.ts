@@ -1014,13 +1014,24 @@ export interface RuleDetailResponse {
 }
 
 export interface RuleEvaluationItem {
+  executionId?: string;
   ruleId: string;
-  ruleCode: string;
-  ruleName: string;
+  versionId?: string;
+  ruleCode?: string;
+  ruleName?: string;
   hit: boolean;
   severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  actionCode?: string;
+  actions?: RuleActionResult[];
+  explanation?: unknown;
+}
+
+export interface RuleActionResult {
   actionCode: string;
-  explanation: string;
+  actionType?: string;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | string;
+  message?: string;
+  explanation?: unknown;
 }
 
 export interface RuleTestCaseResult {
@@ -1908,21 +1919,28 @@ export interface RecommendationCard {
   cardId: string;
   tenantId: string;
   triggerId: string;
-  patientId: string;
+  patientId?: string;
   encounterId?: string;
-  scenarioCode: string;
+  scenarioCode?: string;
   cardType: RecommendationCardType;
+  cardCode?: string;
   title: string;
   summary: string;
+  suggestedAction?: string;
   riskLevel: RecommendationRiskLevel;
   interruptLevel: RecommendationInterruptLevel;
   status: RecommendationCardStatus;
   changeSummary?: string;
+  requiresPhysicianConfirmation?: boolean;
+  aiGenerated?: boolean;
+  sourceSummary?: string;
+  explanationJson?: string;
+  fatigueKey?: string;
+  expiresAt?: string;
   createdAt?: string;
   createdBy?: string;
   traceId?: string;
   // 嵌入与全屏决策终端可选扩展属性
-  cardCode?: string;
   severity?: string;
   recommendations?: Array<{
     actionCode: string;
@@ -1970,12 +1988,52 @@ export interface RecommendationFatigueSignal {
   createdAt?: string;
 }
 
+export interface RecommendationTrigger {
+  triggerId: string;
+  triggerCode?: string;
+  triggerType?: string;
+  sourceEventId?: string;
+  contextSnapshotId?: string;
+  patientId?: string;
+  encounterId?: string;
+  patientPathwayId?: string;
+  scenarioCode?: string;
+  packageVersion?: string;
+  occurredAt?: string;
+  traceId?: string;
+}
+
+export interface ClinicalRecommendationCard extends RecommendationCard {
+  patientId: string;
+  encounterId?: string;
+  patientPathwayId?: string;
+  scenarioCode: string;
+  triggerType: string;
+  contextSnapshotId?: string;
+  packageVersion?: string;
+  occurredAt?: string;
+}
+
 export interface RecommendationCardDetailResponse {
   card: RecommendationCard;
+  trigger?: RecommendationTrigger;
   sources: RecommendationSource[];
-  feedback?: RecommendationFeedback;
+  feedback: RecommendationFeedback[];
   fatigueSignals: RecommendationFatigueSignal[];
   traceId: string;
+}
+
+export interface RecommendationStats {
+  totalCount: number;
+  pendingCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  dismissedCount: number;
+  deferredCount: number;
+  suppressedCount: number;
+  expiredCount: number;
+  acceptanceRatePercent: number;
+  traceId?: string;
 }
 
 export interface RecommendationTriggerResponse {
@@ -2025,6 +2083,8 @@ export function useRecommendationCards(
     riskLevel?: RecommendationRiskLevel;
     scenarioCode?: string;
     patientId?: string;
+    encounterId?: string;
+    triggerPoint?: string;
     page?: number;
     size?: number;
     sort?: string;
@@ -2039,6 +2099,58 @@ export function useRecommendationCards(
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<RecommendationCard> }>(
         "/engine/recommendations/cards",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useClinicalRecommendationCards(
+  params?: {
+    status?: RecommendationCardStatus;
+    riskLevel?: RecommendationRiskLevel;
+    scenarioCode?: string;
+    patientId?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["recommendations", "clinical-cards", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ClinicalRecommendationCard> }>(
+        "/engine/recommendations/clinical-cards",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRecommendationStats(
+  params?: {
+    status?: RecommendationCardStatus;
+    riskLevel?: RecommendationRiskLevel;
+    scenarioCode?: string;
+    patientId?: string;
+    triggerPoint?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["recommendations", "stats", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: RecommendationStats }>(
+        "/engine/recommendations/stats",
         { params },
       );
       return data.data;

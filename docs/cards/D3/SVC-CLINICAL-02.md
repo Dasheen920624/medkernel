@@ -18,15 +18,16 @@
 已有实质基础：`engine/recommendation/`（推荐卡 + 反馈，[CDSS-01](CDSS-01.md) 归属）+ `engine/rule/` `RuleDslEvaluator`（规则校验，[RULE-01](../D2/RULE-01.md) 归属）。本卡＝把提醒呈现 + 规则校验结果 + 疲劳治理 + 署名反馈编排为前端可消费的服务包契约，命中归 [CDSS-01](CDSS-01.md)、规则归 [RULE-01](../D2/RULE-01.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 提醒卡片：按患者/科室取确定性提醒卡（[CDSS-01](CDSS-01.md)），含解释。
-- [ ] FR-2 规则校验：对医嘱/病历跑规则校验（[RULE-01](../D2/RULE-01.md) `RuleDslEvaluator`），结果可见可解释。
-- [ ] FR-3 署名反馈：采纳/拒绝带**原因 + 真实医师署名**（来自 [BASE-01](../D0/BASE-01.md) 身份），不可匿名伪造。
-- [ ] FR-4 疲劳治理：按阈值抑制重复/低价值提醒；红线（[OPT-04](OPT-04.md)）不可抑制。
-- [ ] FR-5 采纳率统计：采纳/拒绝真实统计，供 D4 质控只读消费。
+- [x] FR-1 提醒卡片：按患者/科室取确定性提醒卡（[CDSS-01](CDSS-01.md)），含解释。PR1 新增 `/clinical-cards` 聚合 DTO，补齐患者 / 就诊 / 路径 / 场景 / 触发点。
+- [x] FR-2 规则校验：对医嘱/病历跑规则校验（[RULE-01](../D2/RULE-01.md) `RuleDslEvaluator`），结果可见可解释。PR1 修正前端规则校验页读取真实 `ruleId/versionId/actions/explanation`。
+- [x] FR-3 署名反馈：采纳/拒绝带**原因 + 真实医师署名**（来自 [BASE-01](../D0/BASE-01.md) 身份），不可匿名伪造。PR1 明确前端不提交 `operatorId`，详情展示后端反馈历史 `operatorId/operatorRole`。
+- [x] FR-4 疲劳治理：按阈值抑制重复/低价值提醒；红线（[OPT-04](OPT-04.md)）不可抑制。PR1 保留既有红线不可抑制服务校验，并把疲劳信号分页 SQL 改为 PostgreSQL + Oracle 兼容。
+- [x] FR-5 采纳率统计：采纳/拒绝真实统计，供 D4 质控只读消费。PR1 新增 `/stats`，采纳率来自持久化推荐卡状态，并确保显式 `status` 筛选时总数与状态桶口径一致。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 复用 [API-07](API-07.md) 推荐契约 + 规则校验端点 `POST /api/v1/engine/rule/validate`；本卡为编排，不另立模型。
+- 复用 [API-07](API-07.md) 推荐契约 + 规则校验端点 `POST /api/v1/engine/rule/rules/evaluate`；本卡为编排，不另立模型。
+- PR1 增量只读接口：`GET /api/v1/engine/recommendations/clinical-cards`、`GET /api/v1/engine/recommendations/stats`，权限均为 `recommendation.read`。
 - 状态机：告警类（待处理→已采纳/已拒绝/已抑制）；署名反馈幂等。
 
 ## 数据与迁移
@@ -50,14 +51,15 @@
 - 本卡落点：提醒+校验+疲劳+署名反馈编排，命中归 [CDSS-01](CDSS-01.md)、规则归 [RULE-01](../D2/RULE-01.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：提醒/规则校验真实可解释。
-- [ ] AC-2（FR-3/4）：反馈带原因+真实署名；疲劳抑制且红线不可抑制。
-- [ ] AC-3（FR-5）：采纳率统计真实。
+- [x] AC-1（FR-1/2）：提醒/规则校验真实可解释。
+- [x] AC-2（FR-3/4）：反馈带原因+真实署名；疲劳抑制且红线不可抑制。
+- [x] AC-3（FR-5）：采纳率统计真实。
 - 关联 A1–A9 剧本：A5 提醒反馈。
 - T-GATE：前后端真实性门禁全绿（无造提醒 / 署名真实）。
 - B0 验收：关模型提醒/校验/反馈全可用。
 
 ## 完工证据
-- 代码 permalink：提醒+校验+署名反馈编排。
-- 测试：署名反馈 / 疲劳 / 红线不可抑制 / 采纳率。
+- 代码 permalink：PR1 引入 `RecommendationClinicalCardResponse` / `RecommendationStatsResponse`、推荐详情 trigger 上下文、`CdssFatigue` 与 `RuleValidate` 真实契约修复。
+- 测试：`mvn -q -Dtest=RecommendationEngineServiceTest,RecommendationRepositoryTest,RecommendationRepositorySqlContractTest,RecommendationEngineControllerSecurityTest test`；`mvn -q test`（Docker Testcontainers PostgreSQL 15.18 + Oracle 21.3 迁移至 V76）；`npm test -- src/pages/clinical/CdssFatigue.test.tsx src/pages/clinical/RuleValidate.test.tsx`；`npm run verify`（57 文件 / 323 测试）；`npm run build`；`npm audit --omit=dev --audit-level=moderate`（0 vulnerabilities）。本 PR 额外覆盖 `recommendationStatsRespectExplicitStatusFilter`，防止状态筛选下统计桶跨状态误计。
+- T-GATE：`node scripts/authenticity-guard.mjs --mode=all`（1007 文件）；`node scripts/config-boundary-guard.mjs --mode=inventory`（945 文件）；`node scripts/migration-convention-guard.mjs --mode=files $(git diff --cached --name-only)`（本 PR 无迁移文件）；`bash scripts/check-comment-zh.sh`；`git diff --cached --check`。历史迁移 inventory 债务仍归 `DEFER-016`，不得冒领清零。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

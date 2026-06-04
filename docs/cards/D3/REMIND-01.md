@@ -19,15 +19,15 @@
 页面**已存在待真实化**：`pages/clinical/CdssFatigue.tsx`（路由 `/cdss/fatigue` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接提醒/反馈/疲劳阈值 API + 六态/五维 RBAC/低打扰齐全。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 提醒列表：按科室/患者列确定性提醒卡（[CDSS-01](CDSS-01.md)），含解释追溯。
-- [ ] FR-2 署名反馈：采纳/拒绝带原因 + 真实署名（[SVC-CLINICAL-02](SVC-CLINICAL-02.md) FR-3）。
+- [x] FR-1 提醒列表：按科室/患者列确定性提醒卡（[CDSS-01](CDSS-01.md)），含解释追溯。PR1 改用 `useClinicalRecommendationCards`，列表字段来自后端聚合触发上下文。
+- [x] FR-2 署名反馈：采纳/拒绝带原因 + 真实署名（[SVC-CLINICAL-02](SVC-CLINICAL-02.md) FR-3）。PR1 展示反馈历史真实 `operatorId/operatorRole`，提交反馈不携带 `operatorId`。
 - [ ] FR-3 疲劳治理：科室级疲劳阈值可配可视；红线（[OPT-04](OPT-04.md)）标"不可抑制"。
-- [ ] FR-4 采纳率：真实采纳/拒绝统计可视（供质控只读）。
+- [x] FR-4 采纳率：真实采纳/拒绝统计可视（供质控只读）。PR1 接 `/recommendations/stats`，不再由前端假算。
 - [ ] FR-5 六态 + 五维 RBAC：齐全；仅医生/科主任可治理阈值；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / [API-07](API-07.md) 提醒与疲劳 API。
+N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / [API-07](API-07.md) 提醒与疲劳 API；PR1 使用 `/engine/recommendations/clinical-cards`、`/engine/recommendations/stats`、`/engine/recommendations/cards/{cardId}`、`/engine/recommendations/fatigue-signals`。
 ### 页面契约（页面卡）
 - 路由元数据：sectionKey `clinical-run` / menuKey `cdss-fatigue` / menuLabel `临床提醒治理` / path `/cdss/fatigue` / requiredPermissions 提醒治理 / requiredRoles 临床医生·科主任。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 提醒卡列表（解释可展开）+ 疲劳阈值面板 + 采纳率图 + 六态。
@@ -56,7 +56,7 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) �
 - 本卡落点：把提醒治理页变为接真实提醒/反馈/疲劳、红线强可见的治理页。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：提醒真实可解释；反馈带原因+署名。
+- [x] AC-1（FR-1/2）：提醒真实可解释；反馈带原因+署名。
 - [ ] AC-2（FR-3/4）：疲劳阈值可治理、红线不可抑制；采纳率真实。
 - [ ] AC-3（FR-5）：六态齐全；非授权不可治理阈值。
 - 关联 A1–A9 剧本：A5 提醒反馈。
@@ -64,6 +64,6 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) �
 - B0 验收：关模型确定性提醒页仍可用。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/CdssFatigue` 真实化 + 接 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) + 六态。
-- 测试：提醒/反馈/疲劳/采纳率 + 六态 + RBAC + no-page-mock 门禁。
+- 代码 permalink：PR1 `frontend/src/pages/clinical/CdssFatigue.tsx` 接临床提醒聚合接口、真实统计、反馈历史签名展示；阈值治理 / 完整六态 / RBAC 仍留本页面后续 PR。
+- 测试：`npm test -- src/pages/clinical/CdssFatigue.test.tsx` 覆盖聚合字段、真实统计、反馈不提交操作者 ID；同轮 `npm run verify`（57 文件 / 323 测试）、`npm run build`、`npm audit --omit=dev --audit-level=moderate` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

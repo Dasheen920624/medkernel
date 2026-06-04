@@ -7,6 +7,7 @@ import java.util.List;
  */
 public record RecommendationCardDetailResponse(
     RecommendationCard card,
+    RecommendationTrigger trigger,
     List<RecommendationSource> sources,
     List<RecommendationFeedback> feedback,
     List<RecommendationFatigueSignal> fatigueSignals

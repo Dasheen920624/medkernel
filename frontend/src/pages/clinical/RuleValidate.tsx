@@ -12,6 +12,7 @@ import {
   message,
   Drawer,
 } from "antd";
+import type { TableProps } from "antd";
 import {
   PlayCircleOutlined,
   BugOutlined,
@@ -27,7 +28,7 @@ const { TextArea } = Input;
 
 export default function RuleValidate() {
   const [contextJson, setContextJson] = useState<string>("");
-  const [triggerPoint, setTriggerPoint] = useState<string>("PRESCRIPTION_SUBMIT");
+  const [triggerPoint, setTriggerPoint] = useState<string>("order-sign");
   const [patientId, setPatientId] = useState<string>("");
   const [packageVersion, setPackageVersion] = useState<string>("");
 
@@ -73,18 +74,21 @@ export default function RuleValidate() {
     return JSON.stringify(value, null, 2);
   };
 
-  const columns = [
+  const columns: TableProps<RuleEvaluationItem>["columns"] = [
     {
-      title: "规则代码",
-      dataIndex: "ruleCode",
-      key: "ruleCode",
+      title: "规则 ID",
+      dataIndex: "ruleId",
+      key: "ruleId",
       render: (text: string) => <Tag color="cyan">{text}</Tag>,
     },
     {
-      title: "规则名称",
-      dataIndex: "ruleName",
-      key: "ruleName",
+      title: "版本 ID",
+      dataIndex: "versionId",
+      key: "versionId",
       className: "font-semibold text-gray-800",
+      render: (text: string | undefined, record: RuleEvaluationItem) => (
+        <span>{text || record.ruleCode || "未返回版本"}</span>
+      ),
     },
     {
       title: "警示严重度",
@@ -101,9 +105,32 @@ export default function RuleValidate() {
     },
     {
       title: "处置动作",
-      dataIndex: "actionCode",
-      key: "actionCode",
-      render: (code: string) => <Tag color="blue">{code}</Tag>,
+      key: "actions",
+      render: (_value: unknown, record: RuleEvaluationItem) => {
+        const actionCodes =
+          record.actions?.map((action) => action.actionCode).filter(Boolean) ??
+          (record.actionCode ? [record.actionCode] : []);
+        return actionCodes.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {actionCodes.map((code) => (
+              <Tag color="blue" key={code}>
+                {code}
+              </Tag>
+            ))}
+          </div>
+        ) : (
+          <Tag>未返回动作</Tag>
+        );
+      },
+    },
+    {
+      title: "命中解释",
+      key: "explanation",
+      render: (_value: unknown, record: RuleEvaluationItem) => (
+        <span className="text-xs text-gray-700 whitespace-pre-wrap">
+          {renderJson(record.explanation)}
+        </span>
+      ),
     },
     {
       title: "解释追溯",
