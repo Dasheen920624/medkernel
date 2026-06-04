@@ -2,8 +2,10 @@ package com.medkernel.engine.workflow;
 
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -32,6 +34,9 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecordCommand;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +66,7 @@ public class WorkflowCollaborationService {
     private final ClinicalEventRepository clinicalEvents;
     private final IntegrationService integrationService;
     private final WorkflowNotificationSettingsService notificationSettings;
+    private final AuditRecorder auditRecorder;
 
     public WorkflowCollaborationService(
             WorkflowTodoRepository todos,
@@ -71,7 +77,8 @@ public class WorkflowCollaborationService {
             RecommendationCardRepository recommendationCards,
             ClinicalEventRepository clinicalEvents,
             IntegrationService integrationService,
-            WorkflowNotificationSettingsService notificationSettings) {
+            WorkflowNotificationSettingsService notificationSettings,
+            AuditRecorder auditRecorder) {
         this.todos = todos;
         this.notifications = notifications;
         this.followupTasks = followupTasks;
@@ -81,6 +88,7 @@ public class WorkflowCollaborationService {
         this.clinicalEvents = clinicalEvents;
         this.integrationService = integrationService;
         this.notificationSettings = notificationSettings;
+        this.auditRecorder = auditRecorder;
     }
 
     /**
@@ -165,6 +173,7 @@ public class WorkflowCollaborationService {
             actor);
         WorkflowTodo saved = todos.save(completed);
         createCompletionNotificationIfAbsent(ctx, saved, normalizedReason, now, actor);
+        recordTodoAudit("完成待办 " + saved.todoId(), todo, saved);
         return WorkflowTodoResponse.from(saved);
     }
 
@@ -214,6 +223,7 @@ public class WorkflowCollaborationService {
             actor);
         WorkflowTodo saved = todos.save(transferred);
         createTransferNotificationIfAbsent(ctx, saved, transferReason, now, actor);
+        recordTodoAudit("转交待办 " + saved.todoId() + " 至 " + saved.assigneeId(), todo, saved);
         return WorkflowTodoResponse.from(saved);
     }
 
@@ -289,7 +299,65 @@ public class WorkflowCollaborationService {
             notification.createdBy(),
             now,
             actor);
-        return WorkflowNotificationResponse.from(notifications.save(read));
+        WorkflowNotification saved = notifications.save(read);
+        recordNotificationAudit("标记通知已读 " + saved.notificationId(), notification, saved);
+        return WorkflowNotificationResponse.from(saved);
+    }
+
+    private void recordTodoAudit(String summary, WorkflowTodo before, WorkflowTodo after) {
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.UPDATE,
+            "workflow_todo",
+            after.todoId(),
+            summary,
+            todoAuditSnapshot(before),
+            todoAuditSnapshot(after),
+            null));
+    }
+
+    private static Map<String, Object> todoAuditSnapshot(WorkflowTodo todo) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("todoId", todo.todoId());
+        snapshot.put("sourceType", name(todo.sourceType()));
+        snapshot.put("sourceId", todo.sourceId());
+        snapshot.put("priority", name(todo.priority()));
+        snapshot.put("status", name(todo.status()));
+        snapshot.put("assigneeId", todo.assigneeId());
+        snapshot.put("assigneeRole", todo.assigneeRole());
+        snapshot.put("completedBy", todo.completedBy());
+        snapshot.put("completionReasonProvided", blankToNull(todo.completionReason()) != null);
+        snapshot.put("transferredTo", todo.transferredTo());
+        snapshot.put("transferReason", todo.transferReason());
+        snapshot.put("traceId", todo.traceId());
+        return snapshot;
+    }
+
+    private void recordNotificationAudit(
+            String summary,
+            WorkflowNotification before,
+            WorkflowNotification after) {
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.UPDATE,
+            "workflow_notification",
+            after.notificationId(),
+            summary,
+            notificationAuditSnapshot(before),
+            notificationAuditSnapshot(after),
+            null));
+    }
+
+    private static Map<String, Object> notificationAuditSnapshot(WorkflowNotification notification) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("notificationId", notification.notificationId());
+        snapshot.put("sourceType", name(notification.sourceType()));
+        snapshot.put("sourceId", notification.sourceId());
+        snapshot.put("level", name(notification.level()));
+        snapshot.put("status", name(notification.status()));
+        snapshot.put("recipientId", notification.recipientId());
+        snapshot.put("recipientRole", notification.recipientRole());
+        snapshot.put("readBy", notification.readBy());
+        snapshot.put("traceId", notification.traceId());
+        return snapshot;
     }
 
     private void syncFollowupTodos(RequestContext.Snapshot ctx) {

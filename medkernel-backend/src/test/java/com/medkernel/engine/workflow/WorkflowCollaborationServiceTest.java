@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -42,6 +43,9 @@ import com.medkernel.engine.recommendation.RecommendationWorkflowTodoRow;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecordCommand;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.mockito.ArgumentCaptor;
@@ -60,6 +64,7 @@ class WorkflowCollaborationServiceTest {
     private ClinicalEventRepository clinicalEvents;
     private IntegrationService integrationService;
     private WorkflowNotificationSettingsService notificationSettings;
+    private AuditRecorder auditRecorder;
     private WorkflowCollaborationService service;
 
     @BeforeEach
@@ -73,6 +78,7 @@ class WorkflowCollaborationServiceTest {
         clinicalEvents = mock(ClinicalEventRepository.class);
         integrationService = mock(IntegrationService.class);
         notificationSettings = mock(WorkflowNotificationSettingsService.class);
+        auditRecorder = mock(AuditRecorder.class);
         service = new WorkflowCollaborationService(
             todos,
             notifications,
@@ -82,7 +88,8 @@ class WorkflowCollaborationServiceTest {
             recommendationCards,
             clinicalEvents,
             integrationService,
-            notificationSettings);
+            notificationSettings,
+            auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-workflow", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
         when(clinicalEvents.pageByFilter("tenant-A", null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, 200))
@@ -501,6 +508,28 @@ class WorkflowCollaborationServiceTest {
         assertThat(completed.completedBy()).isEqualTo("doctor-1");
         assertThat(completed.completionReason()).contains("已复核患者病例");
         verify(todos).save(any(WorkflowTodo.class));
+        ArgumentCaptor<AuditRecordCommand> auditCaptor =
+            ArgumentCaptor.forClass(AuditRecordCommand.class);
+        verify(auditRecorder).record(auditCaptor.capture());
+        AuditRecordCommand audit = auditCaptor.getValue();
+        assertThat(audit.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(audit.targetType()).isEqualTo("workflow_todo");
+        assertThat(audit.targetId()).isEqualTo("todo-safety-1");
+        assertThat(audit.summary()).contains("完成待办", "todo-safety-1");
+        assertThat(audit.before()).isInstanceOf(Map.class);
+        assertThat(audit.after()).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> before = (Map<String, Object>) audit.before();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> after = (Map<String, Object>) audit.after();
+        assertThat(before)
+            .containsEntry("status", "PENDING")
+            .containsEntry("assigneeId", "doctor-1");
+        assertThat(after)
+            .containsEntry("status", "COMPLETED")
+            .containsEntry("completedBy", "doctor-1")
+            .containsEntry("traceId", "trace-workflow")
+            .doesNotContainKeys("patientId", "message", "summary");
     }
 
     @Test
@@ -541,6 +570,7 @@ class WorkflowCollaborationServiceTest {
             .hasMessageContaining("协同待办");
         verify(todos, never()).save(any(WorkflowTodo.class));
         verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
     }
 
     @Test
@@ -750,6 +780,28 @@ class WorkflowCollaborationServiceTest {
         assertThat(transferred.transferReason()).isEqualTo("交由护理站安排回院确认");
         assertThat(transferred.traceId()).isEqualTo("trace-workflow");
         verify(todos).save(any(WorkflowTodo.class));
+        ArgumentCaptor<AuditRecordCommand> auditCaptor =
+            ArgumentCaptor.forClass(AuditRecordCommand.class);
+        verify(auditRecorder).record(auditCaptor.capture());
+        AuditRecordCommand audit = auditCaptor.getValue();
+        assertThat(audit.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(audit.targetType()).isEqualTo("workflow_todo");
+        assertThat(audit.targetId()).isEqualTo("todo-followup-1");
+        assertThat(audit.summary()).contains("转交待办", "todo-followup-1", "nurse-2");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> before = (Map<String, Object>) audit.before();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> after = (Map<String, Object>) audit.after();
+        assertThat(before)
+            .containsEntry("status", "PENDING")
+            .containsEntry("assigneeId", "doctor-1");
+        assertThat(after)
+            .containsEntry("status", "TRANSFERRED")
+            .containsEntry("assigneeId", "nurse-2")
+            .containsEntry("transferredTo", "nurse-2")
+            .containsEntry("transferReason", "交由护理站安排回院确认")
+            .containsEntry("traceId", "trace-workflow")
+            .doesNotContainKeys("patientId", "message", "summary");
     }
 
     @Test
@@ -797,6 +849,7 @@ class WorkflowCollaborationServiceTest {
             .hasMessageContaining("协同待办");
         verify(todos, never()).save(any(WorkflowTodo.class));
         verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
     }
 
     @Test
@@ -1123,6 +1176,26 @@ class WorkflowCollaborationServiceTest {
             });
         assertThat(read.status()).isEqualTo(WorkflowNotificationStatus.READ);
         assertThat(read.readBy()).isEqualTo("doctor-1");
+        ArgumentCaptor<AuditRecordCommand> auditCaptor =
+            ArgumentCaptor.forClass(AuditRecordCommand.class);
+        verify(auditRecorder).record(auditCaptor.capture());
+        AuditRecordCommand audit = auditCaptor.getValue();
+        assertThat(audit.action()).isEqualTo(AuditAction.UPDATE);
+        assertThat(audit.targetType()).isEqualTo("workflow_notification");
+        assertThat(audit.targetId()).isEqualTo("notify-followup-1");
+        assertThat(audit.summary()).contains("标记通知已读", "notify-followup-1");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> before = (Map<String, Object>) audit.before();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> after = (Map<String, Object>) audit.after();
+        assertThat(before)
+            .containsEntry("status", "UNREAD")
+            .containsEntry("recipientId", "doctor-1");
+        assertThat(after)
+            .containsEntry("status", "READ")
+            .containsEntry("readBy", "doctor-1")
+            .containsEntry("traceId", "trace-workflow")
+            .doesNotContainKeys("patientId", "message", "summary");
         ArgumentCaptor<WorkflowNotification> notificationCaptor =
             ArgumentCaptor.forClass(WorkflowNotification.class);
         verify(notifications, times(2)).save(notificationCaptor.capture());
@@ -1228,6 +1301,7 @@ class WorkflowCollaborationServiceTest {
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("通知");
         verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
     }
 
     @Test
