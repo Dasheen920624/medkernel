@@ -4,6 +4,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.medkernel.engine.context.ClinicalEvent;
+import com.medkernel.engine.context.ClinicalEventRepository;
+import com.medkernel.engine.context.ClinicalEventStatus;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.followup.FollowupEventRepository;
 import com.medkernel.engine.followup.FollowupTaskRepository;
 import com.medkernel.engine.followup.FollowupTaskStatus;
@@ -42,6 +46,7 @@ public class WorkflowCollaborationService {
     private final FollowupEventRepository followupEvents;
     private final AffectedCaseTaskRepository affectedTasks;
     private final RecommendationCardRepository recommendationCards;
+    private final ClinicalEventRepository clinicalEvents;
 
     public WorkflowCollaborationService(
             WorkflowTodoRepository todos,
@@ -49,13 +54,15 @@ public class WorkflowCollaborationService {
             FollowupTaskRepository followupTasks,
             FollowupEventRepository followupEvents,
             AffectedCaseTaskRepository affectedTasks,
-            RecommendationCardRepository recommendationCards) {
+            RecommendationCardRepository recommendationCards,
+            ClinicalEventRepository clinicalEvents) {
         this.todos = todos;
         this.notifications = notifications;
         this.followupTasks = followupTasks;
         this.followupEvents = followupEvents;
         this.affectedTasks = affectedTasks;
         this.recommendationCards = recommendationCards;
+        this.clinicalEvents = clinicalEvents;
     }
 
     /**
@@ -195,6 +202,7 @@ public class WorkflowCollaborationService {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
         syncFollowupNotifications(ctx);
+        syncClinicalEventNotifications(ctx);
 
         WorkflowNotificationFilter safeFilter = filter == null
             ? new WorkflowNotificationFilter(null, null, null)
@@ -300,6 +308,17 @@ public class WorkflowCollaborationService {
             String dedupeKey = "followup:" + row.eventId();
             notifications.findByTenantIdAndDedupeKey(tenantId, dedupeKey)
                 .orElseGet(() -> notifications.save(fromFollowupNotification(ctx, row, dedupeKey)));
+        }
+    }
+
+    private void syncClinicalEventNotifications(RequestContext.Snapshot ctx) {
+        String tenantId = ctx.orgScope().tenantId();
+        List<ClinicalEvent> rows = nullToEmpty(clinicalEvents.pageByFilter(
+            tenantId, null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, SYNC_BATCH_SIZE));
+        for (ClinicalEvent event : rows) {
+            String dedupeKey = "clinical-event:" + event.eventId();
+            notifications.findByTenantIdAndDedupeKey(tenantId, dedupeKey)
+                .orElseGet(() -> notifications.save(fromClinicalEventNotification(ctx, event, dedupeKey)));
         }
     }
 
@@ -427,6 +446,37 @@ public class WorkflowCollaborationService {
             SYSTEM_ACTOR);
     }
 
+    private WorkflowNotification fromClinicalEventNotification(
+            RequestContext.Snapshot ctx,
+            ClinicalEvent event,
+            String dedupeKey) {
+        Instant createdAt = event.receivedAt() == null ? Instant.now() : event.receivedAt();
+        String sourceSystem = defaultText(event.sourceSystem(), "院内系统");
+        return new WorkflowNotification(
+            null,
+            "notify-" + UUID.randomUUID(),
+            ctx.orgScope().tenantId(),
+            WorkflowNotificationSourceType.SYNC_EVENT,
+            event.eventId(),
+            dedupeKey,
+            "临床同步事件已处理",
+            sourceSystem + " 的" + eventTriggerText(event) + "已进入临床事件引擎并完成处理",
+            WorkflowNotificationLevel.INFO,
+            WorkflowNotificationStatus.UNREAD,
+            null,
+            null,
+            event.patientId(),
+            event.encounterId(),
+            "/rule/validate?eventId=" + event.eventId(),
+            null,
+            null,
+            defaultText(event.traceId(), ctx.traceId()),
+            createdAt,
+            SYSTEM_ACTOR,
+            createdAt,
+            SYSTEM_ACTOR);
+    }
+
     private void createTransferNotificationIfAbsent(
             RequestContext.Snapshot ctx,
             WorkflowTodo todo,
@@ -534,6 +584,21 @@ public class WorkflowCollaborationService {
             case HIGH -> WorkflowNotificationLevel.HIGH;
             case LOW -> WorkflowNotificationLevel.LOW;
             case MEDIUM -> WorkflowNotificationLevel.MEDIUM;
+        };
+    }
+
+    private static String eventTriggerText(ClinicalEvent event) {
+        ClinicalEventTriggerPoint triggerPoint = event.triggerPoint();
+        if (triggerPoint == null) {
+            return "临床事件";
+        }
+        return switch (triggerPoint) {
+            case PATIENT_VIEW -> "患者查看事件";
+            case ORDER_SIGN -> "医嘱签署事件";
+            case MEDICATION_PRESCRIBE -> "用药开立事件";
+            case RESULT_REVIEW -> "报告查看事件";
+            case DISCHARGE_SIGN -> "出院签署事件";
+            case FOLLOWUP_ALERT -> "随访提醒事件";
         };
     }
 
