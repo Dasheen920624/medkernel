@@ -7,6 +7,7 @@ import java.time.Instant;
  */
 public record WorkflowTodoResponse(
     String todoId,
+    String orgUnitId,
     WorkflowTodoSourceType sourceType,
     String sourceId,
     String title,
@@ -29,6 +30,7 @@ public record WorkflowTodoResponse(
     static WorkflowTodoResponse from(WorkflowTodo todo) {
         return new WorkflowTodoResponse(
             todo.todoId(),
+            todo.orgUnitId(),
             todo.sourceType(),
             todo.sourceId(),
             todo.title(),

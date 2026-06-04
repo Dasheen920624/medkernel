@@ -2922,6 +2922,7 @@ export interface WorkflowNotificationSettingsPayload {
 
 export interface WorkflowTodo {
   todoId: string;
+  orgUnitId?: string | null;
   sourceType: WorkflowTodoSourceType;
   sourceId: string;
   title: string;
@@ -2944,6 +2945,7 @@ export interface WorkflowTodo {
 
 export interface WorkflowNotification {
   notificationId: string;
+  orgUnitId?: string | null;
   sourceType: WorkflowNotificationSourceType;
   sourceId: string;
   dedupeKey: string;
