@@ -112,6 +112,18 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "followup_plan", "生成随访计划"),
                 audit(AuditAction.FEEDBACK, "followup_event", "记录问卷和异常回流"))),
+        contract("workflow-todo", "临床协同待办服务",
+            "com.medkernel.engine.workflow.WorkflowTodoController",
+            "/api/v1/engine/workflow/todos",
+            permissions("workflow.read", "workflow.write"),
+            audits(
+                audit(AuditAction.UPDATE, "mk_engine_workflow_todo", "完成临床协同待办"))),
+        contract("workflow-notification", "临床通知中心服务",
+            "com.medkernel.engine.workflow.WorkflowNotificationController",
+            "/api/v1/engine/notifications",
+            permissions("notification.read", "notification.write"),
+            audits(
+                audit(AuditAction.UPDATE, "mk_engine_notification", "标记通知已读"))),
         contract("integration", "第三方集成服务",
             "com.medkernel.engine.integration.controller.IntegrationController", "/api/v1/engine/integration",
             permissions("integration.read", "integration.write", "integration.execute"),

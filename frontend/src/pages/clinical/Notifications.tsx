@@ -1,18 +1,195 @@
+import { useState } from "react";
+import { Alert, Badge, Button, Card, List, Select, Space, Tag, message } from "antd";
+import type { BadgeProps } from "antd";
+import { CheckOutlined, ReloadOutlined } from "@ant-design/icons";
+
+import { useReadWorkflowNotification, useWorkflowNotifications } from "@/shared/api/hooks";
+import type {
+  WorkflowNotification,
+  WorkflowNotificationLevel,
+  WorkflowNotificationStatus,
+} from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { PageShell } from "@/shared/ui/PageShell";
 
+const statusText: Record<WorkflowNotificationStatus, string> = {
+  UNREAD: "未读",
+  READ: "已读",
+};
+
+const statusBadge: Record<WorkflowNotificationStatus, BadgeProps["status"]> = {
+  UNREAD: "processing",
+  READ: "success",
+};
+
+const levelColor: Record<WorkflowNotificationLevel, string> = {
+  CRITICAL: "red",
+  HIGH: "volcano",
+  MEDIUM: "gold",
+  LOW: "blue",
+  INFO: "default",
+};
+
 export default function Notifications() {
+  const [status, setStatus] = useState<WorkflowNotificationStatus | undefined>("UNREAD");
+  const [level, setLevel] = useState<WorkflowNotificationLevel | undefined>();
+
+  const queryParams = {
+    status,
+    level,
+    page: 1,
+    size: 10,
+  };
+  const { data, isError, isLoading, refetch } = useWorkflowNotifications(queryParams);
+  const readMutation = useReadWorkflowNotification();
+  const unreadNotifications = data?.items.filter((item) => item.status === "UNREAD") ?? [];
+
+  const markRead = async (notification: WorkflowNotification) => {
+    try {
+      await readMutation.mutateAsync(notification.notificationId);
+      message.success("通知已标记为已读");
+      await refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "通知已读失败"));
+    }
+  };
+
+  const markAllRead = async () => {
+    if (unreadNotifications.length === 0) return;
+    try {
+      await Promise.all(
+        unreadNotifications.map((notification) =>
+          readMutation.mutateAsync(notification.notificationId),
+        ),
+      );
+      message.success("当前页未读通知已标记为已读");
+      await refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "全部已读失败"));
+    }
+  };
+
   return (
     <PageShell
-      title="通知中心与低打扰过滤配置"
-      description="通知、预警与低打扰策略"
-      state="empty"
-      stateProps={{
-        title: "通知接口尚未接入",
-        description:
-          "当前版本不展示本地通知示例；待 NOTIFY-01 接入真实通知 API 后，再呈现未读、筛选和已读闭环。",
-      }}
+      title="通知中心"
+      description="查看真实业务通知并同步已读状态。"
+      extras={
+        <Space wrap>
+          {unreadNotifications.length > 0 && (
+            <Button
+              type="primary"
+              aria-label="全部已读"
+              icon={<CheckOutlined />}
+              loading={readMutation.isPending}
+              onClick={markAllRead}
+            >
+              全部已读
+            </Button>
+          )}
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+            刷新
+          </Button>
+        </Space>
+      }
     >
-      <></>
+      <Card className="mb-4">
+        <Space wrap>
+          <Select
+            aria-label="通知状态"
+            value={status}
+            onChange={setStatus}
+            allowClear
+            className="w-36"
+            options={[
+              { value: "UNREAD", label: "未读" },
+              { value: "READ", label: "已读" },
+            ]}
+          />
+          <Select
+            aria-label="通知级别"
+            value={level}
+            onChange={setLevel}
+            allowClear
+            placeholder="级别"
+            className="w-36"
+            options={[
+              { value: "CRITICAL", label: "危急" },
+              { value: "HIGH", label: "高" },
+              { value: "MEDIUM", label: "中" },
+              { value: "LOW", label: "低" },
+              { value: "INFO", label: "信息" },
+            ]}
+          />
+        </Space>
+      </Card>
+
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="mb-4"
+          message="通知读取失败"
+          description="请检查登录状态、租户上下文或后端通知接口。"
+        />
+      )}
+
+      <Card>
+        <List
+          loading={isLoading}
+          dataSource={data?.items ?? []}
+          locale={{ emptyText: "当前暂无通知" }}
+          renderItem={(item) => (
+            <List.Item
+              actions={[
+                item.deepLink ? (
+                  <Button
+                    key="source"
+                    type="link"
+                    aria-label="打开来源"
+                    href={item.deepLink}
+                    className="px-0 font-semibold"
+                  >
+                    打开来源
+                  </Button>
+                ) : null,
+                item.status === "UNREAD" ? (
+                  <Button
+                    key="read"
+                    type="link"
+                    aria-label="标为已读"
+                    icon={<CheckOutlined />}
+                    loading={readMutation.isPending}
+                    onClick={() => markRead(item)}
+                    className="px-0 font-semibold"
+                  >
+                    标为已读
+                  </Button>
+                ) : null,
+              ].filter(Boolean)}
+            >
+              <List.Item.Meta
+                title={
+                  <Space wrap>
+                    <span className="font-semibold text-slate-800">{item.title}</span>
+                    <Tag color={levelColor[item.level]}>{item.level}</Tag>
+                    <Badge status={statusBadge[item.status]} text={statusText[item.status]} />
+                  </Space>
+                }
+                description={
+                  <Space direction="vertical" size={2}>
+                    <span>{item.message}</span>
+                    <Space wrap className="text-xs text-slate-500">
+                      <span>{item.sourceType}</span>
+                      <span>{item.patientId || "-"}</span>
+                      <span>{item.encounterId || "-"}</span>
+                    </Space>
+                  </Space>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Card>
     </PageShell>
   );
 }

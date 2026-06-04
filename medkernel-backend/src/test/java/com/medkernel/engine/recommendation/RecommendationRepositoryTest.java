@@ -3,6 +3,7 @@ package com.medkernel.engine.recommendation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -130,6 +131,25 @@ class RecommendationRepositoryTest {
                 "patient-1", "enc-1", "order-sign", 0, 10))
             .extracting(RecommendationCard::cardId)
             .containsExactly(cardId);
+    }
+
+    @Test
+    void openRecommendationCardsProjectToWorkflowTodoRows() {
+        String triggerId = "rt-" + UUID.randomUUID();
+        String cardId = "rc-" + UUID.randomUUID();
+        triggers.save(sampleTrigger(triggerId, "tenant-A"));
+        cards.save(sampleCard(cardId, "tenant-A", triggerId));
+
+        List<RecommendationWorkflowTodoRow> rows = cards.pageOpenWorkflowRows("tenant-A", 0, 10);
+
+        assertThat(rows).singleElement()
+            .satisfies(row -> {
+                assertThat(row.cardId()).isEqualTo(cardId);
+                assertThat(row.riskLevel()).isEqualTo(RecommendationRiskLevel.HIGH);
+                assertThat(row.status()).isEqualTo(RecommendationCardStatus.PENDING);
+                assertThat(row.patientId()).isEqualTo("patient-1");
+                assertThat(row.triggerType()).isEqualTo("order-sign");
+            });
     }
 
     @Test
