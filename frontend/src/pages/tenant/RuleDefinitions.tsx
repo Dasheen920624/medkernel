@@ -974,10 +974,36 @@ export default function RuleDefinitions() {
   };
 
   const fieldCatalogQuery = useContextFieldCatalog();
-  const fieldCatalogOptions = (fieldCatalogQuery.data ?? []).map((field) => ({
+  const fieldCatalogList = fieldCatalogQuery.data ?? [];
+  const fieldCatalogOptions = fieldCatalogList.map((field) => ({
     value: field.fieldPath,
     label: `${field.displayName}（${field.fieldPath}）`,
   }));
+  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  // 选中字段时按目录 dataType 自动带出比较值类型，降低手填出错。
+  const dataTypeToValueKind = (dataType?: string): RuleValueKind => {
+    switch (dataType) {
+      case "number":
+        return "number";
+      case "boolean":
+        return "boolean";
+      case "list":
+        return "list";
+      default:
+        return "string";
+    }
+  };
+  const handleFactSelect = (conditionId: string, fieldPath: string) => {
+    const descriptor = fieldByPath.get(fieldPath);
+    if (!descriptor) {
+      updateCondition(conditionId, { fact: fieldPath });
+      return;
+    }
+    updateCondition(conditionId, {
+      fact: fieldPath,
+      valueKind: dataTypeToValueKind(descriptor.dataType),
+    });
+  };
 
   const firstLeafId = ((): string | undefined => {
     const find = (node: RuleConditionNode): string | undefined => {
@@ -1034,6 +1060,7 @@ export default function RuleDefinitions() {
                     .toLowerCase()
                     .includes(input.toLowerCase())
                 }
+                onSelect={(value) => handleFactSelect(condition.id, value)}
                 onChange={(value) => updateCondition(condition.id, { fact: value })}
                 placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
               />
