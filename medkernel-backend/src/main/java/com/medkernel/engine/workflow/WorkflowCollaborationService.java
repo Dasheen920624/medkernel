@@ -90,9 +90,9 @@ public class WorkflowCollaborationService {
     public PageResponse<WorkflowTodoResponse> listTodos(WorkflowTodoFilter filter, PageRequest pageRequest) {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
-        syncFollowupTodos(tenantId);
-        syncSafetyTodos(tenantId);
-        syncRecommendationTodos(tenantId);
+        syncFollowupTodos(ctx);
+        syncSafetyTodos(ctx);
+        syncRecommendationTodos(ctx);
 
         WorkflowTodoFilter safeFilter = filter == null
             ? new WorkflowTodoFilter(null, null, null, null, null)
@@ -280,33 +280,38 @@ public class WorkflowCollaborationService {
         return WorkflowNotificationResponse.from(notifications.save(read));
     }
 
-    private void syncFollowupTodos(String tenantId) {
+    private void syncFollowupTodos(RequestContext.Snapshot ctx) {
+        String tenantId = ctx.orgScope().tenantId();
         List<FollowupWorkflowTodoRow> rows = nullToEmpty(
             followupTasks.pageOpenWorkflowRows(tenantId, 0, SYNC_BATCH_SIZE));
         for (FollowupWorkflowTodoRow row : rows) {
-            todos.findByTenantIdAndSourceTypeAndSourceId(
+            WorkflowTodo todo = todos.findByTenantIdAndSourceTypeAndSourceId(
                     tenantId,
                     WorkflowTodoSourceType.FOLLOWUP_TASK,
                     row.taskId())
                 .orElseGet(() -> todos.save(fromFollowupTodo(tenantId, row)));
+            createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
 
-    private void syncSafetyTodos(String tenantId) {
+    private void syncSafetyTodos(RequestContext.Snapshot ctx) {
+        String tenantId = ctx.orgScope().tenantId();
         List<AffectedCaseTask> rows = nullToEmpty(affectedTasks.pageByTenantId(tenantId, 0, SYNC_BATCH_SIZE));
         for (AffectedCaseTask task : rows) {
             if (!isOpenSafetyTask(task)) {
                 continue;
             }
-            todos.findByTenantIdAndSourceTypeAndSourceId(
+            WorkflowTodo todo = todos.findByTenantIdAndSourceTypeAndSourceId(
                     tenantId,
                     WorkflowTodoSourceType.SAFETY_REVIEW,
                     task.taskKey())
                 .orElseGet(() -> todos.save(fromSafetyTask(task)));
+            createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
 
-    private void syncRecommendationTodos(String tenantId) {
+    private void syncRecommendationTodos(RequestContext.Snapshot ctx) {
+        String tenantId = ctx.orgScope().tenantId();
         List<RecommendationWorkflowTodoRow> rows = nullToEmpty(
             recommendationCards.pageOpenWorkflowRows(tenantId, 0, SYNC_BATCH_SIZE));
         for (RecommendationWorkflowTodoRow row : rows) {
@@ -315,9 +320,9 @@ public class WorkflowCollaborationService {
             if (existing.isEmpty() && sourceType != WorkflowTodoSourceType.RECOMMENDATION_CARD) {
                 existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
             }
-            if (existing.isEmpty()) {
-                todos.save(fromRecommendationCardTodo(tenantId, row, sourceType));
-            }
+            WorkflowTodo todo = existing.orElseGet(
+                () -> todos.save(fromRecommendationCardTodo(tenantId, row, sourceType)));
+            createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
 
@@ -539,6 +544,41 @@ public class WorkflowCollaborationService {
         enqueueExternalNotificationIfNeeded(ctx, saved);
     }
 
+    private void createPendingTodoNotificationIfAbsent(RequestContext.Snapshot ctx, WorkflowTodo todo) {
+        if (!isOpenWorkflowTodo(todo)) {
+            return;
+        }
+        String dedupeKey = "todo:" + todo.todoId() + ":created";
+        if (notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey).isPresent()) {
+            return;
+        }
+        Instant createdAt = todo.createdAt() == null ? Instant.now() : todo.createdAt();
+        WorkflowNotification saved = notifications.save(new WorkflowNotification(
+                null,
+                "notify-" + UUID.randomUUID(),
+                todo.tenantId(),
+                WorkflowNotificationSourceType.WORKFLOW_TODO,
+                todo.todoId(),
+                dedupeKey,
+                "待办待处理",
+                "待办「" + todo.title() + "」待处理，请按截止时间处理。",
+                notificationLevel(todo.priority()),
+                WorkflowNotificationStatus.UNREAD,
+                blankToNull(todo.assigneeId()),
+                todo.assigneeRole(),
+                todo.patientId(),
+                todo.encounterId(),
+                todo.deepLink(),
+                null,
+                null,
+                defaultText(todo.traceId(), ctx.traceId()),
+                createdAt,
+                defaultText(todo.createdBy(), SYSTEM_ACTOR),
+                createdAt,
+                defaultText(todo.createdBy(), SYSTEM_ACTOR)));
+        enqueueExternalNotificationIfNeeded(ctx, saved);
+    }
+
     private void createCompletionNotificationIfAbsent(
             RequestContext.Snapshot ctx,
             WorkflowTodo todo,
@@ -662,6 +702,10 @@ public class WorkflowCollaborationService {
 
     private static boolean isOpenSafetyTask(AffectedCaseTask task) {
         return task.status() == AffectedCaseTaskStatus.OPEN || task.status() == AffectedCaseTaskStatus.IN_PROGRESS;
+    }
+
+    private static boolean isOpenWorkflowTodo(WorkflowTodo todo) {
+        return todo.status() == WorkflowTodoStatus.PENDING || todo.status() == WorkflowTodoStatus.IN_PROGRESS;
     }
 
     private static WorkflowPriority followupPriority(FollowupTaskStatus status) {
