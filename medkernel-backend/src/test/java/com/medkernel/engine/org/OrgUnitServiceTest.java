@@ -119,12 +119,13 @@ class OrgUnitServiceTest {
     }
 
     @Test
-    void rejectsCrossLayerCreateWithOrgLevelInvalid() {
+    void rejectsInvertedParentLevelOnCreate() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
-        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
-        OrgUnit input = sample("t-1", "parent-1", OrgLevel.SPECIALTY, "SP-001", null);
+        // 父级层级更低（科室）而子级更高（集团）——倒挂，应拒绝
+        OrgUnit parent = sample("t-1", null, OrgLevel.DEPARTMENT, "DEPT-001", "parent-1");
+        OrgUnit input = sample("t-1", "parent-1", OrgLevel.GROUP, "GROUP-001", null);
 
-        Mockito.when(repository.findByTenantIdAndCode("t-1", "SP-001")).thenReturn(Optional.empty());
+        Mockito.when(repository.findByTenantIdAndCode("t-1", "GROUP-001")).thenReturn(Optional.empty());
         Mockito.when(repository.findByTenantIdAndId("t-1", "parent-1")).thenReturn(Optional.of(parent));
 
         assertThatThrownBy(() -> service.createOrgUnit(input))
@@ -134,16 +135,34 @@ class OrgUnitServiceTest {
     }
 
     @Test
-    void rejectsCrossLayerReparentWithOrgLevelInvalid() {
+    void allowsSkipLevelCreate() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
-        OrgUnit unit = sample("t-1", "site-1", OrgLevel.DEPARTMENT, "DEPT-001", "dept-1");
-        OrgUnit parent = sample("t-1", "tenant-1", OrgLevel.GROUP, "GROUP-001", "group-1");
+        // 科室直挂医院（跳过院区 / 服务点）在放宽后应允许
+        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
+        OrgUnit input = sample("t-1", "parent-1", OrgLevel.DEPARTMENT, "DEPT-009", null);
+        OrgUnit expected = sample("t-1", "parent-1", OrgLevel.DEPARTMENT, "DEPT-009", "30");
 
-        Mockito.when(repository.findByTenantIdAndId("t-1", "dept-1")).thenReturn(Optional.of(unit));
-        Mockito.when(repository.findByTenantIdAndId("t-1", "group-1")).thenReturn(Optional.of(parent));
-        Mockito.when(hierarchyRepository.isDescendant("t-1", "dept-1", "group-1")).thenReturn(false);
+        Mockito.when(repository.findByTenantIdAndCode("t-1", "DEPT-009")).thenReturn(Optional.empty());
+        Mockito.when(repository.findByTenantIdAndId("t-1", "parent-1")).thenReturn(Optional.of(parent));
+        Mockito.when(repository.save(any(OrgUnit.class))).thenReturn(expected);
 
-        assertThatThrownBy(() -> service.reparentOrgUnit("dept-1", "group-1"))
+        OrgUnit saved = service.createOrgUnit(input);
+
+        assertThat(saved.code()).isEqualTo("DEPT-009");
+    }
+
+    @Test
+    void rejectsInvertedParentLevelOnReparent() {
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
+        // 把集团迁到科室之下——父级层级更低，倒挂，应拒绝
+        OrgUnit unit = sample("t-1", "tenant-1", OrgLevel.GROUP, "GROUP-001", "group-1");
+        OrgUnit parent = sample("t-1", "site-1", OrgLevel.DEPARTMENT, "DEPT-001", "dept-1");
+
+        Mockito.when(repository.findByTenantIdAndId("t-1", "group-1")).thenReturn(Optional.of(unit));
+        Mockito.when(repository.findByTenantIdAndId("t-1", "dept-1")).thenReturn(Optional.of(parent));
+        Mockito.when(hierarchyRepository.isDescendant("t-1", "group-1", "dept-1")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.reparentOrgUnit("group-1", "dept-1"))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ORG_LEVEL_INVALID);

@@ -70,17 +70,35 @@ class OrgHierarchyIntegrationTest {
     }
 
     @Test
-    void rejectsCrossLayerOrgCreationWithBusinessErrorCode() {
-        RequestContext.restore(new RequestContext.Snapshot("trace-cross-layer", OrgScope.tenant("tenant-A"), "admin-1"));
+    void rejectsInvertedLevelOrgCreationWithBusinessErrorCode() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-inverted-layer", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
         OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
         OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
 
-        assertThatThrownBy(() -> service.createOrgUnit(input(hospital.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C")))
+        // 把集团挂在医院之下——父级层级更低，倒挂，应拒绝
+        assertThatThrownBy(() -> service.createOrgUnit(input(hospital.id(), OrgLevel.GROUP, "GROUP-X", "集团X")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ORG_LEVEL_INVALID);
+    }
+
+    @Test
+    void allowsSkipLevelOrgCreationAcrossOptionalLayers() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-skip-layer", OrgScope.tenant("tenant-A"), "admin-1"));
+
+        OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
+        OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
+        OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
+
+        // 科室直挂医院（跳过院区 / 服务点）应成功，组织路径不含被跳过的中间层
+        OrgUnit department = service.createOrgUnit(input(hospital.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+
+        assertThat(department.orgPath()).isEqualTo("/TENANT-A/GROUP-A/HOSP-B/DEPT-C");
+        assertThat(service.orgPathByCurrentTenant("DEPT-C"))
+            .extracting(OrgUnit::code)
+            .containsExactly("TENANT-A", "GROUP-A", "HOSP-B", "DEPT-C");
     }
 
     @Test
