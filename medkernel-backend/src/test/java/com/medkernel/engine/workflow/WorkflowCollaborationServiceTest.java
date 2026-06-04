@@ -1,6 +1,7 @@
 package com.medkernel.engine.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -27,6 +28,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationWorkflowTodoRow;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
+import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.mockito.ArgumentCaptor;
@@ -217,6 +219,61 @@ class WorkflowCollaborationServiceTest {
     }
 
     @Test
+    void completeTodoCreatesLowDisturbanceWorkflowNotificationForCurrentAssignee() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo pending = new WorkflowTodo(
+            null,
+            "todo-safety-1",
+            "tenant-A",
+            WorkflowTodoSourceType.SAFETY_REVIEW,
+            "withdrawal:patient-1",
+            "安全撤回复核任务",
+            "安全撤回后需医师复核患者病例",
+            WorkflowPriority.CRITICAL,
+            WorkflowTodoStatus.PENDING,
+            "doctor-1",
+            "DOCTOR",
+            "patient-1",
+            null,
+            now.plusSeconds(1800),
+            "/provenance?taskKey=withdrawal:patient-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-safety",
+            now,
+            "system",
+            now,
+            "system");
+        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-safety-1")).thenReturn(Optional.of(pending));
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-safety-1:completed"))
+            .thenReturn(Optional.empty());
+        when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.completeTodo(
+            "todo-safety-1",
+            new WorkflowTodoCompleteRequest("已复核患者病例，未发现仍在执行的旧版医嘱"));
+
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        WorkflowNotification notification = notificationCaptor.getValue();
+        assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
+        assertThat(notification.sourceId()).isEqualTo("todo-safety-1");
+        assertThat(notification.dedupeKey()).isEqualTo("todo:todo-safety-1:completed");
+        assertThat(notification.title()).isEqualTo("待办已完成");
+        assertThat(notification.message()).contains("安全撤回复核任务", "已复核患者病例");
+        assertThat(notification.level()).isEqualTo(WorkflowNotificationLevel.INFO);
+        assertThat(notification.status()).isEqualTo(WorkflowNotificationStatus.UNREAD);
+        assertThat(notification.recipientId()).isEqualTo("doctor-1");
+        assertThat(notification.recipientRole()).isEqualTo("DOCTOR");
+        assertThat(notification.traceId()).isEqualTo("trace-workflow");
+    }
+
+    @Test
     void transferTodoPersistsNewAssigneeReasonAndAuditTrace() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowTodo pending = new WorkflowTodo(
@@ -259,6 +316,71 @@ class WorkflowCollaborationServiceTest {
         assertThat(transferred.transferReason()).isEqualTo("交由护理站安排回院确认");
         assertThat(transferred.traceId()).isEqualTo("trace-workflow");
         verify(todos).save(any(WorkflowTodo.class));
+    }
+
+    @Test
+    void transferTodoRejectsEmptyRequestBeforeRepositoryAccess() {
+        assertThatThrownBy(() -> service.transferTodo("todo-followup-1", null))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("接收人不能为空");
+    }
+
+    @Test
+    void transferTodoCreatesDeduplicatedWorkflowNotificationForNewAssignee() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo pending = new WorkflowTodo(
+            null,
+            "todo-followup-1",
+            "tenant-A",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "return-task-1",
+            "随访异常返院任务",
+            "患者随访异常，需要安排回院确认",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            "doctor-1",
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(1800),
+            "/clinical/followup?taskId=return-task-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-followup",
+            now,
+            "system",
+            now,
+            "system");
+        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-followup-1")).thenReturn(Optional.of(pending));
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(notifications.findByTenantIdAndDedupeKey(
+                "tenant-A",
+                "todo:todo-followup-1:transferred:nurse-2"))
+            .thenReturn(Optional.empty());
+        when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.transferTodo(
+            "todo-followup-1",
+            new WorkflowTodoTransferRequest("nurse-2", "NURSING", "交由护理站安排回院确认"));
+
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        WorkflowNotification notification = notificationCaptor.getValue();
+        assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
+        assertThat(notification.sourceId()).isEqualTo("todo-followup-1");
+        assertThat(notification.dedupeKey()).isEqualTo("todo:todo-followup-1:transferred:nurse-2");
+        assertThat(notification.title()).isEqualTo("待办已转交");
+        assertThat(notification.message()).contains("随访异常返院任务", "交由护理站安排回院确认");
+        assertThat(notification.level()).isEqualTo(WorkflowNotificationLevel.HIGH);
+        assertThat(notification.status()).isEqualTo(WorkflowNotificationStatus.UNREAD);
+        assertThat(notification.recipientId()).isEqualTo("nurse-2");
+        assertThat(notification.recipientRole()).isEqualTo("NURSING");
+        assertThat(notification.deepLink()).isEqualTo("/clinical/followup?taskId=return-task-1");
+        assertThat(notification.traceId()).isEqualTo("trace-workflow");
     }
 
     @Test
