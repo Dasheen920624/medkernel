@@ -2498,6 +2498,7 @@ export interface ContextFieldDescriptor {
   displayName: string;
   dataType: string;
   unit?: string | null;
+  codeSystem?: string | null;
   description?: string | null;
 }
 
