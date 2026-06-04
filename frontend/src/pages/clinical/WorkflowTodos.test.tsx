@@ -8,12 +8,15 @@ import WorkflowTodos from "./WorkflowTodos";
 const workflowHookMocks = vi.hoisted(() => ({
   completeTodo: vi.fn(),
   refetchTodos: vi.fn(),
+  transferTodo: vi.fn(),
   useCompleteWorkflowTodo: vi.fn(),
+  useTransferWorkflowTodo: vi.fn(),
   useWorkflowTodos: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useCompleteWorkflowTodo: workflowHookMocks.useCompleteWorkflowTodo,
+  useTransferWorkflowTodo: workflowHookMocks.useTransferWorkflowTodo,
   useWorkflowTodos: workflowHookMocks.useWorkflowTodos,
 }));
 
@@ -35,6 +38,12 @@ describe("WorkflowTodos", () => {
       status: "COMPLETED",
       completedBy: "doctor-real-1",
       completionReason: "已完成真实随访处理",
+    });
+    workflowHookMocks.transferTodo.mockResolvedValue({
+      todoId: "todo-real-1",
+      status: "TRANSFERRED",
+      transferredTo: "nurse-2",
+      transferReason: "交由护理站安排回院确认",
     });
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
@@ -67,6 +76,10 @@ describe("WorkflowTodos", () => {
     workflowHookMocks.useCompleteWorkflowTodo.mockReturnValue({
       isPending: false,
       mutateAsync: workflowHookMocks.completeTodo,
+    });
+    workflowHookMocks.useTransferWorkflowTodo.mockReturnValue({
+      isPending: false,
+      mutateAsync: workflowHookMocks.transferTodo,
     });
   });
 
@@ -188,6 +201,29 @@ describe("WorkflowTodos", () => {
       expect(workflowHookMocks.completeTodo).toHaveBeenCalledWith({
         todoId: "todo-real-1",
         request: { completionReason: "已完成真实随访处理" },
+      });
+    });
+    expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();
+  });
+
+  it("persists transfer through the backend instead of changing browser-only state", async () => {
+    const user = userEvent.setup();
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("button", { name: "转交" }));
+    await user.type(screen.getByLabelText("接收人"), "nurse-2");
+    await user.type(screen.getByLabelText("接收角色"), "NURSING");
+    await user.type(screen.getByLabelText("转交说明"), "交由护理站安排回院确认");
+    await user.click(screen.getByRole("button", { name: "确认转交" }));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.transferTodo).toHaveBeenCalledWith({
+        todoId: "todo-real-1",
+        request: {
+          transferTo: "nurse-2",
+          transferRole: "NURSING",
+          transferReason: "交由护理站安排回院确认",
+        },
       });
     });
     expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();

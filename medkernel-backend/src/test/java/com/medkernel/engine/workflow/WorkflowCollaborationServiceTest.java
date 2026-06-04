@@ -129,6 +129,7 @@ class WorkflowCollaborationServiceTest {
                 null,
                 null,
                 null,
+                null,
                 "trace-followup",
                 now,
                 "system",
@@ -150,6 +151,7 @@ class WorkflowCollaborationServiceTest {
                 null,
                 now.plusSeconds(1800),
                 "/provenance?taskKey=withdrawal:patient-1",
+                null,
                 null,
                 null,
                 null,
@@ -195,6 +197,7 @@ class WorkflowCollaborationServiceTest {
             null,
             null,
             null,
+            null,
             "trace-safety",
             now,
             "system",
@@ -210,6 +213,51 @@ class WorkflowCollaborationServiceTest {
         assertThat(completed.status()).isEqualTo(WorkflowTodoStatus.COMPLETED);
         assertThat(completed.completedBy()).isEqualTo("doctor-1");
         assertThat(completed.completionReason()).contains("已复核患者病例");
+        verify(todos).save(any(WorkflowTodo.class));
+    }
+
+    @Test
+    void transferTodoPersistsNewAssigneeReasonAndAuditTrace() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo pending = new WorkflowTodo(
+            null,
+            "todo-followup-1",
+            "tenant-A",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "return-task-1",
+            "随访异常返院任务",
+            "患者随访异常，需要安排回院确认",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            "doctor-1",
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(1800),
+            "/clinical/followup?taskId=return-task-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-followup",
+            now,
+            "system",
+            now,
+            "system");
+        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-followup-1")).thenReturn(Optional.of(pending));
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkflowTodoResponse transferred = service.transferTodo(
+            "todo-followup-1",
+            new WorkflowTodoTransferRequest("nurse-2", "NURSING", "交由护理站安排回院确认"));
+
+        assertThat(transferred.status()).isEqualTo(WorkflowTodoStatus.TRANSFERRED);
+        assertThat(transferred.assigneeId()).isEqualTo("nurse-2");
+        assertThat(transferred.assigneeRole()).isEqualTo("NURSING");
+        assertThat(transferred.transferredTo()).isEqualTo("nurse-2");
+        assertThat(transferred.transferReason()).isEqualTo("交由护理站安排回院确认");
+        assertThat(transferred.traceId()).isEqualTo("trace-workflow");
         verify(todos).save(any(WorkflowTodo.class));
     }
 
@@ -256,6 +304,7 @@ class WorkflowCollaborationServiceTest {
                 "enc-1",
                 now.plusSeconds(3600),
                 "/recommendations?cardId=card-high-risk-1",
+                null,
                 null,
                 null,
                 null,

@@ -1,53 +1,216 @@
-import { Card, Form, Switch, Select, TimePicker, Space, Button } from "antd";
-import dayjs from "dayjs";
+import { useEffect } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Form,
+  Input,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+import { ReloadOutlined, SaveOutlined } from "@ant-design/icons";
+
+import {
+  useSaveWorkflowNotificationSettings,
+  useWorkflowNotificationSettings,
+} from "@/shared/api/hooks";
+import type {
+  WorkflowNotificationLevel,
+  WorkflowNotificationSettingsPayload,
+} from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { PageShell } from "@/shared/ui/PageShell";
 
+const { Text } = Typography;
+
+type NotificationSettingsForm = WorkflowNotificationSettingsPayload;
+
+const SAFETY_BYPASS_LEVELS: WorkflowNotificationLevel[] = ["CRITICAL", "HIGH"];
+
+const DEFAULT_FORM_VALUES: NotificationSettingsForm = {
+  inAppEnabled: true,
+  smsEnabled: false,
+  emailEnabled: false,
+  pushEnabled: false,
+  quietHoursEnabled: false,
+  quietStart: "22:00",
+  quietEnd: "07:00",
+  quietBypassLevels: SAFETY_BYPASS_LEVELS,
+};
+
+const levelLabels: Record<WorkflowNotificationLevel, string> = {
+  CRITICAL: "危急",
+  HIGH: "高",
+  MEDIUM: "中",
+  LOW: "低",
+  INFO: "信息",
+};
+
+const bypassOptions = (
+  ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] as WorkflowNotificationLevel[]
+).map((level) => ({
+  value: level,
+  label: levelLabels[level],
+  disabled: SAFETY_BYPASS_LEVELS.includes(level),
+}));
+
+function normalizeBypassLevels(levels: WorkflowNotificationLevel[] | undefined) {
+  return Array.from(new Set([...SAFETY_BYPASS_LEVELS, ...(levels ?? [])]));
+}
+
 export default function NotificationSettings() {
+  const [form] = Form.useForm<NotificationSettingsForm>();
+  const settingsQuery = useWorkflowNotificationSettings();
+  const saveMutation = useSaveWorkflowNotificationSettings();
+
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    form.setFieldsValue({
+      inAppEnabled: settingsQuery.data.inAppEnabled,
+      smsEnabled: settingsQuery.data.smsEnabled,
+      emailEnabled: settingsQuery.data.emailEnabled,
+      pushEnabled: settingsQuery.data.pushEnabled,
+      quietHoursEnabled: settingsQuery.data.quietHoursEnabled,
+      quietStart: settingsQuery.data.quietStart,
+      quietEnd: settingsQuery.data.quietEnd,
+      quietBypassLevels: normalizeBypassLevels(settingsQuery.data.quietBypassLevels),
+    });
+  }, [form, settingsQuery.data]);
+
+  const saveSettings = async () => {
+    try {
+      const values = await form.validateFields();
+      await saveMutation.mutateAsync({
+        ...values,
+        quietBypassLevels: normalizeBypassLevels(values.quietBypassLevels),
+      });
+      message.success("通知设置已保存");
+      await settingsQuery.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "通知设置保存失败"));
+    }
+  };
+
   return (
     <PageShell
       title="通知设置"
-      description="短信 / 站内信 / 推送 / 邮件 / 免打扰策略"
-      primary={<Button type="primary">保存</Button>}
+      description="保存个人通知偏好与免打扰窗口。"
+      primary={
+        <Button
+          type="primary"
+          aria-label="保存通知设置"
+          icon={<SaveOutlined />}
+          loading={saveMutation.isPending}
+          onClick={saveSettings}
+        >
+          保存
+        </Button>
+      }
+      extras={
+        <Button
+          icon={<ReloadOutlined />}
+          loading={settingsQuery.isLoading}
+          onClick={() => settingsQuery.refetch()}
+        >
+          刷新
+        </Button>
+      }
     >
-      <Card title="渠道">
-        <Form layout="vertical">
-          <Form.Item label="短信通知（紧急 + SLA 即将超时）">
-            <Switch defaultChecked />
-          </Form.Item>
-          <Form.Item label="站内信（默认所有业务通知）">
-            <Switch defaultChecked />
-          </Form.Item>
-          <Form.Item label="邮件（每日摘要）">
-            <Switch />
-          </Form.Item>
-          <Form.Item label="推送（移动端）">
-            <Switch defaultChecked />
-          </Form.Item>
-        </Form>
-      </Card>
-      <Card title="免打扰策略">
-        <Form layout="vertical">
-          <Form.Item label="免打扰时段（默认夜班医生静默）">
-            <Space>
-              <TimePicker.RangePicker
-                defaultValue={[dayjs("22:00", "HH:mm"), dayjs("07:00", "HH:mm")]}
-                format="HH:mm"
-              />
-            </Space>
-          </Form.Item>
-          <Form.Item label="哪类提醒仍然在免打扰时段通过">
-            <Select
-              mode="multiple"
-              defaultValue={["red-alert", "trace-failure"]}
-              options={[
-                { value: "red-alert", label: "红色告警（系统宕机）" },
-                { value: "trace-failure", label: "审计链断" },
-                { value: "high-priority", label: "高优先级待办" },
-              ]}
+      {settingsQuery.isError && (
+        <Alert
+          type="error"
+          showIcon
+          className="mb-4"
+          message="通知设置读取失败"
+          description="请检查登录状态、租户上下文或后端通知设置接口。"
+        />
+      )}
+
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={DEFAULT_FORM_VALUES}
+        disabled={settingsQuery.isLoading}
+      >
+        <Card loading={settingsQuery.isLoading} title="渠道偏好" className="mb-4">
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Alert
+              type="info"
+              showIcon
+              message="外部通道当前只保存个人偏好，不声明短信、邮件或推送已完成投递。"
             />
-          </Form.Item>
-        </Form>
-      </Card>
+            <Space wrap size="large">
+              <Form.Item name="inAppEnabled" label="站内信" valuePropName="checked">
+                <Switch aria-label="站内信偏好" />
+              </Form.Item>
+              <Form.Item name="smsEnabled" label="短信" valuePropName="checked">
+                <Switch aria-label="短信偏好" />
+              </Form.Item>
+              <Form.Item name="emailEnabled" label="邮件" valuePropName="checked">
+                <Switch aria-label="邮件偏好" />
+              </Form.Item>
+              <Form.Item name="pushEnabled" label="移动推送" valuePropName="checked">
+                <Switch aria-label="移动推送偏好" />
+              </Form.Item>
+            </Space>
+          </Space>
+        </Card>
+
+        <Card loading={settingsQuery.isLoading} title="免打扰策略">
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Form.Item name="quietHoursEnabled" label="启用免打扰" valuePropName="checked">
+              <Switch aria-label="免打扰偏好" />
+            </Form.Item>
+            <Space wrap>
+              <Form.Item
+                name="quietStart"
+                label="开始时间"
+                rules={[
+                  { required: true, message: "请填写免打扰开始时间" },
+                  {
+                    pattern: /^([01]\d|2[0-3]):[0-5]\d$/,
+                    message: "时间格式应为 HH:mm",
+                  },
+                ]}
+              >
+                <Input aria-label="免打扰开始时间" inputMode="numeric" maxLength={5} />
+              </Form.Item>
+              <Form.Item
+                name="quietEnd"
+                label="结束时间"
+                rules={[
+                  { required: true, message: "请填写免打扰结束时间" },
+                  {
+                    pattern: /^([01]\d|2[0-3]):[0-5]\d$/,
+                    message: "时间格式应为 HH:mm",
+                  },
+                ]}
+              >
+                <Input aria-label="免打扰结束时间" inputMode="numeric" maxLength={5} />
+              </Form.Item>
+            </Space>
+            <Form.Item name="quietBypassLevels" label="免打扰绕过级别">
+              <Select
+                mode="multiple"
+                aria-label="免打扰绕过级别"
+                options={bypassOptions}
+                className="mk-full-width"
+              />
+            </Form.Item>
+            <Space wrap>
+              <Text type="secondary">以上级别始终绕过免打扰。</Text>
+              {settingsQuery.data?.quietActiveNow && <Tag color="blue">当前免打扰生效</Tag>}
+              {settingsQuery.data?.version ? (
+                <Text type="secondary">版本 {settingsQuery.data.version}</Text>
+              ) : null}
+            </Space>
+          </Space>
+        </Card>
+      </Form>
     </PageShell>
   );
 }

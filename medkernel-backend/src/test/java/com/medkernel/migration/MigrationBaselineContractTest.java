@@ -105,7 +105,8 @@ class MigrationBaselineContractTest {
         "V76__recommendation_source_redline_type.sql",
         "V77__workflow_collaboration.sql",
         "V78__diagnosis_knowledge_asset.sql",
-        "V79__version_propagation_and_override_policy.sql"
+        "V79__version_propagation_and_override_policy.sql",
+        "V80__workflow_transfer_reason.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -756,6 +757,21 @@ class MigrationBaselineContractTest {
                 .contains("idx_notification_tenant_status_created")
                 .contains("comment on table mk_engine_workflow_todo")
                 .contains("comment on table mk_engine_notification");
+        }
+    }
+
+    @Test
+    void v80ShouldPersistWorkflowTransferReasonForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V80__workflow_transfer_reason.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 待办转交说明迁移", dialect)
+                .contains("mk_engine_workflow_todo")
+                .contains("transfer_reason")
+                .contains("comment on column mk_engine_workflow_todo.transfer_reason");
         }
     }
 

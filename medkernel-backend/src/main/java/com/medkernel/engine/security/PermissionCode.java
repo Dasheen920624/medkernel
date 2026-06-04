@@ -100,7 +100,7 @@ public enum PermissionCode {
     WORKFLOW_READ("workflow.read", Risk.LOW, "查看临床协同待办"),
     WORKFLOW_WRITE("workflow.write", Risk.MEDIUM, "完成或转交临床协同待办"),
     NOTIFICATION_READ("notification.read", Risk.LOW, "查看通知中心"),
-    NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读"),
+    NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读和保存通知偏好"),
 
     // ─── 菜单维度（INFRA-05 前的一级入口遗留权限，仅保留枚举兼容，不再作为有效菜单矩阵）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),

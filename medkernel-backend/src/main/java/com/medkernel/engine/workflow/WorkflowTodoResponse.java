@@ -22,6 +22,8 @@ public record WorkflowTodoResponse(
     String completionReason,
     Instant completedAt,
     String completedBy,
+    String transferredTo,
+    String transferReason,
     String traceId
 ) {
     static WorkflowTodoResponse from(WorkflowTodo todo) {
@@ -42,6 +44,8 @@ public record WorkflowTodoResponse(
             todo.completionReason(),
             todo.completedAt(),
             todo.completedBy(),
+            todo.transferredTo(),
+            todo.transferReason(),
             todo.traceId());
     }
 }
