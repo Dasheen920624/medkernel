@@ -13,7 +13,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * 本表只存租户在前台维护的自定义/补充字段，与系统字段在读取时合并。沿用业务层级
  * {@code category}（一级）/{@code groupName}（二级）。
  */
-@Table("context_field_catalog")
+@Table("mk_context_field_catalog")
 public record ContextFieldCatalogEntry(
     @Id Long id,
     @Column("field_id") String fieldId,
