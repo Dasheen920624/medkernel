@@ -94,13 +94,31 @@ class WorkflowCollaborationServiceTest {
         when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
         when(clinicalEvents.pageByFilter("tenant-A", null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, 200))
             .thenReturn(List.of());
-        when(todos.countByVisibleAssigneeScope(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+        when(todos.countByVisibleAssigneeScope(eq("tenant-A"), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(0L);
-        when(todos.pageByVisibleAssigneeScope(eq("tenant-A"), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+        when(todos.pageByVisibleAssigneeScope(
+                eq("tenant-A"),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt()))
             .thenReturn(List.of());
-        when(notifications.countByVisibleRecipientScope(eq("tenant-A"), any(), any(), any(), any()))
+        when(notifications.countByVisibleRecipientScope(eq("tenant-A"), any(), any(), any(), any(), any()))
             .thenReturn(0L);
-        when(notifications.pageByVisibleRecipientScope(eq("tenant-A"), any(), any(), any(), any(), anyInt(), anyInt()))
+        when(notifications.pageByVisibleRecipientScope(
+                eq("tenant-A"),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                anyInt(),
+                anyInt()))
             .thenReturn(List.of());
         when(notifications.findByTenantIdAndDedupeKey(eq("tenant-A"), any())).thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -152,8 +170,8 @@ class WorkflowCollaborationServiceTest {
         when(todos.findByTenantIdAndSourceTypeAndSourceId(eq("tenant-A"), any(), any()))
             .thenReturn(Optional.empty());
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null)).thenReturn(2L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20)).thenReturn(List.of(
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null)).thenReturn(2L);
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20)).thenReturn(List.of(
             new WorkflowTodo(
                 null,
                 "todo-followup-1",
@@ -273,8 +291,8 @@ class WorkflowCollaborationServiceTest {
         when(notificationSettings.getSettingsForUser("tenant-A", "followup-doctor")).thenReturn(settings);
         when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.HIGH), eq(settings), any(LocalTime.class)))
             .thenReturn(false);
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null)).thenReturn(1L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20))
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null)).thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20))
             .thenReturn(List.of(existingTodo));
 
         PageResponse<WorkflowTodoResponse> page = service.listTodos(
@@ -381,8 +399,8 @@ class WorkflowCollaborationServiceTest {
                 "system",
                 now,
                 "system")));
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null)).thenReturn(1L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20))
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null)).thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20))
             .thenReturn(List.of(existingTodo));
 
         service.listTodos(
@@ -452,9 +470,9 @@ class WorkflowCollaborationServiceTest {
             "system");
         when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
         when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null))
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null))
             .thenReturn(2L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20))
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20))
             .thenReturn(List.of(organizationTodo, ownTodo));
 
         PageResponse<WorkflowTodoResponse> page = service.listTodos(
@@ -464,8 +482,8 @@ class WorkflowCollaborationServiceTest {
         assertThat(page.total()).isEqualTo(2);
         assertThat(page.items()).extracting(WorkflowTodoResponse::todoId)
             .containsExactly("todo-org-1", "todo-own-1");
-        verify(todos).countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null);
-        verify(todos).pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20);
+        verify(todos).countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null);
+        verify(todos).pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20);
     }
 
     @Test
@@ -497,7 +515,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-safety-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-safety-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         WorkflowTodoResponse completed = service.completeTodo(
@@ -561,13 +580,34 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-other-1")).thenReturn(Optional.of(otherUserTodo));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-other-1", "doctor-1", null))
+            .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.completeTodo(
                 "todo-other-1",
                 new WorkflowTodoCompleteRequest("误处理他人待办")))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("协同待办");
+        verify(todos, never()).save(any(WorkflowTodo.class));
+        verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
+    }
+
+    @Test
+    void completeTodoRejectsSiblingOrganizationTodoWithoutPersisting() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-workflow",
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            "doctor-1"));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-sibling-1", "doctor-1", "dept-a"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.completeTodo(
+                "todo-sibling-1",
+                new WorkflowTodoCompleteRequest("误处理同租户其他科室待办")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("协同待办");
+
         verify(todos, never()).save(any(WorkflowTodo.class));
         verify(notifications, never()).save(any(WorkflowNotification.class));
         verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
@@ -602,7 +642,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-safety-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-safety-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-safety-1:completed"))
             .thenReturn(Optional.empty());
@@ -657,7 +698,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-safety-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-safety-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-safety-1:completed"))
             .thenReturn(Optional.empty());
@@ -720,7 +762,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-low-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-low-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-low-1:completed"))
             .thenReturn(Optional.empty());
@@ -766,7 +809,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-followup-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-followup-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         WorkflowTodoResponse transferred = service.transferTodo(
@@ -840,7 +884,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-other-1")).thenReturn(Optional.of(otherUserTodo));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-other-1", "doctor-1", null))
+            .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.transferTodo(
                 "todo-other-1",
@@ -881,7 +926,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-followup-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-followup-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(notifications.findByTenantIdAndDedupeKey(
                 "tenant-A",
@@ -939,7 +985,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(todos.findByTenantIdAndTodoId("tenant-A", "todo-followup-1")).thenReturn(Optional.of(pending));
+        when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-followup-1", "doctor-1", null))
+            .thenReturn(Optional.of(pending));
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(notifications.findByTenantIdAndDedupeKey(
                 "tenant-A",
@@ -992,8 +1039,8 @@ class WorkflowCollaborationServiceTest {
                 "card-high-risk-1"))
             .thenReturn(Optional.empty());
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null)).thenReturn(1L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20)).thenReturn(List.of(
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null)).thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20)).thenReturn(List.of(
             new WorkflowTodo(
                 null,
                 "todo-card-1",
@@ -1086,8 +1133,8 @@ class WorkflowCollaborationServiceTest {
         when(todos.findRecommendationDerivedByTenantIdAndSourceId(eq("tenant-A"), any()))
             .thenReturn(Optional.empty());
         when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null)).thenReturn(3L);
-        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, 0, 20)).thenReturn(List.of(
+        when(todos.countByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null)).thenReturn(3L);
+        when(todos.pageByVisibleAssigneeScope("tenant-A", null, null, null, null, "doctor-1", null, null, 0, 20)).thenReturn(List.of(
             workflowTodo("todo-nursing-1", WorkflowTodoSourceType.NURSING_TASK,
                 "card-nursing-1", "压疮风险护理评估", "patient-1", "enc-1", "NURSING", "trace-nursing", now),
             workflowTodo("todo-report-1", WorkflowTodoSourceType.REPORT_INTERPRETATION,
@@ -1134,7 +1181,7 @@ class WorkflowCollaborationServiceTest {
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "followup:fe-notify-1"))
             .thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1")).thenReturn(1L);
+        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null)).thenReturn(1L);
         WorkflowNotification unread = new WorkflowNotification(
             null,
             "notify-followup-1",
@@ -1158,8 +1205,8 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", 0, 20)).thenReturn(List.of(unread));
-        when(notifications.findByTenantIdAndNotificationId("tenant-A", "notify-followup-1"))
+        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20)).thenReturn(List.of(unread));
+        when(notifications.findVisibleByTenantIdAndNotificationId("tenant-A", "notify-followup-1", "doctor-1", null))
             .thenReturn(Optional.of(unread));
 
         PageResponse<WorkflowNotificationResponse> page = service.listNotifications(
@@ -1252,9 +1299,9 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1"))
+        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null))
             .thenReturn(2L);
-        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", 0, 20))
+        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20))
             .thenReturn(List.of(organizationNotification, ownNotification));
 
         PageResponse<WorkflowNotificationResponse> page = service.listNotifications(
@@ -1264,8 +1311,8 @@ class WorkflowCollaborationServiceTest {
         assertThat(page.total()).isEqualTo(2);
         assertThat(page.items()).extracting(WorkflowNotificationResponse::notificationId)
             .containsExactly("notify-org-1", "notify-own-1");
-        verify(notifications).countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1");
-        verify(notifications).pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", 0, 20);
+        verify(notifications).countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null);
+        verify(notifications).pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20);
     }
 
     @Test
@@ -1294,12 +1341,33 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
-        when(notifications.findByTenantIdAndNotificationId("tenant-A", "notify-other-1"))
-            .thenReturn(Optional.of(otherRecipientNotification));
+        when(notifications.findVisibleByTenantIdAndNotificationId("tenant-A", "notify-other-1", "doctor-1", null))
+            .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.markNotificationRead("notify-other-1"))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("通知");
+        verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
+    }
+
+    @Test
+    void markNotificationReadRejectsSiblingOrganizationNotificationWithoutPersisting() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-workflow",
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            "doctor-1"));
+        when(notifications.findVisibleByTenantIdAndNotificationId(
+                "tenant-A",
+                "notify-sibling-1",
+                "doctor-1",
+                "dept-a"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.markNotificationRead("notify-sibling-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("通知");
+
         verify(notifications, never()).save(any(WorkflowNotification.class));
         verify(auditRecorder, never()).record(any(AuditRecordCommand.class));
     }
@@ -1335,8 +1403,8 @@ class WorkflowCollaborationServiceTest {
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "clinical-event:evt-report-1"))
             .thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1")).thenReturn(1L);
-        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", 0, 20)).thenReturn(List.of(
+        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null)).thenReturn(1L);
+        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20)).thenReturn(List.of(
             new WorkflowNotification(
                 null,
                 "notify-event-1",

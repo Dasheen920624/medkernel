@@ -15,6 +15,39 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
 
     Optional<WorkflowTodo> findByTenantIdAndTodoId(String tenantId, String todoId);
 
+    @Query("""
+        SELECT t.*
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
+          AND t.todo_id = :todoId
+          AND (
+            (:currentUserId IS NOT NULL AND t.assignee_id = :currentUserId)
+            OR (
+              t.assignee_id IS NULL
+              AND (
+                t.org_unit_id IS NULL
+                OR (
+                  :currentOrgUnitId IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1
+                    FROM org_closure c
+                    WHERE c.tenant_id = :tenantId
+                      AND (
+                        (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
+                        OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
+                      )
+                  )
+                )
+              )
+            )
+          )
+        """)
+    Optional<WorkflowTodo> findVisibleByTenantIdAndTodoId(
+        String tenantId,
+        String todoId,
+        String currentUserId,
+        String currentOrgUnitId);
+
     Optional<WorkflowTodo> findByTenantIdAndSourceTypeAndSourceId(
         String tenantId,
         WorkflowTodoSourceType sourceType,
@@ -22,8 +55,8 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
 
     @Query("""
         SELECT *
-        FROM mk_engine_workflow_todo
-        WHERE tenant_id = :tenantId
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
           AND source_id = :sourceId
           AND source_type IN (
             'RECOMMENDATION_CARD',
@@ -36,10 +69,29 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         """)
     Optional<WorkflowTodo> findRecommendationDerivedByTenantIdAndSourceId(String tenantId, String sourceId);
 
+    default long countByVisibleAssigneeScope(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String patientId) {
+        return countByVisibleAssigneeScope(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            null,
+            patientId);
+    }
+
     @Query("""
         SELECT COUNT(*)
-        FROM mk_engine_workflow_todo
-        WHERE tenant_id = :tenantId
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
@@ -56,8 +108,8 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
 
     @Query("""
         SELECT COUNT(*)
-        FROM mk_engine_workflow_todo
-        WHERE tenant_id = :tenantId
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
@@ -67,8 +119,25 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
             OR (
               :assigneeId IS NULL
               AND (
-                assignee_id IS NULL
-                OR (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+                (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+                OR (
+                  assignee_id IS NULL
+                  AND (
+                    t.org_unit_id IS NULL
+                    OR (
+                      :currentOrgUnitId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM org_closure c
+                        WHERE c.tenant_id = :tenantId
+                          AND (
+                            (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
+                            OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
+                          )
+                      )
+                    )
+                  )
+                )
               )
             )
           )
@@ -80,12 +149,36 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String sourceType,
         String assigneeId,
         String currentUserId,
+        String currentOrgUnitId,
         String patientId);
 
+    default List<WorkflowTodo> pageByVisibleAssigneeScope(
+            String tenantId,
+            String status,
+            String priority,
+            String sourceType,
+            String assigneeId,
+            String currentUserId,
+            String patientId,
+            int offset,
+            int limit) {
+        return pageByVisibleAssigneeScope(
+            tenantId,
+            status,
+            priority,
+            sourceType,
+            assigneeId,
+            currentUserId,
+            null,
+            patientId,
+            offset,
+            limit);
+    }
+
     @Query("""
-        SELECT *
-        FROM mk_engine_workflow_todo
-        WHERE tenant_id = :tenantId
+        SELECT t.*
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
@@ -116,9 +209,9 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         int limit);
 
     @Query("""
-        SELECT *
-        FROM mk_engine_workflow_todo
-        WHERE tenant_id = :tenantId
+        SELECT t.*
+        FROM mk_engine_workflow_todo t
+        WHERE t.tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:priority IS NULL OR priority = :priority)
           AND (:sourceType IS NULL OR source_type = :sourceType)
@@ -128,8 +221,25 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
             OR (
               :assigneeId IS NULL
               AND (
-                assignee_id IS NULL
-                OR (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+                (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+                OR (
+                  assignee_id IS NULL
+                  AND (
+                    t.org_unit_id IS NULL
+                    OR (
+                      :currentOrgUnitId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM org_closure c
+                        WHERE c.tenant_id = :tenantId
+                          AND (
+                            (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
+                            OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
+                          )
+                      )
+                    )
+                  )
+                )
               )
             )
           )
@@ -154,6 +264,7 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String sourceType,
         String assigneeId,
         String currentUserId,
+        String currentOrgUnitId,
         String patientId,
         int offset,
         int limit);

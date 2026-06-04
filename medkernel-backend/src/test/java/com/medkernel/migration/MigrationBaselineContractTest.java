@@ -107,7 +107,8 @@ class MigrationBaselineContractTest {
         "V78__diagnosis_knowledge_asset.sql",
         "V79__version_propagation_and_override_policy.sql",
         "V80__workflow_transfer_reason.sql",
-        "V81__workflow_sync_event_notifications.sql"
+        "V81__workflow_sync_event_notifications.sql",
+        "V82__workflow_organization_scope.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -239,7 +240,9 @@ class MigrationBaselineContractTest {
         "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
         "idx_followup_event_type", "uk_followup_event_idempotency",
         "idx_workflow_todo_tenant_status_due", "idx_workflow_todo_assignee_status",
+        "idx_workflow_todo_org_scope",
         "idx_notification_tenant_status_created", "idx_notification_recipient_status",
+        "idx_notification_org_scope",
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
@@ -545,7 +548,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_integration_onboarding", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
         Map.entry("mk_integration_regional_source", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id"))
     );
-    private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.ofEntries(
+    private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.<String, Set<String>>ofEntries(
         Map.entry("org_unit", Set.of("status")),
         Map.entry("audit_event", Set.of("status")),
         Map.entry("source_version", Set.of("version_no")),
@@ -789,6 +792,25 @@ class MigrationBaselineContractTest {
                 .contains("ck_notification_source_type")
                 .contains("sync_event")
                 .contains("comment on column mk_engine_notification.source_type");
+        }
+    }
+
+    @Test
+    void v82ShouldAddWorkflowOrganizationScopeForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V82__workflow_organization_scope.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 临床协同组织作用域迁移", dialect)
+                .contains("mk_engine_workflow_todo")
+                .contains("mk_engine_notification")
+                .contains("org_unit_id")
+                .contains("idx_workflow_todo_org_scope")
+                .contains("idx_notification_org_scope")
+                .contains("comment on column mk_engine_workflow_todo.org_unit_id")
+                .contains("comment on column mk_engine_notification.org_unit_id");
         }
     }
 

@@ -37,6 +37,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,6 +110,7 @@ public class WorkflowCollaborationService {
         String assigneeId = blankToNull(safeFilter.assigneeId());
         String patientId = blankToNull(safeFilter.patientId());
         String currentUserId = currentUserId(ctx);
+        String currentOrgUnitId = currentOrgUnitId(ctx);
         long total = todos.countByVisibleAssigneeScope(
             tenantId,
             name(safeFilter.status()),
@@ -116,6 +118,7 @@ public class WorkflowCollaborationService {
             name(safeFilter.sourceType()),
             assigneeId,
             currentUserId,
+            currentOrgUnitId,
             patientId);
         List<WorkflowTodoResponse> rows = todos.pageByVisibleAssigneeScope(
                 tenantId,
@@ -124,6 +127,7 @@ public class WorkflowCollaborationService {
                 name(safeFilter.sourceType()),
                 assigneeId,
                 currentUserId,
+                currentOrgUnitId,
                 patientId,
                 req.offset(),
                 req.safeSize()).stream()
@@ -142,13 +146,17 @@ public class WorkflowCollaborationService {
         String tenantId = ctx.orgScope().tenantId();
         String actor = actor(ctx);
         Instant now = Instant.now();
-        WorkflowTodo todo = todos.findByTenantIdAndTodoId(tenantId, todoId)
+        WorkflowTodo todo = todos.findVisibleByTenantIdAndTodoId(
+                tenantId,
+                todoId,
+                currentUserId(ctx),
+                currentOrgUnitId(ctx))
             .orElseThrow(() -> ApiException.notFound("协同待办"));
-        requireTodoVisibleToCurrentUser(ctx, todo);
         WorkflowTodo completed = new WorkflowTodo(
             todo.id(),
             todo.todoId(),
             todo.tenantId(),
+            todo.orgUnitId(),
             todo.sourceType(),
             todo.sourceId(),
             todo.title(),
@@ -189,9 +197,12 @@ public class WorkflowCollaborationService {
         String tenantId = ctx.orgScope().tenantId();
         String actor = actor(ctx);
         Instant now = Instant.now();
-        WorkflowTodo todo = todos.findByTenantIdAndTodoId(tenantId, todoId)
+        WorkflowTodo todo = todos.findVisibleByTenantIdAndTodoId(
+                tenantId,
+                todoId,
+                currentUserId(ctx),
+                currentOrgUnitId(ctx))
             .orElseThrow(() -> ApiException.notFound("协同待办"));
-        requireTodoVisibleToCurrentUser(ctx, todo);
         if (todo.status() != WorkflowTodoStatus.PENDING && todo.status() != WorkflowTodoStatus.IN_PROGRESS) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "仅待处理或处理中待办可转交");
         }
@@ -199,6 +210,7 @@ public class WorkflowCollaborationService {
             todo.id(),
             todo.todoId(),
             todo.tenantId(),
+            todo.orgUnitId(),
             todo.sourceType(),
             todo.sourceId(),
             todo.title(),
@@ -245,18 +257,21 @@ public class WorkflowCollaborationService {
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String recipientId = blankToNull(safeFilter.recipientId());
         String currentUserId = currentUserId(ctx);
+        String currentOrgUnitId = currentOrgUnitId(ctx);
         long total = notifications.countByVisibleRecipientScope(
             tenantId,
             name(safeFilter.status()),
             name(safeFilter.level()),
             recipientId,
-            currentUserId);
+            currentUserId,
+            currentOrgUnitId);
         List<WorkflowNotificationResponse> rows = notifications.pageByVisibleRecipientScope(
                 tenantId,
                 name(safeFilter.status()),
                 name(safeFilter.level()),
                 recipientId,
                 currentUserId,
+                currentOrgUnitId,
                 req.offset(),
                 req.safeSize()).stream()
             .map(WorkflowNotificationResponse::from)
@@ -273,13 +288,17 @@ public class WorkflowCollaborationService {
         String tenantId = ctx.orgScope().tenantId();
         String actor = actor(ctx);
         Instant now = Instant.now();
-        WorkflowNotification notification = notifications.findByTenantIdAndNotificationId(tenantId, notificationId)
+        WorkflowNotification notification = notifications.findVisibleByTenantIdAndNotificationId(
+                tenantId,
+                notificationId,
+                currentUserId(ctx),
+                currentOrgUnitId(ctx))
             .orElseThrow(() -> ApiException.notFound("通知"));
-        requireNotificationVisibleToCurrentUser(ctx, notification);
         WorkflowNotification read = new WorkflowNotification(
             notification.id(),
             notification.notificationId(),
             notification.tenantId(),
+            notification.orgUnitId(),
             notification.sourceType(),
             notification.sourceId(),
             notification.dedupeKey(),
@@ -318,6 +337,7 @@ public class WorkflowCollaborationService {
     private static Map<String, Object> todoAuditSnapshot(WorkflowTodo todo) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("todoId", todo.todoId());
+        snapshot.put("orgUnitId", todo.orgUnitId());
         snapshot.put("sourceType", name(todo.sourceType()));
         snapshot.put("sourceId", todo.sourceId());
         snapshot.put("priority", name(todo.priority()));
@@ -349,6 +369,7 @@ public class WorkflowCollaborationService {
     private static Map<String, Object> notificationAuditSnapshot(WorkflowNotification notification) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("notificationId", notification.notificationId());
+        snapshot.put("orgUnitId", notification.orgUnitId());
         snapshot.put("sourceType", name(notification.sourceType()));
         snapshot.put("sourceId", notification.sourceId());
         snapshot.put("level", name(notification.level()));
@@ -369,7 +390,7 @@ public class WorkflowCollaborationService {
                     tenantId,
                     WorkflowTodoSourceType.FOLLOWUP_TASK,
                     row.taskId())
-                .orElseGet(() -> todos.save(fromFollowupTodo(tenantId, row)));
+                .orElseGet(() -> todos.save(fromFollowupTodo(ctx, row)));
             createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
@@ -385,7 +406,7 @@ public class WorkflowCollaborationService {
                     tenantId,
                     WorkflowTodoSourceType.SAFETY_REVIEW,
                     task.taskKey())
-                .orElseGet(() -> todos.save(fromSafetyTask(task)));
+                .orElseGet(() -> todos.save(fromSafetyTask(ctx, task)));
             createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
@@ -401,7 +422,7 @@ public class WorkflowCollaborationService {
                 existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
             }
             WorkflowTodo todo = existing.orElseGet(
-                () -> todos.save(fromRecommendationCardTodo(tenantId, row, sourceType)));
+                () -> todos.save(fromRecommendationCardTodo(ctx, row, sourceType)));
             createPendingTodoNotificationIfAbsent(ctx, todo);
         }
     }
@@ -430,12 +451,13 @@ public class WorkflowCollaborationService {
         }
     }
 
-    private WorkflowTodo fromFollowupTodo(String tenantId, FollowupWorkflowTodoRow row) {
+    private WorkflowTodo fromFollowupTodo(RequestContext.Snapshot ctx, FollowupWorkflowTodoRow row) {
         Instant createdAt = row.createdAt() == null ? Instant.now() : row.createdAt();
         return new WorkflowTodo(
             null,
             "todo-" + UUID.randomUUID(),
-            tenantId,
+            ctx.orgScope().tenantId(),
+            currentOrgUnitId(ctx),
             WorkflowTodoSourceType.FOLLOWUP_TASK,
             row.taskId(),
             followupTitle(row),
@@ -460,7 +482,7 @@ public class WorkflowCollaborationService {
             SYSTEM_ACTOR);
     }
 
-    private WorkflowTodo fromSafetyTask(AffectedCaseTask task) {
+    private WorkflowTodo fromSafetyTask(RequestContext.Snapshot ctx, AffectedCaseTask task) {
         Instant createdAt = task.createdAt() == null ? Instant.now() : task.createdAt();
         String patientId = task.targetType() == AffectedCaseTargetType.PATIENT_CASE
             || task.targetType() == AffectedCaseTargetType.PATIENT_PATHWAY
@@ -470,6 +492,7 @@ public class WorkflowCollaborationService {
             null,
             "todo-" + UUID.randomUUID(),
             task.tenantId(),
+            currentOrgUnitId(ctx),
             WorkflowTodoSourceType.SAFETY_REVIEW,
             task.taskKey(),
             "安全撤回复核任务",
@@ -495,14 +518,15 @@ public class WorkflowCollaborationService {
     }
 
     private WorkflowTodo fromRecommendationCardTodo(
-            String tenantId,
+            RequestContext.Snapshot ctx,
             RecommendationWorkflowTodoRow row,
             WorkflowTodoSourceType sourceType) {
         Instant createdAt = row.createdAt() == null ? Instant.now() : row.createdAt();
         return new WorkflowTodo(
             null,
             "todo-" + UUID.randomUUID(),
-            tenantId,
+            ctx.orgScope().tenantId(),
+            currentOrgUnitId(ctx),
             sourceType,
             row.cardId(),
             defaultText(row.title(), recommendationFallbackTitle(sourceType)),
@@ -536,6 +560,7 @@ public class WorkflowCollaborationService {
             null,
             "notify-" + UUID.randomUUID(),
             ctx.orgScope().tenantId(),
+            currentOrgUnitId(ctx),
             WorkflowNotificationSourceType.FOLLOWUP_EVENT,
             row.eventId(),
             dedupeKey,
@@ -567,6 +592,7 @@ public class WorkflowCollaborationService {
             null,
             "notify-" + UUID.randomUUID(),
             ctx.orgScope().tenantId(),
+            currentOrgUnitId(ctx),
             WorkflowNotificationSourceType.SYNC_EVENT,
             event.eventId(),
             dedupeKey,
@@ -602,6 +628,7 @@ public class WorkflowCollaborationService {
                 null,
                 "notify-" + UUID.randomUUID(),
                 todo.tenantId(),
+                todo.orgUnitId(),
                 WorkflowNotificationSourceType.WORKFLOW_TODO,
                 todo.todoId(),
                 dedupeKey,
@@ -637,6 +664,7 @@ public class WorkflowCollaborationService {
                 null,
                 "notify-" + UUID.randomUUID(),
                 todo.tenantId(),
+                todo.orgUnitId(),
                 WorkflowNotificationSourceType.WORKFLOW_TODO,
                 todo.todoId(),
                 dedupeKey,
@@ -673,6 +701,7 @@ public class WorkflowCollaborationService {
                 null,
                 "notify-" + UUID.randomUUID(),
                 todo.tenantId(),
+                todo.orgUnitId(),
                 WorkflowNotificationSourceType.WORKFLOW_TODO,
                 todo.todoId(),
                 dedupeKey,
@@ -778,29 +807,6 @@ public class WorkflowCollaborationService {
             throw ApiException.tenantMissing();
         }
         return ctx;
-    }
-
-    private static void requireTodoVisibleToCurrentUser(RequestContext.Snapshot ctx, WorkflowTodo todo) {
-        if (!isVisibleToCurrentUser(ctx, todo.assigneeId())) {
-            throw ApiException.notFound("协同待办");
-        }
-    }
-
-    private static void requireNotificationVisibleToCurrentUser(
-            RequestContext.Snapshot ctx,
-            WorkflowNotification notification) {
-        if (!isVisibleToCurrentUser(ctx, notification.recipientId())) {
-            throw ApiException.notFound("通知");
-        }
-    }
-
-    private static boolean isVisibleToCurrentUser(RequestContext.Snapshot ctx, String ownerId) {
-        String normalizedOwner = blankToNull(ownerId);
-        if (normalizedOwner == null) {
-            return true;
-        }
-        String userId = currentUserId(ctx);
-        return userId != null && normalizedOwner.equals(userId);
     }
 
     private static boolean isOpenSafetyTask(AffectedCaseTask task) {
@@ -932,6 +938,31 @@ public class WorkflowCollaborationService {
 
     private static String currentUserId(RequestContext.Snapshot ctx) {
         return blankToNull(ctx.userId());
+    }
+
+    private static String currentOrgUnitId(RequestContext.Snapshot ctx) {
+        OrgScope scope = ctx.orgScope();
+        String orgUnitId = blankToNull(scope.specialtyId());
+        if (orgUnitId != null) {
+            return orgUnitId;
+        }
+        orgUnitId = blankToNull(scope.departmentId());
+        if (orgUnitId != null) {
+            return orgUnitId;
+        }
+        orgUnitId = blankToNull(scope.siteId());
+        if (orgUnitId != null) {
+            return orgUnitId;
+        }
+        orgUnitId = blankToNull(scope.campusId());
+        if (orgUnitId != null) {
+            return orgUnitId;
+        }
+        orgUnitId = blankToNull(scope.hospitalId());
+        if (orgUnitId != null) {
+            return orgUnitId;
+        }
+        return blankToNull(scope.groupId());
     }
 
     private static String requireText(String value, String label) {

@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -32,10 +33,13 @@ import org.springframework.test.context.TestPropertySource;
 class WorkflowNotificationRepositoryTest {
 
     @Autowired WorkflowNotificationRepository repository;
+    @Autowired JdbcTemplate jdbc;
 
     @AfterEach
     void wipe() {
         repository.deleteAll();
+        jdbc.update("DELETE FROM org_closure");
+        jdbc.update("DELETE FROM org_unit");
     }
 
     @Test
@@ -68,19 +72,88 @@ class WorkflowNotificationRepositoryTest {
             "UNREAD",
             null,
             null,
-            "doctor-1");
+            "doctor-1",
+            null);
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScope(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
+            null,
             0,
             10);
 
         assertThat(total).isEqualTo(2);
         assertThat(page).extracting(WorkflowNotification::notificationId)
             .containsExactly("notify-own", "notify-org");
+    }
+
+    @Test
+    void visibleRecipientScopeUsesOrgClosureForOrganizationRows() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "notify-own",
+            "todo-own",
+            "todo:todo-own:created",
+            WorkflowNotificationLevel.HIGH,
+            "doctor-1",
+            "dept-b",
+            now.plusSeconds(400)));
+        repository.save(sample(
+            "notify-dept",
+            "event-dept",
+            "clinical-event:event-dept",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "dept-a",
+            now.plusSeconds(300)));
+        repository.save(sample(
+            "notify-specialty",
+            "event-specialty",
+            "clinical-event:event-specialty",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "spec-a1",
+            now.plusSeconds(200)));
+        repository.save(sample(
+            "notify-tenant",
+            "event-tenant",
+            "clinical-event:event-tenant",
+            WorkflowNotificationLevel.INFO,
+            null,
+            null,
+            now.plusSeconds(100)));
+        repository.save(sample(
+            "notify-sibling",
+            "event-sibling",
+            "clinical-event:event-sibling",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "dept-b",
+            now.plusSeconds(500)));
+
+        long total = repository.countByVisibleRecipientScope(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a");
+        List<WorkflowNotification> page = repository.pageByVisibleRecipientScope(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            0,
+            10);
+
+        assertThat(total).isEqualTo(4);
+        assertThat(page).extracting(WorkflowNotification::notificationId)
+            .containsExactly("notify-own", "notify-dept", "notify-specialty", "notify-tenant");
     }
 
     @Test
@@ -107,6 +180,7 @@ class WorkflowNotificationRepositoryTest {
             null,
             "doctor-2",
             "doctor-1",
+            null,
             0,
             10);
 
@@ -121,10 +195,22 @@ class WorkflowNotificationRepositoryTest {
             WorkflowNotificationLevel level,
             String recipientId,
             Instant createdAt) {
+        return sample(notificationId, sourceId, dedupeKey, level, recipientId, null, createdAt);
+    }
+
+    private WorkflowNotification sample(
+            String notificationId,
+            String sourceId,
+            String dedupeKey,
+            WorkflowNotificationLevel level,
+            String recipientId,
+            String orgUnitId,
+            Instant createdAt) {
         return new WorkflowNotification(
             null,
             notificationId,
             "tenant-A",
+            orgUnitId,
             WorkflowNotificationSourceType.WORKFLOW_TODO,
             sourceId,
             dedupeKey,
@@ -144,5 +230,36 @@ class WorkflowNotificationRepositoryTest {
             "tester",
             createdAt,
             "tester");
+    }
+
+    private void seedOrgTree() {
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-a", "tenant-root", "tenant-A", "/TENANT-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "spec-a1", "dept-a", "tenant-A", "/TENANT-A/DEPT-A/SPEC-A1", "SPECIALTY", "SPEC-A1", "A1 专病");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-b", "tenant-root", "tenant-A", "/TENANT-A/DEPT-B", "DEPARTMENT", "DEPT-B", "B 科室");
+        jdbc.update("""
+            INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
+            VALUES
+              ('tenant-A', 'tenant-root', 'tenant-root', 0),
+              ('tenant-A', 'tenant-root', 'dept-a', 1),
+              ('tenant-A', 'tenant-root', 'spec-a1', 2),
+              ('tenant-A', 'tenant-root', 'dept-b', 1),
+              ('tenant-A', 'dept-a', 'dept-a', 0),
+              ('tenant-A', 'dept-a', 'spec-a1', 1),
+              ('tenant-A', 'spec-a1', 'spec-a1', 0),
+              ('tenant-A', 'dept-b', 'dept-b', 0)
+            """);
     }
 }
