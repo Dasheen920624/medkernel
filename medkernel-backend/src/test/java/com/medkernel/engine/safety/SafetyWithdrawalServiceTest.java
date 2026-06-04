@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.knowledge.AffectedCaseTargetType;
 import com.medkernel.engine.knowledge.AffectedCaseTask;
 import com.medkernel.engine.knowledge.AffectedCaseTaskRepository;
@@ -237,7 +239,10 @@ class SafetyWithdrawalServiceTest {
             RecommendationCardType.MEDICATION, "禁忌提醒", "命中旧版禁忌", "请复核",
             RecommendationRiskLevel.HIGH, RecommendationInterruptLevel.WEAK_INTERRUPTIVE,
             RecommendationCardStatus.PENDING, true, false, "旧版知识", "{}",
-            "PATIENT:ANTICOAG", now.plusSeconds(3600), now, "doctor", now, "doctor", "trace-rec");
+            "PATIENT:ANTICOAG", now.plusSeconds(3600), now, "doctor", now, "doctor", "trace-rec",
+            "builtin-risk-baseline", "baseline", CdssAutomationLevel.INTERRUPTIVE,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 72, "OPT04_SILENT_TRIAL",
+            false, "NMPA_RESERVED", "TRACEABLE_EVIDENCE_REQUIRED", "高危 CDSS 输出必须医师确认");
     }
 
     private RecommendationTrigger recommendationTrigger(String triggerId, String patientId, String encounterId) {
