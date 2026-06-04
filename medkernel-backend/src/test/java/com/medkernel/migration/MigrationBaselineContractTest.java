@@ -104,7 +104,8 @@ class MigrationBaselineContractTest {
         "V75__clinical_redline_silent_trial.sql",
         "V76__recommendation_source_redline_type.sql",
         "V77__workflow_collaboration.sql",
-        "V78__diagnosis_knowledge_asset.sql"
+        "V78__diagnosis_knowledge_asset.sql",
+        "V79__version_propagation_and_override_policy.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -420,9 +421,10 @@ class MigrationBaselineContractTest {
         "uk_mk_version_asset_version_id", "uk_mk_version_asset_version_no",
         "uk_mk_version_asset_version_active", "ck_mk_version_asset_version_type",
         "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash",
-        "ck_mk_version_asset_safety_policy",
+        "ck_mk_version_asset_safety_policy", "ck_mk_version_asset_override_policy",
         "uk_mk_version_inheritance_override_id", "uk_mk_version_inheritance_override_active",
         "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode",
+        "ck_mk_version_inheritance_override_propagation",
         "uk_mk_version_release_plan_id", "ck_mk_version_release_plan_type",
         "ck_mk_version_release_plan_scope", "ck_mk_version_release_plan_status",
         "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
@@ -1511,6 +1513,36 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V76__recommendation_source_redline_type.sql"))
                 .as("dialect %s must ship V76", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v79ShouldDeclarePropagationAndOverridePolicyForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V79__version_propagation_and_override_policy.sql");
+            assertThat(ddl).as("%s 传播语义与覆盖策略护栏迁移", dialect)
+                .contains("mk_version_inheritance_override")
+                .contains("propagation")
+                .contains("INHERITABLE")
+                .contains("EXCLUSIVE")
+                .contains("ck_mk_version_inheritance_override_propagation")
+                .contains("mk_version_asset_version")
+                .contains("override_policy")
+                .contains("FREE")
+                .contains("REVIEW")
+                .contains("LOCKED")
+                .contains("ck_mk_version_asset_override_policy")
+                .contains("COMMENT ON COLUMN mk_version_inheritance_override.propagation")
+                .contains("COMMENT ON COLUMN mk_version_asset_version.override_policy");
+        }
+    }
+
+    @Test
+    void v79ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V79__version_propagation_and_override_policy.sql"))
+                .as("dialect %s must ship V79", dialect)
                 .exists();
         }
     }

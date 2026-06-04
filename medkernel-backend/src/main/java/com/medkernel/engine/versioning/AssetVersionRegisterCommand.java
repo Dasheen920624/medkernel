@@ -17,7 +17,8 @@ public record AssetVersionRegisterCommand(
     String sourceRef,
     String createdBy,
     String traceId,
-    AssetVersionSafetyPolicy safetyPolicy
+    AssetVersionSafetyPolicy safetyPolicy,
+    AssetVersionOverridePolicy overridePolicy
 ) {
     public AssetVersionRegisterCommand(
             String tenantId,
@@ -34,7 +35,7 @@ public record AssetVersionRegisterCommand(
         this(
             tenantId, assetType, assetIdentity, versionNo, organizationScope,
             applicableScope, content, contentHash, sourceRef, createdBy, traceId,
-            AssetVersionSafetyPolicy.NORMAL
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE
         );
     }
 }

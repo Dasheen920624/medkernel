@@ -56,6 +56,7 @@ class AssetVersionServiceTest {
         assertThat(saved.contentHash()).isEqualTo(sha256("when observation.d_dimer > 0.5 then alert"));
         assertThat(saved.versionId()).matches("av-[0-9A-HJKMNP-TV-Z]{26}");
         assertThat(saved.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.NORMAL);
+        assertThat(saved.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.FREE);
         assertThat(saved.status()).isEqualTo(AssetVersionStatus.DRAFT);
         assertThat(saved.activeScopeKey()).startsWith("version:");
         assertThat(saved.createdAt()).isEqualTo(Instant.parse("2026-06-03T08:00:00Z"));
@@ -76,6 +77,30 @@ class AssetVersionServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
+    }
+
+    @Test
+    void registerDraftCarriesExplicitOverridePolicy() {
+        when(repository.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AssetVersion saved = service.registerDraft(new AssetVersionRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "2.0.0",
+            "/GROUP/g-1/HOSPITAL/h-1",
+            "adult|inpatient",
+            "when allergy.penicillin then block order",
+            null,
+            "rule/RULE.VTE.RISK",
+            "reviewer-1",
+            "trace-sys04",
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED
+        ));
+
+        assertThat(saved.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
+        assertThat(saved.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
     }
 
     @Test

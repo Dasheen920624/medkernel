@@ -75,6 +75,39 @@ class InheritanceOverrideServiceTest {
         assertThat(saved.overrideReason()).isEqualTo("医院检验科 2026 年参考区间已更新");
         assertThat(saved.impactScope()).isEqualTo("仅 HOSP-A 成人住院");
         assertThat(saved.createdAt()).isEqualTo(CLOCK.instant());
+        assertThat(saved.propagation()).isEqualTo(InheritancePropagation.INHERITABLE);
+    }
+
+    @Test
+    void registersExclusivePropagationWhenRequested() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+
+        when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
+        when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InheritanceOverride saved = service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            inherited.versionId(),
+            local.versionId(),
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.REPLACE,
+            "仅本院镇痛路径，不下沉科室",
+            "本院专用方案",
+            "仅 HOSP-A 本级",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.EXCLUSIVE
+        ));
+
+        assertThat(saved.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
     }
 
     @Test
