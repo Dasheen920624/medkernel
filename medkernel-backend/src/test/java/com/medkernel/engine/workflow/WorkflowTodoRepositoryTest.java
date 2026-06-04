@@ -225,6 +225,7 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             null,
+            null,
             "trace-workflow",
             now,
             "tester",

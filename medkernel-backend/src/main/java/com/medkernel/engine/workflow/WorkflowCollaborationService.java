@@ -126,12 +126,59 @@ public class WorkflowCollaborationService {
             now,
             actor,
             todo.transferredTo(),
+            todo.transferReason(),
             ctx.traceId(),
             todo.createdAt(),
             todo.createdBy(),
             now,
             actor);
         return WorkflowTodoResponse.from(todos.save(completed));
+    }
+
+    /**
+     * 转交统一待办并持久化新责任人与说明。
+     */
+    @Transactional
+    public WorkflowTodoResponse transferTodo(String todoId, WorkflowTodoTransferRequest request) {
+        RequestContext.Snapshot ctx = requireContext();
+        String transferTo = requireText(request == null ? null : request.transferTo(), "接收人");
+        String transferReason = requireText(request == null ? null : request.transferReason(), "转交说明");
+        String transferRole = blankToNull(request.transferRole());
+        String tenantId = ctx.orgScope().tenantId();
+        String actor = actor(ctx);
+        Instant now = Instant.now();
+        WorkflowTodo todo = todos.findByTenantIdAndTodoId(tenantId, todoId)
+            .orElseThrow(() -> ApiException.notFound("协同待办"));
+        if (todo.status() != WorkflowTodoStatus.PENDING && todo.status() != WorkflowTodoStatus.IN_PROGRESS) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "仅待处理或处理中待办可转交");
+        }
+        WorkflowTodo transferred = new WorkflowTodo(
+            todo.id(),
+            todo.todoId(),
+            todo.tenantId(),
+            todo.sourceType(),
+            todo.sourceId(),
+            todo.title(),
+            todo.summary(),
+            todo.priority(),
+            WorkflowTodoStatus.TRANSFERRED,
+            transferTo,
+            transferRole,
+            todo.patientId(),
+            todo.encounterId(),
+            todo.dueAt(),
+            todo.deepLink(),
+            todo.completionReason(),
+            todo.completedAt(),
+            todo.completedBy(),
+            transferTo,
+            transferReason,
+            ctx.traceId(),
+            todo.createdAt(),
+            todo.createdBy(),
+            now,
+            actor);
+        return WorkflowTodoResponse.from(todos.save(transferred));
     }
 
     /**
@@ -274,6 +321,7 @@ public class WorkflowCollaborationService {
             null,
             null,
             null,
+            null,
             row.traceId(),
             createdAt,
             SYSTEM_ACTOR,
@@ -307,6 +355,7 @@ public class WorkflowCollaborationService {
             null,
             null,
             null,
+            null,
             task.traceId(),
             createdAt,
             task.createdBy(),
@@ -332,6 +381,7 @@ public class WorkflowCollaborationService {
             row.encounterId(),
             row.expiresAt(),
             "/cdss/fatigue?cardId=" + row.cardId(),
+            null,
             null,
             null,
             null,

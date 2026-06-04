@@ -30,6 +30,7 @@ public record WorkflowTodo(
     @Column("completed_at") Instant completedAt,
     @Column("completed_by") String completedBy,
     @Column("transferred_to") String transferredTo,
+    @Column("transfer_reason") String transferReason,
     @Column("trace_id") String traceId,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
