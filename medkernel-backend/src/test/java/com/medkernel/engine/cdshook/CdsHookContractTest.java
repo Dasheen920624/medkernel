@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.context.ClinicalEventRequest;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
@@ -123,7 +125,17 @@ class CdsHookContractTest {
             "tester",
             Instant.parse("2026-06-01T01:00:00Z"),
             "tester",
-            "trace-1");
+            "trace-1",
+            "builtin-risk-baseline",
+            "baseline",
+            CdssAutomationLevel.INTERRUPTIVE,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            72,
+            "OPT04_SILENT_TRIAL",
+            false,
+            "NMPA_RESERVED",
+            "TRACEABLE_EVIDENCE_REQUIRED",
+            "高危 CDSS 输出必须医师确认");
         RecommendationEvaluationResponse evaluation = new RecommendationEvaluationResponse(
             "trigger-1",
             RecommendationTriggerStatus.EVALUATED,

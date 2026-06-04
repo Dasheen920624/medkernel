@@ -97,7 +97,8 @@ class MigrationBaselineContractTest {
         "V68__recommendation_cdss_contract.sql",
         "V69__followup_api09_contract.sql",
         "V70__embed_api11_contract.sql",
-        "V71__followup_controlled_plan_clock.sql"
+        "V71__followup_controlled_plan_clock.sql",
+        "V72__cdss_risk_matrix.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -115,6 +116,7 @@ class MigrationBaselineContractTest {
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
+        "mk_engine_cdss_risk_matrix",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
@@ -204,6 +206,7 @@ class MigrationBaselineContractTest {
         "idx_rec_card_risk", "idx_rec_card_fatigue", "idx_rec_source_card",
         "idx_rec_feedback_card_time", "uk_rec_feedback_idempotency",
         "idx_rec_fatigue_card", "idx_rec_fatigue_key", "idx_rec_fatigue_tenant_time",
+        "idx_cdss_risk_matrix_active", "idx_cdss_risk_matrix_version", "idx_rec_card_risk_matrix",
         "idx_eval_indicator_tenant_status", "idx_eval_indicator_code_status",
         "idx_eval_run_tenant_time", "idx_eval_run_context",
         "idx_eval_result_run", "idx_eval_result_indicator",
@@ -323,6 +326,10 @@ class MigrationBaselineContractTest {
         "uk_rec_card_id", "uk_rec_card_trigger_code", "ck_rec_card_type",
         "ck_rec_card_risk", "ck_rec_card_interrupt", "ck_rec_card_status",
         "ck_rec_card_physician_confirmation", "ck_rec_card_ai_generated",
+        "ck_rec_card_automation", "ck_rec_card_review", "ck_rec_card_auto_execution",
+        "uk_cdss_risk_matrix_id", "uk_cdss_risk_matrix_scope_version",
+        "ck_cdss_risk_matrix_severity", "ck_cdss_risk_matrix_auto", "ck_cdss_risk_matrix_risk",
+        "ck_cdss_risk_matrix_review", "ck_cdss_risk_matrix_status", "ck_cdss_risk_matrix_auto_exec",
         "uk_rec_source_id", "ck_rec_source_type", "uk_rec_feedback_id",
         "ck_rec_feedback_type", "uk_rec_fatigue_id", "ck_rec_fatigue_signal",
         "uk_eval_indicator_id", "uk_eval_indicator_tenant_version",
@@ -415,6 +422,7 @@ class MigrationBaselineContractTest {
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
+        "mk_engine_cdss_risk_matrix",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
@@ -451,6 +459,7 @@ class MigrationBaselineContractTest {
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
+        "mk_engine_cdss_risk_matrix",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
@@ -533,6 +542,8 @@ class MigrationBaselineContractTest {
         Map.entry("clinical_clock", Set.of("status")),
         Map.entry("recommendation_trigger", Set.of("status")),
         Map.entry("recommendation_card", Set.of("card_type", "risk_level", "interrupt_level", "status")),
+        Map.entry("mk_engine_cdss_risk_matrix", Set.of("severity_level", "automation_level", "risk_level",
+            "review_requirement", "status", "matrix_version")),
         Map.entry("recommendation_source", Set.of("source_type")),
         Map.entry("recommendation_feedback", Set.of("feedback_type")),
         Map.entry("recommendation_fatigue_signal", Set.of("signal_type")),
@@ -1275,6 +1286,37 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V71__followup_controlled_plan_clock.sql"))
                 .as("dialect %s must ship V71", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v72ShouldDeclareCdssRiskMatrixAndRecommendationTraceColumns() {
+        String h2 = readMigration("h2", "V72__cdss_risk_matrix.sql");
+        assertThat(h2).contains(
+            "mk_engine_cdss_risk_matrix",
+            "trigger_point",
+            "severity_level",
+            "automation_level",
+            "review_requirement",
+            "silent_run_hours",
+            "release_gate",
+            "auto_execution_allowed",
+            "samd_classification",
+            "regulatory_evidence",
+            "risk_matrix_version",
+            "idx_cdss_risk_matrix_active",
+            "idx_rec_card_risk_matrix",
+            "ck_cdss_risk_matrix_auto_exec",
+            "COMMENT ON COLUMN mk_engine_cdss_risk_matrix.samd_classification",
+            "COMMENT ON COLUMN recommendation_card.risk_matrix_explanation");
+    }
+
+    @Test
+    void v72ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V72__cdss_risk_matrix.sql"))
+                .as("dialect %s must ship V72", dialect)
                 .exists();
         }
     }
