@@ -599,10 +599,28 @@ export default function PathwayTemplates() {
   });
 
   const fieldCatalogQuery = useContextFieldCatalog();
-  const fieldCatalogOptions = (fieldCatalogQuery.data ?? []).map((field) => ({
+  const fieldCatalogList = fieldCatalogQuery.data ?? [];
+  const fieldCatalogOptions = fieldCatalogList.map((field) => ({
     value: field.fieldPath,
     label: `${field.displayName}（${field.fieldPath}）`,
   }));
+  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。
+  const pathwayValueKindFor = (dataType?: string) => {
+    if (dataType === "number") return "number";
+    if (dataType === "boolean") return "boolean";
+    return "string";
+  };
+  const handleEdgeFactSelect = (edgeIndex: number, fieldPath: string) => {
+    const descriptor = fieldByPath.get(fieldPath);
+    templateForm.setFieldValue(["edges", edgeIndex, "conditionFact"], fieldPath);
+    if (descriptor) {
+      templateForm.setFieldValue(
+        ["edges", edgeIndex, "conditionValueKind"],
+        pathwayValueKindFor(descriptor.dataType),
+      );
+    }
+  };
 
   const { data: snapshotsData, isLoading: snapshotsLoading } = useContextSnapshots(
     snapshotQuery ?? undefined,
@@ -1370,6 +1388,7 @@ export default function PathwayTemplates() {
                           >
                             <AutoComplete
                               options={fieldCatalogOptions}
+                              onSelect={(value) => handleEdgeFactSelect(field.name, value)}
                               filterOption={(input, option) =>
                                 String(option?.value ?? "")
                                   .toLowerCase()
