@@ -141,7 +141,7 @@ export default function NotificationSettings() {
             <Alert
               type="info"
               showIcon
-              message="外部通道当前只保存个人偏好，不声明短信、邮件或推送已完成投递。"
+              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器，状态为 NOT_CONNECTED，不声明短信、邮件或推送已完成投递。"
             />
             <Space wrap size="large">
               <Form.Item name="inAppEnabled" label="站内信" valuePropName="checked">

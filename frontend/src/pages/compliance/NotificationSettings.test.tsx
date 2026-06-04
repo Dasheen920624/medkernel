@@ -75,6 +75,7 @@ describe("NotificationSettings", () => {
     expect(screen.getByLabelText("免打扰结束时间")).toHaveValue("07:00");
     expect(screen.getByText("危急")).toBeInTheDocument();
     expect(screen.getByText("高")).toBeInTheDocument();
+    expect(screen.getByText(/NOT_CONNECTED/)).toHaveTextContent("不声明短信、邮件或推送已完成投递");
     expect(screen.queryByText("默认夜班医生静默")).not.toBeInTheDocument();
   });
 

@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 通知偏好与免打扰策略服务。
  *
- * <p>当前只保存用户个人偏好，不声明短信、移动推送等外部通道已真实投递。
+ * <p>当前保存用户个人偏好；外部通道启用后仅用于登记出站补偿，不声明短信、移动推送等通道已真实投递。
  */
 @Service
 public class WorkflowNotificationSettingsService {
@@ -48,7 +48,18 @@ public class WorkflowNotificationSettingsService {
     public WorkflowNotificationSettingsResponse getSettings() {
         String tenantId = requireTenantId();
         String userId = requireUserId();
-        return repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(tenantId, userId, PREF_KEY, ACTIVE)
+        return getSettingsForUser(tenantId, userId);
+    }
+
+    /**
+     * 读取指定接收人的通知偏好，用于协同通知外发补偿判断。
+     */
+    @Transactional(readOnly = true)
+    public WorkflowNotificationSettingsResponse getSettingsForUser(String tenantId, String userId) {
+        String normalizedTenantId = requireText(tenantId, "租户标识");
+        String normalizedUserId = requireText(userId, "接收人");
+        return repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
+                normalizedTenantId, normalizedUserId, PREF_KEY, ACTIVE)
             .map(this::responseFromPreference)
             .orElseGet(() -> response(defaultPayload(), 0, null, null));
     }
@@ -241,6 +252,13 @@ public class WorkflowNotificationSettingsService {
 
     private static boolean defaultFalse(Boolean value) {
         return value != null && value;
+    }
+
+    private static String requireText(String value, String label) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, label + "不能为空");
+        }
+        return value.trim();
     }
 
     private record SettingsPayload(

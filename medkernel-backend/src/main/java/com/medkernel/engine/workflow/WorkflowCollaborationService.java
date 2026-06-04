@@ -1,10 +1,13 @@
 package com.medkernel.engine.workflow;
 
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.context.ClinicalEvent;
 import com.medkernel.engine.context.ClinicalEventRepository;
 import com.medkernel.engine.context.ClinicalEventStatus;
@@ -13,6 +16,8 @@ import com.medkernel.engine.followup.FollowupEventRepository;
 import com.medkernel.engine.followup.FollowupTaskRepository;
 import com.medkernel.engine.followup.FollowupTaskStatus;
 import com.medkernel.engine.followup.FollowupTaskType;
+import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
+import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.engine.knowledge.AffectedCaseTargetType;
 import com.medkernel.engine.knowledge.AffectedCaseTask;
 import com.medkernel.engine.knowledge.AffectedCaseTaskRepository;
@@ -41,6 +46,11 @@ public class WorkflowCollaborationService {
 
     private static final int SYNC_BATCH_SIZE = 200;
     private static final String SYSTEM_ACTOR = "system";
+    private static final List<ExternalNotificationChannel> EXTERNAL_NOTIFICATION_CHANNELS = List.of(
+        new ExternalNotificationChannel("sms", "notification-sms", "短信通知通道", "SMS"),
+        new ExternalNotificationChannel("email", "notification-email", "邮件通知通道", "EMAIL"),
+        new ExternalNotificationChannel("push", "notification-push", "移动推送通道", "PUSH")
+    );
 
     private final WorkflowTodoRepository todos;
     private final WorkflowNotificationRepository notifications;
@@ -49,6 +59,8 @@ public class WorkflowCollaborationService {
     private final AffectedCaseTaskRepository affectedTasks;
     private final RecommendationCardRepository recommendationCards;
     private final ClinicalEventRepository clinicalEvents;
+    private final IntegrationService integrationService;
+    private final WorkflowNotificationSettingsService notificationSettings;
 
     public WorkflowCollaborationService(
             WorkflowTodoRepository todos,
@@ -57,7 +69,9 @@ public class WorkflowCollaborationService {
             FollowupEventRepository followupEvents,
             AffectedCaseTaskRepository affectedTasks,
             RecommendationCardRepository recommendationCards,
-            ClinicalEventRepository clinicalEvents) {
+            ClinicalEventRepository clinicalEvents,
+            IntegrationService integrationService,
+            WorkflowNotificationSettingsService notificationSettings) {
         this.todos = todos;
         this.notifications = notifications;
         this.followupTasks = followupTasks;
@@ -65,6 +79,8 @@ public class WorkflowCollaborationService {
         this.affectedTasks = affectedTasks;
         this.recommendationCards = recommendationCards;
         this.clinicalEvents = clinicalEvents;
+        this.integrationService = integrationService;
+        this.notificationSettings = notificationSettings;
     }
 
     /**
@@ -311,8 +327,10 @@ public class WorkflowCollaborationService {
             followupEvents.pageNotificationRows(tenantId, 0, SYNC_BATCH_SIZE));
         for (FollowupNotificationRow row : rows) {
             String dedupeKey = "followup:" + row.eventId();
-            notifications.findByTenantIdAndDedupeKey(tenantId, dedupeKey)
-                .orElseGet(() -> notifications.save(fromFollowupNotification(ctx, row, dedupeKey)));
+            if (notifications.findByTenantIdAndDedupeKey(tenantId, dedupeKey).isEmpty()) {
+                WorkflowNotification saved = notifications.save(fromFollowupNotification(ctx, row, dedupeKey));
+                enqueueExternalNotificationIfNeeded(ctx, saved);
+            }
         }
     }
 
@@ -492,8 +510,10 @@ public class WorkflowCollaborationService {
             Instant now,
             String actor) {
         String dedupeKey = "todo:" + todo.todoId() + ":transferred:" + todo.assigneeId();
-        notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey)
-            .orElseGet(() -> notifications.save(new WorkflowNotification(
+        if (notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey).isPresent()) {
+            return;
+        }
+        WorkflowNotification saved = notifications.save(new WorkflowNotification(
                 null,
                 "notify-" + UUID.randomUUID(),
                 todo.tenantId(),
@@ -515,7 +535,8 @@ public class WorkflowCollaborationService {
                 now,
                 actor,
                 now,
-                actor)));
+                actor));
+        enqueueExternalNotificationIfNeeded(ctx, saved);
     }
 
     private void createCompletionNotificationIfAbsent(
@@ -525,8 +546,10 @@ public class WorkflowCollaborationService {
             Instant now,
             String actor) {
         String dedupeKey = "todo:" + todo.todoId() + ":completed";
-        notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey)
-            .orElseGet(() -> notifications.save(new WorkflowNotification(
+        if (notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey).isPresent()) {
+            return;
+        }
+        WorkflowNotification saved = notifications.save(new WorkflowNotification(
                 null,
                 "notify-" + UUID.randomUUID(),
                 todo.tenantId(),
@@ -548,7 +571,85 @@ public class WorkflowCollaborationService {
                 now,
                 actor,
                 now,
-                actor)));
+                actor));
+        enqueueExternalNotificationIfNeeded(ctx, saved);
+    }
+
+    private void enqueueExternalNotificationIfNeeded(RequestContext.Snapshot ctx, WorkflowNotification notification) {
+        String recipientId = blankToNull(notification.recipientId());
+        if (recipientId == null) {
+            return;
+        }
+        WorkflowNotificationSettingsResponse settings =
+            notificationSettings.getSettingsForUser(notification.tenantId(), recipientId);
+        if (settings == null
+            || notificationSettings.isMutedByQuietHours(notification.level(), settings, LocalTime.now())) {
+            return;
+        }
+        for (ExternalNotificationChannel channel : EXTERNAL_NOTIFICATION_CHANNELS) {
+            if (isExternalChannelEnabled(settings, channel)) {
+                integrationService.enqueueOutboundMessage(
+                    notification.tenantId(),
+                    externalNotificationRequest(ctx, notification, channel, recipientId));
+            }
+        }
+    }
+
+    private IntegrationOutboundRequestDto externalNotificationRequest(
+            RequestContext.Snapshot ctx,
+            WorkflowNotification notification,
+            ExternalNotificationChannel channel,
+            String recipientId) {
+        String traceId = defaultText(notification.traceId(), ctx.traceId());
+        ObjectNode payload = JsonNodeFactory.instance.objectNode();
+        putIfPresent(payload, "notificationId", notification.notificationId());
+        payload.put("channel", channel.code());
+        payload.put("sourceType", notification.sourceType().name());
+        putIfPresent(payload, "sourceId", notification.sourceId());
+        payload.put("level", notification.level().name());
+        payload.put("recipientId", recipientId);
+        putIfPresent(payload, "recipientRole", notification.recipientRole());
+        putIfPresent(payload, "deepLink", notification.deepLink());
+        putIfPresent(payload, "traceId", traceId);
+        return new IntegrationOutboundRequestDto(
+            externalNotificationMessageId(notification, channel),
+            traceId,
+            channel.adapterId(),
+            channel.targetSystem(),
+            channel.protocolType(),
+            truncate("通知外发补偿（" + channel.targetSystem() + "）：" + notification.title(), 512),
+            payload,
+            3);
+    }
+
+    private static boolean isExternalChannelEnabled(
+            WorkflowNotificationSettingsResponse settings,
+            ExternalNotificationChannel channel) {
+        return switch (channel.code()) {
+            case "sms" -> settings.smsEnabled();
+            case "email" -> settings.emailEnabled();
+            case "push" -> settings.pushEnabled();
+            default -> false;
+        };
+    }
+
+    private static String externalNotificationMessageId(
+            WorkflowNotification notification,
+            ExternalNotificationChannel channel) {
+        String prefix = "notify-out-" + channel.code() + "-";
+        String source = defaultText(notification.notificationId(), UUID.randomUUID().toString());
+        int maxSuffixLength = 64 - prefix.length();
+        if (source.length() > maxSuffixLength) {
+            source = source.substring(source.length() - maxSuffixLength);
+        }
+        return prefix + source;
+    }
+
+    private static void putIfPresent(ObjectNode payload, String field, String value) {
+        String normalized = blankToNull(value);
+        if (normalized != null) {
+            payload.put(field, normalized);
+        }
     }
 
     private RequestContext.Snapshot requireContext() {
@@ -706,7 +807,22 @@ public class WorkflowCollaborationService {
         return value == null ? null : value.name();
     }
 
+    private static String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
+    }
+
     private static <T> List<T> nullToEmpty(List<T> rows) {
         return rows == null ? List.of() : rows;
+    }
+
+    private record ExternalNotificationChannel(
+        String code,
+        String adapterId,
+        String targetSystem,
+        String protocolType
+    ) {
     }
 }
