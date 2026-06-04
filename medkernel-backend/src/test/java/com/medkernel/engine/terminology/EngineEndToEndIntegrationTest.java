@@ -216,7 +216,7 @@ class EngineEndToEndIntegrationTest {
             )
         );
         RecommendationTriggerRequest triggerReq = new RecommendationTriggerRequest(
-            "TR-STROKE-101", "CDSS", "evt-id-123", snapshotResult.snapshotId(),
+            "TR-STROKE-101", "order-sign", "evt-id-123", snapshotResult.snapshotId(),
             "PAT-777", "enc-stroke-888", "pathway-99", "EMERGENCY", "v1.0",
             "input-digest-abc", Instant.now(), recCards
         );

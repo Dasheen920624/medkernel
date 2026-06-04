@@ -24,7 +24,7 @@ class RecommendationEngineControllerSecurityTest {
     private static final String TRIGGER_BODY = """
         {
           "triggerCode": "TRG.ORDER.1",
-          "triggerType": "ORDER_SIGN",
+          "triggerType": "order-sign",
           "sourceEventId": "event-1",
           "contextSnapshotId": "snapshot-1",
           "patientId": "patient-1",

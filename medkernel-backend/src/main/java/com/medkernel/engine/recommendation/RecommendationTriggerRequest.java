@@ -3,6 +3,12 @@ package com.medkernel.engine.recommendation;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.cdshook.CdsHookContract;
+import com.medkernel.engine.cdshook.CdsHookRequest;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -53,5 +59,35 @@ public record RecommendationTriggerRequest(
 
     public RecommendationTriggerRequest {
         candidateCards = candidateCards == null ? List.of() : List.copyOf(candidateCards);
+    }
+
+    public ClinicalEventTriggerPoint cdsHook() {
+        return CdsHookContract.requireSupportedHook(triggerType);
+    }
+
+    public CdsHookRequest toCdsHookRequest() {
+        ObjectNode context = JsonNodeFactory.instance.objectNode();
+        putIfPresent(context, "triggerCode", triggerCode);
+        putIfPresent(context, "sourceEventId", sourceEventId);
+        putIfPresent(context, "contextSnapshotId", contextSnapshotId);
+        putIfPresent(context, "patientPathwayId", patientPathwayId);
+        putIfPresent(context, "scenarioCode", scenarioCode);
+        putIfPresent(context, "inputDigest", inputDigest);
+        return new CdsHookRequest(
+            cdsHook(),
+            triggerCode,
+            patientId,
+            encounterId,
+            packageVersion,
+            null,
+            context,
+            null,
+            null);
+    }
+
+    private static void putIfPresent(ObjectNode node, String field, String value) {
+        if (value != null && !value.isBlank()) {
+            node.put(field, value);
+        }
     }
 }

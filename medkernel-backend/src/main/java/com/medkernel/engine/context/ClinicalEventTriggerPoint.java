@@ -1,6 +1,7 @@
 package com.medkernel.engine.context;
 
 import java.util.Arrays;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
@@ -9,22 +10,28 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * CDS Hooks 风格临床触发点，作为 D3 OPT-02 事件、推荐与嵌入共享的 6 类客户面入口。
  */
 public enum ClinicalEventTriggerPoint {
-    PATIENT_VIEW("patient-view"),
-    ORDER_SIGN("order-sign"),
-    MEDICATION_PRESCRIBE("medication-prescribe"),
-    RESULT_REVIEW("result-review"),
-    DISCHARGE_SIGN("discharge-sign"),
-    FOLLOWUP_ALERT("followup-alert");
+    PATIENT_VIEW("patient-view", List.of("patientId", "packageVersion")),
+    ORDER_SIGN("order-sign", List.of("patientId", "encounterId", "packageVersion", "orders")),
+    MEDICATION_PRESCRIBE("medication-prescribe", List.of("patientId", "encounterId", "packageVersion", "medications")),
+    RESULT_REVIEW("result-review", List.of("patientId", "encounterId", "packageVersion", "results")),
+    DISCHARGE_SIGN("discharge-sign", List.of("patientId", "encounterId", "packageVersion", "dischargeSummary")),
+    FOLLOWUP_ALERT("followup-alert", List.of("patientId", "packageVersion", "followupPlanId"));
 
     private final String wireValue;
+    private final List<String> requiredContextFields;
 
-    ClinicalEventTriggerPoint(String wireValue) {
+    ClinicalEventTriggerPoint(String wireValue, List<String> requiredContextFields) {
         this.wireValue = wireValue;
+        this.requiredContextFields = List.copyOf(requiredContextFields);
     }
 
     @JsonValue
     public String wireValue() {
         return wireValue;
+    }
+
+    public List<String> requiredContextFields() {
+        return requiredContextFields;
     }
 
     @JsonCreator

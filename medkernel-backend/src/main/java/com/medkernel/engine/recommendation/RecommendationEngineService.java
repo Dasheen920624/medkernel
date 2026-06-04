@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -92,6 +93,7 @@ public class RecommendationEngineService {
     @Transactional
     public RecommendationTriggerResponse trigger(RecommendationTriggerRequest request) {
         try {
+            CdsHookContract.requireSupportedHook(request.triggerType());
             validateCards(request.candidateCards());
         } catch (ApiException e) {
             // CDSS-M-01：来源缺失/高风险未确认/强打断非高风险等医疗安全校验失败，
@@ -142,6 +144,14 @@ public class RecommendationEngineService {
      */
     @Transactional
     public RecommendationEvaluationResponse evaluate(RecommendationTriggerRequest request) {
+        try {
+            CdsHookContract.requireSupportedHook(request.triggerType());
+        } catch (ApiException e) {
+            isolatedAudit.publishInNewTx(AuditEvent.failure(
+                AuditAction.EXECUTE, "recommendation_trigger", request.triggerCode(),
+                e.errorCode().code(), "推荐评估 CDS Hooks 契约校验失败 errorCode=" + e.errorCode().code()));
+            throw e;
+        }
         List<RecommendationCardRequest> deterministicCards = deterministicCards(request);
         try {
             validateCards(deterministicCards);
