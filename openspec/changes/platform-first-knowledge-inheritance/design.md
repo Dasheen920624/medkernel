@@ -64,6 +64,18 @@
 ### 4.3 最小化原则
 覆盖只存"差异"，不复制整包；未覆盖部分恒指向平台。这保证平台权威统一、租户数据极简、治理清晰。
 
+### 4.4 覆盖策略护栏（权威与临床安全）
+平台版本 SHALL 携带 `override_policy`，约束下游可覆盖的程度——这是"权威不被弱化、患者安全不被破坏"的硬护栏：
+
+| 策略 | 含义 | 典型资产 |
+|---|---|---|
+| FREE | 可自由 REPLACE/DISABLE | 一般推荐、宣教、随访模板 |
+| REVIEW | 覆盖需走评审方可生效 | 给药剂量阈值、经验性抗菌、路径关键节点 |
+| **LOCKED** | **禁止 DISABLE，且只能"收紧不能放宽"**（safety floor） | 给药禁忌、过敏核查、绝对禁忌、安全红线（`safety` 域） |
+
+- **Safety floor 语义**：LOCKED 资产的 DISABLE 一律拒绝；REPLACE 仅在"更严格"方向被允许（如把禁忌阈值调更保守），放宽性修改被拒并审计。判定下沉到各域的 `SafetyMonotonicityCheck`（落地阶段定义）。
+- LOCKED 与平台红线（`engine/safety`）联动：平台红线即天然 LOCKED。
+
 ## 5. 惰性解析算法（核心）
 
 `InheritanceResolver.resolve(assetType, assetIdentity, targetOrgPath, applicableScope, at)` → `ResolvedAsset`：
@@ -85,11 +97,13 @@
 5. return ResolvedAsset{ effective, sourceTier(PLATFORM/ORG), overrideId?, contentHash }
 ```
 
-- **最具体优先**：链上越靠近 target 的可适用覆盖最终覆盖前者。
-- **可适用 = org_path 命中 + applicableScope 命中 + 生效期命中 + 传播允许**。
-- **批量解析**：对"有效知识包"做集合解析（§7.2），一次性 resolve 包内全部身份。
-- **可缓存**：以 `(tenantId, orgPath, packageActiveVersion, asset_identity)` 为键缓存解析结果；平台/覆盖变更时失效。
-- **复用现有**：`org_closure`/`findAncestorsAndSelf`、`VersionContentHash`、`VersionReplayService` 直接复用。
+- **最具体优先**：链上越靠近 target 的可适用覆盖最终覆盖前者（含 descendant REPLACE 可"重新启用"祖先 DISABLE 的资产）。
+- **可适用 = org_path 命中 + applicableScope 命中 + 生效期命中 + 传播允许 + 未违反 override_policy**。
+- **同节点 tie-break**（同一 org_path 多条可适用覆盖）：① `applicableScope` 更具体者优先（具体科室/专科 > 通用）；② 仍并列时 `effective_from` 更晚者优先；③ 再并列取 `override_id` 字典序最大者（确定性）。tie-break 全程确定，保证可重放。
+- **LOCKED 护栏**：解析阶段对 LOCKED 资产忽略 DISABLE 覆盖、拒绝放宽性 REPLACE（§4.4），并发审计告警。
+- **批量解析**：对"有效知识包"做集合解析（§7.2），一次性 resolve 包内全部身份，避免 N+1（一次取闭包 + 一次批量取覆盖）。
+- **可缓存**：以 `(tenantId, orgPath, packageActiveVersion, asset_identity)` 为键缓存解析结果；平台发布/覆盖变更/红线变更发"失效事件"精确失效。床旁 SLA 见附录 N。
+- **复用现有**：`org_closure`/`findAncestorsAndSelf`、`VersionContentHash`、`VersionReplayService`、`VersionReplayBinding` 直接复用。
 
 ## 6. 统一版本底座（收敛四套并行）
 
@@ -142,6 +156,19 @@ effectivePackage(tenant, orgPath, packageIdentity):
 - ClinicalEvent 分发时，按就诊 `encounter.orgPath` 解析 **有效规则集/路径集/字典/字段目录**：对相关 `asset_identity` 批量 `resolve`，得到该机构当前权威+定制的有效资产，再执行评估。
 - `cdss`/`cdshook`/`recommendation` 读取统一走解析结果，确保"平台标准 + 本院定制"在床旁一致生效。
 - 解析结果随 `traceId` 落审计：本次用了平台版本还是某机构覆盖版本、content_hash 多少，保证可解释、可重放。
+- **决策固化**：对一次具体临床决策，解析出的有效资产集 SHALL 以 `VersionReplayBinding` 钉定（asset_identity→content_hash 快照），供事后法律级重放，即使其后平台/覆盖再变也能还原当时依据。
+
+### 8.5 升级通道：权威跟随 vs 受控升级（平台权威 ↔ 平稳）
+为兼顾"平台权威自动下发"与"医院不被未预期变更打扰"，平台包按 **通道（channel）** 发布，租户/机构对每个平台包声明 **升级模式**：
+
+| 升级模式 | 行为 | 适用 |
+|---|---|---|
+| AUTO（默认） | 平台新版本自动生效（权威优先） | 字典、宣教、低风险 |
+| NOTIFY | 自动生效但强提醒 + 可一键回退到上一钉点 | 一般规则/路径 |
+| PINNED | 钉在指定平台版本，新版本仅产生"可升级"信号，人工确认后升 | 高风险/严监管科室 |
+
+- **安全例外**：LOCKED/红线类安全更新 **无视 PINNED 强制下发**（安全不可被钉旧），仅记录告知。
+- 钉点切换、升级、回退全部走统一 `VersionActivationTransaction` + 审计，平稳可回退。
 
 ## 9. 租户开通改为引用制
 
@@ -155,6 +182,7 @@ effectivePackage(tenant, orgPath, packageIdentity):
   - 平台版本发布/激活：`platform.publish`（平台管理员）。
   - 租户/机构覆盖：`tenant.override`（租户/机构管理员），且只能在自身 org 闭包内。
   - 高风险资产（安全红线、给药剂量、禁忌）覆盖：强制评审（复用现有评审/红线 `safety` 域）。
+- **跨租户隔离**：解析 SHALL 严格限定在"平台基线 + 本租户自身组织闭包"内；任一租户/机构 **绝不可见** 他租户的覆盖、ADD 独有资产或差异。平台层为唯一共享只读源。
 - **审计**：版本、覆盖、传播变更、分发、回滚全部进审计链（含 `trace_id`、`content_hash`、before/after）。
 - **门禁**（落地阶段逐项登记）：ServiceContractCatalog（新控制器+权限+审计点）、MigrationBaselineContract（新表/列/索引/约束/manifest/版本号）、DomainOwnership（前缀归属）、guard-rules（表名/租户索引/中文注释）、comment-language-check。
 
@@ -224,3 +252,24 @@ effectivePackage(tenant, orgPath, packageIdentity):
 - **D3 字典平台化**：`StandardTerm` 是否物理移除 `tenant_id`。→ **默认保留列，平台标准用 `__platform__`，避免破坏式迁移**。
 - **D4 解析缓存层**：放应用内存 vs 独立缓存表。→ **默认应用内存 + 失效事件**，量大再加表。
 - **D5 SpecialtyPackage/TermMappingPackage 物理合并 vs 视图桥接**：→ **默认先视图桥接（不破坏前端），后台数据并入 PackageItem，二期物理下线旧表**。
+- **D6 升级模式默认值**：→ **字典/宣教 AUTO，规则/路径 NOTIFY，高风险/严监管 PINNED**（§8.5）。
+- **D7 LOCKED 单调性判定**：放解析层统一判定 vs 各域自定 `SafetyMonotonicityCheck`。→ **默认各域提供单调性谓词，解析层统一调用**（§4.4）。
+
+## 18. 价值与可度量结果
+
+- **权威**：单一平台真相 + 不可弱化的安全护栏（LOCKED）+ 版本不可变 + content_hash 可重放 → 临床内容一致、可审计、可追责。
+- **易用**：三视角授权 + 有效来源徽标 + 与平台 diff + 批量覆盖 + 开通向导（附录 M）→ 配置门槛低、心智清晰。
+- **平稳**：惰性解析零副本 + 升级通道(AUTO/NOTIFY/PINNED) + 双写过渡 + 诚实降级桥 + 可回退 → 升级不惊扰、迁移不停机。
+- **价值/度量**：可度量目标——平台升级到达未覆盖租户"零操作"；存量重复内容收敛率；新租户开通时长（副本实例化→引用，数量级下降）；床旁解析 P99 延迟（附录 N SLA）；覆盖与平台差异可视化覆盖率 100%。
+
+## 附录
+- **附录 M — 授权体验设计（易用）**：`design-authoring-experience.md`
+- **附录 S — 安全与权威护栏（权威）**：`design-safety-authority.md`
+- **附录 N — NFR / 运维 / 存量回填（平稳）**：`design-stability-operations.md`
+- **附录 O — 组织与作用域模型修正（继承轴正确性）**：`design-org-scope-model.md` ⭐ 含七层结构纠偏
+- **附录 D — 资产依赖与引用完整性 / 一致性快照**：`design-asset-dependency-integrity.md`
+- **附录 L — 编辑生命周期 / 循证溯源 / 弃用后继 / 质量门**：`design-lifecycle-governance.md`
+- **附录 R — 发布前模拟 / 灰度 / 批量复用**：`design-simulation-rollout.md`
+- **附录 I — 互操作导入导出 / 第三方 API 契约 / 授权许可**：`design-interoperability-entitlement.md`
+
+> 重要：附录 O 修正了"七层组织树"的实质缺陷——PLATFORM 层缺失、SPECIALTY(专病) 应为横切维度而非树叶、层级须可跳级、BED_PERCENT 应迁为发布策略。本设计的解析轴以附录 O 修正模型为准。
