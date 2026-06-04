@@ -18,6 +18,7 @@ import {
   saveThemePreference,
   saveExperienceViewSnapshot,
   submitLargeListExport,
+  useCompleteWorkflowTodo,
   useCreatePackage,
   useAdvanceIntegrationOnboarding,
   useActivateOnboardingReadiness,
@@ -45,6 +46,9 @@ import {
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyPackages,
+  useReadWorkflowNotification,
+  useWorkflowNotifications,
+  useWorkflowTodos,
 } from "./hooks";
 
 vi.mock("./client", () => ({
@@ -222,6 +226,81 @@ describe("package export api helpers", () => {
       ]),
     );
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs");
+  });
+
+  it("loads workflow todos from the unified workflow endpoint with server-side filters", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 0,
+          size: 10,
+          total: 0,
+          hasNext: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      useWorkflowTodos({ status: "PENDING", priority: "HIGH", page: 0, size: 10 }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/workflow/todos", {
+      params: { status: "PENDING", priority: "HIGH", page: 0, size: 10 },
+    });
+  });
+
+  it("completes workflow todos through the auditable completion endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { todoId: "todo-real-1", status: "COMPLETED" } },
+    });
+
+    const { result } = renderApiHook(() => useCompleteWorkflowTodo());
+
+    await result.current.mutateAsync({
+      todoId: "todo-real-1",
+      request: { completionReason: "已完成真实处理" },
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/workflow/todos/todo-real-1/complete", {
+      completionReason: "已完成真实处理",
+    });
+  });
+
+  it("loads workflow notifications from the notification endpoint with unread filters", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 0,
+          size: 10,
+          total: 0,
+          hasNext: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      useWorkflowNotifications({ status: "UNREAD", level: "HIGH", page: 0, size: 10 }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications", {
+      params: { status: "UNREAD", level: "HIGH", page: 0, size: 10 },
+    });
+  });
+
+  it("marks workflow notifications read through the backend endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { notificationId: "notify-real-1", status: "READ" } },
+    });
+
+    const { result } = renderApiHook(() => useReadWorkflowNotification());
+
+    await result.current.mutateAsync("notify-real-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/notifications/notify-real-1/read");
   });
 
   it("loads package list through API-13 style server-side paging and filters", async () => {

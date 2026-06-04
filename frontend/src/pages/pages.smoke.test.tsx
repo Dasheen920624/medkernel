@@ -10,6 +10,7 @@ import { apiClient } from "@/shared/api/client";
 import ConfigPackages from "./tenant/ConfigPackages";
 import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
+import Notifications from "./clinical/Notifications";
 import QcAlerts from "./quality/QcAlerts";
 import AdminUsers from "./compliance/AdminUsers";
 import GraphExplore from "./advanced/GraphExplore";
@@ -101,6 +102,46 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
   }) as AxiosAdapter;
 }
 
+function mockWorkflowCollaboration() {
+  apiClient.defaults.adapter = (async (config) => {
+    if (config.url === "/engine/workflow/todos") {
+      return {
+        data: {
+          data: {
+            items: [],
+            page: 1,
+            size: 10,
+            total: 0,
+            hasNext: false,
+          },
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    }
+    if (config.url === "/engine/notifications") {
+      return {
+        data: {
+          data: {
+            items: [],
+            page: 1,
+            size: 10,
+            total: 0,
+            hasNext: false,
+          },
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    }
+    throw new Error(`未预期的测试接口请求：${config.url ?? ""}`);
+  }) as AxiosAdapter;
+}
+
 function renderPage(page: React.ReactElement) {
   return render(
     <QueryClientProvider client={testQueryClient}>
@@ -133,10 +174,20 @@ describe("page smoke coverage", () => {
     expect(screen.getByText(/页面嵌入式临床建议会话已安全隔离/)).toBeInTheDocument();
   });
 
-  it("renders the clinical workflow-todos console", () => {
+  it("renders the clinical workflow-todos console with the real empty state", async () => {
+    mockWorkflowCollaboration();
     renderPage(<WorkflowTodos />);
     expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
-    expect(screen.getByText("待办接口尚未接入")).toBeInTheDocument();
+    expect(await screen.findByText("当前暂无协同待办")).toBeInTheDocument();
+    expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("renders the clinical notifications console with the real empty state", async () => {
+    mockWorkflowCollaboration();
+    renderPage(<Notifications />);
+    expect(screen.getByRole("heading", { name: "通知中心" })).toBeInTheDocument();
+    expect(await screen.findByText("当前暂无通知")).toBeInTheDocument();
+    expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
   });
 
   it("renders the clinical followup console without local demo plans", () => {

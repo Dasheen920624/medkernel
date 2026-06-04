@@ -97,6 +97,10 @@ public enum PermissionCode {
     PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
     PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
     WORKBENCH_DEMO_VIEW("workbench:demo:view", Risk.LOW, "查看演示与校验页面"),
+    WORKFLOW_READ("workflow.read", Risk.LOW, "查看临床协同待办"),
+    WORKFLOW_WRITE("workflow.write", Risk.MEDIUM, "完成或转交临床协同待办"),
+    NOTIFICATION_READ("notification.read", Risk.LOW, "查看通知中心"),
+    NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读"),
 
     // ─── 菜单维度（INFRA-05 前的一级入口遗留权限，仅保留枚举兼容，不再作为有效菜单矩阵）──────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),

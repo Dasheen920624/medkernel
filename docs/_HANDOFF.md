@@ -15,11 +15,11 @@
 ### 线 1 · D3 SVC-CLINICAL-03 临床协同服务包 PR1 🚧
 
 - 类型：软件开发
-- 分支：待创建 `codex/d3-svc-clinical-03-pr1`
+- 分支：`codex/d3-svc-clinical-03-pr1`
 - 目标：完成 D3 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) PR1：把 CDSS 复核、随访、安全复核等多源任务编排为统一待办 / 通知协同契约，并真实化 [TODO-01](cards/D3/TODO-01.md) / [NOTIFY-01](cards/D3/NOTIFY-01.md) 的最小闭环入口。
-- 状态：已确认上一阶段 D3 [SVC-CLINICAL-02](cards/D3/SVC-CLINICAL-02.md) PR #365 远端 CI 8/8 通过并 squash 合入 `origin/main` `ff63d1ac`，远端分支已删除，backlog 中 `SVC-CLINICAL-02` 已置 `done`。本线尚未实现代码；下一步必须基于最新 `origin/main` 新建分支，先读核心 / D3 `_brief` / 本卡 / 页面卡，核查 `engine/followup`、`engine/recommendation`、MED-C3 复核任务与现有 `WorkflowTodos` / `Notifications` 页面事实，再 TDD。
-- 下一步（精确到动作/命令）：1. `git fetch origin main --prune` 并从最新 `origin/main` 创建 `codex/d3-svc-clinical-03-pr1`；2. 建绿色基线（后端相关聚焦 + 前端 TODO/NOTIFY 现有页面测试或 smoke）；3. 先写失败测试覆盖统一待办列表、通知去重/已读、多源真实来源、完成闭环与前端不造待办/通知；4. 实现最小 PR1；5. 跑本地验证 + T-GATE → PR → 远端 CI 8/8 → squash merge。
-- 相关文件 / 测试 / 坑：预期后端新增或扩展 `engine/workflow` / `engine/notification` 类包，必须遵守 Record DTO + `ApiResult` + `traceId` + 五维权限 + 审计；如新增表必须五方言迁移、中文 COMMENT、索引约束、领域归属和迁移门禁全套。前端重点 `frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不得阻塞长任务。
+- 状态：PR1 代码已在本地分支实现，已补统一待办 / 通知表 V77（五方言静态迁移，当前真实运行只保障 PostgreSQL + Oracle）、`engine/workflow` 服务包、权限 / 契约 / 领域归属、TODO/NOTIFY 页面真实化。已覆盖 CDSS 推荐卡、随访任务、安全撤回复核任务进入统一待办，随访异常通知去重 + 已读回写；安全复核在后端分页层置顶，前端再按同口径排序；已补 patientId 过滤、1 基分页、随访投影仓储用例，并修正通知收件人从随访任务执行人投影而非查询用户。完整本地验证已通过：`mvn -q test`（含 PostgreSQL + Oracle V77 迁移）、`npm run verify`、`npm run build`、`npm audit --omit=dev --audit-level=moderate`（0 漏洞）、Browser 复验 `/workflow/todos` 与 `/notifications` 均未登录重定向 `/login` 且控制台 error 为空。尚未提交 / 创建 PR，不能标 done。
+- 下一步（精确到动作/命令）：1. 提交后重跑 changed-mode T-GATE（真实性 / 迁移 / 配置边界 / 中文注释 / diff）；2. 推送并创建 PR，等远端 CI 8/8 通过后 squash merge；3. 合并后更新本线为归档，再继续本卡后续 PR 或下一阶段任务。
+- 相关文件 / 测试 / 坑：后端新增 `medkernel-backend/src/main/java/com/medkernel/engine/workflow/**`，并扩展 `RecommendationCardRepository`、`FollowupTaskRepository`、`FollowupEventRepository`；前端重点 `frontend/src/pages/clinical/WorkflowTodos.tsx`、`Notifications.tsx`、`frontend/src/shared/api/hooks.ts`。PR1 未冒领护理任务、报告解读、床旁知识卡、通知免打扰设置、外发投递、待办派生通知等后续范围；这些是后续实现项，不是外部阻塞。当前只保障 PostgreSQL + Oracle；达梦 / 人大金仓后置，遇到外部资源只登记到 [待处理问题清单](audit/deferred-issues.md) 后继续，不得阻塞长任务。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
