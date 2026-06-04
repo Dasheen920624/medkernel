@@ -465,6 +465,31 @@ export function useStandardTerms(params: StandardTermsParams = {}) {
   });
 }
 
+export interface MappingCoverageItem {
+  code: string;
+  status: "COVERED" | "UNMAPPED" | "NO_STANDARD_TERM";
+  mappedLocalCount: number;
+}
+
+/** 对照覆盖分析（P5）：给定标准字典与标准编码集合，返回每个编码的院内→标准对照覆盖。 */
+export function useMappingCoverage(
+  params: { standardSystem?: string; codes: string[] },
+  options?: { enabled?: boolean },
+) {
+  const codes = params.codes ?? [];
+  return useQuery({
+    queryKey: ["terminology", "coverage", params.standardSystem ?? "", codes],
+    enabled: (options?.enabled ?? true) && !!params.standardSystem && codes.length > 0,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: MappingCoverageItem[] }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/coverage`,
+        { params: { standardSystem: params.standardSystem, codes: codes.join(",") } },
+      );
+      return data.data;
+    },
+  });
+}
+
 export interface LocalTermsParams {
   page?: number;
   size?: number;
