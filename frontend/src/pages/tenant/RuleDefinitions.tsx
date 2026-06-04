@@ -63,6 +63,7 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -957,16 +958,25 @@ export default function RuleDefinitions() {
         </Col>
         <Col span={16}>
           <Form.Item label="比较值" htmlFor={isFirstLeaf ? "rule-condition-value" : undefined}>
-            <Input
-              id={isFirstLeaf ? "rule-condition-value" : undefined}
-              value={String(condition.value ?? "")}
-              onChange={(event) => updateCondition(condition.id, { value: event.target.value })}
-              placeholder={
-                condition.valueKind === "list"
-                  ? "多个值用英文逗号分隔"
-                  : "输入来自已审核规则来源的比较值"
-              }
-            />
+            {fieldByPath.get(condition.fact)?.codeSystem && condition.valueKind !== "list" ? (
+              <StandardTermValueAutoComplete
+                id={isFirstLeaf ? "rule-condition-value" : undefined}
+                codeSystem={fieldByPath.get(condition.fact)?.codeSystem ?? ""}
+                value={String(condition.value ?? "")}
+                onChange={(next) => updateCondition(condition.id, { value: next })}
+              />
+            ) : (
+              <Input
+                id={isFirstLeaf ? "rule-condition-value" : undefined}
+                value={String(condition.value ?? "")}
+                onChange={(event) => updateCondition(condition.id, { value: event.target.value })}
+                placeholder={
+                  condition.valueKind === "list"
+                    ? "多个值用英文逗号分隔"
+                    : "输入来自已审核规则来源的比较值"
+                }
+              />
+            )}
           </Form.Item>
         </Col>
       </Row>
