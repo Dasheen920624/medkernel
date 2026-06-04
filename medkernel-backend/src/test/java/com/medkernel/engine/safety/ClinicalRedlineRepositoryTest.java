@@ -32,8 +32,12 @@ class ClinicalRedlineRepositoryTest {
     @Autowired
     ClinicalRedlineRepository repository;
 
+    @Autowired
+    ClinicalRedlineTrialRepository trialRepository;
+
     @AfterEach
     void wipe() {
+        trialRepository.deleteAll();
         repository.deleteAll();
     }
 
@@ -79,6 +83,32 @@ class ClinicalRedlineRepositoryTest {
             .isEqualTo("redline-critical-potassium");
     }
 
+    @Test
+    void persistsSilentTrialEvidenceForVersionedRedline() {
+        ClinicalRedlineRule savedRule = repository.save(redline(
+            "tenant-A", "redline-ddi-warfarin-nsaid", "RDL-DDI-001", "2026.2",
+            ClinicalRedlineCategory.DRUG_INTERACTION, ClinicalRedlineStatus.SILENT_RUNNING));
+        ClinicalRedlineTrial savedTrial = trialRepository.save(trial(
+            "trial-redline-ddi-2026-2",
+            savedRule,
+            ClinicalRedlineTrialStatus.PASSED,
+            192,
+            0));
+
+        ClinicalRedlineTrial found = trialRepository
+            .findByTenantIdAndRedlineIdAndTrialId(
+                "tenant-A", "redline-ddi-warfarin-nsaid", "trial-redline-ddi-2026-2")
+            .orElseThrow();
+
+        assertThat(found.id()).isEqualTo(savedTrial.id());
+        assertThat(found.status()).isEqualTo(ClinicalRedlineTrialStatus.PASSED);
+        assertThat(found.requiredSilentHours()).isEqualTo(168);
+        assertThat(found.actualSilentHours()).isEqualTo(192);
+        assertThat(found.gatePassed()).isTrue();
+        assertThat(found.evidenceReference())
+            .isEqualTo("evidence://silent-trials/redline-ddi-warfarin-nsaid/2026.2");
+    }
+
     private ClinicalRedlineRule redline(
             String tenantId,
             String redlineId,
@@ -117,6 +147,37 @@ class ClinicalRedlineRepositoryTest {
             now,
             "tester",
             now,
+            "tester",
+            "trace-redline");
+    }
+
+    private ClinicalRedlineTrial trial(
+            String trialId,
+            ClinicalRedlineRule rule,
+            ClinicalRedlineTrialStatus status,
+            long actualSilentHours,
+            long safetyIncidentCount) {
+        Instant completedAt = Instant.parse("2026-06-03T00:00:00Z");
+        return new ClinicalRedlineTrial(
+            null,
+            trialId,
+            rule.tenantId(),
+            rule.redlineId(),
+            rule.redlineKey(),
+            rule.redlineVersion(),
+            status,
+            completedAt.minusSeconds(actualSilentHours * 3600),
+            completedAt,
+            rule.silentRunHours(),
+            actualSilentHours,
+            1200,
+            18,
+            1,
+            safetyIncidentCount,
+            status == ClinicalRedlineTrialStatus.PASSED,
+            "evidence://silent-trials/" + rule.redlineId() + "/" + rule.redlineVersion(),
+            "试运行窗口来自真实临床事件回放统计",
+            Instant.parse("2026-06-04T02:00:00Z"),
             "tester",
             "trace-redline");
     }

@@ -43,6 +43,47 @@ public record ClinicalRedlineRule(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
+    public ClinicalRedlineRule withStatus(
+            ClinicalRedlineStatus nextStatus,
+            Instant updatedAt,
+            String updatedBy,
+            String traceId) {
+        return new ClinicalRedlineRule(
+            id,
+            redlineId,
+            tenantId,
+            category,
+            triggerPoint,
+            scopeType,
+            scopeRef,
+            nextStatus == ClinicalRedlineStatus.ACTIVE ? activeScopeKey() : null,
+            redlineKey,
+            redlineVersion,
+            nextStatus,
+            hazardSeverity,
+            riskMatrixId,
+            riskMatrixVersion,
+            reviewRequirement,
+            silentRunHours,
+            releaseGate,
+            title,
+            clinicalHazard,
+            conditionDsl,
+            evidenceSource,
+            evidenceReference,
+            sourceVersionId,
+            lowerTenantOverrideAllowed,
+            createdAt,
+            createdBy,
+            updatedAt,
+            updatedBy,
+            traceId);
+    }
+
+    public String activeScopeKey() {
+        return tenantId + "|" + category.name() + "|" + triggerPoint + "|" + redlineKey;
+    }
+
     public ClinicalRedlineResponse toResponse() {
         return new ClinicalRedlineResponse(
             redlineId,
