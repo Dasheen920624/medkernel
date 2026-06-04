@@ -145,6 +145,7 @@ class RecommendationRepositoryTest {
         assertThat(rows).singleElement()
             .satisfies(row -> {
                 assertThat(row.cardId()).isEqualTo(cardId);
+                assertThat(row.cardType()).isEqualTo(RecommendationCardType.MEDICATION);
                 assertThat(row.riskLevel()).isEqualTo(RecommendationRiskLevel.HIGH);
                 assertThat(row.status()).isEqualTo(RecommendationCardStatus.PENDING);
                 assertThat(row.patientId()).isEqualTo("patient-1");

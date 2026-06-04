@@ -21,6 +21,22 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String sourceId);
 
     @Query("""
+        SELECT *
+        FROM mk_engine_workflow_todo
+        WHERE tenant_id = :tenantId
+          AND source_id = :sourceId
+          AND source_type IN (
+            'RECOMMENDATION_CARD',
+            'NURSING_TASK',
+            'REPORT_INTERPRETATION',
+            'BEDSIDE_KNOWLEDGE'
+          )
+        ORDER BY created_at ASC, id ASC
+        OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+        """)
+    Optional<WorkflowTodo> findRecommendationDerivedByTenantIdAndSourceId(String tenantId, String sourceId);
+
+    @Query("""
         SELECT COUNT(*)
         FROM mk_engine_workflow_todo
         WHERE tenant_id = :tenantId

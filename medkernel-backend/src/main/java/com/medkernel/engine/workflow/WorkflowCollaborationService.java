@@ -2,6 +2,7 @@ package com.medkernel.engine.workflow;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.medkernel.engine.context.ClinicalEvent;
@@ -19,6 +20,7 @@ import com.medkernel.engine.knowledge.AffectedCaseTaskStatus;
 import com.medkernel.engine.knowledge.AffectedCaseTaskType;
 import com.medkernel.engine.recommendation.RecommendationCardRepository;
 import com.medkernel.engine.recommendation.RecommendationCardStatus;
+import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationWorkflowTodoRow;
 import com.medkernel.shared.api.PageRequest;
@@ -292,11 +294,14 @@ public class WorkflowCollaborationService {
         List<RecommendationWorkflowTodoRow> rows = nullToEmpty(
             recommendationCards.pageOpenWorkflowRows(tenantId, 0, SYNC_BATCH_SIZE));
         for (RecommendationWorkflowTodoRow row : rows) {
-            todos.findByTenantIdAndSourceTypeAndSourceId(
-                    tenantId,
-                    WorkflowTodoSourceType.RECOMMENDATION_CARD,
-                    row.cardId())
-                .orElseGet(() -> todos.save(fromRecommendationCardTodo(tenantId, row)));
+            WorkflowTodoSourceType sourceType = recommendationSourceType(row);
+            var existing = todos.findByTenantIdAndSourceTypeAndSourceId(tenantId, sourceType, row.cardId());
+            if (existing.isEmpty() && sourceType != WorkflowTodoSourceType.RECOMMENDATION_CARD) {
+                existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
+            }
+            if (existing.isEmpty()) {
+                todos.save(fromRecommendationCardTodo(tenantId, row, sourceType));
+            }
         }
     }
 
@@ -386,20 +391,23 @@ public class WorkflowCollaborationService {
             task.updatedBy());
     }
 
-    private WorkflowTodo fromRecommendationCardTodo(String tenantId, RecommendationWorkflowTodoRow row) {
+    private WorkflowTodo fromRecommendationCardTodo(
+            String tenantId,
+            RecommendationWorkflowTodoRow row,
+            WorkflowTodoSourceType sourceType) {
         Instant createdAt = row.createdAt() == null ? Instant.now() : row.createdAt();
         return new WorkflowTodo(
             null,
             "todo-" + UUID.randomUUID(),
             tenantId,
-            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            sourceType,
             row.cardId(),
-            defaultText(row.title(), "临床提醒复核"),
+            defaultText(row.title(), recommendationFallbackTitle(sourceType)),
             recommendationSummary(row),
             recommendationPriority(row.riskLevel()),
             WorkflowTodoStatus.PENDING,
             null,
-            "DOCTOR",
+            recommendationAssigneeRole(sourceType),
             row.patientId(),
             row.encounterId(),
             row.expiresAt(),
@@ -576,6 +584,49 @@ public class WorkflowCollaborationService {
             return WorkflowPriority.LOW;
         }
         return WorkflowPriority.MEDIUM;
+    }
+
+    private static WorkflowTodoSourceType recommendationSourceType(RecommendationWorkflowTodoRow row) {
+        RecommendationCardType cardType = row.cardType();
+        if (cardType == RecommendationCardType.NURSING) {
+            return WorkflowTodoSourceType.NURSING_TASK;
+        }
+        if (cardType == RecommendationCardType.KNOWLEDGE) {
+            return WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE;
+        }
+        if ((cardType == RecommendationCardType.EXAM || cardType == RecommendationCardType.LAB)
+            && isReportContext(row)) {
+            return WorkflowTodoSourceType.REPORT_INTERPRETATION;
+        }
+        return WorkflowTodoSourceType.RECOMMENDATION_CARD;
+    }
+
+    private static boolean isReportContext(RecommendationWorkflowTodoRow row) {
+        return containsReportSignal(row.triggerType()) || containsReportSignal(row.scenarioCode());
+    }
+
+    private static boolean containsReportSignal(String value) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return false;
+        }
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        return upper.contains("REPORT")
+            || upper.contains("RESULT_REVIEW")
+            || upper.contains("DIAGNOSTIC");
+    }
+
+    private static String recommendationAssigneeRole(WorkflowTodoSourceType sourceType) {
+        return sourceType == WorkflowTodoSourceType.NURSING_TASK ? "NURSING" : "DOCTOR";
+    }
+
+    private static String recommendationFallbackTitle(WorkflowTodoSourceType sourceType) {
+        return switch (sourceType) {
+            case NURSING_TASK -> "护理协同任务";
+            case REPORT_INTERPRETATION -> "报告解读复核";
+            case BEDSIDE_KNOWLEDGE -> "床旁知识卡复核";
+            case FOLLOWUP_TASK, SAFETY_REVIEW, RECOMMENDATION_CARD -> "临床提醒复核";
+        };
     }
 
     private static WorkflowNotificationLevel notificationLevel(WorkflowPriority priority) {

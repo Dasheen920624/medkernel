@@ -29,6 +29,7 @@ import com.medkernel.engine.knowledge.AffectedCaseTaskStatus;
 import com.medkernel.engine.knowledge.AffectedCaseTaskType;
 import com.medkernel.engine.recommendation.RecommendationCardRepository;
 import com.medkernel.engine.recommendation.RecommendationCardStatus;
+import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationWorkflowTodoRow;
 import com.medkernel.shared.api.PageRequest;
@@ -401,6 +402,7 @@ class WorkflowCollaborationServiceTest {
         when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(
             new RecommendationWorkflowTodoRow(
                 "card-high-risk-1",
+                RecommendationCardType.MEDICATION,
                 "抗凝用药风险提醒",
                 "患者当前医嘱满足抗凝风险规则",
                 RecommendationRiskLevel.HIGH,
@@ -457,6 +459,88 @@ class WorkflowCollaborationServiceTest {
                 assertThat(item.deepLink()).contains("card-high-risk-1");
             });
         verify(todos).save(any(WorkflowTodo.class));
+    }
+
+    @Test
+    void listTodosProjectsClinicalRecommendationTypesIntoCollaborationSources() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(
+            new RecommendationWorkflowTodoRow(
+                "card-nursing-1",
+                RecommendationCardType.NURSING,
+                "压疮风险护理评估",
+                "患者护理评估提示压疮风险升高",
+                RecommendationRiskLevel.HIGH,
+                RecommendationCardStatus.PENDING,
+                now.plusSeconds(1800),
+                "trace-nursing",
+                now,
+                "patient-1",
+                "enc-1",
+                "nursing-assessment",
+                "WARD_NURSING"),
+            new RecommendationWorkflowTodoRow(
+                "card-report-1",
+                RecommendationCardType.EXAM,
+                "检验报告解读",
+                "报告结果触发复核建议",
+                RecommendationRiskLevel.MEDIUM,
+                RecommendationCardStatus.PENDING,
+                now.plusSeconds(3600),
+                "trace-report",
+                now,
+                "patient-1",
+                "enc-1",
+                "REPORT_SUBMIT",
+                "REPORT_REVIEW"),
+            new RecommendationWorkflowTodoRow(
+                "card-knowledge-1",
+                RecommendationCardType.KNOWLEDGE,
+                "床旁知识卡",
+                "当前诊疗上下文命中知识卡",
+                RecommendationRiskLevel.LOW,
+                RecommendationCardStatus.VIEWED,
+                now.plusSeconds(7200),
+                "trace-knowledge",
+                now,
+                "patient-1",
+                "enc-1",
+                "patient-view",
+                "BEDSIDE_KNOWLEDGE")));
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(eq("tenant-A"), any(), any()))
+            .thenReturn(Optional.empty());
+        when(todos.findRecommendationDerivedByTenantIdAndSourceId(eq("tenant-A"), any()))
+            .thenReturn(Optional.empty());
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(todos.countByFilter("tenant-A", null, null, null, null, null)).thenReturn(3L);
+        when(todos.pageByFilter("tenant-A", null, null, null, null, null, 0, 20)).thenReturn(List.of(
+            workflowTodo("todo-nursing-1", WorkflowTodoSourceType.NURSING_TASK,
+                "card-nursing-1", "压疮风险护理评估", "patient-1", "enc-1", "NURSING", "trace-nursing", now),
+            workflowTodo("todo-report-1", WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                "card-report-1", "检验报告解读", "patient-1", "enc-1", "DOCTOR", "trace-report", now),
+            workflowTodo("todo-knowledge-1", WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE,
+                "card-knowledge-1", "床旁知识卡", "patient-1", "enc-1", "DOCTOR", "trace-knowledge", now)));
+
+        PageResponse<WorkflowTodoResponse> page = service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.items()).extracting(WorkflowTodoResponse::sourceType)
+            .containsExactly(
+                WorkflowTodoSourceType.NURSING_TASK,
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE);
+        ArgumentCaptor<WorkflowTodo> todoCaptor = ArgumentCaptor.forClass(WorkflowTodo.class);
+        verify(todos, times(3)).save(todoCaptor.capture());
+        assertThat(todoCaptor.getAllValues()).extracting(WorkflowTodo::sourceType)
+            .containsExactly(
+                WorkflowTodoSourceType.NURSING_TASK,
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE);
+        assertThat(todoCaptor.getAllValues()).extracting(WorkflowTodo::assigneeRole)
+            .containsExactly("NURSING", "DOCTOR", "DOCTOR");
     }
 
     @Test
@@ -604,5 +688,43 @@ class WorkflowCollaborationServiceTest {
         assertThat(notification.level()).isEqualTo(WorkflowNotificationLevel.INFO);
         assertThat(notification.recipientId()).isNull();
         assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
+    }
+
+    private WorkflowTodo workflowTodo(
+            String todoId,
+            WorkflowTodoSourceType sourceType,
+            String sourceId,
+            String title,
+            String patientId,
+            String encounterId,
+            String assigneeRole,
+            String traceId,
+            Instant now) {
+        return new WorkflowTodo(
+            null,
+            todoId,
+            "tenant-A",
+            sourceType,
+            sourceId,
+            title,
+            "真实推荐卡来源投影",
+            WorkflowPriority.MEDIUM,
+            WorkflowTodoStatus.PENDING,
+            null,
+            assigneeRole,
+            patientId,
+            encounterId,
+            now.plusSeconds(3600),
+            "/cdss/fatigue?cardId=" + sourceId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            traceId,
+            now,
+            "system",
+            now,
+            "system");
     }
 }
