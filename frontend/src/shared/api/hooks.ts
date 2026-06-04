@@ -2493,6 +2493,8 @@ export function useContextSnapshots(
 }
 
 export interface ContextFieldDescriptor {
+  category: string;
+  group: string;
   resourceType: string;
   fieldPath: string;
   displayName: string;
