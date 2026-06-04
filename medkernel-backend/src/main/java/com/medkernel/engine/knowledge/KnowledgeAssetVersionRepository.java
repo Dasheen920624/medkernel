@@ -43,6 +43,17 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
         """)
     Optional<KnowledgeAssetVersion> findActiveByIdentity(String tenantId, Long identityId);
 
+    /**
+     * 查询租户下所有 ACTIVE 的诊断知识版本（join 身份过滤 {@code domain=DIAGNOSIS}），供运行时鉴别诊断遍历命中。
+     */
+    @Query("""
+        SELECT v.* FROM knowledge_asset_version v
+        JOIN knowledge_identity i ON v.identity_id = i.id AND v.tenant_id = i.tenant_id
+        WHERE v.tenant_id = :tenantId AND v.status = 'ACTIVE' AND i.domain = 'DIAGNOSIS'
+        ORDER BY v.updated_at DESC, v.id DESC
+        """)
+    List<KnowledgeAssetVersion> findActiveDiagnosisVersions(String tenantId);
+
     @Query("""
         SELECT * FROM knowledge_asset_version
         WHERE tenant_id = :tenantId
