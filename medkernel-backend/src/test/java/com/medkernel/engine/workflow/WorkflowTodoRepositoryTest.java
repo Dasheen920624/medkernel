@@ -117,6 +117,93 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            "doctor-1",
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-org",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-org",
+            WorkflowPriority.MEDIUM,
+            "patient-2",
+            null,
+            now.plusSeconds(900)));
+        repository.save(sample(
+            "todo-other",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-other",
+            WorkflowPriority.CRITICAL,
+            "patient-3",
+            "doctor-2",
+            now.plusSeconds(300)));
+
+        long total = repository.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            null);
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            null,
+            0,
+            10);
+
+        assertThat(total).isEqualTo(2);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-own", "todo-org");
+    }
+
+    @Test
+    void explicitAssigneeFilterStillNarrowsToRequestedAssignee() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            "doctor-1",
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-other",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-other",
+            WorkflowPriority.CRITICAL,
+            "patient-2",
+            "doctor-2",
+            now.plusSeconds(300)));
+
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            "doctor-2",
+            "doctor-1",
+            null,
+            0,
+            10);
+
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-other");
+    }
+
+    @Test
     void recommendationDerivedLookupPreventsDuplicateTypedTodoRows() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
@@ -228,6 +315,17 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority priority,
             String patientId,
             Instant dueAt) {
+        return sample(todoId, sourceType, sourceId, priority, patientId, "doctor-1", dueAt);
+    }
+
+    private WorkflowTodo sample(
+            String todoId,
+            WorkflowTodoSourceType sourceType,
+            String sourceId,
+            WorkflowPriority priority,
+            String patientId,
+            String assigneeId,
+            Instant dueAt) {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         return new WorkflowTodo(
             null,
@@ -239,7 +337,7 @@ class WorkflowTodoRepositoryTest {
             "真实来源待办",
             priority,
             WorkflowTodoStatus.PENDING,
-            "doctor-1",
+            assigneeId,
             "DOCTOR",
             patientId,
             "enc-1",

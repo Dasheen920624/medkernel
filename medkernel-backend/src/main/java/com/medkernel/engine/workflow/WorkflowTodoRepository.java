@@ -55,6 +55,34 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String patientId);
 
     @Query("""
+        SELECT COUNT(*)
+        FROM mk_engine_workflow_todo
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:priority IS NULL OR priority = :priority)
+          AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:patientId IS NULL OR patient_id = :patientId)
+          AND (
+            (:assigneeId IS NOT NULL AND assignee_id = :assigneeId)
+            OR (
+              :assigneeId IS NULL
+              AND (
+                assignee_id IS NULL
+                OR (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+              )
+            )
+          )
+        """)
+    long countByVisibleAssigneeScope(
+        String tenantId,
+        String status,
+        String priority,
+        String sourceType,
+        String assigneeId,
+        String currentUserId,
+        String patientId);
+
+    @Query("""
         SELECT *
         FROM mk_engine_workflow_todo
         WHERE tenant_id = :tenantId
@@ -83,6 +111,49 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
         String priority,
         String sourceType,
         String assigneeId,
+        String patientId,
+        int offset,
+        int limit);
+
+    @Query("""
+        SELECT *
+        FROM mk_engine_workflow_todo
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:priority IS NULL OR priority = :priority)
+          AND (:sourceType IS NULL OR source_type = :sourceType)
+          AND (:patientId IS NULL OR patient_id = :patientId)
+          AND (
+            (:assigneeId IS NOT NULL AND assignee_id = :assigneeId)
+            OR (
+              :assigneeId IS NULL
+              AND (
+                assignee_id IS NULL
+                OR (:currentUserId IS NOT NULL AND assignee_id = :currentUserId)
+              )
+            )
+          )
+        ORDER BY
+          CASE WHEN source_type = 'SAFETY_REVIEW' THEN 0 ELSE 1 END,
+          CASE priority
+            WHEN 'CRITICAL' THEN 0
+            WHEN 'HIGH' THEN 1
+            WHEN 'MEDIUM' THEN 2
+            ELSE 3
+          END,
+          CASE WHEN due_at IS NULL THEN 1 ELSE 0 END,
+          due_at ASC,
+          created_at ASC,
+          id ASC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<WorkflowTodo> pageByVisibleAssigneeScope(
+        String tenantId,
+        String status,
+        String priority,
+        String sourceType,
+        String assigneeId,
+        String currentUserId,
         String patientId,
         int offset,
         int limit);

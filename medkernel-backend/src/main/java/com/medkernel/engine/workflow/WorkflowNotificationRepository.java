@@ -28,6 +28,30 @@ public interface WorkflowNotificationRepository extends ListCrudRepository<Workf
     long countByFilter(String tenantId, String status, String level, String recipientId);
 
     @Query("""
+        SELECT COUNT(*)
+        FROM mk_engine_notification
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:level IS NULL OR notification_level = :level)
+          AND (
+            (:recipientId IS NOT NULL AND recipient_id = :recipientId)
+            OR (
+              :recipientId IS NULL
+              AND (
+                recipient_id IS NULL
+                OR (:currentUserId IS NOT NULL AND recipient_id = :currentUserId)
+              )
+            )
+          )
+        """)
+    long countByVisibleRecipientScope(
+        String tenantId,
+        String status,
+        String level,
+        String recipientId,
+        String currentUserId);
+
+    @Query("""
         SELECT *
         FROM mk_engine_notification
         WHERE tenant_id = :tenantId
@@ -42,6 +66,34 @@ public interface WorkflowNotificationRepository extends ListCrudRepository<Workf
         String status,
         String level,
         String recipientId,
+        int offset,
+        int limit);
+
+    @Query("""
+        SELECT *
+        FROM mk_engine_notification
+        WHERE tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:level IS NULL OR notification_level = :level)
+          AND (
+            (:recipientId IS NOT NULL AND recipient_id = :recipientId)
+            OR (
+              :recipientId IS NULL
+              AND (
+                recipient_id IS NULL
+                OR (:currentUserId IS NOT NULL AND recipient_id = :currentUserId)
+              )
+            )
+          )
+        ORDER BY created_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<WorkflowNotification> pageByVisibleRecipientScope(
+        String tenantId,
+        String status,
+        String level,
+        String recipientId,
+        String currentUserId,
         int offset,
         int limit);
 }

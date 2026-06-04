@@ -98,20 +98,25 @@ public class WorkflowCollaborationService {
             ? new WorkflowTodoFilter(null, null, null, null, null)
             : filter;
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        long total = todos.countByFilter(
+        String assigneeId = blankToNull(safeFilter.assigneeId());
+        String patientId = blankToNull(safeFilter.patientId());
+        String currentUserId = currentUserId(ctx);
+        long total = todos.countByVisibleAssigneeScope(
             tenantId,
             name(safeFilter.status()),
             name(safeFilter.priority()),
             name(safeFilter.sourceType()),
-            blankToNull(safeFilter.assigneeId()),
-            blankToNull(safeFilter.patientId()));
-        List<WorkflowTodoResponse> rows = todos.pageByFilter(
+            assigneeId,
+            currentUserId,
+            patientId);
+        List<WorkflowTodoResponse> rows = todos.pageByVisibleAssigneeScope(
                 tenantId,
                 name(safeFilter.status()),
                 name(safeFilter.priority()),
                 name(safeFilter.sourceType()),
-                blankToNull(safeFilter.assigneeId()),
-                blankToNull(safeFilter.patientId()),
+                assigneeId,
+                currentUserId,
+                patientId,
                 req.offset(),
                 req.safeSize()).stream()
             .map(WorkflowTodoResponse::from)
@@ -131,6 +136,7 @@ public class WorkflowCollaborationService {
         Instant now = Instant.now();
         WorkflowTodo todo = todos.findByTenantIdAndTodoId(tenantId, todoId)
             .orElseThrow(() -> ApiException.notFound("协同待办"));
+        requireTodoVisibleToCurrentUser(ctx, todo);
         WorkflowTodo completed = new WorkflowTodo(
             todo.id(),
             todo.todoId(),
@@ -176,6 +182,7 @@ public class WorkflowCollaborationService {
         Instant now = Instant.now();
         WorkflowTodo todo = todos.findByTenantIdAndTodoId(tenantId, todoId)
             .orElseThrow(() -> ApiException.notFound("协同待办"));
+        requireTodoVisibleToCurrentUser(ctx, todo);
         if (todo.status() != WorkflowTodoStatus.PENDING && todo.status() != WorkflowTodoStatus.IN_PROGRESS) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "仅待处理或处理中待办可转交");
         }
@@ -226,16 +233,20 @@ public class WorkflowCollaborationService {
             ? new WorkflowNotificationFilter(null, null, null)
             : filter;
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        long total = notifications.countByFilter(
+        String recipientId = blankToNull(safeFilter.recipientId());
+        String currentUserId = currentUserId(ctx);
+        long total = notifications.countByVisibleRecipientScope(
             tenantId,
             name(safeFilter.status()),
             name(safeFilter.level()),
-            blankToNull(safeFilter.recipientId()));
-        List<WorkflowNotificationResponse> rows = notifications.pageByFilter(
+            recipientId,
+            currentUserId);
+        List<WorkflowNotificationResponse> rows = notifications.pageByVisibleRecipientScope(
                 tenantId,
                 name(safeFilter.status()),
                 name(safeFilter.level()),
-                blankToNull(safeFilter.recipientId()),
+                recipientId,
+                currentUserId,
                 req.offset(),
                 req.safeSize()).stream()
             .map(WorkflowNotificationResponse::from)
@@ -254,6 +265,7 @@ public class WorkflowCollaborationService {
         Instant now = Instant.now();
         WorkflowNotification notification = notifications.findByTenantIdAndNotificationId(tenantId, notificationId)
             .orElseThrow(() -> ApiException.notFound("通知"));
+        requireNotificationVisibleToCurrentUser(ctx, notification);
         WorkflowNotification read = new WorkflowNotification(
             notification.id(),
             notification.notificationId(),
@@ -700,6 +712,29 @@ public class WorkflowCollaborationService {
         return ctx;
     }
 
+    private static void requireTodoVisibleToCurrentUser(RequestContext.Snapshot ctx, WorkflowTodo todo) {
+        if (!isVisibleToCurrentUser(ctx, todo.assigneeId())) {
+            throw ApiException.notFound("协同待办");
+        }
+    }
+
+    private static void requireNotificationVisibleToCurrentUser(
+            RequestContext.Snapshot ctx,
+            WorkflowNotification notification) {
+        if (!isVisibleToCurrentUser(ctx, notification.recipientId())) {
+            throw ApiException.notFound("通知");
+        }
+    }
+
+    private static boolean isVisibleToCurrentUser(RequestContext.Snapshot ctx, String ownerId) {
+        String normalizedOwner = blankToNull(ownerId);
+        if (normalizedOwner == null) {
+            return true;
+        }
+        String userId = currentUserId(ctx);
+        return userId != null && normalizedOwner.equals(userId);
+    }
+
     private static boolean isOpenSafetyTask(AffectedCaseTask task) {
         return task.status() == AffectedCaseTaskStatus.OPEN || task.status() == AffectedCaseTaskStatus.IN_PROGRESS;
     }
@@ -825,6 +860,10 @@ public class WorkflowCollaborationService {
 
     private static String actor(RequestContext.Snapshot ctx) {
         return blankToNull(ctx.userId()) == null ? SYSTEM_ACTOR : ctx.userId().trim();
+    }
+
+    private static String currentUserId(RequestContext.Snapshot ctx) {
+        return blankToNull(ctx.userId());
     }
 
     private static String requireText(String value, String label) {
