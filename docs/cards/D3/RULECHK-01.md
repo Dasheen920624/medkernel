@@ -19,15 +19,15 @@
 页面**已存在待真实化**：`pages/clinical/RuleValidate.tsx`（路由 `/rule/validate` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接规则校验 API（`engine/rule` `RuleDslEvaluator`）+ 六态/五维 RBAC 齐全。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 校验执行：提交医嘱/病历 → 跑规则校验，命中结果真实来自 [RULE-01](../D2/RULE-01.md)。
-- [ ] FR-2 结果解释：每条命中显示规则 ID/版本/级别/解释（可追溯）。
+- [x] FR-1 校验执行：提交医嘱/病历 → 跑规则校验，命中结果真实来自 [RULE-01](../D2/RULE-01.md)。PR1 默认使用 CDS Hooks `order-sign`，调用真实 `/engine/rule/rules/evaluate`。
+- [x] FR-2 结果解释：每条命中显示规则 ID/版本/级别/解释（可追溯）。PR1 列表改读后端 `ruleId/versionId/actions/explanation`。
 - [ ] FR-3 红线突出：红线（[OPT-04](OPT-04.md)）命中强突出、不可忽略。
 - [ ] FR-4 仿真对比：可对历史用例回放校验（与规则仿真一致）。
 - [ ] FR-5 六态 + 五维 RBAC：齐全；仅医生/专科专家/质控可见；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) 规则校验端点（`POST /api/v1/engine/rule/validate`）。
+N·A —— 消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) 规则校验端点（`POST /api/v1/engine/rule/rules/evaluate`）与执行解释端点（`GET /api/v1/engine/rule/rules/executions/{executionId}/explain`）。
 ### 页面契约（页面卡）
 - 路由元数据：sectionKey `clinical-run` / menuKey `rule-validate` / menuLabel `规则校验` / path `/rule/validate` / requiredPermissions 规则校验 / requiredRoles 临床医生·专科专家·质控。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 输入区（医嘱/病历）+ 校验结果列表（级别色阶 token）+ 解释抽屉 + 六态。
@@ -56,7 +56,7 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / 
 - 本卡落点：把规则校验页变为接真实规则引擎、结果可追溯、红线强突出的校验工作台。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：校验结果真实、可追溯版本。
+- [x] AC-1（FR-1/2）：校验结果真实、可追溯版本。
 - [ ] AC-2（FR-3/4）：红线强突出；历史回放一致。
 - [ ] AC-3（FR-5）：六态齐全；非授权不可校验。
 - 关联 A1–A9 剧本：A5 规则校验。
@@ -64,6 +64,6 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / 
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/RuleValidate` 真实化 + 接规则校验 API + 六态。
-- 测试：校验/解释/红线/回放 + 六态 + RBAC + no-page-mock 门禁。
+- 代码 permalink：PR1 `frontend/src/pages/clinical/RuleValidate.tsx` 修正真实规则引擎 DTO 与 CDS Hooks 触发点；红线突出 / 回放 / 完整六态 / RBAC 留本页面后续 PR。
+- 测试：`npm test -- src/pages/clinical/RuleValidate.test.tsx` 覆盖真实 `ruleId/versionId/actions/explanation` 渲染和提交载荷；同轮 `npm run verify`（57 文件 / 323 测试）、`npm run build`、`npm audit --omit=dev --audit-level=moderate` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

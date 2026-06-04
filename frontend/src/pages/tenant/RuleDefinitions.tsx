@@ -65,6 +65,7 @@ import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
+import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -180,6 +181,18 @@ function isClinicalOperator(operator: RuleOperator) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatEvaluationExplanation(value: unknown) {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value === null || value === undefined || value === "") return "未命中，无动作输出。";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "解释内容无法序列化。";
+  }
 }
 
 function conditionValueRecord(condition: RuleCondition) {
@@ -367,6 +380,7 @@ export default function RuleDefinitions() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [activeDetailLayer, setActiveDetailLayer] = useState<DetailLayerKey>("l2");
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [fieldManagerOpen, setFieldManagerOpen] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
   const [createExpertMode, setCreateExpertMode] = useState(false);
   const [detailExpertMode, setDetailExpertMode] = useState(false);
@@ -1937,8 +1951,8 @@ export default function RuleDefinitions() {
                         )}
                       </Descriptions>
                       <Text strong>详细决策动作说明</Text>
-                      <div className="text-xs text-gray-600 bg-white p-3 rounded border border-gray-200 font-normal mt-2">
-                        {simulateResult.explanation || "未命中，无动作输出。"}
+                      <div className="text-xs text-gray-600 bg-white p-3 rounded border border-gray-200 font-normal mt-2 whitespace-pre-wrap">
+                        {formatEvaluationExplanation(simulateResult.explanation)}
                       </div>
                     </div>
                   ) : (
@@ -2082,6 +2096,13 @@ export default function RuleDefinitions() {
               onClick={syncTreeToDsl}
             >
               同步到 DSL
+            </Button>
+            <Button
+              icon={<ApartmentOutlined />}
+              aria-label="管理字段目录"
+              onClick={() => setFieldManagerOpen(true)}
+            >
+              管理字段目录
             </Button>
           </Space>
         </Space>
@@ -2448,6 +2469,8 @@ export default function RuleDefinitions() {
           </Row>
         </Form>
       </Modal>
+
+      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
     </PageShell>
   );
 }

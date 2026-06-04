@@ -465,6 +465,31 @@ export function useStandardTerms(params: StandardTermsParams = {}) {
   });
 }
 
+export interface MappingCoverageItem {
+  code: string;
+  status: "COVERED" | "UNMAPPED" | "NO_STANDARD_TERM";
+  mappedLocalCount: number;
+}
+
+/** 对照覆盖分析（P5）：给定标准字典与标准编码集合，返回每个编码的院内→标准对照覆盖。 */
+export function useMappingCoverage(
+  params: { standardSystem?: string; codes: string[] },
+  options?: { enabled?: boolean },
+) {
+  const codes = params.codes ?? [];
+  return useQuery({
+    queryKey: ["terminology", "coverage", params.standardSystem ?? "", codes],
+    enabled: (options?.enabled ?? true) && !!params.standardSystem && codes.length > 0,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: MappingCoverageItem[] }>(
+        `${TERMINOLOGY_API_ROOT}/mappings/coverage`,
+        { params: { standardSystem: params.standardSystem, codes: codes.join(",") } },
+      );
+      return data.data;
+    },
+  });
+}
+
 export interface LocalTermsParams {
   page?: number;
   size?: number;
@@ -989,13 +1014,24 @@ export interface RuleDetailResponse {
 }
 
 export interface RuleEvaluationItem {
+  executionId?: string;
   ruleId: string;
-  ruleCode: string;
-  ruleName: string;
+  versionId?: string;
+  ruleCode?: string;
+  ruleName?: string;
   hit: boolean;
   severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  actionCode?: string;
+  actions?: RuleActionResult[];
+  explanation?: unknown;
+}
+
+export interface RuleActionResult {
   actionCode: string;
-  explanation: string;
+  actionType?: string;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | string;
+  message?: string;
+  explanation?: unknown;
 }
 
 export interface RuleTestCaseResult {
@@ -1754,6 +1790,27 @@ export function useSimulatePathway(templateId: string) {
 }
 
 // 3. PatientPathway Hooks
+export function usePatientPathways(
+  params: {
+    patientId?: string;
+    status?: PatientPathwayStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ["pathways", "patient-pathways", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<PatientPathway> }>(
+        "/engine/pathway/patient-pathways",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useEnterPatientPathway() {
   const security = useSecurityProfile();
   return useMutation({
@@ -1862,21 +1919,28 @@ export interface RecommendationCard {
   cardId: string;
   tenantId: string;
   triggerId: string;
-  patientId: string;
+  patientId?: string;
   encounterId?: string;
-  scenarioCode: string;
+  scenarioCode?: string;
   cardType: RecommendationCardType;
+  cardCode?: string;
   title: string;
   summary: string;
+  suggestedAction?: string;
   riskLevel: RecommendationRiskLevel;
   interruptLevel: RecommendationInterruptLevel;
   status: RecommendationCardStatus;
   changeSummary?: string;
+  requiresPhysicianConfirmation?: boolean;
+  aiGenerated?: boolean;
+  sourceSummary?: string;
+  explanationJson?: string;
+  fatigueKey?: string;
+  expiresAt?: string;
   createdAt?: string;
   createdBy?: string;
   traceId?: string;
   // 嵌入与全屏决策终端可选扩展属性
-  cardCode?: string;
   severity?: string;
   recommendations?: Array<{
     actionCode: string;
@@ -1924,12 +1988,52 @@ export interface RecommendationFatigueSignal {
   createdAt?: string;
 }
 
+export interface RecommendationTrigger {
+  triggerId: string;
+  triggerCode?: string;
+  triggerType?: string;
+  sourceEventId?: string;
+  contextSnapshotId?: string;
+  patientId?: string;
+  encounterId?: string;
+  patientPathwayId?: string;
+  scenarioCode?: string;
+  packageVersion?: string;
+  occurredAt?: string;
+  traceId?: string;
+}
+
+export interface ClinicalRecommendationCard extends RecommendationCard {
+  patientId: string;
+  encounterId?: string;
+  patientPathwayId?: string;
+  scenarioCode: string;
+  triggerType: string;
+  contextSnapshotId?: string;
+  packageVersion?: string;
+  occurredAt?: string;
+}
+
 export interface RecommendationCardDetailResponse {
   card: RecommendationCard;
+  trigger?: RecommendationTrigger;
   sources: RecommendationSource[];
-  feedback?: RecommendationFeedback;
+  feedback: RecommendationFeedback[];
   fatigueSignals: RecommendationFatigueSignal[];
   traceId: string;
+}
+
+export interface RecommendationStats {
+  totalCount: number;
+  pendingCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  dismissedCount: number;
+  deferredCount: number;
+  suppressedCount: number;
+  expiredCount: number;
+  acceptanceRatePercent: number;
+  traceId?: string;
 }
 
 export interface RecommendationTriggerResponse {
@@ -1979,6 +2083,8 @@ export function useRecommendationCards(
     riskLevel?: RecommendationRiskLevel;
     scenarioCode?: string;
     patientId?: string;
+    encounterId?: string;
+    triggerPoint?: string;
     page?: number;
     size?: number;
     sort?: string;
@@ -1993,6 +2099,58 @@ export function useRecommendationCards(
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<RecommendationCard> }>(
         "/engine/recommendations/cards",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useClinicalRecommendationCards(
+  params?: {
+    status?: RecommendationCardStatus;
+    riskLevel?: RecommendationRiskLevel;
+    scenarioCode?: string;
+    patientId?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["recommendations", "clinical-cards", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ClinicalRecommendationCard> }>(
+        "/engine/recommendations/clinical-cards",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRecommendationStats(
+  params?: {
+    status?: RecommendationCardStatus;
+    riskLevel?: RecommendationRiskLevel;
+    scenarioCode?: string;
+    patientId?: string;
+    triggerPoint?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["recommendations", "stats", params ?? {}],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: RecommendationStats }>(
+        "/engine/recommendations/stats",
         { params },
       );
       return data.data;
@@ -2502,6 +2660,8 @@ export interface ContextFieldDescriptor {
   unit?: string | null;
   codeSystem?: string | null;
   description?: string | null;
+  source?: string | null;
+  fieldId?: string | null;
 }
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
@@ -2518,6 +2678,49 @@ export function useContextFieldCatalog(
         { params },
       );
       return data.data;
+    },
+  });
+}
+
+export interface ContextFieldUpsertPayload {
+  category: string;
+  group: string;
+  resourceType: string;
+  fieldPath: string;
+  displayName: string;
+  dataType: string;
+  unit?: string;
+  codeSystem?: string;
+  description?: string;
+}
+
+/** 新增租户自定义上下文字段（P2/P5 前台维护）。 */
+export function useCreateContextField() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ContextFieldUpsertPayload) => {
+      const { data } = await apiClient.post<{ data: ContextFieldDescriptor }>(
+        "/engine/context/field-catalog",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] });
+    },
+  });
+}
+
+/** 删除租户自定义上下文字段（P2/P5 前台维护）。 */
+export function useDeleteContextField() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fieldId: string) => {
+      await apiClient.delete(`/engine/context/field-catalog/${fieldId}`);
+      return fieldId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] });
     },
   });
 }
@@ -4112,8 +4315,26 @@ export interface MpiPatient {
 export interface MpiStatsResponse {
   activeCount: number;
   mergedCount: number;
+  activePathwayCount: number;
   averageAge: number;
   genderCounts: Record<string, number>;
+}
+
+export interface MpiPatientDetailResponse {
+  patient: MpiPatient;
+  latestContextSnapshot?: ContextSnapshotSummary | null;
+  contextSnapshot?: ContextSnapshotResponse | null;
+  activePathwayCount: number;
+  activePathways: PatientPathway[];
+  traceId: string;
+}
+
+export interface MpiPatientCreatePayload {
+  mpiId: string;
+  maskedName: string;
+  gender: "M" | "F" | "UNKNOWN";
+  age: number;
+  idLast4: string;
 }
 
 export interface MpiMergeResult {
@@ -4122,6 +4343,18 @@ export interface MpiMergeResult {
   targetMpiId: string;
   reviewId?: string | null;
   riskLevel?: string | null;
+  message: string;
+}
+
+export interface MpiSplitPayload {
+  sourceMpiId: string;
+  reviewReason: string;
+}
+
+export interface MpiSplitResult {
+  status: "SPLIT" | string;
+  sourceMpiId: string;
+  targetMpiId: string;
   message: string;
 }
 
@@ -4140,6 +4373,18 @@ export function useMpiPatients(
   });
 }
 
+export function useCreateMpiPatient() {
+  return useMutation({
+    mutationFn: async (payload: MpiPatientCreatePayload) => {
+      const { data } = await apiClient.post<{ data: MpiPatient }>(
+        "/api/v1/engine/mpi/patients",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useMpiStats() {
   return useQuery({
     queryKey: ["engine", "mpi", "stats"],
@@ -4147,6 +4392,20 @@ export function useMpiStats() {
       const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/api/v1/engine/mpi/stats");
       return data.data;
     },
+  });
+}
+
+export function useMpiPatientDetail(mpiId?: string) {
+  return useQuery({
+    queryKey: ["engine", "mpi", "patients", mpiId],
+    queryFn: async () => {
+      if (!mpiId) return null;
+      const { data } = await apiClient.get<{ data: MpiPatientDetailResponse }>(
+        `/api/v1/engine/mpi/patients/${mpiId}`,
+      );
+      return data.data;
+    },
+    enabled: !!mpiId,
   });
 }
 
@@ -4159,8 +4418,20 @@ export function useMergeMpiPatients() {
   return useMutation({
     mutationFn: async (payload: MergeMpiPayload) => {
       const { data } = await apiClient.post<{ data: MpiMergeResult }>(
-        "/api/v1/engine/mpi/patients/merge",
+        "/api/v1/engine/mpi/patients:merge",
         payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSplitMpiPatient() {
+  return useMutation({
+    mutationFn: async (payload: MpiSplitPayload) => {
+      const { data } = await apiClient.post<{ data: MpiSplitResult }>(
+        `/api/v1/engine/mpi/patients/${encodeURIComponent(payload.sourceMpiId)}:split`,
+        { reviewReason: payload.reviewReason },
       );
       return data.data;
     },

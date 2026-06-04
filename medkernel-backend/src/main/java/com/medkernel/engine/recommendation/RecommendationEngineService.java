@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
@@ -232,8 +233,7 @@ public class RecommendationEngineService {
     @Transactional(readOnly = true)
     public PageResponse<RecommendationCard> listCards(RecommendationCardFilter filter, PageRequest pageRequest) {
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
-        RecommendationCardFilter f = filter == null ? new RecommendationCardFilter(null, null, null, null, null, null)
-            : filter;
+        RecommendationCardFilter f = normalizeFilter(filter);
         String status = f.status() == null ? null : f.status().name();
         String risk = f.riskLevel() == null ? null : f.riskLevel().name();
         long total = cards.countByFilter(
@@ -245,13 +245,60 @@ public class RecommendationEngineService {
     }
 
     /**
+     * 分页查询医生端临床提醒卡聚合视图，补齐患者、就诊、路径和触发点上下文。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<RecommendationClinicalCardResponse> listClinicalCards(
+            RecommendationCardFilter filter,
+            PageRequest pageRequest) {
+        PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        RecommendationCardFilter f = normalizeFilter(filter);
+        String tenantId = tenantId();
+        String status = f.status() == null ? null : f.status().name();
+        String risk = f.riskLevel() == null ? null : f.riskLevel().name();
+        long total = cards.countByFilter(
+            tenantId, status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint());
+        List<RecommendationClinicalCardResponse> rows = cards.pageByFilter(
+                tenantId, status, risk, f.scenarioCode(), f.patientId(), f.encounterId(), f.triggerPoint(),
+                req.offset(), req.safeSize())
+            .stream()
+            .map(card -> RecommendationClinicalCardResponse.from(card, findTrigger(card.triggerId(), tenantId)))
+            .toList();
+        return PageResponse.of(rows, req, total);
+    }
+
+    /**
+     * 统计当前筛选范围内的推荐提醒闭环状态，供 D4 只读采纳率与疲劳治理分析复用。
+     */
+    @Transactional(readOnly = true)
+    public RecommendationStatsResponse stats(RecommendationCardFilter filter) {
+        RecommendationCardFilter f = normalizeFilter(filter);
+        String tenantId = tenantId();
+        String risk = f.riskLevel() == null ? null : f.riskLevel().name();
+        RecommendationCardStatus requestedStatus = f.status();
+        long total = countByStatus(tenantId, requestedStatus, risk, f);
+        long pending = countBucket(tenantId, RecommendationCardStatus.PENDING, requestedStatus, risk, f);
+        long accepted = countBucket(tenantId, RecommendationCardStatus.ACCEPTED, requestedStatus, risk, f);
+        long rejected = countBucket(tenantId, RecommendationCardStatus.REJECTED, requestedStatus, risk, f);
+        long dismissed = countBucket(tenantId, RecommendationCardStatus.DISMISSED, requestedStatus, risk, f);
+        long deferred = countBucket(tenantId, RecommendationCardStatus.DEFERRED, requestedStatus, risk, f);
+        long suppressed = countBucket(tenantId, RecommendationCardStatus.SUPPRESSED, requestedStatus, risk, f);
+        long expired = countBucket(tenantId, RecommendationCardStatus.EXPIRED, requestedStatus, risk, f);
+        return new RecommendationStatsResponse(
+            total, pending, accepted, rejected, dismissed, deferred, suppressed, expired,
+            rate(accepted, accepted + rejected), traceId());
+    }
+
+    /**
      * 查询推荐卡详情（含来源、反馈、疲劳信号），卡不存在抛 {@code ENG_REC_003}。
      */
     @Transactional(readOnly = true)
     public RecommendationCardDetailResponse cardDetail(String cardId) {
         RecommendationCard card = findCard(cardId);
+        RecommendationTrigger trigger = findTrigger(card.triggerId(), tenantId());
         return new RecommendationCardDetailResponse(
             card,
+            trigger,
             sources.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId()),
             feedback.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId()),
             fatigueSignals.findByCardIdAndTenantIdOrderByCreatedAtAsc(cardId, tenantId())
@@ -365,6 +412,14 @@ public class RecommendationEngineService {
             if (card.sources().isEmpty()) {
                 throw new ApiException(ErrorCode.ENG_REC_005);
             }
+            if (isClinicalRedlineCard(card)) {
+                if (card.interruptLevel() != RecommendationInterruptLevel.STRONG_INTERRUPTIVE) {
+                    throw new ApiException(ErrorCode.CONFLICT, "临床安全红线必须强打断展示");
+                }
+                if (!card.requiresPhysicianConfirmation()) {
+                    throw new ApiException(ErrorCode.CONFLICT, "临床安全红线必须医师确认");
+                }
+            }
             if (card.interruptLevel() == RecommendationInterruptLevel.STRONG_INTERRUPTIVE
                     && !isHighRisk(assessment.riskLevel())) {
                 throw new ApiException(ErrorCode.ENG_REC_001, "强打断推荐必须是高风险或红线风险");
@@ -375,9 +430,28 @@ public class RecommendationEngineService {
 
     private List<AssessedCard> assessCards(String triggerType, List<RecommendationCardRequest> cardRequests) {
         return cardRequests.stream()
-            .map(cardRequest -> new AssessedCard(cardRequest, riskMatrixService.assess(
-                triggerType, cardRequest.riskLevel(), cardRequest.automationLevel())))
+            .map(cardRequest -> new AssessedCard(cardRequest, redlineProtectedAssessment(cardRequest,
+                riskMatrixService.assess(triggerType, cardRequest.riskLevel(), cardRequest.automationLevel()))))
             .toList();
+    }
+
+    private CdssRiskAssessment redlineProtectedAssessment(
+            RecommendationCardRequest cardRequest,
+            CdssRiskAssessment assessment) {
+        if (!isClinicalRedlineCard(cardRequest)) {
+            return assessment;
+        }
+        return new CdssRiskAssessment(
+            assessment.riskMatrixId(),
+            assessment.riskMatrixVersion(),
+            RecommendationRiskLevel.CRITICAL,
+            CdssReviewRequirement.DUAL_REVIEW,
+            Math.max(assessment.silentRunHours(), 0),
+            "OPT04_REDLINE_RUNTIME_GUARD",
+            false,
+            assessment.samdClassification(),
+            assessment.regulatoryEvidence(),
+            "临床安全红线运行时强制提升为最高优先级；" + assessment.explanation());
     }
 
     private RecommendationCard saveCard(RecommendationTrigger trigger, AssessedCard assessedCard,
@@ -429,6 +503,49 @@ public class RecommendationEngineService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_REC_003));
     }
 
+    private RecommendationTrigger findTrigger(String triggerId, String tenantId) {
+        return triggers.findByTriggerIdAndTenantId(triggerId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_REC_002));
+    }
+
+    private RecommendationCardFilter normalizeFilter(RecommendationCardFilter filter) {
+        return filter == null ? new RecommendationCardFilter(null, null, null, null, null, null) : filter;
+    }
+
+    private long countByStatus(
+            String tenantId,
+            RecommendationCardStatus status,
+            String risk,
+            RecommendationCardFilter filter) {
+        return cards.countByFilter(
+            tenantId,
+            status == null ? null : status.name(),
+            risk,
+            filter.scenarioCode(),
+            filter.patientId(),
+            filter.encounterId(),
+            filter.triggerPoint());
+    }
+
+    private long countBucket(
+            String tenantId,
+            RecommendationCardStatus bucket,
+            RecommendationCardStatus requestedStatus,
+            String risk,
+            RecommendationCardFilter filter) {
+        if (requestedStatus != null && requestedStatus != bucket) {
+            return 0L;
+        }
+        return countByStatus(tenantId, bucket, risk, filter);
+    }
+
+    private double rate(long numerator, long denominator) {
+        if (denominator <= 0) {
+            return 0.0;
+        }
+        return Math.round((numerator * 1000.0) / denominator) / 10.0;
+    }
+
     private RecommendationCard rewriteStatus(RecommendationCard card, RecommendationCardStatus status,
                                              Instant now, String actor) {
         return new RecommendationCard(
@@ -471,6 +588,9 @@ public class RecommendationEngineService {
     private boolean shouldSuppress(RecommendationTriggerRequest request, AssessedCard assessedCard,
                                    String tenantId, Instant now) {
         RecommendationCardRequest cardRequest = assessedCard.request();
+        if (isClinicalRedlineCard(cardRequest)) {
+            return false;
+        }
         if (isHighRisk(assessedCard.assessment().riskLevel())) {
             return false;
         }
@@ -512,6 +632,11 @@ public class RecommendationEngineService {
             || card.status() == RecommendationCardStatus.DISMISSED
             || card.status() == RecommendationCardStatus.SUPPRESSED
             || card.status() == RecommendationCardStatus.EXPIRED;
+    }
+
+    private boolean isClinicalRedlineCard(RecommendationCardRequest card) {
+        return card != null && card.sources().stream()
+            .anyMatch(source -> source != null && source.sourceType() == RecommendationSourceType.REDLINE);
     }
 
     private boolean isExpired(RecommendationCard card) {

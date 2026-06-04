@@ -42,6 +42,9 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
   useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
+  useMappingCoverage: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useContextSnapshotDetail: () => ({
     data: apiMocks.snapshotDetailData,
     isLoading: false,
@@ -244,7 +247,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         hit: true,
         severity: "HIGH",
         actionCode: "REVIEW_REQUIRED",
-        explanation: "命中真实快照字段",
+        explanation: { summary: "命中真实快照字段", evidence: ["OBS.TEST"] },
       });
 
       const user = await openDraftRuleDrawer();
@@ -264,7 +267,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           }),
         }),
       );
-      expect(await screen.findByText("命中真实快照字段")).toBeInTheDocument();
+      expect(await screen.findByText(/命中真实快照字段/)).toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

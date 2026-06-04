@@ -396,6 +396,25 @@ public class PathwayEngineService {
     }
 
     /**
+     * 服务端分页查询患者路径运行实例。
+     *
+     * <p>列表只读取当前租户真实运行事实，支持按患者和状态过滤，供患者路径页展示刷新后仍存在的在径实例。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<PatientPathway> listPatientPathways(String patientId,
+                                                            PatientPathwayStatus status,
+                                                            PageRequest page) {
+        PageRequest safePage = page == null ? PageRequest.defaults() : page;
+        String tenantId = requireCurrentTenant();
+        String statusName = status == null ? null : status.name();
+        long total = patientPathways.countByTenantIdAndFilters(tenantId, patientId, statusName);
+        List<PatientPathway> rows = total == 0 ? List.of()
+            : patientPathways.pageByTenantIdAndFilters(
+                tenantId, patientId, statusName, safePage.offset(), safePage.safeSize());
+        return PageResponse.of(rows, safePage, total);
+    }
+
+    /**
      * 装配路径模板详情。
      *
      * <p>返回模板主表、按顺序排列的节点、按优先级排列的边和按节点排列的指标绑定。

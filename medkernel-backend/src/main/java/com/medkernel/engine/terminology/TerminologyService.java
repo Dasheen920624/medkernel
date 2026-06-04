@@ -415,6 +415,39 @@ public class TerminologyService {
         return restored;
     }
 
+    /**
+     * 评估一组标准编码的院内→标准对照覆盖情况（P5 对照覆盖分析，advisory）。
+     *
+     * @param standardSystem 标准字典/编码系统（如 ICD-10）
+     * @param codes          规则/路径引用的标准编码集合
+     * @return 每个编码的覆盖项（去重、保序）
+     */
+    public java.util.List<MappingCoverageItem> evaluateCoverage(
+            String standardSystem, java.util.List<String> codes) {
+        String tenantId = requireCurrentTenant();
+        java.util.LinkedHashSet<String> distinct = new java.util.LinkedHashSet<>();
+        for (String code : codes == null ? java.util.List.<String>of() : codes) {
+            if (code != null && !code.isBlank()) {
+                distinct.add(code.trim());
+            }
+        }
+        java.util.List<MappingCoverageItem> items = new java.util.ArrayList<>();
+        for (String code : distinct) {
+            var standardTerm = standardTermRepository
+                .findByTenantIdAndStandardSystemAndTermCodeAndStatus(
+                    tenantId, standardSystem, code, StandardTermStatus.ACTIVE);
+            int confirmed = standardTerm
+                .map(term -> mappingRepository
+                    .findByTenantIdAndStandardTermIdAndStatus(
+                        tenantId, term.id(), TermMappingStatus.CONFIRMED)
+                    .size())
+                .orElse(0);
+            items.add(new MappingCoverageItem(
+                code, MappingCoverageItem.classify(standardTerm.isPresent(), confirmed), confirmed));
+        }
+        return items;
+    }
+
     private String requireCurrentTenant() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {

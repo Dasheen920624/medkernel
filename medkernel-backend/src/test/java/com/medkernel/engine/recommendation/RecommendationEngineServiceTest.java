@@ -21,6 +21,7 @@ import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -391,6 +392,60 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
+    void evaluateDoesNotSuppressClinicalRedlineSourceEvenIfRiskMatrixIsMisconfiguredLower() {
+        RecommendationSourceRequest redlineSource = new RecommendationSourceRequest(
+            RecommendationSourceType.REDLINE,
+            "redline-ddi-warfarin-nsaid",
+            "2026.2",
+            "华法林合并非甾体抗炎药出血风险",
+            "clinical_redline:redline-ddi-warfarin-nsaid",
+            null,
+            "临床安全红线命中");
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(
+                "REDLINE.RDL-DDI-001.v2026.2",
+                false,
+                RecommendationRiskLevel.CRITICAL,
+                RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
+                true,
+                List.of(redlineSource))),
+            1,
+            24,
+            false);
+        when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.CRITICAL, CdssAutomationLevel.INTERRUPTIVE))
+            .thenReturn(new CdssRiskAssessment(
+                "broken-matrix",
+                "1",
+                RecommendationRiskLevel.LOW,
+                CdssReviewRequirement.OPTIONAL_REVIEW,
+                0,
+                "STANDARD_CHANGE_REVIEW",
+                false,
+                "NMPA_RESERVED",
+                "NOT_ASSESSED",
+                "错误配置不得降低红线优先级"));
+        when(fatiguePolicyResolver.resolve(request))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(1, 24, "CONFIG_CENTER")));
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+                eq("WARD_ORDER:ANTICOAG"), any()))
+            .thenReturn(99L);
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.suppressedCardCount()).isZero();
+        assertThat(response.cards()).singleElement().satisfies(card -> {
+            assertThat(card.cardCode()).isEqualTo("REDLINE.RDL-DDI-001.v2026.2");
+            assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+            assertThat(card.interruptLevel()).isEqualTo(RecommendationInterruptLevel.STRONG_INTERRUPTIVE);
+            assertThat(card.requiresPhysicianConfirmation()).isTrue();
+            assertThat(card.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+            assertThat(card.releaseGate()).isEqualTo("OPT04_REDLINE_RUNTIME_GUARD");
+        });
+        verify(fatigueSignals, never()).countLowValueSignals(any(), any(), any(), any());
+    }
+
+    @Test
     void triggerRejectsCardWithoutSources() {
         RecommendationCardRequest request = cardRequest(
             RecommendationRiskLevel.MEDIUM,
@@ -534,6 +589,99 @@ class RecommendationEngineServiceTest {
         DiagnoseResponse actual = service.diagnose("trigger-1");
 
         assertThat(actual).isSameAs(expected);
+    }
+
+    @Test
+    void clinicalCardsExposeTriggerContextInsteadOfLeakingRawCardEntityShape() {
+        RecommendationTrigger trigger = trigger("trigger-1", RecommendationTriggerStatus.EVALUATED);
+        RecommendationCard card = card("card-1", RecommendationCardStatus.PENDING);
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenReturn(1L);
+        when(cards.pageByFilter("tenant-A", null, null, null, null, null, null, 0, 10))
+            .thenReturn(List.of(card));
+        when(triggers.findByTriggerIdAndTenantId("trigger-1", "tenant-A"))
+            .thenReturn(Optional.of(trigger));
+
+        PageResponse<RecommendationClinicalCardResponse> page = service.listClinicalCards(
+            new RecommendationCardFilter(null, null, null, null, null, null),
+            new com.medkernel.shared.api.PageRequest(1, 10, null));
+
+        assertThat(page.items()).singleElement().satisfies(row -> {
+            assertThat(row.cardId()).isEqualTo("card-1");
+            assertThat(row.patientId()).isEqualTo("patient-1");
+            assertThat(row.encounterId()).isEqualTo("enc-1");
+            assertThat(row.patientPathwayId()).isEqualTo("pathway-1");
+            assertThat(row.scenarioCode()).isEqualTo("WARD_ORDER");
+            assertThat(row.triggerType()).isEqualTo("order-sign");
+            assertThat(row.requiresPhysicianConfirmation()).isTrue();
+        });
+    }
+
+    @Test
+    void cardDetailIncludesTriggerContextAndFeedbackHistoryForRealDoctorSignature() {
+        RecommendationTrigger trigger = trigger("trigger-1", RecommendationTriggerStatus.EVALUATED);
+        RecommendationCard card = card("card-1", RecommendationCardStatus.PENDING);
+        RecommendationFeedback userFeedback = feedback("feedback-1", "card-1");
+        when(cards.findByCardIdAndTenantId("card-1", "tenant-A")).thenReturn(Optional.of(card));
+        when(triggers.findByTriggerIdAndTenantId("trigger-1", "tenant-A"))
+            .thenReturn(Optional.of(trigger));
+        when(feedback.findByCardIdAndTenantIdOrderByCreatedAtAsc("card-1", "tenant-A"))
+            .thenReturn(List.of(userFeedback));
+
+        RecommendationCardDetailResponse detail = service.cardDetail("card-1");
+
+        assertThat(detail.trigger()).isEqualTo(trigger);
+        assertThat(detail.feedback()).singleElement().satisfies(savedFeedback -> {
+            assertThat(savedFeedback.feedbackId()).isEqualTo("feedback-1");
+            assertThat(savedFeedback.operatorId()).isEqualTo("doctor-1");
+        });
+    }
+
+    @Test
+    void recommendationStatsAreComputedFromPersistedCardStatuses() {
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenAnswer(inv -> {
+                String status = inv.getArgument(1);
+                if (status == null) {
+                    return 5L;
+                }
+                return switch (status) {
+                    case "PENDING" -> 1L;
+                    case "ACCEPTED" -> 2L;
+                    case "REJECTED" -> 1L;
+                    case "SUPPRESSED" -> 1L;
+                    default -> 0L;
+                };
+            });
+
+        RecommendationStatsResponse stats = service.stats(
+            new RecommendationCardFilter(null, null, null, null, null, null));
+
+        assertThat(stats.totalCount()).isEqualTo(5L);
+        assertThat(stats.pendingCount()).isEqualTo(1L);
+        assertThat(stats.acceptedCount()).isEqualTo(2L);
+        assertThat(stats.rejectedCount()).isEqualTo(1L);
+        assertThat(stats.suppressedCount()).isEqualTo(1L);
+        assertThat(stats.acceptanceRatePercent()).isEqualTo(66.7);
+        assertThat(stats.traceId()).isEqualTo("trace-rec");
+    }
+
+    @Test
+    void recommendationStatsRespectExplicitStatusFilter() {
+        when(cards.countByFilter(eq("tenant-A"), any(), any(), any(), any(), any(), any()))
+            .thenAnswer(inv -> {
+                String status = inv.getArgument(1);
+                return "PENDING".equals(status) ? 4L : 99L;
+            });
+
+        RecommendationStatsResponse stats = service.stats(
+            new RecommendationCardFilter(RecommendationCardStatus.PENDING, null, null, null, null, null));
+
+        assertThat(stats.totalCount()).isEqualTo(4L);
+        assertThat(stats.pendingCount()).isEqualTo(4L);
+        assertThat(stats.acceptedCount()).isZero();
+        assertThat(stats.rejectedCount()).isZero();
+        assertThat(stats.acceptanceRatePercent()).isZero();
     }
 
     private RecommendationTriggerRequest triggerRequest(List<RecommendationCardRequest> candidateCards) {

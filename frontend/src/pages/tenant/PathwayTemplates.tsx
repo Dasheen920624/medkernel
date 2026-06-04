@@ -38,6 +38,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import {
@@ -543,6 +544,7 @@ export default function PathwayTemplates() {
 
   const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
+  const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
   const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
   const [detailExpertMode, setDetailExpertMode] = useState<boolean>(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -1148,9 +1150,18 @@ export default function PathwayTemplates() {
           <Space direction="vertical" size="middle" className="mk-full-width mb-4">
             <Space className="mk-flex-between mk-full-width">
               <div className="text-sm font-semibold text-gray-800">结构化节点画布</div>
-              <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
-                同步到 DSL
-              </Button>
+              <Space>
+                <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
+                  同步到 DSL
+                </Button>
+                <Button
+                  icon={<ApartmentOutlined />}
+                  aria-label="管理字段目录"
+                  onClick={() => setFieldManagerOpen(true)}
+                >
+                  管理字段目录
+                </Button>
+              </Space>
             </Space>
             <PathwayCanvasPreview
               nodes={canvasNodes}
@@ -2204,6 +2215,8 @@ export default function PathwayTemplates() {
           </div>
         )}
       </Drawer>
+
+      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
     </PageShell>
   );
 }

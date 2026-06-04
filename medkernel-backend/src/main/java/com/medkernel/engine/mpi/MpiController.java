@@ -56,6 +56,26 @@ public class MpiController {
     }
 
     /**
+     * 创建患者主索引。
+     */
+    @PostMapping("/patients")
+    @PreAuthorize("@perm.has('mpi.write')")
+    public ApiResult<MpiPatient> createPatient(@Valid @RequestBody MpiPatientCreateRequest request) {
+        return ApiResult.ok(service.createPatient(request));
+    }
+
+    /**
+     * 获取患者 360 详情。
+     *
+     * <p>返回患者主索引、最新标准上下文快照和活跃路径实例摘要。
+     */
+    @GetMapping("/patients/{mpiId}")
+    @PreAuthorize("@perm.has('mpi.read')")
+    public ApiResult<MpiPatientDetailResponse> patientDetail(@PathVariable String mpiId) {
+        return ApiResult.ok(service.patientDetail(mpiId));
+    }
+
+    /**
      * 获取当前租户下的患者主索引驾驶舱核心指标统计。
      *
      * @return 统一格式的驾驶舱指标统计数据
@@ -72,10 +92,20 @@ public class MpiController {
      * @param request 患者合并请求负载，包含源 MPI ID 与目标 MPI ID
      * @return 合并结果
      */
-    @PostMapping("/patients/merge")
+    @PostMapping({"/patients:merge", "/patients/merge"})
     @PreAuthorize("@perm.has('mpi.write')")
     public ApiResult<MpiMergeResult> mergePatients(@Valid @RequestBody MpiMergeRequest request) {
         return ApiResult.ok(service.mergePatients(request.sourceMpiId(), request.targetMpiId()));
+    }
+
+    /**
+     * 拆分已归并的患者主索引。
+     */
+    @PostMapping({"/patients/{sourceMpiId}:split", "/patients/{sourceMpiId}/split"})
+    @PreAuthorize("@perm.has('mpi.write')")
+    public ApiResult<MpiSplitResult> splitMergedPatient(@PathVariable String sourceMpiId,
+                                                        @Valid @RequestBody MpiSplitRequest request) {
+        return ApiResult.ok(service.splitMergedPatient(sourceMpiId, request));
     }
 
     /**

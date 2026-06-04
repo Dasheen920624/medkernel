@@ -51,9 +51,19 @@ class MpiControllerContractTest {
 
     @Test
     void engineMpiRouteExposesStatsMergeReviewsAndManualConfirm() throws Exception {
-        when(service.getStats()).thenReturn(new MpiStatsResponse(2, 1, 36.5, Map.of("M", 1L, "F", 1L)));
+        when(service.getStats()).thenReturn(new MpiStatsResponse(2, 1, 4, 36.5, Map.of("M", 1L, "F", 1L)));
+        when(service.createPatient(any(MpiPatientCreateRequest.class))).thenReturn(
+            new MpiPatient(1L, "mpi-new", "tenant-A", "李*四", "F", 41, "9876", 0, "ACTIVE",
+                null, Instant.now(), "doctor-a", Instant.now(), "doctor-a")
+        );
+        when(service.patientDetail("mpi-1")).thenReturn(new MpiPatientDetailResponse(
+            new MpiPatient(1L, "mpi-1", "tenant-A", "张*三", "M", 36, "1234", 0, "ACTIVE",
+                null, Instant.now(), "test", Instant.now(), "test"),
+            null, null, 2, List.of(), "trace-mpi"));
         when(service.mergePatients("mpi-source", "mpi-target"))
             .thenReturn(new MpiMergeResult("MERGED", "mpi-source", "mpi-target", null, null, "患者主索引已合并"));
+        when(service.splitMergedPatient(eq("mpi-source"), any(MpiSplitRequest.class)))
+            .thenReturn(new MpiSplitResult("SPLIT", "mpi-source", "mpi-target", "患者主索引合并关系已拆分"));
         when(service.getMergeReviews("PENDING")).thenReturn(List.of(MpiMergeReview.pending(
             "mrv-1", "tenant-A", "mpi-source", "mpi-target", "HIGH", "身份证后四位不一致",
             "doctor-a", Instant.now(), "trace-mpi"
@@ -63,14 +73,38 @@ class MpiControllerContractTest {
 
         mvc.perform(get("/api/v1/engine/mpi/stats").with(readJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.activeCount").value(2));
+            .andExpect(jsonPath("$.data.activeCount").value(2))
+            .andExpect(jsonPath("$.data.activePathwayCount").value(4));
 
-        mvc.perform(post("/api/v1/engine/mpi/patients/merge")
+        mvc.perform(post("/api/v1/engine/mpi/patients")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mpiId\":\"mpi-new\",\"maskedName\":\"李*四\",\"gender\":\"F\",\"age\":41,\"idLast4\":\"9876\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mpiId").value("mpi-new"))
+            .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+
+        mvc.perform(get("/api/v1/engine/mpi/patients/mpi-1").with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.patient.mpiId").value("mpi-1"))
+            .andExpect(jsonPath("$.data.activePathwayCount").value(2))
+            .andExpect(jsonPath("$.data.traceId").value("trace-mpi"));
+
+        mvc.perform(post("/api/v1/engine/mpi/patients:merge")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"sourceMpiId\":\"mpi-source\",\"targetMpiId\":\"mpi-target\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("MERGED"));
+
+        mvc.perform(post("/api/v1/engine/mpi/patients/mpi-source:split")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reviewReason\":\"人工核查后确认不是同一患者\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("SPLIT"))
+            .andExpect(jsonPath("$.data.sourceMpiId").value("mpi-source"))
+            .andExpect(jsonPath("$.data.targetMpiId").value("mpi-target"));
 
         mvc.perform(get("/api/v1/engine/mpi/merge-reviews")
                 .queryParam("status", "PENDING")
