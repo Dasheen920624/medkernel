@@ -46,6 +46,7 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
         ObjectNode event = root.putObject("event");
         event.put("eventId", context.eventId());
         event.put("eventType", context.eventType().name());
+        event.put("triggerPoint", context.triggerPoint());
         event.put("sourceSystem", context.sourceSystem());
         event.put("triggerSource", context.triggerSource());
         event.put("occurredAt", context.occurredAt().toString());

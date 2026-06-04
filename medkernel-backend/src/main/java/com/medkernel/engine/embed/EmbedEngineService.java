@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -26,11 +27,16 @@ import com.medkernel.shared.context.RequestContext;
 public class EmbedEngineService {
 
     private static final int DEFAULT_EXPIRE_SECONDS = 60;
+    private static final String LAUNCH_ENDPOINT = "/api/v1/engine/embed/launch";
+    private static final String CDS_HOOK_VERSION = "1.0";
+    private static final String HOST_CALLBACK_NOT_CONFIGURED = "HOST_CALLBACK_NOT_CONFIGURED";
 
     private final EmbedLaunchTokenRepository tokenRepo;
     private final EmbedOriginWhitelistRepository originRepo;
     private final AuditEventPublisher auditPublisher;
     private final IsolatedAuditPublisher isolatedAudit;
+
+    private record LaunchContract(String triggerPoint, String hook, String hookInstance) {}
 
     public EmbedEngineService(EmbedLaunchTokenRepository tokenRepo,
                               EmbedOriginWhitelistRepository originRepo,
@@ -54,11 +60,18 @@ public class EmbedEngineService {
         String createdBy = RequestContext.currentUserId().orElse("system");
         String traceId = RequestContext.currentTraceId();
 
+        String triggerPoint = requireSupportedCdsHook(req.triggerPoint(), "签发嵌入令牌触发点");
+        String hook = requireSupportedCdsHook(req.hook(), "签发嵌入令牌 CDS Hook");
+        requireSameCdsHook(triggerPoint, hook, "签发嵌入令牌");
+
         String tokenValue = "tkn-" + UUID.randomUUID().toString().replace("-", "");
         int expireSec = req.expireSeconds() != null && req.expireSeconds() > 0 ? req.expireSeconds() : DEFAULT_EXPIRE_SECONDS;
         Instant now = Instant.now();
         Instant expiredAt = now.plusSeconds(expireSec);
 
+        String hookInstance = req.hookInstance() == null || req.hookInstance().isBlank()
+            ? traceId
+            : req.hookInstance();
         EmbedLaunchToken entity = new EmbedLaunchToken(
             null,
             tokenValue,
@@ -67,14 +80,18 @@ public class EmbedEngineService {
             req.roleCode(),
             req.patientId(),
             req.encounterId(),
-            req.triggerPoint(),
+            triggerPoint,
             "UNUSED",
             expiredAt,
             now,
             createdBy,
             now,
             createdBy,
-            traceId
+            traceId,
+            req.integrationMode().name(),
+            hook,
+            hookInstance,
+            null
         );
         tokenRepo.save(entity);
 
@@ -82,9 +99,10 @@ public class EmbedEngineService {
         String embedUrl = String.format("/embed/launch?token=%s", tokenValue);
 
         auditPublisher.publish(AuditAction.CREATE, "embed_launch_token", tokenValue,
-            "生成嵌入启动令牌 triggerPoint=" + req.triggerPoint() + " patientId=" + req.patientId());
+            "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
 
-        return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl);
+        return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl,
+            req.integrationMode(), LAUNCH_ENDPOINT, hook);
     }
 
     /**
@@ -95,54 +113,50 @@ public class EmbedEngineService {
      * @return 会话及关联的临床上下文
      */
     @Transactional
-    public EmbedLaunchContextResponse validateAndExchange(String token, String originHeader) {
-        EmbedLaunchToken entity = tokenRepo.findByToken(token)
+    public EmbedLaunchContextResponse validateAndExchange(EmbedLaunchRequest request, String originHeader) {
+        EmbedLaunchToken entity = tokenRepo.findByToken(request.token())
             .orElseThrow(() -> {
-                publishFailureAudit(ErrorCode.ENG_EMBED_004, "启动令牌不存在 token=" + token);
+                publishFailureAudit(ErrorCode.ENG_EMBED_004, "启动令牌不存在 token=" + request.token());
                 return new ApiException(ErrorCode.ENG_EMBED_004, "启动令牌不存在");
             });
 
         String tenantId = entity.tenantId();
-
-        // 1. 域名白名单校验
-        if (originHeader != null && !originHeader.isBlank()) {
-            boolean allowed = originRepo.findByTenantIdAndOrigin(tenantId, originHeader).isPresent();
-            if (!allowed) {
-                publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + originHeader);
-                throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + originHeader);
-            }
-        }
+        requireAllowedOrigin(tenantId, originHeader, request.token());
+        LaunchContract contract = validateLaunchContract(request, entity);
 
         // 2. 令牌状态与时效性校验
-        if ("USED".equalsIgnoreCase(entity.status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动令牌已被使用 token=" + token);
+        if (EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动令牌已被使用 token=" + request.token());
             throw new ApiException(ErrorCode.ENG_EMBED_003, "启动令牌已被使用");
         }
 
-        if ("EXPIRED".equalsIgnoreCase(entity.status()) || Instant.now().isAfter(entity.expiredAt())) {
-            if ("UNUSED".equalsIgnoreCase(entity.status())) {
+        Instant now = Instant.now();
+        if (EmbedLaunchTokenStatus.EXPIRED.name().equalsIgnoreCase(entity.status()) || !now.isBefore(entity.expiredAt())) {
+            if (EmbedLaunchTokenStatus.UNUSED.name().equalsIgnoreCase(entity.status())) {
                 EmbedLaunchToken expired = new EmbedLaunchToken(
                     entity.id(), entity.token(), entity.tenantId(), entity.userId(), entity.roleCode(),
-                    entity.patientId(), entity.encounterId(), entity.triggerPoint(), "EXPIRED",
-                    entity.expiredAt(), entity.createdAt(), entity.createdBy(), Instant.now(), entity.updatedBy(),
-                    entity.traceId()
+                    entity.patientId(), entity.encounterId(), entity.triggerPoint(), EmbedLaunchTokenStatus.EXPIRED.name(),
+                    entity.expiredAt(), entity.createdAt(), entity.createdBy(), now, actor(),
+                    entity.traceId(), entity.integrationMode(), entity.hook(), entity.hookInstance(), entity.consumedAt()
                 );
                 tokenRepo.save(expired);
             }
-            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动令牌已过期 token=" + token);
+            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动令牌已过期 token=" + request.token());
             throw new ApiException(ErrorCode.ENG_EMBED_001, "启动令牌已过期");
         }
 
-        // 3. 原子标记为已使用，实现一次性物理消费
-        EmbedLaunchToken used = new EmbedLaunchToken(
-            entity.id(), entity.token(), entity.tenantId(), entity.userId(), entity.roleCode(),
-            entity.patientId(), entity.encounterId(), entity.triggerPoint(), "USED",
-            entity.expiredAt(), entity.createdAt(), entity.createdBy(), Instant.now(), entity.updatedBy(),
-            entity.traceId()
-        );
-        tokenRepo.save(used);
+        if (!EmbedLaunchTokenStatus.UNUSED.name().equalsIgnoreCase(entity.status())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动令牌状态不允许消费 token=" + request.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "启动令牌状态不允许消费");
+        }
 
-        auditPublisher.publish(AuditAction.EXECUTE, "embed_launch_token", token,
+        // 3. 原子标记为已使用，实现一次性物理消费
+        int consumed = tokenRepo.consumeUnusedToken(request.token(), tenantId, now, now, actor());
+        if (consumed != 1) {
+            throw classifyFailedAtomicConsume(request.token(), tenantId);
+        }
+
+        auditPublisher.publish(AuditAction.EXECUTE, "embed_launch_token", request.token(),
             "消费嵌入令牌成功 userId=" + entity.userId() + " triggerPoint=" + entity.triggerPoint());
 
         return new EmbedLaunchContextResponse(
@@ -151,9 +165,15 @@ public class EmbedEngineService {
             entity.tenantId(),
             entity.patientId(),
             entity.encounterId(),
-            entity.triggerPoint(),
+            contract.triggerPoint(),
             true,
-            entity.traceId()
+            entity.traceId(),
+            parseIntegrationMode(entity.integrationMode()),
+            contract.hook(),
+            contract.hookInstance(),
+            EmbedModelStatus.MODEL_DISABLED,
+            EmbedConnectionStatus.CONNECTED,
+            CDS_HOOK_VERSION
         );
     }
 
@@ -163,17 +183,24 @@ public class EmbedEngineService {
      * @param req 反馈请求参数
      */
     @Transactional
-    public void feedback(EmbedFeedbackRequest req) {
+    public EmbedFeedbackResponse feedback(EmbedFeedbackRequest req) {
+        EmbedFeedbackActionType actionType = requireSupportedFeedbackAction(req.actionType());
         EmbedLaunchToken entity = tokenRepo.findByToken(req.token())
             .orElseThrow(() -> {
                 publishFailureAudit(ErrorCode.ENG_EMBED_004, "提交反馈失败，启动令牌不存在 token=" + req.token());
                 return new ApiException(ErrorCode.ENG_EMBED_004, "启动令牌不存在");
             });
+        if (!EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "提交反馈失败，令牌未完成一次性消费 token=" + req.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "令牌未完成一次性消费，拒绝反馈回调");
+        }
 
         // 记录闭环反馈审计事件
         auditPublisher.publish(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
             String.format("医生提交交互反馈 actionType=%s reason=%s patientId=%s",
-                req.actionType(), req.reason() != null ? req.reason() : "", entity.patientId()));
+                actionType.name(), req.reason() != null ? req.reason() : "", entity.patientId()));
+        return new EmbedFeedbackResponse(req.token(), actionType.name(), EmbedConnectionStatus.NOT_CONNECTED,
+            false, HOST_CALLBACK_NOT_CONFIGURED, entity.traceId());
     }
 
     /**
@@ -226,6 +253,115 @@ public class EmbedEngineService {
             throw ApiException.tenantMissing();
         }
         return scope.tenantId();
+    }
+
+    private String actor() {
+        return RequestContext.currentUserId().orElse("system");
+    }
+
+    private LaunchContract validateLaunchContract(EmbedLaunchRequest request, EmbedLaunchToken entity) {
+        EmbedIntegrationMode tokenMode = parseIntegrationMode(entity.integrationMode());
+        if (request.integrationMode() != tokenMode) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                "嵌入方式不匹配 token=" + request.token() + " expected=" + tokenMode
+                    + " actual=" + request.integrationMode());
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入方式与启动令牌不匹配");
+        }
+        String tokenTriggerPoint = requireSupportedCdsHook(entity.triggerPoint(), "启动令牌触发点");
+        String tokenHook = hasText(entity.hook())
+            ? requireSupportedCdsHook(entity.hook(), "启动令牌 CDS Hook")
+            : tokenTriggerPoint;
+        requireSameCdsHook(tokenTriggerPoint, tokenHook, "启动令牌");
+        String requestHook = hasText(request.hook())
+            ? requireSupportedCdsHook(request.hook(), "兑换请求 CDS Hook")
+            : tokenHook;
+        if (!requestHook.equals(tokenHook)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                "CDS Hook 不匹配 token=" + request.token() + " expected=" + tokenHook
+                    + " actual=" + requestHook);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 与启动令牌不匹配");
+        }
+        if (hasText(request.hookInstance()) && hasText(entity.hookInstance())
+                && !request.hookInstance().equals(entity.hookInstance())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                "CDS Hook 实例不匹配 token=" + request.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 实例与启动令牌不匹配");
+        }
+        String hookInstance = hasText(entity.hookInstance()) ? entity.hookInstance() : request.hookInstance();
+        return new LaunchContract(tokenTriggerPoint, tokenHook, hookInstance);
+    }
+
+    private void requireAllowedOrigin(String tenantId, String originHeader, String token) {
+        if (!hasText(originHeader)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息 token=" + token);
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息");
+        }
+        String origin = originHeader.trim();
+        boolean allowed = originRepo.findByTenantIdAndOrigin(tenantId, origin).isPresent();
+        if (!allowed) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + origin);
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + origin);
+        }
+    }
+
+    private ApiException classifyFailedAtomicConsume(String token, String tenantId) {
+        Optional<EmbedLaunchToken> current = tokenRepo.findByToken(token)
+            .filter(t -> tenantId.equals(t.tenantId()));
+        if (current.isPresent() && EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(current.get().status())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动令牌已被并发使用 token=" + token);
+            return new ApiException(ErrorCode.ENG_EMBED_003, "启动令牌已被使用");
+        }
+        if (current.isPresent() && Instant.now().isAfter(current.get().expiredAt())) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动令牌并发消费时已过期 token=" + token);
+            return new ApiException(ErrorCode.ENG_EMBED_001, "启动令牌已过期");
+        }
+        publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动令牌原子消费失败 token=" + token);
+        return new ApiException(ErrorCode.ENG_EMBED_005, "启动令牌无法完成原子消费");
+    }
+
+    private EmbedIntegrationMode parseIntegrationMode(String value) {
+        if (!hasText(value)) {
+            return EmbedIntegrationMode.IFRAME;
+        }
+        try {
+            return EmbedIntegrationMode.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入方式不受支持: " + value);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String requireSupportedCdsHook(String value, String label) {
+        if (!hasText(value)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, label + "缺失");
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + "缺失");
+        }
+        try {
+            return CdsHookContract.requireSupportedHook(value).wireValue();
+        } catch (ApiException ex) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内 value=" + value);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内");
+        }
+    }
+
+    private void requireSameCdsHook(String triggerPoint, String hook, String label) {
+        if (!triggerPoint.equals(hook)) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005,
+                label + " triggerPoint 与 CDS Hook 不一致 triggerPoint=" + triggerPoint + " hook=" + hook);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, label + " triggerPoint 与 CDS Hook 不一致");
+        }
+    }
+
+    private EmbedFeedbackActionType requireSupportedFeedbackAction(String value) {
+        try {
+            return EmbedFeedbackActionType.fromWireValue(value);
+        } catch (IllegalArgumentException ex) {
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "嵌入反馈动作不受支持 actionType=" + value);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入反馈动作不受支持");
+        }
     }
 
     private void publishFailureAudit(ErrorCode code, String summary) {

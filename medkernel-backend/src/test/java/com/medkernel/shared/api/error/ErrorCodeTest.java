@@ -228,6 +228,11 @@ class ErrorCodeTest {
             assertThat(code.errorClass()).isEqualTo(ErrorClass.DATA);
             assertThat(code.retryable()).isFalse();
         });
+        assertThat(ErrorCode.fromCode("ENG-REC-007")).hasValueSatisfying(code -> {
+            assertThat(code.httpStatus()).isEqualTo(400);
+            assertThat(code.errorClass()).isEqualTo(ErrorClass.INPUT);
+            assertThat(code.retryable()).isFalse();
+        });
     }
 
     @Test

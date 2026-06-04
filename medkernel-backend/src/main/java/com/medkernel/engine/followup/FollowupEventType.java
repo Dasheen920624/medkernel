@@ -5,5 +5,6 @@ package com.medkernel.engine.followup;
  */
 public enum FollowupEventType {
     ABNORMAL_RETURN,
+    NOTIFICATION_REQUESTED,
     RESULT_INFLOW
 }

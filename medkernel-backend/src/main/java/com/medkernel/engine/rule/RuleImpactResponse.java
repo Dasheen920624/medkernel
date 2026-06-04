@@ -5,8 +5,8 @@ import java.util.List;
 /**
  * 规则发布前影响分析响应。
  *
- * <p>{@code analysisStatus=PARTIAL} 表示当前仅能从规则库自身给出真实影响对象；
- * 缺少跨域反向索引的范围必须在 {@code unavailableScopes} 中明示。
+ * <p>{@code analysisStatus=COMPLETE} 表示路径、在径患者和同步目标索引均已查询；
+ * {@code PARTIAL} 表示当前运行时缺少某类索引，必须在 {@code unavailableScopes} 中明示。
  */
 public record RuleImpactResponse(
     String ruleId,

@@ -35,6 +35,7 @@ class ClinicalEventControllerSecurityTest {
           "encounterId": "ENC-1",
           "sourceSystem": "HIS",
           "packageVersion": "kpv-1",
+          "triggerPoint": "patient-view",
           "occurredAt": "2026-05-27T01:00:00Z",
           "payload": {"diagnosisCode": "I21.0"}
         }
@@ -67,6 +68,54 @@ class ClinicalEventControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/events/async")
                 .contentType("application/json")
                 .content(VALID_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void itOpsCanReachClinicalEventsCustomerPathButDataScopeFailsOnMissingTenant() throws Exception {
+        when(service.receive(any())).thenReturn(accepted());
+        mvc.perform(post("/api/v1/engine/clinical-events")
+                .contentType("application/json")
+                .content(VALID_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void itOpsCanReachClinicalEventsBatchSuffixPathButDataScopeFailsOnMissingTenant() throws Exception {
+        when(service.receiveBatch(any())).thenReturn(
+            new ClinicalEventBatchResponse("batch-1", java.util.List.of(), java.util.List.of(),
+                0, 0, 0, ClinicalEventBatchStatus.COMPLETED, "trace"));
+        mvc.perform(post("/api/v1/engine/clinical-events:batch")
+                .contentType("application/json")
+                .content("{\"events\":[" + VALID_BODY + "]}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void itOpsCanReachClinicalEventsReplaySuffixPathButDataScopeFailsOnMissingTenant() throws Exception {
+        when(service.replay(anyString())).thenReturn(
+            new ClinicalEventReplayResponse("evt-1", "evt-replay-1",
+                ClinicalEventStatus.RECEIVED, "trace"));
+        mvc.perform(post("/api/v1/engine/clinical-events:replay")
+                .contentType("application/json")
+                .content("{\"sourceEventId\":\"evt-1\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void itOpsCanReachClinicalEventsDeadLetterReplayButDataScopeFailsOnMissingTenant() throws Exception {
+        when(service.replayDeadLetter(anyString())).thenReturn(
+            new ClinicalEventReplayResponse("evt-dead", "evt-replay-1",
+                ClinicalEventStatus.RECEIVED, "trace"));
+        mvc.perform(post("/api/v1/engine/clinical-events/dead-letter/evt-dead/replay"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

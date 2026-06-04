@@ -17,6 +17,8 @@ public interface ClinicalEventRepository extends ListCrudRepository<ClinicalEven
 
     Optional<ClinicalEvent> findByEventIdAndTenantId(String eventId, String tenantId);
 
+    Optional<ClinicalEvent> findByTenantIdAndIdempotencyKey(String tenantId, String idempotencyKey);
+
     @Query("""
         SELECT * FROM clinical_event
         WHERE tenant_id = :tenantId

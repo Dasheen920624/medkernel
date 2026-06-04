@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   App as AntdApp,
   Alert,
+  AutoComplete,
   Badge,
   Button,
   Card,
@@ -47,6 +48,7 @@ import {
   useAddTestCase,
   useSimulateRule,
   usePublishRule,
+  useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
   useRuleImpact,
@@ -61,6 +63,8 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
+import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -348,7 +352,9 @@ function impactCount(list?: RuleImpactObject[]) {
 
 function releaseImpactStatus(impact?: RuleImpactResponse | null) {
   if (!impact) return "未读取";
-  return impact.analysisStatus === "PARTIAL" ? "部分影响已确认" : impact.analysisStatus;
+  if (impact.analysisStatus === "COMPLETE") return "已完成真实影响分析";
+  if (impact.analysisStatus === "PARTIAL") return "部分影响已确认";
+  return impact.analysisStatus;
 }
 
 export default function RuleDefinitions() {
@@ -953,20 +959,58 @@ export default function RuleDefinitions() {
         </Col>
         <Col span={16}>
           <Form.Item label="比较值" htmlFor={isFirstLeaf ? "rule-condition-value" : undefined}>
-            <Input
-              id={isFirstLeaf ? "rule-condition-value" : undefined}
-              value={String(condition.value ?? "")}
-              onChange={(event) => updateCondition(condition.id, { value: event.target.value })}
-              placeholder={
-                condition.valueKind === "list"
-                  ? "多个值用英文逗号分隔"
-                  : "输入来自已审核规则来源的比较值"
-              }
-            />
+            {fieldByPath.get(condition.fact)?.codeSystem && condition.valueKind !== "list" ? (
+              <StandardTermValueAutoComplete
+                id={isFirstLeaf ? "rule-condition-value" : undefined}
+                codeSystem={fieldByPath.get(condition.fact)?.codeSystem ?? ""}
+                value={String(condition.value ?? "")}
+                onChange={(next) => updateCondition(condition.id, { value: next })}
+              />
+            ) : (
+              <Input
+                id={isFirstLeaf ? "rule-condition-value" : undefined}
+                value={String(condition.value ?? "")}
+                onChange={(event) => updateCondition(condition.id, { value: event.target.value })}
+                placeholder={
+                  condition.valueKind === "list"
+                    ? "多个值用英文逗号分隔"
+                    : "输入来自已审核规则来源的比较值"
+                }
+              />
+            )}
           </Form.Item>
         </Col>
       </Row>
     );
+  };
+
+  const fieldCatalogQuery = useContextFieldCatalog();
+  const fieldCatalogList = fieldCatalogQuery.data ?? [];
+  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
+  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  // 选中字段时按目录 dataType 自动带出比较值类型，降低手填出错。
+  const dataTypeToValueKind = (dataType?: string): RuleValueKind => {
+    switch (dataType) {
+      case "number":
+        return "number";
+      case "boolean":
+        return "boolean";
+      case "list":
+        return "list";
+      default:
+        return "string";
+    }
+  };
+  const handleFactSelect = (conditionId: string, fieldPath: string) => {
+    const descriptor = fieldByPath.get(fieldPath);
+    if (!descriptor) {
+      updateCondition(conditionId, { fact: fieldPath });
+      return;
+    }
+    updateCondition(conditionId, {
+      fact: fieldPath,
+      valueKind: dataTypeToValueKind(descriptor.dataType),
+    });
   };
 
   const firstLeafId = ((): string | undefined => {
@@ -1012,11 +1056,18 @@ export default function RuleDefinitions() {
               label="上下文字段路径"
               htmlFor={isFirstLeaf ? "rule-condition-fact" : undefined}
             >
-              <Input
+              <AutoComplete
                 id={isFirstLeaf ? "rule-condition-fact" : undefined}
                 value={condition.fact}
-                onChange={(event) => updateCondition(condition.id, { fact: event.target.value })}
-                placeholder="如 observations.0.value"
+                options={fieldCatalogOptions}
+                filterOption={(input, option) => {
+                  const leaf = option as { value?: string; label?: string } | undefined;
+                  const haystack = `${leaf?.value ?? ""} ${leaf?.label ?? ""}`.toLowerCase();
+                  return haystack.includes(input.toLowerCase());
+                }}
+                onSelect={(value) => handleFactSelect(condition.id, value)}
+                onChange={(value) => updateCondition(condition.id, { fact: value })}
+                placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
               />
             </Form.Item>
           </Col>
@@ -1046,17 +1097,15 @@ export default function RuleDefinitions() {
     );
   };
 
-  const renderConditionGroup = (group: RuleConditionGroup, isRoot: boolean) => {
+  const renderConditionGroup = (group: RuleConditionGroup, depth = 0) => {
+    const isRoot = depth === 0;
     const depthReached = rootDepth(conditionRoot) >= MAX_TREE_DEPTH;
+    // 根组用中性白底；子组按深度加淡绿底 + 左边线 + 缩进，使嵌套层级清晰可读。
+    const groupClassName = isRoot
+      ? "rounded-lg border border-gray-200 bg-white p-4"
+      : "rounded-lg border border-emerald-100 bg-emerald-50/30 p-3 ml-4 border-l-4 border-l-emerald-300";
     return (
-      <div
-        key={group.id}
-        className={
-          isRoot
-            ? "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4"
-            : "rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 ml-4 border-l-4 border-l-emerald-300"
-        }
-      >
+      <div key={group.id} className={groupClassName}>
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <Tag color="green">{isRoot ? "条件根组" : "子条件组"}</Tag>
           <Select
@@ -1093,7 +1142,7 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size="small" className="mk-full-width">
           {group.children.map((child) =>
             isConditionGroup(child)
-              ? renderConditionGroup(child, false)
+              ? renderConditionGroup(child, depth + 1)
               : renderConditionLeaf(child),
           )}
           <Space wrap>
@@ -1534,6 +1583,9 @@ export default function RuleDefinitions() {
         {impactCount(impactQuery.data?.syncTargets)}
       </Descriptions.Item>
       {renderImpactObjectList("已定位规则", impactQuery.data?.affectedRules ?? [])}
+      {renderImpactObjectList("受影响路径", impactQuery.data?.affectedPathways ?? [])}
+      {renderImpactObjectList("在径患者", impactQuery.data?.inPathPatients ?? [])}
+      {renderImpactObjectList("同步目标", impactQuery.data?.syncTargets ?? [])}
       <Descriptions.Item label="不可用范围">
         {impactQuery.data?.unavailableScopes?.length ? (
           <Space wrap>
@@ -1577,7 +1629,7 @@ export default function RuleDefinitions() {
           type="warning"
           showIcon
           message="高危规则必须携带当前影响摘要和审核说明。"
-          description="影响摘要来自规则影响分析接口；跨域反向索引未接入的范围会明示为不可用，不会在前端补造路径、患者或同步目标。"
+          description="影响摘要来自规则影响分析接口；路径、在径患者和同步目标只展示后端从关系库定位到的真实对象。"
         />
       )}
       {impactSummaryPanel}
@@ -1979,7 +2031,7 @@ export default function RuleDefinitions() {
             description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
           />
 
-          {renderConditionGroup(conditionRoot, true)}
+          {renderConditionGroup(conditionRoot, 0)}
 
           <Descriptions bordered column={2} size="small">
             <Descriptions.Item label="动作代码">

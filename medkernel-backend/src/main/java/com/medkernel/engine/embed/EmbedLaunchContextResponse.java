@@ -11,5 +11,25 @@ public record EmbedLaunchContextResponse(
     String encounterId,
     String triggerPoint,
     boolean active,
-    String traceId
-) {}
+    String traceId,
+    EmbedIntegrationMode integrationMode,
+    String hook,
+    String hookInstance,
+    EmbedModelStatus modelStatus,
+    EmbedConnectionStatus connectionStatus,
+    String cdsHookVersion
+) {
+    public EmbedLaunchContextResponse(
+            String userId,
+            String roleCode,
+            String tenantId,
+            String patientId,
+            String encounterId,
+            String triggerPoint,
+            boolean active,
+            String traceId) {
+        this(userId, roleCode, tenantId, patientId, encounterId, triggerPoint, active, traceId,
+            EmbedIntegrationMode.IFRAME, triggerPoint, traceId, EmbedModelStatus.MODEL_DISABLED,
+            EmbedConnectionStatus.CONNECTED, "1.0");
+    }
+}

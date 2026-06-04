@@ -3,6 +3,7 @@ package com.medkernel.engine.pathway;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -29,4 +30,23 @@ public interface PathwayNodeRepository extends ListCrudRepository<PathwayNode, L
      * 查询模板节点列表，并按画布顺序升序排列。
      */
     List<PathwayNode> findByTemplateIdAndTenantIdOrderBySortOrderAsc(String templateId, String tenantId);
+
+    /**
+     * 查询可能引用指定规则的路径节点候选，调用方必须再解析 JSON 做精确确认。
+     */
+    @Query("""
+        SELECT * FROM pathway_node
+        WHERE tenant_id = :tenantId
+          AND (
+            dependency_json LIKE '%' || :ruleId || '%'
+            OR dependency_json LIKE '%' || :ruleCode || '%'
+            OR dependency_json LIKE '%' || :versionId || '%'
+            OR config_json LIKE '%' || :ruleId || '%'
+            OR config_json LIKE '%' || :ruleCode || '%'
+            OR config_json LIKE '%' || :versionId || '%'
+          )
+        ORDER BY template_id ASC, sort_order ASC, id ASC
+        """)
+    List<PathwayNode> findByTenantIdAndRuleReference(
+        String tenantId, String ruleId, String ruleCode, String versionId);
 }

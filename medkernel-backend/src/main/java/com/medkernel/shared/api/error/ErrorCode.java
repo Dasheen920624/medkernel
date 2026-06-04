@@ -84,6 +84,7 @@ public enum ErrorCode {
     ENG_REC_004("ENG-REC-004", 409, "推荐卡当前状态不允许反馈", ErrorClass.DATA, false),
     ENG_REC_005("ENG-REC-005", 400, "推荐来源解释不完整", ErrorClass.INPUT, false),
     ENG_REC_006("ENG-REC-006", 409, "高风险推荐缺少医师确认门禁", ErrorClass.DATA, false),
+    ENG_REC_007("ENG-REC-007", 400, "推荐反馈缺少结构化原因", ErrorClass.INPUT, false),
 
     ENG_EVAL_001("ENG-EVAL-001", 400, "评估指标或运行请求校验失败", ErrorClass.INPUT, false),
     ENG_EVAL_002("ENG-EVAL-002", 404, "评估指标不存在", ErrorClass.DATA, false),
@@ -113,6 +114,7 @@ public enum ErrorCode {
     ENG_EMBED_002("ENG-EMBED-002", 400, "非法的 Origin 域名", ErrorClass.INPUT, false),
     ENG_EMBED_003("ENG-EMBED-003", 409, "启动令牌已被使用", ErrorClass.DATA, false),
     ENG_EMBED_004("ENG-EMBED-004", 404, "启动令牌不存在", ErrorClass.DATA, false),
+    ENG_EMBED_005("ENG-EMBED-005", 409, "启动令牌状态或嵌入契约不匹配", ErrorClass.DATA, false),
     ENG_LLM_001("ENG-LLM-001", 400, "能力尚未在该组织激活或不可用", ErrorClass.INPUT, false),
     ENG_LLM_002("ENG-LLM-002", 422, "模型输出不匹配期望结构Schema", ErrorClass.DATA, false),
     ENG_LLM_003("ENG-LLM-003", 504, "调用模型接口超时", ErrorClass.EXTERNAL, true),

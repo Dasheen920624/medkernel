@@ -79,6 +79,8 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.simulatePathway,
     isPending: false,
   }),
+  useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
+  useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
   useContextSnapshots: () => ({
     data: apiMocks.snapshotsData,
     isLoading: false,

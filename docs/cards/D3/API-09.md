@@ -18,11 +18,11 @@
 已有实质基础：`engine/followup/` 下 `FollowupEngineController` / `FollowupEngineService` + `FollowupEvent(+Repository)` + `FollowupAbnormalReportRequest` + 安全/契约测试。本卡＝把控制器契约化为统一 API（计划/任务/问卷/异常/回流），生成逻辑归 [FOLLOW-01](FOLLOW-01.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 计划/任务：按患者取随访计划与任务列表（[API-13](../D0/API-13.md) 分页）。
-- [ ] FR-2 问卷：下发问卷、回收作答，结构化存储。
-- [ ] FR-3 异常回院：异常事件（`FollowupAbnormalReportRequest`）触发回院任务 + 通知。
-- [ ] FR-4 结果回流：随访结果回流到患者上下文（[API-01](../D2/API-01.md)），可被后续命中消费。
-- [ ] FR-5 幂等/降级：任务下发幂等；模型不可用时按确定性计划仍可跑。
+- [x] FR-1 计划/任务：按患者取随访计划与任务列表（[API-13](../D0/API-13.md) 分页）。
+- [x] FR-2 问卷：下发问卷、回收作答，结构化存储。
+- [x] FR-3 异常回院：异常事件（`FollowupAbnormalReportRequest`）触发回院任务 + 通知。
+- [x] FR-4 结果回流：随访结果回流到患者上下文（[API-01](../D2/API-01.md)），可被后续命中消费。
+- [x] FR-5 幂等/降级：任务下发幂等；模型不可用时按确定性计划仍可跑。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -33,6 +33,7 @@
 
 ## 数据与迁移
 - 复用 `FollowupEvent` 表族（[FOLLOW-01](FOLLOW-01.md) 归属）+ 问卷/作答/结果表；五方言（[BASE-05](../D0/BASE-05.md)）
+- V69 五方言补齐随访幂等键、问卷计划 / 模板 / 答案 / 提交人字段、返院任务 / 通知事件索引与中文 COMMENT；当前运行保障 H2 / PostgreSQL / Oracle，达梦 / 人大金仓真实环境仍归 [DEFER-001](../../audit/deferred-issues.md) 最终适配。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：随访对外契约层（生成归引擎 [FOLLOW-01](FOLLOW-01.md)）。
@@ -52,14 +53,19 @@
 - 本卡落点：随访计划/任务/问卷/异常/回流的真实契约，生成归 [FOLLOW-01](FOLLOW-01.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：计划/任务/问卷列表与作答正确。
-- [ ] AC-2（FR-3/4）：异常回院触发任务 + 通知；结果回流可被消费。
-- [ ] AC-3（FR-5）：任务幂等；关模型确定性计划可跑。
+- [x] AC-1（FR-1/2）：计划/任务/问卷列表与作答正确。
+- [x] AC-2（FR-3/4）：异常回院触发任务 + 通知；结果回流可被消费。
+- [x] AC-3（FR-5）：任务幂等；关模型确定性计划可跑。
 - 关联 A1–A9 剧本：A7 随访接续。
 - T-GATE：后端真实性门禁全绿（无伪造作答 / 不写死人群）。
 - B0 验收：关模型随访契约仍可用。
 
 ## 完工证据
-- 代码 permalink：`engine/followup` 控制器契约化 + 问卷/异常/回流。
-- 测试：异常回院 / 结果回流 / 降级 + 安全测试。
+- 代码 permalink：`engine/followup` 控制器契约化 + 问卷/异常/回流；`docs/contracts/events/followup-event.v1.json` 同步 `FollowupEvent.idempotencyKey`。
+- TDD 红灯：`mvn -q -Dtest=FollowupEngineServiceTest,FollowupEngineControllerTest,FollowupEngineControllerSecurityTest test` 先失败于 API-09 DTO / 筛选 / 幂等 / 回流方法缺失。
+- 聚焦测试：`mvn -q -Dtest=FollowupEngineServiceTest,FollowupEngineControllerTest,FollowupEngineControllerSecurityTest test` 通过。
+- 迁移 / 跨模块：`mvn -q -Dtest=OpenApiContractConfigurationTest,ServiceContractGovernanceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,EngineEndToEndIntegrationTest test` 通过，H2 / PostgreSQL / Oracle 均迁至 V69 且二次 migrate no-op。
+- 领域事件契约：`mvn -q -Dtest=DomainEventSchemaContractTest test` 通过。
+- 后端全量：`mvn -q test` 通过（190 reports / 1163 tests / 0 failures / 0 errors / 0 skipped）。
+- T-GATE：`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs` 34/34 通过；`node scripts/migration-convention-guard.mjs --mode=files ...V69...` 扫描 5 个新增迁移通过；提交后 `node scripts/authenticity-guard.mjs --mode=changed --base=origin/main` 扫描 24 个文件通过、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main` 扫描 24 个文件通过、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main` 扫描 5 个迁移通过；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

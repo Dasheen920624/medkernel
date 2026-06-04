@@ -22,6 +22,7 @@ import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
+import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -79,6 +80,7 @@ public class PathwayEngineService {
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
     private final PathwayFollowupHandoffPort followupHandoff;
+    private final ClinicalSafetyGuard safetyGuard;
 
     /**
      * 注入路径引擎闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
@@ -99,11 +101,12 @@ public class PathwayEngineService {
                                 StateTransitionRecorder transitions,
                                 DiagnoseResponseAssembler diagnoseAssembler,
                                 ObjectMapper json,
+                                ClinicalSafetyGuard safetyGuard,
                                 ObjectProvider<PathwayFollowupHandoffPort> followupHandoffProvider) {
         this(packages, profiles, templates, nodes, edges, patientPathways, variances, clocks,
             metricBindings, contextSnapshots, progressor, auditPublisher, transitions,
             diagnoseAssembler, json,
-            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop));
+            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop), safetyGuard);
     }
 
     PathwayEngineService(SpecialtyPackageRepository packages,
@@ -121,7 +124,8 @@ public class PathwayEngineService {
                          StateTransitionRecorder transitions,
                          DiagnoseResponseAssembler diagnoseAssembler,
                          ObjectMapper json,
-                         PathwayFollowupHandoffPort followupHandoff) {
+                         PathwayFollowupHandoffPort followupHandoff,
+                         ClinicalSafetyGuard safetyGuard) {
         this.packages = packages;
         this.profiles = profiles;
         this.templates = templates;
@@ -138,6 +142,7 @@ public class PathwayEngineService {
         this.diagnoseAssembler = diagnoseAssembler;
         this.json = json;
         this.followupHandoff = followupHandoff == null ? PathwayFollowupHandoffPort.noop() : followupHandoff;
+        this.safetyGuard = safetyGuard;
     }
 
     /**
@@ -421,6 +426,7 @@ public class PathwayEngineService {
         if (template.status() != PathwayTemplateStatus.PUBLISHED) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_005, "路径模板未发布，不能入径");
         }
+        safetyGuard.assertPathwayTemplateAllowed(template);
         String startNodeCode = isBlank(request.startNodeCode()) ? template.startNodeCode() : request.startNodeCode();
         PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(
                 template.templateId(), effective.sourceTenantId(), startNodeCode)

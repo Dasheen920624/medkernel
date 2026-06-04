@@ -9,7 +9,7 @@
 - 关联场景：S8 临床嵌入运行 · S15 AI 验证与验收
 - 依赖卡：[CDSS-01](CDSS-01.md) 命中 · [OPT-04](OPT-04.md) 红线 · [OPT-02](OPT-02.md) 触发点 · [SYS-04](../D2/SYS-04.md) 版本框架
 - 工作量：4d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner / reviewer：Codex / 待 PR reviewer（owner ≠ reviewer）
 
 ## 目标
 建立 **CDSS/器械风险分级矩阵**：按触发点 × 危害严重度 × 自动化程度给每类 CDSS 输出定风险级别，决定其**审核强度/上线门槛/可否自动**，并**预留 NMPA 医疗器械软件（SaMD）合规路径**。
@@ -18,11 +18,11 @@
 基本待建：现有无统一风险分级矩阵。本卡＝新建分级模型 + 把分级挂到 [CDSS-01](CDSS-01.md) 输出与 [OPT-04](OPT-04.md) 红线上线门槛；NMPA 路径为**预留挂点**（不在本期落证，但模型留字段）。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 分级维度：风险级别 = f(触发点危害, 严重度, 自动化程度)，受控矩阵可配。
-- [ ] FR-2 门槛绑定：每级对应审核强度/静默试运行时长/上线门槛（喂 [OPT-04](OPT-04.md)）。
-- [ ] FR-3 输出标级：[CDSS-01](CDSS-01.md) 每类推荐卡带风险级别标记，高级别强人工确认。
-- [ ] FR-4 NMPA 预留：分级模型预留 SaMD 分类/证据字段，不阻断本期但可追溯。
-- [ ] FR-5 可审计：分级与门槛变更留痕、可解释。
+- [x] FR-1 分级维度：风险级别 = f(触发点危害, 严重度, 自动化程度)，受控矩阵可配。
+- [x] FR-2 门槛绑定：每级对应审核强度/静默试运行时长/上线门槛（喂 [OPT-04](OPT-04.md)）。
+- [x] FR-3 输出标级：[CDSS-01](CDSS-01.md) 每类推荐卡带风险级别标记，高级别强人工确认。
+- [x] FR-4 NMPA 预留：分级模型预留 SaMD 分类/证据字段，不阻断本期但可追溯。
+- [x] FR-5 可审计：分级与门槛变更留痕、可解释。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -32,7 +32,7 @@
 - 幂等 / traceId：矩阵版本化；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
-- 表族：`cdss_risk_matrix`（分级规则 + 门槛 + NMPA 预留字段 + 版本 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）
+- 表族：`mk_engine_cdss_risk_matrix`（分级规则 + 门槛 + NMPA 预留字段 + 版本 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：CDSS 安全治理的"分级标尺"。
@@ -52,14 +52,15 @@
 - 本卡落点：风险分级矩阵决定 CDSS 输出门槛，安全级别下级不可下调。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：分级矩阵可配、门槛绑定正确。
-- [ ] AC-2（FR-3）：CDSS 输出带级别、高级别强确认。
-- [ ] AC-3（FR-4/5）：NMPA 字段预留、变更可审计。
+- [x] AC-1（FR-1/2）：分级矩阵可配、门槛绑定正确。
+- [x] AC-2（FR-3）：CDSS 输出带级别、高级别强确认。
+- [x] AC-3（FR-4/5）：NMPA 字段预留、变更可审计。
 - 关联 A1–A9 剧本：A9 验证验收。
 - T-GATE：后端真实性门禁全绿（门槛不可绕）。
 - B0 验收：分级纯确定性、与模型无关。
 
 ## 完工证据
-- 代码 permalink：风险分级矩阵 + 门槛绑定 + NMPA 预留。
-- 测试：分级 / 门槛 / 高危强确认 / 审计。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码 permalink：PR 创建后补；本地落点为 `engine/cdss/risk/**`、`RecommendationEngineService` / `RecommendationCard`、V72 五方言迁移、服务契约与领域归属登记。
+- 测试：`CdssRiskMatrixServiceTest`、`CdssRiskMatrixControllerSecurityTest`、`RecommendationEngineServiceTest`、`RecommendationRepositoryTest`、`ServiceContractGovernanceTest`、`DomainOwnershipContractTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest` 覆盖分级、门槛、高危强确认、审计、五方言迁移。
+- 本地验证：`mvn -q test` 通过；`npm run verify` 51 files / 311 tests 通过；`npm run build` 通过；`npm audit --omit=dev --audit-level=moderate` 0 漏洞；T-GATE 自测 34/34、迁移 `--mode=files` 5 个 V72 文件通过。
+- 审计员签字：待 PR reviewer（owner ≠ reviewer）。

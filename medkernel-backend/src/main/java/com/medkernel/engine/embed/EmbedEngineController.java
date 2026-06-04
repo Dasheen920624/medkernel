@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
@@ -47,29 +46,28 @@ public class EmbedEngineController {
     /**
      * 使用启动令牌兑换获取嵌入会话临床上下文，并物理标记令牌为已使用。
      *
-     * @param token 启动令牌
-     * @param originHeader 请求头中的 Origin 属性，用以作白名单过滤
+     * @param request 启动令牌兑换请求
+     * @param originHeader 请求头中的 Origin 属性，用以作白名单过滤，缺失时拒绝兑换
      * @return 会话及关联的临床上下文
      */
-    @GetMapping("/launch")
+    @PostMapping("/launch")
     @PreAuthorize("@perm.has('embed.read')")
     public ApiResult<EmbedLaunchContextResponse> validateAndExchange(
-            @RequestParam String token,
-            @RequestHeader(value = "Origin", required = false) String originHeader) {
-        return ApiResult.ok(service.validateAndExchange(token, originHeader));
+            @Valid @RequestBody EmbedLaunchRequest request,
+            @RequestHeader("Origin") String originHeader) {
+        return ApiResult.ok(service.validateAndExchange(request, originHeader));
     }
 
     /**
      * 回传记录医师在工作站嵌入页面的交互采纳与拒绝反馈，保证合规审计。
      *
      * @param request 反馈请求参数
-     * @return 空响应
+     * @return 反馈受理响应
      */
     @PostMapping("/feedback")
     @PreAuthorize("@perm.has('embed.write')")
-    public ApiResult<Void> feedback(@Valid @RequestBody EmbedFeedbackRequest request) {
-        service.feedback(request);
-        return ApiResult.empty();
+    public ApiResult<EmbedFeedbackResponse> feedback(@Valid @RequestBody EmbedFeedbackRequest request) {
+        return ApiResult.ok(service.feedback(request));
     }
 
     /**

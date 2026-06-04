@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   App,
+  AutoComplete,
   Badge,
   Button,
   Card,
@@ -37,7 +38,10 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
+import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import {
+  useContextFieldCatalog,
   useContextSnapshotDetail,
   useContextSnapshots,
   useCreatePathwayTemplate,
@@ -595,6 +599,27 @@ export default function PathwayTemplates() {
     page: 1,
     size: 100,
   });
+
+  const fieldCatalogQuery = useContextFieldCatalog();
+  const fieldCatalogList = fieldCatalogQuery.data ?? [];
+  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
+  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。
+  const pathwayValueKindFor = (dataType?: string) => {
+    if (dataType === "number") return "number";
+    if (dataType === "boolean") return "boolean";
+    return "string";
+  };
+  const handleEdgeFactSelect = (edgeIndex: number, fieldPath: string) => {
+    const descriptor = fieldByPath.get(fieldPath);
+    templateForm.setFieldValue(["edges", edgeIndex, "conditionFact"], fieldPath);
+    if (descriptor) {
+      templateForm.setFieldValue(
+        ["edges", edgeIndex, "conditionValueKind"],
+        pathwayValueKindFor(descriptor.dataType),
+      );
+    }
+  };
 
   const { data: snapshotsData, isLoading: snapshotsLoading } = useContextSnapshots(
     snapshotQuery ?? undefined,
@@ -1360,7 +1385,19 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionFact"]}
                             label="条件字段路径"
                           >
-                            <Input placeholder="如 context.readyForFollowup" />
+                            <AutoComplete
+                              options={fieldCatalogOptions}
+                              onSelect={(value) => handleEdgeFactSelect(field.name, value)}
+                              filterOption={(input, option) => {
+                                const leaf = option as
+                                  | { value?: string; label?: string }
+                                  | undefined;
+                                return `${leaf?.value ?? ""} ${leaf?.label ?? ""}`
+                                  .toLowerCase()
+                                  .includes(input.toLowerCase());
+                              }}
+                              placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={5}>
@@ -1387,7 +1424,17 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionValue"]}
                             label="条件值"
                           >
-                            <Input placeholder="如 true" />
+                            {(() => {
+                              const edgeFact = watchedEdges?.[field.name]?.conditionFact;
+                              const edgeCodeSystem = edgeFact
+                                ? fieldByPath.get(edgeFact)?.codeSystem
+                                : undefined;
+                              return edgeCodeSystem ? (
+                                <StandardTermValueAutoComplete codeSystem={edgeCodeSystem} />
+                              ) : (
+                                <Input placeholder="如 true" />
+                              );
+                            })()}
                           </Form.Item>
                         </Col>
                       </Row>

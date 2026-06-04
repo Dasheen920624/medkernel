@@ -26,6 +26,8 @@ import com.medkernel.shared.context.RequestContext;
 @ActiveProfiles("dev")
 class EmbedEngineControllerSecurityTest {
 
+    private static final String TRUSTED_ORIGIN = "https://his.hospital.com";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -44,7 +46,19 @@ class EmbedEngineControllerSecurityTest {
           "patientId": "P1001",
           "encounterId": "E2001",
           "triggerPoint": "ORDER_SIGN",
-          "expireSeconds": 60
+          "expireSeconds": 60,
+          "integrationMode": "IFRAME",
+          "hook": "order-sign",
+          "hookInstance": "hook-order-001"
+        }
+        """;
+
+    private static final String LAUNCH_EXCHANGE_BODY = """
+        {
+          "token": "tkn-123456",
+          "integrationMode": "IFRAME",
+          "hook": "order-sign",
+          "hookInstance": "hook-order-001"
         }
         """;
 
@@ -93,5 +107,41 @@ class EmbedEngineControllerSecurityTest {
                 .content(LAUNCH_TOKEN_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void launchExchangeWithoutAuth_ShouldReturnUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/embed/launch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(LAUNCH_EXCHANGE_BODY))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void launchExchangeWithReadRole_ShouldReturnOk() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/embed/launch")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .header("Origin", TRUSTED_ORIGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(LAUNCH_EXCHANGE_BODY))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void launchExchangeWithReadRoleButMissingOrigin_ShouldReturnBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/engine/embed/launch")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(LAUNCH_EXCHANGE_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-API-001"));
     }
 }

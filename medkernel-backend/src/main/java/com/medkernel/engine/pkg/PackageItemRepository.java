@@ -18,4 +18,7 @@ public interface PackageItemRepository extends ListCrudRepository<PackageItem, L
 
     Optional<PackageItem> findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
         String tenantId, String packageId, PackageItemAssetType assetType, String assetId);
+
+    List<PackageItem> findByTenantIdAndAssetTypeAndAssetId(
+        String tenantId, PackageItemAssetType assetType, String assetId);
 }
