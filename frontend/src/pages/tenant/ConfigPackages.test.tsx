@@ -9,6 +9,8 @@ import {
   downloadPackageSyncEvidenceExport,
 } from "@/shared/api/hooks";
 
+const PAGE_INTERACTION_TIMEOUT_MS = 15_000;
+
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
   downloadPackageSyncEvidenceExport: vi.fn(),
@@ -275,21 +277,25 @@ describe("ConfigPackages offline package export", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   });
 
-  it("offers a real offline package download action for each package row", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
+  it(
+    "offers a real offline package download action for each package row",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
 
-    await userEvent.click(screen.getByRole("button", { name: "导出离线包" }));
+      await userEvent.click(screen.getByRole("button", { name: "导出离线包" }));
 
-    await waitFor(() => {
-      expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline");
-    });
-  });
+      await waitFor(() => {
+        expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline");
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
 
   it("renders the real 7-step release flow and keeps publish as the only page primary action", () => {
     render(
@@ -368,52 +374,56 @@ describe("ConfigPackages offline package export", () => {
     expect(within(cumulativeStatistic as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
-  it("shows asset readiness and instantiates a draft package from the first-run template", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
+  it(
+    "shows asset readiness and instantiates a draft package from the first-run template",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
 
-    expect(screen.getByText("首发资产准备")).toBeInTheDocument();
-    expect(screen.getByText(/模板 1 个/)).toBeInTheDocument();
+      expect(screen.getByText("首发资产准备")).toBeInTheDocument();
+      expect(screen.getByText(/模板 1 个/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "从首发模板创建" }));
+      await userEvent.click(screen.getByRole("button", { name: "从首发模板创建" }));
 
-    expect(screen.getByText("COPD 首发模板")).toBeInTheDocument();
-    expect(screen.getByText(/KNOWLEDGE/)).toBeInTheDocument();
+      expect(screen.getByText("COPD 首发模板")).toBeInTheDocument();
+      expect(screen.getByText(/KNOWLEDGE/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("配置包编码"), {
-      target: { value: "PILOT.COPD.001" },
-    });
-    fireEvent.change(screen.getByLabelText("配置包版本"), {
-      target: { value: "2026.06.03" },
-    });
-    fireEvent.change(screen.getByLabelText("配置包名称"), {
-      target: { value: "COPD 首发配置包" },
-    });
-    fireEvent.change(screen.getByLabelText("说明"), {
-      target: { value: "从真实首发模板生成" },
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: "生成配置包草案" }));
-
-    await waitFor(() => {
-      expect(apiMocks.instantiatePilotTemplate).toHaveBeenCalledWith({
-        templateCode: "TPL.FIRST_RUN",
-        request: {
-          packageCode: "PILOT.COPD.001",
-          packageVersion: "2026.06.03",
-          name: "COPD 首发配置包",
-          description: "从真实首发模板生成",
-        },
+      fireEvent.change(screen.getByLabelText("配置包编码"), {
+        target: { value: "PILOT.COPD.001" },
       });
-    });
-    expect(apiMocks.refetchPackages).toHaveBeenCalled();
-    expect(apiMocks.refetchAssetReadiness).toHaveBeenCalled();
-  });
+      fireEvent.change(screen.getByLabelText("配置包版本"), {
+        target: { value: "2026.06.03" },
+      });
+      fireEvent.change(screen.getByLabelText("配置包名称"), {
+        target: { value: "COPD 首发配置包" },
+      });
+      fireEvent.change(screen.getByLabelText("说明"), {
+        target: { value: "从真实首发模板生成" },
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "生成配置包草案" }));
+
+      await waitFor(() => {
+        expect(apiMocks.instantiatePilotTemplate).toHaveBeenCalledWith({
+          templateCode: "TPL.FIRST_RUN",
+          request: {
+            packageCode: "PILOT.COPD.001",
+            packageVersion: "2026.06.03",
+            name: "COPD 首发配置包",
+            description: "从真实首发模板生成",
+          },
+        });
+      });
+      expect(apiMocks.refetchPackages).toHaveBeenCalled();
+      expect(apiMocks.refetchAssetReadiness).toHaveBeenCalled();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
 
   it("keeps first-run template creation disabled when readiness blockers exist", () => {
     apiMocks.pilotTemplates = [];
@@ -443,179 +453,203 @@ describe("ConfigPackages offline package export", () => {
     expect(screen.getByText("尚未完成灰度发布证据")).toBeInTheDocument();
   });
 
-  it("offers a clear offline package import flow", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "导入离线包" }));
-    fireEvent.change(screen.getByLabelText("离线包 JSON"), {
-      target: { value: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}' },
-    });
-    await userEvent.click(screen.getByRole("button", { name: "导入并校验" }));
-
-    await waitFor(() => {
-      expect(apiMocks.importOfflinePackage).toHaveBeenCalledWith(
-        '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
+  it(
+    "offers a clear offline package import flow",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
       );
-    });
-  });
 
-  it("uses clear in-hospital release wording and removes old projection copy", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
-
-    expect(screen.getByText("院内同步发布中心")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeInTheDocument();
-    expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
-  });
-
-  it("defaults package release to grayscale rollout instead of direct full rollout", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
-
-    expect(screen.getByLabelText("灰度发布 (GRAYSCALE)")).toBeChecked();
-    expect(screen.getByLabelText("全量发布 (FULL)")).toBeDisabled();
-    expect(screen.getByText(/默认按接收组织内 10% 床位进入灰度/)).toBeInTheDocument();
-  });
-
-  it("submits the default release request as grayscale rollout", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
-
-    fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
-    await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
-    fireEvent.change(screen.getByLabelText("接收组织单元"), {
-      target: { value: "hospital-1" },
-    });
-    await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
-
-    await waitFor(() => {
-      expect(apiMocks.releasePackage).toHaveBeenCalledWith({
-        packageId: "pkg-offline",
-        request: {
-          targetOrgUnitId: "hospital-1",
-          strategy: "GRAYSCALE",
-          scopeType: "ALL",
-          scopeValue: "",
-          targetIds: ["target-his"],
-          packageVersion: "3.0.0",
-        },
+      await userEvent.click(screen.getByRole("button", { name: "导入离线包" }));
+      fireEvent.change(screen.getByLabelText("离线包 JSON"), {
+        target: { value: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}' },
       });
-    });
-  });
+      await userEvent.click(screen.getByRole("button", { name: "导入并校验" }));
 
-  it("shows failed and not-connected sites and exports sync evidence", async () => {
-    apiMocks.releasePackage.mockResolvedValueOnce({
-      status: "FAILED",
-      logs: [
-        {
-          logId: "log-fail",
-          planId: "plan-1",
-          targetId: "target-his",
-          status: "FAILED",
-          errorCode: "ENG-PACKAGE-005",
-          errorMessage: "目标库写入失败",
-          retryCount: 0,
-          syncEvidence: null,
-        },
-        {
-          logId: "log-not-synced",
-          planId: "plan-1",
-          targetId: "target-graph",
-          status: "NOT_SYNCED",
-          errorCode: "NOT_SYNCED",
-          errorMessage: "未配置真实同步适配器",
-          retryCount: 0,
-          syncEvidence: null,
-        },
-      ],
-    });
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
-    fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
-    await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
-    fireEvent.change(screen.getByLabelText("接收组织单元"), {
-      target: { value: "hospital-1" },
-    });
-    await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
-
-    expect(await screen.findByText("失败 / 未接入站点")).toBeInTheDocument();
-    expect(screen.getAllByText("院内 HIS 同步通道").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("图谱同步通道").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("目标库写入失败").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("未配置真实同步适配器").length).toBeGreaterThan(0);
-
-    await userEvent.click(screen.getByRole("button", { name: "导出同步证据" }));
-
-    await waitFor(() => {
-      expect(downloadPackageSyncEvidenceExport).toHaveBeenCalledWith("pkg-offline");
-    });
-  });
-
-  it("adds terminology package assets with the stable package scope key", async () => {
-    render(
-      <ConfigProvider>
-        <AntdApp>
-          <ConfigPackages />
-        </AntdApp>
-      </ConfigProvider>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
-
-    fireEvent.mouseDown(screen.getByLabelText("资产类型"));
-    await userEvent.click(await screen.findByText("术语字典映射 (TERMINOLOGY)"));
-
-    fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
-    await userEvent.click(await screen.findByText(/检验术语映射包/));
-    expect(screen.getByLabelText("资产快照版本")).toHaveValue("2026.06");
-    await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
-
-    await waitFor(() => {
-      expect(apiMocks.addPackageItem).toHaveBeenCalledWith({
-        packageId: "pkg-offline",
-        request: {
-          assetType: "TERMINOLOGY",
-          assetId: "TERM.LAB|DEPARTMENT|CARD",
-          assetVersion: "2026.06",
-          packageVersion: "3.0.0",
-        },
+      await waitFor(() => {
+        expect(apiMocks.importOfflinePackage).toHaveBeenCalledWith(
+          '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
+        );
       });
-    });
-  });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "uses clear in-hospital release wording and removes old projection copy",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+      expect(screen.getByText("院内同步发布中心")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeInTheDocument();
+      expect(screen.queryByText(/物理投影|物理长链接|物理同步投影/)).not.toBeInTheDocument();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "defaults package release to grayscale rollout instead of direct full rollout",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+      expect(screen.getByLabelText("灰度发布 (GRAYSCALE)")).toBeChecked();
+      expect(screen.getByLabelText("全量发布 (FULL)")).toBeDisabled();
+      expect(screen.getByText(/默认按接收组织内 10% 床位进入灰度/)).toBeInTheDocument();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "submits the default release request as grayscale rollout",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+      fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
+      await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
+      fireEvent.change(screen.getByLabelText("接收组织单元"), {
+        target: { value: "hospital-1" },
+      });
+      await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
+
+      await waitFor(() => {
+        expect(apiMocks.releasePackage).toHaveBeenCalledWith({
+          packageId: "pkg-offline",
+          request: {
+            targetOrgUnitId: "hospital-1",
+            strategy: "GRAYSCALE",
+            scopeType: "ALL",
+            scopeValue: "",
+            targetIds: ["target-his"],
+            packageVersion: "3.0.0",
+          },
+        });
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "shows failed and not-connected sites and exports sync evidence",
+    async () => {
+      apiMocks.releasePackage.mockResolvedValueOnce({
+        status: "FAILED",
+        logs: [
+          {
+            logId: "log-fail",
+            planId: "plan-1",
+            targetId: "target-his",
+            status: "FAILED",
+            errorCode: "ENG-PACKAGE-005",
+            errorMessage: "目标库写入失败",
+            retryCount: 0,
+            syncEvidence: null,
+          },
+          {
+            logId: "log-not-synced",
+            planId: "plan-1",
+            targetId: "target-graph",
+            status: "NOT_SYNCED",
+            errorCode: "NOT_SYNCED",
+            errorMessage: "未配置真实同步适配器",
+            retryCount: 0,
+            syncEvidence: null,
+          },
+        ],
+      });
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+      fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
+      await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
+      fireEvent.change(screen.getByLabelText("接收组织单元"), {
+        target: { value: "hospital-1" },
+      });
+      await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
+
+      expect(await screen.findByText("失败 / 未接入站点")).toBeInTheDocument();
+      expect(screen.getAllByText("院内 HIS 同步通道").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("图谱同步通道").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("目标库写入失败").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("未配置真实同步适配器").length).toBeGreaterThan(0);
+
+      await userEvent.click(screen.getByRole("button", { name: "导出同步证据" }));
+
+      await waitFor(() => {
+        expect(downloadPackageSyncEvidenceExport).toHaveBeenCalledWith("pkg-offline");
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "adds terminology package assets with the stable package scope key",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+
+      fireEvent.mouseDown(screen.getByLabelText("资产类型"));
+      await userEvent.click(await screen.findByText("术语字典映射 (TERMINOLOGY)"));
+
+      fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
+      await userEvent.click(await screen.findByText(/检验术语映射包/));
+      expect(screen.getByLabelText("资产快照版本")).toHaveValue("2026.06");
+      await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
+
+      await waitFor(() => {
+        expect(apiMocks.addPackageItem).toHaveBeenCalledWith({
+          packageId: "pkg-offline",
+          request: {
+            assetType: "TERMINOLOGY",
+            assetId: "TERM.LAB|DEPARTMENT|CARD",
+            assetVersion: "2026.06",
+            packageVersion: "3.0.0",
+          },
+        });
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
 });

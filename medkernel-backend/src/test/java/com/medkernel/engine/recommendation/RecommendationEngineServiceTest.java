@@ -391,6 +391,60 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
+    void evaluateDoesNotSuppressClinicalRedlineSourceEvenIfRiskMatrixIsMisconfiguredLower() {
+        RecommendationSourceRequest redlineSource = new RecommendationSourceRequest(
+            RecommendationSourceType.REDLINE,
+            "redline-ddi-warfarin-nsaid",
+            "2026.2",
+            "华法林合并非甾体抗炎药出血风险",
+            "clinical_redline:redline-ddi-warfarin-nsaid",
+            null,
+            "临床安全红线命中");
+        RecommendationTriggerRequest request = triggerRequest(
+            List.of(cardRequest(
+                "REDLINE.RDL-DDI-001.v2026.2",
+                false,
+                RecommendationRiskLevel.CRITICAL,
+                RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
+                true,
+                List.of(redlineSource))),
+            1,
+            24,
+            false);
+        when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.CRITICAL, CdssAutomationLevel.INTERRUPTIVE))
+            .thenReturn(new CdssRiskAssessment(
+                "broken-matrix",
+                "1",
+                RecommendationRiskLevel.LOW,
+                CdssReviewRequirement.OPTIONAL_REVIEW,
+                0,
+                "STANDARD_CHANGE_REVIEW",
+                false,
+                "NMPA_RESERVED",
+                "NOT_ASSESSED",
+                "错误配置不得降低红线优先级"));
+        when(fatiguePolicyResolver.resolve(request))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(1, 24, "CONFIG_CENTER")));
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+                eq("WARD_ORDER:ANTICOAG"), any()))
+            .thenReturn(99L);
+
+        RecommendationEvaluationResponse response = service.evaluate(request);
+
+        assertThat(response.visibleCardCount()).isEqualTo(1);
+        assertThat(response.suppressedCardCount()).isZero();
+        assertThat(response.cards()).singleElement().satisfies(card -> {
+            assertThat(card.cardCode()).isEqualTo("REDLINE.RDL-DDI-001.v2026.2");
+            assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+            assertThat(card.interruptLevel()).isEqualTo(RecommendationInterruptLevel.STRONG_INTERRUPTIVE);
+            assertThat(card.requiresPhysicianConfirmation()).isTrue();
+            assertThat(card.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+            assertThat(card.releaseGate()).isEqualTo("OPT04_REDLINE_RUNTIME_GUARD");
+        });
+        verify(fatigueSignals, never()).countLowValueSignals(any(), any(), any(), any());
+    }
+
+    @Test
     void triggerRejectsCardWithoutSources() {
         RecommendationCardRequest request = cardRequest(
             RecommendationRiskLevel.MEDIUM,

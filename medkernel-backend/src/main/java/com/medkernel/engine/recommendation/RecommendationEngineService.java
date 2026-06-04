@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
@@ -365,6 +366,14 @@ public class RecommendationEngineService {
             if (card.sources().isEmpty()) {
                 throw new ApiException(ErrorCode.ENG_REC_005);
             }
+            if (isClinicalRedlineCard(card)) {
+                if (card.interruptLevel() != RecommendationInterruptLevel.STRONG_INTERRUPTIVE) {
+                    throw new ApiException(ErrorCode.CONFLICT, "临床安全红线必须强打断展示");
+                }
+                if (!card.requiresPhysicianConfirmation()) {
+                    throw new ApiException(ErrorCode.CONFLICT, "临床安全红线必须医师确认");
+                }
+            }
             if (card.interruptLevel() == RecommendationInterruptLevel.STRONG_INTERRUPTIVE
                     && !isHighRisk(assessment.riskLevel())) {
                 throw new ApiException(ErrorCode.ENG_REC_001, "强打断推荐必须是高风险或红线风险");
@@ -375,9 +384,28 @@ public class RecommendationEngineService {
 
     private List<AssessedCard> assessCards(String triggerType, List<RecommendationCardRequest> cardRequests) {
         return cardRequests.stream()
-            .map(cardRequest -> new AssessedCard(cardRequest, riskMatrixService.assess(
-                triggerType, cardRequest.riskLevel(), cardRequest.automationLevel())))
+            .map(cardRequest -> new AssessedCard(cardRequest, redlineProtectedAssessment(cardRequest,
+                riskMatrixService.assess(triggerType, cardRequest.riskLevel(), cardRequest.automationLevel()))))
             .toList();
+    }
+
+    private CdssRiskAssessment redlineProtectedAssessment(
+            RecommendationCardRequest cardRequest,
+            CdssRiskAssessment assessment) {
+        if (!isClinicalRedlineCard(cardRequest)) {
+            return assessment;
+        }
+        return new CdssRiskAssessment(
+            assessment.riskMatrixId(),
+            assessment.riskMatrixVersion(),
+            RecommendationRiskLevel.CRITICAL,
+            CdssReviewRequirement.DUAL_REVIEW,
+            Math.max(assessment.silentRunHours(), 0),
+            "OPT04_REDLINE_RUNTIME_GUARD",
+            false,
+            assessment.samdClassification(),
+            assessment.regulatoryEvidence(),
+            "临床安全红线运行时强制提升为最高优先级；" + assessment.explanation());
     }
 
     private RecommendationCard saveCard(RecommendationTrigger trigger, AssessedCard assessedCard,
@@ -471,6 +499,9 @@ public class RecommendationEngineService {
     private boolean shouldSuppress(RecommendationTriggerRequest request, AssessedCard assessedCard,
                                    String tenantId, Instant now) {
         RecommendationCardRequest cardRequest = assessedCard.request();
+        if (isClinicalRedlineCard(cardRequest)) {
+            return false;
+        }
         if (isHighRisk(assessedCard.assessment().riskLevel())) {
             return false;
         }
@@ -512,6 +543,11 @@ public class RecommendationEngineService {
             || card.status() == RecommendationCardStatus.DISMISSED
             || card.status() == RecommendationCardStatus.SUPPRESSED
             || card.status() == RecommendationCardStatus.EXPIRED;
+    }
+
+    private boolean isClinicalRedlineCard(RecommendationCardRequest card) {
+        return card != null && card.sources().stream()
+            .anyMatch(source -> source != null && source.sourceType() == RecommendationSourceType.REDLINE);
     }
 
     private boolean isExpired(RecommendationCard card) {

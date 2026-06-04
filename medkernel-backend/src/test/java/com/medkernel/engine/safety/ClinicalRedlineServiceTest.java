@@ -230,6 +230,36 @@ class ClinicalRedlineServiceTest {
     }
 
     @Test
+    void promoteRejectsLowerTenantOverrideAllowedForSafetyRedline() {
+        ClinicalRedlineRule silent = redline(
+            "redline-ddi-warfarin-nsaid",
+            ClinicalRedlineCategory.DRUG_INTERACTION,
+            "RDL-DDI-001",
+            "2026.2",
+            ClinicalRedlineStatus.SILENT_RUNNING,
+            true);
+        ClinicalRedlineTrial passedTrial = trial(
+            "trial-pass",
+            silent,
+            ClinicalRedlineTrialStatus.PASSED,
+            192,
+            0);
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-ddi-warfarin-nsaid"))
+            .thenReturn(Optional.of(silent));
+        when(trialRepository.findByTenantIdAndRedlineIdAndTrialId(
+                "tenant-A", "redline-ddi-warfarin-nsaid", "trial-pass"))
+            .thenReturn(Optional.of(passedTrial));
+
+        assertThatThrownBy(() -> service.promote(new ClinicalRedlinePromoteRequest(
+                "redline-ddi-warfarin-nsaid",
+                "trial-pass",
+                "2026.2",
+                "下级可关配置禁止上线")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("安全红线禁止下级关闭");
+    }
+
+    @Test
     void promoteActivatesOnlyAfterPassedSilentTrialEvidence() {
         ClinicalRedlineRule silent = redline(
             "redline-ddi-warfarin-nsaid",
@@ -278,6 +308,16 @@ class ClinicalRedlineServiceTest {
             String redlineKey,
             String redlineVersion,
             ClinicalRedlineStatus status) {
+        return redline(redlineId, category, redlineKey, redlineVersion, status, false);
+    }
+
+    private ClinicalRedlineRule redline(
+            String redlineId,
+            ClinicalRedlineCategory category,
+            String redlineKey,
+            String redlineVersion,
+            ClinicalRedlineStatus status,
+            boolean lowerTenantOverrideAllowed) {
         Instant now = Instant.parse("2026-06-04T02:00:00Z");
         return new ClinicalRedlineRule(
             null,
@@ -305,7 +345,7 @@ class ClinicalRedlineServiceTest {
             "药品说明书与临床指南证据",
             "source-version:42#section-1",
             42L,
-            false,
+            lowerTenantOverrideAllowed,
             now,
             "tester",
             now,
