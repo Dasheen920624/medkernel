@@ -39,6 +39,7 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
+import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import {
   useContextFieldCatalog,
   useContextSnapshotDetail,
@@ -601,12 +602,7 @@ export default function PathwayTemplates() {
 
   const fieldCatalogQuery = useContextFieldCatalog();
   const fieldCatalogList = fieldCatalogQuery.data ?? [];
-  const fieldCatalogOptions = fieldCatalogList.map((field) => ({
-    value: field.fieldPath,
-    label: field.codeSystem
-      ? `${field.displayName}（${field.fieldPath}）· 字典 ${field.codeSystem}`
-      : `${field.displayName}（${field.fieldPath}）`,
-  }));
+  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
   const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
   // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。
   const pathwayValueKindFor = (dataType?: string) => {
@@ -1392,14 +1388,14 @@ export default function PathwayTemplates() {
                             <AutoComplete
                               options={fieldCatalogOptions}
                               onSelect={(value) => handleEdgeFactSelect(field.name, value)}
-                              filterOption={(input, option) =>
-                                String(option?.value ?? "")
+                              filterOption={(input, option) => {
+                                const leaf = option as
+                                  | { value?: string; label?: string }
+                                  | undefined;
+                                return `${leaf?.value ?? ""} ${leaf?.label ?? ""}`
                                   .toLowerCase()
-                                  .includes(input.toLowerCase()) ||
-                                String(option?.label ?? "")
-                                  .toLowerCase()
-                                  .includes(input.toLowerCase())
-                              }
+                                  .includes(input.toLowerCase());
+                              }}
                               placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
                             />
                           </Form.Item>
