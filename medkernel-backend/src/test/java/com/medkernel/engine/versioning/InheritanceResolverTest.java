@@ -175,6 +175,7 @@ class InheritanceResolverTest {
             inheritedVersionId,
             overrideVersionId,
             InheritanceOverrideMode.REPLACE,
+            InheritancePropagation.INHERITABLE,
             orgPath,
             "adult|inpatient",
             diffSummary,

@@ -14,9 +14,18 @@ import {
   message,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
-import { CheckCircleOutlined, LinkOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined,
+  LinkOutlined,
+  ReloadOutlined,
+  SwapRightOutlined,
+} from "@ant-design/icons";
 
-import { useCompleteWorkflowTodo, useWorkflowTodos } from "@/shared/api/hooks";
+import {
+  useCompleteWorkflowTodo,
+  useTransferWorkflowTodo,
+  useWorkflowTodos,
+} from "@/shared/api/hooks";
 import type {
   WorkflowPriority,
   WorkflowTodo,
@@ -67,6 +76,15 @@ const sourceRank: Record<WorkflowTodoSourceType, number> = {
   BEDSIDE_KNOWLEDGE: 5,
 };
 
+const sourceText: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "随访任务",
+  SAFETY_REVIEW: "安全复核",
+  RECOMMENDATION_CARD: "临床提醒",
+  NURSING_TASK: "护理任务",
+  REPORT_INTERPRETATION: "报告解读",
+  BEDSIDE_KNOWLEDGE: "床旁知识",
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -89,7 +107,13 @@ export default function WorkflowTodos() {
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
   const [completingTodo, setCompletingTodo] = useState<WorkflowTodo | null>(null);
+  const [transferringTodo, setTransferringTodo] = useState<WorkflowTodo | null>(null);
   const [completeForm] = Form.useForm<{ completionReason: string }>();
+  const [transferForm] = Form.useForm<{
+    transferTo: string;
+    transferRole?: string;
+    transferReason: string;
+  }>();
 
   const queryParams = {
     status,
@@ -100,6 +124,7 @@ export default function WorkflowTodos() {
   };
   const { data, isError, isLoading, refetch } = useWorkflowTodos(queryParams);
   const completeMutation = useCompleteWorkflowTodo();
+  const transferMutation = useTransferWorkflowTodo();
   const visibleTodos = useMemo(
     () =>
       [...(data?.items ?? [])].sort((left, right) => {
@@ -129,6 +154,27 @@ export default function WorkflowTodos() {
     }
   };
 
+  const handleTransfer = async () => {
+    if (!transferringTodo) return;
+    const values = await transferForm.validateFields();
+    try {
+      await transferMutation.mutateAsync({
+        todoId: transferringTodo.todoId,
+        request: {
+          transferTo: values.transferTo.trim(),
+          transferRole: values.transferRole?.trim() || null,
+          transferReason: values.transferReason.trim(),
+        },
+      });
+      message.success("待办已转交");
+      setTransferringTodo(null);
+      transferForm.resetFields();
+      await refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "待办转交失败"));
+    }
+  };
+
   const columns: TableProps<WorkflowTodo>["columns"] = [
     {
       title: "待办",
@@ -145,7 +191,7 @@ export default function WorkflowTodos() {
       title: "来源",
       dataIndex: "sourceType",
       key: "sourceType",
-      render: (value: WorkflowTodoSourceType) => <Tag>{value}</Tag>,
+      render: (value: WorkflowTodoSourceType) => <Tag>{sourceText[value]}</Tag>,
     },
     {
       title: "患者",
@@ -208,6 +254,23 @@ export default function WorkflowTodos() {
           >
             完成
           </Button>
+          <Button
+            type="link"
+            aria-label="转交"
+            icon={<SwapRightOutlined />}
+            disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
+            onClick={() => {
+              setTransferringTodo(record);
+              transferForm.setFieldsValue({
+                transferTo: "",
+                transferRole: "",
+                transferReason: "",
+              });
+            }}
+            className="px-0 font-semibold"
+          >
+            转交
+          </Button>
         </Space>
       ),
     },
@@ -262,6 +325,9 @@ export default function WorkflowTodos() {
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
               { value: "RECOMMENDATION_CARD", label: "临床提醒" },
+              { value: "NURSING_TASK", label: "护理任务" },
+              { value: "REPORT_INTERPRETATION", label: "报告解读" },
+              { value: "BEDSIDE_KNOWLEDGE", label: "床旁知识" },
             ]}
           />
         </Space>
@@ -307,6 +373,37 @@ export default function WorkflowTodos() {
             name="completionReason"
             label="完成说明"
             rules={[{ required: true, message: "请输入完成说明" }]}
+          >
+            <TextArea rows={4} maxLength={500} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="转交待办"
+        open={!!transferringTodo}
+        onOk={handleTransfer}
+        onCancel={() => setTransferringTodo(null)}
+        okText="确认转交"
+        cancelText="取消"
+        confirmLoading={transferMutation.isPending}
+        destroyOnClose
+      >
+        <Form form={transferForm} layout="vertical" className="mt-4">
+          <Form.Item
+            name="transferTo"
+            label="接收人"
+            rules={[{ required: true, message: "请输入接收人" }]}
+          >
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item name="transferRole" label="接收角色">
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item
+            name="transferReason"
+            label="转交说明"
+            rules={[{ required: true, message: "请输入转交说明" }]}
           >
             <TextArea rows={4} maxLength={500} showCount />
           </Form.Item>

@@ -85,6 +85,9 @@ public class InheritanceOverrideService {
         denyUnsafeLowerOverride(inherited, overrideVersion, mode, target.orgPath());
         rejectDisableUntilReleaseFlowSupportsEvidence(mode);
 
+        InheritancePropagation propagation = command.propagation() == null
+            ? InheritancePropagation.INHERITABLE
+            : command.propagation();
         Instant now = Instant.now(clock);
         return overrides.save(new InheritanceOverride(
             null,
@@ -95,6 +98,7 @@ public class InheritanceOverrideService {
             inherited.versionId(),
             overrideVersion == null ? null : overrideVersion.versionId(),
             mode,
+            propagation,
             target.orgPath(),
             applicableScope,
             diffSummary,

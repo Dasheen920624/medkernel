@@ -2886,12 +2886,43 @@ export type WorkflowTodoStatus =
   | "COMPLETED"
   | "TRANSFERRED"
   | "CANCELLED";
-export type WorkflowNotificationSourceType = "FOLLOWUP_EVENT" | "SAFETY_REVIEW" | "WORKFLOW_TODO";
+export type WorkflowNotificationSourceType =
+  | "FOLLOWUP_EVENT"
+  | "SAFETY_REVIEW"
+  | "WORKFLOW_TODO"
+  | "SYNC_EVENT";
 export type WorkflowNotificationLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 export type WorkflowNotificationStatus = "UNREAD" | "READ";
 
+export interface WorkflowNotificationSettings {
+  inAppEnabled: boolean;
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
+  quietBypassLevels: WorkflowNotificationLevel[];
+  quietActiveNow: boolean;
+  version: number;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface WorkflowNotificationSettingsPayload {
+  inAppEnabled: boolean;
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
+  quietBypassLevels: WorkflowNotificationLevel[];
+}
+
 export interface WorkflowTodo {
   todoId: string;
+  orgUnitId?: string | null;
   sourceType: WorkflowTodoSourceType;
   sourceId: string;
   title: string;
@@ -2907,11 +2938,14 @@ export interface WorkflowTodo {
   completionReason?: string | null;
   completedAt?: string | null;
   completedBy?: string | null;
+  transferredTo?: string | null;
+  transferReason?: string | null;
   traceId?: string | null;
 }
 
 export interface WorkflowNotification {
   notificationId: string;
+  orgUnitId?: string | null;
   sourceType: WorkflowNotificationSourceType;
   sourceId: string;
   dedupeKey: string;
@@ -2953,6 +2987,15 @@ export interface WorkflowTodoCompletePayload {
   };
 }
 
+export interface WorkflowTodoTransferPayload {
+  todoId: string;
+  request: {
+    transferTo: string;
+    transferRole?: string | null;
+    transferReason: string;
+  };
+}
+
 export function useWorkflowTodos(params?: WorkflowTodosParams) {
   return useQuery({
     queryKey: ["workflow", "todos", params ?? {}],
@@ -2972,6 +3015,22 @@ export function useCompleteWorkflowTodo() {
     mutationFn: async ({ todoId, request }: WorkflowTodoCompletePayload) => {
       const { data } = await apiClient.post<{ data: WorkflowTodo }>(
         `/engine/workflow/todos/${todoId}/complete`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["workflow", "todos"] });
+    },
+  });
+}
+
+export function useTransferWorkflowTodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ todoId, request }: WorkflowTodoTransferPayload) => {
+      const { data } = await apiClient.post<{ data: WorkflowTodo }>(
+        `/engine/workflow/todos/${todoId}/transfer`,
         request,
       );
       return data.data;
@@ -3006,6 +3065,34 @@ export function useReadWorkflowNotification() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["workflow", "notifications"] });
+    },
+  });
+}
+
+export function useWorkflowNotificationSettings() {
+  return useQuery({
+    queryKey: ["workflow", "notification-settings"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: WorkflowNotificationSettings }>(
+        "/engine/notifications/settings",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSaveWorkflowNotificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: WorkflowNotificationSettingsPayload) => {
+      const { data } = await apiClient.put<{ data: WorkflowNotificationSettings }>(
+        "/engine/notifications/settings",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["workflow", "notification-settings"] });
     },
   });
 }

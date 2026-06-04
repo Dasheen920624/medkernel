@@ -57,4 +57,15 @@ public class WorkflowTodoController {
             @Valid @RequestBody WorkflowTodoCompleteRequest request) {
         return ApiResult.ok(service.completeTodo(todoId, request));
     }
+
+    /**
+     * 转交统一协同待办。
+     */
+    @PostMapping("/{todoId}/transfer")
+    @PreAuthorize("@perm.has('workflow.write')")
+    public ApiResult<WorkflowTodoResponse> transferTodo(
+            @PathVariable String todoId,
+            @Valid @RequestBody WorkflowTodoTransferRequest request) {
+        return ApiResult.ok(service.transferTodo(todoId, request));
+    }
 }

@@ -23,6 +23,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -45,6 +46,7 @@ class WorkflowTodoRepositoryTest {
     @Autowired FollowupPlanRepository followupPlans;
     @Autowired FollowupTaskRepository followupTasks;
     @Autowired FollowupEventRepository followupEvents;
+    @Autowired JdbcTemplate jdbc;
 
     @AfterEach
     void wipe() {
@@ -52,6 +54,8 @@ class WorkflowTodoRepositoryTest {
         followupEvents.deleteAll();
         followupTasks.deleteAll();
         followupPlans.deleteAll();
+        jdbc.update("DELETE FROM org_closure");
+        jdbc.update("DELETE FROM org_unit");
     }
 
     @Test
@@ -114,6 +118,196 @@ class WorkflowTodoRepositoryTest {
 
         assertThat(page).extracting(WorkflowTodo::todoId)
             .containsExactly("todo-patient-1");
+    }
+
+    @Test
+    void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            "doctor-1",
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-org",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-org",
+            WorkflowPriority.MEDIUM,
+            "patient-2",
+            null,
+            now.plusSeconds(900)));
+        repository.save(sample(
+            "todo-other",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-other",
+            WorkflowPriority.CRITICAL,
+            "patient-3",
+            "doctor-2",
+            now.plusSeconds(300)));
+
+        long total = repository.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            null,
+            null);
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            null,
+            null,
+            0,
+            10);
+
+        assertThat(total).isEqualTo(2);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-own", "todo-org");
+    }
+
+    @Test
+    void visibleAssigneeScopeUsesOrgClosureForUnassignedRows() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own",
+            WorkflowPriority.MEDIUM,
+            "patient-1",
+            "doctor-1",
+            "dept-b",
+            now.plusSeconds(100)));
+        repository.save(sample(
+            "todo-dept",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-dept",
+            WorkflowPriority.MEDIUM,
+            "patient-2",
+            null,
+            "dept-a",
+            now.plusSeconds(200)));
+        repository.save(sample(
+            "todo-specialty",
+            WorkflowTodoSourceType.NURSING_TASK,
+            "card-specialty",
+            WorkflowPriority.MEDIUM,
+            "patient-3",
+            null,
+            "spec-a1",
+            now.plusSeconds(300)));
+        repository.save(sample(
+            "todo-tenant",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-tenant",
+            WorkflowPriority.MEDIUM,
+            "patient-4",
+            null,
+            null,
+            now.plusSeconds(400)));
+        repository.save(sample(
+            "todo-sibling",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-sibling",
+            WorkflowPriority.MEDIUM,
+            "patient-5",
+            null,
+            "dept-b",
+            now.plusSeconds(50)));
+
+        long total = repository.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null);
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            0,
+            10);
+
+        assertThat(total).isEqualTo(4);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-own", "todo-dept", "todo-specialty", "todo-tenant");
+    }
+
+    @Test
+    void explicitAssigneeFilterStillNarrowsToRequestedAssignee() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            "doctor-1",
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-other",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-other",
+            WorkflowPriority.CRITICAL,
+            "patient-2",
+            "doctor-2",
+            now.plusSeconds(300)));
+
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            "doctor-2",
+            "doctor-1",
+            null,
+            null,
+            0,
+            10);
+
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-other");
+    }
+
+    @Test
+    void recommendationDerivedLookupPreventsDuplicateTypedTodoRows() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-card-legacy",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-nursing-1",
+            WorkflowPriority.HIGH,
+            now.plusSeconds(1800)));
+        repository.save(sample(
+            "todo-followup-same-source",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "card-nursing-1",
+            WorkflowPriority.HIGH,
+            now.plusSeconds(900)));
+
+        var existing = repository.findRecommendationDerivedByTenantIdAndSourceId(
+            "tenant-A",
+            "card-nursing-1");
+
+        assertThat(existing).isPresent();
+        assertThat(existing.orElseThrow().todoId()).isEqualTo("todo-card-legacy");
     }
 
     @Test
@@ -204,18 +398,42 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority priority,
             String patientId,
             Instant dueAt) {
+        return sample(todoId, sourceType, sourceId, priority, patientId, "doctor-1", dueAt);
+    }
+
+    private WorkflowTodo sample(
+            String todoId,
+            WorkflowTodoSourceType sourceType,
+            String sourceId,
+            WorkflowPriority priority,
+            String patientId,
+            String assigneeId,
+            Instant dueAt) {
+        return sample(todoId, sourceType, sourceId, priority, patientId, assigneeId, null, dueAt);
+    }
+
+    private WorkflowTodo sample(
+            String todoId,
+            WorkflowTodoSourceType sourceType,
+            String sourceId,
+            WorkflowPriority priority,
+            String patientId,
+            String assigneeId,
+            String orgUnitId,
+            Instant dueAt) {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         return new WorkflowTodo(
             null,
             todoId,
             "tenant-A",
+            orgUnitId,
             sourceType,
             sourceId,
             sourceType == WorkflowTodoSourceType.SAFETY_REVIEW ? "安全撤回复核任务" : "随访异常复核",
             "真实来源待办",
             priority,
             WorkflowTodoStatus.PENDING,
-            "doctor-1",
+            assigneeId,
             "DOCTOR",
             patientId,
             "enc-1",
@@ -225,10 +443,42 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             null,
+            null,
             "trace-workflow",
             now,
             "tester",
             now,
             "tester");
+    }
+
+    private void seedOrgTree() {
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-a", "tenant-root", "tenant-A", "/TENANT-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "spec-a1", "dept-a", "tenant-A", "/TENANT-A/DEPT-A/SPEC-A1", "SPECIALTY", "SPEC-A1", "A1 专病");
+        jdbc.update("""
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-b", "tenant-root", "tenant-A", "/TENANT-A/DEPT-B", "DEPARTMENT", "DEPT-B", "B 科室");
+        jdbc.update("""
+            INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
+            VALUES
+              ('tenant-A', 'tenant-root', 'tenant-root', 0),
+              ('tenant-A', 'tenant-root', 'dept-a', 1),
+              ('tenant-A', 'tenant-root', 'spec-a1', 2),
+              ('tenant-A', 'tenant-root', 'dept-b', 1),
+              ('tenant-A', 'dept-a', 'dept-a', 0),
+              ('tenant-A', 'dept-a', 'spec-a1', 1),
+              ('tenant-A', 'spec-a1', 'spec-a1', 0),
+              ('tenant-A', 'dept-b', 'dept-b', 0)
+            """);
     }
 }

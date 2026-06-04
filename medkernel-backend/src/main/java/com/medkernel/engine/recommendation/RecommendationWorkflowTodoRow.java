@@ -7,6 +7,7 @@ import java.time.Instant;
  */
 public record RecommendationWorkflowTodoRow(
     String cardId,
+    RecommendationCardType cardType,
     String title,
     String summary,
     RecommendationRiskLevel riskLevel,

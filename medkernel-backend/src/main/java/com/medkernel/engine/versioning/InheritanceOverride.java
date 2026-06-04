@@ -19,6 +19,7 @@ public record InheritanceOverride(
     @Column("inherited_version_id") String inheritedVersionId,
     @Column("override_version_id") String overrideVersionId,
     @Column("override_mode") InheritanceOverrideMode overrideMode,
+    @Column("propagation") InheritancePropagation propagation,
     @Column("org_path") String orgPath,
     @Column("applicable_scope") String applicableScope,
     @Column("diff_summary") String diffSummary,

@@ -47,6 +47,9 @@ import {
   useTerminologyConflicts,
   useTerminologyPackages,
   useReadWorkflowNotification,
+  useSaveWorkflowNotificationSettings,
+  useTransferWorkflowTodo,
+  useWorkflowNotificationSettings,
   useWorkflowNotifications,
   useWorkflowTodos,
 } from "./hooks";
@@ -268,6 +271,29 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("transfers workflow todos through the auditable transfer endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { todoId: "todo-real-1", status: "TRANSFERRED", transferredTo: "nurse-2" } },
+    });
+
+    const { result } = renderApiHook(() => useTransferWorkflowTodo());
+
+    await result.current.mutateAsync({
+      todoId: "todo-real-1",
+      request: {
+        transferTo: "nurse-2",
+        transferRole: "NURSING",
+        transferReason: "交由护理站安排回院确认",
+      },
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/workflow/todos/todo-real-1/transfer", {
+      transferTo: "nurse-2",
+      transferRole: "NURSING",
+      transferReason: "交由护理站安排回院确认",
+    });
+  });
+
   it("loads workflow notifications from the notification endpoint with unread filters", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: {
@@ -301,6 +327,75 @@ describe("package export api helpers", () => {
     await result.current.mutateAsync("notify-real-1");
 
     expect(apiClient.post).toHaveBeenCalledWith("/engine/notifications/notify-real-1/read");
+  });
+
+  it("loads notification settings from the backend preference endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          inAppEnabled: true,
+          smsEnabled: false,
+          emailEnabled: false,
+          pushEnabled: false,
+          quietHoursEnabled: true,
+          quietStart: "22:00",
+          quietEnd: "07:00",
+          quietBypassLevels: ["CRITICAL", "HIGH"],
+          quietActiveNow: false,
+          version: 3,
+          updatedAt: "2026-06-04T08:00:00Z",
+          updatedBy: "doctor-1",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useWorkflowNotificationSettings());
+
+    await waitFor(() => expect(result.current.data?.quietStart).toBe("22:00"));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications/settings");
+  });
+
+  it("saves notification settings through the backend preference endpoint", async () => {
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: {
+        data: {
+          inAppEnabled: true,
+          smsEnabled: false,
+          emailEnabled: true,
+          pushEnabled: false,
+          quietHoursEnabled: true,
+          quietStart: "21:30",
+          quietEnd: "06:30",
+          quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+          quietActiveNow: true,
+          version: 4,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useSaveWorkflowNotificationSettings());
+
+    await result.current.mutateAsync({
+      inAppEnabled: true,
+      smsEnabled: false,
+      emailEnabled: true,
+      pushEnabled: false,
+      quietHoursEnabled: true,
+      quietStart: "21:30",
+      quietEnd: "06:30",
+      quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+    });
+
+    expect(apiClient.put).toHaveBeenCalledWith("/engine/notifications/settings", {
+      inAppEnabled: true,
+      smsEnabled: false,
+      emailEnabled: true,
+      pushEnabled: false,
+      quietHoursEnabled: true,
+      quietStart: "21:30",
+      quietEnd: "06:30",
+      quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+    });
   });
 
   it("loads package list through API-13 style server-side paging and filters", async () => {

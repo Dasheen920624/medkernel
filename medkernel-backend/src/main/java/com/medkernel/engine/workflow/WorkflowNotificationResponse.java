@@ -7,6 +7,7 @@ import java.time.Instant;
  */
 public record WorkflowNotificationResponse(
     String notificationId,
+    String orgUnitId,
     WorkflowNotificationSourceType sourceType,
     String sourceId,
     String dedupeKey,
@@ -26,6 +27,7 @@ public record WorkflowNotificationResponse(
     static WorkflowNotificationResponse from(WorkflowNotification notification) {
         return new WorkflowNotificationResponse(
             notification.notificationId(),
+            notification.orgUnitId(),
             notification.sourceType(),
             notification.sourceId(),
             notification.dedupeKey(),

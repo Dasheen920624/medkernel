@@ -4,10 +4,13 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,9 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkflowNotificationController {
 
     private final WorkflowCollaborationService service;
+    private final WorkflowNotificationSettingsService settingsService;
 
-    public WorkflowNotificationController(WorkflowCollaborationService service) {
+    public WorkflowNotificationController(
+            WorkflowCollaborationService service,
+            WorkflowNotificationSettingsService settingsService) {
         this.service = service;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -50,5 +57,24 @@ public class WorkflowNotificationController {
     @PreAuthorize("@perm.has('notification.write')")
     public ApiResult<WorkflowNotificationResponse> readNotification(@PathVariable String notificationId) {
         return ApiResult.ok(service.markNotificationRead(notificationId));
+    }
+
+    /**
+     * 读取当前用户通知偏好。
+     */
+    @GetMapping("/settings")
+    @PreAuthorize("@perm.has('notification.read')")
+    public ApiResult<WorkflowNotificationSettingsResponse> settings() {
+        return ApiResult.ok(settingsService.getSettings());
+    }
+
+    /**
+     * 保存当前用户通知偏好。
+     */
+    @PutMapping("/settings")
+    @PreAuthorize("@perm.has('notification.write')")
+    public ApiResult<WorkflowNotificationSettingsResponse> saveSettings(
+            @Valid @RequestBody WorkflowNotificationSettingsRequest request) {
+        return ApiResult.ok(settingsService.saveSettings(request));
     }
 }

@@ -7,6 +7,7 @@ import { useReadWorkflowNotification, useWorkflowNotifications } from "@/shared/
 import type {
   WorkflowNotification,
   WorkflowNotificationLevel,
+  WorkflowNotificationSourceType,
   WorkflowNotificationStatus,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
@@ -28,6 +29,13 @@ const levelColor: Record<WorkflowNotificationLevel, string> = {
   MEDIUM: "gold",
   LOW: "blue",
   INFO: "default",
+};
+
+const sourceText: Record<WorkflowNotificationSourceType, string> = {
+  FOLLOWUP_EVENT: "随访事件",
+  SAFETY_REVIEW: "安全复核",
+  WORKFLOW_TODO: "协同待办",
+  SYNC_EVENT: "同步事件",
 };
 
 export default function Notifications() {
@@ -179,7 +187,7 @@ export default function Notifications() {
                   <Space direction="vertical" size={2}>
                     <span>{item.message}</span>
                     <Space wrap className="text-xs text-slate-500">
-                      <span>{item.sourceType}</span>
+                      <span>{sourceText[item.sourceType]}</span>
                       <span>{item.patientId || "-"}</span>
                       <span>{item.encounterId || "-"}</span>
                     </Space>

@@ -55,6 +55,7 @@ public interface RecommendationCardRepository extends ListCrudRepository<Recomme
     /** 把仍需医师处理的推荐卡投影为统一待办来源行。 */
     @Query("""
         SELECT c.card_id AS card_id,
+               c.card_type AS card_type,
                c.title AS title,
                c.summary AS summary,
                c.risk_level AS risk_level,
