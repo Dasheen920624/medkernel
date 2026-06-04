@@ -16,4 +16,6 @@ public interface ContextFieldCatalogRepository
     List<ContextFieldCatalogEntry> findAllByTenantIdAndStatus(String tenantId, String status);
 
     Optional<ContextFieldCatalogEntry> findByTenantIdAndFieldPath(String tenantId, String fieldPath);
+
+    Optional<ContextFieldCatalogEntry> findByTenantIdAndFieldId(String tenantId, String fieldId);
 }
