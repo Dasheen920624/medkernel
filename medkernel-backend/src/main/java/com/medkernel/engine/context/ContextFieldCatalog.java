@@ -25,7 +25,8 @@ public class ContextFieldCatalog {
             "如妊娠 / 儿童 / 老年，用于规则适用域"),
 
         // Observation（集合 observations[].*）
-        ContextFieldDescriptor.of("Observation", "observations[].code", "检验/体征编码", "code"),
+        ContextFieldDescriptor.ofCode("Observation", "observations[].code", "检验/体征编码", "LOINC",
+            "检验/体征项目标准编码，比较值可从 LOINC 标准字典选择"),
         ContextFieldDescriptor.of("Observation", "observations[].displayName", "检验/体征名称", "string"),
         ContextFieldDescriptor.of("Observation", "observations[].valueNumeric", "数值结果", "number"),
         ContextFieldDescriptor.of("Observation", "observations[].valueString", "文本结果", "string"),
@@ -39,14 +40,16 @@ public class ContextFieldCatalog {
             "用于时间窗 / 趋势算子"),
 
         // Condition（集合 conditions[].*）
-        ContextFieldDescriptor.of("Condition", "conditions[].code", "诊断编码", "code"),
+        ContextFieldDescriptor.ofCode("Condition", "conditions[].code", "诊断编码", "ICD-10",
+            "诊断标准编码，比较值可从 ICD-10 标准字典选择"),
         ContextFieldDescriptor.of("Condition", "conditions[].codeSystem", "诊断编码系统", "string"),
         ContextFieldDescriptor.of("Condition", "conditions[].displayName", "诊断名称", "string"),
         ContextFieldDescriptor.of("Condition", "conditions[].severity", "严重程度", "string"),
         ContextFieldDescriptor.of("Condition", "conditions[].onsetTime", "发病时间", "date"),
 
         // Medication（集合 medications[].*）
-        ContextFieldDescriptor.of("Medication", "medications[].code", "药品编码", "code"),
+        ContextFieldDescriptor.ofCode("Medication", "medications[].code", "药品编码", "ATC",
+            "药品标准编码，比较值可从 ATC 标准字典选择"),
         ContextFieldDescriptor.of("Medication", "medications[].displayName", "药品名称", "string"),
         ContextFieldDescriptor.of("Medication", "medications[].dose", "剂量", "number"),
         ContextFieldDescriptor.of("Medication", "medications[].doseUnit", "剂量单位", "string"),

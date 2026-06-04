@@ -12,6 +12,8 @@ package com.medkernel.engine.context;
  * @param displayName  中文展示名
  * @param dataType     数据类型：number/string/boolean/date/code/list
  * @param unit         数值单位（无则为 {@code null}）
+ * @param codeSystem   编码类字段绑定的标准字典/编码系统（如 ICD-10/LOINC/ATC；非编码字段为 {@code null}），
+ *                     供比较值从标准字典候选选择（P5）
  * @param description  业务说明
  */
 public record ContextFieldDescriptor(
@@ -20,11 +22,12 @@ public record ContextFieldDescriptor(
     String displayName,
     String dataType,
     String unit,
+    String codeSystem,
     String description) {
 
     public static ContextFieldDescriptor of(
         String resourceType, String fieldPath, String displayName, String dataType) {
-        return new ContextFieldDescriptor(resourceType, fieldPath, displayName, dataType, null, null);
+        return new ContextFieldDescriptor(resourceType, fieldPath, displayName, dataType, null, null, null);
     }
 
     public static ContextFieldDescriptor of(
@@ -34,6 +37,18 @@ public record ContextFieldDescriptor(
         String dataType,
         String unit,
         String description) {
-        return new ContextFieldDescriptor(resourceType, fieldPath, displayName, dataType, unit, description);
+        return new ContextFieldDescriptor(
+            resourceType, fieldPath, displayName, dataType, unit, null, description);
+    }
+
+    /** 编码类字段（dataType=code）绑定标准字典。 */
+    public static ContextFieldDescriptor ofCode(
+        String resourceType,
+        String fieldPath,
+        String displayName,
+        String codeSystem,
+        String description) {
+        return new ContextFieldDescriptor(
+            resourceType, fieldPath, displayName, "code", null, codeSystem, description);
     }
 }

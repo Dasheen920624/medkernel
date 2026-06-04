@@ -602,7 +602,9 @@ export default function PathwayTemplates() {
   const fieldCatalogList = fieldCatalogQuery.data ?? [];
   const fieldCatalogOptions = fieldCatalogList.map((field) => ({
     value: field.fieldPath,
-    label: `${field.displayName}（${field.fieldPath}）`,
+    label: field.codeSystem
+      ? `${field.displayName}（${field.fieldPath}）· 字典 ${field.codeSystem}`
+      : `${field.displayName}（${field.fieldPath}）`,
   }));
   const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
   // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。

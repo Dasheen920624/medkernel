@@ -28,6 +28,20 @@ class ContextFieldCatalogTest {
     }
 
     @Test
+    void codeFieldsBindStandardDictionary() {
+        List<ContextFieldDescriptor> all = catalog.query(null, null);
+        assertThat(all).anyMatch(f -> f.fieldPath().equals("conditions[].code")
+            && "ICD-10".equals(f.codeSystem()));
+        assertThat(all).anyMatch(f -> f.fieldPath().equals("medications[].code")
+            && "ATC".equals(f.codeSystem()));
+        assertThat(all).anyMatch(f -> f.fieldPath().equals("observations[].code")
+            && "LOINC".equals(f.codeSystem()));
+        // 非编码字段无字典绑定
+        assertThat(all).filteredOn(f -> f.fieldPath().equals("patient.gender"))
+            .allMatch(f -> f.codeSystem() == null);
+    }
+
+    @Test
     void filtersByResourceType() {
         List<ContextFieldDescriptor> obs = catalog.query("Observation", null);
         assertThat(obs).isNotEmpty();
