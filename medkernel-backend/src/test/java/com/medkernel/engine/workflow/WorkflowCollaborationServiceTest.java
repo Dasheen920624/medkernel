@@ -86,6 +86,7 @@ class WorkflowCollaborationServiceTest {
         when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
         when(clinicalEvents.pageByFilter("tenant-A", null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, 200))
             .thenReturn(List.of());
+        when(notifications.findByTenantIdAndDedupeKey(eq("tenant-A"), any())).thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(integrationService.enqueueOutboundMessage(eq("tenant-A"), any(IntegrationOutboundRequestDto.class)))
             .thenAnswer(inv -> outboundResult(inv.getArgument(1)));
@@ -200,6 +201,182 @@ class WorkflowCollaborationServiceTest {
         assertThat(page.items()).extracting(WorkflowTodoResponse::patientId)
             .containsExactly("patient-1", "patient-1");
         verify(todos, times(2)).save(any(WorkflowTodo.class));
+    }
+
+    @Test
+    void listTodosCreatesMissingPendingTodoNotificationForExistingFollowupTodoAndQueuesCompensation() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        FollowupWorkflowTodoRow source = new FollowupWorkflowTodoRow(
+            "ft-return-1",
+            "fp-1",
+            FollowupTaskType.RETURN_VISIT,
+            FollowupTaskStatus.ABNORMAL_RETURN,
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(1800),
+            "followup-doctor",
+            "DOCTOR",
+            "trace-followup",
+            now);
+        WorkflowTodo existingTodo = new WorkflowTodo(
+            null,
+            "todo-followup-1",
+            "tenant-A",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "ft-return-1",
+            "随访异常返院任务",
+            "患者随访异常，需要安排回院确认",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            "followup-doctor",
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(1800),
+            "/clinical/followup?taskId=ft-return-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-followup",
+            now,
+            "system",
+            now,
+            "system");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(source));
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A",
+                WorkflowTodoSourceType.FOLLOWUP_TASK,
+                "ft-return-1"))
+            .thenReturn(Optional.of(existingTodo));
+        when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-followup-1:created"))
+            .thenReturn(Optional.empty());
+        WorkflowNotificationSettingsResponse settings = externalSettings(false, false, true, true);
+        when(notificationSettings.getSettingsForUser("tenant-A", "followup-doctor")).thenReturn(settings);
+        when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.HIGH), eq(settings), any(LocalTime.class)))
+            .thenReturn(false);
+        when(todos.countByFilter("tenant-A", null, null, null, null, null)).thenReturn(1L);
+        when(todos.pageByFilter("tenant-A", null, null, null, null, null, 0, 20))
+            .thenReturn(List.of(existingTodo));
+
+        PageResponse<WorkflowTodoResponse> page = service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> assertThat(item.todoId()).isEqualTo("todo-followup-1"));
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        WorkflowNotification notification = notificationCaptor.getValue();
+        assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
+        assertThat(notification.sourceId()).isEqualTo("todo-followup-1");
+        assertThat(notification.dedupeKey()).isEqualTo("todo:todo-followup-1:created");
+        assertThat(notification.title()).isEqualTo("待办待处理");
+        assertThat(notification.message()).contains("随访异常返院任务", "待处理");
+        assertThat(notification.level()).isEqualTo(WorkflowNotificationLevel.HIGH);
+        assertThat(notification.status()).isEqualTo(WorkflowNotificationStatus.UNREAD);
+        assertThat(notification.recipientId()).isEqualTo("followup-doctor");
+        assertThat(notification.recipientRole()).isEqualTo("DOCTOR");
+        assertThat(notification.deepLink()).isEqualTo("/clinical/followup?taskId=ft-return-1");
+
+        ArgumentCaptor<IntegrationOutboundRequestDto> outboundCaptor =
+            ArgumentCaptor.forClass(IntegrationOutboundRequestDto.class);
+        verify(integrationService).enqueueOutboundMessage(eq("tenant-A"), outboundCaptor.capture());
+        assertThat(outboundCaptor.getValue().adapterId()).isEqualTo("notification-push");
+        assertThat(outboundCaptor.getValue().payload().path("sourceId").asText()).isEqualTo("todo-followup-1");
+        assertThat(outboundCaptor.getValue().payload().path("level").asText()).isEqualTo("HIGH");
+        assertThat(outboundCaptor.getValue().payload().path("recipientId").asText()).isEqualTo("followup-doctor");
+        assertThat(outboundCaptor.getValue().payload().has("patientId")).isFalse();
+        assertThat(outboundCaptor.getValue().payload().has("message")).isFalse();
+    }
+
+    @Test
+    void listTodosDoesNotRepeatPendingTodoNotificationWhenDedupeKeyExists() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo existingTodo = new WorkflowTodo(
+            null,
+            "todo-followup-1",
+            "tenant-A",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "ft-return-1",
+            "随访异常返院任务",
+            "患者随访异常，需要安排回院确认",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            "followup-doctor",
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(1800),
+            "/clinical/followup?taskId=ft-return-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-followup",
+            now,
+            "system",
+            now,
+            "system");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(
+            new FollowupWorkflowTodoRow(
+                "ft-return-1",
+                "fp-1",
+                FollowupTaskType.RETURN_VISIT,
+                FollowupTaskStatus.ABNORMAL_RETURN,
+                "patient-1",
+                "enc-1",
+                now.plusSeconds(1800),
+                "followup-doctor",
+                "DOCTOR",
+                "trace-followup",
+                now)));
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A",
+                WorkflowTodoSourceType.FOLLOWUP_TASK,
+                "ft-return-1"))
+            .thenReturn(Optional.of(existingTodo));
+        when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-followup-1:created"))
+            .thenReturn(Optional.of(new WorkflowNotification(
+                null,
+                "notify-todo-created-1",
+                "tenant-A",
+                WorkflowNotificationSourceType.WORKFLOW_TODO,
+                "todo-followup-1",
+                "todo:todo-followup-1:created",
+                "待办待处理",
+                "待办「随访异常返院任务」待处理",
+                WorkflowNotificationLevel.HIGH,
+                WorkflowNotificationStatus.UNREAD,
+                "followup-doctor",
+                "DOCTOR",
+                "patient-1",
+                "enc-1",
+                "/clinical/followup?taskId=ft-return-1",
+                null,
+                null,
+                "trace-followup",
+                now,
+                "system",
+                now,
+                "system")));
+        when(todos.countByFilter("tenant-A", null, null, null, null, null)).thenReturn(1L);
+        when(todos.pageByFilter("tenant-A", null, null, null, null, null, 0, 20))
+            .thenReturn(List.of(existingTodo));
+
+        service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null),
+            new PageRequest(1, 20, null));
+
+        verify(notifications, never()).save(any(WorkflowNotification.class));
+        verify(integrationService, never()).enqueueOutboundMessage(
+            eq("tenant-A"),
+            any(IntegrationOutboundRequestDto.class));
     }
 
     @Test
