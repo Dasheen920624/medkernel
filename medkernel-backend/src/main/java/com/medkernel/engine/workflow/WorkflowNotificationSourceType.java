@@ -6,5 +6,6 @@ package com.medkernel.engine.workflow;
 public enum WorkflowNotificationSourceType {
     FOLLOWUP_EVENT,
     SAFETY_REVIEW,
-    WORKFLOW_TODO
+    WORKFLOW_TODO,
+    SYNC_EVENT
 }

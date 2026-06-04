@@ -13,6 +13,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.medkernel.engine.context.ClinicalEvent;
+import com.medkernel.engine.context.ClinicalEventRepository;
+import com.medkernel.engine.context.ClinicalEventStatus;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+import com.medkernel.engine.context.ClinicalEventType;
 import com.medkernel.engine.followup.FollowupEventRepository;
 import com.medkernel.engine.followup.FollowupTaskRepository;
 import com.medkernel.engine.followup.FollowupTaskStatus;
@@ -44,6 +49,7 @@ class WorkflowCollaborationServiceTest {
     private FollowupEventRepository followupEvents;
     private AffectedCaseTaskRepository affectedTasks;
     private RecommendationCardRepository recommendationCards;
+    private ClinicalEventRepository clinicalEvents;
     private WorkflowCollaborationService service;
 
     @BeforeEach
@@ -54,15 +60,19 @@ class WorkflowCollaborationServiceTest {
         followupEvents = mock(FollowupEventRepository.class);
         affectedTasks = mock(AffectedCaseTaskRepository.class);
         recommendationCards = mock(RecommendationCardRepository.class);
+        clinicalEvents = mock(ClinicalEventRepository.class);
         service = new WorkflowCollaborationService(
             todos,
             notifications,
             followupTasks,
             followupEvents,
             affectedTasks,
-            recommendationCards);
+            recommendationCards,
+            clinicalEvents);
         RequestContext.restore(new RequestContext.Snapshot("trace-workflow", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(clinicalEvents.pageByFilter("tenant-A", null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, 200))
+            .thenReturn(List.of());
     }
 
     @AfterEach
@@ -515,5 +525,84 @@ class WorkflowCollaborationServiceTest {
         verify(notifications, times(2)).save(notificationCaptor.capture());
         assertThat(notificationCaptor.getAllValues().get(0).recipientId()).isEqualTo("followup-doctor");
         assertThat(notificationCaptor.getAllValues().get(0).recipientRole()).isEqualTo("DOCTOR");
+    }
+
+    @Test
+    void listNotificationsProjectsProcessedClinicalEventsAsSyncEventNotifications() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        when(followupEvents.pageNotificationRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(clinicalEvents.pageByFilter("tenant-A", null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, 200))
+            .thenReturn(List.of(new ClinicalEvent(
+                1L,
+                "evt-report-1",
+                "tenant-A",
+                ClinicalEventType.REPORT,
+                ClinicalEventTriggerPoint.RESULT_REVIEW,
+                "idem-report-1",
+                null,
+                "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
+                "patient-1",
+                "enc-1",
+                "LIS",
+                "pkg-1",
+                "digest-report-1",
+                now.minusSeconds(30),
+                now.minusSeconds(20),
+                "snap-report-1",
+                ClinicalEventStatus.PROCESSED,
+                null,
+                null,
+                0,
+                null,
+                "trace-report")));
+        when(notifications.findByTenantIdAndDedupeKey("tenant-A", "clinical-event:evt-report-1"))
+            .thenReturn(Optional.empty());
+        when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(notifications.countByFilter("tenant-A", null, null, null)).thenReturn(1L);
+        when(notifications.pageByFilter("tenant-A", null, null, null, 0, 20)).thenReturn(List.of(
+            new WorkflowNotification(
+                null,
+                "notify-event-1",
+                "tenant-A",
+                WorkflowNotificationSourceType.SYNC_EVENT,
+                "evt-report-1",
+                "clinical-event:evt-report-1",
+                "临床同步事件已处理",
+                "LIS 的报告查看事件已进入临床事件引擎并完成处理",
+                WorkflowNotificationLevel.INFO,
+                WorkflowNotificationStatus.UNREAD,
+                null,
+                null,
+                "patient-1",
+                "enc-1",
+                "/rule/validate?eventId=evt-report-1",
+                null,
+                null,
+                "trace-report",
+                now,
+                "system",
+                now,
+                "system")));
+
+        PageResponse<WorkflowNotificationResponse> page = service.listNotifications(
+            new WorkflowNotificationFilter(null, null, null),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> {
+                assertThat(item.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
+                assertThat(item.message()).contains("报告查看事件", "已进入临床事件引擎");
+                assertThat(item.patientId()).isEqualTo("patient-1");
+                assertThat(item.encounterId()).isEqualTo("enc-1");
+                assertThat(item.deepLink()).contains("evt-report-1");
+            });
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        WorkflowNotification notification = notificationCaptor.getValue();
+        assertThat(notification.dedupeKey()).isEqualTo("clinical-event:evt-report-1");
+        assertThat(notification.level()).isEqualTo(WorkflowNotificationLevel.INFO);
+        assertThat(notification.recipientId()).isNull();
+        assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
     }
 }

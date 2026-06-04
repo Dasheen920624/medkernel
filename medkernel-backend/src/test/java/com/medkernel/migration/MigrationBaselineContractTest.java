@@ -106,7 +106,8 @@ class MigrationBaselineContractTest {
         "V77__workflow_collaboration.sql",
         "V78__diagnosis_knowledge_asset.sql",
         "V79__version_propagation_and_override_policy.sql",
-        "V80__workflow_transfer_reason.sql"
+        "V80__workflow_transfer_reason.sql",
+        "V81__workflow_sync_event_notifications.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -772,6 +773,22 @@ class MigrationBaselineContractTest {
                 .contains("mk_engine_workflow_todo")
                 .contains("transfer_reason")
                 .contains("comment on column mk_engine_workflow_todo.transfer_reason");
+        }
+    }
+
+    @Test
+    void v81ShouldAllowWorkflowSyncEventNotificationsForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V81__workflow_sync_event_notifications.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 临床同步事件通知来源迁移", dialect)
+                .contains("mk_engine_notification")
+                .contains("ck_notification_source_type")
+                .contains("sync_event")
+                .contains("comment on column mk_engine_notification.source_type");
         }
     }
 

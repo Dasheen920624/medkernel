@@ -35,6 +35,7 @@ const sourceText: Record<WorkflowNotificationSourceType, string> = {
   FOLLOWUP_EVENT: "随访事件",
   SAFETY_REVIEW: "安全复核",
   WORKFLOW_TODO: "协同待办",
+  SYNC_EVENT: "同步事件",
 };
 
 export default function Notifications() {

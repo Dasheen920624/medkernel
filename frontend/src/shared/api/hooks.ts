@@ -2886,7 +2886,11 @@ export type WorkflowTodoStatus =
   | "COMPLETED"
   | "TRANSFERRED"
   | "CANCELLED";
-export type WorkflowNotificationSourceType = "FOLLOWUP_EVENT" | "SAFETY_REVIEW" | "WORKFLOW_TODO";
+export type WorkflowNotificationSourceType =
+  | "FOLLOWUP_EVENT"
+  | "SAFETY_REVIEW"
+  | "WORKFLOW_TODO"
+  | "SYNC_EVENT";
 export type WorkflowNotificationLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 export type WorkflowNotificationStatus = "UNREAD" | "READ";
 
