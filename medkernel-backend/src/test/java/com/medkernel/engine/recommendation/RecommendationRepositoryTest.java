@@ -108,11 +108,11 @@ class RecommendationRepositoryTest {
         cards.save(sampleCard(cardId, "tenant-A", triggerId));
 
         assertThat(cards.countByFilter("tenant-A", null, null, "WARD_ORDER",
-            "patient-1", "enc-1", "ORDER_SIGN")).isEqualTo(1);
+            "patient-1", "enc-1", "order-sign")).isEqualTo(1);
         assertThat(cards.countByFilter("tenant-A", null, null, "WARD_ORDER",
-            "patient-1", "enc-other", "ORDER_SIGN")).isZero();
+            "patient-1", "enc-other", "order-sign")).isZero();
         assertThat(cards.pageByFilter("tenant-A", null, null, "WARD_ORDER",
-                "patient-1", "enc-1", "ORDER_SIGN", 0, 10))
+                "patient-1", "enc-1", "order-sign", 0, 10))
             .extracting(RecommendationCard::cardId)
             .containsExactly(cardId);
     }
@@ -138,7 +138,7 @@ class RecommendationRepositoryTest {
     private RecommendationTrigger sampleTrigger(String triggerId, String tenantId) {
         Instant now = Instant.now();
         return new RecommendationTrigger(
-            null, triggerId, tenantId, "TRG." + triggerId, "ORDER_SIGN",
+            null, triggerId, tenantId, "TRG." + triggerId, "order-sign",
             "event-1", "snapshot-1", "patient-1", "enc-1", "pathway-1",
             "WARD_ORDER", "1.0.0", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
             null, now, now, "tester", now, "tester", "trace-recommendation");

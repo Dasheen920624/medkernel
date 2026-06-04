@@ -29,7 +29,7 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
         RecommendationEvaluationResponse response = recommendations.evaluate(new RecommendationTriggerRequest(
             "CLINICAL_EVENT_" + context.eventType().name(),
-            "CLINICAL_EVENT",
+            context.triggerPoint(),
             context.eventId(),
             context.contextSnapshotId(),
             context.patientId(),

@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 MED-C3 安全撤回与旧版隔离 PR1 🚧
+### 线 1 · D3 OPT-02 CDS Hooks 风格事件契约 PR1 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-med-c3-safety-withdrawal`
-- 目标：完成 D3 [MED-C3](cards/D3/MED-C3.md)：复用 D2 [SYS-08](cards/D2/SYS-08.md) 紧急失效框架，建立 D3 安全撤回 API / 服务编排，证明新临床请求不再命中被撤回旧版，并为受影响患者 / 路径 / 同步目标生成可重算、幂等的复核任务种子与 NDJSON 证据导出。
-- 状态：代码与文档已完成本地红绿 / 全量验证，尚待远端 PR / CI / 合并。新增 `engine/safety` 安全撤回 API（`POST /withdrawals`、`GET /impact`、`GET /impact/export`）、`ClinicalSafetyGuard`，推荐评估 / 触发与路径入径在落库前拒绝非 ACTIVE 知识版本；影响集合只基于真实 `recommendation_source`、`recommendation_card`、`recommendation_trigger`、`pathway_template`、`patient_pathway` 与 `mk_knowledge_affected_case_task`，不伪造患者。额外收紧：撤回 `reason` 接口层拒绝空白值，已有失效记录幂等复用必须匹配同一 `identityId`。
-- 下一步（精确到动作/命令）：1. 提交当前分支；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理远端分支 / 本地 worktree；5. 基于最新 `origin/main` 继续下一张 `OPT-02`，不得跳过 PR/CI/合并门禁。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/safety/**`、`engine/recommendation/RecommendationEngineService.java`、`engine/pathway/PathwayEngineService.java`、`engine/contract/ServiceContractCatalog.java`、`docs/cards/D3/MED-C3.md`、`docs/backlog.md`。红绿证据：新增空白 `reason` 与跨 `identityId` 幂等复用测试先失败，修复后 `mvn -q -Dtest=SafetyWithdrawalServiceTest,SafetyWithdrawalControllerSecurityTest test` 通过；rebase 到 `origin/main` `71005f67` 后，MED-C3 聚焦套件、`mvn -q test`（H2 + PostgreSQL 15.18 + Oracle 21.3 迁移到 V71 并二次 no-op）、`npm run verify`（51 files / 311 tests）、`npm run build`、T-GATE 脚本自测 34/34、真实性全量扫描 964 文件、配置边界 inventory 902 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均已通过。嵌入 token 当前不持有知识版本字段，旧版隔离随推荐 / 路径新请求入口生效；复核任务进入统一待办 / 通知与完成闭环由 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) 承接。
+- 分支：`codex/d3-opt-02-cds-hooks-contract`
+- 目标：完成 D3 [OPT-02](cards/D3/OPT-02.md)：抽出 `patient-view` / `order-sign` / `medication-prescribe` / `result-review` / `discharge-sign` / `followup-alert` 六类 CDS Hooks 风格触发契约，供 [API-02](cards/D3/API-02.md)、[API-07](cards/D3/API-07.md)、[EMBED-01](cards/D3/EMBED-01.md) 单一引用，避免事件 / 推荐 / 嵌入三处各自定义触发语义。
+- 状态：本地红绿、后端全量、前端 verify/build、生产依赖审计、T-GATE 与文档接力已完成，尚待提交 / PR / CI / 合并。新增 `engine/cdshook` 契约包，`ClinicalEventTriggerPoint` 成为 6 触发点与必备上下文字段单一源；`ClinicalEventRequest`、`RecommendationTriggerRequest` 和 `EmbedEngineService` 复用 `CdsHookContract`；API-07 旧 `triggerType=WARD_ORDER/CDSS/CLINICAL_EVENT` 口径已清理为合法 hook，业务场景保留在 `scenarioCode`；生产依赖 `react-router-dom` 升至 `6.30.4`，生产审计 0 漏洞，剩余 Vite/Vitest/esbuild 开发链路破坏性升级继续登记 [DEFER-002](audit/deferred-issues.md)。
+- 下一步（精确到动作/命令）：1. 提交当前分支；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理远端分支 / 本地 worktree；5. 基于最新 `origin/main` 继续下一张 `OPT-03`，不得跳过 PR/CI/合并门禁。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/cdshook/**`、`engine/context/ClinicalEventRequest.java`、`engine/context/ClinicalEventTriggerPoint.java`、`engine/recommendation/RecommendationTriggerRequest.java`、`engine/recommendation/RecommendationEngineService.java`、`engine/embed/EmbedEngineService.java`、`docs/cards/D3/OPT-02.md`、`docs/backlog.md`、`docs/audit/deferred-issues.md`。红绿证据：`CdsHookContractTest` 和 `RecommendationEngineServiceTest#triggerRejectsLegacyScenarioAsCdsHookBeforeSavingTrigger` 初次因缺契约类 / 转换方法编译失败；实现后聚焦、后端全量 `mvn -q test`（H2 + PostgreSQL 15.18 + Oracle 21.3 迁移到 V71 并二次 no-op）、`npm run verify`（51 files / 311 tests）、`npm run build`、`npm audit --omit=dev --audit-level=moderate`、T-GATE 脚本自测 34/34、真实性全量扫描 964 文件、配置边界 inventory 902 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均已通过。`npm audit --audit-level=moderate` 仍因 Vite/Vitest/esbuild 开发工具链返回 7 个告警，属 `DEFER-002`，不得宣称全量依赖审计清零。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -43,6 +43,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D3 MED-C3 安全撤回与旧版隔离 ✅（#338，merge `060d6c23`）：新增 `engine/safety` 安全撤回 API（`POST /withdrawals`、`GET /impact`、`GET /impact/export`）、`ClinicalSafetyGuard`，推荐评估 / 触发与路径入径在落库前拒绝非 ACTIVE 知识版本；影响集合只基于真实 `recommendation_source`、`recommendation_card`、`recommendation_trigger`、`pathway_template`、`patient_pathway` 与 `mk_knowledge_affected_case_task`，不伪造患者。远端 CI 8/8 通过后 squash 合入，远端分支和本地 worktree 已清理。嵌入 token 当前不持有知识版本字段，旧版隔离随推荐 / 路径新请求入口生效；复核任务进入统一待办 / 通知与完成闭环由 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) 承接。
 - D3 EMBED-01 嵌入引擎 PR3 ✅（#337，merge `1819d661`）：关闭 FR-5 / AC-3 并收官整卡；反馈回调未配置时返回 `callbackStatus=NOT_CONNECTED`、`callbackDelivered=false` 与 `degradationReason=HOST_CALLBACK_NOT_CONFIGURED`，不伪造宿主回调送达成功；反馈动作收紧为 `ADOPT` / `REJECT`（兼容 `ACCEPT` 归一），非法动作、未消费令牌反馈与并发重放消费均失败审计且不发布成功审计。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`EMBED-01` 已 done。
 - D3 EMBED-01 嵌入引擎 PR2 ✅（#336，merge `e7ee0604`）：关闭 FR-3 / FR-4 / AC-2；签发 / 兑换统一复用 `ClinicalEventTriggerPoint` 6 触发点，`ORDER_SIGN` 规范化为 `order-sign`，非 6 触发点或 hook 不一致返回 `ENG_EMBED_005` 且不保存 / 不消费 token；`IFRAME` / `SDK` / `API` 三路共享同一上下文契约。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。后续 FR-5 / AC-3 已由 PR3 本地收口。
 - D3 EMBED-01 嵌入引擎 PR1 ✅（#335，merge `0ebf654b`）：关闭 FR-1 / FR-2 / AC-1；`/api/v1/engine/embed/launch` 必须携带 `Origin`，`EmbedEngineService.validateAndExchange` 在 token 状态转换前强制校验当前租户白名单，缺失 / 空白 / 非白名单返回 `ENG_EMBED_002` 且不消费 token；`GlobalExceptionHandler` 补缺请求头 `ENG-API-001` / 400，避免误报 500。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。后续 FR-3 / FR-4 / FR-5 与 AC-2 / AC-3 已由 PR2 / PR3 收口。
