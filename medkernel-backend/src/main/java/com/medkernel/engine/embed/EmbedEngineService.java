@@ -8,7 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -340,8 +340,8 @@ public class EmbedEngineService {
             throw new ApiException(ErrorCode.ENG_EMBED_005, label + "缺失");
         }
         try {
-            return ClinicalEventTriggerPoint.fromWireValue(value).wireValue();
-        } catch (IllegalArgumentException ex) {
+            return CdsHookContract.requireSupportedHook(value).wireValue();
+        } catch (ApiException ex) {
             publishFailureAudit(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内 value=" + value);
             throw new ApiException(ErrorCode.ENG_EMBED_005, label + "不在 CDS Hooks 6 触发点内");
         }

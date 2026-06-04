@@ -135,6 +135,22 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
+    void triggerRejectsLegacyScenarioAsCdsHookBeforeSavingTrigger() {
+        RecommendationTriggerRequest request = new RecommendationTriggerRequest(
+            "TRG.LEGACY", "WARD_ORDER", "event-1", "snapshot-1",
+            "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
+            "1.0.0", "sha256:trigger", Instant.now(), List.of());
+
+        assertThatThrownBy(() -> service.trigger(request))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EVENT_001);
+
+        verify(triggers, never()).save(any());
+        verify(cards, never()).save(any());
+        verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
     void evaluateReturnsDeterministicCardsOnlyWhenModelDisabled() {
         RecommendationCardRequest deterministic = cardRequest(
             "CARD.DETERMINISTIC", false, RecommendationRiskLevel.MEDIUM,
@@ -466,7 +482,7 @@ class RecommendationEngineServiceTest {
 
     private RecommendationTriggerRequest triggerRequest(List<RecommendationCardRequest> candidateCards) {
         return new RecommendationTriggerRequest(
-            "TRG.ORDER", "ORDER_SIGN", "event-1", "snapshot-1",
+            "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), candidateCards);
     }
@@ -477,7 +493,7 @@ class RecommendationEngineServiceTest {
             Integer fatigueWindowHours,
             boolean modelEnhancementEnabled) {
         return new RecommendationTriggerRequest(
-            "TRG.ORDER", "ORDER_SIGN", "event-1", "snapshot-1",
+            "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), candidateCards,
             fatigueSuppressionThreshold, fatigueWindowHours, modelEnhancementEnabled);
@@ -515,7 +531,7 @@ class RecommendationEngineServiceTest {
     private RecommendationTrigger trigger(String triggerId, RecommendationTriggerStatus status) {
         Instant now = Instant.now();
         return new RecommendationTrigger(
-            null, triggerId, "tenant-A", "TRG.ORDER", "ORDER_SIGN",
+            null, triggerId, "tenant-A", "TRG.ORDER", "order-sign",
             "event-1", "snapshot-1", "patient-1", "enc-1", "pathway-1",
             "WARD_ORDER", "1.0.0", "sha256:trigger", status, null,
             now, now, "tester", now, "tester", "trace-rec");

@@ -160,14 +160,14 @@ class RecommendationDeterministicMatcherTest {
 
     private RecommendationTriggerRequest triggerRequest() {
         return new RecommendationTriggerRequest(
-            "TRG.ORDER", "ORDER_SIGN", "event-1", "snapshot-1",
+            "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), List.of());
     }
 
     private RecommendationTriggerRequest triggerRequestWithoutPathway() {
         return new RecommendationTriggerRequest(
-            "TRG.ORDER", "ORDER_SIGN", "event-1", "snapshot-1",
+            "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", null, "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), List.of());
     }
