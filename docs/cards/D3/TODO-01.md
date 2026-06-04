@@ -18,6 +18,11 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/WorkflowTodos.tsx`（路由 `/workflow/todos` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 统一待办 API + 六态/五维 RBAC 齐全。
 
+## PR1 实施边界（2026-06-04，本地完整验证）
+- 已实现：`WorkflowTodos.tsx` 删除旧“接口尚未接入”占位，改为消费 `useWorkflowTodos` / `useCompleteWorkflowTodo`，展示来源、患者、责任人、截止、优先级、状态、来源跳转和完成弹窗。
+- 已覆盖：随访任务、安全复核、推荐卡三类真实来源；安全复核与高风险待办在后端分页层置顶，前端当前页再次按同口径排序；完成说明必填并通过后端持久化；列表请求使用后端 1 基分页并支持 `patientId` 过滤。
+- 未冒领：转交操作、护理 / 报告 / 床旁知识来源展示仍需后续 PR 接入真实来源；当前页面不造待办，不用本地示例兜底。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 统一待办：列多源待办（来源/责任人/截止/优先级），数据真实（[API-13](../D0/API-13.md) 分页）。
 - [ ] FR-2 安全优先：安全复核任务（[MED-C3](MED-C3.md)）置顶高优先、不可忽略。
@@ -64,6 +69,6 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) �
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/WorkflowTodos` 真实化 + 接 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) + 六态。
-- 测试：多源/安全置顶/闭环/跳转 + 六态 + RBAC + no-page-mock 门禁。
+- 代码 permalink：PR 创建后补充 `pages/clinical/WorkflowTodos` 真实化链接。
+- 测试（PR1 本地）：`npm run verify`；`npm run build`；Browser 复验 `/workflow/todos` 未登录重定向 `/login` 且控制台 error 为空；`WorkflowTodos.test.tsx` 覆盖真实 API 渲染、安全复核置顶、来源跳转、1 基分页和完成回写；`pages.smoke.test.tsx` 覆盖页面空态。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

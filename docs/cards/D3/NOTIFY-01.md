@@ -18,6 +18,11 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/Notifications.tsx`（路由 `/notifications` 已注册 `app/router.tsx`；另有 `/notifications/settings` 设置页）。本卡＝去占位/mock + 接 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 通知 API + 六态/五维 RBAC 齐全。
 
+## PR1 实施边界（2026-06-04，本地完整验证）
+- 已实现：`Notifications.tsx` 删除旧“通知接口尚未接入”占位，改为消费 `useWorkflowNotifications` / `useReadWorkflowNotification`，展示真实通知、级别、已读状态、患者 / 就诊上下文、来源跳转、单条已读和当前页全部已读。
+- 已覆盖：随访异常通知事件从后端真实关系库投影，按 `dedupeKey` 去重，已读回执持久化；页面默认未读视图 + 级别筛选，低打扰原则下不展示前端造通知；列表请求使用后端 1 基分页。
+- 未冒领：通知免打扰时段设置仍在 `/notifications/settings` 后续收口；待办派生通知、外发投递、同步事件通知需要后续 PR 按真实来源接入，不得伪造投递成功。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 通知聚合：列多源通知（来源/级别/时间），去重、真实（[API-13](../D0/API-13.md) 分页）。
 - [ ] FR-2 已读回执：标记已读/全部已读，回执真实回写。
@@ -64,6 +69,6 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) �
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/Notifications` 真实化 + 接 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) + 六态。
-- 测试：聚合/去重/已读/跳转 + 六态 + RBAC + no-page-mock 门禁。
+- 代码 permalink：PR 创建后补充 `pages/clinical/Notifications` 真实化链接。
+- 测试（PR1 本地）：`npm run verify`；`npm run build`；Browser 复验 `/notifications` 未登录重定向 `/login` 且控制台 error 为空；`Notifications.test.tsx` 覆盖真实通知渲染、1 基分页、单条已读、当前页全部已读；`hooks.test.ts` 覆盖接口路径。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

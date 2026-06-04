@@ -102,7 +102,8 @@ class MigrationBaselineContractTest {
         "V73__clinical_redline.sql",
         "V74__context_field_catalog.sql",
         "V75__clinical_redline_silent_trial.sql",
-        "V76__recommendation_source_redline_type.sql"
+        "V76__recommendation_source_redline_type.sql",
+        "V77__workflow_collaboration.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -126,6 +127,7 @@ class MigrationBaselineContractTest {
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
@@ -230,6 +232,8 @@ class MigrationBaselineContractTest {
         "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
         "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
         "idx_followup_event_type", "uk_followup_event_idempotency",
+        "idx_workflow_todo_tenant_status_due", "idx_workflow_todo_assignee_status",
+        "idx_notification_tenant_status_created", "idx_notification_recipient_status",
         "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
         "idx_model_task_tenant",
         "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
@@ -365,6 +369,10 @@ class MigrationBaselineContractTest {
         "ck_pkg_tpli_required", "ck_pkg_tpli_sort",
         "uk_followup_plan_id", "uk_followup_task_id",
         "uk_followup_questionnaire_id", "uk_followup_event_id",
+        "uk_workflow_todo_id", "uk_workflow_todo_source",
+        "ck_workflow_todo_source_type", "ck_workflow_todo_priority", "ck_workflow_todo_status",
+        "uk_notification_id", "uk_notification_dedupe",
+        "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
         "uk_model_task_id", "uk_model_policy_tenant",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
@@ -442,6 +450,7 @@ class MigrationBaselineContractTest {
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
@@ -479,6 +488,7 @@ class MigrationBaselineContractTest {
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
+        "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
         "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
@@ -579,6 +589,8 @@ class MigrationBaselineContractTest {
         Map.entry("followup_task", Set.of("status", "task_type")),
         Map.entry("followup_questionnaire", Set.of("status")),
         Map.entry("followup_event", Set.of("event_type")),
+        Map.entry("mk_engine_workflow_todo", Set.of("source_type", "priority", "status")),
+        Map.entry("mk_engine_notification", Set.of("source_type", "notification_level", "status")),
         Map.entry("embed_launch_token", Set.of("status")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
@@ -709,6 +721,28 @@ class MigrationBaselineContractTest {
                 .contains("idx_mk_fhir_rule_tenant")
                 .contains("comment on table mk_fhir_resource_mapping")
                 .contains("comment on table mk_fhir_mapping_rule");
+        }
+    }
+
+    @Test
+    void v77ShouldDeclareWorkflowCollaborationTablesForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V77__workflow_collaboration.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 临床协同待办与通知中心迁移", dialect)
+                .contains("mk_engine_workflow_todo")
+                .contains("mk_engine_notification")
+                .contains("uk_workflow_todo_source")
+                .contains("uk_notification_dedupe")
+                .contains("ck_workflow_todo_status")
+                .contains("ck_notification_status")
+                .contains("idx_workflow_todo_tenant_status_due")
+                .contains("idx_notification_tenant_status_created")
+                .contains("comment on table mk_engine_workflow_todo")
+                .contains("comment on table mk_engine_notification");
         }
     }
 

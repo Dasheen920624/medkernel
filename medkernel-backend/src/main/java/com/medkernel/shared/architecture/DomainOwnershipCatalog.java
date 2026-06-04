@@ -46,6 +46,8 @@ public final class DomainOwnershipCatalog {
         module("engine-experience",
             packages("com.medkernel.engine.experience", "com.medkernel.engine.list"),
             prefixes("mk_experience_"), tables()),
+        module("engine-workflow", packages("com.medkernel.engine.workflow"), prefixes("mk_engine_workflow_"),
+            tables("mk_engine_notification")),
         module("engine-followup", packages("com.medkernel.engine.followup"), prefixes("followup_"), tables()),
         module("engine-integration", packages("com.medkernel.engine.integration"),
             prefixes("integration_", "mk_fhir_", "mk_integration_"), tables()),

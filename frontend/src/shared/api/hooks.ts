@@ -2869,6 +2869,148 @@ export function useReportFollowupAbnormal() {
 }
 
 // ──────────────────────────────────────────
+// 临床协同 · 统一待办与通知中心（SVC-CLINICAL-03）
+// ──────────────────────────────────────────
+export type WorkflowTodoSourceType =
+  | "FOLLOWUP_TASK"
+  | "SAFETY_REVIEW"
+  | "RECOMMENDATION_CARD"
+  | "NURSING_TASK"
+  | "REPORT_INTERPRETATION"
+  | "BEDSIDE_KNOWLEDGE";
+
+export type WorkflowPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type WorkflowTodoStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "TRANSFERRED"
+  | "CANCELLED";
+export type WorkflowNotificationSourceType = "FOLLOWUP_EVENT" | "SAFETY_REVIEW" | "WORKFLOW_TODO";
+export type WorkflowNotificationLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+export type WorkflowNotificationStatus = "UNREAD" | "READ";
+
+export interface WorkflowTodo {
+  todoId: string;
+  sourceType: WorkflowTodoSourceType;
+  sourceId: string;
+  title: string;
+  summary: string;
+  priority: WorkflowPriority;
+  status: WorkflowTodoStatus;
+  assigneeId?: string | null;
+  assigneeRole?: string | null;
+  patientId?: string | null;
+  encounterId?: string | null;
+  dueAt?: string | null;
+  deepLink?: string | null;
+  completionReason?: string | null;
+  completedAt?: string | null;
+  completedBy?: string | null;
+  traceId?: string | null;
+}
+
+export interface WorkflowNotification {
+  notificationId: string;
+  sourceType: WorkflowNotificationSourceType;
+  sourceId: string;
+  dedupeKey: string;
+  title: string;
+  message: string;
+  level: WorkflowNotificationLevel;
+  status: WorkflowNotificationStatus;
+  recipientId?: string | null;
+  recipientRole?: string | null;
+  patientId?: string | null;
+  encounterId?: string | null;
+  deepLink?: string | null;
+  readAt?: string | null;
+  readBy?: string | null;
+  traceId?: string | null;
+}
+
+export interface WorkflowTodosParams {
+  status?: WorkflowTodoStatus;
+  priority?: WorkflowPriority;
+  sourceType?: WorkflowTodoSourceType;
+  assigneeId?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface WorkflowNotificationsParams {
+  status?: WorkflowNotificationStatus;
+  level?: WorkflowNotificationLevel;
+  recipientId?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface WorkflowTodoCompletePayload {
+  todoId: string;
+  request: {
+    completionReason: string;
+  };
+}
+
+export function useWorkflowTodos(params?: WorkflowTodosParams) {
+  return useQuery({
+    queryKey: ["workflow", "todos", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<WorkflowTodo> }>(
+        "/engine/workflow/todos",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCompleteWorkflowTodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ todoId, request }: WorkflowTodoCompletePayload) => {
+      const { data } = await apiClient.post<{ data: WorkflowTodo }>(
+        `/engine/workflow/todos/${todoId}/complete`,
+        request,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["workflow", "todos"] });
+    },
+  });
+}
+
+export function useWorkflowNotifications(params?: WorkflowNotificationsParams) {
+  return useQuery({
+    queryKey: ["workflow", "notifications", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<WorkflowNotification> }>(
+        "/engine/notifications",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useReadWorkflowNotification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (notificationId: string) => {
+      const { data } = await apiClient.post<{ data: WorkflowNotification }>(
+        `/engine/notifications/${notificationId}/read`,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["workflow", "notifications"] });
+    },
+  });
+}
+
+// ──────────────────────────────────────────
 // 智能包发布与同步引擎 (GA-ENG-PKG-01)
 // ──────────────────────────────────────────
 

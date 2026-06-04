@@ -17,6 +17,12 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
 部分基础：随访任务（`engine/followup`）、提醒（`engine/recommendation`）、安全复核任务（[MED-C3](MED-C3.md)）各有来源；**缺统一待办/通知汇聚层**。本卡＝建统一待办/通知聚合 + 协同编排（护理/报告解读/床旁知识/随访触发），各源任务单一注入、不重造。
 
+## PR1 实施边界（2026-06-04，本地完整验证）
+- 已实现：新增 `engine/workflow` 统一协同服务包、五方言 V77 迁移、权限 / 服务契约 / 领域归属；`GET /api/v1/engine/workflow/todos`、`POST /workflow/todos/{id}/complete`、`GET /api/v1/engine/notifications`、`POST /notifications/{id}/read` 均走真实关系库。
+- 已覆盖来源：随访任务（`FOLLOWUP_TASK`）、安全撤回复核任务（`SAFETY_REVIEW`）、待处理 / 已查看 / 延后处理的推荐卡（`RECOMMENDATION_CARD`）投影为统一待办；随访异常通知事件投影为通知并按 `dedupeKey` 去重，收件人来自随访任务执行人而非页面查询用户；待办仓储已覆盖 `patientId` 过滤与随访投影。
+- 已覆盖闭环：待办完成持久化 `completionReason/completedBy/completedAt`；通知单条已读与当前页全部已读均回写后端；待办分页层安全复核 + 高风险优先排序，前端再做同口径展示保护。
+- 未冒领范围：护理任务、报告解读、床旁知识卡、通知免打扰设置与外发投递仍属于本卡后续 PR 或 X-DOMAIN/wave2 接入点；不是外部环境阻塞，后续必须继续实现，不得写成已完成。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 统一待办：CDSS 复核/随访/安全复核（[MED-C3](MED-C3.md)）任务统一进待办，带责任人/截止/来源。
 - [ ] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。
@@ -61,6 +67,6 @@
 - B0 验收：关模型待办/通知协同全可用。
 
 ## 完工证据
-- 代码 permalink：统一待办/通知聚合 + 协同编排。
-- 测试：多源注入 / 去重 / 闭环 / 安全复核优先。
+- 代码 permalink：PR 创建后补充统一待办/通知聚合 + TODO/NOTIFY 页面真实化链接。
+- 测试（PR1 本地）：`mvn -q test`；`npm run verify`；`npm run build`；`npm audit --omit=dev --audit-level=moderate`（0 漏洞）；Browser 复验 `/workflow/todos`、`/notifications` 未登录均重定向 `/login` 且控制台 error 为空。目标用例覆盖 `WorkflowCollaborationServiceTest`、`WorkflowTodoRepositoryTest`、`RecommendationRepositoryTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、前端 `WorkflowTodos.test.tsx` / `Notifications.test.tsx` / `hooks.test.ts`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
