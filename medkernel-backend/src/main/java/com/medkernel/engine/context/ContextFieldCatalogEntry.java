@@ -38,6 +38,6 @@ public record ContextFieldCatalogEntry(
     public ContextFieldDescriptor toDescriptor() {
         return new ContextFieldDescriptor(
             category, groupName, resourceType, fieldPath, displayName, dataType, unit, codeSystem,
-            description);
+            description, "TENANT", fieldId);
     }
 }

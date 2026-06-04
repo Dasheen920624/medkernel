@@ -65,6 +65,7 @@ import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
+import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -367,6 +368,7 @@ export default function RuleDefinitions() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [activeDetailLayer, setActiveDetailLayer] = useState<DetailLayerKey>("l2");
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [fieldManagerOpen, setFieldManagerOpen] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
   const [createExpertMode, setCreateExpertMode] = useState(false);
   const [detailExpertMode, setDetailExpertMode] = useState(false);
@@ -2083,6 +2085,13 @@ export default function RuleDefinitions() {
             >
               同步到 DSL
             </Button>
+            <Button
+              icon={<ApartmentOutlined />}
+              aria-label="管理字段目录"
+              onClick={() => setFieldManagerOpen(true)}
+            >
+              管理字段目录
+            </Button>
           </Space>
         </Space>
       ),
@@ -2448,6 +2457,8 @@ export default function RuleDefinitions() {
           </Row>
         </Form>
       </Modal>
+
+      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
     </PageShell>
   );
 }

@@ -2502,6 +2502,8 @@ export interface ContextFieldDescriptor {
   unit?: string | null;
   codeSystem?: string | null;
   description?: string | null;
+  source?: string | null;
+  fieldId?: string | null;
 }
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
@@ -2518,6 +2520,49 @@ export function useContextFieldCatalog(
         { params },
       );
       return data.data;
+    },
+  });
+}
+
+export interface ContextFieldUpsertPayload {
+  category: string;
+  group: string;
+  resourceType: string;
+  fieldPath: string;
+  displayName: string;
+  dataType: string;
+  unit?: string;
+  codeSystem?: string;
+  description?: string;
+}
+
+/** 新增租户自定义上下文字段（P2/P5 前台维护）。 */
+export function useCreateContextField() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ContextFieldUpsertPayload) => {
+      const { data } = await apiClient.post<{ data: ContextFieldDescriptor }>(
+        "/engine/context/field-catalog",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] });
+    },
+  });
+}
+
+/** 删除租户自定义上下文字段（P2/P5 前台维护）。 */
+export function useDeleteContextField() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fieldId: string) => {
+      await apiClient.delete(`/engine/context/field-catalog/${fieldId}`);
+      return fieldId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] });
     },
   });
 }
