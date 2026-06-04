@@ -61,6 +61,54 @@ class WorkflowNotificationSettingsServiceTest {
     }
 
     @Test
+    void getSettingsForUserReadsRecipientPreferenceInsteadOfCurrentActor() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        UserPreference recipientPreference = new UserPreference(
+            "pref-notify-nurse-2",
+            "tenant-A",
+            "nurse-2",
+            "notification.settings",
+            """
+                {
+                  "inAppEnabled": true,
+                  "smsEnabled": true,
+                  "emailEnabled": false,
+                  "pushEnabled": true,
+                  "quietHoursEnabled": true,
+                  "quietStart": "21:30",
+                  "quietEnd": "06:30",
+                  "quietBypassLevels": ["CRITICAL", "HIGH"]
+                }
+                """,
+            5,
+            "ACTIVE",
+            now,
+            "nurse-2",
+            now,
+            "nurse-2");
+        when(repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
+                "tenant-A",
+                "nurse-2",
+                "notification.settings",
+                "ACTIVE"))
+            .thenReturn(Optional.of(recipientPreference));
+
+        WorkflowNotificationSettingsResponse response = service.getSettingsForUser("tenant-A", "nurse-2");
+
+        assertThat(response.smsEnabled()).isTrue();
+        assertThat(response.emailEnabled()).isFalse();
+        assertThat(response.pushEnabled()).isTrue();
+        assertThat(response.quietHoursEnabled()).isTrue();
+        assertThat(response.quietStart()).isEqualTo("21:30");
+        assertThat(response.version()).isEqualTo(5);
+        verify(repository).findByTenantIdAndUserIdAndPrefKeyAndStatus(
+            "tenant-A",
+            "nurse-2",
+            "notification.settings",
+            "ACTIVE");
+    }
+
+    @Test
     void saveSettingsPersistsCurrentTenantUserAndKeepsCriticalLevelsBypassingQuietHours() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         UserPreference existing = new UserPreference(

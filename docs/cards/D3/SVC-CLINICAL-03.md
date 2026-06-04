@@ -25,7 +25,7 @@
 
 ## PR2 实施边界（2026-06-04，PR #371 已合并）
 - 已实现：新增待办转交端点 `POST /api/v1/engine/workflow/todos/{todoId}/transfer`，待办状态可从 `PENDING` / `IN_PROGRESS` 流转到 `TRANSFERRED`，并持久化 `transferredTo`、`transferReason`、新责任人 / 角色、traceId 与更新时间；新增通知偏好 `GET/PUT /api/v1/engine/notifications/settings`，复用 `mk_experience_user_pref` 存取个人免打扰与通道偏好，不新增伪投递表。
-- 已覆盖闭环：前端待办中心提供转交弹窗并回写后端；通知设置页从后端加载 / 保存偏好，明确 CRITICAL / HIGH 不被免打扰静默，外部通道当前只保存个人偏好，不伪造短信 / 院内消息投递成功。
+- 已覆盖闭环：前端待办中心提供转交弹窗并回写后端；通知设置页从后端加载 / 保存偏好，明确 CRITICAL / HIGH 不被免打扰静默；PR2 阶段仅保存外部通道个人偏好，不伪造短信 / 邮件 / 移动推送投递成功。
 - 验证证据：本地 `npm run verify`、`mvn -q clean test`、`npm run build`、`npm audit --omit=dev --audit-level=moderate`、changed-mode T-GATE 与远端 CI 8/8 通过；PostgreSQL + Oracle 校验并应用到 V80。达梦 / 人大金仓真实运行按当前阶段边界后置，不作为本 PR 阻塞。
 - 未冒领范围：护理任务、报告解读、床旁知识卡、待办派生通知、同步事件通知与真实外发投递仍待后续 PR；缺上游真实来源时登记待处理问题后继续下一可测闭环。
 
@@ -44,9 +44,14 @@
 - 已覆盖闭环：推荐卡来源细分仍复用同一待办状态机、完成 / 转交 / 通知派生和 traceId；新增推荐卡派生来源去重查询，避免同一 `cardId` 在旧 `RECOMMENDATION_CARD` 与新细分来源之间重复生成待办；待办中心来源列和筛选项显示中文，不暴露裸枚举。
 - 未冒领范围：本 PR 不声明护理站任务系统、LIS / PACS 报告解读外部系统或独立床旁知识外部通道已直连；只接入已在关系库落地的推荐卡真实类型。外发投递仍只由集成层登记并诚实 `NOT_CONNECTED`，短信 / 邮件 / Webhook / 院内消息真实投递未接通。
 
+## PR6 实施边界（2026-06-04，本地验证）
+- 已实现：待办完成 / 转交派生通知与随访异常新通知保存成功后，按通知接收人的个人偏好登记短信 / 邮件 / 移动推送出站补偿消息，统一调用 `IntegrationService.enqueueOutboundMessage`，消息 ID 为 `notify-out-<channel>-<notificationId>`，不新增真实发送连接器。
+- 已覆盖闭环：外发补偿 payload 只保留通知 ID、来源、级别、接收人、深链与 traceId，不写入患者号或通知正文；INFO 级别在接收人免打扰命中时不登记外发补偿，HIGH / CRITICAL 按既有绕过级别继续允许登记。集成层无连接器时诚实落库 `NOT_CONNECTED`、`compensationRequired=true`、`blocksMainFlow=false`，供集成日志 / 死信重放继续追踪。
+- 未冒领范围：本 PR 不声明短信 / 邮件 / 移动推送 / Webhook / 院内消息已真实投递，不接护理站、LIS / PACS 或独立床旁知识外部系统；达梦 / 人大金仓真实运行仍按当前阶段边界后置。
+
 ## 功能要求（原子可测条目）
 - [ ] FR-1 统一待办：CDSS 复核/随访/安全复核（[MED-C3](MED-C3.md)）任务统一进待办，带责任人/截止/来源。
-- [ ] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。（待办/随访异常/同步事件站内通知已覆盖，外发投递待后续）
+- [ ] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。（待办/随访异常/同步事件站内通知已覆盖；短信 / 邮件 / 移动推送仅登记 `NOT_CONNECTED` 补偿，真实发送待后续）
 - [ ] FR-3 协同：护理任务、报告解读、床旁知识卡按上下文呈现。（推荐卡真实类型细分已覆盖；独立外部上游直连待后续）
 - [ ] FR-4 随访触发：随访（[FOLLOW-01](FOLLOW-01.md)）任务汇入待办、异常回院转通知。
 - [ ] FR-5 闭环：每条待办可流转到完成，状态机闭环可审计。
