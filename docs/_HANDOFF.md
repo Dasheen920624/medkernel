@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 EMBED-01 嵌入引擎 PR3 🚧
+### 线 1 · D3 MED-C3 安全撤回与旧版隔离 PR1 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-embed-01-pr3-degrade-replay`
-- 目标：完成 D3 [EMBED-01](cards/D3/EMBED-01.md) PR3，关闭 FR-5 / AC-3 并收官整卡：宿主回调未配置时反馈受理返回 `NOT_CONNECTED` + 明确未送达原因，不阻断宿主；模型不可用保持 `MODEL_DISABLED`；非法反馈动作、未消费令牌反馈与并发重放消费均失败审计，不发布成功审计。
-- 状态：基于最新 `origin/main`（`e7ee0604`，PR2 已 #336 合入）完成本地收口并已提交当前分支 HEAD。已新增 `EmbedFeedbackActionType` 受控动作，`ADOPT` / `REJECT` 有效，`ACCEPT` 兼容归一为 `ADOPT`；`EmbedFeedbackResponse` 显式返回 `callbackDelivered=false` 与 `degradationReason=HOST_CALLBACK_NOT_CONFIGURED`，不伪造宿主回调成功；服务层在成功反馈审计前拒绝 `CALLBACK_SUCCESS` 等非法动作；补未消费令牌反馈拒绝和并发原子消费重放测试。`EMBED-01` 卡已勾选 FR-5 / AC-3、补齐 PR3 证据，`docs/backlog.md` 已标 done；远端 CI / 合并仍以 PR 门禁为准。
-- 下一步（精确到动作/命令）：1. 推送并创建 PR；2. 远端 CI 8/8 全绿后 squash merge；3. 合并确认 `origin/main` 后清理 worktree / 本地分支；4. 领取下一张 backlog 任务，不得跳过 PR/CI/合并门禁。
-- 相关文件 / 测试 / 坑：核心文件 `EmbedEngineService.java`、`EmbedFeedbackActionType.java`、`EmbedFeedbackResponse.java`、`EmbedFeedbackRequest.java`、`EmbedEngineServiceTest.java`、`EmbedEngineControllerTest.java`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D3/EMBED-01.md`、`docs/_HANDOFF.md`。红绿证据：`feedback_SucceedsAndPublishesAudit` 先编译失败于旧响应缺 `callbackDelivered` / `degradationReason`；`feedback_RejectsUnsupportedActionTypeBeforeAuditing` 覆盖旧逻辑会接受 `CALLBACK_SUCCESS` 并写成功审计；修复后目标测试通过。聚焦套件、`mvn -q test`、`npm run verify`（首跑既有 `ConfigPackages.test.tsx` flaky 超时，单跑该文件 12/12 后重跑全量 51 文件 / 311 测试通过）、`npm run build`、T-GATE 脚本自测 34/34、真实性全量扫描 953 文件、配置边界 inventory 891 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、工作区 `git diff --check`、提交后真实性 changed 5 文件、配置边界 changed 4 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn 与 `git diff --check origin/main..HEAD` 均已通过。
+- 分支：`codex/d3-med-c3-safety-withdrawal`
+- 目标：完成 D3 [MED-C3](cards/D3/MED-C3.md)：复用 D2 [SYS-08](cards/D2/SYS-08.md) 紧急失效框架，建立 D3 安全撤回 API / 服务编排，证明新临床请求不再命中被撤回旧版，并为受影响患者 / 路径 / 同步目标生成可重算、幂等的复核任务种子与 NDJSON 证据导出。
+- 状态：代码与文档已完成本地红绿 / 全量验证，尚待远端 PR / CI / 合并。新增 `engine/safety` 安全撤回 API（`POST /withdrawals`、`GET /impact`、`GET /impact/export`）、`ClinicalSafetyGuard`，推荐评估 / 触发与路径入径在落库前拒绝非 ACTIVE 知识版本；影响集合只基于真实 `recommendation_source`、`recommendation_card`、`recommendation_trigger`、`pathway_template`、`patient_pathway` 与 `mk_knowledge_affected_case_task`，不伪造患者。额外收紧：撤回 `reason` 接口层拒绝空白值，已有失效记录幂等复用必须匹配同一 `identityId`。
+- 下一步（精确到动作/命令）：1. 提交当前分支；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理远端分支 / 本地 worktree；5. 基于最新 `origin/main` 继续下一张 `OPT-02`，不得跳过 PR/CI/合并门禁。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/safety/**`、`engine/recommendation/RecommendationEngineService.java`、`engine/pathway/PathwayEngineService.java`、`engine/contract/ServiceContractCatalog.java`、`docs/cards/D3/MED-C3.md`、`docs/backlog.md`。红绿证据：新增空白 `reason` 与跨 `identityId` 幂等复用测试先失败，修复后 `mvn -q -Dtest=SafetyWithdrawalServiceTest,SafetyWithdrawalControllerSecurityTest test` 通过；rebase 到 `origin/main` `71005f67` 后，MED-C3 聚焦套件、`mvn -q test`（H2 + PostgreSQL 15.18 + Oracle 21.3 迁移到 V71 并二次 no-op）、`npm run verify`（51 files / 311 tests）、`npm run build`、T-GATE 脚本自测 34/34、真实性全量扫描 964 文件、配置边界 inventory 902 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均已通过。嵌入 token 当前不持有知识版本字段，旧版隔离随推荐 / 路径新请求入口生效；复核任务进入统一待办 / 通知与完成闭环由 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) 承接。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -39,6 +39,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D3 EMBED-01 嵌入引擎 PR3 ✅（#337，merge `1819d661`）：关闭 FR-5 / AC-3 并收官整卡；反馈回调未配置时返回 `callbackStatus=NOT_CONNECTED`、`callbackDelivered=false` 与 `degradationReason=HOST_CALLBACK_NOT_CONFIGURED`，不伪造宿主回调送达成功；反馈动作收紧为 `ADOPT` / `REJECT`（兼容 `ACCEPT` 归一），非法动作、未消费令牌反馈与并发重放消费均失败审计且不发布成功审计。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`EMBED-01` 已 done。
 - D3 EMBED-01 嵌入引擎 PR2 ✅（#336，merge `e7ee0604`）：关闭 FR-3 / FR-4 / AC-2；签发 / 兑换统一复用 `ClinicalEventTriggerPoint` 6 触发点，`ORDER_SIGN` 规范化为 `order-sign`，非 6 触发点或 hook 不一致返回 `ENG_EMBED_005` 且不保存 / 不消费 token；`IFRAME` / `SDK` / `API` 三路共享同一上下文契约。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。后续 FR-5 / AC-3 已由 PR3 本地收口。
 - D3 EMBED-01 嵌入引擎 PR1 ✅（#335，merge `0ebf654b`）：关闭 FR-1 / FR-2 / AC-1；`/api/v1/engine/embed/launch` 必须携带 `Origin`，`EmbedEngineService.validateAndExchange` 在 token 状态转换前强制校验当前租户白名单，缺失 / 空白 / 非白名单返回 `ENG_EMBED_002` 且不消费 token；`GlobalExceptionHandler` 补缺请求头 `ENG-API-001` / 400，避免误报 500。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。后续 FR-3 / FR-4 / FR-5 与 AC-2 / AC-3 已由 PR2 / PR3 收口。
 - D3 FOLLOW-01 随访引擎 ✅（#334，merge `026ce966`）：PR3 完成 FR-5 / AC-3，模型请求或模型关闭时仍不接假模型，随访计划按路径 / 诊断 / 风险分层受控事实走确定性 B0 主链路；解释写入 `requestedModelEnabled=true`、`modelStatus=MODEL_DISABLED`、`modelDowngradeReason=MODEL_DISABLED_DETERMINISTIC_RULES`；B0 复现计划 → 问卷 → 异常回院 → 结果回流。本地目标、聚焦、后端全量、前端 verify/build、T-GATE、中文注释、diff 检查和远端 CI 8/8 通过后 squash 合入，远端分支和本地 worktree 已清理。`DEFER-019` 随访模板资产化仍 open，不得把患者运行计划当配置包资产。
@@ -204,4 +205,4 @@
 
 ---
 
-> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；D3 `FOLLOW-01` PR2 已 #333 squash 合入 `origin/main`（merge `eb131c0273715c03122b027e825aae160ab00be9`）并清理工作树。当前在途线为 D3 `FOLLOW-01` PR3（B0 降级 + 复现测试）：已完成 `modelEnabled=true` 下确定性 `MODEL_DISABLED` 计划解释、计划 → 问卷 → 异常回院 → 结果回流闭环复现、旧“智能生成”注释清理，并将 `FOLLOW-01` 标为 done；红绿目标测试、随访聚焦 + E2E、后端全量、前端 verify/build、T-GATE、中文注释和提交后 changed-mode 门禁均已通过，下一步推送、PR、远端 CI 与合并；合并后基于最新 `origin/main` 继续 D3 `EMBED-01`，不得跳过 PR/CI/合并门禁。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；当前在途线为 D3 `MED-C3` 安全撤回与旧版隔离 PR1：本地红绿、后端全量、前端 verify/build、T-GATE、中文注释和 diff 检查均已通过，下一步提交、推送、PR、远端 CI 与合并；合并后基于最新 `origin/main` 继续 D3 `OPT-02`，不得跳过 PR/CI/合并门禁。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。

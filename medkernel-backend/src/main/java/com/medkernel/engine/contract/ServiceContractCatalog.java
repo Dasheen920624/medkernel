@@ -48,6 +48,13 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/clinical-events:replay",
             permissions("event.write"),
             audits(audit(AuditAction.EXECUTE, "clinical_event", "客户面 suffix 回放临床事件"))),
+        contract("clinical-safety", "临床安全撤回服务",
+            "com.medkernel.engine.safety.SafetyWithdrawalController", "/api/v1/engine/safety",
+            permissions("knowledge.read", "knowledge.withdraw"),
+            audits(
+                audit(AuditAction.PUBLISH, "safety_withdrawal", "发起安全撤回并重算影响集合"),
+                audit(AuditAction.EXPORT, "safety_withdrawal", "导出安全撤回影响证据"),
+                audit(AuditAction.CREATE, "mk_knowledge_affected_case_task", "生成受影响病例 / 路径复核任务"))),
         contract("context-snapshot", "标准上下文快照服务",
             "com.medkernel.engine.context.ContextSnapshotController", "/api/v1/engine/context/snapshots",
             permissions("context.write", "context.read"),

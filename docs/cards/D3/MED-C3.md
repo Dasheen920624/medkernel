@@ -17,16 +17,18 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
 框架基础在 D2：`engine/knowledge/` 已有 `KnowledgeVersionService.withdraw`、`KnowledgeSupersession`、悲观锁原子替换（[SYS-08](../D2/SYS-08.md) 归属）。本卡＝**临床域端到端编排**：把"紧急失效 → 下游 CDSS/路径/嵌入隔离旧版 → 影响病例任务派发"串成可验收闭环（D2 给框架、D3 给临床落点），非重造约束。
 
+2026-06-04 收口：新增 `engine/safety` 安全撤回编排层，`POST /api/v1/engine/safety/withdrawals` 复用 SYS-08 撤回框架，`GET /impact` 和 `GET /impact/export` 从真实 `mk_knowledge_affected_case_task` 重算 / 导出影响集合；`ClinicalSafetyGuard` 挂到推荐评估 / 触发与路径入径入口，阻止 `knowledge-version:<id>` 指向的非 ACTIVE 知识版本进入新临床命中。嵌入 token 当前不持有知识版本字段，隔离随推荐 / 路径新请求入口生效，不伪造 token 级旧版字段。复核任务统一进入待办 / 通知与完成闭环仍由 [SVC-CLINICAL-03](SVC-CLINICAL-03.md) 承接。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 紧急停用：对召回/禁忌升级的版本调 [SYS-08](../D2/SYS-08.md) 紧急失效，立即不可命中。
-- [ ] FR-2 下游隔离：CDSS（[CDSS-01](CDSS-01.md)）/路径/嵌入（[EMBED-01](EMBED-01.md)）即刻不再命中旧版，仅历史重放可见旧版并标"历史版本"。
-- [ ] FR-3 影响识别：扫描受影响**患者/路径实例/同步目标**，生成复核任务（[SVC-CLINICAL-03](SVC-CLINICAL-03.md)）。
-- [ ] FR-4 不漏派：影响集合可重算、可核对，任务派发幂等不漏不重。
-- [ ] FR-5 审计闭环：召回原因/范围/任务/复核结果全留痕，可导出证据。
+- [x] FR-1 紧急停用：对召回/禁忌升级的版本调 [SYS-08](../D2/SYS-08.md) 紧急失效，立即不可命中。
+- [x] FR-2 下游隔离：CDSS（[CDSS-01](CDSS-01.md)）/路径/嵌入（[EMBED-01](EMBED-01.md)）即刻不再命中旧版，仅历史重放可见旧版并标"历史版本"。
+- [x] FR-3 影响识别：扫描受影响**患者/路径实例/同步目标**，生成复核任务（[SVC-CLINICAL-03](SVC-CLINICAL-03.md)）。
+- [x] FR-4 不漏派：影响集合可重算、可核对，任务派发幂等不漏不重。
+- [x] FR-5 审计闭环：召回原因/范围/任务/复核结果全留痕，可导出证据。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/safety/withdrawals`（发起安全撤回）· `GET .../safety/withdrawals/{id}/impact`（影响集合）
+- 端点：`POST /api/v1/engine/safety/withdrawals`（发起安全撤回）· `GET .../safety/withdrawals/{id}/impact`（影响集合）· `GET .../impact/export`（NDJSON 证据导出）
 - DTO：撤回请求（版本/原因/范围 Record）→ 撤回结果 + 影响摘要；信封 `ApiResult`/`ProblemDetail`
 - 状态机：变更类（发起→隔离中→已隔离 + 复核任务进行中→闭环）
 - 幂等 / traceId：撤回与任务派发幂等；全链 trace（[OBS-01](../D0/OBS-01.md)）
@@ -52,14 +54,15 @@
 - 本卡落点：召回→下游隔离→影响复核的临床端到端闭环，框架复用 [SYS-08](../D2/SYS-08.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：撤回后旧版即刻不可命中（CDSS/路径/嵌入），仅历史重放。
-- [ ] AC-2（FR-3/4）：受影响患者/路径/同步目标复核任务自动派发、不漏不重。
-- [ ] AC-3（FR-5）：召回全链审计可导出。
+- [x] AC-1（FR-1/2）：撤回后旧版即刻不可命中（CDSS/路径/嵌入），仅历史重放。
+- [x] AC-2（FR-3/4）：受影响患者/路径/同步目标复核任务自动派发、不漏不重。
+- [x] AC-3（FR-5）：召回全链审计可导出。
 - 关联 A1–A9 剧本：A8 安全撤回。
 - T-GATE：后端真实性门禁全绿（旧版不可命中 / 影响不漏派）。
 - B0 验收：撤回与隔离纯确定性，关模型仍闭环。
 
 ## 完工证据
 - 代码 permalink：安全撤回编排 + 影响扫描 + 复核任务派发。
-- 测试：旧版隔离 / 影响重算 / 任务幂等 / 审计导出。
+- 测试：`ClinicalSafetyGuardTest`、`SafetyWithdrawalServiceTest`、`SafetyWithdrawalControllerSecurityTest`、`RecommendationEngineServiceTest`、`PathwayEngineServiceTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`。
+- 本地验证（2026-06-04）：rebase 到 `origin/main` `71005f67` 后，MED-C3 聚焦套件、`mvn -q test`、`npm run verify`（51 files / 311 tests）、`npm run build`、T-GATE 脚本自测 34/34、真实性全量扫描 964 文件、配置边界 inventory 902 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均已通过；远端 CI / 合并以 PR 门禁为准。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

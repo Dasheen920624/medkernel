@@ -12,4 +12,7 @@ import org.springframework.stereotype.Repository;
 public interface RecommendationSourceRepository extends ListCrudRepository<RecommendationSource, Long> {
 
     List<RecommendationSource> findByCardIdAndTenantIdOrderByCreatedAtAsc(String cardId, String tenantId);
+
+    List<RecommendationSource> findByTenantIdAndSourceTypeAndSourceRefIdOrderByCreatedAtAsc(
+        String tenantId, RecommendationSourceType sourceType, String sourceRefId);
 }
