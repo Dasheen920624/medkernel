@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
+import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
+import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -49,6 +53,7 @@ class RecommendationEngineServiceTest {
     private RecommendationDeterministicMatcher deterministicMatcher;
     private RecommendationFatiguePolicyResolver fatiguePolicyResolver;
     private ClinicalSafetyGuard safetyGuard;
+    private CdssRiskMatrixService riskMatrixService;
     private RecommendationEngineService service;
 
     @BeforeEach
@@ -66,10 +71,11 @@ class RecommendationEngineServiceTest {
         deterministicMatcher = mock(RecommendationDeterministicMatcher.class);
         fatiguePolicyResolver = mock(RecommendationFatiguePolicyResolver.class);
         safetyGuard = mock(ClinicalSafetyGuard.class);
+        riskMatrixService = mock(CdssRiskMatrixService.class);
         service = new RecommendationEngineService(
             triggers, cards, sources, feedback, fatigueSignals,
             auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher,
-            fatiguePolicyResolver, safetyGuard);
+            fatiguePolicyResolver, safetyGuard, riskMatrixService);
 
         when(triggers.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cards.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -78,6 +84,22 @@ class RecommendationEngineServiceTest {
         when(fatigueSignals.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(deterministicMatcher.match(any())).thenReturn(List.of());
         when(fatiguePolicyResolver.resolve(any())).thenReturn(Optional.empty());
+        when(riskMatrixService.assess(any(), any(), any())).thenAnswer(inv -> {
+            RecommendationRiskLevel severity = inv.getArgument(1);
+            boolean highRisk = severity == RecommendationRiskLevel.HIGH || severity == RecommendationRiskLevel.CRITICAL;
+            return new CdssRiskAssessment(
+                "builtin-risk-baseline",
+                "baseline",
+                severity,
+                highRisk ? CdssReviewRequirement.PHYSICIAN_CONFIRMATION
+                    : CdssReviewRequirement.OPTIONAL_REVIEW,
+                highRisk ? 72 : 0,
+                highRisk ? "OPT04_SILENT_TRIAL" : "STANDARD_CHANGE_REVIEW",
+                false,
+                "NMPA_RESERVED",
+                highRisk ? "TRACEABLE_EVIDENCE_REQUIRED" : "NOT_ASSESSED",
+                "内置风险基线");
+        });
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -120,6 +142,38 @@ class RecommendationEngineServiceTest {
             response.triggerId(), "接收推荐触发 TRG.ORDER");
         // CDSS-M-03：单卡触发应计入一次 CDSS 提醒指标
         verify(businessMetrics).incCdssAlerts();
+    }
+
+    @Test
+    void triggerAppliesRiskMatrixBeforePersistingCard() {
+        when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED))
+            .thenReturn(new CdssRiskAssessment(
+                "matrix-order-auto-v3",
+                "3",
+                RecommendationRiskLevel.CRITICAL,
+                CdssReviewRequirement.DUAL_REVIEW,
+                168,
+                "OPT04_REDLINE_SILENT_TRIAL",
+                false,
+                "NMPA_RESERVED",
+                "RISK_ANALYSIS_REQUIRED",
+                "自动化医嘱签署提醒按矩阵提升为红线级"));
+
+        service.trigger(triggerRequest(List.of(cardRequest(
+            "CARD.AUTO_ORDER", false, RecommendationRiskLevel.LOW, RecommendationInterruptLevel.INFO,
+            false, List.of(sourceRequest()), CdssAutomationLevel.AUTOMATED))));
+
+        ArgumentCaptor<RecommendationCard> cardCap = ArgumentCaptor.forClass(RecommendationCard.class);
+        verify(cards).save(cardCap.capture());
+        RecommendationCard saved = cardCap.getValue();
+        assertThat(saved.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+        assertThat(saved.requiresPhysicianConfirmation()).isTrue();
+        assertThat(saved.automationLevel()).isEqualTo(CdssAutomationLevel.AUTOMATED);
+        assertThat(saved.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+        assertThat(saved.silentRunHours()).isEqualTo(168);
+        assertThat(saved.releaseGate()).isEqualTo("OPT04_REDLINE_SILENT_TRIAL");
+        assertThat(saved.autoExecutionAllowed()).isFalse();
+        assertThat(saved.riskMatrixVersion()).isEqualTo("3");
     }
 
     @Test
@@ -353,19 +407,21 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
-    void triggerRejectsHighRiskWithoutPhysicianConfirmation() {
+    void triggerEnforcesHighRiskConfirmationBeforePersistingCard() {
         RecommendationCardRequest request = cardRequest(
             RecommendationRiskLevel.CRITICAL,
             RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
             false,
             List.of(sourceRequest()));
 
-        assertThatThrownBy(() -> service.trigger(triggerRequest(List.of(request))))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.ENG_REC_006);
-        // CDSS-M-01：高风险未确认被拒，同样发 FAILED 审计
-        verify(isolatedAudit).publishInNewTx(any(AuditEvent.class));
+        RecommendationTriggerResponse response = service.trigger(triggerRequest(List.of(request)));
+
+        assertThat(response.cardCount()).isEqualTo(1);
+        ArgumentCaptor<RecommendationCard> cardCap = ArgumentCaptor.forClass(RecommendationCard.class);
+        verify(cards).save(cardCap.capture());
+        assertThat(cardCap.getValue().riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
+        assertThat(cardCap.getValue().requiresPhysicianConfirmation()).isTrue();
+        verify(isolatedAudit, never()).publishInNewTx(any(AuditEvent.class));
     }
 
     @Test
@@ -514,12 +570,25 @@ class RecommendationEngineServiceTest {
             RecommendationInterruptLevel interruptLevel,
             boolean requiresConfirmation,
             List<RecommendationSourceRequest> sourceRequests) {
+        return cardRequest(
+            cardCode, aiGenerated, riskLevel, interruptLevel, requiresConfirmation,
+            sourceRequests, CdssAutomationLevel.INFORM_ONLY);
+    }
+
+    private RecommendationCardRequest cardRequest(
+            String cardCode,
+            boolean aiGenerated,
+            RecommendationRiskLevel riskLevel,
+            RecommendationInterruptLevel interruptLevel,
+            boolean requiresConfirmation,
+            List<RecommendationSourceRequest> sourceRequests,
+            CdssAutomationLevel automationLevel) {
         return new RecommendationCardRequest(
             cardCode, RecommendationCardType.MEDICATION,
             "抗凝用药风险提醒", "患者当前医嘱满足抗凝风险规则", "请确认出血风险评估",
             riskLevel, interruptLevel, requiresConfirmation, aiGenerated,
             "来源：抗凝用药规则 v1", "{\"reason\":\"规则命中\"}",
-            "WARD_ORDER:ANTICOAG", Instant.now().plusSeconds(3600), sourceRequests);
+            "WARD_ORDER:ANTICOAG", Instant.now().plusSeconds(3600), automationLevel, sourceRequests);
     }
 
     private RecommendationSourceRequest sourceRequest() {
@@ -546,7 +615,10 @@ class RecommendationEngineServiceTest {
             RecommendationRiskLevel.HIGH, RecommendationInterruptLevel.WEAK_INTERRUPTIVE,
             status, true, false, "来源：抗凝用药规则 v1",
             "{\"reason\":\"规则命中\"}", "WARD_ORDER:ANTICOAG", now.plusSeconds(3600),
-            now, "tester", now, "tester", "trace-rec");
+            now, "tester", now, "tester", "trace-rec",
+            "builtin-risk-baseline", "baseline", CdssAutomationLevel.INTERRUPTIVE,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 72, "OPT04_SILENT_TRIAL",
+            false, "NMPA_RESERVED", "TRACEABLE_EVIDENCE_REQUIRED", "高危 CDSS 输出必须医师确认");
     }
 
     private RecommendationFeedback feedback(String feedbackId, String cardId) {

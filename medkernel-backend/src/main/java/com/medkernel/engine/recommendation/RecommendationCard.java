@@ -2,6 +2,8 @@ package com.medkernel.engine.recommendation;
 
 import java.time.Instant;
 
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
@@ -40,5 +42,27 @@ public record RecommendationCard(
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,
     @Column("updated_by") String updatedBy,
-    @Column("trace_id") String traceId
-) {}
+    @Column("trace_id") String traceId,
+    @Column("risk_matrix_id") String riskMatrixId,
+    @Column("risk_matrix_version") String riskMatrixVersion,
+    @Column("automation_level") CdssAutomationLevel automationLevel,
+    @Column("review_requirement") CdssReviewRequirement reviewRequirement,
+    @Column("silent_run_hours") int silentRunHours,
+    @Column("release_gate") String releaseGate,
+    @Column("auto_execution_allowed") boolean autoExecutionAllowed,
+    @Column("samd_classification") String samdClassification,
+    @Column("regulatory_evidence") String regulatoryEvidence,
+    @Column("risk_matrix_explanation") String riskMatrixExplanation
+) {
+    public RecommendationCard {
+        automationLevel = automationLevel == null ? CdssAutomationLevel.INFORM_ONLY : automationLevel;
+        reviewRequirement = reviewRequirement == null ? CdssReviewRequirement.OPTIONAL_REVIEW : reviewRequirement;
+        releaseGate = hasText(releaseGate) ? releaseGate : "STANDARD_CHANGE_REVIEW";
+        samdClassification = hasText(samdClassification) ? samdClassification : "NMPA_RESERVED";
+        regulatoryEvidence = hasText(regulatoryEvidence) ? regulatoryEvidence : "NOT_ASSESSED";
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+}

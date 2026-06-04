@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
@@ -153,6 +154,7 @@ public class RecommendationDeterministicMatcher {
             explanationJson(request, snapshot, rule, version, evaluation, knowledge),
             fatigueKey(request, rule),
             null,
+            CdssAutomationLevel.fromInterruptLevel(toInterruptLevel(risk)),
             sources(request, snapshot, rule, version, knowledge)
         );
     }

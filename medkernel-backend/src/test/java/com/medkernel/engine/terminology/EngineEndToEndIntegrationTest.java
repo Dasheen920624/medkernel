@@ -16,6 +16,7 @@ import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
 import com.medkernel.compliance.evidence.service.EvidenceService;
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResources;
@@ -212,6 +213,7 @@ class EngineEndToEndIntegrationTest {
                 true, // aiGenerated
                 "脑卒中溶栓临床指南",
                 "{}", "fatigue-stroke-pressure", null,
+                CdssAutomationLevel.INTERRUPTIVE,
                 recSources
             )
         );

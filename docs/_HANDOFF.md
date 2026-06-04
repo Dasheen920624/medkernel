@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 线 1 · D3 OPT-02 CDS Hooks 风格事件契约 PR1 🚧
+### 线 1 · D3 OPT-03 医疗器械与 CDSS 风险分级矩阵 PR1 🚧
 
 - 类型：软件开发
-- 分支：`codex/d3-opt-02-cds-hooks-contract`
-- 目标：完成 D3 [OPT-02](cards/D3/OPT-02.md)：抽出 `patient-view` / `order-sign` / `medication-prescribe` / `result-review` / `discharge-sign` / `followup-alert` 六类 CDS Hooks 风格触发契约，供 [API-02](cards/D3/API-02.md)、[API-07](cards/D3/API-07.md)、[EMBED-01](cards/D3/EMBED-01.md) 单一引用，避免事件 / 推荐 / 嵌入三处各自定义触发语义。
-- 状态：本地红绿、后端全量、前端 verify/build、生产依赖审计、T-GATE 与文档接力已完成，尚待提交 / PR / CI / 合并。新增 `engine/cdshook` 契约包，`ClinicalEventTriggerPoint` 成为 6 触发点与必备上下文字段单一源；`ClinicalEventRequest`、`RecommendationTriggerRequest` 和 `EmbedEngineService` 复用 `CdsHookContract`；API-07 旧 `triggerType=WARD_ORDER/CDSS/CLINICAL_EVENT` 口径已清理为合法 hook，业务场景保留在 `scenarioCode`；生产依赖 `react-router-dom` 升至 `6.30.4`，生产审计 0 漏洞，剩余 Vite/Vitest/esbuild 开发链路破坏性升级继续登记 [DEFER-002](audit/deferred-issues.md)。
-- 下一步（精确到动作/命令）：1. 提交当前分支；2. 推送并创建 PR；3. 远端 CI 8/8 全绿后 squash merge；4. 合并确认 `origin/main` 后清理远端分支 / 本地 worktree；5. 基于最新 `origin/main` 继续下一张 `OPT-03`，不得跳过 PR/CI/合并门禁。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/cdshook/**`、`engine/context/ClinicalEventRequest.java`、`engine/context/ClinicalEventTriggerPoint.java`、`engine/recommendation/RecommendationTriggerRequest.java`、`engine/recommendation/RecommendationEngineService.java`、`engine/embed/EmbedEngineService.java`、`docs/cards/D3/OPT-02.md`、`docs/backlog.md`、`docs/audit/deferred-issues.md`。红绿证据：`CdsHookContractTest` 和 `RecommendationEngineServiceTest#triggerRejectsLegacyScenarioAsCdsHookBeforeSavingTrigger` 初次因缺契约类 / 转换方法编译失败；实现后聚焦、后端全量 `mvn -q test`（H2 + PostgreSQL 15.18 + Oracle 21.3 迁移到 V71 并二次 no-op）、`npm run verify`（51 files / 311 tests）、`npm run build`、`npm audit --omit=dev --audit-level=moderate`、T-GATE 脚本自测 34/34、真实性全量扫描 964 文件、配置边界 inventory 902 文件、迁移 changed 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main..HEAD` 均已通过。`npm audit --audit-level=moderate` 仍因 Vite/Vitest/esbuild 开发工具链返回 7 个告警，属 `DEFER-002`，不得宣称全量依赖审计清零。
+- 分支：`codex/d3-opt-03-risk-matrix`
+- 目标：完成 D3 [OPT-03](cards/D3/OPT-03.md)：建立 CDSS 风险分级矩阵，按触发点 × 严重度 × 自动化程度决定风险级别、审核强度、静默试运行时长、上线门槛与是否允许自动执行，并把风险结果写入推荐卡追溯字段，预留 NMPA SaMD 分类与监管证据字段。
+- 状态：本地红绿、后端目标套件、后端全量、前端 verify/build、生产依赖审计、T-GATE 自测与迁移规约均已完成，尚待提交 / PR / CI / 合并。新增 `engine/cdss/risk` 风险矩阵包；推荐卡持久化风险矩阵 ID/版本、自动化级别、审核要求、静默时长、上线门槛、SaMD/监管证据与解释；高风险/自动化输出强制医师确认或双人复核，禁止自动执行降级；V72 五方言新增合规表 `mk_engine_cdss_risk_matrix` 并扩展 `recommendation_card` 追溯列；服务契约、审计对象和领域归属已登记。生产依赖审计 0 漏洞；Vite/Vitest/esbuild 开发链路告警继续登记 [DEFER-002](audit/deferred-issues.md)，不得宣称全量依赖审计清零。
+- 下一步（精确到动作/命令）：1. 跑最终 changed / inventory T-GATE 与 `git diff --check`；2. 提交当前分支；3. 推送并创建 PR；4. 远端 CI 8/8 全绿后 squash merge；5. 合并确认 `origin/main` 后清理远端分支 / 本地 worktree；6. 基于最新 `origin/main` 继续下一张 [OPT-04](cards/D3/OPT-04.md)，不得跳过 PR/CI/合并门禁。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/cdss/risk/**`、`engine/recommendation/RecommendationEngineService.java`、`RecommendationCard.java`、`RecommendationCardRequest.java`、V72 五方言迁移、`ServiceContractCatalog.java`、`DomainOwnershipCatalog.java`、`docs/cards/D3/OPT-03.md`、`docs/backlog.md`。红绿证据：新增风险矩阵测试先因缺类 / 构造器编译失败；实现后 `mvn -q -Dtest=CdssRiskMatrixServiceTest,CdssRiskMatrixControllerSecurityTest,RecommendationEngineServiceTest,RecommendationRepositoryTest,ServiceContractGovernanceTest,DomainOwnershipContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test` 通过；命名修正后 `mvn -q test` 通过（H2 + PostgreSQL 15.18 + Oracle 21.3 迁移到 V72 并二次 no-op）；`npm run verify`（51 files / 311 tests）、`npm run build`、`npm audit --omit=dev --audit-level=moderate` 0 漏洞、T-GATE 脚本自测 34/34、`node scripts/migration-convention-guard.mjs --mode=files` 扫描 5 个 V72 文件均已通过。新增迁移若未提交前用 changed 模式会扫描 0 文件，必须在提交后再跑 changed-mode 门禁。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -46,6 +46,7 @@
 
 ## 已归档工作线（最近完成，供回溯）
 
+- D3 OPT-02 CDS Hooks 风格事件契约 ✅（#342，merge `a35c925b`）：新增 `engine/cdshook` 契约包，`ClinicalEventTriggerPoint` 成为 `patient-view` / `order-sign` / `medication-prescribe` / `result-review` / `discharge-sign` / `followup-alert` 六触发点与必备上下文字段单一源；`ClinicalEventRequest`、`RecommendationTriggerRequest` 和 `EmbedEngineService` 复用 `CdsHookContract`；API-07 旧 `triggerType=WARD_ORDER/CDSS/CLINICAL_EVENT` 口径清理为合法 hook，业务场景保留在 `scenarioCode`。本地红绿、后端全量、前端 verify/build、生产依赖审计、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`DEFER-002` 开发工具链依赖告警继续 open，不阻塞 D3。
 - D3 MED-C3 安全撤回与旧版隔离 ✅（#338，merge `060d6c23`）：新增 `engine/safety` 安全撤回 API（`POST /withdrawals`、`GET /impact`、`GET /impact/export`）、`ClinicalSafetyGuard`，推荐评估 / 触发与路径入径在落库前拒绝非 ACTIVE 知识版本；影响集合只基于真实 `recommendation_source`、`recommendation_card`、`recommendation_trigger`、`pathway_template`、`patient_pathway` 与 `mk_knowledge_affected_case_task`，不伪造患者。远端 CI 8/8 通过后 squash 合入，远端分支和本地 worktree 已清理。嵌入 token 当前不持有知识版本字段，旧版隔离随推荐 / 路径新请求入口生效；复核任务进入统一待办 / 通知与完成闭环由 [SVC-CLINICAL-03](cards/D3/SVC-CLINICAL-03.md) 承接。
 - D3 EMBED-01 嵌入引擎 PR3 ✅（#337，merge `1819d661`）：关闭 FR-5 / AC-3 并收官整卡；反馈回调未配置时返回 `callbackStatus=NOT_CONNECTED`、`callbackDelivered=false` 与 `degradationReason=HOST_CALLBACK_NOT_CONFIGURED`，不伪造宿主回调送达成功；反馈动作收紧为 `ADOPT` / `REJECT`（兼容 `ACCEPT` 归一），非法动作、未消费令牌反馈与并发重放消费均失败审计且不发布成功审计。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。`EMBED-01` 已 done。
 - D3 EMBED-01 嵌入引擎 PR2 ✅（#336，merge `e7ee0604`）：关闭 FR-3 / FR-4 / AC-2；签发 / 兑换统一复用 `ClinicalEventTriggerPoint` 6 触发点，`ORDER_SIGN` 规范化为 `order-sign`，非 6 触发点或 hook 不一致返回 `ENG_EMBED_005` 且不保存 / 不消费 token；`IFRAME` / `SDK` / `API` 三路共享同一上下文契约。本地红绿、嵌入聚焦、后端全量、前端 verify/build、T-GATE、中文注释、提交后 changed-mode 与远端 CI 8/8 通过后 squash 合入；远端分支和本地 worktree 已清理。后续 FR-5 / AC-3 已由 PR3 本地收口。
@@ -213,4 +214,4 @@
 
 ---
 
-> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；当前在途线为 D3 `MED-C3` 安全撤回与旧版隔离 PR1：本地红绿、后端全量、前端 verify/build、T-GATE、中文注释和 diff 检查均已通过，下一步提交、推送、PR、远端 CI 与合并；合并后基于最新 `origin/main` 继续 D3 `OPT-02`，不得跳过 PR/CI/合并门禁。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-04 · 长期目标保持 active / usageLimited 语义继续推进；当前在途线为 D3 `OPT-03` 医疗器械与 CDSS 风险分级矩阵 PR1：本地红绿、后端目标套件、后端全量、前端 verify/build、生产依赖审计、T-GATE 自测与 V72 迁移规约均已通过，下一步跑提交前 changed / inventory 门禁、提交、推送、PR、远端 CI 与合并；合并后基于最新 `origin/main` 继续 D3 `OPT-04`，不得跳过 PR/CI/合并门禁。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。

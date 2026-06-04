@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
+import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -153,7 +155,10 @@ class RecommendationRepositoryTest {
             RecommendationCardStatus.PENDING, true, false,
             "来源：抗凝用药规则 v1", "{\"reason\":\"规则命中\"}",
             "WARD_ORDER:ANTICOAG", now.plusSeconds(3600),
-            now, "tester", now, "tester", "trace-recommendation");
+            now, "tester", now, "tester", "trace-recommendation",
+            "builtin-risk-baseline", "baseline", CdssAutomationLevel.INTERRUPTIVE,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 72, "OPT04_SILENT_TRIAL",
+            false, "NMPA_RESERVED", "TRACEABLE_EVIDENCE_REQUIRED", "高危 CDSS 输出必须医师确认");
     }
 
     private RecommendationSource sampleSource(String sourceId, String tenantId, String cardId) {

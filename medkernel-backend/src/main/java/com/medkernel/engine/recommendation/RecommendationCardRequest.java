@@ -3,6 +3,7 @@ package com.medkernel.engine.recommendation;
 import java.time.Instant;
 import java.util.List;
 
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,9 +28,13 @@ public record RecommendationCardRequest(
     String explanationJson,
     String fatigueKey,
     Instant expiresAt,
+    CdssAutomationLevel automationLevel,
     @Valid List<RecommendationSourceRequest> sources
 ) {
     public RecommendationCardRequest {
+        automationLevel = automationLevel == null
+            ? CdssAutomationLevel.fromInterruptLevel(interruptLevel)
+            : automationLevel;
         sources = sources == null ? List.of() : List.copyOf(sources);
     }
 }
