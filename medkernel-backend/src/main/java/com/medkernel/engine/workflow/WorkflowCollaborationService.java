@@ -132,7 +132,9 @@ public class WorkflowCollaborationService {
             todo.createdBy(),
             now,
             actor);
-        return WorkflowTodoResponse.from(todos.save(completed));
+        WorkflowTodo saved = todos.save(completed);
+        createCompletionNotificationIfAbsent(ctx, saved, normalizedReason, now, actor);
+        return WorkflowTodoResponse.from(saved);
     }
 
     /**
@@ -178,7 +180,9 @@ public class WorkflowCollaborationService {
             todo.createdBy(),
             now,
             actor);
-        return WorkflowTodoResponse.from(todos.save(transferred));
+        WorkflowTodo saved = todos.save(transferred);
+        createTransferNotificationIfAbsent(ctx, saved, transferReason, now, actor);
+        return WorkflowTodoResponse.from(saved);
     }
 
     /**
@@ -423,6 +427,72 @@ public class WorkflowCollaborationService {
             SYSTEM_ACTOR);
     }
 
+    private void createTransferNotificationIfAbsent(
+            RequestContext.Snapshot ctx,
+            WorkflowTodo todo,
+            String transferReason,
+            Instant now,
+            String actor) {
+        String dedupeKey = "todo:" + todo.todoId() + ":transferred:" + todo.assigneeId();
+        notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey)
+            .orElseGet(() -> notifications.save(new WorkflowNotification(
+                null,
+                "notify-" + UUID.randomUUID(),
+                todo.tenantId(),
+                WorkflowNotificationSourceType.WORKFLOW_TODO,
+                todo.todoId(),
+                dedupeKey,
+                "待办已转交",
+                "待办「" + todo.title() + "」已转交给 " + todo.assigneeId() + "；转交说明：" + transferReason,
+                notificationLevel(todo.priority()),
+                WorkflowNotificationStatus.UNREAD,
+                todo.assigneeId(),
+                todo.assigneeRole(),
+                todo.patientId(),
+                todo.encounterId(),
+                todo.deepLink(),
+                null,
+                null,
+                ctx.traceId(),
+                now,
+                actor,
+                now,
+                actor)));
+    }
+
+    private void createCompletionNotificationIfAbsent(
+            RequestContext.Snapshot ctx,
+            WorkflowTodo todo,
+            String completionReason,
+            Instant now,
+            String actor) {
+        String dedupeKey = "todo:" + todo.todoId() + ":completed";
+        notifications.findByTenantIdAndDedupeKey(todo.tenantId(), dedupeKey)
+            .orElseGet(() -> notifications.save(new WorkflowNotification(
+                null,
+                "notify-" + UUID.randomUUID(),
+                todo.tenantId(),
+                WorkflowNotificationSourceType.WORKFLOW_TODO,
+                todo.todoId(),
+                dedupeKey,
+                "待办已完成",
+                "待办「" + todo.title() + "」已完成；完成说明：" + completionReason,
+                WorkflowNotificationLevel.INFO,
+                WorkflowNotificationStatus.UNREAD,
+                defaultText(todo.assigneeId(), actor),
+                todo.assigneeRole(),
+                todo.patientId(),
+                todo.encounterId(),
+                todo.deepLink(),
+                null,
+                null,
+                ctx.traceId(),
+                now,
+                actor,
+                now,
+                actor)));
+    }
+
     private RequestContext.Snapshot requireContext() {
         RequestContext.Snapshot ctx = RequestContext.snapshot();
         if (!ctx.orgScope().hasTenant()) {
@@ -456,6 +526,15 @@ public class WorkflowCollaborationService {
             return WorkflowPriority.LOW;
         }
         return WorkflowPriority.MEDIUM;
+    }
+
+    private static WorkflowNotificationLevel notificationLevel(WorkflowPriority priority) {
+        return switch (priority) {
+            case CRITICAL -> WorkflowNotificationLevel.CRITICAL;
+            case HIGH -> WorkflowNotificationLevel.HIGH;
+            case LOW -> WorkflowNotificationLevel.LOW;
+            case MEDIUM -> WorkflowNotificationLevel.MEDIUM;
+        };
     }
 
     private static String followupTitle(FollowupWorkflowTodoRow row) {

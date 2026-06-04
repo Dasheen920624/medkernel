@@ -147,4 +147,37 @@ describe("Notifications", () => {
     expect(notificationHookMocks.markRead).toHaveBeenNthCalledWith(2, "notify-real-2");
     expect(notificationHookMocks.refetchNotifications).toHaveBeenCalled();
   });
+
+  it("renders workflow todo notifications with a clinical source label instead of raw enum text", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: {
+        items: [
+          {
+            notificationId: "notify-real-2",
+            sourceType: "WORKFLOW_TODO",
+            sourceId: "todo-real-2",
+            dedupeKey: "todo:todo-real-2:completed",
+            title: "待办已完成",
+            message: "安全撤回复核任务已完成。",
+            level: "INFO",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("协同待办")).toBeInTheDocument();
+    expect(screen.queryByText("WORKFLOW_TODO")).not.toBeInTheDocument();
+  });
 });
