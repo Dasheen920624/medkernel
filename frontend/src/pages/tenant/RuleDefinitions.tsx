@@ -64,6 +64,7 @@ import type {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
+import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -985,12 +986,7 @@ export default function RuleDefinitions() {
 
   const fieldCatalogQuery = useContextFieldCatalog();
   const fieldCatalogList = fieldCatalogQuery.data ?? [];
-  const fieldCatalogOptions = fieldCatalogList.map((field) => ({
-    value: field.fieldPath,
-    label: field.codeSystem
-      ? `${field.displayName}（${field.fieldPath}）· 字典 ${field.codeSystem}`
-      : `${field.displayName}（${field.fieldPath}）`,
-  }));
+  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
   const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
   // 选中字段时按目录 dataType 自动带出比较值类型，降低手填出错。
   const dataTypeToValueKind = (dataType?: string): RuleValueKind => {
@@ -1064,14 +1060,11 @@ export default function RuleDefinitions() {
                 id={isFirstLeaf ? "rule-condition-fact" : undefined}
                 value={condition.fact}
                 options={fieldCatalogOptions}
-                filterOption={(input, option) =>
-                  String(option?.value ?? "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase()) ||
-                  String(option?.label ?? "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
-                }
+                filterOption={(input, option) => {
+                  const leaf = option as { value?: string; label?: string } | undefined;
+                  const haystack = `${leaf?.value ?? ""} ${leaf?.label ?? ""}`.toLowerCase();
+                  return haystack.includes(input.toLowerCase());
+                }}
                 onSelect={(value) => handleFactSelect(condition.id, value)}
                 onChange={(value) => updateCondition(condition.id, { fact: value })}
                 placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
