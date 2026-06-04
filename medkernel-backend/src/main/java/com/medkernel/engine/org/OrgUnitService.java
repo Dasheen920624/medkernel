@@ -197,7 +197,7 @@ public class OrgUnitService {
             throw new ApiException(ErrorCode.BAD_REQUEST, "组织父子链不能形成环路");
         }
         if (!unit.level().canHaveParent(parent.level())) {
-            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级必须是七层树中的直接上一层");
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级层级必须严格高于子级（可跳过中间可选层）");
         }
         if (parent.id().equals(unit.parentId())) {
             return unit;
@@ -291,7 +291,7 @@ public class OrgUnitService {
             throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "租户根组织不能挂在其他组织之下");
         }
         if (!input.level().canHaveParent(parent.level())) {
-            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级必须是七层树中的直接上一层");
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "组织父级层级必须严格高于子级（可跳过中间可选层）");
         }
     }
 
