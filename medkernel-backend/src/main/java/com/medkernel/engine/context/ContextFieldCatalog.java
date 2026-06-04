@@ -163,14 +163,16 @@ public class ContextFieldCatalog {
         String category, String group, String resourceType, String fieldPath, String displayName,
         String dataType, String unit, String description) {
         return new ContextFieldDescriptor(
-            category, group, resourceType, fieldPath, displayName, dataType, unit, null, description);
+            category, group, resourceType, fieldPath, displayName, dataType, unit, null, description,
+            "SYSTEM", null);
     }
 
     private static ContextFieldDescriptor codeField(
         String category, String group, String resourceType, String fieldPath, String displayName,
         String codeSystem, String description) {
         return new ContextFieldDescriptor(
-            category, group, resourceType, fieldPath, displayName, "code", null, codeSystem, description);
+            category, group, resourceType, fieldPath, displayName, "code", null, codeSystem, description,
+            "SYSTEM", null);
     }
 
     /**

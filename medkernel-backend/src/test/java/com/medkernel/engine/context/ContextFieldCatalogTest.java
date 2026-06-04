@@ -36,6 +36,8 @@ class ContextFieldCatalogTest {
         // 业务一级域齐全
         assertThat(all).extracting(ContextFieldDescriptor::category)
             .contains("基本信息", "诊断信息", "医嘱信息", "检验检查");
+        // 系统派生字段标记 SYSTEM 且无 fieldId（不可前台删除）
+        assertThat(all).allMatch(f -> "SYSTEM".equals(f.source()) && f.fieldId() == null);
     }
 
     @Test
