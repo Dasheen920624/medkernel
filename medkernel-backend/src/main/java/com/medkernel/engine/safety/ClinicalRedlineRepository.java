@@ -1,6 +1,7 @@
 package com.medkernel.engine.safety;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
@@ -18,5 +19,12 @@ public interface ClinicalRedlineRepository extends ListCrudRepository<ClinicalRe
     List<ClinicalRedlineRule> findByTenantIdAndCategoryAndStatusOrderByRedlineKeyAscUpdatedAtDesc(
         String tenantId,
         ClinicalRedlineCategory category,
+        ClinicalRedlineStatus status);
+
+    Optional<ClinicalRedlineRule> findByTenantIdAndRedlineId(String tenantId, String redlineId);
+
+    Optional<ClinicalRedlineRule> findByTenantIdAndActiveScopeKeyAndStatus(
+        String tenantId,
+        String activeScopeKey,
         ClinicalRedlineStatus status);
 }

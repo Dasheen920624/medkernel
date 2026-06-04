@@ -100,7 +100,8 @@ class MigrationBaselineContractTest {
         "V71__followup_controlled_plan_clock.sql",
         "V72__cdss_risk_matrix.sql",
         "V73__clinical_redline.sql",
-        "V74__context_field_catalog.sql"
+        "V74__context_field_catalog.sql",
+        "V75__clinical_redline_silent_trial.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -118,7 +119,7 @@ class MigrationBaselineContractTest {
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
-        "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
+        "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline", "mk_engine_clinical_redline_trial",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
@@ -211,6 +212,7 @@ class MigrationBaselineContractTest {
         "idx_rec_fatigue_card", "idx_rec_fatigue_key", "idx_rec_fatigue_tenant_time",
         "idx_cdss_risk_matrix_active", "idx_cdss_risk_matrix_version", "idx_rec_card_risk_matrix",
         "idx_clinical_redline_active", "idx_clinical_redline_category", "idx_clinical_redline_source",
+        "idx_clinical_redline_trial_redline", "idx_clinical_redline_trial_status",
         "idx_eval_indicator_tenant_status", "idx_eval_indicator_code_status",
         "idx_eval_run_tenant_time", "idx_eval_run_context",
         "idx_eval_result_run", "idx_eval_result_indicator",
@@ -338,6 +340,8 @@ class MigrationBaselineContractTest {
         "uk_clinical_redline_id", "uk_clinical_redline_version", "uk_clinical_redline_active_scope",
         "ck_clinical_redline_category", "ck_clinical_redline_status", "ck_clinical_redline_hazard",
         "ck_clinical_redline_review", "ck_clinical_redline_override",
+        "uk_clinical_redline_trial_id", "ck_clinical_redline_trial_status",
+        "ck_clinical_redline_trial_gate", "ck_clinical_redline_trial_counts",
         "uk_rec_source_id", "ck_rec_source_type", "uk_rec_feedback_id",
         "ck_rec_feedback_type", "uk_rec_fatigue_id", "ck_rec_fatigue_signal",
         "uk_eval_indicator_id", "uk_eval_indicator_tenant_version",
@@ -1358,6 +1362,34 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V73__clinical_redline.sql"))
                 .as("dialect %s must ship V73", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v75ShouldDeclareClinicalRedlineSilentTrialEvidenceWithoutSeededMedicalConstants() {
+        String h2 = readMigration("h2", "V75__clinical_redline_silent_trial.sql");
+        assertThat(h2).contains(
+            "mk_engine_clinical_redline_trial",
+            "trial_id",
+            "redline_id",
+            "redline_version",
+            "required_silent_hours",
+            "actual_silent_hours",
+            "evaluated_case_count",
+            "safety_incident_count",
+            "evidence_reference",
+            "idx_clinical_redline_trial_redline",
+            "ck_clinical_redline_trial_counts",
+            "COMMENT ON COLUMN mk_engine_clinical_redline_trial.evidence_reference");
+        assertThat(h2).doesNotContain("INSERT INTO mk_engine_clinical_redline_trial");
+    }
+
+    @Test
+    void v75ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V75__clinical_redline_silent_trial.sql"))
+                .as("dialect %s must ship V75", dialect)
                 .exists();
         }
     }
