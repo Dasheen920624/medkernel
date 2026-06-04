@@ -140,6 +140,9 @@ public class ClinicalRedlineService {
                 || trial.safetyIncidentCount() > 0) {
             throw new ApiException(ErrorCode.CONFLICT, "静默试运行未达标，禁止上线");
         }
+        if (rule.lowerTenantOverrideAllowed()) {
+            throw new ApiException(ErrorCode.CONFLICT, "安全红线禁止下级关闭，lowerTenantOverrideAllowed 必须为 false");
+        }
         requireText(request.promotionReason(), "红线上线原因不能为空");
         repository.findByTenantIdAndActiveScopeKeyAndStatus(
                 tenantId, rule.activeScopeKey(), ClinicalRedlineStatus.ACTIVE)
