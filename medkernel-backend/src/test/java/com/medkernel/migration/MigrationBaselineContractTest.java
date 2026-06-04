@@ -100,7 +100,8 @@ class MigrationBaselineContractTest {
         "V71__followup_controlled_plan_clock.sql",
         "V72__cdss_risk_matrix.sql",
         "V73__clinical_redline.sql",
-        "V74__context_field_catalog.sql"
+        "V74__context_field_catalog.sql",
+        "V75__diagnosis_knowledge_asset.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -147,7 +148,9 @@ class MigrationBaselineContractTest {
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
-        "mk_context_field_catalog"
+        "mk_context_field_catalog",
+        "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
+        "mk_diagnosis_test_case", "mk_diagnosis_confidence_policy"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -269,7 +272,10 @@ class MigrationBaselineContractTest {
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
         "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
-        "idx_mk_ctx_field_catalog_tenant"
+        "idx_mk_ctx_field_catalog_tenant",
+        "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
+        "idx_mk_diagnosis_differential_version", "idx_mk_diagnosis_pointer_version",
+        "idx_mk_diagnosis_testcase_version"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -416,7 +422,10 @@ class MigrationBaselineContractTest {
         "uk_mk_fhir_rule_code", "ck_mk_fhir_rule_ver",
         "ck_mk_fhir_rule_status", "ck_mk_fhir_rule_version",
         "uk_mk_ctx_field_catalog_tenant_path", "ck_mk_ctx_field_catalog_data_type",
-        "ck_mk_ctx_field_catalog_status"
+        "ck_mk_ctx_field_catalog_status",
+        "ck_mk_diagnosis_criterion_dir", "ck_mk_diagnosis_criterion_weight",
+        "ck_mk_diagnosis_pointer_type", "ck_mk_diagnosis_testcase_conf",
+        "uk_mk_diagnosis_testcase", "uk_mk_diagnosis_confpolicy"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
@@ -610,8 +619,10 @@ class MigrationBaselineContractTest {
         "(?is)CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)\\s*\\((.*?)\\);");
     private static final Pattern INDEX_PATTERN = Pattern.compile(
         "(?i)CREATE\\s+(?:UNIQUE\\s+)?INDEX(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
+    // 只匹配独立的 CONSTRAINT 关键字声明：前置 (?<![a-z0-9_]) 排除把列名后缀（如 value_constraint / temporal_constraint）误当约束名；
+    // (?<!DROP\s) 排除 DROP CONSTRAINT 回退语句。
     private static final Pattern CONSTRAINT_PATTERN =
-        Pattern.compile("(?i)(?<!DROP\\s)CONSTRAINT\\s+([a-z0-9_]+)");
+        Pattern.compile("(?i)(?<![a-z0-9_])(?<!DROP\\s)CONSTRAINT\\s+([a-z0-9_]+)");
 
     @Test
     void everyDialectPublishesTheSameAuthoritativeMigrationSequence() throws IOException {
@@ -1358,6 +1369,61 @@ class MigrationBaselineContractTest {
         for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
             assertThat(migrationPathFor(dialect, "V73__clinical_redline.sql"))
                 .as("dialect %s must ship V73", dialect)
+                .exists();
+        }
+    }
+
+    @Test
+    void v75ShouldDeclareDiagnosisKnowledgeAssetTablesAndDomainCheckForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V75__diagnosis_knowledge_asset.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 诊断知识 5 张子表与命中/置信结构字段", dialect)
+                .contains("mk_diagnosis_criterion")
+                .contains("mk_diagnosis_differential")
+                .contains("mk_diagnosis_care_pointer")
+                .contains("mk_diagnosis_test_case")
+                .contains("mk_diagnosis_confidence_policy")
+                .contains("finding_term_code")
+                .contains("expected_confidence")
+                .contains("scope_key")
+                .contains("ck_mk_diagnosis_criterion_dir")
+                .contains("ck_mk_diagnosis_criterion_weight")
+                .contains("ck_mk_diagnosis_pointer_type")
+                .contains("ck_mk_diagnosis_testcase_conf")
+                .contains("uk_mk_diagnosis_testcase")
+                .contains("uk_mk_diagnosis_confpolicy")
+                .contains("idx_mk_diagnosis_criterion_finding")
+                .contains("comment on table mk_diagnosis_confidence_policy");
+
+            assertThat(sql)
+                .as("%s 必须放开 knowledge_identity domain 约束收纳 diagnosis（否则诊断身份插不进库）", dialect)
+                .contains("alter table knowledge_identity drop constraint ck_knowledge_identity_domain")
+                .contains("ck_knowledge_identity_domain check (domain in")
+                .contains("'diagnosis'");
+
+            // 仅放行可配置的 DEFAULT 置信策略种子；不得在迁移里写死任何诊断标准/鉴别/测试病例等医学常量。
+            assertThat(sql)
+                .as("%s 默认置信策略开箱种子（可被租户/科室覆盖）", dialect)
+                .contains("insert into mk_diagnosis_confidence_policy")
+                .contains("'default'");
+            assertThat(sql)
+                .as("%s 不得种入诊断标准/测试病例等医学常量", dialect)
+                .doesNotContain("insert into mk_diagnosis_criterion")
+                .doesNotContain("insert into mk_diagnosis_test_case")
+                .doesNotContain("insert into mk_diagnosis_differential")
+                .doesNotContain("insert into mk_diagnosis_care_pointer");
+        }
+    }
+
+    @Test
+    void v75ShouldExistInAllFiveDialects() {
+        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
+            assertThat(migrationPathFor(dialect, "V75__diagnosis_knowledge_asset.sql"))
+                .as("dialect %s must ship V75", dialect)
                 .exists();
         }
     }
