@@ -7,7 +7,7 @@
 但当前实现与该原则存在结构性偏差：
 
 1. **无平台权威层**。`AssetVersion`、各引擎表均为 `tenant_id` 平铺，没有"高于租户的平台基线版本"概念。`StandardTerm` 也带 `tenant_id`，不存在平台级标准。
-2. **继承底座已建但未接线**。`InheritanceResolver`（七层组织闭包解析）、`InheritanceOverride`（REPLACE/DISABLE）、`VersionedAssetPort`、`VersionReleaseService`（含 activation/replay/rollback/contentHash）**已存在**，但 **没有任何引擎实现 `VersionedAssetPort`，没有任何运行路径调用 `InheritanceResolver.resolve()`**。继承解析是死代码。
+2. **继承底座已建但未接线**。`InheritanceResolver`（`findAncestorsAndSelf` 单租户内组织闭包解析，**无平台层、无传播、无维度、无 policy**）、`InheritanceOverride`（REPLACE/DISABLE）、`VersionedAssetPort`、`VersionReleaseService`（含 activation/replay/rollback/contentHash）**已存在**，但 **没有任何引擎实现 `VersionedAssetPort`，没有任何运行路径调用 `InheritanceResolver.resolve()`**。继承解析是死代码。
 3. **版本机制四套并行**：`rule/RuleVersion`、`knowledge/KnowledgeVersion`+`SourceVersion`、`terminology` 自有发布、`pathway` 自有发布，各自为政，无法统一解析/回滚/重放。
 4. **分发容器三套并行**：`pkg/KnowledgePackage`、`terminology/TermMappingPackage(+Release)`、`pathway/SpecialtyPackage`，三套打包/发布逻辑互不相通。
 5. **覆盖缺"复用 vs 独有"语义**。`InheritanceOverride` 有 `orgPath`+`mode`，但没有"传播到下级 / 仅本节点独有"的声明，无法表达"分院定制可被其下卫生院复用，或仅分院独有"。

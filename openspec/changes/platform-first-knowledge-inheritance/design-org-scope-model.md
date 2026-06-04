@@ -57,6 +57,13 @@ TENANT        法人/集团账户（租户根）
 ```
 专病因此天然落地：平台发"房颤抗凝包"（specialty=AF 维度），集团/分院/科室在各自组织节点 × 专病维度上做覆盖，互不串扰。
 
+### O3b applicable_scope 编码（赋予现有 String 列结构）
+现有 `AssetVersion.applicable_scope`/`InheritanceOverride.applicable_scope` 为自由字符串。本设计赋予其**结构化键值编码**（向后兼容：空串=全维度命中）：
+- 形如 `specialty=AF;setting=ED,IPD;cohort=RENAL_IMPAIR`（维度键∈ ScopeDimension，值为标准编码，多值逗号分隔）。
+- **命中规则**：覆盖的 applicable_scope 是查询 dimensions 的**子集**即命中（未声明的维度=通配）。
+- **具体度排序**（tie-break）：声明维度越多、值越精确者越具体，优先生效。
+- 解析层提供 `ScopeMatcher.matches(overrideScope, queryDimensions)` 与 `specificityOf(scope)`，确定性、可单测。
+
 ## O4 枚举归一
 - 三套作用域枚举统一为：**组织层级 `OrgLevel`（轴2）** + **横切维度 `ScopeDimension`（轴3）** + **发布策略 `RolloutStrategy`（轴4）**。
 - 顶层统一用 `PLATFORM/TENANT`，废弃 `ALL` 歧义命名（兼容别名过渡）。

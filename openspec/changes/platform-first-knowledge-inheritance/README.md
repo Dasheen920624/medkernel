@@ -17,6 +17,8 @@
    - `design-lifecycle-governance.md`（附录 L）生命周期状态机、循证溯源、弃用后继、质量门、身份治理
    - `design-simulation-rollout.md`（附录 R）发布前 what-if 模拟、灰度放量、批量/模板/克隆
    - `design-interoperability-entitlement.md`（附录 I）CDS Hooks/FHIR/CQL 互操作、第三方 API 契约、授权许可
+   - `design-worked-example.md`（附录 E）端到端走查：房颤抗凝贯穿全机制
+   - `design-glossary-decisions.md`（附录 G）⭐ 术语/枚举总表 + 决策清单（落地单一真相）
 4. `tasks.md` — P0→P6 分阶段落地
 5. `specs/` — 11 能力增量：
    - `platform-authority` 平台权威层

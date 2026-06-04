@@ -17,14 +17,15 @@
 ```
 身份 Identity   asset_identity（跨平台/租户/机构稳定，覆盖按身份"遮蔽"平台）
    └─ 版本 Version   AssetVersion（不可变内容快照 + content_hash + 生效期）
-        └─ 归属 Scope   平台 PLATFORM ↑ 租户/机构七层（org_path）
+        └─ 归属 Scope   权威层 PLATFORM ↑ 租户组织树（org_path，层级可变，附录 O）
+        └─ 维度 Dimension  专病/场景/人群/角色（applicable_scope，与组织正交，附录 O）
    分发 Package   KnowledgePackage（一组 asset_identity@version 的权威束 + 发布/分发/回滚）
    覆盖 Override   InheritanceOverride（REPLACE/DISABLE/ADD + propagation + org_path）
 ```
 
 - **身份**：一条规则"成人房颤 CHA₂DS₂-VASc 抗凝建议"在平台、集团、分院看到的都是同一 `asset_identity`；分院的定制是同身份的 override，而非新对象。
 - **版本**：内容不可变快照，`content_hash` 保证可重放（复用现有 `VersionContentHash`/`VersionReplayService`）。
-- **归属**：版本挂在平台空间或某 `org_path`（七层）。
+- **归属**：版本挂在平台权威层或某 `org_path`（组织树，层级可变可跳级，见附录 O）；横切维度（专病等）经 `applicable_scope` 表达，与组织正交。
 - **包**：平台以知识包发布一束资产版本，作为下发与回滚的原子单位。
 - **覆盖**：租户/机构对身份的增量声明。
 
@@ -78,14 +79,16 @@
 
 ## 5. 惰性解析算法（核心）
 
-`InheritanceResolver.resolve(assetType, assetIdentity, targetOrgPath, applicableScope, at)` → `ResolvedAsset`：
+> 现有 `InheritanceResolver.resolve(InheritanceResolveQuery)→ResolvedAssetVersion` 已调用 `hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId)`，但**仅在单租户内**走闭包、**无平台层、无传播、无维度、无 policy**。本设计在此基础上扩展（保留方法形态，扩 `InheritanceResolveQuery` 入参 + 前置平台基线）。
+
+扩展后的解析（`resolve(InheritanceResolveQuery{assetType, assetIdentity, tenantId, targetOrgUnitId, dimensions, at})` → `ResolvedAssetVersion`）：
 
 ```
-1. base ← 平台 ACTIVE AssetVersion(assetType, assetIdentity)   // 权威起点；可空（ADD 类身份）
-2. chain ← org_closure.findAncestorsAndSelf(targetOrgPath)      // 平台→GROUP→…→target，最一般到最具体
+1. base ← 平台(__platform__) ACTIVE AssetVersion(assetType, assetIdentity)   // 权威起点（新增层）；可空（ADD 类身份）
+2. chain ← hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId)          // 租户内 ROOT→…→target，最一般到最具体
 3. effective ← base
    for node in chain (一般→具体):
-       ov ← 查 InheritanceOverride(assetIdentity, org_path=node, applicableScope 命中, at 生效)
+       ov ← 查 InheritanceOverride(assetIdentity, org_path=node, applicable_scope 命中 dimensions, at 生效)
        if ov 为空: continue
        // 传播判定：node==target 时任意 propagation 适用；node 为祖先时仅 INHERITABLE 向下适用
        if node != target and ov.propagation == EXCLUSIVE: continue
@@ -94,7 +97,7 @@
            DISABLE → effective ← DISABLED（墓碑，调用方跳过该资产）
            ADD     → effective ← AssetVersion(ov.override_version_id)   // 独有身份
 4. if effective == null and base == null: NOT_FOUND（诚实降级）
-5. return ResolvedAsset{ effective, sourceTier(PLATFORM/ORG), overrideId?, contentHash }
+5. return ResolvedAssetVersion{ effective, sourceTier(PLATFORM/ORG/LEGACY), overrideId?, contentHash }
 ```
 
 - **最具体优先**：链上越靠近 target 的可适用覆盖最终覆盖前者（含 descendant REPLACE 可"重新启用"祖先 DISABLE 的资产）。
@@ -149,7 +152,7 @@ effectivePackage(tenant, orgPath, packageIdentity):
 
 ### 7.3 分发与离线
 - `SyncTarget`/`PackageOfflineImport` 下发的是 **解析后的有效包快照**（供断网卫生院/院内运行时本地执行），但 **权威源永远是平台 + 覆盖增量**；下发快照带 `content_hash` 与来源版本指针，可追溯、可回滚（复用现有 `PackageRollbackRequest`）。
-- `ReleasePlan`/`ReleaseStrategy`/`ReleaseScopeType` 与 `VersionReleaseScopeType` 对齐到同一七层枚举。
+- `ReleasePlan`/`ReleaseStrategy`/`ReleaseScopeType`/`VersionReleaseScopeType` 收敛到附录 O 的统一模型：组织层级 `OrgLevel` + 横切维度 `ScopeDimension` + 发布策略 `RolloutStrategy`（不再混用单一枚举）。
 
 ## 8. 运行期解析（ClinicalEvent）
 
@@ -236,7 +239,9 @@ effectivePackage(tenant, orgPath, packageIdentity):
 | 覆盖记录 | `engine/versioning/InheritanceOverride`(+propagation)/`InheritanceOverrideMode` |
 | 版本/激活/回放/回滚 | `VersionReleaseService`/`VersionActivationTransaction`/`VersionReplayService`/`VersionRollbackCommand`/`VersionContentHash` |
 | 端口 | `VersionedAssetPort`（各域实现）/`ReleasePort` |
-| 作用域 | `VersionReleaseScopeType`（七层，统一 `ReleaseScopeType`） |
+| 作用域 | `OrgLevel`(组织树)+`applicable_scope`(横切维度)+`RolloutStrategy`(策略)，收敛 `VersionReleaseScopeType`/`ReleaseScopeType`（附录 O） |
+| 组织层级 | `shared/context/OrgLevel`（放宽 `canHaveParent`，加 PLATFORM/WARD，附录 O） |
+| 弃用后继 | `engine/knowledge/KnowledgeSupersession`/`SupersessionType`（附录 L4） |
 | 分发容器 | `engine/pkg/KnowledgePackage`/`PackageItem`/`SyncTarget`/`ReleasePlan`/`PackageDiff*`/`PackageRollbackRequest` |
 | 字典收敛 | `engine/terminology/TermMappingPackage(+Release)` → PackageItem 视图 |
 | 路径包收敛 | `engine/pathway/SpecialtyPackage` → PackageItem 视图 |
@@ -246,6 +251,8 @@ effectivePackage(tenant, orgPath, packageIdentity):
 | 运行期 | `engine/clinical|cdss|cdshook|recommendation/*`（按机构解析有效集） |
 
 ## 17. 待决项（我已给默认决策，评审时确认）
+
+> 完整决策清单（D1–D8）见 **附录 G（G4）**，此处保留摘要。
 
 - **D1 平台层实现**：默认 (a) `__platform__` 租户号 + 顶层 org_path（迁移最小）；(b) 加 `scope_tier` 列更显式。→ **默认 a**。
 - **D2 枚举归一时机**：`VersionedAssetType`/`PackageItemAssetType` 合并是否一步到位。→ **默认一步合并 + 兼容别名**。
@@ -271,5 +278,7 @@ effectivePackage(tenant, orgPath, packageIdentity):
 - **附录 L — 编辑生命周期 / 循证溯源 / 弃用后继 / 质量门**：`design-lifecycle-governance.md`
 - **附录 R — 发布前模拟 / 灰度 / 批量复用**：`design-simulation-rollout.md`
 - **附录 I — 互操作导入导出 / 第三方 API 契约 / 授权许可**：`design-interoperability-entitlement.md`
+- **附录 E — 端到端走查（房颤抗凝，贯穿全机制）**：`design-worked-example.md`
+- **附录 G — 术语/枚举总表 与 决策清单（防漂移，单一真相）**：`design-glossary-decisions.md` ⭐ 落地以此对齐
 
 > 重要：附录 O 修正了"七层组织树"的实质缺陷——PLATFORM 层缺失、SPECIALTY(专病) 应为横切维度而非树叶、层级须可跳级、BED_PERCENT 应迁为发布策略。本设计的解析轴以附录 O 修正模型为准。
