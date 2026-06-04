@@ -203,7 +203,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | OPT-03 | 医疗器械与 CDSS 风险分级矩阵 | NMPA 路径预留 | 4d | done |
 | OPT-04 | 临床安全案例与红线规则库 | DDI/危急值/剂量上限/抗菌限制/特殊人群禁忌 + 危害分析 + 静默试运行 | 7d | done |
 | SVC-CLINICAL-01 | 患者与路径运行服务包 | MPI + PatientPathways + 关键时钟 | 4d | done |
-| SVC-CLINICAL-02 | 临床提醒与反馈服务包 | CDSS 卡片 + 规则校验 + 疲劳治理 + 真实医师署名 | 4d | in_progress |
+| SVC-CLINICAL-02 | 临床提醒与反馈服务包 | CDSS 卡片 + 规则校验 + 疲劳治理 + 真实医师署名 | 4d | done |
 | SVC-CLINICAL-03 | 临床协同服务包 | 待办/通知/护理/报告解读/床旁知识/随访触发 | 4d | pending |
 | PMI-01 / PPATH-01 / REMIND-01 / RULECHK-01 / TODO-01 / NOTIFY-01 / FUP-01（+ 规则库/路径配置已于 D2 含页）| 7 页面真实化 | 每页：六态 + 1 主按钮 ≤3 默认筛选 + 五维 RBAC + 低打扰 + B0（确定性 CDSS）+ E2E；每页必交见质量基线 | — | pending |
 | **D3-验收** | **临床运行域级验收** | 建患者 → 入径 → 节点推进 → 确定性提醒 → 采纳/拒绝带原因 → 待办闭环，全 B0 真实可跑 | — | pending |
