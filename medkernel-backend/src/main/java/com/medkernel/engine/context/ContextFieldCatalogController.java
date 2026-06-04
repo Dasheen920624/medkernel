@@ -20,10 +20,10 @@ import com.medkernel.shared.datascope.DataScope;
 @DataScope(requireTenant = true)
 public class ContextFieldCatalogController {
 
-    private final ContextFieldCatalog catalog;
+    private final ContextFieldCatalogService service;
 
-    public ContextFieldCatalogController(ContextFieldCatalog catalog) {
-        this.catalog = catalog;
+    public ContextFieldCatalogController(ContextFieldCatalogService service) {
+        this.service = service;
     }
 
     @GetMapping
@@ -31,6 +31,6 @@ public class ContextFieldCatalogController {
     public ApiResult<List<ContextFieldDescriptor>> list(
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String keyword) {
-        return ApiResult.ok(catalog.query(resourceType, keyword));
+        return ApiResult.ok(service.query(resourceType, keyword));
     }
 }

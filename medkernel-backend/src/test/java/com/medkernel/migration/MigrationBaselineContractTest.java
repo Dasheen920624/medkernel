@@ -99,7 +99,8 @@ class MigrationBaselineContractTest {
         "V70__embed_api11_contract.sql",
         "V71__followup_controlled_plan_clock.sql",
         "V72__cdss_risk_matrix.sql",
-        "V73__clinical_redline.sql"
+        "V73__clinical_redline.sql",
+        "V74__context_field_catalog.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -145,7 +146,8 @@ class MigrationBaselineContractTest {
         "mk_projection_sync", "mk_projection_snapshot",
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
-        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
+        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
+        "mk_context_field_catalog"
     );
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
@@ -266,7 +268,8 @@ class MigrationBaselineContractTest {
         "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
         "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
-        "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant"
+        "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
+        "idx_mk_ctx_field_catalog_tenant"
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
@@ -411,7 +414,9 @@ class MigrationBaselineContractTest {
         "ck_mk_fhir_res_map_ver", "ck_mk_fhir_res_map_status",
         "ck_mk_fhir_res_map_rate", "ck_mk_fhir_res_map_missing",
         "uk_mk_fhir_rule_code", "ck_mk_fhir_rule_ver",
-        "ck_mk_fhir_rule_status", "ck_mk_fhir_rule_version"
+        "ck_mk_fhir_rule_status", "ck_mk_fhir_rule_version",
+        "uk_mk_ctx_field_catalog_tenant_path", "ck_mk_ctx_field_catalog_data_type",
+        "ck_mk_ctx_field_catalog_status"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
         "org_unit", "org_closure", "audit_event", "source_document", "source_version", "source_fragment",
