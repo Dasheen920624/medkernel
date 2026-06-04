@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,7 @@ import com.medkernel.engine.context.MissingFieldEntry;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
+import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -58,6 +60,7 @@ class PathwayEngineServiceTest {
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private PathwayFollowupHandoffPort followupHandoff;
+    private ClinicalSafetyGuard safetyGuard;
     private ObjectMapper json;
     private PathwayEngineService service;
 
@@ -77,12 +80,13 @@ class PathwayEngineServiceTest {
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         followupHandoff = mock(PathwayFollowupHandoffPort.class);
+        safetyGuard = mock(ClinicalSafetyGuard.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new PathwayEngineService(
             packages, profiles, templates, nodes, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditPublisher,
-            transitions, diagnoseAssembler, json, followupHandoff);
+            transitions, diagnoseAssembler, json, followupHandoff, safetyGuard);
 
         when(packages.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(profiles.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -397,6 +401,24 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void enterPatientPathwayRejectsWithdrawnTemplateSourceBeforeCreatingRuntime() {
+        PathwayTemplate withdrawnTemplate = templateWithSourceRef(
+            PathwayTemplateStatus.PUBLISHED, "knowledge-version:5");
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(withdrawnTemplate));
+        doThrow(new ApiException(ErrorCode.CONFLICT, "路径模板引用已撤回知识版本"))
+            .when(safetyGuard).assertPathwayTemplateAllowed(withdrawnTemplate);
+
+        assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
+                "patient-1", "enc-1", "pt-1", null)))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
     void enterPatientPathwayFallsBackToPlatformTemplateAndKeepsRuntimeInCustomerTenant() {
         PathwayTemplate platformTemplate = template(
             "pt-platform", "t-1", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
@@ -698,6 +720,16 @@ class PathwayEngineServiceTest {
 
     private PathwayTemplate template(PathwayTemplateStatus status) {
         return template("pt-1", "tenant-A", "TPL.COPD", 1, status);
+    }
+
+    private PathwayTemplate templateWithSourceRef(PathwayTemplateStatus status, String sourceRef) {
+        Instant now = Instant.now();
+        return new PathwayTemplate(
+            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, status, "ASSESS",
+            sourceRef, "用于路径 API 测试",
+            "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
+            now, "tester", now, "tester", "trace-pathway");
     }
 
     private PathwayTemplate template(String templateId, String tenantId, String templateCode,

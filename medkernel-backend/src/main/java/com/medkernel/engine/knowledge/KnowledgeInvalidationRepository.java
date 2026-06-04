@@ -14,6 +14,8 @@ public interface KnowledgeInvalidationRepository extends ListCrudRepository<Know
 
     List<KnowledgeInvalidation> findByTenantIdAndIdentityIdOrderByInvalidatedAtDesc(String tenantId, Long identityId);
 
+    List<KnowledgeInvalidation> findByTenantIdAndVersionIdOrderByInvalidatedAtDesc(String tenantId, Long versionId);
+
     @Query("""
         SELECT * FROM mk_knowledge_invalidation
         WHERE tenant_id = :tenantId

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -48,6 +49,7 @@ public class RecommendationEngineService {
     private final BusinessMetrics businessMetrics;
     private final RecommendationDeterministicMatcher deterministicMatcher;
     private final RecommendationFatiguePolicyResolver fatiguePolicyResolver;
+    private final ClinicalSafetyGuard safetyGuard;
 
     public RecommendationEngineService(
             RecommendationTriggerRepository triggers,
@@ -61,7 +63,8 @@ public class RecommendationEngineService {
             IsolatedAuditPublisher isolatedAudit,
             BusinessMetrics businessMetrics,
             RecommendationDeterministicMatcher deterministicMatcher,
-            RecommendationFatiguePolicyResolver fatiguePolicyResolver) {
+            RecommendationFatiguePolicyResolver fatiguePolicyResolver,
+            ClinicalSafetyGuard safetyGuard) {
         this.triggers = triggers;
         this.cards = cards;
         this.sources = sources;
@@ -74,6 +77,7 @@ public class RecommendationEngineService {
         this.businessMetrics = businessMetrics;
         this.deterministicMatcher = deterministicMatcher;
         this.fatiguePolicyResolver = fatiguePolicyResolver;
+        this.safetyGuard = safetyGuard;
     }
 
     /**
@@ -335,6 +339,7 @@ public class RecommendationEngineService {
     }
 
     private void validateCards(List<RecommendationCardRequest> cardRequests) {
+        String tenantId = tenantId();
         for (RecommendationCardRequest card : cardRequests) {
             if (card.sources().isEmpty()) {
                 throw new ApiException(ErrorCode.ENG_REC_005);
@@ -346,6 +351,7 @@ public class RecommendationEngineService {
                     && !isHighRisk(card.riskLevel())) {
                 throw new ApiException(ErrorCode.ENG_REC_001, "强打断推荐必须是高风险或红线风险");
             }
+            safetyGuard.assertRecommendationSourcesAllowed(tenantId, card.sources());
         }
     }
 

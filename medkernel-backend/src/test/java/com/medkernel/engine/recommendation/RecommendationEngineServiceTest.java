@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -46,6 +48,7 @@ class RecommendationEngineServiceTest {
     private BusinessMetrics businessMetrics;
     private RecommendationDeterministicMatcher deterministicMatcher;
     private RecommendationFatiguePolicyResolver fatiguePolicyResolver;
+    private ClinicalSafetyGuard safetyGuard;
     private RecommendationEngineService service;
 
     @BeforeEach
@@ -62,10 +65,11 @@ class RecommendationEngineServiceTest {
         businessMetrics = mock(BusinessMetrics.class);
         deterministicMatcher = mock(RecommendationDeterministicMatcher.class);
         fatiguePolicyResolver = mock(RecommendationFatiguePolicyResolver.class);
+        safetyGuard = mock(ClinicalSafetyGuard.class);
         service = new RecommendationEngineService(
             triggers, cards, sources, feedback, fatigueSignals,
             auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher,
-            fatiguePolicyResolver);
+            fatiguePolicyResolver, safetyGuard);
 
         when(triggers.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cards.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -199,6 +203,27 @@ class RecommendationEngineServiceTest {
             .containsExactly("RULE.RISK.v1");
         verify(deterministicMatcher).match(request);
         verify(sources, times(2)).save(any());
+    }
+
+    @Test
+    void evaluateRejectsWithdrawnKnowledgeSourceBeforePersistingNewCard() {
+        RecommendationSourceRequest withdrawnSource = new RecommendationSourceRequest(
+            RecommendationSourceType.KNOWLEDGE, "knowledge-version:5", "v1", "已撤回抗凝禁忌指南",
+            "knowledge_version:5", "sha256:withdrawn", "旧版知识不允许参与新推荐");
+        RecommendationCardRequest withdrawnCard = cardRequest(
+            "CARD.WITHDRAWN", false, RecommendationRiskLevel.HIGH,
+            RecommendationInterruptLevel.WEAK_INTERRUPTIVE, true, List.of(withdrawnSource));
+        RecommendationTriggerRequest request = triggerRequest(List.of(withdrawnCard));
+        doThrow(new ApiException(ErrorCode.CONFLICT, "已撤回知识版本禁止参与新推荐"))
+            .when(safetyGuard).assertRecommendationSourcesAllowed("tenant-A", withdrawnCard.sources());
+
+        assertThatThrownBy(() -> service.evaluate(request))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+
+        verify(cards, never()).save(any());
+        verify(sources, never()).save(any());
+        verify(fatigueSignals, never()).save(any());
     }
 
     @Test

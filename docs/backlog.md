@@ -198,7 +198,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | CDSS-01 | 推荐/CDSS 引擎 | 规则/路径/知识综合 + 解释追溯 + 医师反馈（采纳/不采纳/原因）+ 疲劳治理 + 真实数据展示 | 5d | done |
 | FOLLOW-01 | 随访引擎 | 计划生成（受控事实驱动，不写死人群）/任务/问卷/异常事件回流 | 5d | done |
 | EMBED-01 | iframe/SDK/纯 API 嵌入 | launch token 一次性消费/过期/白名单为真，CDS Hooks 风格事件契约 | 5d | done |
-| MED-C3 | 安全撤回与旧版下游隔离端到端 | 召回/禁忌升级紧急停用旧版 + 受影响患者/路径复核任务自动生成 | 4d | pending |
+| MED-C3 | 安全撤回与旧版下游隔离端到端 | 召回/禁忌升级紧急停用旧版 + 受影响患者/路径复核任务自动生成 | 4d | done |
 | OPT-02 | CDS Hooks 风格事件契约 | 6 类触发点：patient-view/order-sign/medication-prescribe/result-review/discharge-sign/followup-alert | 5d | pending |
 | OPT-03 | 医疗器械与 CDSS 风险分级矩阵 | NMPA 路径预留 | 4d | pending |
 | OPT-04 | 临床安全案例与红线规则库 | DDI/危急值/剂量上限/抗菌限制/特殊人群禁忌 + 危害分析 + 静默试运行 | 7d | pending |

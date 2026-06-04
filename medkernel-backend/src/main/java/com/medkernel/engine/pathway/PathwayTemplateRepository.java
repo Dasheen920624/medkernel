@@ -27,6 +27,11 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         String tenantId, String templateCode, Integer templateVersion);
 
     /**
+     * 按真实来源引用查询模板，用于知识安全撤回后的路径影响扫描。
+     */
+    List<PathwayTemplate> findByTenantIdAndSourceRef(String tenantId, String sourceRef);
+
+    /**
      * 按可选状态、病种、专病包和模板编码分页查询路径模板。
      */
     @Query("""
