@@ -43,6 +43,8 @@ public final class DomainOwnershipCatalog {
             prefixes("evaluation_", "rectification_"), tables("quality_finding")),
         module("engine-quality", packages("com.medkernel.engine.quality"),
             prefixes("mk_quality_"), tables()),
+        module("engine-emr-level", packages("com.medkernel.engine.emrlevel"),
+            prefixes("mk_emr_level_"), tables()),
         module("engine-terminology", packages("com.medkernel.engine.terminology"),
             prefixes("term_", "mapping_"), tables("standard_term", "local_term", "mk_term_high_risk_rule")),
         module("engine-experience",
