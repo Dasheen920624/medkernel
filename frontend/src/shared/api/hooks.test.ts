@@ -349,6 +349,8 @@ describe("package export api helpers", () => {
           smsEnabled: false,
           emailEnabled: false,
           pushEnabled: false,
+          webhookEnabled: true,
+          inHospitalMessageEnabled: false,
           quietHoursEnabled: true,
           quietStart: "22:00",
           quietEnd: "07:00",
@@ -364,6 +366,8 @@ describe("package export api helpers", () => {
     const { result } = renderApiHook(() => useWorkflowNotificationSettings());
 
     await waitFor(() => expect(result.current.data?.quietStart).toBe("22:00"));
+    expect(result.current.data?.webhookEnabled).toBe(true);
+    expect(result.current.data?.inHospitalMessageEnabled).toBe(false);
     expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications/settings");
   });
 
@@ -375,6 +379,8 @@ describe("package export api helpers", () => {
           smsEnabled: false,
           emailEnabled: true,
           pushEnabled: false,
+          webhookEnabled: true,
+          inHospitalMessageEnabled: true,
           quietHoursEnabled: true,
           quietStart: "21:30",
           quietEnd: "06:30",
@@ -392,6 +398,8 @@ describe("package export api helpers", () => {
       smsEnabled: false,
       emailEnabled: true,
       pushEnabled: false,
+      webhookEnabled: true,
+      inHospitalMessageEnabled: true,
       quietHoursEnabled: true,
       quietStart: "21:30",
       quietEnd: "06:30",
@@ -403,6 +411,8 @@ describe("package export api helpers", () => {
       smsEnabled: false,
       emailEnabled: true,
       pushEnabled: false,
+      webhookEnabled: true,
+      inHospitalMessageEnabled: true,
       quietHoursEnabled: true,
       quietStart: "21:30",
       quietEnd: "06:30",

@@ -77,6 +77,8 @@ describe("Notifications", () => {
         smsEnabled: false,
         emailEnabled: false,
         pushEnabled: false,
+        webhookEnabled: false,
+        inHospitalMessageEnabled: false,
         quietHoursEnabled: false,
         quietStart: "22:00",
         quietEnd: "07:00",
@@ -394,6 +396,24 @@ describe("Notifications", () => {
                 maxRetries: 3,
                 errorMessage: "未接入真实外部发送连接器，已登记异步补偿，不阻断主流程",
               },
+              {
+                channelCode: "webhook",
+                channelName: "Webhook 通知通道",
+                status: "NOT_CONNECTED",
+                compensationRequired: true,
+                retryCount: 0,
+                maxRetries: 3,
+                errorMessage: "未接入真实 Webhook 发送连接器，已登记异步补偿",
+              },
+              {
+                channelCode: "in-hospital",
+                channelName: "院内消息通道",
+                status: "NOT_CONNECTED",
+                compensationRequired: true,
+                retryCount: 0,
+                maxRetries: 3,
+                errorMessage: "未接入真实院内消息发送连接器，已登记异步补偿",
+              },
             ],
           },
         ],
@@ -411,8 +431,12 @@ describe("Notifications", () => {
 
     expect(screen.getByText("外发状态")).toBeInTheDocument();
     expect(screen.getByText("短信通知通道 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("Webhook 通知通道 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("院内消息通道 NOT_CONNECTED")).toBeInTheDocument();
     expect(screen.getByText("需补偿")).toBeInTheDocument();
     expect(screen.getByText(/未接入真实外部发送连接器/)).toBeInTheDocument();
+    expect(screen.getByText(/未接入真实 Webhook 发送连接器/)).toBeInTheDocument();
+    expect(screen.getByText(/未接入真实院内消息发送连接器/)).toBeInTheDocument();
     expect(screen.queryByText("已送达")).not.toBeInTheDocument();
   });
 
@@ -423,6 +447,8 @@ describe("Notifications", () => {
         smsEnabled: false,
         emailEnabled: false,
         pushEnabled: false,
+        webhookEnabled: false,
+        inHospitalMessageEnabled: false,
         quietHoursEnabled: true,
         quietStart: "22:00",
         quietEnd: "07:00",

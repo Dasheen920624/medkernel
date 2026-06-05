@@ -292,7 +292,7 @@ class WorkflowCollaborationServiceTest {
             .thenReturn(Optional.of(existingTodo));
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-followup-1:created"))
             .thenReturn(Optional.empty());
-        WorkflowNotificationSettingsResponse settings = externalSettings(false, false, true, true);
+        WorkflowNotificationSettingsResponse settings = externalSettings(false, false, true, false, false, true);
         when(notificationSettings.getSettingsForUser("tenant-A", "followup-doctor")).thenReturn(settings);
         when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.HIGH), eq(settings), any(LocalTime.class)))
             .thenReturn(false);
@@ -801,7 +801,7 @@ class WorkflowCollaborationServiceTest {
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-safety-1:completed"))
             .thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        WorkflowNotificationSettingsResponse settings = externalSettings(true, true, false, false);
+        WorkflowNotificationSettingsResponse settings = externalSettings(true, true, true, true, true, false);
         when(notificationSettings.getSettingsForUser("tenant-A", "doctor-1")).thenReturn(settings);
         when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.INFO), eq(settings), any(LocalTime.class)))
             .thenReturn(false);
@@ -812,11 +812,18 @@ class WorkflowCollaborationServiceTest {
 
         ArgumentCaptor<IntegrationOutboundRequestDto> outboundCaptor =
             ArgumentCaptor.forClass(IntegrationOutboundRequestDto.class);
-        verify(integrationService, times(2)).enqueueOutboundMessage(eq("tenant-A"), outboundCaptor.capture());
+        verify(integrationService, times(5)).enqueueOutboundMessage(eq("tenant-A"), outboundCaptor.capture());
         assertThat(outboundCaptor.getAllValues()).extracting(IntegrationOutboundRequestDto::adapterId)
-            .containsExactly("notification-sms", "notification-email");
+            .containsExactly(
+                "notification-sms",
+                "notification-email",
+                "notification-push",
+                "notification-webhook",
+                "notification-in-hospital");
         assertThat(outboundCaptor.getAllValues()).extracting(IntegrationOutboundRequestDto::protocolType)
-            .containsExactly("SMS", "EMAIL");
+            .containsExactly("SMS", "EMAIL", "PUSH", "WEBHOOK", "IN_HOSPITAL_MESSAGE");
+        assertThat(outboundCaptor.getAllValues()).extracting(request -> request.payload().path("channel").asText())
+            .containsExactly("sms", "email", "push", "webhook", "in-hospital");
         assertThat(outboundCaptor.getAllValues()).extracting(IntegrationOutboundRequestDto::messageId)
             .allSatisfy(messageId -> assertThat(messageId).startsWith("notify-out-").hasSizeLessThanOrEqualTo(64));
         assertThat(outboundCaptor.getAllValues()).allSatisfy(request -> {
@@ -865,7 +872,7 @@ class WorkflowCollaborationServiceTest {
         when(notifications.findByTenantIdAndDedupeKey("tenant-A", "todo:todo-low-1:completed"))
             .thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        WorkflowNotificationSettingsResponse settings = externalSettings(true, true, false, true);
+        WorkflowNotificationSettingsResponse settings = externalSettings(true, true, false, false, false, true);
         when(notificationSettings.getSettingsForUser("tenant-A", "doctor-1")).thenReturn(settings);
         when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.INFO), eq(settings), any(LocalTime.class)))
             .thenReturn(true);
@@ -1090,7 +1097,7 @@ class WorkflowCollaborationServiceTest {
                 "todo:todo-followup-1:transferred:nurse-2"))
             .thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        WorkflowNotificationSettingsResponse settings = externalSettings(false, false, true, true);
+        WorkflowNotificationSettingsResponse settings = externalSettings(false, false, true, false, false, true);
         when(notificationSettings.getSettingsForUser("tenant-A", "nurse-2")).thenReturn(settings);
         when(notificationSettings.isMutedByQuietHours(eq(WorkflowNotificationLevel.HIGH), eq(settings), any(LocalTime.class)))
             .thenReturn(false);
@@ -1733,12 +1740,16 @@ class WorkflowCollaborationServiceTest {
             boolean smsEnabled,
             boolean emailEnabled,
             boolean pushEnabled,
+            boolean webhookEnabled,
+            boolean inHospitalMessageEnabled,
             boolean quietHoursEnabled) {
         return new WorkflowNotificationSettingsResponse(
             true,
             smsEnabled,
             emailEnabled,
             pushEnabled,
+            webhookEnabled,
+            inHospitalMessageEnabled,
             quietHoursEnabled,
             "22:00",
             "07:00",

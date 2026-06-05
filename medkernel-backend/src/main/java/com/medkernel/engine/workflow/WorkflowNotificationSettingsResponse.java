@@ -11,6 +11,8 @@ public record WorkflowNotificationSettingsResponse(
     boolean smsEnabled,
     boolean emailEnabled,
     boolean pushEnabled,
+    boolean webhookEnabled,
+    boolean inHospitalMessageEnabled,
     boolean quietHoursEnabled,
     String quietStart,
     String quietEnd,
