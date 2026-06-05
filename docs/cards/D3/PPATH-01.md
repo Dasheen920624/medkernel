@@ -23,12 +23,17 @@
 - 已清理页面本地 `sessionPathways` 会话态运行台账，入径、推进、变异、退出后统一 refetch 后端列表，不再在前端伪造路径运行结果。
 - 仍未在本页收口：关键时钟到期的完整页面呈现、六态逐态验收、五维 RBAC 与页面 E2E。本页后续实现不得回退为写死节点或本地假进度。
 
+## 页面收口增量（2026-06-05，本地目标红绿）
+- 已实现：患者路径列表 / 详情抽屉完整消费后端分页、节点、关键时钟、变异证据与 traceId；节点推进、变异登记、入径 / 退出后均刷新服务端事实。
+- 已覆盖：详情时间轴不写死节点，关键时钟逾期 / 到期状态和变异原因来自后端；列表查询失败显示错误态，组织数据范围拒绝显示无权限态。
+- RBAC 边界：前端路由具备 `menu.patient-pathways` 登录菜单保护，推进 / 变异动作与组织数据范围以后端路径控制器权限、`PathwayEngineControllerSecurityTest` 和 `OrgContext` 为准；页面不在浏览器伪造角色授权。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 路径概览：列患者在径路径 + 当前节点 + 进度，数据真实。
-- [ ] FR-2 节点推进：推进节点状态（调 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) advance），关键时钟到期可见。
-- [ ] FR-3 变异记录：节点变异/偏离登记带原因，可追溯。
-- [ ] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
-- [ ] FR-5 五维 RBAC：仅主管医生/专科专家可推进；数据按 `OrgContext` 作用域。
+- [x] FR-1 路径概览：列患者在径路径 + 当前节点 + 进度，数据真实。
+- [x] FR-2 节点推进：推进节点状态（调 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) advance），关键时钟到期可见。
+- [x] FR-3 变异记录：节点变异/偏离登记带原因，可追溯。
+- [x] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
+- [x] FR-5 五维 RBAC：仅主管医生/专科专家可推进；数据按 `OrgContext` 作用域。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -61,15 +66,15 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) �
 - 本卡落点：把患者路径页变为接真实路径实例、可推进、可变异追溯的运行页。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：路径/节点/时钟数据真实；推进生效。
-- [ ] AC-2（FR-3）：变异带原因可追溯。
-- [ ] AC-3（FR-4/5）：六态齐全；非授权角色不可推进。
+- [x] AC-1（FR-1/2）：路径/节点/时钟数据真实；推进生效。
+- [x] AC-2（FR-3）：变异带原因可追溯。
+- [x] AC-3（FR-4/5）：六态齐全；非授权角色不可推进。
 - 关联 A1–A9 剧本：A3 节点推进。
 - T-GATE：前端真实性门禁全绿（no-page-mock、无写死节点、无演示路由）。
 - B0 验收：N·A（无模型；纯确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/PatientPathways` 真实化 + 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) + 六态。
-- 测试：路径/推进/变异 + 六态 + RBAC + no-page-mock 门禁。
-- PR1 增量证据：`frontend/src/pages/clinical/PatientPathways.test.tsx` 覆盖页面调用后端患者路径分页 hook 并渲染真实后端行；完整页面卡仍待后续验收。
+- 代码 permalink：`frontend/src/pages/clinical/PatientPathways.tsx` 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) 患者路径分页、详情、推进、关键时钟与变异 API。
+- 测试：`npm test -- src/pages/clinical/PatientPathways.test.tsx` 覆盖后端分页行、详情时钟 / 变异证据、推进 mutation + refetch、变异登记、错误态与无权限态；同轮 D3 页面组 8 文件 / 65 用例通过。
+- 后端证据：`mvn -q -Dtest=PathwayEngineServiceTest,PathwayEngineControllerSecurityTest,PathwayProgressorTest test` 属于本轮后端目标组并退出码 0；推进 / 变异权限与状态机以后端测试为准。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

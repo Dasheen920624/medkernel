@@ -26,11 +26,39 @@ import { getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 
+function isCriticalSeverity(severity?: string | null) {
+  return severity === "CRITICAL";
+}
+
+function isRedlineActionCode(actionCode?: string | null) {
+  return actionCode === "CLINICAL_REDLINE" || actionCode?.startsWith("REDLINE") === true;
+}
+
+function isRedlineEvaluationItem(item: RuleEvaluationItem) {
+  return (
+    isCriticalSeverity(item.severity) ||
+    item.ruleId.startsWith("RDL-") ||
+    item.actions?.some((action) => isRedlineActionCode(action.actionCode)) === true ||
+    isRedlineActionCode(item.actionCode)
+  );
+}
+
+function severityColor(severity?: string | null) {
+  const colors: Record<string, string> = {
+    CRITICAL: "red",
+    HIGH: "red",
+    MEDIUM: "orange",
+    LOW: "green",
+  };
+  return colors[severity ?? ""] ?? "default";
+}
+
 export default function RuleValidate() {
   const [contextJson, setContextJson] = useState<string>("");
   const [triggerPoint, setTriggerPoint] = useState<string>("order-sign");
   const [patientId, setPatientId] = useState<string>("");
   const [packageVersion, setPackageVersion] = useState<string>("");
+  const [replayExecutionId, setReplayExecutionId] = useState<string>("");
 
   const [evaluateResponse, setEvaluateResponse] = useState<RuleEvaluateResponse | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
@@ -68,6 +96,15 @@ export default function RuleValidate() {
     }
   };
 
+  const handleReplayExecution = () => {
+    const executionId = replayExecutionId.trim();
+    if (!executionId) {
+      message.error("请输入历史执行 ExecutionId");
+      return;
+    }
+    setSelectedExecutionId(executionId);
+  };
+
   const renderJson = (value: unknown) => {
     if (typeof value === "string") return value;
     if (value === null || value === undefined) return "暂无解释。";
@@ -95,12 +132,7 @@ export default function RuleValidate() {
       dataIndex: "severity",
       key: "severity",
       render: (level: string) => {
-        const colors: Record<string, string> = {
-          LOW: "green",
-          MEDIUM: "orange",
-          HIGH: "red",
-        };
-        return <Tag color={colors[level]}>{level}</Tag>;
+        return <Tag color={severityColor(level)}>{level}</Tag>;
       },
     },
     {
@@ -113,7 +145,7 @@ export default function RuleValidate() {
         return actionCodes.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {actionCodes.map((code) => (
-              <Tag color="blue" key={code}>
+              <Tag color={isRedlineActionCode(code) ? "red" : "blue"} key={code}>
                 {code}
               </Tag>
             ))}
@@ -224,6 +256,22 @@ export default function RuleValidate() {
             >
               一键执行匹配校验
             </Button>
+
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <div className="text-xs font-semibold text-gray-700 mb-2">历史执行解释回放</div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="输入历史执行 ExecutionId"
+                  value={replayExecutionId}
+                  onChange={(e) => setReplayExecutionId(e.target.value)}
+                  onPressEnter={handleReplayExecution}
+                  className="font-normal text-sm"
+                />
+                <Button icon={<FileTextOutlined />} onClick={handleReplayExecution}>
+                  回放执行解释
+                </Button>
+              </div>
+            </div>
           </Card>
         </Col>
 
@@ -253,7 +301,7 @@ export default function RuleValidate() {
                       </span>
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
-                      <Tag color={evaluateResponse.highestSeverity === "HIGH" ? "red" : "orange"}>
+                      <Tag color={severityColor(evaluateResponse.highestSeverity)}>
                         {evaluateResponse.highestSeverity || "NONE"}
                       </Tag>
                     </Descriptions.Item>
@@ -266,6 +314,18 @@ export default function RuleValidate() {
                     </Descriptions.Item>
                   </Descriptions>
                 </div>
+
+                {evaluateResponse.items?.some(
+                  (item) => item.hit && isRedlineEvaluationItem(item),
+                ) && (
+                  <Alert
+                    message="安全红线不可忽略"
+                    description="该校验只提示和阻断，不自动改写医嘱；命中后必须按院内流程进行医师确认与复核。"
+                    type="error"
+                    showIcon
+                    className="mb-4 rounded-lg"
+                  />
+                )}
 
                 <div className="text-sm font-semibold text-gray-800 mb-3">
                   命中规则及合理性建议列表

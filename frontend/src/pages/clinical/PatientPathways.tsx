@@ -46,12 +46,24 @@ import type {
   PatientPathwayStatus,
   PathwayVariance,
 } from "@/shared/api/hooks";
-import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+
+const FORBIDDEN_ERROR_CODES = new Set([
+  "ENG-API-004",
+  "ENG-BASE-002",
+  "ENG-BASE-003",
+  "ENG-BASE-004",
+  "PERMISSION_DENIED",
+]);
+
+function isForbiddenApiError(code?: string) {
+  return Boolean(code && FORBIDDEN_ERROR_CODES.has(code));
+}
 
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
@@ -76,6 +88,8 @@ export default function PatientPathways() {
   const {
     data: patientPathwaysData,
     isLoading: patientPathwaysLoading,
+    isError: patientPathwaysIsError,
+    error: patientPathwaysError,
     refetch: refetchPathways,
   } = usePatientPathways({
     patientId: patientFilter.trim() || undefined,
@@ -129,6 +143,53 @@ export default function PatientPathways() {
 
   const isPathwayMutable = (status?: PatientPathwayStatus) =>
     status === "ENTERED" || status === "NODE_EXECUTING" || status === "VARIANCE";
+
+  const templateNodes = templateDetail?.nodes ?? [];
+  const currentTemplateSortOrder =
+    templateNodes.find((node) => node.nodeCode === detailData?.patientPathway.currentNodeCode)
+      ?.sortOrder ?? 0;
+
+  const patientPathwaysParsedError = patientPathwaysIsError
+    ? parseApiError(patientPathwaysError, "患者路径读取失败")
+    : null;
+  let patientPathwaysPageState: "loading" | "forbidden" | "error" | "ready" = "ready";
+  if (patientPathwaysLoading && !patientPathwaysData) {
+    patientPathwaysPageState = "loading";
+  } else if (patientPathwaysParsedError) {
+    patientPathwaysPageState = isForbiddenApiError(patientPathwaysParsedError.code)
+      ? "forbidden"
+      : "error";
+  }
+
+  let patientPathwaysStateProps:
+    | {
+        title: string;
+        description: string;
+        traceId?: string;
+        onRetry?: () => void;
+      }
+    | undefined;
+  if (patientPathwaysPageState === "loading") {
+    patientPathwaysStateProps = {
+      title: "正在加载患者路径",
+      description: "正在读取当前组织范围内的患者路径实例。",
+    };
+  } else if (patientPathwaysPageState === "forbidden" && patientPathwaysParsedError) {
+    patientPathwaysStateProps = {
+      title: "当前权限不足",
+      description: patientPathwaysParsedError.message,
+      traceId: patientPathwaysParsedError.traceId,
+    };
+  } else if (patientPathwaysPageState === "error" && patientPathwaysParsedError) {
+    patientPathwaysStateProps = {
+      title: "患者路径读取失败",
+      description: patientPathwaysParsedError.message,
+      traceId: patientPathwaysParsedError.traceId,
+      onRetry: () => {
+        void refetchPathways();
+      },
+    };
+  }
 
   // 办理患者入径
   const handleEnterPathway = async () => {
@@ -307,6 +368,8 @@ export default function PatientPathways() {
     <PageShell
       title="患者路径"
       description="办理临床患者入径，提供标准路径 Milestone 状态时间线，支撑医护标准推进、临床变异登记与可审计链追溯。"
+      state={patientPathwaysPageState}
+      stateProps={patientPathwaysStateProps}
     >
       {/* 检索头 */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
@@ -453,69 +516,70 @@ export default function PatientPathways() {
                   className="rounded-xl border-gray-200 shadow-sm"
                 >
                   <div className="bg-gray-50 p-4 rounded-lg overflow-y-auto max-h-[460px]">
-                    <Timeline className="mt-4">
-                      {templateDetail?.nodes.map((node) => {
+                    <Timeline
+                      className="mt-4"
+                      items={templateNodes.map((node) => {
                         const isCurrent =
                           node.nodeCode === detailData.patientPathway.currentNodeCode;
-                        // 时钟匹配
                         const activeClock = clocksData?.find((c) => c.nodeCode === node.nodeCode);
 
                         let color = "gray";
                         if (isCurrent) color = "blue";
-                        else if (
-                          node.sortOrder <
-                          (templateDetail.nodes.find(
-                            (n) => n.nodeCode === detailData.patientPathway.currentNodeCode,
-                          )?.sortOrder || 0)
-                        ) {
+                        else if (node.sortOrder < currentTemplateSortOrder) {
                           color = "green";
                         }
 
-                        return (
-                          <Timeline.Item key={node.nodeId} color={color}>
-                            <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
-                              <span>{node.name}</span>
-                              {isCurrent && <Tag color="blue">当前活动</Tag>}
-                            </div>
-                            <div className="text-gray-400 text-xs font-normal">{node.nodeCode}</div>
-
-                            {/* 关键时钟展示 */}
-                            {activeClock && (
-                              <div className="mt-2 bg-white p-2 rounded border border-gray-100 text-[11px]">
-                                <div className="flex justify-between font-medium">
-                                  <span>
-                                    时钟:{" "}
-                                    <Tag color="purple" className="text-[10px] px-1">
-                                      {activeClock.clockId}
-                                    </Tag>
-                                  </span>
-                                  <span>
-                                    状态:{" "}
-                                    <Tag
-                                      color={activeClock.status === "OVERDUE" ? "red" : "green"}
-                                      className="text-[10px] px-1"
-                                    >
-                                      {activeClock.status}
-                                    </Tag>
-                                  </span>
-                                </div>
-                                <div className="text-gray-500 mt-1">
-                                  开始: {new Date(activeClock.startedAt).toLocaleTimeString()}
-                                </div>
-                                <div className="text-gray-500">
-                                  截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
-                                </div>
-                                {activeClock.metricCode && (
-                                  <div className="text-indigo-500 mt-1">
-                                    关联质控指标: {activeClock.metricCode}
-                                  </div>
-                                )}
+                        return {
+                          key: node.nodeId,
+                          color,
+                          children: (
+                            <>
+                              <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
+                                <span>{node.name}</span>
+                                {isCurrent && <Tag color="blue">当前活动</Tag>}
                               </div>
-                            )}
-                          </Timeline.Item>
-                        );
+                              <div className="text-gray-400 text-xs font-normal">
+                                {node.nodeCode}
+                              </div>
+
+                              {/* 关键时钟展示 */}
+                              {activeClock && (
+                                <div className="mt-2 bg-white p-2 rounded border border-gray-100 text-[11px]">
+                                  <div className="flex justify-between font-medium">
+                                    <span>
+                                      时钟:{" "}
+                                      <Tag color="purple" className="text-[10px] px-1">
+                                        {activeClock.clockId}
+                                      </Tag>
+                                    </span>
+                                    <span>
+                                      状态:{" "}
+                                      <Tag
+                                        color={activeClock.status === "OVERDUE" ? "red" : "green"}
+                                        className="text-[10px] px-1"
+                                      >
+                                        {activeClock.status}
+                                      </Tag>
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500 mt-1">
+                                    开始: {new Date(activeClock.startedAt).toLocaleTimeString()}
+                                  </div>
+                                  <div className="text-gray-500">
+                                    截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
+                                  </div>
+                                  {activeClock.metricCode && (
+                                    <div className="text-indigo-500 mt-1">
+                                      关联质控指标: {activeClock.metricCode}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          ),
+                        };
                       })}
-                    </Timeline>
+                    />
                   </div>
                 </Card>
               </Col>
@@ -561,7 +625,10 @@ export default function PatientPathways() {
                               label="指定流转目标节点"
                               rules={[{ required: true }]}
                             >
-                              <Select placeholder="选择出边允许推进的下一节点">
+                              <Select
+                                placeholder="选择出边允许推进的下一节点"
+                                aria-label="指定流转目标节点"
+                              >
                                 {templateDetail?.edges
                                   .filter(
                                     (e) =>
@@ -620,7 +687,7 @@ export default function PatientPathways() {
                                   label="变异偏离类型"
                                   rules={[{ required: true }]}
                                 >
-                                  <Select placeholder="选择类型">
+                                  <Select placeholder="选择类型" aria-label="变异偏离类型">
                                     <Option value="MEDICAL">MEDICAL (医学指征原因)</Option>
                                     <Option value="PATIENT_REASON">
                                       PATIENT_REASON (患者拒绝或意愿)
@@ -639,7 +706,10 @@ export default function PatientPathways() {
                               </Col>
                               <Col span={12}>
                                 <Form.Item name="continueNodeCode" label="强制调整/继续节点 (可选)">
-                                  <Select placeholder="选择目标节点">
+                                  <Select
+                                    placeholder="选择目标节点"
+                                    aria-label="强制调整或继续节点"
+                                  >
                                     {templateDetail?.nodes.map((n) => (
                                       <Option key={n.nodeId} value={n.nodeCode}>
                                         {n.name} ({n.nodeCode})
@@ -776,31 +846,46 @@ export default function PatientPathways() {
               }
               className="mb-6 rounded-xl border-gray-200"
             >
-              <Timeline>
-                {(variancesData ?? detailData?.variances ?? []).map((variance: PathwayVariance) => (
-                  <Timeline.Item key={variance.varianceId} color="orange">
-                    <div className="font-semibold text-gray-800 text-xs">
-                      {variance.nodeCode} · {variance.varianceType}
-                    </div>
-                    <div className="text-gray-600 text-xs mt-1">{variance.reason}</div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      <span>处置动作：</span>
-                      <span>{variance.resolutionAction || "未记录"}</span>
-                    </div>
-                    {variance.continueNodeCode && (
-                      <div className="text-gray-500 text-xs mt-1">
-                        <span>继续节点：</span>
-                        <Tag color="blue">{variance.continueNodeCode}</Tag>
+              <Timeline
+                items={(variancesData ?? detailData?.variances ?? []).map(
+                  (variance: PathwayVariance) => ({
+                    key: variance.varianceId,
+                    color: "orange",
+                    children: (
+                      <div>
+                        <div className="font-semibold text-gray-800 text-xs">
+                          {variance.nodeCode} · {variance.varianceType}
+                        </div>
+                        <div className="text-gray-500 text-xs mt-1">
+                          <span>变异 ID：</span>
+                          <span>{variance.varianceId}</span>
+                        </div>
+                        <div className="text-gray-600 text-xs mt-1">{variance.reason}</div>
+                        <div className="text-gray-500 text-xs mt-1">
+                          <span>处置动作：</span>
+                          <span>{variance.resolutionAction || "未记录"}</span>
+                        </div>
+                        {variance.continueNodeCode && (
+                          <div className="text-gray-500 text-xs mt-1">
+                            <span>继续节点：</span>
+                            <Tag color="blue">{variance.continueNodeCode}</Tag>
+                          </div>
+                        )}
+                        {variance.traceId && (
+                          <div className="text-gray-400 text-xs mt-1">
+                            traceId: {variance.traceId}
+                          </div>
+                        )}
+                        <div className="text-gray-400 text-xs mt-1">
+                          {variance.createdAt
+                            ? new Date(variance.createdAt).toLocaleString()
+                            : "未返回时间"}
+                        </div>
                       </div>
-                    )}
-                    <div className="text-gray-400 text-xs mt-1">
-                      {variance.createdAt
-                        ? new Date(variance.createdAt).toLocaleString()
-                        : "未返回时间"}
-                    </div>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
+                    ),
+                  }),
+                )}
+              />
             </Card>
           </div>
         ) : (
