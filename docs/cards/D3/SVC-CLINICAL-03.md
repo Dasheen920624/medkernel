@@ -114,12 +114,17 @@
 - 已覆盖闭环：页面不本地追加待办或通知，只展示 [FOLLOW-01](FOLLOW-01.md) / 本卡既有协同链路返回的真实 ID；看板统计文案收窄为“当前页”，不把分页局部统计写成全局完成率。
 - 未冒领范围：本 PR 不新增全局随访统计聚合、不接外部随访渠道或真实外发连接器；回院任务是否进入待办仍以统一待办 API 真实查询为准。
 
+### 收口验收（2026-06-05，本地目标验证）
+- 已核查：PR1-18 已把统一待办 / 通知、推荐卡协同来源细分、随访异常、同步事件、创建 / 完成 / 转交通知、已读回执、统一审计、个人 + 组织闭包可见性、显式组织筛选、免打扰提示、外发补偿读回与五类声明通道补齐到真实关系库链路；PR19 把随访异常回院证据页内呈现，PR20 另把随访页统计改为后端作用域聚合。
+- 本地证据：`rg` 核查 `engine/workflow`、`WorkflowTodos`、`Notifications`、`hooks.ts` 的来源类型、组织范围、审计、外发补偿、`sourceId` / `traceId` 呈现；后端目标 `mvn -q -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest,WorkflowNotificationRepositoryTest,WorkflowNotificationSettingsServiceTest,WorkflowNotificationSettingsControllerTest test` 退出码 0；前端目标 `npm test -- src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Notifications.test.tsx src/shared/api/hooks.test.ts` 3 文件 / 61 用例通过。
+- 收口结论：本卡 B0 范围已满足；外部护理站、LIS / PACS、独立床旁知识系统、短信 / 邮件 / 移动推送 / Webhook / 院内消息真实连接器仍未接通，按诚实 `NOT_CONNECTED` 补偿登记与待处理问题边界保留，不作为本卡阻塞。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 统一待办：CDSS 复核/随访/安全复核（[MED-C3](MED-C3.md)）任务统一进待办，带责任人/截止/来源。
-- [ ] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。（新待办 / 待办完成 / 转交 / 随访异常 / 同步事件站内通知已覆盖；通知中心已显示免打扰生效与 CRITICAL / HIGH 安全绕过，并可读回已登记的短信 / 邮件 / 移动推送 / Webhook / 院内消息补偿日志；真实发送连接器待后续）
-- [ ] FR-3 协同：护理任务、报告解读、床旁知识卡按上下文呈现。（推荐卡真实类型细分已覆盖；独立外部上游直连待后续）
-- [ ] FR-4 随访触发：随访（[FOLLOW-01](FOLLOW-01.md)）任务汇入待办、异常回院转通知。
-- [ ] FR-5 闭环：每条待办可流转到完成，状态机闭环可审计。（完成 / 转交 / 已读已写统一审计；个人项 + 组织闭包项已加后端访问保护；待办 / 通知显式组织范围筛选已接真实组织 API；来源 deepLink 已加站内安全降级；缺失 deepLink 已诚实提示；页面展示已落库来源对象与追踪链路，缺失 traceId 时显示诚实缺失状态）
+- [x] FR-1 统一待办：CDSS 复核/随访/安全复核（[MED-C3](MED-C3.md)）任务统一进待办，带责任人/截止/来源。
+- [x] FR-2 通知：待办/异常/同步事件转通知，去重 + 低打扰 + 已读回执。（新待办 / 待办完成 / 转交 / 随访异常 / 同步事件站内通知已覆盖；通知中心已显示免打扰生效与 CRITICAL / HIGH 安全绕过，并可读回已登记的短信 / 邮件 / 移动推送 / Webhook / 院内消息补偿日志；真实发送连接器待后续）
+- [x] FR-3 协同：护理任务、报告解读、床旁知识卡按上下文呈现。（推荐卡真实类型细分已覆盖；独立外部上游直连待后续）
+- [x] FR-4 随访触发：随访（[FOLLOW-01](FOLLOW-01.md)）任务汇入待办、异常回院转通知。
+- [x] FR-5 闭环：每条待办可流转到完成，状态机闭环可审计。（完成 / 转交 / 已读已写统一审计；个人项 + 组织闭包项已加后端访问保护；待办 / 通知显式组织范围筛选已接真实组织 API；来源 deepLink 已加站内安全降级；缺失 deepLink 已诚实提示；页面展示已落库来源对象与追踪链路，缺失 traceId 时显示诚实缺失状态）
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -150,14 +155,15 @@
 - 本卡落点：统一待办/通知协同枢纽，各源任务单一注入。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：多源任务统一进待办；通知去重 + 已读回执；已登记外发补偿状态可读回且不伪造送达。
-- [ ] AC-2（FR-3/4）：协同卡按上下文；随访/异常汇入。
-- [ ] AC-3（FR-5）：待办闭环可审计（完成 / 转交 / 已读写入统一审计，快照不含患者 ID 或通知正文；默认可见性按个人项 + 组织闭包项收敛；来源跳转只开放安全站内 deepLink，缺失 deepLink 与异常 deepLink 均诚实提示；页面展示真实来源对象与追踪链路，缺失 traceId 不伪造追踪号）。
+- [x] AC-1（FR-1/2）：多源任务统一进待办；通知去重 + 已读回执；已登记外发补偿状态可读回且不伪造送达。
+- [x] AC-2（FR-3/4）：协同卡按上下文；随访/异常汇入。
+- [x] AC-3（FR-5）：待办闭环可审计（完成 / 转交 / 已读写入统一审计，快照不含患者 ID 或通知正文；默认可见性按个人项 + 组织闭包项收敛；来源跳转只开放安全站内 deepLink，缺失 deepLink 与异常 deepLink 均诚实提示；页面展示真实来源对象与追踪链路，缺失 traceId 不伪造追踪号）。
 - 关联 A1–A9 剧本：A6 协同待办 · A8 安全复核。
 - T-GATE：前后端真实性门禁全绿（无伪造待办 / 去重正确）。
 - B0 验收：关模型待办/通知协同全可用。
 
 ## 完工证据
-- 代码 permalink：PR 创建后补充统一待办/通知聚合 + TODO/NOTIFY 页面真实化链接。
-- 测试（PR1 本地）：`mvn -q test`；`npm run verify`；`npm run build`；`npm audit --omit=dev --audit-level=moderate`（0 漏洞）；Browser 复验 `/workflow/todos`、`/notifications` 未登录均重定向 `/login` 且控制台 error 为空。目标用例覆盖 `WorkflowCollaborationServiceTest`、`WorkflowTodoRepositoryTest`、`RecommendationRepositoryTest`、`MigrationBaselineContractTest`、`H2BaselineMigrationTest`、`FlywayMultiDialectSmokeTest`、前端 `WorkflowTodos.test.tsx` / `Notifications.test.tsx` / `hooks.test.ts`。
+- 代码：PR1-18 已合入统一待办 / 通知聚合、TODO / NOTIFY 页面真实化、通知偏好、组织范围、审计、外发补偿与来源证据；本收口 PR 不改业务代码，只补卡与 backlog 状态。
+- 测试：PR1-18 各自含本地 + 远端 CI 证据；收口分支复跑 `mvn -q -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest,WorkflowNotificationRepositoryTest,WorkflowNotificationSettingsServiceTest,WorkflowNotificationSettingsControllerTest test`（退出码 0）与 `npm test -- src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Notifications.test.tsx src/shared/api/hooks.test.ts`（3 文件 / 61 用例通过）。
+- T-GATE：`git diff --check` 无输出；changed-mode 真实性 / 迁移规约 / 配置边界门禁均通过（文档收口扫描文件 0 个）；`scripts/check-comment-zh.sh` 0 fail / 0 warn。历史迁移 inventory 债务仍归 `DEFER-016`，不得冒领清零。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
