@@ -10,12 +10,14 @@ const workflowHookMocks = vi.hoisted(() => ({
   refetchTodos: vi.fn(),
   transferTodo: vi.fn(),
   useCompleteWorkflowTodo: vi.fn(),
+  useOrgUnits: vi.fn(),
   useTransferWorkflowTodo: vi.fn(),
   useWorkflowTodos: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useCompleteWorkflowTodo: workflowHookMocks.useCompleteWorkflowTodo,
+  useOrgUnits: workflowHookMocks.useOrgUnits,
   useTransferWorkflowTodo: workflowHookMocks.useTransferWorkflowTodo,
   useWorkflowTodos: workflowHookMocks.useWorkflowTodos,
 }));
@@ -81,6 +83,38 @@ describe("WorkflowTodos", () => {
       isPending: false,
       mutateAsync: workflowHookMocks.transferTodo,
     });
+    workflowHookMocks.useOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "dept-a",
+            parentId: null,
+            tenantId: "tenant-A",
+            orgPath: "/TENANT-A/DEPT-A",
+            level: "DEPARTMENT",
+            code: "DEPT-A",
+            name: "A 科室",
+            status: "ACTIVE",
+          },
+          {
+            id: "spec-a1",
+            parentId: "dept-a",
+            tenantId: "tenant-A",
+            orgPath: "/TENANT-A/DEPT-A/SPEC-A1",
+            level: "SPECIALTY",
+            code: "SPEC-A1",
+            name: "A1 专病",
+            status: "ACTIVE",
+          },
+        ],
+        page: 1,
+        size: 100,
+        total: 2,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+    });
   });
 
   it("renders real workflow todos from the unified API instead of the old placeholder", () => {
@@ -99,6 +133,25 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("随访任务")).toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("passes selected organization scope to the server-side todo query", async () => {
+    const user = userEvent.setup();
+    renderWorkflowTodos();
+
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("A 科室"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "PENDING",
+        priority: undefined,
+        sourceType: undefined,
+        orgUnitId: "dept-a",
+        page: 1,
+        size: 10,
+      });
+    });
   });
 
   it("renders clinical collaboration source labels without exposing backend enum names", () => {

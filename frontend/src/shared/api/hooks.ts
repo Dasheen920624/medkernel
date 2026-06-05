@@ -2968,6 +2968,7 @@ export interface WorkflowTodosParams {
   priority?: WorkflowPriority;
   sourceType?: WorkflowTodoSourceType;
   assigneeId?: string;
+  orgUnitId?: string;
   page?: number;
   size?: number;
 }
@@ -2976,6 +2977,7 @@ export interface WorkflowNotificationsParams {
   status?: WorkflowNotificationStatus;
   level?: WorkflowNotificationLevel;
   recipientId?: string;
+  orgUnitId?: string;
   page?: number;
   size?: number;
 }

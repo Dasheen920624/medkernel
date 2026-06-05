@@ -251,6 +251,125 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void selectedOrganizationFilterNarrowsVisibleTodosToSelectedSubtree() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-own-selected",
+            WorkflowTodoSourceType.FOLLOWUP_TASK,
+            "followup-own-selected",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            "doctor-1",
+            "spec-a1",
+            now.plusSeconds(100)));
+        repository.save(sample(
+            "todo-selected-org",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-selected-org",
+            WorkflowPriority.MEDIUM,
+            "patient-2",
+            null,
+            "spec-a1",
+            now.plusSeconds(200)));
+        repository.save(sample(
+            "todo-selected-parent",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-selected-parent",
+            WorkflowPriority.MEDIUM,
+            "patient-3",
+            null,
+            "dept-a",
+            now.plusSeconds(300)));
+        repository.save(sample(
+            "todo-tenant",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-tenant",
+            WorkflowPriority.MEDIUM,
+            "patient-4",
+            null,
+            null,
+            now.plusSeconds(400)));
+        repository.save(sample(
+            "todo-sibling",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-sibling",
+            WorkflowPriority.MEDIUM,
+            "patient-5",
+            null,
+            "dept-b",
+            now.plusSeconds(50)));
+
+        long total = repository.countByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1");
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1",
+            0,
+            10);
+
+        assertThat(total).isEqualTo(2);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-selected-org", "todo-own-selected");
+    }
+
+    @Test
+    void selectedOrganizationFilterDoesNotExposeSiblingTodosOutsideCurrentClosure() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "todo-sibling",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-sibling",
+            WorkflowPriority.HIGH,
+            "patient-1",
+            null,
+            "dept-b",
+            now.plusSeconds(100)));
+
+        long total = repository.countByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "dept-b");
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "dept-b",
+            0,
+            10);
+
+        assertThat(total).isZero();
+        assertThat(page).isEmpty();
+    }
+
+    @Test
     void explicitAssigneeFilterStillNarrowsToRequestedAssignee() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(

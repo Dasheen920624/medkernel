@@ -109,18 +109,31 @@ public class WorkflowCollaborationService {
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String assigneeId = blankToNull(safeFilter.assigneeId());
         String patientId = blankToNull(safeFilter.patientId());
+        String selectedOrgUnitId = blankToNull(safeFilter.orgUnitId());
         String currentUserId = currentUserId(ctx);
         String currentOrgUnitId = currentOrgUnitId(ctx);
-        long total = todos.countByVisibleAssigneeScope(
-            tenantId,
-            name(safeFilter.status()),
-            name(safeFilter.priority()),
-            name(safeFilter.sourceType()),
-            assigneeId,
-            currentUserId,
-            currentOrgUnitId,
-            patientId);
-        List<WorkflowTodoResponse> rows = todos.pageByVisibleAssigneeScope(
+        long total = selectedOrgUnitId == null
+            ? todos.countByVisibleAssigneeScope(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.priority()),
+                name(safeFilter.sourceType()),
+                assigneeId,
+                currentUserId,
+                currentOrgUnitId,
+                patientId)
+            : todos.countByVisibleAssigneeScopeAndOrgUnitFilter(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.priority()),
+                name(safeFilter.sourceType()),
+                assigneeId,
+                currentUserId,
+                currentOrgUnitId,
+                patientId,
+                selectedOrgUnitId);
+        List<WorkflowTodo> page = selectedOrgUnitId == null
+            ? todos.pageByVisibleAssigneeScope(
                 tenantId,
                 name(safeFilter.status()),
                 name(safeFilter.priority()),
@@ -130,7 +143,20 @@ public class WorkflowCollaborationService {
                 currentOrgUnitId,
                 patientId,
                 req.offset(),
-                req.safeSize()).stream()
+                req.safeSize())
+            : todos.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.priority()),
+                name(safeFilter.sourceType()),
+                assigneeId,
+                currentUserId,
+                currentOrgUnitId,
+                patientId,
+                selectedOrgUnitId,
+                req.offset(),
+                req.safeSize());
+        List<WorkflowTodoResponse> rows = page.stream()
             .map(WorkflowTodoResponse::from)
             .toList();
         return PageResponse.of(rows, req, total);
@@ -256,16 +282,27 @@ public class WorkflowCollaborationService {
             : filter;
         PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String recipientId = blankToNull(safeFilter.recipientId());
+        String selectedOrgUnitId = blankToNull(safeFilter.orgUnitId());
         String currentUserId = currentUserId(ctx);
         String currentOrgUnitId = currentOrgUnitId(ctx);
-        long total = notifications.countByVisibleRecipientScope(
-            tenantId,
-            name(safeFilter.status()),
-            name(safeFilter.level()),
-            recipientId,
-            currentUserId,
-            currentOrgUnitId);
-        List<WorkflowNotificationResponse> rows = notifications.pageByVisibleRecipientScope(
+        long total = selectedOrgUnitId == null
+            ? notifications.countByVisibleRecipientScope(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.level()),
+                recipientId,
+                currentUserId,
+                currentOrgUnitId)
+            : notifications.countByVisibleRecipientScopeAndOrgUnitFilter(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.level()),
+                recipientId,
+                currentUserId,
+                currentOrgUnitId,
+                selectedOrgUnitId);
+        List<WorkflowNotification> page = selectedOrgUnitId == null
+            ? notifications.pageByVisibleRecipientScope(
                 tenantId,
                 name(safeFilter.status()),
                 name(safeFilter.level()),
@@ -273,7 +310,18 @@ public class WorkflowCollaborationService {
                 currentUserId,
                 currentOrgUnitId,
                 req.offset(),
-                req.safeSize()).stream()
+                req.safeSize())
+            : notifications.pageByVisibleRecipientScopeAndOrgUnitFilter(
+                tenantId,
+                name(safeFilter.status()),
+                name(safeFilter.level()),
+                recipientId,
+                currentUserId,
+                currentOrgUnitId,
+                selectedOrgUnitId,
+                req.offset(),
+                req.safeSize());
+        List<WorkflowNotificationResponse> rows = page.stream()
             .map(WorkflowNotificationResponse::from)
             .toList();
         return PageResponse.of(rows, req, total);

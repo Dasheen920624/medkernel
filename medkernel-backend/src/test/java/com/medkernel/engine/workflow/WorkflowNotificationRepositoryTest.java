@@ -157,6 +157,111 @@ class WorkflowNotificationRepositoryTest {
     }
 
     @Test
+    void selectedOrganizationFilterNarrowsVisibleNotificationsToSelectedSubtree() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "notify-own-selected",
+            "todo-own-selected",
+            "todo:todo-own-selected:created",
+            WorkflowNotificationLevel.HIGH,
+            "doctor-1",
+            "spec-a1",
+            now.plusSeconds(100)));
+        repository.save(sample(
+            "notify-selected-org",
+            "event-selected-org",
+            "clinical-event:event-selected-org",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "spec-a1",
+            now.plusSeconds(200)));
+        repository.save(sample(
+            "notify-selected-parent",
+            "event-selected-parent",
+            "clinical-event:event-selected-parent",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "dept-a",
+            now.plusSeconds(300)));
+        repository.save(sample(
+            "notify-tenant",
+            "event-tenant",
+            "clinical-event:event-tenant",
+            WorkflowNotificationLevel.INFO,
+            null,
+            null,
+            now.plusSeconds(400)));
+        repository.save(sample(
+            "notify-sibling",
+            "event-sibling",
+            "clinical-event:event-sibling",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "dept-b",
+            now.plusSeconds(500)));
+
+        long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1");
+        List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1",
+            0,
+            10);
+
+        assertThat(total).isEqualTo(2);
+        assertThat(page).extracting(WorkflowNotification::notificationId)
+            .containsExactly("notify-selected-org", "notify-own-selected");
+    }
+
+    @Test
+    void selectedOrganizationFilterDoesNotExposeSiblingNotificationsOutsideCurrentClosure() {
+        seedOrgTree();
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sample(
+            "notify-sibling",
+            "event-sibling",
+            "clinical-event:event-sibling",
+            WorkflowNotificationLevel.HIGH,
+            null,
+            "dept-b",
+            now.plusSeconds(100)));
+
+        long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "dept-b");
+        List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            "UNREAD",
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "dept-b",
+            0,
+            10);
+
+        assertThat(total).isZero();
+        assertThat(page).isEmpty();
+    }
+
+    @Test
     void explicitRecipientFilterStillNarrowsToRequestedRecipient() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(

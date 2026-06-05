@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Card, List, Select, Space, Tag, message } from "antd";
 import type { BadgeProps } from "antd";
 import { CheckOutlined, ReloadOutlined } from "@ant-design/icons";
 
-import { useReadWorkflowNotification, useWorkflowNotifications } from "@/shared/api/hooks";
+import {
+  useOrgUnits,
+  useReadWorkflowNotification,
+  useWorkflowNotifications,
+} from "@/shared/api/hooks";
 import type {
   WorkflowNotification,
   WorkflowNotificationLevel,
@@ -41,16 +45,26 @@ const sourceText: Record<WorkflowNotificationSourceType, string> = {
 export default function Notifications() {
   const [status, setStatus] = useState<WorkflowNotificationStatus | undefined>("UNREAD");
   const [level, setLevel] = useState<WorkflowNotificationLevel | undefined>();
+  const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
 
   const queryParams = {
     status,
     level,
+    orgUnitId,
     page: 1,
     size: 10,
   };
   const { data, isError, isLoading, refetch } = useWorkflowNotifications(queryParams);
+  const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({ page: 1, size: 100 });
   const readMutation = useReadWorkflowNotification();
   const unreadNotifications = data?.items.filter((item) => item.status === "UNREAD") ?? [];
+  const orgUnitOptions = useMemo(
+    () =>
+      (orgUnits?.items ?? [])
+        .filter((unit) => unit.id)
+        .map((unit) => ({ value: unit.id ?? "", label: unit.name })),
+    [orgUnits?.items],
+  );
 
   const markRead = async (notification: WorkflowNotification) => {
     try {
@@ -128,6 +142,19 @@ export default function Notifications() {
               { value: "INFO", label: "信息" },
             ]}
           />
+          <Select
+            id="notifications-org-unit"
+            value={orgUnitId}
+            onChange={setOrgUnitId}
+            allowClear
+            loading={orgUnitsLoading}
+            placeholder="组织范围"
+            className="w-44"
+            options={orgUnitOptions}
+          />
+          <label className="mk-sr-only" htmlFor="notifications-org-unit">
+            组织范围
+          </label>
         </Space>
       </Card>
 
