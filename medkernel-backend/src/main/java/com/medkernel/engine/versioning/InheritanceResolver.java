@@ -48,6 +48,7 @@ public class InheritanceResolver {
         String ignoredOverrideId = null;
         for (int index = path.size() - 1; index >= 0; index--) {
             OrgUnit candidate = path.get(index);
+            boolean inherited = !candidate.orgPath().equals(target.orgPath());
             List<AssetVersion> active = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
                 tenantId,
                 assetType,
@@ -55,12 +56,34 @@ public class InheritanceResolver {
                 AssetVersionStatus.ACTIVE
             );
             if (active.isEmpty()) {
+                // 本级无替换版本：消费本级停用(DISABLE)覆盖（其 override_version_id 为空，按组织生效域直查）
+                Optional<InheritanceOverride> disable = findApplicableDisable(
+                    tenantId, assetType, assetIdentity, applicableScope, candidate.orgPath());
+                if (disable.isPresent()) {
+                    InheritanceOverride value = disable.get();
+                    // 传播判定：祖先节点的 EXCLUSIVE 停用仅本级生效、不向下沉
+                    if (inherited && value.propagation() == InheritancePropagation.EXCLUSIVE) {
+                        continue;
+                    }
+                    // 安全护栏：锁定/红线基线禁止被下级关闭，忽略该停用、回退继承锁定版本
+                    if (!permitsDisable(tenantId, value)) {
+                        ignoredOverrideId = value.overrideId();
+                        continue;
+                    }
+                    return new ResolvedAssetVersion(
+                        null,
+                        candidate.orgPath(),
+                        inherited,
+                        true,
+                        true,
+                        disabledExplanation(value, inheritancePath, ignoredOverrideId)
+                    );
+                }
                 continue;
             }
             AssetVersion selected = active.get(0);
             Optional<InheritanceOverride> override = overrides.findByTenantIdAndOverrideVersionId(
                 tenantId, selected.versionId());
-            boolean inherited = !candidate.orgPath().equals(target.orgPath());
             if (override.isPresent()) {
                 InheritanceOverride value = override.get();
                 // 传播判定：祖先节点的 EXCLUSIVE 覆盖仅本节点生效、不向下沉；下级跳过它，回退到上一层适用版本
@@ -80,6 +103,7 @@ public class InheritanceResolver {
                 candidate.orgPath(),
                 inherited,
                 overridden,
+                false,
                 explanation(selected, inheritancePath, inherited, override, ignoredOverrideId)
             );
         }
@@ -148,6 +172,52 @@ public class InheritanceResolver {
         boolean lockedContentChange = baseline.overridePolicy() == AssetVersionOverridePolicy.LOCKED
             && !Objects.equals(baseline.contentHash(), candidate.contentHash());
         return !lockedContentChange;
+    }
+
+    /**
+     * 按组织生效域直查本级是否存在停用(DISABLE)覆盖。DISABLE 无替换版本（{@code override_version_id} 为空），
+     * 无法经覆盖版本反查命中，故按 (租户/资产类型/资产身份/组织生效域/适用人群) 直查并取首个。
+     */
+    private Optional<InheritanceOverride> findApplicableDisable(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String applicableScope,
+            String orgPath) {
+        return overrides
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
+                tenantId, assetType, assetIdentity, orgPath, applicableScope, InheritanceOverrideMode.DISABLE)
+            .stream()
+            .findFirst();
+    }
+
+    /**
+     * 判定下级 DISABLE 能否关闭被继承的基线（安全下限，见设计附录 S1/S3）：锁定
+     * （{@code override_policy=LOCKED}）或红线（{@code safety_policy=SAFETY_REDLINE}）基线不可被关闭。
+     * 基线缺失（如已退役）时按非锁定处理放行，主权威仍由登记期把关。
+     */
+    private boolean permitsDisable(String tenantId, InheritanceOverride disable) {
+        AssetVersion baseline = assetVersions
+            .findByVersionIdAndTenantId(disable.inheritedVersionId(), tenantId)
+            .orElse(null);
+        if (baseline == null) {
+            return true;
+        }
+        return baseline.overridePolicy() != AssetVersionOverridePolicy.LOCKED
+            && baseline.safetyPolicy() != AssetVersionSafetyPolicy.SAFETY_REDLINE;
+    }
+
+    private InheritanceExplanation disabledExplanation(
+            InheritanceOverride disable, List<String> inheritancePath, String ignoredOverrideId) {
+        return new InheritanceExplanation(
+            appendSafetyInterception(
+                "资产已被机构 " + disable.orgPath() + " 停用（DISABLE 覆盖 " + disable.overrideId() + "）",
+                ignoredOverrideId),
+            inheritancePath,
+            disable.diffSummary(),
+            disable.overrideReason(),
+            disable.impactScope()
+        );
     }
 
     private static String appendSafetyInterception(String summary, String ignoredOverrideId) {
