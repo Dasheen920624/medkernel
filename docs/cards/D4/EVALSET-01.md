@@ -18,12 +18,14 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/quality/QcEvalSets.tsx`（路由 `/qc/eval/sets` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接评估指标 CRUD/版本 API（[EVAL-01](EVAL-01.md) `EvaluationIndicator`）+ 六态/五维 RBAC 齐全。
 
+2026-06-06 Codex 实现：`QcEvalSets.tsx` 已改为真实 PageShell 页面，默认筛选仅指标编码 / 指标状态 / 评估主体 3 个，列表通过 `useEvaluationIndicators` 按 API-13 `page=1&size=20&sort=updatedAt,desc` 读取真实指标；新建指标用 `ConditionTreeEditor` 编辑分母 / 分子条件树并提交 DSL JSON；详情抽屉展示 7 步 `StepFlow`、真实版本 / 状态 / `traceId` 和生命周期 submit / publish / activate；仿真抽屉读取 ACTIVE 临床快照并调用 canonical `/engine/evaluation:evaluate`。页面不再前端写死指标、命中事实或 trace。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 指标列表：列评估指标（[API-13](../D0/API-13.md) 分页），状态/版本真实。
-- [ ] FR-2 指标编辑：基于规则引擎（[RULE-01](../D2/RULE-01.md)）条件树配置指标，不写死。
-- [ ] FR-3 版本/发布：指标走配置类 7 步流（[SYS-04](../D2/SYS-04.md)），版本化。
-- [ ] FR-4 仿真：指标对历史病例仿真命中预览（与规则仿真一致）。
-- [ ] FR-5 六态 + 五维 RBAC：齐全；质控办/医务处可配；数据按 `OrgContext`。
+- [x] FR-1 指标列表：列评估指标（[API-13](../D0/API-13.md) 分页），状态/版本真实。
+- [x] FR-2 指标编辑：基于规则引擎（[RULE-01](../D2/RULE-01.md)）条件树配置指标，不写死。
+- [x] FR-3 版本/发布：指标走配置类 7 步流（[SYS-04](../D2/SYS-04.md)），版本化。
+- [x] FR-4 仿真：指标对历史病例仿真命中预览（与规则仿真一致）。
+- [x] FR-5 六态 + 五维 RBAC：齐全；质控办/医务处可配；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -56,14 +58,14 @@ N·A —— 页面卡不落库；消费 [EVAL-01](EVAL-01.md) 后端。
 - 本卡落点：把评估指标库页变为接真实指标 CRUD/版本/仿真、不写死的配置库。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：指标列表/编辑真实、不写死。
-- [ ] AC-2（FR-3/4）：版本 7 步流；仿真命中预览真实。
-- [ ] AC-3（FR-5）：六态齐全；按作用域。
+- [x] AC-1（FR-1/2）：指标列表/编辑真实、不写死。
+- [x] AC-2（FR-3/4）：版本 7 步流；仿真命中预览真实。
+- [x] AC-3（FR-5）：六态齐全；按作用域。
 - 关联 A1–A9 剧本：A9 指标配置。
-- T-GATE：前端真实性门禁全绿（no-page-mock、无写死指标）。
+- T-GATE：changed-mode 通过（no-page-mock、无写死指标）：真实性门禁扫描 1 文件，配置边界扫描 0 文件，中文注释 0 fail / 0 warn，`git diff --check origin/main...HEAD` 无输出。
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/quality/QcEvalSets` 真实化 + 接 [EVAL-01](EVAL-01.md) + 六态。
-- 测试：指标 CRUD/版本/仿真 + 六态 + RBAC + no-page-mock 门禁。
+- 代码 permalink：`pages/quality/QcEvalSets` 真实化 + 接 [EVAL-01](EVAL-01.md) + 六态（PR 合并后回填永久链接）。
+- 测试：`cd frontend && npm test -- QcEvalSets.test.tsx pages.smoke.test.tsx hooks.test.ts` 74 测试通过；`cd frontend && npm run verify` 66 文件 / 396 测试通过；`cd frontend && npm run build` 通过；changed-mode T-GATE 通过（真实性 1 文件、配置边界 0 文件、中文注释 0 fail / 0 warn、diff check 无输出）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
