@@ -2797,11 +2797,26 @@ export interface FollowupAbnormalReportResponse {
   traceId: string;
 }
 
+export interface FollowupStatsResponse {
+  totalPlans: number;
+  activePlans: number;
+  totalTasks: number;
+  completedTasks: number;
+  abnormalReturnTasks: number;
+  taskCompletionRatePercent: number;
+  abnormalReturnRatePercent: number;
+  traceId: string;
+}
+
 export interface FollowupPlansParams {
   patientId?: string;
   page?: number;
   size?: number;
   sort?: string;
+}
+
+export interface FollowupStatsParams {
+  patientId?: string;
 }
 
 // 1. 获取随访计划分页
@@ -2818,7 +2833,21 @@ export function useFollowupPlans(params?: FollowupPlansParams) {
   });
 }
 
-// 2. 智能生成随访计划
+// 2. 获取随访作用域统计
+export function useFollowupStats(params?: FollowupStatsParams) {
+  return useQuery({
+    queryKey: ["followup", "stats", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: FollowupStatsResponse }>(
+        "/engine/followup/stats",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+// 3. 智能生成随访计划
 export function useGenerateFollowupPlan() {
   return useMutation({
     mutationFn: async (payload: FollowupPlanGenerateRequest) => {
@@ -2831,7 +2860,7 @@ export function useGenerateFollowupPlan() {
   });
 }
 
-// 3. 获取随访计划详情
+// 4. 获取随访计划详情
 export function useFollowupPlanDetail(planId: string) {
   return useQuery({
     queryKey: ["followup", "plan-detail", planId],
@@ -2846,7 +2875,7 @@ export function useFollowupPlanDetail(planId: string) {
   });
 }
 
-// 4. 提交问卷并完成任务
+// 5. 提交问卷并完成任务
 export function useSubmitFollowupQuestionnaire() {
   return useMutation({
     mutationFn: async (payload: {
@@ -2862,7 +2891,7 @@ export function useSubmitFollowupQuestionnaire() {
   });
 }
 
-// 5. 上报随访异常事件
+// 6. 上报随访异常事件
 export function useReportFollowupAbnormal() {
   return useMutation({
     mutationFn: async (payload: FollowupAbnormalReportRequest) => {

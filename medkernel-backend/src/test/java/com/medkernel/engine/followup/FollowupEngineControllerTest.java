@@ -170,6 +170,32 @@ class FollowupEngineControllerTest {
             .andExpect(status().isForbidden());
     }
 
+    @Test
+    void stats_ReturnsGlobalProgress() throws Exception {
+        when(service.stats("P1001")).thenReturn(new FollowupStatsResponse(
+            4L, 2L, 10L, 7L, 2L, 70.0, 20.0, "trace-stats"
+        ));
+
+        mockMvc.perform(get("/api/v1/engine/followup/stats")
+                .param("patientId", "P1001")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.totalPlans").value(4))
+            .andExpect(jsonPath("$.data.activePlans").value(2))
+            .andExpect(jsonPath("$.data.totalTasks").value(10))
+            .andExpect(jsonPath("$.data.completedTasks").value(7))
+            .andExpect(jsonPath("$.data.abnormalReturnTasks").value(2))
+            .andExpect(jsonPath("$.data.taskCompletionRatePercent").value(70.0))
+            .andExpect(jsonPath("$.data.abnormalReturnRatePercent").value(20.0))
+            .andExpect(jsonPath("$.data.traceId").value("trace-stats"));
+
+        verify(service).stats("P1001");
+    }
+
     // ── 2. GET /plans/{planId} ─────────────────────────────────────────
 
     @Test

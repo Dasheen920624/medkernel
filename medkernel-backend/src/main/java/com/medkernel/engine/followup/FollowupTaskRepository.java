@@ -29,6 +29,16 @@ public interface FollowupTaskRepository extends CrudRepository<FollowupTask, Lon
     long countByTenantIdAndFilters(String tenantId, String patientId, String planId, String status);
 
     @Query("""
+        SELECT COUNT(*)
+        FROM followup_task t
+        JOIN followup_plan p ON p.plan_id = t.plan_id AND p.tenant_id = t.tenant_id
+        WHERE t.tenant_id = :tenantId
+          AND (:patientId IS NULL OR p.patient_id = :patientId)
+          AND (:status IS NULL OR t.status = :status)
+        """)
+    long countByTenantIdAndPatientAndOptionalStatus(String tenantId, String patientId, String status);
+
+    @Query("""
         SELECT t.*
         FROM followup_task t
         JOIN followup_plan p ON p.plan_id = t.plan_id AND p.tenant_id = t.tenant_id

@@ -175,6 +175,35 @@ public class FollowupEngineService {
     }
 
     /**
+     * 读取当前租户作用域下的随访全局进度统计。
+     */
+    @Transactional(readOnly = true)
+    public FollowupStatsResponse stats(String patientId) {
+        RequestContext.Snapshot ctx = requireContext();
+        String tenantId = ctx.orgScope().tenantId();
+        String normalizedPatientId = blankToNull(patientId);
+        long totalPlans = planRepository.countByTenantIdAndOptionalPatient(tenantId, normalizedPatientId);
+        long activePlans = planRepository.countByTenantIdAndOptionalPatientAndStatus(
+            tenantId, normalizedPatientId, FollowupPlanStatus.ACTIVE.name());
+        long totalTasks = taskRepository.countByTenantIdAndPatientAndOptionalStatus(
+            tenantId, normalizedPatientId, null);
+        long completedTasks = taskRepository.countByTenantIdAndPatientAndOptionalStatus(
+            tenantId, normalizedPatientId, FollowupTaskStatus.COMPLETED.name());
+        long abnormalReturnTasks = taskRepository.countByTenantIdAndPatientAndOptionalStatus(
+            tenantId, normalizedPatientId, FollowupTaskStatus.ABNORMAL_RETURN.name());
+        return new FollowupStatsResponse(
+            totalPlans,
+            activePlans,
+            totalTasks,
+            completedTasks,
+            abnormalReturnTasks,
+            percent(completedTasks, totalTasks),
+            percent(abnormalReturnTasks, totalTasks),
+            ctx.traceId()
+        );
+    }
+
+    /**
      * 顶层问卷下发 / 作答入口，按幂等键复用已有问卷事实。
      */
     @Transactional
@@ -482,6 +511,13 @@ public class FollowupEngineService {
         if (eventType != FollowupEventType.ABNORMAL_RETURN) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "异常回院上报仅允许 ABNORMAL_RETURN 事件");
         }
+    }
+
+    private double percent(long numerator, long denominator) {
+        if (denominator <= 0L) {
+            return 0.0;
+        }
+        return Math.round((numerator * 1000.0) / denominator) / 10.0;
     }
 
     private ControlledPlan resolveControlledPlan(FollowupPlanGenerateRequest request, String tenantId) {

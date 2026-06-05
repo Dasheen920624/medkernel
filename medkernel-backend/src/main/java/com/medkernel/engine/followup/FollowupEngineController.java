@@ -69,6 +69,15 @@ public class FollowupEngineController {
     }
 
     /**
+     * 查询当前租户或患者作用域下的随访进度统计。
+     */
+    @GetMapping("/stats")
+    @PreAuthorize("@perm.has('followup.read')")
+    public ApiResult<FollowupStatsResponse> stats(@RequestParam(required = false) String patientId) {
+        return ApiResult.ok(service.stats(patientId));
+    }
+
+    /**
      * 分页查询随访任务列表。
      */
     @GetMapping("/tasks")

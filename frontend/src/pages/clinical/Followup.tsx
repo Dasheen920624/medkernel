@@ -32,6 +32,7 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import {
   useFollowupPlans,
+  useFollowupStats,
   useGenerateFollowupPlan,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
@@ -83,6 +84,14 @@ export default function Followup() {
     page: 1,
     size: 100,
   });
+  const {
+    data: statsData,
+    refetch: refetchStats,
+    isLoading: statsLoading,
+    isError: statsError,
+  } = useFollowupStats({
+    patientId: patientFilter.trim() || undefined,
+  });
 
   const generatePlanMutation = useGenerateFollowupPlan();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
@@ -91,19 +100,20 @@ export default function Followup() {
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
 
-  const metrics = useMemo(() => {
-    const totalTasks = displayPlans.reduce((sum, plan) => sum + plan.tasks.length, 0);
-    const completedTasks = displayPlans.reduce(
-      (sum, plan) => sum + plan.tasks.filter((task) => task.status === "COMPLETED").length,
-      0,
-    );
-    return {
-      totalPlans: displayPlans.length,
-      activePlans: displayPlans.filter((plan) => plan.status === "ACTIVE").length,
-      completedTasks,
-      taskCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-    };
-  }, [displayPlans]);
+  const stats = statsData ?? {
+    totalPlans: 0,
+    activePlans: 0,
+    totalTasks: 0,
+    completedTasks: 0,
+    abnormalReturnTasks: 0,
+    taskCompletionRatePercent: 0,
+    abnormalReturnRatePercent: 0,
+    traceId: "",
+  };
+
+  const refreshFollowupData = async () => {
+    await Promise.all([refetchPlans(), refetchStats()]);
+  };
 
   const handleGeneratePlan = async () => {
     try {
@@ -120,7 +130,7 @@ export default function Followup() {
       setGenerateModalVisible(false);
       generateForm.resetFields();
       setSelectedPlanId(response.planId);
-      await refetchPlans();
+      await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(generateForm, error)) return;
       message.error(getApiErrorMessage(error, "随访计划生成失败"));
@@ -146,7 +156,7 @@ export default function Followup() {
       message.success("随访问卷内容已提交，请以刷新后的任务状态为准");
       questionnaireForm.resetFields();
       setSelectedTaskId(null);
-      await refetchPlans();
+      await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(questionnaireForm, error)) return;
       message.error(getApiErrorMessage(error, "问卷提交失败"));
@@ -171,7 +181,7 @@ export default function Followup() {
       setAbnormalEvidence(response);
       message.warning("随访异常事件已上报，请以审计与刷新后的任务状态为准");
       abnormalForm.resetFields();
-      await refetchPlans();
+      await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(abnormalForm, error)) return;
       message.error(getApiErrorMessage(error, "异常上报失败"));
@@ -257,8 +267,8 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="当前页随访计划数"
-              value={metrics.totalPlans}
+              title="作用域随访计划数"
+              value={statsLoading ? "..." : stats.totalPlans}
               prefix={<FileTextOutlined />}
             />
           </Card>
@@ -266,8 +276,8 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="当前页执行中计划"
-              value={metrics.activePlans}
+              title="作用域执行中计划"
+              value={statsLoading ? "..." : stats.activePlans}
               prefix={<CompassOutlined />}
             />
           </Card>
@@ -275,8 +285,8 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="当前页已完成任务"
-              value={metrics.completedTasks}
+              title="作用域已完成任务"
+              value={statsLoading ? "..." : stats.completedTasks}
               prefix={<CheckCircleOutlined />}
             />
           </Card>
@@ -284,10 +294,20 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="当前页任务完成率"
-              value={metrics.taskCompletionRate}
+              title="作用域任务完成率"
+              value={statsLoading ? "..." : stats.taskCompletionRatePercent}
               suffix="%"
               prefix={<AlertOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="作用域异常回院率"
+              value={statsLoading ? "..." : stats.abnormalReturnRatePercent}
+              suffix="%"
+              prefix={<WarningOutlined />}
             />
           </Card>
         </Col>
@@ -301,10 +321,10 @@ export default function Followup() {
               allowClear
               value={patientFilter}
               onChange={(event) => setPatientFilter(event.target.value)}
-              onPressEnter={() => refetchPlans()}
+              onPressEnter={() => void refreshFollowupData()}
               className="w-64"
             />
-            <Button onClick={() => refetchPlans()}>查询</Button>
+            <Button onClick={() => void refreshFollowupData()}>查询</Button>
           </Space>
           <Button
             type="primary"
@@ -323,6 +343,16 @@ export default function Followup() {
           className="mb-4"
           message="随访计划接口读取失败"
           description="请检查登录权限、租户上下文或后端接口状态。"
+        />
+      )}
+
+      {statsError && (
+        <Alert
+          type="error"
+          showIcon
+          className="mb-4"
+          message="随访统计接口读取失败"
+          description="看板统计来自后端作用域聚合，当前不可用时不使用当前页数据冒充全局统计。"
         />
       )}
 

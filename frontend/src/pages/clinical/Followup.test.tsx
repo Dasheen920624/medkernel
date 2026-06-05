@@ -10,6 +10,7 @@ const followupHookMocks = vi.hoisted(() => ({
   refetchPlans: vi.fn(),
   reportAbnormal: vi.fn(),
   submitQuestionnaire: vi.fn(),
+  useFollowupStats: vi.fn(),
   useFollowupPlans: vi.fn(),
   useGenerateFollowupPlan: vi.fn(),
   useReportFollowupAbnormal: vi.fn(),
@@ -17,6 +18,7 @@ const followupHookMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useFollowupStats: followupHookMocks.useFollowupStats,
   useFollowupPlans: followupHookMocks.useFollowupPlans,
   useGenerateFollowupPlan: followupHookMocks.useGenerateFollowupPlan,
   useReportFollowupAbnormal: followupHookMocks.useReportFollowupAbnormal,
@@ -44,6 +46,21 @@ describe("Followup", () => {
       traceId: "trace-followup-1",
     });
     followupHookMocks.submitQuestionnaire.mockResolvedValue({});
+    followupHookMocks.useFollowupStats.mockReturnValue({
+      data: {
+        totalPlans: 12,
+        activePlans: 8,
+        totalTasks: 34,
+        completedTasks: 21,
+        abnormalReturnTasks: 5,
+        taskCompletionRatePercent: 61.8,
+        abnormalReturnRatePercent: 14.7,
+        traceId: "trace-followup-stats",
+      },
+      isError: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
     followupHookMocks.useFollowupPlans.mockReturnValue({
       data: {
         items: [
@@ -93,13 +110,23 @@ describe("Followup", () => {
     });
   });
 
-  it("labels progress metrics as current-page statistics", () => {
+  it("renders server-side scoped progress metrics instead of current-page counts", () => {
     renderFollowup();
 
-    expect(screen.getByText("当前页随访计划数")).toBeInTheDocument();
-    expect(screen.getByText("当前页执行中计划")).toBeInTheDocument();
-    expect(screen.getByText("当前页已完成任务")).toBeInTheDocument();
-    expect(screen.getByText("当前页任务完成率")).toBeInTheDocument();
+    expect(screen.getByText("作用域随访计划数")).toBeInTheDocument();
+    expect(screen.getByText("作用域执行中计划")).toBeInTheDocument();
+    expect(screen.getByText("作用域已完成任务")).toBeInTheDocument();
+    expect(screen.getByText("作用域任务完成率")).toBeInTheDocument();
+    expect(screen.getByText("作用域异常回院率")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("21")).toBeInTheDocument();
+    expect(
+      screen.getByText((_content, element) => element?.textContent === "61.8%"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_content, element) => element?.textContent === "14.7%"),
+    ).toBeInTheDocument();
   });
 
   it("shows abnormal return task and notification evidence returned by the API", async () => {

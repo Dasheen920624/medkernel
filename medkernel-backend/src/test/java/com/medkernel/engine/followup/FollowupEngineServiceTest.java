@@ -452,6 +452,34 @@ class FollowupEngineServiceTest {
     }
 
     @Test
+    void statsUsesTenantAndPatientFiltersForGlobalProgress() {
+        when(planRepository.countByTenantIdAndOptionalPatient("tenant-1", "PAT01"))
+            .thenReturn(4L);
+        when(planRepository.countByTenantIdAndOptionalPatientAndStatus(
+            "tenant-1", "PAT01", FollowupPlanStatus.ACTIVE.name()))
+            .thenReturn(2L);
+        when(taskRepository.countByTenantIdAndPatientAndOptionalStatus("tenant-1", "PAT01", null))
+            .thenReturn(10L);
+        when(taskRepository.countByTenantIdAndPatientAndOptionalStatus(
+            "tenant-1", "PAT01", FollowupTaskStatus.COMPLETED.name()))
+            .thenReturn(7L);
+        when(taskRepository.countByTenantIdAndPatientAndOptionalStatus(
+            "tenant-1", "PAT01", FollowupTaskStatus.ABNORMAL_RETURN.name()))
+            .thenReturn(2L);
+
+        FollowupStatsResponse response = service.stats("PAT01");
+
+        assertThat(response.totalPlans()).isEqualTo(4L);
+        assertThat(response.activePlans()).isEqualTo(2L);
+        assertThat(response.totalTasks()).isEqualTo(10L);
+        assertThat(response.completedTasks()).isEqualTo(7L);
+        assertThat(response.abnormalReturnTasks()).isEqualTo(2L);
+        assertThat(response.taskCompletionRatePercent()).isEqualTo(70.0);
+        assertThat(response.abnormalReturnRatePercent()).isEqualTo(20.0);
+        assertThat(response.traceId()).isEqualTo("trace-123");
+    }
+
+    @Test
     void dispatchQuestionnaireIsIdempotentAndMarksTaskInProgress() {
         FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
             Instant.now(), FollowupTaskStatus.PENDING, null, null, "task-key-1", Instant.now(), "sys", Instant.now(),
