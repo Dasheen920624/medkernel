@@ -1,6 +1,7 @@
 package com.medkernel.engine.workflow;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * 统一通知响应 DTO。
@@ -22,9 +23,16 @@ public record WorkflowNotificationResponse(
     String deepLink,
     Instant readAt,
     String readBy,
-    String traceId
+    String traceId,
+    List<WorkflowNotificationDeliveryResponse> externalDeliveries
 ) {
     static WorkflowNotificationResponse from(WorkflowNotification notification) {
+        return from(notification, List.of());
+    }
+
+    static WorkflowNotificationResponse from(
+            WorkflowNotification notification,
+            List<WorkflowNotificationDeliveryResponse> externalDeliveries) {
         return new WorkflowNotificationResponse(
             notification.notificationId(),
             notification.orgUnitId(),
@@ -42,6 +50,7 @@ public record WorkflowNotificationResponse(
             notification.deepLink(),
             notification.readAt(),
             notification.readBy(),
-            notification.traceId());
+            notification.traceId(),
+            externalDeliveries == null ? List.of() : List.copyOf(externalDeliveries));
     }
 }

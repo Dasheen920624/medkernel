@@ -368,6 +368,54 @@ describe("Notifications", () => {
     expect(screen.queryByText(/^追踪链路 trace-/)).not.toBeInTheDocument();
   });
 
+  it("shows honest external delivery compensation status without claiming delivery", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: {
+        items: [
+          {
+            notificationId: "notify-external-status",
+            sourceType: "WORKFLOW_TODO",
+            sourceId: "todo-followup-1",
+            dedupeKey: "todo:todo-followup-1:created",
+            title: "待办待处理",
+            message: "待办需要处理。",
+            level: "HIGH",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+            traceId: "trace-notify",
+            externalDeliveries: [
+              {
+                channelCode: "sms",
+                channelName: "短信通知通道",
+                status: "NOT_CONNECTED",
+                compensationRequired: true,
+                retryCount: 0,
+                maxRetries: 3,
+                errorMessage: "未接入真实外部发送连接器，已登记异步补偿，不阻断主流程",
+              },
+            ],
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("外发状态")).toBeInTheDocument();
+    expect(screen.getByText("短信通知通道 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("需补偿")).toBeInTheDocument();
+    expect(screen.getByText(/未接入真实外部发送连接器/)).toBeInTheDocument();
+    expect(screen.queryByText("已送达")).not.toBeInTheDocument();
+  });
+
   it("marks quiet-hour muted notifications while keeping safety notifications visible", () => {
     notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
       data: {

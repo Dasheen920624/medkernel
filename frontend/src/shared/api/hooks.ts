@@ -2894,6 +2894,17 @@ export type WorkflowNotificationSourceType =
 export type WorkflowNotificationLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 export type WorkflowNotificationStatus = "UNREAD" | "READ";
 
+export interface WorkflowNotificationDelivery {
+  channelCode: string;
+  channelName: string;
+  status: string;
+  compensationRequired: boolean;
+  retryCount?: number | null;
+  maxRetries?: number | null;
+  updatedAt?: string | null;
+  errorMessage?: string | null;
+}
+
 export interface WorkflowNotificationSettings {
   inAppEnabled: boolean;
   smsEnabled: boolean;
@@ -2961,6 +2972,7 @@ export interface WorkflowNotification {
   readAt?: string | null;
   readBy?: string | null;
   traceId?: string | null;
+  externalDeliveries?: WorkflowNotificationDelivery[] | null;
 }
 
 export interface WorkflowTodosParams {

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -19,6 +20,7 @@ import com.medkernel.engine.followup.FollowupTaskRepository;
 import com.medkernel.engine.followup.FollowupTaskStatus;
 import com.medkernel.engine.followup.FollowupTaskType;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
+import com.medkernel.engine.integration.repository.IntegrationMessageLogRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.engine.knowledge.AffectedCaseTargetType;
 import com.medkernel.engine.knowledge.AffectedCaseTask;
@@ -66,6 +68,7 @@ public class WorkflowCollaborationService {
     private final RecommendationCardRepository recommendationCards;
     private final ClinicalEventRepository clinicalEvents;
     private final IntegrationService integrationService;
+    private final IntegrationMessageLogRepository integrationLogs;
     private final WorkflowNotificationSettingsService notificationSettings;
     private final AuditRecorder auditRecorder;
 
@@ -78,6 +81,7 @@ public class WorkflowCollaborationService {
             RecommendationCardRepository recommendationCards,
             ClinicalEventRepository clinicalEvents,
             IntegrationService integrationService,
+            IntegrationMessageLogRepository integrationLogs,
             WorkflowNotificationSettingsService notificationSettings,
             AuditRecorder auditRecorder) {
         this.todos = todos;
@@ -88,6 +92,7 @@ public class WorkflowCollaborationService {
         this.recommendationCards = recommendationCards;
         this.clinicalEvents = clinicalEvents;
         this.integrationService = integrationService;
+        this.integrationLogs = integrationLogs;
         this.notificationSettings = notificationSettings;
         this.auditRecorder = auditRecorder;
     }
@@ -322,7 +327,7 @@ public class WorkflowCollaborationService {
                 req.offset(),
                 req.safeSize());
         List<WorkflowNotificationResponse> rows = page.stream()
-            .map(WorkflowNotificationResponse::from)
+            .map(this::notificationResponse)
             .toList();
         return PageResponse.of(rows, req, total);
     }
@@ -368,7 +373,22 @@ public class WorkflowCollaborationService {
             actor);
         WorkflowNotification saved = notifications.save(read);
         recordNotificationAudit("标记通知已读 " + saved.notificationId(), notification, saved);
-        return WorkflowNotificationResponse.from(saved);
+        return notificationResponse(saved);
+    }
+
+    private WorkflowNotificationResponse notificationResponse(WorkflowNotification notification) {
+        return WorkflowNotificationResponse.from(notification, externalDeliveryStatuses(notification));
+    }
+
+    private List<WorkflowNotificationDeliveryResponse> externalDeliveryStatuses(
+            WorkflowNotification notification) {
+        return EXTERNAL_NOTIFICATION_CHANNELS.stream()
+            .map(channel -> integrationLogs.findByMessageIdAndTenantId(
+                    externalNotificationMessageId(notification, channel),
+                    notification.tenantId())
+                .map(log -> WorkflowNotificationDeliveryResponse.from(channel.code(), channel.targetSystem(), log)))
+            .flatMap(Optional::stream)
+            .toList();
     }
 
     private void recordTodoAudit(String summary, WorkflowTodo before, WorkflowTodo after) {

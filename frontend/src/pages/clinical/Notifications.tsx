@@ -236,6 +236,7 @@ export default function Notifications() {
           locale={{ emptyText: "当前暂无通知" }}
           renderItem={(item) => {
             const sourceLink = resolveSourceDeepLink(item.deepLink);
+            const externalDeliveries = item.externalDeliveries ?? [];
             const sourceAction = sourceLink ? (
               <Button
                 key="source"
@@ -307,6 +308,29 @@ export default function Notifications() {
                           {item.traceId ? `追踪链路 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
                         </span>
                       </Space>
+                      {externalDeliveries.length > 0 && (
+                        <Space wrap className="text-xs text-slate-500">
+                          <span>外发状态</span>
+                          {externalDeliveries.map((delivery) => (
+                            <Tag
+                              key={`${delivery.channelCode}-${delivery.status}`}
+                              color={delivery.compensationRequired ? "orange" : "green"}
+                            >
+                              {`${delivery.channelName} ${delivery.status}`}
+                            </Tag>
+                          ))}
+                          {externalDeliveries.some((delivery) => delivery.compensationRequired) && (
+                            <Tag color="orange">需补偿</Tag>
+                          )}
+                          {externalDeliveries.map((delivery) =>
+                            delivery.errorMessage ? (
+                              <span key={`${delivery.channelCode}-error`}>
+                                {delivery.errorMessage}
+                              </span>
+                            ) : null,
+                          )}
+                        </Space>
+                      )}
                     </Space>
                   }
                 />

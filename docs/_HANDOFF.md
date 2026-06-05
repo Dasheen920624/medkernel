@@ -12,6 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
+### 当前 Codex 执行线 · D3 SVC-CLINICAL-03 PR17 外发补偿状态读回 🚧
+- 类型：软件开发（TDD，后端通知响应 + 前端通知中心）
+- 分支：`codex/d3-svc-clinical-03-pr17-delivery-status`
+- 目标：通知中心从真实 `integration_message_log` 读回 PR6 已登记的外发补偿状态，展示 `NOT_CONNECTED` / 需补偿 / 错误原因；不新增真实发送连接器，不声明短信 / 邮件 / 移动推送 / Webhook / 院内消息已送达。
+- 状态：已完成 RED→GREEN、实现、卡片回填和本地完整验证；后端 `WorkflowNotificationResponse.externalDeliveries` 按 `notify-out-<channel>-<notificationId>` 查补偿日志，前端 `Notifications` 仅在后端返回日志时展示“外发状态”。验证：目标后端 `mvn -q -Dtest=WorkflowCollaborationServiceTest test` 退出码 0；目标前端 `npm test -- src/pages/clinical/Notifications.test.tsx` 12/12；后端全量 `mvn -q test` 1401 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 60 files / 355 tests；`npm run build`；生产依赖审计 0 漏洞；changed-mode 真实性 / 迁移 / 配置门禁通过；中文注释 0 fail / 0 warn；浏览器拦截烟测 `playwright-notifications-delivery-smoke=passed`。
+- 下一步（精确到动作/命令）：1. staging 后复跑 staged diff / 中文注释检查。2. commit → push → PR → 远端 CI 8/8 → squash merge → 删除远端分支。3. 合并后更新 `_HANDOFF` 归档并从 backlog 领取下一任务。
+- 相关文件 / 测试 / 坑：`WorkflowCollaborationService` / `WorkflowNotificationResponse` / `WorkflowNotificationDeliveryResponse`；`frontend/src/pages/clinical/Notifications.tsx`；`docs/cards/D3/SVC-CLINICAL-03.md` 与 `NOTIFY-01.md`。不可把补偿日志展示写成真实外部回执，缺日志时不得前端造状态。
+
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
 - 工具/分支前缀：Claude Code（本线分支用 `feat/rule-*`、`feat/path-*`）
@@ -246,4 +254,4 @@
 
 ---
 
-> 末次更新：2026-06-05 · 长期目标继续保持 active：D3 `SVC-CLINICAL-03` 临床协同服务包 PR16 已经 #405 squash 合并到 `origin/main`（`e095dbea`）并移入归档，远端 CI 8/8 通过，远端分支已删除。下一步按在途线 / backlog 领取当前阶段第一闸任务，继续执行“读 handoff → 核查现状 → TDD → T-GATE → PR / CI / squash merge → 更新 handoff”循环，直到 GA 总验收 INFRA-10 完成。无真实护理站、LIS / PACS、独立床旁知识系统、短信 / 邮件 / 移动推送 / Webhook / 院内消息连接器、闭源驱动或客户现场资源时登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线。不得宣称上述外部系统已接通，不得宣称 DM / Kingbase 真实运行已验证。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-05 · 长期目标继续保持 active：当前 Codex 执行线为 D3 `SVC-CLINICAL-03` 临床协同服务包 PR17（分支 `codex/d3-svc-clinical-03-pr17-delivery-status`），目标是通知中心读回真实 `integration_message_log` 中已登记的外发补偿状态；本地完整验证已完成，PR / CI / 合并待执行。继续执行“读 handoff → 核查现状 → TDD → T-GATE → PR / CI / squash merge → 更新 handoff”循环，直到 GA 总验收 INFRA-10 完成。无真实护理站、LIS / PACS、独立床旁知识系统、短信 / 邮件 / 移动推送 / Webhook / 院内消息连接器、闭源驱动或客户现场资源时登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线。不得宣称上述外部系统已接通，不得宣称 DM / Kingbase 真实运行已验证。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
