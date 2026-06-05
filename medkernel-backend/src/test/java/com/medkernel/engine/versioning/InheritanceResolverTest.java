@@ -1,6 +1,7 @@
 package com.medkernel.engine.versioning;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +35,7 @@ class InheritanceResolverTest {
         assetVersions = mock(AssetVersionRepository.class);
         overrides = mock(InheritanceOverrideRepository.class);
         hierarchy = mock(OrgHierarchyRepository.class);
-        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides);
+        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides, List.of());
     }
 
     @Test
@@ -252,6 +253,56 @@ class InheritanceResolverTest {
         assertThat(resolved.version()).isEqualTo(hospitalSame);
         assertThat(resolved.overridden()).isTrue();
         assertThat(resolved.inherited()).isFalse();
+    }
+
+    @Test
+    void lockedBaselineKeepsTighteningReplaceVouchedByDomainCheck() {
+        SafetyMonotonicityCheck check = mock(SafetyMonotonicityCheck.class);
+        when(check.supports(VersionedAssetType.RULE)).thenReturn(true);
+        when(check.isAtLeastAsStrict(any(), any())).thenReturn(true);
+        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides, List.of(check));
+
+        AssetVersion groupLocked = version(
+            "av-group-locked3", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        AssetVersion hospTighten = version(
+            "av-hosp-tighten", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-locked-tighten", groupLocked.versionId(), hospTighten.versionId(),
+            HOSP_PATH, "更严阈值", "经审核收紧", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupLocked, hospTighten, record);
+
+        assertThat(resolved.version()).isEqualTo(hospTighten);
+        assertThat(resolved.overridden()).isTrue();
+        assertThat(resolved.inherited()).isFalse();
+    }
+
+    @Test
+    void lockedBaselineIgnoresRelaxingReplaceRejectedByDomainCheck() {
+        SafetyMonotonicityCheck check = mock(SafetyMonotonicityCheck.class);
+        when(check.supports(VersionedAssetType.RULE)).thenReturn(true);
+        when(check.isAtLeastAsStrict(any(), any())).thenReturn(false);
+        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides, List.of(check));
+
+        AssetVersion groupLocked = version(
+            "av-group-locked4", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        AssetVersion hospRelax = version(
+            "av-hosp-relax", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-locked-relax", groupLocked.versionId(), hospRelax.versionId(),
+            HOSP_PATH, "放宽阈值", "下级放宽", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupLocked, hospRelax, record);
+
+        assertThat(resolved.version()).isEqualTo(groupLocked);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-locked-relax");
     }
 
     @Test
