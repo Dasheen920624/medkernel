@@ -114,7 +114,8 @@ class MigrationBaselineContractTest {
         "V85__org_unit_platform_level.sql",
         "V86__emr_level_target_mapping.sql",
         "V87__emr_level_evidence_package.sql",
-        "V88__asset_type_unification.sql"
+        "V88__asset_type_unification.sql",
+        "V89__evidence_file_uri_sm_signature.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -935,6 +936,28 @@ class MigrationBaselineContractTest {
                 .contains("cdss_risk")
                 .contains("comment on column mk_version_asset_version.asset_type")
                 .contains("comment on column package_item.asset_type");
+        }
+    }
+
+    @Test
+    void v89ShouldAddEvidenceFileUriAndSmSignatureForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V89__evidence_file_uri_sm_signature.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 证据链真实文件 URI 与国密 SM3/SM2 签名字段", dialect)
+                .contains("evidence_snapshot")
+                .contains("file_uri")
+                .contains("file_digest")
+                .contains("signature_algorithm")
+                .contains("signature_value")
+                .contains("signer_public_key")
+                .contains("sm3")
+                .contains("sm2")
+                .contains("comment on column evidence_snapshot.file_uri")
+                .contains("comment on column evidence_snapshot.signature_value");
         }
     }
 

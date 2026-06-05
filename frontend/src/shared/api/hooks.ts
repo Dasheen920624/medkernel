@@ -4897,6 +4897,11 @@ export interface EvidenceSnapshot {
   evidenceSummary: string;
   payloadSnapshot: string;
   payloadHash: string;
+  fileUri: string;
+  fileDigest: string;
+  signatureAlgorithm: string;
+  signatureValue: string;
+  signerPublicKey: string;
   isValid: boolean;
   createdAt: string;
   createdBy: string;
@@ -4907,6 +4912,10 @@ export interface EvidenceVerifyResult {
   isValid: boolean;
   calculatedHash: string;
   storedHash: string;
+  signatureAlgorithm: string;
+  signatureValid: boolean;
+  fileUri: string;
+  fileDigest: string;
 }
 
 export interface EvidenceCreatePayload {
@@ -4922,6 +4931,9 @@ export interface EvidenceCreatePayload {
 
 export interface EvidenceExportResult {
   archiveHash: string;
+  archiveUri: string;
+  contentType: string;
+  itemCount: number;
   status: "COMPLETED" | "PROCESSING" | string;
 }
 
@@ -4971,7 +4983,7 @@ export function useCreateEvidence() {
   });
 }
 
-// 4. 哈希防篡改验签
+// 4. 国密防篡改验签
 export function useVerifyEvidence() {
   return useMutation({
     mutationFn: async (evidenceId: string) => {
@@ -4983,7 +4995,7 @@ export function useVerifyEvidence() {
   });
 }
 
-// 5. 异步打包导出证据链
+// 5. 打包导出证据链真实文件
 export function useExportEvidences() {
   return useMutation({
     mutationFn: async (evidenceType?: string) => {

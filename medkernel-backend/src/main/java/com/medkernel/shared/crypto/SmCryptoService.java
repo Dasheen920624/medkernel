@@ -3,11 +3,14 @@ package com.medkernel.shared.crypto;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
@@ -101,6 +104,28 @@ public class SmCryptoService {
         Cipher cipher = Cipher.getInstance("SM2", BouncyCastleProvider.PROVIDER_NAME);
         cipher.init(Cipher.DECRYPT_MODE, privateKey);
         return cipher.doFinal(cipherText);
+    }
+
+    /** SM3withSM2 签名。 */
+    public byte[] sm2Sign(PrivateKey privateKey, byte[] payload) throws Exception {
+        Signature signature = Signature.getInstance("SM3withSM2", BouncyCastleProvider.PROVIDER_NAME);
+        signature.initSign(privateKey, new SecureRandom());
+        signature.update(payload);
+        return signature.sign();
+    }
+
+    /** SM3withSM2 验签。 */
+    public boolean sm2Verify(PublicKey publicKey, byte[] payload, byte[] signatureBytes) throws Exception {
+        Signature signature = Signature.getInstance("SM3withSM2", BouncyCastleProvider.PROVIDER_NAME);
+        signature.initVerify(publicKey);
+        signature.update(payload);
+        return signature.verify(signatureBytes);
+    }
+
+    /** 还原 X.509 DER 编码的 SM2 公钥。 */
+    public PublicKey decodeSm2PublicKey(String publicKeyBase64) throws Exception {
+        KeyFactory keyFactory = KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
+        return keyFactory.generatePublic(new X509EncodedKeySpec(base64Decode(publicKeyBase64)));
     }
 
     /** Base64 工具（避免业务层直接依赖 java.util.Base64）。 */

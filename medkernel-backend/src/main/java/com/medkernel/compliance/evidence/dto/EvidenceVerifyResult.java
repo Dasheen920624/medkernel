@@ -7,5 +7,9 @@ public record EvidenceVerifyResult(
     String evidenceId,
     boolean isValid,
     String calculatedHash,
-    String storedHash
+    String storedHash,
+    String signatureAlgorithm,
+    boolean signatureValid,
+    String fileUri,
+    String fileDigest
 ) {}

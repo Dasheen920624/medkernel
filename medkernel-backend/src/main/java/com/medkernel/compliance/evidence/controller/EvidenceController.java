@@ -3,6 +3,7 @@ package com.medkernel.compliance.evidence.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
+import com.medkernel.compliance.evidence.dto.EvidenceExportResult;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
 import com.medkernel.compliance.evidence.service.EvidenceService;
@@ -96,10 +98,10 @@ public class EvidenceController {
     }
 
     /**
-     * 创建一条新的证据快照（自动 SHA-256 防伪指纹计算与入库）。
+     * 创建一条新的证据快照（自动 SM3 摘要、真实文件与 SM2 签名入库）。
      *
-     * <p>服务层将自动提取 {@code evidenceId + tenantId + createdBy + payloadSnapshot}
-     * 计算 SHA-256 指纹并保存。创建成功后返回 HTTP 201。
+     * <p>服务层将自动提取证据规范串，计算 SM3 摘要并写出真实文件，再生成 SM3_WITH_SM2 签名。
+     * 创建成功后返回 HTTP 201。
      *
      * @param dto 证据快照创建请求体（JSR-380 校验）
      * @return 新创建的证据快照响应
@@ -114,10 +116,10 @@ public class EvidenceController {
     }
 
     /**
-     * 双向防伪哈希碰撞验签。
+     * 双向国密防篡改验签。
      *
-     * <p>重新提取证据快照的原始要素字段并计算 SHA-256 指纹，与存储的 {@code payload_hash}
-     * 进行碰撞比对。若检测到数据篡改，自动通过 {@code IsolatedAuditPublisher} 子事务
+     * <p>重新提取证据快照的原始要素字段并计算 SM3 指纹，与存储的 {@code payload_hash}
+     * 及 SM2 签名进行比对。若检测到数据篡改，自动通过 {@code IsolatedAuditPublisher} 子事务
      * 发布 {@code outcome=FAILED} 高危入侵审计事件。
      *
      * @param evidenceId 目标证据 ID
@@ -131,29 +133,49 @@ public class EvidenceController {
     }
 
     /**
+     * 下载单条证据的真实文件内容。
+     *
+     * @param evidenceId 目标证据 ID
+     * @return 证据文件字节
+     */
+    @GetMapping("/snapshots/{evidenceId}/file")
+    @PreAuthorize("@perm.has('audit.read')")
+    public ResponseEntity<byte[]> downloadSnapshotFile(@PathVariable String evidenceId) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(evidenceService.readSnapshotFile(tenantId, evidenceId));
+    }
+
+    /**
      * 异步打包导出指定类型的证据数据。
      *
-     * <p>生成防伪包的特征 SHA-256 哈希，并在后台通过子事务记录大导出审计日志。
+     * <p>生成防伪包的 SM3 归档摘要和 NDJSON 文件，并在后台通过子事务记录大导出审计日志。
      * 返回归档包的防伪指纹供下游合规系统校验。
      *
      * @param evidenceType 可选，按证据类型过滤导出范围（为空则导出全量）
-     * @return 导出结果（含归档文件的 SHA-256 防伪指纹）
+     * @return 导出结果（含归档文件的 SM3 防伪指纹与真实下载 URI）
      */
     @PostMapping("/snapshots/export")
     @PreAuthorize("@perm.has('audit.export')")
     public ApiResult<EvidenceExportResult> exportSnapshots(
             @RequestParam(required = false) String evidenceType) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        String archiveHash = evidenceService.exportEvidences(tenantId, evidenceType);
-        return ApiResult.ok(new EvidenceExportResult(archiveHash, "COMPLETED"));
+        return ApiResult.ok(evidenceService.exportEvidences(tenantId, evidenceType));
     }
 
     /**
-     * 证据导出结果响应体。
+     * 下载证据包 NDJSON 文件。
      *
-     * @param archiveHash 归档文件的 SHA-256 防伪指纹
-     * @param status      导出状态（COMPLETED / PROCESSING）
+     * @param archiveDigestHex 不含 {@code sm3:} 前缀的 64 位摘要
+     * @return 证据包文件字节
      */
-    public record EvidenceExportResult(String archiveHash, String status) {
+    @GetMapping("/snapshots/export/{archiveDigestHex}/download")
+    @PreAuthorize("@perm.has('audit.export')")
+    public ResponseEntity<byte[]> downloadExportFile(@PathVariable String archiveDigestHex) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType("application/x-ndjson"))
+            .body(evidenceService.readExportFile(tenantId, archiveDigestHex));
     }
 }
