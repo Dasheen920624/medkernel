@@ -245,12 +245,18 @@ describe("package export api helpers", () => {
     });
 
     const { result } = renderApiHook(() =>
-      useWorkflowTodos({ status: "PENDING", priority: "HIGH", page: 0, size: 10 }),
+      useWorkflowTodos({
+        status: "PENDING",
+        priority: "HIGH",
+        orgUnitId: "dept-a",
+        page: 0,
+        size: 10,
+      }),
     );
 
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/workflow/todos", {
-      params: { status: "PENDING", priority: "HIGH", page: 0, size: 10 },
+      params: { status: "PENDING", priority: "HIGH", orgUnitId: "dept-a", page: 0, size: 10 },
     });
   });
 
@@ -308,12 +314,18 @@ describe("package export api helpers", () => {
     });
 
     const { result } = renderApiHook(() =>
-      useWorkflowNotifications({ status: "UNREAD", level: "HIGH", page: 0, size: 10 }),
+      useWorkflowNotifications({
+        status: "UNREAD",
+        level: "HIGH",
+        orgUnitId: "dept-a",
+        page: 0,
+        size: 10,
+      }),
     );
 
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications", {
-      params: { status: "UNREAD", level: "HIGH", page: 0, size: 10 },
+      params: { status: "UNREAD", level: "HIGH", orgUnitId: "dept-a", page: 0, size: 10 },
     });
   });
 

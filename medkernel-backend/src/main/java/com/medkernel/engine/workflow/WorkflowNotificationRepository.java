@@ -111,6 +111,52 @@ public interface WorkflowNotificationRepository extends ListCrudRepository<Workf
         String currentUserId,
         String currentOrgUnitId);
 
+    @Query("""
+        SELECT COUNT(*)
+        FROM mk_engine_notification n
+        WHERE n.tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:level IS NULL OR notification_level = :level)
+          AND n.org_unit_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM org_closure selected_scope
+            WHERE selected_scope.tenant_id = :tenantId
+              AND selected_scope.ancestor_id = :selectedOrgUnitId
+              AND selected_scope.descendant_id = n.org_unit_id
+          )
+          AND (
+            (:recipientId IS NOT NULL AND recipient_id = :recipientId)
+            OR (
+              :recipientId IS NULL
+              AND (
+                (:currentUserId IS NOT NULL AND recipient_id = :currentUserId)
+                OR (
+                  recipient_id IS NULL
+                  AND :currentOrgUnitId IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1
+                    FROM org_closure c
+                    WHERE c.tenant_id = :tenantId
+                      AND (
+                        (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = n.org_unit_id)
+                        OR (c.ancestor_id = n.org_unit_id AND c.descendant_id = :currentOrgUnitId)
+                      )
+                  )
+                )
+              )
+            )
+          )
+        """)
+    long countByVisibleRecipientScopeAndOrgUnitFilter(
+        String tenantId,
+        String status,
+        String level,
+        String recipientId,
+        String currentUserId,
+        String currentOrgUnitId,
+        String selectedOrgUnitId);
+
     default List<WorkflowNotification> pageByVisibleRecipientScope(
             String tenantId,
             String status,
@@ -183,6 +229,56 @@ public interface WorkflowNotificationRepository extends ListCrudRepository<Workf
         String recipientId,
         String currentUserId,
         String currentOrgUnitId,
+        int offset,
+        int limit);
+
+    @Query("""
+        SELECT n.*
+        FROM mk_engine_notification n
+        WHERE n.tenant_id = :tenantId
+          AND (:status IS NULL OR status = :status)
+          AND (:level IS NULL OR notification_level = :level)
+          AND n.org_unit_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM org_closure selected_scope
+            WHERE selected_scope.tenant_id = :tenantId
+              AND selected_scope.ancestor_id = :selectedOrgUnitId
+              AND selected_scope.descendant_id = n.org_unit_id
+          )
+          AND (
+            (:recipientId IS NOT NULL AND recipient_id = :recipientId)
+            OR (
+              :recipientId IS NULL
+              AND (
+                (:currentUserId IS NOT NULL AND recipient_id = :currentUserId)
+                OR (
+                  recipient_id IS NULL
+                  AND :currentOrgUnitId IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1
+                    FROM org_closure c
+                    WHERE c.tenant_id = :tenantId
+                      AND (
+                        (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = n.org_unit_id)
+                        OR (c.ancestor_id = n.org_unit_id AND c.descendant_id = :currentOrgUnitId)
+                      )
+                  )
+                )
+              )
+            )
+          )
+        ORDER BY created_at DESC, id DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<WorkflowNotification> pageByVisibleRecipientScopeAndOrgUnitFilter(
+        String tenantId,
+        String status,
+        String level,
+        String recipientId,
+        String currentUserId,
+        String currentOrgUnitId,
+        String selectedOrgUnitId,
         int offset,
         int limit);
 }

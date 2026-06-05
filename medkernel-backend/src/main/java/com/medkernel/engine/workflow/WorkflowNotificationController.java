@@ -42,11 +42,12 @@ public class WorkflowNotificationController {
             @RequestParam(required = false) WorkflowNotificationStatus status,
             @RequestParam(required = false) WorkflowNotificationLevel level,
             @RequestParam(required = false) String recipientId,
+            @RequestParam(required = false) String orgUnitId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.listNotifications(
-            new WorkflowNotificationFilter(status, level, recipientId),
+            new WorkflowNotificationFilter(status, level, recipientId, orgUnitId),
             new PageRequest(page, size, sort)));
     }
 

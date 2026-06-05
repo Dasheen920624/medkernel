@@ -8,11 +8,13 @@ import Notifications from "./Notifications";
 const notificationHookMocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   refetchNotifications: vi.fn(),
+  useOrgUnits: vi.fn(),
   useReadWorkflowNotification: vi.fn(),
   useWorkflowNotifications: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useOrgUnits: notificationHookMocks.useOrgUnits,
   useReadWorkflowNotification: notificationHookMocks.useReadWorkflowNotification,
   useWorkflowNotifications: notificationHookMocks.useWorkflowNotifications,
 }));
@@ -67,6 +69,38 @@ describe("Notifications", () => {
       isPending: false,
       mutateAsync: notificationHookMocks.markRead,
     });
+    notificationHookMocks.useOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "dept-a",
+            parentId: null,
+            tenantId: "tenant-A",
+            orgPath: "/TENANT-A/DEPT-A",
+            level: "DEPARTMENT",
+            code: "DEPT-A",
+            name: "A 科室",
+            status: "ACTIVE",
+          },
+          {
+            id: "spec-a1",
+            parentId: "dept-a",
+            tenantId: "tenant-A",
+            orgPath: "/TENANT-A/DEPT-A/SPEC-A1",
+            level: "SPECIALTY",
+            code: "SPEC-A1",
+            name: "A1 专病",
+            status: "ACTIVE",
+          },
+        ],
+        page: 1,
+        size: 100,
+        total: 2,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+    });
   });
 
   it("renders real notification rows and removes the previous placeholder", () => {
@@ -83,6 +117,24 @@ describe("Notifications", () => {
     expect(screen.getByText("患者报告呼吸困难，需要处理。")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
     expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("passes selected organization scope to the server-side notification query", async () => {
+    const user = userEvent.setup();
+    renderNotifications();
+
+    await user.click(screen.getByLabelText("组织范围"));
+    await user.click(await screen.findByText("A 科室"));
+
+    await waitFor(() => {
+      expect(notificationHookMocks.useWorkflowNotifications).toHaveBeenLastCalledWith({
+        status: "UNREAD",
+        level: undefined,
+        orgUnitId: "dept-a",
+        page: 1,
+        size: 10,
+      });
+    });
   });
 
   it("marks an unread notification as read through the backend and refreshes", async () => {

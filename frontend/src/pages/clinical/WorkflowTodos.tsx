@@ -23,6 +23,7 @@ import {
 
 import {
   useCompleteWorkflowTodo,
+  useOrgUnits,
   useTransferWorkflowTodo,
   useWorkflowTodos,
 } from "@/shared/api/hooks";
@@ -106,6 +107,7 @@ export default function WorkflowTodos() {
   const [status, setStatus] = useState<WorkflowTodoStatus | undefined>("PENDING");
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
+  const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
   const [completingTodo, setCompletingTodo] = useState<WorkflowTodo | null>(null);
   const [transferringTodo, setTransferringTodo] = useState<WorkflowTodo | null>(null);
   const [completeForm] = Form.useForm<{ completionReason: string }>();
@@ -119,12 +121,21 @@ export default function WorkflowTodos() {
     status,
     priority,
     sourceType,
+    orgUnitId,
     page: 1,
     size: 10,
   };
   const { data, isError, isLoading, refetch } = useWorkflowTodos(queryParams);
+  const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({ page: 1, size: 100 });
   const completeMutation = useCompleteWorkflowTodo();
   const transferMutation = useTransferWorkflowTodo();
+  const orgUnitOptions = useMemo(
+    () =>
+      (orgUnits?.items ?? [])
+        .filter((unit) => unit.id)
+        .map((unit) => ({ value: unit.id ?? "", label: unit.name })),
+    [orgUnits?.items],
+  );
   const visibleTodos = useMemo(
     () =>
       [...(data?.items ?? [])].sort((left, right) => {
@@ -330,6 +341,19 @@ export default function WorkflowTodos() {
               { value: "BEDSIDE_KNOWLEDGE", label: "床旁知识" },
             ]}
           />
+          <Select
+            id="workflow-todos-org-unit"
+            value={orgUnitId}
+            onChange={setOrgUnitId}
+            allowClear
+            loading={orgUnitsLoading}
+            placeholder="组织范围"
+            className="w-44"
+            options={orgUnitOptions}
+          />
+          <label className="mk-sr-only" htmlFor="workflow-todos-org-unit">
+            组织范围
+          </label>
         </Space>
       </Card>
 
