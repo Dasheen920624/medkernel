@@ -40,6 +40,9 @@ import {
   useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
+  useKnowledgeCandidateDiff,
+  useKnowledgeCandidates,
+  useKnowledgeIdentities,
   useLocalTerms,
   useOnboardingReadiness,
   useOrgUnits,
@@ -51,6 +54,7 @@ import {
   usePublishEvaluationIndicator,
   useQualityFindings,
   useReviewRectification,
+  useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
   useRunDrgGrouping,
   useRunInsuranceAudit,
@@ -1382,6 +1386,106 @@ describe("integration adapter api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
       "/api/v1/engine/integration/dead-letter/msg-dead/replay",
+    );
+  });
+});
+
+describe("knowledge review api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000005");
+  });
+
+  it("loads identities, candidates and candidate diffs through the API-03 knowledge root", async () => {
+    const identityPage = {
+      items: [{ id: 42, identityCode: "KNOW.VTE.GUIDE", subject: "VTE 防治指南" }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+    };
+    const candidateResponse = {
+      identityId: 42,
+      candidates: [
+        { id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" },
+      ],
+      classifications: [{ candidateVersionId: 2002, classification: "CONFLICT" }],
+      available: true,
+      reasonCode: "CONFLICT",
+      message: "存在冲突候选，需人工审核。",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: identityPage } })
+      .mockResolvedValueOnce({ data: { data: candidateResponse } })
+      .mockResolvedValueOnce({ data: { data: candidateResponse } });
+
+    const identities = renderApiHook(() =>
+      useKnowledgeIdentities({
+        domain: "GUIDELINE",
+        status: "ACTIVE",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      }),
+    );
+    const candidates = renderApiHook(() => useKnowledgeCandidates(42));
+    const diff = renderApiHook(() => useKnowledgeCandidateDiff(2002));
+
+    await waitFor(() => expect(identities.result.current.data).toBe(identityPage));
+    await waitFor(() => expect(candidates.result.current.data).toBe(candidateResponse));
+    await waitFor(() => expect(diff.result.current.data).toBe(candidateResponse));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/knowledge/identities", {
+      params: {
+        domain: "GUIDELINE",
+        status: "ACTIVE",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge/identities/42/candidates");
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/knowledge/candidates/2002/diff");
+  });
+
+  it("reviews a candidate with standard context and an idempotency key", async () => {
+    const reviewed = {
+      identityId: 42,
+      candidates: [{ id: 2002, status: "ACTIVE" }],
+      classifications: [{ candidateVersionId: 2002, reviewStatus: "APPROVED" }],
+      available: true,
+      reasonCode: "CONFLICT",
+      message: "候选已审核通过",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: reviewed } });
+
+    const hook = renderApiHook(() => useReviewKnowledgeCandidate());
+
+    await hook.result.current.mutateAsync({
+      candidateId: 2002,
+      packageVersion: "PKG.KNOW.2026.06",
+      request: {
+        decision: "APPROVE",
+        reason: "已核对来源锚点和差异。",
+      },
+      idempotencyKey: "idem-knowledge-review-2002",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge/candidates/2002/review",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000005",
+        trace_id: "00000000-0000-4000-8000-000000000005",
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+        role_codes: ["it-ops"],
+        package_version: "PKG.KNOW.2026.06",
+        decision: "APPROVE",
+        reason: "已核对来源锚点和差异。",
+      }),
+      { headers: { "Idempotency-Key": "idem-knowledge-review-2002" } },
     );
   });
 });
