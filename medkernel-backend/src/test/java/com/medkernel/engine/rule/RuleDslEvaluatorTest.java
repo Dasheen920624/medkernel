@@ -746,6 +746,102 @@ class RuleDslEvaluatorTest {
         assertThat(evidence.get(1).path("formula").asText()).contains("MOSTELLER_BSA");
     }
 
+    @Test
+    void derivesPatientAgeFromBirthDateAtEventTime() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "explain": {"title": "老年", "reason": "年龄阈值"}
+            }
+            """), read("""
+            {"patient": {"birthDate": "1960-01-01", "eventTime": "2026-06-05T00:00:00Z"}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("fact").asText()).isEqualTo("patient.age");
+        assertThat(evidence.path("actual").asInt()).isEqualTo(66);
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
+    void derivedAgeMissingWhenBirthDateAbsentDoesNotMatchOrThrow() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "explain": {"title": "老年", "reason": "年龄阈值"}
+            }
+            """), read("""
+            {"patient": {"eventTime": "2026-06-05T00:00:00Z", "gender": "F"}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+    }
+
+    @Test
+    void explicitPatientAgeIsNotOverriddenByDerivation() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "explain": {"title": "老年", "reason": "年龄阈值"}
+            }
+            """), read("""
+            {"patient": {"age": 40, "birthDate": "1960-01-01", "eventTime": "2026-06-05T00:00:00Z"}}
+            """));
+
+        // 显式 age=40 优先，不被 birthDate 派生覆盖 → 不命中 gte 65
+        assertThat(result.hit()).isFalse();
+        assertThat(result.explanation().path("conditionEvidence").get(0).path("actual").asInt()).isEqualTo(40);
+    }
+
+    @Test
+    void derivedAgeFeedsEgfrFormulaIdenticallyToLiteralAge() throws Exception {
+        // birthDate 1966-06-05 至 eventTime 2026-06-05 恰 60 岁，eGFR 应与字面 age=60 用例一致(≈84.35)
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "derived.egfr",
+                    "operator": "derived",
+                    "value": {
+                      "formula": "CKD_EPI_2021_EGFR",
+                      "comparison": "gte",
+                      "value": 80,
+                      "unit": "mL/min/1.73m2",
+                      "parameters": {
+                        "creatinine": "labs.creatinine",
+                        "age": "patient.age",
+                        "sex": "patient.sex"
+                      }
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "explain": {"title": "eGFR", "reason": "派生年龄喂公式"}
+            }
+            """), read("""
+            {
+              "patient": {"birthDate": "1966-06-05", "eventTime": "2026-06-05T00:00:00Z", "sex": "FEMALE"},
+              "labs": {"creatinine": {"value": 0.8, "unit": "mg/dL", "source": "LIS:CR-20260603"}}
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        assertThat(result.explanation().path("conditionEvidence").get(0).path("value").asDouble())
+            .isCloseTo(84.35d, within(0.05d));
+    }
+
     private JsonNode read(String source) throws Exception {
         return json.readTree(source);
     }

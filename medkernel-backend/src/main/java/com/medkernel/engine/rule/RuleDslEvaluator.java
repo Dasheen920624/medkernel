@@ -1,6 +1,11 @@
 package com.medkernel.engine.rule;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -52,7 +57,8 @@ public class RuleDslEvaluator {
         if (when == null || !when.isObject()) {
             throw invalid("规则 DSL 缺少 when 条件");
         }
-        ConditionEvaluation condition = evaluateConditionNode(when, context == null ? json.createObjectNode() : context);
+        JsonNode evalContext = withDerivedFields(context == null ? json.createObjectNode() : context);
+        ConditionEvaluation condition = evaluateConditionNode(when, evalContext);
         JsonNode explanation = buildExplanation(dsl.path("explain"), condition.evidence());
         if (!condition.matched()) {
             return new RuleDslEvaluation(false, null, List.of(), explanation);
@@ -63,6 +69,63 @@ public class RuleDslEvaluator {
             .map(RuleActionResult::severity)
             .reduce(null, RuleRiskLevel::max);
         return new RuleDslEvaluation(true, highest, actions, explanation);
+    }
+
+    /**
+     * 求值期补齐派生字段：{@code patient.age} 由 {@code patient.birthDate} 与 {@code patient.eventTime}
+     * 计算整岁（评估时刻取数据内 eventTime、可复现，不用 wall-clock）。缺 birthDate/eventTime 不补、
+     * 已显式带 age 不覆盖（按缺失数据策略，不臆测）。返回增强副本，不改调用方上下文。
+     */
+    private JsonNode withDerivedFields(JsonNode context) {
+        if (!context.isObject()) {
+            return context;
+        }
+        JsonNode patient = context.path("patient");
+        if (!patient.isObject() || patient.has("age")) {
+            return context;
+        }
+        Integer age = derivePatientAge(patient);
+        if (age == null) {
+            return context;
+        }
+        ObjectNode augmented = (ObjectNode) context.deepCopy();
+        ((ObjectNode) augmented.get("patient")).put("age", age);
+        return augmented;
+    }
+
+    private Integer derivePatientAge(JsonNode patient) {
+        LocalDate birthDate = parseLocalDate(patient.path("birthDate"));
+        Instant asOf = parseInstant(patient.path("eventTime"));
+        if (birthDate == null || asOf == null) {
+            return null;
+        }
+        LocalDate asOfDate = asOf.atZone(ZoneOffset.UTC).toLocalDate();
+        if (asOfDate.isBefore(birthDate)) {
+            return null; // 出生日期晚于评估时刻：数据异常，不臆测负年龄
+        }
+        return Period.between(birthDate, asOfDate).getYears();
+    }
+
+    private LocalDate parseLocalDate(JsonNode node) {
+        if (node == null || !node.isTextual() || node.asText().isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(node.asText());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private Instant parseInstant(JsonNode node) {
+        if (node == null || !node.isTextual() || node.asText().isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(node.asText());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private ConditionEvaluation evaluateConditionNode(JsonNode node, JsonNode context) {
