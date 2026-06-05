@@ -125,6 +125,14 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "mk_quality_dashboard_alert", "生成质控驾驶舱预警 read-model"),
                 audit(AuditAction.UPDATE, "mk_quality_dashboard_alert", "刷新或关闭质控驾驶舱预警"))),
+        contract("insurance-quality", "病案医保服务包",
+            "com.medkernel.engine.quality.insurance.InsuranceQualityController",
+            "/api/v1/engine/quality",
+            permissions("evaluation.execute"),
+            audits(
+                audit(AuditAction.CREATE, "mk_quality_case_review", "生成病案内涵质控结果"),
+                audit(AuditAction.CREATE, "mk_quality_drg_grouping", "生成 DRG/DIP 入组核对结果"),
+                audit(AuditAction.CREATE, "mk_quality_insurance_issue", "生成医保病案问题并联动整改"))),
         contract("saved-view", "用户保存视图服务",
             "com.medkernel.engine.experience.SavedViewController", "/api/v1/experience",
             List.of(),
