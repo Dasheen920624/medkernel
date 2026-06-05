@@ -38,6 +38,7 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatcher;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisWeight;
 import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
+import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -80,7 +81,7 @@ class DiagnosisAssistServiceTest {
         when(snapshots.findById(any())).thenReturn(new ContextSnapshotResponse(
             "snap-1", null, null, null, null, Instant.now(), "trace-dx"));
         when(policies.findByTenantIdAndScopeKey("t-1", "DEFAULT")).thenReturn(Optional.of(policy));
-        when(redlinePort.check(any(), any())).thenReturn(List.of());
+        when(redlinePort.pinnedDiagnosisCodes(any(), any())).thenReturn(Set.of());
 
         RequestContext.restore(new RequestContext.Snapshot("trace-dx", OrgScope.tenant("t-1"), "doctor-1"));
     }
@@ -161,6 +162,40 @@ class DiagnosisAssistServiceTest {
         assertThat(response.advisoryNote()).isEqualTo(DiagnosisAssistService.ADVISORY_EMPTY);
         assertThat(response.advisoryNote()).contains("不是排除诊断");
         verify(recommendationEngine, never()).trigger(any()); // 空态不落库
+    }
+
+    @Test
+    void redlinePinnedCandidateSortsAboveStrongerEvidenceAndCardRiskIsHigh() {
+        // STRONG 肺炎 vs 仅 MODERATE 但被红线置顶的夹层 → 夹层排第一、redline=true、卡风险 HIGH（高危先行压过证据充分）
+        when(extractor.extract(eq("t-1"), any()))
+            .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH", "TEARING_PAIN"), List.of()));
+        when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of(
+            version(10L, 100L, SourceAuthorityLevel.B_GUIDELINE),    // STRONG 肺炎
+            version(20L, 200L, SourceAuthorityLevel.A_REGULATION))); // MODERATE 夹层（红线置顶）
+        when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
+            crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
+            crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
+        when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
+            crit(20L, "TEARING_PAIN", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
+            crit(20L, "FEVER", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MINOR)));
+        when(identities.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(identity(100L, "DX.PNEU", "肺炎")));
+        when(identities.findByTenantIdAndId("t-1", 200L))
+            .thenReturn(Optional.of(identity(200L, "DX.AORTIC", "主动脉夹层")));
+        when(redlinePort.pinnedDiagnosisCodes(eq("t-1"), any())).thenReturn(Set.of("DX.AORTIC"));
+
+        DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
+
+        assertThat(response.candidates()).first().satisfies(c -> {
+            assertThat(c.icdCode()).isEqualTo("DX.AORTIC");
+            assertThat(c.confidence()).isEqualTo(DiagnosisConfidence.MODERATE);
+            assertThat(c.redline()).isTrue();
+        });
+        ArgumentCaptor<RecommendationTriggerRequest> cap = ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
+        verify(recommendationEngine).trigger(cap.capture());
+        assertThat(cap.getValue().candidateCards())
+            .filteredOn(card -> "dx-200".equals(card.cardCode()))
+            .singleElement()
+            .satisfies(card -> assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.HIGH));
     }
 
     private void stubStrongHit() {

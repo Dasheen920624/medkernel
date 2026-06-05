@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,7 +88,8 @@ public class DiagnosisAssistService {
         ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
         ExtractedFindings findings = extractor.extract(tenant, snapshot.resources());
         DiagnosisConfidencePolicy policy = resolvePolicy(tenant);
-        Set<String> redlineCodes = redlineCodes(tenant, findings.normalizedCodes());
+        // 红线合流：OPT-04 红线对结构化上下文求值，命中的致命病 / 危急值诊断身份码置顶且不可疲劳抑制。
+        Set<String> redlinePinned = redlinePort.pinnedDiagnosisCodes(tenant, snapshot);
 
         List<DiagnosisCandidate> candidates = new ArrayList<>();
         for (KnowledgeAssetVersion v : versions.findActiveDiagnosisVersions(tenant)) {
@@ -99,7 +99,7 @@ public class DiagnosisAssistService {
                 continue; // 弱支持默认不并列呈现，避免低价值噪声（低打扰）
             }
             KnowledgeIdentity identity = identities.findByTenantIdAndId(tenant, v.identityId()).orElse(null);
-            boolean redline = identity != null && redlineCodes.contains(identity.identityCode());
+            boolean redline = identity != null && redlinePinned.contains(identity.identityCode());
             candidates.add(new DiagnosisCandidate(
                 v.identityId(),
                 identity == null ? null : identity.subject(),
@@ -168,12 +168,6 @@ public class DiagnosisAssistService {
         return policies.findByTenantIdAndScopeKey(tenant, "DEFAULT")
             .or(() -> policies.findByTenantIdAndScopeKey("t-1", "DEFAULT"))
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_005, "缺少默认置信策略 DEFAULT"));
-    }
-
-    private Set<String> redlineCodes(String tenant, Set<String> findings) {
-        return redlinePort.check(tenant, findings).stream()
-            .map(RedlineHit::identityCode)
-            .collect(Collectors.toUnmodifiableSet());
     }
 
     /** 高危先行 > 证据充分（置信）> 来源可信（A&lt;B&lt;C…）。 */
