@@ -348,6 +348,14 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("来源暂不可跳转")).toBeInTheDocument();
   });
 
+  it("shows an honest source jump status when workflow todos have no deep link", () => {
+    renderWorkflowTodos();
+
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
+    expect(screen.queryByText("来源暂不可跳转")).not.toBeInTheDocument();
+    expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
+  });
+
   it("persists completion through the backend and refreshes the server-side list", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
