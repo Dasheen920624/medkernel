@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,6 +49,13 @@ class EmrLevelControllerSecurityTest {
           ]
         }
         """;
+    private static final String EXPORT_BODY = """
+        {
+          "hospitalOrgId": "hospital-A",
+          "standardVersion": "EMR-RATING-2026",
+          "idempotencyKey": "idem-emr-2026-001"
+        }
+        """;
 
     @Autowired MockMvc mvc;
 
@@ -78,10 +86,28 @@ class EmrLevelControllerSecurityTest {
         EmrLevelProgressResponse progress = new EmrLevelProgressResponse(
             "target-1", "hospital-A", 5, "EMR-RATING-2026", 1, 0, 1, 1,
             new BigDecimal("0.0000"), "trace-emr");
+        EmrLevelDataQualityResponse quality = new EmrLevelDataQualityResponse(
+            "target-1", "hospital-A", 5, "EMR-RATING-2026",
+            1, 0, 1, 1,
+            new BigDecimal("0.0000"), new BigDecimal("0.0000"),
+            new BigDecimal("1.0000"), new BigDecimal("1.0000"),
+            new EmrLevelClosedLoopEvidenceResponse(1, 1, 1, 1, 0, 1),
+            List.of(new EmrLevelEvidenceSourceResponse("CDSS_CLOSED_LOOP", 1, true, "trace-cdss")),
+            List.of(new EmrLevelDataQualityItemResponse(
+                "EMR-5-002", "五级质控闭环", "QUALITY_RECTIFICATION", "质控整改闭环能力",
+                EmrLevelCapabilityStatus.GAP, null, false, true, true,
+                "未接入真实质控闭环证据", "rct-emr-1", "trace-emr")),
+            "trace-emr");
+        EmrLevelEvidencePackageExportResponse export = new EmrLevelEvidencePackageExportResponse(
+            "emr-evidence-package-1", "target-1", "hospital-A", "EMR-RATING-2026",
+            "EXPORTED", "application/x-ndjson", "target-1-evidence-package.ndjson",
+            "sha256-demo", "{\"recordType\":\"EMR_LEVEL_PACKAGE_SUMMARY\"}\n", 1, "trace-emr");
         when(service.upsertTarget(any())).thenReturn(target);
         when(service.target("hospital-A", "EMR-RATING-2026")).thenReturn(target);
         when(service.gaps("hospital-A", "EMR-RATING-2026")).thenReturn(List.of(gap));
         when(service.progress(eq("hospital-A"), eq("EMR-RATING-2026"))).thenReturn(progress);
+        when(service.dataQuality(eq("hospital-A"), eq("EMR-RATING-2026"))).thenReturn(quality);
+        when(service.exportEvidencePackage(any())).thenReturn(export);
 
         mvc.perform(put("/api/v1/engine/emr-level/targets")
                 .contentType("application/json")
@@ -111,6 +137,22 @@ class EmrLevelControllerSecurityTest {
                 .with(qaJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.openGapItems").value(1));
+
+        mvc.perform(get("/api/v1/engine/emr-level/data-quality")
+                .param("hospitalOrgId", "hospital-A")
+                .param("standardVersion", "EMR-RATING-2026")
+                .with(qaJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.missingEvidenceItems").value(1))
+            .andExpect(jsonPath("$.data.closedLoopEvidence.cdssAcceptedCount").value(1));
+
+        mvc.perform(post("/api/v1/engine/emr-level/evidence-package:export")
+                .contentType("application/json")
+                .content(EXPORT_BODY)
+                .with(qaJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.packageId").value("emr-evidence-package-1"))
+            .andExpect(jsonPath("$.data.contentType").value("application/x-ndjson"));
     }
 
     @Test
@@ -118,6 +160,19 @@ class EmrLevelControllerSecurityTest {
         mvc.perform(put("/api/v1/engine/emr-level/targets")
                 .contentType("application/json")
                 .content(TARGET_BODY)
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-1")
+                    .claim("tenant_id", "tenant-A")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCannotExportEmrLevelEvidencePackage() throws Exception {
+        mvc.perform(post("/api/v1/engine/emr-level/evidence-package:export")
+                .contentType("application/json")
+                .content(EXPORT_BODY)
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")

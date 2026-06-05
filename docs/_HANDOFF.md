@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 EMR-LEVEL-01 电子病历评级目标与项目映射 🚧
-- 类型：软件开发（后端 B0 评级目标 + 标准项能力映射 + 差距 + 进度 + 整改联动 + 文档收口）
-- 分支：`codex/d4-emr-level-01`
-- 目标：完成 D4 `EMR-LEVEL-01`：医院目标等级 4/5/6 → 评级标准项 → 系统能力点 → 真实差距/整改任务 → 进度追踪，缺证据不得计入满足。
-- 状态：`SVC-QUALITY-03` 已由 PR #431 squash merge 到 `origin/main`（merge `ff750478`）并删除远端分支；rebase 到最新 `origin/main` 后，平台层 `V85__org_unit_platform_level.sql` 已占用迁移号，EMR 评级迁移顺延为 V86。本轮已新增 `com.medkernel.engine.emrlevel` 后端 B0，端点 `GET/PUT /api/v1/engine/emr-level/targets`、`GET /gaps`、`GET /progress`；V86 五方言新增 `mk_emr_level_target/item/gap`；`ServiceContractCatalog` 登记 `emr-level`，`DomainOwnershipCatalog` 登记 `mk_emr_level_`；通过 `EmrLevelRectificationBridge` 在 evaluation owner 内创建真实 `quality_finding` + `rectification_task`，避免 EMR 包跨 owner 直写。`docs/cards/D4/EMR-LEVEL-01.md`、`docs/cards/D4/_brief.md` 与 `docs/backlog.md` 已更新。
-- 已有验证：TDD 红灯为缺 `EmrLevelService` / DTO / enum / 控制器类型编译失败；绿灯聚焦 `mvn -q -Dtest=EmrLevelServiceTest,EmrLevelControllerSecurityTest test` 已通过；rebase 后 V86 clean 迁移/治理组合 `mvn -q clean -Dtest=EmrLevelServiceTest,EmrLevelControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test` 已通过（H2/PostgreSQL/Oracle 均至 v86，重复 migrate no-op）；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 H2/PostgreSQL/Oracle smoke，Oracle 至 v86 且重复 migrate no-op）；前端 `cd frontend && npm run verify` 已通过（61 files / 375 tests）；`npm run build` 已通过（仅既有 vendor chunk 大小 warning）；changed T-GATE 已通过：真实性门禁扫描 13 文件、迁移规约门禁扫描 5 文件、配置边界门禁扫描 13 文件、`scripts/check-comment-zh.sh` 0 fail/0 warn、`git diff --check origin/main...HEAD` 通过。
-- 下一步（精确到动作/命令）：1. push 分支 `codex/d4-emr-level-01`。2. 开 PR，远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡（优先 `EMR-LEVEL-02`）。
-- 相关文件 / 测试 / 坑：`EmrLevelController.java`、`EmrLevelService.java`、`EmrLevelRectificationBridge.java`、`EmrLevel*Request/Response/Status`、V86 五方言迁移、`MigrationBaselineContractTest`、`ServiceContractCatalog`、`DomainOwnershipCatalog`、`EmrLevelServiceTest`、`EmrLevelControllerSecurityTest`。注意：`quality_finding` / `rectification_task` owner 是 `engine-evaluation`，EMR 包不得直接写这两张表；进度只看能力证据状态和 `mk_emr_level_gap`，整改任务关闭不能反推达标。
+### 当前 Codex 执行线 · D4 EMR-LEVEL-02 评级数据质量和证据包 🚧
+- 类型：软件开发（后端 B0 数据质量聚合 + 真实证据包导出 + V87 五方言 + 文档收口）
+- 分支：`codex/d4-emr-level-02`
+- 目标：完成 D4 `EMR-LEVEL-02`：应用覆盖率、完整性/及时性/一致性、CDSS/质控闭环证据、审计证据与幂等证据包导出；证据只来自真实关系库事实，缺项标缺失。
+- 状态：`EMR-LEVEL-01` 已由 PR #435 squash merge 到 `origin/main`（merge `91504403`）并删除远端分支；本轮新增 `GET /api/v1/engine/emr-level/data-quality` 与 `POST /api/v1/engine/emr-level/evidence-package:export`，复用 `mk_emr_level_*`、`quality_finding`、`rectification_task`、`recommendation_card`、`recommendation_feedback`、`audit_event` 真实事实计算数据质量和闭环证据；V87 五方言新增 `mk_emr_level_evidence_package` 存幂等键、NDJSON 载荷、SHA-256、trace 与审计字段；`ServiceContractCatalog` 登记 `audit.export` + `AuditAction.EXPORT`；`docs/cards/D4/EMR-LEVEL-02.md`、`docs/cards/D4/_brief.md` 与 `docs/backlog.md` 已更新。
+- 已有验证：TDD 红灯为缺 `EmrLevelDataQualityResponse` / `EmrLevelEvidencePackageExportRequest` / `dataQuality` / `exportEvidencePackage` 等 DTO/方法编译失败；聚焦组合 `mvn -q -Dtest=EmrLevelServiceTest,EmrLevelControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test` 已通过（H2/PostgreSQL/Oracle 均至 v87，重复 migrate no-op）；后端全量 `cd medkernel-backend && mvn -q test` 已通过；前端 `cd frontend && npm run verify` 已通过（61 files / 375 tests）；`npm run build` 已通过（仅既有 vendor chunk 大小 warning）；changed T-GATE 已通过：真实性门禁扫描 9 文件、迁移规约门禁扫描 5 文件、配置边界门禁扫描 9 文件、`scripts/check-comment-zh.sh` 0 fail/0 warn、`git diff --check origin/main...HEAD` 通过。
+- 下一步（精确到动作/命令）：1. push 分支 `codex/d4-emr-level-02`。2. 开 PR，远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡（优先 6 页面真实化或 D4-验收前置缺口）。
+- 相关文件 / 测试 / 坑：`EmrLevelController.java`、`EmrLevelService.java`、`EmrLevelDataQuality*Response`、`EmrLevelEvidencePackage*`、V87 五方言迁移、`MigrationBaselineContractTest`、`ServiceContractCatalog`、`EmrLevelServiceTest`、`EmrLevelControllerSecurityTest`。注意：证据包不得返回 `memory://` 等假 URI；payload hash 必须由真实 NDJSON 内容计算；导出以 `idempotencyKey` 幂等，重复请求不得重复审计。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
