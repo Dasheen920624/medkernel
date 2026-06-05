@@ -34,5 +34,7 @@ public record ContextFieldDescriptor(
     /** 来源：SYSTEM（代码派生只读）/ TENANT（租户自定义可维护）。 */
     String source,
     /** 租户自定义字段的业务主键（仅 TENANT 字段有值，供前台删除）；系统字段为 {@code null}。 */
-    String fieldId) {
+    String fieldId,
+    /** 是否为求值期计算的派生字段（如 {@code patient.age} 由出生日期算得），而非原始存储字段。 */
+    boolean derived) {
 }

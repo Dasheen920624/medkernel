@@ -17,12 +17,19 @@ export interface FieldOptionGroup {
 }
 
 /**
- * 单个字段的选项标签：二级业务分组 + 中文名 + 字段路径，编码字段追加绑定字典。
- * 例：「用药医嘱 · 药品编码（medications[].code）· 字典 ATC」。
+ * 单个字段的选项标签：二级业务分组 + 中文名 + 字段路径，编码字段追加绑定字典，
+ * 派生字段（求值期算得，如 patient.age）追加「派生」标记以示其非原始存储值。
+ * 例：「用药医嘱 · 药品编码（medications[].code）· 字典 ATC」「患者基本信息 · 年龄（patient.age）· 派生」。
  */
 export function fieldOptionLabel(field: ContextFieldDescriptor): string {
-  const base = `${field.group} · ${field.displayName}（${field.fieldPath}）`;
-  return field.codeSystem ? `${base} · 字典 ${field.codeSystem}` : base;
+  let label = `${field.group} · ${field.displayName}（${field.fieldPath}）`;
+  if (field.codeSystem) {
+    label += ` · 字典 ${field.codeSystem}`;
+  }
+  if (field.derived) {
+    label += " · 派生";
+  }
+  return label;
 }
 
 /**

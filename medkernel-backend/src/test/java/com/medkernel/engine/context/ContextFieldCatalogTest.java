@@ -57,6 +57,26 @@ class ContextFieldCatalogTest {
     }
 
     @Test
+    void registersPatientAgeAsDerivedField() {
+        List<ContextFieldDescriptor> patientFields = catalog.query("Patient", null);
+        ContextFieldDescriptor age = patientFields.stream()
+            .filter(f -> "patient.age".equals(f.fieldPath()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("字段目录未登记 patient.age"));
+        // age 是求值期由出生日期算得的派生整岁
+        assertThat(age.derived()).isTrue();
+        assertThat(age.dataType()).isEqualTo("number");
+        assertThat(age.source()).isEqualTo("SYSTEM");
+        assertThat(age.category()).isEqualTo("基本信息");
+        // 对照：原始存储字段（出生日期）非派生
+        ContextFieldDescriptor birthDate = patientFields.stream()
+            .filter(f -> "patient.birthDate".equals(f.fieldPath()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(birthDate.derived()).isFalse();
+    }
+
+    @Test
     void filtersByResourceTypeAndKeyword() {
         List<ContextFieldDescriptor> obs = catalog.query("Observation", null);
         assertThat(obs).isNotEmpty().allMatch(f -> f.resourceType().equals("Observation"));
