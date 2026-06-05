@@ -18,7 +18,7 @@
 框架化（底座已有）：D0 已有权限（`engine/security` `EffectivePermissionService`/`PermissionEvaluator`，[BASE-02](../D0/BASE-02.md)/[INFRA-05](../D0/INFRA-05.md) 归属）+ 审计（`compliance/audit`，[BASE-04](../D0/BASE-04.md)）+ 证据（[EVID-01](EVID-01.md)）。本卡＝在其上建**数据权限（行/列级）+ 脱敏 + 导出审批**统一框架，建在 D0 之上、不重造权限引擎。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 数据权限：行/列级数据权限规则（基于 [BASE-02](../D0/BASE-02.md) 五维 + `OrgContext`），可配可审。
+- [x] FR-1 数据权限：行/列级数据权限规则（基于 [BASE-02](../D0/BASE-02.md) 五维 + `OrgContext`），可配可审。PR1 已补策略表、配置接口、服务级门禁与审计。
 - [ ] FR-2 脱敏：敏感字段按角色/场景脱敏，脱敏规则统一、不前端裸奔。
 - [ ] FR-3 导出审批：敏感数据导出走审批流（变更类状态机），审批留痕。
 - [ ] FR-4 证据联动：合规操作生成证据（[EVID-01](EVID-01.md)）。
@@ -32,7 +32,8 @@
 - 幂等 / traceId：审批幂等；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
-- 表族：`data_permission` / `masking_rule` / `export_approval`（规则 + 状态 + 组织字段 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）
+- 表族：`data_permission` / `masking_rule` / `export_approval`（规则 + 状态 + 组织字段 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）。
+- PR1 已落 `mk_compliance_data_permission`：租户 + 资源 + 动作唯一，含最小数据级别、允许列 JSON、七层组织范围、状态、版本、审计字段与 traceId；PR2/PR3 继续补 `masking_rule` / `export_approval`。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：全平台合规的"数据安全框架"。
@@ -52,14 +53,14 @@
 - 本卡落点：数据权限 + 脱敏 + 导出审批框架，建在 D0 权限/审计之上。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：行/列权限生效；脱敏后端落实不裸奔。
+- [ ] AC-1（FR-1/2）：行/列权限生效；脱敏后端落实不裸奔。（PR1 已覆盖行/列权限；脱敏待 PR2，故 AC 不勾选。）
 - [ ] AC-2（FR-3/4/5）：导出走审批 + 证据 + 审计。
 - 关联 A1–A9 剧本：A9 数据合规。
 - T-GATE：后端真实性门禁全绿（脱敏落实/导出可审）。
 - B0 验收：数据权限/脱敏/审批确定性，关模型可用。
 
 ## 大卡工序（5d）
-- PR1：行/列数据权限 + 门禁 → 验收
+- PR1：行/列数据权限 + 门禁 → 已完成本地验收，本 PR 不冒领整卡完成
 - PR2：脱敏框架（后端落实）→ 验收
 - PR3：导出审批 + 证据/审计联动 → 验收
 
@@ -67,3 +68,8 @@
 - 代码 permalink：数据权限 + 脱敏 + 导出审批框架。
 - 测试：行列权限/脱敏/导出审批/审计 + 安全测试。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
+
+### PR1 阶段证据（2026-06-06，本 PR 不冒领整卡完成）
+- 实现范围：`com.medkernel.compliance.datapermission` 新增数据权限策略 Record DTO / 仓储 / 服务 / 控制器，`DataPermissionService.assertAccess` 复用 D0 `DataScopeResolver` 输出执行行级范围、数据级别与列级 allow-list 门禁；策略变更写 `PERMISSION_CHANGE` 审计。
+- 契约与迁移：新增 `GET/PUT /api/v1/compliance/data-permissions`，权限为 `audit.read` / `system.manage` 且要求租户数据范围；`ServiceContractCatalog` 登记 `compliance-data-permission`，`DomainOwnershipCatalog` 登记 `compliance-security`；V90 五方言新增 `mk_compliance_data_permission` 并补迁移基线合同。
+- 验证：红灯测试先失败于缺数据权限实现；随后 `mvn -Dtest=DataPermissionServiceTest,DataPermissionControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过（86 测试），`mvn -Dtest=ServiceContractGovernanceTest,DomainOwnershipContractTest,DataScopeResolverTest test` 通过，后端全量 `mvn test` 通过（1504 测试），前端 `npm run verify` 通过（67 文件 / 405 测试），V90 迁移规约 files-mode、真实性全仓、配置边界 inventory、中文注释与 `git diff --check` 均通过。
