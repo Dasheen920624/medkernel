@@ -33,6 +33,7 @@ import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.observability.BusinessMetrics;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,12 +64,14 @@ public class DiagnosisAssistService {
     private final DiagnosisRedlinePort redlinePort;
     private final RecommendationEngineService recommendationEngine;
     private final ObjectMapper objectMapper;
+    private final BusinessMetrics businessMetrics;
 
     public DiagnosisAssistService(ContextSnapshotService snapshots, KnowledgeAssetVersionRepository versions,
             KnowledgeIdentityRepository identities, DiagnosisCriterionRepository criteria,
             DiagnosisConfidencePolicyRepository policies, DiagnosisMatcher matcher,
             DiagnosisFindingExtractor extractor, DiagnosisRedlinePort redlinePort,
-            RecommendationEngineService recommendationEngine, ObjectMapper objectMapper) {
+            RecommendationEngineService recommendationEngine, ObjectMapper objectMapper,
+            BusinessMetrics businessMetrics) {
         this.snapshots = snapshots;
         this.versions = versions;
         this.identities = identities;
@@ -79,6 +82,7 @@ public class DiagnosisAssistService {
         this.redlinePort = redlinePort;
         this.recommendationEngine = recommendationEngine;
         this.objectMapper = objectMapper;
+        this.businessMetrics = businessMetrics;
     }
 
     @Transactional
@@ -109,6 +113,9 @@ public class DiagnosisAssistService {
                 v.authorityLevel() == null ? null : v.authorityLevel().name(), redline, v.id()));
         }
         candidates.sort(rankComparator());
+        // 可观测（设计 §4.8）：调用数 + 候选分级分布；采纳率由推荐卡反馈层覆盖（诊断卡即推荐卡）。
+        businessMetrics.incDiagnosisAssist();
+        candidates.forEach(c -> businessMetrics.incDiagnosisCandidate(c.confidence().name()));
         persist(request.contextSnapshotId(), findings.normalizedCodes(), candidates);
         return new DiagnosisAssistResponse(candidates, findings.unmappedFindings(),
             candidates.isEmpty() ? ADVISORY_EMPTY : ADVISORY_CANDIDATES, traceId());
