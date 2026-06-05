@@ -20,13 +20,13 @@
 ## 功能要求（原子可测条目）
 - [x] FR-1 数据权限：行/列级数据权限规则（基于 [BASE-02](../D0/BASE-02.md) 五维 + `OrgContext`），可配可审。PR1 已补策略表、配置接口、服务级门禁与审计。
 - [x] FR-2 脱敏：敏感字段按角色/场景脱敏，脱敏规则统一、不前端裸奔。PR2 已补脱敏规则表、后端服务级脱敏、无规则 fail-closed、原文访问受数据范围脱敏标识控制。
-- [ ] FR-3 导出审批：敏感数据导出走审批流（变更类状态机），审批留痕。
-- [ ] FR-4 证据联动：合规操作生成证据（[EVID-01](EVID-01.md)）。
-- [ ] FR-5 统一审计：数据访问/导出/审批统一审计（[BASE-04](../D0/BASE-04.md)）。
+- [x] FR-3 导出审批：敏感数据导出走审批流（变更类状态机），审批留痕。PR3 已补导出申请、审批、真实导出完成登记状态机与自审批防护。
+- [x] FR-4 证据联动：合规操作生成证据（[EVID-01](EVID-01.md)）。PR3 已在审批和真实导出完成时生成证据快照。
+- [x] FR-5 统一审计：数据访问/导出/审批统一审计（[BASE-04](../D0/BASE-04.md)）。PR1/PR2 覆盖权限与脱敏规则变更，PR3 覆盖导出申请、审批、真实导出完成。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET/PUT /api/v1/compliance/data-permissions` · `POST .../exports:request`（导出申请）· `POST .../exports/{id}:approve`
+- 端点：`GET/PUT /api/v1/compliance/data-permissions` · `GET/PUT /api/v1/compliance/masking-rules` · `POST /api/v1/compliance/exports:request`（导出申请）· `POST /api/v1/compliance/exports/{id}:approve` · `POST /api/v1/compliance/exports/{id}:complete`（登记真实导出产物）
 - DTO：数据权限/脱敏/导出审批 Record；信封 `ApiResult`/`ProblemDetail`
 - 状态机：变更类（导出：申请→审批→已导出/驳回）；配置类（数据权限）
 - 幂等 / traceId：审批幂等；trace（[OBS-01](../D0/OBS-01.md)）
@@ -34,7 +34,8 @@
 ## 数据与迁移
 - 表族：`data_permission` / `masking_rule` / `export_approval`（规则 + 状态 + 组织字段 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）。
 - PR1 已落 `mk_compliance_data_permission`：租户 + 资源 + 动作唯一，含最小数据级别、允许列 JSON、七层组织范围、状态、版本、审计字段与 traceId。
-- PR2 已落 `mk_compliance_masking_rule`：租户 + 资源 + 字段 + 场景唯一，含脱敏策略、保留字符数、状态、版本、审计字段与 traceId；PR3 继续补 `export_approval`。
+- PR2 已落 `mk_compliance_masking_rule`：租户 + 资源 + 字段 + 场景唯一，含脱敏策略、保留字符数、状态、版本、审计字段与 traceId。
+- PR3 已落 `mk_compliance_export_approval`：租户 + 审批业务 ID 唯一、租户 + 幂等键唯一，含导出范围快照、申请原因、审批结论、真实导出 URI、SM3 摘要、审批/导出证据 ID、状态、版本、审计字段与 traceId。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：全平台合规的"数据安全框架"。
@@ -55,7 +56,7 @@
 
 ## 验收 + 验证
 - [x] AC-1（FR-1/2）：行/列权限生效；脱敏后端落实不裸奔。PR1 覆盖行/列权限，PR2 覆盖后端脱敏规则、原文访问边界与缺规则 fail-closed。
-- [ ] AC-2（FR-3/4/5）：导出走审批 + 证据 + 审计。
+- [x] AC-2（FR-3/4/5）：导出走审批 + 证据 + 审计。PR3 已覆盖申请、审批、驳回、自审批防护、真实导出完成登记、EVID-01 证据快照和 BASE-04 审计。
 - 关联 A1–A9 剧本：A9 数据合规。
 - T-GATE：后端真实性门禁全绿（脱敏落实/导出可审）。
 - B0 验收：数据权限/脱敏/审批确定性，关模型可用。
@@ -63,7 +64,7 @@
 ## 大卡工序（5d）
 - PR1：行/列数据权限 + 门禁 → 已完成本地验收，本 PR 不冒领整卡完成
 - PR2：脱敏框架（后端落实）→ 已完成本地验收，本 PR 不冒领整卡完成
-- PR3：导出审批 + 证据/审计联动 → 验收
+- PR3：导出审批 + 证据/审计联动 → 已完成本地验收
 
 ## 完工证据
 - 代码 permalink：数据权限 + 脱敏 + 导出审批框架。
@@ -79,3 +80,8 @@
 - 实现范围：`com.medkernel.compliance.masking` 新增脱敏规则 Record DTO / 仓储 / 服务 / 控制器，`MaskingService.mask` 按租户、资源、场景、字段匹配规则；场景规则缺失时回退 `DEFAULT`，敏感字段缺有效规则时 fail-closed；原文访问仅在当前 `ResolvedDataScope` 允许且未标记脱敏时放行。
 - 契约与迁移：新增 `GET/PUT /api/v1/compliance/masking-rules`，权限为 `audit.read` / `system.manage` 且要求租户数据范围；规则变更写 `PERMISSION_CHANGE` 审计；`ServiceContractCatalog` 登记 `compliance-masking-rule`，`DomainOwnershipCatalog` 登记 `compliance-security`；V91 五方言新增 `mk_compliance_masking_rule` 并补迁移基线合同。
 - 验证：红灯测试先失败于缺脱敏实现；随后 `mvn -Dtest=MaskingServiceTest,MaskingRuleControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过（89 测试），`mvn -Dtest=ServiceContractGovernanceTest,DomainOwnershipContractTest,DataScopeResolverTest,FlywayMultiDialectSmokeTest test` 通过（13 测试，H2 / PostgreSQL 15.18 / Oracle 21.3 迁移到 V91 并二次 no-op），空值边界 `mvn -Dtest=MaskingServiceTest#maskPreservesNullSensitiveFieldWithoutLeakingOrCrashing test` 通过，扩展目标套件 100 测试通过，后端全量 `mvn test` 通过（1516 测试），前端 `npm run verify` 通过（67 文件 / 405 测试）。T-GATE changed-mode 待提交前补跑。
+
+### PR3 阶段证据（2026-06-06，SYS-06 整卡本地验收）
+- 实现范围：`com.medkernel.compliance.exportapproval` 新增导出审批 Record DTO / 仓储 / 服务 / 控制器，导出状态按 `REQUESTED → APPROVED/REJECTED → EXPORTED` 推进；审批阶段禁止申请人自审批；审批通过不伪造已导出，只有登记真实 `exportUri` 与 `sm3:<64 hex>` 摘要后才进入 `EXPORTED`。
+- 契约与迁移：新增 `POST /api/v1/compliance/exports:request`、`POST /api/v1/compliance/exports/{id}:approve`、`POST /api/v1/compliance/exports/{id}:complete`，权限为 `audit.export` 且要求租户数据范围；申请写 `CREATE` 审计，审批写 `REVIEW` 审计并生成 `COMPLIANCE_EXPORT_APPROVAL` 证据，真实导出完成写 `EXPORT` 审计并生成 `COMPLIANCE_EXPORT` 证据；`ServiceContractCatalog` 登记 `compliance-export-approval`，`DomainOwnershipCatalog` 登记 `compliance-security`；V92 五方言新增 `mk_compliance_export_approval` 并补迁移基线合同。
+- 验证：红灯测试先失败于缺导出审批实现；随后 `mvn -Dtest=ExportApprovalServiceTest,ExportApprovalControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过（90 测试），`mvn -Dtest=ServiceContractGovernanceTest,DomainOwnershipContractTest,FlywayMultiDialectSmokeTest test` 通过（9 测试，H2 / PostgreSQL 15.18 / Oracle 21.3 迁移到 V92 并二次 no-op），后端全量 `mvn test` 通过（1527 测试 / 0 失败 / 0 错误 / 0 跳过），前端全量 `npm run verify` 通过（67 文件 / 405 测试）。T-GATE：中文注释 0 fail / 0 warn，`git diff --check` / `git diff --cached --check` 通过，真实性显式文件扫描 12 文件与 changed-mode 12 文件通过，配置边界显式文件扫描 12 文件与 changed-mode 12 文件通过，迁移规约显式文件扫描 5 文件与 changed-mode 5 文件通过，门禁脚本单测 34 项通过。
