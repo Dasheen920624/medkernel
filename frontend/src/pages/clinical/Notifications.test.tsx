@@ -10,12 +10,14 @@ const notificationHookMocks = vi.hoisted(() => ({
   refetchNotifications: vi.fn(),
   useOrgUnits: vi.fn(),
   useReadWorkflowNotification: vi.fn(),
+  useWorkflowNotificationSettings: vi.fn(),
   useWorkflowNotifications: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useOrgUnits: notificationHookMocks.useOrgUnits,
   useReadWorkflowNotification: notificationHookMocks.useReadWorkflowNotification,
+  useWorkflowNotificationSettings: notificationHookMocks.useWorkflowNotificationSettings,
   useWorkflowNotifications: notificationHookMocks.useWorkflowNotifications,
 }));
 
@@ -68,6 +70,25 @@ describe("Notifications", () => {
     notificationHookMocks.useReadWorkflowNotification.mockReturnValue({
       isPending: false,
       mutateAsync: notificationHookMocks.markRead,
+    });
+    notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
+      data: {
+        inAppEnabled: true,
+        smsEnabled: false,
+        emailEnabled: false,
+        pushEnabled: false,
+        quietHoursEnabled: false,
+        quietStart: "22:00",
+        quietEnd: "07:00",
+        quietBypassLevels: ["CRITICAL", "HIGH"],
+        quietActiveNow: false,
+        version: 1,
+        updatedAt: "2026-06-05T00:00:00Z",
+        updatedBy: "doctor-real-1",
+      },
+      isError: false,
+      isLoading: false,
+      refetch: vi.fn(),
     });
     notificationHookMocks.useOrgUnits.mockReturnValue({
       data: {
@@ -264,5 +285,89 @@ describe("Notifications", () => {
 
     expect(screen.getByText("同步事件")).toBeInTheDocument();
     expect(screen.queryByText("SYNC_EVENT")).not.toBeInTheDocument();
+  });
+
+  it("marks quiet-hour muted notifications while keeping safety notifications visible", () => {
+    notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
+      data: {
+        inAppEnabled: true,
+        smsEnabled: false,
+        emailEnabled: false,
+        pushEnabled: false,
+        quietHoursEnabled: true,
+        quietStart: "22:00",
+        quietEnd: "07:00",
+        quietBypassLevels: ["CRITICAL", "HIGH"],
+        quietActiveNow: true,
+        version: 4,
+        updatedAt: "2026-06-05T00:00:00Z",
+        updatedBy: "doctor-real-1",
+      },
+      isError: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: {
+        items: [
+          {
+            notificationId: "notify-info-1",
+            sourceType: "SYNC_EVENT",
+            sourceId: "event-info-1",
+            dedupeKey: "clinical-event:event-info-1",
+            title: "同步事件已处理",
+            message: "报告查看事件已处理。",
+            level: "INFO",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+          },
+          {
+            notificationId: "notify-critical-1",
+            sourceType: "SAFETY_REVIEW",
+            sourceId: "safety-review-1",
+            dedupeKey: "safety:safety-review-1",
+            title: "安全复核提醒",
+            message: "高危知识撤回后需要立即复核。",
+            level: "CRITICAL",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 2,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(notificationHookMocks.useWorkflowNotificationSettings).toHaveBeenCalled();
+    expect(screen.getByText("当前免打扰生效")).toBeInTheDocument();
+    expect(screen.getByText("22:00 - 07:00")).toBeInTheDocument();
+    expect(screen.getByText("同步事件已处理")).toBeInTheDocument();
+    expect(screen.getByText("免打扰中")).toBeInTheDocument();
+    expect(screen.getByText("安全复核提醒")).toBeInTheDocument();
+    expect(screen.getByText("安全绕过")).toBeInTheDocument();
+  });
+
+  it("shows an honest quiet-hour status when notification settings cannot be loaded", () => {
+    notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("免打扰状态暂不可确认")).toBeInTheDocument();
+    expect(screen.getByText("通知设置接口暂不可用，请刷新或到设置页确认。")).toBeInTheDocument();
+    expect(screen.getByText("随访异常通知")).toBeInTheDocument();
   });
 });
