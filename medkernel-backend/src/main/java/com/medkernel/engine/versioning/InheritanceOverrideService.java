@@ -70,6 +70,8 @@ public class InheritanceOverrideService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "覆盖组织必须位于被继承版本生效域下");
         }
 
+        // 替换覆盖须绑定本地 ACTIVE 版本；停用(DISABLE)无替换版本，overrideVersion 留空，
+        // 仅凭已校验必填的原因/影响/差异/操作者/trace 留作发布证据链（解析期由 InheritanceResolver 消费）
         AssetVersion overrideVersion = null;
         if (mode == InheritanceOverrideMode.REPLACE) {
             overrideVersion = findOwnedVersion(tenantId, required(command.overrideVersionId(), "覆盖版本 ID"));
@@ -83,7 +85,6 @@ public class InheritanceOverrideService {
         }
 
         denyUnsafeLowerOverride(inherited, overrideVersion, mode, target.orgPath());
-        rejectDisableUntilReleaseFlowSupportsEvidence(mode);
 
         InheritancePropagation propagation = command.propagation() == null
             ? InheritancePropagation.INHERITABLE
@@ -117,28 +118,24 @@ public class InheritanceOverrideService {
             AssetVersion overrideVersion,
             InheritanceOverrideMode mode,
             String targetOrgPath) {
+        boolean disabling = mode == InheritanceOverrideMode.DISABLE;
+        // 锁定基线禁止被关闭（附录 S1）：编辑期前置禁用，与解析期 permitsDisable 护栏形成纵深防御
+        if (disabling && inherited.overridePolicy() == AssetVersionOverridePolicy.LOCKED) {
+            throw new ApiException(
+                ErrorCode.INHERITANCE_SAFETY_DENIED,
+                "INHERITANCE_SAFETY_DENIED：锁定基线(override_policy=LOCKED)禁止下级组织关闭继承"
+            );
+        }
         boolean lowerOrg = !targetOrgPath.equals(inherited.organizationScope());
         if (!lowerOrg || inherited.safetyPolicy() != AssetVersionSafetyPolicy.SAFETY_REDLINE) {
             return;
         }
-        boolean disabling = mode == InheritanceOverrideMode.DISABLE;
         boolean downgrading = overrideVersion != null
             && overrideVersion.safetyPolicy() != AssetVersionSafetyPolicy.SAFETY_REDLINE;
         if (disabling || downgrading) {
             throw new ApiException(
                 ErrorCode.INHERITANCE_SAFETY_DENIED,
                 "INHERITANCE_SAFETY_DENIED：高风险禁忌红线禁止下级组织关闭或降级覆盖"
-            );
-        }
-    }
-
-    private void rejectDisableUntilReleaseFlowSupportsEvidence(InheritanceOverrideMode mode) {
-        if (mode == InheritanceOverrideMode.DISABLE) {
-            // 解析期已具备 DISABLE 消费能力（InheritanceResolver 按组织生效域直查停用并回退/护栏），
-            // 登记暂仍仅支持替换覆盖：待补发布流证据链与登记解禁后端到端放开。
-            throw new ApiException(
-                ErrorCode.VALIDATION_FAILED,
-                "关闭继承仍需发布流证据链与登记期解禁；解析期已可消费 DISABLE，登记暂仅支持替换覆盖"
             );
         }
     }
