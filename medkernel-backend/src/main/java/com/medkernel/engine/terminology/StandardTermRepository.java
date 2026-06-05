@@ -49,5 +49,15 @@ public interface StandardTermRepository extends ListCrudRepository<StandardTerm,
     Optional<StandardTerm> findByTenantIdAndStandardSystemAndTermCodeAndStatus(
         String tenantId, String standardSystem, String termCode, StandardTermStatus status);
 
+    /**
+     * 查 ACTIVE 标准术语（按字典 standard_system + term_code）。把包私有的 {@link StandardTermStatus}
+     * 封装在本包内，供跨包只读复用（如院内直接使用标准字典编码时的"已是标准码透传"判定）而无需引用枚举。
+     */
+    default Optional<StandardTerm> findActiveByTenantIdAndStandardSystemAndTermCode(
+            String tenantId, String standardSystem, String termCode) {
+        return findByTenantIdAndStandardSystemAndTermCodeAndStatus(
+            tenantId, standardSystem, termCode, StandardTermStatus.ACTIVE);
+    }
+
     List<StandardTerm> findByTenantIdAndStatus(String tenantId, StandardTermStatus status);
 }

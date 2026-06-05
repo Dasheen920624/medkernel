@@ -3,6 +3,8 @@ package com.medkernel.engine.knowledge.diagnosis.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -55,6 +57,30 @@ class DefaultFindingNormalizationPortTest {
     @Test
     void blankCodeIsUnmapped() {
         assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "   ", "HIS")).isEmpty();
+    }
+
+    @Test
+    void passesThroughLocalCodeThatIsItselfActiveStandardTerm() {
+        // 院内直接用标准字典编码：无本地→标准映射，但 localCode 本身是该字典 ACTIVE 标准码 → 透传
+        when(mappings.findConfirmedByTenantIdAndAnchor(any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(standardTerms.findActiveByTenantIdAndStandardSystemAndTermCode("t-1", "TERM.DIAGNOSIS", "ICD-PNEU"))
+            .thenReturn(Optional.of(std("ICD-PNEU")));
+
+        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "ICD-PNEU", "ICD-10"))
+            .contains("ICD-PNEU");
+    }
+
+    @Test
+    void confirmedMappingTakesPrecedenceOverPassthrough() {
+        when(mappings.findConfirmedByTenantIdAndAnchor("t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
+            .thenReturn(List.of(mapping(5L)));
+        when(standardTerms.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(std("ICD-MAPPED")));
+
+        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
+            .contains("ICD-MAPPED");
+        verify(standardTerms, never())
+            .findActiveByTenantIdAndStandardSystemAndTermCode(any(), any(), any());
     }
 
     private StandardTerm std(String code) {
