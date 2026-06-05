@@ -6,6 +6,14 @@ package com.medkernel.engine.workflow;
 public record WorkflowNotificationFilter(
     WorkflowNotificationStatus status,
     WorkflowNotificationLevel level,
-    String recipientId
+    String recipientId,
+    String orgUnitId
 ) {
+
+    public WorkflowNotificationFilter(
+            WorkflowNotificationStatus status,
+            WorkflowNotificationLevel level,
+            String recipientId) {
+        this(status, level, recipientId, null);
+    }
 }

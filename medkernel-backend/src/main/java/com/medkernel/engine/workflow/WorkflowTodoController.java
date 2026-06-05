@@ -39,11 +39,12 @@ public class WorkflowTodoController {
             @RequestParam(required = false) WorkflowTodoSourceType sourceType,
             @RequestParam(required = false) String assigneeId,
             @RequestParam(required = false) String patientId,
+            @RequestParam(required = false) String orgUnitId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.listTodos(
-            new WorkflowTodoFilter(status, priority, sourceType, assigneeId, patientId),
+            new WorkflowTodoFilter(status, priority, sourceType, assigneeId, patientId, orgUnitId),
             new PageRequest(page, size, sort)));
     }
 

@@ -487,6 +487,98 @@ class WorkflowCollaborationServiceTest {
     }
 
     @Test
+    void listTodosPassesSelectedOrganizationScopeToRepositoryFilter() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-workflow",
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            "doctor-1"));
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowTodo selectedTodo = new WorkflowTodo(
+            null,
+            "todo-selected-1",
+            "tenant-A",
+            "spec-a1",
+            WorkflowTodoSourceType.RECOMMENDATION_CARD,
+            "card-selected-1",
+            "临床提醒复核",
+            "选中组织范围内的真实待办",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            null,
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            now.plusSeconds(900),
+            "/cdss/fatigue?cardId=card-selected-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-card",
+            now,
+            "system",
+            now,
+            "system");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(todos.countByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1"))
+            .thenReturn(1L);
+        when(todos.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1",
+            0,
+            20))
+            .thenReturn(List.of(selectedTodo));
+
+        PageResponse<WorkflowTodoResponse> page = service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null, "spec-a1"),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).extracting(WorkflowTodoResponse::orgUnitId)
+            .containsExactly("spec-a1");
+        verify(todos).countByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1");
+        verify(todos).pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "spec-a1",
+            0,
+            20);
+    }
+
+    @Test
     void completeTodoPersistsAuditableClosureInsteadOfOnlyChangingBrowserState() {
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowTodo pending = new WorkflowTodo(
@@ -1313,6 +1405,85 @@ class WorkflowCollaborationServiceTest {
             .containsExactly("notify-org-1", "notify-own-1");
         verify(notifications).countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null);
         verify(notifications).pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20);
+    }
+
+    @Test
+    void listNotificationsPassesSelectedOrganizationScopeToRepositoryFilter() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-workflow",
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            "doctor-1"));
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        WorkflowNotification selectedNotification = new WorkflowNotification(
+            null,
+            "notify-selected-1",
+            "tenant-A",
+            "spec-a1",
+            WorkflowNotificationSourceType.SYNC_EVENT,
+            "event-selected-1",
+            "clinical-event:event-selected-1",
+            "临床同步事件已处理",
+            "选中组织范围内的真实通知",
+            WorkflowNotificationLevel.INFO,
+            WorkflowNotificationStatus.UNREAD,
+            null,
+            null,
+            "patient-1",
+            "enc-1",
+            "/rule/validate?eventId=event-selected-1",
+            null,
+            null,
+            "trace-org",
+            now,
+            "system",
+            now,
+            "system");
+        when(notifications.countByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1"))
+            .thenReturn(1L);
+        when(notifications.pageByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1",
+            0,
+            20))
+            .thenReturn(List.of(selectedNotification));
+
+        PageResponse<WorkflowNotificationResponse> page = service.listNotifications(
+            new WorkflowNotificationFilter(null, null, null, "spec-a1"),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).extracting(WorkflowNotificationResponse::orgUnitId)
+            .containsExactly("spec-a1");
+        verify(notifications).countByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1");
+        verify(notifications).pageByVisibleRecipientScopeAndOrgUnitFilter(
+            "tenant-A",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            "spec-a1",
+            0,
+            20);
     }
 
     @Test

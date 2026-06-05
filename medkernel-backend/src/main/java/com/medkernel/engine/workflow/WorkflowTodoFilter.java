@@ -8,6 +8,16 @@ public record WorkflowTodoFilter(
     WorkflowPriority priority,
     WorkflowTodoSourceType sourceType,
     String assigneeId,
-    String patientId
+    String patientId,
+    String orgUnitId
 ) {
+
+    public WorkflowTodoFilter(
+            WorkflowTodoStatus status,
+            WorkflowPriority priority,
+            WorkflowTodoSourceType sourceType,
+            String assigneeId,
+            String patientId) {
+        this(status, priority, sourceType, assigneeId, patientId, null);
+    }
 }
