@@ -69,7 +69,8 @@ public final class DomainOwnershipCatalog {
         module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),
         module("compliance-security", packages(
             "com.medkernel.compliance.datapermission",
-            "com.medkernel.compliance.masking"),
+            "com.medkernel.compliance.masking",
+            "com.medkernel.compliance.exportapproval"),
             prefixes("mk_compliance_"), tables())
     );
 
