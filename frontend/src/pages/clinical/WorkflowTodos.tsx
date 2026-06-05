@@ -34,6 +34,7 @@ import type {
   WorkflowTodoStatus,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { SOURCE_LINK_UNAVAILABLE_TEXT, resolveSourceDeepLink } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { TextArea } = Input;
@@ -239,51 +240,57 @@ export default function WorkflowTodos() {
     {
       title: "操作",
       key: "action",
-      render: (_value, record) => (
-        <Space size={4}>
-          {record.deepLink && (
+      render: (_value, record) => {
+        const sourceLink = resolveSourceDeepLink(record.deepLink);
+        return (
+          <Space size={4}>
+            {sourceLink && (
+              <Button
+                type="link"
+                aria-label="打开来源"
+                icon={<LinkOutlined />}
+                href={sourceLink}
+                className="px-0 font-semibold"
+              >
+                打开来源
+              </Button>
+            )}
+            {!sourceLink && record.deepLink && (
+              <Tag color="default">{SOURCE_LINK_UNAVAILABLE_TEXT}</Tag>
+            )}
             <Button
               type="link"
-              aria-label="打开来源"
-              icon={<LinkOutlined />}
-              href={record.deepLink}
+              aria-label="完成"
+              icon={<CheckCircleOutlined />}
+              disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
+              onClick={() => {
+                setCompletingTodo(record);
+                completeForm.setFieldsValue({ completionReason: "" });
+              }}
               className="px-0 font-semibold"
             >
-              打开来源
+              完成
             </Button>
-          )}
-          <Button
-            type="link"
-            aria-label="完成"
-            icon={<CheckCircleOutlined />}
-            disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
-            onClick={() => {
-              setCompletingTodo(record);
-              completeForm.setFieldsValue({ completionReason: "" });
-            }}
-            className="px-0 font-semibold"
-          >
-            完成
-          </Button>
-          <Button
-            type="link"
-            aria-label="转交"
-            icon={<SwapRightOutlined />}
-            disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
-            onClick={() => {
-              setTransferringTodo(record);
-              transferForm.setFieldsValue({
-                transferTo: "",
-                transferRole: "",
-                transferReason: "",
-              });
-            }}
-            className="px-0 font-semibold"
-          >
-            转交
-          </Button>
-        </Space>
-      ),
+            <Button
+              type="link"
+              aria-label="转交"
+              icon={<SwapRightOutlined />}
+              disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
+              onClick={() => {
+                setTransferringTodo(record);
+                transferForm.setFieldsValue({
+                  transferTo: "",
+                  transferRole: "",
+                  transferReason: "",
+                });
+              }}
+              className="px-0 font-semibold"
+            >
+              转交
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
 

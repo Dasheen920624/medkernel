@@ -310,6 +310,42 @@ describe("WorkflowTodos", () => {
     );
   });
 
+  it("does not expose unsafe source jumps from workflow todos", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-followup-unsafe",
+            sourceType: "FOLLOWUP_TASK",
+            sourceId: "return-task-unsafe",
+            title: "随访异常复核",
+            summary: "患者上报呼吸困难，需要医师复核",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "doctor-real-1",
+            assigneeRole: "DOCTOR",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            dueAt: "2026-06-04T08:00:00Z",
+            deepLink: "javascript:alert('unsafe')",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
+    expect(screen.getByText("来源暂不可跳转")).toBeInTheDocument();
+  });
+
   it("persists completion through the backend and refreshes the server-side list", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
