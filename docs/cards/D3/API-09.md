@@ -26,8 +26,8 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET /api/v1/engine/followup/plans` · `GET .../followup/tasks` · `POST .../followup/questionnaires` · `POST .../followup/abnormal-reports` · `POST .../followup/results`
-- DTO：`FollowupAbnormalReportRequest` + 计划/任务/问卷 Record DTO → `ApiResult`
+- 端点：`GET /api/v1/engine/followup/plans` · `GET .../followup/stats` · `GET .../followup/tasks` · `POST .../followup/questionnaires` · `POST .../followup/abnormal-reports` · `POST .../followup/results`
+- DTO：`FollowupAbnormalReportRequest` / `FollowupStatsResponse` + 计划/任务/问卷 Record DTO → `ApiResult`
 - 响应信封：`ApiResult` / `ProblemDetail`；状态机：待办类（待执行→进行中→完成/异常回院）
 - 幂等 / 错误码 / traceId：任务幂等键；trace（[OBS-01](../D0/OBS-01.md)）
 
@@ -68,4 +68,5 @@
 - 领域事件契约：`mvn -q -Dtest=DomainEventSchemaContractTest test` 通过。
 - 后端全量：`mvn -q test` 通过（190 reports / 1163 tests / 0 failures / 0 errors / 0 skipped）。
 - T-GATE：`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs` 34/34 通过；`node scripts/migration-convention-guard.mjs --mode=files ...V69...` 扫描 5 个新增迁移通过；提交后 `node scripts/authenticity-guard.mjs --mode=changed --base=origin/main` 扫描 24 个文件通过、`node scripts/config-boundary-guard.mjs --mode=changed --base=origin/main` 扫描 24 个文件通过、`node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main` 扫描 5 个迁移通过；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check` 通过。
+- PR20 补充证据：`GET /api/v1/engine/followup/stats` 按租户和可选患者筛选聚合计划 / 任务进度，供 [FUP-01](FUP-01.md) 作用域看板消费，不从前端当前页派生统计。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

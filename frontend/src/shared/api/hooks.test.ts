@@ -28,6 +28,7 @@ import {
   useCreateIntegrationOnboarding,
   useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
+  useFollowupStats,
   useIntegrationOnboardings,
   useReplayDeadLetter,
   useImplementationSteps,
@@ -445,6 +446,27 @@ describe("package export api helpers", () => {
       eventType: "ABNORMAL_RETURN",
       payload: '{"severity":"HIGH"}',
       triggeredBy: "followup-nurse-1",
+    });
+  });
+
+  it("loads followup global progress stats from the API-09 stats endpoint", async () => {
+    const stats = {
+      totalPlans: 12,
+      activePlans: 8,
+      totalTasks: 34,
+      completedTasks: 21,
+      abnormalReturnTasks: 5,
+      taskCompletionRatePercent: 61.8,
+      abnormalReturnRatePercent: 14.7,
+      traceId: "trace-followup-stats",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: stats } });
+
+    const { result } = renderApiHook(() => useFollowupStats({ patientId: "patient-real-1" }));
+
+    await waitFor(() => expect(result.current.data).toEqual(stats));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/followup/stats", {
+      params: { patientId: "patient-real-1" },
     });
   });
 
