@@ -21,7 +21,7 @@ import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
 import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.pkg.PackageItemAssetType;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.pkg.ReleasePlan;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
@@ -68,7 +68,7 @@ class RelationalRuleImpactIndexTest {
                 patientPathway("ppath-active", PatientPathwayStatus.NODE_EXECUTING),
                 patientPathway("ppath-done", PatientPathwayStatus.COMPLETED)));
 
-        when(packageItems.findByTenantIdAndAssetTypeAndAssetId("tenant-A", PackageItemAssetType.RULE, "rule-1"))
+        when(packageItems.findByTenantIdAndAssetTypeAndAssetId("tenant-A", VersionedAssetType.RULE, "rule-1"))
             .thenReturn(List.of(packageItem()));
         when(releasePlans.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
             .thenReturn(List.of(releasePlan()));
@@ -148,7 +148,7 @@ class RelationalRuleImpactIndexTest {
     private PackageItem packageItem() {
         Instant now = Instant.now();
         return new PackageItem(
-            1L, "item-1", "tenant-A", "pkg-1", PackageItemAssetType.RULE,
+            1L, "item-1", "tenant-A", "pkg-1", VersionedAssetType.RULE,
             "rule-1", "1", now, "tester", now, "tester", "trace-pkg");
     }
 

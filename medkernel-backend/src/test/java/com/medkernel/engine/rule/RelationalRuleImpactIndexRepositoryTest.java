@@ -21,7 +21,7 @@ import com.medkernel.engine.pkg.KnowledgePackage;
 import com.medkernel.engine.pkg.KnowledgePackageRepository;
 import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.pkg.PackageItemAssetType;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.pkg.ReleasePlan;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
@@ -174,7 +174,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         Instant now = Instant.now();
         return new PackageItem(
             null, "item-" + packageId, "tenant-A", packageId,
-            PackageItemAssetType.RULE, ruleId, "1",
+            VersionedAssetType.RULE, ruleId, "1",
             now, "tester", now, "tester", "trace-pkg");
     }
 

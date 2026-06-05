@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
@@ -25,7 +27,7 @@ public record PackageItemRequest(
     @JsonAlias("package_version") String packageVersion,
 
     @NotNull(message = "资产类型不能为空")
-    PackageItemAssetType assetType,
+    VersionedAssetType assetType,
 
     @NotBlank(message = "资产 ID 不能为空")
     String assetId,
@@ -38,7 +40,7 @@ public record PackageItemRequest(
     }
 
     public PackageItemRequest(
-            PackageItemAssetType assetType,
+            VersionedAssetType assetType,
             String assetId,
             String assetVersion) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
