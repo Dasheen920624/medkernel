@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 EVAL-01 评估质控引擎 🚧
-- 类型：软件开发（后端确定性评估引擎 + 文档收口）
-- 分支：`codex/d4-eval-01`
-- 目标：完成 D4 `EVAL-01`：指标配置必须是可执行规则 DSL 条件树；真实上下文快照命中后生成带规则解释的结果、问题与整改任务；同快照 + 指标版本自动评估使用稳定 `inputDigest` / `runCode` 重放，关模型仍以 B0 确定性链路运行。
-- 状态：`API-08` 已由 #421 squash merge 到 `origin/main`（merge `783468c1`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已实现：`EvaluationIndicator` 创建前校验分母/分子/排除规则 JSON DSL 可执行；`evaluateSnapshot` 按指标编码/版本/ID 排序，基于快照、临床资源和指标定义生成稳定 `sha256` 输入摘要与 `ER_AUTO_` runCode；已有运行直接重放，不重复保存 run/result/finding/task；规则评估解释写入 `EvaluationResult.evidenceSummary` 与 `QualityFinding.evidenceSummary`；`EvaluationRunRepository` 新增 `findByRunCodeAndTenantId`；新增单元红绿用例和真实 H2 仓储集成重放用例。`docs/cards/D4/EVAL-01.md` 与 `docs/backlog.md` 已更新为完成态。
-- 已有验证：TDD 红灯包括自然语言规则未拒绝、证据摘要缺规则解释、自动 runCode 不稳定，以及缺 `findByRunCodeAndTenantId` 编译失败；绿灯聚焦 `mvn -q -Dtest=EvaluationEngineServiceTest,EvaluationEngineIntegrationTest,EvaluationEngineControllerSecurityTest,EvaluationRepositoryTest test` 已通过；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 PostgreSQL 15.18 / Oracle 21.3 Testcontainers 82 个迁移烟测）；前端 `cd frontend && npm run verify` 已通过（61 文件 / 375 测试）；committed-diff T-GATE 已通过（真实性 2 文件、配置边界 2 文件、迁移规约 0 文件、中文注释 0 fail/0 warn、`git diff --check origin/main..HEAD` 无输出）。
-- 下一步（精确到动作/命令）：1. push、开 PR，远端 CI 绿后 squash merge。2. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `OPT-08`。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/evaluation/EvaluationEngineService.java`、`EvaluationRunRepository.java`、`medkernel-backend/src/test/java/com/medkernel/engine/evaluation/EvaluationEngineServiceTest.java`、`EvaluationEngineIntegrationTest.java`、`docs/cards/D4/EVAL-01.md`。指标规则 DSL 校验复用 `RuleDslEvaluator`，空上下文只验证“可解析/可执行”，真实命中仍在快照上下文中完成；自动评估幂等口径是稳定 runCode + 数据库唯一约束，整改/复核幂等键逻辑不变。
+### 当前 Codex 执行线 · D4 OPT-08 价值指标与 ROI 看板 🚧
+- 类型：软件开发（后端 B0 价值/ROI 口径聚合 + 文档收口）
+- 分支：`codex/d4-opt-08`
+- 目标：完成 D4 `OPT-08`：统一 6 类价值/ROI 口径（采纳率、误报率、漏报回溯、路径完成率、整改闭环率、医保违规减少），从真实关系库事实复算，缺源返回 `NOT_AVAILABLE`，下游驾驶舱不得自算或前端造数。
+- 状态：`EVAL-01` 已由 PR #423 squash merge 到 `origin/main`（merge `ac57828f`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已实现 `GET /api/v1/engine/value-metrics` 与 `GET /api/v1/engine/value-metrics/{metricCode}/drilldown`，新增 `com.medkernel.engine.quality.value` 下 `ValueMetricsService/Controller/DTO`；采纳率读 `recommendation_card` 终态，误报率 / 漏报回溯读 `quality_finding`，路径完成率读 `patient_pathway`，整改闭环率读 `rectification_task`，医保违规减少在 SVC-QUALITY-02 事实源未建前诚实 `NOT_AVAILABLE`。已在 `ServiceContractCatalog` 登记 `value-metrics` 只读契约；`docs/cards/D4/OPT-08.md` 与 `docs/backlog.md` 已更新为完成态。
+- 已有验证：TDD 红灯包括缺 `ValueMetricsService/DTO` 编译失败，以及新增院区过滤用例因 `ValueMetricFilter` 未支持作用域字段编译失败；绿灯聚焦 `mvn -q -Dtest=ValueMetricsServiceTest,ValueMetricsControllerSecurityTest test` 已通过；治理组合 `mvn -q -Dtest=ValueMetricsServiceTest,ValueMetricsControllerSecurityTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test` 已通过；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 PostgreSQL 15.18 / Oracle 21.3 Testcontainers 82 个迁移烟测）；前端全量 `npm run verify` 已通过（61 文件 / 375 测试）且 `npm run build` 已通过；committed-diff T-GATE 已通过（真实性 11 文件、配置边界 11 文件、迁移规约 0 文件、中文注释 0 fail/0 warn、`git diff --check origin/main..HEAD` 无输出）。
+- 下一步（精确到动作/命令）：1. amend 当前 OPT-08 提交以纳入本次证据更新。2. push、开 PR，远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `SVC-QUALITY-01`。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/quality/value/ValueMetricsService.java`、`ValueMetricsController.java`、`ValueMetricFilter.java`、`medkernel-backend/src/test/java/com/medkernel/engine/quality/value/ValueMetricsServiceTest.java`、`ValueMetricsControllerSecurityTest.java`、`docs/cards/D4/OPT-08.md`。`from/to` 可按事实发生时间复算；`departmentId` 仅对 `quality_finding` / `rectification_task` 有真实字段，推荐卡 / 患者路径按科室过滤时必须 `NOT_AVAILABLE`；`hospitalId/campusId` 当前源表无维度字段，必须 `NOT_AVAILABLE`，不得退回租户总量冒充院区对比。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
