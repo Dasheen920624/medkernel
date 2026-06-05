@@ -19,6 +19,7 @@ import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   SOURCE_LINK_MISSING_TEXT,
   SOURCE_LINK_UNAVAILABLE_TEXT,
+  SOURCE_TRACE_MISSING_TEXT,
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -302,7 +303,9 @@ export default function Notifications() {
                         <span>{item.patientId || "-"}</span>
                         <span>{item.encounterId || "-"}</span>
                         <span>来源对象 {item.sourceId}</span>
-                        {item.traceId && <span>追踪链路 {item.traceId}</span>}
+                        <span>
+                          {item.traceId ? `追踪链路 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                        </span>
                       </Space>
                     </Space>
                   }

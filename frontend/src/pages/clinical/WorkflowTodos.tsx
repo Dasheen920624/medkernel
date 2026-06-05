@@ -37,6 +37,7 @@ import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   SOURCE_LINK_MISSING_TEXT,
   SOURCE_LINK_UNAVAILABLE_TEXT,
+  SOURCE_TRACE_MISSING_TEXT,
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -202,7 +203,7 @@ export default function WorkflowTodos() {
           <span className="text-xs text-slate-500">{record.summary}</span>
           <Space wrap size={8} className="text-xs text-slate-500">
             <span>来源对象 {record.sourceId}</span>
-            {record.traceId && <span>追踪链路 {record.traceId}</span>}
+            <span>{record.traceId ? `追踪链路 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
           </Space>
         </Space>
       ),
