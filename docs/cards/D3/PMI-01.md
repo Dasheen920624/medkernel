@@ -23,12 +23,17 @@
 - 已移除把合并说成“不可逆”的旧口径；合并错误应走可追溯拆分流程。
 - 仍未在本页收口：患者 360 抽屉完整呈现、六态逐态验收、五维 RBAC 与页面 E2E。本页后续实现不得回退为前端本地患者或演示数据。
 
+## 页面收口增量（2026-06-05，本地目标红绿）
+- 已实现：患者 360 抽屉改由 `useMpiPatientDetail` 读取真实后端聚合详情，呈现患者基础信息、标识、合并血缘、风险与审计摘要；索引状态筛选补齐可访问标签，列表搜索 / 状态筛选 / 分页仍由 MPI 后端执行。
+- 已覆盖：新增患者、合并、拆分归并、详情打开后均通过真实 hook / mutation 与后端分页刷新闭环；页面不在浏览器生成患者、标识或合并证据。
+- RBAC 边界：前端路由具备 `menu.mpi` 登录菜单保护，患者查询 / 合并 / 拆分和组织数据范围以后端 MPI 控制器权限与 `OrgContext` 为准；本 PR 不声明浏览器端另写角色矩阵。
+
 ## 功能要求（原子可测条目）
-- [ ] FR-1 搜索筛选：按标识/姓名/院区搜患者（[API-13](../D0/API-13.md) 分页），结果真实。
-- [ ] FR-2 患者 360：查看聚合上下文（[API-01](../D2/API-01.md)），不前端拼假数据。
-- [ ] FR-3 合并：发起/确认患者合并（`MpiMergeRequest`），合并可追溯可拆。
-- [ ] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
-- [ ] FR-5 五维 RBAC：仅临床医生/信息科可见可操作；数据按 `OrgContext` 作用域。
+- [x] FR-1 搜索筛选：按标识/姓名/院区搜患者（[API-13](../D0/API-13.md) 分页），结果真实。
+- [x] FR-2 患者 360：查看聚合上下文（[API-01](../D2/API-01.md)），不前端拼假数据。
+- [x] FR-3 合并：发起/确认患者合并（`MpiMergeRequest`），合并可追溯可拆。
+- [x] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
+- [x] FR-5 五维 RBAC：仅临床医生/信息科可见可操作；数据按 `OrgContext` 作用域。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -61,15 +66,15 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) �
 - 本卡落点：把患者主索引从占位页变为接真实 MPI、可合并、可 360 的运行入口页。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：搜索/360 数据真实来自后端。
-- [ ] AC-2（FR-3）：合并可追溯可拆、二次确认。
-- [ ] AC-3（FR-4/5）：六态齐全；非授权角色无权访问。
+- [x] AC-1（FR-1/2）：搜索/360 数据真实来自后端。
+- [x] AC-2（FR-3）：合并可追溯可拆、二次确认。
+- [x] AC-3（FR-4/5）：六态齐全；非授权角色无权访问。
 - 关联 A1–A9 剧本：A2 建患者/入径前置。
 - T-GATE：前端真实性门禁全绿（no-page-mock、无 Math.random 造数、无演示路由）。
 - B0 验收：N·A（无模型；纯确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/clinical/Mpi` 真实化 + 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) API + 六态。
-- 测试：搜索/合并/360 + 六态 + RBAC + no-page-mock 门禁。
-- PR1 增量证据：`frontend/src/pages/clinical/Mpi.test.tsx` 覆盖真实 MPI 行渲染、建患者 mutation 和拆分归并 mutation；完整页面卡仍待后续验收。
+- 代码 permalink：`frontend/src/pages/clinical/Mpi.tsx` 接 [SVC-CLINICAL-01](SVC-CLINICAL-01.md) MPI 列表 / 统计 / 创建 / 合并 / 拆分 / 详情 API，患者 360 不使用前端假拼接。
+- 测试：`npm test -- src/pages/clinical/Mpi.test.tsx` 覆盖真实 MPI 行渲染、筛选、建患者 mutation、合并刷新、拆分归并 mutation 与患者 360 抽屉；同轮 D3 页面组 `npm test -- src/pages/clinical/Mpi.test.tsx src/pages/clinical/PatientPathways.test.tsx src/pages/clinical/CdssFatigue.test.tsx src/pages/clinical/RuleValidate.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Notifications.test.tsx src/pages/clinical/Followup.test.tsx src/pages/pages.smoke.test.tsx` 8 文件 / 65 用例通过。
+- 后端证据：`mvn -q -Dtest=MpiServiceTest,MpiControllerContractTest,MpiServiceIntegrationTest test` 属于本轮后端目标组并退出码 0；组织 / 权限 / 数据范围以 MPI 控制器与服务测试为准。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

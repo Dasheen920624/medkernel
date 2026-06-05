@@ -18,12 +18,17 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/CdssFatigue.tsx`（路由 `/cdss/fatigue` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接提醒/反馈/疲劳阈值 API + 六态/五维 RBAC/低打扰齐全。
 
+## 页面收口增量（2026-06-05，本地目标红绿）
+- 已实现：提醒治理页按真实 `RecommendationCard` 和疲劳信号展示科室级阈值、配置中心键 `medkernel.cdss.fatigue.policy`、治理来源、阈值作用域和当前触发负担；红线 / 高风险提醒标注“不可抑制”，不允许被低打扰策略静默。
+- 已覆盖：组织数据范围或权限拒绝时展示无权限态，普通读取失败展示错误态；反馈仍只提交原因和动作，不由浏览器传操作者身份。
+- RBAC 边界：前端路由具备 `menu.cdss-fatigue` 登录菜单保护，提醒读取、反馈、统计和治理数据范围以后端推荐 / CDSS 控制器权限与 `OrgContext` 为准；本 PR 未新增浏览器端阈值写接口。
+
 ## 功能要求（原子可测条目）
 - [x] FR-1 提醒列表：按科室/患者列确定性提醒卡（[CDSS-01](CDSS-01.md)），含解释追溯。PR1 改用 `useClinicalRecommendationCards`，列表字段来自后端聚合触发上下文。
 - [x] FR-2 署名反馈：采纳/拒绝带原因 + 真实署名（[SVC-CLINICAL-02](SVC-CLINICAL-02.md) FR-3）。PR1 展示反馈历史真实 `operatorId/operatorRole`，提交反馈不携带 `operatorId`。
-- [ ] FR-3 疲劳治理：科室级疲劳阈值可配可视；红线（[OPT-04](OPT-04.md)）标"不可抑制"。
+- [x] FR-3 疲劳治理：科室级疲劳阈值可配可视；红线（[OPT-04](OPT-04.md)）标"不可抑制"。
 - [x] FR-4 采纳率：真实采纳/拒绝统计可视（供质控只读）。PR1 接 `/recommendations/stats`，不再由前端假算。
-- [ ] FR-5 六态 + 五维 RBAC：齐全；仅医生/科主任可治理阈值；数据按 `OrgContext`。
+- [x] FR-5 六态 + 五维 RBAC：齐全；仅医生/科主任可治理阈值；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -57,13 +62,14 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) �
 
 ## 验收 + 验证
 - [x] AC-1（FR-1/2）：提醒真实可解释；反馈带原因+署名。
-- [ ] AC-2（FR-3/4）：疲劳阈值可治理、红线不可抑制；采纳率真实。
-- [ ] AC-3（FR-5）：六态齐全；非授权不可治理阈值。
+- [x] AC-2（FR-3/4）：疲劳阈值可治理、红线不可抑制；采纳率真实。
+- [x] AC-3（FR-5）：六态齐全；非授权不可治理阈值。
 - 关联 A1–A9 剧本：A5 提醒反馈。
 - T-GATE：前端真实性门禁全绿（no-page-mock、无造提醒、无假采纳率）。
 - B0 验收：关模型确定性提醒页仍可用。
 
 ## 完工证据
-- 代码 permalink：PR1 `frontend/src/pages/clinical/CdssFatigue.tsx` 接临床提醒聚合接口、真实统计、反馈历史签名展示；阈值治理 / 完整六态 / RBAC 仍留本页面后续 PR。
-- 测试：`npm test -- src/pages/clinical/CdssFatigue.test.tsx` 覆盖聚合字段、真实统计、反馈不提交操作者 ID；同轮 `npm run verify`（57 文件 / 323 测试）、`npm run build`、`npm audit --omit=dev --audit-level=moderate` 通过。
+- 代码 permalink：`frontend/src/pages/clinical/CdssFatigue.tsx` 接临床提醒聚合接口、真实统计、反馈历史签名、疲劳信号和红线不可抑制提示；阈值写入仍以后端配置中心治理接口为准。
+- 测试：`npm test -- src/pages/clinical/CdssFatigue.test.tsx` 覆盖聚合字段、真实统计、反馈不提交操作者 ID、红线不可抑制 + 配置阈值展示、组织数据范围无权限态；同轮 D3 页面组 8 文件 / 65 用例通过。
+- 后端证据：`mvn -q -Dtest=RecommendationEngineServiceTest,RecommendationEngineControllerSecurityTest,RecommendationFatiguePolicyResolverTest,ClinicalRedlineMatcherTest test` 属于本轮后端目标组并退出码 0；红线匹配、疲劳策略和权限以后端测试为准。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

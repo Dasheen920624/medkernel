@@ -311,7 +311,7 @@ describe("page smoke coverage", () => {
   it("renders the clinical patient-pathways console", () => {
     renderPage(<PatientPathways />);
     expect(screen.getByRole("heading", { name: "患者路径" })).toBeInTheDocument();
-    expect(screen.getByText(/患者 ID 检索/)).toBeInTheDocument();
+    expect(screen.getByText("正在加载患者路径")).toBeInTheDocument();
   });
 
   it("renders the clinical mpi console", () => {

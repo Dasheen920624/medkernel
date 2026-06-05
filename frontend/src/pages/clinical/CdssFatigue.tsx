@@ -35,7 +35,7 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
-import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import {
   useCreateRecommendationTrigger,
   useClinicalRecommendationCards,
@@ -48,6 +48,7 @@ import {
 } from "@/shared/api/hooks";
 import type {
   ClinicalRecommendationCard,
+  RecommendationCard,
   RecommendationSource,
   RecommendationFatigueSignal,
   RecommendationCardStatus,
@@ -57,8 +58,79 @@ import type {
 
 const { TextArea } = Input;
 const { Option } = Select;
+const FATIGUE_POLICY_CONFIG_KEY = "medkernel.cdss.fatigue.policy";
 
 type RecommendationBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+type RecommendationFatigueGovernance = {
+  isNonSuppressible: boolean;
+  label: string;
+  color: string;
+  description: string;
+};
+
+const FORBIDDEN_ERROR_CODES = new Set([
+  "ENG-API-004",
+  "ENG-BASE-002",
+  "ENG-BASE-003",
+  "ENG-BASE-004",
+  "PERMISSION_DENIED",
+]);
+
+function isForbiddenApiError(code?: string) {
+  return Boolean(code && FORBIDDEN_ERROR_CODES.has(code));
+}
+
+function isClinicalRedlineCard(
+  card?: Pick<RecommendationCard, "cardCode" | "fatigueKey" | "riskLevel" | "sourceSummary"> | null,
+): boolean {
+  const fatigueKey = card?.fatigueKey?.toUpperCase() ?? "";
+  const cardCode = card?.cardCode?.toUpperCase() ?? "";
+  return (
+    fatigueKey.startsWith("REDLINE:") ||
+    cardCode.includes("REDLINE") ||
+    card?.riskLevel === "CRITICAL" ||
+    card?.sourceSummary?.includes("红线") === true
+  );
+}
+
+function getFatigueGovernance(
+  card?: Pick<
+    RecommendationCard,
+    "cardCode" | "fatigueKey" | "interruptLevel" | "riskLevel" | "sourceSummary"
+  > | null,
+): RecommendationFatigueGovernance {
+  if (isClinicalRedlineCard(card)) {
+    return {
+      isNonSuppressible: true,
+      label: "红线不可抑制",
+      color: "red",
+      description: "疲劳信号仅用于审计和质控，不会静音或降级临床安全红线。",
+    };
+  }
+  if (
+    card?.riskLevel === "HIGH" ||
+    card?.interruptLevel === "HARD" ||
+    card?.interruptLevel === "STRONG_INTERRUPTIVE"
+  ) {
+    return {
+      isNonSuppressible: true,
+      label: "高风险不可抑制",
+      color: "volcano",
+      description: "高风险或强打断提醒必须保留医师确认链路，不参与疲劳静音。",
+    };
+  }
+  return {
+    isNonSuppressible: false,
+    label: "按科室阈值治理",
+    color: "blue",
+    description: "低价值重复提醒按配置中心阈值进入低打扰治理。",
+  };
+}
+
+function getFatigueProgressPercent(signal: RecommendationFatigueSignal): number {
+  if (signal.governanceThreshold <= 0) return 100;
+  return Math.min(100, Math.floor((signal.triggerCount / signal.governanceThreshold) * 100));
+}
 
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 async function sha256Hex(input: string): Promise<string> {
@@ -90,6 +162,7 @@ export default function CdssFatigue() {
     data: cardsPage,
     isLoading: cardsLoading,
     isError: cardsError,
+    error: cardsQueryError,
     refetch: refetchCards,
   } = useClinicalRecommendationCards({
     status: statusFilter,
@@ -99,6 +172,11 @@ export default function CdssFatigue() {
     size,
   });
   const cards: ClinicalRecommendationCard[] = cardsPage?.items ?? [];
+  const cardsParsedError = cardsError ? parseApiError(cardsQueryError, "推荐卡列表加载失败") : null;
+  let cardsPageState: "forbidden" | "error" | "ready" = "ready";
+  if (cardsParsedError) {
+    cardsPageState = isForbiddenApiError(cardsParsedError.code) ? "forbidden" : "error";
+  }
 
   const { data: statsData } = useRecommendationStats({
     status: statusFilter,
@@ -129,6 +207,7 @@ export default function CdssFatigue() {
   // 突变动作
   const triggerCdssMutation = useCreateRecommendationTrigger();
   const feedbackMutation = useSubmitRecommendationFeedback(selectedCardId || "");
+  const selectedFatigueGovernance = getFatigueGovernance(detailData?.card);
 
   // 触发一次推荐评估事件。后端为受控写入/治理层，不会凭患者+病种"生成"卡；
   // 候选卡由上游引擎/适配器提交，本沙箱仅登记触发并按后端真实返回刷新列表。
@@ -286,6 +365,43 @@ export default function CdssFatigue() {
     },
   ];
 
+  let cardsTableContent = (
+    <Table
+      columns={columns}
+      dataSource={cards}
+      rowKey="cardId"
+      loading={cardsLoading}
+      pagination={{
+        current: page,
+        pageSize: size,
+        total: cardsPage?.total ?? 0,
+        onChange: (p) => setPage(p),
+        showTotal: (t) => `共 ${t} 张临床运行提醒卡`,
+      }}
+      className="medkernel-table"
+    />
+  );
+  if (cardsPageState === "forbidden" && cardsParsedError) {
+    cardsTableContent = (
+      <PageState
+        state="forbidden"
+        title="当前权限不足"
+        description={cardsParsedError.message}
+        traceId={cardsParsedError.traceId}
+      />
+    );
+  } else if (cardsPageState === "error" && cardsParsedError) {
+    cardsTableContent = (
+      <PageState
+        state="error"
+        title="推荐卡列表读取失败"
+        description={cardsParsedError.message}
+        onRetry={() => refetchCards()}
+        traceId={cardsParsedError.traceId ?? cardsPage?.traceId}
+      />
+    );
+  }
+
   return (
     <PageShell
       title="智能建议治理"
@@ -381,29 +497,7 @@ export default function CdssFatigue() {
 
       {/* 主表格数据 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {cardsError ? (
-          <PageState
-            state="error"
-            description="推荐卡列表加载失败，请稍后重试或联系信息科。"
-            onRetry={() => refetchCards()}
-            traceId={cardsPage?.traceId}
-          />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={cards}
-            rowKey="cardId"
-            loading={cardsLoading}
-            pagination={{
-              current: page,
-              pageSize: size,
-              total: cardsPage?.total ?? 0,
-              onChange: (p) => setPage(p),
-              showTotal: (t) => `共 ${t} 张临床运行提醒卡`,
-            }}
-            className="medkernel-table"
-          />
-        )}
+        {cardsTableContent}
       </div>
 
       {/* 触发 CDSS 沙箱 Modal */}
@@ -515,6 +609,9 @@ export default function CdssFatigue() {
                 <Tag color={detailData.card.interruptLevel === "HARD" ? "purple" : "volcano"}>
                   {detailData.card.interruptLevel}
                 </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="疲劳治理策略" span={3}>
+                <Tag color={selectedFatigueGovernance.color}>{selectedFatigueGovernance.label}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="提醒摘要描述" span={3}>
                 <span className="text-gray-800 font-medium">{detailData.card.summary}</span>
@@ -727,6 +824,21 @@ export default function CdssFatigue() {
                         showIcon
                         className="mb-4 rounded-lg"
                       />
+                      <Alert
+                        message="疲劳治理策略来自配置中心"
+                        description={
+                          <div className="text-xs leading-relaxed">
+                            <span>科室级疲劳阈值读取 </span>
+                            <Tag color="blue" className="mx-1">
+                              {FATIGUE_POLICY_CONFIG_KEY}
+                            </Tag>
+                            <span>{selectedFatigueGovernance.description}</span>
+                          </div>
+                        }
+                        type={selectedFatigueGovernance.isNonSuppressible ? "error" : "info"}
+                        showIcon
+                        className="mb-4 rounded-lg"
+                      />
 
                       {fatigueSignalsData?.items && fatigueSignalsData.items.length > 0 ? (
                         fatigueSignalsData.items.map((signal: RecommendationFatigueSignal) => (
@@ -746,6 +858,12 @@ export default function CdssFatigue() {
                                   {signal.signalType}
                                 </Tag>
                               </Descriptions.Item>
+                              <Descriptions.Item label="治理来源">
+                                <Tag color="blue">配置中心</Tag>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="阈值作用域">
+                                <span className="text-xs text-gray-600">科室/场景</span>
+                              </Descriptions.Item>
                             </Descriptions>
                             <div className="mt-3">
                               <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
@@ -755,12 +873,7 @@ export default function CdssFatigue() {
                                 </span>
                               </div>
                               <Progress
-                                percent={Math.min(
-                                  100,
-                                  Math.floor(
-                                    (signal.triggerCount / signal.governanceThreshold) * 100,
-                                  ),
-                                )}
+                                percent={getFatigueProgressPercent(signal)}
                                 status={
                                   signal.triggerCount >= signal.governanceThreshold
                                     ? "exception"

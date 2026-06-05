@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useCreateMpiPatient,
   useMergeMpiPatients,
+  useMpiPatientDetail,
   useMpiPatients,
   useMpiStats,
   useSplitMpiPatient,
@@ -16,6 +17,7 @@ import Mpi from "./Mpi";
 vi.mock("@/shared/api/hooks", () => ({
   useCreateMpiPatient: vi.fn(),
   useMergeMpiPatients: vi.fn(),
+  useMpiPatientDetail: vi.fn(),
   useMpiPatients: vi.fn(),
   useMpiStats: vi.fn(),
   useSplitMpiPatient: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock("@/shared/api/hooks", () => ({
 
 const mockUseCreateMpiPatient = vi.mocked(useCreateMpiPatient);
 const mockUseMergeMpiPatients = vi.mocked(useMergeMpiPatients);
+const mockUseMpiPatientDetail = vi.mocked(useMpiPatientDetail);
 const mockUseMpiPatients = vi.mocked(useMpiPatients);
 const mockUseMpiStats = vi.mocked(useMpiStats);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
@@ -43,6 +46,7 @@ describe("Mpi", () => {
   const refetchList = vi.fn();
   const refetchStats = vi.fn();
   const createPatient = vi.fn();
+  const mergePatient = vi.fn();
   const splitPatient = vi.fn();
 
   beforeEach(() => {
@@ -99,8 +103,60 @@ describe("Mpi", () => {
       isLoading: false,
       refetch: refetchStats,
     } as unknown as ReturnType<typeof useMpiStats>);
+    mockUseMpiPatientDetail.mockReturnValue({
+      data: {
+        patient: {
+          id: 1,
+          mpiId: "mpi-real-1",
+          tenantId: "tenant-A",
+          maskedName: "张*三",
+          gender: "M",
+          age: 36,
+          idLast4: "1234",
+          mergedCount: 0,
+          status: "ACTIVE",
+          mergedIntoMpiId: null,
+          createdAt: "2026-06-04T00:00:00Z",
+          createdBy: "doctor-a",
+          updatedAt: "2026-06-04T00:00:00Z",
+          updatedBy: "doctor-a",
+        },
+        latestContextSnapshot: {
+          snapshotId: "snapshot-real-1",
+          patientId: "mpi-real-1",
+          encounterId: "enc-real-1",
+          status: "ACTIVE",
+          qualityStatus: "COMPLETE",
+          createdAt: "2026-06-04T01:00:00Z",
+        },
+        contextSnapshot: null,
+        activePathwayCount: 1,
+        activePathways: [
+          {
+            patientPathwayId: "pathway-acute-1",
+            patientId: "mpi-real-1",
+            encounterId: "enc-real-1",
+            templateId: "tpl-stroke-v1",
+            currentNodeCode: "ADMISSION",
+            status: "ACTIVE",
+            enteredAt: "2026-06-04T02:00:00Z",
+            traceId: "trace-pathway-1",
+          },
+        ],
+        traceId: "trace-p360-1",
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useMpiPatientDetail>);
+    mergePatient.mockResolvedValue({
+      status: "MERGED",
+      sourceMpiId: "mpi-real-1",
+      targetMpiId: "mpi-target-1",
+      message: "患者主索引合并成功，已记录审计证据",
+    });
     mockUseMergeMpiPatients.mockReturnValue({
-      mutateAsync: vi.fn(),
+      mutateAsync: mergePatient,
       isPending: false,
     } as unknown as ReturnType<typeof useMergeMpiPatients>);
     splitPatient.mockResolvedValue({
@@ -126,6 +182,71 @@ describe("Mpi", () => {
       isPending: false,
     } as unknown as ReturnType<typeof useCreateMpiPatient>);
   });
+
+  it(
+    "opens patient 360 detail from the backend MPI detail hook",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+
+      await waitFor(() => {
+        expect(mockUseMpiPatientDetail).toHaveBeenCalledWith("mpi-real-1");
+      });
+      expect(screen.getByText("患者 360 视图")).toBeInTheDocument();
+      expect(screen.getAllByText("snapshot-real-1").length).toBeGreaterThan(0);
+      expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
+      expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "submits keyword and status as real MPI list filters",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.type(screen.getByPlaceholderText("支持按姓名或 MPI ID 检索..."), "mpi-real-1");
+      await user.click(screen.getByRole("combobox", { name: "索引状态" }));
+      const activeOptions = await screen.findAllByText("活跃 (ACTIVE)");
+      await user.click(activeOptions[activeOptions.length - 1]);
+      await user.click(screen.getByRole("button", { name: /检索过滤/ }));
+
+      await waitFor(() => {
+        expect(mockUseMpiPatients).toHaveBeenLastCalledWith({
+          keyword: "mpi-real-1",
+          status: "ACTIVE",
+          page: 1,
+          size: 20,
+        });
+      });
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "merges an active MPI row through the backend mutation and refreshes evidence",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getByRole("button", { name: /合并患者/ }));
+      await user.type(screen.getByPlaceholderText("例如：mpi_yyyyy"), "mpi-target-1");
+      await user.click(screen.getByRole("button", { name: "确认合并" }));
+
+      await waitFor(() => {
+        expect(mergePatient).toHaveBeenCalledWith({
+          sourceMpiId: "mpi-real-1",
+          targetMpiId: "mpi-target-1",
+        });
+      });
+      expect(refetchList).toHaveBeenCalled();
+      expect(refetchStats).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
 
   it(
     "renders real MPI rows and creates a patient through the backend mutation",
