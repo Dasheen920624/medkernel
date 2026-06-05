@@ -28,6 +28,7 @@ import {
   useConfirmTerminologyCandidate,
   useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
+  useDispatchRectification,
   useEvaluationIndicators,
   useEvaluationResults,
   useEvaluateSnapshot,
@@ -573,6 +574,33 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues", {
       params: { severity: "P1", status: "ASSIGNED", responsibleDepartmentId: "dept-1" },
+    });
+  });
+
+  it("dispatches rectification tasks through the SVC-QUALITY-03 service package", async () => {
+    const response = {
+      taskId: "task-real-1",
+      findingStatus: "ASSIGNED",
+      taskStatus: "ASSIGNED",
+      traceId: "trace-dispatch-real",
+    };
+    const request = {
+      findingId: "finding-real-1",
+      responsibleDepartmentId: "心内科",
+      assigneeUserId: "u-quality-1",
+      dueAt: "2026-06-09T00:00:00Z",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useDispatchRectification());
+    const dispatched = await result.current.mutateAsync({
+      request,
+      idempotencyKey: "idem-dispatch-real-1",
+    });
+
+    expect(dispatched).toEqual(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/rectifications", request, {
+      headers: { "Idempotency-Key": "idem-dispatch-real-1" },
     });
   });
 
