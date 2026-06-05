@@ -12,13 +12,13 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D3 PR17 接力归档 🚧
-- 类型：文档 / 接力
-- 分支：`codex/d3-svc-clinical-03-pr17-handoff`
-- 目标：把 D3 `SVC-CLINICAL-03` PR17 已并入主线的事实写回 `_HANDOFF`，避免下一位协作者误以为仍待 PR / CI / 合并。
-- 状态：PR17 已在 #408 squash merge 到 `origin/main`（merge `76e7e2ab`），远端主题分支 `codex/d3-svc-clinical-03-pr17-delivery-status` 已删除；本分支仅做接力归档。
-- 下一步（精确到动作/命令）：1. 对本文件变更跑 `git diff --check` / `scripts/check-comment-zh.sh`。2. commit → push → PR → 远端 CI → squash merge。3. 从最新 `origin/main` 继续按 backlog 领取下一任务。
-- 相关文件 / 测试 / 坑：`docs/_HANDOFF.md`。合并 PR17 时 `gh pr merge` 因本地 `main` 已被主 worktree 占用返回非零退出码，但远端 PR 状态为 `MERGED`，`origin/main` 已包含 `76e7e2ab`，远端主题分支为空。
+### 当前 Codex 执行线 · D3 SVC-CLINICAL-03 PR18 外发补偿通道补齐 🚧
+- 类型：软件开发（TDD，后端通知设置 + 外发补偿；前端通知设置）
+- 分支：`codex/d3-svc-clinical-03-pr18-delivery-channels`
+- 目标：通知外发补偿覆盖短信 / 邮件 / 移动推送 / Webhook / 院内消息五类声明通道；新增偏好默认关闭；仍只登记 `NOT_CONNECTED` 补偿，不声明真实送达。
+- 状态：已完成 RED → GREEN 与提交前验证：后端目标测试 `mvn -q -Dtest=WorkflowNotificationSettingsServiceTest,WorkflowCollaborationServiceTest,WorkflowNotificationSettingsControllerTest test` 退出码 0；后端全量 `mvn -q test` 退出码 0（含 PostgreSQL / Oracle Testcontainers 迁移 smoke）；前端目标测试 `npm test -- src/pages/compliance/NotificationSettings.test.tsx src/shared/api/hooks.test.ts src/pages/clinical/Notifications.test.tsx` 为 3 文件 / 51 用例通过；前端 `npm run verify` 为 60 文件 / 355 用例通过；`npm run build`、`git diff --check`、中文注释、真实性、迁移规约、配置边界 changed 门禁均退出码 0；Playwright 打开 `/notifications/settings`，确认 Webhook / 院内消息开关渲染且保存 payload 带两字段（截图 `/tmp/medkernel-pr18-notification-settings.png`）。当前仍未提交 / 未推送 / 未开 PR。
+- 下一步（精确到动作/命令）：1. `git status` / `git diff --cached --check` 最后核对。2. commit → push → PR → 远端 CI → squash merge。3. 从最新 `origin/main` 继续按 backlog 领取下一任务。
+- 相关文件 / 测试 / 坑：`WorkflowNotificationSettingsRequest/Response/Service`、`WorkflowCollaborationService`、`NotificationSettings.tsx`、`hooks.ts`、`Notifications.test.tsx`、`docs/cards/D3/SVC-CLINICAL-03.md`、`docs/cards/D3/NOTIFY-01.md`。新增 Webhook / 院内消息只是补偿登记通道，不是连接器；院内消息不要和既有站内通知混写成已接外部院内消息系统。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
@@ -255,4 +255,4 @@
 
 ---
 
-> 末次更新：2026-06-05 · 长期目标继续保持 active：D3 `SVC-CLINICAL-03` 临床协同服务包 PR17 已在 #408 squash merge 到 `origin/main`（merge `76e7e2ab`），远端主题分支已删除；当前 Codex 执行线为 PR17 接力归档（分支 `codex/d3-svc-clinical-03-pr17-handoff`），归档合并证据后继续从 backlog 领取下一任务。继续执行“读 handoff → 核查现状 → TDD → T-GATE → PR / CI / squash merge → 更新 handoff”循环，直到 GA 总验收 INFRA-10 完成。无真实护理站、LIS / PACS、独立床旁知识系统、短信 / 邮件 / 移动推送 / Webhook / 院内消息连接器、闭源驱动或客户现场资源时登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线。不得宣称上述外部系统已接通，不得宣称 DM / Kingbase 真实运行已验证。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。
+> 末次更新：2026-06-05 · 长期目标继续保持 active：D3 `SVC-CLINICAL-03` 临床协同服务包 PR18 正在分支 `codex/d3-svc-clinical-03-pr18-delivery-channels` 补齐通知外发补偿声明通道；目标红绿已过，待完整验证、commit、PR、CI 与 squash merge。继续执行“读 handoff → 核查现状 → TDD → T-GATE → PR / CI / squash merge → 更新 handoff”循环，直到 GA 总验收 INFRA-10 完成。无真实护理站、LIS / PACS、独立床旁知识系统、短信 / 邮件 / 移动推送 / Webhook / 院内消息连接器、闭源驱动或客户现场资源时登记 [待处理问题清单](audit/deferred-issues.md) 后继续主线。不得宣称上述外部系统已接通，不得宣称 DM / Kingbase 真实运行已验证。仍 open 的 `DEFER-001/002/003/004/005/006/007/008/009/010/011/013/016/017/019/020` 不阻塞 D3，但不得宣称清零；非当前阶段阻塞统一登记在 [待处理问题清单](audit/deferred-issues.md)，登记后继续主线，不能把长期目标标记 blocked。

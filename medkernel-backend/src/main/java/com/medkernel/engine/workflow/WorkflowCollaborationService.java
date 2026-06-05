@@ -57,7 +57,13 @@ public class WorkflowCollaborationService {
     private static final List<ExternalNotificationChannel> EXTERNAL_NOTIFICATION_CHANNELS = List.of(
         new ExternalNotificationChannel("sms", "notification-sms", "短信通知通道", "SMS"),
         new ExternalNotificationChannel("email", "notification-email", "邮件通知通道", "EMAIL"),
-        new ExternalNotificationChannel("push", "notification-push", "移动推送通道", "PUSH")
+        new ExternalNotificationChannel("push", "notification-push", "移动推送通道", "PUSH"),
+        new ExternalNotificationChannel("webhook", "notification-webhook", "Webhook 通知通道", "WEBHOOK"),
+        new ExternalNotificationChannel(
+            "in-hospital",
+            "notification-in-hospital",
+            "院内消息通道",
+            "IN_HOSPITAL_MESSAGE")
     );
 
     private final WorkflowTodoRepository todos;
@@ -846,6 +852,8 @@ public class WorkflowCollaborationService {
             case "sms" -> settings.smsEnabled();
             case "email" -> settings.emailEnabled();
             case "push" -> settings.pushEnabled();
+            case "webhook" -> settings.webhookEnabled();
+            case "in-hospital" -> settings.inHospitalMessageEnabled();
             default -> false;
         };
     }

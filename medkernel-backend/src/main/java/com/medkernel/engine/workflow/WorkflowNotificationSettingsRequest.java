@@ -12,6 +12,8 @@ public record WorkflowNotificationSettingsRequest(
     Boolean smsEnabled,
     Boolean emailEnabled,
     Boolean pushEnabled,
+    Boolean webhookEnabled,
+    Boolean inHospitalMessageEnabled,
     Boolean quietHoursEnabled,
 
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "免打扰开始时间格式必须为 HH:mm")

@@ -55,6 +55,8 @@ class WorkflowNotificationSettingsServiceTest {
         assertThat(response.smsEnabled()).isFalse();
         assertThat(response.emailEnabled()).isFalse();
         assertThat(response.pushEnabled()).isFalse();
+        assertThat(response.webhookEnabled()).isFalse();
+        assertThat(response.inHospitalMessageEnabled()).isFalse();
         assertThat(response.quietHoursEnabled()).isFalse();
         assertThat(response.quietBypassLevels())
             .containsExactly(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH);
@@ -74,6 +76,8 @@ class WorkflowNotificationSettingsServiceTest {
                   "smsEnabled": true,
                   "emailEnabled": false,
                   "pushEnabled": true,
+                  "webhookEnabled": true,
+                  "inHospitalMessageEnabled": true,
                   "quietHoursEnabled": true,
                   "quietStart": "21:30",
                   "quietEnd": "06:30",
@@ -98,6 +102,8 @@ class WorkflowNotificationSettingsServiceTest {
         assertThat(response.smsEnabled()).isTrue();
         assertThat(response.emailEnabled()).isFalse();
         assertThat(response.pushEnabled()).isTrue();
+        assertThat(response.webhookEnabled()).isTrue();
+        assertThat(response.inHospitalMessageEnabled()).isTrue();
         assertThat(response.quietHoursEnabled()).isTrue();
         assertThat(response.quietStart()).isEqualTo("21:30");
         assertThat(response.version()).isEqualTo(5);
@@ -137,6 +143,8 @@ class WorkflowNotificationSettingsServiceTest {
             false,
             false,
             true,
+            true,
+            true,
             "22:00",
             "07:00",
             Set.of(WorkflowNotificationLevel.INFO)));
@@ -154,6 +162,8 @@ class WorkflowNotificationSettingsServiceTest {
             true,
             false,
             false,
+            true,
+            true,
             true,
             "22:00",
             "07:00",

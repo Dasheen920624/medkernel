@@ -2910,6 +2910,8 @@ export interface WorkflowNotificationSettings {
   smsEnabled: boolean;
   emailEnabled: boolean;
   pushEnabled: boolean;
+  webhookEnabled: boolean;
+  inHospitalMessageEnabled: boolean;
   quietHoursEnabled: boolean;
   quietStart: string;
   quietEnd: string;
@@ -2925,6 +2927,8 @@ export interface WorkflowNotificationSettingsPayload {
   smsEnabled: boolean;
   emailEnabled: boolean;
   pushEnabled: boolean;
+  webhookEnabled: boolean;
+  inHospitalMessageEnabled: boolean;
   quietHoursEnabled: boolean;
   quietStart: string;
   quietEnd: string;

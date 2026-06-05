@@ -40,6 +40,8 @@ describe("NotificationSettings", () => {
         smsEnabled: false,
         emailEnabled: false,
         pushEnabled: false,
+        webhookEnabled: true,
+        inHospitalMessageEnabled: false,
         quietHoursEnabled: true,
         quietStart: "22:00",
         quietEnd: "07:00",
@@ -71,11 +73,21 @@ describe("NotificationSettings", () => {
       "aria-checked",
       "false",
     );
+    expect(screen.getByRole("switch", { name: "Webhook 偏好" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("switch", { name: "院内消息偏好" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
     expect(screen.getByLabelText("免打扰开始时间")).toHaveValue("22:00");
     expect(screen.getByLabelText("免打扰结束时间")).toHaveValue("07:00");
     expect(screen.getByText("危急")).toBeInTheDocument();
     expect(screen.getByText("高")).toBeInTheDocument();
-    expect(screen.getByText(/NOT_CONNECTED/)).toHaveTextContent("不声明短信、邮件或推送已完成投递");
+    expect(screen.getByText(/NOT_CONNECTED/)).toHaveTextContent(
+      "不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递",
+    );
     expect(screen.queryByText("默认夜班医生静默")).not.toBeInTheDocument();
   });
 
@@ -84,6 +96,8 @@ describe("NotificationSettings", () => {
     renderSettings();
 
     await user.click(screen.getByRole("switch", { name: "邮件偏好" }));
+    await user.click(screen.getByRole("switch", { name: "Webhook 偏好" }));
+    await user.click(screen.getByRole("switch", { name: "院内消息偏好" }));
     await user.clear(screen.getByLabelText("免打扰开始时间"));
     await user.type(screen.getByLabelText("免打扰开始时间"), "21:30");
     await user.clear(screen.getByLabelText("免打扰结束时间"));
@@ -96,6 +110,8 @@ describe("NotificationSettings", () => {
         smsEnabled: false,
         emailEnabled: true,
         pushEnabled: false,
+        webhookEnabled: false,
+        inHospitalMessageEnabled: true,
         quietHoursEnabled: true,
         quietStart: "21:30",
         quietEnd: "06:30",

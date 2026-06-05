@@ -54,6 +54,8 @@ class WorkflowNotificationSettingsControllerTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.inAppEnabled").value(true))
+            .andExpect(jsonPath("$.data.webhookEnabled").value(false))
+            .andExpect(jsonPath("$.data.inHospitalMessageEnabled").value(false))
             .andExpect(jsonPath("$.data.quietBypassLevels[0]").value("CRITICAL"));
     }
 
@@ -74,6 +76,8 @@ class WorkflowNotificationSettingsControllerTest {
                       "smsEnabled": false,
                       "emailEnabled": false,
                       "pushEnabled": false,
+                      "webhookEnabled": false,
+                      "inHospitalMessageEnabled": false,
                       "quietHoursEnabled": true,
                       "quietStart": "22:00",
                       "quietEnd": "07:00",
@@ -87,6 +91,8 @@ class WorkflowNotificationSettingsControllerTest {
     private static WorkflowNotificationSettingsResponse response() {
         return new WorkflowNotificationSettingsResponse(
             true,
+            false,
+            false,
             false,
             false,
             false,

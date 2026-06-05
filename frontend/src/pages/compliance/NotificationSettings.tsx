@@ -36,6 +36,8 @@ const DEFAULT_FORM_VALUES: NotificationSettingsForm = {
   smsEnabled: false,
   emailEnabled: false,
   pushEnabled: false,
+  webhookEnabled: false,
+  inHospitalMessageEnabled: false,
   quietHoursEnabled: false,
   quietStart: "22:00",
   quietEnd: "07:00",
@@ -74,6 +76,8 @@ export default function NotificationSettings() {
       smsEnabled: settingsQuery.data.smsEnabled,
       emailEnabled: settingsQuery.data.emailEnabled,
       pushEnabled: settingsQuery.data.pushEnabled,
+      webhookEnabled: settingsQuery.data.webhookEnabled,
+      inHospitalMessageEnabled: settingsQuery.data.inHospitalMessageEnabled,
       quietHoursEnabled: settingsQuery.data.quietHoursEnabled,
       quietStart: settingsQuery.data.quietStart,
       quietEnd: settingsQuery.data.quietEnd,
@@ -141,7 +145,7 @@ export default function NotificationSettings() {
             <Alert
               type="info"
               showIcon
-              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器，状态为 NOT_CONNECTED，不声明短信、邮件或推送已完成投递。"
+              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器，状态为 NOT_CONNECTED，不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递。"
             />
             <Space wrap size="large">
               <Form.Item name="inAppEnabled" label="站内信" valuePropName="checked">
@@ -155,6 +159,12 @@ export default function NotificationSettings() {
               </Form.Item>
               <Form.Item name="pushEnabled" label="移动推送" valuePropName="checked">
                 <Switch aria-label="移动推送偏好" />
+              </Form.Item>
+              <Form.Item name="webhookEnabled" label="Webhook" valuePropName="checked">
+                <Switch aria-label="Webhook 偏好" />
+              </Form.Item>
+              <Form.Item name="inHospitalMessageEnabled" label="院内消息" valuePropName="checked">
+                <Switch aria-label="院内消息偏好" />
               </Form.Item>
             </Space>
           </Space>
