@@ -18,8 +18,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.medkernel.engine.integration.domain.IntegrationMessageLog;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
 import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
+import com.medkernel.engine.integration.repository.IntegrationMessageLogRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.engine.context.ClinicalEvent;
 import com.medkernel.engine.context.ClinicalEventRepository;
@@ -63,6 +65,7 @@ class WorkflowCollaborationServiceTest {
     private RecommendationCardRepository recommendationCards;
     private ClinicalEventRepository clinicalEvents;
     private IntegrationService integrationService;
+    private IntegrationMessageLogRepository integrationLogs;
     private WorkflowNotificationSettingsService notificationSettings;
     private AuditRecorder auditRecorder;
     private WorkflowCollaborationService service;
@@ -77,6 +80,7 @@ class WorkflowCollaborationServiceTest {
         recommendationCards = mock(RecommendationCardRepository.class);
         clinicalEvents = mock(ClinicalEventRepository.class);
         integrationService = mock(IntegrationService.class);
+        integrationLogs = mock(IntegrationMessageLogRepository.class);
         notificationSettings = mock(WorkflowNotificationSettingsService.class);
         auditRecorder = mock(AuditRecorder.class);
         service = new WorkflowCollaborationService(
@@ -88,6 +92,7 @@ class WorkflowCollaborationServiceTest {
             recommendationCards,
             clinicalEvents,
             integrationService,
+            integrationLogs,
             notificationSettings,
             auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-workflow", OrgScope.tenant("tenant-A"), "doctor-1"));
@@ -1340,6 +1345,70 @@ class WorkflowCollaborationServiceTest {
         verify(notifications, times(2)).save(notificationCaptor.capture());
         assertThat(notificationCaptor.getAllValues().get(0).recipientId()).isEqualTo("followup-doctor");
         assertThat(notificationCaptor.getAllValues().get(0).recipientRole()).isEqualTo("DOCTOR");
+    }
+
+    @Test
+    void listNotificationsReturnsHonestExternalDeliveryCompensationStatus() {
+        Instant now = Instant.parse("2026-06-05T08:00:00Z");
+        WorkflowNotification unread = new WorkflowNotification(
+            null,
+            "notify-followup-1",
+            "tenant-A",
+            WorkflowNotificationSourceType.FOLLOWUP_EVENT,
+            "fe-notify-1",
+            "followup:fe-notify-1",
+            "随访异常回院通知",
+            "患者随访异常，需要安排回院确认",
+            WorkflowNotificationLevel.HIGH,
+            WorkflowNotificationStatus.UNREAD,
+            "doctor-1",
+            "DOCTOR",
+            "patient-1",
+            "enc-1",
+            "/clinical/followup?taskId=ft-return-1",
+            null,
+            null,
+            "trace-followup",
+            now,
+            "system",
+            now,
+            "system");
+        when(notifications.countByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null)).thenReturn(1L);
+        when(notifications.pageByVisibleRecipientScope("tenant-A", null, null, null, "doctor-1", null, 0, 20))
+            .thenReturn(List.of(unread));
+        when(integrationLogs.findByMessageIdAndTenantId("notify-out-sms-notify-followup-1", "tenant-A"))
+            .thenReturn(Optional.of(new IntegrationMessageLog(
+                null,
+                "notify-out-sms-notify-followup-1",
+                "tenant-A",
+                "trace-followup",
+                "OUTBOUND",
+                "短信通知通道",
+                "SMS",
+                "通知外发补偿（短信通知通道）：随访异常回院通知",
+                "{\"degradeReason\":\"未接入真实外部发送连接器\"}",
+                "NOT_CONNECTED",
+                0,
+                3,
+                "未接入真实外部发送连接器，已登记异步补偿，不阻断主流程",
+                now,
+                "system",
+                now,
+                "system")));
+
+        PageResponse<WorkflowNotificationResponse> page = service.listNotifications(
+            new WorkflowNotificationFilter(null, null, null),
+            new PageRequest(1, 20, null));
+
+        assertThat(page.items()).singleElement()
+            .satisfies(item -> assertThat(item.externalDeliveries()).singleElement()
+                .satisfies(delivery -> {
+                    assertThat(delivery.channelCode()).isEqualTo("sms");
+                    assertThat(delivery.channelName()).isEqualTo("短信通知通道");
+                    assertThat(delivery.status()).isEqualTo("NOT_CONNECTED");
+                    assertThat(delivery.compensationRequired()).isTrue();
+                    assertThat(delivery.errorMessage()).contains("未接入真实外部发送连接器");
+                }));
     }
 
     @Test
