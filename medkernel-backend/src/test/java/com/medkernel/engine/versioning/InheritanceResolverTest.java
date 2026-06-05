@@ -112,6 +112,61 @@ class InheritanceResolverTest {
             .contains("继承上级组织版本");
     }
 
+    @Test
+    void exclusiveOverrideDoesNotPropagateToDescendants() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit department = org("dept-x", "hospital-a", "/TENANT-A/GROUP-A/HOSP-A/DEPT-X", OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion groupV1 = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion hospitalExclusive = version(
+            "av-hosp-excl", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride exclusiveOverride = override(
+            "io-hosp-excl",
+            groupV1.versionId(),
+            hospitalExclusive.versionId(),
+            hospital.orgPath(),
+            "仅本院镇痛路径",
+            "本院专用，不下沉科室",
+            "仅 HOSP-A 本级",
+            InheritancePropagation.EXCLUSIVE
+        );
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", department.id()))
+            .thenReturn(List.of(group, hospital, department));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + department.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + hospital.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(hospitalExclusive));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + group.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(groupV1));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalExclusive.versionId()))
+            .thenReturn(Optional.of(exclusiveOverride));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", groupV1.versionId()))
+            .thenReturn(Optional.empty());
+
+        // 覆盖所在节点（医院本级）命中 EXCLUSIVE 版本
+        ResolvedAssetVersion atHospital = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+        assertThat(atHospital.version()).isEqualTo(hospitalExclusive);
+        assertThat(atHospital.overridden()).isTrue();
+        assertThat(atHospital.inherited()).isFalse();
+
+        // 下级科室不继承祖先 EXCLUSIVE 覆盖，回退到集团版本
+        ResolvedAssetVersion atDepartment = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", department.id()));
+        assertThat(atDepartment.version()).isEqualTo(groupV1);
+        assertThat(atDepartment.inherited()).isTrue();
+        assertThat(atDepartment.overridden()).isFalse();
+        assertThat(atDepartment.sourceOrgPath()).isEqualTo(group.orgPath());
+    }
+
     private OrgUnit org(String id, String parentId, String orgPath, OrgLevel level, String code) {
         return new OrgUnit(
             id,
@@ -165,6 +220,19 @@ class InheritanceResolverTest {
             String diffSummary,
             String overrideReason,
             String impactScope) {
+        return override(overrideId, inheritedVersionId, overrideVersionId, orgPath,
+            diffSummary, overrideReason, impactScope, InheritancePropagation.INHERITABLE);
+    }
+
+    private InheritanceOverride override(
+            String overrideId,
+            String inheritedVersionId,
+            String overrideVersionId,
+            String orgPath,
+            String diffSummary,
+            String overrideReason,
+            String impactScope,
+            InheritancePropagation propagation) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new InheritanceOverride(
             1L,
@@ -175,7 +243,7 @@ class InheritanceResolverTest {
             inheritedVersionId,
             overrideVersionId,
             InheritanceOverrideMode.REPLACE,
-            InheritancePropagation.INHERITABLE,
+            propagation,
             orgPath,
             "adult|inpatient",
             diffSummary,

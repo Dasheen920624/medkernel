@@ -58,6 +58,11 @@ public class InheritanceResolver {
             Optional<InheritanceOverride> override = overrides.findByTenantIdAndOverrideVersionId(
                 tenantId, selected.versionId());
             boolean inherited = !candidate.orgPath().equals(target.orgPath());
+            // 传播判定：祖先节点的 EXCLUSIVE 覆盖仅本节点生效、不向下沉；下级跳过它，回退到上一层适用版本
+            if (inherited && override.isPresent()
+                    && override.get().propagation() == InheritancePropagation.EXCLUSIVE) {
+                continue;
+            }
             boolean overridden = override.isPresent();
             return new ResolvedAssetVersion(
                 selected,
