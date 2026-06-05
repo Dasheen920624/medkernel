@@ -23,6 +23,7 @@ import AdapterHub from "./tenant/AdapterHub";
 import EmbedLaunch from "./clinical/EmbedLaunch";
 import QcEvalResults from "./quality/QcEvalResults";
 import QcEvalSets from "./quality/QcEvalSets";
+import AiReview from "./quality/AiReview";
 import PatientPathways from "./clinical/PatientPathways";
 import Mpi from "./clinical/Mpi";
 import CdssFatigue from "./clinical/CdssFatigue";
@@ -314,6 +315,12 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
     expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
+  });
+
+  it("renders the quality ai-review page through the real knowledge review loading state", () => {
+    renderPage(<AiReview />);
+    expect(screen.getByRole("heading", { name: "AI 知识审核" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载 AI 知识审核")).toBeInTheDocument();
   });
 
   it("renders the clinical patient-pathways console", () => {

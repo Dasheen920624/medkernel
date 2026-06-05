@@ -233,7 +233,7 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | INSAUDIT-01 | 医保智能审核页真实化 | 接 [SVC-QUALITY-02](cards/D4/SVC-QUALITY-02.md) 真实医保问题列表 + 病案内涵 + DRG/DIP + 医保审核整改联动；六态 + 五维 RBAC + B0 | 3d | done |
 | EVALSET-01 | 评估指标库页真实化 | 接 [EVAL-01](cards/D4/EVAL-01.md) 真实指标台账 / 条件树创建 / 生命周期流转 / 快照仿真；六态 + 五维 RBAC + 7 步流 | 3d | done |
 | EVALRES-01 | 评估结果页真实化 | 接 [EVAL-01](cards/D4/EVAL-01.md) 真实评估结果 / 质控问题 / 病历证据追溯 + [SVC-QUALITY-03](cards/D4/SVC-QUALITY-03.md) 派整改；六态 + 五维 RBAC | 3d | done |
-| AIREVIEW-01 | AI 知识审核页真实化 | 接真实知识审核/发布 API；先做“审/发”，AI 生成留第二波；六态 + 五维 RBAC + B0；每页必交见质量基线 | 3d | pending |
+| AIREVIEW-01 | AI 知识审核页真实化 | 接真实知识审核/发布 API；先做“审/发”，AI 生成留第二波；六态 + 五维 RBAC + B0；每页必交见质量基线 | 3d | done |
 | **D4-验收** | **质控改进域级验收** | 配指标 → 评估命中 → 生成问题 → 派整改 → 复核闭环 + 驾驶舱下钻，全 B0 真实可跑 | — | pending |
 
 **小计**：8 项（原 ID）+ 6 页面 + 1 域级验收

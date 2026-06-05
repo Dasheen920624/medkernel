@@ -428,6 +428,229 @@ function compactParams<T extends object>(params: T): Partial<T> {
   ) as Partial<T>;
 }
 
+// ──────────────────────────────────────────
+// 知识资产审核 · API-03 / KNOW-02 客户面
+// ──────────────────────────────────────────
+
+const KNOWLEDGE_API_ROOT = "/engine/knowledge";
+
+export type KnowledgeDomain =
+  | "GUIDELINE"
+  | "DRUG"
+  | "PATHWAY_KNOWLEDGE"
+  | "NURSING"
+  | "REPORT"
+  | "TCM"
+  | "PROTOCOL"
+  | "POLICY"
+  | "LITERATURE"
+  | "OTHER"
+  | "DIAGNOSIS"
+  | string;
+
+export type KnowledgeIdentityStatus = "ACTIVE" | "WITHDRAWN" | "ARCHIVED" | string;
+
+export type KnowledgeVersionStatus =
+  | "DRAFT"
+  | "CANDIDATE"
+  | "PENDING_REPLACEMENT_REVIEW"
+  | "UNDER_REVIEW"
+  | "ACTIVE"
+  | "SUPERSEDED"
+  | "WITHDRAWN"
+  | "REJECTED"
+  | string;
+
+export type CandidateClassificationType =
+  | "NEW_ASSET"
+  | "SAME_IDENTITY_NEW_VERSION"
+  | "DUPLICATE"
+  | "CONFLICT"
+  | string;
+
+export type CandidateReviewStatus =
+  | "PENDING_REPLACEMENT_REVIEW"
+  | "DUPLICATE_SKIPPED"
+  | "APPROVED"
+  | "REJECTED"
+  | string;
+
+export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT";
+
+export interface KnowledgeIdentity {
+  id: number;
+  tenantId: string;
+  identityCode: string;
+  domain: KnowledgeDomain;
+  subject: string;
+  specialtyId?: string | null;
+  description?: string | null;
+  status: KnowledgeIdentityStatus;
+  currentVersionId?: number | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface KnowledgeAssetVersion {
+  id: number;
+  tenantId: string;
+  identityId: number;
+  versionNo: string;
+  versionLabel?: string | null;
+  sourceDocumentId?: number | null;
+  sourceVersionId?: number | null;
+  contentHash?: string | null;
+  anchors?: string | null;
+  status: KnowledgeVersionStatus;
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  authorityLevel?: string | null;
+  gradeQuality?: string | null;
+  gradeStrength?: string | null;
+  conflictArbitration?: string | null;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  activeScopeKey?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  activatedAt?: string | null;
+  supersededAt?: string | null;
+  withdrawnAt?: string | null;
+  withdrawnReason?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface CandidateClassification {
+  id: number;
+  tenantId: string;
+  orgPath?: string | null;
+  identityId: number;
+  candidateVersionId: number;
+  activeVersionId?: number | null;
+  classification: CandidateClassificationType;
+  reviewStatus: CandidateReviewStatus;
+  contentHash?: string | null;
+  basis?: string | null;
+  diffSummary?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface KnowledgeCandidateResponse {
+  identityId: number;
+  candidates: KnowledgeAssetVersion[];
+  classifications: CandidateClassification[];
+  available: boolean;
+  reasonCode?: string | null;
+  message?: string | null;
+}
+
+export interface KnowledgeIdentityQueryParams {
+  domain?: KnowledgeDomain;
+  specialtyId?: string;
+  status?: KnowledgeIdentityStatus;
+  keyword?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+const EMPTY_KNOWLEDGE_CANDIDATES: KnowledgeCandidateResponse = {
+  identityId: 0,
+  candidates: [],
+  classifications: [],
+  available: false,
+  reasonCode: "NO_IDENTITY_SELECTED",
+  message: "未选择知识身份。",
+};
+
+export function useKnowledgeIdentities(params: KnowledgeIdentityQueryParams = {}) {
+  const requestParams = compactParams({
+    domain: params.domain,
+    specialtyId: params.specialtyId,
+    status: params.status,
+    keyword: params.keyword,
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+    sort: params.sort ?? "updatedAt,desc",
+  });
+  return useQuery({
+    queryKey: ["knowledge", "identities", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeIdentity> }>(
+        `${KNOWLEDGE_API_ROOT}/identities`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeCandidates(identityId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "candidates", identityId],
+    enabled: Boolean(identityId),
+    queryFn: async () => {
+      if (!identityId) return EMPTY_KNOWLEDGE_CANDIDATES;
+      const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/identities/${identityId}/candidates`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeCandidateDiff(candidateId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "candidate-diff", candidateId],
+    enabled: Boolean(candidateId),
+    queryFn: async () => {
+      if (!candidateId) return EMPTY_KNOWLEDGE_CANDIDATES;
+      const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/candidates/${candidateId}/diff`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useReviewKnowledgeCandidate() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      candidateId: number;
+      packageVersion: string;
+      request: { decision: KnowledgeCandidateReviewDecision; reason?: string };
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const config = headers ? { headers } : undefined;
+      const { data } = await apiClient.post<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/candidates/${payload.candidateId}/review`,
+        withStandardApiContext(payload.request, security.data, payload.packageVersion),
+        config,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidates"] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidate-diff"] });
+    },
+  });
+}
+
 export function useTerminologyMappings(params?: TerminologyMappingsParams) {
   return useQuery({
     queryKey: ["terminology", "mappings", params ?? {}],
