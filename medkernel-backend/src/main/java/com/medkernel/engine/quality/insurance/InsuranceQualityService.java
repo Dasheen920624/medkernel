@@ -27,6 +27,8 @@ import com.medkernel.engine.evaluation.EvaluationRunResponse;
 import com.medkernel.engine.evaluation.EvaluationRunType;
 import com.medkernel.engine.evaluation.EvaluationSubjectType;
 import com.medkernel.engine.evaluation.QualityFindingRequest;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
@@ -57,6 +59,25 @@ public class InsuranceQualityService {
         this.snapshots = snapshots;
         this.claims = claims;
         this.evaluations = evaluations;
+    }
+
+    /**
+     * 查询真实医保病案问题列表，按当前租户作用域服务端分页。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<InsuranceIssuePageItemResponse> listInsuranceIssues(
+            InsuranceIssueFilter filter, PageRequest pageRequest) {
+        PageRequest req = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        QueryParts query = insuranceIssueListQuery(tenantId(), filter);
+        long total = count(new QueryParts(
+            new StringBuilder("SELECT COUNT(*) FROM (" + query.sql() + ") t"),
+            new ArrayList<>(query.params())));
+        query.sql().append(" ORDER BY created_at DESC, issue_id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        query.params().add(req.offset());
+        query.params().add(req.safeSize());
+        List<InsuranceIssuePageItemResponse> rows = jdbc.query(
+            query.sql().toString(), this::mapIssuePageItem, query.params().toArray());
+        return PageResponse.of(rows, req, total);
     }
 
     /**
@@ -369,6 +390,62 @@ public class InsuranceQualityService {
             rs.getString("trace_id"));
     }
 
+    private InsuranceIssuePageItemResponse mapIssuePageItem(ResultSet rs, int rowNum) throws SQLException {
+        return new InsuranceIssuePageItemResponse(
+            rs.getString("issue_id"),
+            rs.getString("claim_id"),
+            InsuranceIssueType.valueOf(rs.getString("issue_type")),
+            com.medkernel.engine.evaluation.QualityFindingSeverity.valueOf(rs.getString("severity")),
+            InsuranceIssueStatus.valueOf(rs.getString("status")),
+            rs.getString("rule_code"),
+            rs.getString("rule_version"),
+            rs.getBigDecimal("claim_amount"),
+            rs.getBigDecimal("threshold_amount"),
+            rs.getString("evidence_summary"),
+            rs.getString("department_id"),
+            rs.getString("evaluation_run_id"),
+            rs.getString("trace_id"),
+            toInstant(rs.getTimestamp("created_at")));
+    }
+
+    private QueryParts insuranceIssueListQuery(String tenantId, InsuranceIssueFilter filter) {
+        QueryParts query = new QueryParts(new StringBuilder("""
+            SELECT issue_id, claim_id, issue_type, severity, status, rule_code, rule_version,
+                   claim_amount, threshold_amount, evidence_summary, department_id,
+                   evaluation_run_id, trace_id, created_at
+            FROM mk_quality_insurance_issue
+            WHERE tenant_id = ?
+            """), new ArrayList<>(List.of(tenantId)));
+        if (filter != null) {
+            if (filter.status() != null) {
+                query.sql().append(" AND status = ?");
+                query.params().add(filter.status().name());
+            }
+            if (filter.severity() != null) {
+                query.sql().append(" AND severity = ?");
+                query.params().add(filter.severity().name());
+            }
+            if (hasText(filter.departmentId())) {
+                query.sql().append(" AND department_id = ?");
+                query.params().add(filter.departmentId());
+            }
+            if (filter.from() != null) {
+                query.sql().append(" AND created_at >= ?");
+                query.params().add(Timestamp.from(filter.from()));
+            }
+            if (filter.to() != null) {
+                query.sql().append(" AND created_at <= ?");
+                query.params().add(Timestamp.from(filter.to()));
+            }
+        }
+        return query;
+    }
+
+    private long count(QueryParts query) {
+        Long value = jdbc.queryForObject(query.sql().toString(), Long.class, query.params().toArray());
+        return value == null ? 0L : value;
+    }
+
     private ContextSnapshot snapshot(String tenantId, String snapshotId) {
         return snapshots.findBySnapshotIdAndTenantId(snapshotId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_001, "病案上下文快照不存在"));
@@ -439,6 +516,10 @@ public class InsuranceQualityService {
         return String.join(", ", java.util.Collections.nCopies(size, "?"));
     }
 
+    private Instant toInstant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
     private String shortDigest(String... parts) {
         return digestHex(parts).substring(0, 24).toLowerCase(Locale.ROOT);
     }
@@ -463,4 +544,6 @@ public class InsuranceQualityService {
     private static String nullToBlank(String value) {
         return value == null ? "" : value;
     }
+
+    private record QueryParts(StringBuilder sql, List<Object> params) {}
 }

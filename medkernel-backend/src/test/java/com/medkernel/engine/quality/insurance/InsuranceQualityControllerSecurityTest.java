@@ -3,14 +3,18 @@ package com.medkernel.engine.quality.insurance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
 import com.medkernel.engine.evaluation.EvaluationModelStatus;
 import com.medkernel.engine.evaluation.QualityFindingSeverity;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -125,6 +129,28 @@ class InsuranceQualityControllerSecurityTest {
                     .claim("roles", List.of("qa-manager")))
                     .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
             .andExpect(status().isCreated());
+    }
+
+    @Test
+    void qualityManagerCanReadTenantScopedInsuranceIssues() throws Exception {
+        when(service.listInsuranceIssues(any(), any())).thenReturn(PageResponse.of(List.of(
+            new InsuranceIssuePageItemResponse(
+                "ins-1", "claim-1", InsuranceIssueType.FEE, QualityFindingSeverity.P1,
+                InsuranceIssueStatus.OPEN, "RULE-FEE-A", "2026-A",
+                new BigDecimal("1200.00"), new BigDecimal("1000.00"),
+                "结算事实 claim-1；规则 RULE-FEE-A@2026-A",
+                "dept-insurance", null, "trace-ins", Instant.parse("2026-06-05T00:00:00Z"))
+        ), new PageRequest(1, 20, null), 1));
+
+        mvc.perform(get("/api/v1/engine/quality/insurance-issues")
+                .param("status", "OPEN")
+                .param("severity", "P1")
+                .with(jwt().jwt(token -> token
+                    .subject("qa-1")
+                    .claim("tenant_id", "tenant-A")
+                    .claim("roles", List.of("qa-manager")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+            .andExpect(status().isOk());
     }
 
     @Test

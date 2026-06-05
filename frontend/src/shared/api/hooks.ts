@@ -2504,6 +2504,127 @@ export interface QualityDashboardDrilldownResponse {
   hasNext: boolean;
 }
 
+export type InsuranceIssueType = "CODING" | "FEE" | "DRG" | "CLAIM_STATUS" | string;
+export type InsuranceIssueStatus =
+  | "OPEN"
+  | "RECTIFICATION_CREATED"
+  | "RESOLVED"
+  | "WAIVED"
+  | string;
+export type InsuranceAuditStatus = "ISSUE_FOUND" | "NO_ISSUE" | "INSUFFICIENT_DATA" | string;
+export type CaseReviewStatus = "PASS" | "NON_COMPLIANT" | string;
+export type DrgGroupingStatus = "MATCHED" | "MISMATCHED" | string;
+
+export interface InsuranceIssueResponse {
+  issueId: string;
+  claimId: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  status: InsuranceIssueStatus;
+  ruleCode: string;
+  ruleVersion: string;
+  claimAmount: number | null;
+  thresholdAmount: number | null;
+  evidenceSummary: string;
+  traceId: string | null;
+}
+
+export interface InsuranceIssuePageItem {
+  issueId: string;
+  claimId: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  status: InsuranceIssueStatus;
+  ruleCode: string;
+  ruleVersion: string;
+  claimAmount: number | null;
+  thresholdAmount: number | null;
+  evidenceSummary: string;
+  departmentId: string | null;
+  evaluationRunId: string | null;
+  traceId: string | null;
+  createdAt: string;
+}
+
+export interface InsuranceIssuesQueryParams {
+  status?: InsuranceIssueStatus;
+  severity?: QualityFindingSeverity | string;
+  departmentId?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface QualityCaseReviewRequest {
+  contextSnapshotId: string;
+  scenarioCode: string;
+  packageVersion?: string;
+  responsibleDepartmentId: string;
+}
+
+export interface QualityCaseReviewResponse {
+  reviewId: string;
+  reviewStatus: CaseReviewStatus;
+  evaluationRunId: string;
+  resultCount: number;
+  findingCount: number;
+  taskCount: number;
+  modelStatus: string;
+  modelDowngradeReason?: string;
+  traceId: string;
+}
+
+export interface DrgGroupingRequest {
+  contextSnapshotId: string;
+  grouperVersion: string;
+  expectedGroupCode: string;
+  actualGroupCode: string;
+  responsibleDepartmentId: string;
+  explanation: string;
+}
+
+export interface DrgGroupingResponse {
+  groupingId: string;
+  groupingStatus: DrgGroupingStatus;
+  expectedGroupCode: string;
+  actualGroupCode: string;
+  grouperVersion: string;
+  explanation: string;
+  traceId: string;
+}
+
+export interface InsuranceAuditRuleRequest {
+  ruleCode: string;
+  ruleVersion: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  maxAmount?: number;
+  requiredClaimStatus?: string;
+  requiredClaimType?: string;
+  description: string;
+}
+
+export interface InsuranceAuditRequest {
+  contextSnapshotId: string;
+  scenarioCode: string;
+  packageVersion?: string;
+  indicatorId: string;
+  responsibleDepartmentId: string;
+  dueAt: string;
+  rules: InsuranceAuditRuleRequest[];
+}
+
+export interface InsuranceAuditResponse {
+  auditId: string;
+  auditStatus: InsuranceAuditStatus;
+  issues: InsuranceIssueResponse[];
+  evaluationRunId: string | null;
+  findingCount: number;
+  taskCount: number;
+  traceId: string;
+}
+
 export interface QualityDashboardQueryParams {
   from?: string;
   to?: string;
@@ -2646,6 +2767,55 @@ export function useQualityFindings(params?: {
       const { data } = await apiClient.get<{ data: PageResponse<QualityFinding> }>(
         "/engine/evaluation/issues",
         { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useInsuranceIssues(params?: InsuranceIssuesQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "insurance-issues", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<InsuranceIssuePageItem> }>(
+        "/engine/quality/insurance-issues",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunQualityCaseReview() {
+  return useMutation({
+    mutationFn: async (request: QualityCaseReviewRequest) => {
+      const { data } = await apiClient.post<{ data: QualityCaseReviewResponse }>(
+        "/engine/quality/case-review",
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunDrgGrouping() {
+  return useMutation({
+    mutationFn: async (request: DrgGroupingRequest) => {
+      const { data } = await apiClient.post<{ data: DrgGroupingResponse }>(
+        "/engine/quality/drg-grouping",
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunInsuranceAudit() {
+  return useMutation({
+    mutationFn: async (request: InsuranceAuditRequest) => {
+      const { data } = await apiClient.post<{ data: InsuranceAuditResponse }>(
+        "/engine/quality/insurance-audit",
+        request,
       );
       return data.data;
     },

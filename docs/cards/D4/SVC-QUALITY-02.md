@@ -14,8 +14,8 @@
 ## 目标
 把**病历内涵 + DRG/DIP + 编码 + 费用 + 医保审核**编排为服务包：对病案做内涵质控、DRG/DIP 入组核对、编码/费用合规、医保违规识别，全部**可追溯病历证据、不臆造违规**。
 
-## 现状（2026-06-05，以 `medkernel-backend` 为准）
-已建后端 B0 服务包：`com.medkernel.engine.quality.insurance` 提供病案内涵质控、DRG/DIP 入组核对与医保审核三类接口；病案内涵复用 [EVAL-01](EVAL-01.md) 评估运行，DRG/DIP 按请求中的版本化分组结果做可解释核对，医保审核读取真实 `mk_clinical_claim` 结算事实并按版本化规则生成问题与整改联动。无结算事实时返回 `INSUFFICIENT_DATA`，不臆造违规；前端 `quality/InsuranceAudit.tsx` 仍由页卡 [INSAUDIT-01](INSAUDIT-01.md) 真实化。
+## 现状（2026-06-06，以 `medkernel-backend` / `frontend/src` 为准）
+已建后端 B0 服务包：`com.medkernel.engine.quality.insurance` 提供病案内涵质控、DRG/DIP 入组核对、医保审核三类执行接口，以及真实医保问题分页读取接口；病案内涵复用 [EVAL-01](EVAL-01.md) 评估运行，DRG/DIP 按请求中的版本化分组结果做可解释核对，医保审核读取真实 `mk_clinical_claim` 结算事实并按版本化规则生成问题与整改联动。无结算事实时返回 `INSUFFICIENT_DATA`，不臆造违规；前端 `quality/InsuranceAudit.tsx` 已由页卡 [INSAUDIT-01](INSAUDIT-01.md) 消费这些真实接口。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 病历内涵：对病案跑内涵质控（复用 [EVAL-01](EVAL-01.md)），问题追溯病历。
@@ -26,8 +26,9 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/quality/case-review`（病案内涵）· `POST .../quality/drg-grouping`（入组）· `POST .../quality/insurance-audit`（医保审核）
+- 端点：`GET /api/v1/engine/quality/insurance-issues`（医保问题分页读取）· `POST /api/v1/engine/quality/case-review`（病案内涵）· `POST .../quality/drg-grouping`（入组）· `POST .../quality/insurance-audit`（医保审核）
 - DTO：病案/DRG/医保审核 Record；信封 `ApiResult`/`ProblemDetail`；状态机：待办类（问题→整改→复核）
+- 读取权限：`evaluation.read`；执行权限：`evaluation.execute`；均按当前租户作用域过滤。
 - 幂等 / traceId：审核幂等可复现；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
@@ -65,6 +66,6 @@
 
 ## 完工证据
 - 代码：`InsuranceQualityController` / `InsuranceQualityService` / V84 五方言 `V84__insurance_quality_service.sql`。
-- 测试：`InsuranceQualityServiceTest` 覆盖病案内涵、DRG/DIP、医保真实结算事实、无事实诚实降级、责任科室落库、本次整改只更新本次问题；`InsuranceQualityControllerSecurityTest` 覆盖未认证、质控角色与普通医生权限。
+- 测试：`InsuranceQualityServiceTest` 覆盖病案内涵、DRG/DIP、医保真实结算事实、无事实诚实降级、责任科室落库、本次整改只更新本次问题、医保问题列表租户作用域筛选分页；`InsuranceQualityControllerSecurityTest` 覆盖未认证、质控角色、普通医生权限与医保问题读取权限。
 - 验证：`mvn -q -Dtest=InsuranceQualityServiceTest,InsuranceQualityControllerSecurityTest,ServiceContractGovernanceTest,DomainOwnershipContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`；`mvn -q test`；`npm run verify`；`npm run build`。
 - 审计员签字：@待审（owner ≠ reviewer）。

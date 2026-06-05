@@ -12,6 +12,7 @@ import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
 import Notifications from "./clinical/Notifications";
 import QcAlerts from "./quality/QcAlerts";
+import InsuranceAudit from "./quality/InsuranceAudit";
 import AdminUsers from "./compliance/AdminUsers";
 import GraphExplore from "./advanced/GraphExplore";
 import AiWorkflows from "./advanced/AiWorkflows";
@@ -201,6 +202,12 @@ describe("page smoke coverage", () => {
     renderPage(<QcAlerts />);
     expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
     expect(screen.getByText("当前筛选下暂无真实质控预警")).toBeInTheDocument();
+  });
+
+  it("renders the quality insurance-audit page with the real empty state", () => {
+    renderPage(<InsuranceAudit />);
+    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
   });
 
   it("renders the compliance admin-users console", () => {
