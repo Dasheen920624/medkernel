@@ -9,31 +9,31 @@
 - 关联场景：S14 用户、权限与合规
 - 依赖卡：[BASE-04](../D0/BASE-04.md) 审计 · [SYS-06](SYS-06.md) 证据框架 · [SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md) 导出 · [BASE-05](../D0/BASE-05.md) 方言
 - 工作量：4d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner / reviewer：Codex / PR 审阅人（owner ≠ reviewer）
 
 ## 目标
 把证据链做成 **B0 真实**：对关键合规事件生成**真实文件证据 + 国密签名 + 可验签**，大导出返回**真实文件 URI**，证据不可篡改、可追溯，**绝不伪造签名哈希/假文件**。
 
-## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-已有实质基础：`com/medkernel/compliance/evidence/` 下 `EvidenceController` + `EvidenceService` + `EvidenceSnapshot(+Repository)` + `EvidenceCreateDto` + `EvidenceResponse` + `EvidenceVerifyResult`。本卡＝把"真实文件 + 国密签名 + 验签 + 大导出真实 URI"框架化/补全，非从零。
+## 现状（2026-06-06，以 `medkernel-backend` 为准）
+已有实质基础：`com/medkernel/compliance/evidence/` 下 `EvidenceController` + `EvidenceService` + `EvidenceSnapshot(+Repository)` + `EvidenceCreateDto` + `EvidenceResponse` + `EvidenceVerifyResult`。本卡本 PR 已把"真实文件 + SM3 摘要 + SM3_WITH_SM2 签名 + 验签 + 大导出真实 URI"框架化补全；当前文件落本地证据目录并通过 API URI 下载，不冒领客户现场对象存储或国产化真实环境运行。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 证据生成：对合规事件生成证据快照（`EvidenceSnapshot`），含真实文件内容。
-- [ ] FR-2 国密签名：证据用国密算法签名，签名与摘要落库、可独立验证。
-- [ ] FR-3 验签：`EvidenceVerifyResult` 验签真实，篡改即失败、不放过。
-- [ ] FR-4 大导出：大证据包导出返回**真实文件 URI**（对象存储），不伪造下载。
-- [ ] FR-5 不可篡改：证据一经签名不可改，改动留新版本 + 审计。
+- [x] FR-1 证据生成：对合规事件生成证据快照（`EvidenceSnapshot`），含真实文件内容。
+- [x] FR-2 国密签名：证据用国密算法签名，签名与摘要落库、可独立验证。
+- [x] FR-3 验签：`EvidenceVerifyResult` 验签真实，篡改即失败、不放过。
+- [x] FR-4 大导出：大证据包导出返回**真实文件 URI**，不伪造下载。
+- [x] FR-5 不可篡改：证据一经签名不可改；当前 create-only API 拒绝重复 `evidenceId`，篡改验签失败并记录失败审计，新业务证据以新 `evidenceId` 承接。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/compliance/evidence`（生成）· `GET .../evidence/{id}`（取）· `POST .../evidence/{id}:verify`（验签）· `POST .../evidence:export`（大导出真实 URI）
+- 端点：`POST /api/v1/compliance/evidence/snapshots`（生成）· `GET .../snapshots/{evidenceId}`（取）· `GET .../snapshots/{evidenceId}/file`（下载真实文件）· `POST .../snapshots/{evidenceId}/verify`（验签）· `POST .../snapshots/export`（大导出真实 URI）· `GET .../snapshots/export/{archiveDigestHex}/download`（下载证据包）
 - DTO：`EvidenceCreateDto` → `EvidenceResponse` / `EvidenceVerifyResult`；信封 `ApiResult`/`ProblemDetail`
-- 状态机：配置类（生成→已签名→已归档）；trace（[OBS-01](../D0/OBS-01.md)）
-- 幂等 / 错误码：证据幂等键；验签失败明确错误码
+- 状态机：生成→已签名→已归档；trace（[OBS-01](../D0/OBS-01.md)）
+- 幂等 / 错误码：`evidenceId` 唯一防重；验签失败发布 `ENG-EVID-002` 失败审计；重复创建返回 `ENG-EVID-003`
 
 ## 数据与迁移
-- 表族：`evidence_snapshot`（摘要 + 签名 + 文件 URI + 组织字段 + 版本 + 审计）；文件落对象存储；五方言（[BASE-05](../D0/BASE-05.md)）
-- 唯一约束：证据 ID + 签名唯一；索引：来源事件/时间
+- 表族：`evidence_snapshot`（摘要 + 签名 + 文件 URI + 组织字段 + 审计）；文件落本地证据目录并由 API 暴露真实 URI；V89 五方言补 `file_uri` / `file_digest` / `signature_algorithm` / `signature_value` / `signer_public_key`（[BASE-05](../D0/BASE-05.md)）
+- 唯一约束：`evidence_id` 唯一；索引：租户 + 证据类型、traceId
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：合规证据的"出厂 + 验真"底座。
@@ -53,14 +53,14 @@
 - 本卡落点：真实文件 + 国密签名 + 验签 + 真实导出 URI 的证据链。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：证据含真实文件、国密签名落库。
-- [ ] AC-2（FR-3/5）：验签真实、篡改必败、不可改。
-- [ ] AC-3（FR-4）：大导出返回真实文件 URI（非伪造）。
+- [x] AC-1（FR-1/2）：证据含真实文件、国密签名落库。
+- [x] AC-2（FR-3/5）：验签真实、篡改必败、不可改。
+- [x] AC-3（FR-4）：大导出返回真实文件 URI（非伪造）。
 - 关联 A1–A9 剧本：A9 证据导出。
 - T-GATE：后端真实性门禁全绿（无伪造签名/文件）。
 - B0 验收：证据/签名纯确定性，关模型可用。
 
 ## 完工证据
-- 代码 permalink：`compliance/evidence` 国密签名 + 验签 + 真实导出。
-- 测试：签名/验签/篡改必败/真实 URI 导出 + 安全测试。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码 permalink：`compliance/evidence` 国密签名 + 验签 + 真实文件 / 真实导出；V89 五方言迁移；前端证据 API 类型。
+- 测试：`EvidenceServiceTest` 覆盖签名 / 验签 / 篡改必败 / 真实 URI 导出；`EvidenceCreateDtoValidationTest` 覆盖证据 ID 路径安全；`EvidenceControllerSecurityTest` 覆盖下载端点权限；`MigrationBaselineContractTest` + H2/Flyway smoke 覆盖 V89。
+- 审计员签字：PR 审阅人（owner ≠ reviewer）。
