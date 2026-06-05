@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -17,8 +19,8 @@ public interface PackageItemRepository extends ListCrudRepository<PackageItem, L
     Optional<PackageItem> findByItemIdAndTenantId(String itemId, String tenantId);
 
     Optional<PackageItem> findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
-        String tenantId, String packageId, PackageItemAssetType assetType, String assetId);
+        String tenantId, String packageId, VersionedAssetType assetType, String assetId);
 
     List<PackageItem> findByTenantIdAndAssetTypeAndAssetId(
-        String tenantId, PackageItemAssetType assetType, String assetId);
+        String tenantId, VersionedAssetType assetType, String assetId);
 }

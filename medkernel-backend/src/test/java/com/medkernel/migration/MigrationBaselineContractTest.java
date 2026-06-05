@@ -113,7 +113,8 @@ class MigrationBaselineContractTest {
         "V84__insurance_quality_service.sql",
         "V85__org_unit_platform_level.sql",
         "V86__emr_level_target_mapping.sql",
-        "V87__emr_level_evidence_package.sql"
+        "V87__emr_level_evidence_package.sql",
+        "V88__asset_type_unification.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -914,6 +915,26 @@ class MigrationBaselineContractTest {
                 .contains("payload_ndjson")
                 .contains("idx_emr_level_pkg_target")
                 .contains("comment on table mk_emr_level_evidence_package");
+        }
+    }
+
+    @Test
+    void v88ShouldUnifyAssetTypeEnumForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V88__asset_type_unification.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 资产类型枚举归一（mk_version_asset_version + package_item 两处 CHECK 放宽到统一 11 值）", dialect)
+                .contains("drop constraint")
+                .contains("ck_mk_version_asset_version_type")
+                .contains("ck_package_item_asset_type")
+                .contains("field_catalog")
+                .contains("recommendation")
+                .contains("cdss_risk")
+                .contains("comment on column mk_version_asset_version.asset_type")
+                .contains("comment on column package_item.asset_type");
         }
     }
 

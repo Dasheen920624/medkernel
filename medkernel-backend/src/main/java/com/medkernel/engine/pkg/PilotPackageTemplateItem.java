@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import java.time.Instant;
 
 import org.springframework.data.annotation.Id;
@@ -15,7 +17,7 @@ public record PilotPackageTemplateItem(
     @Column("item_id") String itemId,
     @Column("tenant_id") String tenantId,
     @Column("template_id") String templateId,
-    @Column("asset_type") PackageItemAssetType assetType,
+    @Column("asset_type") VersionedAssetType assetType,
     @Column("asset_id") String assetId,
     @Column("asset_version") String assetVersion,
     @Column("required_flag") Boolean requiredFlag,

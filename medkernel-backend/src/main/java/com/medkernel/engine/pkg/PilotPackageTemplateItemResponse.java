@@ -1,10 +1,12 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 /**
  * 首发模板资产项响应。
  */
 public record PilotPackageTemplateItemResponse(
-    PackageItemAssetType assetType,
+    VersionedAssetType assetType,
     String assetId,
     String assetVersion,
     boolean required,
