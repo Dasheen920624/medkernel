@@ -116,7 +116,8 @@ class MigrationBaselineContractTest {
         "V87__emr_level_evidence_package.sql",
         "V88__asset_type_unification.sql",
         "V89__evidence_file_uri_sm_signature.sql",
-        "V90__compliance_data_permission_policy.sql"
+        "V90__compliance_data_permission_policy.sql",
+        "V91__compliance_masking_rule.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -149,7 +150,7 @@ class MigrationBaselineContractTest {
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",
-        "evidence_snapshot", "mk_compliance_data_permission",
+        "evidence_snapshot", "mk_compliance_data_permission", "mk_compliance_masking_rule",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
@@ -271,6 +272,7 @@ class MigrationBaselineContractTest {
         "idx_integ_regional_tenant_trust", "idx_integ_regional_org",
         "idx_evd_tenant", "idx_evd_trace",
         "idx_compliance_data_permission_scope", "idx_compliance_data_permission_resource",
+        "idx_compliance_masking_rule_resource", "idx_compliance_masking_rule_status",
         "idx_mpi_patient_tenant_status",
         "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
@@ -438,6 +440,9 @@ class MigrationBaselineContractTest {
         "uk_compliance_data_permission_policy", "ck_compliance_data_permission_action",
         "ck_compliance_data_permission_level", "ck_compliance_data_permission_status",
         "ck_compliance_data_permission_version",
+        "uk_compliance_masking_rule", "ck_compliance_masking_rule_strategy",
+        "ck_compliance_masking_rule_status", "ck_compliance_masking_rule_keep",
+        "ck_compliance_masking_rule_version",
         "uk_tenant_branding", "uk_tenant_success_plan",
         "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
         "ck_mpi_merge_review_status", "ck_dqr_required_nonneg", "ck_dqr_adapter_nonneg",
@@ -986,6 +991,32 @@ class MigrationBaselineContractTest {
                 .contains("idx_compliance_data_permission_scope")
                 .contains("idx_compliance_data_permission_resource")
                 .contains("comment on table mk_compliance_data_permission");
+        }
+    }
+
+    @Test
+    void v91ShouldCreateComplianceMaskingRuleForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V91__compliance_masking_rule.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s SYS-06 后端脱敏规则表", dialect)
+                .contains("mk_compliance_masking_rule")
+                .contains("resource_type")
+                .contains("field_name")
+                .contains("scenario_code")
+                .contains("strategy")
+                .contains("mask_char")
+                .contains("prefix_keep")
+                .contains("suffix_keep")
+                .contains("uk_compliance_masking_rule")
+                .contains("ck_compliance_masking_rule_strategy")
+                .contains("ck_compliance_masking_rule_status")
+                .contains("idx_compliance_masking_rule_resource")
+                .contains("idx_compliance_masking_rule_status")
+                .contains("comment on table mk_compliance_masking_rule");
         }
     }
 
