@@ -331,6 +331,43 @@ describe("Notifications", () => {
     expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
   });
 
+  it("shows an honest trace status when notifications have no trace id", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: {
+        items: [
+          {
+            notificationId: "notify-no-trace",
+            sourceType: "FOLLOWUP_EVENT",
+            sourceId: "event-no-trace",
+            dedupeKey: "followup:event-no-trace",
+            title: "随访异常通知",
+            message: "患者报告呼吸困难，需要处理。",
+            level: "HIGH",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            traceId: null,
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("来源对象 event-no-trace")).toBeInTheDocument();
+    expect(screen.getByText("追踪链路未提供")).toBeInTheDocument();
+    expect(screen.queryByText(/^追踪链路 trace-/)).not.toBeInTheDocument();
+  });
+
   it("marks quiet-hour muted notifications while keeping safety notifications visible", () => {
     notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
       data: {

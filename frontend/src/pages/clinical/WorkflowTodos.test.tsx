@@ -356,6 +356,43 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
   });
 
+  it("shows an honest trace status when workflow todos have no trace id", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-no-trace",
+            sourceType: "FOLLOWUP_TASK",
+            sourceId: "return-task-no-trace",
+            title: "随访异常复核",
+            summary: "患者上报呼吸困难，需要医师复核",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "doctor-real-1",
+            assigneeRole: "DOCTOR",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            dueAt: "2026-06-04T08:00:00Z",
+            traceId: null,
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("来源对象 return-task-no-trace")).toBeInTheDocument();
+    expect(screen.getByText("追踪链路未提供")).toBeInTheDocument();
+    expect(screen.queryByText(/^追踪链路 trace-/)).not.toBeInTheDocument();
+  });
+
   it("persists completion through the backend and refreshes the server-side list", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
