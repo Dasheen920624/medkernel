@@ -196,6 +196,10 @@ export default function WorkflowTodos() {
         <Space direction="vertical" size={2}>
           <span className="font-semibold text-slate-800">{record.title}</span>
           <span className="text-xs text-slate-500">{record.summary}</span>
+          <Space wrap size={8} className="text-xs text-slate-500">
+            <span>来源对象 {record.sourceId}</span>
+            {record.traceId && <span>追踪链路 {record.traceId}</span>}
+          </Space>
         </Space>
       ),
     },

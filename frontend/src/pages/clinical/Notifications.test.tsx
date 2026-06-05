@@ -137,6 +137,8 @@ describe("Notifications", () => {
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
     expect(screen.getByText("患者报告呼吸困难，需要处理。")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
+    expect(screen.getByText("来源对象 event-real-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪链路 trace-notify")).toBeInTheDocument();
     expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
   });
 
