@@ -228,7 +228,8 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | SVC-QUALITY-01 | 质控驾驶舱服务包 | 院级指标 + 风险热力 + 价值指标 + 下钻 + 证据 | 4d | done |
 | SVC-QUALITY-02 | 病案医保服务包 | 病历内涵 + DRG/DIP + 编码 + 费用 + 医保审核 | 5d | done |
 | SVC-QUALITY-03 | 整改闭环服务包 | 问题 + 责任科室 + 整改 + 复核 + 豁免 + 报告 | 3d | done |
-| QCDASH-01 / QCALERT-01 / INSAUDIT-01 / EVALSET-01 / EVALRES-01 / AIREVIEW-01 | 6 页面真实化 | 每页：驾驶舱可下钻 + 六态 + 五维 RBAC + B0；AI 知识审核页先做“审/发”，AI 生成留第二波；每页必交见质量基线 | — | pending |
+| QCDASH-01 | 院级质控驾驶舱页真实化 | 接 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 院级聚合/热力/价值/下钻证据；六态 + 五维 RBAC + 证据导出；每页必交见质量基线 | 3d | done |
+| QCALERT-01 / INSAUDIT-01 / EVALSET-01 / EVALRES-01 / AIREVIEW-01 | 5 页面真实化 | 每页：驾驶舱可下钻 + 六态 + 五维 RBAC + B0；AI 知识审核页先做“审/发”，AI 生成留第二波；每页必交见质量基线 | — | pending |
 | **D4-验收** | **质控改进域级验收** | 配指标 → 评估命中 → 生成问题 → 派整改 → 复核闭环 + 驾驶舱下钻，全 B0 真实可跑 | — | pending |
 
 **小计**：8 项（原 ID）+ 6 页面 + 1 域级验收
