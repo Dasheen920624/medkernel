@@ -33,6 +33,7 @@ import {
   useGenerateTerminologyCandidates,
   useFollowupStats,
   useIntegrationOnboardings,
+  useInsuranceIssues,
   useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
@@ -47,6 +48,9 @@ import {
   useQualityFindings,
   useReviewRectification,
   useRollbackTerminologyPackage,
+  useRunDrgGrouping,
+  useRunInsuranceAudit,
+  useRunQualityCaseReview,
   useSubmitRectification,
   useSyncPackage,
   useStandardTerms,
@@ -507,6 +511,172 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues", {
       params: { severity: "P1", status: "ASSIGNED", responsibleDepartmentId: "dept-1" },
+    });
+  });
+
+  it("loads insurance issues through the SVC-QUALITY-02 read contract", async () => {
+    const page = {
+      items: [
+        {
+          issueId: "ins-issue-1",
+          claimId: "claim-real-1",
+          issueType: "FEE",
+          severity: "P1",
+          status: "OPEN",
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          claimAmount: 1200,
+          thresholdAmount: 1000,
+          evidenceSummary: "结算金额超过版本化规则阈值",
+          departmentId: "dept-insurance",
+          evaluationRunId: "er-ins-1",
+          traceId: "trace-ins",
+          createdAt: "2026-06-06T00:00:00Z",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() =>
+      useInsuranceIssues({
+        status: "OPEN",
+        severity: "P1",
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-06-30T23:59:59Z",
+        page: 1,
+        size: 20,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items[0]?.claimId).toBe("claim-real-1"));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/quality/insurance-issues", {
+      params: {
+        status: "OPEN",
+        severity: "P1",
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-06-30T23:59:59Z",
+        page: 1,
+        size: 20,
+      },
+    });
+  });
+
+  it("runs the SVC-QUALITY-02 quality, DRG and insurance audit actions", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            reviewId: "review-ins-1",
+            reviewStatus: "NON_COMPLIANT",
+            evaluationRunId: "er-ins-1",
+            resultCount: 1,
+            findingCount: 1,
+            taskCount: 1,
+            modelStatus: "MODEL_DISABLED",
+            modelDowngradeReason: "MODEL_DISABLED_DETERMINISTIC_RULES",
+            traceId: "trace-case",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            groupingId: "drg-ins-1",
+            groupingStatus: "MISMATCHED",
+            expectedGroupCode: "DRG-A",
+            actualGroupCode: "DRG-B",
+            grouperVersion: "GROUPER-2026",
+            explanation: "病案首页进入复核",
+            traceId: "trace-drg",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            auditId: "audit-ins-1",
+            auditStatus: "ISSUE_FOUND",
+            issues: [],
+            evaluationRunId: "er-ins-2",
+            findingCount: 1,
+            taskCount: 1,
+            traceId: "trace-audit",
+          },
+        },
+      });
+
+    const caseReview = renderApiHook(() => useRunQualityCaseReview());
+    await caseReview.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      responsibleDepartmentId: "dept-insurance",
+    });
+
+    const drgGrouping = renderApiHook(() => useRunDrgGrouping());
+    await drgGrouping.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      grouperVersion: "GROUPER-2026",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-B",
+      responsibleDepartmentId: "dept-insurance",
+      explanation: "病案首页进入复核",
+    });
+
+    const insuranceAudit = renderApiHook(() => useRunInsuranceAudit());
+    await insuranceAudit.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      indicatorId: "indicator-insurance",
+      responsibleDepartmentId: "dept-insurance",
+      dueAt: "2026-06-12T00:00:00Z",
+      rules: [
+        {
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          issueType: "FEE",
+          severity: "P1",
+          maxAmount: 1000,
+          description: "费用超过版本化规则阈值",
+        },
+      ],
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/quality/case-review", {
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      responsibleDepartmentId: "dept-insurance",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/engine/quality/drg-grouping", {
+      contextSnapshotId: "snapshot-ins",
+      grouperVersion: "GROUPER-2026",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-B",
+      responsibleDepartmentId: "dept-insurance",
+      explanation: "病案首页进入复核",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/engine/quality/insurance-audit", {
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      indicatorId: "indicator-insurance",
+      responsibleDepartmentId: "dept-insurance",
+      dueAt: "2026-06-12T00:00:00Z",
+      rules: [
+        {
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          issueType: "FEE",
+          severity: "P1",
+          maxAmount: 1000,
+          description: "费用超过版本化规则阈值",
+        },
+      ],
     });
   });
 

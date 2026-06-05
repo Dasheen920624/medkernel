@@ -230,7 +230,8 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | SVC-QUALITY-03 | 整改闭环服务包 | 问题 + 责任科室 + 整改 + 复核 + 豁免 + 报告 | 3d | done |
 | QCDASH-01 | 院级质控驾驶舱页真实化 | 接 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 院级聚合/热力/价值/下钻证据；六态 + 五维 RBAC + 证据导出；每页必交见质量基线 | 3d | done |
 | QCALERT-01 | 质控预警页真实化 | 接 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 真实预警 + 确认 + [SVC-QUALITY-03](cards/D4/SVC-QUALITY-03.md) 派整改 + 低打扰/高级别默认筛选 + 六态 | 3d | done |
-| INSAUDIT-01 / EVALSET-01 / EVALRES-01 / AIREVIEW-01 | 4 页面真实化 | 每页：真实后端 API + 六态 + 五维 RBAC + B0；AI 知识审核页先做“审/发”，AI 生成留第二波；每页必交见质量基线 | — | pending |
+| INSAUDIT-01 | 医保智能审核页真实化 | 接 [SVC-QUALITY-02](cards/D4/SVC-QUALITY-02.md) 真实医保问题列表 + 病案内涵 + DRG/DIP + 医保审核整改联动；六态 + 五维 RBAC + B0 | 3d | done |
+| EVALSET-01 / EVALRES-01 / AIREVIEW-01 | 3 页面真实化 | 每页：真实后端 API + 六态 + 五维 RBAC + B0；AI 知识审核页先做“审/发”，AI 生成留第二波；每页必交见质量基线 | — | pending |
 | **D4-验收** | **质控改进域级验收** | 配指标 → 评估命中 → 生成问题 → 派整改 → 复核闭环 + 驾驶舱下钻，全 B0 真实可跑 | — | pending |
 
 **小计**：8 项（原 ID）+ 6 页面 + 1 域级验收

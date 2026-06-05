@@ -1,14 +1,21 @@
 package com.medkernel.engine.quality.insurance;
 
+import java.time.Instant;
+
+import com.medkernel.engine.evaluation.QualityFindingSeverity;
 import com.medkernel.shared.api.ApiResult;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,6 +31,24 @@ public class InsuranceQualityController {
 
     public InsuranceQualityController(InsuranceQualityService service) {
         this.service = service;
+    }
+
+    /**
+     * 分页查询当前租户作用域内的真实医保病案问题。
+     */
+    @GetMapping("/insurance-issues")
+    @PreAuthorize("@perm.has('evaluation.read')")
+    public ApiResult<PageResponse<InsuranceIssuePageItemResponse>> insuranceIssues(
+            @RequestParam(required = false) InsuranceIssueStatus status,
+            @RequestParam(required = false) QualityFindingSeverity severity,
+            @RequestParam(required = false) String departmentId,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResult.ok(service.listInsuranceIssues(
+            new InsuranceIssueFilter(status, severity, departmentId, from, to),
+            new PageRequest(page, size, null)));
     }
 
     /**

@@ -17,6 +17,8 @@ import com.medkernel.engine.evaluation.EvaluationRunRequest;
 import com.medkernel.engine.evaluation.EvaluationRunResponse;
 import com.medkernel.engine.evaluation.EvaluationRunStatus;
 import com.medkernel.engine.evaluation.QualityFindingSeverity;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -211,6 +213,29 @@ class InsuranceQualityServiceTest {
         verify(evaluations, never()).run(any());
     }
 
+    @Test
+    void listInsuranceIssuesUsesTenantScopeFiltersAndServerPaging() {
+        Instant now = Instant.parse("2026-06-05T04:00:00Z");
+        seedOpenInsuranceIssue("tenant-A", "ins-open-p2", "snapshot-list", "claim-open", now);
+        seedInsuranceIssue("tenant-A", "ins-closed-p1", "snapshot-list", "claim-closed",
+            InsuranceIssueStatus.RECTIFICATION_CREATED, QualityFindingSeverity.P1, now.plusSeconds(1));
+        seedOpenInsuranceIssue("tenant-B", "ins-cross-tenant", "snapshot-list", "claim-cross", now.plusSeconds(2));
+
+        PageResponse<InsuranceIssuePageItemResponse> page = withTenant("tenant-A", () -> service.listInsuranceIssues(
+            new InsuranceIssueFilter(InsuranceIssueStatus.OPEN, QualityFindingSeverity.P2, null),
+            new PageRequest(1, 20, null)));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement().satisfies(issue -> {
+            assertThat(issue.issueId()).isEqualTo("ins-open-p2");
+            assertThat(issue.claimId()).isEqualTo("claim-open");
+            assertThat(issue.status()).isEqualTo(InsuranceIssueStatus.OPEN);
+            assertThat(issue.severity()).isEqualTo(QualityFindingSeverity.P2);
+            assertThat(issue.departmentId()).isEqualTo("dept-insurance");
+            assertThat(issue.evidenceSummary()).contains("既有开放问题");
+        });
+    }
+
     private void seedSnapshot(String tenantId, String snapshotId, String patientId, String encounterId, Instant createdAt) {
         jdbc.update("""
             INSERT INTO context_snapshot (
@@ -238,6 +263,13 @@ class InsuranceQualityServiceTest {
 
     private void seedOpenInsuranceIssue(
             String tenantId, String issueId, String snapshotId, String claimId, Instant createdAt) {
+        seedInsuranceIssue(tenantId, issueId, snapshotId, claimId,
+            InsuranceIssueStatus.OPEN, QualityFindingSeverity.P2, createdAt);
+    }
+
+    private void seedInsuranceIssue(
+            String tenantId, String issueId, String snapshotId, String claimId,
+            InsuranceIssueStatus status, QualityFindingSeverity severity, Instant createdAt) {
         jdbc.update("""
             INSERT INTO mk_quality_insurance_issue (
                 issue_id, tenant_id, context_snapshot_id, claim_id, patient_id, encounter_id,
@@ -245,10 +277,10 @@ class InsuranceQualityServiceTest {
                 claim_amount, threshold_amount, evidence_summary,
                 created_at, created_by, updated_at, updated_by, trace_id
             ) VALUES (?, ?, ?, ?, 'patient-scope', 'enc-scope', 'dept-insurance',
-                'FEE', 'P2', 'OPEN', 'RULE-STALE', '2026-A',
+                'FEE', ?, ?, 'RULE-STALE', '2026-A',
                 88.00, 100.00, '既有开放问题',
                 ?, 'tester', ?, 'tester', ?)
-            """, issueId, tenantId, snapshotId, claimId,
+            """, issueId, tenantId, snapshotId, claimId, severity.name(), status.name(),
             java.sql.Timestamp.from(createdAt), java.sql.Timestamp.from(createdAt), "trace-" + issueId);
     }
 

@@ -136,7 +136,7 @@ public final class ServiceContractCatalog {
         contract("insurance-quality", "病案医保服务包",
             "com.medkernel.engine.quality.insurance.InsuranceQualityController",
             "/api/v1/engine/quality",
-            permissions("evaluation.execute"),
+            permissions("evaluation.read", "evaluation.execute"),
             audits(
                 audit(AuditAction.CREATE, "mk_quality_case_review", "生成病案内涵质控结果"),
                 audit(AuditAction.CREATE, "mk_quality_drg_grouping", "生成 DRG/DIP 入组核对结果"),
