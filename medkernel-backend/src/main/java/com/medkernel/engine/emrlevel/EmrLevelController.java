@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -68,5 +69,26 @@ public class EmrLevelController {
             @RequestParam String hospitalOrgId,
             @RequestParam String standardVersion) {
         return ResponseEntity.ok(ApiResult.ok(service.progress(hospitalOrgId, standardVersion)));
+    }
+
+    /**
+     * 查询电子病历评级数据质量指标。
+     */
+    @GetMapping("/data-quality")
+    @PreAuthorize("@perm.has('evaluation.read')")
+    public ResponseEntity<ApiResult<EmrLevelDataQualityResponse>> dataQuality(
+            @RequestParam String hospitalOrgId,
+            @RequestParam String standardVersion) {
+        return ResponseEntity.ok(ApiResult.ok(service.dataQuality(hospitalOrgId, standardVersion)));
+    }
+
+    /**
+     * 导出电子病历评级证据包。
+     */
+    @PostMapping("/evidence-package:export")
+    @PreAuthorize("@perm.has('audit.export')")
+    public ResponseEntity<ApiResult<EmrLevelEvidencePackageExportResponse>> exportEvidencePackage(
+            @RequestBody @Valid EmrLevelEvidencePackageExportRequest request) {
+        return ResponseEntity.ok(ApiResult.ok(service.exportEvidencePackage(request)));
     }
 }

@@ -144,10 +144,11 @@ public final class ServiceContractCatalog {
         contract("emr-level", "电子病历评级目标服务",
             "com.medkernel.engine.emrlevel.EmrLevelController",
             "/api/v1/engine/emr-level",
-            permissions("evaluation.read", "evaluation.write"),
+            permissions("evaluation.read", "evaluation.write", "audit.export"),
             audits(
                 audit(AuditAction.CREATE, "mk_emr_level_target", "保存电子病历评级目标"),
-                audit(AuditAction.CREATE, "mk_emr_level_gap", "生成评级差距并联动整改任务"))),
+                audit(AuditAction.CREATE, "mk_emr_level_gap", "生成评级差距并联动整改任务"),
+                audit(AuditAction.EXPORT, "mk_emr_level_evidence_package", "导出电子病历评级证据包"))),
         contract("saved-view", "用户保存视图服务",
             "com.medkernel.engine.experience.SavedViewController", "/api/v1/experience",
             List.of(),

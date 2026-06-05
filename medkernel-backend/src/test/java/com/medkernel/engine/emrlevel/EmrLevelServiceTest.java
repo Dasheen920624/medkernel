@@ -1,13 +1,18 @@
 package com.medkernel.engine.emrlevel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Callable;
 
 import com.medkernel.engine.evaluation.EmrLevelRectificationBridge;
 import com.medkernel.engine.evaluation.RectificationTaskStatus;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +22,7 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -37,10 +43,15 @@ class EmrLevelServiceTest {
 
     @Autowired EmrLevelService service;
     @Autowired JdbcTemplate jdbc;
+    @MockBean AuditEventPublisher auditPublisher;
 
     @AfterEach
     void clear() {
         RequestContext.clear();
+        jdbc.update("DELETE FROM mk_emr_level_evidence_package");
+        jdbc.update("DELETE FROM recommendation_feedback WHERE tenant_id = 'tenant-A'");
+        jdbc.update("DELETE FROM recommendation_card WHERE tenant_id = 'tenant-A'");
+        jdbc.update("DELETE FROM audit_event WHERE tenant_id = 'tenant-A'");
         jdbc.update("DELETE FROM mk_emr_level_gap");
         jdbc.update("DELETE FROM mk_emr_level_item");
         jdbc.update("DELETE FROM mk_emr_level_target");
@@ -134,6 +145,113 @@ class EmrLevelServiceTest {
         assertThat(progress.openGapItems()).isEqualTo(1);
     }
 
+    @Test
+    void dataQualityAggregatesRealCoverageClosedLoopAndAuditEvidence() {
+        Instant dueAt = Instant.parse("2026-06-15T00:00:00Z");
+        EmrLevelTargetResponse target = withTenant("tenant-A", () -> service.upsertTarget(
+            new EmrLevelTargetUpsertRequest(
+                "hospital-A",
+                5,
+                "EMR-RATING-2026",
+                List.of(
+                    item("EMR-4-001", "四级临床闭环", 4, "CDSS_CLOSED_LOOP",
+                        EmrLevelCapabilityStatus.SATISFIED, "recommendation:card-1", "CDSS 采纳证据",
+                        "dept-it", dueAt),
+                    item("EMR-5-002", "五级质控闭环", 5, "QUALITY_RECTIFICATION",
+                        EmrLevelCapabilityStatus.SATISFIED, null, "声明满足但缺少证据",
+                        "dept-quality", dueAt)))));
+        seedCdssClosedLoopEvidence();
+        jdbc.update("""
+            UPDATE rectification_task
+               SET status = ?, evidence_ref = ?, submitted_at = ?, closed_at = ?, updated_at = ?
+             WHERE tenant_id = 'tenant-A' AND task_id = ?
+            """, RectificationTaskStatus.CLOSED.name(), "rectification:evidence-1",
+            java.sql.Timestamp.from(dueAt), java.sql.Timestamp.from(dueAt), java.sql.Timestamp.from(dueAt),
+            target.gaps().get(0).rectificationTaskId());
+        seedAuditEvent(target.targetId());
+
+        EmrLevelDataQualityResponse response = withTenant("tenant-A",
+            () -> service.dataQuality("hospital-A", "EMR-RATING-2026"));
+
+        assertThat(response.targetId()).isEqualTo(target.targetId());
+        assertThat(response.applicationCoverageRate()).isEqualByComparingTo(new BigDecimal("0.5000"));
+        assertThat(response.completenessRate()).isEqualByComparingTo(new BigDecimal("0.5000"));
+        assertThat(response.timelinessRate()).isEqualByComparingTo(new BigDecimal("1.0000"));
+        assertThat(response.consistencyRate()).isEqualByComparingTo(new BigDecimal("1.0000"));
+        assertThat(response.closedLoopEvidence().cdssCardCount()).isEqualTo(1);
+        assertThat(response.closedLoopEvidence().cdssAcceptedCount()).isEqualTo(1);
+        assertThat(response.closedLoopEvidence().qualityFindingCount()).isEqualTo(1);
+        assertThat(response.closedLoopEvidence().rectificationTaskCount()).isEqualTo(1);
+        assertThat(response.closedLoopEvidence().rectificationClosedCount()).isEqualTo(1);
+        assertThat(response.closedLoopEvidence().auditEventCount()).isEqualTo(1);
+        assertThat(response.evidenceSources())
+            .extracting(EmrLevelEvidenceSourceResponse::sourceType)
+            .containsExactly("CDSS_CLOSED_LOOP", "QUALITY_RECTIFICATION", "AUDIT_CHAIN");
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items())
+            .filteredOn(item -> item.itemCode().equals("EMR-5-002"))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.capabilityStatus()).isEqualTo(EmrLevelCapabilityStatus.MISSING_EVIDENCE);
+                assertThat(item.evidencePresent()).isFalse();
+                assertThat(item.consistent()).isTrue();
+                assertThat(item.gapReason()).contains("缺少证据");
+                assertThat(item.rectificationTaskId()).startsWith("rct-emr-");
+            });
+    }
+
+    @Test
+    void exportEvidencePackagePersistsDeterministicNdjsonAndPublishesAuditOncePerIdempotencyKey() {
+        Instant dueAt = Instant.parse("2026-06-15T00:00:00Z");
+        EmrLevelTargetResponse target = withTenant("tenant-A", () -> service.upsertTarget(
+            new EmrLevelTargetUpsertRequest(
+                "hospital-A",
+                5,
+                "EMR-RATING-2026",
+                List.of(
+                    item("EMR-4-001", "四级临床闭环", 4, "CDSS_CLOSED_LOOP",
+                        EmrLevelCapabilityStatus.SATISFIED, "recommendation:card-1", "CDSS 采纳证据",
+                        "dept-it", dueAt),
+                    item("EMR-5-002", "五级质控闭环", 5, "QUALITY_RECTIFICATION",
+                        EmrLevelCapabilityStatus.GAP, null, "未接入真实质控闭环证据",
+                        "dept-quality", dueAt)))));
+        seedCdssClosedLoopEvidence();
+
+        EmrLevelEvidencePackageExportRequest request =
+            new EmrLevelEvidencePackageExportRequest("hospital-A", "EMR-RATING-2026", "idem-emr-2026-001");
+        EmrLevelEvidencePackageExportResponse first = withTenant("tenant-A",
+            () -> service.exportEvidencePackage(request));
+        EmrLevelEvidencePackageExportResponse second = withTenant("tenant-A",
+            () -> service.exportEvidencePackage(request));
+
+        assertThat(first.packageId()).isEqualTo(second.packageId());
+        assertThat(first.payloadSha256()).isEqualTo(second.payloadSha256());
+        assertThat(first.payload()).isEqualTo(second.payload());
+        assertThat(first.targetId()).isEqualTo(target.targetId());
+        assertThat(first.contentType()).isEqualTo("application/x-ndjson");
+        assertThat(first.fileName()).isEqualTo(target.targetId() + "-evidence-package.ndjson");
+        assertThat(first.payload()).contains("\"recordType\":\"EMR_LEVEL_PACKAGE_SUMMARY\"");
+        assertThat(first.payload()).contains("\"recordType\":\"EMR_LEVEL_STANDARD_ITEM\"");
+        assertThat(first.payload()).contains("\"itemCode\":\"EMR-5-002\"");
+        assertThat(first.payload()).contains("\"capabilityStatus\":\"GAP\"");
+        assertThat(first.payload()).doesNotContain("memory://", "mock");
+        assertThat(first.evidenceLineCount()).isEqualTo(6);
+        assertThat(jdbc.queryForObject("""
+            SELECT COUNT(*)
+            FROM mk_emr_level_evidence_package
+            WHERE tenant_id = 'tenant-A'
+              AND target_id = ?
+              AND idempotency_key = 'idem-emr-2026-001'
+              AND payload_sha256 = ?
+            """, Long.class, target.targetId(), first.payloadSha256())).isEqualTo(1L);
+        verify(auditPublisher).publish(
+            eq(AuditAction.EXPORT),
+            eq("mk_emr_level_evidence_package"),
+            eq(first.packageId()),
+            eq("导出电子病历评级证据包 targetId=" + target.targetId()
+                + " evidenceLineCount=6 sha256=" + first.payloadSha256()));
+    }
+
     private static EmrLevelItemAssessmentRequest item(
             String itemCode,
             String itemName,
@@ -155,6 +273,36 @@ class EmrLevelServiceTest {
             evidenceSummary,
             departmentId,
             dueAt);
+    }
+
+    private void seedCdssClosedLoopEvidence() {
+        jdbc.update("""
+            INSERT INTO recommendation_card (
+                card_id, tenant_id, trigger_id, card_code, card_type, title, summary,
+                suggested_action, risk_level, interrupt_level, status,
+                requires_physician_confirmation, ai_generated, source_summary,
+                created_at, created_by, updated_at, updated_by, trace_id
+            ) VALUES (?, 'tenant-A', ?, ?, 'QUALITY', ?, ?, ?, 'MEDIUM', 'INFO', 'ACCEPTED',
+                FALSE, FALSE, ?, CURRENT_TIMESTAMP, 'qa-1', CURRENT_TIMESTAMP, 'qa-1', ?)
+            """, "card-1", "trigger-1", "EMR-CDSS-001", "电子病历评级 CDSS 提醒",
+            "提醒已被医师采纳", "补齐评级闭环证据", "真实推荐卡证据", "trace-cdss-1");
+        jdbc.update("""
+            INSERT INTO recommendation_feedback (
+                feedback_id, tenant_id, card_id, feedback_type, operator_id,
+                created_at, created_by, updated_at, updated_by, trace_id
+            ) VALUES (?, 'tenant-A', ?, 'ACCEPT', 'doctor-1',
+                CURRENT_TIMESTAMP, 'doctor-1', CURRENT_TIMESTAMP, 'doctor-1', ?)
+            """, "feedback-1", "card-1", "trace-cdss-1");
+    }
+
+    private void seedAuditEvent(String targetId) {
+        jdbc.update("""
+            INSERT INTO audit_event (
+                event_id, trace_id, occurred_at, actor_user_id, action,
+                resource_type, resource_id, summary, tenant_id, status
+            ) VALUES (?, ?, CURRENT_TIMESTAMP, 'qa-1', 'EXPORT',
+                'mk_emr_level_target', ?, '电子病历评级目标审计证据', 'tenant-A', 'RECORDED')
+            """, "audit-emr-1", "trace-audit-1", targetId);
     }
 
     private <T> T withTenant(String tenantId, Callable<T> action) {
