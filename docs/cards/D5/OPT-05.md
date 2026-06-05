@@ -15,24 +15,24 @@
 建立**互联互通测评映射**：把测评四维（数据资源标准化/互联互通基础设施/应用效果/…）的指标项映射到**产品真实证据**，差距真实、证据可追溯，支撑测评评审。
 
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-基本待建：现有无互联互通测评映射后端。本卡＝新建测评指标项模型 + 映射到真实产品证据（[EVID-01](EVID-01.md)/[SYS-06](SYS-06.md)），与电子病历评级（[EMR-LEVEL-02](../D4/EMR-LEVEL-02.md)）共享证据来源、不重造证据。
+后端 B0 已建（Codex PR1）：`com.medkernel.compliance.interopassessment` 提供互联互通测评指标项、证据映射、总览与差距查询；V93 五方言新增 `mk_compliance_interop_assessment_item` / `mk_compliance_interop_evidence_map`。测评项只把已落库且可追溯的 [EVID-01](EVID-01.md) 证据快照或 [EMR-LEVEL-02](../D4/EMR-LEVEL-02.md) 评级证据包计为达标证据；仅有映射记录但源证据不存在时仍标 `MISSING_EVIDENCE`，不假达标、不重复采集评级证据。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 测评指标项：测评四维指标项受控、版本化。
-- [ ] FR-2 证据映射：每指标项映射到真实产品证据（[EVID-01](EVID-01.md)），缺证据标缺失。
-- [ ] FR-3 差距评估：达标/差距真实评估、可下钻到证据。
-- [ ] FR-4 证据复用：与评级（[EMR-LEVEL-02](../D4/EMR-LEVEL-02.md)）共享证据，不重复采集。
-- [ ] FR-5 不假达标：未满足项标差距、不假"已通过"。
+- [x] FR-1 测评指标项：测评四维指标项受控、版本化。
+- [x] FR-2 证据映射：每指标项映射到真实产品证据（[EVID-01](EVID-01.md)），缺证据标缺失。
+- [x] FR-3 差距评估：达标/差距真实评估、可下钻到证据。
+- [x] FR-4 证据复用：与评级（[EMR-LEVEL-02](../D4/EMR-LEVEL-02.md)）共享证据，不重复采集。
+- [x] FR-5 不假达标：未满足项标差距、不假"已通过"。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET /api/v1/compliance/interop-assessment` · `GET .../interop-assessment/gaps`
-- DTO：测评指标项/映射/差距 Record；信封 `ApiResult`/`ProblemDetail`
+- 端点：`GET /api/v1/compliance/interop-assessment?standardVersion=` · `GET .../interop-assessment/gaps?standardVersion=`（`audit.read` + 租户数据范围）
+- DTO：`InteropAssessmentResponse` / `InteropAssessmentItemResponse` / `InteropEvidenceResponse` Record；信封 `ApiResult`/`ProblemDetail`
 - 状态机：N·A（只读映射 + 评估）；trace（[OBS-01](../D0/OBS-01.md)）
 - 版本：测评标准版本化
 
 ## 数据与迁移
-- 表族：`interop_assessment_item` / `interop_evidence_map`（指标 + 证据引用 + 差距 + 版本）；五方言（[BASE-05](../D0/BASE-05.md)）
+- 表族：`mk_compliance_interop_assessment_item` / `mk_compliance_interop_evidence_map`（指标 + 证据引用 + 差距 + 版本）；V93 五方言（[BASE-05](../D0/BASE-05.md)）
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：互联互通测评的"指标↔证据映射图"。
@@ -52,9 +52,9 @@
 - 本卡落点：互联互通测评指标↔产品证据映射，差距真实、证据复用评级。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：测评指标项与证据映射真实。
-- [ ] AC-2（FR-3/4）：差距真实可下钻；与评级共享证据。
-- [ ] AC-3（FR-5）：未满足标差距、不假达标。
+- [x] AC-1（FR-1/2）：测评指标项与证据映射真实。
+- [x] AC-2（FR-3/4）：差距真实可下钻；与评级共享证据。
+- [x] AC-3（FR-5）：未满足标差距、不假达标。
 - 关联 A1–A9 剧本：A9 测评映射。
 - T-GATE：后端真实性门禁全绿（证据真实/不假达标）。
 - B0 验收：测评映射确定性、与模型无关。
@@ -63,3 +63,8 @@
 - 代码 permalink：测评指标项 + 证据映射 + 差距评估。
 - 测试：映射复算 / 证据追溯 / 不假达标。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
+
+### Codex PR1 本地证据
+- 代码：`medkernel-backend/src/main/java/com/medkernel/compliance/interopassessment/**`；V93 五方言迁移；`ServiceContractCatalog` / `DomainOwnershipCatalog` 登记。
+- 测试：`InteropAssessmentServiceTest` 覆盖 EVID-01 真实证据、EMR-LEVEL-02 证据复用、缺证据 `MISSING_EVIDENCE` 和 `/gaps`；`InteropAssessmentControllerSecurityTest` 覆盖 `audit.read` + 租户范围；迁移基线测试覆盖 V93。
+- 本地验证：`cd medkernel-backend && mvn -Dtest=InteropAssessmentServiceTest,InteropAssessmentControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test` 退出码 0（93 测试，V93）。
