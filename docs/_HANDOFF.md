@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 SVC-QUALITY-01 质控驾驶舱服务包 🚧
-- 类型：软件开发（后端 B0 质控驾驶舱聚合 + 预警 read-model + 文档收口）
-- 分支：`codex/d4-svc-quality-01`
-- 目标：完成 D4 `SVC-QUALITY-01`：院级质控驾驶舱服务包，消费真实评估/整改/价值事实，提供院级聚合、风险热力、逐级下钻证据包与质控预警，不前端造数。
-- 状态：`OPT-08` 已由 PR #428 squash merge 到 `origin/main`（merge `1788a9e`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已实现 `GET /api/v1/engine/quality/dashboard`、`GET /api/v1/engine/quality/dashboard/drilldown`、`GET /api/v1/engine/quality/alerts`，新增 `com.medkernel.engine.quality.dashboard` 服务包与 V83 五方言 `mk_quality_dashboard_alert` 预警 read-model；`ServiceContractCatalog` 登记 `quality-dashboard`，`DomainOwnershipCatalog` 登记 `engine-quality` / `mk_quality_`。`docs/cards/D4/SVC-QUALITY-01.md`、`docs/cards/D4/_brief.md` 与 `docs/backlog.md` 已更新。
-- 已有验证：TDD 红灯包括缺 `QualityDashboardService/DTO/Repository` 编译失败、V83 未建表导致测试失败，以及同源预警关闭后再打开会撞唯一键的回归红测；绿灯聚焦 `mvn -q -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest test` 已通过；治理组合 `mvn -q -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest,ServiceContractGovernanceTest,DomainOwnershipContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 已通过；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 H2 / PostgreSQL 15.18 / Oracle 21.3 到 V83，二次 migrate no-op）；前端 `npm run verify` 已通过（61 文件 / 375 测试）且 `npm run build` 已通过；committed-diff T-GATE 已通过（真实性 19 文件、迁移规约 5 个 V83 SQL、配置边界 19 文件、中文注释 0 fail/0 warn、`git diff --check origin/main...HEAD` 无输出）。
-- 下一步（精确到动作/命令）：1. push 当前分支并开 PR。2. 远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `SVC-QUALITY-02`。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/quality/dashboard/QualityDashboardService.java`、`QualityDashboardController.java`、`QualityDashboardAlert*.java`、V83 五方言迁移、`QualityDashboardServiceTest`、`QualityDashboardControllerSecurityTest`、`docs/cards/D4/SVC-QUALITY-01.md`。`mk_quality_dashboard_alert` 是确定性 read-model：同源预警唯一，闭环置 `RESOLVED`，来源再次活跃要更新并置回 `OPEN`，不得插入重复预警；热力色阶返回 token 名，不返回 hex；医保违规减少仍由 OPT-08 在 SVC-QUALITY-02 事实源建成前诚实 `NOT_AVAILABLE`。
+### 当前 Codex 执行线 · D4 SVC-QUALITY-02 病案医保服务包 🚧
+- 类型：软件开发（后端 B0 病案内涵 + DRG/DIP 入组 + 医保审核 + 整改联动入口 + 文档收口）
+- 分支：`codex/d4-svc-quality-02`
+- 目标：完成 D4 `SVC-QUALITY-02`：病案内涵质控、DRG/DIP 入组核对、编码/费用/医保审核识别，全部读取真实病案快照与结算事实，违规证据可追溯，不臆造问题，并联动评估整改闭环。
+- 状态：`SVC-QUALITY-01` 已由 PR #429 squash merge 到 `origin/main`（merge `bd32d38`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已实现 `POST /api/v1/engine/quality/case-review`、`POST /api/v1/engine/quality/drg-grouping`、`POST /api/v1/engine/quality/insurance-audit`，新增 `com.medkernel.engine.quality.insurance` 服务包与 V84 五方言 `mk_quality_case_review` / `mk_quality_drg_grouping` / `mk_quality_insurance_issue`；`ServiceContractCatalog` 登记 `insurance-quality`，`MigrationBaselineContractTest` / H2 / 多方言 smoke 版本更新到 84；`docs/cards/D4/SVC-QUALITY-02.md`、`docs/cards/D4/_brief.md` 与 `docs/backlog.md` 已更新。`InsuranceAudit.tsx` 页面仍归 [INSAUDIT-01](cards/D4/INSAUDIT-01.md) 真实化，本卡只交后端服务包。
+- 已有验证：TDD 红灯包括缺 `InsuranceQualityService/DTO/Controller` 编译失败、V84 未建表导致测试失败、责任科室落库为 null 的回归红测、以及整改联动误更新同快照旧开放问题的回归红测；绿灯聚焦 `mvn -q -Dtest=InsuranceQualityServiceTest,InsuranceQualityControllerSecurityTest,ServiceContractGovernanceTest,DomainOwnershipContractTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 已通过；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 H2 / PostgreSQL 15.18 / Oracle 21.3 到 V84，二次 migrate no-op）；前端 `npm run verify` 已通过（61 文件 / 375 测试）且 `npm run build` 已通过；committed-diff T-GATE 已通过（真实性 16 文件、迁移规约 5 个 V84 SQL、配置边界 16 文件、中文注释 0 fail/0 warn、`git diff --check origin/main...HEAD` 无输出）。
+- 下一步（精确到动作/命令）：1. push 当前分支并开 PR。2. 远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `SVC-QUALITY-03`。
+- 相关文件 / 测试 / 坑：`InsuranceQualityService.java`、`InsuranceQualityController.java`、`QualityCaseReview*`、`DrgGrouping*`、`InsuranceAudit*`、`InsuranceIssue*`、V84 五方言迁移、`InsuranceQualityServiceTest`、`InsuranceQualityControllerSecurityTest`、`ServiceContractCatalog`、`MigrationBaselineContractTest`。医保审核只读真实 `mk_clinical_claim`；无结算事实必须返回 `INSUFFICIENT_DATA` 且不调用评估；整改联动只能更新本次新建问题 ID，不能把同一快照旧开放问题一起置为已派整改；规则阈值/状态/类型来自请求版本化规则，不写死医学或医保常量。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）

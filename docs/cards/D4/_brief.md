@@ -17,8 +17,8 @@ D4 评估引擎**已实质成型**，本域评估/整改卡多是"真实化/契�
 - **评估引擎**＝`engine/evaluation/`：`EvaluationEngineService/Controller` + `EvaluationIndicator{+CreateRequest/Filter/Repository/Status}` + `EvaluationResult{+Filter/Level/Repository/Request}` + `EvaluationEvaluateSnapshotRequest` + `EvaluationIdempotencyKey/Operation`（[API-08](API-08.md)/[EVAL-01](EVAL-01.md) 承接指标/评估/结果）。
 - **整改闭环**＝`engine/evaluation/`：`RectificationTask{+Repository/Status}` + `RectificationReview{+Decision/Repository/Request/Response}` + `RectificationSubmitRequest` + `RectificationResponse`（[SVC-QUALITY-03](SVC-QUALITY-03.md) 承接问题→整改→复核）。
 - **前端 6 页面已存在待真实化**（`frontend/src/pages/quality/`，`app/router.tsx` 真实路由）：`QcDashboard`→`/qc/dashboard` · `QcAlerts`→`/qc/alerts` · `InsuranceAudit`→`/qc/insurance` · `QcEvalSets`→`/qc/eval/sets` · `QcEvalResults`→`/qc/eval/results` · `AiReview`→`/aik/review`；现状＝页面壳已存在，页面卡＝去占位/mock + 接真实评估/整改 API + 六态/五维 RBAC/可下钻齐全。
-- **已成型补充**：价值/ROI 口径（[OPT-08](OPT-08.md)）已由真实关系库事实复算；质控驾驶舱服务包（[SVC-QUALITY-01](SVC-QUALITY-01.md)）已消费评估/整改/价值事实形成院级聚合、热力、下钻证据与预警 read-model。
-- **明确缺口**（建卡"现状"段照实写、勿夸大）：电子病历评级目标映射与证据包（[EMR-LEVEL-01](EMR-LEVEL-01.md)/[EMR-LEVEL-02](EMR-LEVEL-02.md) 新建，无对应后端）；DRG/DIP/编码/费用与医保审核（[SVC-QUALITY-02](SVC-QUALITY-02.md) 待建，`InsuranceAudit.tsx` 仅前端壳）。
+- **已成型补充**：价值/ROI 口径（[OPT-08](OPT-08.md)）已由真实关系库事实复算；质控驾驶舱服务包（[SVC-QUALITY-01](SVC-QUALITY-01.md)）已消费评估/整改/价值事实形成院级聚合、热力、下钻证据与预警 read-model；病案医保服务包（[SVC-QUALITY-02](SVC-QUALITY-02.md)）已提供病案内涵、DRG/DIP 入组核对与医保审核后端 B0 接口，读取真实病案快照与 `mk_clinical_claim` 结算事实，无事实时诚实 `INSUFFICIENT_DATA`。
+- **明确缺口**（建卡"现状"段照实写、勿夸大）：电子病历评级目标映射与证据包（[EMR-LEVEL-01](EMR-LEVEL-01.md)/[EMR-LEVEL-02](EMR-LEVEL-02.md) 新建，无对应后端）；整改闭环服务包 [SVC-QUALITY-03](SVC-QUALITY-03.md) 仍待补强；`InsuranceAudit.tsx` 仍由页卡 [INSAUDIT-01](INSAUDIT-01.md) 接真实医保审核 API。
 
 ## 登入 / 使用角色（13 角色矩阵本域子集，全量见 [质量基线 §9](../../audit/质量基线.md)）
 
@@ -39,6 +39,7 @@ D4 评估引擎**已实质成型**，本域评估/整改卡多是"真实化/契�
 - **评估指标（EvaluationIndicator）**：指标模型/配置/状态的单一归属在 [EVAL-01](EVAL-01.md)；[API-08](API-08.md) 暴露契约、页 [EVALSET-01](EVALSET-01.md) 消费。
 - **评估结果（EvaluationResult）**：命中结果/级别的单一归属在 [EVAL-01](EVAL-01.md)；页 [EVALRES-01](EVALRES-01.md) 消费。
 - **整改闭环（RectificationTask/Review）**：问题→整改→复核→豁免的单一归属在 [SVC-QUALITY-03](SVC-QUALITY-03.md)；[MED-C3](../D3/MED-C3.md) 安全复核任务亦汇入。
+- **病案医保审核（CaseReview/DrgGrouping/InsuranceIssue）**：病案内涵、DRG/DIP 入组核对、医保问题事实的单一归属在 [SVC-QUALITY-02](SVC-QUALITY-02.md)；页 [INSAUDIT-01](INSAUDIT-01.md) 消费。
 - **价值/ROI 指标**：采纳率/误报漏报/整改闭环率/医保违规减少的口径单一归属 [OPT-08](OPT-08.md)；驾驶舱 [SVC-QUALITY-01](SVC-QUALITY-01.md) 消费。
 - **电子病历评级**：评级目标/能力差距/证据包的单一归属 [EMR-LEVEL-01](EMR-LEVEL-01.md)/[EMR-LEVEL-02](EMR-LEVEL-02.md)。
 - **消费 D3 运行数据**：评估命中读 D3 临床运行（推荐采纳 [CDSS-01](../D3/CDSS-01.md)、路径完成 [SVC-CLINICAL-01](../D3/SVC-CLINICAL-01.md)、随访 [FOLLOW-01](../D3/FOLLOW-01.md)），不重造临床数据。
