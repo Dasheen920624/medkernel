@@ -1,9 +1,13 @@
 import { useState, useMemo, useCallback } from "react";
 import {
   Table,
+  Alert,
   Button,
+  Descriptions,
+  Drawer,
   Input,
   InputNumber,
+  List,
   Select,
   Modal,
   Form,
@@ -28,18 +32,84 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import {
   useCreateMpiPatient,
+  useMpiPatientDetail,
   useMpiPatients,
   useMpiStats,
   useMergeMpiPatients,
   useSplitMpiPatient,
   type MpiPatientCreatePayload,
   type MpiPatient,
+  type MpiPatientDetailResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;
 const { Text } = Typography;
+
+function snapshotEncounterId(
+  snapshot:
+    | MpiPatientDetailResponse["latestContextSnapshot"]
+    | MpiPatientDetailResponse["contextSnapshot"]
+    | null,
+) {
+  if (snapshot && "encounterId" in snapshot) return snapshot.encounterId;
+  return "暂无";
+}
+
+function renderPatient360Detail(detail: MpiPatientDetailResponse) {
+  const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
+  const patient = detail.patient;
+
+  return (
+    <Space direction="vertical" size="large" className={styles.fullWidth}>
+      <Descriptions title="患者主索引" bordered column={2} size="small">
+        <Descriptions.Item label="MPI ID">{patient.mpiId}</Descriptions.Item>
+        <Descriptions.Item label="脱敏姓名">{patient.maskedName}</Descriptions.Item>
+        <Descriptions.Item label="性别">{patient.gender}</Descriptions.Item>
+        <Descriptions.Item label="年龄">{patient.age} 岁</Descriptions.Item>
+        <Descriptions.Item label="身份证后四位">*** {patient.idLast4}</Descriptions.Item>
+        <Descriptions.Item label="主索引状态">{patient.status}</Descriptions.Item>
+        <Descriptions.Item label="合并指向">
+          {patient.mergedIntoMpiId ?? "未合并"}
+        </Descriptions.Item>
+        <Descriptions.Item label="已并入数">{patient.mergedCount}</Descriptions.Item>
+      </Descriptions>
+
+      <Descriptions title="上下文快照" bordered column={2} size="small">
+        <Descriptions.Item label="快照 ID">{snapshot?.snapshotId ?? "暂无快照"}</Descriptions.Item>
+        <Descriptions.Item label="就诊编号">{snapshotEncounterId(snapshot)}</Descriptions.Item>
+        <Descriptions.Item label="快照状态">{snapshot?.status ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="质量状态">{snapshot?.qualityStatus ?? "暂无"}</Descriptions.Item>
+      </Descriptions>
+
+      <List
+        header={`在径路径 ${detail.activePathwayCount} 个`}
+        bordered
+        dataSource={detail.activePathways}
+        locale={{ emptyText: "暂无在径路径" }}
+        renderItem={(pathway) => (
+          <List.Item>
+            <List.Item.Meta
+              title={<Text code>{pathway.patientPathwayId}</Text>}
+              description={
+                <Space direction="vertical" size={2}>
+                  <Text type="secondary">模板：{pathway.templateId}</Text>
+                  <Text type="secondary">
+                    当前节点：{pathway.currentNodeCode ?? "暂无"}；状态：{pathway.status}
+                  </Text>
+                  {pathway.traceId && <Text type="secondary">traceId: {pathway.traceId}</Text>}
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+
+      <Text type="secondary">traceId: {detail.traceId}</Text>
+    </Space>
+  );
+}
 
 export default function Mpi() {
   const [keyword, setKeyword] = useState("");
@@ -75,9 +145,17 @@ export default function Mpi() {
   const [isMergeModalVisible, setIsMergeModalVisible] = useState(false);
   const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
   const [splitPatientRecord, setSplitPatientRecord] = useState<MpiPatient | null>(null);
+  const [detailMpiId, setDetailMpiId] = useState<string | undefined>(undefined);
   const [createForm] = Form.useForm<MpiPatientCreatePayload>();
   const [mergeForm] = Form.useForm();
   const [splitForm] = Form.useForm<{ reviewReason: string }>();
+  const {
+    data: patientDetail,
+    isLoading: detailLoading,
+    isError: detailIsError,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useMpiPatientDetail(detailMpiId);
 
   // 触发查询
   const handleSearch = () => {
@@ -122,6 +200,10 @@ export default function Mpi() {
     },
     [splitForm],
   );
+
+  const showDetailDrawer = useCallback((record: MpiPatient) => {
+    setDetailMpiId(record.mpiId);
+  }, []);
 
   const handleCreateSubmit = async () => {
     try {
@@ -287,6 +369,9 @@ export default function Mpi() {
         key: "action",
         render: (_: unknown, record: MpiPatient) => (
           <Space size="middle">
+            <Button size="small" icon={<UserOutlined />} onClick={() => showDetailDrawer(record)}>
+              患者360
+            </Button>
             {record.status === "ACTIVE" ? (
               <Button
                 size="small"
@@ -310,8 +395,29 @@ export default function Mpi() {
         ),
       },
     ],
-    [showMergeModal, showSplitModal],
+    [showDetailDrawer, showMergeModal, showSplitModal],
   );
+
+  let detailDrawerContent = <Alert message="暂无患者 360 详情" type="info" showIcon />;
+  if (detailLoading) {
+    detailDrawerContent = <Alert message="正在读取患者 360 详情" type="info" showIcon />;
+  } else if (detailIsError) {
+    detailDrawerContent = (
+      <Alert
+        message="患者 360 详情暂时不可用"
+        description={getApiErrorMessage(detailError, "请稍后重试，或带 traceId 联系信息科。")}
+        type="error"
+        showIcon
+        action={
+          <Button size="small" onClick={() => refetchDetail()}>
+            重试
+          </Button>
+        }
+      />
+    );
+  } else if (patientDetail) {
+    detailDrawerContent = renderPatient360Detail(patientDetail);
+  }
 
   return (
     <PageShell
@@ -398,6 +504,7 @@ export default function Mpi() {
               <span className={styles.filterLabel}>索引状态:</span>
               <Select
                 placeholder="全部状态"
+                aria-label="索引状态"
                 value={status}
                 onChange={(value) => setStatus(value)}
                 className={styles.statusSelect}
@@ -442,6 +549,16 @@ export default function Mpi() {
             }}
           />
         </div>
+
+        <Drawer
+          title="患者 360 视图"
+          open={!!detailMpiId}
+          onClose={() => setDetailMpiId(undefined)}
+          width={720}
+          destroyOnClose
+        >
+          {detailDrawerContent}
+        </Drawer>
 
         <Modal
           title={

@@ -238,4 +238,124 @@ describe("CdssFatigue", () => {
     });
     expect(submitFeedback.mock.calls[0][0]).not.toHaveProperty("operatorId");
   });
+
+  it("marks clinical redline reminders as non-suppressible while showing configured fatigue threshold", async () => {
+    const user = userEvent.setup();
+    mockUseClinicalRecommendationCards.mockReturnValue({
+      data: {
+        items: [
+          {
+            cardId: "card-redline-1",
+            triggerId: "trigger-redline-1",
+            patientId: "patient-redline-1",
+            encounterId: "enc-redline-1",
+            patientPathwayId: "pathway-redline-1",
+            scenarioCode: "WARD_ORDER",
+            triggerType: "order-sign",
+            cardType: "MEDICATION",
+            title: "华法林与 NSAID 联用红线",
+            summary: "命中临床安全红线",
+            suggestedAction: "立即复核联合用药风险",
+            riskLevel: "CRITICAL",
+            interruptLevel: "STRONG_INTERRUPTIVE",
+            status: "PENDING",
+            fatigueKey: "REDLINE:RDL-DDI-001",
+            requiresPhysicianConfirmation: true,
+            aiGenerated: false,
+            traceId: "trace-redline",
+          },
+        ],
+        page: 1,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: refetchCards,
+    } as unknown as ReturnType<typeof useClinicalRecommendationCards>);
+    mockUseRecommendationCardDetail.mockReturnValue({
+      data: {
+        card: {
+          cardId: "card-redline-1",
+          tenantId: "tenant-A",
+          triggerId: "trigger-redline-1",
+          cardType: "MEDICATION",
+          title: "华法林与 NSAID 联用红线",
+          summary: "命中临床安全红线",
+          suggestedAction: "立即复核联合用药风险",
+          riskLevel: "CRITICAL",
+          interruptLevel: "STRONG_INTERRUPTIVE",
+          status: "PENDING",
+          fatigueKey: "REDLINE:RDL-DDI-001",
+        },
+        trigger: {
+          triggerId: "trigger-redline-1",
+          patientId: "patient-redline-1",
+          encounterId: "enc-redline-1",
+          patientPathwayId: "pathway-redline-1",
+          scenarioCode: "WARD_ORDER",
+          triggerType: "order-sign",
+        },
+        sources: [],
+        feedback: [],
+        fatigueSignals: [],
+        traceId: "trace-redline",
+      },
+      refetch: refetchDetail,
+    } as unknown as ReturnType<typeof useRecommendationCardDetail>);
+    mockUseRecommendationFatigueSignals.mockReturnValue({
+      data: {
+        items: [
+          {
+            signalId: "signal-redline-1",
+            tenantId: "tenant-A",
+            fatigueKey: "REDLINE:RDL-DDI-001",
+            signalType: "BLOCK",
+            triggerCount: 9,
+            governanceThreshold: 3,
+            summary: "红线命中频繁，但高危红线不可被疲劳抑制。",
+            createdAt: "2026-06-04T00:00:00Z",
+          },
+        ],
+        total: 1,
+      },
+      refetch: refetchFatigue,
+    } as unknown as ReturnType<typeof useRecommendationFatigueSignals>);
+
+    renderCdssFatigue();
+
+    await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
+    await user.click(screen.getByRole("tab", { name: /提醒超频疲劳治理/ }));
+
+    expect(await screen.findByText("红线不可抑制")).toBeInTheDocument();
+    expect(screen.getByText("medkernel.cdss.fatigue.policy")).toBeInTheDocument();
+    expect(screen.getAllByText("REDLINE:RDL-DDI-001").length).toBeGreaterThan(0);
+    expect(screen.getByText("9 / 3 次")).toBeInTheDocument();
+    expect(screen.getByText(/科室级疲劳阈值/)).toBeInTheDocument();
+  });
+
+  it("shows forbidden state when org data scope denies clinical reminder cards", () => {
+    mockUseClinicalRecommendationCards.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: {
+        response: {
+          data: {
+            code: "ENG-BASE-003",
+            detail: "提醒治理数据范围权限不足",
+            traceId: "trace-remind-scope",
+          },
+        },
+      },
+      refetch: refetchCards,
+    } as unknown as ReturnType<typeof useClinicalRecommendationCards>);
+
+    renderCdssFatigue();
+
+    expect(screen.getByText("当前权限不足")).toBeInTheDocument();
+    expect(screen.getByText(/提醒治理数据范围权限不足/)).toBeInTheDocument();
+    expect(screen.getByText(/trace-remind-scope/)).toBeInTheDocument();
+  });
 });

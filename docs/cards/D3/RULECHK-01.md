@@ -18,12 +18,17 @@
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 页面**已存在待真实化**：`pages/clinical/RuleValidate.tsx`（路由 `/rule/validate` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接规则校验 API（`engine/rule` `RuleDslEvaluator`）+ 六态/五维 RBAC 齐全。
 
+## 页面收口增量（2026-06-05，本地目标红绿）
+- 已实现：规则校验结果对 `CRITICAL` 严重级别或红线动作码强突出，显示“安全红线不可忽略”，明确校验只提示 / 阻断、不自动改写医嘱；结果色阶使用页面 token，不写死校验命中。
+- 已实现：新增历史执行解释回放输入，按 `executionId` 调用既有 `/engine/rule/rules/executions/{executionId}/explain` 解释端点，与当前执行解释共用抽屉呈现版本、动作与 traceId。
+- RBAC 边界：前端路由具备 `menu.rule-validate` 登录菜单保护，规则执行 / 解释读取 / 组织数据范围以后端规则控制器权限、`RuleEngineControllerSecurityTest` 和 `OrgContext` 为准。
+
 ## 功能要求（原子可测条目）
 - [x] FR-1 校验执行：提交医嘱/病历 → 跑规则校验，命中结果真实来自 [RULE-01](../D2/RULE-01.md)。PR1 默认使用 CDS Hooks `order-sign`，调用真实 `/engine/rule/rules/evaluate`。
 - [x] FR-2 结果解释：每条命中显示规则 ID/版本/级别/解释（可追溯）。PR1 列表改读后端 `ruleId/versionId/actions/explanation`。
-- [ ] FR-3 红线突出：红线（[OPT-04](OPT-04.md)）命中强突出、不可忽略。
-- [ ] FR-4 仿真对比：可对历史用例回放校验（与规则仿真一致）。
-- [ ] FR-5 六态 + 五维 RBAC：齐全；仅医生/专科专家/质控可见；数据按 `OrgContext`。
+- [x] FR-3 红线突出：红线（[OPT-04](OPT-04.md)）命中强突出、不可忽略。
+- [x] FR-4 仿真对比：可对历史用例回放校验（与规则仿真一致）。
+- [x] FR-5 六态 + 五维 RBAC：齐全；仅医生/专科专家/质控可见；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -57,13 +62,14 @@ N·A —— 页面卡不落库；消费 [SVC-CLINICAL-02](SVC-CLINICAL-02.md) / 
 
 ## 验收 + 验证
 - [x] AC-1（FR-1/2）：校验结果真实、可追溯版本。
-- [ ] AC-2（FR-3/4）：红线强突出；历史回放一致。
-- [ ] AC-3（FR-5）：六态齐全；非授权不可校验。
+- [x] AC-2（FR-3/4）：红线强突出；历史回放一致。
+- [x] AC-3（FR-5）：六态齐全；非授权不可校验。
 - 关联 A1–A9 剧本：A5 规则校验。
 - T-GATE：前端真实性门禁全绿（no-page-mock、无写死结果、无演示路由）。
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：PR1 `frontend/src/pages/clinical/RuleValidate.tsx` 修正真实规则引擎 DTO 与 CDS Hooks 触发点；红线突出 / 回放 / 完整六态 / RBAC 留本页面后续 PR。
-- 测试：`npm test -- src/pages/clinical/RuleValidate.test.tsx` 覆盖真实 `ruleId/versionId/actions/explanation` 渲染和提交载荷；同轮 `npm run verify`（57 文件 / 323 测试）、`npm run build`、`npm audit --omit=dev --audit-level=moderate` 通过。
+- 代码 permalink：`frontend/src/pages/clinical/RuleValidate.tsx` 消费真实规则评估与执行解释端点，红线命中强突出并支持历史 `executionId` 回放解释。
+- 测试：`npm test -- src/pages/clinical/RuleValidate.test.tsx` 覆盖真实 `ruleId/versionId/actions/explanation` 渲染、提交载荷、红线不可忽略提示和历史执行解释回放；同轮 D3 页面组 8 文件 / 65 用例通过。
+- 后端证据：`mvn -q -Dtest=RuleEngineServiceTest,RuleEngineApiContractTest,RuleEngineControllerSecurityTest,RuleDslEvaluatorTest test` 属于本轮后端目标组并退出码 0；规则权限、解释与 DSL 求值以后端测试为准。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
