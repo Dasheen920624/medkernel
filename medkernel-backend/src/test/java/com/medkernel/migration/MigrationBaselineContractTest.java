@@ -111,7 +111,8 @@ class MigrationBaselineContractTest {
         "V82__workflow_organization_scope.sql",
         "V83__quality_dashboard_alerts.sql",
         "V84__insurance_quality_service.sql",
-        "V85__org_unit_platform_level.sql"
+        "V85__org_unit_platform_level.sql",
+        "V86__emr_level_target_mapping.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -133,6 +134,7 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
@@ -237,6 +239,8 @@ class MigrationBaselineContractTest {
         "idx_quality_drg_grouping_tenant_status", "idx_quality_drg_grouping_department",
         "idx_quality_insurance_issue_tenant_status", "idx_quality_insurance_issue_department",
         "idx_quality_insurance_issue_claim",
+        "idx_emr_level_target_scope", "idx_emr_level_item_target",
+        "idx_emr_level_gap_target", "idx_emr_level_gap_task",
         "idx_rect_task_finding", "idx_rect_task_department_status",
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
@@ -402,6 +406,12 @@ class MigrationBaselineContractTest {
         "uk_quality_insurance_issue_id", "uk_quality_insurance_issue_source",
         "ck_quality_insurance_issue_type", "ck_quality_insurance_issue_severity",
         "ck_quality_insurance_issue_status",
+        "uk_emr_level_target_id", "uk_emr_level_target_scope",
+        "ck_emr_level_target_level", "ck_emr_level_target_status", "ck_emr_level_target_counts",
+        "uk_emr_level_item_id", "uk_emr_level_item_capability",
+        "ck_emr_level_item_required_level", "ck_emr_level_item_status",
+        "uk_emr_level_gap_id", "uk_emr_level_gap_item",
+        "ck_emr_level_gap_capability", "ck_emr_level_gap_status",
         "uk_notification_id", "uk_notification_dedupe",
         "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
@@ -484,6 +494,7 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -524,6 +535,7 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap",
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -621,6 +633,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_quality_case_review", Set.of("review_status", "model_status")),
         Map.entry("mk_quality_drg_grouping", Set.of("grouping_status")),
         Map.entry("mk_quality_insurance_issue", Set.of("issue_type", "severity", "status")),
+        Map.entry("mk_emr_level_target", Set.of("target_level", "status")),
+        Map.entry("mk_emr_level_item", Set.of("required_level", "capability_status")),
+        Map.entry("mk_emr_level_gap", Set.of("capability_status", "gap_status")),
         Map.entry("rectification_task", Set.of("status")),
         Map.entry("rectification_review", Set.of("decision")),
         Map.entry("knowledge_package", Set.of("package_version", "status")),
@@ -855,6 +870,25 @@ class MigrationBaselineContractTest {
                 .contains("ck_org_unit_level")
                 .contains("platform")
                 .contains("comment on column org_unit.level_code");
+        }
+    }
+
+    @Test
+    void v86ShouldCreateEmrLevelTargetMappingForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V86__emr_level_target_mapping.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 电子病历评级目标映射迁移", dialect)
+                .contains("mk_emr_level_target")
+                .contains("mk_emr_level_item")
+                .contains("mk_emr_level_gap")
+                .contains("ck_emr_level_item_status")
+                .contains("missing_evidence")
+                .contains("idx_emr_level_gap_task")
+                .contains("comment on table mk_emr_level_target");
         }
     }
 
