@@ -70,7 +70,8 @@ public final class DomainOwnershipCatalog {
         module("compliance-security", packages(
             "com.medkernel.compliance.datapermission",
             "com.medkernel.compliance.masking",
-            "com.medkernel.compliance.exportapproval"),
+            "com.medkernel.compliance.exportapproval",
+            "com.medkernel.compliance.interopassessment"),
             prefixes("mk_compliance_"), tables())
     );
 
