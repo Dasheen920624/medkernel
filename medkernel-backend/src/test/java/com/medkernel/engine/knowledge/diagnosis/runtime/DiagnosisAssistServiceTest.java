@@ -42,6 +42,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.observability.BusinessMetrics;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,7 @@ class DiagnosisAssistServiceTest {
     private DiagnosisFindingExtractor extractor;
     private DiagnosisRedlinePort redlinePort;
     private RecommendationEngineService recommendationEngine;
+    private BusinessMetrics businessMetrics;
     private DiagnosisAssistService service;
 
     private final DiagnosisConfidencePolicy policy = new DiagnosisConfidencePolicy(
@@ -74,9 +76,10 @@ class DiagnosisAssistServiceTest {
         extractor = mock(DiagnosisFindingExtractor.class);
         redlinePort = mock(DiagnosisRedlinePort.class);
         recommendationEngine = mock(RecommendationEngineService.class);
+        businessMetrics = mock(BusinessMetrics.class);
         DiagnosisMatcher matcher = new DiagnosisMatcher(new DiagnosisConfidenceEvaluator());
         service = new DiagnosisAssistService(snapshots, versions, identities, criteria, policies,
-            matcher, extractor, redlinePort, recommendationEngine, new ObjectMapper());
+            matcher, extractor, redlinePort, recommendationEngine, new ObjectMapper(), businessMetrics);
 
         when(snapshots.findById(any())).thenReturn(new ContextSnapshotResponse(
             "snap-1", null, null, null, null, Instant.now(), "trace-dx"));
@@ -162,6 +165,18 @@ class DiagnosisAssistServiceTest {
         assertThat(response.advisoryNote()).isEqualTo(DiagnosisAssistService.ADVISORY_EMPTY);
         assertThat(response.advisoryNote()).contains("不是排除诊断");
         verify(recommendationEngine, never()).trigger(any()); // 空态不落库
+        verify(businessMetrics).incDiagnosisAssist(); // 调用数即便空态也计
+        verify(businessMetrics, never()).incDiagnosisCandidate(any()); // 无候选不计分级分布
+    }
+
+    @Test
+    void emitsObservabilityMetricsForInvocationAndCandidateDistribution() {
+        stubStrongHit();
+
+        service.assist(new DiagnosisAssistRequest("snap-1"));
+
+        verify(businessMetrics).incDiagnosisAssist();
+        verify(businessMetrics).incDiagnosisCandidate("STRONG"); // 候选按置信等级计入分级分布
     }
 
     @Test

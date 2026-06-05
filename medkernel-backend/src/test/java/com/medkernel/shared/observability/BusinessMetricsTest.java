@@ -49,6 +49,23 @@ class BusinessMetricsTest {
     }
 
     @Test
+    void diagnosisAssistAndCandidateDistributionMetersWork() {
+        var assist = registry.find("medkernel_diagnosis_assist_total").counter();
+        assertThat(assist).isNotNull();
+        double before = assist.count();
+        metrics.incDiagnosisAssist();
+        assertThat(assist.count()).isEqualTo(before + 1.0);
+
+        metrics.incDiagnosisCandidate("STRONG");
+        metrics.incDiagnosisCandidate("STRONG");
+        metrics.incDiagnosisCandidate("MODERATE");
+        assertThat(registry.find("medkernel_diagnosis_candidate_total")
+            .tag("confidence", "STRONG").counter().count()).isGreaterThanOrEqualTo(2.0);
+        assertThat(registry.find("medkernel_diagnosis_candidate_total")
+            .tag("confidence", "MODERATE").counter().count()).isGreaterThanOrEqualTo(1.0);
+    }
+
+    @Test
     void prometheusEndpointExposesMetrics() throws Exception {
         metrics.incTenantOnboarding();
         metrics.setActivePathways(42);

@@ -29,6 +29,7 @@ public class BusinessMetrics {
 
     private Counter tenantOnboarding;
     private Counter cdssAlerts;
+    private Counter diagnosisAssist;
     private Counter auditChainSigned;
     private Counter auditPersistenceFailures;
     private Counter auditFallbackWritten;
@@ -49,6 +50,10 @@ public class BusinessMetrics {
 
         this.cdssAlerts = Counter.builder("medkernel_cdss_alerts_total")
             .description("临床运行：CDSS 累计发出的提醒条数")
+            .register(registry);
+
+        this.diagnosisAssist = Counter.builder("medkernel_diagnosis_assist_total")
+            .description("辅助诊疗：diagnosis-assist 鉴别诊断累计调用数")
             .register(registry);
 
         this.auditChainSigned = Counter.builder("medkernel_audit_chain_signed_total")
@@ -78,6 +83,15 @@ public class BusinessMetrics {
 
     public void incTenantOnboarding() { tenantOnboarding.increment(); }
     public void incCdssAlerts() { cdssAlerts.increment(); }
+    public void incDiagnosisAssist() { diagnosisAssist.increment(); }
+
+    /**
+     * 候选分级分布：按置信等级（STRONG/MODERATE/WEAK/EXCLUDE 的名称）累计鉴别诊断候选数。
+     * 入参为等级名称字符串，不引用 engine 层枚举（守 shared 不反向依赖 engine 边界）。
+     */
+    public void incDiagnosisCandidate(String confidenceLevel) {
+        registry.counter("medkernel_diagnosis_candidate_total", "confidence", confidenceLevel).increment();
+    }
     public void incAuditChainSigned() { auditChainSigned.increment(); }
     public void incAuditPersistenceFailures() { auditPersistenceFailures.increment(); }
     public void incAuditFallbackWritten() { auditFallbackWritten.increment(); }
