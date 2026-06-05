@@ -287,6 +287,40 @@ describe("Notifications", () => {
     expect(screen.queryByText("SYNC_EVENT")).not.toBeInTheDocument();
   });
 
+  it("does not expose external notification source links as navigable actions", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: {
+        items: [
+          {
+            notificationId: "notify-external-link",
+            sourceType: "FOLLOWUP_EVENT",
+            sourceId: "event-real-1",
+            dedupeKey: "followup:event-real-1",
+            title: "随访异常通知",
+            message: "患者报告呼吸困难，需要处理。",
+            level: "HIGH",
+            status: "UNREAD",
+            recipientId: "doctor-real-1",
+            recipientRole: "DOCTOR",
+            deepLink: "https://example.invalid/clinical/followup?taskId=return-task-1",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
+    expect(screen.getByText("来源暂不可跳转")).toBeInTheDocument();
+  });
+
   it("marks quiet-hour muted notifications while keeping safety notifications visible", () => {
     notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
       data: {

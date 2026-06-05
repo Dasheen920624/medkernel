@@ -16,6 +16,7 @@ import type {
   WorkflowNotificationStatus,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { SOURCE_LINK_UNAVAILABLE_TEXT, resolveSourceDeepLink } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const statusText: Record<WorkflowNotificationStatus, string> = {
@@ -228,60 +229,70 @@ export default function Notifications() {
           loading={isLoading}
           dataSource={data?.items ?? []}
           locale={{ emptyText: "当前暂无通知" }}
-          renderItem={(item) => (
-            <List.Item
-              actions={[
-                item.deepLink ? (
-                  <Button
-                    key="source"
-                    type="link"
-                    aria-label="打开来源"
-                    href={item.deepLink}
-                    className="px-0 font-semibold"
-                  >
-                    打开来源
-                  </Button>
-                ) : null,
-                item.status === "UNREAD" ? (
-                  <Button
-                    key="read"
-                    type="link"
-                    aria-label="标为已读"
-                    icon={<CheckOutlined />}
-                    loading={readMutation.isPending}
-                    onClick={() => markRead(item)}
-                    className="px-0 font-semibold"
-                  >
-                    标为已读
-                  </Button>
-                ) : null,
-              ].filter(Boolean)}
-            >
-              <List.Item.Meta
-                title={
-                  <Space wrap>
-                    <span className="font-semibold text-slate-800">{item.title}</span>
-                    <Tag color={levelColor[item.level]}>{item.level}</Tag>
-                    {isMutedByQuietHours(item.level) && <Tag color="default">免打扰中</Tag>}
-                    {quietActiveNow && isQuietBypassLevel(item.level) && (
-                      <Tag color="green">安全绕过</Tag>
-                    )}
-                    <Badge status={statusBadge[item.status]} text={statusText[item.status]} />
-                  </Space>
-                }
-                description={
-                  <Space direction="vertical" size={2}>
-                    <span>{item.message}</span>
-                    <Space wrap className="text-xs text-slate-500">
-                      <span>{sourceText[item.sourceType]}</span>
-                      <span>{item.patientId || "-"}</span>
-                      <span>{item.encounterId || "-"}</span>
+          renderItem={(item) => {
+            const sourceLink = resolveSourceDeepLink(item.deepLink);
+            const sourceAction = sourceLink ? (
+              <Button
+                key="source"
+                type="link"
+                aria-label="打开来源"
+                href={sourceLink}
+                className="px-0 font-semibold"
+              >
+                打开来源
+              </Button>
+            ) : null;
+            const unavailableSourceAction =
+              !sourceLink && item.deepLink ? (
+                <Tag key="source-unavailable" color="default">
+                  {SOURCE_LINK_UNAVAILABLE_TEXT}
+                </Tag>
+              ) : null;
+            const readAction =
+              item.status === "UNREAD" ? (
+                <Button
+                  key="read"
+                  type="link"
+                  aria-label="标为已读"
+                  icon={<CheckOutlined />}
+                  loading={readMutation.isPending}
+                  onClick={() => markRead(item)}
+                  className="px-0 font-semibold"
+                >
+                  标为已读
+                </Button>
+              ) : null;
+
+            return (
+              <List.Item
+                actions={[sourceAction, unavailableSourceAction, readAction].filter(Boolean)}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space wrap>
+                      <span className="font-semibold text-slate-800">{item.title}</span>
+                      <Tag color={levelColor[item.level]}>{item.level}</Tag>
+                      {isMutedByQuietHours(item.level) && <Tag color="default">免打扰中</Tag>}
+                      {quietActiveNow && isQuietBypassLevel(item.level) && (
+                        <Tag color="green">安全绕过</Tag>
+                      )}
+                      <Badge status={statusBadge[item.status]} text={statusText[item.status]} />
                     </Space>
-                  </Space>
-                }
-              />
-            </List.Item>
-          )}
+                  }
+                  description={
+                    <Space direction="vertical" size={2}>
+                      <span>{item.message}</span>
+                      <Space wrap className="text-xs text-slate-500">
+                        <span>{sourceText[item.sourceType]}</span>
+                        <span>{item.patientId || "-"}</span>
+                        <span>{item.encounterId || "-"}</span>
+                      </Space>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            );
+          }}
         />
       </Card>
     </PageShell>
