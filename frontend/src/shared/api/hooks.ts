@@ -2376,6 +2376,8 @@ export interface EvaluationRunResponse {
   resultCount: number;
   findingCount: number;
   taskCount: number;
+  modelStatus: "MODEL_DISABLED";
+  modelDowngradeReason?: string;
   traceId: string;
 }
 
@@ -2406,7 +2408,7 @@ export function useEvaluationIndicators(params?: {
     queryKey: ["evaluations", "indicators", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<EvaluationIndicator> }>(
-        "/engine/evaluations/indicators",
+        "/engine/evaluation/indicators",
         { params },
       );
       return data.data;
@@ -2432,7 +2434,7 @@ export function useCreateEvaluationIndicator() {
       packageVersion?: string;
     }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        "/engine/evaluations/indicators",
+        "/engine/evaluation/indicators",
         payload,
       );
       return data.data;
@@ -2444,7 +2446,7 @@ export function useSubmitEvaluationIndicator() {
   return useMutation({
     mutationFn: async (indicatorId: string) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        `/engine/evaluations/indicators/${indicatorId}/submit`,
+        `/engine/evaluation/indicators/${indicatorId}/submit`,
       );
       return data.data;
     },
@@ -2455,7 +2457,7 @@ export function usePublishEvaluationIndicator() {
   return useMutation({
     mutationFn: async (indicatorId: string) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        `/engine/evaluations/indicators/${indicatorId}/publish`,
+        `/engine/evaluation/indicators/${indicatorId}/publish`,
       );
       return data.data;
     },
@@ -2466,7 +2468,7 @@ export function useActivateEvaluationIndicator() {
   return useMutation({
     mutationFn: async (indicatorId: string) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        `/engine/evaluations/indicators/${indicatorId}/activate`,
+        `/engine/evaluation/indicators/${indicatorId}/activate`,
       );
       return data.data;
     },
@@ -2486,7 +2488,7 @@ export function useEvaluationResults(params?: {
     queryKey: ["evaluations", "results", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<EvaluationResult> }>(
-        "/engine/evaluations/results",
+        "/engine/evaluation/results",
         { params },
       );
       return data.data;
@@ -2507,7 +2509,7 @@ export function useQualityFindings(params?: {
     queryKey: ["evaluations", "findings", params ?? {}],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<QualityFinding> }>(
-        "/engine/evaluations/findings",
+        "/engine/evaluation/issues",
         { params },
       );
       return data.data;
@@ -2521,7 +2523,7 @@ export function useQualityFindingDetail(findingId: string) {
     queryFn: async () => {
       if (!findingId) return null;
       const { data } = await apiClient.get<{ data: QualityFindingDetailResponse }>(
-        `/engine/evaluations/findings/${findingId}`,
+        `/engine/evaluation/issues/${findingId}`,
       );
       return data.data;
     },
@@ -2539,9 +2541,9 @@ export function useSubmitRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationResponse }>(
-        `/engine/evaluations/findings/${findingId}/rectification`,
+        "/engine/evaluation/rectifications",
         payload.request,
-        { headers },
+        { params: { findingId }, headers },
       );
       return data.data;
     },
@@ -2558,7 +2560,7 @@ export function useReviewRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationReviewResponse }>(
-        `/engine/evaluations/findings/${findingId}/review`,
+        `/engine/evaluation/rectifications/${findingId}/review`,
         payload.request,
         { headers },
       );
@@ -2576,7 +2578,7 @@ export function useEvaluateSnapshot() {
       packageVersion?: string;
     }) => {
       const { data } = await apiClient.post<{ data: EvaluationRunResponse }>(
-        "/engine/evaluations/evaluate-snapshot",
+        "/engine/evaluation:evaluate",
         payload,
       );
       return data.data;
@@ -2590,7 +2592,7 @@ export function useEvaluationRunDiagnose(runId: string) {
     queryFn: async () => {
       if (!runId) return null;
       const { data } = await apiClient.get<{ data: DiagnoseResponse }>(
-        `/engine/evaluations/runs/${runId}/diagnose`,
+        `/engine/evaluation/runs/${runId}/diagnose`,
       );
       return data.data;
     },

@@ -388,4 +388,64 @@ class EvaluationEngineServiceTest {
         verify(findings).save(any());
         verify(tasks).save(any());
     }
+
+    @Test
+    void evaluateSnapshotRejectsMalformedCanonicalResourcePayload() {
+        ContextSnapshot snapshot = new ContextSnapshot(
+            null, "snap-1", "tenant-A", "dept-1", "patient-1", "enc-1",
+            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
+            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
+            "sig", Instant.now(), "qa-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+
+        CanonicalResource badPatient = new CanonicalResource(
+            null, "res-bad", "snap-1", "tenant-A", com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+            "{bad-json", null, null, null, null, Instant.now(),
+            com.medkernel.engine.context.QualityStatus.VALID, 0, "trace-eval");
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(badPatient));
+
+        assertThatThrownBy(() -> service.evaluateSnapshot(
+                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_001);
+
+        verify(ruleEvaluator, never()).evaluate(any(), any());
+        verify(runs, never()).save(any());
+    }
+
+    @Test
+    void evaluateSnapshotRejectsMalformedIndicatorDslBeforePersistingRun() {
+        ContextSnapshot snapshot = new ContextSnapshot(
+            null, "snap-1", "tenant-A", "dept-1", "patient-1", "enc-1",
+            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
+            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
+            "sig", Instant.now(), "qa-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+
+        CanonicalResource patientRes = new CanonicalResource(
+            null, "res-1", "snap-1", "tenant-A", com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+            "{\"patientId\":\"patient-1\"}", null, null, null, null, Instant.now(),
+            com.medkernel.engine.context.QualityStatus.VALID, 0, "trace-eval");
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientRes));
+
+        EvaluationIndicator indicator = new EvaluationIndicator(
+            null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
+            EvaluationSubjectType.MEDICAL_RECORD, "{bad-json", "{\"all\":[]}", null,
+            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+
+        assertThatThrownBy(() -> service.evaluateSnapshot(
+                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_001);
+
+        verify(runs, never()).save(any());
+    }
 }
