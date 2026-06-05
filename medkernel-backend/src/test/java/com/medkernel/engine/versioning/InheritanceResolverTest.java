@@ -18,6 +18,11 @@ import com.medkernel.shared.context.OrgLevel;
 
 class InheritanceResolverTest {
 
+    private static final String GROUP_PATH = "/TENANT-A/GROUP-A";
+    private static final String HOSP_PATH = "/TENANT-A/GROUP-A/HOSP-A";
+    private static final String HASH_BASELINE = "content-hash-baseline";
+    private static final String HASH_OVERRIDE = "content-hash-override";
+
     private AssetVersionRepository assetVersions;
     private InheritanceOverrideRepository overrides;
     private OrgHierarchyRepository hierarchy;
@@ -167,6 +172,115 @@ class InheritanceResolverTest {
         assertThat(atDepartment.sourceOrgPath()).isEqualTo(group.orgPath());
     }
 
+    @Test
+    void lockedBaselineIgnoresContentChangingReplaceAndInheritsLockedVersion() {
+        AssetVersion groupLocked = version(
+            "av-group-locked", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        AssetVersion hospitalReplace = version(
+            "av-hosp-replace", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-locked-replace", groupLocked.versionId(), hospitalReplace.versionId(),
+            HOSP_PATH, "下调阈值", "本院诉求", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupLocked, hospitalReplace, record);
+
+        assertThat(resolved.version()).isEqualTo(groupLocked);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.sourceOrgPath()).isEqualTo(GROUP_PATH);
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-locked-replace");
+    }
+
+    @Test
+    void redlineBaselineIgnoresSafetyDowngradingReplace() {
+        AssetVersion groupRedline = version(
+            "av-group-redline", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.SAFETY_REDLINE, AssetVersionOverridePolicy.FREE, HASH_BASELINE);
+        AssetVersion hospitalDowngrade = version(
+            "av-hosp-downgrade", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-redline-downgrade", groupRedline.versionId(), hospitalDowngrade.versionId(),
+            HOSP_PATH, "降级为提醒", "本院诉求", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupRedline, hospitalDowngrade, record);
+
+        assertThat(resolved.version()).isEqualTo(groupRedline);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-redline-downgrade");
+    }
+
+    @Test
+    void redlineBaselineKeepsNonDowngradingReplace() {
+        AssetVersion groupRedline = version(
+            "av-group-redline2", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.SAFETY_REDLINE, AssetVersionOverridePolicy.FREE, HASH_BASELINE);
+        AssetVersion hospitalRedlineReplace = version(
+            "av-hosp-redline", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.SAFETY_REDLINE, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-redline-lateral", groupRedline.versionId(), hospitalRedlineReplace.versionId(),
+            HOSP_PATH, "更严阈值", "本院诉求", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupRedline, hospitalRedlineReplace, record);
+
+        assertThat(resolved.version()).isEqualTo(hospitalRedlineReplace);
+        assertThat(resolved.inherited()).isFalse();
+        assertThat(resolved.overridden()).isTrue();
+    }
+
+    @Test
+    void lockedBaselineKeepsContentIdenticalReplace() {
+        AssetVersion groupLocked = version(
+            "av-group-locked2", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        AssetVersion hospitalSame = version(
+            "av-hosp-same", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_BASELINE);
+        InheritanceOverride record = override(
+            "io-locked-noop", groupLocked.versionId(), hospitalSame.versionId(),
+            HOSP_PATH, "无内容变更", "本院诉求", "仅 HOSP-A");
+
+        ResolvedAssetVersion resolved = resolveHospitalOverride(groupLocked, hospitalSame, record);
+
+        assertThat(resolved.version()).isEqualTo(hospitalSame);
+        assertThat(resolved.overridden()).isTrue();
+        assertThat(resolved.inherited()).isFalse();
+    }
+
+    /**
+     * 组装“集团基线 + 分院 REPLACE 覆盖”两级闭包并在分院解析，复用于安全护栏场景。
+     */
+    private ResolvedAssetVersion resolveHospitalOverride(
+            AssetVersion groupBaseline,
+            AssetVersion hospitalOverrideVersion,
+            InheritanceOverride overrideRecord) {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(hospitalOverrideVersion));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(groupBaseline));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOverrideVersion.versionId()))
+            .thenReturn(Optional.of(overrideRecord));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", groupBaseline.versionId()))
+            .thenReturn(Optional.empty());
+        when(assetVersions.findByVersionIdAndTenantId(groupBaseline.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(groupBaseline));
+        return resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+    }
+
     private OrgUnit org(String id, String parentId, String orgPath, OrgLevel level, String code) {
         return new OrgUnit(
             id,
@@ -187,6 +301,19 @@ class InheritanceResolverTest {
     }
 
     private AssetVersion version(String versionId, String versionNo, String orgPath, AssetVersionSafetyPolicy safetyPolicy) {
+        return version(
+            versionId, versionNo, orgPath, safetyPolicy, AssetVersionOverridePolicy.FREE,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String versionNo,
+            String orgPath,
+            AssetVersionSafetyPolicy safetyPolicy,
+            AssetVersionOverridePolicy overridePolicy,
+            String contentHash) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new AssetVersion(
             1L,
@@ -197,8 +324,9 @@ class InheritanceResolverTest {
             versionNo,
             orgPath,
             "adult|inpatient",
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            contentHash,
             safetyPolicy,
+            overridePolicy,
             AssetVersionStatus.ACTIVE,
             "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
             "rule/RULE.VTE.RISK",
