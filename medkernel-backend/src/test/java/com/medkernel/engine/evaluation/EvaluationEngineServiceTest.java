@@ -27,6 +27,7 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.rule.RuleDslEvaluation;
+import com.medkernel.engine.rule.RuleRiskLevel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -134,6 +135,22 @@ class EvaluationEngineServiceTest {
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_003);
+    }
+
+    @Test
+    void createIndicatorRejectsNaturalLanguageRuleDefinitionBeforeDrafting() {
+        EvaluationIndicatorCreateRequest request = new EvaluationIndicatorCreateRequest(
+            "IND.QC.RULE", 1, "质控规则指标", EvaluationSubjectType.MEDICAL_RECORD,
+            "符合住院风险分层病例",
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            null, null, "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0");
+
+        assertThatThrownBy(() -> service.createIndicator(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_001);
+
+        verify(indicators, never()).save(any());
     }
 
     @Test
@@ -274,7 +291,10 @@ class EvaluationEngineServiceTest {
     private EvaluationIndicatorCreateRequest indicatorRequest(int version) {
         return new EvaluationIndicatorCreateRequest(
             "IND.VTE.PROPHYLAXIS", version, "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
-            "符合住院风险分层病例", "完成预防评估病例", "出血高风险除外", "达标率 >= 95%",
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            ruleDefinition("patient.excluded", "equals", "true"),
+            "达标率 >= 95%",
             "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0");
     }
 
@@ -298,7 +318,10 @@ class EvaluationEngineServiceTest {
         Instant now = Instant.now();
         return new EvaluationIndicator(
             null, indicatorId, "tenant-A", "IND.VTE.PROPHYLAXIS", version, "静脉血栓预防完成率",
-            EvaluationSubjectType.MEDICAL_RECORD, "分母", "分子", null, null,
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, null,
             "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0", status,
             now, "qa-1", status == EvaluationIndicatorStatus.ACTIVE ? now : null,
             now, "qa-1", now, "qa-1", "trace-eval");
@@ -390,12 +413,144 @@ class EvaluationEngineServiceTest {
     }
 
     @Test
+    void evaluateSnapshotPersistsRuleExplanationIntoResultAndFindingEvidence() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true}")));
+
+        EvaluationIndicator indicator = new EvaluationIndicator(
+            null, "ei-active", "tenant-A", "IND.QC.EXPLAIN", 3, "出院质量记录完整率",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
+        when(ruleEvaluator.evaluate(any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(false, "分子达标规则校验", "patient.completed", false));
+
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+
+        ArgumentCaptor<EvaluationResult> result = ArgumentCaptor.forClass(EvaluationResult.class);
+        ArgumentCaptor<QualityFinding> finding = ArgumentCaptor.forClass(QualityFinding.class);
+        verify(results).save(result.capture());
+        verify(findings).save(finding.capture());
+        assertThat(result.getValue().evidenceSummary())
+            .contains("分母入组规则校验")
+            .contains("patient.qualityReady")
+            .contains("分子达标规则校验")
+            .contains("patient.completed");
+        assertThat(finding.getValue().evidenceSummary())
+            .contains("分子达标规则校验")
+            .contains("patient.completed");
+    }
+
+    @Test
+    void evaluateSnapshotUsesStableRunCodeAndDigestForSameSnapshotAndIndicatorVersion() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
+
+        EvaluationIndicator indicator = new EvaluationIndicator(
+            null, "ei-active", "tenant-A", "IND.QC.REPLAY", 4, "出院质量完成率",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
+        when(ruleEvaluator.evaluate(any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true));
+
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+
+        ArgumentCaptor<EvaluationRun> run = ArgumentCaptor.forClass(EvaluationRun.class);
+        verify(runs, org.mockito.Mockito.times(2)).save(run.capture());
+        assertThat(run.getAllValues())
+            .extracting(EvaluationRun::runCode)
+            .containsExactly(run.getAllValues().getFirst().runCode(), run.getAllValues().getFirst().runCode());
+        assertThat(run.getAllValues())
+            .extracting(EvaluationRun::inputDigest)
+            .containsExactly(run.getAllValues().getFirst().inputDigest(), run.getAllValues().getFirst().inputDigest());
+        assertThat(run.getAllValues().getFirst().runCode()).startsWith("ER_AUTO_");
+        assertThat(run.getAllValues().getFirst().inputDigest()).startsWith("sha256:");
+    }
+
+    @Test
+    void evaluateSnapshotReplaysExistingStableRunWithoutDuplicatingFacts() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
+
+        EvaluationIndicator indicator = new EvaluationIndicator(
+            null, "ei-active", "tenant-A", "IND.QC.REPLAY", 4, "出院质量完成率",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+
+        EvaluationResult existingResult = result("result-existing", "er-existing");
+        QualityFinding existingFinding = finding("qf-existing", QualityFindingSeverity.P1, QualityFindingStatus.ASSIGNED);
+        RectificationTask existingTask = task("task-existing", RectificationTaskStatus.ASSIGNED);
+        when(runs.findByRunCodeAndTenantId(any(), eq("tenant-A"))).thenAnswer(invocation -> {
+            String stableRunCode = invocation.getArgument(0);
+            return Optional.of(new EvaluationRun(
+                null, "er-existing", "tenant-A", stableRunCode, EvaluationRunType.UPSTREAM_RESULT,
+                null, "snap-1", "patient-1", "enc-1", "DISCHARGE", "1.0.0",
+                "sha256:existing", EvaluationRunStatus.RECORDED, null, Instant.now(),
+                Instant.now(), "qa-1", Instant.now(), "qa-1", "trace-existing"));
+        });
+        when(results.findByRunIdAndTenantIdOrderByCreatedAtAsc("er-existing", "tenant-A"))
+            .thenReturn(List.of(existingResult));
+        when(findings.findByResultIdAndTenantIdOrderByCreatedAtAsc("result-existing", "tenant-A"))
+            .thenReturn(List.of(existingFinding));
+        when(tasks.findByFindingIdAndTenantId("qf-existing", "tenant-A"))
+            .thenReturn(Optional.of(existingTask));
+
+        EvaluationRunResponse response = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+
+        assertThat(response.runId()).isEqualTo("er-existing");
+        assertThat(response.resultCount()).isEqualTo(1);
+        assertThat(response.findingCount()).isEqualTo(1);
+        assertThat(response.taskCount()).isEqualTo(1);
+        assertThat(response.traceId()).isEqualTo("trace-existing");
+        ArgumentCaptor<String> replayRunCode = ArgumentCaptor.forClass(String.class);
+        verify(runs).findByRunCodeAndTenantId(replayRunCode.capture(), eq("tenant-A"));
+        assertThat(replayRunCode.getValue())
+            .startsWith("ER_AUTO_")
+            .hasSize("ER_AUTO_".length() + 16);
+        verify(ruleEvaluator, never()).evaluate(any(), any());
+        verify(runs, never()).save(any());
+        verify(results, never()).save(any());
+        verify(findings, never()).save(any());
+        verify(tasks, never()).save(any());
+    }
+
+    @Test
     void evaluateSnapshotRejectsMalformedCanonicalResourcePayload() {
-        ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-1", "tenant-A", "dept-1", "patient-1", "enc-1",
-            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
-            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
-            "sig", Instant.now(), "qa-1");
+        ContextSnapshot snapshot = snapshot("snap-1");
         when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
 
         CanonicalResource badPatient = new CanonicalResource(
@@ -417,11 +572,7 @@ class EvaluationEngineServiceTest {
 
     @Test
     void evaluateSnapshotRejectsMalformedIndicatorDslBeforePersistingRun() {
-        ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-1", "tenant-A", "dept-1", "patient-1", "enc-1",
-            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
-            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
-            "sig", Instant.now(), "qa-1");
+        ContextSnapshot snapshot = snapshot("snap-1");
         when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
 
         CanonicalResource patientRes = new CanonicalResource(
@@ -447,5 +598,41 @@ class EvaluationEngineServiceTest {
             .isEqualTo(ErrorCode.ENG_EVAL_001);
 
         verify(runs, never()).save(any());
+    }
+
+    private ContextSnapshot snapshot(String snapshotId) {
+        return new ContextSnapshot(
+            null, snapshotId, "tenant-A", "dept-1", "patient-1", "enc-1",
+            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
+            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
+            "sig", Instant.now(), "qa-1");
+    }
+
+    private CanonicalResource patientResource(String resourceId, String payload) {
+        return new CanonicalResource(
+            null, resourceId, "snap-1", "tenant-A", com.medkernel.engine.context.CanonicalResourceType.PATIENT,
+            payload, null, null, null, null, Instant.now(),
+            com.medkernel.engine.context.QualityStatus.VALID, 0, "trace-eval");
+    }
+
+    private String ruleDefinition(String fact, String operator, String valueLiteral) {
+        return """
+            {"all":[{"fact":"%s","operator":"%s","value":%s}]}
+            """.formatted(fact, operator, valueLiteral);
+    }
+
+    private RuleDslEvaluation ruleEvaluation(boolean hit, String summary, String fact, boolean matched) {
+        var explanation = json.createObjectNode();
+        explanation.put("summary", summary);
+        var evidence = json.createArrayNode();
+        var item = json.createObjectNode();
+        item.put("fact", fact);
+        item.put("sourcePath", "$." + fact);
+        item.put("operator", "equals");
+        item.put("matched", matched);
+        item.put("missing", !matched);
+        evidence.add(item);
+        explanation.set("conditionEvidence", evidence);
+        return new RuleDslEvaluation(hit, hit ? RuleRiskLevel.MEDIUM : null, List.of(), explanation);
     }
 }

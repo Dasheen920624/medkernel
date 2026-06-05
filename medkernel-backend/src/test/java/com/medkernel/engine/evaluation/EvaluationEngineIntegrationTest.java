@@ -2,11 +2,24 @@ package com.medkernel.engine.evaluation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.CanonicalResource;
+import com.medkernel.engine.context.CanonicalResourceType;
+import com.medkernel.engine.context.ContextSnapshot;
+import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.rule.RuleDslEvaluation;
+import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -25,6 +38,8 @@ import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
@@ -57,7 +72,6 @@ class EvaluationEngineIntegrationTest {
     @MockBean com.medkernel.engine.context.CanonicalResourceRepository canonicalResources;
     @MockBean com.medkernel.engine.context.ContextSnapshotRepository snapshots;
     @MockBean com.medkernel.engine.rule.RuleDslEvaluator ruleEvaluator;
-    @MockBean com.fasterxml.jackson.databind.ObjectMapper json;
 
     @BeforeEach
     void setUp() {
@@ -81,7 +95,9 @@ class EvaluationEngineIntegrationTest {
     void persistsIdempotentIndicatorRunRectificationAndReviewWorkflow() {
         EvaluationIndicator indicator = service.createIndicator(new EvaluationIndicatorCreateRequest(
             "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
-            "符合住院风险分层病例", "完成预防评估病例", null, null,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, null,
             "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
         service.submitIndicator(indicator.indicatorId());
         service.publishIndicator(indicator.indicatorId());
@@ -145,5 +161,82 @@ class EvaluationEngineIntegrationTest {
         assertThat(detail.reviews())
             .extracting(RectificationReview::decision)
             .containsExactly(RectificationReviewDecision.APPROVED);
+    }
+
+    @Test
+    void evaluateSnapshotReplaysExistingAutomaticRunThroughRealRepositories() {
+        when(ruleEvaluator.evaluate(any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母规则定义校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(false, "分子规则定义校验", "patient.completed", false))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(false, "分子达标规则校验", "patient.completed", false));
+
+        EvaluationIndicator indicator = service.createIndicator(new EvaluationIndicatorCreateRequest(
+            "IND.AUTO.REPLAY", 1, "出院质量自动评估复现率", EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷",
+            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
+        service.submitIndicator(indicator.indicatorId());
+        service.publishIndicator(indicator.indicatorId());
+        service.activateIndicator(indicator.indicatorId());
+
+        ContextSnapshot snapshot = new ContextSnapshot(
+            null, "snap-auto-1", "tenant-A", "dept-1", "patient-1", "enc-1",
+            "1.0.0", "1.0.0", "1.0.0", ContextSnapshotStatus.ACTIVE,
+            "[]", "{}", QualityStatus.VALID, "trace-auto", "sig-auto", Instant.now(), "qa-1");
+        CanonicalResource patient = new CanonicalResource(
+            null, "res-auto-1", "snap-auto-1", "tenant-A", CanonicalResourceType.PATIENT,
+            "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":false}",
+            null, null, null, null, Instant.now(), QualityStatus.VALID, 0, "trace-auto");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-auto-1", "tenant-A"))
+            .thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-auto-1"))
+            .thenReturn(List.of(patient));
+
+        EvaluationRunResponse first = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE", "1.0.0"));
+        EvaluationRunResponse replay = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE", "1.0.0"));
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(runs.count()).isEqualTo(1);
+        assertThat(results.count()).isEqualTo(1);
+        assertThat(findings.count()).isEqualTo(1);
+        assertThat(tasks.count()).isEqualTo(1);
+        EvaluationRun savedRun = runs.findByRunIdAndTenantId(first.runId(), "tenant-A").orElseThrow();
+        assertThat(savedRun.runCode()).startsWith("ER_AUTO_").hasSize("ER_AUTO_".length() + 16);
+        assertThat(savedRun.inputDigest()).startsWith("sha256:");
+        verify(ruleEvaluator, times(4)).evaluate(any(), any());
+    }
+
+    private String ruleDefinition(String fact, String operator, String valueLiteral) {
+        return """
+            {"all":[{"fact":"%s","operator":"%s","value":%s}]}
+            """.formatted(fact, operator, valueLiteral);
+    }
+
+    private RuleDslEvaluation ruleEvaluation(boolean hit, String summary, String fact, boolean matched) {
+        var explanation = new ObjectMapper().createObjectNode();
+        explanation.put("summary", summary);
+        var evidence = new ObjectMapper().createArrayNode();
+        var item = new ObjectMapper().createObjectNode();
+        item.put("fact", fact);
+        item.put("sourcePath", "$." + fact);
+        item.put("operator", "equals");
+        item.put("matched", matched);
+        item.put("missing", !matched);
+        evidence.add(item);
+        explanation.set("conditionEvidence", evidence);
+        return new RuleDslEvaluation(hit, hit ? RuleRiskLevel.MEDIUM : null, List.of(), explanation);
+    }
+
+    @TestConfiguration
+    static class JsonConfiguration {
+
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
     }
 }
