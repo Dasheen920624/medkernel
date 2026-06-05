@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 QCDASH-01 院级质控驾驶舱页 🚧
-- 类型：软件开发（前端页面真实化 + 真实质控驾驶舱 API 消费 + 文档收口）
-- 分支：`codex/d4-qcdash-01`
-- 目标：完成 D4 `QCDASH-01`：把 `/qc/dashboard` 从占位页改为消费 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 的真实院级聚合、风险热力、价值指标、打开预警、下钻证据与证据包导出；缺事实标 `NOT_AVAILABLE`，不前端造数。
-- 状态：前序 `EMR-LEVEL-02` 已由 PR #436 squash merge 到 `origin/main`（merge `6215852e239b3228a78b7e9b9530cd011574053e`）并删除远端分支；本轮已新增 `useQualityDashboard` / `useQualityDashboardDrilldown` hook 与前端 DTO，`QcDashboard.tsx` 已移除旧空态占位，展示真实 summary、heatmap、valueMetrics、activeAlerts、三默认筛选（本月/科室/下钻类型）、一个主按钮（导出证据）和右侧真实下钻证据抽屉；`docs/cards/D4/QCDASH-01.md`、`docs/cards/D4/_brief.md`、`docs/backlog.md` 已同步为 QCDASH 完成、剩余 5 个 D4 页面待真实化。
-- 已有验证：TDD 红灯 `cd frontend && npm test -- QcDashboard.test.tsx` 先因旧占位页缺“院级质控驾驶舱”标题与“下钻问题证据”按钮失败；绿灯 `npm test -- QcDashboard.test.tsx` 2 测试通过；前端全量 `cd frontend && npm run verify` 通过（63 files / 381 tests，只有既有 React Router/act 警告）；`cd frontend && npm run build` 通过（仅既有 vendor chunk 大小 warning）；changed T-GATE 通过：真实性门禁扫描 2 个前端生产/API 文件、配置边界扫描 0 个 Java 文件、中文注释 0 fail/0 warn、`git diff --check origin/main...HEAD` 无输出；无新增迁移，迁移规约门禁 N·A。
-- 下一步（精确到动作/命令）：1. push 分支 `codex/d4-qcdash-01`。2. 开 PR，远端 CI 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 页面卡（优先 `QCALERT-01`）。
-- 相关文件 / 测试 / 坑：`frontend/src/pages/quality/QcDashboard.tsx`、`QcDashboard.test.tsx`、`frontend/src/shared/api/hooks.ts`、`docs/cards/D4/QCDASH-01.md`。注意：Ant Design 图标会进入按钮可访问名，带图标按钮若测试按中文名定位需显式 `aria-label`；页面枚举常量不要放模块级数组，`medkernel/no-page-mock` 会按真实性债务阻断。
+### 当前 Codex 执行线 · D4 QCALERT-01 质控预警页 🚧
+- 类型：软件开发（前端页面真实化 + 真实预警确认 / 整改派发 + 后端预警筛选契约 + 文档收口）
+- 分支：`codex/d4-qcalert-01`
+- 目标：完成 D4 [QCALERT-01](cards/D4/QCALERT-01.md)：把 `/qc/alerts` 从旧 PDCA 整改工作台改为消费 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 真实预警 read-model，支持真实确认、真实派整改、低打扰默认筛选和 PageShell 六态，不前端造预警 / trace / 状态。
+- 状态：前序 [QCDASH-01](cards/D4/QCDASH-01.md) 已由 PR #438 squash merge 到 `origin/main`（merge `25f7de059dc60425d54aa52c35cfce12bb9be5ac`）并删除远端分支；本轮已将 `QcAlerts.tsx` 改为读取 `GET /engine/quality/alerts`，默认筛选 `status=OPEN`、`severity=HIGH_RISK`、今日，列表展示真实级别/科室/阈值/来源/traceId；抽屉支持 `POST /engine/quality/alerts/{alertId}/acknowledge` 确认与 `POST /engine/rectifications` 派发整改。后端补 `QualityDashboardAlertFilter.severity`、服务端 `HIGH_RISK`=P0/P1 筛选、确认端点权限 `evaluation.review`，确认态在来源仍活跃时不被 read-model 刷回 `OPEN`。`docs/cards/D4/QCALERT-01.md`、`SVC-QUALITY-01.md`、`_brief.md`、`backlog.md` 已同步为 QCALERT 完成，剩余 D4 页面为 INSAUDIT/EVALSET/EVALRES/AIREVIEW 四张。
+- 已有验证：TDD 红灯包括前端旧页仍调用 `useQualityFindings`、确认按钮缺失、后端 `acknowledgeAlert` 缺失、`QualityDashboardAlertFilter` 缺 `severity`；绿灯 `cd frontend && npm test -- QcAlerts.test.tsx` 4 测试通过；`cd frontend && npm test -- pages.smoke.test.tsx` 23 测试通过；`cd medkernel-backend && mvn -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest test` 12 测试通过；`cd frontend && npm run verify` 64 文件 / 385 测试通过（仅既有 React Router/act warning）；`cd frontend && npm run build` 通过（仅既有 vendor chunk warning）；`cd medkernel-backend && mvn test` 1487 测试通过（含 H2/PostgreSQL/Oracle v88 迁移 smoke）；changed-mode T-GATE 通过：真实性门禁扫描 6 文件、配置边界扫描 4 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main...HEAD` 无输出。
+- 下一步（精确到动作/命令）：1. push `codex/d4-qcalert-01`、开 PR。2. 远端 CI 绿后 squash merge 并确认 `origin/main` 含合并提交。3. 从最新 `origin/main` 继续领取 D4 下一张 pending 页面卡，优先 [INSAUDIT-01](cards/D4/INSAUDIT-01.md)。
+- 相关文件 / 测试 / 坑：`frontend/src/pages/quality/QcAlerts.tsx`、`QcAlerts.test.tsx`、`frontend/src/shared/api/hooks.ts`、`medkernel-backend/src/main/java/com/medkernel/engine/quality/dashboard/QualityDashboardService.java`、`QualityDashboardController.java`、`QualityDashboardAlertFilter.java`、`ServiceContractCatalog.java`、`QualityDashboardServiceTest.java`、`QualityDashboardControllerSecurityTest.java`。注意：Ant Design Select 会把 `aria-label` 同时放到外层和内部 input，RTL 用 `getByRole("combobox", { name })` 更稳；页面筛选默认保持 ≤3，组织范围交给后端 DataScope/权限，不在默认筛选区多塞科室输入。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）

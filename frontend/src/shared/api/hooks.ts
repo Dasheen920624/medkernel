@@ -2436,10 +2436,12 @@ export interface QualityValueMetricSummary {
   metrics: QualityValueMetric[];
 }
 
+export type QualityDashboardAlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | string;
+
 export interface QualityDashboardAlert {
   alertId: string;
   alertType: string;
-  status: string;
+  status: QualityDashboardAlertStatus;
   departmentId: string | null;
   sourceType: string;
   sourceId: string;
@@ -2460,6 +2462,14 @@ export interface QualityDashboardResponse {
   valueMetrics: QualityValueMetricSummary;
   activeAlerts: QualityDashboardAlert[];
   generatedAt: string;
+}
+
+export interface QualityDashboardAlertsResponse {
+  items: QualityDashboardAlert[];
+  offset: number;
+  limit: number;
+  total: number;
+  hasNext: boolean;
 }
 
 export type QualityDashboardDrilldownType = "FINDING" | "ALERT" | "RECTIFICATION" | string;
@@ -2504,6 +2514,20 @@ export interface QualityDashboardDrilldownQueryParams extends QualityDashboardQu
   type?: QualityDashboardDrilldownType;
   page?: number;
   size?: number;
+}
+
+export interface QualityAlertsQueryParams extends QualityDashboardQueryParams {
+  status?: QualityDashboardAlertStatus;
+  severity?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface RectificationDispatchRequest {
+  findingId: string;
+  responsibleDepartmentId: string;
+  assigneeUserId?: string;
+  dueAt: string;
 }
 
 // 1. Indicator Lifecycle Hooks
@@ -2654,6 +2678,30 @@ export function useQualityDashboardDrilldown(params?: QualityDashboardDrilldownQ
   });
 }
 
+export function useQualityAlerts(params?: QualityAlertsQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "alerts", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardAlertsResponse }>(
+        "/engine/quality/alerts",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useAcknowledgeQualityAlert() {
+  return useMutation({
+    mutationFn: async (alertId: string) => {
+      const { data } = await apiClient.post<{ data: QualityDashboardAlert }>(
+        `/engine/quality/alerts/${encodeURIComponent(alertId)}/acknowledge`,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useQualityFindingDetail(findingId: string) {
   return useQuery({
     queryKey: ["evaluations", "finding-detail", findingId],
@@ -2681,6 +2729,25 @@ export function useSubmitRectification(findingId: string) {
         "/engine/evaluation/rectifications",
         payload.request,
         { params: { findingId }, headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useDispatchRectification() {
+  return useMutation({
+    mutationFn: async (payload: {
+      request: RectificationDispatchRequest;
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const { data } = await apiClient.post<{ data: RectificationResponse }>(
+        "/engine/rectifications",
+        payload.request,
+        { headers },
       );
       return data.data;
     },

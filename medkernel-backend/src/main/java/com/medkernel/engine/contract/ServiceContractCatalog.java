@@ -129,10 +129,10 @@ public final class ServiceContractCatalog {
         contract("quality-dashboard", "质控驾驶舱服务",
             "com.medkernel.engine.quality.dashboard.QualityDashboardController",
             "/api/v1/engine/quality",
-            permissions("evaluation.read"),
+            permissions("evaluation.read", "evaluation.review"),
             audits(
                 audit(AuditAction.CREATE, "mk_quality_dashboard_alert", "生成质控驾驶舱预警 read-model"),
-                audit(AuditAction.UPDATE, "mk_quality_dashboard_alert", "刷新或关闭质控驾驶舱预警"))),
+                audit(AuditAction.UPDATE, "mk_quality_dashboard_alert", "刷新、确认或关闭质控驾驶舱预警"))),
         contract("insurance-quality", "病案医保服务包",
             "com.medkernel.engine.quality.insurance.InsuranceQualityController",
             "/api/v1/engine/quality",

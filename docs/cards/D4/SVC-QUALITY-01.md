@@ -17,7 +17,7 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
 聚合层待建（消费侧已有源）：评估（[EVAL-01](EVAL-01.md) `engine/evaluation`）、价值（[OPT-08](OPT-08.md)）、整改（[SVC-QUALITY-03](SVC-QUALITY-03.md) `RectificationTask`）数据源已成型。本卡＝建驾驶舱聚合 + 下钻编排，数据单一来自各源、不前端造数。
 
-实现更新（2026-06-05）：已新增 `com.medkernel.engine.quality.dashboard` 服务包，按当前租户上下文读取 `quality_finding`、`rectification_task` 与 [OPT-08](OPT-08.md) 价值指标，生成院级聚合、科室热力、下钻证据包与确定性预警 read-model；预警事实落 `mk_quality_dashboard_alert`，同源预警幂等刷新、闭环后置为 `RESOLVED`，再次活跃可重新打开且不重复。
+实现更新（2026-06-05）：已新增 `com.medkernel.engine.quality.dashboard` 服务包，按当前租户上下文读取 `quality_finding`、`rectification_task` 与 [OPT-08](OPT-08.md) 价值指标，生成院级聚合、科室热力、下钻证据包与确定性预警 read-model；预警事实落 `mk_quality_dashboard_alert`，同源预警幂等刷新、闭环后置为 `RESOLVED`，再次活跃可重新打开且不重复。QCALERT-01 本轮补齐 `POST /quality/alerts/{alertId}/acknowledge` 确认端点与 `severity` 服务端筛选，`HIGH_RISK` 映射 P0/P1；已确认预警在来源事实仍活跃时保持 `ACKNOWLEDGED`，来源闭环后由 read-model 刷新为 `RESOLVED`。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 院级总览：指标/风险热力/价值/问题分布院级聚合，真实。
@@ -28,9 +28,9 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET /api/v1/engine/quality/dashboard` · `GET .../quality/dashboard/drilldown` · `GET .../quality/alerts`
+- 端点：`GET /api/v1/engine/quality/dashboard` · `GET .../quality/dashboard/drilldown` · `GET .../quality/alerts` · `POST .../quality/alerts/{alertId}/acknowledge`
 - DTO：驾驶舱聚合 Record（层级/指标/值/作用域）；信封 `ApiResult`/`ProblemDetail`
-- 状态机：预警（告警类：待处理→已处置）；trace（[OBS-01](../D0/OBS-01.md)）
+- 状态机：预警（`OPEN` → `ACKNOWLEDGED` → `RESOLVED`；来源事实重新活跃时从 `RESOLVED` 重新打开，确认态不被刷新回未处置）；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
 - 聚合复用 evaluation/value/rectification 表族；新增 `mk_quality_dashboard_alert` 预警 read-model（阈值 + 状态 + 组织字段 + 审计 + traceId），V83 五方言迁移（[BASE-05](../D0/BASE-05.md)）。

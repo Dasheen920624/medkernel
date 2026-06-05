@@ -197,9 +197,10 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("当前暂无随访计划")).toBeInTheDocument();
   });
 
-  it("renders the quality qc-alerts placeholder", () => {
+  it("renders the quality qc-alerts page with the real empty state", () => {
     renderPage(<QcAlerts />);
-    expect(screen.getByRole("heading", { name: "质控预警与整改工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实质控预警")).toBeInTheDocument();
   });
 
   it("renders the compliance admin-users console", () => {

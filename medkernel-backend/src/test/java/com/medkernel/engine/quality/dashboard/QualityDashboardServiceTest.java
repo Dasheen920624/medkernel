@@ -1,6 +1,7 @@
 package com.medkernel.engine.quality.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -172,7 +173,8 @@ class QualityDashboardServiceTest {
         withTenant("tenant-A", () -> service.dashboard(new QualityDashboardFilter(null, now.plusSeconds(1), null)));
         QualityDashboardAlertsResponse response = withTenant("tenant-A",
             () -> service.alerts(
-                new QualityDashboardAlertFilter(null, now.plusSeconds(1), null, QualityDashboardAlertStatus.OPEN),
+                new QualityDashboardAlertFilter(null, now.plusSeconds(1), null,
+                    QualityDashboardAlertStatus.OPEN, null),
                 0, 20));
 
         assertThat(response.items()).hasSize(2);
@@ -180,6 +182,67 @@ class QualityDashboardServiceTest {
             .extracting(QualityDashboardAlertResponse::status)
             .containsOnly(QualityDashboardAlertStatus.OPEN);
         assertThat(alerts.count()).isEqualTo(2);
+    }
+
+    @Test
+    void alertsEndpointFiltersSeverityWithoutClientSidePagingDistortion() {
+        Instant now = Instant.parse("2026-06-05T00:00:00Z");
+        seedFinding("tenant-A", "qf-p0", QualityFindingSeverity.P0,
+            QualityFindingStatus.ASSIGNED, "dept-a", now);
+        seedFinding("tenant-A", "qf-p1", QualityFindingSeverity.P1,
+            QualityFindingStatus.ASSIGNED, "dept-a", now);
+
+        QualityDashboardAlertsResponse response = withTenant("tenant-A",
+            () -> service.alerts(
+                new QualityDashboardAlertFilter(null, now.plusSeconds(1), null,
+                    QualityDashboardAlertStatus.OPEN, "P1"),
+                0, 20));
+
+        assertThat(response.items()).singleElement().satisfies(alert -> {
+            assertThat(alert.sourceId()).isEqualTo("qf-p1");
+            assertThat(alert.severity()).isEqualTo("P1");
+        });
+    }
+
+    @Test
+    void acknowledgeAlertKeepsStatusAcknowledgedAcrossReadModelRefresh() {
+        Instant now = Instant.parse("2026-06-05T00:00:00Z");
+        seedFinding("tenant-A", "qf-critical", QualityFindingSeverity.P1,
+            QualityFindingStatus.ASSIGNED, "dept-a", now);
+
+        withTenant("tenant-A", () -> service.dashboard(new QualityDashboardFilter(null, now.plusSeconds(1), null)));
+        QualityDashboardAlertResponse acknowledged = withTenant("tenant-A",
+            () -> service.acknowledgeAlert("HIGH_RISK_FINDING:quality_finding:qf-critical"));
+
+        assertThat(acknowledged.status()).isEqualTo(QualityDashboardAlertStatus.ACKNOWLEDGED);
+
+        QualityDashboardAlertsResponse afterRefresh = withTenant("tenant-A",
+            () -> service.alerts(
+                new QualityDashboardAlertFilter(null, now.plusSeconds(1), null,
+                    QualityDashboardAlertStatus.ACKNOWLEDGED, null),
+                0, 20));
+
+        assertThat(afterRefresh.items()).singleElement().satisfies(alert -> {
+            assertThat(alert.alertId()).isEqualTo("HIGH_RISK_FINDING:quality_finding:qf-critical");
+            assertThat(alert.status()).isEqualTo(QualityDashboardAlertStatus.ACKNOWLEDGED);
+        });
+        assertThat(withTenant("tenant-A",
+            () -> service.alerts(
+                new QualityDashboardAlertFilter(null, now.plusSeconds(1), null,
+                    QualityDashboardAlertStatus.OPEN, null),
+                0, 20)).items()).isEmpty();
+    }
+
+    @Test
+    void acknowledgeAlertIsTenantScopedAndRejectsMissingAlert() {
+        Instant now = Instant.parse("2026-06-05T00:00:00Z");
+        seedFinding("tenant-A", "qf-critical", QualityFindingSeverity.P1,
+            QualityFindingStatus.ASSIGNED, "dept-a", now);
+        withTenant("tenant-A", () -> service.dashboard(new QualityDashboardFilter(null, now.plusSeconds(1), null)));
+
+        assertThatThrownBy(() -> withTenant("tenant-B",
+            () -> service.acknowledgeAlert("HIGH_RISK_FINDING:quality_finding:qf-critical")))
+            .hasMessageContaining("质控预警 不存在");
     }
 
     @Test
