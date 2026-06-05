@@ -134,9 +134,11 @@ public class InheritanceOverrideService {
 
     private void rejectDisableUntilReleaseFlowSupportsEvidence(InheritanceOverrideMode mode) {
         if (mode == InheritanceOverrideMode.DISABLE) {
+            // 解析期已具备 DISABLE 消费能力（InheritanceResolver 按组织生效域直查停用并回退/护栏），
+            // 登记暂仍仅支持替换覆盖：待补发布流证据链与登记解禁后端到端放开。
             throw new ApiException(
                 ErrorCode.VALIDATION_FAILED,
-                "关闭继承需要发布流证据链和解析消费能力，SYS-04 PR2 仅支持替换覆盖登记"
+                "关闭继承仍需发布流证据链与登记期解禁；解析期已可消费 DISABLE，登记暂仅支持替换覆盖"
             );
         }
     }

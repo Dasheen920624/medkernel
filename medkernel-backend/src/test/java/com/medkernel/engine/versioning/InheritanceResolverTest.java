@@ -20,6 +20,7 @@ class InheritanceResolverTest {
 
     private static final String GROUP_PATH = "/TENANT-A/GROUP-A";
     private static final String HOSP_PATH = "/TENANT-A/GROUP-A/HOSP-A";
+    private static final String DEPT_PATH = "/TENANT-A/GROUP-A/HOSP-A/DEPT-X";
     private static final String HASH_BASELINE = "content-hash-baseline";
     private static final String HASH_OVERRIDE = "content-hash-override";
 
@@ -251,6 +252,146 @@ class InheritanceResolverTest {
         assertThat(resolved.version()).isEqualTo(hospitalSame);
         assertThat(resolved.overridden()).isTrue();
         assertThat(resolved.inherited()).isFalse();
+    }
+
+    @Test
+    void disableOverrideAtTargetResolvesToDisabled() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride disable = disableOverride(
+            "io-disable-hosp", groupV1.versionId(), HOSP_PATH, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubDisableAt(HOSP_PATH, disable);
+        when(assetVersions.findByVersionIdAndTenantId(groupV1.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(groupV1));
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.disabled()).isTrue();
+        assertThat(resolved.version()).isNull();
+        assertThat(resolved.overridden()).isTrue();
+        assertThat(resolved.sourceOrgPath()).isEqualTo(HOSP_PATH);
+        assertThat(resolved.explanation().resolutionSummary()).contains("停用").contains("io-disable-hosp");
+    }
+
+    @Test
+    void inheritableDisablePropagatesToDescendant() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride disable = disableOverride(
+            "io-disable-hosp", groupV1.versionId(), HOSP_PATH, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", dept.id()))
+            .thenReturn(List.of(group, hospital, dept));
+        stubDisableAt(HOSP_PATH, disable);
+        when(assetVersions.findByVersionIdAndTenantId(groupV1.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(groupV1));
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
+
+        assertThat(resolved.disabled()).isTrue();
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.sourceOrgPath()).isEqualTo(HOSP_PATH);
+    }
+
+    @Test
+    void exclusiveDisableDoesNotPropagateButAppliesAtOwnNode() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride disable = disableOverride(
+            "io-disable-excl", groupV1.versionId(), HOSP_PATH, InheritancePropagation.EXCLUSIVE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", dept.id()))
+            .thenReturn(List.of(group, hospital, dept));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(groupV1));
+        stubDisableAt(HOSP_PATH, disable);
+        when(assetVersions.findByVersionIdAndTenantId(groupV1.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(groupV1));
+
+        ResolvedAssetVersion atDept = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
+        assertThat(atDept.disabled()).isFalse();
+        assertThat(atDept.version()).isEqualTo(groupV1);
+        assertThat(atDept.inherited()).isTrue();
+
+        ResolvedAssetVersion atHospital = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+        assertThat(atHospital.disabled()).isTrue();
+        assertThat(atHospital.sourceOrgPath()).isEqualTo(HOSP_PATH);
+    }
+
+    @Test
+    void disableOfLockedBaselineIsRefusedAndInheritsLockedVersion() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion groupLocked = version(
+            "av-group-locked", "1.0.0", GROUP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        InheritanceOverride disable = disableOverride(
+            "io-disable-locked", groupLocked.versionId(), HOSP_PATH, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(groupLocked));
+        stubDisableAt(HOSP_PATH, disable);
+        when(assetVersions.findByVersionIdAndTenantId(groupLocked.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(groupLocked));
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.disabled()).isFalse();
+        assertThat(resolved.version()).isEqualTo(groupLocked);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-disable-locked");
+    }
+
+    private void stubDisableAt(String orgPath, InheritanceOverride disable) {
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", orgPath, "adult|inpatient",
+            InheritanceOverrideMode.DISABLE
+        )).thenReturn(List.of(disable));
+    }
+
+    private InheritanceOverride disableOverride(
+            String overrideId, String inheritedVersionId, String orgPath, InheritancePropagation propagation) {
+        Instant now = Instant.parse("2026-06-03T08:00:00Z");
+        return new InheritanceOverride(
+            1L,
+            overrideId,
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            inheritedVersionId,
+            null,
+            InheritanceOverrideMode.DISABLE,
+            propagation,
+            orgPath,
+            "adult|inpatient",
+            "本机构停用该资产",
+            "本机构不适用",
+            "仅 " + orgPath,
+            now,
+            "publisher-1",
+            now,
+            "publisher-1",
+            "trace-sys04"
+        );
     }
 
     /**

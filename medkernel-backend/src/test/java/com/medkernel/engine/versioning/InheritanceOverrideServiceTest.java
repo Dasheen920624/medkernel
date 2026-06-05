@@ -167,7 +167,7 @@ class InheritanceOverrideServiceTest {
             "trace-sys04"
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("关闭继承需要发布流证据")
+            .hasMessageContaining("关闭继承仍需发布流证据链")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
 
