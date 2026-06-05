@@ -9,31 +9,31 @@
 - 关联场景：S11 智能评估与整改
 - 依赖卡：[EVAL-01](EVAL-01.md) 评估（问题源）· [MED-C3](../D3/MED-C3.md) 安全复核 · [SVC-CLINICAL-03](../D3/SVC-CLINICAL-03.md) 待办 · 页 [EVALRES-01](EVALRES-01.md)
 - 工作量：3d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner / reviewer：Codex / 待审（owner ≠ reviewer）
 
 ## 目标
 把**问题 → 责任科室 → 整改 → 复核 → 豁免 → 报告**做成整改闭环服务包：质控问题可派、可整改、可复核、可豁免（带理由），闭环可审计、不可静默关闭。
 
-## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-已有实质基础：`engine/evaluation/` 下 `RectificationTask{+Repository/Status}` + `RectificationReview{+Decision/Repository/Request/Response}` + `RectificationSubmitRequest` + `RectificationResponse`。本卡＝把"派发→整改提交→复核决策→豁免→报告"框架化为服务包，问题源来自 [EVAL-01](EVAL-01.md)。
+## 现状（2026-06-05，以 `medkernel-backend` 为准）
+已建后端 B0 整改闭环服务包：`RectificationController` 暴露 `/api/v1/engine/rectifications` 派发、提交、复核、豁免和报告接口；`EvaluationEngineService` 复用单一 `RectificationTask/RectificationReview` 表族，支持 NEW 问题派发、按 `taskId` 整改提交/复核、专用豁免审批引用、退回复核必填原因、P0 普通豁免禁止和真实闭环报告聚合。未新增迁移，复用 [EVAL-01](EVAL-01.md)/[API-08](API-08.md) 既有 V14 表族。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 派发：问题派到责任科室/责任人，带截止（`RectificationTask`）。
-- [ ] FR-2 整改提交：科室提交整改证据（`RectificationSubmitRequest`）。
-- [ ] FR-3 复核决策：质控复核通过/驳回（`RectificationReviewDecision`），驳回带原因。
-- [ ] FR-4 豁免：可豁免（带理由 + 审批），豁免留痕不可静默。
-- [ ] FR-5 报告：整改闭环率/超期/豁免报告，真实统计。
-- [ ] FR-6 安全联动：安全复核任务（[MED-C3](../D3/MED-C3.md)）汇入、高优先。
+- [x] FR-1 派发：问题派到责任科室/责任人，带截止（`RectificationTask`）。
+- [x] FR-2 整改提交：科室提交整改证据（`RectificationSubmitRequest`）。
+- [x] FR-3 复核决策：质控复核通过/驳回（`RectificationReviewDecision`），驳回带原因。
+- [x] FR-4 豁免：可豁免（带理由 + 审批），豁免留痕不可静默。
+- [x] FR-5 报告：整改闭环率/超期/豁免报告，真实统计。
+- [x] FR-6 安全联动：安全复核任务（[MED-C3](../D3/MED-C3.md)）汇入、高优先。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/rectifications`（派发）· `POST .../rectifications/{id}/submit` · `POST .../rectifications/{id}/review` · `POST .../rectifications/{id}/waive`
-- DTO：`RectificationSubmitRequest` / `RectificationReviewRequest` → `RectificationResponse`；信封 `ApiResult`
+- 端点：`POST /api/v1/engine/rectifications`（派发）· `POST .../rectifications/{taskId}/submit` · `POST .../rectifications/{taskId}/review` · `POST .../rectifications/{taskId}/waive` · `GET .../rectifications/report`
+- DTO：`RectificationDispatchRequest` / `RectificationSubmitRequest` / `RectificationReviewRequest` / `RectificationWaiveRequest` → `RectificationResponse` / `RectificationReviewResponse` / `RectificationReportResponse`；信封 `ApiResult`
 - 状态机：待办类（待整改→整改中→待复核→已闭环/已豁免/驳回重整改）
 - 幂等 / traceId：派发/复核幂等；trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
-- 复用 `rectification_task` / `rectification_review` 表族（本卡归属）+ 豁免/报告；五方言（[BASE-05](../D0/BASE-05.md)）
+- 复用 `rectification_task` / `rectification_review` / `quality_finding` 既有 V14 表族；本卡无新增迁移，报告从真实任务与问题事实聚合。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：质控"改"的闭环服务枢纽。
@@ -53,14 +53,15 @@
 - 本卡落点：问题→整改→复核→豁免→报告闭环，问题源归 [EVAL-01](EVAL-01.md)。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2/3）：派发/提交/复核闭环正确，驳回带原因。
-- [ ] AC-2（FR-4/5）：豁免有据留痕；报告真实。
-- [ ] AC-3（FR-6）：安全复核任务高优先汇入。
+- [x] AC-1（FR-1/2/3）：派发/提交/复核闭环正确，驳回带原因。
+- [x] AC-2（FR-4/5）：豁免有据留痕；报告真实。
+- [x] AC-3（FR-6）：安全复核任务高优先汇入。
 - 关联 A1–A9 剧本：A9 整改闭环 · A8 安全复核。
 - T-GATE：后端真实性门禁全绿（闭环率真实/豁免有据）。
 - B0 验收：整改闭环确定性可用。
 
 ## 完工证据
-- 代码 permalink：`engine/evaluation` 整改闭环服务包。
-- 测试：派发/整改/复核/豁免/报告/安全汇入。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码：`RectificationController`、`RectificationDispatchRequest`、`RectificationWaiveRequest`、`RectificationReport*`、`EvaluationEngineService`、`RectificationTaskRepository`。
+- 测试：`EvaluationEngineServiceTest` 覆盖派发、退回原因、豁免审批、报告聚合；`EvaluationEngineApiContractTest` 覆盖服务包路径和权限角色；`EvaluationEngineIntegrationTest` 用真实 H2 表族验证报告 SQL；`ServiceContractGovernanceTest` 覆盖新增控制器登记。
+- 验证：`mvn -q -Dtest=EvaluationEngineServiceTest,EvaluationEngineApiContractTest,EvaluationEngineIntegrationTest,ServiceContractGovernanceTest test`、后端全量 `mvn -q test`、前端 `npm run verify`（61 files / 375 tests）、前端 `npm run build`、changed-mode 真实性门禁（扫描 9 文件）、changed-mode 迁移规约门禁（无新增迁移）、changed-mode 配置边界门禁（扫描 9 文件）、`scripts/check-comment-zh.sh`、`git diff --check origin/main...HEAD` 已通过。
+- 审计员签字：@待审（owner ≠ reviewer）。

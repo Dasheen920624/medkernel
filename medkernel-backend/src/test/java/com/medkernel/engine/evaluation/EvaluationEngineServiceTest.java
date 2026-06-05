@@ -266,6 +266,121 @@ class EvaluationEngineServiceTest {
     }
 
     @Test
+    void dispatchRectificationCreatesTaskForNewFindingAndRejectsChangedReplay() {
+        QualityFinding newFinding = finding("qf-new", QualityFindingSeverity.P2, QualityFindingStatus.NEW);
+        when(findings.findByFindingIdAndTenantId("qf-new", "tenant-A")).thenReturn(Optional.of(newFinding));
+        when(tasks.findByFindingIdAndTenantId("qf-new", "tenant-A")).thenReturn(Optional.empty());
+
+        Instant dueAt = Instant.now().plusSeconds(86400);
+        RectificationResponse response = service.dispatchRectification(
+            new RectificationDispatchRequest("qf-new", "dept-quality", "head-quality", dueAt),
+            "idem-dispatch-1");
+
+        assertThat(response.findingStatus()).isEqualTo(QualityFindingStatus.ASSIGNED);
+        assertThat(response.taskStatus()).isEqualTo(RectificationTaskStatus.ASSIGNED);
+        ArgumentCaptor<RectificationTask> task = ArgumentCaptor.forClass(RectificationTask.class);
+        verify(tasks).save(task.capture());
+        assertThat(task.getValue().findingId()).isEqualTo("qf-new");
+        assertThat(task.getValue().responsibleDepartmentId()).isEqualTo("dept-quality");
+        assertThat(task.getValue().assigneeUserId()).isEqualTo("head-quality");
+        verify(auditPublisher).publish(AuditAction.CREATE, "rectification_task",
+            task.getValue().taskId(), "派发质控整改 qf-new");
+
+        RectificationTask existing = new RectificationTask(
+            task.getValue().id(), task.getValue().taskId(), task.getValue().tenantId(),
+            task.getValue().findingId(), task.getValue().responsibleDepartmentId(),
+            task.getValue().assigneeUserId(), task.getValue().status(), task.getValue().dueAt(),
+            task.getValue().rectificationSummary(), task.getValue().evidenceRef(),
+            task.getValue().submittedAt(), task.getValue().submittedBy(), task.getValue().closedAt(),
+            task.getValue().createdAt(), task.getValue().createdBy(), task.getValue().updatedAt(),
+            task.getValue().updatedBy(), task.getValue().traceId());
+        when(tasks.findByFindingIdAndTenantId("qf-new", "tenant-A")).thenReturn(Optional.of(existing));
+        assertThat(service.dispatchRectification(
+            new RectificationDispatchRequest("qf-new", "dept-quality", "head-quality", dueAt),
+            "idem-dispatch-1").taskId()).isEqualTo(existing.taskId());
+
+        assertThatThrownBy(() -> service.dispatchRectification(
+                new RectificationDispatchRequest("qf-new", "dept-other", "head-quality", dueAt),
+                "idem-dispatch-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_008);
+    }
+
+    @Test
+    void returnedReviewRequiresReasonBeforeSendingTaskBack() {
+        when(findings.findByFindingIdAndTenantId("qf-1", "tenant-A"))
+            .thenReturn(Optional.of(finding("qf-1", QualityFindingSeverity.P1, QualityFindingStatus.REMEDIATING)));
+        when(tasks.findByFindingIdAndTenantId("qf-1", "tenant-A"))
+            .thenReturn(Optional.of(task("task-1", RectificationTaskStatus.SUBMITTED)));
+
+        assertThatThrownBy(() -> service.reviewRectification("qf-1", new RectificationReviewRequest(
+                RectificationReviewDecision.RETURNED, null, null)))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_007);
+
+        verify(reviews, never()).save(any());
+    }
+
+    @Test
+    void waiveRectificationTaskRequiresApprovalReferenceAndLeavesReviewEvidence() {
+        when(tasks.findByTaskIdAndTenantId("task-1", "tenant-A"))
+            .thenReturn(Optional.of(task("task-1", RectificationTaskStatus.SUBMITTED)));
+        when(tasks.findByFindingIdAndTenantId("qf-1", "tenant-A"))
+            .thenReturn(Optional.of(task("task-1", RectificationTaskStatus.SUBMITTED)));
+        when(findings.findByFindingIdAndTenantId("qf-1", "tenant-A"))
+            .thenReturn(Optional.of(finding("qf-1", QualityFindingSeverity.P2, QualityFindingStatus.REMEDIATING)));
+
+        assertThatThrownBy(() -> service.waiveRectificationTask(
+                "task-1", new RectificationWaiveRequest("院级审批同意按豁免处理", null, "proof-waive"),
+                "idem-waive-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_001);
+
+        RectificationReviewResponse response = service.waiveRectificationTask(
+            "task-1", new RectificationWaiveRequest("院级审批同意按豁免处理", "approval-2026-001", "proof-waive"),
+            "idem-waive-1");
+
+        assertThat(response.findingStatus()).isEqualTo(QualityFindingStatus.WAIVED);
+        assertThat(response.taskStatus()).isEqualTo(RectificationTaskStatus.WAIVED);
+        ArgumentCaptor<RectificationReview> review = ArgumentCaptor.forClass(RectificationReview.class);
+        ArgumentCaptor<RectificationTask> reviewedTask = ArgumentCaptor.forClass(RectificationTask.class);
+        verify(reviews).save(review.capture());
+        verify(tasks).save(reviewedTask.capture());
+        assertThat(review.getValue().decision()).isEqualTo(RectificationReviewDecision.WAIVED);
+        assertThat(review.getValue().comment()).contains("院级审批同意按豁免处理");
+        assertThat(review.getValue().evidenceRef()).contains("approval-2026-001").contains("proof-waive");
+        assertThat(reviewedTask.getValue().closedAt()).isNotNull();
+    }
+
+    @Test
+    void rectificationReportAggregatesRealTaskAndSafetyFacts() {
+        Instant now = Instant.now();
+        when(tasks.countByTenantIdAndDepartmentFilter("tenant-A", "dept-1")).thenReturn(10L);
+        when(tasks.countOpenByTenantIdAndDepartmentFilter("tenant-A", "dept-1")).thenReturn(4L);
+        when(tasks.countClosedByTenantIdAndDepartmentFilter("tenant-A", "dept-1")).thenReturn(5L);
+        when(tasks.countWaivedByTenantIdAndDepartmentFilter("tenant-A", "dept-1")).thenReturn(1L);
+        when(tasks.countOverdueOpenByTenantIdAndDepartmentFilter(eq("tenant-A"), eq("dept-1"), any()))
+            .thenReturn(2L);
+        when(tasks.countOpenP0ByTenantIdAndDepartmentFilter("tenant-A", "dept-1")).thenReturn(1L);
+
+        RectificationReportResponse report =
+            service.rectificationReport(new RectificationReportFilter("dept-1"), now);
+
+        assertThat(report.status()).isEqualTo(RectificationReportStatus.AVAILABLE);
+        assertThat(report.totalTasks()).isEqualTo(10);
+        assertThat(report.openTasks()).isEqualTo(4);
+        assertThat(report.closedTasks()).isEqualTo(5);
+        assertThat(report.waivedTasks()).isEqualTo(1);
+        assertThat(report.overdueTasks()).isEqualTo(2);
+        assertThat(report.highPriorityOpenTasks()).isEqualTo(1);
+        assertThat(report.closureRate()).isEqualByComparingTo("0.5000");
+        assertThat(report.sourceTable()).isEqualTo("rectification_task");
+    }
+
+    @Test
     void diagnoseAssemblesRunRelatedFacts() {
         EvaluationRun run = evaluationRun("run-1");
         EvaluationResult result = result("result-1", "run-1");

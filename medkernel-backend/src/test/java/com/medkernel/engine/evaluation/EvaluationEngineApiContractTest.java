@@ -53,6 +53,23 @@ class EvaluationEngineApiContractTest {
         {"decision": "APPROVED", "comment": "证据充分，允许闭环", "evidenceRef": "review-proof-1"}
         """;
 
+    private static final String DISPATCH_BODY = """
+        {
+          "findingId": "qf-1",
+          "responsibleDepartmentId": "dept-quality",
+          "assigneeUserId": "head-quality",
+          "dueAt": "2026-06-10T00:00:00Z"
+        }
+        """;
+
+    private static final String WAIVE_BODY = """
+        {
+          "reason": "院级审批同意按豁免处理",
+          "approvalRef": "approval-2026-001",
+          "evidenceRef": "proof-waive"
+        }
+        """;
+
     @Autowired
     MockMvc mvc;
 
@@ -134,6 +151,77 @@ class EvaluationEngineApiContractTest {
             eq("qf-1"), any(RectificationSubmitRequest.class), eq("idem-rect-1"));
         verify(service).reviewRectification(
             eq("qf-1"), any(RectificationReviewRequest.class), eq("idem-review-1"));
+    }
+
+    @Test
+    void rectificationServicePackageExposesDispatchSubmitReviewWaiveAndReport() throws Exception {
+        when(service.dispatchRectification(any(RectificationDispatchRequest.class), eq("idem-dispatch-1")))
+            .thenReturn(new RectificationResponse(
+                "rct-1", QualityFindingStatus.ASSIGNED, RectificationTaskStatus.ASSIGNED, "trace-eval"));
+        when(service.submitRectificationTask(
+                eq("rct-1"), any(RectificationSubmitRequest.class), eq("idem-submit-1")))
+            .thenReturn(new RectificationResponse(
+                "rct-1", QualityFindingStatus.REMEDIATING, RectificationTaskStatus.SUBMITTED, "trace-eval"));
+        when(service.reviewRectificationTask(
+                eq("rct-1"), any(RectificationReviewRequest.class), eq("idem-review-svc-1")))
+            .thenReturn(new RectificationReviewResponse(
+                "rr-1", QualityFindingStatus.CLOSED, RectificationTaskStatus.CLOSED, "trace-eval"));
+        when(service.waiveRectificationTask(
+                eq("rct-2"), any(RectificationWaiveRequest.class), eq("idem-waive-svc-1")))
+            .thenReturn(new RectificationReviewResponse(
+                "rr-2", QualityFindingStatus.WAIVED, RectificationTaskStatus.WAIVED, "trace-eval"));
+        when(service.rectificationReport(any(RectificationReportFilter.class)))
+            .thenReturn(new RectificationReportResponse(
+                RectificationReportStatus.AVAILABLE, 10, 4, 5, 1, 2, 1,
+                new java.math.BigDecimal("0.5000"), "rectification_task", "trace-eval"));
+
+        mvc.perform(post("/api/v1/engine/rectifications")
+                .header("Idempotency-Key", "idem-dispatch-1")
+                .with(jwtUser("qa-manager", "ROLE_QA_MANAGER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(DISPATCH_BODY))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.taskId").value("rct-1"))
+            .andExpect(jsonPath("$.data.taskStatus").value("ASSIGNED"));
+
+        mvc.perform(post("/api/v1/engine/rectifications/rct-1/submit")
+                .header("Idempotency-Key", "idem-submit-1")
+                .with(jwtUser("dept-head", "ROLE_DEPT_HEAD"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(RECTIFICATION_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.taskStatus").value("SUBMITTED"));
+
+        mvc.perform(post("/api/v1/engine/rectifications/rct-1/review")
+                .header("Idempotency-Key", "idem-review-svc-1")
+                .with(jwtUser("qa-manager", "ROLE_QA_MANAGER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(REVIEW_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.findingStatus").value("CLOSED"));
+
+        mvc.perform(post("/api/v1/engine/rectifications/rct-2/waive")
+                .header("Idempotency-Key", "idem-waive-svc-1")
+                .with(jwtUser("qa-manager", "ROLE_QA_MANAGER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(WAIVE_BODY))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.taskStatus").value("WAIVED"));
+
+        mvc.perform(get("/api/v1/engine/rectifications/report")
+                .queryParam("responsibleDepartmentId", "dept-1")
+                .with(jwtUser("medical-affairs", "ROLE_MEDICAL_AFFAIRS")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.totalTasks").value(10))
+            .andExpect(jsonPath("$.data.closureRate").value(0.5000));
+
+        verify(service).dispatchRectification(any(RectificationDispatchRequest.class), eq("idem-dispatch-1"));
+        verify(service).submitRectificationTask(eq("rct-1"), any(RectificationSubmitRequest.class), eq("idem-submit-1"));
+        verify(service).reviewRectificationTask(
+            eq("rct-1"), any(RectificationReviewRequest.class), eq("idem-review-svc-1"));
+        verify(service).waiveRectificationTask(
+            eq("rct-2"), any(RectificationWaiveRequest.class), eq("idem-waive-svc-1"));
+        verify(service).rectificationReport(any(RectificationReportFilter.class));
     }
 
     private org.springframework.security.test.web.servlet.request
