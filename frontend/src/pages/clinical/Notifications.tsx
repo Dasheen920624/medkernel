@@ -16,7 +16,11 @@ import type {
   WorkflowNotificationStatus,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
-import { SOURCE_LINK_UNAVAILABLE_TEXT, resolveSourceDeepLink } from "@/shared/lib/sourceLink";
+import {
+  SOURCE_LINK_MISSING_TEXT,
+  SOURCE_LINK_UNAVAILABLE_TEXT,
+  resolveSourceDeepLink,
+} from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const statusText: Record<WorkflowNotificationStatus, string> = {
@@ -248,6 +252,12 @@ export default function Notifications() {
                   {SOURCE_LINK_UNAVAILABLE_TEXT}
                 </Tag>
               ) : null;
+            const missingSourceAction =
+              !sourceLink && !item.deepLink ? (
+                <Tag key="source-missing" color="default">
+                  {SOURCE_LINK_MISSING_TEXT}
+                </Tag>
+              ) : null;
             const readAction =
               item.status === "UNREAD" ? (
                 <Button
@@ -265,7 +275,12 @@ export default function Notifications() {
 
             return (
               <List.Item
-                actions={[sourceAction, unavailableSourceAction, readAction].filter(Boolean)}
+                actions={[
+                  sourceAction,
+                  unavailableSourceAction,
+                  missingSourceAction,
+                  readAction,
+                ].filter(Boolean)}
               >
                 <List.Item.Meta
                   title={

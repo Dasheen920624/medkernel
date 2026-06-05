@@ -34,7 +34,11 @@ import type {
   WorkflowTodoStatus,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
-import { SOURCE_LINK_UNAVAILABLE_TEXT, resolveSourceDeepLink } from "@/shared/lib/sourceLink";
+import {
+  SOURCE_LINK_MISSING_TEXT,
+  SOURCE_LINK_UNAVAILABLE_TEXT,
+  resolveSourceDeepLink,
+} from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { TextArea } = Input;
@@ -261,6 +265,9 @@ export default function WorkflowTodos() {
             )}
             {!sourceLink && record.deepLink && (
               <Tag color="default">{SOURCE_LINK_UNAVAILABLE_TEXT}</Tag>
+            )}
+            {!sourceLink && !record.deepLink && (
+              <Tag color="default">{SOURCE_LINK_MISSING_TEXT}</Tag>
             )}
             <Button
               type="link"

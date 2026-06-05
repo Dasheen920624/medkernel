@@ -323,6 +323,14 @@ describe("Notifications", () => {
     expect(screen.getByText("来源暂不可跳转")).toBeInTheDocument();
   });
 
+  it("shows an honest source jump status when notifications have no deep link", () => {
+    renderNotifications();
+
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
+    expect(screen.queryByText("来源暂不可跳转")).not.toBeInTheDocument();
+    expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
+  });
+
   it("marks quiet-hour muted notifications while keeping safety notifications visible", () => {
     notificationHookMocks.useWorkflowNotificationSettings.mockReturnValue({
       data: {

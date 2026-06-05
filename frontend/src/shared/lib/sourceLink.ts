@@ -1,4 +1,5 @@
 export const SOURCE_LINK_UNAVAILABLE_TEXT = "来源暂不可跳转";
+export const SOURCE_LINK_MISSING_TEXT = "来源未提供跳转";
 
 function hasUnsafeLinkCharacter(value: string) {
   for (const char of value) {
