@@ -12,13 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 API-08 评估质控 API 🚧
-- 类型：软件开发（后端 canonical API + 前端 hook 契约 + 文档收口）
-- 分支：`codex/d4-api-08`
-- 目标：完成 D4 第一张卡 `API-08`：把评估质控能力契约化为 `GET/POST /api/v1/engine/evaluation/indicators`、`POST /api/v1/engine/evaluation:evaluate`、`GET /api/v1/engine/evaluation/results`、`GET /api/v1/engine/evaluation/issues`、`POST /api/v1/engine/evaluation/rectifications` 与复核入口；保留旧 `/api/v1/engine/evaluations/**` 兼容，关模型时响应显式 `MODEL_DISABLED`，坏资源 / 坏 DSL 不得静默降级。
-- 状态：D3 域级验收已由 #420 squash merge 到 `origin/main`（merge `90f6393c`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已新增 `EvaluationEngineCanonicalController` / `EvaluationEngineEvaluateSuffixController`、`EvaluationModelStatus`，`EvaluationRunResponse` 增加 `modelStatus=MODEL_DISABLED` 与 `modelDowngradeReason`；`evaluateSnapshot` 对坏临床资源 JSON 与坏指标 DSL 改为诚实 `ENG-EVAL-001`，不再吞错后当作未命中；前端 `hooks.ts` 已切到 canonical API；`ServiceContractCatalog` 已登记资源控制器和 suffix 控制器；`docs/cards/D4/API-08.md` 与 `docs/backlog.md` 已更新。验证已过：后端聚焦 `mvn -q -Dtest=EvaluationEngineServiceTest,EvaluationEngineApiContractTest,EvaluationEngineIntegrationTest,EvaluationEngineControllerSecurityTest,EvaluationRepositoryTest test`、契约治理 `mvn -q -Dtest=EvaluationEngineApiContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、后端全量 `cd medkernel-backend && mvn -q test`、前端 `npm test -- --run src/shared/api/hooks.test.ts`（43 测试）与 `cd frontend && npm run verify`（61 文件 / 375 测试）。committed-diff T-GATE 已过：真实性扫描 7 文件、配置边界扫描 6 文件、迁移规约扫描 0 文件均无阻断，中文注释 0 fail / 0 warn，`git diff --check origin/main..HEAD` 无输出。
-- 下一步（精确到动作/命令）：1. amend 文档证据后重跑 committed-diff T-GATE。2. push、开 PR，远端 CI 8/8 绿后 squash merge。3. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `EVAL-01`。
-- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/evaluation/`、`medkernel-backend/src/test/java/com/medkernel/engine/evaluation/EvaluationEngineApiContractTest.java`、`frontend/src/shared/api/hooks.ts`、`frontend/src/shared/api/hooks.test.ts`、`docs/cards/D4/API-08.md`。新增 `@RestController` 必须进 `ServiceContractCatalog`；suffix 动作入口要独立类级 `@RequestMapping`，避免架构测试从类级 base path 推导失败。
+### 当前 Codex 执行线 · D4 EVAL-01 评估质控引擎 🚧
+- 类型：软件开发（后端确定性评估引擎 + 文档收口）
+- 分支：`codex/d4-eval-01`
+- 目标：完成 D4 `EVAL-01`：指标配置必须是可执行规则 DSL 条件树；真实上下文快照命中后生成带规则解释的结果、问题与整改任务；同快照 + 指标版本自动评估使用稳定 `inputDigest` / `runCode` 重放，关模型仍以 B0 确定性链路运行。
+- 状态：`API-08` 已由 #421 squash merge 到 `origin/main`（merge `783468c1`）并删除远端分支；当前分支基于最新 `origin/main`。本轮已实现：`EvaluationIndicator` 创建前校验分母/分子/排除规则 JSON DSL 可执行；`evaluateSnapshot` 按指标编码/版本/ID 排序，基于快照、临床资源和指标定义生成稳定 `sha256` 输入摘要与 `ER_AUTO_` runCode；已有运行直接重放，不重复保存 run/result/finding/task；规则评估解释写入 `EvaluationResult.evidenceSummary` 与 `QualityFinding.evidenceSummary`；`EvaluationRunRepository` 新增 `findByRunCodeAndTenantId`；新增单元红绿用例和真实 H2 仓储集成重放用例。`docs/cards/D4/EVAL-01.md` 与 `docs/backlog.md` 已更新为完成态。
+- 已有验证：TDD 红灯包括自然语言规则未拒绝、证据摘要缺规则解释、自动 runCode 不稳定，以及缺 `findByRunCodeAndTenantId` 编译失败；绿灯聚焦 `mvn -q -Dtest=EvaluationEngineServiceTest,EvaluationEngineIntegrationTest,EvaluationEngineControllerSecurityTest,EvaluationRepositoryTest test` 已通过；后端全量 `cd medkernel-backend && mvn -q test` 已通过（含 PostgreSQL 15.18 / Oracle 21.3 Testcontainers 82 个迁移烟测）；前端 `cd frontend && npm run verify` 已通过（61 文件 / 375 测试）；committed-diff T-GATE 已通过（真实性 2 文件、配置边界 2 文件、迁移规约 0 文件、中文注释 0 fail/0 warn、`git diff --check origin/main..HEAD` 无输出）。
+- 下一步（精确到动作/命令）：1. push、开 PR，远端 CI 绿后 squash merge。2. 合并后从最新 `origin/main` 继续领取 D4 下一张 pending 卡 `OPT-08`。
+- 相关文件 / 测试 / 坑：`medkernel-backend/src/main/java/com/medkernel/engine/evaluation/EvaluationEngineService.java`、`EvaluationRunRepository.java`、`medkernel-backend/src/test/java/com/medkernel/engine/evaluation/EvaluationEngineServiceTest.java`、`EvaluationEngineIntegrationTest.java`、`docs/cards/D4/EVAL-01.md`。指标规则 DSL 校验复用 `RuleDslEvaluator`，空上下文只验证“可解析/可执行”，真实命中仍在快照上下文中完成；自动评估幂等口径是稳定 runCode + 数据库唯一约束，整改/复核幂等键逻辑不变。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）

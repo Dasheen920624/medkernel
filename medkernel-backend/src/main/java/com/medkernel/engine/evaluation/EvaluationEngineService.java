@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -288,14 +289,26 @@ public class EvaluationEngineService {
         contextJson.set("claims", claims);
 
         // 3. 加载当前租户下所有活跃（ACTIVE）的指标库
-        List<EvaluationIndicator> activeIndicators = indicators.findByTenantIdAndStatus(tenantId, EvaluationIndicatorStatus.ACTIVE);
+        List<EvaluationIndicator> activeIndicators = new ArrayList<>(
+            indicators.findByTenantIdAndStatus(tenantId, EvaluationIndicatorStatus.ACTIVE));
+        activeIndicators.sort(Comparator
+            .comparing(EvaluationIndicator::indicatorCode)
+            .thenComparingInt(EvaluationIndicator::versionNo)
+            .thenComparing(EvaluationIndicator::indicatorId));
         if (activeIndicators.isEmpty()) {
             throw new ApiException(ErrorCode.ENG_EVAL_004, "当前租户无生效（ACTIVE）状态的质控评估指标，无法执行扫描");
         }
 
+        String inputDigest = automaticEvaluationInputDigest(request, snapshot, resourceList, activeIndicators);
+        String runCode = automaticEvaluationRunCode(inputDigest);
+        Optional<EvaluationRun> existingRun = runs.findByRunCodeAndTenantId(runCode, tenantId);
+        if (existingRun.isPresent()) {
+            return replayRunResponse(existingRun.get());
+        }
         List<EvaluationResultRequest> resultRequests = new ArrayList<>();
 
         for (EvaluationIndicator indicator : activeIndicators) {
+            List<RuleDslEvaluation> ruleEvidence = new ArrayList<>();
             // A. 入组评估
             if (indicator.denominatorDefinition() == null || indicator.denominatorDefinition().isBlank()) {
                 continue;
@@ -304,6 +317,7 @@ public class EvaluationEngineService {
             boolean inDenominator = false;
             RuleDslEvaluation denominatorEvaluation = evaluateIndicatorRule(
                 indicator, indicator.denominatorDefinition(), contextJson, "分母入组规则校验");
+            ruleEvidence.add(denominatorEvaluation);
             inDenominator = denominatorEvaluation.hit();
 
             if (!inDenominator) {
@@ -315,6 +329,7 @@ public class EvaluationEngineService {
             if (indicator.exclusionDefinition() != null && !indicator.exclusionDefinition().isBlank()) {
                 RuleDslEvaluation exclusionEvaluation = evaluateIndicatorRule(
                     indicator, indicator.exclusionDefinition(), contextJson, "排除规则校验");
+                ruleEvidence.add(exclusionEvaluation);
                 excluded = exclusionEvaluation.hit();
             }
 
@@ -323,6 +338,7 @@ public class EvaluationEngineService {
             if (!excluded && indicator.numeratorDefinition() != null && !indicator.numeratorDefinition().isBlank()) {
                 RuleDslEvaluation numeratorEvaluation = evaluateIndicatorRule(
                     indicator, indicator.numeratorDefinition(), contextJson, "分子达标规则校验");
+                ruleEvidence.add(numeratorEvaluation);
                 hitNumerator = numeratorEvaluation.hit();
             }
 
@@ -337,12 +353,14 @@ public class EvaluationEngineService {
                 score = BigDecimal.valueOf(100);
                 level = EvaluationResultLevel.PASS;
                 hitFlag = true;
-                evidenceSummary = "病例已入组，但已由排除条件自动排除，审计判定达标。";
+                evidenceSummary = evidenceSummary(
+                    "病例已入组，但已由排除条件自动排除，审计判定达标。", ruleEvidence);
             } else if (hitNumerator) {
                 score = BigDecimal.valueOf(100);
                 level = EvaluationResultLevel.PASS;
                 hitFlag = true;
-                evidenceSummary = "病例入组质量达标，已符合质量控制分子规则定义。";
+                evidenceSummary = evidenceSummary(
+                    "病例入组质量达标，已符合质量控制分子规则定义。", ruleEvidence);
             } else {
                 score = BigDecimal.valueOf(0);
                 hitFlag = false;
@@ -362,7 +380,8 @@ public class EvaluationEngineService {
                     level = EvaluationResultLevel.NON_COMPLIANT;
                 }
 
-                evidenceSummary = "病例质量缺陷：未满足质量分子控制标准，自动生成整改派单。";
+                evidenceSummary = evidenceSummary(
+                    "病例质量缺陷：未满足质量分子控制标准，自动生成整改派单。", ruleEvidence);
 
                 String findingCode = indicator.indicatorCode() + "_FND";
                 String findingTitle = "指标不达标：" + indicator.name();
@@ -373,7 +392,7 @@ public class EvaluationEngineService {
                     findingTitle,
                     findingDesc,
                     severity,
-                    "系统自动评估扫描质控证据支撑",
+                    evidenceSummary("系统自动评估扫描质控证据支撑。", ruleEvidence),
                     indicator.responsibleDepartmentId(),
                     now.plusSeconds(86400 * 7),
                     null
@@ -398,7 +417,6 @@ public class EvaluationEngineService {
             throw new ApiException(ErrorCode.ENG_EVAL_004, "当前就诊上下文快照未匹配进入任何指标的分母入组规则，无须生成结果");
         }
 
-        String runCode = "ER_AUTO_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         EvaluationRunRequest runRequest = new EvaluationRunRequest(
             runCode,
             EvaluationRunType.UPSTREAM_RESULT,
@@ -408,7 +426,7 @@ public class EvaluationEngineService {
             snapshot.encounterId(),
             request.scenarioCode(),
             request.packageVersion() == null ? snapshot.knowledgePackageVersion() : request.packageVersion(),
-            digestValues(snapshot.patientId(), snapshot.encounterId(), now.toString()),
+            inputDigest,
             now,
             resultRequests
         );
@@ -703,6 +721,11 @@ public class EvaluationEngineService {
                 || !hasText(request.responsibleDepartmentId()) || !hasText(request.sourceRef())) {
             throw new ApiException(ErrorCode.ENG_EVAL_001);
         }
+        validateRuleDefinition("分母", request.denominatorDefinition());
+        validateRuleDefinition("分子", request.numeratorDefinition());
+        if (hasText(request.exclusionDefinition())) {
+            validateRuleDefinition("排除", request.exclusionDefinition());
+        }
     }
 
     private void validateRun(EvaluationRunRequest request) {
@@ -764,6 +787,103 @@ public class EvaluationEngineService {
             throw new ApiException(ErrorCode.ENG_EVAL_001,
                 "评估指标规则解析或执行失败：" + indicator.indicatorCode());
         }
+    }
+
+    private void validateRuleDefinition(String label, String definition) {
+        try {
+            ObjectNode dsl = json.createObjectNode();
+            dsl.set("when", json.readTree(definition));
+            dsl.set("then", json.createArrayNode());
+            dsl.put("explain", label + "规则定义校验");
+            ruleEvaluator.evaluate(dsl, json.createObjectNode());
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001,
+                label + "规则定义必须是可执行的规则 DSL 条件树");
+        }
+    }
+
+    private String automaticEvaluationInputDigest(
+            EvaluationEvaluateSnapshotRequest request,
+            ContextSnapshot snapshot,
+            List<CanonicalResource> resourceList,
+            List<EvaluationIndicator> activeIndicators) {
+        List<String> values = new ArrayList<>();
+        String packageVersion = request.packageVersion() == null
+            ? snapshot.knowledgePackageVersion()
+            : request.packageVersion();
+        values.add(request.contextSnapshotId());
+        values.add(request.scenarioCode());
+        values.add(packageVersion);
+        values.add(snapshot.patientId());
+        values.add(snapshot.encounterId());
+        values.add(snapshot.knowledgePackageVersion());
+        for (CanonicalResource resource : resourceList) {
+            values.add(resource.resourceId());
+            values.add(resource.resourceType().name());
+            values.add(resource.resourcePayloadJson());
+        }
+        for (EvaluationIndicator indicator : activeIndicators) {
+            values.add(indicator.indicatorId());
+            values.add(indicator.indicatorCode());
+            values.add(Integer.toString(indicator.versionNo()));
+            values.add(indicator.denominatorDefinition());
+            values.add(indicator.numeratorDefinition());
+            values.add(indicator.exclusionDefinition());
+            values.add(indicator.scoringDefinition());
+            values.add(indicator.packageVersion());
+        }
+        return digestValues(values.toArray(String[]::new));
+    }
+
+    private EvaluationRunResponse replayRunResponse(EvaluationRun run) {
+        List<EvaluationResult> runResults =
+            results.findByRunIdAndTenantIdOrderByCreatedAtAsc(run.runId(), run.tenantId());
+        int findingCount = 0;
+        int taskCount = 0;
+        for (EvaluationResult result : runResults) {
+            List<QualityFinding> resultFindings =
+                findings.findByResultIdAndTenantIdOrderByCreatedAtAsc(result.resultId(), run.tenantId());
+            findingCount += resultFindings.size();
+            for (QualityFinding finding : resultFindings) {
+                if (tasks.findByFindingIdAndTenantId(finding.findingId(), run.tenantId()).isPresent()) {
+                    taskCount++;
+                }
+            }
+        }
+        return new EvaluationRunResponse(
+            run.runId(), run.status(), runResults.size(), findingCount, taskCount,
+            run.traceId() == null ? traceId() : run.traceId());
+    }
+
+    private String automaticEvaluationRunCode(String inputDigest) {
+        String digestValue = inputDigest == null ? "" : inputDigest.replace("sha256:", "");
+        return "ER_AUTO_" + digestValue.substring(0, Math.min(16, digestValue.length()));
+    }
+
+    private String evidenceSummary(String conclusion, List<RuleDslEvaluation> evaluations) {
+        StringBuilder summary = new StringBuilder(conclusion);
+        for (RuleDslEvaluation evaluation : evaluations) {
+            if (evaluation == null || evaluation.explanation() == null || evaluation.explanation().isNull()) {
+                continue;
+            }
+            summary.append(" 规则证据：").append(compactJson(evaluation.explanation())).append('。');
+        }
+        return limitEvidenceSummary(summary.toString());
+    }
+
+    private String compactJson(JsonNode node) {
+        try {
+            return json.writeValueAsString(node);
+        } catch (Exception exception) {
+            return node.toString();
+        }
+    }
+
+    private String limitEvidenceSummary(String value) {
+        if (value.length() <= 2000) {
+            return value;
+        }
+        return value.substring(0, 1997) + "...";
     }
 
     private boolean shouldAssign(QualityFindingRequest request) {

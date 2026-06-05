@@ -17,4 +17,9 @@ public interface EvaluationRunRepository extends ListCrudRepository<EvaluationRu
      * 按运行业务 ID 和租户 ID 查询评估运行事实。
      */
     Optional<EvaluationRun> findByRunIdAndTenantId(String runId, String tenantId);
+
+    /**
+     * 按稳定运行业务编码和租户 ID 查询评估运行事实，用于自动评估重放。
+     */
+    Optional<EvaluationRun> findByRunCodeAndTenantId(String runCode, String tenantId);
 }
