@@ -108,7 +108,8 @@ class MigrationBaselineContractTest {
         "V79__version_propagation_and_override_policy.sql",
         "V80__workflow_transfer_reason.sql",
         "V81__workflow_sync_event_notifications.sql",
-        "V82__workflow_organization_scope.sql"
+        "V82__workflow_organization_scope.sql",
+        "V83__quality_dashboard_alerts.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -128,6 +129,7 @@ class MigrationBaselineContractTest {
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline", "mk_engine_clinical_redline_trial",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
+        "mk_quality_dashboard_alert",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
@@ -227,6 +229,7 @@ class MigrationBaselineContractTest {
         "idx_eval_run_tenant_time", "idx_eval_run_context",
         "idx_eval_result_run", "idx_eval_result_indicator",
         "idx_quality_finding_status", "idx_quality_finding_department",
+        "idx_quality_dashboard_alert_tenant_status", "idx_quality_dashboard_alert_department",
         "idx_rect_task_finding", "idx_rect_task_department_status",
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
@@ -383,6 +386,8 @@ class MigrationBaselineContractTest {
         "uk_followup_questionnaire_id", "uk_followup_event_id",
         "uk_workflow_todo_id", "uk_workflow_todo_source",
         "ck_workflow_todo_source_type", "ck_workflow_todo_priority", "ck_workflow_todo_status",
+        "uk_quality_dashboard_alert_id", "uk_quality_dashboard_alert_source",
+        "ck_quality_dashboard_alert_type", "ck_quality_dashboard_alert_status",
         "uk_notification_id", "uk_notification_dedupe",
         "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
@@ -463,6 +468,7 @@ class MigrationBaselineContractTest {
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
+        "mk_quality_dashboard_alert",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -501,6 +507,7 @@ class MigrationBaselineContractTest {
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
+        "mk_quality_dashboard_alert",
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -594,6 +601,7 @@ class MigrationBaselineContractTest {
         Map.entry("evaluation_run", Set.of("run_type", "status")),
         Map.entry("evaluation_result", Set.of("subject_type", "result_level")),
         Map.entry("quality_finding", Set.of("severity", "status")),
+        Map.entry("mk_quality_dashboard_alert", Set.of("alert_type", "status")),
         Map.entry("rectification_task", Set.of("status")),
         Map.entry("rectification_review", Set.of("decision")),
         Map.entry("knowledge_package", Set.of("package_version", "status")),

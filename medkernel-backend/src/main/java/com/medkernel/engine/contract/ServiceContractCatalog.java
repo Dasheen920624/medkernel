@@ -118,6 +118,13 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/value-metrics",
             permissions("evaluation.read"),
             List.of()),
+        contract("quality-dashboard", "质控驾驶舱服务",
+            "com.medkernel.engine.quality.dashboard.QualityDashboardController",
+            "/api/v1/engine/quality",
+            permissions("evaluation.read"),
+            audits(
+                audit(AuditAction.CREATE, "mk_quality_dashboard_alert", "生成质控驾驶舱预警 read-model"),
+                audit(AuditAction.UPDATE, "mk_quality_dashboard_alert", "刷新或关闭质控驾驶舱预警"))),
         contract("saved-view", "用户保存视图服务",
             "com.medkernel.engine.experience.SavedViewController", "/api/v1/experience",
             List.of(),

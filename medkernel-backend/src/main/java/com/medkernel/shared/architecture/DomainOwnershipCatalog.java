@@ -41,6 +41,8 @@ public final class DomainOwnershipCatalog {
         module("engine-projection", packages("com.medkernel.engine.projection"), prefixes("mk_projection_"), tables()),
         module("engine-evaluation", packages("com.medkernel.engine.evaluation"),
             prefixes("evaluation_", "rectification_"), tables("quality_finding")),
+        module("engine-quality", packages("com.medkernel.engine.quality"),
+            prefixes("mk_quality_"), tables()),
         module("engine-terminology", packages("com.medkernel.engine.terminology"),
             prefixes("term_", "mapping_"), tables("standard_term", "local_term", "mk_term_high_risk_rule")),
         module("engine-experience",
