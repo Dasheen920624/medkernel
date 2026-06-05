@@ -16,9 +16,9 @@ D4 评估引擎**已实质成型**，本域评估/整改卡多是"真实化/契�
 
 - **评估引擎**＝`engine/evaluation/`：`EvaluationEngineService/Controller` + `EvaluationIndicator{+CreateRequest/Filter/Repository/Status}` + `EvaluationResult{+Filter/Level/Repository/Request}` + `EvaluationEvaluateSnapshotRequest` + `EvaluationIdempotencyKey/Operation`（[API-08](API-08.md)/[EVAL-01](EVAL-01.md) 承接指标/评估/结果）。
 - **整改闭环**＝`engine/evaluation/`：`RectificationTask{+Repository/Status}` + `RectificationReview{+Decision/Repository/Request/Response}` + `RectificationDispatchRequest` + `RectificationSubmitRequest` + `RectificationWaiveRequest` + `RectificationReportResponse` + `RectificationController`（[SVC-QUALITY-03](SVC-QUALITY-03.md) 已承接问题→责任科室→整改→复核→豁免→报告）。
-- **前端 6 页面已存在待真实化**（`frontend/src/pages/quality/`，`app/router.tsx` 真实路由）：`QcDashboard`→`/qc/dashboard` · `QcAlerts`→`/qc/alerts` · `InsuranceAudit`→`/qc/insurance` · `QcEvalSets`→`/qc/eval/sets` · `QcEvalResults`→`/qc/eval/results` · `AiReview`→`/aik/review`；现状＝页面壳已存在，页面卡＝去占位/mock + 接真实评估/整改 API + 六态/五维 RBAC/可下钻齐全。
+- **前端 6 页面真实化进度**（`frontend/src/pages/quality/`，`app/router.tsx` 真实路由）：`QcDashboard`→`/qc/dashboard` 已由 [QCDASH-01](QCDASH-01.md) 接入真实驾驶舱聚合/下钻；`QcAlerts`→`/qc/alerts` · `InsuranceAudit`→`/qc/insurance` · `QcEvalSets`→`/qc/eval/sets` · `QcEvalResults`→`/qc/eval/results` · `AiReview`→`/aik/review` 仍待对应页面卡去占位/mock + 接真实评估/整改 API + 六态/五维 RBAC/可下钻齐全。
 - **已成型补充**：价值/ROI 口径（[OPT-08](OPT-08.md)）已由真实关系库事实复算；质控驾驶舱服务包（[SVC-QUALITY-01](SVC-QUALITY-01.md)）已消费评估/整改/价值事实形成院级聚合、热力、下钻证据与预警 read-model；病案医保服务包（[SVC-QUALITY-02](SVC-QUALITY-02.md)）已提供病案内涵、DRG/DIP 入组核对与医保审核后端 B0 接口，读取真实病案快照与 `mk_clinical_claim` 结算事实，无事实时诚实 `INSUFFICIENT_DATA`；整改闭环服务包（[SVC-QUALITY-03](SVC-QUALITY-03.md)）已提供派发、提交、复核、豁免和报告后端 B0 接口；电子病历评级目标映射（[EMR-LEVEL-01](EMR-LEVEL-01.md)）已提供目标、差距、进度后端 B0 接口，缺证据不计满足并联动真实整改任务；评级数据质量和证据包（[EMR-LEVEL-02](EMR-LEVEL-02.md)）已提供应用覆盖、完整性/及时性/一致性、CDSS/质控闭环、审计证据聚合与幂等 NDJSON 证据包导出。
-- **明确缺口**（建卡"现状"段照实写、勿夸大）：`InsuranceAudit.tsx` 仍由页卡 [INSAUDIT-01](INSAUDIT-01.md) 接真实医保审核 API；6 个 D4 页面仍待真实化。
+- **明确缺口**（建卡"现状"段照实写、勿夸大）：`InsuranceAudit.tsx` 仍由页卡 [INSAUDIT-01](INSAUDIT-01.md) 接真实医保审核 API；除 [QCDASH-01](QCDASH-01.md) 外的 5 个 D4 页面仍待真实化。
 
 ## 登入 / 使用角色（13 角色矩阵本域子集，全量见 [质量基线 §9](../../audit/质量基线.md)）
 
