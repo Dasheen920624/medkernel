@@ -130,6 +130,8 @@ describe("WorkflowTodos", () => {
     expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
+    expect(screen.getByText("来源对象 return-task-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪链路 trace-workflow")).toBeInTheDocument();
     expect(screen.getByText("随访任务")).toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();

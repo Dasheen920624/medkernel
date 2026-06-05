@@ -286,6 +286,8 @@ export default function Notifications() {
                         <span>{sourceText[item.sourceType]}</span>
                         <span>{item.patientId || "-"}</span>
                         <span>{item.encounterId || "-"}</span>
+                        <span>来源对象 {item.sourceId}</span>
+                        {item.traceId && <span>追踪链路 {item.traceId}</span>}
                       </Space>
                     </Space>
                   }
