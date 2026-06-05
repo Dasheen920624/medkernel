@@ -1,6 +1,7 @@
 package com.medkernel.engine.versioning;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
+import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgLevel;
 
 class InheritanceResolverTest {
@@ -410,6 +412,104 @@ class InheritanceResolverTest {
         assertThat(resolved.inherited()).isTrue();
         assertThat(resolved.explanation().resolutionSummary())
             .contains("平台安全锁定").contains("io-disable-locked");
+    }
+
+    @Test
+    void unmatchedTenantInheritsPlatformBaselineWithPlatformTier() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.version()).isEqualTo(platformV0);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.disabled()).isFalse();
+        assertThat(resolved.sourceOrgPath()).isEqualTo(PlatformAuthority.PLATFORM_ORG_PATH);
+        assertThat(resolved.explanation().resolutionSummary()).contains("平台权威基线");
+        assertThat(resolved.explanation().inheritancePath())
+            .containsExactly(PlatformAuthority.PLATFORM_ORG_PATH, GROUP_PATH, HOSP_PATH);
+    }
+
+    @Test
+    void tenantOwnVersionShadowsPlatformBaselineWithOrgTier() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion hospitalOwn = version("av-hosp-own", "1.0.0-hosp-a", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "9.9.9");
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A", VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(hospitalOwn));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOwn.versionId()))
+            .thenReturn(Optional.empty());
+        // 即便平台存在基线，本租户本级版本应遮蔽平台、不回退平台（引用而非复制）
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.version()).isEqualTo(hospitalOwn);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.ORG);
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.inherited()).isFalse();
+    }
+
+    @Test
+    void missingPlatformBaselineResolvesNotFoundHonestly() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        // 组织闭包与平台均无 ACTIVE 基线（默认空）：诚实降级 NOT_FOUND，不伪造
+
+        assertThatThrownBy(() -> resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("未找到");
+    }
+
+    private void stubPlatformBaseline(AssetVersion platformVersion) {
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(platformVersion));
+    }
+
+    private AssetVersion platformVersion(String versionId, String versionNo) {
+        Instant now = Instant.parse("2026-06-03T08:00:00Z");
+        return new AssetVersion(
+            1L,
+            versionId,
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            versionNo,
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            "adult|inpatient",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.ACTIVE,
+            "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
+            "rule/RULE.VTE.RISK",
+            null,
+            null,
+            now,
+            "platform-publisher",
+            now,
+            "platform-publisher",
+            "trace-platform"
+        );
     }
 
     private void stubDisableAt(String orgPath, InheritanceOverride disable) {

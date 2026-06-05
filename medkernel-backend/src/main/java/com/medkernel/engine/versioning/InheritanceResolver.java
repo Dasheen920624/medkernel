@@ -1,5 +1,6 @@
 package com.medkernel.engine.versioning;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -79,7 +80,8 @@ public class InheritanceResolver {
                         inherited,
                         true,
                         true,
-                        disabledExplanation(value, inheritancePath, ignoredOverrideId)
+                        disabledExplanation(value, inheritancePath, ignoredOverrideId),
+                        SourceTier.ORG
                     );
                 }
                 continue;
@@ -107,11 +109,64 @@ public class InheritanceResolver {
                 inherited,
                 overridden,
                 false,
-                explanation(selected, inheritancePath, inherited, override, ignoredOverrideId)
+                explanation(selected, inheritancePath, inherited, override, ignoredOverrideId),
+                SourceTier.ORG
             );
         }
 
+        // 租户组织闭包内无任何适用版本/覆盖：前置回退平台权威基线（设计附录 G·D1）
+        ResolvedAssetVersion platformBaseline = resolvePlatformBaseline(
+            assetType, assetIdentity, applicableScope, inheritancePath, ignoredOverrideId);
+        if (platformBaseline != null) {
+            return platformBaseline;
+        }
+
         throw new ApiException(ErrorCode.NOT_FOUND, "未找到可继承的 ACTIVE 资产版本");
+    }
+
+    /**
+     * 前置回退平台权威基线：租户组织闭包无适用版本时，按 {@link PlatformAuthority} 约定读取
+     * {@code __platform__} 租户顶层组织路径下该身份的 ACTIVE 版本，标注 {@link SourceTier#PLATFORM}。
+     *
+     * <p>平台版本是继承链最一般的根：未被任何租户覆盖遮蔽的身份恒解析到平台 ACTIVE 版本，平台升级后
+     * 未定制方下次解析自动跟随，无需任何租户级复制（设计 platform-authority 规格）。平台亦无基线时返回
+     * {@code null}，由调用方按 {@code NOT_FOUND} 诚实降级，不伪造。
+     *
+     * @return 命中平台基线时的解析结果；平台无 ACTIVE 基线时为 {@code null}
+     */
+    private ResolvedAssetVersion resolvePlatformBaseline(
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String applicableScope,
+            List<String> inheritancePath,
+            String ignoredOverrideId) {
+        List<AssetVersion> platformActive = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            assetType,
+            activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
+            AssetVersionStatus.ACTIVE
+        );
+        if (platformActive.isEmpty()) {
+            return null;
+        }
+        AssetVersion baseline = platformActive.get(0);
+        List<String> chain = new ArrayList<>();
+        chain.add(PlatformAuthority.PLATFORM_ORG_PATH);
+        chain.addAll(inheritancePath);
+        return new ResolvedAssetVersion(
+            baseline,
+            PlatformAuthority.PLATFORM_ORG_PATH,
+            true,
+            false,
+            false,
+            new InheritanceExplanation(
+                appendSafetyInterception("继承平台权威基线版本 " + baseline.versionNo(), ignoredOverrideId),
+                chain,
+                null,
+                null,
+                null),
+            SourceTier.PLATFORM
+        );
     }
 
     static String activeScopeKey(String assetIdentity, String orgPath, String applicableScope) {
