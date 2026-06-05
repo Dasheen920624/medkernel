@@ -36,6 +36,8 @@ public class ContextFieldCatalog {
         // 基本信息 · 患者基本信息
         f.add(field(CAT_BASIC, "患者基本信息", "Patient", "patient.birthDate", "出生日期", "date", null,
             "用于派生年龄"));
+        f.add(derivedField(CAT_BASIC, "患者基本信息", "Patient", "patient.age", "年龄", "number", "岁",
+            "求值期由出生日期与事件时间计算的整岁（派生字段，不可前台维护）"));
         f.add(field(CAT_BASIC, "患者基本信息", "Patient", "patient.gender", "性别", "string", null, null));
         // 基本信息 · 过敏与特殊人群
         f.add(field(CAT_BASIC, "过敏与特殊人群", "Patient", "patient.allergies", "过敏列表（粗粒度）", "list",
@@ -164,7 +166,7 @@ public class ContextFieldCatalog {
         String dataType, String unit, String description) {
         return new ContextFieldDescriptor(
             category, group, resourceType, fieldPath, displayName, dataType, unit, null, description,
-            "SYSTEM", null);
+            "SYSTEM", null, false);
     }
 
     private static ContextFieldDescriptor codeField(
@@ -172,7 +174,16 @@ public class ContextFieldCatalog {
         String codeSystem, String description) {
         return new ContextFieldDescriptor(
             category, group, resourceType, fieldPath, displayName, "code", null, codeSystem, description,
-            "SYSTEM", null);
+            "SYSTEM", null, false);
+    }
+
+    /** 求值期计算的派生字段（如 {@code patient.age}），{@code derived=true}，不可前台维护。 */
+    private static ContextFieldDescriptor derivedField(
+        String category, String group, String resourceType, String fieldPath, String displayName,
+        String dataType, String unit, String description) {
+        return new ContextFieldDescriptor(
+            category, group, resourceType, fieldPath, displayName, dataType, unit, null, description,
+            "SYSTEM", null, true);
     }
 
     /**

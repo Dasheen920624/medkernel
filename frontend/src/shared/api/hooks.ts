@@ -2664,6 +2664,8 @@ export interface ContextFieldDescriptor {
   description?: string | null;
   source?: string | null;
   fieldId?: string | null;
+  /** 是否为求值期计算的派生字段（如 patient.age 由出生日期算得），而非原始存储字段。 */
+  derived?: boolean;
 }
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
