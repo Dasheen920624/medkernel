@@ -143,15 +143,16 @@ class InheritanceOverrideServiceTest {
     }
 
     @Test
-    void rejectsDisableModeUntilReleaseFlowCanRecordEvidenceAndResolverCanConsumeIt() {
+    void registersDisableOverrideWithEvidenceForFreeBaseline() {
         OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
         AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
 
         when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.registerOverride(new InheritanceOverrideRegisterCommand(
+        InheritanceOverride saved = service.registerOverride(new InheritanceOverrideRegisterCommand(
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
@@ -161,15 +162,54 @@ class InheritanceOverrideServiceTest {
             "adult|inpatient",
             InheritanceOverrideMode.DISABLE,
             "本院暂停继承集团规则",
-            "等待发布证据链",
+            "本院流程暂不适用该集团规则",
+            "HOSP-A 成人住院",
+            "publisher-1",
+            "trace-sys04"
+        ));
+
+        // 停用无替换版本，但必须留下原因/影响/操作者/trace 作为发布证据链
+        assertThat(saved.overrideMode()).isEqualTo(InheritanceOverrideMode.DISABLE);
+        assertThat(saved.overrideVersionId()).isNull();
+        assertThat(saved.orgPath()).isEqualTo(hospital.orgPath());
+        assertThat(saved.overrideReason()).isEqualTo("本院流程暂不适用该集团规则");
+        assertThat(saved.impactScope()).isEqualTo("HOSP-A 成人住院");
+        assertThat(saved.propagation()).isEqualTo(InheritancePropagation.INHERITABLE);
+        assertThat(saved.createdBy()).isEqualTo("publisher-1");
+        assertThat(saved.createdAt()).isEqualTo(CLOCK.instant());
+    }
+
+    @Test
+    void deniesDisableOfLockedBaseline() {
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion locked = version(
+            "av-locked-v1", "1.0.0", group.orgPath(),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED);
+
+        when(assetVersions.findByVersionIdAndTenantId(locked.versionId(), "tenant-A")).thenReturn(Optional.of(locked));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+
+        assertThatThrownBy(() -> service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            locked.versionId(),
+            null,
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.DISABLE,
+            "本院想关闭锁定基线",
+            "本院流程",
             "HOSP-A",
             "publisher-1",
             "trace-sys04"
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("关闭继承仍需发布流证据链")
+            .hasMessageContaining("INHERITANCE_SAFETY_DENIED")
+            .hasMessageContaining("锁定基线")
             .extracting("errorCode")
-            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+            .isEqualTo(ErrorCode.INHERITANCE_SAFETY_DENIED);
 
         verify(overrides, never()).save(any(InheritanceOverride.class));
     }
@@ -194,6 +234,15 @@ class InheritanceOverrideServiceTest {
     }
 
     private AssetVersion version(String versionId, String versionNo, String orgPath, AssetVersionSafetyPolicy safetyPolicy) {
+        return version(versionId, versionNo, orgPath, safetyPolicy, AssetVersionOverridePolicy.FREE);
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String versionNo,
+            String orgPath,
+            AssetVersionSafetyPolicy safetyPolicy,
+            AssetVersionOverridePolicy overridePolicy) {
         Instant now = CLOCK.instant();
         return new AssetVersion(
             1L,
@@ -206,6 +255,7 @@ class InheritanceOverrideServiceTest {
             "adult|inpatient",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             safetyPolicy,
+            overridePolicy,
             AssetVersionStatus.ACTIVE,
             "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
             "rule/RULE.VTE.RISK",
