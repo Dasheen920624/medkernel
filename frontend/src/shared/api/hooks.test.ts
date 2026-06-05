@@ -47,6 +47,7 @@ import {
   useTerminologyConflicts,
   useTerminologyPackages,
   useReadWorkflowNotification,
+  useReportFollowupAbnormal,
   useSaveWorkflowNotificationSettings,
   useTransferWorkflowTodo,
   useWorkflowNotificationSettings,
@@ -417,6 +418,33 @@ describe("package export api helpers", () => {
       quietStart: "21:30",
       quietEnd: "06:30",
       quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+    });
+  });
+
+  it("reports followup abnormal events through the API-09 evidence endpoint", async () => {
+    const abnormalEvidence = {
+      eventId: "event-return-1",
+      returnTaskId: "return-task-1",
+      notificationEventId: "notify-event-1",
+      traceId: "trace-followup-1",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: abnormalEvidence } });
+
+    const { result } = renderApiHook(() => useReportFollowupAbnormal());
+
+    const response = await result.current.mutateAsync({
+      planId: "plan-real-1",
+      eventType: "ABNORMAL_RETURN",
+      payload: '{"severity":"HIGH"}',
+      triggeredBy: "followup-nurse-1",
+    });
+
+    expect(response).toEqual(abnormalEvidence);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/followup/abnormal-reports", {
+      planId: "plan-real-1",
+      eventType: "ABNORMAL_RETURN",
+      payload: '{"severity":"HIGH"}',
+      triggeredBy: "followup-nurse-1",
     });
   });
 

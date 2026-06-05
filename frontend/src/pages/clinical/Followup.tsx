@@ -36,7 +36,11 @@ import {
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
 } from "@/shared/api/hooks";
-import type { FollowupPlanDetailResponse, FollowupPlanStatus } from "@/shared/api/hooks";
+import type {
+  FollowupAbnormalReportResponse,
+  FollowupPlanDetailResponse,
+  FollowupPlanStatus,
+} from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 
 const { TextArea } = Input;
@@ -61,6 +65,9 @@ export default function Followup() {
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [patientFilter, setPatientFilter] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [abnormalEvidence, setAbnormalEvidence] = useState<FollowupAbnormalReportResponse | null>(
+    null,
+  );
 
   const [generateForm] = Form.useForm();
   const [questionnaireForm] = Form.useForm();
@@ -150,7 +157,7 @@ export default function Followup() {
     if (!selectedPlanId) return;
     try {
       const values = await abnormalForm.validateFields();
-      await reportAbnormalMutation.mutateAsync({
+      const response = await reportAbnormalMutation.mutateAsync({
         planId: selectedPlanId,
         eventType: "ABNORMAL_RETURN",
         payload: JSON.stringify({
@@ -161,6 +168,7 @@ export default function Followup() {
         }),
       });
 
+      setAbnormalEvidence(response);
       message.warning("随访异常事件已上报，请以审计与刷新后的任务状态为准");
       abnormalForm.resetFields();
       await refetchPlans();
@@ -230,6 +238,7 @@ export default function Followup() {
           onClick={() => {
             setSelectedPlanId(record.planId);
             setSelectedTaskId(null);
+            setAbnormalEvidence(null);
           }}
           className="p-0 font-semibold"
         >
@@ -248,7 +257,7 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="随访计划数"
+              title="当前页随访计划数"
               value={metrics.totalPlans}
               prefix={<FileTextOutlined />}
             />
@@ -257,7 +266,7 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="执行中计划"
+              title="当前页执行中计划"
               value={metrics.activePlans}
               prefix={<CompassOutlined />}
             />
@@ -266,7 +275,7 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="已完成任务"
+              title="当前页已完成任务"
               value={metrics.completedTasks}
               prefix={<CheckCircleOutlined />}
             />
@@ -275,7 +284,7 @@ export default function Followup() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="任务完成率"
+              title="当前页任务完成率"
               value={metrics.taskCompletionRate}
               suffix="%"
               prefix={<AlertOutlined />}
@@ -394,6 +403,7 @@ export default function Followup() {
         onClose={() => {
           setSelectedPlanId(null);
           setSelectedTaskId(null);
+          setAbnormalEvidence(null);
         }}
         destroyOnClose
       >
@@ -519,6 +529,22 @@ export default function Followup() {
                   上报异常事件
                 </Button>
               </Form>
+              {abnormalEvidence && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="mt-4"
+                  message="异常回院证据已登记"
+                  description={
+                    <Space wrap>
+                      <Tag color="red">异常事件 {abnormalEvidence.eventId}</Tag>
+                      <Tag color="orange">回院任务 {abnormalEvidence.returnTaskId}</Tag>
+                      <Tag color="gold">通知事件 {abnormalEvidence.notificationEventId}</Tag>
+                      <Tag>追踪链路 {abnormalEvidence.traceId}</Tag>
+                    </Space>
+                  }
+                />
+              )}
             </Card>
           </Space>
         )}
