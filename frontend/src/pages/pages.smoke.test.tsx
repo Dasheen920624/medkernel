@@ -302,7 +302,7 @@ describe("page smoke coverage", () => {
   it("renders the quality qc-eval-results console", () => {
     renderPage(<QcEvalResults />);
     expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
-    expect(screen.getByText(/真实评估结果总数/)).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实评估结果")).toBeInTheDocument();
   });
 
   it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {

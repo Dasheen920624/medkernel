@@ -2314,6 +2314,7 @@ export interface EvaluationResult {
   sourceRef?: string;
   responsibleDepartmentId?: string;
   createdAt?: string;
+  traceId?: string;
 }
 
 export interface QualityFinding {
@@ -2332,6 +2333,7 @@ export interface QualityFinding {
   responsibleDepartmentId?: string;
   dueAt?: string;
   createdAt?: string;
+  traceId?: string;
 }
 
 export interface RectificationTask {

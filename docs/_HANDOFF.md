@@ -12,14 +12,14 @@
 > 下一步 = 按卡 TDD 实现（**非建卡**）：从 [backlog](backlog.md) 选当前阶段第一闸任务 → 读核心 + 该域 `_brief` + 卡 → TDD（先失败测试 → 实现 → 绿，动手前建绿色基线）→ T-GATE 前后端全绿 → 一逻辑单元一 PR（详 [AGENTS.md](../AGENTS.md) §4–§6）。
 > GA 门禁 3 / 8 / 10 待 wave2 卡**实现**；旧巨物按 P8 退役。**新领任务按本文件末尾模板加一条工作线。**
 
-### 当前 Codex 执行线 · D4 EVALSET-01 评估指标库页 🚧
-- 类型：软件开发（前端页面真实化 + 指标条件树创建 + 生命周期流转 + 快照仿真 + 文档收口）
-- 分支：`codex/d4-evalset-01`
-- 目标：完成 D4 [EVALSET-01](cards/D4/EVALSET-01.md)：把 `/qc/eval/sets` 从占位配置页改为消费 [EVAL-01](cards/D4/EVAL-01.md) 真实 `EvaluationIndicator` 台账、API-13 分页、规则条件树创建、7 步发布流和历史快照仿真，不前端写死指标 / trace / 命中事实。
-- 状态：前序 [INSAUDIT-01](cards/D4/INSAUDIT-01.md) 已由 PR #443 squash merge 到 `origin/main`（merge `7b3121af03e9709a0346a3cbccf3a1782da93b0f`）并删除远端分支。本轮已将 `QcEvalSets.tsx` 改为 PageShell 真实页，默认筛选收敛为指标编码 / 指标状态 / 评估主体 3 个；列表用 `useEvaluationIndicators` 按 `page=1&size=20&sort=updatedAt,desc` 读取真实指标，展示状态、版本、责任科室和 `traceId`；新建指标复用 `ConditionTreeEditor` 分别编辑分母 / 分子条件树并提交可执行 DSL JSON；详情抽屉展示 7 步 `StepFlow` 和只读条件树，生命周期按钮调用 submit / publish / activate；仿真抽屉按患者 / 就诊读取 ACTIVE 临床快照，并通过 canonical `/engine/evaluation:evaluate` 执行。
-- 已有验证：TDD 红灯捕获旧页 `size=50`、旧“质控扫描试运行”入口、缺 7 步流、缺条件树 DSL payload、生命周期 / 仿真未走 canonical hooks；目标绿灯 `cd frontend && npm test -- QcEvalSets.test.tsx pages.smoke.test.tsx hooks.test.ts` 74 测试通过；`cd frontend && npm run lint -- src/pages/quality/QcEvalSets.tsx src/pages/quality/QcEvalSets.test.tsx src/pages/pages.smoke.test.tsx src/shared/api/hooks.test.ts` 通过；`cd frontend && npm run typecheck` 通过；`cd frontend && npm run verify` 66 文件 / 396 测试通过（仅既有 React Router/act warning）；`cd frontend && npm run build` 通过（仅既有 vendor chunk warning）；changed-mode T-GATE 通过：真实性门禁扫描 1 文件、配置边界扫描 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main...HEAD` 无输出。
-- 下一步（精确到动作/命令）：1. push `codex/d4-evalset-01`、开 PR。2. 远端 CI 绿后 squash merge 并确认 `origin/main` 含合并提交。3. 从最新 `origin/main` 继续领取 D4 下一张 pending 页面卡，优先 [EVALRES-01](cards/D4/EVALRES-01.md)。
-- 相关文件 / 测试 / 坑：`frontend/src/pages/quality/QcEvalSets.tsx`、`QcEvalSets.test.tsx`、`frontend/src/pages/pages.smoke.test.tsx`、`frontend/src/shared/api/hooks.test.ts`。注意：PageShell 非 ready 状态不渲染 children，Modal / Drawer 必须放在 PageShell 外；Ant Design 图标按钮需显式 `aria-label` 避免 accessible name 被图标干扰；后端指标创建接收的是条件 JSON 字符串，前端不要提交完整编辑器节点对象。
+### 当前 Codex 执行线 · D4 EVALRES-01 评估结果页 🚧
+- 类型：软件开发（前端页面真实化 + 评估结果 / 质控问题 / 病历证据追溯 + 派整改 + 文档收口）
+- 分支：`codex/d4-evalres-01`
+- 目标：完成 D4 [EVALRES-01](cards/D4/EVALRES-01.md)：把 `/qc/eval/results` 从占位结果页改为消费 [EVAL-01](cards/D4/EVAL-01.md) 真实评估结果、[SVC-QUALITY-03](cards/D4/SVC-QUALITY-03.md) 质控问题 / 整改闭环与病历证据，不前端写死结果 / trace / 问题事实。
+- 状态：前序 [INSAUDIT-01](cards/D4/INSAUDIT-01.md) 已由 PR #443 squash merge 到 `origin/main`（merge `7b3121af03e9709a0346a3cbccf3a1782da93b0f`）并删除远端分支；[EVALSET-01](cards/D4/EVALSET-01.md) 已由 PR #444 squash merge 到 `origin/main`（merge `e25b9b646c87ff8cbc5ddc35b046fbb3673ec797`）并删除远端分支。本轮已将 `QcEvalResults.tsx` 改为 PageShell 真实页，默认筛选收敛为评估级别 / 问题状态 / 责任科室 3 个；结果列表用 `useEvaluationResults` 按 `page=1&size=20&sort=createdAt,desc` 读取真实命中结果，展示指标版本、评估对象、级别、得分、病历证据、来源引用、责任科室和 `traceId`；问题列表用 `useQualityFindings` 读取真实质控问题，展示严重级别、状态、关联指标 / 结果、证据与 trace；详情抽屉用 `useQualityFindingDetail` 展示命中解释、病历证据、整改任务和复核记录；`NEW` 问题可通过 `useDispatchRectification` 携带幂等键派发整改。
+- 已有验证：TDD 红灯捕获旧页 `size=50`、默认筛选缺失、缺问题详情、缺派整改、前端回退占位事实；目标绿灯 `cd frontend && npm test -- QcEvalResults.test.tsx hooks.test.ts pages.smoke.test.tsx` 74 测试通过；`cd frontend && npm run lint -- src/pages/quality/QcEvalResults.tsx src/pages/quality/QcEvalResults.test.tsx src/pages/pages.smoke.test.tsx src/shared/api/hooks.ts src/shared/api/hooks.test.ts` 通过；`cd frontend && npm run typecheck` 通过；`cd frontend && npm run verify` 66 文件 / 399 测试通过（仅既有 React Router/act warning）；`cd frontend && npm run build` 通过（仅既有 vendor chunk warning）；changed-mode T-GATE 通过：真实性门禁扫描 2 文件、配置边界扫描 0 文件、中文注释 0 fail / 0 warn、`git diff --check origin/main...HEAD` 无输出。
+- 下一步（精确到动作/命令）：1. push `codex/d4-evalres-01`、开 PR。2. 远端 CI 绿后 squash merge 并确认 `origin/main` 含合并提交。3. 从最新 `origin/main` 继续领取 [AIREVIEW-01](cards/D4/AIREVIEW-01.md)。
+- 相关文件 / 测试 / 坑：`frontend/src/pages/quality/QcEvalResults.tsx`、`QcEvalResults.test.tsx`、`frontend/src/pages/pages.smoke.test.tsx`、`frontend/src/shared/api/hooks.ts`、`hooks.test.ts`。注意：PageShell 非 ready 状态不渲染 children，Drawer 放在 PageShell 外；Ant Design 图标按钮需显式 `aria-label` 避免 accessible name 被图标干扰；`useQualityFindingDetail` 只在选中问题后给真实 `findingId`；派整改必须带 `Idempotency-Key`，不要前端生成整改成功假状态。
 
 ### 线 2 · 路径引擎与规则引擎可视化创作与医疗级能力整治 🚧
 - 类型：软件开发（设计 + 前端为主，后续含后端加法式扩展）
