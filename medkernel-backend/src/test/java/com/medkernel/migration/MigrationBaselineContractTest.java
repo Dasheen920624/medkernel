@@ -110,7 +110,8 @@ class MigrationBaselineContractTest {
         "V81__workflow_sync_event_notifications.sql",
         "V82__workflow_organization_scope.sql",
         "V83__quality_dashboard_alerts.sql",
-        "V84__insurance_quality_service.sql"
+        "V84__insurance_quality_service.sql",
+        "V85__org_unit_platform_level.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -837,6 +838,23 @@ class MigrationBaselineContractTest {
                 .contains("idx_notification_org_scope")
                 .contains("comment on column mk_engine_workflow_todo.org_unit_id")
                 .contains("comment on column mk_engine_notification.org_unit_id");
+        }
+    }
+
+    @Test
+    void v85ShouldWidenOrgUnitLevelCheckToPlatformForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V85__org_unit_platform_level.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 平台权威层组织层级校验放宽（org_unit.level_code 容纳 PLATFORM）", dialect)
+                .contains("org_unit")
+                .contains("drop constraint")
+                .contains("ck_org_unit_level")
+                .contains("platform")
+                .contains("comment on column org_unit.level_code");
         }
     }
 
