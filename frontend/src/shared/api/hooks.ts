@@ -2790,6 +2790,13 @@ export interface FollowupAbnormalReportRequest {
   triggeredBy?: string;
 }
 
+export interface FollowupAbnormalReportResponse {
+  eventId: string;
+  returnTaskId: string;
+  notificationEventId: string;
+  traceId: string;
+}
+
 export interface FollowupPlansParams {
   patientId?: string;
   page?: number;
@@ -2859,11 +2866,11 @@ export function useSubmitFollowupQuestionnaire() {
 export function useReportFollowupAbnormal() {
   return useMutation({
     mutationFn: async (payload: FollowupAbnormalReportRequest) => {
-      const { data } = await apiClient.post<void>(
-        "/engine/followup/events/report-abnormal",
+      const { data } = await apiClient.post<{ data: FollowupAbnormalReportResponse }>(
+        "/engine/followup/abnormal-reports",
         payload,
       );
-      return data;
+      return data.data;
     },
   });
 }
