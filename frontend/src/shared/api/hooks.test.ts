@@ -24,7 +24,9 @@ import {
   useActivateOnboardingReadiness,
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
+  useActivateEvaluationIndicator,
   useConfirmTerminologyCandidate,
+  useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
   useEvaluationIndicators,
   useEvaluationResults,
@@ -45,6 +47,7 @@ import {
   usePackageSyncLogs,
   usePilotPackageTemplates,
   usePublishTerminologyPackage,
+  usePublishEvaluationIndicator,
   useQualityFindings,
   useReviewRectification,
   useRollbackTerminologyPackage,
@@ -54,6 +57,7 @@ import {
   useSubmitRectification,
   useSyncPackage,
   useStandardTerms,
+  useSubmitEvaluationIndicator,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyPackages,
@@ -497,6 +501,64 @@ describe("package export api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/evaluation/results", {
       params: { resultLevel: "NON_COMPLIANT" },
     });
+  });
+
+  it("creates and advances evaluation indicator lifecycle through the API-08 canonical resource", async () => {
+    const draft = {
+      indicatorId: "indicator-real-1",
+      indicatorCode: "IND.REAL",
+      versionNo: 1,
+      status: "DRAFT",
+    };
+    const pending = { ...draft, status: "PENDING_REVIEW" };
+    const published = { ...draft, status: "PUBLISHED" };
+    const active = { ...draft, status: "ACTIVE" };
+    const createPayload = {
+      indicatorCode: "IND.REAL",
+      versionNo: 1,
+      name: "真实指标",
+      subjectType: "MEDICAL_RECORD" as const,
+      denominatorDefinition:
+        '{"fact":"encounters.0.status","operator":"equals","value":"DISCHARGED"}',
+      numeratorDefinition: '{"fact":"observations.0.code","operator":"exists"}',
+      timeWindow: "DISCHARGE+24H",
+      organizationScope: "全院",
+      responsibleDepartmentId: "医务处",
+      sourceRef: "真实来源",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: draft } })
+      .mockResolvedValueOnce({ data: { data: pending } })
+      .mockResolvedValueOnce({ data: { data: published } })
+      .mockResolvedValueOnce({ data: { data: active } });
+
+    const createHook = renderApiHook(() => useCreateEvaluationIndicator());
+    const submitHook = renderApiHook(() => useSubmitEvaluationIndicator());
+    const publishHook = renderApiHook(() => usePublishEvaluationIndicator());
+    const activateHook = renderApiHook(() => useActivateEvaluationIndicator());
+
+    await createHook.result.current.mutateAsync(createPayload);
+    await submitHook.result.current.mutateAsync("indicator-real-1");
+    await publishHook.result.current.mutateAsync("indicator-real-1");
+    await activateHook.result.current.mutateAsync("indicator-real-1");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/evaluation/indicators",
+      createPayload,
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/evaluation/indicators/indicator-real-1/submit",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/evaluation/indicators/indicator-real-1/publish",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      4,
+      "/engine/evaluation/indicators/indicator-real-1/activate",
+    );
   });
 
   it("loads evaluation issues through the API-08 issues contract", async () => {

@@ -305,15 +305,15 @@ describe("page smoke coverage", () => {
     expect(screen.getByText(/真实评估结果总数/)).toBeInTheDocument();
   });
 
-  it("renders the quality qc-eval-sets scan with real snapshot filters", async () => {
+  it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {
     renderPage(<QcEvalSets />);
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /质控扫描试运行/ }));
+    await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/请输入患者 ID 或就诊 ID 读取真实快照/)).toBeInTheDocument();
+    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
   });
 
   it("renders the clinical patient-pathways console", () => {
