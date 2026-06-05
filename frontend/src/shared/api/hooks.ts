@@ -2395,6 +2395,117 @@ export interface RectificationReviewResponse {
   traceId: string;
 }
 
+export interface QualityDashboardSummary {
+  totalFindings: number;
+  openFindings: number;
+  closedFindings: number;
+  waivedFindings: number;
+  overdueRectificationTasks: number;
+  activeAlerts: number;
+}
+
+export interface QualityDashboardHeatmapCell {
+  departmentId: string;
+  totalFindings: number;
+  openFindings: number;
+  highRiskFindings: number;
+  hitRate: number;
+  maxSeverity: QualityFindingSeverity | string;
+  heatToken: string;
+}
+
+export type QualityValueMetricStatus = "AVAILABLE" | "NOT_AVAILABLE" | string;
+
+export interface QualityValueMetric {
+  id: string;
+  metricCode: string;
+  displayName: string;
+  formula: string;
+  formulaVersion: string;
+  status: QualityValueMetricStatus;
+  numerator: number;
+  denominator: number;
+  value: number | null;
+  unit: string;
+  dataSources: string[];
+  explanation: string;
+  calculatedAt: string;
+}
+
+export interface QualityValueMetricSummary {
+  metrics: QualityValueMetric[];
+}
+
+export interface QualityDashboardAlert {
+  alertId: string;
+  alertType: string;
+  status: string;
+  departmentId: string | null;
+  sourceType: string;
+  sourceId: string;
+  severity: QualityFindingSeverity | string;
+  thresholdCode: string;
+  thresholdValue: number | null;
+  actualValue: number | null;
+  title: string;
+  evidenceSummary: string;
+  createdAt: string;
+  updatedAt: string;
+  traceId: string | null;
+}
+
+export interface QualityDashboardResponse {
+  summary: QualityDashboardSummary;
+  heatmap: QualityDashboardHeatmapCell[];
+  valueMetrics: QualityValueMetricSummary;
+  activeAlerts: QualityDashboardAlert[];
+  generatedAt: string;
+}
+
+export type QualityDashboardDrilldownType = "FINDING" | "ALERT" | "RECTIFICATION" | string;
+
+export interface QualityDashboardDrilldownItem {
+  sourceType: string;
+  sourceId: string;
+  departmentId: string | null;
+  severity: QualityFindingSeverity | string;
+  status: string;
+  title: string;
+  evidenceSummary: string;
+  occurredAt: string;
+  traceId: string | null;
+}
+
+export interface QualityEvidencePackage {
+  packageId: string;
+  generatedAt: string;
+  scopeDigest: string;
+  itemCount: number;
+  items: unknown[];
+}
+
+export interface QualityDashboardDrilldownResponse {
+  type: QualityDashboardDrilldownType;
+  items: QualityDashboardDrilldownItem[];
+  evidencePackage: QualityEvidencePackage | null;
+  offset: number;
+  limit: number;
+  total: number;
+  hasNext: boolean;
+}
+
+export interface QualityDashboardQueryParams {
+  from?: string;
+  to?: string;
+  departmentId?: string;
+}
+
+export interface QualityDashboardDrilldownQueryParams extends QualityDashboardQueryParams {
+  type?: QualityDashboardDrilldownType;
+  page?: number;
+  size?: number;
+}
+
 // 1. Indicator Lifecycle Hooks
 export function useEvaluationIndicators(params?: {
   status?: EvaluationIndicatorStatus;
@@ -2510,6 +2621,32 @@ export function useQualityFindings(params?: {
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<QualityFinding> }>(
         "/engine/evaluation/issues",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useQualityDashboard(params?: QualityDashboardQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "dashboard", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardResponse }>(
+        "/engine/quality/dashboard",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useQualityDashboardDrilldown(params?: QualityDashboardDrilldownQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "dashboard", "drilldown", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardDrilldownResponse }>(
+        "/engine/quality/dashboard/drilldown",
         { params },
       );
       return data.data;
