@@ -20,14 +20,17 @@ public class InheritanceResolver {
     private final OrgHierarchyRepository hierarchy;
     private final AssetVersionRepository assetVersions;
     private final InheritanceOverrideRepository overrides;
+    private final List<SafetyMonotonicityCheck> safetyChecks;
 
     public InheritanceResolver(
             OrgHierarchyRepository hierarchy,
             AssetVersionRepository assetVersions,
-            InheritanceOverrideRepository overrides) {
+            InheritanceOverrideRepository overrides,
+            List<SafetyMonotonicityCheck> safetyChecks) {
         this.hierarchy = hierarchy;
         this.assetVersions = assetVersions;
         this.overrides = overrides;
+        this.safetyChecks = safetyChecks;
     }
 
     public ResolvedAssetVersion resolve(InheritanceResolveQuery query) {
@@ -149,8 +152,8 @@ public class InheritanceResolver {
      * <ul>
      *   <li>红线基线（{@code safety_policy=SAFETY_REDLINE}）被降级为非红线覆盖即为放宽，拒绝——
      *       与登记期前置禁用形成解析期纵深防御；</li>
-     *   <li>锁定基线（{@code override_policy=LOCKED}）的内容变更覆盖暂无法验证“只收紧不放宽”，
-     *       保守拒绝；经领域安全单调谓词背书的收紧覆盖将在后续任务接入后放行。</li>
+     *   <li>锁定基线（{@code override_policy=LOCKED}）的内容变更覆盖须经适配的
+     *       {@link SafetyMonotonicityCheck} 背书“至少同样严格”方可放行，无谓词可验证时保守拒绝（fail-safe）。</li>
      * </ul>
      * 基线缺失（如已退役）时按非锁定处理放行，主权威仍由登记期把关。
      *
@@ -171,7 +174,24 @@ public class InheritanceResolver {
         }
         boolean lockedContentChange = baseline.overridePolicy() == AssetVersionOverridePolicy.LOCKED
             && !Objects.equals(baseline.contentHash(), candidate.contentHash());
-        return !lockedContentChange;
+        if (lockedContentChange) {
+            // 锁定基线的内容变更覆盖须由领域安全单调谓词背书“至少同样严格”方可放行（附录 S2）
+            return vouchedAtLeastAsStrict(baseline, candidate);
+        }
+        return true;
+    }
+
+    /**
+     * 锁定基线的内容变更覆盖：须由适配该资产类型的领域安全单调谓词背书“至少同样严格”方可放行；
+     * 无谓词可验证时保守拒绝（fail-safe，附录 S2）。
+     */
+    private boolean vouchedAtLeastAsStrict(AssetVersion baseline, AssetVersion candidate) {
+        for (SafetyMonotonicityCheck check : safetyChecks) {
+            if (check.supports(baseline.assetType())) {
+                return check.isAtLeastAsStrict(baseline, candidate);
+            }
+        }
+        return false;
     }
 
     /**
