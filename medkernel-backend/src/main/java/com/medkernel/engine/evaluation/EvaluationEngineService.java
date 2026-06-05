@@ -259,24 +259,20 @@ public class EvaluationEngineService {
         ArrayNode claims = json.createArrayNode();
 
         for (CanonicalResource res : resourceList) {
-            try {
-                JsonNode dataNode = json.readTree(res.resourcePayloadJson());
-                switch (res.resourceType()) {
-                    case PATIENT -> contextJson.set("patient", dataNode);
-                    case ENCOUNTER -> encounters.add(dataNode);
-                    case CONDITION -> conditions.add(dataNode);
-                    case NURSING_ASSESSMENT -> nursingAssessments.add(dataNode);
-                    case OBSERVATION -> observations.add(dataNode);
-                    case DIAGNOSTIC_REPORT -> diagnosticReports.add(dataNode);
-                    case MEDICATION -> medications.add(dataNode);
-                    case PROCEDURE -> procedures.add(dataNode);
-                    case DOCUMENT -> documents.add(dataNode);
-                    case CARE_PLAN -> carePlans.add(dataNode);
-                    case FOLLOW_UP -> followUps.add(dataNode);
-                    case CLAIM -> claims.add(dataNode);
-                }
-            } catch (Exception e) {
-                // 忽略异常行解析失败以确保流程高可用
+            JsonNode dataNode = readResourcePayload(res);
+            switch (res.resourceType()) {
+                case PATIENT -> contextJson.set("patient", dataNode);
+                case ENCOUNTER -> encounters.add(dataNode);
+                case CONDITION -> conditions.add(dataNode);
+                case NURSING_ASSESSMENT -> nursingAssessments.add(dataNode);
+                case OBSERVATION -> observations.add(dataNode);
+                case DIAGNOSTIC_REPORT -> diagnosticReports.add(dataNode);
+                case MEDICATION -> medications.add(dataNode);
+                case PROCEDURE -> procedures.add(dataNode);
+                case DOCUMENT -> documents.add(dataNode);
+                case CARE_PLAN -> carePlans.add(dataNode);
+                case FOLLOW_UP -> followUps.add(dataNode);
+                case CLAIM -> claims.add(dataNode);
             }
         }
         contextJson.set("encounters", encounters);
@@ -306,16 +302,9 @@ public class EvaluationEngineService {
             }
 
             boolean inDenominator = false;
-            try {
-                ObjectNode denomDsl = json.createObjectNode();
-                denomDsl.set("when", json.readTree(indicator.denominatorDefinition()));
-                denomDsl.set("then", json.createArrayNode());
-                denomDsl.put("explain", "分母入组规则校验");
-                RuleDslEvaluation eval = ruleEvaluator.evaluate(denomDsl, contextJson);
-                inDenominator = eval.hit();
-            } catch (Exception e) {
-                // 解析或执行失败视为未入组
-            }
+            RuleDslEvaluation denominatorEvaluation = evaluateIndicatorRule(
+                indicator, indicator.denominatorDefinition(), contextJson, "分母入组规则校验");
+            inDenominator = denominatorEvaluation.hit();
 
             if (!inDenominator) {
                 continue;
@@ -324,31 +313,17 @@ public class EvaluationEngineService {
             // B. 排除条件评估
             boolean excluded = false;
             if (indicator.exclusionDefinition() != null && !indicator.exclusionDefinition().isBlank()) {
-                try {
-                    ObjectNode exclDsl = json.createObjectNode();
-                    exclDsl.set("when", json.readTree(indicator.exclusionDefinition()));
-                    exclDsl.set("then", json.createArrayNode());
-                    exclDsl.put("explain", "排除规则校验");
-                    RuleDslEvaluation eval = ruleEvaluator.evaluate(exclDsl, contextJson);
-                    excluded = eval.hit();
-                } catch (Exception e) {
-                    // 默认不排除
-                }
+                RuleDslEvaluation exclusionEvaluation = evaluateIndicatorRule(
+                    indicator, indicator.exclusionDefinition(), contextJson, "排除规则校验");
+                excluded = exclusionEvaluation.hit();
             }
 
             // C. 分子审计条件评估
             boolean hitNumerator = false;
             if (!excluded && indicator.numeratorDefinition() != null && !indicator.numeratorDefinition().isBlank()) {
-                try {
-                    ObjectNode numDsl = json.createObjectNode();
-                    numDsl.set("when", json.readTree(indicator.numeratorDefinition()));
-                    numDsl.set("then", json.createArrayNode());
-                    numDsl.put("explain", "分子达标规则校验");
-                    RuleDslEvaluation eval = ruleEvaluator.evaluate(numDsl, contextJson);
-                    hitNumerator = eval.hit();
-                } catch (Exception e) {
-                    // 解析失败视为未达标
-                }
+                RuleDslEvaluation numeratorEvaluation = evaluateIndicatorRule(
+                    indicator, indicator.numeratorDefinition(), contextJson, "分子达标规则校验");
+                hitNumerator = numeratorEvaluation.hit();
             }
 
             // D. 组装评估结论、生成缺陷与整改
@@ -765,6 +740,29 @@ public class EvaluationEngineService {
                     && (!hasText(finding.responsibleDepartmentId()) || finding.dueAt() == null)) {
                 throw new ApiException(ErrorCode.ENG_EVAL_001);
             }
+        }
+    }
+
+    private JsonNode readResourcePayload(CanonicalResource resource) {
+        try {
+            return json.readTree(resource.resourcePayloadJson());
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001,
+                "临床资源载荷解析失败：" + resource.resourceId());
+        }
+    }
+
+    private RuleDslEvaluation evaluateIndicatorRule(
+            EvaluationIndicator indicator, String definition, ObjectNode contextJson, String explain) {
+        try {
+            ObjectNode dsl = json.createObjectNode();
+            dsl.set("when", json.readTree(definition));
+            dsl.set("then", json.createArrayNode());
+            dsl.put("explain", explain);
+            return ruleEvaluator.evaluate(dsl, contextJson);
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001,
+                "评估指标规则解析或执行失败：" + indicator.indicatorCode());
         }
     }
 

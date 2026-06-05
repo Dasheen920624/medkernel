@@ -26,6 +26,9 @@ import {
   useBuildTerminologyPackage,
   useConfirmTerminologyCandidate,
   useCreateIntegrationOnboarding,
+  useEvaluationIndicators,
+  useEvaluationResults,
+  useEvaluateSnapshot,
   useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
   useFollowupStats,
@@ -41,7 +44,10 @@ import {
   usePackageSyncLogs,
   usePilotPackageTemplates,
   usePublishTerminologyPackage,
+  useQualityFindings,
+  useReviewRectification,
   useRollbackTerminologyPackage,
+  useSubmitRectification,
   useSyncPackage,
   useStandardTerms,
   useTerminologyCandidates,
@@ -468,6 +474,124 @@ describe("package export api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/followup/stats", {
       params: { patientId: "patient-real-1" },
     });
+  });
+
+  it("loads evaluation indicators and results from the API-08 canonical resource", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 20, total: 0 } } })
+      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 20, total: 0 } } });
+
+    const indicatorHook = renderApiHook(() => useEvaluationIndicators({ status: "ACTIVE" }));
+    await waitFor(() => expect(indicatorHook.result.current.data?.items).toEqual([]));
+
+    const resultHook = renderApiHook(() => useEvaluationResults({ resultLevel: "NON_COMPLIANT" }));
+    await waitFor(() => expect(resultHook.result.current.data?.items).toEqual([]));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/evaluation/indicators", {
+      params: { status: "ACTIVE" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/evaluation/results", {
+      params: { resultLevel: "NON_COMPLIANT" },
+    });
+  });
+
+  it("loads evaluation issues through the API-08 issues contract", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: { items: [], page: 1, size: 20, total: 0 } },
+    });
+
+    const { result } = renderApiHook(() =>
+      useQualityFindings({ severity: "P1", status: "ASSIGNED", responsibleDepartmentId: "dept-1" }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items).toEqual([]));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues", {
+      params: { severity: "P1", status: "ASSIGNED", responsibleDepartmentId: "dept-1" },
+    });
+  });
+
+  it("evaluates snapshots through the API-08 suffix action and exposes model disabled status", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          runId: "er-1",
+          status: "RECORDED",
+          resultCount: 1,
+          findingCount: 1,
+          taskCount: 1,
+          modelStatus: "MODEL_DISABLED",
+          modelDowngradeReason: "MODEL_DISABLED_DETERMINISTIC_RULES",
+          traceId: "trace-eval",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useEvaluateSnapshot());
+    const response = await result.current.mutateAsync({
+      contextSnapshotId: "snapshot-1",
+      scenarioCode: "DISCHARGE",
+      packageVersion: "1.0.0",
+    });
+
+    expect(response.modelStatus).toBe("MODEL_DISABLED");
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/evaluation:evaluate", {
+      contextSnapshotId: "snapshot-1",
+      scenarioCode: "DISCHARGE",
+      packageVersion: "1.0.0",
+    });
+  });
+
+  it("submits and reviews rectification through API-08 canonical endpoints", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            taskId: "rct-1",
+            findingStatus: "REMEDIATING",
+            taskStatus: "SUBMITTED",
+            traceId: "trace-eval",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            reviewId: "rr-1",
+            findingStatus: "CLOSED",
+            taskStatus: "CLOSED",
+            traceId: "trace-eval",
+          },
+        },
+      });
+
+    const submitHook = renderApiHook(() => useSubmitRectification("qf-1"));
+    await submitHook.result.current.mutateAsync({
+      request: { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
+      idempotencyKey: "idem-rect-1",
+    });
+
+    const reviewHook = renderApiHook(() => useReviewRectification("qf-1"));
+    await reviewHook.result.current.mutateAsync({
+      request: {
+        decision: "APPROVED",
+        comment: "证据充分，允许闭环",
+        evidenceRef: "review-proof-1",
+      },
+      idempotencyKey: "idem-review-1",
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/evaluation/rectifications",
+      { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
+      { params: { findingId: "qf-1" }, headers: { "Idempotency-Key": "idem-rect-1" } },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/evaluation/rectifications/qf-1/review",
+      { decision: "APPROVED", comment: "证据充分，允许闭环", evidenceRef: "review-proof-1" },
+      { headers: { "Idempotency-Key": "idem-review-1" } },
+    );
   });
 
   it("loads package list through API-13 style server-side paging and filters", async () => {
