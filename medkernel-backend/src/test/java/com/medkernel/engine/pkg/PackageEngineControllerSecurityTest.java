@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -372,7 +374,7 @@ class PackageEngineControllerSecurityTest {
                 "1.0.0",
                 1,
                 List.of(new PilotPackageTemplateItemResponse(
-                    PackageItemAssetType.RULE,
+                    VersionedAssetType.RULE,
                     "rule-stable",
                     "2",
                     true,
@@ -407,7 +409,7 @@ class PackageEngineControllerSecurityTest {
                 List.of(new PackageItemResponse(
                     "item-rule",
                     "pkg-first-run",
-                    PackageItemAssetType.RULE,
+                    VersionedAssetType.RULE,
                     "rule-stable",
                     "2"
                 ))

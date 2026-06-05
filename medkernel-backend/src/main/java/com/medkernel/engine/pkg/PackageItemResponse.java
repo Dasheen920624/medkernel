@@ -1,12 +1,14 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 /**
  * 知识包子资产响应 DTO。
  */
 public record PackageItemResponse(
     String itemId,
     String packageId,
-    PackageItemAssetType assetType,
+    VersionedAssetType assetType,
     String assetId,
     String assetVersion
 ) {

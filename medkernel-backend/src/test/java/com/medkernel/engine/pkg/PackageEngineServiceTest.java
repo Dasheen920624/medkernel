@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -279,7 +281,7 @@ class PackageEngineServiceTest {
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         PackageItem item = new PackageItem(
-            10L, "item-1", "tenant-A", "pkg-1", PackageItemAssetType.RULE, "rule-1", "1",
+            10L, "item-1", "tenant-A", "pkg-1", VersionedAssetType.RULE, "rule-1", "1",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
@@ -305,7 +307,7 @@ class PackageEngineServiceTest {
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         PackageItem item = new PackageItem(
-            10L, "item-1", "tenant-A", "pkg-missing", PackageItemAssetType.RULE, "rule-missing", "1",
+            10L, "item-1", "tenant-A", "pkg-missing", VersionedAssetType.RULE, "rule-missing", "1",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-missing", "tenant-A"))
@@ -335,8 +337,8 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-assets"))
             .thenReturn(List.of(
-                packageItem(10L, "pkg-assets", PackageItemAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
-                packageItem(11L, "pkg-assets", PackageItemAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06")
+                packageItem(10L, "pkg-assets", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
+                packageItem(11L, "pkg-assets", VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06")
             ));
         when(knowledgeIdentityRepository.findByTenantIdAndIdentityCode("tenant-A", "KNOW.COPD.GUIDE"))
             .thenReturn(Optional.of(activeKnowledgeIdentity(101L, "KNOW.COPD.GUIDE", 201L)));
@@ -360,7 +362,7 @@ class PackageEngineServiceTest {
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         PackageItem item = new PackageItem(
-            10L, "item-1", "tenant-A", "pkg-followup", PackageItemAssetType.FOLLOWUP, "plan-runtime-1", "1",
+            10L, "item-1", "tenant-A", "pkg-followup", VersionedAssetType.FOLLOWUP, "plan-runtime-1", "1",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-followup", "tenant-A"))
@@ -394,7 +396,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(rule));
 
         assertThatThrownBy(() -> service.addPackageItem("pkg-1", new PackageItemRequest(
-                PackageItemAssetType.RULE, "rule-1", "1")))
+                VersionedAssetType.RULE, "rule-1", "1")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PACKAGE_002);
@@ -414,11 +416,11 @@ class PackageEngineServiceTest {
         when(ruleRepository.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(rule));
 
-        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId("tenant-A", "pkg-1", PackageItemAssetType.RULE, "rule-1"))
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId("tenant-A", "pkg-1", VersionedAssetType.RULE, "rule-1"))
             .thenReturn(Optional.empty());
 
         PackageItemResponse response = service.addPackageItem("pkg-1", new PackageItemRequest(
-            PackageItemAssetType.RULE, "rule-1", "1"));
+            VersionedAssetType.RULE, "rule-1", "1"));
 
         assertThat(response.itemId()).isNotNull();
         assertThat(response.assetId()).isEqualTo("rule-1");
@@ -430,10 +432,10 @@ class PackageEngineServiceTest {
         PilotPackageTemplate template = activePilotTemplate(
             "t-1", "tpl-first-run", "TPL.FIRST_RUN", "试点首发最小可运行集");
         List<PilotPackageTemplateItem> templateItems = List.of(
-            pilotTemplateItem("tpl-first-run", 10, PackageItemAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
-            pilotTemplateItem("tpl-first-run", 20, PackageItemAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06"),
-            pilotTemplateItem("tpl-first-run", 30, PackageItemAssetType.RULE, "rule-stable", "2"),
-            pilotTemplateItem("tpl-first-run", 40, PackageItemAssetType.PATHWAY, "pathway-stable", "1")
+            pilotTemplateItem("tpl-first-run", 10, VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
+            pilotTemplateItem("tpl-first-run", 20, VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06"),
+            pilotTemplateItem("tpl-first-run", 30, VersionedAssetType.RULE, "rule-stable", "2"),
+            pilotTemplateItem("tpl-first-run", 40, VersionedAssetType.PATHWAY, "pathway-stable", "1")
         );
         when(pilotTemplateRepository.findByTenantIdAndTemplateCodeAndStatus(
                 "tenant-A", "TPL.FIRST_RUN", PilotPackageTemplateStatus.ACTIVE))
@@ -475,10 +477,10 @@ class PackageEngineServiceTest {
         assertThat(response.items()).hasSize(4);
         assertThat(response.items()).extracting(PackageItemResponse::assetType)
             .containsExactly(
-                PackageItemAssetType.KNOWLEDGE,
-                PackageItemAssetType.TERMINOLOGY,
-                PackageItemAssetType.RULE,
-                PackageItemAssetType.PATHWAY
+                VersionedAssetType.KNOWLEDGE,
+                VersionedAssetType.TERMINOLOGY,
+                VersionedAssetType.RULE,
+                VersionedAssetType.PATHWAY
             );
 
         ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
@@ -506,7 +508,7 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(template));
         when(pilotTemplateItemRepository.findByTenantIdAndTemplateIdOrderBySortOrderAsc("tenant-A", "tpl-missing"))
             .thenReturn(List.of(pilotTemplateItem(
-                "tpl-missing", 10, PackageItemAssetType.RULE, "rule-missing", "1")));
+                "tpl-missing", 10, VersionedAssetType.RULE, "rule-missing", "1")));
         when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
                 "tenant-A", "PKG.MISSING", "2026.06.03"))
             .thenReturn(Optional.empty());
@@ -584,15 +586,15 @@ class PackageEngineServiceTest {
 
         // 模拟老包资产：rule-1 (v1), pathway-1 (v1)
         List<PackageItem> baseItems = List.of(
-            new PackageItem(1L, "i-1", "tenant-A", "pkg-base", PackageItemAssetType.RULE, "rule-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace"),
-            new PackageItem(2L, "i-2", "tenant-A", "pkg-base", PackageItemAssetType.PATHWAY, "pathway-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace")
+            new PackageItem(1L, "i-1", "tenant-A", "pkg-base", VersionedAssetType.RULE, "rule-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace"),
+            new PackageItem(2L, "i-2", "tenant-A", "pkg-base", VersionedAssetType.PATHWAY, "pathway-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace")
         );
 
         // 模拟新包资产：rule-1 (v2 - 更新), pathway-1 (v1 - 未变), evaluation-1 (v1 - 新增)
         List<PackageItem> targetItems = List.of(
-            new PackageItem(3L, "i-3", "tenant-A", "pkg-target", PackageItemAssetType.RULE, "rule-1", "2", Instant.now(), "tester", Instant.now(), "tester", "trace"),
-            new PackageItem(4L, "i-4", "tenant-A", "pkg-target", PackageItemAssetType.PATHWAY, "pathway-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace"),
-            new PackageItem(5L, "i-5", "tenant-A", "pkg-target", PackageItemAssetType.EVALUATION, "eval-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace")
+            new PackageItem(3L, "i-3", "tenant-A", "pkg-target", VersionedAssetType.RULE, "rule-1", "2", Instant.now(), "tester", Instant.now(), "tester", "trace"),
+            new PackageItem(4L, "i-4", "tenant-A", "pkg-target", VersionedAssetType.PATHWAY, "pathway-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace"),
+            new PackageItem(5L, "i-5", "tenant-A", "pkg-target", VersionedAssetType.EVALUATION, "eval-1", "1", Instant.now(), "tester", Instant.now(), "tester", "trace")
         );
 
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-base")).thenReturn(baseItems);
@@ -619,10 +621,10 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
-            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-real", "2"),
-            packageItem(2L, "pkg-target", PackageItemAssetType.PATHWAY, "pathway-no-dept", "1"),
-            packageItem(3L, "pkg-target", PackageItemAssetType.EVALUATION, "eval-real", "1"),
-            packageItem(4L, "pkg-target", PackageItemAssetType.TERMINOLOGY, "term-1", "1")
+            packageItem(1L, "pkg-target", VersionedAssetType.RULE, "rule-real", "2"),
+            packageItem(2L, "pkg-target", VersionedAssetType.PATHWAY, "pathway-no-dept", "1"),
+            packageItem(3L, "pkg-target", VersionedAssetType.EVALUATION, "eval-real", "1"),
+            packageItem(4L, "pkg-target", VersionedAssetType.TERMINOLOGY, "term-1", "1")
         ));
         when(ruleRepository.findByRuleIdAndTenantId("rule-real", "tenant-A"))
             .thenReturn(Optional.of(publishedRule("rule-real", "dept-rule")));
@@ -646,12 +648,12 @@ class PackageEngineServiceTest {
         when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
         when(packageRepository.findByPackageIdAndTenantId("pkg-base", "tenant-A")).thenReturn(Optional.of(basePack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-base")).thenReturn(List.of(
-            packageItem(1L, "pkg-base", PackageItemAssetType.RULE, "rule-removed", "1"),
-            packageItem(2L, "pkg-base", PackageItemAssetType.EVALUATION, "eval-updated", "1")
+            packageItem(1L, "pkg-base", VersionedAssetType.RULE, "rule-removed", "1"),
+            packageItem(2L, "pkg-base", VersionedAssetType.EVALUATION, "eval-updated", "1")
         ));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
-            packageItem(3L, "pkg-target", PackageItemAssetType.EVALUATION, "eval-updated", "2"),
-            packageItem(4L, "pkg-target", PackageItemAssetType.PATHWAY, "pathway-added", "1")
+            packageItem(3L, "pkg-target", VersionedAssetType.EVALUATION, "eval-updated", "2"),
+            packageItem(4L, "pkg-target", VersionedAssetType.PATHWAY, "pathway-added", "1")
         ));
         when(ruleRepository.findByRuleIdAndTenantId("rule-removed", "tenant-A"))
             .thenReturn(Optional.of(publishedRule("rule-removed", "dept-removed")));
@@ -669,21 +671,21 @@ class PackageEngineServiceTest {
             .containsExactlyInAnyOrder("dept-removed", "dept-eval");
         assertThat(response.changes()).anySatisfy(change -> {
             assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.REMOVED);
-            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.RULE);
+            assertThat(change.assetType()).isEqualTo(VersionedAssetType.RULE);
             assertThat(change.assetId()).isEqualTo("rule-removed");
             assertThat(change.baseVersion()).isEqualTo("1");
             assertThat(change.targetVersion()).isNull();
         });
         assertThat(response.changes()).anySatisfy(change -> {
             assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.UPDATED);
-            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.EVALUATION);
+            assertThat(change.assetType()).isEqualTo(VersionedAssetType.EVALUATION);
             assertThat(change.assetId()).isEqualTo("eval-updated");
             assertThat(change.baseVersion()).isEqualTo("1");
             assertThat(change.targetVersion()).isEqualTo("2");
         });
         assertThat(response.changes()).anySatisfy(change -> {
             assertThat(change.changeType()).isEqualTo(PackageDiffChangeType.ADDED);
-            assertThat(change.assetType()).isEqualTo(PackageItemAssetType.PATHWAY);
+            assertThat(change.assetType()).isEqualTo(VersionedAssetType.PATHWAY);
             assertThat(change.assetId()).isEqualTo("pathway-added");
             assertThat(change.baseVersion()).isNull();
             assertThat(change.targetVersion()).isEqualTo("1");
@@ -696,7 +698,7 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
-            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-added", "2")
+            packageItem(1L, "pkg-target", VersionedAssetType.RULE, "rule-added", "2")
         ));
         when(ruleRepository.findByRuleIdAndTenantId("rule-added", "tenant-A"))
             .thenReturn(Optional.of(publishedRule("rule-added", "dept-rule")));
@@ -720,8 +722,8 @@ class PackageEngineServiceTest {
     void exportOfflinePackageReturnsPayloadSha256AndPublishesAudit() throws Exception {
         KnowledgePackage pack = packageVersion("pkg-offline", "3.0.0", KnowledgePackageStatus.PUBLISHED);
         List<PackageItem> items = List.of(
-            packageItem(1L, "pkg-offline", PackageItemAssetType.RULE, "rule-stable", "2"),
-            packageItem(2L, "pkg-offline", PackageItemAssetType.EVALUATION, "eval-stable", "1")
+            packageItem(1L, "pkg-offline", VersionedAssetType.RULE, "rule-stable", "2"),
+            packageItem(2L, "pkg-offline", VersionedAssetType.EVALUATION, "eval-stable", "1")
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-offline", "tenant-A"))
             .thenReturn(Optional.of(pack));
@@ -782,8 +784,8 @@ class PackageEngineServiceTest {
     void exportOfflinePackageIncludesKnowledgeAndTerminologySnapshots() throws Exception {
         KnowledgePackage pack = packageVersion("pkg-all-assets", "3.1.0", KnowledgePackageStatus.PUBLISHED);
         List<PackageItem> items = List.of(
-            packageItem(1L, "pkg-all-assets", PackageItemAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
-            packageItem(2L, "pkg-all-assets", PackageItemAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06")
+            packageItem(1L, "pkg-all-assets", VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1"),
+            packageItem(2L, "pkg-all-assets", VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06")
         );
         TermMappingPackage terminologyPackage = publishedTerminologyPackage(
             301L, "TERM.LAB", "2026.06", "DEPARTMENT", "CARD");
@@ -938,7 +940,7 @@ class PackageEngineServiceTest {
         ArgumentCaptor<PackageItem> itemCap = ArgumentCaptor.forClass(PackageItem.class);
         verify(itemRepository, org.mockito.Mockito.times(2)).save(itemCap.capture());
         assertThat(itemCap.getAllValues()).extracting(PackageItem::assetType)
-            .containsExactly(PackageItemAssetType.KNOWLEDGE, PackageItemAssetType.TERMINOLOGY);
+            .containsExactly(VersionedAssetType.KNOWLEDGE, VersionedAssetType.TERMINOLOGY);
     }
 
     @Test
@@ -1098,7 +1100,7 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-target", "tenant-A")).thenReturn(Optional.of(targetPack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-target")).thenReturn(List.of(
-            packageItem(1L, "pkg-target", PackageItemAssetType.RULE, "rule-broken", "2")
+            packageItem(1L, "pkg-target", VersionedAssetType.RULE, "rule-broken", "2")
         ));
         when(ruleRepository.findByRuleIdAndTenantId("rule-broken", "tenant-A"))
             .thenThrow(new IllegalStateException("规则资产查询失败"));
@@ -1285,7 +1287,7 @@ class PackageEngineServiceTest {
             KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         PackageItem item = new PackageItem(
-            10L, "item-1", "tenant-A", "pkg-bad", PackageItemAssetType.TERMINOLOGY, "term-map-1", "1",
+            10L, "item-1", "tenant-A", "pkg-bad", VersionedAssetType.TERMINOLOGY, "term-map-1", "1",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         when(packageRepository.findByPackageIdAndTenantId("pkg-bad", "tenant-A"))
@@ -2196,7 +2198,7 @@ class PackageEngineServiceTest {
     private void stubPackageReadyForRelease(String packageId) {
         String ruleId = "rule-ready-" + packageId;
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", packageId))
-            .thenReturn(List.of(packageItem(900L, packageId, PackageItemAssetType.RULE, ruleId, "1")));
+            .thenReturn(List.of(packageItem(900L, packageId, VersionedAssetType.RULE, ruleId, "1")));
         when(ruleRepository.findByRuleIdAndTenantId(ruleId, "tenant-A"))
             .thenReturn(Optional.of(publishedRule(ruleId, "dept-rule")));
     }
@@ -2204,7 +2206,7 @@ class PackageEngineServiceTest {
     private PackageItem packageItem(
             long id,
             String packageId,
-            PackageItemAssetType assetType,
+            VersionedAssetType assetType,
             String assetId,
             String assetVersion) {
         return new PackageItem(
@@ -2239,7 +2241,7 @@ class PackageEngineServiceTest {
     private PilotPackageTemplateItem pilotTemplateItem(
             String templateId,
             int sortOrder,
-            PackageItemAssetType assetType,
+            VersionedAssetType assetType,
             String assetId,
             String assetVersion) {
         return new PilotPackageTemplateItem(

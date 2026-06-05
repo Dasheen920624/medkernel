@@ -1,15 +1,35 @@
 package com.medkernel.engine.versioning;
 
 /**
- * 配置类资产类型。
+ * 统一配置资产类型枚举（归一）。
  *
- * <p>仅登记已经存在配置资产主链路的类型；患者运行数据不得伪装成配置资产入版。
+ * <p>合并原 {@code VersionedAssetType} 与 {@code com.medkernel.engine.pkg.PackageItemAssetType} 为单一权威类型，
+ * 使版本底座 {@link AssetVersion} 与知识包条目 {@code PackageItem} 的资产类型取值同源（设计 unified-asset-versioning
+ * 规格 / 附录 G·D2「一步合并 + 兼容别名」）。值名保持兼容，存量数据按 {@code name()} 字符串映射不变。
+ *
+ * <p>仅登记已存在或规划中配置资产主链路的类型；患者运行数据不得伪装成配置资产入版。
  */
 public enum VersionedAssetType {
+    /** 知识 */
     KNOWLEDGE,
+    /** 字典术语 */
     TERMINOLOGY,
+    /** 规则 */
     RULE,
+    /** 路径 */
     PATHWAY,
+    /** 评估指标 */
+    EVALUATION,
+    /** 随访 */
+    FOLLOWUP,
+    /** 上下文字段目录 */
+    FIELD_CATALOG,
+    /** 知识包 */
     PACKAGE,
-    EVALUATION
+    /** 推荐卡 */
+    RECOMMENDATION,
+    /** 安全（红线 / 高危拦截） */
+    SAFETY,
+    /** CDSS 风险分级矩阵 */
+    CDSS_RISK
 }

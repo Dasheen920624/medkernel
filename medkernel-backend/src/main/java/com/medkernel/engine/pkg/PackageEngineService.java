@@ -1,5 +1,7 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -740,7 +742,7 @@ public class PackageEngineService {
         String event,
         String packageId,
         PackageDiffChangeType changeType,
-        PackageItemAssetType assetType,
+        VersionedAssetType assetType,
         String assetId,
         String baseVersion,
         String targetVersion,
@@ -1143,7 +1145,7 @@ public class PackageEngineService {
             if (snapshotNode == null || !snapshotNode.isObject()) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照必须是对象");
             }
-            PackageItemAssetType assetType = parseAssetType(requireText(snapshotNode, "assetType", "离线包资产快照缺少 assetType"));
+            VersionedAssetType assetType = parseAssetType(requireText(snapshotNode, "assetType", "离线包资产快照缺少 assetType"));
             String assetId = requireText(snapshotNode, "assetId", "离线包资产快照缺少 assetId");
             String assetVersion = requireText(snapshotNode, "assetVersion", "离线包资产快照缺少 assetVersion");
             String contentSha256 = requireText(snapshotNode, "contentSha256", "离线包资产快照缺少 contentSha256");
@@ -1162,7 +1164,7 @@ public class PackageEngineService {
         }
 
         for (JsonNode itemNode : itemsNode) {
-            PackageItemAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
             String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
             String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
             String key = offlineAssetKey(assetType, assetId, assetVersion);
@@ -1184,7 +1186,7 @@ public class PackageEngineService {
     }
 
     private void importOfflineAssetSnapshot(
-            PackageItemAssetType assetType,
+            VersionedAssetType assetType,
             String assetId,
             String assetVersion,
             JsonNode snapshot,
@@ -1210,7 +1212,7 @@ public class PackageEngineService {
     }
 
     private void validateOfflineAssetSnapshotContent(
-            PackageItemAssetType assetType,
+            VersionedAssetType assetType,
             String assetId,
             String assetVersion,
             JsonNode content) {
@@ -1429,7 +1431,7 @@ public class PackageEngineService {
             String actor,
             Instant now) {
         PackageOfflineKnowledgeContent knowledgeContent = readOfflineContent(content, PackageOfflineKnowledgeContent.class);
-        validateOfflineAssetSnapshotContent(PackageItemAssetType.KNOWLEDGE, assetId, assetVersion, content);
+        validateOfflineAssetSnapshotContent(VersionedAssetType.KNOWLEDGE, assetId, assetVersion, content);
 
         Optional<KnowledgeIdentity> existingIdentity =
             knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, assetId);
@@ -1529,7 +1531,7 @@ public class PackageEngineService {
             Instant now) {
         PackageOfflineTerminologyContent terminologyContent =
             readOfflineContent(content, PackageOfflineTerminologyContent.class);
-        validateOfflineAssetSnapshotContent(PackageItemAssetType.TERMINOLOGY, assetId, assetVersion, content);
+        validateOfflineAssetSnapshotContent(VersionedAssetType.TERMINOLOGY, assetId, assetVersion, content);
         PackageOfflineTerminologyPackage importedPackage = terminologyContent.terminologyPackage();
         TerminologyAssetKey key = parseTerminologyAssetKey(assetId);
 
@@ -1718,7 +1720,7 @@ public class PackageEngineService {
             }
             requireSameText(itemNode, "tenantId", sourceTenantId, "离线包资产条目租户与源租户不一致");
             requireSameText(itemNode, "packageId", sourcePackageId, "离线包资产条目 packageId 与包元信息不一致");
-            PackageItemAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
             String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
             String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
             String assetKey = assetType.name() + ":" + assetId;
@@ -1751,9 +1753,9 @@ public class PackageEngineService {
         return PlatformTenant.isPlatformTenant(sourceTenantId) && !PlatformTenant.isPlatformTenant(tenantId);
     }
 
-    private PackageItemAssetType parseAssetType(String assetType) {
+    private VersionedAssetType parseAssetType(String assetType) {
         try {
-            return PackageItemAssetType.valueOf(assetType);
+            return VersionedAssetType.valueOf(assetType);
         } catch (IllegalArgumentException e) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产类型不受支持: " + assetType);
         }
@@ -1767,7 +1769,7 @@ public class PackageEngineService {
         }
     }
 
-    private String offlineAssetKey(PackageItemAssetType assetType, String assetId, String assetVersion) {
+    private String offlineAssetKey(VersionedAssetType assetType, String assetId, String assetVersion) {
         return assetType.name() + ":" + assetId + ":" + assetVersion;
     }
 
@@ -1866,7 +1868,7 @@ public class PackageEngineService {
     ) {}
 
     private record PackageContentDigestItem(
-        PackageItemAssetType assetType,
+        VersionedAssetType assetType,
         String assetId,
         String assetVersion
     ) {}
@@ -1898,7 +1900,7 @@ public class PackageEngineService {
     ) {}
 
     private record PackageOfflineAssetSnapshot(
-        PackageItemAssetType assetType,
+        VersionedAssetType assetType,
         String assetId,
         String assetVersion,
         String contentSha256,
@@ -1941,7 +1943,7 @@ public class PackageEngineService {
         String itemId,
         String tenantId,
         String packageId,
-        PackageItemAssetType assetType,
+        VersionedAssetType assetType,
         String assetId,
         String assetVersion,
         String createdAt,
@@ -2732,7 +2734,7 @@ public class PackageEngineService {
         return RequestContext.snapshot().userId() == null ? "system" : RequestContext.snapshot().userId();
     }
 
-    private void validateAssetStatus(String tenantId, PackageItemAssetType type, String assetId, String assetVersion) {
+    private void validateAssetStatus(String tenantId, VersionedAssetType type, String assetId, String assetVersion) {
         switch (type) {
             case RULE -> {
                 RuleDefinition rule = ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
@@ -2852,7 +2854,7 @@ public class PackageEngineService {
         String scopeCode
     ) {}
 
-    private String getAssetDepartment(String tenantId, PackageItemAssetType type, String assetId) {
+    private String getAssetDepartment(String tenantId, VersionedAssetType type, String assetId) {
         switch (type) {
             case RULE -> {
                 return ruleRepository.findByRuleIdAndTenantId(assetId, tenantId)
