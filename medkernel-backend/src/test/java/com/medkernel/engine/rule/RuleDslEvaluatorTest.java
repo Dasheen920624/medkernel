@@ -842,6 +842,271 @@ class RuleDslEvaluatorTest {
             .isCloseTo(84.35d, within(0.05d));
     }
 
+    @Test
+    void isMissingMatchesWhenFactAbsent() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "explain": {"title": "缺值", "reason": "血钾结果缺失"}
+            }
+            """), read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("is_missing");
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
+    void isMissingMatchesWhenObjectHasNoClinicalValue() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "explain": {"title": "缺值", "reason": "血钾结果缺失"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"unit": "mmol/L", "source": "LIS:K-9"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+    }
+
+    @Test
+    void isMissingDoesNotMatchWhenValuePresent() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "explain": {"title": "缺值", "reason": "血钾结果缺失"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 4.0, "unit": "mmol/L", "source": "LIS:K-10"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
+    @Test
+    void notBetweenMatchesValueOutsideRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "not_between",
+                    "value": {"min": 3.5, "max": 5.5, "unit": "mmol/L"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血钾偏离目标区间"}],
+              "explain": {"title": "区间取反", "reason": "血钾不在目标区间内"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 6.0, "unit": "mmol/L", "source": "LIS:K-7"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("not_between");
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+        assertThat(evidence.path("formula").asText()).isEqualTo("6 mmol/L not between [3.5, 5.5]");
+    }
+
+    @Test
+    void notBetweenMissesValueInsideRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "not_between",
+                    "value": {"min": 3.5, "max": 5.5, "unit": "mmol/L"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "区间取反", "reason": "血钾在目标区间内"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 4.0, "unit": "mmol/L", "source": "LIS:K-8"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
+    @Test
+    void notBetweenDoesNotMatchWhenValueMissing() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "not_between",
+                    "value": {"min": 3.5, "max": 5.5, "unit": "mmol/L"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "区间取反", "reason": "缺值不臆测为越界"}
+            }
+            """), read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L"}}}
+            """));
+
+        // 缺值不得被取反成「越界=命中」：保持未命中 + missing
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+    }
+
+    @Test
+    void withinRefMatchesValueInsideObservationReferenceRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾在参考范围内"}],
+              "explain": {"title": "参考范围", "reason": "校验血钾是否在参考范围内"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "referenceRange": "3.5-5.0", "source": "LIS:K-1"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("within_ref");
+        assertThat(evidence.path("value").asDouble()).isEqualTo(4.2d);
+        assertThat(evidence.path("unit").asText()).isEqualTo("mmol/L");
+        assertThat(evidence.path("source").asText()).isEqualTo("LIS:K-1");
+        assertThat(evidence.path("formula").asText()).isEqualTo("4.2 mmol/L within ref [3.5, 5]");
+    }
+
+    @Test
+    void aboveRefMatchesValueAboveReferenceHigh() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血钾高于参考上限"}],
+              "explain": {"title": "参考范围", "reason": "校验血钾是否高于参考上限"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 5.8, "unit": "mmol/L", "referenceRange": "3.5-5.0", "source": "LIS:K-2"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("above_ref");
+        assertThat(evidence.path("formula").asText()).isEqualTo("5.8 mmol/L above ref [3.5, 5]");
+    }
+
+    @Test
+    void belowRefMatchesValueBelowReferenceLowWithEnDashRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "below_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血钾低于参考下限"}],
+              "explain": {"title": "参考范围", "reason": "校验血钾是否低于参考下限"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 3.0, "unit": "mmol/L", "referenceRange": "3.5–5.0", "source": "LIS:K-3"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("formula").asText()).isEqualTo("3 mmol/L below ref [3.5, 5]");
+    }
+
+    @Test
+    void withinRefMissesWhenValueOutsideReferenceRange() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾在参考范围内"}],
+              "explain": {"title": "参考范围", "reason": "校验血钾是否在参考范围内"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 5.8, "unit": "mmol/L", "referenceRange": "3.5-5.0", "source": "LIS:K-4"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+        assertThat(evidence.path("missing").asBoolean()).isFalse();
+    }
+
+    @Test
+    void referenceOperatorRejectsUnparseableRangeWithoutGuessing() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "explain": {"title": "参考范围", "reason": "拒绝不可解析的参考范围"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "referenceRange": "见报告", "source": "LIS:K-5"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
+                assertThat(exception.getMessage()).contains("lab.potassium");
+            });
+    }
+
+    @Test
+    void referenceOperatorProducesMissWhenValueMissingWithoutThrow() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "explain": {"title": "参考范围", "reason": "缺值不臆测"}
+            }
+            """), read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L", "referenceRange": "135-145"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+    }
+
+    @Test
+    void aboveRefRejectsRangeWithoutUpperBound() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "explain": {"title": "参考范围", "reason": "无上界不能判断 above_ref"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "referenceRange": ">3.5", "source": "LIS:K-6"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA));
+    }
+
     private JsonNode read(String source) throws Exception {
         return json.readTree(source);
     }
