@@ -1,5 +1,7 @@
 package com.medkernel.engine.evaluation;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -12,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.math.BigDecimal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -552,6 +553,57 @@ public class EvaluationEngineService {
     }
 
     /**
+     * 将未派发质控问题派发为整改任务。
+     *
+     * <p>重复派发相同责任科室、责任人和截止时间时返回已有任务；重复派发但内容不同抛出 {@code ENG-EVAL-008}。
+     */
+    @Transactional
+    public RectificationResponse dispatchRectification(
+            RectificationDispatchRequest request, String idempotencyKey) {
+        if (request == null || !hasText(request.findingId()) || !hasText(request.responsibleDepartmentId())
+                || request.dueAt() == null) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001);
+        }
+        if (hasText(idempotencyKey) && idempotencyKey.length() > 128) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001, "幂等键长度超过 128");
+        }
+
+        QualityFinding finding = findFinding(request.findingId());
+        Optional<RectificationTask> existing =
+            tasks.findByFindingIdAndTenantId(request.findingId(), tenantId());
+        if (existing.isPresent()) {
+            RectificationTask task = existing.get();
+            if (!sameDispatch(task, request)) {
+                throw new ApiException(ErrorCode.ENG_EVAL_008);
+            }
+            return new RectificationResponse(task.taskId(), finding.status(), task.status(), traceId());
+        }
+        if (finding.status() != QualityFindingStatus.NEW) {
+            throw new ApiException(ErrorCode.ENG_EVAL_007);
+        }
+
+        Instant now = Instant.now();
+        String actor = actor();
+        String taskId = shortDigestId("rct-", tenantId(), request.findingId());
+        QualityFinding assignedFinding = findings.save(new QualityFinding(
+            finding.id(), finding.findingId(), finding.tenantId(), finding.runId(), finding.resultId(),
+            finding.indicatorId(), finding.findingCode(), finding.title(), finding.description(),
+            finding.severity(), QualityFindingStatus.ASSIGNED, finding.evidenceSummary(),
+            request.responsibleDepartmentId(), request.dueAt(), finding.createdAt(), finding.createdBy(),
+            now, actor, finding.traceId()));
+        RectificationTask task = tasks.save(new RectificationTask(
+            null, taskId, tenantId(), request.findingId(), request.responsibleDepartmentId(),
+            blankToNull(request.assigneeUserId()), RectificationTaskStatus.ASSIGNED, request.dueAt(),
+            null, null, null, null, null, now, actor, now, actor, traceId()));
+        transitions.record(FINDING_ENTITY, request.findingId(), finding.status().name(),
+            assignedFinding.status().name(), "派发质控整改", null);
+        transitions.record(TASK_ENTITY, task.taskId(), null, task.status().name(), "派发质控整改任务", null);
+        auditPublisher.publish(AuditAction.CREATE, TASK_ENTITY, task.taskId(),
+            "派发质控整改 " + request.findingId());
+        return new RectificationResponse(task.taskId(), assignedFinding.status(), task.status(), traceId());
+    }
+
+    /**
      * 提交整改说明和证据引用，不启用幂等键。
      */
     @Transactional
@@ -605,6 +657,16 @@ public class EvaluationEngineService {
     }
 
     /**
+     * 按整改任务 ID 提交整改说明和证据引用。
+     */
+    @Transactional
+    public RectificationResponse submitRectificationTask(
+            String taskId, RectificationSubmitRequest request, String idempotencyKey) {
+        RectificationTask task = findTaskByTaskId(taskId);
+        return submitRectification(task.findingId(), request, idempotencyKey);
+    }
+
+    /**
      * 提交整改复核结论，不启用幂等键。
      */
     @Transactional
@@ -644,6 +706,7 @@ public class EvaluationEngineService {
         }
         if ((request.decision() == RectificationReviewDecision.APPROVED
                 && !hasText(request.comment()) && !hasText(request.evidenceRef()))
+                || (request.decision() == RectificationReviewDecision.RETURNED && !hasText(request.comment()))
                 || (request.decision() == RectificationReviewDecision.WAIVED && !hasText(request.comment()))) {
             throw new ApiException(ErrorCode.ENG_EVAL_007);
         }
@@ -668,7 +731,8 @@ public class EvaluationEngineService {
             task.id(), task.taskId(), task.tenantId(), task.findingId(), task.responsibleDepartmentId(),
             task.assigneeUserId(), taskStatus, task.dueAt(), task.rectificationSummary(), task.evidenceRef(),
             task.submittedAt(), task.submittedBy(),
-            taskStatus == RectificationTaskStatus.CLOSED ? now : task.closedAt(),
+            taskStatus == RectificationTaskStatus.CLOSED || taskStatus == RectificationTaskStatus.WAIVED
+                ? now : task.closedAt(),
             task.createdAt(), task.createdBy(), now, actor, task.traceId()));
         transitions.record(FINDING_ENTITY, findingId, finding.status().name(), reviewedFinding.status().name(),
             "复核质控整改 " + request.decision(), null);
@@ -682,6 +746,67 @@ public class EvaluationEngineService {
             task.taskId(), reviewId, requestDigest, reviewedFinding.status(), reviewedTask.status(),
             traceId, now, actor);
         return new RectificationReviewResponse(reviewId, reviewedFinding.status(), reviewedTask.status(), traceId);
+    }
+
+    /**
+     * 按整改任务 ID 提交整改复核结论。
+     */
+    @Transactional
+    public RectificationReviewResponse reviewRectificationTask(
+            String taskId, RectificationReviewRequest request, String idempotencyKey) {
+        RectificationTask task = findTaskByTaskId(taskId);
+        return reviewRectification(task.findingId(), request, idempotencyKey);
+    }
+
+    /**
+     * 按整改任务 ID 提交专用豁免动作，要求带审批引用。
+     */
+    @Transactional
+    public RectificationReviewResponse waiveRectificationTask(
+            String taskId, RectificationWaiveRequest request, String idempotencyKey) {
+        if (request == null || !hasText(request.reason()) || !hasText(request.approvalRef())) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001);
+        }
+        String evidence = hasText(request.evidenceRef())
+            ? "审批引用: " + request.approvalRef() + "；证据引用: " + request.evidenceRef()
+            : "审批引用: " + request.approvalRef();
+        return reviewRectificationTask(
+            taskId,
+            new RectificationReviewRequest(RectificationReviewDecision.WAIVED, request.reason(), evidence),
+            idempotencyKey);
+    }
+
+    /**
+     * 生成整改闭环报告。
+     */
+    @Transactional(readOnly = true)
+    public RectificationReportResponse rectificationReport(RectificationReportFilter filter) {
+        return rectificationReport(filter, Instant.now());
+    }
+
+    /**
+     * 生成整改闭环报告，可注入时钟用于可重复测试。
+     */
+    @Transactional(readOnly = true)
+    public RectificationReportResponse rectificationReport(RectificationReportFilter filter, Instant now) {
+        RectificationReportFilter f = filter == null ? new RectificationReportFilter(null) : filter;
+        String departmentId = blankToNull(f.responsibleDepartmentId());
+        String tenant = tenantId();
+        long total = tasks.countByTenantIdAndDepartmentFilter(tenant, departmentId);
+        long open = tasks.countOpenByTenantIdAndDepartmentFilter(tenant, departmentId);
+        long closed = tasks.countClosedByTenantIdAndDepartmentFilter(tenant, departmentId);
+        long waived = tasks.countWaivedByTenantIdAndDepartmentFilter(tenant, departmentId);
+        long overdue = tasks.countOverdueOpenByTenantIdAndDepartmentFilter(tenant, departmentId, now);
+        long p0Open = tasks.countOpenP0ByTenantIdAndDepartmentFilter(tenant, departmentId);
+        BigDecimal closureRate = total == 0
+            ? BigDecimal.ZERO.setScale(4, RoundingMode.UNNECESSARY)
+            : BigDecimal.valueOf(closed).divide(BigDecimal.valueOf(total), 4, RoundingMode.HALF_UP);
+        RectificationReportStatus status = total == 0
+            ? RectificationReportStatus.NO_TASKS
+            : RectificationReportStatus.AVAILABLE;
+        return new RectificationReportResponse(
+            status, total, open, closed, waived, overdue, p0Open,
+            closureRate, TASK_ENTITY, traceId());
     }
 
     /**
@@ -920,6 +1045,14 @@ public class EvaluationEngineService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_005));
     }
 
+    private RectificationTask findTaskByTaskId(String taskId) {
+        if (!hasText(taskId)) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001);
+        }
+        return tasks.findByTaskIdAndTenantId(taskId, tenantId())
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_005));
+    }
+
     private Optional<EvaluationIdempotencyKey> findIdempotencyReplay(
             EvaluationIdempotencyOperation operation, String findingId,
             String requestDigest, String idempotencyKey) {
@@ -966,6 +1099,20 @@ public class EvaluationEngineService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("JDK 缺少 SHA-256 摘要算法", exception);
         }
+    }
+
+    private String shortDigestId(String prefix, String... values) {
+        return prefix + digestValues(values).substring("sha256:".length(), "sha256:".length() + 16);
+    }
+
+    private boolean sameDispatch(RectificationTask task, RectificationDispatchRequest request) {
+        return task.responsibleDepartmentId().equals(request.responsibleDepartmentId())
+            && java.util.Objects.equals(task.assigneeUserId(), blankToNull(request.assigneeUserId()))
+            && task.dueAt().equals(request.dueAt());
+    }
+
+    private String blankToNull(String value) {
+        return hasText(value) ? value : null;
     }
 
     private void requireStatus(EvaluationIndicator indicator, EvaluationIndicatorStatus required) {

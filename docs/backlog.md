@@ -223,13 +223,18 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 | API-08 | 评估质控 API | 指标/运行/结果/问题/整改/复核 | 3d | done |
 | EVAL-01 | 评估质控引擎 | 指标配置/病例命中/问题生成/整改/复核闭环 | 5d | done |
 | OPT-08 | 价值指标与 ROI 看板 | 采纳率/误报率/漏报回溯/路径完成率/整改闭环率/医保违规减少 | 4d | done |
-| EMR-LEVEL-01 | 电子病历评级目标与项目映射 | 医院目标等级 4/5/6 级 + 能力差距 + 实施任务 | 5d | pending |
-| EMR-LEVEL-02 | 评级数据质量和证据包 | 应用覆盖 + 数据质量 + CDSS/质控闭环 + 审计证据 | 4d | pending |
+| EMR-LEVEL-01 | 电子病历评级目标与项目映射 | 医院目标等级 4/5/6 级 + 能力差距 + 实施任务 | 5d | done |
+| EMR-LEVEL-02 | 评级数据质量和证据包 | 应用覆盖 + 数据质量 + CDSS/质控闭环 + 审计证据 | 4d | done |
 | SVC-QUALITY-01 | 质控驾驶舱服务包 | 院级指标 + 风险热力 + 价值指标 + 下钻 + 证据 | 4d | done |
 | SVC-QUALITY-02 | 病案医保服务包 | 病历内涵 + DRG/DIP + 编码 + 费用 + 医保审核 | 5d | done |
-| SVC-QUALITY-03 | 整改闭环服务包 | 问题 + 责任科室 + 整改 + 复核 + 豁免 + 报告 | 3d | pending |
-| QCDASH-01 / QCALERT-01 / INSAUDIT-01 / EVALSET-01 / EVALRES-01 / AIREVIEW-01 | 6 页面真实化 | 每页：驾驶舱可下钻 + 六态 + 五维 RBAC + B0；AI 知识审核页先做“审/发”，AI 生成留第二波；每页必交见质量基线 | — | pending |
-| **D4-验收** | **质控改进域级验收** | 配指标 → 评估命中 → 生成问题 → 派整改 → 复核闭环 + 驾驶舱下钻，全 B0 真实可跑 | — | pending |
+| SVC-QUALITY-03 | 整改闭环服务包 | 问题 + 责任科室 + 整改 + 复核 + 豁免 + 报告 | 3d | done |
+| QCDASH-01 | 院级质控驾驶舱页真实化 | 接 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 院级聚合/热力/价值/下钻证据；六态 + 五维 RBAC + 证据导出；每页必交见质量基线 | 3d | done |
+| QCALERT-01 | 质控预警页真实化 | 接 [SVC-QUALITY-01](cards/D4/SVC-QUALITY-01.md) 真实预警 + 确认 + [SVC-QUALITY-03](cards/D4/SVC-QUALITY-03.md) 派整改 + 低打扰/高级别默认筛选 + 六态 | 3d | done |
+| INSAUDIT-01 | 医保智能审核页真实化 | 接 [SVC-QUALITY-02](cards/D4/SVC-QUALITY-02.md) 真实医保问题列表 + 病案内涵 + DRG/DIP + 医保审核整改联动；六态 + 五维 RBAC + B0 | 3d | done |
+| EVALSET-01 | 评估指标库页真实化 | 接 [EVAL-01](cards/D4/EVAL-01.md) 真实指标台账 / 条件树创建 / 生命周期流转 / 快照仿真；六态 + 五维 RBAC + 7 步流 | 3d | done |
+| EVALRES-01 | 评估结果页真实化 | 接 [EVAL-01](cards/D4/EVAL-01.md) 真实评估结果 / 质控问题 / 病历证据追溯 + [SVC-QUALITY-03](cards/D4/SVC-QUALITY-03.md) 派整改；六态 + 五维 RBAC | 3d | done |
+| AIREVIEW-01 | AI 知识审核页真实化 | 接真实知识审核/发布 API；先做“审/发”，AI 生成留第二波；六态 + 五维 RBAC + B0；每页必交见质量基线 | 3d | done |
+| **D4-验收** | **质控改进域级验收** | 配指标 → 评估命中 → 生成问题 → 派整改 → 复核闭环 + 驾驶舱下钻，全 B0 真实可跑；证据见 [D4 质控改进域级验收报告](audit/D4-domain-acceptance.md) | — | done |
 
 **小计**：8 项（原 ID）+ 6 页面 + 1 域级验收
 
@@ -243,9 +248,9 @@ D0 登录域是重启首闸：D0-验收通过前，不得启动 D1–D6 新功�
 
 | ID | 任务 | 范围 | 工作量 | 状态 |
 |---|---|---|---:|---|
-| EVID-01 | 证据链 | 真实文件 + 国密签名 + 验签 + 大导出真实文件 URI | 4d | pending |
-| SYS-06 | 安全合规与证据框架 | 数据权限 + 脱敏 + 审计 + 导出审批 + 证据包 | 5d | pending |
-| OPT-05 | 互联互通测评映射 | 数据资源/标准化/基础设施/应用效果 映射到产品证据 | 4d | pending |
+| EVID-01 | 证据链 | 真实文件 + 国密签名 + 验签 + 大导出真实文件 URI | 4d | done |
+| SYS-06 | 安全合规与证据框架 | 数据权限（PR1 已合入）+ 脱敏（PR2 已合入）+ 审计 + 导出审批 + 证据包（PR3 已合入） | 5d | done |
+| OPT-05 | 互联互通测评映射 | 数据资源/标准化/基础设施/应用效果 映射到产品真实证据；后端 B0 本地收口 | 4d | done |
 | SVC-COMPLIANCE-01 | 身份安全服务包 | 用户 + 身份绑定 + 数据权限 + 租户隔离 + 安全基线 | 5d | pending |
 | SVC-COMPLIANCE-02 | 审计运维服务包 | 审计 + 证据包 + Provider/模型状态 + 备份恢复 + 离线许可 | 4d | pending |
 | USERS-01 / IDBIND-01 / AUDITLOG-01 / SECBASE-01 / PROVIDER-01 / NOTIFSET-01 | 6 页面真实化 | 每页：五维权限管理粒度 + 审计可查 + 六态 + Provider 无连接诚实显示（NOT_CONNECTED）；**「安全基线与系统配置」承载系统配置中心**（[CONFIG-01](cards/D0/CONFIG-01.md) 前台：功能开关/认证/备份/国产化/Provider/日志级别，高危护栏置灰不可关，不净增二级菜单）；每页必交见质量基线 | — | pending |

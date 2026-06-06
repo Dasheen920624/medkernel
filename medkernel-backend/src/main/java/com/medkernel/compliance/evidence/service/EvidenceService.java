@@ -1,26 +1,33 @@
 package com.medkernel.compliance.evidence.service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.compliance.evidence.domain.EvidenceSnapshot;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
+import com.medkernel.compliance.evidence.dto.EvidenceExportResult;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
 import com.medkernel.compliance.evidence.repository.EvidenceSnapshotRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
-import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.crypto.SmCryptoService;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -30,12 +37,28 @@ import com.medkernel.shared.datascope.DataScope;
 @DataScope(requireTenant = true)
 public class EvidenceService {
 
+    private static final String SNAPSHOT_DOWNLOAD_PREFIX = "/api/v1/compliance/evidence/snapshots/";
+    private static final String EXPORT_DOWNLOAD_PREFIX = "/api/v1/compliance/evidence/snapshots/export/";
+    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
+
     private final EvidenceSnapshotRepository repository;
     private final IsolatedAuditPublisher isolatedAudit;
+    private final SmCryptoService crypto;
+    private final Path storageRoot;
 
-    public EvidenceService(EvidenceSnapshotRepository repository, IsolatedAuditPublisher isolatedAudit) {
+    @Autowired
+    public EvidenceService(EvidenceSnapshotRepository repository, IsolatedAuditPublisher isolatedAudit,
+                           SmCryptoService crypto) {
+        this(repository, isolatedAudit, crypto,
+            Path.of(System.getProperty("java.io.tmpdir"), "medkernel-evidence"));
+    }
+
+    EvidenceService(EvidenceSnapshotRepository repository, IsolatedAuditPublisher isolatedAudit,
+                    SmCryptoService crypto, Path storageRoot) {
         this.repository = repository;
         this.isolatedAudit = isolatedAudit;
+        this.crypto = crypto;
+        this.storageRoot = storageRoot;
     }
 
     /**
@@ -43,14 +66,13 @@ public class EvidenceService {
      */
     @Transactional
     public EvidenceResponse createSnapshot(String tenantId, EvidenceCreateDto dto) {
-        // 判断是否存在相同证据 ID
         Optional<EvidenceSnapshot> existing = repository.findByEvidenceId(dto.evidenceId());
         if (existing.isPresent()) {
             throw new ApiException(ErrorCode.ENG_EVID_003, "证据快照已存在: " + dto.evidenceId());
         }
 
-        // 构建无签名指纹的临时实体以辅助算哈希
-        EvidenceSnapshot temp = new EvidenceSnapshot(
+        Instant now = Instant.now();
+        EvidenceSnapshot unsigned = new EvidenceSnapshot(
             null,
             dto.evidenceId(),
             tenantId,
@@ -61,35 +83,66 @@ public class EvidenceService {
             dto.subjectId(),
             dto.evidenceSummary(),
             dto.payloadSnapshot(),
-            "", // 待填入指纹
-            Instant.now(),
+            "",
+            snapshotDownloadUri(dto.evidenceId()),
+            "",
+            EvidenceSnapshot.SIGNATURE_ALGORITHM,
+            "",
+            "",
+            now,
             "system",
-            Instant.now(),
+            now,
             "system"
         );
 
-        // 自动提取要素计算防伪 SHA-256 指纹
-        String calculatedHash = temp.calculateHash();
-
-        // 正式创建完整存证的实体
-        EvidenceSnapshot entity = new EvidenceSnapshot(
+        EvidenceSnapshot signable = new EvidenceSnapshot(
             null,
-            temp.evidenceId(),
-            temp.tenantId(),
-            temp.traceId(),
-            temp.evidenceType(),
-            temp.action(),
-            temp.subjectType(),
-            temp.subjectId(),
-            temp.evidenceSummary(),
-            temp.payloadSnapshot(),
-            calculatedHash,
-            temp.createdAt(),
-            temp.createdBy(),
-            temp.updatedAt(),
-            temp.updatedBy()
+            unsigned.evidenceId(),
+            unsigned.tenantId(),
+            unsigned.traceId(),
+            unsigned.evidenceType(),
+            unsigned.action(),
+            unsigned.subjectType(),
+            unsigned.subjectId(),
+            unsigned.evidenceSummary(),
+            unsigned.payloadSnapshot(),
+            unsigned.calculateHash(),
+            unsigned.fileUri(),
+            unsigned.calculateFileDigest(),
+            EvidenceSnapshot.SIGNATURE_ALGORITHM,
+            "",
+            "",
+            unsigned.createdAt(),
+            unsigned.createdBy(),
+            unsigned.updatedAt(),
+            unsigned.updatedBy()
         );
 
+        SignatureMaterial signature = sign(signable);
+        EvidenceSnapshot entity = new EvidenceSnapshot(
+            null,
+            signable.evidenceId(),
+            signable.tenantId(),
+            signable.traceId(),
+            signable.evidenceType(),
+            signable.action(),
+            signable.subjectType(),
+            signable.subjectId(),
+            signable.evidenceSummary(),
+            signable.payloadSnapshot(),
+            signable.payloadHash(),
+            signable.fileUri(),
+            signable.fileDigest(),
+            signable.signatureAlgorithm(),
+            signature.signatureValue(),
+            signature.signerPublicKey(),
+            signable.createdAt(),
+            signable.createdBy(),
+            signable.updatedAt(),
+            signable.updatedBy()
+        );
+
+        writeSnapshotFile(entity);
         EvidenceSnapshot saved = repository.save(entity);
         return EvidenceResponse.fromEntity(saved);
     }
@@ -132,7 +185,7 @@ public class EvidenceService {
     }
 
     /**
-     * 双向哈希比对验签服务（若篡改则发布隔离级别的高危入侵审计日志）。
+     * 双向国密验签服务（若篡改则发布隔离级别的高危入侵审计日志）。
      */
     @Transactional
     public EvidenceVerifyResult verifyEvidence(String tenantId, String evidenceId) {
@@ -144,41 +197,43 @@ public class EvidenceService {
         }
 
         String calculated = entity.calculateHash();
-        boolean isValid = entity.isValid();
+        boolean signatureValid = verifySignature(entity);
+        boolean isValid = entity.isValid() && signatureValid;
 
-        // 强审计留痕：如果被篡改，自动以隔离的子事务向 audit_event 物理存入 outcome=FAILED 高危警告
         if (!isValid) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.REVIEW,
                 "evidence_snapshot",
                 evidenceId,
                 "ENG-EVID-002",
-                "防伪数字指纹哈希校验失败！快照原始数据遭恶意修改！"
+                "国密签名或数字指纹验签失败，快照原始数据可能已被修改"
             ));
         } else {
-            // 校验成功，正常留痕
             isolatedAudit.publishInNewTx(AuditEvent.of(
                 AuditAction.REVIEW,
                 "evidence_snapshot",
                 evidenceId,
-                "防伪数字指纹哈希校验成功，数据完好无损"
+                "国密签名与数字指纹验签成功，数据完好无损"
             ));
         }
 
-        return new EvidenceVerifyResult(evidenceId, isValid, calculated, entity.payloadHash());
+        return new EvidenceVerifyResult(
+            evidenceId,
+            isValid,
+            calculated,
+            entity.payloadHash(),
+            entity.signatureAlgorithm(),
+            signatureValid,
+            entity.fileUri(),
+            entity.fileDigest()
+        );
     }
 
     /**
-     * 生成合规证据大导出的归档防伪指纹。
-     *
-     * <p>对当前租户（可选按 {@code evidenceType} 过滤）的全部真实证据快照，按 evidenceId
-     * 稳定排序后，以 {@code evidenceId:payloadHash} 拼接为规范化内容，整体计算 SHA-256 归档指纹。
-     * 指纹由真实数据派生、确定可复算；范围内无任何快照时拒绝导出（不生成伪造指纹）。
-     *
-     * @return 归档内容的 64 位十六进制 SHA-256 指纹
+     * 生成合规证据大导出的归档文件、国密摘要与真实下载 URI。
      */
     @Transactional
-    public String exportEvidences(String tenantId, String evidenceType) {
+    public EvidenceExportResult exportEvidences(String tenantId, String evidenceType) {
         long total = repository.countEvidences(tenantId, evidenceType, null);
         if (total == 0) {
             throw new ApiException(ErrorCode.ENG_EVID_001, "当前范围无可导出的证据快照");
@@ -187,42 +242,163 @@ public class EvidenceService {
         List<EvidenceSnapshot> snapshots = repository.findEvidencesPage(
             tenantId, evidenceType, null, (int) total, 0);
 
-        // 规范化内容：按 evidenceId 稳定排序，逐条拼接 evidenceId:payloadHash
-        // （payloadHash 为每条入库时计算的真 SHA-256），整体再算一次 SHA-256 作为归档指纹
         String canonical = snapshots.stream()
             .sorted(Comparator.comparing(EvidenceSnapshot::evidenceId))
-            .map(e -> e.evidenceId() + ":" + e.payloadHash())
+            .map(e -> String.join(":",
+                e.evidenceId(),
+                e.payloadHash(),
+                e.fileDigest() == null ? "" : e.fileDigest(),
+                e.signatureValue() == null ? "" : e.signatureValue()))
             .collect(Collectors.joining("|"));
-        String archiveHash = sha256Hex(canonical);
+        String archiveDigestHex = crypto.sm3Hex(canonical);
+        String archiveHash = EvidenceSnapshot.DIGEST_PREFIX + archiveDigestHex;
+        String archiveUri = exportDownloadUri(archiveDigestHex);
+
+        writeExportFile(tenantId, archiveDigestHex, snapshots);
 
         isolatedAudit.publishInNewTx(AuditEvent.of(
             AuditAction.EXPORT,
             "evidence_snapshot",
             "bulk-export-" + (evidenceType == null ? "ALL" : evidenceType),
-            "证据合规数据包导出完成，含 " + total + " 条快照，归档防伪指纹 sha256=" + archiveHash
+            "证据合规数据包导出完成，含 " + total + " 条快照，归档国密摘要=" + archiveHash + "，URI=" + archiveUri
         ));
 
-        return archiveHash;
+        return new EvidenceExportResult(archiveHash, archiveUri, NDJSON_CONTENT_TYPE, total, "COMPLETED");
     }
 
     /**
-     * 计算文本的 SHA-256 十六进制摘要。
+     * 读取单条证据文件。
      */
-    private String sha256Hex(String text) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder();
-            for (byte b : hash) {
-                String h = Integer.toHexString(0xff & b);
-                if (h.length() == 1) {
-                    hex.append('0');
-                }
-                hex.append(h);
-            }
-            return hex.toString();
-        } catch (Exception e) {
-            throw new RuntimeException("SHA-256 计算失败", e);
+    @Transactional(readOnly = true)
+    public byte[] readSnapshotFile(String tenantId, String evidenceId) {
+        EvidenceSnapshot entity = repository.findByEvidenceId(evidenceId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVID_001, "未找到指定的证据快照: " + evidenceId));
+        if (!tenantId.equals(entity.tenantId())) {
+            throw new ApiException(ErrorCode.TENANT_FORBIDDEN);
         }
+        return readFile(snapshotFilePath(tenantId, evidenceId), "证据文件不存在: " + evidenceId);
+    }
+
+    /**
+     * 读取导出的证据包文件。
+     */
+    @Transactional(readOnly = true)
+    public byte[] readExportFile(String tenantId, String archiveDigestHex) {
+        return readFile(exportFilePath(tenantId, archiveDigestHex), "证据包文件不存在: " + archiveDigestHex);
+    }
+
+    private SignatureMaterial sign(EvidenceSnapshot entity) {
+        try {
+            KeyPair keyPair = crypto.generateSm2KeyPair();
+            byte[] payload = entity.signaturePayload().getBytes(StandardCharsets.UTF_8);
+            byte[] signatureBytes = crypto.sm2Sign(keyPair.getPrivate(), payload);
+            return new SignatureMaterial(
+                crypto.base64Encode(signatureBytes),
+                crypto.base64Encode(keyPair.getPublic().getEncoded())
+            );
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "证据国密签名失败: " + exception.getMessage());
+        }
+    }
+
+    private boolean verifySignature(EvidenceSnapshot entity) {
+        if (!EvidenceSnapshot.SIGNATURE_ALGORITHM.equals(entity.signatureAlgorithm())
+            || entity.signatureValue() == null || entity.signatureValue().isBlank()
+            || entity.signerPublicKey() == null || entity.signerPublicKey().isBlank()) {
+            return false;
+        }
+        try {
+            PublicKey publicKey = crypto.decodeSm2PublicKey(entity.signerPublicKey());
+            return crypto.sm2Verify(publicKey,
+                entity.signaturePayload().getBytes(StandardCharsets.UTF_8),
+                crypto.base64Decode(entity.signatureValue()));
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
+    private void writeSnapshotFile(EvidenceSnapshot entity) {
+        writeString(snapshotFilePath(entity.tenantId(), entity.evidenceId()), entity.payloadSnapshot());
+    }
+
+    private void writeExportFile(String tenantId, String archiveDigestHex, List<EvidenceSnapshot> snapshots) {
+        String ndjson = snapshots.stream()
+            .sorted(Comparator.comparing(EvidenceSnapshot::evidenceId))
+            .map(this::exportLine)
+            .collect(Collectors.joining("\n", "", "\n"));
+        writeString(exportFilePath(tenantId, archiveDigestHex), ndjson);
+    }
+
+    private byte[] readFile(Path path, String missingMessage) {
+        try {
+            if (!Files.exists(path)) {
+                throw new ApiException(ErrorCode.ENG_EVID_001, missingMessage);
+            }
+            return Files.readAllBytes(path);
+        } catch (IOException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "读取证据文件失败: " + exception.getMessage());
+        }
+    }
+
+    private void writeString(Path path, String content) {
+        try {
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, content, StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "写入证据文件失败: " + exception.getMessage());
+        }
+    }
+
+    private Path snapshotFilePath(String tenantId, String evidenceId) {
+        return storageRoot.resolve("snapshots")
+            .resolve(safePathToken(tenantId))
+            .resolve(safePathToken(evidenceId) + ".json");
+    }
+
+    private Path exportFilePath(String tenantId, String archiveDigestHex) {
+        return storageRoot.resolve("exports")
+            .resolve(safePathToken(tenantId))
+            .resolve(safePathToken(archiveDigestHex) + ".ndjson");
+    }
+
+    private String snapshotDownloadUri(String evidenceId) {
+        return SNAPSHOT_DOWNLOAD_PREFIX + evidenceId + "/file";
+    }
+
+    private String exportDownloadUri(String archiveDigestHex) {
+        return EXPORT_DOWNLOAD_PREFIX + archiveDigestHex + "/download";
+    }
+
+    private String exportLine(EvidenceSnapshot snapshot) {
+        return "{"
+            + "\"evidenceId\":\"" + escape(snapshot.evidenceId()) + "\","
+            + "\"tenantId\":\"" + escape(snapshot.tenantId()) + "\","
+            + "\"evidenceType\":\"" + escape(snapshot.evidenceType()) + "\","
+            + "\"subjectType\":\"" + escape(snapshot.subjectType()) + "\","
+            + "\"subjectId\":\"" + escape(snapshot.subjectId()) + "\","
+            + "\"payloadHash\":\"" + escape(snapshot.payloadHash()) + "\","
+            + "\"fileUri\":\"" + escape(snapshot.fileUri()) + "\","
+            + "\"fileDigest\":\"" + escape(snapshot.fileDigest()) + "\","
+            + "\"signatureAlgorithm\":\"" + escape(snapshot.signatureAlgorithm()) + "\","
+            + "\"signatureValue\":\"" + escape(snapshot.signatureValue()) + "\""
+            + "}";
+    }
+
+    private String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r");
+    }
+
+    private String safePathToken(String value) {
+        return value == null ? "unknown" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private record SignatureMaterial(String signatureValue, String signerPublicKey) {
     }
 }

@@ -110,7 +110,16 @@ class MigrationBaselineContractTest {
         "V81__workflow_sync_event_notifications.sql",
         "V82__workflow_organization_scope.sql",
         "V83__quality_dashboard_alerts.sql",
-        "V84__insurance_quality_service.sql"
+        "V84__insurance_quality_service.sql",
+        "V85__org_unit_platform_level.sql",
+        "V86__emr_level_target_mapping.sql",
+        "V87__emr_level_evidence_package.sql",
+        "V88__asset_type_unification.sql",
+        "V89__evidence_file_uri_sm_signature.sql",
+        "V90__compliance_data_permission_policy.sql",
+        "V91__compliance_masking_rule.sql",
+        "V92__compliance_export_approval.sql",
+        "V93__interop_assessment_mapping.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -132,6 +141,7 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
@@ -142,7 +152,9 @@ class MigrationBaselineContractTest {
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",
-        "evidence_snapshot",
+        "evidence_snapshot", "mk_compliance_data_permission", "mk_compliance_masking_rule",
+        "mk_compliance_export_approval", "mk_compliance_interop_assessment_item",
+        "mk_compliance_interop_evidence_map",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
@@ -236,6 +248,9 @@ class MigrationBaselineContractTest {
         "idx_quality_drg_grouping_tenant_status", "idx_quality_drg_grouping_department",
         "idx_quality_insurance_issue_tenant_status", "idx_quality_insurance_issue_department",
         "idx_quality_insurance_issue_claim",
+        "idx_emr_level_target_scope", "idx_emr_level_item_target",
+        "idx_emr_level_gap_target", "idx_emr_level_gap_task",
+        "idx_emr_level_pkg_target", "idx_emr_level_pkg_created",
         "idx_rect_task_finding", "idx_rect_task_department_status",
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
@@ -259,7 +274,15 @@ class MigrationBaselineContractTest {
         "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
         "idx_integ_onb_tenant_status", "idx_integ_onb_adapter",
         "idx_integ_regional_tenant_trust", "idx_integ_regional_org",
-        "idx_evd_tenant", "idx_evd_trace", "idx_mpi_patient_tenant_status",
+        "idx_evd_tenant", "idx_evd_trace",
+        "idx_compliance_data_permission_scope", "idx_compliance_data_permission_resource",
+        "idx_compliance_masking_rule_resource", "idx_compliance_masking_rule_status",
+        "idx_compliance_export_approval_status", "idx_compliance_export_approval_resource",
+        "idx_compliance_export_approval_evidence",
+        "idx_compliance_interop_item_status", "idx_compliance_interop_item_dimension",
+        "idx_compliance_interop_evidence_item", "idx_compliance_interop_evidence_source",
+        "idx_compliance_interop_evidence_status",
+        "idx_mpi_patient_tenant_status",
         "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
         "idx_pwd_reset_token_lookup", "idx_pwd_reset_token_expiry",
@@ -401,6 +424,14 @@ class MigrationBaselineContractTest {
         "uk_quality_insurance_issue_id", "uk_quality_insurance_issue_source",
         "ck_quality_insurance_issue_type", "ck_quality_insurance_issue_severity",
         "ck_quality_insurance_issue_status",
+        "uk_emr_level_target_id", "uk_emr_level_target_scope",
+        "ck_emr_level_target_level", "ck_emr_level_target_status", "ck_emr_level_target_counts",
+        "uk_emr_level_item_id", "uk_emr_level_item_capability",
+        "ck_emr_level_item_required_level", "ck_emr_level_item_status",
+        "uk_emr_level_gap_id", "uk_emr_level_gap_item",
+        "ck_emr_level_gap_capability", "ck_emr_level_gap_status",
+        "uk_emr_level_pkg_id", "uk_emr_level_pkg_idem",
+        "ck_emr_level_pkg_status", "ck_emr_level_pkg_lines",
         "uk_notification_id", "uk_notification_dedupe",
         "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
@@ -415,6 +446,20 @@ class MigrationBaselineContractTest {
         "ck_integ_onboarding_status", "ck_integ_onboarding_fhir",
         "uk_integ_regional_source_id", "ck_integ_regional_trust", "ck_integ_regional_status",
         "uk_evidence_snapshot",
+        "uk_compliance_data_permission_policy", "ck_compliance_data_permission_action",
+        "ck_compliance_data_permission_level", "ck_compliance_data_permission_status",
+        "ck_compliance_data_permission_version",
+        "uk_compliance_masking_rule", "ck_compliance_masking_rule_strategy",
+        "ck_compliance_masking_rule_status", "ck_compliance_masking_rule_keep",
+        "ck_compliance_masking_rule_version",
+        "uk_compliance_export_approval", "uk_compliance_export_approval_idem",
+        "ck_compliance_export_approval_status", "ck_compliance_export_approval_decision",
+        "ck_compliance_export_approval_version",
+        "uk_compliance_interop_item_id", "uk_compliance_interop_item_code",
+        "ck_compliance_interop_item_dimension", "ck_compliance_interop_item_status",
+        "ck_compliance_interop_item_version", "uk_compliance_interop_evidence_map",
+        "uk_compliance_interop_evidence_source", "ck_compliance_interop_evidence_source",
+        "ck_compliance_interop_evidence_status",
         "uk_tenant_branding", "uk_tenant_success_plan",
         "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
         "ck_mpi_merge_review_status", "ck_dqr_required_nonneg", "ck_dqr_adapter_nonneg",
@@ -483,6 +528,8 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -523,6 +570,8 @@ class MigrationBaselineContractTest {
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
+        "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
+        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review",
         "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
@@ -620,6 +669,10 @@ class MigrationBaselineContractTest {
         Map.entry("mk_quality_case_review", Set.of("review_status", "model_status")),
         Map.entry("mk_quality_drg_grouping", Set.of("grouping_status")),
         Map.entry("mk_quality_insurance_issue", Set.of("issue_type", "severity", "status")),
+        Map.entry("mk_emr_level_target", Set.of("target_level", "status")),
+        Map.entry("mk_emr_level_item", Set.of("required_level", "capability_status")),
+        Map.entry("mk_emr_level_gap", Set.of("capability_status", "gap_status")),
+        Map.entry("mk_emr_level_evidence_package", Set.of("status")),
         Map.entry("rectification_task", Set.of("status")),
         Map.entry("rectification_review", Set.of("decision")),
         Map.entry("knowledge_package", Set.of("package_version", "status")),
@@ -660,7 +713,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_version_activation_transaction", Set.of("action")),
         Map.entry("mk_version_replay_binding", Set.of("result_hash")),
         Map.entry("mk_fhir_resource_mapping", Set.of("fhir_version", "mapping_status")),
-        Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status"))
+        Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status")),
+        Map.entry("mk_compliance_interop_assessment_item", Set.of("dimension", "status", "version")),
+        Map.entry("mk_compliance_interop_evidence_map", Set.of("evidence_source_type", "status"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -837,6 +892,212 @@ class MigrationBaselineContractTest {
                 .contains("idx_notification_org_scope")
                 .contains("comment on column mk_engine_workflow_todo.org_unit_id")
                 .contains("comment on column mk_engine_notification.org_unit_id");
+        }
+    }
+
+    @Test
+    void v85ShouldWidenOrgUnitLevelCheckToPlatformForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V85__org_unit_platform_level.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 平台权威层组织层级校验放宽（org_unit.level_code 容纳 PLATFORM）", dialect)
+                .contains("org_unit")
+                .contains("drop constraint")
+                .contains("ck_org_unit_level")
+                .contains("platform")
+                .contains("comment on column org_unit.level_code");
+        }
+    }
+
+    @Test
+    void v86ShouldCreateEmrLevelTargetMappingForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V86__emr_level_target_mapping.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 电子病历评级目标映射迁移", dialect)
+                .contains("mk_emr_level_target")
+                .contains("mk_emr_level_item")
+                .contains("mk_emr_level_gap")
+                .contains("ck_emr_level_item_status")
+                .contains("missing_evidence")
+                .contains("idx_emr_level_gap_task")
+                .contains("comment on table mk_emr_level_target");
+        }
+    }
+
+    @Test
+    void v87ShouldCreateEmrLevelEvidencePackageForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V87__emr_level_evidence_package.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 电子病历评级证据包迁移", dialect)
+                .contains("mk_emr_level_evidence_package")
+                .contains("uk_emr_level_pkg_id")
+                .contains("uk_emr_level_pkg_idem")
+                .contains("ck_emr_level_pkg_status")
+                .contains("payload_sha256")
+                .contains("payload_ndjson")
+                .contains("idx_emr_level_pkg_target")
+                .contains("comment on table mk_emr_level_evidence_package");
+        }
+    }
+
+    @Test
+    void v88ShouldUnifyAssetTypeEnumForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V88__asset_type_unification.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 资产类型枚举归一（mk_version_asset_version + package_item 两处 CHECK 放宽到统一 11 值）", dialect)
+                .contains("drop constraint")
+                .contains("ck_mk_version_asset_version_type")
+                .contains("ck_package_item_asset_type")
+                .contains("field_catalog")
+                .contains("recommendation")
+                .contains("cdss_risk")
+                .contains("comment on column mk_version_asset_version.asset_type")
+                .contains("comment on column package_item.asset_type");
+        }
+    }
+
+    @Test
+    void v89ShouldAddEvidenceFileUriAndSmSignatureForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V89__evidence_file_uri_sm_signature.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 证据链真实文件 URI 与国密 SM3/SM2 签名字段", dialect)
+                .contains("evidence_snapshot")
+                .contains("file_uri")
+                .contains("file_digest")
+                .contains("signature_algorithm")
+                .contains("signature_value")
+                .contains("signer_public_key")
+                .contains("sm3")
+                .contains("sm2")
+                .contains("comment on column evidence_snapshot.file_uri")
+                .contains("comment on column evidence_snapshot.signature_value");
+        }
+    }
+
+    @Test
+    void v90ShouldCreateComplianceDataPermissionPolicyForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V90__compliance_data_permission_policy.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s SYS-06 行列数据权限策略表", dialect)
+                .contains("mk_compliance_data_permission")
+                .contains("allowed_columns_json")
+                .contains("min_data_level")
+                .contains("uk_compliance_data_permission_policy")
+                .contains("ck_compliance_data_permission_action")
+                .contains("ck_compliance_data_permission_level")
+                .contains("ck_compliance_data_permission_status")
+                .contains("idx_compliance_data_permission_scope")
+                .contains("idx_compliance_data_permission_resource")
+                .contains("comment on table mk_compliance_data_permission");
+        }
+    }
+
+    @Test
+    void v91ShouldCreateComplianceMaskingRuleForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V91__compliance_masking_rule.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s SYS-06 后端脱敏规则表", dialect)
+                .contains("mk_compliance_masking_rule")
+                .contains("resource_type")
+                .contains("field_name")
+                .contains("scenario_code")
+                .contains("strategy")
+                .contains("mask_char")
+                .contains("prefix_keep")
+                .contains("suffix_keep")
+                .contains("uk_compliance_masking_rule")
+                .contains("ck_compliance_masking_rule_strategy")
+                .contains("ck_compliance_masking_rule_status")
+                .contains("idx_compliance_masking_rule_resource")
+                .contains("idx_compliance_masking_rule_status")
+                .contains("comment on table mk_compliance_masking_rule");
+        }
+    }
+
+    @Test
+    void v92ShouldCreateComplianceExportApprovalForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V92__compliance_export_approval.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s SYS-06 导出审批表", dialect)
+                .contains("mk_compliance_export_approval")
+                .contains("approval_id")
+                .contains("idempotency_key")
+                .contains("export_scope_snapshot")
+                .contains("request_reason")
+                .contains("review_decision")
+                .contains("export_uri")
+                .contains("export_digest")
+                .contains("approval_evidence_id")
+                .contains("export_evidence_id")
+                .contains("uk_compliance_export_approval")
+                .contains("uk_compliance_export_approval_idem")
+                .contains("ck_compliance_export_approval_status")
+                .contains("ck_compliance_export_approval_decision")
+                .contains("idx_compliance_export_approval_status")
+                .contains("idx_compliance_export_approval_resource")
+                .contains("idx_compliance_export_approval_evidence")
+                .contains("comment on table mk_compliance_export_approval");
+        }
+    }
+
+    @Test
+    void v93ShouldCreateInteropAssessmentMappingForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V93__interop_assessment_mapping.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s OPT-05 互联互通测评映射表", dialect)
+                .contains("mk_compliance_interop_assessment_item")
+                .contains("mk_compliance_interop_evidence_map")
+                .contains("data_resource")
+                .contains("standardization")
+                .contains("infrastructure")
+                .contains("application_effect")
+                .contains("evidence_snapshot")
+                .contains("emr_level_evidence_package")
+                .contains("uk_compliance_interop_item_id")
+                .contains("uk_compliance_interop_item_code")
+                .contains("uk_compliance_interop_evidence_map")
+                .contains("uk_compliance_interop_evidence_source")
+                .contains("ck_compliance_interop_item_dimension")
+                .contains("ck_compliance_interop_evidence_source")
+                .contains("idx_compliance_interop_item_dimension")
+                .contains("idx_compliance_interop_evidence_source")
+                .contains("comment on table mk_compliance_interop_assessment_item")
+                .contains("comment on table mk_compliance_interop_evidence_map");
         }
     }
 

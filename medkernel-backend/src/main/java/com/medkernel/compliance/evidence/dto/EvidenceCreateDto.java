@@ -1,6 +1,7 @@
 package com.medkernel.compliance.evidence.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.Size;
 public record EvidenceCreateDto(
     @NotBlank(message = "证据 ID 不能为空")
     @Size(max = 64, message = "证据 ID 长度不能超过 64")
+    @Pattern(regexp = "[A-Za-z0-9._-]+", message = "证据 ID 只能包含字母、数字、点、下划线和连字符")
     String evidenceId,
 
     @Size(max = 128, message = "traceId 长度不能超过 128")

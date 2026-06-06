@@ -12,6 +12,7 @@ import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
 import Notifications from "./clinical/Notifications";
 import QcAlerts from "./quality/QcAlerts";
+import InsuranceAudit from "./quality/InsuranceAudit";
 import AdminUsers from "./compliance/AdminUsers";
 import GraphExplore from "./advanced/GraphExplore";
 import AiWorkflows from "./advanced/AiWorkflows";
@@ -22,6 +23,7 @@ import AdapterHub from "./tenant/AdapterHub";
 import EmbedLaunch from "./clinical/EmbedLaunch";
 import QcEvalResults from "./quality/QcEvalResults";
 import QcEvalSets from "./quality/QcEvalSets";
+import AiReview from "./quality/AiReview";
 import PatientPathways from "./clinical/PatientPathways";
 import Mpi from "./clinical/Mpi";
 import CdssFatigue from "./clinical/CdssFatigue";
@@ -197,9 +199,16 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("当前暂无随访计划")).toBeInTheDocument();
   });
 
-  it("renders the quality qc-alerts placeholder", () => {
+  it("renders the quality qc-alerts page with the real empty state", () => {
     renderPage(<QcAlerts />);
-    expect(screen.getByRole("heading", { name: "质控预警与整改工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质控预警" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实质控预警")).toBeInTheDocument();
+  });
+
+  it("renders the quality insurance-audit page with the real empty state", () => {
+    renderPage(<InsuranceAudit />);
+    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
   });
 
   it("renders the compliance admin-users console", () => {
@@ -294,18 +303,24 @@ describe("page smoke coverage", () => {
   it("renders the quality qc-eval-results console", () => {
     renderPage(<QcEvalResults />);
     expect(screen.getByRole("heading", { name: "评估结果" })).toBeInTheDocument();
-    expect(screen.getByText(/真实评估结果总数/)).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无真实评估结果")).toBeInTheDocument();
   });
 
-  it("renders the quality qc-eval-sets scan with real snapshot filters", async () => {
+  it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {
     renderPage(<QcEvalSets />);
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /质控扫描试运行/ }));
+    await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/请输入患者 ID 或就诊 ID 读取真实快照/)).toBeInTheDocument();
+    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
+  });
+
+  it("renders the quality ai-review page through the real knowledge review loading state", () => {
+    renderPage(<AiReview />);
+    expect(screen.getByRole("heading", { name: "AI 知识审核" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载 AI 知识审核")).toBeInTheDocument();
   });
 
   it("renders the clinical patient-pathways console", () => {

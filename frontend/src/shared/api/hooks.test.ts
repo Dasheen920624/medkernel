@@ -24,8 +24,11 @@ import {
   useActivateOnboardingReadiness,
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
+  useActivateEvaluationIndicator,
   useConfirmTerminologyCandidate,
+  useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
+  useDispatchRectification,
   useEvaluationIndicators,
   useEvaluationResults,
   useEvaluateSnapshot,
@@ -33,9 +36,13 @@ import {
   useGenerateTerminologyCandidates,
   useFollowupStats,
   useIntegrationOnboardings,
+  useInsuranceIssues,
   useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
+  useKnowledgeCandidateDiff,
+  useKnowledgeCandidates,
+  useKnowledgeIdentities,
   useLocalTerms,
   useOnboardingReadiness,
   useOrgUnits,
@@ -44,12 +51,18 @@ import {
   usePackageSyncLogs,
   usePilotPackageTemplates,
   usePublishTerminologyPackage,
+  usePublishEvaluationIndicator,
   useQualityFindings,
   useReviewRectification,
+  useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
+  useRunDrgGrouping,
+  useRunInsuranceAudit,
+  useRunQualityCaseReview,
   useSubmitRectification,
   useSyncPackage,
   useStandardTerms,
+  useSubmitEvaluationIndicator,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyPackages,
@@ -495,6 +508,64 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("creates and advances evaluation indicator lifecycle through the API-08 canonical resource", async () => {
+    const draft = {
+      indicatorId: "indicator-real-1",
+      indicatorCode: "IND.REAL",
+      versionNo: 1,
+      status: "DRAFT",
+    };
+    const pending = { ...draft, status: "PENDING_REVIEW" };
+    const published = { ...draft, status: "PUBLISHED" };
+    const active = { ...draft, status: "ACTIVE" };
+    const createPayload = {
+      indicatorCode: "IND.REAL",
+      versionNo: 1,
+      name: "真实指标",
+      subjectType: "MEDICAL_RECORD" as const,
+      denominatorDefinition:
+        '{"fact":"encounters.0.status","operator":"equals","value":"DISCHARGED"}',
+      numeratorDefinition: '{"fact":"observations.0.code","operator":"exists"}',
+      timeWindow: "DISCHARGE+24H",
+      organizationScope: "全院",
+      responsibleDepartmentId: "医务处",
+      sourceRef: "真实来源",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: draft } })
+      .mockResolvedValueOnce({ data: { data: pending } })
+      .mockResolvedValueOnce({ data: { data: published } })
+      .mockResolvedValueOnce({ data: { data: active } });
+
+    const createHook = renderApiHook(() => useCreateEvaluationIndicator());
+    const submitHook = renderApiHook(() => useSubmitEvaluationIndicator());
+    const publishHook = renderApiHook(() => usePublishEvaluationIndicator());
+    const activateHook = renderApiHook(() => useActivateEvaluationIndicator());
+
+    await createHook.result.current.mutateAsync(createPayload);
+    await submitHook.result.current.mutateAsync("indicator-real-1");
+    await publishHook.result.current.mutateAsync("indicator-real-1");
+    await activateHook.result.current.mutateAsync("indicator-real-1");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/evaluation/indicators",
+      createPayload,
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/evaluation/indicators/indicator-real-1/submit",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/evaluation/indicators/indicator-real-1/publish",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      4,
+      "/engine/evaluation/indicators/indicator-real-1/activate",
+    );
+  });
+
   it("loads evaluation issues through the API-08 issues contract", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: { data: { items: [], page: 1, size: 20, total: 0 } },
@@ -507,6 +578,199 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues", {
       params: { severity: "P1", status: "ASSIGNED", responsibleDepartmentId: "dept-1" },
+    });
+  });
+
+  it("dispatches rectification tasks through the SVC-QUALITY-03 service package", async () => {
+    const response = {
+      taskId: "task-real-1",
+      findingStatus: "ASSIGNED",
+      taskStatus: "ASSIGNED",
+      traceId: "trace-dispatch-real",
+    };
+    const request = {
+      findingId: "finding-real-1",
+      responsibleDepartmentId: "心内科",
+      assigneeUserId: "u-quality-1",
+      dueAt: "2026-06-09T00:00:00Z",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useDispatchRectification());
+    const dispatched = await result.current.mutateAsync({
+      request,
+      idempotencyKey: "idem-dispatch-real-1",
+    });
+
+    expect(dispatched).toEqual(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/rectifications", request, {
+      headers: { "Idempotency-Key": "idem-dispatch-real-1" },
+    });
+  });
+
+  it("loads insurance issues through the SVC-QUALITY-02 read contract", async () => {
+    const page = {
+      items: [
+        {
+          issueId: "ins-issue-1",
+          claimId: "claim-real-1",
+          issueType: "FEE",
+          severity: "P1",
+          status: "OPEN",
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          claimAmount: 1200,
+          thresholdAmount: 1000,
+          evidenceSummary: "结算金额超过版本化规则阈值",
+          departmentId: "dept-insurance",
+          evaluationRunId: "er-ins-1",
+          traceId: "trace-ins",
+          createdAt: "2026-06-06T00:00:00Z",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() =>
+      useInsuranceIssues({
+        status: "OPEN",
+        severity: "P1",
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-06-30T23:59:59Z",
+        page: 1,
+        size: 20,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data?.items[0]?.claimId).toBe("claim-real-1"));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/quality/insurance-issues", {
+      params: {
+        status: "OPEN",
+        severity: "P1",
+        from: "2026-06-01T00:00:00Z",
+        to: "2026-06-30T23:59:59Z",
+        page: 1,
+        size: 20,
+      },
+    });
+  });
+
+  it("runs the SVC-QUALITY-02 quality, DRG and insurance audit actions", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            reviewId: "review-ins-1",
+            reviewStatus: "NON_COMPLIANT",
+            evaluationRunId: "er-ins-1",
+            resultCount: 1,
+            findingCount: 1,
+            taskCount: 1,
+            modelStatus: "MODEL_DISABLED",
+            modelDowngradeReason: "MODEL_DISABLED_DETERMINISTIC_RULES",
+            traceId: "trace-case",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            groupingId: "drg-ins-1",
+            groupingStatus: "MISMATCHED",
+            expectedGroupCode: "DRG-A",
+            actualGroupCode: "DRG-B",
+            grouperVersion: "GROUPER-2026",
+            explanation: "病案首页进入复核",
+            traceId: "trace-drg",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            auditId: "audit-ins-1",
+            auditStatus: "ISSUE_FOUND",
+            issues: [],
+            evaluationRunId: "er-ins-2",
+            findingCount: 1,
+            taskCount: 1,
+            traceId: "trace-audit",
+          },
+        },
+      });
+
+    const caseReview = renderApiHook(() => useRunQualityCaseReview());
+    await caseReview.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      responsibleDepartmentId: "dept-insurance",
+    });
+
+    const drgGrouping = renderApiHook(() => useRunDrgGrouping());
+    await drgGrouping.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      grouperVersion: "GROUPER-2026",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-B",
+      responsibleDepartmentId: "dept-insurance",
+      explanation: "病案首页进入复核",
+    });
+
+    const insuranceAudit = renderApiHook(() => useRunInsuranceAudit());
+    await insuranceAudit.result.current.mutateAsync({
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      indicatorId: "indicator-insurance",
+      responsibleDepartmentId: "dept-insurance",
+      dueAt: "2026-06-12T00:00:00Z",
+      rules: [
+        {
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          issueType: "FEE",
+          severity: "P1",
+          maxAmount: 1000,
+          description: "费用超过版本化规则阈值",
+        },
+      ],
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/quality/case-review", {
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      responsibleDepartmentId: "dept-insurance",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/engine/quality/drg-grouping", {
+      contextSnapshotId: "snapshot-ins",
+      grouperVersion: "GROUPER-2026",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-B",
+      responsibleDepartmentId: "dept-insurance",
+      explanation: "病案首页进入复核",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/engine/quality/insurance-audit", {
+      contextSnapshotId: "snapshot-ins",
+      scenarioCode: "A9",
+      packageVersion: "2026.1",
+      indicatorId: "indicator-insurance",
+      responsibleDepartmentId: "dept-insurance",
+      dueAt: "2026-06-12T00:00:00Z",
+      rules: [
+        {
+          ruleCode: "RULE-FEE-A",
+          ruleVersion: "2026-A",
+          issueType: "FEE",
+          severity: "P1",
+          maxAmount: 1000,
+          description: "费用超过版本化规则阈值",
+        },
+      ],
     });
   });
 
@@ -1122,6 +1386,106 @@ describe("integration adapter api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
       "/api/v1/engine/integration/dead-letter/msg-dead/replay",
+    );
+  });
+});
+
+describe("knowledge review api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000005");
+  });
+
+  it("loads identities, candidates and candidate diffs through the API-03 knowledge root", async () => {
+    const identityPage = {
+      items: [{ id: 42, identityCode: "KNOW.VTE.GUIDE", subject: "VTE 防治指南" }],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+    };
+    const candidateResponse = {
+      identityId: 42,
+      candidates: [
+        { id: 2002, versionLabel: "待审 VTE 指南", status: "PENDING_REPLACEMENT_REVIEW" },
+      ],
+      classifications: [{ candidateVersionId: 2002, classification: "CONFLICT" }],
+      available: true,
+      reasonCode: "CONFLICT",
+      message: "存在冲突候选，需人工审核。",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: identityPage } })
+      .mockResolvedValueOnce({ data: { data: candidateResponse } })
+      .mockResolvedValueOnce({ data: { data: candidateResponse } });
+
+    const identities = renderApiHook(() =>
+      useKnowledgeIdentities({
+        domain: "GUIDELINE",
+        status: "ACTIVE",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      }),
+    );
+    const candidates = renderApiHook(() => useKnowledgeCandidates(42));
+    const diff = renderApiHook(() => useKnowledgeCandidateDiff(2002));
+
+    await waitFor(() => expect(identities.result.current.data).toBe(identityPage));
+    await waitFor(() => expect(candidates.result.current.data).toBe(candidateResponse));
+    await waitFor(() => expect(diff.result.current.data).toBe(candidateResponse));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/knowledge/identities", {
+      params: {
+        domain: "GUIDELINE",
+        status: "ACTIVE",
+        page: 1,
+        size: 20,
+        sort: "updatedAt,desc",
+      },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge/identities/42/candidates");
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/knowledge/candidates/2002/diff");
+  });
+
+  it("reviews a candidate with standard context and an idempotency key", async () => {
+    const reviewed = {
+      identityId: 42,
+      candidates: [{ id: 2002, status: "ACTIVE" }],
+      classifications: [{ candidateVersionId: 2002, reviewStatus: "APPROVED" }],
+      available: true,
+      reasonCode: "CONFLICT",
+      message: "候选已审核通过",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: reviewed } });
+
+    const hook = renderApiHook(() => useReviewKnowledgeCandidate());
+
+    await hook.result.current.mutateAsync({
+      candidateId: 2002,
+      packageVersion: "PKG.KNOW.2026.06",
+      request: {
+        decision: "APPROVE",
+        reason: "已核对来源锚点和差异。",
+      },
+      idempotencyKey: "idem-knowledge-review-2002",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge/candidates/2002/review",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000005",
+        trace_id: "00000000-0000-4000-8000-000000000005",
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+        role_codes: ["it-ops"],
+        package_version: "PKG.KNOW.2026.06",
+        decision: "APPROVE",
+        reason: "已核对来源锚点和差异。",
+      }),
+      { headers: { "Idempotency-Key": "idem-knowledge-review-2002" } },
     );
   });
 });

@@ -14,15 +14,15 @@
 ## 目标
 建立**电子病历评级目标与项目映射**：医院目标等级（4/5/6 级）→ 评级标准项 → 系统能力差距 → 实施任务清单，可追踪进度，**不假达标、差距真实**。
 
-## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-基本待建：现有无评级目标/映射后端。本卡＝新建评级标准项模型 + 目标等级映射 + 能力差距评估 + 实施任务生成，差距来自真实系统能力盘点（[EVAL-01](EVAL-01.md) 可复用评估底座），非凭空标达标。
+## 现状（2026-06-05，以 `medkernel-backend` 为准）
+后端 B0 已建：`com.medkernel.engine.emrlevel` 提供评级目标、标准项能力映射、差距清单和进度查询；V86 五方言迁移落 `mk_emr_level_target/item/gap` 表族；缺证据的“已满足”会降级为 `MISSING_EVIDENCE`，并通过 evaluation owner 内桥接服务创建真实 `quality_finding` + `rectification_task`。评级数据质量和证据包仍归 [EMR-LEVEL-02](EMR-LEVEL-02.md)。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 目标等级：医院设目标等级（4/5/6 级），关联评级标准项集。
-- [ ] FR-2 标准项映射：评级标准项 → 系统能力点 → 当前满足/差距，差距真实。
-- [ ] FR-3 实施任务：差距生成实施任务（关联 [SVC-QUALITY-03](SVC-QUALITY-03.md) 整改/任务）。
-- [ ] FR-4 进度追踪：评级达标进度按标准项真实统计、可下钻。
-- [ ] FR-5 不假达标：未满足项明确标差距，不前端标"已达标"。
+- [x] FR-1 目标等级：医院设目标等级（4/5/6 级），关联评级标准项集。
+- [x] FR-2 标准项映射：评级标准项 → 系统能力点 → 当前满足/差距，差距真实。
+- [x] FR-3 实施任务：差距生成实施任务（关联 [SVC-QUALITY-03](SVC-QUALITY-03.md) 整改/任务）。
+- [x] FR-4 进度追踪：评级达标进度按标准项真实统计、可下钻。
+- [x] FR-5 不假达标：未满足项明确标差距，不前端标"已达标"。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -32,7 +32,7 @@
 - 幂等 / 版本：评级标准项版本化
 
 ## 数据与迁移
-- 表族：`emr_level_target` / `emr_level_item` / `emr_level_gap`（标准项 + 能力点 + 差距 + 版本 + 组织字段 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）
+- 表族：`mk_emr_level_target` / `mk_emr_level_item` / `mk_emr_level_gap`（标准项 + 能力点 + 差距 + 版本 + 组织字段 + 审计）；V86 五方言（[BASE-05](../D0/BASE-05.md)）
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：评级支撑的"目标与差距地图"。
@@ -52,19 +52,20 @@
 - 本卡落点：评级目标 → 标准项 → 差距 → 实施任务映射，差距真实可追溯。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：目标等级与标准项映射、差距真实。
-- [ ] AC-2（FR-3/4）：差距生成实施任务；进度真实可下钻。
-- [ ] AC-3（FR-5）：未满足项标差距、不假达标。
+- [x] AC-1（FR-1/2）：目标等级与标准项映射、差距真实。
+- [x] AC-2（FR-3/4）：差距生成实施任务；进度真实可下钻。
+- [x] AC-3（FR-5）：未满足项标差距、不假达标。
 - 关联 A1–A9 剧本：A9 评级支撑。
 - T-GATE：后端真实性门禁全绿（差距真实/不假达标）。
 - B0 验收：评级映射确定性、与模型无关。
 
 ## 大卡工序（5d）
-- PR1：评级标准项 + 目标等级映射 + 门禁 → 验收
-- PR2：能力差距评估 + 实施任务 → 验收
-- PR3：进度追踪 + 下钻 → 验收
+- PR1：评级标准项 + 目标等级映射 + 门禁 → 本 PR 已覆盖
+- PR2：能力差距评估 + 实施任务 → 本 PR 已覆盖
+- PR3：进度追踪 + 下钻 → 本 PR 已覆盖
 
 ## 完工证据
-- 代码 permalink：评级目标/标准项/差距 + 实施任务。
-- 测试：差距复算 / 实施任务 / 进度 / 不假达标。
+- 代码 permalink：`EmrLevelController` / `EmrLevelService` / `EmrLevelRectificationBridge` / V86 五方言迁移。
+- 测试：`EmrLevelServiceTest`、`EmrLevelControllerSecurityTest`、迁移基线与领域归属治理测试覆盖差距复算 / 实施任务 / 进度 / 不假达标。
+- 本地验证：`mvn -q -Dtest=EmrLevelServiceTest,EmrLevelControllerSecurityTest test`、rebase 后 V86 clean 组合 `mvn -q clean -Dtest=EmrLevelServiceTest,EmrLevelControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test`、后端全量 `mvn -q test`、前端 `npm run verify`（61 files / 375 tests）与 `npm run build` 均通过；V86 五方言在 H2/PostgreSQL/Oracle smoke 中均迁移至 v86 且重复 migrate no-op。changed T-GATE 已通过（真实性 13 文件、迁移规约 5 文件、配置边界 13 文件、中文注释 0 fail/0 warn、空白检查通过）。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

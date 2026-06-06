@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +25,16 @@ import com.medkernel.shared.api.error.ErrorCode;
  */
 final class ClinicalRuleOperatorSupport {
 
+    /** 参考范围「下限-上限」：两个非负小数，分隔符支持 {@code - – ~ ～ to 至}（同单位，不换算）。 */
+    private static final Pattern REFERENCE_RANGE =
+        Pattern.compile("^(\\d+(?:\\.\\d+)?)\\s*(?:-|–|~|～|to|至)\\s*(\\d+(?:\\.\\d+)?)$");
+    /** 参考范围仅上界：{@code < <= ≤} 前缀。 */
+    private static final Pattern REFERENCE_UPPER_ONLY =
+        Pattern.compile("^(?:<=|<|≤)\\s*(\\d+(?:\\.\\d+)?)$");
+    /** 参考范围仅下界：{@code > >= ≥} 前缀。 */
+    private static final Pattern REFERENCE_LOWER_ONLY =
+        Pattern.compile("^(?:>=|>|≥)\\s*(\\d+(?:\\.\\d+)?)$");
+
     private final ObjectMapper json;
 
     ClinicalRuleOperatorSupport(ObjectMapper json) {
@@ -33,16 +45,51 @@ final class ClinicalRuleOperatorSupport {
         return new Outcome(matched, actual, expected, !exists(actual), null, null, null, null);
     }
 
+    /**
+     * {@code is_missing}：临床取值缺失时命中——字段未解析、或解析到的对象不含
+     * {@code value/valueNumeric/valueString}。本算子总能定论（缺失即答案），故 {@code missing} 标记恒为
+     * {@code false}，由 {@code matched} 表达「是否缺值」。
+     */
+    Outcome isMissing(JsonNode actual) {
+        boolean matched = !hasClinicalValue(actual);
+        return new Outcome(matched, actual, null, false, null, null, null, null);
+    }
+
+    private boolean hasClinicalValue(JsonNode actual) {
+        if (!exists(actual)) {
+            return false;
+        }
+        if (actual.isObject()) {
+            return exists(actual.path("value"))
+                || exists(actual.path("valueNumeric"))
+                || exists(actual.path("valueString"));
+        }
+        return true;
+    }
+
     Outcome between(String fact, JsonNode actual, JsonNode expected) {
+        return betweenOutcome(fact, actual, expected, false);
+    }
+
+    /**
+     * {@code not_between}：值存在且落在 {@code [min, max]} 之外才命中。取值缺失时按缺失产生未命中，
+     * 不得把「缺值」臆测为「越界=命中」（缺失守卫，与 between 同义诚实降级）。
+     */
+    Outcome notBetween(String fact, JsonNode actual, JsonNode expected) {
+        return betweenOutcome(fact, actual, expected, true);
+    }
+
+    private Outcome betweenOutcome(String fact, JsonNode actual, JsonNode expected, boolean negate) {
+        String label = negate ? "not_between" : "between";
         if (!exists(actual)) {
             return new Outcome(false, actual, expected, true, null, null, null, null);
         }
-        requireObject(expected, "between.value");
+        requireObject(expected, label + ".value");
         Measurement measurement = measurement(fact, actual);
         BigDecimal min = requiredDecimal(expected, "min");
         BigDecimal max = requiredDecimal(expected, "max");
         if (min.compareTo(max) > 0) {
-            throw invalid("between.value.min 不能大于 max");
+            throw invalid(label + ".value.min 不能大于 max");
         }
         boolean includeMin = expected.path("includeMin").asBoolean(true);
         boolean includeMax = expected.path("includeMax").asBoolean(true);
@@ -50,13 +97,15 @@ final class ClinicalRuleOperatorSupport {
         String unit = expectedUnit == null ? measurement.unit() : expectedUnit;
         if (expectedUnit != null && !sameUnit(measurement.unit(), expectedUnit)) {
             throw unitIncompatible("字段 " + fact + " 单位 " + emptyToQuestion(measurement.unit())
-                + " 不能按 between 直接作为 " + expectedUnit + " 比较");
+                + " 不能按 " + label + " 直接作为 " + expectedUnit + " 比较");
         }
 
         int lower = measurement.value().compareTo(min);
         int upper = measurement.value().compareTo(max);
-        boolean matched = (includeMin ? lower >= 0 : lower > 0) && (includeMax ? upper <= 0 : upper < 0);
-        String formula = formatNumber(measurement.value()) + unitSuffix(unit) + " between "
+        boolean within = (includeMin ? lower >= 0 : lower > 0) && (includeMax ? upper <= 0 : upper < 0);
+        boolean matched = negate != within;
+        String formula = formatNumber(measurement.value()) + unitSuffix(unit)
+            + (negate ? " not between " : " between ")
             + (includeMin ? "[" : "(")
             + formatNumber(min) + ", " + formatNumber(max)
             + (includeMax ? "]" : ")");
@@ -153,6 +202,78 @@ final class ClinicalRuleOperatorSupport {
         }
         return clinicalOutcome(matched, numberNode(result.value()), expected, result.value(),
             result.unit(), result.source(), result.formula() + comparisonFormula);
+    }
+
+    /**
+     * 参考范围算子 {@code within_ref/above_ref/below_ref}：取 Observation 自带的 {@code referenceRange}
+     * （与取值同单位，不换算）判定数值相对参考区间的位置。范围不可解析或所需边界缺失时诚实抛
+     * {@code INSUFFICIENT_DATA}，不臆测；取值缺失则按缺失产生未命中。
+     *
+     * @param mode {@code within}（区间内）/ {@code above}（高于上界）/ {@code below}（低于下界）
+     */
+    Outcome referenceRange(String fact, JsonNode actual, String mode) {
+        if (!exists(actual)) {
+            return new Outcome(false, actual, null, true, null, null, null, null);
+        }
+        Measurement measurement = measurement(fact, actual);
+        String rangeText = optionalText(actual, "referenceRange");
+        if (rangeText == null) {
+            throw insufficientData("字段 " + fact + " 缺少参考范围 referenceRange");
+        }
+        ReferenceRange range = parseReferenceRange(fact, rangeText);
+        BigDecimal value = measurement.value();
+        boolean matched = switch (mode) {
+            case "within" -> (range.low() == null || value.compareTo(range.low()) >= 0)
+                && (range.high() == null || value.compareTo(range.high()) <= 0);
+            case "above" -> {
+                if (range.high() == null) {
+                    throw insufficientData("字段 " + fact + " 参考范围无上界，无法判断 above_ref: " + rangeText);
+                }
+                yield value.compareTo(range.high()) > 0;
+            }
+            case "below" -> {
+                if (range.low() == null) {
+                    throw insufficientData("字段 " + fact + " 参考范围无下界，无法判断 below_ref: " + rangeText);
+                }
+                yield value.compareTo(range.low()) < 0;
+            }
+            default -> throw operatorInvalid("不支持的参考范围模式: " + mode);
+        };
+        String formula = formatNumber(value) + unitSuffix(measurement.unit())
+            + " " + mode + " ref " + formatRange(range);
+        return clinicalOutcome(matched, actual, null, value, measurement.unit(), measurement.source(), formula);
+    }
+
+    private ReferenceRange parseReferenceRange(String fact, String raw) {
+        String text = raw.trim();
+        Matcher upper = REFERENCE_UPPER_ONLY.matcher(text);
+        if (upper.matches()) {
+            return new ReferenceRange(null, new BigDecimal(upper.group(1)));
+        }
+        Matcher lower = REFERENCE_LOWER_ONLY.matcher(text);
+        if (lower.matches()) {
+            return new ReferenceRange(new BigDecimal(lower.group(1)), null);
+        }
+        Matcher range = REFERENCE_RANGE.matcher(text);
+        if (range.matches()) {
+            BigDecimal low = new BigDecimal(range.group(1));
+            BigDecimal high = new BigDecimal(range.group(2));
+            if (low.compareTo(high) > 0) {
+                throw invalid("字段 " + fact + " 参考范围下界大于上界: " + raw);
+            }
+            return new ReferenceRange(low, high);
+        }
+        throw insufficientData("字段 " + fact + " 参考范围无法解析: " + raw);
+    }
+
+    private String formatRange(ReferenceRange range) {
+        if (range.low() != null && range.high() != null) {
+            return "[" + formatNumber(range.low()) + ", " + formatNumber(range.high()) + "]";
+        }
+        if (range.high() != null) {
+            return "≤" + formatNumber(range.high());
+        }
+        return "≥" + formatNumber(range.low());
     }
 
     private Outcome consecutiveTemporal(
@@ -655,5 +776,9 @@ final class ClinicalRuleOperatorSupport {
     }
 
     private record SexProfile(String label, boolean female) {
+    }
+
+    /** 解析后的参考范围；{@code low}/{@code high} 为 {@code null} 表示该侧无界（单侧范围）。 */
+    private record ReferenceRange(BigDecimal low, BigDecimal high) {
     }
 }

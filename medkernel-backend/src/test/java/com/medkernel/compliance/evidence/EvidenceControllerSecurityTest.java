@@ -97,6 +97,25 @@ class EvidenceControllerSecurityTest {
             .andExpect(status().isForbidden());
     }
 
+    // ── GET /snapshots/{evidenceId}/file（真实证据文件下载）───────
+
+    @Test
+    @DisplayName("审计角色下载证据文件，缺租户上下文被 DataScope 拦截")
+    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    void downloadSnapshotFile_auditRole_noTenant_returns400() throws Exception {
+        mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001/file"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @DisplayName("医生角色下载证据文件直接 403")
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void downloadSnapshotFile_doctorRole_returns403() throws Exception {
+        mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001/file"))
+            .andExpect(status().isForbidden());
+    }
+
     // ── POST /snapshots（创建存证）─────────────────────────────
 
     @Test
@@ -177,6 +196,27 @@ class EvidenceControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void exportSnapshots_doctorRole_returns403() throws Exception {
         mvc.perform(post("/api/v1/compliance/evidence/snapshots/export"))
+            .andExpect(status().isForbidden());
+    }
+
+    // ── GET /snapshots/export/{digest}/download（证据包下载）─────
+
+    @Test
+    @DisplayName("审计角色下载证据包，缺租户上下文被 DataScope 拦截")
+    @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
+    void downloadExportFile_auditRole_noTenant_returns400() throws Exception {
+        mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"
+                + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/download"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @DisplayName("医生角色下载证据包直接 403")
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void downloadExportFile_doctorRole_returns403() throws Exception {
+        mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"
+                + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/download"))
             .andExpect(status().isForbidden());
     }
 

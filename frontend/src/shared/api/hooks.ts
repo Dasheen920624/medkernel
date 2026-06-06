@@ -428,6 +428,229 @@ function compactParams<T extends object>(params: T): Partial<T> {
   ) as Partial<T>;
 }
 
+// ──────────────────────────────────────────
+// 知识资产审核 · API-03 / KNOW-02 客户面
+// ──────────────────────────────────────────
+
+const KNOWLEDGE_API_ROOT = "/engine/knowledge";
+
+export type KnowledgeDomain =
+  | "GUIDELINE"
+  | "DRUG"
+  | "PATHWAY_KNOWLEDGE"
+  | "NURSING"
+  | "REPORT"
+  | "TCM"
+  | "PROTOCOL"
+  | "POLICY"
+  | "LITERATURE"
+  | "OTHER"
+  | "DIAGNOSIS"
+  | string;
+
+export type KnowledgeIdentityStatus = "ACTIVE" | "WITHDRAWN" | "ARCHIVED" | string;
+
+export type KnowledgeVersionStatus =
+  | "DRAFT"
+  | "CANDIDATE"
+  | "PENDING_REPLACEMENT_REVIEW"
+  | "UNDER_REVIEW"
+  | "ACTIVE"
+  | "SUPERSEDED"
+  | "WITHDRAWN"
+  | "REJECTED"
+  | string;
+
+export type CandidateClassificationType =
+  | "NEW_ASSET"
+  | "SAME_IDENTITY_NEW_VERSION"
+  | "DUPLICATE"
+  | "CONFLICT"
+  | string;
+
+export type CandidateReviewStatus =
+  | "PENDING_REPLACEMENT_REVIEW"
+  | "DUPLICATE_SKIPPED"
+  | "APPROVED"
+  | "REJECTED"
+  | string;
+
+export type KnowledgeCandidateReviewDecision = "APPROVE" | "REJECT";
+
+export interface KnowledgeIdentity {
+  id: number;
+  tenantId: string;
+  identityCode: string;
+  domain: KnowledgeDomain;
+  subject: string;
+  specialtyId?: string | null;
+  description?: string | null;
+  status: KnowledgeIdentityStatus;
+  currentVersionId?: number | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface KnowledgeAssetVersion {
+  id: number;
+  tenantId: string;
+  identityId: number;
+  versionNo: string;
+  versionLabel?: string | null;
+  sourceDocumentId?: number | null;
+  sourceVersionId?: number | null;
+  contentHash?: string | null;
+  anchors?: string | null;
+  status: KnowledgeVersionStatus;
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  authorityLevel?: string | null;
+  gradeQuality?: string | null;
+  gradeStrength?: string | null;
+  conflictArbitration?: string | null;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  activeScopeKey?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  activatedAt?: string | null;
+  supersededAt?: string | null;
+  withdrawnAt?: string | null;
+  withdrawnReason?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface CandidateClassification {
+  id: number;
+  tenantId: string;
+  orgPath?: string | null;
+  identityId: number;
+  candidateVersionId: number;
+  activeVersionId?: number | null;
+  classification: CandidateClassificationType;
+  reviewStatus: CandidateReviewStatus;
+  contentHash?: string | null;
+  basis?: string | null;
+  diffSummary?: string | null;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface KnowledgeCandidateResponse {
+  identityId: number;
+  candidates: KnowledgeAssetVersion[];
+  classifications: CandidateClassification[];
+  available: boolean;
+  reasonCode?: string | null;
+  message?: string | null;
+}
+
+export interface KnowledgeIdentityQueryParams {
+  domain?: KnowledgeDomain;
+  specialtyId?: string;
+  status?: KnowledgeIdentityStatus;
+  keyword?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+const EMPTY_KNOWLEDGE_CANDIDATES: KnowledgeCandidateResponse = {
+  identityId: 0,
+  candidates: [],
+  classifications: [],
+  available: false,
+  reasonCode: "NO_IDENTITY_SELECTED",
+  message: "未选择知识身份。",
+};
+
+export function useKnowledgeIdentities(params: KnowledgeIdentityQueryParams = {}) {
+  const requestParams = compactParams({
+    domain: params.domain,
+    specialtyId: params.specialtyId,
+    status: params.status,
+    keyword: params.keyword,
+    page: params.page ?? 1,
+    size: params.size ?? 20,
+    sort: params.sort ?? "updatedAt,desc",
+  });
+  return useQuery({
+    queryKey: ["knowledge", "identities", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<KnowledgeIdentity> }>(
+        `${KNOWLEDGE_API_ROOT}/identities`,
+        { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeCandidates(identityId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "candidates", identityId],
+    enabled: Boolean(identityId),
+    queryFn: async () => {
+      if (!identityId) return EMPTY_KNOWLEDGE_CANDIDATES;
+      const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/identities/${identityId}/candidates`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeCandidateDiff(candidateId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "candidate-diff", candidateId],
+    enabled: Boolean(candidateId),
+    queryFn: async () => {
+      if (!candidateId) return EMPTY_KNOWLEDGE_CANDIDATES;
+      const { data } = await apiClient.get<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/candidates/${candidateId}/diff`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useReviewKnowledgeCandidate() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      candidateId: number;
+      packageVersion: string;
+      request: { decision: KnowledgeCandidateReviewDecision; reason?: string };
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const config = headers ? { headers } : undefined;
+      const { data } = await apiClient.post<{ data: KnowledgeCandidateResponse }>(
+        `${KNOWLEDGE_API_ROOT}/candidates/${payload.candidateId}/review`,
+        withStandardApiContext(payload.request, security.data, payload.packageVersion),
+        config,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidates"] });
+      void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidate-diff"] });
+    },
+  });
+}
+
 export function useTerminologyMappings(params?: TerminologyMappingsParams) {
   return useQuery({
     queryKey: ["terminology", "mappings", params ?? {}],
@@ -2314,6 +2537,7 @@ export interface EvaluationResult {
   sourceRef?: string;
   responsibleDepartmentId?: string;
   createdAt?: string;
+  traceId?: string;
 }
 
 export interface QualityFinding {
@@ -2332,6 +2556,7 @@ export interface QualityFinding {
   responsibleDepartmentId?: string;
   dueAt?: string;
   createdAt?: string;
+  traceId?: string;
 }
 
 export interface RectificationTask {
@@ -2393,6 +2618,262 @@ export interface RectificationReviewResponse {
   findingStatus: QualityFindingStatus;
   taskStatus: RectificationTaskStatus;
   traceId: string;
+}
+
+export interface QualityDashboardSummary {
+  totalFindings: number;
+  openFindings: number;
+  closedFindings: number;
+  waivedFindings: number;
+  overdueRectificationTasks: number;
+  activeAlerts: number;
+}
+
+export interface QualityDashboardHeatmapCell {
+  departmentId: string;
+  totalFindings: number;
+  openFindings: number;
+  highRiskFindings: number;
+  hitRate: number;
+  maxSeverity: QualityFindingSeverity | string;
+  heatToken: string;
+}
+
+export type QualityValueMetricStatus = "AVAILABLE" | "NOT_AVAILABLE" | string;
+
+export interface QualityValueMetric {
+  id: string;
+  metricCode: string;
+  displayName: string;
+  formula: string;
+  formulaVersion: string;
+  status: QualityValueMetricStatus;
+  numerator: number;
+  denominator: number;
+  value: number | null;
+  unit: string;
+  dataSources: string[];
+  explanation: string;
+  calculatedAt: string;
+}
+
+export interface QualityValueMetricSummary {
+  metrics: QualityValueMetric[];
+}
+
+export type QualityDashboardAlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | string;
+
+export interface QualityDashboardAlert {
+  alertId: string;
+  alertType: string;
+  status: QualityDashboardAlertStatus;
+  departmentId: string | null;
+  sourceType: string;
+  sourceId: string;
+  severity: QualityFindingSeverity | string;
+  thresholdCode: string;
+  thresholdValue: number | null;
+  actualValue: number | null;
+  title: string;
+  evidenceSummary: string;
+  createdAt: string;
+  updatedAt: string;
+  traceId: string | null;
+}
+
+export interface QualityDashboardResponse {
+  summary: QualityDashboardSummary;
+  heatmap: QualityDashboardHeatmapCell[];
+  valueMetrics: QualityValueMetricSummary;
+  activeAlerts: QualityDashboardAlert[];
+  generatedAt: string;
+}
+
+export interface QualityDashboardAlertsResponse {
+  items: QualityDashboardAlert[];
+  offset: number;
+  limit: number;
+  total: number;
+  hasNext: boolean;
+}
+
+export type QualityDashboardDrilldownType = "FINDING" | "ALERT" | "RECTIFICATION" | string;
+
+export interface QualityDashboardDrilldownItem {
+  sourceType: string;
+  sourceId: string;
+  departmentId: string | null;
+  severity: QualityFindingSeverity | string;
+  status: string;
+  title: string;
+  evidenceSummary: string;
+  occurredAt: string;
+  traceId: string | null;
+}
+
+export interface QualityEvidencePackage {
+  packageId: string;
+  generatedAt: string;
+  scopeDigest: string;
+  itemCount: number;
+  items: unknown[];
+}
+
+export interface QualityDashboardDrilldownResponse {
+  type: QualityDashboardDrilldownType;
+  items: QualityDashboardDrilldownItem[];
+  evidencePackage: QualityEvidencePackage | null;
+  offset: number;
+  limit: number;
+  total: number;
+  hasNext: boolean;
+}
+
+export type InsuranceIssueType = "CODING" | "FEE" | "DRG" | "CLAIM_STATUS" | string;
+export type InsuranceIssueStatus =
+  | "OPEN"
+  | "RECTIFICATION_CREATED"
+  | "RESOLVED"
+  | "WAIVED"
+  | string;
+export type InsuranceAuditStatus = "ISSUE_FOUND" | "NO_ISSUE" | "INSUFFICIENT_DATA" | string;
+export type CaseReviewStatus = "PASS" | "NON_COMPLIANT" | string;
+export type DrgGroupingStatus = "MATCHED" | "MISMATCHED" | string;
+
+export interface InsuranceIssueResponse {
+  issueId: string;
+  claimId: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  status: InsuranceIssueStatus;
+  ruleCode: string;
+  ruleVersion: string;
+  claimAmount: number | null;
+  thresholdAmount: number | null;
+  evidenceSummary: string;
+  traceId: string | null;
+}
+
+export interface InsuranceIssuePageItem {
+  issueId: string;
+  claimId: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  status: InsuranceIssueStatus;
+  ruleCode: string;
+  ruleVersion: string;
+  claimAmount: number | null;
+  thresholdAmount: number | null;
+  evidenceSummary: string;
+  departmentId: string | null;
+  evaluationRunId: string | null;
+  traceId: string | null;
+  createdAt: string;
+}
+
+export interface InsuranceIssuesQueryParams {
+  status?: InsuranceIssueStatus;
+  severity?: QualityFindingSeverity | string;
+  departmentId?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface QualityCaseReviewRequest {
+  contextSnapshotId: string;
+  scenarioCode: string;
+  packageVersion?: string;
+  responsibleDepartmentId: string;
+}
+
+export interface QualityCaseReviewResponse {
+  reviewId: string;
+  reviewStatus: CaseReviewStatus;
+  evaluationRunId: string;
+  resultCount: number;
+  findingCount: number;
+  taskCount: number;
+  modelStatus: string;
+  modelDowngradeReason?: string;
+  traceId: string;
+}
+
+export interface DrgGroupingRequest {
+  contextSnapshotId: string;
+  grouperVersion: string;
+  expectedGroupCode: string;
+  actualGroupCode: string;
+  responsibleDepartmentId: string;
+  explanation: string;
+}
+
+export interface DrgGroupingResponse {
+  groupingId: string;
+  groupingStatus: DrgGroupingStatus;
+  expectedGroupCode: string;
+  actualGroupCode: string;
+  grouperVersion: string;
+  explanation: string;
+  traceId: string;
+}
+
+export interface InsuranceAuditRuleRequest {
+  ruleCode: string;
+  ruleVersion: string;
+  issueType: InsuranceIssueType;
+  severity: QualityFindingSeverity | string;
+  maxAmount?: number;
+  requiredClaimStatus?: string;
+  requiredClaimType?: string;
+  description: string;
+}
+
+export interface InsuranceAuditRequest {
+  contextSnapshotId: string;
+  scenarioCode: string;
+  packageVersion?: string;
+  indicatorId: string;
+  responsibleDepartmentId: string;
+  dueAt: string;
+  rules: InsuranceAuditRuleRequest[];
+}
+
+export interface InsuranceAuditResponse {
+  auditId: string;
+  auditStatus: InsuranceAuditStatus;
+  issues: InsuranceIssueResponse[];
+  evaluationRunId: string | null;
+  findingCount: number;
+  taskCount: number;
+  traceId: string;
+}
+
+export interface QualityDashboardQueryParams {
+  from?: string;
+  to?: string;
+  departmentId?: string;
+}
+
+export interface QualityDashboardDrilldownQueryParams extends QualityDashboardQueryParams {
+  type?: QualityDashboardDrilldownType;
+  page?: number;
+  size?: number;
+}
+
+export interface QualityAlertsQueryParams extends QualityDashboardQueryParams {
+  status?: QualityDashboardAlertStatus;
+  severity?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface RectificationDispatchRequest {
+  findingId: string;
+  responsibleDepartmentId: string;
+  assigneeUserId?: string;
+  dueAt: string;
 }
 
 // 1. Indicator Lifecycle Hooks
@@ -2517,6 +2998,105 @@ export function useQualityFindings(params?: {
   });
 }
 
+export function useInsuranceIssues(params?: InsuranceIssuesQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "insurance-issues", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<InsuranceIssuePageItem> }>(
+        "/engine/quality/insurance-issues",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunQualityCaseReview() {
+  return useMutation({
+    mutationFn: async (request: QualityCaseReviewRequest) => {
+      const { data } = await apiClient.post<{ data: QualityCaseReviewResponse }>(
+        "/engine/quality/case-review",
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunDrgGrouping() {
+  return useMutation({
+    mutationFn: async (request: DrgGroupingRequest) => {
+      const { data } = await apiClient.post<{ data: DrgGroupingResponse }>(
+        "/engine/quality/drg-grouping",
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunInsuranceAudit() {
+  return useMutation({
+    mutationFn: async (request: InsuranceAuditRequest) => {
+      const { data } = await apiClient.post<{ data: InsuranceAuditResponse }>(
+        "/engine/quality/insurance-audit",
+        request,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useQualityDashboard(params?: QualityDashboardQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "dashboard", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardResponse }>(
+        "/engine/quality/dashboard",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useQualityDashboardDrilldown(params?: QualityDashboardDrilldownQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "dashboard", "drilldown", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardDrilldownResponse }>(
+        "/engine/quality/dashboard/drilldown",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useQualityAlerts(params?: QualityAlertsQueryParams) {
+  return useQuery({
+    queryKey: ["quality", "alerts", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: QualityDashboardAlertsResponse }>(
+        "/engine/quality/alerts",
+        { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useAcknowledgeQualityAlert() {
+  return useMutation({
+    mutationFn: async (alertId: string) => {
+      const { data } = await apiClient.post<{ data: QualityDashboardAlert }>(
+        `/engine/quality/alerts/${encodeURIComponent(alertId)}/acknowledge`,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useQualityFindingDetail(findingId: string) {
   return useQuery({
     queryKey: ["evaluations", "finding-detail", findingId],
@@ -2544,6 +3124,25 @@ export function useSubmitRectification(findingId: string) {
         "/engine/evaluation/rectifications",
         payload.request,
         { params: { findingId }, headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useDispatchRectification() {
+  return useMutation({
+    mutationFn: async (payload: {
+      request: RectificationDispatchRequest;
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const { data } = await apiClient.post<{ data: RectificationResponse }>(
+        "/engine/rectifications",
+        payload.request,
+        { headers },
       );
       return data.data;
     },
@@ -2664,6 +3263,8 @@ export interface ContextFieldDescriptor {
   description?: string | null;
   source?: string | null;
   fieldId?: string | null;
+  /** 是否为求值期计算的派生字段（如 patient.age 由出生日期算得），而非原始存储字段。 */
+  derived?: boolean;
 }
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
@@ -4296,6 +4897,11 @@ export interface EvidenceSnapshot {
   evidenceSummary: string;
   payloadSnapshot: string;
   payloadHash: string;
+  fileUri: string;
+  fileDigest: string;
+  signatureAlgorithm: string;
+  signatureValue: string;
+  signerPublicKey: string;
   isValid: boolean;
   createdAt: string;
   createdBy: string;
@@ -4306,6 +4912,10 @@ export interface EvidenceVerifyResult {
   isValid: boolean;
   calculatedHash: string;
   storedHash: string;
+  signatureAlgorithm: string;
+  signatureValid: boolean;
+  fileUri: string;
+  fileDigest: string;
 }
 
 export interface EvidenceCreatePayload {
@@ -4321,6 +4931,9 @@ export interface EvidenceCreatePayload {
 
 export interface EvidenceExportResult {
   archiveHash: string;
+  archiveUri: string;
+  contentType: string;
+  itemCount: number;
   status: "COMPLETED" | "PROCESSING" | string;
 }
 
@@ -4370,7 +4983,7 @@ export function useCreateEvidence() {
   });
 }
 
-// 4. 哈希防篡改验签
+// 4. 国密防篡改验签
 export function useVerifyEvidence() {
   return useMutation({
     mutationFn: async (evidenceId: string) => {
@@ -4382,7 +4995,7 @@ export function useVerifyEvidence() {
   });
 }
 
-// 5. 异步打包导出证据链
+// 5. 打包导出证据链真实文件
 export function useExportEvidences() {
   return useMutation({
     mutationFn: async (evidenceType?: string) => {

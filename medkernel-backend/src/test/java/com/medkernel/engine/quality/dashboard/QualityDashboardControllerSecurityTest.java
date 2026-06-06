@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
@@ -72,6 +73,22 @@ class QualityDashboardControllerSecurityTest {
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/engine/quality/alerts")
+                .with(jwt().jwt(token -> token
+                    .subject("qa-1")
+                    .claim("tenant_id", "tenant-A")
+                    .claim("roles", List.of("qa-manager")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void qaManagerCanAcknowledgeQualityAlert() throws Exception {
+        when(service.acknowledgeAlert("alert-1")).thenReturn(new QualityDashboardAlertResponse(
+            "alert-1", QualityDashboardAlertType.HIGH_RISK_FINDING, QualityDashboardAlertStatus.ACKNOWLEDGED,
+            "dept-a", "quality_finding", "qf-1", "P1", "OPEN_P0_P1_FINDING",
+            null, null, "高风险质控问题待闭环", "证据", Instant.EPOCH, Instant.EPOCH, "trace-1"));
+
+        mvc.perform(post("/api/v1/engine/quality/alerts/alert-1/acknowledge")
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")

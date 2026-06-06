@@ -182,6 +182,11 @@ public class RuleDslEvaluator {
             case "in" -> clinicalOperators.basicOutcome(in(actual, expected), actual, expected);
             case "not_in" -> clinicalOperators.basicOutcome(!in(actual, expected), actual, expected);
             case "between" -> clinicalOperators.between(fact, actual, expected);
+            case "not_between" -> clinicalOperators.notBetween(fact, actual, expected);
+            case "within_ref" -> clinicalOperators.referenceRange(fact, actual, "within");
+            case "above_ref" -> clinicalOperators.referenceRange(fact, actual, "above");
+            case "below_ref" -> clinicalOperators.referenceRange(fact, actual, "below");
+            case "is_missing" -> clinicalOperators.isMissing(actual);
             case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
             case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
             case "derived" -> clinicalOperators.derived(fact, context, expected);

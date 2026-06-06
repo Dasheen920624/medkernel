@@ -1,5 +1,7 @@
 package com.medkernel.compliance.evidence;
 
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -9,12 +11,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.medkernel.compliance.evidence.domain.EvidenceSnapshot;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
+import com.medkernel.compliance.evidence.dto.EvidenceExportResult;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.dto.EvidenceVerifyResult;
 import com.medkernel.compliance.evidence.repository.EvidenceSnapshotRepository;
@@ -22,6 +24,7 @@ import com.medkernel.compliance.evidence.service.EvidenceService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
+import com.medkernel.shared.crypto.SmCryptoService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,7 +43,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>覆盖核心业务场景：
  * <ul>
- *   <li>创建证据快照（含自动 SHA-256 指纹计算）</li>
+ *   <li>创建证据快照（含自动 SM3 指纹与 SM2 签名）</li>
  *   <li>重复创建冲突检测（ENG-EVID-003）</li>
  *   <li>按租户隔离检索</li>
  *   <li>防伪哈希碰撞验签（正常与篡改场景）</li>
@@ -57,42 +60,41 @@ class EvidenceServiceTest {
     @Mock
     IsolatedAuditPublisher isolatedAudit;
 
-    @InjectMocks
     EvidenceService service;
 
     private static final String TENANT_ID = "tenant-hospital-01";
-    private static final String EVIDENCE_ID = "evd-stroke-001";
-    private static final String PAYLOAD = "{\"systolicBP\":180,\"diagnosis\":\"急性缺血性脑卒中\"}";
+    private static final String EVIDENCE_ID = "evd-compliance-001";
+    private static final String PAYLOAD = "{\"approvalId\":\"exp-001\",\"result\":\"APPROVED\"}";
 
+    private SmCryptoService crypto;
     private EvidenceSnapshot validSnapshot;
 
     @BeforeEach
-    void setUp() {
-        // 构建一个合法的证据快照实体（先算哈希再填充）
-        EvidenceSnapshot temp = new EvidenceSnapshot(
-            null, EVIDENCE_ID, TENANT_ID, "trace-001",
-            "KNOWLEDGE_SOURCE", "CREATE", "guideline", "guideline-stroke-v3",
-            "脑卒中临床指南知识来源存证", PAYLOAD,
-            "", Instant.now(), "system", Instant.now(), "system"
-        );
-        String hash = temp.calculateHash();
-        validSnapshot = new EvidenceSnapshot(
-            1L, EVIDENCE_ID, TENANT_ID, "trace-001",
-            "KNOWLEDGE_SOURCE", "CREATE", "guideline", "guideline-stroke-v3",
-            "脑卒中临床指南知识来源存证", PAYLOAD,
-            hash, temp.createdAt(), "system", temp.updatedAt(), "system"
+    void setUp() throws Exception {
+        crypto = new SmCryptoService();
+        service = new EvidenceService(repository, isolatedAudit, crypto);
+        validSnapshot = signedSnapshot(
+            1L,
+            EVIDENCE_ID,
+            "trace-001",
+            "COMPLIANCE_EXPORT",
+            "CREATE",
+            "export_approval",
+            "exp-001",
+            "合规导出审批证据",
+            PAYLOAD
         );
     }
 
     // ── 创建存证 ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("创建证据快照：自动计算 SHA-256 指纹并入库")
+    @DisplayName("创建证据快照：自动计算 SM3 指纹、真实文件 URI 与 SM2 签名并入库")
     void createSnapshot_success() {
         EvidenceCreateDto dto = new EvidenceCreateDto(
-            EVIDENCE_ID, "trace-001", "KNOWLEDGE_SOURCE", "CREATE",
-            "guideline", "guideline-stroke-v3",
-            "脑卒中临床指南知识来源存证", PAYLOAD
+            EVIDENCE_ID, "trace-001", "COMPLIANCE_EXPORT", "CREATE",
+            "export_approval", "exp-001",
+            "合规导出审批证据", PAYLOAD
         );
 
         when(repository.findByEvidenceId(EVIDENCE_ID)).thenReturn(Optional.empty());
@@ -102,6 +104,8 @@ class EvidenceServiceTest {
                 1L, arg.evidenceId(), arg.tenantId(), arg.traceId(),
                 arg.evidenceType(), arg.action(), arg.subjectType(), arg.subjectId(),
                 arg.evidenceSummary(), arg.payloadSnapshot(), arg.payloadHash(),
+                arg.fileUri(), arg.fileDigest(), arg.signatureAlgorithm(),
+                arg.signatureValue(), arg.signerPublicKey(),
                 arg.createdAt(), arg.createdBy(), arg.updatedAt(), arg.updatedBy()
             );
         });
@@ -110,22 +114,32 @@ class EvidenceServiceTest {
 
         assertThat(resp).isNotNull();
         assertThat(resp.evidenceId()).isEqualTo(EVIDENCE_ID);
-        assertThat(resp.payloadHash()).isNotBlank();
+        assertThat(resp.payloadHash()).matches("sm3:[0-9a-f]{64}");
+        assertThat(resp.fileUri()).isEqualTo("/api/v1/compliance/evidence/snapshots/" + EVIDENCE_ID + "/file");
+        assertThat(resp.fileDigest()).matches("sm3:[0-9a-f]{64}");
+        assertThat(resp.signatureAlgorithm()).isEqualTo("SM3_WITH_SM2");
+        assertThat(resp.signatureValue()).isNotBlank();
+        assertThat(resp.signerPublicKey()).isNotBlank();
         assertThat(resp.isValid()).isTrue();
 
-        // 确认保存时 payloadHash 非空
+        // 确认保存时证据文件、国密摘要和签名材料均非空
         ArgumentCaptor<EvidenceSnapshot> captor = ArgumentCaptor.forClass(EvidenceSnapshot.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().payloadHash()).isNotBlank();
+        assertThat(captor.getValue().payloadHash()).matches("sm3:[0-9a-f]{64}");
+        assertThat(captor.getValue().fileUri()).isEqualTo(resp.fileUri());
+        assertThat(captor.getValue().fileDigest()).isEqualTo(resp.fileDigest());
+        assertThat(captor.getValue().signatureAlgorithm()).isEqualTo("SM3_WITH_SM2");
+        assertThat(captor.getValue().signatureValue()).isEqualTo(resp.signatureValue());
+        assertThat(captor.getValue().signerPublicKey()).isEqualTo(resp.signerPublicKey());
     }
 
     @Test
     @DisplayName("创建证据快照：重复 evidenceId 抛出 ENG-EVID-003 冲突异常")
     void createSnapshot_duplicateId_throwsConflict() {
         EvidenceCreateDto dto = new EvidenceCreateDto(
-            EVIDENCE_ID, "trace-001", "KNOWLEDGE_SOURCE", "CREATE",
-            "guideline", "guideline-stroke-v3",
-            "脑卒中临床指南知识来源存证", PAYLOAD
+            EVIDENCE_ID, "trace-001", "COMPLIANCE_EXPORT", "CREATE",
+            "export_approval", "exp-001",
+            "合规导出审批证据", PAYLOAD
         );
         when(repository.findByEvidenceId(EVIDENCE_ID)).thenReturn(Optional.of(validSnapshot));
 
@@ -142,7 +156,7 @@ class EvidenceServiceTest {
         when(repository.findEvidencesPage(any(), any(), any(), anyInt(), anyInt()))
             .thenReturn(List.of(validSnapshot));
 
-        List<EvidenceResponse> result = service.getEvidences(TENANT_ID, null, "KNOWLEDGE_SOURCE", 1, 20);
+        List<EvidenceResponse> result = service.getEvidences(TENANT_ID, null, "COMPLIANCE_EXPORT", 1, 20);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).evidenceId()).isEqualTo(EVIDENCE_ID);
@@ -151,9 +165,9 @@ class EvidenceServiceTest {
     @Test
     @DisplayName("计数查询：返回过滤后的总数")
     void countEvidences_returnsTotal() {
-        when(repository.countEvidences(TENANT_ID, "KNOWLEDGE_SOURCE", null)).thenReturn(42L);
+        when(repository.countEvidences(TENANT_ID, "COMPLIANCE_EXPORT", null)).thenReturn(42L);
 
-        long total = service.countEvidences(TENANT_ID, null, "KNOWLEDGE_SOURCE");
+        long total = service.countEvidences(TENANT_ID, null, "COMPLIANCE_EXPORT");
         assertThat(total).isEqualTo(42L);
     }
 
@@ -191,7 +205,7 @@ class EvidenceServiceTest {
     // ── 防伪验签 ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("验签成功：合法快照通过双向哈希碰撞验证，记录成功审计")
+    @DisplayName("验签成功：合法快照通过双向国密验证，记录成功审计")
     void verifyEvidence_validHash_succeeds() {
         when(repository.findByEvidenceId(EVIDENCE_ID)).thenReturn(Optional.of(validSnapshot));
 
@@ -199,6 +213,8 @@ class EvidenceServiceTest {
 
         assertThat(result.isValid()).isTrue();
         assertThat(result.calculatedHash()).isEqualTo(result.storedHash());
+        assertThat(result.signatureAlgorithm()).isEqualTo("SM3_WITH_SM2");
+        assertThat(result.signatureValid()).isTrue();
 
         // 验证发布了成功审计事件
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
@@ -212,10 +228,12 @@ class EvidenceServiceTest {
         // 构建一个被篡改的快照：payload 被修改但 hash 保持原值
         EvidenceSnapshot tampered = new EvidenceSnapshot(
             1L, EVIDENCE_ID, TENANT_ID, "trace-001",
-            "KNOWLEDGE_SOURCE", "CREATE", "guideline", "guideline-stroke-v3",
-            "脑卒中临床指南知识来源存证",
-            "{\"systolicBP\":120,\"diagnosis\":\"数据已被恶意篡改\"}", // 篡改 payload
-            validSnapshot.payloadHash(), // 保持原哈希
+            "COMPLIANCE_EXPORT", "CREATE", "export_approval", "exp-001",
+            "合规导出审批证据",
+            "{\"approvalId\":\"exp-001\",\"result\":\"TAMPERED\"}",
+            validSnapshot.payloadHash(),
+            validSnapshot.fileUri(), validSnapshot.fileDigest(), validSnapshot.signatureAlgorithm(),
+            validSnapshot.signatureValue(), validSnapshot.signerPublicKey(),
             validSnapshot.createdAt(), "system", validSnapshot.updatedAt(), "system"
         );
 
@@ -225,6 +243,8 @@ class EvidenceServiceTest {
 
         assertThat(result.isValid()).isFalse();
         assertThat(result.calculatedHash()).isNotEqualTo(result.storedHash());
+        assertThat(result.signatureAlgorithm()).isEqualTo("SM3_WITH_SM2");
+        assertThat(result.signatureValid()).isFalse();
 
         // 验证发布了失败审计事件
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
@@ -236,15 +256,19 @@ class EvidenceServiceTest {
     // ── 异步导出 ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("导出证据：对真实快照生成 64 位十六进制归档指纹并发布成功审计")
-    void exportEvidences_returnsHashAndPublishesAudit() {
-        when(repository.countEvidences(TENANT_ID, "KNOWLEDGE_SOURCE", null)).thenReturn(1L);
-        when(repository.findEvidencesPage(eq(TENANT_ID), eq("KNOWLEDGE_SOURCE"), isNull(), anyInt(), anyInt()))
+    @DisplayName("导出证据：对真实快照生成国密归档摘要和真实下载 URI，并发布成功审计")
+    void exportEvidences_returnsDigestUriAndPublishesAudit() {
+        when(repository.countEvidences(TENANT_ID, "COMPLIANCE_EXPORT", null)).thenReturn(1L);
+        when(repository.findEvidencesPage(eq(TENANT_ID), eq("COMPLIANCE_EXPORT"), isNull(), anyInt(), anyInt()))
             .thenReturn(List.of(validSnapshot));
 
-        String hash = service.exportEvidences(TENANT_ID, "KNOWLEDGE_SOURCE");
+        EvidenceExportResult result = service.exportEvidences(TENANT_ID, "COMPLIANCE_EXPORT");
 
-        assertThat(hash).matches("[0-9a-f]{64}");
+        assertThat(result.archiveHash()).matches("sm3:[0-9a-f]{64}");
+        assertThat(result.archiveUri()).matches("/api/v1/compliance/evidence/snapshots/export/[0-9a-f]{64}/download");
+        assertThat(result.contentType()).isEqualTo("application/x-ndjson");
+        assertThat(result.itemCount()).isEqualTo(1);
+        assertThat(result.status()).isEqualTo("COMPLETED");
 
         // 验证审计记录已发布
         verify(isolatedAudit).publishInNewTx(any(AuditEvent.class));
@@ -257,9 +281,10 @@ class EvidenceServiceTest {
         when(repository.findEvidencesPage(eq(TENANT_ID), isNull(), isNull(), anyInt(), anyInt()))
             .thenReturn(List.of(validSnapshot));
 
-        String hash = service.exportEvidences(TENANT_ID, null);
+        EvidenceExportResult result = service.exportEvidences(TENANT_ID, null);
 
-        assertThat(hash).matches("[0-9a-f]{64}");
+        assertThat(result.archiveHash()).matches("sm3:[0-9a-f]{64}");
+        assertThat(result.archiveUri()).contains("/snapshots/export/");
 
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(isolatedAudit).publishInNewTx(captor.capture());
@@ -279,31 +304,112 @@ class EvidenceServiceTest {
     }
 
     @Test
-    @DisplayName("导出证据：对真实快照集合计算确定性真 SHA-256（非随机假串）")
-    void exportEvidences_computesDeterministicRealHash() {
+    @DisplayName("导出证据：对真实快照集合计算确定性真 SM3（非随机假串）")
+    void exportEvidences_computesDeterministicRealHash() throws Exception {
         EvidenceSnapshot tempB = new EvidenceSnapshot(
-            null, "evd-ami-002", TENANT_ID, "trace-002",
-            "KNOWLEDGE_SOURCE", "CREATE", "guideline", "guideline-ami-v2",
-            "心梗临床指南知识来源存证", "{\"door2balloon\":90}",
-            "", Instant.now(), "system", Instant.now(), "system"
+            null, "evd-compliance-002", TENANT_ID, "trace-002",
+            "COMPLIANCE_EXPORT", "CREATE", "export_approval", "exp-002",
+            "合规导出复核证据", "{\"approvalId\":\"exp-002\",\"result\":\"APPROVED\"}",
+            "",
+            "/api/v1/compliance/evidence/snapshots/evd-compliance-002/file",
+            "",
+            EvidenceSnapshot.SIGNATURE_ALGORITHM,
+            "",
+            "",
+            Instant.now(), "system", Instant.now(), "system"
         );
-        EvidenceSnapshot second = new EvidenceSnapshot(
-            2L, tempB.evidenceId(), TENANT_ID, tempB.traceId(),
-            tempB.evidenceType(), tempB.action(), tempB.subjectType(), tempB.subjectId(),
-            tempB.evidenceSummary(), tempB.payloadSnapshot(), tempB.calculateHash(),
-            tempB.createdAt(), "system", tempB.updatedAt(), "system"
-        );
+        EvidenceSnapshot second = signedSnapshot(2L, tempB.evidenceId(), tempB.traceId(), tempB.evidenceType(),
+            tempB.action(), tempB.subjectType(), tempB.subjectId(), tempB.evidenceSummary(), tempB.payloadSnapshot());
 
-        when(repository.countEvidences(TENANT_ID, "KNOWLEDGE_SOURCE", null)).thenReturn(2L);
-        when(repository.findEvidencesPage(eq(TENANT_ID), eq("KNOWLEDGE_SOURCE"), isNull(), anyInt(), anyInt()))
+        when(repository.countEvidences(TENANT_ID, "COMPLIANCE_EXPORT", null)).thenReturn(2L);
+        when(repository.findEvidencesPage(eq(TENANT_ID), eq("COMPLIANCE_EXPORT"), isNull(), anyInt(), anyInt()))
             .thenReturn(List.of(validSnapshot, second));
 
-        String hash1 = service.exportEvidences(TENANT_ID, "KNOWLEDGE_SOURCE");
-        String hash2 = service.exportEvidences(TENANT_ID, "KNOWLEDGE_SOURCE");
+        EvidenceExportResult result1 = service.exportEvidences(TENANT_ID, "COMPLIANCE_EXPORT");
+        EvidenceExportResult result2 = service.exportEvidences(TENANT_ID, "COMPLIANCE_EXPORT");
 
-        assertThat(hash1).matches("[0-9a-f]{64}");   // 真 SHA-256：64 位十六进制
-        assertThat(hash1).isEqualTo(hash2);            // 确定性：同数据同指纹（旧实现用随机 UUID 每次都变）
-        assertThat(hash1).doesNotContain("proof");     // 杜绝旧 "sha256-archive-...-proof" 假格式
+        assertThat(result1.archiveHash()).matches("sm3:[0-9a-f]{64}");
+        assertThat(result1.archiveHash()).isEqualTo(result2.archiveHash());
+        assertThat(result1.archiveUri()).isEqualTo(result2.archiveUri());
+        assertThat(result1.archiveHash()).doesNotContain("proof");
         verify(isolatedAudit, atLeastOnce()).publishInNewTx(any(AuditEvent.class));
+    }
+
+    private EvidenceSnapshot signedSnapshot(Long id, String evidenceId, String traceId, String evidenceType,
+                                            String action, String subjectType, String subjectId,
+                                            String evidenceSummary, String payload) throws Exception {
+        Instant now = Instant.now();
+        EvidenceSnapshot unsigned = new EvidenceSnapshot(
+            id,
+            evidenceId,
+            TENANT_ID,
+            traceId,
+            evidenceType,
+            action,
+            subjectType,
+            subjectId,
+            evidenceSummary,
+            payload,
+            "",
+            "/api/v1/compliance/evidence/snapshots/" + evidenceId + "/file",
+            "",
+            EvidenceSnapshot.SIGNATURE_ALGORITHM,
+            "",
+            "",
+            now,
+            "system",
+            now,
+            "system"
+        );
+        EvidenceSnapshot signable = new EvidenceSnapshot(
+            id,
+            unsigned.evidenceId(),
+            unsigned.tenantId(),
+            unsigned.traceId(),
+            unsigned.evidenceType(),
+            unsigned.action(),
+            unsigned.subjectType(),
+            unsigned.subjectId(),
+            unsigned.evidenceSummary(),
+            unsigned.payloadSnapshot(),
+            unsigned.calculateHash(),
+            unsigned.fileUri(),
+            unsigned.calculateFileDigest(),
+            EvidenceSnapshot.SIGNATURE_ALGORITHM,
+            "",
+            "",
+            unsigned.createdAt(),
+            unsigned.createdBy(),
+            unsigned.updatedAt(),
+            unsigned.updatedBy()
+        );
+        KeyPair keyPair = crypto.generateSm2KeyPair();
+        String signature = crypto.base64Encode(crypto.sm2Sign(
+            keyPair.getPrivate(),
+            signable.signaturePayload().getBytes(StandardCharsets.UTF_8)
+        ));
+        String publicKey = crypto.base64Encode(keyPair.getPublic().getEncoded());
+        return new EvidenceSnapshot(
+            signable.id(),
+            signable.evidenceId(),
+            signable.tenantId(),
+            signable.traceId(),
+            signable.evidenceType(),
+            signable.action(),
+            signable.subjectType(),
+            signable.subjectId(),
+            signable.evidenceSummary(),
+            signable.payloadSnapshot(),
+            signable.payloadHash(),
+            signable.fileUri(),
+            signable.fileDigest(),
+            signable.signatureAlgorithm(),
+            signature,
+            publicKey,
+            signable.createdAt(),
+            signable.createdBy(),
+            signable.updatedAt(),
+            signable.updatedBy()
+        );
     }
 }

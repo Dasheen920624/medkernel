@@ -17,7 +17,7 @@ import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.pkg.PackageItemAssetType;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.pkg.ReleasePlan;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
@@ -101,7 +101,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
 
     private List<RuleImpactObject> syncTargetImpacts(String tenantId, RuleDefinition rule) {
         List<PackageItem> items = packageItems.findByTenantIdAndAssetTypeAndAssetId(
-            tenantId, PackageItemAssetType.RULE, rule.ruleId());
+            tenantId, VersionedAssetType.RULE, rule.ruleId());
         LinkedHashSet<String> packageIds = new LinkedHashSet<>(
             items.stream().map(PackageItem::packageId).filter(Objects::nonNull).toList());
         LinkedHashMap<String, RuleImpactObject> result = new LinkedHashMap<>();
