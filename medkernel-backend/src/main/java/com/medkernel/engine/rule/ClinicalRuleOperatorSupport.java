@@ -253,6 +253,8 @@ final class ClinicalRuleOperatorSupport {
         return switch (mode) {
             case "consecutive" -> consecutiveTemporal(fact, expected, measurements, window, referenceTime, count);
             case "trend" -> trendTemporal(fact, expected, measurements, window, referenceTime, count);
+            case "frequency" -> frequencyTemporal(fact, expected, measurements, window, referenceTime, count);
+            case "delta" -> deltaTemporal(fact, expected, measurements, window, referenceTime);
             default -> throw operatorInvalid("不支持的 temporal.mode: " + mode);
         };
     }
@@ -456,6 +458,89 @@ final class ClinicalRuleOperatorSupport {
             + " trend " + direction + " across " + count + " values";
         return clinicalOutcome(matched, null, expected, BigDecimal.valueOf(tail.size()), "次",
             joinSources(tail), formula);
+    }
+
+    /**
+     * temporal {@code frequency} 模式：统计窗口内满足 {@code condition} 的取值次数，达到 {@code count}
+     * （最少次数）即命中。次数为确定性计数，不臆测；单位不一致诚实拒绝。
+     */
+    private Outcome frequencyTemporal(
+        String fact,
+        JsonNode expected,
+        List<Measurement> measurements,
+        Duration window,
+        Instant referenceTime,
+        int count
+    ) {
+        JsonNode condition = expected.path("condition");
+        requireObject(condition, "temporal.value.condition");
+        String comparison = requiredText(condition, "operator");
+        BigDecimal threshold = requiredDecimal(condition, "value");
+        String unit = optionalText(condition, "unit");
+        List<Measurement> matchedMeasurements = new ArrayList<>();
+        for (Measurement measurement : measurements) {
+            if (unit != null && !sameUnit(measurement.unit(), unit)) {
+                throw unitIncompatible("字段 " + fact + " 时间序列单位 " + emptyToQuestion(measurement.unit())
+                    + " 不能作为 " + unit + " 比较");
+            }
+            if (compareNumbers(measurement.value(), threshold, comparison)) {
+                matchedMeasurements.add(measurement);
+            }
+        }
+        boolean matched = matchedMeasurements.size() >= count;
+        String formula = window + " window ending " + referenceTime
+            + " frequency >= " + count + " where value "
+            + comparison.toLowerCase(Locale.ROOT) + " " + condition.get("value").asText()
+            + unitSuffix(unit) + "; matched " + matchedMeasurements.size();
+        return clinicalOutcome(matched, null, expected, BigDecimal.valueOf(matchedMeasurements.size()),
+            "次", joinSources(matchedMeasurements), formula);
+    }
+
+    /**
+     * temporal {@code delta} 模式：窗口内按时间排序的末值减首值，按 {@code direction}
+     * （increase/decrease/change）与 {@code delta} 阈值比较（如 AKI 肌酐升幅）。不足两点无法计算升降，
+     * 按未命中处理；单位不一致诚实拒绝。
+     */
+    private Outcome deltaTemporal(
+        String fact,
+        JsonNode expected,
+        List<Measurement> measurements,
+        Duration window,
+        Instant referenceTime
+    ) {
+        String direction = requiredText(expected, "direction").toLowerCase(Locale.ROOT);
+        if (!"increase".equals(direction) && !"decrease".equals(direction) && !"change".equals(direction)) {
+            throw operatorInvalid("不支持的 temporal.direction: " + direction);
+        }
+        BigDecimal threshold = requiredDecimal(expected, "delta");
+        if (threshold.signum() < 0) {
+            throw invalid("temporal.value.delta 不能为负: " + expected.get("delta").asText());
+        }
+        String unit = optionalText(expected, "unit");
+        if (measurements.size() < 2) {
+            String formula = window + " window ending " + referenceTime + " delta " + direction
+                + " >= " + expected.get("delta").asText() + unitSuffix(unit);
+            return clinicalOutcome(false, null, expected, BigDecimal.valueOf(measurements.size()), "次",
+                joinSources(measurements), formula);
+        }
+        for (Measurement measurement : measurements) {
+            if (unit != null && !sameUnit(measurement.unit(), unit)) {
+                throw unitIncompatible("字段 " + fact + " 时间序列单位 " + emptyToQuestion(measurement.unit())
+                    + " 不能作为 " + unit + " 比较");
+            }
+        }
+        Measurement first = measurements.get(0);
+        Measurement last = measurements.get(measurements.size() - 1);
+        BigDecimal change = last.value().subtract(first.value());
+        boolean matched = switch (direction) {
+            case "increase" -> change.compareTo(threshold) >= 0;
+            case "decrease" -> change.negate().compareTo(threshold) >= 0;
+            default -> change.abs().compareTo(threshold) >= 0;
+        };
+        String formula = window + " window ending " + referenceTime + " delta " + direction + " "
+            + formatNumber(first.value()) + "->" + formatNumber(last.value()) + " = "
+            + formatNumber(change) + unitSuffix(unit) + " vs >= " + expected.get("delta").asText();
+        return clinicalOutcome(matched, null, expected, change, unit, joinSources(List.of(first, last)), formula);
     }
 
     private DerivedResult calculateEgfr(JsonNode context, JsonNode parameters) {

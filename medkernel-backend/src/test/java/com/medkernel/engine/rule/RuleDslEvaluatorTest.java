@@ -1298,6 +1298,200 @@ class RuleDslEvaluatorTest {
         assertThat(evidence.path("missing").asBoolean()).isFalse();
     }
 
+    @Test
+    void temporalFrequencyMatchesWhenInWindowCountMeetsMinimum() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.potassium",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "frequency",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 2,
+                      "condition": {"operator": "gt", "value": 6.0, "unit": "mmol/L"}
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "窗内多次高钾"}],
+              "explain": {"title": "高钾频次", "reason": "72h 内高钾次数达阈值"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "potassium": [
+                  {"value": 6.4, "unit": "mmol/L", "observedAt": "2026-06-01T08:00:00Z", "source": "LIS:K-1"},
+                  {"value": 5.0, "unit": "mmol/L", "observedAt": "2026-06-01T20:00:00Z", "source": "LIS:K-2"},
+                  {"value": 6.3, "unit": "mmol/L", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:K-3"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("temporal");
+        assertThat(evidence.path("value").asInt()).isEqualTo(2);
+        assertThat(evidence.path("formula").asText()).contains("frequency");
+    }
+
+    @Test
+    void temporalFrequencyMissesWhenCountBelowMinimum() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.potassium",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "frequency",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z",
+                      "count": 2,
+                      "condition": {"operator": "gt", "value": 6.0, "unit": "mmol/L"}
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "高钾频次", "reason": "未达阈值"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "potassium": [
+                  {"value": 6.4, "unit": "mmol/L", "observedAt": "2026-06-01T08:00:00Z", "source": "LIS:K-4"},
+                  {"value": 5.0, "unit": "mmol/L", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:K-5"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
+    @Test
+    void temporalDeltaIncreaseMatchesWhenRiseMeetsThreshold() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.creatinine",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "delta",
+                      "direction": "increase",
+                      "delta": 0.3,
+                      "unit": "mg/dL",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "肌酐显著上升"}],
+              "explain": {"title": "肌酐 delta", "reason": "窗内肌酐升幅达阈值"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "creatinine": [
+                  {"value": 0.8, "unit": "mg/dL", "observedAt": "2026-06-01T08:00:00Z", "source": "LIS:CR-1"},
+                  {"value": 1.3, "unit": "mg/dL", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:CR-2"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("formula").asText()).contains("delta");
+    }
+
+    @Test
+    void temporalDeltaDecreaseMatchesWhenDropMeetsThreshold() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.hemoglobin",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "delta",
+                      "direction": "decrease",
+                      "delta": 20,
+                      "unit": "g/L",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血红蛋白显著下降"}],
+              "explain": {"title": "血红蛋白 delta", "reason": "窗内降幅达阈值"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "hemoglobin": [
+                  {"value": 130, "unit": "g/L", "observedAt": "2026-06-01T08:00:00Z", "source": "LIS:HB-1"},
+                  {"value": 100, "unit": "g/L", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:HB-2"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isTrue();
+    }
+
+    @Test
+    void temporalDeltaDoesNotMatchWithFewerThanTwoMeasurements() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "observations.creatinine",
+                    "operator": "temporal",
+                    "value": {
+                      "mode": "delta",
+                      "direction": "increase",
+                      "delta": 0.3,
+                      "unit": "mg/dL",
+                      "window": "PT72H",
+                      "referenceTime": "2026-06-03T00:00:00Z"
+                    }
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "肌酐 delta", "reason": "单点无法算升幅"}
+            }
+            """), read("""
+            {
+              "observations": {
+                "creatinine": [
+                  {"value": 1.3, "unit": "mg/dL", "observedAt": "2026-06-02T08:00:00Z", "source": "LIS:CR-3"}
+                ]
+              }
+            }
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
     private JsonNode read(String source) throws Exception {
         return json.readTree(source);
     }
