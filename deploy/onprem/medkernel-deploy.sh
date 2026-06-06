@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# MedKernel 快捷发布脚本  (部署到 /zoesoft/medkernel/bin/medkernel-deploy.sh)
-# ⚠️ 临时方案：现场单机过渡部署；正式 / 长期生产请用 deploy/docker 标准容器化构建。
+# MedKernel 单机快捷发布脚本  (部署到 /zoesoft/medkernel/bin/medkernel-deploy.sh)
 # 用途：上传新包到 incoming/ 后，一条命令完成「备份→替换→重启→健康检查→失败自动回滚」。
 # 只更新程序包（后端 jar / 前端 dist）；数据库 schema 迁移由应用启动时 Flyway 自动前向执行，本脚本不动库。
 # ============================================================================
@@ -64,6 +63,13 @@ print_status(){
   echo "service : active=$(systemctl is-active $SVC) enabled=$(systemctl is-enabled $SVC 2>/dev/null) NRestarts=$(systemctl show -p NRestarts --value $SVC) MainPID=$(systemctl show -p MainPID --value $SVC)"
   local code; code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" 2>/dev/null)
   echo "health  : HTTP $code  $(curl -s "$HEALTH_URL" 2>/dev/null)"
+  local https_url https_code
+  for https_url in \
+    "https://127.0.0.1/medkernel/actuator/health/readiness" \
+    "https://127.0.0.1:8443/medkernel/actuator/health/readiness"; do
+    https_code=$(curl -ks -o /dev/null -w '%{http_code}' "$https_url" 2>/dev/null || echo 000)
+    [ "$https_code" = "200" ] && { echo "nginx   : HTTP $https_code  $https_url"; break; }
+  done
   echo "backups (最近5):"; ls -dt "$BACKUP_ROOT"/deploy-* 2>/dev/null | head -5 | sed 's/^/  /'
 }
 
@@ -99,9 +105,9 @@ swap_frontend(){
 update_manifest(){
   local sha; sha=$(sha256sum "$LIB" 2>/dev/null | awk '{print $1}')
   cat > "$APP_HOME/manifest.properties" <<MF
+source=${1:-manual-deploy}
 commit=${1:-unknown}
-source=manual-deploy
-builtAt=$(date -Iseconds)
+deployedAt=$(date -Iseconds)
 jarSha256=$sha
 MF
   chown "$APP_USER:$APP_USER" "$APP_HOME/manifest.properties"
