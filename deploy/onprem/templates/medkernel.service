@@ -6,6 +6,8 @@
 Description=MedKernel backend v1.0 GA
 Documentation=https://github.com/Dasheen920624/medkernel
 After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -20,8 +22,7 @@ TimeoutStopSec=30
 KillMode=process
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=120
-StartLimitBurst=5
+SuccessExitStatus=143
 LimitNOFILE=65535
 NoNewPrivileges=true
 PrivateTmp=true
