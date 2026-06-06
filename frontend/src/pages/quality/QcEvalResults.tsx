@@ -1,282 +1,666 @@
-import { useMemo, useState } from "react";
-import { PageShell } from "@/shared/ui/PageShell";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Button,
   Card,
+  Descriptions,
+  Drawer,
   Empty,
+  Form,
   Input,
-  Progress,
   Select,
   Space,
   Table,
   Tag,
-  Tooltip,
+  Typography,
 } from "antd";
 import type { TableProps } from "antd";
 import {
+  AuditOutlined,
   CheckCircleOutlined,
   DatabaseOutlined,
-  MinusCircleOutlined,
   ReloadOutlined,
-  SearchOutlined,
+  SendOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { useEvaluationResults } from "@/shared/api/hooks";
-import type { EvaluationResult, EvaluationResultLevel } from "@/shared/api/hooks";
+
+import { getApiErrorMessage, parseApiError } from "@/shared/api/errors";
+import {
+  useDispatchRectification,
+  useEvaluationResults,
+  useQualityFindingDetail,
+  useQualityFindings,
+} from "@/shared/api/hooks";
+import type {
+  EvaluationResult,
+  EvaluationResultLevel,
+  QualityFinding,
+  QualityFindingSeverity,
+  QualityFindingStatus,
+  RectificationTask,
+} from "@/shared/api/hooks";
+import { PageShell } from "@/shared/ui/PageShell";
+import type { PageStateKind } from "@/shared/ui/PageState.contract";
+
+const { Text } = Typography;
+
+interface DispatchFormValues {
+  responsibleDepartmentId: string;
+  assigneeUserId?: string;
+  dueAt: string;
+}
 
 export default function QcEvalResults() {
-  const [filterCode, setFilterCode] = useState("");
-  const [filterLevel, setFilterLevel] = useState<EvaluationResultLevel | undefined>(undefined);
-  const [filterDept, setFilterDept] = useState("");
+  const [resultLevel, setResultLevel] = useState<EvaluationResultLevel>("NON_COMPLIANT");
+  const [findingStatus, setFindingStatus] = useState<QualityFindingStatus>("NEW");
+  const [departmentId, setDepartmentId] = useState("");
+  const [selectedFinding, setSelectedFinding] = useState<QualityFinding | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [dispatchFeedback, setDispatchFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [dispatchForm] = Form.useForm<DispatchFormValues>();
 
-  const {
-    data: pageData,
-    refetch,
-    isLoading,
-    isError,
-  } = useEvaluationResults({
-    indicatorCode: filterCode.trim() || undefined,
-    resultLevel: filterLevel,
-    responsibleDepartmentId: filterDept.trim() || undefined,
-    page: 1,
-    size: 50,
-  });
+  const responsibleDepartmentId = optionalText(departmentId);
+  const resultParams = useMemo(
+    () => ({
+      resultLevel,
+      responsibleDepartmentId,
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    }),
+    [responsibleDepartmentId, resultLevel],
+  );
+  const findingParams = useMemo(
+    () => ({
+      status: findingStatus,
+      responsibleDepartmentId,
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    }),
+    [findingStatus, responsibleDepartmentId],
+  );
 
-  const results = useMemo(() => pageData?.items ?? [], [pageData?.items]);
+  const resultsQuery = useEvaluationResults(resultParams);
+  const findingsQuery = useQualityFindings(findingParams);
+  const findingDetailQuery = useQualityFindingDetail(selectedFinding?.findingId ?? "");
+  const dispatchMutation = useDispatchRectification();
 
-  const metrics = useMemo(() => {
-    const currentPageTotal = results.length;
-    const passCount = results.filter((item) => item.resultLevel === "PASS").length;
-    const defectCount = results.filter((item) => item.resultLevel !== "PASS").length;
-    const complianceRate =
-      currentPageTotal > 0 ? Math.round((passCount / currentPageTotal) * 1000) / 10 : 0;
-    return {
-      totalResults: pageData?.total ?? currentPageTotal,
-      currentPageTotal,
-      complianceRate,
-      defectCount,
-    };
-  }, [pageData?.total, results]);
+  const results = useMemo(() => resultsQuery.data?.items ?? [], [resultsQuery.data?.items]);
+  const findings = useMemo(() => findingsQuery.data?.items ?? [], [findingsQuery.data?.items]);
+  const selectedFindingDetail = findingDetailQuery.data;
+  const drawerFinding = selectedFindingDetail?.finding ?? selectedFinding;
+  const error = resultsQuery.error ?? findingsQuery.error;
+  const parsedError =
+    resultsQuery.isError || findingsQuery.isError ? parseApiError(error, "评估结果读取失败") : null;
 
-  const renderScoreTag = (score: number | undefined) => {
-    if (score === undefined || score === null) {
-      return <Tag color="default">不计分</Tag>;
+  const metrics = useMemo(
+    () => ({
+      totalResults: resultsQuery.data?.total ?? 0,
+      openFindings: findingsQuery.data?.total ?? 0,
+      criticalResults: results.filter((item) => item.resultLevel === "CRITICAL").length,
+      assignedFindings: findings.filter((item) => item.status === "ASSIGNED").length,
+    }),
+    [findings, findingsQuery.data?.total, results, resultsQuery.data?.total],
+  );
+
+  function refreshAll() {
+    resultsQuery.refetch();
+    findingsQuery.refetch();
+  }
+
+  function openFindingDrawer(finding: QualityFinding) {
+    setSelectedFinding(finding);
+    setDispatchFeedback(null);
+    dispatchForm.setFieldsValue({
+      responsibleDepartmentId: finding.responsibleDepartmentId ?? "",
+      assigneeUserId: "",
+      dueAt: defaultDueAt(finding.dueAt ?? finding.createdAt),
+    });
+    setDrawerOpen(true);
+  }
+
+  async function onDispatchRectification(values: DispatchFormValues) {
+    if (!drawerFinding) {
+      return;
     }
-    const colorClass = score >= 90 ? "text-emerald-500" : "text-rose-500";
-    return <span className={`font-bold text-sm ${colorClass}`}>{score.toFixed(1)}分</span>;
-  };
-
-  const renderLevelTag = (level: EvaluationResultLevel) => {
-    switch (level) {
-      case "PASS":
-        return <Tag color="success">达标</Tag>;
-      case "ATTENTION":
-        return <Tag color="warning">需关注</Tag>;
-      case "NON_COMPLIANT":
-        return <Tag color="error">缺陷</Tag>;
-      case "CRITICAL":
-        return (
-          <Tag className="border-rose-500 bg-rose-50 text-rose-600 font-semibold">严重红线</Tag>
-        );
-      default:
-        return <Tag>{level}</Tag>;
+    const responsibleDepartmentIdValue = values.responsibleDepartmentId.trim();
+    const dueAt = values.dueAt.trim();
+    try {
+      await dispatchMutation.mutateAsync({
+        request: {
+          findingId: drawerFinding.findingId,
+          responsibleDepartmentId: responsibleDepartmentIdValue,
+          assigneeUserId: optionalText(values.assigneeUserId),
+          dueAt,
+        },
+        idempotencyKey: buildDispatchIdempotencyKey(
+          drawerFinding.findingId,
+          responsibleDepartmentIdValue,
+          dueAt,
+        ),
+      });
+      setDispatchFeedback({ type: "success", text: "整改任务已派发" });
+      refreshAll();
+    } catch (error: unknown) {
+      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "整改任务派发失败") });
     }
-  };
+  }
 
-  const columns: TableProps<EvaluationResult>["columns"] = [
+  const resultColumns: TableProps<EvaluationResult>["columns"] = [
     {
-      title: "指标编码",
-      dataIndex: "indicatorCode",
-      key: "indicatorCode",
-      className: "font-semibold text-slate-700",
+      title: "指标与版本",
+      key: "indicator",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.indicatorCode}</Text>
+          <Text type="secondary">v{record.indicatorVersion}</Text>
+        </Space>
+      ),
     },
     {
-      title: "考核得分",
-      dataIndex: "scoreValue",
-      key: "scoreValue",
-      render: (score: number | undefined) => renderScoreTag(score),
+      title: "评估对象",
+      key: "subject",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag>{subjectTypeLabel(record.subjectType)}</Tag>
+          <Text type="secondary">{record.subjectRefId}</Text>
+        </Space>
+      ),
     },
     {
-      title: "评估级别",
+      title: "级别",
       dataIndex: "resultLevel",
       key: "resultLevel",
       render: (level: EvaluationResultLevel) => renderLevelTag(level),
     },
     {
-      title: "命中标志",
-      dataIndex: "hitFlag",
-      key: "hitFlag",
-      render: (hit: boolean) =>
-        hit ? (
-          <Tooltip title="评估项达标">
-            <CheckCircleOutlined className="text-emerald-500 text-base" />
-          </Tooltip>
-        ) : (
-          <Tooltip title="评估项未达标">
-            <WarningOutlined className="text-rose-500 text-base" />
-          </Tooltip>
-        ),
+      title: "得分",
+      dataIndex: "scoreValue",
+      key: "scoreValue",
+      render: (score: number | undefined) => renderScoreTag(score),
     },
     {
-      title: "质量事实审计摘要",
-      dataIndex: "evidenceSummary",
-      key: "evidenceSummary",
-      className: "text-slate-600 text-xs",
-    },
-    {
-      title: "评估科室",
-      dataIndex: "responsibleDepartmentId",
-      key: "responsibleDepartmentId",
-      render: (dept: string | undefined) => (
-        <Tag className="border-slate-100 bg-slate-50 text-slate-500">{dept || "全院"}</Tag>
+      title: "病历证据",
+      key: "evidence",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.evidenceSummary}</Text>
+          {record.sourceRef ? <Text type="secondary">{record.sourceRef}</Text> : null}
+        </Space>
       ),
     },
     {
-      title: "扫描计算时间",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (date: string | undefined) => (
-        <span className="text-slate-400 text-xs">{date ? date.substring(0, 16) : "--"}</span>
+      title: "责任科室",
+      dataIndex: "responsibleDepartmentId",
+      key: "responsibleDepartmentId",
+      render: (department: string | undefined) => <Tag>{department ?? "全院"}</Tag>,
+    },
+    {
+      title: "traceId",
+      dataIndex: "traceId",
+      key: "traceId",
+      render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
+    },
+  ];
+
+  const findingColumns: TableProps<QualityFinding>["columns"] = [
+    {
+      title: "问题",
+      key: "finding",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.title}</Text>
+          <Text type="secondary">{record.findingCode}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "级别 / 状态",
+      key: "severity",
+      render: (_, record) => (
+        <Space wrap>
+          {severityTag(record.severity)}
+          {findingStatusTag(record.status)}
+        </Space>
+      ),
+    },
+    {
+      title: "关联指标 / 结果",
+      key: "link",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.indicatorId}</Text>
+          <Text type="secondary">{record.resultId}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "病历证据",
+      dataIndex: "evidenceSummary",
+      key: "evidenceSummary",
+      render: (evidence: string) => <Text>{evidence}</Text>,
+    },
+    {
+      title: "责任科室",
+      dataIndex: "responsibleDepartmentId",
+      key: "responsibleDepartmentId",
+      render: (department: string | undefined) => <Tag>{department ?? "未指定"}</Tag>,
+    },
+    {
+      title: "traceId",
+      dataIndex: "traceId",
+      key: "traceId",
+      render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_, record) => (
+        <Button
+          aria-label="查看问题详情"
+          icon={<AuditOutlined />}
+          onClick={() => openFindingDrawer(record)}
+        >
+          查看问题详情
+        </Button>
       ),
     },
   ];
 
   return (
-    <PageShell
-      title="评估结果"
-      description="汇总真实质控扫描结果，顶部指标只按当前查询返回的数据计算。"
-    >
-      <Space direction="vertical" size="large" className="w-full">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <>
+      <PageShell
+        title="评估结果"
+        description="按真实评估结果追溯问题证据"
+        extras={
+          <Button aria-label="刷新评估结果" icon={<ReloadOutlined />} onClick={refreshAll}>
+            刷新
+          </Button>
+        }
+        state={resolvePageState(
+          resultsQuery.isLoading || findingsQuery.isLoading,
+          resultsQuery.isError || findingsQuery.isError,
+          getResponseStatus(error),
+          results,
+          findings,
+        )}
+        stateProps={{
+          title: parsedError?.message ?? "当前筛选下暂无真实评估结果",
+          description: parsedError
+            ? "请稍后重试，或带 traceId 联系信息科核查。"
+            : "后端当前没有返回符合筛选条件的结果或问题。",
+          traceId: parsedError?.traceId,
+          onRetry: refreshAll,
+        }}
+      >
+        <Space direction="vertical" size="large" className="mk-full-width">
           <Card>
-            <StatisticLine
-              icon={<DatabaseOutlined className="text-xl" />}
-              label="真实评估结果总数"
-              value={`${metrics.totalResults} 例`}
-            />
-          </Card>
-          <Card>
-            <StatisticLine
-              icon={<MinusCircleOutlined className="text-xl" />}
-              label="当前页结果数"
-              value={`${metrics.currentPageTotal} 例`}
-            />
-          </Card>
-          <Card>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-slate-500 text-xs font-semibold">当前页达标率</div>
-                <span className="text-emerald-500 font-bold text-xs">
-                  {metrics.complianceRate}%
-                </span>
-              </div>
-              <Progress percent={metrics.complianceRate} size="small" showInfo={false} />
-            </div>
-          </Card>
-          <Card>
-            <StatisticLine
-              icon={<WarningOutlined className="text-xl" />}
-              label="当前页缺陷/红线"
-              value={`${metrics.defectCount} 项`}
-              danger
-            />
-          </Card>
-        </div>
-
-        <Card>
-          <Space wrap className="w-full justify-between">
-            <Space wrap>
-              <Input
-                placeholder="检索指标编码"
-                prefix={<SearchOutlined className="text-slate-400" />}
-                className="w-48"
-                value={filterCode}
-                onChange={(event) => setFilterCode(event.target.value)}
-                onPressEnter={() => refetch()}
-              />
+            <Space wrap size="middle" align="center">
               <Select
-                placeholder="评估等级"
-                allowClear
-                value={filterLevel}
-                className="w-40"
-                onChange={setFilterLevel}
+                aria-label="评估级别"
+                value={resultLevel}
+                className="mk-select-narrow"
+                onChange={setResultLevel}
                 options={[
-                  { value: "PASS", label: "通过达标" },
-                  { value: "ATTENTION", label: "需关注" },
                   { value: "NON_COMPLIANT", label: "质控缺陷" },
                   { value: "CRITICAL", label: "严重红线" },
+                  { value: "ATTENTION", label: "需关注" },
+                  { value: "PASS", label: "达标" },
+                ]}
+              />
+              <Select
+                aria-label="问题状态"
+                value={findingStatus}
+                className="mk-select-narrow"
+                onChange={setFindingStatus}
+                options={[
+                  { value: "NEW", label: "未整改" },
+                  { value: "ASSIGNED", label: "已派发" },
+                  { value: "REMEDIATING", label: "整改中" },
+                  { value: "CLOSED", label: "已闭环" },
+                  { value: "WAIVED", label: "已豁免" },
                 ]}
               />
               <Input
-                placeholder="考核科室"
-                className="w-48"
-                value={filterDept}
-                onChange={(event) => setFilterDept(event.target.value)}
-                onPressEnter={() => refetch()}
+                aria-label="责任科室筛选"
+                className="mk-input-narrow"
+                placeholder="责任科室"
+                value={departmentId}
+                onChange={(event) => setDepartmentId(event.target.value)}
+                onPressEnter={refreshAll}
               />
-              <Button type="primary" onClick={() => refetch()}>
-                过滤查询
-              </Button>
             </Space>
-            <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-              刷新
-            </Button>
+          </Card>
+
+          <Space wrap size="middle" className="mk-full-width">
+            <MetricCard
+              icon={<DatabaseOutlined />}
+              title="真实评估结果总数"
+              value={`${metrics.totalResults} 例`}
+            />
+            <MetricCard
+              icon={<WarningOutlined />}
+              title="待整改问题总数"
+              value={`${metrics.openFindings} 条`}
+              danger={metrics.openFindings > 0}
+            />
+            <MetricCard
+              icon={<WarningOutlined />}
+              title="当前页严重红线"
+              value={`${metrics.criticalResults} 条`}
+              danger={metrics.criticalResults > 0}
+            />
+            <MetricCard
+              icon={<CheckCircleOutlined />}
+              title="当前页已派发"
+              value={`${metrics.assignedFindings} 条`}
+            />
           </Space>
-        </Card>
 
-        {isError && (
-          <Alert
-            type="error"
-            showIcon
-            message="评估结果接口读取失败"
-            description="请检查登录权限、租户上下文或评估服务状态。"
-          />
-        )}
+          <Card title="评估结果台账">
+            <Table
+              dataSource={results}
+              columns={resultColumns}
+              rowKey={(record) => record.resultId}
+              loading={resultsQuery.isLoading}
+              locale={{ emptyText: <Empty description="暂无真实评估结果" /> }}
+              pagination={{
+                total: resultsQuery.data?.total ?? 0,
+                pageSize: 20,
+                showSizeChanger: false,
+              }}
+            />
+          </Card>
 
-        <Card title="扫描明细结果台账">
-          <Table
-            dataSource={results}
-            columns={columns}
-            rowKey={(record) => record.resultId}
-            loading={isLoading}
-            locale={{ emptyText: <Empty description="暂无真实评估结果" /> }}
-            pagination={{
-              total: pageData?.total ?? 0,
-              pageSize: 10,
-              showSizeChanger: false,
-            }}
-          />
-        </Card>
-      </Space>
-    </PageShell>
+          <Card title="质控问题与整改入口">
+            <Table
+              dataSource={findings}
+              columns={findingColumns}
+              rowKey={(record) => record.findingId}
+              loading={findingsQuery.isLoading}
+              locale={{ emptyText: <Empty description="暂无待整改质控问题" /> }}
+              pagination={{
+                total: findingsQuery.data?.total ?? 0,
+                pageSize: 20,
+                showSizeChanger: false,
+              }}
+            />
+          </Card>
+        </Space>
+      </PageShell>
+
+      <Drawer
+        title="问题详情与病历证据"
+        open={drawerOpen}
+        width={720}
+        onClose={() => setDrawerOpen(false)}
+      >
+        {drawerFinding ? (
+          <Space direction="vertical" size="large" className="mk-full-width">
+            {findingDetailQuery.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                message={getApiErrorMessage(findingDetailQuery.error, "问题详情读取失败")}
+              />
+            ) : null}
+
+            <Descriptions bordered column={1}>
+              <Descriptions.Item label="问题编码">{drawerFinding.findingCode}</Descriptions.Item>
+              <Descriptions.Item label="关联指标">{drawerFinding.indicatorId}</Descriptions.Item>
+              <Descriptions.Item label="关联结果">{drawerFinding.resultId}</Descriptions.Item>
+              <Descriptions.Item label="评估运行">{drawerFinding.runId}</Descriptions.Item>
+              <Descriptions.Item label="级别">
+                {severityTag(drawerFinding.severity)}
+              </Descriptions.Item>
+              <Descriptions.Item label="状态">
+                {findingStatusTag(drawerFinding.status)}
+              </Descriptions.Item>
+              <Descriptions.Item label="责任科室">
+                {drawerFinding.responsibleDepartmentId ?? "未指定"}
+              </Descriptions.Item>
+              <Descriptions.Item label="traceId">{drawerFinding.traceId ?? "--"}</Descriptions.Item>
+            </Descriptions>
+
+            <Alert
+              type="info"
+              showIcon
+              message="病历证据"
+              description={drawerFinding.evidenceSummary}
+            />
+
+            <Card title="整改任务状态">
+              {selectedFindingDetail?.task ? (
+                <TaskSummary task={selectedFindingDetail.task} />
+              ) : (
+                <Text type="secondary">暂无整改任务</Text>
+              )}
+            </Card>
+
+            {selectedFindingDetail?.reviews.length ? (
+              <Card title="复核记录">
+                <Space direction="vertical" size="small" className="mk-full-width">
+                  {selectedFindingDetail.reviews.map((review) => (
+                    <Alert
+                      key={review.reviewId}
+                      type="info"
+                      message={`${review.decision} · ${review.reviewedBy}`}
+                      description={review.comments ?? review.evidenceRef ?? "无补充说明"}
+                    />
+                  ))}
+                </Space>
+              </Card>
+            ) : null}
+
+            {drawerFinding.status === "NEW" ? (
+              <Card title="派发整改任务">
+                {dispatchFeedback ? (
+                  <Alert
+                    className="mk-margin-bottom"
+                    type={dispatchFeedback.type}
+                    showIcon
+                    message={dispatchFeedback.text}
+                  />
+                ) : null}
+                <Form
+                  form={dispatchForm}
+                  layout="vertical"
+                  onFinish={onDispatchRectification}
+                  preserve={false}
+                >
+                  <Form.Item
+                    name="responsibleDepartmentId"
+                    label="责任科室"
+                    rules={[{ required: true, message: "请输入责任科室" }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="assigneeUserId" label="责任人">
+                    <Input placeholder="可选" />
+                  </Form.Item>
+                  <Form.Item
+                    name="dueAt"
+                    label="整改截止时间"
+                    rules={[{ required: true, message: "请输入整改截止时间" }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Button
+                    aria-label="派发整改任务"
+                    type="primary"
+                    htmlType="submit"
+                    icon={<SendOutlined />}
+                    loading={dispatchMutation.isPending}
+                  >
+                    派发整改任务
+                  </Button>
+                </Form>
+              </Card>
+            ) : (
+              <Alert
+                type="info"
+                showIcon
+                message="当前问题不支持直接派发"
+                description="只有未整改问题可在本页创建整改派发任务。"
+              />
+            )}
+          </Space>
+        ) : null}
+      </Drawer>
+    </>
   );
 }
 
-function StatisticLine({
+function MetricCard({
   icon,
-  label,
+  title,
   value,
   danger = false,
 }: {
-  icon: React.ReactNode;
-  label: string;
+  icon: ReactNode;
+  title: string;
   value: string;
   danger?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <span
-        className={`flex items-center justify-center text-slate-600 ${danger ? "text-rose-600" : ""}`}
-      >
-        {icon}
-      </span>
-      <div>
-        <div className="text-slate-500 text-xs font-semibold">{label}</div>
-        <div className={`text-2xl font-bold mt-1 ${danger ? "text-rose-500" : "text-slate-800"}`}>
-          {value}
-        </div>
-      </div>
-    </div>
+    <Card className="mk-card-compact">
+      <Space size="middle">
+        <span className={danger ? "text-rose-600" : "text-slate-600"}>{icon}</span>
+        <Space direction="vertical" size={0}>
+          <Text type="secondary">{title}</Text>
+          <Text strong>{value}</Text>
+        </Space>
+      </Space>
+    </Card>
   );
+}
+
+function TaskSummary({ task }: { task: RectificationTask }) {
+  return (
+    <Descriptions bordered column={1}>
+      <Descriptions.Item label="整改任务">{task.taskId}</Descriptions.Item>
+      <Descriptions.Item label="任务状态">{task.status}</Descriptions.Item>
+      <Descriptions.Item label="责任科室">{task.responsibleDepartmentId}</Descriptions.Item>
+      <Descriptions.Item label="责任人">{task.assigneeUserId ?? "未指定"}</Descriptions.Item>
+      <Descriptions.Item label="截止时间">{formatTime(task.dueAt)}</Descriptions.Item>
+    </Descriptions>
+  );
+}
+
+function renderScoreTag(score: number | undefined) {
+  if (score === undefined || score === null) {
+    return <Tag color="default">不计分</Tag>;
+  }
+  return <Tag color={score >= 90 ? "success" : "error"}>{score.toFixed(1)}分</Tag>;
+}
+
+function renderLevelTag(level: EvaluationResultLevel) {
+  switch (level) {
+    case "PASS":
+      return <Tag color="success">达标</Tag>;
+    case "ATTENTION":
+      return <Tag color="warning">需关注</Tag>;
+    case "NON_COMPLIANT":
+      return <Tag color="error">质控缺陷</Tag>;
+    case "CRITICAL":
+      return <Tag color="red">严重红线</Tag>;
+    default:
+      return <Tag>{level}</Tag>;
+  }
+}
+
+function severityTag(severity: QualityFindingSeverity) {
+  const labels: Record<QualityFindingSeverity, string> = {
+    P0: "P0 安全红线",
+    P1: "P1 高危",
+    P2: "P2 中危",
+    P3: "P3 低危",
+  };
+  const colors: Record<QualityFindingSeverity, string> = {
+    P0: "red",
+    P1: "volcano",
+    P2: "orange",
+    P3: "blue",
+  };
+  return <Tag color={colors[severity]}>{labels[severity] ?? severity}</Tag>;
+}
+
+function findingStatusTag(status: QualityFindingStatus) {
+  const labels: Record<QualityFindingStatus, string> = {
+    NEW: "未整改",
+    ASSIGNED: "已派发",
+    REMEDIATING: "整改中",
+    CLOSED: "已闭环",
+    WAIVED: "已豁免",
+  };
+  const colors: Record<QualityFindingStatus, string> = {
+    NEW: "error",
+    ASSIGNED: "processing",
+    REMEDIATING: "warning",
+    CLOSED: "success",
+    WAIVED: "default",
+  };
+  return <Tag color={colors[status]}>{labels[status] ?? status}</Tag>;
+}
+
+function subjectTypeLabel(subjectType: string) {
+  const labels: Record<string, string> = {
+    MEDICAL_RECORD: "病历",
+    PATIENT: "患者",
+    ENCOUNTER: "就诊",
+    CLAIM: "医保结算",
+    PATHWAY: "路径",
+    FOLLOWUP: "随访",
+  };
+  return labels[subjectType] ?? subjectType;
+}
+
+function resolvePageState(
+  loading: boolean,
+  error: boolean,
+  status: number | undefined,
+  results: EvaluationResult[],
+  findings: QualityFinding[],
+): PageStateKind {
+  if (loading) return "loading";
+  if (status === 401 || status === 403) return "forbidden";
+  if (error) return "error";
+  if (results.length === 0 && findings.length === 0) return "empty";
+  return "ready";
+}
+
+function getResponseStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === "number" ? response.status : undefined;
+}
+
+function optionalText(value: string | undefined) {
+  const text = value?.trim();
+  return text ? text : undefined;
+}
+
+function defaultDueAt(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+  return value;
+}
+
+function formatTime(value: string | undefined) {
+  return value ? value.replace("T", " ").slice(0, 16) : "--";
+}
+
+function buildDispatchIdempotencyKey(
+  findingId: string,
+  responsibleDepartmentId: string,
+  dueAt: string,
+) {
+  return `qc-eval-result-dispatch-${findingId}-${responsibleDepartmentId}-${dueAt}`.slice(0, 160);
 }

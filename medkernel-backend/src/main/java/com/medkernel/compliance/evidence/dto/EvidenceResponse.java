@@ -18,6 +18,11 @@ public record EvidenceResponse(
     String evidenceSummary,
     String payloadSnapshot,
     String payloadHash,
+    String fileUri,
+    String fileDigest,
+    String signatureAlgorithm,
+    String signatureValue,
+    String signerPublicKey,
     boolean isValid,
     Instant createdAt,
     String createdBy
@@ -38,6 +43,11 @@ public record EvidenceResponse(
             entity.evidenceSummary(),
             entity.payloadSnapshot(),
             entity.payloadHash(),
+            entity.fileUri(),
+            entity.fileDigest(),
+            entity.signatureAlgorithm(),
+            entity.signatureValue(),
+            entity.signerPublicKey(),
             entity.isValid(),
             entity.createdAt(),
             entity.createdBy()

@@ -66,7 +66,13 @@ public final class DomainOwnershipCatalog {
         module("engine-llm", packages("com.medkernel.engine.llm"), prefixes("model_capability_"), tables()),
         module("engine-embed", packages("com.medkernel.engine.embed"), prefixes("embed_"), tables()),
         module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes("tenant_"), tables()),
-        module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables())
+        module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),
+        module("compliance-security", packages(
+            "com.medkernel.compliance.datapermission",
+            "com.medkernel.compliance.masking",
+            "com.medkernel.compliance.exportapproval",
+            "com.medkernel.compliance.interopassessment"),
+            prefixes("mk_compliance_"), tables())
     );
 
     private DomainOwnershipCatalog() {

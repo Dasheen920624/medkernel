@@ -51,12 +51,38 @@ public class QualityDashboardService {
     public QualityDashboardAlertsResponse alerts(QualityDashboardAlertFilter filter, int offset, int limit) {
         String tenantId = tenantId();
         QualityDashboardAlertFilter f = filter == null
-            ? new QualityDashboardAlertFilter(null, null, null, null)
+            ? new QualityDashboardAlertFilter(null, null, null, null, null)
             : filter;
         int safeOffset = Math.max(0, offset);
         int safeLimit = safeLimit(limit);
         refreshAlerts(tenantId, f.toDashboardFilter(), Instant.now());
         return queryAlerts(tenantId, f, safeOffset, safeLimit);
+    }
+
+    @Transactional
+    public QualityDashboardAlertResponse acknowledgeAlert(String alertId) {
+        if (alertId == null || alertId.isBlank()) {
+            throw ApiException.notFound("质控预警");
+        }
+        String tenantId = tenantId();
+        QualityDashboardAlertResponse current = alertById(tenantId, alertId);
+        if (current.status() == QualityDashboardAlertStatus.RESOLVED) {
+            throw ApiException.conflict("质控预警已闭环，不能确认");
+        }
+        if (current.status() == QualityDashboardAlertStatus.ACKNOWLEDGED) {
+            return current;
+        }
+        Instant now = Instant.now();
+        jdbc.update("""
+            UPDATE mk_quality_dashboard_alert
+               SET status = 'ACKNOWLEDGED',
+                   updated_at = ?,
+                   updated_by = ?
+             WHERE tenant_id = ?
+               AND alert_id = ?
+               AND status = 'OPEN'
+            """, Timestamp.from(now), actor(), tenantId, alertId);
+        return alertById(tenantId, alertId);
     }
 
     @Transactional(readOnly = true)
@@ -126,7 +152,7 @@ public class QualityDashboardService {
             String tenantId, QualityDashboardFilter filter, int offset, int limit) {
         return queryAlerts(tenantId,
             new QualityDashboardAlertFilter(filter.from(), filter.to(), filter.departmentId(),
-                QualityDashboardAlertStatus.OPEN),
+                QualityDashboardAlertStatus.OPEN, null),
             offset, limit);
     }
 
@@ -210,7 +236,7 @@ public class QualityDashboardService {
             UPDATE mk_quality_dashboard_alert
                SET department_id = ?,
                    severity = ?,
-                   status = 'OPEN',
+                   status = CASE WHEN status = 'RESOLVED' THEN 'OPEN' ELSE status END,
                    threshold_value = ?,
                    actual_value = ?,
                    title = ?,
@@ -307,7 +333,7 @@ public class QualityDashboardService {
     private long countAlerts(
             String tenantId, QualityDashboardFilter filter, QualityDashboardAlertStatus status) {
         QueryParts query = alertListQuery(tenantId,
-            new QualityDashboardAlertFilter(filter.from(), filter.to(), filter.departmentId(), status));
+            new QualityDashboardAlertFilter(filter.from(), filter.to(), filter.departmentId(), status, null));
         return count(new QueryParts(new StringBuilder("SELECT COUNT(*) FROM (" + query.sql() + ") t"), query.params()));
     }
 
@@ -324,6 +350,21 @@ public class QualityDashboardService {
         return new QualityDashboardAlertsResponse(items, offset, limit, total, offset + limit < total);
     }
 
+    private QualityDashboardAlertResponse alertById(String tenantId, String alertId) {
+        List<QualityDashboardAlertResponse> rows = jdbc.query("""
+            SELECT alert_id, alert_type, status, department_id, source_type, source_id, severity,
+                   threshold_code, threshold_value, actual_value, title, evidence_summary,
+                   created_at, updated_at, trace_id
+              FROM mk_quality_dashboard_alert
+             WHERE tenant_id = ?
+               AND alert_id = ?
+            """, (rs, rowNum) -> alertResponse(rs), tenantId, alertId);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("质控预警");
+        }
+        return rows.getFirst();
+    }
+
     private QueryParts alertListQuery(String tenantId, QualityDashboardAlertFilter filter) {
         QueryParts query = new QueryParts(new StringBuilder("""
             SELECT alert_id, alert_type, status, department_id, source_type, source_id, severity,
@@ -338,6 +379,14 @@ public class QualityDashboardService {
         if (filter.status() != null) {
             query.sql().append(" AND status = ?");
             query.params().add(filter.status().name());
+        }
+        if (filter.hasSeverity()) {
+            if ("HIGH_RISK".equalsIgnoreCase(filter.severity())) {
+                query.sql().append(" AND severity IN ('P0','P1')");
+            } else {
+                query.sql().append(" AND severity = ?");
+                query.params().add(filter.severity());
+            }
         }
         return query;
     }

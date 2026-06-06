@@ -9,12 +9,14 @@ import java.time.Instant;
  * @param to 截止时间（不含），按预警创建时间过滤
  * @param departmentId 责任科室过滤
  * @param status 预警状态过滤
+ * @param severity 预警级别过滤；HIGH_RISK 表示 P0/P1
  */
 public record QualityDashboardAlertFilter(
     Instant from,
     Instant to,
     String departmentId,
-    QualityDashboardAlertStatus status
+    QualityDashboardAlertStatus status,
+    String severity
 ) {
     QualityDashboardFilter toDashboardFilter() {
         return new QualityDashboardFilter(from, to, departmentId);
@@ -22,5 +24,9 @@ public record QualityDashboardAlertFilter(
 
     boolean hasDepartment() {
         return departmentId != null && !departmentId.isBlank();
+    }
+
+    boolean hasSeverity() {
+        return severity != null && !severity.isBlank() && !"ALL".equalsIgnoreCase(severity);
     }
 }
