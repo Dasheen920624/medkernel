@@ -1107,6 +1107,197 @@ class RuleDslEvaluatorTest {
                 assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA));
     }
 
+    @Test
+    void isStaleMatchesWhenEventTimeOlderThanMaxAgeBeforeReferenceTime() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_stale",
+                    "value": {"maxAge": "PT24H", "referenceTime": "2026-06-06T00:00:00Z"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾结果偏旧，建议复查"}],
+              "explain": {"title": "结果陈旧", "reason": "血钾结果早于参考时刻减时效"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 5.0, "unit": "mmol/L", "eventTime": "2026-06-01T00:00:00Z", "source": "LIS:K-1"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("is_stale");
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
+    void isStaleDoesNotMatchRecentEventTime() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_stale",
+                    "value": {"maxAge": "PT24H", "referenceTime": "2026-06-06T06:00:00Z"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "结果陈旧", "reason": "结果较新不算陈旧"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 5.0, "unit": "mmol/L", "eventTime": "2026-06-06T00:00:00Z", "source": "LIS:K-2"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
+    @Test
+    void isStaleRejectsMissingTimestampWithoutGuessing() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_stale",
+                    "value": {"maxAge": "PT24H", "referenceTime": "2026-06-06T00:00:00Z"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "结果陈旧", "reason": "无时间戳不臆测陈旧"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"lab": {"potassium": {"value": 5.0, "unit": "mmol/L", "source": "LIS:K-3"}}}
+            """)))
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.INSUFFICIENT_DATA);
+                assertThat(exception.getMessage()).contains("lab.potassium");
+            });
+    }
+
+    @Test
+    void isStaleProducesMissWhenFactAbsent() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "ORDER_SIGN",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_stale",
+                    "value": {"maxAge": "PT24H", "referenceTime": "2026-06-06T00:00:00Z"}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "结果陈旧", "reason": "缺值不臆测"}
+            }
+            """), read("""
+            {"lab": {"sodium": {"value": 140, "unit": "mmol/L", "eventTime": "2026-06-01T00:00:00Z"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("missing").asBoolean()).isTrue();
+    }
+
+    @Test
+    void isCriticalMatchesWhenCriticalFlagPresentByDefault() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "is_critical"}]},
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "危急值需回报"}],
+              "explain": {"title": "危急值", "reason": "检验项被标记危急值"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 7.2, "unit": "mmol/L", "criticalFlag": "HH", "source": "LIS:K-1"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("operator").asText()).isEqualTo("is_critical");
+        assertThat(evidence.path("matched").asBoolean()).isTrue();
+    }
+
+    @Test
+    void isCriticalMatchesAuthorDeclaredCriticalValue() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_critical",
+                    "value": {"criticalValues": ["HH", "LL"]}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "危急值需回报"}],
+              "explain": {"title": "危急值", "reason": "命中作者声明的危急标记"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 7.2, "unit": "mmol/L", "criticalFlag": "hh", "source": "LIS:K-2"}}}
+            """));
+
+        assertThat(result.hit()).isTrue();
+    }
+
+    @Test
+    void isCriticalDoesNotMatchFlagOutsideDeclaredSet() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {
+                "all": [
+                  {
+                    "fact": "lab.potassium",
+                    "operator": "is_critical",
+                    "value": {"criticalValues": ["HH", "LL"]}
+                  }
+                ]
+              },
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "危急值", "reason": "未命中声明集"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "criticalFlag": "N", "source": "LIS:K-3"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+    }
+
+    @Test
+    void isCriticalDoesNotMatchWhenFlagAbsent() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "LAB_RESULT",
+              "when": {"all": [{"fact": "lab.potassium", "operator": "is_critical"}]},
+              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "explain": {"title": "危急值", "reason": "无危急标记即非危急"}
+            }
+            """), read("""
+            {"lab": {"potassium": {"value": 4.2, "unit": "mmol/L", "source": "LIS:K-4"}}}
+            """));
+
+        assertThat(result.hit()).isFalse();
+        JsonNode evidence = result.explanation().path("conditionEvidence").get(0);
+        assertThat(evidence.path("matched").asBoolean()).isFalse();
+        assertThat(evidence.path("missing").asBoolean()).isFalse();
+    }
+
     private JsonNode read(String source) throws Exception {
         return json.readTree(source);
     }

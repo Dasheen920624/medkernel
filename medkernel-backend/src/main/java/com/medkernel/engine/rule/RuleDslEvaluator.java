@@ -187,6 +187,8 @@ public class RuleDslEvaluator {
             case "above_ref" -> clinicalOperators.referenceRange(fact, actual, "above");
             case "below_ref" -> clinicalOperators.referenceRange(fact, actual, "below");
             case "is_missing" -> clinicalOperators.isMissing(actual);
+            case "is_critical" -> clinicalOperators.isCritical(actual, expected);
+            case "is_stale" -> clinicalOperators.isStale(fact, actual, expected);
             case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
             case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
             case "derived" -> clinicalOperators.derived(fact, context, expected);

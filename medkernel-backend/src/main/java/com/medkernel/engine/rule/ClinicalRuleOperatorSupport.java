@@ -55,6 +55,104 @@ final class ClinicalRuleOperatorSupport {
         return new Outcome(matched, actual, null, false, null, null, null, null);
     }
 
+    /**
+     * {@code is_critical}：Observation 危急值标记命中。{@code criticalFlag} 为来源系统自由文本，
+     * <b>不内置任何医学词表</b>：作者可经 {@code value.criticalValues} 声明判为危急的标记集（忽略大小写）；
+     * 未声明时按「存在非空标记即危急」（偏过报警的安全方向）。标记缺失即非危急；字段缺失按缺失。
+     */
+    Outcome isCritical(JsonNode actual, JsonNode expected) {
+        if (!exists(actual)) {
+            return new Outcome(false, actual, expected, true, null, null, null, null);
+        }
+        String flag = actual.isTextual()
+            ? (actual.asText().isBlank() ? null : actual.asText().trim())
+            : optionalText(actual, "criticalFlag");
+        boolean matched;
+        if (flag == null) {
+            matched = false;
+        } else if (expected != null && expected.has("criticalValues")) {
+            matched = matchesDeclaredCriticalValue(flag, expected.path("criticalValues"));
+        } else {
+            matched = true;
+        }
+        String source = actual.isObject() ? firstText(actual, "source", "sourceRef", "id") : null;
+        String formula = "criticalFlag=" + (flag == null ? "(none)" : flag);
+        return new Outcome(matched, actual, expected, false, null, null, source, formula);
+    }
+
+    private boolean matchesDeclaredCriticalValue(String flag, JsonNode criticalValues) {
+        if (!criticalValues.isArray()) {
+            throw invalid("is_critical.value.criticalValues 必须是数组");
+        }
+        String normalized = flag.trim().toLowerCase(Locale.ROOT);
+        for (JsonNode item : criticalValues) {
+            if (item.isTextual() && item.asText().trim().toLowerCase(Locale.ROOT).equals(normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * {@code is_stale}：临床取值过旧时命中——取值时间戳早于 {@code referenceTime − maxAge}。
+     * {@code maxAge}（ISO-8601 Duration，须 &gt; 0）与 {@code referenceTime}（ISO-8601 Instant）由 DSL 给定，
+     * 可复现不用 wall-clock（{@code QualityStatus} 无 STALE 态，故按事件时龄判定）。无时间戳诚实抛
+     * {@code INSUFFICIENT_DATA}，不臆测；字段缺失按缺失。
+     */
+    Outcome isStale(String fact, JsonNode actual, JsonNode expected) {
+        requireObject(expected, "is_stale.value");
+        Duration maxAge = parseStaleMaxAge(expected);
+        Instant referenceTime = parseStaleReferenceTime(expected);
+        if (!exists(actual)) {
+            return new Outcome(false, actual, expected, true, null, null, null, null);
+        }
+        Instant eventTime = staleEventTime(actual);
+        if (eventTime == null) {
+            throw insufficientData("字段 " + fact + " 缺少时间戳，无法判断 is_stale");
+        }
+        boolean matched = eventTime.isBefore(referenceTime.minus(maxAge));
+        String source = actual.isObject() ? firstText(actual, "source", "sourceRef", "id") : null;
+        String formula = eventTime + " is_stale (> " + maxAge + " before " + referenceTime + ")";
+        return new Outcome(matched, actual, expected, false, null, null, source, formula);
+    }
+
+    private Duration parseStaleMaxAge(JsonNode expected) {
+        String raw = requiredText(expected, "maxAge");
+        Duration maxAge;
+        try {
+            maxAge = Duration.parse(raw);
+        } catch (RuntimeException exception) {
+            throw invalid("is_stale.value.maxAge 必须是 ISO-8601 Duration: " + raw);
+        }
+        if (maxAge.isZero() || maxAge.isNegative()) {
+            throw invalid("is_stale.value.maxAge 必须大于 0: " + raw);
+        }
+        return maxAge;
+    }
+
+    private Instant parseStaleReferenceTime(JsonNode expected) {
+        String raw = requiredText(expected, "referenceTime");
+        try {
+            return Instant.parse(raw);
+        } catch (RuntimeException exception) {
+            throw invalid("is_stale.value.referenceTime 必须是 ISO-8601 Instant: " + raw);
+        }
+    }
+
+    private Instant staleEventTime(JsonNode actual) {
+        if (actual.isObject()) {
+            return optionalInstant(actual, "eventTime", "observedAt", "time", "effectiveTime", "recordedAt");
+        }
+        if (actual.isTextual()) {
+            try {
+                return Instant.parse(actual.asText().trim());
+            } catch (RuntimeException exception) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private boolean hasClinicalValue(JsonNode actual) {
         if (!exists(actual)) {
             return false;
