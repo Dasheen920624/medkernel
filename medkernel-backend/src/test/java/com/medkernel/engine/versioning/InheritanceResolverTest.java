@@ -476,6 +476,155 @@ class InheritanceResolverTest {
             .hasMessageContaining("未找到");
     }
 
+    // —— 解析矩阵（1.5）：模式(REPLACE/DISABLE) × 传播(INHERITABLE/EXCLUSIVE) × 组织层 × 平台基线 的交互组合，
+    //    重点锁定 1.3 平台前置基线与 1.2 传播/停用判定的接缝，防止后续 P1 各域接入回归 ——
+
+    @Test
+    void exclusiveReplaceSkippedFallsThroughToPlatformBaseline() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion hospitalExclusive =
+            version("av-hosp-excl", "1.0.0-hosp-a", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
+        InheritanceOverride exclusive = override(
+            "io-hosp-excl", platformV0.versionId(), hospitalExclusive.versionId(), HOSP_PATH,
+            "仅本院镇痛", "本院专用不下沉", "仅 HOSP-A 本级", InheritancePropagation.EXCLUSIVE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", dept.id())).thenReturn(List.of(group, hospital, dept));
+        stubActiveAt(HOSP_PATH, hospitalExclusive);
+        stubOverride(hospitalExclusive, exclusive);
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
+
+        // 祖先 EXCLUSIVE 覆盖不下沉到科室，集团无版本 → 前置回退平台权威基线
+        assertThat(resolved.version()).isEqualTo(platformV0);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.disabled()).isFalse();
+    }
+
+    @Test
+    void exclusiveDisableSkippedFallsThroughToPlatformBaseline() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
+        InheritanceOverride disable = disableOverride(
+            "io-disable-excl", platformV0.versionId(), HOSP_PATH, InheritancePropagation.EXCLUSIVE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", dept.id())).thenReturn(List.of(group, hospital, dept));
+        stubDisableAt(HOSP_PATH, disable);
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
+
+        // 祖先 EXCLUSIVE 停用不下沉，科室不被停用 → 回退平台权威基线
+        assertThat(resolved.disabled()).isFalse();
+        assertThat(resolved.version()).isEqualTo(platformV0);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+    }
+
+    @Test
+    void inheritableReplaceShadowsPlatformBaselineForDescendant() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion groupOverride =
+            version("av-group-ovr", "1.0.0-grp", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "9.9.9");
+        InheritanceOverride inheritable = override(
+            "io-group-inh", platformV0.versionId(), groupOverride.versionId(), GROUP_PATH,
+            "集团定制阈值", "集团统一口径", "集团全域", InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubActiveAt(GROUP_PATH, groupOverride);
+        stubOverride(groupOverride, inheritable);
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        // 集团 INHERITABLE 覆盖下沉到医院，遮蔽平台基线（ORG 经继承优先于平台）
+        assertThat(resolved.version()).isEqualTo(groupOverride);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.ORG);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isTrue();
+    }
+
+    @Test
+    void inheritableDisableShadowsPlatformBaselineForDescendant() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
+        InheritanceOverride disable = disableOverride(
+            "io-group-disable", platformV0.versionId(), GROUP_PATH, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubDisableAt(GROUP_PATH, disable);
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        // 集团 INHERITABLE 停用下沉到医院，停用优先于回退平台基线（资产在该机构被关闭）
+        assertThat(resolved.disabled()).isTrue();
+        assertThat(resolved.version()).isNull();
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.sourceOrgPath()).isEqualTo(GROUP_PATH);
+    }
+
+    @Test
+    void deepestOrgReplaceWinsOverGroupAndPlatform() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion groupOverride =
+            version("av-group-ovr", "1.0.0-grp", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion hospitalOverride =
+            version("av-hosp-ovr", "1.0.0-hosp", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion platformV0 = platformVersion("av-platform-v0", "9.9.9");
+        InheritanceOverride groupInh = override(
+            "io-grp", platformV0.versionId(), groupOverride.versionId(), GROUP_PATH,
+            "集团层", "集团口径", "集团全域", InheritancePropagation.INHERITABLE);
+        InheritanceOverride hospInh = override(
+            "io-hosp", groupOverride.versionId(), hospitalOverride.versionId(), HOSP_PATH,
+            "本院层", "本院口径", "本院全域", InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", dept.id())).thenReturn(List.of(group, hospital, dept));
+        stubActiveAt(GROUP_PATH, groupOverride);
+        stubActiveAt(HOSP_PATH, hospitalOverride);
+        stubOverride(groupOverride, groupInh);
+        stubOverride(hospitalOverride, hospInh);
+        stubPlatformBaseline(platformV0);
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
+
+        // 最具体优先：科室回溯先命中医院 INHERITABLE 覆盖，集团与平台基线均被遮蔽
+        assertThat(resolved.version()).isEqualTo(hospitalOverride);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.ORG);
+        assertThat(resolved.inherited()).isTrue();
+        assertThat(resolved.overridden()).isTrue();
+    }
+
+    private void stubActiveAt(String orgPath, AssetVersion activeVersion) {
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(activeVersion));
+    }
+
+    private void stubOverride(AssetVersion overrideVersion, InheritanceOverride record) {
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", overrideVersion.versionId()))
+            .thenReturn(Optional.of(record));
+    }
+
     private void stubPlatformBaseline(AssetVersion platformVersion) {
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             PlatformAuthority.PLATFORM_TENANT_ID,
