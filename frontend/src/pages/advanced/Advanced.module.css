@@ -20,6 +20,12 @@
   gap: calc(var(--mk-unit) * 16);
 }
 
+.actionsRight {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
 .searchWide {
   width: min(calc(var(--mk-unit) * 360), 100%);
 }

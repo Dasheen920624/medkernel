@@ -48,6 +48,15 @@ class SecurityConfigSmokeTest {
     }
 
     @Test
+    void sensitiveSystemEndpointReturns401WithoutToken() throws Exception {
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context)
+            .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
+            .build();
+        mvc.perform(get("/api/v1/system/runtime"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void filterChainBeanIsRegistered() {
         assertThat(context.getBean(org.springframework.security.web.SecurityFilterChain.class))
             .as("SecurityFilterChain bean registered")

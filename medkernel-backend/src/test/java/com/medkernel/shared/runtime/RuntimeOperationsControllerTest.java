@@ -29,12 +29,12 @@ class RuntimeOperationsControllerTest {
     MockMvc mvc;
 
     /**
-     * 验证在没有授予 system.read 权限时，接口是否被物理安全拦截为 403 Forbidden。
+     * 验证未认证请求在进入动作权限判断前被认证层拦截。
      */
     @Test
-    void operationsSnapshotWithoutAuthIsForbidden() throws Exception {
+    void operationsSnapshotWithoutAuthIsUnauthorized() throws Exception {
         mvc.perform(get("/api/v1/system/operations"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isUnauthorized());
     }
 
     /**
@@ -81,6 +81,30 @@ class RuntimeOperationsControllerTest {
             .andExpect(jsonPath("$.data.backup.drillEvidence.status").value("NOT_AVAILABLE"))
             .andExpect(jsonPath("$.data.backup.drillEvidence.detail").value("尚未提供隔离恢复演练证据"))
             .andExpect(jsonPath("$.data.domesticProfile.databaseVendors", hasItems("达梦", "人大金仓")))
+            .andExpect(jsonPath("$.data.domesticCompatibility.overallStatus").value("WARN"))
+            .andExpect(jsonPath("$.data.domesticCompatibility.items[*].key", hasItems(
+                "os",
+                "jdk",
+                "database",
+                "crypto-provider",
+                "middleware",
+                "browser",
+                "ca"
+            )))
+            .andExpect(jsonPath("$.data.domesticCompatibility.items[?(@.key=='browser')].status", hasItem("UNKNOWN")))
+            .andExpect(content().string(not(containsString("password"))))
+            .andExpect(content().string(not(containsString("secret"))));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void domesticReportExportsTheSameRuntimeCompatibilitySnapshot() throws Exception {
+        mvc.perform(get("/api/v1/system/operations/domestic-report"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("text/plain"))
+            .andExpect(content().string(containsString("MedKernel 国产化自检报告")))
+            .andExpect(content().string(containsString("国产浏览器")))
+            .andExpect(content().string(containsString("不标记通过")))
             .andExpect(content().string(not(containsString("password"))))
             .andExpect(content().string(not(containsString("secret"))));
     }

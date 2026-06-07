@@ -1,8 +1,11 @@
 package com.medkernel.shared.runtime;
 
+import java.security.Security;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.actuate.health.HealthEndpoint;
@@ -11,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
+import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDomesticCheckItem;
+import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDomesticCompatibility;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDependencyStatus;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeDomesticProfile;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
@@ -29,6 +34,10 @@ public class RuntimeOperationsService {
     private static final String STATUS_DEGRADED = "DEGRADED";
     private static final String STATUS_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String STATUS_MODEL_DISABLED = "MODEL_DISABLED";
+    private static final String CHECK_PASS = "PASS";
+    private static final String CHECK_WARN = "WARN";
+    private static final String CHECK_FAIL = "FAIL";
+    private static final String CHECK_UNKNOWN = "UNKNOWN";
 
     private final Environment environment;
     private final HealthEndpoint healthEndpoint;
@@ -69,6 +78,10 @@ public class RuntimeOperationsService {
     public RuntimeOperationsSnapshot snapshot() {
         String healthStatus = healthEndpoint.health().getStatus().getCode();
         RuntimeBackupReadiness backup = backupReadiness();
+        RuntimeJvmMetadata jvm = jvmMetadata();
+        RuntimeOsMetadata os = osMetadata();
+        List<RuntimeDependencyStatus> dependencies = dependencies(healthStatus, backup);
+        RuntimeDomesticProfile domesticProfile = domesticProfile();
         return new RuntimeOperationsSnapshot(
             environment.getProperty("spring.application.name", "medkernel"),
             properties.getEnvironment(),
@@ -77,14 +90,45 @@ public class RuntimeOperationsService {
             properties.getMigrationLocation(),
             activeProfiles(),
             healthStatus,
-            jvmMetadata(),
-            osMetadata(),
+            jvm,
+            os,
             featureFlags(),
-            dependencies(healthStatus, backup),
+            dependencies,
             backup,
-            domesticProfile(),
+            domesticProfile,
+            domesticCompatibility(domesticProfile, jvm, os),
             Instant.now()
         );
+    }
+
+    /**
+     * 生成国产化自检报告文本。
+     *
+     * <p>报告内容仅来自 {@link #snapshot()} 暴露的安全字段，避免输出密钥、口令或内网连接串。
+     *
+     * @return 国产化自检文本报告
+     */
+    public String domesticReport() {
+        RuntimeOperationsSnapshot snapshot = snapshot();
+        RuntimeDomesticCompatibility compatibility = snapshot.domesticCompatibility();
+        StringBuilder report = new StringBuilder();
+        report.append("MedKernel 国产化自检报告\n");
+        report.append("服务: ").append(snapshot.serviceName()).append('\n');
+        report.append("环境: ").append(snapshot.environment()).append(" / ")
+            .append(snapshot.deploymentMode()).append('\n');
+        report.append("生成时间: ").append(snapshot.generatedAt()).append('\n');
+        report.append("整体状态: ").append(compatibility.overallStatus()).append('\n');
+        report.append("摘要: ").append(compatibility.summary()).append("\n\n");
+        for (RuntimeDomesticCheckItem item : compatibility.items()) {
+            report.append("[").append(item.status()).append("] ")
+                .append(item.displayName()).append(" (").append(item.category()).append(")\n")
+                .append("实际: ").append(item.actualValue()).append('\n')
+                .append("目标: ").append(item.expectedValue()).append('\n')
+                .append("原因: ").append(item.reason()).append('\n')
+                .append("建议: ").append(item.recommendation()).append('\n')
+                .append("证据: ").append(item.evidence()).append("\n\n");
+        }
+        return report.toString();
     }
 
     private List<String> activeProfiles() {
@@ -224,5 +268,281 @@ public class RuntimeOperationsService {
             profile.getCryptoAlgorithms(),
             profile.getEvidence()
         );
+    }
+
+    private RuntimeDomesticCompatibility domesticCompatibility(RuntimeDomesticProfile profile,
+                                                               RuntimeJvmMetadata jvm,
+                                                               RuntimeOsMetadata os) {
+        List<RuntimeDomesticCheckItem> items = List.of(
+            osCheck(profile, os),
+            jdkCheck(profile, jvm),
+            databaseCheck(profile),
+            cryptoProviderCheck(profile),
+            middlewareCheck(),
+            browserCheck(),
+            caCheck()
+        );
+        return new RuntimeDomesticCompatibility(
+            overallDomesticStatus(items),
+            domesticSummary(items),
+            items,
+            Instant.now()
+        );
+    }
+
+    private RuntimeDomesticCheckItem osCheck(RuntimeDomesticProfile profile, RuntimeOsMetadata os) {
+        String actual = safe(os.name()) + " " + safe(os.version()) + " " + safe(os.arch());
+        boolean matched = containsAnyTargetToken(actual, profile.targetOs());
+        return domesticItem(
+            "os",
+            "OS",
+            "操作系统",
+            matched ? CHECK_PASS : CHECK_WARN,
+            actual.strip(),
+            profile.targetOs(),
+            matched
+                ? "当前操作系统命中国产化目标清单。"
+                : "当前操作系统未命中国产化目标清单，不标记通过。",
+            matched
+                ? "保留当前目标机自检报告作为交付证据。"
+                : "在麒麟、统信或 openEuler 目标机重新运行自检，或修正 medkernel.runtime.domestic-profile.target-os。",
+            "System.getProperty(os.name/os.version/os.arch)"
+        );
+    }
+
+    private RuntimeDomesticCheckItem jdkCheck(RuntimeDomesticProfile profile, RuntimeJvmMetadata jvm) {
+        String actual = safe(jvm.javaVendor()) + " · " + safe(jvm.javaVersion()) + " · " + safe(jvm.vmName());
+        int actualMajor = javaMajor(jvm.javaVersion());
+        int targetMajor = firstNumber(profile.targetJdk());
+        boolean versionTooLow = targetMajor > 0 && actualMajor > 0 && actualMajor < targetMajor;
+        boolean vendorMatched = containsAnyTargetToken(jvm.javaVendor(), profile.targetJdk())
+            || containsAnyTargetToken(jvm.vmName(), profile.targetJdk());
+        String status = versionTooLow ? CHECK_FAIL : vendorMatched ? CHECK_PASS : CHECK_WARN;
+        return domesticItem(
+            "jdk",
+            "JDK",
+            "JDK 运行时",
+            status,
+            actual.strip(),
+            profile.targetJdk(),
+            switch (status) {
+                case CHECK_PASS -> "当前 JDK 厂商命中国产化目标清单。";
+                case CHECK_FAIL -> "当前 JDK 主版本低于国产化目标要求。";
+                default -> "当前 JDK 厂商未命中国产化目标清单，不标记通过。";
+            },
+            switch (status) {
+                case CHECK_PASS -> "保留当前 JDK 版本证据，随部署包归档。";
+                case CHECK_FAIL -> "升级到目标国产 JDK 主版本后重新运行自检。";
+                default -> "在 KAE-JDK 或 BiSheng JDK 目标运行时重新运行自检。";
+            },
+            "System.getProperty(java.vendor/java.version/java.vm.name)"
+        );
+    }
+
+    private RuntimeDomesticCheckItem databaseCheck(RuntimeDomesticProfile profile) {
+        String vendor = databaseVendor(properties.getDatabaseDialect());
+        String actual = safe(properties.getDatabaseDialect()) + " · " + safe(properties.getMigrationLocation());
+        boolean matched = containsIgnoreCase(profile.databaseVendors(), vendor)
+            || containsIgnoreCase(profile.databaseVendors(), properties.getDatabaseDialect());
+        return domesticItem(
+            "database",
+            "DATABASE",
+            "关系数据库",
+            matched ? CHECK_PASS : CHECK_WARN,
+            actual.strip(),
+            String.join(" / ", profile.databaseVendors()),
+            matched
+                ? "当前数据库方言命中国产化目标清单。"
+                : "当前数据库方言未命中国产化目标清单，不标记通过。",
+            matched
+                ? "保留五方言迁移 smoke 与当前 profile 证据。"
+                : "切换 dm 或 kingbase profile，并重新运行五方言迁移 smoke。",
+            "medkernel.runtime.database-dialect + medkernel.runtime.migration-location"
+        );
+    }
+
+    private RuntimeDomesticCheckItem cryptoProviderCheck(RuntimeDomesticProfile profile) {
+        Set<String> messageDigests = Security.getAlgorithms("MessageDigest");
+        Set<String> ciphers = Security.getAlgorithms("Cipher");
+        Set<String> signatures = Security.getAlgorithms("Signature");
+        boolean sm3 = containsAlgorithm(messageDigests, "SM3");
+        boolean sm4 = containsAlgorithm(ciphers, "SM4");
+        boolean sm2 = containsAlgorithm(signatures, "SM3WITHSM2") || containsAlgorithm(ciphers, "SM2");
+        boolean allRequired = true;
+        for (String algorithm : profile.cryptoAlgorithms()) {
+            String normalized = normalize(algorithm);
+            if (normalized.equals("SM3")) {
+                allRequired &= sm3;
+            } else if (normalized.equals("SM4")) {
+                allRequired &= sm4;
+            } else if (normalized.equals("SM2")) {
+                allRequired &= sm2;
+            }
+        }
+        String actual = "SM2=" + yesNo(sm2) + " / SM3=" + yesNo(sm3) + " / SM4=" + yesNo(sm4);
+        return domesticItem(
+            "crypto-provider",
+            "CRYPTO",
+            "国密算法 Provider",
+            allRequired ? CHECK_PASS : CHECK_WARN,
+            actual,
+            String.join(" / ", profile.cryptoAlgorithms()),
+            allRequired
+                ? "当前 JVM 已注册所需国密算法 Provider。"
+                : "国密算法 Provider 未全部注册，不标记通过。",
+            allRequired
+                ? "保留国密 smoke 与 Provider 版本证据。"
+                : "确认 BouncyCastle 或院方国密 Provider 已加载，并运行 SM2/SM3/SM4 smoke。",
+            "java.security.Security.getAlgorithms"
+        );
+    }
+
+    private RuntimeDomesticCheckItem middlewareCheck() {
+        boolean govcloud = activeProfiles().stream().anyMatch(profile -> normalize(profile).contains("GOVCLOUD"))
+            || normalize(properties.getDeploymentMode()).contains("GOVCLOUD");
+        return domesticItem(
+            "middleware",
+            "MIDDLEWARE",
+            "中间件与部署形态",
+            govcloud ? CHECK_PASS : CHECK_UNKNOWN,
+            properties.getDeploymentMode() + " · profiles=" + String.join("/", activeProfiles()),
+            "国产化交付 profile / 目标中间件探活",
+            govcloud
+                ? "当前已启用国产化交付 profile。"
+                : "当前未启用国产化交付 profile，且没有真实中间件探活，不标记通过。",
+            govcloud
+                ? "保留部署 profile 与中间件健康检查证据。"
+                : "在交付环境启用 govcloud/onprem profile，并接入目标中间件健康检查。",
+            "Spring activeProfiles + medkernel.runtime.deployment-mode"
+        );
+    }
+
+    private RuntimeDomesticCheckItem browserCheck() {
+        return domesticItem(
+            "browser",
+            "BROWSER",
+            "国产浏览器",
+            CHECK_UNKNOWN,
+            "服务端快照无法读取客户端浏览器",
+            "国产浏览器现场版本",
+            "服务端无法读取客户端浏览器，不标记通过。",
+            "在交付现场用目标国产浏览器打开本页，保存浏览器 UA 与页面验收截图。",
+            "现场浏览器验收"
+        );
+    }
+
+    private RuntimeDomesticCheckItem caCheck() {
+        return domesticItem(
+            "ca",
+            "CA",
+            "国密 CA / 身份证书链",
+            CHECK_UNKNOWN,
+            "未检测到院方国密 CA 连接器",
+            "院方国密 CA / OIDC / SAML 证书链",
+            "当前运行快照未发现真实院方国密 CA 连接器，不标记通过。",
+            "配置真实 IdP/CA 连接器并完成证书链探活后重新导出报告。",
+            "运行时依赖与身份委托配置"
+        );
+    }
+
+    private RuntimeDomesticCheckItem domesticItem(String key,
+                                                  String category,
+                                                  String displayName,
+                                                  String status,
+                                                  String actualValue,
+                                                  String expectedValue,
+                                                  String reason,
+                                                  String recommendation,
+                                                  String evidence) {
+        return new RuntimeDomesticCheckItem(
+            key,
+            category,
+            displayName,
+            status,
+            safe(actualValue),
+            safe(expectedValue),
+            safe(reason),
+            safe(recommendation),
+            safe(evidence)
+        );
+    }
+
+    private String overallDomesticStatus(List<RuntimeDomesticCheckItem> items) {
+        if (items.stream().anyMatch(item -> CHECK_FAIL.equals(item.status()))) {
+            return CHECK_FAIL;
+        }
+        if (items.stream().anyMatch(item -> CHECK_WARN.equals(item.status()) || CHECK_UNKNOWN.equals(item.status()))) {
+            return CHECK_WARN;
+        }
+        return CHECK_PASS;
+    }
+
+    private String domesticSummary(List<RuntimeDomesticCheckItem> items) {
+        long pass = items.stream().filter(item -> CHECK_PASS.equals(item.status())).count();
+        long warn = items.stream().filter(item -> CHECK_WARN.equals(item.status())).count();
+        long fail = items.stream().filter(item -> CHECK_FAIL.equals(item.status())).count();
+        long unknown = items.stream().filter(item -> CHECK_UNKNOWN.equals(item.status())).count();
+        return pass + " 项通过，" + warn + " 项警告，" + fail + " 项失败，" + unknown + " 项待现场确认";
+    }
+
+    private boolean containsAnyTargetToken(String actual, String expected) {
+        String normalizedActual = normalize(actual);
+        return Arrays.stream(safe(expected).split("[/、,，\\s]+"))
+            .map(String::strip)
+            .filter(token -> token.length() > 1)
+            .filter(token -> !normalize(token).equals("JDK"))
+            .filter(token -> !normalize(token).matches("\\d+"))
+            .map(this::normalize)
+            .anyMatch(normalizedActual::contains);
+    }
+
+    private boolean containsIgnoreCase(List<String> values, String candidate) {
+        String normalizedCandidate = normalize(candidate);
+        return values.stream().map(this::normalize).anyMatch(value -> value.equals(normalizedCandidate));
+    }
+
+    private String databaseVendor(String dialect) {
+        return switch (normalize(dialect)) {
+            case "DM", "DAMENG" -> "达梦";
+            case "KINGBASE", "KINGBASEES" -> "人大金仓";
+            case "POSTGRES", "POSTGRESQL" -> "PostgreSQL";
+            case "ORACLE" -> "Oracle";
+            case "H2" -> "H2";
+            default -> safe(dialect);
+        };
+    }
+
+    private boolean containsAlgorithm(Set<String> algorithms, String expected) {
+        String normalizedExpected = normalize(expected);
+        return algorithms.stream().map(this::normalize).anyMatch(algorithm -> algorithm.equals(normalizedExpected));
+    }
+
+    private int firstNumber(String value) {
+        for (String token : safe(value).split("\\D+")) {
+            if (!token.isBlank()) {
+                return Integer.parseInt(token);
+            }
+        }
+        return 0;
+    }
+
+    private int javaMajor(String javaVersion) {
+        String value = safe(javaVersion);
+        if (value.startsWith("1.")) {
+            return firstNumber(value.substring(2));
+        }
+        return firstNumber(value);
+    }
+
+    private String normalize(String value) {
+        return safe(value).replace("-", "").replace("_", "").replace(" ", "").toUpperCase(Locale.ROOT);
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String yesNo(boolean value) {
+        return value ? "已注册" : "未注册";
     }
 }

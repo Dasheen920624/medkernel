@@ -22,6 +22,7 @@ public record RuntimeOperationsSnapshot(
     List<RuntimeDependencyStatus> dependencies,
     RuntimeBackupReadiness backup,
     RuntimeDomesticProfile domesticProfile,
+    RuntimeDomesticCompatibility domesticCompatibility,
     Instant generatedAt
 ) {
 
@@ -108,6 +109,27 @@ public record RuntimeOperationsSnapshot(
         String targetJdk,
         List<String> databaseVendors,
         List<String> cryptoAlgorithms,
+        String evidence
+    ) {
+    }
+
+    public record RuntimeDomesticCompatibility(
+        String overallStatus,
+        String summary,
+        List<RuntimeDomesticCheckItem> items,
+        Instant checkedAt
+    ) {
+    }
+
+    public record RuntimeDomesticCheckItem(
+        String key,
+        String category,
+        String displayName,
+        String status,
+        String actualValue,
+        String expectedValue,
+        String reason,
+        String recommendation,
         String evidence
     ) {
     }

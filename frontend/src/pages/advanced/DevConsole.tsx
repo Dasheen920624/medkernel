@@ -1,22 +1,60 @@
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
-  Alert,
+  App,
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
+  Form,
+  Input,
+  Modal,
   Row,
+  Select,
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import {
+  ApiOutlined,
+  MinusCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SearchOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 
-import { useRuntimeOperations, useSystemRuntime } from "@/shared/api/hooks";
-import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
+import {
+  useDeveloperApiContracts,
+  useDisablePlugin,
+  useGrantPlugin,
+  usePlugins,
+  useRegisterPlugin,
+  useRuntimeOperations,
+  useSystemRuntime,
+  useTraceDiagnosis,
+} from "@/shared/api/hooks";
+import type {
+  DeveloperApiContract,
+  PluginCapabilityType,
+  PluginItem,
+  RuntimeDependencyStatus,
+  TracePayloadSummary,
+  TraceStateTransition,
+} from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
+
+import styles from "./Advanced.module.css";
+
+const { Text } = Typography;
+const { Search } = Input;
 
 const STATUS_LABEL: Record<string, string> = {
   UP: "正常",
@@ -38,6 +76,41 @@ const STATUS_COLOR: Record<string, string> = {
   UNKNOWN: "default",
 };
 
+const PLUGIN_STATUS_LABEL: Record<string, string> = {
+  PENDING_REVIEW: "待审核",
+  AUTHORIZED: "已授权",
+  DISABLED: "已禁用",
+};
+
+const PLUGIN_STATUS_COLOR: Record<string, string> = {
+  PENDING_REVIEW: "warning",
+  AUTHORIZED: "success",
+  DISABLED: "default",
+};
+
+const CAPABILITY_TYPE_LABEL: Record<PluginCapabilityType, string> = {
+  READ: "读取",
+  EXECUTE: "执行",
+  WRITE: "写入",
+};
+
+interface RegisterPluginFormValues {
+  pluginCode: string;
+  displayName: string;
+  capabilities: Array<{
+    capabilityKey: string;
+    capabilityType: PluginCapabilityType;
+    serviceContractId: string;
+    clinicalData: boolean;
+  }>;
+}
+
+interface GrantPluginFormValues {
+  capabilityKeys: string[];
+  approvalReason: string;
+  clinicalSafetyConfirmed: boolean;
+}
+
 function runtimeText(snapshot: Record<string, unknown> | undefined, keys: string[]): string | null {
   if (!snapshot) {
     return null;
@@ -54,9 +127,61 @@ function runtimeText(snapshot: Record<string, unknown> | undefined, keys: string
   return null;
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return "-";
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(timestamp);
+}
+
 export default function DevConsole() {
+  const { message, modal } = App.useApp();
   const systemRuntime = useSystemRuntime();
   const runtime = useRuntimeOperations();
+  const apiContracts = useDeveloperApiContracts();
+  const plugins = usePlugins();
+  const registerPlugin = useRegisterPlugin();
+  const grantPlugin = useGrantPlugin();
+  const disablePlugin = useDisablePlugin();
+  const [contractKeyword, setContractKeyword] = useState("");
+  const [traceId, setTraceId] = useState("");
+  const [submittedTraceId, setSubmittedTraceId] = useState("");
+  const trace = useTraceDiagnosis(submittedTraceId, Boolean(submittedTraceId));
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [grantTarget, setGrantTarget] = useState<PluginItem | null>(null);
+  const [registerForm] = Form.useForm<RegisterPluginFormValues>();
+  const [grantForm] = Form.useForm<GrantPluginFormValues>();
+
+  const contractOptions = useMemo(
+    () =>
+      (apiContracts.data?.contracts ?? []).map((contract) => ({
+        value: contract.id,
+        label: `${contract.title} · ${contract.id}`,
+      })),
+    [apiContracts.data],
+  );
+
+  const filteredContracts = useMemo(() => {
+    const keyword = contractKeyword.trim().toLowerCase();
+    const contracts = apiContracts.data?.contracts ?? [];
+    if (!keyword) return contracts;
+    return contracts.filter((contract) =>
+      [
+        contract.id,
+        contract.title,
+        contract.basePath,
+        ...contract.permissions.map((permission) => permission.code),
+      ].some((value) => value.toLowerCase().includes(keyword)),
+    );
+  }, [apiContracts.data, contractKeyword]);
 
   if (systemRuntime.isLoading || runtime.isLoading) {
     return (
@@ -72,14 +197,14 @@ export default function DevConsole() {
         <PageState
           state="error"
           title="暂时无法读取开发者控制台"
-          description="请稍后重试，或让 SRE 检查 /api/v1/system/runtime 与 /api/v1/system/operations。"
+          description="请稍后重试，或让 SRE 检查系统运行接口。"
           action={
-            <Space wrap>
-              <Button icon={<ReloadOutlined />} onClick={() => systemRuntime.refetch()}>
-                重读运行摘要
-              </Button>
-              <Button onClick={() => runtime.refetch()}>重读运行底座</Button>
-            </Space>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => void Promise.all([systemRuntime.refetch(), runtime.refetch()])}
+            >
+              重读运行摘要
+            </Button>
           }
         />
       </PageShell>
@@ -100,21 +225,350 @@ export default function DevConsole() {
     runtimeText(rawRuntime, ["service", "serviceName", "name"]) ?? operations.serviceName;
   const runtimeValue = runtimeText(rawRuntime, ["runtime", "javaVersion", "jdk"]) ?? "未返回";
   const version = runtimeText(rawRuntime, ["version", "buildVersion", "commit"]) ?? "未返回";
-  const runtimeProfiles =
-    runtimeText(rawRuntime, ["activeProfiles", "profiles"]) ??
-    operations.activeProfiles.join(" / ") ??
-    "default";
+
+  const submitRegister = async (values: RegisterPluginFormValues) => {
+    try {
+      await registerPlugin.mutateAsync({
+        pluginCode: values.pluginCode.trim(),
+        displayName: values.displayName.trim(),
+        capabilities: values.capabilities.map((capability) => ({
+          capabilityKey: capability.capabilityKey.trim(),
+          capabilityType: capability.capabilityType,
+          serviceContractId: capability.serviceContractId,
+          clinicalData: Boolean(capability.clinicalData),
+        })),
+      });
+      message.success("插件已登记，等待授权");
+      registerForm.resetFields();
+      setRegisterOpen(false);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "插件登记失败"));
+    }
+  };
+
+  const submitGrant = async (values: GrantPluginFormValues) => {
+    if (!grantTarget) return;
+    try {
+      await grantPlugin.mutateAsync({
+        pluginId: grantTarget.pluginId,
+        capabilityKeys: values.capabilityKeys,
+        approvalReason: values.approvalReason?.trim() ?? "",
+        clinicalSafetyConfirmed: Boolean(values.clinicalSafetyConfirmed),
+      });
+      message.success("插件能力已授权");
+      grantForm.resetFields();
+      setGrantTarget(null);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "插件授权失败"));
+    }
+  };
+
+  const confirmDisable = (plugin: PluginItem) => {
+    modal.confirm({
+      title: `禁用 ${plugin.displayName}`,
+      content: "禁用后插件不能继续获得或使用能力授权。",
+      okText: "确认禁用",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await disablePlugin.mutateAsync(plugin.pluginId);
+          message.success("插件已禁用");
+        } catch (error: unknown) {
+          message.error(getApiErrorMessage(error, "插件禁用失败"));
+          throw error;
+        }
+      },
+    });
+  };
+
+  let apiDirectory: ReactNode;
+  if (apiContracts.isLoading) {
+    apiDirectory = <PageState state="loading" />;
+  } else if (apiContracts.isError) {
+    apiDirectory = (
+      <PageState
+        state="error"
+        title="API 契约目录读取失败"
+        action={
+          <Button icon={<ReloadOutlined />} onClick={() => apiContracts.refetch()}>
+            重试
+          </Button>
+        }
+      />
+    );
+  } else {
+    apiDirectory = (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="搜索服务、路径或权限"
+          value={contractKeyword}
+          onChange={(event) => setContractKeyword(event.target.value)}
+        />
+        <Table<DeveloperApiContract>
+          rowKey="id"
+          dataSource={filteredContracts}
+          pagination={{ pageSize: 10, showSizeChanger: false }}
+          scroll={{ x: "max-content" }}
+          columns={[
+            {
+              title: "服务",
+              render: (_, record) => (
+                <Space direction="vertical" size={0}>
+                  <Text strong>{record.title}</Text>
+                  <Text type="secondary">{record.id}</Text>
+                </Space>
+              ),
+            },
+            { title: "基础路径", dataIndex: "basePath" },
+            {
+              title: "权限",
+              render: (_, record) =>
+                record.permissions.length ? (
+                  <Space size={[4, 4]} wrap>
+                    {record.permissions.map((permission) => (
+                      <Tag key={permission.code}>{permission.code}</Tag>
+                    ))}
+                  </Space>
+                ) : (
+                  <Text type="secondary">公开或登录态能力</Text>
+                ),
+            },
+            {
+              title: "审计点",
+              render: (_, record) => record.auditPoints.length,
+            },
+          ]}
+        />
+      </Space>
+    );
+  }
+
+  let traceContent: ReactNode = null;
+  if (!submittedTraceId) {
+    traceContent = <PageState state="empty" title="尚未查询 Trace" />;
+  } else if (trace.isLoading) {
+    traceContent = <PageState state="loading" />;
+  } else if (trace.isError) {
+    traceContent = <PageState state="error" title="未找到该 Trace 或无权查看" />;
+  } else if (trace.data) {
+    traceContent = (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
+          <Descriptions.Item label="Trace ID">{trace.data.traceId}</Descriptions.Item>
+          <Descriptions.Item label="耗时">
+            {trace.data.durationMs === null || trace.data.durationMs === undefined
+              ? "-"
+              : `${trace.data.durationMs} ms`}
+          </Descriptions.Item>
+          <Descriptions.Item label="开始">{formatTime(trace.data.startedAt)}</Descriptions.Item>
+          <Descriptions.Item label="结束">{formatTime(trace.data.endedAt)}</Descriptions.Item>
+        </Descriptions>
+        <Table<TraceStateTransition>
+          rowKey={(record) =>
+            [
+              record.traceId,
+              record.occurredAt,
+              record.fromStatus,
+              record.toStatus,
+              record.actor,
+              record.reason,
+            ]
+              .map((value) => value ?? "")
+              .join("|")
+          }
+          dataSource={trace.data.stateHistory}
+          pagination={false}
+          locale={{ emptyText: "无状态流转记录" }}
+          scroll={{ x: "max-content" }}
+          columns={[
+            {
+              title: "状态",
+              render: (_, record) => `${record.fromStatus ?? "-"} → ${record.toStatus ?? "-"}`,
+            },
+            { title: "原因", dataIndex: "reason" },
+            { title: "执行人", dataIndex: "actor" },
+            {
+              title: "时间",
+              dataIndex: "occurredAt",
+              render: (value) => formatTime(value),
+            },
+            {
+              title: "错误",
+              render: (_, record) =>
+                record.error ? (
+                  <Tag color="error">{record.error.errorCode ?? record.error.errorClass}</Tag>
+                ) : (
+                  "-"
+                ),
+            },
+          ]}
+        />
+        <Table<TracePayloadSummary>
+          rowKey={(record) => record.digest}
+          dataSource={trace.data.payloads}
+          pagination={false}
+          locale={{ emptyText: "无 Payload 摘要" }}
+          scroll={{ x: "max-content" }}
+          columns={[
+            { title: "摘要", dataIndex: "digest" },
+            { title: "内容类型", dataIndex: "contentType" },
+            { title: "存储", dataIndex: "storageType" },
+            {
+              title: "大小",
+              dataIndex: "sizeBytes",
+              render: (value) => `${value} B`,
+            },
+          ]}
+        />
+      </Space>
+    );
+  }
+
+  const traceDiagnosis = (
+    <Space direction="vertical" size="middle" className="mk-full-width">
+      <Search
+        enterButton={<SearchOutlined />}
+        placeholder="输入 Trace ID"
+        value={traceId}
+        onChange={(event) => setTraceId(event.target.value)}
+        onSearch={(value) => setSubmittedTraceId(value.trim())}
+      />
+      {traceContent}
+    </Space>
+  );
+
+  let pluginManagement: ReactNode;
+  if (plugins.isLoading) {
+    pluginManagement = <PageState state="loading" />;
+  } else if (plugins.isError) {
+    pluginManagement = (
+      <PageState
+        state="error"
+        title="插件列表读取失败"
+        action={
+          <Button icon={<ReloadOutlined />} onClick={() => plugins.refetch()}>
+            重试
+          </Button>
+        }
+      />
+    );
+  } else {
+    pluginManagement = (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space className={styles.actionsRight}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={!contractOptions.length}
+            onClick={() => setRegisterOpen(true)}
+          >
+            注册插件
+          </Button>
+        </Space>
+        <Table<PluginItem>
+          rowKey="pluginId"
+          dataSource={plugins.data?.items ?? []}
+          pagination={false}
+          scroll={{ x: "max-content" }}
+          locale={{ emptyText: "暂无插件" }}
+          columns={[
+            {
+              title: "插件",
+              render: (_, record) => (
+                <Space direction="vertical" size={0}>
+                  <Text strong>{record.displayName}</Text>
+                  <Text type="secondary">{record.pluginCode}</Text>
+                </Space>
+              ),
+            },
+            {
+              title: "状态",
+              dataIndex: "status",
+              render: (status) => (
+                <Tag color={PLUGIN_STATUS_COLOR[status] ?? "default"}>
+                  {PLUGIN_STATUS_LABEL[status] ?? status}
+                </Tag>
+              ),
+            },
+            {
+              title: "边界",
+              dataIndex: "authorityBoundary",
+              render: (boundary) => (
+                <Tag color={boundary === "CONTROLLED_WRITE" ? "warning" : "default"}>
+                  {boundary === "CONTROLLED_WRITE" ? "受控写入" : "只读优先"}
+                </Tag>
+              ),
+            },
+            {
+              title: "能力",
+              render: (_, record) => (
+                <Space size={[4, 4]} wrap>
+                  {record.capabilities.map((capability) => (
+                    <Tag
+                      key={capability.capabilityKey}
+                      color={capability.capabilityType === "WRITE" ? "warning" : "default"}
+                    >
+                      {capability.capabilityKey}
+                    </Tag>
+                  ))}
+                </Space>
+              ),
+            },
+            {
+              title: "操作",
+              fixed: "right",
+              render: (_, record) => (
+                <Space>
+                  <Button
+                    type="link"
+                    icon={<SafetyCertificateOutlined />}
+                    disabled={record.status === "DISABLED"}
+                    onClick={() => setGrantTarget(record)}
+                  >
+                    授权
+                  </Button>
+                  <Button
+                    type="link"
+                    danger
+                    icon={<StopOutlined />}
+                    disabled={record.status === "DISABLED"}
+                    onClick={() => confirmDisable(record)}
+                  >
+                    禁用
+                  </Button>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Space>
+    );
+  }
 
   return (
-    <PageShell title="开发者控制台" description="架构师 / 信息科主任 / SRE 可见的受控运行摘要">
+    <PageShell
+      title="开发者控制台"
+      description="API 契约、Trace 诊断与插件边界"
+      extras={
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() =>
+            void Promise.all([
+              systemRuntime.refetch(),
+              runtime.refetch(),
+              apiContracts.refetch(),
+              plugins.refetch(),
+            ])
+          }
+        >
+          刷新
+        </Button>
+      }
+    >
       <Space direction="vertical" size="large" className="mk-full-width">
-        <Alert
-          type="info"
-          showIcon
-          message="仅展示受控诊断摘要"
-          description="本页不暴露原始 JSON、密钥、连接串或患者数据；外部依赖未连接时按真实状态展示。"
-        />
-
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
             <Card>
@@ -136,7 +590,7 @@ export default function DevConsole() {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="数据库" value={operations.databaseDialect} />
+              <Statistic title="版本" value={version} />
             </Card>
           </Col>
         </Row>
@@ -144,15 +598,13 @@ export default function DevConsole() {
         <Card title="系统运行快照">
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="服务名">{serviceName}</Descriptions.Item>
-            <Descriptions.Item label="版本">{version}</Descriptions.Item>
             <Descriptions.Item label="运行时">{runtimeValue}</Descriptions.Item>
-            <Descriptions.Item label="Profile">{runtimeProfiles}</Descriptions.Item>
+            <Descriptions.Item label="数据库">{operations.databaseDialect}</Descriptions.Item>
             <Descriptions.Item label="迁移路径">{operations.migrationLocation}</Descriptions.Item>
-            <Descriptions.Item label="生成时间">{operations.generatedAt}</Descriptions.Item>
           </Descriptions>
         </Card>
 
-        <Card title="运行依赖" data-testid="developer-dependencies">
+        <Card data-testid="developer-dependencies">
           <Table<RuntimeDependencyStatus>
             rowKey="key"
             dataSource={operations.dependencies}
@@ -174,37 +626,233 @@ export default function DevConsole() {
           />
         </Card>
 
-        <Card title="功能开关">
-          <Table<RuntimeFeatureFlag>
-            rowKey="key"
-            dataSource={operations.featureFlags}
-            pagination={false}
-            scroll={{ x: "max-content" }}
-            columns={[
-              { title: "能力", dataIndex: "displayName" },
+        <Card>
+          <Tabs
+            items={[
               {
-                title: "状态",
-                dataIndex: "enabled",
-                render: (enabled) => (
-                  <Tag color={enabled ? "success" : "default"}>{enabled ? "开启" : "关闭"}</Tag>
-                ),
-              },
-              { title: "负责人", dataIndex: "owner" },
-              {
-                title: "说明",
-                render: (_, record) => (
-                  <Space direction="vertical" size={2}>
-                    <Typography.Text>{record.description}</Typography.Text>
-                    {record.warning ? (
-                      <Typography.Text type="warning">{record.warning}</Typography.Text>
-                    ) : null}
+                key: "api",
+                label: (
+                  <Space size={6}>
+                    <ApiOutlined />
+                    API 目录
                   </Space>
                 ),
+                children: apiDirectory,
               },
+              { key: "trace", label: "Trace 诊断", children: traceDiagnosis },
+              { key: "plugins", label: "插件管理", children: pluginManagement },
             ]}
           />
         </Card>
       </Space>
+
+      <Modal
+        title="注册插件"
+        open={registerOpen}
+        width={760}
+        okText="登记"
+        cancelText="取消"
+        confirmLoading={registerPlugin.isPending}
+        onCancel={() => {
+          registerForm.resetFields();
+          setRegisterOpen(false);
+        }}
+        onOk={() => registerForm.submit()}
+        destroyOnClose
+      >
+        <Form<RegisterPluginFormValues>
+          form={registerForm}
+          layout="vertical"
+          initialValues={{
+            capabilities: [
+              {
+                capabilityType: "READ",
+                clinicalData: false,
+              },
+            ],
+          }}
+          onFinish={(values) => void submitRegister(values)}
+        >
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="pluginCode"
+                label="插件编码"
+                rules={[{ required: true, message: "请输入插件编码" }]}
+              >
+                <Input maxLength={128} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="displayName"
+                label="插件名称"
+                rules={[{ required: true, message: "请输入插件名称" }]}
+              >
+                <Input maxLength={128} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.List name="capabilities">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size="small" className="mk-full-width">
+                {fields.map((field) => (
+                  <Row gutter={12} key={field.key} align="middle">
+                    <Col xs={24} md={7}>
+                      <Form.Item
+                        name={[field.name, "capabilityKey"]}
+                        label="能力键"
+                        rules={[{ required: true, message: "请输入能力键" }]}
+                      >
+                        <Input maxLength={128} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={5}>
+                      <Form.Item
+                        name={[field.name, "capabilityType"]}
+                        label="类型"
+                        rules={[{ required: true, message: "请选择类型" }]}
+                      >
+                        <Select
+                          options={Object.entries(CAPABILITY_TYPE_LABEL).map(([value, label]) => ({
+                            value,
+                            label,
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={8}>
+                      <Form.Item
+                        name={[field.name, "serviceContractId"]}
+                        label="服务契约"
+                        rules={[{ required: true, message: "请选择服务契约" }]}
+                      >
+                        <Select showSearch optionFilterProp="label" options={contractOptions} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={20} md={3}>
+                      <Form.Item
+                        name={[field.name, "clinicalData"]}
+                        label="临床数据"
+                        valuePropName="checked"
+                      >
+                        <Checkbox />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={4} md={1}>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<MinusCircleOutlined />}
+                        aria-label="移除能力"
+                        disabled={fields.length === 1}
+                        onClick={() => remove(field.name)}
+                      />
+                    </Col>
+                  </Row>
+                ))}
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  onClick={() => add({ capabilityType: "READ", clinicalData: false })}
+                >
+                  添加能力
+                </Button>
+              </Space>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={grantTarget ? `授权 ${grantTarget.displayName}` : "插件授权"}
+        open={Boolean(grantTarget)}
+        okText="确认授权"
+        cancelText="取消"
+        confirmLoading={grantPlugin.isPending}
+        onCancel={() => {
+          grantForm.resetFields();
+          setGrantTarget(null);
+        }}
+        onOk={() => grantForm.submit()}
+        afterOpenChange={(open) => {
+          if (open && grantTarget) {
+            grantForm.setFieldsValue({
+              capabilityKeys: grantTarget.capabilities.map(
+                (capability) => capability.capabilityKey,
+              ),
+              approvalReason: "",
+              clinicalSafetyConfirmed: false,
+            });
+          }
+        }}
+        destroyOnClose
+      >
+        <Form<GrantPluginFormValues>
+          form={grantForm}
+          layout="vertical"
+          onFinish={(values) => void submitGrant(values)}
+        >
+          <Form.Item
+            name="capabilityKeys"
+            label="授权能力"
+            rules={[{ required: true, message: "请选择授权能力" }]}
+          >
+            <Select
+              mode="multiple"
+              options={(grantTarget?.capabilities ?? []).map((capability) => ({
+                value: capability.capabilityKey,
+                label: `${capability.capabilityKey} · ${
+                  CAPABILITY_TYPE_LABEL[capability.capabilityType]
+                }`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="approvalReason"
+            label="审批理由"
+            rules={[
+              {
+                validator: (_, value) => {
+                  const selected = grantForm.getFieldValue("capabilityKeys") ?? [];
+                  const requiresReason = grantTarget?.capabilities.some(
+                    (capability) =>
+                      selected.includes(capability.capabilityKey) &&
+                      capability.capabilityType === "WRITE",
+                  );
+                  return !requiresReason || value?.trim()
+                    ? Promise.resolve()
+                    : Promise.reject(new Error("写能力授权必须填写审批理由"));
+                },
+              },
+            ]}
+          >
+            <Input.TextArea rows={3} maxLength={500} />
+          </Form.Item>
+          <Form.Item
+            name="clinicalSafetyConfirmed"
+            valuePropName="checked"
+            rules={[
+              {
+                validator: (_, value) => {
+                  const selected = grantForm.getFieldValue("capabilityKeys") ?? [];
+                  const requiresConfirmation = grantTarget?.capabilities.some(
+                    (capability) =>
+                      selected.includes(capability.capabilityKey) &&
+                      capability.capabilityType === "WRITE" &&
+                      capability.clinicalData,
+                  );
+                  return !requiresConfirmation || value
+                    ? Promise.resolve()
+                    : Promise.reject(new Error("临床数据写能力必须完成安全确认"));
+                },
+              },
+            ]}
+          >
+            <Checkbox>已完成临床安全确认</Checkbox>
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageShell>
   );
 }

@@ -7,6 +7,7 @@ import { apiClient } from "./client";
 import {
   downloadPackageOfflineExport,
   downloadPackageSyncEvidenceExport,
+  downloadDomesticCompatibilityReport,
   bindBootstrapMfa,
   changePassword,
   checkBootstrapInitToken,
@@ -34,6 +35,8 @@ import {
   upsertMaskingRule,
   useCompleteWorkflowTodo,
   useCreatePackage,
+  useDeveloperApiContracts,
+  useDisablePlugin,
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
@@ -51,6 +54,7 @@ import {
   useEnterPatientPathway,
   useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
+  useGrantPlugin,
   useGrayEvaluationIndicator,
   useFollowupStats,
   useIntegrationOnboardings,
@@ -73,6 +77,7 @@ import {
   useOrgUnits,
   useOrgUsers,
   usePackages,
+  usePlugins,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePathwayTemplates,
@@ -81,6 +86,7 @@ import {
   usePublishEvaluationIndicator,
   useQualityFindings,
   useRegionalSources,
+  useRegisterPlugin,
   useRegisterRegionalSource,
   useRuleDefinitions,
   useRuleExecutions,
@@ -99,6 +105,7 @@ import {
   useTerminologyConflicts,
   useTerminologyPackages,
   useTestWebhookSignature,
+  useTraceDiagnosis,
   useWebhooks,
   useReadWorkflowNotification,
   useReportFollowupAbnormal,
@@ -165,6 +172,91 @@ function renderApiHook<T>(hook: () => T) {
   return renderHook(hook, { wrapper });
 }
 
+describe("developer console api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("loads the governed API directory, trace summary and tenant plugin list", async () => {
+    const directory = { contracts: [{ id: "runtime-operations" }] };
+    const diagnosis = {
+      traceId: "trace-1",
+      stateHistory: [],
+      payloads: [],
+    };
+    const plugins = { items: [{ pluginId: "plug-1" }] };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: directory } })
+      .mockResolvedValueOnce({ data: { data: diagnosis } })
+      .mockResolvedValueOnce({ data: { data: plugins } });
+
+    const directoryHook = renderApiHook(() => useDeveloperApiContracts());
+    await waitFor(() => expect(directoryHook.result.current.data).toEqual(directory));
+
+    const traceHook = renderApiHook(() => useTraceDiagnosis(" trace/1 ", true));
+    await waitFor(() => expect(traceHook.result.current.data).toEqual(diagnosis));
+
+    const pluginsHook = renderApiHook(() => usePlugins());
+    await waitFor(() => expect(pluginsHook.result.current.data).toEqual(plugins));
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/dev-console/api-contracts");
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/diagnose/traces/trace%2F1");
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/plugins");
+  });
+
+  it("uses canonical plugin registration, grant and disable endpoints", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { pluginId: "plug-1" } } })
+      .mockResolvedValueOnce({ data: { data: { pluginId: "plug-1", status: "AUTHORIZED" } } })
+      .mockResolvedValueOnce({ data: { data: { pluginId: "plug-1", status: "DISABLED" } } });
+
+    const registerHook = renderApiHook(() => useRegisterPlugin());
+    await registerHook.result.current.mutateAsync({
+      pluginCode: "ward-read-model",
+      displayName: "病区只读看板",
+      capabilities: [
+        {
+          capabilityKey: "read-runtime",
+          capabilityType: "READ",
+          serviceContractId: "runtime-operations",
+          clinicalData: false,
+        },
+      ],
+    });
+
+    const grantHook = renderApiHook(() => useGrantPlugin());
+    await grantHook.result.current.mutateAsync({
+      pluginId: "plug/1",
+      capabilityKeys: ["publish-rule"],
+      approvalReason: "插件委员会审批",
+      clinicalSafetyConfirmed: true,
+    });
+
+    const disableHook = renderApiHook(() => useDisablePlugin());
+    await disableHook.result.current.mutateAsync("plug/1");
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/plugins/register", {
+      pluginCode: "ward-read-model",
+      displayName: "病区只读看板",
+      capabilities: [
+        {
+          capabilityKey: "read-runtime",
+          capabilityType: "READ",
+          serviceContractId: "runtime-operations",
+          clinicalData: false,
+        },
+      ],
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/plugins/plug%2F1/grants", {
+      capabilityKeys: ["publish-rule"],
+      approvalReason: "插件委员会审批",
+      clinicalSafetyConfirmed: true,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/plugins/plug%2F1:disable");
+  });
+});
+
 describe("package export api helpers", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
@@ -193,6 +285,18 @@ describe("package export api helpers", () => {
 
     expect(result).toBe(evidenceBlob);
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs/export", {
+      responseType: "blob",
+    });
+  });
+
+  it("downloads the backend generated domestic compatibility report", async () => {
+    const reportBlob = new Blob(["MedKernel 国产化自检报告"]);
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: reportBlob });
+
+    const result = await downloadDomesticCompatibilityReport();
+
+    expect(result).toBe(reportBlob);
+    expect(apiClient.get).toHaveBeenCalledWith("/system/operations/domestic-report", {
       responseType: "blob",
     });
   });

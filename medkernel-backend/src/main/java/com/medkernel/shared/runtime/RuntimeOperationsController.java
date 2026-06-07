@@ -1,6 +1,11 @@
 package com.medkernel.shared.runtime;
 
+import java.nio.charset.StandardCharsets;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,5 +42,19 @@ public class RuntimeOperationsController {
     @PreAuthorize("@perm.has('system.read')")
     public ApiResult<RuntimeOperationsSnapshot> operations() {
         return ApiResult.ok(service.snapshot());
+    }
+
+    /**
+     * 导出国产化自检报告。
+     *
+     * @return 文本格式国产化自检报告
+     */
+    @GetMapping(value = "/operations/domestic-report", produces = MediaType.TEXT_PLAIN_VALUE)
+    @PreAuthorize("@perm.has('system.read')")
+    public ResponseEntity<String> domesticReport() {
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=medkernel-domestic-check.txt")
+            .contentType(new MediaType("text", "plain", StandardCharsets.UTF_8))
+            .body(service.domesticReport());
     }
 }

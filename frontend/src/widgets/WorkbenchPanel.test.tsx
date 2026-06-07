@@ -138,6 +138,18 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
   migrationLocation: "classpath:db/migration/postgres",
   activeProfiles: ["container"],
   healthStatus: "UP",
+  jvm: {
+    javaVersion: "21.0.8",
+    javaVendor: "Eclipse Adoptium",
+    vmName: "OpenJDK 64-Bit Server VM",
+    virtualThreadsEnabled: false,
+    availableProcessors: 8,
+  },
+  os: {
+    name: "Linux",
+    version: "6.8",
+    arch: "amd64",
+  },
   featureFlags: [
     {
       key: "graph-projection",
@@ -187,6 +199,12 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     databaseVendors: ["PostgreSQL", "Oracle"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
     evidence: "运行底座快照",
+  },
+  domesticCompatibility: {
+    overallStatus: "WARN",
+    summary: "2 项通过，1 项警告，0 项失败，4 项待现场确认",
+    checkedAt: "2026-06-01T00:00:00Z",
+    items: [],
   },
   generatedAt: "2026-06-01T00:00:00Z",
 };

@@ -105,6 +105,18 @@ describe("SecurityBaseline", () => {
         migrationLocation: "classpath:db/migration/postgres",
         activeProfiles: ["dev"],
         healthStatus: "UP",
+        jvm: {
+          javaVersion: "21.0.8",
+          javaVendor: "Eclipse Adoptium",
+          vmName: "OpenJDK 64-Bit Server VM",
+          virtualThreadsEnabled: false,
+          availableProcessors: 8,
+        },
+        os: {
+          name: "Linux",
+          version: "6.8",
+          arch: "amd64",
+        },
         featureFlags: [],
         dependencies: [
           {
@@ -137,6 +149,12 @@ describe("SecurityBaseline", () => {
           databaseVendors: ["达梦"],
           cryptoAlgorithms: ["SM3"],
           evidence: "国产化自检",
+        },
+        domesticCompatibility: {
+          overallStatus: "WARN",
+          summary: "0 项通过，4 项警告，0 项失败，3 项待现场确认",
+          checkedAt: "2026-06-06T00:00:00Z",
+          items: [],
         },
         generatedAt: "2026-06-06T00:00:00Z",
       }) as never,
