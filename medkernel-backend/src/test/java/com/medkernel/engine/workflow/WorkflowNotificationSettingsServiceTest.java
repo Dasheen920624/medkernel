@@ -18,6 +18,7 @@ import com.medkernel.engine.experience.UserPreference;
 import com.medkernel.engine.experience.UserPreferenceRepository;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.config.SystemConfigItemResponse;
+import com.medkernel.shared.config.SystemConfigSeed;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.config.SystemConfigUpdateRequest;
 import com.medkernel.shared.context.OrgScope;
@@ -25,6 +26,7 @@ import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class WorkflowNotificationSettingsServiceTest {
 
@@ -89,6 +91,14 @@ class WorkflowNotificationSettingsServiceTest {
         assertThat(response.mandatoryTypes()).containsExactly(WorkflowNotificationType.SAFETY);
         assertThat(response.source()).isEqualTo(WorkflowNotificationSettingsSource.SYSTEM_DEFAULT);
         assertThat(response.systemVersion()).isEqualTo(7);
+
+        ArgumentCaptor<SystemConfigSeed> seedCaptor = ArgumentCaptor.forClass(SystemConfigSeed.class);
+        verify(systemConfigService).getOrSeedTenantConfig(
+            eq("tenant-A"),
+            eq(WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY),
+            seedCaptor.capture(),
+            eq("doctor-1"));
+        assertThat(seedCaptor.getValue().source()).isEqualTo("API");
     }
 
     @Test
