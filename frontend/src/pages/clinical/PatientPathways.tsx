@@ -92,6 +92,35 @@ function milestoneStatusText(status?: string) {
   return status ? (text[status] ?? status) : "待执行";
 }
 
+function clockStatusColor(status?: string) {
+  if (status === "TIMEOUT") return "red";
+  if (status === "COMPLETED") return "green";
+  if (status === "VARIANCE") return "orange";
+  if (status === "MISSING_DATA") return "gold";
+  return "blue";
+}
+
+function clockStatusText(status?: string) {
+  const text: Record<string, string> = {
+    RUNNING: "运行中",
+    COMPLETED: "已完成",
+    TIMEOUT: "已超时",
+    MISSING_DATA: "缺少数据",
+    VARIANCE: "变异暂停",
+  };
+  return status ? (text[status] ?? status) : "未记录";
+}
+
+function clockEscalationText(level?: string) {
+  const text: Record<string, string> = {
+    NONE: "未升级",
+    REMINDER: "提醒",
+    REPORT: "上报",
+    QUALITY_RECORD: "质控记录",
+  };
+  return level ? (text[level] ?? level) : "未升级";
+}
+
 function formatDateTime(value?: string) {
   return value ? new Date(value).toLocaleString() : "未记录";
 }
@@ -242,16 +271,13 @@ export default function PatientPathways() {
                     {clock.clockId}
                   </Tag>
                   <span>状态: </span>
-                  <Tag
-                    color={clock.status === "OVERDUE" ? "red" : "green"}
-                    className={styles.tagCompact}
-                  >
-                    {clock.status}
+                  <Tag color={clockStatusColor(clock.status)} className={styles.tagCompact}>
+                    {clockStatusText(clock.status)}
                   </Tag>
+                  <span>升级: {clockEscalationText(clock.escalationLevel)}</span>
                   {clock.metricCode && <span>指标: {clock.metricCode}</span>}
-                  <span>
-                    起止: {formatDateTime(clock.startedAt)} - {formatDateTime(clock.dueAt)}
-                  </span>
+                  <span>目标: {formatDateTime(clock.targetDueAt ?? clock.dueAt)}</span>
+                  <span>最晚: {formatDateTime(clock.maxDueAt)}</span>
                 </div>
               ))}
             </div>
@@ -727,12 +753,10 @@ export default function PatientPathways() {
                                           <span>
                                             状态:{" "}
                                             <Tag
-                                              color={
-                                                activeClock.status === "OVERDUE" ? "red" : "green"
-                                              }
+                                              color={clockStatusColor(activeClock.status)}
                                               className={styles.tagCompact}
                                             >
-                                              {activeClock.status}
+                                              {clockStatusText(activeClock.status)}
                                             </Tag>
                                           </span>
                                         </div>
@@ -741,7 +765,18 @@ export default function PatientPathways() {
                                           {new Date(activeClock.startedAt).toLocaleTimeString()}
                                         </div>
                                         <div className={styles.timelineMeta}>
-                                          截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
+                                          目标:{" "}
+                                          {formatDateTime(
+                                            activeClock.targetDueAt ?? activeClock.dueAt,
+                                          )}
+                                        </div>
+                                        <div className={styles.timelineMeta}>
+                                          最早/最晚: {formatDateTime(activeClock.minDueAt)} /{" "}
+                                          {formatDateTime(activeClock.maxDueAt)}
+                                        </div>
+                                        <div className={styles.timelineMeta}>
+                                          超时升级:{" "}
+                                          {clockEscalationText(activeClock.escalationLevel)}
                                         </div>
                                         {activeClock.metricCode && (
                                           <div className={styles.timelineMeta}>

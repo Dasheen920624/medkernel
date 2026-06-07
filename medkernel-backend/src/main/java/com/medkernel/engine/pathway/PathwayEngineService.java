@@ -23,6 +23,7 @@ import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
@@ -829,7 +830,7 @@ public class PathwayEngineService {
             now, null, null, null, null, now, actor, now, actor, traceId));
         ClinicalClock startClock = clocks.save(newClock(
             tenantId, patientPathwayId, startNode, metricCodeForNode(graphBindings, startNode.nodeCode()),
-            now, actor, traceId));
+            snapshot.resources(), now, now, actor, traceId));
         transitions.record(PATIENT_PATHWAY_ENTITY, patientPathwayId, null,
             PatientPathwayStatus.NODE_EXECUTING.name(), "ENTER_PATHWAY", null);
         auditRecorder.record(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
@@ -962,7 +963,9 @@ public class PathwayEngineService {
         List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
             effective.template().templateId(), effective.sourceTenantId());
         List<ClinicalClock> runtimeClocks =
-            clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId);
+            projectClockSla(
+                clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
+                Instant.now());
         return new PatientPathwayDetailResponse(
             runtime,
             milestoneStatuses(runtime, graphMilestones, graphNodes, runtimeClocks),
@@ -992,7 +995,9 @@ public class PathwayEngineService {
     public List<ClinicalClock> clocks(String patientPathwayId) {
         String tenantId = requireCurrentTenant();
         findPatientPathway(patientPathwayId, tenantId);
-        return clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId);
+        return projectClockSla(
+            clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
+            Instant.now());
     }
 
     /**
@@ -1108,7 +1113,8 @@ public class PathwayEngineService {
         if (decision.status() == PatientPathwayStatus.NODE_EXECUTING && nextNode != null) {
             nextClock = clocks.save(newClock(
                 tenantId, runtime.patientPathwayId(), nextNode,
-                metricCodeForNode(graphBindings, nextNode.nodeCode()), now, actor, traceId));
+                metricCodeForNode(graphBindings, nextNode.nodeCode()),
+                snapshot == null ? null : snapshot.resources(), runtime.enteredAt(), now, actor, traceId));
         }
 
         PatientPathway updated = copyRuntime(runtime, decision, request, now, actor, traceId);
@@ -1534,6 +1540,209 @@ public class PathwayEngineService {
                 throw new ApiException(ErrorCode.PATHWAY_CLOCK_MISSING,
                     "节点 " + node.nodeCode() + " 设置了关键时限但未绑定质控指标");
             }
+            if (node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0) {
+                requireClockSlaConfig(node);
+            }
+        }
+    }
+
+    private ClinicalClockSlaConfig requireClockSlaConfig(PathwayNode node) {
+        ClinicalClockSlaConfig config = optionalClockSlaConfig(node);
+        if (config == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 缺少 clockSla");
+        }
+        return config;
+    }
+
+    private ClinicalClockSlaConfig optionalClockSlaConfig(PathwayNode node) {
+        JsonNode clockSla = nodeConfigNode(node, "clockSla");
+        if (clockSla == null || clockSla.isNull() || clockSla.isMissingNode()) {
+            return null;
+        }
+        if (!clockSla.isObject()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 的 clockSla 必须是结构化对象");
+        }
+        String baselineEvent = requiredText(clockSla, "baselineEvent", node, "SLA 基准事件");
+        validateBaselineEvent(baselineEvent, node);
+        Integer minMinutes = requiredNonNegativeInt(clockSla, "minMinutes", node);
+        Integer targetMinutes = requiredNonNegativeInt(clockSla, "targetMinutes", node);
+        Integer maxMinutes = requiredNonNegativeInt(clockSla, "maxMinutes", node);
+        if (targetMinutes <= 0) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 的 targetMinutes 必须大于 0");
+        }
+        if (minMinutes > targetMinutes || targetMinutes > maxMinutes) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 的 SLA 时限必须满足 min <= target <= max");
+        }
+        List<ClockEscalationThreshold> escalations = escalationThresholds(clockSla.path("escalations"), node);
+        return new ClinicalClockSlaConfig(baselineEvent, minMinutes, targetMinutes, maxMinutes, escalations);
+    }
+
+    private JsonNode nodeConfigNode(PathwayNode node, String field) {
+        if (isBlank(node.configJson())) {
+            return null;
+        }
+        try {
+            return json.readTree(node.configJson()).get(field);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径节点配置 JSON 解析失败：" + node.nodeCode(), exception);
+        }
+    }
+
+    private String requiredText(JsonNode source, String field, PathwayNode node, String label) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull() || isBlank(value.asText())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 缺少 " + label);
+        }
+        return value.asText().trim();
+    }
+
+    private Integer requiredNonNegativeInt(JsonNode source, String field, PathwayNode node) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull() || !value.canConvertToInt() || value.asInt() < 0) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 的 " + field + " 必须是非负整数");
+        }
+        return value.asInt();
+    }
+
+    private void validateBaselineEvent(String baselineEvent, PathwayNode node) {
+        if (!Set.of("NODE_START", "PATHWAY_ENTRY", "ADMISSION").contains(baselineEvent)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 不支持 SLA 基准事件: " + baselineEvent);
+        }
+    }
+
+    private List<ClockEscalationThreshold> escalationThresholds(JsonNode source, PathwayNode node) {
+        if (source == null || !source.isArray() || source.size() == 0) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 缺少超时升级策略");
+        }
+        LinkedHashMap<ClinicalClockEscalationLevel, ClockEscalationThreshold> thresholds = new LinkedHashMap<>();
+        for (JsonNode item : source) {
+            if (!item.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "关键时钟节点 " + node.nodeCode() + " 的超时升级策略必须是对象数组");
+            }
+            String levelText = requiredText(item, "level", node, "超时升级级别");
+            ClinicalClockEscalationLevel level;
+            try {
+                level = ClinicalClockEscalationLevel.valueOf(levelText);
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "关键时钟节点 " + node.nodeCode() + " 不支持超时升级级别: " + levelText, exception);
+            }
+            if (level == ClinicalClockEscalationLevel.NONE) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "关键时钟节点 " + node.nodeCode() + " 的超时升级策略不能配置 NONE");
+            }
+            Integer afterMinutes = requiredNonNegativeInt(item, "afterMinutes", node);
+            thresholds.put(level, new ClockEscalationThreshold(level, afterMinutes));
+        }
+        for (ClinicalClockEscalationLevel required : List.of(
+                ClinicalClockEscalationLevel.REMINDER,
+                ClinicalClockEscalationLevel.REPORT,
+                ClinicalClockEscalationLevel.QUALITY_RECORD)) {
+            if (!thresholds.containsKey(required)) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "关键时钟节点 " + node.nodeCode() + " 缺少 " + required + " 超时升级级别");
+            }
+        }
+        return List.copyOf(thresholds.values());
+    }
+
+    private Instant baselineAt(ClinicalClockSlaConfig sla, ContextSnapshotResources resources,
+                               Instant pathwayEnteredAt, Instant now, PathwayNode node) {
+        return switch (sla.baselineEvent()) {
+            case "NODE_START" -> now;
+            case "PATHWAY_ENTRY" -> pathwayEnteredAt == null ? now : pathwayEnteredAt;
+            case "ADMISSION" -> admissionTime(resources, node);
+            default -> throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 不支持 SLA 基准事件: " + sla.baselineEvent());
+        };
+    }
+
+    private Instant admissionTime(ContextSnapshotResources resources, PathwayNode node) {
+        if (resources == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 使用 ADMISSION 基准但缺少上下文快照");
+        }
+        return resources.encounters().stream()
+            .map(CanonicalEncounter::admissionTime)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "关键时钟节点 " + node.nodeCode() + " 使用 ADMISSION 基准但缺少入院时间"));
+    }
+
+    private ClinicalClockEscalationLevel escalationLevel(List<ClockEscalationThreshold> thresholds,
+                                                         Instant baselineAt,
+                                                         Instant now) {
+        ClinicalClockEscalationLevel result = ClinicalClockEscalationLevel.NONE;
+        for (ClockEscalationThreshold threshold : nullToEmpty(thresholds)) {
+            Instant reachedAt = baselineAt.plusSeconds(threshold.afterMinutes().longValue() * 60L);
+            if (!reachedAt.isAfter(now) && threshold.level().ordinal() > result.ordinal()) {
+                result = threshold.level();
+            }
+        }
+        return result;
+    }
+
+    private String escalationPolicyJson(ClinicalClockSlaConfig sla) {
+        try {
+            return json.writeValueAsString(sla.escalations());
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "关键时钟超时升级策略无法序列化", exception);
+        }
+    }
+
+    private List<ClinicalClock> projectClockSla(List<ClinicalClock> source, Instant now) {
+        return nullToEmpty(source).stream()
+            .map(clock -> projectClockSla(clock, now))
+            .toList();
+    }
+
+    private ClinicalClock projectClockSla(ClinicalClock clock, Instant now) {
+        if (clock.status() != ClinicalClockStatus.RUNNING || clock.baselineAt() == null
+                || isBlank(clock.escalationPolicyJson())) {
+            return clock;
+        }
+        ClinicalClockEscalationLevel current =
+            clock.escalationLevel() == null ? ClinicalClockEscalationLevel.NONE : clock.escalationLevel();
+        ClinicalClockEscalationLevel projected =
+            escalationLevel(readClockEscalationPolicy(clock.escalationPolicyJson()), clock.baselineAt(), now);
+        if (projected.ordinal() <= current.ordinal()) {
+            return clock;
+        }
+        return new ClinicalClock(
+            clock.id(), clock.clockId(), clock.tenantId(), clock.patientPathwayId(),
+            clock.nodeCode(), clock.metricCode(), clock.startedAt(), clock.dueAt(), clock.completedAt(),
+            ClinicalClockStatus.TIMEOUT,
+            clock.baselineEvent(), clock.baselineAt(), clock.minDueAt(), clock.targetDueAt(), clock.maxDueAt(),
+            projected, clock.escalationPolicyJson(),
+            clock.createdAt(), clock.createdBy(), now, clock.updatedBy(), clock.traceId());
+    }
+
+    private List<ClockEscalationThreshold> readClockEscalationPolicy(String source) {
+        try {
+            JsonNode root = json.readTree(source);
+            if (!root.isArray()) {
+                return List.of();
+            }
+            List<ClockEscalationThreshold> thresholds = new ArrayList<>();
+            for (JsonNode item : root) {
+                ClinicalClockEscalationLevel level =
+                    ClinicalClockEscalationLevel.valueOf(item.path("level").asText());
+                thresholds.add(new ClockEscalationThreshold(level, item.path("afterMinutes").asInt()));
+            }
+            return thresholds;
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "关键时钟超时升级策略无法解析", exception);
         }
     }
 
@@ -1579,12 +1788,31 @@ public class PathwayEngineService {
 
     private ClinicalClock newClock(String tenantId, String patientPathwayId,
                                    PathwayNode node, String metricCode,
+                                   ContextSnapshotResources resources,
+                                   Instant pathwayEnteredAt,
                                    Instant now, String actor, String traceId) {
-        Instant dueAt = node.timeWindowMinutes() == null ? null
-            : now.plusSeconds(node.timeWindowMinutes().longValue() * 60L);
+        ClinicalClockSlaConfig sla = optionalClockSlaConfig(node);
+        if (sla == null) {
+            Instant dueAt = node.timeWindowMinutes() == null ? null
+                : now.plusSeconds(node.timeWindowMinutes().longValue() * 60L);
+            return new ClinicalClock(
+                null, "cc-" + UUID.randomUUID(), tenantId, patientPathwayId,
+                node.nodeCode(), metricCode, now, dueAt, null, ClinicalClockStatus.RUNNING,
+                null, null, null, null, null, ClinicalClockEscalationLevel.NONE, null,
+                now, actor, now, actor, traceId);
+        }
+        Instant baselineAt = baselineAt(sla, resources, pathwayEnteredAt, now, node);
+        Instant minDueAt = baselineAt.plusSeconds(sla.minMinutes().longValue() * 60L);
+        Instant targetDueAt = baselineAt.plusSeconds(sla.targetMinutes().longValue() * 60L);
+        Instant maxDueAt = baselineAt.plusSeconds(sla.maxMinutes().longValue() * 60L);
+        ClinicalClockEscalationLevel escalationLevel = escalationLevel(sla.escalations(), baselineAt, now);
+        ClinicalClockStatus status = escalationLevel == ClinicalClockEscalationLevel.NONE
+            ? ClinicalClockStatus.RUNNING : ClinicalClockStatus.TIMEOUT;
         return new ClinicalClock(
             null, "cc-" + UUID.randomUUID(), tenantId, patientPathwayId,
-            node.nodeCode(), metricCode, now, dueAt, null, ClinicalClockStatus.RUNNING,
+            node.nodeCode(), metricCode, now, targetDueAt, null, status,
+            sla.baselineEvent(), baselineAt, minDueAt, targetDueAt, maxDueAt,
+            escalationLevel, escalationPolicyJson(sla),
             now, actor, now, actor, traceId);
     }
 
@@ -1602,7 +1830,10 @@ public class PathwayEngineService {
         return new ClinicalClock(
             clock.id(), clock.clockId(), clock.tenantId(), clock.patientPathwayId(),
             clock.nodeCode(), clock.metricCode(), clock.startedAt(), clock.dueAt(),
-            now, status, clock.createdAt(), clock.createdBy(), now, actor, traceId);
+            now, status,
+            clock.baselineEvent(), clock.baselineAt(), clock.minDueAt(), clock.targetDueAt(), clock.maxDueAt(),
+            clock.escalationLevel(), clock.escalationPolicyJson(),
+            clock.createdAt(), clock.createdBy(), now, actor, traceId);
     }
 
     private Map<String, Object> contextFacts(ContextSnapshotResources resources) {
@@ -1976,6 +2207,21 @@ public class PathwayEngineService {
             return new PathwayMetricAssetContent(
                 binding.nodeCode(), binding.metricCode(), binding.requiredFlag());
         }
+    }
+
+    private record ClinicalClockSlaConfig(
+        String baselineEvent,
+        Integer minMinutes,
+        Integer targetMinutes,
+        Integer maxMinutes,
+        List<ClockEscalationThreshold> escalations
+    ) {
+    }
+
+    private record ClockEscalationThreshold(
+        ClinicalClockEscalationLevel level,
+        Integer afterMinutes
+    ) {
     }
 
     private record EffectivePathwayTemplate(PathwayTemplate template, String sourceTenantId) {

@@ -198,6 +198,14 @@ type PathwayNodeFormValue = {
   config?: object;
 };
 
+type ClockSlaConfigValue = {
+  baselineEvent?: "NODE_START" | "PATHWAY_ENTRY" | "ADMISSION";
+  minMinutes?: number;
+  targetMinutes?: number;
+  maxMinutes?: number;
+  reportMinutes?: number;
+};
+
 type PathwayMilestoneFormValue = {
   phaseCode?: string;
   phaseName?: string;
@@ -284,6 +292,12 @@ const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
   { value: "SUBPATHWAY", label: "SUBPATHWAY 子路径" },
   { value: "MANUAL_GATE", label: "MANUAL_GATE 人工闸门" },
   { value: "ORDER_SET", label: "ORDER_SET 医嘱集" },
+];
+
+const clockBaselineEventOptions = [
+  { value: "NODE_START", label: "节点开始" },
+  { value: "PATHWAY_ENTRY", label: "患者入径" },
+  { value: "ADMISSION", label: "入院时间" },
 ];
 
 const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
@@ -448,20 +462,23 @@ function normalizePathwayCriteria(criteria: PathwayCriteriaFormValue | undefined
 function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
   return (nodes ?? [])
     .filter((node) => cleanText(node.nodeCode) || cleanText(node.name))
-    .map<PathwayNodeDraft>((node, index) => ({
-      nodeCode: cleanText(node.nodeCode) ?? "",
-      name: cleanText(node.name) ?? "",
-      nodeType: node.nodeType ?? "ASSESSMENT",
-      milestoneCode: cleanText(node.milestoneCode),
-      sortOrder: Number(node.sortOrder ?? index + 1),
-      responsibleRole: cleanText(node.responsibleRole),
-      timeWindowMinutes:
+    .map<PathwayNodeDraft>((node, index) => {
+      const timeWindowMinutes =
         typeof node.timeWindowMinutes === "number" && node.timeWindowMinutes > 0
           ? node.timeWindowMinutes
-          : undefined,
-      terminal: Boolean(node.terminal),
-      config: normalizeNodeConfig(node.config),
-    }));
+          : undefined;
+      return {
+        nodeCode: cleanText(node.nodeCode) ?? "",
+        name: cleanText(node.name) ?? "",
+        nodeType: node.nodeType ?? "ASSESSMENT",
+        milestoneCode: cleanText(node.milestoneCode),
+        sortOrder: Number(node.sortOrder ?? index + 1),
+        responsibleRole: cleanText(node.responsibleRole),
+        timeWindowMinutes,
+        terminal: Boolean(node.terminal),
+        config: normalizeNodeConfig(node.config, timeWindowMinutes),
+      };
+    });
 }
 
 function normalizeMilestones(milestones?: PathwayMilestoneFormValue[]) {
@@ -491,10 +508,14 @@ function normalizeMilestones(milestones?: PathwayMilestoneFormValue[]) {
     }));
 }
 
-function normalizeNodeConfig(value: unknown): object | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+function normalizeNodeConfig(value: unknown, timeWindowMinutes?: number): object | undefined {
+  const source =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   const next: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, item] of Object.entries(source)) {
+    if (key === "clockSla") continue;
     if (typeof item === "string") {
       const text = cleanText(item);
       if (text !== undefined) next[key] = text;
@@ -502,6 +523,8 @@ function normalizeNodeConfig(value: unknown): object | undefined {
     }
     if (hasConfiguredValue(item)) next[key] = item;
   }
+  const clockSla = normalizeClockSlaConfig(source.clockSla, timeWindowMinutes);
+  if (clockSla) next.clockSla = clockSla;
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
@@ -509,6 +532,73 @@ function configText(config: unknown, key: string) {
   if (typeof config !== "object" || config === null || Array.isArray(config)) return undefined;
   const value = (config as Record<string, unknown>)[key];
   return typeof value === "string" ? cleanText(value) : undefined;
+}
+
+function configObject(config: unknown, key: string) {
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return undefined;
+  const value = (config as Record<string, unknown>)[key];
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function normalizeClockSlaConfig(value: unknown, timeWindowMinutes?: number) {
+  if (!timeWindowMinutes || timeWindowMinutes <= 0) return undefined;
+  const source =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as ClockSlaConfigValue)
+      : {};
+  const baselineEvent = source.baselineEvent ?? "NODE_START";
+  const minMinutes =
+    typeof source.minMinutes === "number" && source.minMinutes >= 0 ? source.minMinutes : 0;
+  const targetMinutes =
+    typeof source.targetMinutes === "number" && source.targetMinutes > 0
+      ? source.targetMinutes
+      : timeWindowMinutes;
+  const maxMinutes =
+    typeof source.maxMinutes === "number" && source.maxMinutes >= 0
+      ? source.maxMinutes
+      : targetMinutes;
+  const reportMinutes =
+    typeof source.reportMinutes === "number" && source.reportMinutes >= 0
+      ? source.reportMinutes
+      : Math.floor((targetMinutes + maxMinutes) / 2);
+  return {
+    baselineEvent,
+    minMinutes,
+    targetMinutes,
+    maxMinutes,
+    escalations: [
+      { level: "REMINDER", afterMinutes: targetMinutes },
+      { level: "REPORT", afterMinutes: reportMinutes },
+      { level: "QUALITY_RECORD", afterMinutes: maxMinutes },
+    ],
+  };
+}
+
+function clockSlaError(node: PathwayNodeDraft) {
+  if (!node.timeWindowMinutes || node.timeWindowMinutes <= 0) return undefined;
+  const clockSla = configObject(node.config, "clockSla");
+  if (!clockSla) return `关键时钟节点 ${node.nodeCode} 必须配置临床时钟 SLA`;
+  const minMinutes = Number(clockSla.minMinutes);
+  const targetMinutes = Number(clockSla.targetMinutes);
+  const maxMinutes = Number(clockSla.maxMinutes);
+  if (
+    !Number.isFinite(minMinutes) ||
+    !Number.isFinite(targetMinutes) ||
+    !Number.isFinite(maxMinutes)
+  ) {
+    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须完整`;
+  }
+  if (
+    minMinutes < 0 ||
+    targetMinutes <= 0 ||
+    maxMinutes < targetMinutes ||
+    minMinutes > targetMinutes
+  ) {
+    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须满足 min <= target <= max`;
+  }
+  return undefined;
 }
 
 function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdgeDraft[]) {
@@ -543,6 +633,8 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
         return `等待计时节点 ${node.nodeCode} 必须配置计时条件边`;
       }
     }
+    const clockError = clockSlaError(node);
+    if (clockError) return clockError;
     if (node.nodeType === "SUBPATHWAY" && !configText(node.config, "subPathwayRef")) {
       return `子路径节点 ${node.nodeCode} 必须填写子路径引用`;
     }
@@ -564,6 +656,10 @@ function richNodeConfigSummary(node: PathwayNode) {
   if (subPathwayRef) return `子路径 ${subPathwayRef}`;
   const clock = configText(config, "clock");
   if (clock) return `计时 ${clock}`;
+  const clockSla = configObject(config, "clockSla");
+  if (clockSla) {
+    return `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${clockSla.targetMinutes ?? "-"} 分钟`;
+  }
   return "无";
 }
 
@@ -1865,6 +1961,9 @@ export default function PathwayTemplates() {
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
                   const currentNodeType = watchedNodes?.[field.name]?.nodeType;
+                  const currentTimeWindow = Number(
+                    watchedNodes?.[field.name]?.timeWindowMinutes ?? 0,
+                  );
                   return (
                     <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
@@ -2027,6 +2126,80 @@ export default function PathwayTemplates() {
                           </Form.Item>
                         </Col>
                       </Row>
+                      {currentTimeWindow > 0 && (
+                        <Row gutter={12}>
+                          <Col xs={24} sm={12} lg={6}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "config", "clockSla", "baselineEvent"]}
+                              label="SLA基准"
+                            >
+                              <Select
+                                allowClear
+                                placeholder="默认节点开始"
+                                options={clockBaselineEventOptions}
+                                virtual={false}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={12} lg={4}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "config", "clockSla", "minMinutes"]}
+                              label="最早分钟"
+                            >
+                              <InputNumber
+                                min={0}
+                                precision={0}
+                                placeholder="默认 0"
+                                className={styles.fullWidth}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={12} lg={4}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "config", "clockSla", "targetMinutes"]}
+                              label="目标分钟"
+                            >
+                              <InputNumber
+                                min={1}
+                                precision={0}
+                                placeholder={`默认 ${currentTimeWindow}`}
+                                className={styles.fullWidth}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={12} lg={4}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "config", "clockSla", "maxMinutes"]}
+                              label="最晚分钟"
+                            >
+                              <InputNumber
+                                min={1}
+                                precision={0}
+                                placeholder={`默认 ${currentTimeWindow}`}
+                                className={styles.fullWidth}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={12} lg={6}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "config", "clockSla", "reportMinutes"]}
+                              label="上报分钟"
+                            >
+                              <InputNumber
+                                min={1}
+                                precision={0}
+                                placeholder="默认取目标与最晚中点"
+                                className={styles.fullWidth}
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      )}
                       {["ORDER_SET", "SUBPATHWAY", "WAIT_TIMER"].includes(
                         currentNodeType ?? "",
                       ) && (

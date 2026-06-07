@@ -125,7 +125,7 @@
   - ✅ 测试：天序视图与里程碑状态正确。
 - [x] P9-3 富节点类型：DECISION/PARALLEL(fork-join)/WAIT-TIMER/SUBPATHWAY/MANUAL_GATE/ORDER_SET。
   - ✅ 测试：各节点语义经 Progressor 推进正确。
-- [ ] P9-4 临床时钟 SLA：target/min/max + 基准事件 + 超时分级升级。
+- [x] P9-4 临床时钟 SLA：target/min/max + 基准事件 + 超时分级升级。
   - ✅ 测试：门球时间/抗生素时限类用例。
 - [ ] P9-5 守卫式分支：决策边复用条件构建器，对齐 Progressor。
   - ✅ 测试：多守卫边按优先级推进。

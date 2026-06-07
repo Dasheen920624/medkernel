@@ -416,7 +416,7 @@ class MigrationBaselineContractTest {
         "uk_pathway_edge_template_code", "ck_pathway_edge_type",
         "uk_patient_pathway_id", "ck_patient_pathway_status",
         "uk_pathway_variance_id", "ck_pathway_variance_type",
-        "uk_clinical_clock_id", "ck_clinical_clock_status",
+        "uk_clinical_clock_id", "ck_clinical_clock_status", "ck_clinical_clock_escalation",
         "uk_specialty_metric_binding", "ck_specialty_metric_required",
         "uk_rec_trigger_id", "uk_rec_trigger_tenant_code", "ck_rec_trigger_status",
         "uk_rec_card_id", "uk_rec_card_trigger_code", "ck_rec_card_type",
@@ -2133,12 +2133,19 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("condition_json");
         assertThat(h2).contains("current_node_code");
         assertThat(h2).contains("metric_code");
+        assertThat(h2).contains("baseline_event");
+        assertThat(h2).contains("target_due_at");
+        assertThat(h2).contains("max_due_at");
+        assertThat(h2).contains("escalation_level");
+        assertThat(h2).contains("escalation_policy_json");
         assertThat(h2).contains("ck_pathway_entry_mode");
         assertThat(h2).contains("ck_pathway_milestone_day");
         assertThat(h2).contains("ck_pathway_node_type");
         assertThat(h2).contains("'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'");
         assertThat(h2).contains("'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'");
         assertThat(h2).contains("ck_patient_pathway_status");
+        assertThat(h2).contains("ck_clinical_clock_escalation");
+        assertThat(h2).contains("'NONE','REMINDER','REPORT','QUALITY_RECORD'");
         assertThat(h2).contains("idx_clinical_clock_due");
     }
 

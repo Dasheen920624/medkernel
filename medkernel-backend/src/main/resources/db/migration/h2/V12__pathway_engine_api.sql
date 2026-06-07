@@ -227,6 +227,13 @@ CREATE TABLE IF NOT EXISTS clinical_clock (
     due_at             TIMESTAMP    NULL,
     completed_at       TIMESTAMP    NULL,
     status             VARCHAR(32)  NOT NULL DEFAULT 'RUNNING',
+    baseline_event     VARCHAR(64)  NULL,
+    baseline_at        TIMESTAMP    NULL,
+    min_due_at         TIMESTAMP    NULL,
+    target_due_at      TIMESTAMP    NULL,
+    max_due_at         TIMESTAMP    NULL,
+    escalation_level   VARCHAR(32)  NOT NULL DEFAULT 'NONE',
+    escalation_policy_json CLOB     NULL,
     created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by         VARCHAR(64)  NOT NULL DEFAULT 'system',
     updated_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -235,6 +242,9 @@ CREATE TABLE IF NOT EXISTS clinical_clock (
     CONSTRAINT uk_clinical_clock_id UNIQUE (clock_id),
     CONSTRAINT ck_clinical_clock_status CHECK (status IN (
         'RUNNING','COMPLETED','TIMEOUT','MISSING_DATA','VARIANCE'
+    )),
+    CONSTRAINT ck_clinical_clock_escalation CHECK (escalation_level IN (
+        'NONE','REMINDER','REPORT','QUALITY_RECORD'
     ))
 );
 

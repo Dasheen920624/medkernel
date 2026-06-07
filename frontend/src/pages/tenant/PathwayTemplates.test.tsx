@@ -515,6 +515,23 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       });
       fireEvent.mouseDown(within(dialog).getByLabelText("所属里程碑"));
       await user.click(await screen.findByText("术前 / 第 0 天 / 入径评估（M-PREOP-ASSESS）"));
+      fireEvent.change(within(dialog).getByLabelText("时窗分钟"), {
+        target: { value: "60" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("时钟指标编码"), {
+        target: { value: "STEMI.DOOR_TO_BALLOON" },
+      });
+      fireEvent.mouseDown(await within(dialog).findByLabelText("SLA基准"));
+      await user.click(await screen.findByText("入院时间"));
+      fireEvent.change(await within(dialog).findByLabelText("目标分钟"), {
+        target: { value: "90" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("最晚分钟"), {
+        target: { value: "120" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("上报分钟"), {
+        target: { value: "105" },
+      });
       await user.click(within(dialog).getByRole("switch", { name: "终止节点" }));
       fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
       await user.click(await screen.findByText("入径评估（ASSESS）"));
@@ -524,7 +541,19 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
       const payload = apiMocks.createTemplate.mock.calls[0][0] as {
         milestones: Array<{ phaseCode: string; milestoneCode: string; dayOffset: number }>;
-        nodes: Array<{ nodeCode: string; milestoneCode?: string }>;
+        nodes: Array<{
+          nodeCode: string;
+          milestoneCode?: string;
+          config?: {
+            clockSla?: {
+              baselineEvent?: string;
+              targetMinutes?: number;
+              maxMinutes?: number;
+              escalations?: Array<{ level: string; afterMinutes: number }>;
+            };
+          };
+        }>;
+        metricBindings: Array<{ nodeCode: string; metricCode: string }>;
       };
       expect(payload.milestones).toEqual(
         expect.arrayContaining([
@@ -540,9 +569,85 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           expect.objectContaining({
             nodeCode: "ASSESS",
             milestoneCode: "M-PREOP-ASSESS",
+            config: expect.objectContaining({
+              clockSla: expect.objectContaining({
+                baselineEvent: "ADMISSION",
+                targetMinutes: 90,
+                maxMinutes: 120,
+                escalations: expect.arrayContaining([
+                  expect.objectContaining({ level: "REMINDER", afterMinutes: 90 }),
+                  expect.objectContaining({ level: "REPORT", afterMinutes: 105 }),
+                  expect.objectContaining({ level: "QUALITY_RECORD", afterMinutes: 120 }),
+                ]),
+              }),
+            }),
           }),
         ]),
       );
+      expect(payload.metricBindings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            nodeCode: "ASSESS",
+            metricCode: "STEMI.DOOR_TO_BALLOON",
+          }),
+        ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "新建路径模板拒绝关键时钟 SLA 最晚分钟早于目标分钟",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
+        target: { value: "SLA 校验路径" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("路径模型代码"), {
+        target: { value: "PATH.SLA.INVALID" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("病种代码"), {
+        target: { value: "SLA" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("临床知识与指南基础"), {
+        target: { value: "关键时钟 SLA 制度 2026" },
+      });
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      fireEvent.change(within(dialog).getByLabelText("节点编码"), {
+        target: { value: "CLOCK" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("节点名称"), {
+        target: { value: "关键时钟" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("时窗分钟"), {
+        target: { value: "60" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("时钟指标编码"), {
+        target: { value: "CLOCK.SLA" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("目标分钟"), {
+        target: { value: "90" },
+      });
+      fireEvent.change(await within(dialog).findByLabelText("最晚分钟"), {
+        target: { value: "60" },
+      });
+      await user.click(within(dialog).getByRole("switch", { name: "终止节点" }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
+      await user.click(await screen.findByText("关键时钟（CLOCK）"));
+
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      expect(await screen.findByText(/SLA 时限必须满足 min <= target <= max/)).toBeInTheDocument();
+      expect(apiMocks.createTemplate).not.toHaveBeenCalled();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

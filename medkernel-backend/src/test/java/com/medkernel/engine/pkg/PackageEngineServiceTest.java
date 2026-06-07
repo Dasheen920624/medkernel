@@ -1205,6 +1205,7 @@ class PackageEngineServiceTest {
         ObjectNode content = offlinePathwayContent("pathway-stable");
         ObjectNode startNode = (ObjectNode) content.path("nodes").get(0);
         startNode.put("nodeType", "ORDER_SET");
+        startNode.putNull("timeWindowMinutes");
         startNode.put("configJson", "{}");
         ArrayNode snapshots = TEST_MAPPER.createArrayNode();
         snapshots.add(offlineSnapshot("tenant-A", "PATHWAY", "pathway-stable", "1", content));
@@ -1224,6 +1225,67 @@ class PackageEngineServiceTest {
                 ApiException api = (ApiException) ex;
                 assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
                 assertThat(api.getMessage()).contains("离线包路径医嘱集节点 start 缺少 orderSetRef");
+            });
+
+        verify(pathwayRepository, never()).save(any());
+        verify(pathwayNodeRepository, never()).save(any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsTimedPathwayNodeWithoutClockSla() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "PATHWAY", "pathway-stable", "1"));
+        ObjectNode content = offlinePathwayContent("pathway-stable");
+        ObjectNode startNode = (ObjectNode) content.path("nodes").get(0);
+        startNode.put("configJson", "{}");
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot("tenant-A", "PATHWAY", "pathway-stable", "1", content));
+        String offlineJson = offlinePackageJson(
+            "PKG.BAD.PATHWAY.CLOCK", "2026.06.04", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD.PATHWAY.CLOCK", "2026.06.04"))
+            .thenReturn(Optional.empty());
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+
+        assertThatThrownBy(() -> service.importOfflinePackage(new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
+                assertThat(api.getMessage()).contains("离线包路径时钟节点 start 缺少 clockSla");
+            });
+
+        verify(pathwayRepository, never()).save(any());
+        verify(pathwayNodeRepository, never()).save(any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsTimedPathwayNodeWithoutMetricBinding() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "PATHWAY", "pathway-stable", "1"));
+        ObjectNode content = offlinePathwayContent("pathway-stable");
+        ((ArrayNode) content.path("metricBindings")).removeAll();
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot("tenant-A", "PATHWAY", "pathway-stable", "1", content));
+        String offlineJson = offlinePackageJson(
+            "PKG.BAD.PATHWAY.CLOCK.METRIC", "2026.06.04", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD.PATHWAY.CLOCK.METRIC", "2026.06.04"))
+            .thenReturn(Optional.empty());
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+
+        assertThatThrownBy(() -> service.importOfflinePackage(new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
+                assertThat(api.getMessage()).contains("离线包路径节点 start 设置时窗后必须绑定时钟指标编码");
             });
 
         verify(pathwayRepository, never()).save(any());
@@ -2976,7 +3038,8 @@ class PackageEngineServiceTest {
         return List.of(
             new PathwayNode(
                 1L, "node-start", "tenant-A", "pathway-stable", "start", "开始评估",
-                PathwayNodeType.ASSESSMENT, "M-START", 1, "physician", "{}", 60, false, "{}",
+                PathwayNodeType.ASSESSMENT, "M-START", 1, "physician", "{}", 60, false,
+                clockSlaConfigJson(),
                 now, "tester", now, "tester", "trace"
             ),
             new PathwayNode(
@@ -2985,6 +3048,24 @@ class PackageEngineServiceTest {
                 now, "tester", now, "tester", "trace"
             )
         );
+    }
+
+    private String clockSlaConfigJson() {
+        return """
+            {
+              "clockSla": {
+                "baselineEvent": "NODE_START",
+                "minMinutes": 0,
+                "targetMinutes": 60,
+                "maxMinutes": 90,
+                "escalations": [
+                  {"level": "REMINDER", "afterMinutes": 60},
+                  {"level": "REPORT", "afterMinutes": 75},
+                  {"level": "QUALITY_RECORD", "afterMinutes": 90}
+                ]
+              }
+            }
+            """;
     }
 
     private PathwayMilestone pathwayMilestone() {

@@ -207,7 +207,13 @@ describe("PatientPathways", () => {
             metricCode: "STROKE.TIME_TO_CT",
             startedAt: "2026-06-04T00:00:00Z",
             dueAt: "2026-06-04T00:30:00Z",
-            status: "OVERDUE",
+            baselineEvent: "ADMISSION",
+            baselineAt: "2026-06-04T00:00:00Z",
+            minDueAt: "2026-06-04T00:10:00Z",
+            targetDueAt: "2026-06-04T00:30:00Z",
+            maxDueAt: "2026-06-04T01:00:00Z",
+            escalationLevel: "QUALITY_RECORD",
+            status: "TIMEOUT",
             traceId: "trace-clock-1",
           },
         ],
@@ -289,7 +295,13 @@ describe("PatientPathways", () => {
           metricCode: "STROKE.TIME_TO_CT",
           startedAt: "2026-06-04T00:00:00Z",
           dueAt: "2026-06-04T00:30:00Z",
-          status: "OVERDUE",
+          baselineEvent: "ADMISSION",
+          baselineAt: "2026-06-04T00:00:00Z",
+          minDueAt: "2026-06-04T00:10:00Z",
+          targetDueAt: "2026-06-04T00:30:00Z",
+          maxDueAt: "2026-06-04T01:00:00Z",
+          escalationLevel: "QUALITY_RECORD",
+          status: "TIMEOUT",
           traceId: "trace-clock-1",
         },
       ],
@@ -380,6 +392,8 @@ describe("PatientPathways", () => {
     expect(screen.getByText("急诊 / 第 0 天 / M-ASSESS")).toBeInTheDocument();
     expect(screen.getByText("当前里程碑")).toBeInTheDocument();
     expect(screen.getByText("节点: ASSESS")).toBeInTheDocument();
+    expect(screen.getAllByText("已超时").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 

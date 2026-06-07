@@ -230,6 +230,7 @@ class PathwayRepositoryTest {
         return new ClinicalClock(
             null, clockId, tenantId, patientPathwayId, "ASSESS", "COPD.TIME_TO_FOLLOWUP",
             now, now.plusSeconds(86_400), null, ClinicalClockStatus.RUNNING,
+            null, null, null, null, null, ClinicalClockEscalationLevel.NONE, null,
             now, "tester", now, "tester", "trace-pathway");
     }
 

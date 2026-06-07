@@ -26,12 +26,8 @@ test.describe("线2路径图编辑器真实验收", () => {
     expect(nodeBox!.x + nodeBox!.width).toBeLessThanOrEqual(graphBox!.x + graphBox!.width);
     expect(nodeBox!.y + nodeBox!.height).toBeLessThanOrEqual(graphBox!.y + graphBox!.height);
 
-    const sourceHandle = graph.locator(
-      '.react-flow__handle.source[data-nodeid="pathway-node-0"]',
-    );
-    const targetHandle = graph.locator(
-      '.react-flow__handle.target[data-nodeid="pathway-node-1"]',
-    );
+    const sourceHandle = graph.locator('.react-flow__handle.source[data-nodeid="pathway-node-0"]');
+    const targetHandle = graph.locator('.react-flow__handle.target[data-nodeid="pathway-node-1"]');
     await sourceHandle.dragTo(targetHandle);
     await expect(dialog.getByText("流转边 1", { exact: true })).toBeVisible();
     await expect(graph.locator(".react-flow__edge")).toHaveCount(1);
@@ -93,6 +89,35 @@ test.describe("线2路径图编辑器真实验收", () => {
     expect(nodeCodeInputBox).not.toBeNull();
     expect(toolbarTitleBox!.width).toBeGreaterThan(120);
     expect(nodeCodeInputBox!.width).toBeGreaterThan(250);
+    await expectNoRootOverflow(page);
+  });
+
+  test("关键时钟节点显示并填写临床时钟 SLA 字段", async ({ page }) => {
+    await ensureReadySession(page, "platform-admin");
+    await page.goto("/pathway/templates");
+
+    await page.getByRole("button", { name: "新建路径模板" }).click();
+    const dialog = page.getByRole("dialog", { name: "新建路径模板模型" });
+    await dialog.getByRole("tab", { name: "L2 节点画布" }).click();
+    await dialog.getByRole("button", { name: "添加节点" }).click();
+
+    await dialog.getByLabel("节点编码").fill("CLOCK");
+    await dialog.getByLabel("节点名称").fill("关键时钟");
+    await dialog.getByLabel("时窗分钟").fill("60");
+
+    await expect(dialog.getByLabel("SLA基准")).toBeVisible();
+    await expect(dialog.getByLabel("最早分钟")).toBeVisible();
+    await expect(dialog.getByLabel("目标分钟")).toBeVisible();
+    await expect(dialog.getByLabel("最晚分钟")).toBeVisible();
+    await expect(dialog.getByLabel("上报分钟")).toBeVisible();
+
+    await dialog.getByLabel("目标分钟").fill("90");
+    await dialog.getByLabel("最晚分钟").fill("120");
+    await dialog.getByLabel("上报分钟").fill("105");
+
+    await expect(dialog.getByLabel("目标分钟")).toHaveValue("90");
+    await expect(dialog.getByLabel("最晚分钟")).toHaveValue("120");
+    await expect(dialog.getByLabel("上报分钟")).toHaveValue("105");
     await expectNoRootOverflow(page);
   });
 });
