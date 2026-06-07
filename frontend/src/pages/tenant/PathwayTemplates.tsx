@@ -73,6 +73,7 @@ import type {
   PathwayEdge,
   PathwayEdgeType,
   PathwayEntryMode,
+  PathwayMilestone,
   PathwayNode,
   PathwayNodeType,
   PathwaySimulationResponse,
@@ -143,11 +144,23 @@ type PathwayNodeDraft = {
   nodeCode: string;
   name: string;
   nodeType: PathwayNodeType;
+  milestoneCode?: string;
   sortOrder: number;
   responsibleRole?: string;
   timeWindowMinutes?: number;
   terminal: boolean;
   config?: unknown;
+};
+
+type PathwayMilestoneDraft = {
+  phaseCode: string;
+  phaseName: string;
+  milestoneCode: string;
+  name: string;
+  dayOffset?: number;
+  expectedOffsetMinutes?: number;
+  achievementCriteria?: unknown;
+  sortOrder: number;
 };
 
 type PathwayEdgeDraft = {
@@ -166,6 +179,7 @@ type PathwayMetricBindingDraft = {
 };
 
 type PathwayDslPayload = {
+  milestones?: PathwayMilestoneDraft[];
   nodes?: PathwayNodeDraft[];
   edges?: PathwayEdgeDraft[];
   metricBindings?: PathwayMetricBindingDraft[];
@@ -175,12 +189,24 @@ type PathwayNodeFormValue = {
   nodeCode?: string;
   name?: string;
   nodeType?: PathwayNodeType;
+  milestoneCode?: string;
   sortOrder?: number;
   responsibleRole?: string;
   timeWindowMinutes?: number;
   terminal?: boolean;
   metricCode?: string;
   config?: object;
+};
+
+type PathwayMilestoneFormValue = {
+  phaseCode?: string;
+  phaseName?: string;
+  milestoneCode?: string;
+  name?: string;
+  dayOffset?: number;
+  expectedOffsetMinutes?: number;
+  achievementCriteria?: object;
+  sortOrder?: number;
 };
 
 type PathwayEdgeFormValue = {
@@ -215,6 +241,7 @@ type PathwayTemplateFormValue = {
   description?: string;
   entryCriteria?: PathwayCriteriaFormValue;
   exitCriteria?: PathwayCriteriaFormValue;
+  milestones?: PathwayMilestoneFormValue[];
   nodes?: PathwayNodeFormValue[];
   edges?: PathwayEdgeFormValue[];
 };
@@ -411,6 +438,7 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
       nodeCode: cleanText(node.nodeCode) ?? "",
       name: cleanText(node.name) ?? "",
       nodeType: node.nodeType ?? "ASSESSMENT",
+      milestoneCode: cleanText(node.milestoneCode),
       sortOrder: Number(node.sortOrder ?? index + 1),
       responsibleRole: cleanText(node.responsibleRole),
       timeWindowMinutes:
@@ -419,6 +447,33 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
           : undefined,
       terminal: Boolean(node.terminal),
       config: normalizeNodeConfig(node.config),
+    }));
+}
+
+function normalizeMilestones(milestones?: PathwayMilestoneFormValue[]) {
+  return (milestones ?? [])
+    .filter(
+      (milestone) =>
+        cleanText(milestone.phaseCode) ||
+        cleanText(milestone.phaseName) ||
+        cleanText(milestone.milestoneCode) ||
+        cleanText(milestone.name),
+    )
+    .map<PathwayMilestoneDraft>((milestone, index) => ({
+      phaseCode: cleanText(milestone.phaseCode) ?? "",
+      phaseName: cleanText(milestone.phaseName) ?? "",
+      milestoneCode: cleanText(milestone.milestoneCode) ?? "",
+      name: cleanText(milestone.name) ?? "",
+      dayOffset:
+        typeof milestone.dayOffset === "number" && milestone.dayOffset >= 0
+          ? milestone.dayOffset
+          : undefined,
+      expectedOffsetMinutes:
+        typeof milestone.expectedOffsetMinutes === "number" && milestone.expectedOffsetMinutes >= 0
+          ? milestone.expectedOffsetMinutes
+          : undefined,
+      achievementCriteria: normalizeNodeConfig(milestone.achievementCriteria),
+      sortOrder: Number(milestone.sortOrder ?? index + 1),
     }));
 }
 
@@ -452,15 +507,24 @@ function normalizeMetricBindings(nodes?: PathwayNodeFormValue[]) {
     }));
 }
 
-function buildDraftDsl(nodes?: PathwayNodeFormValue[], edges?: PathwayEdgeFormValue[]) {
+function buildDraftDsl(
+  milestones?: PathwayMilestoneFormValue[],
+  nodes?: PathwayNodeFormValue[],
+  edges?: PathwayEdgeFormValue[],
+) {
   return {
+    milestones: normalizeMilestones(milestones),
     nodes: normalizeNodes(nodes),
     edges: normalizeEdges(edges),
     metricBindings: normalizeMetricBindings(nodes),
   };
 }
 
-function buildDraftDslPreview(nodes?: PathwayNodeFormValue[], edges?: PathwayEdgeFormValue[]) {
+function buildDraftDslPreview(
+  milestones?: PathwayMilestoneFormValue[],
+  nodes?: PathwayNodeFormValue[],
+  edges?: PathwayEdgeFormValue[],
+) {
   let normalizedEdges: PathwayEdgeDraft[] = [];
   try {
     normalizedEdges = normalizeEdges(edges);
@@ -468,6 +532,7 @@ function buildDraftDslPreview(nodes?: PathwayNodeFormValue[], edges?: PathwayEdg
     normalizedEdges = [];
   }
   return formatJson({
+    milestones: normalizeMilestones(milestones),
     nodes: normalizeNodes(nodes),
     edges: normalizedEdges,
     metricBindings: normalizeMetricBindings(nodes),
@@ -487,10 +552,21 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       entryCriteria: parseLooseJson(detail.template.entryCriteriaJson),
       exitCriteria: parseLooseJson(detail.template.exitCriteriaJson),
     },
+    milestones: detail.milestones.map((milestone) => ({
+      phaseCode: milestone.phaseCode,
+      phaseName: milestone.phaseName,
+      milestoneCode: milestone.milestoneCode,
+      name: milestone.name,
+      dayOffset: milestone.dayOffset,
+      expectedOffsetMinutes: milestone.expectedOffsetMinutes,
+      achievementCriteria: parseLooseJson(milestone.achievementCriteriaJson),
+      sortOrder: milestone.sortOrder,
+    })),
     nodes: detail.nodes.map((node) => ({
       nodeCode: node.nodeCode,
       name: node.name,
       nodeType: node.nodeType,
+      milestoneCode: node.milestoneCode,
       sortOrder: node.sortOrder,
       responsibleRole: node.responsibleRole,
       timeWindowMinutes: node.timeWindowMinutes,
@@ -516,6 +592,22 @@ function mappingEntries(mapping?: Record<string, string>) {
   return Object.entries(mapping ?? {});
 }
 
+function milestoneDayText(dayOffset?: number) {
+  return typeof dayOffset === "number" ? `第 ${dayOffset} 天` : "未设天序";
+}
+
+function milestoneOptionLabel(
+  milestone:
+    | PathwayMilestoneDraft
+    | PathwayMilestoneFormValue
+    | Pick<PathwayMilestone, "phaseCode" | "phaseName" | "milestoneCode" | "name" | "dayOffset">,
+) {
+  const phase = cleanText(milestone.phaseName) ?? cleanText(milestone.phaseCode) ?? "未命名阶段";
+  const name = cleanText(milestone.name) ?? "未命名里程碑";
+  const code = cleanText(milestone.milestoneCode) ?? "未设置编码";
+  return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}（${code}）`;
+}
+
 function normalizeEdgesForCanvas(edges?: PathwayEdgeFormValue[]) {
   try {
     return normalizeEdges(edges);
@@ -532,6 +624,7 @@ function parsePathwayDslJson(value: string): PathwayDslPayload {
     }
     const payload = parsed as PathwayDslPayload;
     if (
+      (payload.milestones !== undefined && !Array.isArray(payload.milestones)) ||
       (payload.nodes !== undefined && !Array.isArray(payload.nodes)) ||
       (payload.edges !== undefined && !Array.isArray(payload.edges)) ||
       (payload.metricBindings !== undefined && !Array.isArray(payload.metricBindings))
@@ -589,10 +682,27 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
   });
 
   return {
+    milestones: (payload.milestones ?? []).map<PathwayMilestoneFormValue>((milestone, index) => ({
+      phaseCode: cleanText(milestone.phaseCode),
+      phaseName: cleanText(milestone.phaseName),
+      milestoneCode: cleanText(milestone.milestoneCode),
+      name: cleanText(milestone.name),
+      dayOffset:
+        typeof milestone.dayOffset === "number" && milestone.dayOffset >= 0
+          ? milestone.dayOffset
+          : undefined,
+      expectedOffsetMinutes:
+        typeof milestone.expectedOffsetMinutes === "number" && milestone.expectedOffsetMinutes >= 0
+          ? milestone.expectedOffsetMinutes
+          : undefined,
+      achievementCriteria: normalizeNodeConfig(milestone.achievementCriteria),
+      sortOrder: Number(milestone.sortOrder ?? index + 1),
+    })),
     nodes: (payload.nodes ?? []).map<PathwayNodeFormValue>((node, index) => ({
       nodeCode: cleanText(node.nodeCode),
       name: cleanText(node.name),
       nodeType: node.nodeType ?? "ASSESSMENT",
+      milestoneCode: cleanText(node.milestoneCode),
       sortOrder: Number(node.sortOrder ?? index + 1),
       responsibleRole: cleanText(node.responsibleRole),
       timeWindowMinutes:
@@ -699,7 +809,9 @@ export default function PathwayTemplates() {
   const [snapshotEncounterId, setSnapshotEncounterId] = useState<string>("");
   const [snapshotQuery, setSnapshotQuery] = useState<SnapshotQuery | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
-  const [pathwayDslJson, setPathwayDslJson] = useState<string>(() => buildDraftDslPreview([], []));
+  const [pathwayDslJson, setPathwayDslJson] = useState<string>(() =>
+    buildDraftDslPreview([], [], []),
+  );
   const [simulationResponse, setSimulationResponse] = useState<PathwaySimulationResponse | null>(
     null,
   );
@@ -780,6 +892,7 @@ export default function PathwayTemplates() {
 
   const [packageForm] = Form.useForm();
   const [templateForm] = Form.useForm<PathwayTemplateFormValue>();
+  const watchedMilestones = Form.useWatch("milestones", templateForm);
   const watchedNodes = Form.useWatch("nodes", templateForm);
   const watchedEdges = Form.useWatch("edges", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
@@ -864,10 +977,21 @@ export default function PathwayTemplates() {
     [canvasNodes],
   );
 
+  const milestoneSelectOptions = useMemo(
+    () =>
+      normalizeMilestones(watchedMilestones)
+        .filter((milestone) => cleanText(milestone.milestoneCode))
+        .map((milestone) => ({
+          value: milestone.milestoneCode,
+          label: milestoneOptionLabel(milestone),
+        })),
+    [watchedMilestones],
+  );
+
   // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
-    listName: "nodes" | "edges",
-    field: "nodeCode" | "edgeCode",
+    listName: "nodes" | "edges" | "milestones",
+    field: "nodeCode" | "edgeCode" | "milestoneCode",
     prefix: string,
   ) => {
     const list =
@@ -942,12 +1066,37 @@ export default function PathwayTemplates() {
     try {
       await templateForm.validateFields();
       const values = templateForm.getFieldsValue(true);
+      const milestones = normalizeMilestones(values.milestones);
       const nodes = normalizeNodes(values.nodes);
       const edges = normalizeEdges(values.edges);
       const metricBindings = normalizeMetricBindings(values.nodes);
       const nodeCodes = new Set(nodes.map((node) => node.nodeCode));
       if (nodes.length === 0) {
         messageApi.error("请至少添加一个生命周期节点");
+        return;
+      }
+      const milestoneCodes = new Set<string>();
+      for (const milestone of milestones) {
+        if (
+          !cleanText(milestone.phaseCode) ||
+          !cleanText(milestone.phaseName) ||
+          !cleanText(milestone.milestoneCode) ||
+          !cleanText(milestone.name)
+        ) {
+          messageApi.error("阶段里程碑必须填写阶段编码、阶段名称、里程碑编码和名称");
+          return;
+        }
+        if (milestoneCodes.has(milestone.milestoneCode)) {
+          messageApi.error(`里程碑编码 ${milestone.milestoneCode} 重复，请改为唯一编码。`);
+          return;
+        }
+        milestoneCodes.add(milestone.milestoneCode);
+      }
+      const invalidMilestoneNode = nodes.find(
+        (node) => node.milestoneCode && !milestoneCodes.has(node.milestoneCode),
+      );
+      if (invalidMilestoneNode) {
+        messageApi.error(`节点 ${invalidMilestoneNode.nodeCode} 引用了不存在的里程碑`);
         return;
       }
       if (!nodeCodes.has(values.startNodeCode)) {
@@ -985,6 +1134,7 @@ export default function PathwayTemplates() {
         description: values.description ?? "",
         entryCriteria,
         exitCriteria,
+        milestones,
         nodes,
         edges,
         metricBindings,
@@ -993,7 +1143,7 @@ export default function PathwayTemplates() {
       messageApi.success("专病路径模板草稿创建成功");
       setCreateTemplateVisible(false);
       templateForm.resetFields();
-      setPathwayDslJson(buildDraftDslPreview([], []));
+      setPathwayDslJson(buildDraftDslPreview([], [], []));
       refetchList();
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes("条件")) {
@@ -1008,7 +1158,7 @@ export default function PathwayTemplates() {
   const syncCanvasToDsl = () => {
     try {
       const values = templateForm.getFieldsValue(true);
-      setPathwayDslJson(formatJson(buildDraftDsl(values.nodes, values.edges)));
+      setPathwayDslJson(formatJson(buildDraftDsl(values.milestones, values.nodes, values.edges)));
       setCreateExpertMode(true);
       messageApi.success("已从 L2 节点画布同步到 L3 DSL");
     } catch (error: unknown) {
@@ -1020,7 +1170,9 @@ export default function PathwayTemplates() {
     try {
       const formValues = formValuesFromDsl(parsePathwayDslJson(pathwayDslJson));
       templateForm.setFieldsValue(formValues);
-      setPathwayDslJson(buildDraftDslPreview(formValues.nodes, formValues.edges));
+      setPathwayDslJson(
+        buildDraftDslPreview(formValues.milestones, formValues.nodes, formValues.edges),
+      );
       messageApi.success("已将 L3 DSL 回填到 L2 节点画布");
     } catch (error: unknown) {
       messageApi.error(error instanceof Error ? error.message : "L3 DSL 回填失败");
@@ -1259,6 +1411,11 @@ export default function PathwayTemplates() {
       render: (type: PathwayNodeType) => <Tag color="purple">{type}</Tag>,
     },
     {
+      title: "里程碑",
+      dataIndex: "milestoneCode",
+      render: (code?: string) => (code ? <Tag color="geekblue">{code}</Tag> : "未绑定"),
+    },
+    {
       title: "时窗",
       dataIndex: "timeWindowMinutes",
       render: (minutes?: number) => (minutes ? `${minutes} 分钟` : "无"),
@@ -1268,6 +1425,25 @@ export default function PathwayTemplates() {
       title: "终止",
       dataIndex: "terminalFlag",
       render: (terminal: boolean) => (terminal ? "是" : "否"),
+    },
+  ];
+
+  const milestoneColumns: TableProps<PathwayMilestone>["columns"] = [
+    {
+      title: "阶段天序",
+      key: "phase",
+      render: (_value, milestone) =>
+        `${milestone.phaseName || milestone.phaseCode} / ${milestoneDayText(milestone.dayOffset)}`,
+    },
+    {
+      title: "里程碑",
+      key: "milestone",
+      render: (_value, milestone) => `${milestone.name}（${milestone.milestoneCode}）`,
+    },
+    {
+      title: "预期完成",
+      dataIndex: "expectedOffsetMinutes",
+      render: (minutes?: number) => (typeof minutes === "number" ? `${minutes} 分钟` : "未设置"),
     },
   ];
 
@@ -1477,6 +1653,115 @@ export default function PathwayTemplates() {
             )}
           </Space>
 
+          <Form.List name="milestones">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Space align="center" className="mk-flex-between mk-full-width">
+                  <div className={styles.textStrong}>阶段与天序里程碑</div>
+                  <Button
+                    icon={<PlusOutlined />}
+                    onClick={() =>
+                      add({
+                        phaseCode: "PHASE",
+                        phaseName: "阶段",
+                        milestoneCode: nextSeqCode("milestones", "milestoneCode", "M"),
+                        sortOrder: fields.length + 1,
+                      })
+                    }
+                  >
+                    添加里程碑
+                  </Button>
+                </Space>
+                {fields.length === 0 && <Empty description="尚未添加阶段里程碑" />}
+                {fields.map((field) => {
+                  const { key, ...fieldProps } = field;
+                  return (
+                    <div key={key} className={styles.editorList}>
+                      <Space align="start" className="mk-flex-between mk-full-width">
+                        <Tag color="geekblue">里程碑 {field.name + 1}</Tag>
+                        <Button
+                          aria-label={`删除里程碑 ${field.name + 1}`}
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(field.name)}
+                        />
+                      </Space>
+                      <Row gutter={12} className={styles.marginTopMd}>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "phaseCode"]}
+                            label="阶段编码"
+                            rules={[{ required: true }]}
+                          >
+                            <Input placeholder="如 PREOP" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "phaseName"]}
+                            label="阶段名称"
+                            rules={[{ required: true }]}
+                          >
+                            <Input placeholder="如 术前" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "milestoneCode"]}
+                            label="里程碑编码"
+                            rules={[{ required: true }]}
+                          >
+                            <Input placeholder="如 M-PREOP-ASSESS" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "name"]}
+                            label="里程碑名称"
+                            rules={[{ required: true }]}
+                          >
+                            <Input placeholder="如 入径评估" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                      <Row gutter={12}>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item {...fieldProps} name={[field.name, "dayOffset"]} label="天序">
+                            <InputNumber
+                              min={0}
+                              precision={0}
+                              placeholder="如 0"
+                              className={styles.fullWidth}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "expectedOffsetMinutes"]}
+                            label="预期分钟"
+                          >
+                            <InputNumber
+                              min={0}
+                              precision={0}
+                              placeholder="如 60"
+                              className={styles.fullWidth}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                })}
+              </Space>
+            )}
+          </Form.List>
+
+          <Divider />
+
           <Form.List name="nodes">
             {(fields, { add, remove }) => (
               <Space direction="vertical" size="middle" className="mk-full-width">
@@ -1556,6 +1841,22 @@ export default function PathwayTemplates() {
                             label="责任角色"
                           >
                             <Input placeholder="如 专科医生" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "milestoneCode"]}
+                            label="所属里程碑"
+                          >
+                            <Select
+                              allowClear
+                              showSearch
+                              optionFilterProp="label"
+                              placeholder="选择阶段里程碑"
+                              options={milestoneSelectOptions}
+                              notFoundContent="请先添加里程碑"
+                            />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2104,6 +2405,7 @@ export default function PathwayTemplates() {
                   nodeCode: node.nodeCode,
                   name: node.name,
                   nodeType: node.nodeType,
+                  milestoneCode: node.milestoneCode,
                   sortOrder: node.sortOrder,
                   terminal: node.terminalFlag,
                   config: normalizeNodeConfig(parseLooseJson(node.configJson)),
@@ -2115,6 +2417,15 @@ export default function PathwayTemplates() {
                   edgeType: edge.edgeType,
                   priority: edge.priority,
                 }))}
+              />
+              <Table
+                title={() => "阶段与天序里程碑"}
+                dataSource={detailData.milestones}
+                rowKey="milestoneId"
+                pagination={false}
+                size="small"
+                columns={milestoneColumns}
+                className="medkernel-table"
               />
               <Table
                 dataSource={detailData.nodes}
@@ -2409,8 +2720,9 @@ export default function PathwayTemplates() {
                   entryMode: "AUTO_SUGGEST",
                   nodes: [],
                   edges: [],
+                  milestones: [],
                 });
-                setPathwayDslJson(buildDraftDslPreview([], []));
+                setPathwayDslJson(buildDraftDslPreview([], [], []));
                 setCreateExpertMode(false);
                 setCreateTemplateVisible(true);
               }}

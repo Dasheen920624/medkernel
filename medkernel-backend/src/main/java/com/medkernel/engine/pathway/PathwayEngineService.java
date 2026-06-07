@@ -92,6 +92,7 @@ public class PathwayEngineService {
     private final SpecialtyProfileRepository profiles;
     private final PathwayTemplateRepository templates;
     private final PathwayNodeRepository nodes;
+    private final PathwayMilestoneRepository milestones;
     private final PathwayEdgeRepository edges;
     private final PatientPathwayRepository patientPathways;
     private final PathwayVarianceRepository variances;
@@ -120,6 +121,7 @@ public class PathwayEngineService {
                                 SpecialtyProfileRepository profiles,
                                 PathwayTemplateRepository templates,
                                 PathwayNodeRepository nodes,
+                                PathwayMilestoneRepository milestones,
                                 PathwayEdgeRepository edges,
                                 PatientPathwayRepository patientPathways,
                                 PathwayVarianceRepository variances,
@@ -139,7 +141,7 @@ public class PathwayEngineService {
                                 ReleasePort releasePort,
                                 PackageItemRepository packageItems,
                                 InheritanceResolver inheritanceResolver) {
-        this(packages, profiles, templates, nodes, edges, patientPathways, variances, clocks,
+        this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
             metricBindings, contextSnapshots, progressor, auditRecorder, transitions,
             diagnoseAssembler, json,
             followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop), safetyGuard,
@@ -151,6 +153,7 @@ public class PathwayEngineService {
                          SpecialtyProfileRepository profiles,
                          PathwayTemplateRepository templates,
                          PathwayNodeRepository nodes,
+                         PathwayMilestoneRepository milestones,
                          PathwayEdgeRepository edges,
                          PatientPathwayRepository patientPathways,
                          PathwayVarianceRepository variances,
@@ -174,6 +177,7 @@ public class PathwayEngineService {
         this.profiles = profiles;
         this.templates = templates;
         this.nodes = nodes;
+        this.milestones = milestones;
         this.edges = edges;
         this.patientPathways = patientPathways;
         this.variances = variances;
@@ -250,10 +254,19 @@ public class PathwayEngineService {
             PathwayTemplateStatus.DRAFT, request.entryMode(), request.startNodeCode(), request.sourceRef(),
             request.description(), writeJson(request.entryCriteria()), writeJson(request.exitCriteria()),
             now, actor, now, actor, traceId));
+        validateMilestoneBindings(request.milestones(), request.nodes());
+        List<PathwayMilestone> savedMilestones = nullToEmpty(request.milestones()).stream()
+            .map(milestone -> milestones.save(new PathwayMilestone(
+                null, "pm-" + UUID.randomUUID(), tenantId, templateId,
+                milestone.phaseCode(), milestone.phaseName(), milestone.milestoneCode(),
+                milestone.name(), milestone.dayOffset(),
+                milestone.expectedOffsetMinutes(), writeJson(milestone.achievementCriteria()),
+                safeInt(milestone.sortOrder()), now, actor, now, actor, traceId)))
+            .toList();
         List<PathwayNode> savedNodes = nullToEmpty(request.nodes()).stream()
             .map(node -> nodes.save(new PathwayNode(
                 null, "pn-" + UUID.randomUUID(), tenantId, templateId, node.nodeCode(),
-                node.name(), node.nodeType(), safeInt(node.sortOrder()),
+                node.name(), node.nodeType(), node.milestoneCode(), safeInt(node.sortOrder()),
                 node.responsibleRole(), writeJson(node.dependency()), node.timeWindowMinutes(),
                 Boolean.TRUE.equals(node.terminal()), writeJson(node.config()),
                 now, actor, now, actor, traceId)))
@@ -280,7 +293,7 @@ public class PathwayEngineService {
             String.valueOf(template.templateVersion()),
             releaseOrgScope(template),
             releaseApplicableScope(template),
-            pathwayContent(template, savedNodes, savedEdges, savedBindings),
+            pathwayContent(template, savedMilestones, savedNodes, savedEdges, savedBindings),
             null,
             template.sourceRef(),
             actor,
@@ -293,7 +306,7 @@ public class PathwayEngineService {
         auditRecorder.record(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
             "创建路径模板 " + request.templateCode());
         return new PathwayTemplateDetailResponse(
-            template, savedNodes, savedEdges, savedBindings, assetVersion.status(), traceId);
+            template, savedMilestones, savedNodes, savedEdges, savedBindings, assetVersion.status(), traceId);
     }
 
     private void bridgePathwayTemplateToPackageItem(
@@ -339,13 +352,15 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         PathwayTemplate template = findTemplate(templateId, tenantId);
         ensureTemplateDraft(template);
+        List<PathwayMilestone> graphMilestones =
+            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
         List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
         List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
         List<SpecialtyMetricBinding> graphBindings =
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId);
-        validatePublishGate(template, graphNodes, graphEdges, graphBindings);
+        validatePublishGate(template, graphMilestones, graphNodes, graphEdges, graphBindings);
         PathwayTemplateImpactResponse impact = templateImpactFor(
-            template, graphNodes, graphEdges, graphBindings,
+            template, graphMilestones, graphNodes, graphEdges, graphBindings,
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
         validateReleaseGate(request, impact);
         ensureTerminologyCoverage(graphEdges);
@@ -556,6 +571,8 @@ public class PathwayEngineService {
     private String pathwayContent(PathwayTemplate template) {
         return pathwayContent(
             template,
+            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                template.templateId(), template.tenantId()),
             nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), template.tenantId()),
             edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), template.tenantId()),
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
@@ -565,6 +582,7 @@ public class PathwayEngineService {
 
     private String pathwayContent(
             PathwayTemplate template,
+            List<PathwayMilestone> graphMilestones,
             List<PathwayNode> graphNodes,
             List<PathwayEdge> graphEdges,
             List<SpecialtyMetricBinding> graphBindings) {
@@ -580,6 +598,7 @@ public class PathwayEngineService {
             template.description(),
             template.entryCriteriaJson(),
             template.exitCriteriaJson(),
+            nullToEmpty(graphMilestones).stream().map(PathwayMilestoneAssetContent::from).toList(),
             nullToEmpty(graphNodes).stream().map(PathwayNodeAssetContent::from).toList(),
             nullToEmpty(graphEdges).stream().map(PathwayEdgeAssetContent::from).toList(),
             nullToEmpty(graphBindings).stream().map(PathwayMetricAssetContent::from).toList()
@@ -595,13 +614,15 @@ public class PathwayEngineService {
     public PathwayTemplateImpactResponse templateImpact(String templateId) {
         String tenantId = requireCurrentTenant();
         PathwayTemplate template = findTemplate(templateId, tenantId);
+        List<PathwayMilestone> graphMilestones =
+            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
         List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
         List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
         List<SpecialtyMetricBinding> graphBindings =
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId);
-        validatePublishGate(template, graphNodes, graphEdges, graphBindings);
+        validatePublishGate(template, graphMilestones, graphNodes, graphEdges, graphBindings);
         return templateImpactFor(
-            template, graphNodes, graphEdges, graphBindings,
+            template, graphMilestones, graphNodes, graphEdges, graphBindings,
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
     }
 
@@ -740,7 +761,7 @@ public class PathwayEngineService {
     /**
      * 装配路径模板详情。
      *
-     * <p>返回模板主表、按顺序排列的节点、按优先级排列的边和按节点排列的指标绑定。
+     * <p>返回模板主表、按阶段顺序排列的里程碑、按顺序排列的节点、按优先级排列的边和按节点排列的指标绑定。
      */
     @Transactional(readOnly = true)
     public PathwayTemplateDetailResponse templateDetail(String templateId) {
@@ -750,6 +771,8 @@ public class PathwayEngineService {
         AssetVersion assetVersion = requirePathwayAssetVersion(template);
         return new PathwayTemplateDetailResponse(
             template,
+            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                template.templateId(), effective.sourceTenantId()),
             nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), effective.sourceTenantId()),
             edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), effective.sourceTenantId()),
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(template.templateId(), effective.sourceTenantId()),
@@ -790,6 +813,10 @@ public class PathwayEngineService {
                 template.templateId(), effective.sourceTenantId(), startNodeCode)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_006,
                 "入径起始节点不存在: " + startNodeCode));
+        List<PathwayMilestone> graphMilestones = milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            template.templateId(), effective.sourceTenantId());
+        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            template.templateId(), effective.sourceTenantId());
         List<SpecialtyMetricBinding> graphBindings = metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
             template.templateId(), effective.sourceTenantId());
         String traceId = RequestContext.currentTraceId();
@@ -807,7 +834,13 @@ public class PathwayEngineService {
             PatientPathwayStatus.NODE_EXECUTING.name(), "ENTER_PATHWAY", null);
         auditRecorder.record(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
             "患者入径 " + template.templateCode());
-        return new PatientPathwayDetailResponse(runtime, List.of(), List.of(startClock), traceId);
+        List<ClinicalClock> runtimeClocks = List.of(startClock);
+        return new PatientPathwayDetailResponse(
+            runtime,
+            milestoneStatuses(runtime, graphMilestones, graphNodes, runtimeClocks),
+            List.of(),
+            runtimeClocks,
+            traceId);
     }
 
     private void validateEntryCriteria(PathwayTemplate template, ContextSnapshotResources resources) {
@@ -917,16 +950,24 @@ public class PathwayEngineService {
     /**
      * 查看患者路径实例详情。
      *
-     * <p>返回路径运行时状态、按创建时间排列的变异记录和按启动时间排列的关键时钟。
+     * <p>返回路径运行时状态、里程碑达成判定、按创建时间排列的变异记录和按启动时间排列的关键时钟。
      */
     @Transactional(readOnly = true)
     public PatientPathwayDetailResponse patientDetail(String patientPathwayId) {
         String tenantId = requireCurrentTenant();
         PatientPathway runtime = findPatientPathway(patientPathwayId, tenantId);
+        EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
+        List<PathwayMilestone> graphMilestones = milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            effective.template().templateId(), effective.sourceTenantId());
+        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            effective.template().templateId(), effective.sourceTenantId());
+        List<ClinicalClock> runtimeClocks =
+            clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId);
         return new PatientPathwayDetailResponse(
             runtime,
+            milestoneStatuses(runtime, graphMilestones, graphNodes, runtimeClocks),
             variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc(patientPathwayId, tenantId),
-            clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
+            runtimeClocks,
             RequestContext.currentTraceId());
     }
 
@@ -1112,10 +1153,12 @@ public class PathwayEngineService {
     }
 
     private PathwayTemplateImpactResponse templateImpactFor(PathwayTemplate template,
+                                                            List<PathwayMilestone> graphMilestones,
                                                             List<PathwayNode> graphNodes,
                                                             List<PathwayEdge> graphEdges,
                                                             List<SpecialtyMetricBinding> graphBindings,
                                                             List<PatientPathway> runtimes) {
+        List<PathwayMilestone> safeMilestones = nullToEmpty(graphMilestones);
         List<PathwayNode> safeNodes = nullToEmpty(graphNodes);
         List<PathwayEdge> safeEdges = nullToEmpty(graphEdges);
         List<SpecialtyMetricBinding> safeBindings = nullToEmpty(graphBindings);
@@ -1127,8 +1170,8 @@ public class PathwayEngineService {
             .filter(node -> Boolean.TRUE.equals(node.terminalFlag()))
             .count();
         List<String> releaseEvidence = List.of(
-            "拓扑节点 " + safeNodes.size() + " 个，边 " + safeEdges.size()
-                + " 条，终止节点 " + terminalNodeCount + " 个",
+            "阶段里程碑 " + safeMilestones.size() + " 个，拓扑节点 " + safeNodes.size()
+                + " 个，边 " + safeEdges.size() + " 条，终止节点 " + terminalNodeCount + " 个",
             "关键时钟节点 " + timedNodeCount + " 个，当前关联患者路径实例 "
                 + safeRuntimes.size() + " 条",
             "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本"
@@ -1138,6 +1181,7 @@ public class PathwayEngineService {
             template.templateCode(),
             String.valueOf(template.templateVersion()),
             template.startNodeCode(),
+            safeMilestones.stream().map(this::milestoneImpactSignature).sorted().toList().toString(),
             safeNodes.stream().map(this::nodeImpactSignature).sorted().toList().toString(),
             safeEdges.stream().map(this::edgeImpactSignature).sorted().toList().toString(),
             safeBindings.stream().map(this::bindingImpactSignature).sorted().toList().toString(),
@@ -1211,9 +1255,125 @@ public class PathwayEngineService {
         return String.join(":",
             node.nodeCode(),
             node.nodeType().name(),
+            String.valueOf(node.milestoneCode()),
             String.valueOf(node.sortOrder()),
             String.valueOf(node.timeWindowMinutes()),
             String.valueOf(node.terminalFlag()));
+    }
+
+    private String milestoneImpactSignature(PathwayMilestone milestone) {
+        return String.join(":",
+            String.valueOf(milestone.phaseCode()),
+            String.valueOf(milestone.phaseName()),
+            String.valueOf(milestone.milestoneCode()),
+            String.valueOf(milestone.name()),
+            String.valueOf(milestone.dayOffset()),
+            String.valueOf(milestone.expectedOffsetMinutes()),
+            String.valueOf(milestone.sortOrder()));
+    }
+
+    private void validateMilestoneBindings(List<PathwayMilestoneRequest> milestoneRequests,
+                                           List<PathwayNodeRequest> nodeRequests) {
+        Set<String> milestoneCodes = new HashSet<>();
+        for (PathwayMilestoneRequest milestone : nullToEmpty(milestoneRequests)) {
+            if (isBlank(milestone.phaseCode()) || isBlank(milestone.phaseName())
+                    || isBlank(milestone.milestoneCode()) || isBlank(milestone.name())) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径阶段里程碑缺少阶段、编码或名称");
+            }
+            if (!milestoneCodes.add(milestone.milestoneCode())) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "路径阶段里程碑编码重复: " + milestone.milestoneCode());
+            }
+            if (milestone.dayOffset() != null && milestone.dayOffset() < 0) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径里程碑天序不能为负数");
+            }
+            if (milestone.expectedOffsetMinutes() != null && milestone.expectedOffsetMinutes() < 0) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径里程碑预期完成点不能为负数");
+            }
+        }
+        for (PathwayNodeRequest node : nullToEmpty(nodeRequests)) {
+            if (!isBlank(node.milestoneCode()) && !milestoneCodes.contains(node.milestoneCode())) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "路径节点引用不存在的里程碑: " + node.nodeCode() + " -> " + node.milestoneCode());
+            }
+        }
+    }
+
+    private List<PathwayMilestoneRuntimeStatus> milestoneStatuses(
+            PatientPathway runtime,
+            List<PathwayMilestone> graphMilestones,
+            List<PathwayNode> graphNodes,
+            List<ClinicalClock> runtimeClocks) {
+        List<PathwayMilestone> safeMilestones = nullToEmpty(graphMilestones);
+        if (safeMilestones.isEmpty()) {
+            return List.of();
+        }
+        Map<String, ClinicalClock> completedClockByNode = completedClockByNode(runtimeClocks);
+        Instant now = Instant.now();
+        List<PathwayMilestoneRuntimeStatus> statuses = new ArrayList<>();
+        for (PathwayMilestone milestone : safeMilestones) {
+            List<PathwayNode> linkedNodes = nullToEmpty(graphNodes).stream()
+                .filter(node -> Objects.equals(node.milestoneCode(), milestone.milestoneCode()))
+                .toList();
+            List<String> nodeCodes = linkedNodes.stream().map(PathwayNode::nodeCode).toList();
+            Instant achievedAt = null;
+            boolean allCompleted = !nodeCodes.isEmpty();
+            for (String nodeCode : nodeCodes) {
+                ClinicalClock completedClock = completedClockByNode.get(nodeCode);
+                if (completedClock == null) {
+                    allCompleted = false;
+                    continue;
+                }
+                if (achievedAt == null || completedClock.completedAt().isAfter(achievedAt)) {
+                    achievedAt = completedClock.completedAt();
+                }
+            }
+            Instant expectedAt = milestoneExpectedAt(runtime.enteredAt(), milestone);
+            boolean current = nodeCodes.stream()
+                .anyMatch(nodeCode -> Objects.equals(nodeCode, runtime.currentNodeCode()));
+            PathwayMilestoneStatus status;
+            if (allCompleted) {
+                status = PathwayMilestoneStatus.ACHIEVED;
+            } else if (current) {
+                status = PathwayMilestoneStatus.CURRENT;
+            } else if (expectedAt != null && expectedAt.isBefore(now)) {
+                status = PathwayMilestoneStatus.OVERDUE;
+            } else {
+                status = PathwayMilestoneStatus.PENDING;
+            }
+            statuses.add(new PathwayMilestoneRuntimeStatus(
+                milestone.milestoneId(), milestone.phaseCode(), milestone.phaseName(),
+                milestone.milestoneCode(), milestone.name(), milestone.dayOffset(),
+                milestone.expectedOffsetMinutes(), nodeCodes, status, expectedAt, achievedAt));
+        }
+        return statuses;
+    }
+
+    private Map<String, ClinicalClock> completedClockByNode(List<ClinicalClock> runtimeClocks) {
+        Map<String, ClinicalClock> byNode = new LinkedHashMap<>();
+        for (ClinicalClock clock : nullToEmpty(runtimeClocks)) {
+            if (clock.completedAt() == null || isBlank(clock.nodeCode())) {
+                continue;
+            }
+            ClinicalClock existing = byNode.get(clock.nodeCode());
+            if (existing == null || clock.completedAt().isAfter(existing.completedAt())) {
+                byNode.put(clock.nodeCode(), clock);
+            }
+        }
+        return byNode;
+    }
+
+    private Instant milestoneExpectedAt(Instant enteredAt, PathwayMilestone milestone) {
+        if (enteredAt == null) {
+            return null;
+        }
+        if (milestone.expectedOffsetMinutes() != null) {
+            return enteredAt.plusSeconds(milestone.expectedOffsetMinutes().longValue() * 60L);
+        }
+        if (milestone.dayOffset() != null) {
+            return enteredAt.plusSeconds(milestone.dayOffset().longValue() * 24L * 60L * 60L);
+        }
+        return null;
     }
 
     private String edgeImpactSignature(PathwayEdge edge) {
@@ -1233,9 +1393,24 @@ public class PathwayEngineService {
             String.valueOf(binding.requiredFlag()));
     }
 
-    private void validatePublishGate(PathwayTemplate template, List<PathwayNode> graphNodes,
+    private void validatePublishGate(PathwayTemplate template,
+                                     List<PathwayMilestone> graphMilestones,
+                                     List<PathwayNode> graphNodes,
                                      List<PathwayEdge> graphEdges,
                                      List<SpecialtyMetricBinding> graphBindings) {
+        validateMilestoneBindings(
+            nullToEmpty(graphMilestones).stream()
+                .map(milestone -> new PathwayMilestoneRequest(
+                    milestone.phaseCode(), milestone.phaseName(), milestone.milestoneCode(),
+                    milestone.name(), milestone.dayOffset(), milestone.expectedOffsetMinutes(),
+                    null, milestone.sortOrder()))
+                .toList(),
+            nullToEmpty(graphNodes).stream()
+                .map(node -> new PathwayNodeRequest(
+                    node.nodeCode(), node.name(), node.nodeType(), node.milestoneCode(),
+                    node.sortOrder(), node.responsibleRole(), null, node.timeWindowMinutes(),
+                    node.terminalFlag(), null))
+                .toList());
         Set<String> nodeCodes = new HashSet<>();
         boolean hasTerminal = false;
         for (PathwayNode node : graphNodes) {
@@ -1636,15 +1811,41 @@ public class PathwayEngineService {
         String description,
         String entryCriteriaJson,
         String exitCriteriaJson,
+        List<PathwayMilestoneAssetContent> milestones,
         List<PathwayNodeAssetContent> nodes,
         List<PathwayEdgeAssetContent> edges,
         List<PathwayMetricAssetContent> metricBindings
     ) {}
 
+    private record PathwayMilestoneAssetContent(
+        String phaseCode,
+        String phaseName,
+        String milestoneCode,
+        String name,
+        Integer dayOffset,
+        Integer expectedOffsetMinutes,
+        String achievementCriteriaJson,
+        Integer sortOrder
+    ) {
+        private static PathwayMilestoneAssetContent from(PathwayMilestone milestone) {
+            return new PathwayMilestoneAssetContent(
+                milestone.phaseCode(),
+                milestone.phaseName(),
+                milestone.milestoneCode(),
+                milestone.name(),
+                milestone.dayOffset(),
+                milestone.expectedOffsetMinutes(),
+                milestone.achievementCriteriaJson(),
+                milestone.sortOrder()
+            );
+        }
+    }
+
     private record PathwayNodeAssetContent(
         String nodeCode,
         String name,
         PathwayNodeType nodeType,
+        String milestoneCode,
         Integer sortOrder,
         String responsibleRole,
         String dependencyJson,
@@ -1657,6 +1858,7 @@ public class PathwayEngineService {
                 node.nodeCode(),
                 node.name(),
                 node.nodeType(),
+                node.milestoneCode(),
                 node.sortOrder(),
                 node.responsibleRole(),
                 node.dependencyJson(),

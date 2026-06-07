@@ -3144,6 +3144,7 @@ export type PatientPathwayStatus =
   | "EXITED"
   | string;
 export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "VARIANCE" | string;
+export type PathwayMilestoneStatus = "ACHIEVED" | "CURRENT" | "PENDING" | "OVERDUE" | string;
 export type VarianceType =
   | "MEDICAL"
   | "PATIENT_REASON"
@@ -3197,12 +3198,29 @@ export interface PathwayNode {
   nodeCode: string;
   name: string;
   nodeType: PathwayNodeType;
+  milestoneCode?: string;
   sortOrder: number;
   responsibleRole?: string;
   dependencyJson?: string;
   timeWindowMinutes?: number;
   terminalFlag: boolean;
   configJson?: string;
+  createdAt?: string;
+  traceId?: string;
+}
+
+export interface PathwayMilestone {
+  id?: number;
+  milestoneId: string;
+  templateId: string;
+  phaseCode: string;
+  phaseName: string;
+  milestoneCode: string;
+  name: string;
+  dayOffset?: number;
+  expectedOffsetMinutes?: number;
+  achievementCriteriaJson?: string;
+  sortOrder: number;
   createdAt?: string;
   traceId?: string;
 }
@@ -3238,6 +3256,7 @@ export interface SpecialtyPackageResponse {
 
 export interface PathwayTemplateDetailResponse {
   template: PathwayTemplate;
+  milestones: PathwayMilestone[];
   nodes: PathwayNode[];
   edges: PathwayEdge[];
   metricBindings: SpecialtyMetricBinding[];
@@ -3333,8 +3352,23 @@ export interface ClinicalClock {
   traceId?: string;
 }
 
+export interface PathwayMilestoneRuntimeStatus {
+  milestoneId: string;
+  phaseCode: string;
+  phaseName: string;
+  milestoneCode: string;
+  name: string;
+  dayOffset?: number;
+  expectedOffsetMinutes?: number;
+  nodeCodes: string[];
+  status: PathwayMilestoneStatus;
+  expectedAt?: string;
+  achievedAt?: string;
+}
+
 export interface PatientPathwayDetailResponse {
   patientPathway: PatientPathway;
+  milestoneStatuses: PathwayMilestoneRuntimeStatus[];
   variances: PathwayVariance[];
   clocks: ClinicalClock[];
   traceId: string;
@@ -3471,10 +3505,21 @@ export function useCreatePathwayTemplate() {
       description: string;
       entryCriteria?: unknown;
       exitCriteria?: unknown;
+      milestones?: Array<{
+        phaseCode: string;
+        phaseName: string;
+        milestoneCode: string;
+        name: string;
+        dayOffset?: number;
+        expectedOffsetMinutes?: number;
+        achievementCriteria?: unknown;
+        sortOrder: number;
+      }>;
       nodes: Array<{
         nodeCode: string;
         name: string;
         nodeType: PathwayNodeType;
+        milestoneCode?: string;
         sortOrder: number;
         responsibleRole?: string;
         timeWindowMinutes?: number;

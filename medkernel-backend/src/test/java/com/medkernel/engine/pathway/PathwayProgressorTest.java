@@ -269,7 +269,7 @@ class PathwayProgressorTest {
         Instant now = Instant.now();
         return new PathwayNode(
             null, "pn-" + code, "tenant-A", "pt-tenant-A", code, code,
-            PathwayNodeType.ASSESSMENT, sortOrder, "医生", null, 120, terminal,
+            PathwayNodeType.ASSESSMENT, null, sortOrder, "医生", null, 120, terminal,
             null, now, "tester", now, "tester", "trace-pathway");
     }
 

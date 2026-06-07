@@ -74,6 +74,7 @@ class PathwayEngineServiceTest {
     private SpecialtyProfileRepository profiles;
     private PathwayTemplateRepository templates;
     private PathwayNodeRepository nodes;
+    private PathwayMilestoneRepository milestones;
     private PathwayEdgeRepository edges;
     private PatientPathwayRepository patientPathways;
     private PathwayVarianceRepository variances;
@@ -99,6 +100,7 @@ class PathwayEngineServiceTest {
         profiles = mock(SpecialtyProfileRepository.class);
         templates = mock(PathwayTemplateRepository.class);
         nodes = mock(PathwayNodeRepository.class);
+        milestones = mock(PathwayMilestoneRepository.class);
         edges = mock(PathwayEdgeRepository.class);
         patientPathways = mock(PatientPathwayRepository.class);
         variances = mock(PathwayVarianceRepository.class);
@@ -118,7 +120,7 @@ class PathwayEngineServiceTest {
         json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -128,6 +130,7 @@ class PathwayEngineServiceTest {
         when(profiles.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(templates.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(nodes.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(milestones.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(edges.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(patientPathways.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(variances.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -213,6 +216,33 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void createTemplatePersistsPhaseMilestonesAndBindsNodesToDaySequence() {
+        when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
+            .thenReturn(Optional.of(packageAsset(SpecialtyPackageStatus.DRAFT)));
+
+        PathwayTemplateDetailResponse response = service.createTemplate(templateRequestWithMilestones());
+
+        assertThat(response.milestones()).hasSize(2);
+        assertThat(response.milestones()).extracting(PathwayMilestone::milestoneCode)
+            .containsExactly("M-PREOP-ASSESS", "M-POD7-FOLLOWUP");
+        assertThat(response.milestones()).extracting(PathwayMilestone::phaseCode)
+            .containsExactly("PREOP", "POSTOP");
+        ArgumentCaptor<PathwayMilestone> milestoneCap = ArgumentCaptor.forClass(PathwayMilestone.class);
+        ArgumentCaptor<PathwayNode> nodeCap = ArgumentCaptor.forClass(PathwayNode.class);
+        verify(milestones, org.mockito.Mockito.times(2)).save(milestoneCap.capture());
+        verify(nodes, org.mockito.Mockito.times(2)).save(nodeCap.capture());
+        assertThat(milestoneCap.getAllValues()).extracting(PathwayMilestone::dayOffset)
+            .containsExactly(0, 7);
+        assertThat(nodeCap.getAllValues()).extracting(PathwayNode::milestoneCode)
+            .containsExactly("M-PREOP-ASSESS", "M-POD7-FOLLOWUP");
+        verify(versionedAssets).registerDraft(org.mockito.Mockito.argThat(command ->
+            command.content().contains("\"phaseCode\":\"PREOP\"")
+                && command.content().contains("\"dayOffset\":7")
+                && command.content().contains("\"milestoneCode\":\"M-POD7-FOLLOWUP\"")
+        ));
+    }
+
+    @Test
     void templateDetailProjectsUnifiedDeploymentStatus() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
@@ -227,7 +257,7 @@ class PathwayEngineServiceTest {
     void createTemplateBridgesSpecialtyPackageToUnifiedPackageItem() {
         PackageItemRepository packageItems = mock(PackageItemRepository.class);
         PathwayEngineService bridgedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -344,7 +374,7 @@ class PathwayEngineServiceTest {
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
         ReleasePort releasePort = mock(ReleasePort.class);
         PathwayEngineService unifiedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -400,7 +430,7 @@ class PathwayEngineServiceTest {
     void publishTemplateFailsWhenEdgeTerminologyCoverageIsUnmapped() {
         TerminologyCoverageGate coverageGate = mock(TerminologyCoverageGate.class);
         PathwayEngineService gatedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard, coverageGate,
             versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
@@ -545,7 +575,7 @@ class PathwayEngineServiceTest {
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
         ReleasePort releasePort = mock(ReleasePort.class);
         PathwayEngineService unifiedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -584,7 +614,7 @@ class PathwayEngineServiceTest {
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
         ReleasePort releasePort = mock(ReleasePort.class);
         PathwayEngineService unifiedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -628,7 +658,7 @@ class PathwayEngineServiceTest {
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
         ReleasePort releasePort = mock(ReleasePort.class);
         PathwayEngineService unifiedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -713,6 +743,41 @@ class PathwayEngineServiceTest {
         assertThat(clockCap.getValue().nodeCode()).isEqualTo("ASSESS");
         assertThat(clockCap.getValue().metricCode()).isEqualTo("COPD.TIME_TO_ASSESS");
         assertThat(clockCap.getValue().dueAt()).isNotNull();
+    }
+
+    @Test
+    void patientDetailReportsMilestoneAchievementFromCompletedClocksAndCurrentNode() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "FOLLOWUP");
+        PathwayMilestone preop = milestone("M-PREOP-ASSESS", "PREOP", "术前", "入径评估", 0, 60, 1);
+        PathwayMilestone followup = milestone("M-POD7-FOLLOWUP", "POSTOP", "术后", "出院后随访", 7, 10080, 2);
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(preop, followup));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-1", "tenant-A", "ASSESS", "M-PREOP-ASSESS", 10, false),
+                node("pt-1", "tenant-A", "FOLLOWUP", "M-POD7-FOLLOWUP", 20, true)
+            ));
+        Instant completedAt = runtime.enteredAt().plusSeconds(1800);
+        ClinicalClock assessClock = completedClock("clock-assess", "ASSESS", completedAt);
+        ClinicalClock followupClock = clock("clock-followup", "FOLLOWUP", ClinicalClockStatus.RUNNING);
+        when(variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of());
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(assessClock, followupClock));
+
+        PatientPathwayDetailResponse response = service.patientDetail("pp-1");
+
+        assertThat(response.milestoneStatuses()).extracting(PathwayMilestoneRuntimeStatus::milestoneCode)
+            .containsExactly("M-PREOP-ASSESS", "M-POD7-FOLLOWUP");
+        assertThat(response.milestoneStatuses()).extracting(PathwayMilestoneRuntimeStatus::status)
+            .containsExactly(PathwayMilestoneStatus.ACHIEVED, PathwayMilestoneStatus.CURRENT);
+        assertThat(response.milestoneStatuses().get(0).achievedAt()).isEqualTo(completedAt);
+        assertThat(response.milestoneStatuses().get(1).expectedAt())
+            .isEqualTo(runtime.enteredAt().plusSeconds(10080L * 60L));
     }
 
     @Test
@@ -813,7 +878,7 @@ class PathwayEngineServiceTest {
     void enterPatientPathwayUsesInheritanceResolvedTemplateVersionForCurrentDepartment() {
         InheritanceResolver resolver = mock(InheritanceResolver.class);
         PathwayEngineService inheritedService = new PathwayEngineService(
-            packages, profiles, templates, nodes, edges, patientPathways, variances,
+            packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
@@ -1263,6 +1328,30 @@ class PathwayEngineServiceTest {
         );
     }
 
+    private PathwayTemplateCreateRequest templateRequestWithMilestones() {
+        return new PathwayTemplateCreateRequest(
+            "sp-1", "TPL.COPD", "稳定期随访路径", "COPD", 1,
+            PathwayTemplateLevel.STANDARD, PathwayEntryMode.AUTO_SUGGEST,
+            "ASSESS", "专病路径专家共识 2026",
+            "用于路径 API 测试", json("{\"diagnosis\":\"COPD\"}"), json("{\"completed\":true}"),
+            List.of(
+                new PathwayMilestoneRequest("PREOP", "术前", "M-PREOP-ASSESS",
+                    "入径评估", 0, 60, json("{\"all\":[\"ASSESS\"]}"), 1),
+                new PathwayMilestoneRequest("POSTOP", "术后", "M-POD7-FOLLOWUP",
+                    "出院后随访", 7, 10080, json("{\"all\":[\"FOLLOWUP\"]}"), 2)
+            ),
+            List.of(
+                new PathwayNodeRequest("ASSESS", "入径评估", PathwayNodeType.ASSESSMENT,
+                    "M-PREOP-ASSESS", 10, "医生", null, 1440, false, null),
+                new PathwayNodeRequest("FOLLOWUP", "随访", PathwayNodeType.FOLLOWUP,
+                    "M-POD7-FOLLOWUP", 20, "护士", null, 43200, true, null)
+            ),
+            List.of(new PathwayEdgeRequest("EDGE.ASSESS.FOLLOWUP", "ASSESS", "FOLLOWUP",
+                PathwayEdgeType.DEFAULT, null, 10)),
+            List.of(new SpecialtyMetricBindingRequest("ASSESS", "COPD.TIME_TO_FOLLOWUP", true))
+        );
+    }
+
     private SpecialtyPackage packageAsset(SpecialtyPackageStatus status) {
         Instant now = Instant.now();
         return new SpecialtyPackage(
@@ -1332,11 +1421,26 @@ class PathwayEngineServiceTest {
     }
 
     private PathwayNode node(String templateId, String tenantId, String code, int sortOrder, boolean terminal) {
+        return node(templateId, tenantId, code, null, sortOrder, terminal);
+    }
+
+    private PathwayNode node(String templateId, String tenantId, String code,
+                             String milestoneCode, int sortOrder, boolean terminal) {
         Instant now = Instant.now();
         return new PathwayNode(
             null, "pn-" + code, tenantId, templateId, code, code,
             terminal ? PathwayNodeType.FOLLOWUP : PathwayNodeType.ASSESSMENT,
-            sortOrder, "医生", null, 1440, terminal, null,
+            milestoneCode, sortOrder, "医生", null, 1440, terminal, null,
+            now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayMilestone milestone(String milestoneCode, String phaseCode, String phaseName,
+                                       String name, Integer dayOffset,
+                                       Integer expectedOffsetMinutes, Integer sortOrder) {
+        Instant now = Instant.now();
+        return new PathwayMilestone(
+            null, "pm-" + milestoneCode, "tenant-A", "pt-1", phaseCode, phaseName,
+            milestoneCode, name, dayOffset, expectedOffsetMinutes, null, sortOrder,
             now, "tester", now, "tester", "trace-pathway");
     }
 
@@ -1408,6 +1512,14 @@ class PathwayEngineServiceTest {
             1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
             now.minusSeconds(60), now.plusSeconds(3600), null, status,
             now.minusSeconds(60), "tester", now.minusSeconds(60), "tester", "trace-pathway");
+    }
+
+    private ClinicalClock completedClock(String clockId, String nodeCode, Instant completedAt) {
+        return new ClinicalClock(
+            1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
+            completedAt.minusSeconds(1800), completedAt.plusSeconds(3600), completedAt,
+            ClinicalClockStatus.COMPLETED,
+            completedAt.minusSeconds(1800), "tester", completedAt, "tester", "trace-pathway");
     }
 
     private PathwayVariance variance(String varianceId, VarianceType type) {

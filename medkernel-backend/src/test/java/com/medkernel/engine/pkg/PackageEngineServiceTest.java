@@ -54,6 +54,8 @@ import com.medkernel.engine.pathway.PathwayEdge;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
 import com.medkernel.engine.pathway.PathwayEdgeType;
 import com.medkernel.engine.pathway.PathwayEntryMode;
+import com.medkernel.engine.pathway.PathwayMilestone;
+import com.medkernel.engine.pathway.PathwayMilestoneRepository;
 import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayNodeType;
@@ -119,6 +121,7 @@ class PackageEngineServiceTest {
     private RuleVersionRepository ruleVersionRepository;
     private RuleApplicabilityRepository ruleApplicabilityRepository;
     private PathwayTemplateRepository pathwayRepository;
+    private PathwayMilestoneRepository pathwayMilestoneRepository;
     private PathwayNodeRepository pathwayNodeRepository;
     private PathwayEdgeRepository pathwayEdgeRepository;
     private SpecialtyMetricBindingRepository pathwayMetricBindingRepository;
@@ -152,6 +155,7 @@ class PackageEngineServiceTest {
         ruleVersionRepository = mock(RuleVersionRepository.class);
         ruleApplicabilityRepository = mock(RuleApplicabilityRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
+        pathwayMilestoneRepository = mock(PathwayMilestoneRepository.class);
         pathwayNodeRepository = mock(PathwayNodeRepository.class);
         pathwayEdgeRepository = mock(PathwayEdgeRepository.class);
         pathwayMetricBindingRepository = mock(SpecialtyMetricBindingRepository.class);
@@ -191,6 +195,7 @@ class PackageEngineServiceTest {
                 new RuleApplicabilityEvaluator(TEST_MAPPER),
                 TEST_MAPPER),
             pathwayRepository,
+            pathwayMilestoneRepository,
             pathwayNodeRepository, pathwayEdgeRepository, pathwayMetricBindingRepository,
             evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
@@ -209,6 +214,7 @@ class PackageEngineServiceTest {
         when(ruleApplicabilityRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayNodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pathwayMilestoneRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayEdgeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayMetricBindingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(effectivePackageResolver.resolve(any(), any(), any(), any()))
@@ -1011,6 +1017,8 @@ class PackageEngineServiceTest {
             ));
         when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
             .thenReturn(Optional.of(template));
+        when(pathwayMilestoneRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            "pathway-stable", "tenant-A")).thenReturn(List.of(pathwayMilestone()));
         when(pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
             "pathway-stable", "tenant-A")).thenReturn(pathwayNodes());
         when(pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
@@ -1030,7 +1038,12 @@ class PackageEngineServiceTest {
         assertThat(snapshot.path("assetType").asText()).isEqualTo("PATHWAY");
         assertThat(snapshot.path("content").path("template").path("templateId").asText())
             .isEqualTo("pathway-stable");
+        assertThat(snapshot.path("content").path("milestones")).hasSize(1);
+        assertThat(snapshot.path("content").path("milestones").get(0).path("milestoneCode").asText())
+            .isEqualTo("M-START");
         assertThat(snapshot.path("content").path("nodes")).hasSize(2);
+        assertThat(snapshot.path("content").path("nodes").get(0).path("milestoneCode").asText())
+            .isEqualTo("M-START");
         assertThat(snapshot.path("content").path("edges")).hasSize(1);
         assertThat(snapshot.path("content").path("metricBindings")).hasSize(1);
     }
@@ -1172,8 +1185,13 @@ class PackageEngineServiceTest {
             template.templateId().equals("pathway-stable")
                 && template.status() == PathwayTemplateStatus.PUBLISHED
                 && template.entryMode() == PathwayEntryMode.AUTO_SUGGEST));
+        verify(pathwayMilestoneRepository).save(argThat(milestone ->
+            milestone.templateId().equals("pathway-stable")
+                && milestone.milestoneCode().equals("M-START")));
         verify(pathwayNodeRepository).save(argThat(node ->
-            node.templateId().equals("pathway-stable") && node.nodeCode().equals("start")));
+            node.templateId().equals("pathway-stable")
+                && node.nodeCode().equals("start")
+                && node.milestoneCode().equals("M-START")));
         verify(pathwayEdgeRepository).save(argThat(edge ->
             edge.templateId().equals("pathway-stable") && edge.edgeCode().equals("START_END")));
         verify(pathwayMetricBindingRepository).save(argThat(binding ->
@@ -2537,6 +2555,18 @@ class PackageEngineServiceTest {
         template.put("entryCriteriaJson", "{}");
         template.put("exitCriteriaJson", "{}");
 
+        PathwayMilestone milestone = pathwayMilestone();
+        ObjectNode milestoneNode = TEST_MAPPER.createObjectNode();
+        milestoneNode.put("milestoneId", milestone.milestoneId());
+        milestoneNode.put("phaseCode", milestone.phaseCode());
+        milestoneNode.put("phaseName", milestone.phaseName());
+        milestoneNode.put("milestoneCode", milestone.milestoneCode());
+        milestoneNode.put("name", milestone.name());
+        milestoneNode.put("dayOffset", milestone.dayOffset());
+        milestoneNode.put("expectedOffsetMinutes", milestone.expectedOffsetMinutes());
+        milestoneNode.put("achievementCriteriaJson", milestone.achievementCriteriaJson());
+        milestoneNode.put("sortOrder", milestone.sortOrder());
+
         ArrayNode nodes = TEST_MAPPER.createArrayNode();
         pathwayNodes().forEach(node -> {
             ObjectNode item = nodes.addObject();
@@ -2544,6 +2574,7 @@ class PackageEngineServiceTest {
             item.put("nodeCode", node.nodeCode());
             item.put("name", node.name());
             item.put("nodeType", node.nodeType().name());
+            item.put("milestoneCode", node.milestoneCode());
             item.put("sortOrder", node.sortOrder());
             item.put("responsibleRole", node.responsibleRole());
             item.put("dependencyJson", node.dependencyJson());
@@ -2574,6 +2605,7 @@ class PackageEngineServiceTest {
 
         ObjectNode content = TEST_MAPPER.createObjectNode();
         content.set("template", template);
+        content.set("milestones", TEST_MAPPER.createArrayNode().add(milestoneNode));
         content.set("nodes", nodes);
         content.set("edges", TEST_MAPPER.createArrayNode().add(edge));
         content.set("metricBindings", TEST_MAPPER.createArrayNode().add(metricBinding));
@@ -2912,15 +2944,24 @@ class PackageEngineServiceTest {
         return List.of(
             new PathwayNode(
                 1L, "node-start", "tenant-A", "pathway-stable", "start", "开始评估",
-                PathwayNodeType.ASSESSMENT, 1, "physician", "{}", 60, false, "{}",
+                PathwayNodeType.ASSESSMENT, "M-START", 1, "physician", "{}", 60, false, "{}",
                 now, "tester", now, "tester", "trace"
             ),
             new PathwayNode(
                 2L, "node-end", "tenant-A", "pathway-stable", "end", "完成路径",
-                PathwayNodeType.DISCHARGE, 2, "physician", "{}", null, true, "{}",
+                PathwayNodeType.DISCHARGE, null, 2, "physician", "{}", null, true, "{}",
                 now, "tester", now, "tester", "trace"
             )
         );
+    }
+
+    private PathwayMilestone pathwayMilestone() {
+        Instant now = Instant.now();
+        return new PathwayMilestone(
+            1L, "milestone-start", "tenant-A", "pathway-stable",
+            "PREOP", "术前", "M-START", "入径评估",
+            0, 60, "{\"all\":[\"start\"]}", 1,
+            now, "tester", now, "tester", "trace");
     }
 
     private PathwayEdge pathwayEdge(String edgeId) {

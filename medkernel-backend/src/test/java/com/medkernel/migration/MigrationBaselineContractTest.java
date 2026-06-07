@@ -141,7 +141,7 @@ class MigrationBaselineContractTest {
         "rule_test_case",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
+        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -241,6 +241,7 @@ class MigrationBaselineContractTest {
         "idx_specialty_package_tenant_status", "idx_specialty_package_disease",
         "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
         "idx_pathway_template_package", "idx_pathway_template_disease",
+        "idx_pathway_milestone_template_order", "idx_pathway_milestone_phase_day",
         "idx_pathway_node_template_order", "idx_pathway_edge_template_from",
         "idx_pathway_edge_template_to", "idx_patient_pathway_patient",
         "idx_patient_pathway_template_status", "idx_pathway_variance_pathway_time",
@@ -410,6 +411,7 @@ class MigrationBaselineContractTest {
         "uk_specialty_package_tenant_code", "ck_specialty_package_status",
         "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
         "ck_pathway_template_level", "ck_pathway_template_status", "ck_pathway_entry_mode",
+        "uk_pathway_milestone_template_code", "ck_pathway_milestone_day", "ck_pathway_milestone_expected",
         "uk_pathway_node_template_code", "ck_pathway_node_type", "ck_pathway_node_terminal",
         "uk_pathway_edge_template_code", "ck_pathway_edge_type",
         "uk_patient_pathway_id", "ck_patient_pathway_status",
@@ -565,7 +567,7 @@ class MigrationBaselineContractTest {
         "rule_test_case",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
+        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -608,7 +610,7 @@ class MigrationBaselineContractTest {
         "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
         "term_mapping_package", "sys_role", "sys_permission", "role_permission", "user_role_assignment",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
-        "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
+        "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
@@ -2118,6 +2120,7 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_package");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_profile");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_template");
+        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_milestone");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_node");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_edge");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS patient_pathway");
@@ -2126,10 +2129,12 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_metric_binding");
         assertThat(h2).contains("entry_mode");
         assertThat(h2).contains("entry_criteria_json");
+        assertThat(h2).contains("milestone_code");
         assertThat(h2).contains("condition_json");
         assertThat(h2).contains("current_node_code");
         assertThat(h2).contains("metric_code");
         assertThat(h2).contains("ck_pathway_entry_mode");
+        assertThat(h2).contains("ck_pathway_milestone_day");
         assertThat(h2).contains("ck_pathway_node_type");
         assertThat(h2).contains("ck_patient_pathway_status");
         assertThat(h2).contains("idx_clinical_clock_due");

@@ -271,6 +271,7 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
             code,
             code,
             PathwayNodeType.ASSESSMENT,
+            null,
             1,
             "医生",
             null,

@@ -80,6 +80,34 @@ CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, 
 CREATE INDEX idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
 
+CREATE TABLE pathway_milestone (
+    id                         NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    milestone_id               VARCHAR2(64)  NOT NULL,
+    tenant_id                  VARCHAR2(64)  NOT NULL,
+    template_id                VARCHAR2(64)  NOT NULL,
+    phase_code                 VARCHAR2(128) NOT NULL,
+    phase_name                 VARCHAR2(256) NOT NULL,
+    milestone_code             VARCHAR2(128) NOT NULL,
+    name                       VARCHAR2(256) NOT NULL,
+    day_offset                 NUMBER(10)    NULL,
+    expected_offset_minutes    NUMBER(10)    NULL,
+    achievement_criteria_json  CLOB          NULL,
+    sort_order                 NUMBER(10)    DEFAULT 0 NOT NULL,
+    created_at                 TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by                 VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    updated_at                 TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    updated_by                 VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    trace_id                   VARCHAR2(128) NULL,
+    CONSTRAINT uk_pathway_milestone_template_code UNIQUE (tenant_id, template_id, milestone_code),
+    CONSTRAINT ck_pathway_milestone_day CHECK (day_offset IS NULL OR day_offset >= 0),
+    CONSTRAINT ck_pathway_milestone_expected CHECK (expected_offset_minutes IS NULL OR expected_offset_minutes >= 0)
+);
+
+CREATE INDEX idx_pathway_milestone_template_order
+    ON pathway_milestone (tenant_id, template_id, sort_order);
+CREATE INDEX idx_pathway_milestone_phase_day
+    ON pathway_milestone (tenant_id, template_id, phase_code, day_offset);
+
 CREATE TABLE pathway_node (
     id                  NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     node_id             VARCHAR2(64)  NOT NULL,
@@ -88,6 +116,7 @@ CREATE TABLE pathway_node (
     node_code           VARCHAR2(128) NOT NULL,
     name                VARCHAR2(256) NOT NULL,
     node_type           VARCHAR2(32)  NOT NULL,
+    milestone_code      VARCHAR2(128) NULL,
     sort_order          NUMBER(10)    DEFAULT 0 NOT NULL,
     responsible_role    VARCHAR2(128) NULL,
     dependency_json     CLOB          NULL,
@@ -292,7 +321,26 @@ COMMENT ON COLUMN pathway_template.updated_at IS '更新时间';
 COMMENT ON COLUMN pathway_template.updated_by IS '更新人';
 COMMENT ON COLUMN pathway_template.trace_id IS '请求链路追踪 ID';
 
-COMMENT ON TABLE pathway_node IS '路径节点表，保存模板中的临床步骤、责任角色、依赖条件、时间窗和终止标记';
+COMMENT ON TABLE pathway_milestone IS '路径里程碑表，保存模板阶段、天序、预期完成点和达成判定条件';
+COMMENT ON COLUMN pathway_milestone.id IS '数据库自增主键';
+COMMENT ON COLUMN pathway_milestone.milestone_id IS '路径里程碑业务 ID';
+COMMENT ON COLUMN pathway_milestone.tenant_id IS '租户 ID，用于多租户数据隔离';
+COMMENT ON COLUMN pathway_milestone.template_id IS '关联路径模板业务 ID';
+COMMENT ON COLUMN pathway_milestone.phase_code IS '阶段编码，同一路径模板内用于阶段分组';
+COMMENT ON COLUMN pathway_milestone.phase_name IS '阶段名称';
+COMMENT ON COLUMN pathway_milestone.milestone_code IS '里程碑编码，同一路径模板内唯一';
+COMMENT ON COLUMN pathway_milestone.name IS '里程碑名称';
+COMMENT ON COLUMN pathway_milestone.day_offset IS '相对入径日的天序，0 表示入径当天';
+COMMENT ON COLUMN pathway_milestone.expected_offset_minutes IS '相对入径时间的预期完成分钟数';
+COMMENT ON COLUMN pathway_milestone.achievement_criteria_json IS '里程碑达成判定条件 JSON';
+COMMENT ON COLUMN pathway_milestone.sort_order IS '阶段里程碑展示排序';
+COMMENT ON COLUMN pathway_milestone.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_milestone.created_by IS '创建人';
+COMMENT ON COLUMN pathway_milestone.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_milestone.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_milestone.trace_id IS '请求链路追踪 ID';
+
+COMMENT ON TABLE pathway_node IS '路径节点表，保存模板中的临床步骤、所属里程碑、责任角色、依赖条件、时间窗和终止标记';
 COMMENT ON COLUMN pathway_node.id IS '数据库自增主键';
 COMMENT ON COLUMN pathway_node.node_id IS '路径节点业务 ID';
 COMMENT ON COLUMN pathway_node.tenant_id IS '租户 ID，用于多租户数据隔离';
@@ -300,6 +348,7 @@ COMMENT ON COLUMN pathway_node.template_id IS '关联路径模板业务 ID';
 COMMENT ON COLUMN pathway_node.node_code IS '节点编码，同一模板内唯一';
 COMMENT ON COLUMN pathway_node.name IS '节点名称';
 COMMENT ON COLUMN pathway_node.node_type IS '节点类型：SCREENING 筛查、ASSESSMENT 评估、EXAM 检查、LAB 检验、MEDICATION 用药、SURGERY 手术、NURSING 护理、REHAB 康复、DISCHARGE 出院、FOLLOWUP 随访、QUALITY 质控';
+COMMENT ON COLUMN pathway_node.milestone_code IS '节点所属里程碑编码，用于阶段天序视图和达成判定';
 COMMENT ON COLUMN pathway_node.sort_order IS '节点展示或执行排序';
 COMMENT ON COLUMN pathway_node.responsible_role IS '节点责任角色';
 COMMENT ON COLUMN pathway_node.dependency_json IS '节点依赖条件摘要 JSON';

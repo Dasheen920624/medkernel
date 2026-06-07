@@ -191,7 +191,7 @@ class PathwayRepositoryTest {
         return new PathwayNode(
             null, nodeId, tenantId, templateId, nodeCode, nodeCode,
             terminal ? PathwayNodeType.FOLLOWUP : PathwayNodeType.ASSESSMENT,
-            sortOrder, "医生", null, 1440, terminal, null,
+            null, sortOrder, "医生", null, 1440, terminal, null,
             now, "tester", now, "tester", "trace-pathway");
     }
 

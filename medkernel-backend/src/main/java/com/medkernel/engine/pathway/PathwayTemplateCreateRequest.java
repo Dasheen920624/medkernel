@@ -13,7 +13,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 创建路径模板请求。
  *
- * <p>一次性携带模板主数据、节点、边和指标绑定，保存为可发布前校验的草稿资产。
+ * <p>一次性携带模板主数据、阶段里程碑、节点、边和指标绑定，保存为可发布前校验的草稿资产。
  */
 public record PathwayTemplateCreateRequest(
     @JsonProperty("request_id") String requestId,
@@ -40,12 +40,36 @@ public record PathwayTemplateCreateRequest(
     String description,
     JsonNode entryCriteria,
     JsonNode exitCriteria,
+    List<@Valid PathwayMilestoneRequest> milestones,
     @NotEmpty List<@Valid PathwayNodeRequest> nodes,
     List<@Valid PathwayEdgeRequest> edges,
     List<@Valid SpecialtyMetricBindingRequest> metricBindings
 ) implements PathwayContextRequest {
     public PathwayTemplateCreateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        milestones = milestones == null ? List.of() : List.copyOf(milestones);
+    }
+
+    public PathwayTemplateCreateRequest(String packageId,
+                                        String templateCode,
+                                        String name,
+                                        String diseaseCode,
+                                        Integer templateVersion,
+                                        PathwayTemplateLevel templateLevel,
+                                        PathwayEntryMode entryMode,
+                                        String startNodeCode,
+                                        String sourceRef,
+                                        String description,
+                                        JsonNode entryCriteria,
+                                        JsonNode exitCriteria,
+                                        List<PathwayMilestoneRequest> milestones,
+                                        List<PathwayNodeRequest> nodes,
+                                        List<PathwayEdgeRequest> edges,
+                                        List<SpecialtyMetricBindingRequest> metricBindings) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
+            entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
+            milestones, nodes, edges, metricBindings);
     }
 
     public PathwayTemplateCreateRequest(String packageId,
@@ -63,10 +87,9 @@ public record PathwayTemplateCreateRequest(
                                         List<PathwayNodeRequest> nodes,
                                         List<PathwayEdgeRequest> edges,
                                         List<SpecialtyMetricBindingRequest> metricBindings) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
+        this(packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
             entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
-            nodes, edges, metricBindings);
+            List.of(), nodes, edges, metricBindings);
     }
 
     public PathwayApiContext apiContext() {
