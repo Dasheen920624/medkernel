@@ -1801,11 +1801,22 @@ public class PackageEngineService {
 
     private void validateOfflineDecisionNode(PackageOfflinePathwayNode node,
                                              List<PackageOfflinePathwayEdge> outgoing) {
-        boolean hasGuardedEdge = outgoing.stream()
-            .anyMatch(edge -> "CONDITION".equals(edge.edgeType()));
-        if (outgoing.size() < 2 || !hasGuardedEdge) {
+        List<PackageOfflinePathwayEdge> guardedEdges = outgoing.stream()
+            .filter(edge -> "CONDITION".equals(edge.edgeType()))
+            .toList();
+        if (outgoing.size() < 2 || guardedEdges.isEmpty()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包路径决策节点 " + node.nodeCode() + " 至少需要一个条件分支和一个兜底分支");
+        }
+        boolean hasDefaultFallback = outgoing.stream().anyMatch(edge -> "DEFAULT".equals(edge.edgeType()));
+        if (!hasDefaultFallback) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径决策节点 " + node.nodeCode() + " 必须配置默认兜底分支");
+        }
+        boolean hasBlankGuard = guardedEdges.stream().anyMatch(edge -> normalizedText(edge.conditionJson()) == null);
+        if (hasBlankGuard) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径决策节点 " + node.nodeCode() + " 的条件分支必须配置守卫条件");
         }
     }
 

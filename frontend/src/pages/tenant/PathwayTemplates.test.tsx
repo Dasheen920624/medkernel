@@ -721,6 +721,99 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "新建路径模板拒绝没有默认兜底边的决策节点",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
+        target: { value: "决策守卫路径" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("路径模型代码"), {
+        target: { value: "PATH.DECISION.GUARD" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("病种代码"), {
+        target: { value: "GUARD" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("临床知识与指南基础"), {
+        target: { value: "决策守卫配置规范 2026" },
+      });
+
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement;
+      fireEvent.change(dslEditor, {
+        target: {
+          value: JSON.stringify({
+            nodes: [
+              {
+                nodeCode: "DECIDE",
+                name: "分层决策",
+                nodeType: "DECISION",
+                sortOrder: 1,
+                terminal: false,
+              },
+              {
+                nodeCode: "ICU",
+                name: "转入 ICU",
+                nodeType: "NURSING",
+                sortOrder: 2,
+                terminal: true,
+              },
+              {
+                nodeCode: "WARD",
+                name: "普通病区",
+                nodeType: "NURSING",
+                sortOrder: 3,
+                terminal: true,
+              },
+            ],
+            edges: [
+              {
+                edgeCode: "E_HIGH",
+                fromNodeCode: "DECIDE",
+                toNodeCode: "ICU",
+                edgeType: "CONDITION",
+                priority: 1,
+                condition: {
+                  fact: "risk.level",
+                  operator: "equals",
+                  value: "HIGH",
+                },
+              },
+              {
+                edgeCode: "E_LOW",
+                fromNodeCode: "DECIDE",
+                toNodeCode: "WARD",
+                edgeType: "CONDITION",
+                priority: 2,
+                condition: {
+                  fact: "risk.level",
+                  operator: "equals",
+                  value: "LOW",
+                },
+              },
+            ],
+            metricBindings: [],
+          }),
+        },
+      });
+      await user.click(within(dialog).getByRole("button", { name: /回填到 L2/ }));
+
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      expect(await screen.findByText(/决策节点 DECIDE 必须配置默认兜底分支/)).toBeInTheDocument();
+      expect(apiMocks.createTemplate).not.toHaveBeenCalled();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径详情展示阶段里程碑天序视图和节点归属",
     async () => {
       apiMocks.templateListData = { items: [draftTemplate], total: 1 };

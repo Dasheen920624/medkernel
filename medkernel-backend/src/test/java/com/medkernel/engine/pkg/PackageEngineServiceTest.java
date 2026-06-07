@@ -1293,6 +1293,49 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void importOfflinePackageRejectsDecisionNodeWithoutDefaultFallbackBranch() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "PATHWAY", "pathway-stable", "1"));
+        ObjectNode content = offlinePathwayContent("pathway-stable");
+        ObjectNode startNode = (ObjectNode) content.path("nodes").get(0);
+        startNode.put("nodeType", "DECISION");
+        startNode.putNull("timeWindowMinutes");
+        startNode.put("configJson", "{}");
+        ArrayNode edges = (ArrayNode) content.path("edges");
+        ObjectNode firstEdge = (ObjectNode) edges.get(0);
+        firstEdge.put("edgeType", "CONDITION");
+        firstEdge.put("conditionJson", "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"HIGH\"}");
+        ObjectNode secondEdge = firstEdge.deepCopy();
+        secondEdge.put("edgeId", "edge-start-low");
+        secondEdge.put("edgeCode", "START_LOW");
+        secondEdge.put("conditionJson", "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"LOW\"}");
+        secondEdge.put("priority", 2);
+        edges.add(secondEdge);
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot("tenant-A", "PATHWAY", "pathway-stable", "1", content));
+        String offlineJson = offlinePackageJson(
+            "PKG.BAD.PATHWAY.DECISION", "2026.06.04", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD.PATHWAY.DECISION", "2026.06.04"))
+            .thenReturn(Optional.empty());
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+
+        assertThatThrownBy(() -> service.importOfflinePackage(new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
+                assertThat(api.getMessage()).contains("离线包路径决策节点 start 必须配置默认兜底分支");
+            });
+
+        verify(pathwayRepository, never()).save(any());
+        verify(pathwayNodeRepository, never()).save(any());
+    }
+
+    @Test
     void importOfflinePackageRejectsInvalidTerminologyMappingEnumBeforePersisting() throws Exception {
         ArrayNode items = TEST_MAPPER.createArrayNode();
         items.add(offlineItem("tenant-A", "source-item-1", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06"));

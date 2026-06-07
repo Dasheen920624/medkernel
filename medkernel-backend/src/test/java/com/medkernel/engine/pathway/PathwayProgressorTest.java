@@ -212,6 +212,67 @@ class PathwayProgressorTest {
     }
 
     @Test
+    void decisionNodeChoosesLowestPriorityMatchedGuardAndRecordsSelectionEvidence() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("DECIDE", PathwayNodeType.DECISION, 10, false, null, null, 120),
+                node("ICU", PathwayNodeType.NURSING, 20, false),
+                node("OBSERVE", PathwayNodeType.NURSING, 30, false),
+                node("WARD", PathwayNodeType.NURSING, 40, false)
+            ),
+            List.of(
+                edge("e-observe", tenantId, templateId, "DECIDE", "OBSERVE",
+                    PathwayEdgeType.CONDITION, 20,
+                    "{\"fact\":\"risk.score\",\"operator\":\"gte\",\"value\":3}"),
+                edge("EDGE.DECIDE.ICU", tenantId, templateId, "DECIDE", "ICU",
+                    PathwayEdgeType.CONDITION, 10,
+                    "{\"fact\":\"risk.score\",\"operator\":\"gte\",\"value\":5}"),
+                edge("e-default", tenantId, templateId, "DECIDE", "WARD",
+                    PathwayEdgeType.DEFAULT, 30)
+            )
+        );
+
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            graph, "DECIDE", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("risk.score", 6)));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("ICU");
+        assertThat(decision.evidence()).containsEntry("pathway.selectedEdgeCode", "EDGE.DECIDE.ICU");
+        assertThat(decision.evidence()).containsEntry("pathway.selectedEdgePriority", 10);
+        assertThat(decision.evidence()).containsEntry("pathway.decisionGuardMatched", true);
+    }
+
+    @Test
+    void decisionNodeRejectsRequestedGuardedTargetWhenGuardDoesNotMatch() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("DECIDE", PathwayNodeType.DECISION, 10, false, null, null, 120),
+                node("ICU", PathwayNodeType.NURSING, 20, false),
+                node("WARD", PathwayNodeType.NURSING, 30, false)
+            ),
+            List.of(
+                edge("e-icu", tenantId, templateId, "DECIDE", "ICU",
+                    PathwayEdgeType.CONDITION, 1,
+                    "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"HIGH\"}"),
+                edge("e-default", tenantId, templateId, "DECIDE", "WARD",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        assertThatThrownBy(() -> progressor.advance(new PathwayProgressCommand(
+            graph, "DECIDE", PathwayAdvanceEventType.COMPLETE, "ICU",
+            Map.of("risk.level", "LOW"))))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("目标决策分支守卫未命中")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_006);
+    }
+
+    @Test
     void manualGateRequiresExplicitConfirmedTarget() {
         String tenantId = "tenant-A";
         String templateId = "pt-" + tenantId;
