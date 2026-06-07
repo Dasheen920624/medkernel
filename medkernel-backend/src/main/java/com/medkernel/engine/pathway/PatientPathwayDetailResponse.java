@@ -12,6 +12,8 @@ public record PatientPathwayDetailResponse(
     List<PathwayMilestoneRuntimeStatus> milestoneStatuses,
     List<PathwayVariance> variances,
     List<ClinicalClock> clocks,
+    List<PathwayOutcomeBinding> outcomeBindings,
+    List<PathwayCoordinationWarning> coordinationWarnings,
     String traceId
 ) {
 
@@ -22,5 +24,16 @@ public record PatientPathwayDetailResponse(
         milestoneStatuses = milestoneStatuses == null ? List.of() : List.copyOf(milestoneStatuses);
         variances = variances == null ? List.of() : List.copyOf(variances);
         clocks = clocks == null ? List.of() : List.copyOf(clocks);
+        outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
+        coordinationWarnings = coordinationWarnings == null ? List.of() : List.copyOf(coordinationWarnings);
+    }
+
+    public PatientPathwayDetailResponse(
+            PatientPathway patientPathway,
+            List<PathwayMilestoneRuntimeStatus> milestoneStatuses,
+            List<PathwayVariance> variances,
+            List<ClinicalClock> clocks,
+            String traceId) {
+        this(patientPathway, milestoneStatuses, variances, clocks, List.of(), List.of(), traceId);
     }
 }

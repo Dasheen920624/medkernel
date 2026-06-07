@@ -1,5 +1,6 @@
 package com.medkernel.engine.pathway;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +21,9 @@ public record PathwaySimulationResponse(
     List<MissingFieldEntry> missingFields,
     Map<String, String> mappingStatus,
     Map<String, Integer> contextResourceCounts,
+    PathwaySimulationMode simulationMode,
+    List<PathwaySimulationReplayStep> replaySteps,
+    Instant timeMachineAt,
     String traceId
 ) {
 
@@ -31,6 +35,23 @@ public record PathwaySimulationResponse(
         missingFields = missingFields == null ? List.of() : List.copyOf(missingFields);
         mappingStatus = mappingStatus == null ? Map.of() : Map.copyOf(mappingStatus);
         contextResourceCounts = contextResourceCounts == null ? Map.of() : Map.copyOf(contextResourceCounts);
+        simulationMode = simulationMode == null ? PathwaySimulationMode.SINGLE_SNAPSHOT : simulationMode;
+        replaySteps = replaySteps == null ? List.of() : List.copyOf(replaySteps);
+    }
+
+    public PathwaySimulationResponse(
+            String templateId,
+            String snapshotId,
+            List<String> nodeTrajectory,
+            PatientPathwayStatus finalStatus,
+            QualityStatus contextQualityStatus,
+            List<MissingFieldEntry> missingFields,
+            Map<String, String> mappingStatus,
+            Map<String, Integer> contextResourceCounts,
+            String traceId) {
+        this(templateId, snapshotId, nodeTrajectory, finalStatus, contextQualityStatus,
+            missingFields, mappingStatus, contextResourceCounts,
+            PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null, traceId);
     }
 
     public PathwaySimulationResponse(

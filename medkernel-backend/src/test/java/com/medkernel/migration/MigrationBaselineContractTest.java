@@ -143,7 +143,7 @@ class MigrationBaselineContractTest {
         "rule_backtest_run", "rule_drift_snapshot",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
+        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline", "mk_engine_clinical_redline_trial",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
@@ -248,6 +248,7 @@ class MigrationBaselineContractTest {
         "idx_patient_pathway_template_status", "idx_pathway_variance_pathway_time",
         "idx_clinical_clock_pathway", "idx_clinical_clock_due",
         "idx_specialty_metric_package", "idx_specialty_metric_template",
+        "idx_pathway_outcome_template", "idx_pathway_outcome_indicator",
         "idx_rec_trigger_tenant_time", "idx_rec_trigger_patient", "idx_rec_trigger_status",
         "idx_rec_trigger_scenario", "idx_rec_card_trigger", "idx_rec_card_tenant_status",
         "idx_rec_card_risk", "idx_rec_card_fatigue", "idx_rec_source_card",
@@ -420,6 +421,7 @@ class MigrationBaselineContractTest {
         "uk_pathway_variance_id", "ck_pathway_variance_type", "ck_pathway_variance_resolution",
         "uk_clinical_clock_id", "ck_clinical_clock_status", "ck_clinical_clock_escalation",
         "uk_specialty_metric_binding", "ck_specialty_metric_required",
+        "uk_pathway_outcome_binding", "ck_pathway_outcome_scope",
         "uk_rec_trigger_id", "uk_rec_trigger_tenant_code", "ck_rec_trigger_status",
         "uk_rec_card_id", "uk_rec_card_trigger_code", "ck_rec_card_type",
         "ck_rec_card_risk", "ck_rec_card_interrupt", "ck_rec_card_status",
@@ -571,7 +573,7 @@ class MigrationBaselineContractTest {
         "rule_backtest_run", "rule_drift_snapshot",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
+        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
@@ -614,7 +616,7 @@ class MigrationBaselineContractTest {
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
+        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
         "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
         "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
         "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
@@ -2129,6 +2131,7 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_variance");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_clock");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_metric_binding");
+        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_outcome_binding");
         assertThat(h2).contains("entry_mode");
         assertThat(h2).contains("parent_template_id");
         assertThat(h2).contains("entry_criteria_json");
@@ -2137,6 +2140,8 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("condition_json");
         assertThat(h2).contains("current_node_code");
         assertThat(h2).contains("metric_code");
+        assertThat(h2).contains("indicator_code");
+        assertThat(h2).contains("package_version");
         assertThat(h2).contains("baseline_event");
         assertThat(h2).contains("target_due_at");
         assertThat(h2).contains("max_due_at");
@@ -2152,6 +2157,10 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("ck_clinical_clock_escalation");
         assertThat(h2).contains("'NONE','REMINDER','REPORT','QUALITY_RECORD'");
         assertThat(h2).contains("idx_clinical_clock_due");
+        assertThat(h2).contains("ck_pathway_outcome_scope");
+        assertThat(h2).contains("'TEMPLATE','PHASE','MILESTONE'");
+        assertThat(h2).contains("idx_pathway_outcome_template");
+        assertThat(h2).contains("idx_pathway_outcome_indicator");
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.medkernel.engine.pathway;
 
+import java.time.Instant;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -22,6 +23,9 @@ public record PathwaySimulateRequest(
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String packageVersion,
+    PathwaySimulationMode simulationMode,
+    List<String> replaySnapshotIds,
+    Instant timeMachineAt,
     String snapshotId,
     String startNodeCode,
     List<String> requestedNextNodeCodes
@@ -32,18 +36,30 @@ public record PathwaySimulateRequest(
      */
     public PathwaySimulateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        replaySnapshotIds = replaySnapshotIds == null ? List.of() : List.copyOf(replaySnapshotIds);
         requestedNextNodeCodes = requestedNextNodeCodes == null
             ? List.of() : List.copyOf(requestedNextNodeCodes);
+        simulationMode = simulationMode == null ? PathwaySimulationMode.SINGLE_SNAPSHOT : simulationMode;
     }
 
     public PathwaySimulateRequest(String startNodeCode, List<String> requestedNextNodeCodes) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            null, startNodeCode, requestedNextNodeCodes);
+            PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null, null, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwaySimulateRequest(String snapshotId, String startNodeCode, List<String> requestedNextNodeCodes) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            snapshotId, startNodeCode, requestedNextNodeCodes);
+            PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null, snapshotId, startNodeCode, requestedNextNodeCodes);
+    }
+
+    public PathwaySimulateRequest(PathwaySimulationMode simulationMode,
+                                  List<String> replaySnapshotIds,
+                                  Instant timeMachineAt,
+                                  String startNodeCode,
+                                  List<String> requestedNextNodeCodes,
+                                  String snapshotId) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            simulationMode, replaySnapshotIds, timeMachineAt, snapshotId, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwayApiContext apiContext() {

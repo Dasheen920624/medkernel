@@ -15,6 +15,7 @@ public record PathwayTemplateDetailResponse(
     List<PathwayNode> nodes,
     List<PathwayEdge> edges,
     List<SpecialtyMetricBinding> metricBindings,
+    List<PathwayOutcomeBinding> outcomeBindings,
     AssetVersionStatus deploymentStatus,
     String traceId
 ) {
@@ -27,5 +28,17 @@ public record PathwayTemplateDetailResponse(
         nodes = nodes == null ? List.of() : List.copyOf(nodes);
         edges = edges == null ? List.of() : List.copyOf(edges);
         metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
+        outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
+    }
+
+    public PathwayTemplateDetailResponse(
+            PathwayTemplate template,
+            List<PathwayMilestone> milestones,
+            List<PathwayNode> nodes,
+            List<PathwayEdge> edges,
+            List<SpecialtyMetricBinding> metricBindings,
+            AssetVersionStatus deploymentStatus,
+            String traceId) {
+        this(template, milestones, nodes, edges, metricBindings, List.of(), deploymentStatus, traceId);
     }
 }

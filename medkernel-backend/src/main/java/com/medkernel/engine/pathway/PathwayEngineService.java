@@ -26,6 +26,8 @@ import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
+import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
+import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.rule.ConditionEvaluation;
@@ -100,6 +102,8 @@ public class PathwayEngineService {
     private final PathwayVarianceRepository variances;
     private final ClinicalClockRepository clocks;
     private final SpecialtyMetricBindingRepository metricBindings;
+    private final PathwayOutcomeBindingRepository outcomeBindings;
+    private final EvaluationIndicatorRepository evaluationIndicators;
     private final ContextSnapshotService contextSnapshots;
     private final PathwayProgressor progressor;
     private final AuditRecorder auditRecorder;
@@ -130,6 +134,8 @@ public class PathwayEngineService {
                                 PathwayVarianceRepository variances,
                                 ClinicalClockRepository clocks,
                                 SpecialtyMetricBindingRepository metricBindings,
+                                PathwayOutcomeBindingRepository outcomeBindings,
+                                EvaluationIndicatorRepository evaluationIndicators,
                                 ContextSnapshotService contextSnapshots,
                                 PathwayProgressor progressor,
                                 AuditRecorder auditRecorder,
@@ -146,7 +152,7 @@ public class PathwayEngineService {
                                 PackageItemRepository packageItems,
                                 InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
-            metricBindings, contextSnapshots, progressor, auditRecorder, transitions,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, auditRecorder, transitions,
             diagnoseAssembler, json,
             followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop),
             worklistProvider.getIfAvailable(PathwayWorklistPort::noop), safetyGuard,
@@ -164,6 +170,8 @@ public class PathwayEngineService {
                          PathwayVarianceRepository variances,
                          ClinicalClockRepository clocks,
                          SpecialtyMetricBindingRepository metricBindings,
+                         PathwayOutcomeBindingRepository outcomeBindings,
+                         EvaluationIndicatorRepository evaluationIndicators,
                          ContextSnapshotService contextSnapshots,
                          PathwayProgressor progressor,
                          AuditRecorder auditRecorder,
@@ -189,6 +197,8 @@ public class PathwayEngineService {
         this.variances = variances;
         this.clocks = clocks;
         this.metricBindings = metricBindings;
+        this.outcomeBindings = outcomeBindings;
+        this.evaluationIndicators = evaluationIndicators;
         this.contextSnapshots = contextSnapshots;
         this.progressor = progressor;
         this.auditRecorder = auditRecorder;
@@ -218,6 +228,8 @@ public class PathwayEngineService {
                          PathwayVarianceRepository variances,
                          ClinicalClockRepository clocks,
                          SpecialtyMetricBindingRepository metricBindings,
+                         PathwayOutcomeBindingRepository outcomeBindings,
+                         EvaluationIndicatorRepository evaluationIndicators,
                          ContextSnapshotService contextSnapshots,
                          PathwayProgressor progressor,
                          AuditRecorder auditRecorder,
@@ -233,7 +245,7 @@ public class PathwayEngineService {
                          PackageItemRepository packageItems,
                          InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
-            metricBindings, contextSnapshots, progressor, auditRecorder, transitions, diagnoseAssembler, json,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor, auditRecorder, transitions, diagnoseAssembler, json,
             followupHandoff, PathwayWorklistPort.noop(), safetyGuard, terminologyCoverageGate, versionedAssets,
             assetVersions, releasePort, packageItems, inheritanceResolver);
     }
@@ -294,6 +306,7 @@ public class PathwayEngineService {
             request.description(), writeJson(request.entryCriteria()), writeJson(request.exitCriteria()),
             now, actor, now, actor, traceId));
         validateMilestoneBindings(request.milestones(), request.nodes());
+        validateOutcomeBindings(request.outcomeBindings(), request.milestones(), tenantId);
         List<PathwayMilestone> savedMilestones = nullToEmpty(request.milestones()).stream()
             .map(milestone -> milestones.save(new PathwayMilestone(
                 null, "pm-" + UUID.randomUUID(), tenantId, templateId,
@@ -324,6 +337,23 @@ public class PathwayEngineService {
                 templateId, binding.nodeCode(), binding.metricCode(),
                 Boolean.TRUE.equals(binding.required()), now, actor, now, actor, traceId)))
             .toList();
+        String effectivePackageVersion = notBlank(request.packageVersion(), specialtyPackage.packageVersion());
+        List<PathwayOutcomeBinding> savedOutcomeBindings = nullToEmpty(request.outcomeBindings()).stream()
+            .map(binding -> outcomeBindings.save(new PathwayOutcomeBinding(
+                null,
+                "pob-" + UUID.randomUUID(),
+                tenantId,
+                templateId,
+                binding.scope(),
+                normalizedOutcomeRefCode(binding.scope(), binding.refCode()),
+                binding.indicatorCode().trim(),
+                notBlank(binding.packageVersion(), effectivePackageVersion),
+                now,
+                actor,
+                now,
+                actor,
+                traceId)))
+            .toList();
 
         bridgePathwayTemplateToPackageItem(template, actor, now, traceId);
         AssetVersion assetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
@@ -333,7 +363,7 @@ public class PathwayEngineService {
             String.valueOf(template.templateVersion()),
             releaseOrgScope(template),
             releaseApplicableScope(template),
-            pathwayContent(template, savedMilestones, savedNodes, savedEdges, savedBindings),
+            pathwayContent(template, savedMilestones, savedNodes, savedEdges, savedBindings, savedOutcomeBindings),
             null,
             template.sourceRef(),
             actor,
@@ -346,7 +376,8 @@ public class PathwayEngineService {
         auditRecorder.record(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
             "创建路径模板 " + request.templateCode());
         return new PathwayTemplateDetailResponse(
-            template, savedMilestones, savedNodes, savedEdges, savedBindings, assetVersion.status(), traceId);
+            template, savedMilestones, savedNodes, savedEdges, savedBindings, savedOutcomeBindings,
+            assetVersion.status(), traceId);
     }
 
     private void bridgePathwayTemplateToPackageItem(
@@ -393,9 +424,12 @@ public class PathwayEngineService {
         PathwayTemplate template = findTemplate(templateId, tenantId);
         ensureTemplateDraft(template);
         EffectivePathwayGraph graph = effectiveGraphFor(template, tenantId);
-        validatePublishGate(template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings());
+        validatePublishGate(
+            template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
+            graph.outcomeBindings());
         PathwayTemplateImpactResponse impact = templateImpactFor(
             template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
+            graph.outcomeBindings(),
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
         validateReleaseGate(request, impact);
         ensureTerminologyCoverage(graph.edges());
@@ -611,6 +645,8 @@ public class PathwayEngineService {
             nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), template.tenantId()),
             edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), template.tenantId()),
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+                template.templateId(), template.tenantId()),
+            outcomeBindings.findByTemplateIdAndTenantIdOrderByScopeAscRefCodeAscIndicatorCodeAsc(
                 template.templateId(), template.tenantId())
         );
     }
@@ -620,7 +656,8 @@ public class PathwayEngineService {
             List<PathwayMilestone> graphMilestones,
             List<PathwayNode> graphNodes,
             List<PathwayEdge> graphEdges,
-            List<SpecialtyMetricBinding> graphBindings) {
+            List<SpecialtyMetricBinding> graphBindings,
+            List<PathwayOutcomeBinding> graphOutcomeBindings) {
         return writeObject(new PathwayAssetContent(
             template.templateCode(),
             template.name(),
@@ -637,7 +674,8 @@ public class PathwayEngineService {
             nullToEmpty(graphMilestones).stream().map(PathwayMilestoneAssetContent::from).toList(),
             nullToEmpty(graphNodes).stream().map(PathwayNodeAssetContent::from).toList(),
             nullToEmpty(graphEdges).stream().map(PathwayEdgeAssetContent::from).toList(),
-            nullToEmpty(graphBindings).stream().map(PathwayMetricAssetContent::from).toList()
+            nullToEmpty(graphBindings).stream().map(PathwayMetricAssetContent::from).toList(),
+            nullToEmpty(graphOutcomeBindings).stream().map(PathwayOutcomeAssetContent::from).toList()
         ));
     }
 
@@ -651,9 +689,12 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         PathwayTemplate template = findTemplate(templateId, tenantId);
         EffectivePathwayGraph graph = effectiveGraphFor(template, tenantId);
-        validatePublishGate(template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings());
+        validatePublishGate(
+            template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
+            graph.outcomeBindings());
         return templateImpactFor(
             template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
+            graph.outcomeBindings(),
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
     }
 
@@ -680,11 +721,13 @@ public class PathwayEngineService {
             .map(node -> toEffectivePathwayNode(template, tenantId, node))
             .toList();
         Set<String> activeNodeCodes = pathwayNodeCodeSet(graphNodes);
+        List<PathwayMilestone> graphMilestones = resolveEffectiveMilestones(template, tenantId, new HashSet<>());
         return new EffectivePathwayGraph(
-            resolveEffectiveMilestones(template, tenantId, new HashSet<>()),
+            graphMilestones,
             graphNodes,
             inheritanceGraph.edges(),
-            resolveEffectiveMetricBindings(template, tenantId, new HashSet<>(), activeNodeCodes));
+            resolveEffectiveMetricBindings(template, tenantId, new HashSet<>(), activeNodeCodes),
+            resolveEffectiveOutcomeBindings(template, tenantId, new HashSet<>(), graphMilestones));
     }
 
     private PathwayNode toEffectivePathwayNode(
@@ -861,13 +904,14 @@ public class PathwayEngineService {
         EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
         PathwayTemplate template = effective.template();
         AssetVersion assetVersion = requirePathwayAssetVersion(template);
+        EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
         return new PathwayTemplateDetailResponse(
             template,
-            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-                template.templateId(), effective.sourceTenantId()),
-            nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), effective.sourceTenantId()),
-            edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), effective.sourceTenantId()),
-            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(template.templateId(), effective.sourceTenantId()),
+            graph.milestones(),
+            graph.nodes(),
+            graph.edges(),
+            graph.metricBindings(),
+            graph.outcomeBindings(),
             assetVersion.status(),
             RequestContext.currentTraceId());
     }
@@ -915,6 +959,8 @@ public class PathwayEngineService {
             null, patientPathwayId, tenantId, patientId, encounterId,
             template.templateId(), startNode.nodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             now, null, null, null, null, now, actor, now, actor, traceId));
+        List<PathwayCoordinationWarning> coordinationWarnings =
+            coordinationWarningsForPatient(patientId, tenantId, patientPathwayId, template, graph);
         ClinicalClock startClock = clocks.save(newClock(
             tenantId, patientPathwayId, startNode, metricCodeForNode(entryMetricBindings, startNode.nodeCode()),
             snapshot.resources(), now, now, actor, traceId));
@@ -929,6 +975,8 @@ public class PathwayEngineService {
             milestoneStatuses(runtime, graph.milestones(), graph.nodes(), runtimeClocks),
             List.of(),
             runtimeClocks,
+            graph.outcomeBindings(),
+            coordinationWarnings,
             traceId);
     }
 
@@ -979,6 +1027,80 @@ public class PathwayEngineService {
         }
         return metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
             template.templateId(), sourceTenantId);
+    }
+
+    private List<PathwayCoordinationWarning> coordinationWarningsForPatient(
+            String patientId,
+            String tenantId,
+            String currentPatientPathwayId,
+            PathwayTemplate currentTemplate,
+            EffectivePathwayGraph currentGraph) {
+        if (isBlank(patientId)) {
+            return List.of();
+        }
+        List<PathwayNode> currentOrderSetNodes = orderSetNodes(currentGraph.nodes());
+        if (currentOrderSetNodes.isEmpty()) {
+            return List.of();
+        }
+        List<PathwayCoordinationWarning> warnings = new ArrayList<>();
+        for (PatientPathway activeRuntime
+                : patientPathways.findActiveByTenantIdAndPatientIdOrderByEnteredAtDesc(tenantId, patientId, 0, 20)) {
+            if (Objects.equals(activeRuntime.patientPathwayId(), currentPatientPathwayId)) {
+                continue;
+            }
+            EffectivePathwayTemplate otherEffective =
+                findPinnedRuntimeTemplate(activeRuntime.templateId(), tenantId);
+            EffectivePathwayGraph otherGraph =
+                effectiveGraphFor(otherEffective.template(), otherEffective.sourceTenantId());
+            appendOrderSetCoordinationWarnings(
+                warnings,
+                currentPatientPathwayId,
+                currentTemplate,
+                currentOrderSetNodes,
+                activeRuntime,
+                otherEffective.template(),
+                orderSetNodes(otherGraph.nodes()));
+        }
+        return warnings;
+    }
+
+    private void appendOrderSetCoordinationWarnings(
+            List<PathwayCoordinationWarning> warnings,
+            String currentPatientPathwayId,
+            PathwayTemplate currentTemplate,
+            List<PathwayNode> currentNodes,
+            PatientPathway activeRuntime,
+            PathwayTemplate otherTemplate,
+            List<PathwayNode> otherNodes) {
+        for (PathwayNode currentNode : currentNodes) {
+            String currentOrderSetRef = nodeConfigText(currentNode, "orderSetRef");
+            if (isBlank(currentOrderSetRef)) {
+                continue;
+            }
+            for (PathwayNode otherNode : otherNodes) {
+                String otherOrderSetRef = nodeConfigText(otherNode, "orderSetRef");
+                if (!Objects.equals(currentOrderSetRef, otherOrderSetRef)) {
+                    continue;
+                }
+                warnings.add(new PathwayCoordinationWarning(
+                    PathwayCoordinationWarningType.ORDER_SET_CONFLICT,
+                    "WARN",
+                    currentPatientPathwayId,
+                    currentTemplate.templateId(),
+                    currentNode.nodeCode(),
+                    activeRuntime.patientPathwayId(),
+                    otherTemplate.templateId(),
+                    otherNode.nodeCode(),
+                    currentOrderSetRef,
+                    "患者存在并行路径共享医嘱集 " + currentOrderSetRef + "，仅提示协调，不自动改医嘱"));
+            }
+        }
+    }
+
+    private List<PathwayNode> orderSetNodes(List<PathwayNode> graphNodes) {
+        return nullToEmpty(graphNodes).stream()
+            .filter(node -> node.nodeType() == PathwayNodeType.ORDER_SET)
+            .toList();
     }
 
     private void validateExitCriteria(PathwayTemplate template, ContextSnapshotResources resources) {
@@ -1086,6 +1208,9 @@ public class PathwayEngineService {
             milestoneStatuses(runtime, graph.milestones(), graph.nodes(), runtimeClocks),
             variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc(patientPathwayId, tenantId),
             runtimeClocks,
+            graph.outcomeBindings(),
+            coordinationWarningsForPatient(
+                runtime.patientId(), tenantId, runtime.patientPathwayId(), effective.template(), graph),
             RequestContext.currentTraceId());
     }
 
@@ -1144,17 +1269,68 @@ public class PathwayEngineService {
         EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
         PathwayTemplate template = effective.template();
         EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
-        String currentNode = request == null || isBlank(request.startNodeCode())
+        String startNodeCode = request == null || isBlank(request.startNodeCode())
             ? template.startNodeCode() : request.startNodeCode();
         List<String> requestedTargets = request == null ? List.of() : request.requestedNextNodeCodes();
+        PathwaySimulationMode mode = request == null
+            ? PathwaySimulationMode.SINGLE_SNAPSHOT : request.simulationMode();
+        if (mode == PathwaySimulationMode.QUEUE_REPLAY) {
+            List<String> replayIds = replaySnapshotIds(request);
+            if (replayIds.isEmpty()) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_001, "路径队列回放必须提供至少一个上下文快照");
+            }
+            List<PathwaySimulationReplayStep> replaySteps = replayIds.stream()
+                .map(snapshotId -> simulateStep(
+                    graph, startNodeCode, requestedTargets, contextSnapshots.findById(snapshotId)))
+                .toList();
+            PathwaySimulationReplayStep first = replaySteps.getFirst();
+            return new PathwaySimulationResponse(
+                templateId,
+                first.snapshotId(),
+                first.nodeTrajectory(),
+                first.finalStatus(),
+                first.contextQualityStatus(),
+                first.missingFields(),
+                first.mappingStatus(),
+                first.contextResourceCounts(),
+                mode,
+                replaySteps,
+                request.timeMachineAt(),
+                RequestContext.currentTraceId());
+        }
         ContextSnapshotResponse snapshot = request == null || isBlank(request.snapshotId())
             ? null : contextSnapshots.findById(request.snapshotId());
+        PathwaySimulationReplayStep step = simulateStep(graph, startNodeCode, requestedTargets, snapshot);
+        return new PathwaySimulationResponse(
+            templateId,
+            step.snapshotId(),
+            step.nodeTrajectory(),
+            step.finalStatus(),
+            step.contextQualityStatus(),
+            step.missingFields(),
+            step.mappingStatus(),
+            step.contextResourceCounts(),
+            mode,
+            mode == PathwaySimulationMode.TIME_MACHINE ? List.of(step) : List.of(),
+            request == null ? null : request.timeMachineAt(),
+            RequestContext.currentTraceId());
+    }
+
+    private PathwaySimulationReplayStep simulateStep(
+            EffectivePathwayGraph graph,
+            String startNodeCode,
+            List<String> requestedTargets,
+            ContextSnapshotResponse snapshot) {
         Map<String, Object> facts = snapshot == null ? Map.of() : contextFacts(snapshot.resources());
-        java.util.ArrayList<String> trajectory = new java.util.ArrayList<>();
+        List<String> safeRequestedTargets = nullToEmpty(requestedTargets);
+        ArrayList<String> trajectory = new ArrayList<>();
+        String currentNode = startNodeCode;
         trajectory.add(currentNode);
         PatientPathwayStatus finalStatus = PatientPathwayStatus.NODE_EXECUTING;
-        for (int i = 0; i <= graph.nodes().size(); i++) {
-            String requestedTarget = i < requestedTargets.size() ? requestedTargets.get(i) : null;
+        for (int index = 0; index <= graph.nodes().size(); index += 1) {
+            String requestedTarget = index < safeRequestedTargets.size()
+                ? safeRequestedTargets.get(index)
+                : null;
             PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
                 new PathwayGraph(graph.nodes(), graph.edges()), currentNode,
                 PathwayAdvanceEventType.COMPLETE, requestedTarget, facts));
@@ -1165,16 +1341,30 @@ public class PathwayEngineService {
             currentNode = decision.nextNodeCode();
             trajectory.add(currentNode);
         }
-        return new PathwaySimulationResponse(
-            templateId,
+        return new PathwaySimulationReplayStep(
             snapshot == null ? null : snapshot.snapshotId(),
             trajectory,
             finalStatus,
             snapshot == null ? null : snapshot.qualityStatus(),
             snapshot == null ? List.of() : snapshot.missingFields(),
             snapshot == null ? Map.of() : snapshot.mappingStatus(),
-            snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()),
-            RequestContext.currentTraceId());
+            snapshot == null ? Map.of() : contextResourceCounts(snapshot.resources()));
+    }
+
+    private List<String> replaySnapshotIds(PathwaySimulateRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+        LinkedHashMap<String, String> ids = new LinkedHashMap<>();
+        for (String snapshotId : nullToEmpty(request.replaySnapshotIds())) {
+            if (!isBlank(snapshotId)) {
+                ids.put(snapshotId, snapshotId);
+            }
+        }
+        if (!isBlank(request.snapshotId())) {
+            ids.put(request.snapshotId(), request.snapshotId());
+        }
+        return List.copyOf(ids.values());
     }
 
     /**
@@ -1242,6 +1432,9 @@ public class PathwayEngineService {
         auditRecorder.record(AuditAction.EXECUTE, PATIENT_PATHWAY_ENTITY, runtime.patientPathwayId(),
             "推进患者路径 " + runtime.patientPathwayId());
         PathwayFollowupHandoffResult followup = handoffFollowupIfCompleted(updated, effective.template());
+        List<PathwayCoordinationWarning> coordinationWarnings =
+            coordinationWarningsForPatient(
+                updated.patientId(), tenantId, updated.patientPathwayId(), effective.template(), graph);
         return new PathwayAdvanceResponse(
             runtime.patientPathwayId(), decision.previousNodeCode(), decision.nextNodeCode(),
             decision.status(), varianceId,
@@ -1255,6 +1448,8 @@ public class PathwayEngineService {
             followup == null ? null : followup.planId(),
             followup == null ? 0 : followup.taskCount(),
             followup == null ? null : followup.status(),
+            graph.outcomeBindings(),
+            coordinationWarnings,
             traceId);
     }
 
@@ -1281,11 +1476,13 @@ public class PathwayEngineService {
                                                             List<PathwayNode> graphNodes,
                                                             List<PathwayEdge> graphEdges,
                                                             List<SpecialtyMetricBinding> graphBindings,
+                                                            List<PathwayOutcomeBinding> graphOutcomeBindings,
                                                             List<PatientPathway> runtimes) {
         List<PathwayMilestone> safeMilestones = nullToEmpty(graphMilestones);
         List<PathwayNode> safeNodes = nullToEmpty(graphNodes);
         List<PathwayEdge> safeEdges = nullToEmpty(graphEdges);
         List<SpecialtyMetricBinding> safeBindings = nullToEmpty(graphBindings);
+        List<PathwayOutcomeBinding> safeOutcomeBindings = nullToEmpty(graphOutcomeBindings);
         List<PatientPathway> safeRuntimes = nullToEmpty(runtimes);
         int timedNodeCount = (int) safeNodes.stream()
             .filter(node -> node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0)
@@ -1298,6 +1495,7 @@ public class PathwayEngineService {
                 + " 个，边 " + safeEdges.size() + " 条，终止节点 " + terminalNodeCount + " 个",
             "关键时钟节点 " + timedNodeCount + " 个，当前关联患者路径实例 "
                 + safeRuntimes.size() + " 条",
+            "结局指标绑定 " + safeOutcomeBindings.size() + " 个，发布后用于 LOS、再入院、并发症和成本等质控闭环",
             "灰度发布默认 10%，全量前必须保留本次 impactDigest，可按审计记录回滚到上一版本"
         );
         String impactDigest = digest(String.join("|",
@@ -1309,11 +1507,12 @@ public class PathwayEngineService {
             safeNodes.stream().map(this::nodeImpactSignature).sorted().toList().toString(),
             safeEdges.stream().map(this::edgeImpactSignature).sorted().toList().toString(),
             safeBindings.stream().map(this::bindingImpactSignature).sorted().toList().toString(),
+            safeOutcomeBindings.stream().map(this::outcomeBindingImpactSignature).sorted().toList().toString(),
             safeRuntimes.stream().map(PatientPathway::patientPathwayId).sorted().toList().toString()
         ));
         return new PathwayTemplateImpactResponse(
             template.templateId(), "COMPLETE", safeRuntimes.size(), safeNodes.size(), safeEdges.size(),
-            timedNodeCount, terminalNodeCount, DEFAULT_CANARY_PERCENT, impactDigest,
+            timedNodeCount, terminalNodeCount, safeOutcomeBindings.size(), DEFAULT_CANARY_PERCENT, impactDigest,
             releaseEvidence, RequestContext.currentTraceId());
     }
 
@@ -1420,6 +1619,81 @@ public class PathwayEngineService {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004,
                     "路径节点引用不存在的里程碑: " + node.nodeCode() + " -> " + node.milestoneCode());
             }
+        }
+    }
+
+    private void validateOutcomeBindings(
+            List<PathwayOutcomeBindingRequest> bindingRequests,
+            List<PathwayMilestoneRequest> milestoneRequests,
+            String tenantId) {
+        Set<String> phaseCodes = new HashSet<>();
+        Set<String> milestoneCodes = new HashSet<>();
+        for (PathwayMilestoneRequest milestone : nullToEmpty(milestoneRequests)) {
+            if (!isBlank(milestone.phaseCode())) {
+                phaseCodes.add(milestone.phaseCode());
+            }
+            if (!isBlank(milestone.milestoneCode())) {
+                milestoneCodes.add(milestone.milestoneCode());
+            }
+        }
+        for (PathwayOutcomeBindingRequest binding : nullToEmpty(bindingRequests)) {
+            validateOutcomeBindingRef(binding.scope(), binding.refCode(), phaseCodes, milestoneCodes);
+            ensureActiveOutcomeIndicator(tenantId, binding.indicatorCode());
+        }
+    }
+
+    private void validateEffectiveOutcomeBindings(
+            List<PathwayOutcomeBinding> bindings,
+            List<PathwayMilestone> graphMilestones) {
+        Set<String> phaseCodes = new HashSet<>();
+        Set<String> milestoneCodes = new HashSet<>();
+        for (PathwayMilestone milestone : nullToEmpty(graphMilestones)) {
+            if (!isBlank(milestone.phaseCode())) {
+                phaseCodes.add(milestone.phaseCode());
+            }
+            if (!isBlank(milestone.milestoneCode())) {
+                milestoneCodes.add(milestone.milestoneCode());
+            }
+        }
+        for (PathwayOutcomeBinding binding : nullToEmpty(bindings)) {
+            validateOutcomeBindingRef(binding.scope(), binding.refCode(), phaseCodes, milestoneCodes);
+            ensureActiveOutcomeIndicator(binding.tenantId(), binding.indicatorCode());
+        }
+    }
+
+    private void validateOutcomeBindingRef(
+            PathwayOutcomeScope scope,
+            String refCode,
+            Set<String> phaseCodes,
+            Set<String> milestoneCodes) {
+        if (scope == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "结局指标绑定缺少作用域");
+        }
+        switch (scope) {
+            case TEMPLATE -> {
+                // 模板级绑定使用固定 ref，便于唯一约束与资产快照稳定。
+            }
+            case PHASE -> {
+                if (isBlank(refCode) || !phaseCodes.contains(refCode)) {
+                    throw new ApiException(ErrorCode.ENG_PATHWAY_004, "结局指标绑定引用不存在的阶段: " + refCode);
+                }
+            }
+            case MILESTONE -> {
+                if (isBlank(refCode) || !milestoneCodes.contains(refCode)) {
+                    throw new ApiException(ErrorCode.ENG_PATHWAY_004, "结局指标绑定引用不存在的里程碑: " + refCode);
+                }
+            }
+        }
+    }
+
+    private void ensureActiveOutcomeIndicator(String tenantId, String indicatorCode) {
+        if (isBlank(indicatorCode)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "结局指标绑定缺少指标编码");
+        }
+        if (evaluationIndicators.findByTenantIdAndIndicatorCodeAndStatus(
+                tenantId, indicatorCode.trim(), EvaluationIndicatorStatus.ACTIVE).isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "结局指标未激活或不存在: " + indicatorCode.trim());
         }
     }
 
@@ -1552,11 +1826,20 @@ public class PathwayEngineService {
             String.valueOf(binding.requiredFlag()));
     }
 
+    private String outcomeBindingImpactSignature(PathwayOutcomeBinding binding) {
+        return String.join(":",
+            binding.scope().name(),
+            notBlank(binding.refCode(), "-"),
+            binding.indicatorCode(),
+            notBlank(binding.packageVersion(), "-"));
+    }
+
     private void validatePublishGate(PathwayTemplate template,
                                      List<PathwayMilestone> graphMilestones,
                                      List<PathwayNode> graphNodes,
                                      List<PathwayEdge> graphEdges,
-                                     List<SpecialtyMetricBinding> graphBindings) {
+                                     List<SpecialtyMetricBinding> graphBindings,
+                                     List<PathwayOutcomeBinding> graphOutcomeBindings) {
         List<PathwayNode> executableNodes = activeNodes(graphNodes);
         Set<String> executableNodeCodes = executableNodes.stream()
             .map(PathwayNode::nodeCode)
@@ -1613,6 +1896,7 @@ public class PathwayEngineService {
         }
         validateRichNodeContracts(executableNodes, executableEdges);
         validateClockBindings(executableNodes, graphBindings);
+        validateEffectiveOutcomeBindings(graphOutcomeBindings, graphMilestones);
     }
 
     private List<PathwayNode> activeNodes(List<PathwayNode> graphNodes) {
@@ -2372,8 +2656,48 @@ public class PathwayEngineService {
         }
     }
 
+    private List<PathwayOutcomeBinding> resolveEffectiveOutcomeBindings(
+            PathwayTemplate template,
+            String tenantId,
+            Set<String> visiting,
+            List<PathwayMilestone> graphMilestones) {
+        if (!visiting.add(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径模板继承链存在环: " + template.templateId());
+        }
+        try {
+            LinkedHashMap<String, PathwayOutcomeBinding> byKey = new LinkedHashMap<>();
+            if (!isBlank(template.parentTemplateId())) {
+                PathwayTemplate parent = findTemplate(template.parentTemplateId(), tenantId);
+                for (PathwayOutcomeBinding binding
+                        : resolveEffectiveOutcomeBindings(parent, tenantId, visiting, graphMilestones)) {
+                    byKey.put(outcomeBindingKey(binding), binding);
+                }
+            }
+            for (PathwayOutcomeBinding binding
+                    : outcomeBindings.findByTemplateIdAndTenantIdOrderByScopeAscRefCodeAscIndicatorCodeAsc(
+                        template.templateId(), tenantId)) {
+                byKey.put(outcomeBindingKey(binding), binding);
+            }
+            return byKey.values().stream()
+                .sorted(Comparator
+                    .comparing(PathwayOutcomeBinding::scope, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(PathwayOutcomeBinding::refCode, Comparator.nullsLast(String::compareTo))
+                    .thenComparing(PathwayOutcomeBinding::indicatorCode, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        } finally {
+            visiting.remove(template.templateId());
+        }
+    }
+
     private String metricBindingKey(SpecialtyMetricBinding binding) {
         return notBlank(binding.nodeCode(), "-") + ":" + notBlank(binding.metricCode(), "-");
+    }
+
+    private String outcomeBindingKey(PathwayOutcomeBinding binding) {
+        return binding.scope().name() + ":"
+            + notBlank(binding.refCode(), "-") + ":"
+            + notBlank(binding.indicatorCode(), "-");
     }
 
     private Comparator<PathwayMergedNode> mergedNodeComparator() {
@@ -2669,6 +2993,13 @@ public class PathwayEngineService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private String normalizedOutcomeRefCode(PathwayOutcomeScope scope, String refCode) {
+        if (scope == PathwayOutcomeScope.TEMPLATE) {
+            return "TEMPLATE";
+        }
+        return blankToNull(refCode);
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
@@ -2689,13 +3020,15 @@ public class PathwayEngineService {
         List<PathwayMilestone> milestones,
         List<PathwayNode> nodes,
         List<PathwayEdge> edges,
-        List<SpecialtyMetricBinding> metricBindings
+        List<SpecialtyMetricBinding> metricBindings,
+        List<PathwayOutcomeBinding> outcomeBindings
     ) {
         private EffectivePathwayGraph {
             milestones = milestones == null ? List.of() : List.copyOf(milestones);
             nodes = nodes == null ? List.of() : List.copyOf(nodes);
             edges = edges == null ? List.of() : List.copyOf(edges);
             metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
+            outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
         }
     }
 
@@ -2715,7 +3048,8 @@ public class PathwayEngineService {
         List<PathwayMilestoneAssetContent> milestones,
         List<PathwayNodeAssetContent> nodes,
         List<PathwayEdgeAssetContent> edges,
-        List<PathwayMetricAssetContent> metricBindings
+        List<PathwayMetricAssetContent> metricBindings,
+        List<PathwayOutcomeAssetContent> outcomeBindings
     ) {}
 
     private record PathwayMilestoneAssetContent(
@@ -2806,6 +3140,18 @@ public class PathwayEngineService {
         private static PathwayMetricAssetContent from(SpecialtyMetricBinding binding) {
             return new PathwayMetricAssetContent(
                 binding.nodeCode(), binding.metricCode(), binding.requiredFlag());
+        }
+    }
+
+    private record PathwayOutcomeAssetContent(
+        PathwayOutcomeScope scope,
+        String refCode,
+        String indicatorCode,
+        String packageVersion
+    ) {
+        private static PathwayOutcomeAssetContent from(PathwayOutcomeBinding binding) {
+            return new PathwayOutcomeAssetContent(
+                binding.scope(), binding.refCode(), binding.indicatorCode(), binding.packageVersion());
         }
     }
 

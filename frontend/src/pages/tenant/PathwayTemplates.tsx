@@ -59,6 +59,7 @@ import {
   useContextSnapshots,
   useCreatePathwayTemplate,
   useCreateSpecialtyPackage,
+  useEvaluationIndicators,
   useFullRolloutPathwayTemplate,
   usePathwayTemplateDetail,
   usePathwayTemplateInheritanceDiff,
@@ -71,6 +72,7 @@ import {
 } from "@/shared/api/hooks";
 import type {
   ContextSnapshotSummary,
+  EvaluationIndicator,
   PathwayEdge,
   PathwayEdgeType,
   PathwayEntryMode,
@@ -79,7 +81,10 @@ import type {
   PathwayMergedNode,
   PathwayNode,
   PathwayNodeType,
+  PathwayOutcomeBinding,
+  PathwayOutcomeScope,
   PathwaySimulationResponse,
+  PathwaySimulationMode,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
   PathwayTemplateImpactResponse,
@@ -212,12 +217,20 @@ type PathwayMetricBindingDraft = {
   required: boolean;
 };
 
+type PathwayOutcomeBindingDraft = {
+  scope: PathwayOutcomeScope;
+  refCode?: string;
+  indicatorCode: string;
+  packageVersion?: string;
+};
+
 type PathwayDslPayload = {
   startNodeCode?: string;
   milestones?: PathwayMilestoneDraft[];
   nodes?: PathwayNodeDraft[];
   edges?: PathwayEdgeDraft[];
   metricBindings?: PathwayMetricBindingDraft[];
+  outcomeBindings?: PathwayOutcomeBindingDraft[];
 };
 
 type PathwayNodeFormValue = {
@@ -292,6 +305,7 @@ type PathwayTemplateFormValue = {
   milestones?: PathwayMilestoneFormValue[];
   nodes?: PathwayNodeFormValue[];
   edges?: PathwayEdgeFormValue[];
+  outcomeBindings?: PathwayOutcomeBindingDraft[];
 };
 
 type SnapshotQuery = {
@@ -349,6 +363,18 @@ const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
   { value: "PHYSICIAN_DECISION", label: "PHYSICIAN_DECISION 医师决策" },
   { value: "ROLLBACK", label: "ROLLBACK 回退" },
   { value: "JOIN", label: "JOIN 并行汇合" },
+];
+
+const outcomeScopeOptions: Array<{ value: PathwayOutcomeScope; label: string }> = [
+  { value: "TEMPLATE", label: "模板" },
+  { value: "PHASE", label: "阶段" },
+  { value: "MILESTONE", label: "里程碑" },
+];
+
+const simulationModeOptions: Array<{ value: PathwaySimulationMode; label: string }> = [
+  { value: "SINGLE_SNAPSHOT", label: "单快照" },
+  { value: "QUEUE_REPLAY", label: "队列回放" },
+  { value: "TIME_MACHINE", label: "时光机" },
 ];
 
 const pathwayConditionOperatorOptions = [
@@ -775,16 +801,45 @@ function normalizeMetricBindings(nodes?: PathwayNodeFormValue[]) {
     }));
 }
 
+function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingDraft[]) {
+  return (bindings ?? [])
+    .filter((binding) => cleanText(binding.indicatorCode))
+    .map<PathwayOutcomeBindingDraft>((binding) => ({
+      scope: binding.scope ?? "TEMPLATE",
+      refCode: binding.scope === "TEMPLATE" ? undefined : cleanText(binding.refCode),
+      indicatorCode: cleanText(binding.indicatorCode) ?? "",
+      packageVersion: cleanText(binding.packageVersion),
+    }));
+}
+
+function outcomeScopeText(scope?: PathwayOutcomeScope | string | null) {
+  if (scope === "PHASE") return "阶段";
+  if (scope === "MILESTONE") return "里程碑";
+  return "模板";
+}
+
+function outcomeRefText(binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">) {
+  return binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-";
+}
+
+function outcomeBindingKey(
+  binding: Pick<PathwayOutcomeBinding, "scope" | "refCode" | "indicatorCode">,
+) {
+  return `${binding.scope}:${binding.refCode ?? "TEMPLATE"}:${binding.indicatorCode}`;
+}
+
 function buildDraftDsl(
   milestones?: PathwayMilestoneFormValue[],
   nodes?: PathwayNodeFormValue[],
   edges?: PathwayEdgeFormValue[],
+  outcomeBindings?: PathwayOutcomeBindingDraft[],
 ) {
   return {
     milestones: normalizeMilestones(milestones),
     nodes: normalizeNodes(nodes),
     edges: normalizeEdges(edges),
     metricBindings: normalizeMetricBindings(nodes),
+    outcomeBindings: normalizeOutcomeBindings(outcomeBindings),
   };
 }
 
@@ -792,6 +847,7 @@ function buildDraftDslPreview(
   milestones?: PathwayMilestoneFormValue[],
   nodes?: PathwayNodeFormValue[],
   edges?: PathwayEdgeFormValue[],
+  outcomeBindings?: PathwayOutcomeBindingDraft[],
 ) {
   let normalizedEdges: PathwayEdgeDraft[] = [];
   try {
@@ -804,6 +860,7 @@ function buildDraftDslPreview(
     nodes: normalizeNodes(nodes),
     edges: normalizedEdges,
     metricBindings: normalizeMetricBindings(nodes),
+    outcomeBindings: normalizeOutcomeBindings(outcomeBindings),
   });
 }
 
@@ -858,6 +915,12 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       nodeCode: binding.nodeCode,
       metricCode: binding.metricCode,
     })),
+    outcomeBindings: (detail.outcomeBindings ?? []).map((binding) => ({
+      scope: binding.scope,
+      refCode: binding.scope === "TEMPLATE" ? undefined : binding.refCode,
+      indicatorCode: binding.indicatorCode,
+      packageVersion: binding.packageVersion,
+    })),
   });
 }
 
@@ -900,7 +963,8 @@ function parsePathwayDslJson(value: string): PathwayDslPayload {
       (payload.milestones !== undefined && !Array.isArray(payload.milestones)) ||
       (payload.nodes !== undefined && !Array.isArray(payload.nodes)) ||
       (payload.edges !== undefined && !Array.isArray(payload.edges)) ||
-      (payload.metricBindings !== undefined && !Array.isArray(payload.metricBindings))
+      (payload.metricBindings !== undefined && !Array.isArray(payload.metricBindings)) ||
+      (payload.outcomeBindings !== undefined && !Array.isArray(payload.outcomeBindings))
     ) {
       throw new Error();
     }
@@ -973,6 +1037,7 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       achievementCriteria: normalizeNodeConfig(milestone.achievementCriteria),
       sortOrder: Number(milestone.sortOrder ?? index + 1),
     })),
+    outcomeBindings: normalizeOutcomeBindings(payload.outcomeBindings),
     nodes: (payload.nodes ?? []).map<PathwayNodeFormValue>((node, index) => ({
       nodeCode: cleanText(node.nodeCode),
       name: cleanText(node.name),
@@ -1088,6 +1153,8 @@ export default function PathwayTemplates() {
   const [snapshotEncounterId, setSnapshotEncounterId] = useState<string>("");
   const [snapshotQuery, setSnapshotQuery] = useState<SnapshotQuery | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [simulationMode, setSimulationMode] = useState<PathwaySimulationMode>("SINGLE_SNAPSHOT");
+  const [replaySnapshotIds, setReplaySnapshotIds] = useState<string[]>([]);
   const [pathwayDslJson, setPathwayDslJson] = useState<string>(() =>
     buildDraftDslPreview([], [], []),
   );
@@ -1135,6 +1202,14 @@ export default function PathwayTemplates() {
     page: 1,
     size: 100,
   });
+  const { data: evaluationIndicatorsData } = useEvaluationIndicators(
+    {
+      status: "ACTIVE",
+      page: 1,
+      size: 100,
+    },
+    { enabled: createTemplateVisible || !!selectedTemplateId },
+  );
 
   const fieldCatalogQuery = useContextFieldCatalog();
   const fieldCatalogList = fieldCatalogQuery.data ?? [];
@@ -1177,6 +1252,7 @@ export default function PathwayTemplates() {
   const watchedMilestones = Form.useWatch("milestones", templateForm);
   const watchedNodes = Form.useWatch("nodes", templateForm);
   const watchedEdges = Form.useWatch("edges", templateForm);
+  const watchedOutcomeBindings = Form.useWatch("outcomeBindings", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
 
   const canvasNodes = useMemo(
@@ -1284,6 +1360,28 @@ export default function PathwayTemplates() {
     [watchedMilestones],
   );
 
+  const phaseSelectOptions = useMemo(() => {
+    const byCode = new Map<string, string>();
+    for (const milestone of normalizeMilestones(watchedMilestones)) {
+      if (cleanText(milestone.phaseCode)) {
+        byCode.set(milestone.phaseCode, milestone.phaseName || milestone.phaseCode);
+      }
+    }
+    return [...byCode.entries()].map(([value, label]) => ({
+      value,
+      label: `${label}（${value}）`,
+    }));
+  }, [watchedMilestones]);
+
+  const outcomeIndicatorOptions = useMemo(
+    () =>
+      (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => ({
+        value: indicator.indicatorCode,
+        label: `${indicator.name}（${indicator.indicatorCode}）`,
+      })),
+    [evaluationIndicatorsData?.items],
+  );
+
   // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
     listName: "nodes" | "edges" | "milestones",
@@ -1331,6 +1429,8 @@ export default function PathwayTemplates() {
     setSnapshotEncounterId("");
     setSnapshotQuery(null);
     setSelectedSnapshotId(null);
+    setReplaySnapshotIds([]);
+    setSimulationMode("SINGLE_SNAPSHOT");
     setSimulationResponse(null);
   };
 
@@ -1366,6 +1466,7 @@ export default function PathwayTemplates() {
       const nodes = normalizeNodes(values.nodes);
       const edges = normalizeEdges(values.edges);
       const metricBindings = normalizeMetricBindings(values.nodes);
+      const outcomeBindings = normalizeOutcomeBindings(values.outcomeBindings);
       const activeNodes = nodes.filter((node) => !node.disabled);
       const activeNodeCodes = new Set(activeNodes.map((node) => node.nodeCode));
       const activeEdges = edges.filter(
@@ -1391,6 +1492,24 @@ export default function PathwayTemplates() {
           return;
         }
         milestoneCodes.add(milestone.milestoneCode);
+      }
+      const phaseCodes = new Set(milestones.map((milestone) => milestone.phaseCode));
+      const outcomeKeys = new Set<string>();
+      for (const binding of outcomeBindings) {
+        const key = `${binding.scope}:${binding.refCode ?? "TEMPLATE"}:${binding.indicatorCode}`;
+        if (outcomeKeys.has(key)) {
+          messageApi.error(`结局指标绑定 ${binding.indicatorCode} 重复，请保留一条。`);
+          return;
+        }
+        outcomeKeys.add(key);
+        if (binding.scope === "PHASE" && !phaseCodes.has(binding.refCode ?? "")) {
+          messageApi.error(`结局指标绑定引用了不存在的阶段：${binding.refCode ?? ""}`);
+          return;
+        }
+        if (binding.scope === "MILESTONE" && !milestoneCodes.has(binding.refCode ?? "")) {
+          messageApi.error(`结局指标绑定引用了不存在的里程碑：${binding.refCode ?? ""}`);
+          return;
+        }
       }
       const invalidMilestoneNode = nodes.find(
         (node) => !node.disabled && node.milestoneCode && !milestoneCodes.has(node.milestoneCode),
@@ -1448,6 +1567,7 @@ export default function PathwayTemplates() {
         nodes,
         edges,
         metricBindings,
+        outcomeBindings,
       });
 
       messageApi.success("专病路径模板草稿创建成功");
@@ -1468,7 +1588,11 @@ export default function PathwayTemplates() {
   const syncCanvasToDsl = () => {
     try {
       const values = templateForm.getFieldsValue(true);
-      setPathwayDslJson(formatJson(buildDraftDsl(values.milestones, values.nodes, values.edges)));
+      setPathwayDslJson(
+        formatJson(
+          buildDraftDsl(values.milestones, values.nodes, values.edges, values.outcomeBindings),
+        ),
+      );
       setCreateExpertMode(true);
       messageApi.success("已从 L2 节点画布同步到 L3 DSL");
     } catch (error: unknown) {
@@ -1481,7 +1605,12 @@ export default function PathwayTemplates() {
       const formValues = formValuesFromDsl(parsePathwayDslJson(pathwayDslJson));
       templateForm.setFieldsValue(formValues);
       setPathwayDslJson(
-        buildDraftDslPreview(formValues.milestones, formValues.nodes, formValues.edges),
+        buildDraftDslPreview(
+          formValues.milestones,
+          formValues.nodes,
+          formValues.edges,
+          formValues.outcomeBindings,
+        ),
       );
       messageApi.success("已将 L3 DSL 回填到 L2 节点画布");
     } catch (error: unknown) {
@@ -1614,8 +1743,18 @@ export default function PathwayTemplates() {
 
   const handleSimulate = async () => {
     if (!selectedTemplateId) return;
-    if (!selectedSnapshotId) {
-      messageApi.error("请先选择一个 ACTIVE 上下文快照");
+    const replayIds =
+      simulationMode === "QUEUE_REPLAY"
+        ? replaySnapshotIds
+        : selectedSnapshotId
+          ? [selectedSnapshotId]
+          : [];
+    if (replayIds.length === 0) {
+      messageApi.error(
+        simulationMode === "QUEUE_REPLAY"
+          ? "请选择至少一个 ACTIVE 上下文快照用于队列回放"
+          : "请先选择一个 ACTIVE 上下文快照",
+      );
       return;
     }
     const effectiveStartNode =
@@ -1632,7 +1771,10 @@ export default function PathwayTemplates() {
           selectedSnapshotDetail?.packageVersion ??
           packageVersionFor(detailData?.template.packageId) ??
           String(detailData?.template.templateVersion ?? ""),
-        snapshotId: selectedSnapshotId,
+        ...(simulationMode === "SINGLE_SNAPSHOT" ? {} : { simulationMode }),
+        ...(simulationMode === "QUEUE_REPLAY"
+          ? { replaySnapshotIds: replayIds }
+          : { snapshotId: replayIds[0] }),
         startNodeCode: effectiveStartNode,
       });
       setSimulationResponse(result);
@@ -1807,6 +1949,25 @@ export default function PathwayTemplates() {
   const metricColumns: TableProps<SpecialtyMetricBinding>["columns"] = [
     { title: "节点代码", dataIndex: "nodeCode" },
     { title: "指标编码", dataIndex: "metricCode" },
+  ];
+
+  const outcomeColumns: TableProps<PathwayOutcomeBinding>["columns"] = [
+    {
+      title: "作用域",
+      dataIndex: "scope",
+      render: (scope: PathwayOutcomeScope) => <Tag color="blue">{outcomeScopeText(scope)}</Tag>,
+    },
+    {
+      title: "引用对象",
+      key: "refCode",
+      render: (_value, binding) => outcomeRefText(binding),
+    },
+    { title: "指标编码", dataIndex: "indicatorCode" },
+    {
+      title: "包版本",
+      dataIndex: "packageVersion",
+      render: (value?: string | null) => value ?? "-",
+    },
   ];
 
   const inheritanceDiffColumns: TableProps<PathwayTemplateInheritanceDiffItem>["columns"] = [
@@ -2130,6 +2291,96 @@ export default function PathwayTemplates() {
                               placeholder="如 60"
                               className={styles.fullWidth}
                             />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                })}
+              </Space>
+            )}
+          </Form.List>
+
+          <Divider />
+
+          <Form.List name="outcomeBindings">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Space align="center" className="mk-flex-between mk-full-width">
+                  <div className={styles.textStrong}>结局指标绑定</div>
+                  <Button icon={<PlusOutlined />} onClick={() => add({ scope: "TEMPLATE" })}>
+                    添加结局指标
+                  </Button>
+                </Space>
+                {fields.length === 0 && (
+                  <Empty description="尚未绑定 LOS、再入院、并发症或成本指标" />
+                )}
+                {fields.map((field) => {
+                  const { key, ...fieldProps } = field;
+                  const currentScope = watchedOutcomeBindings?.[field.name]?.scope ?? "TEMPLATE";
+                  const refOptions =
+                    currentScope === "PHASE" ? phaseSelectOptions : milestoneSelectOptions;
+                  return (
+                    <div key={key} className={styles.editorList}>
+                      <Space align="start" className="mk-flex-between mk-full-width">
+                        <Tag color="cyan">指标 {field.name + 1}</Tag>
+                        <Button
+                          aria-label={`删除结局指标 ${field.name + 1}`}
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(field.name)}
+                        />
+                      </Space>
+                      <Row gutter={12} className={styles.marginTopMd}>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "scope"]}
+                            label="作用域"
+                            rules={[{ required: true }]}
+                          >
+                            <Select options={outcomeScopeOptions} />
+                          </Form.Item>
+                        </Col>
+                        {currentScope !== "TEMPLATE" && (
+                          <Col xs={24} sm={12} lg={8}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "refCode"]}
+                              label="引用对象"
+                              rules={[{ required: true, message: "请选择引用对象" }]}
+                            >
+                              <Select
+                                showSearch
+                                optionFilterProp="label"
+                                placeholder={currentScope === "PHASE" ? "选择阶段" : "选择里程碑"}
+                                options={refOptions}
+                              />
+                            </Form.Item>
+                          </Col>
+                        )}
+                        <Col xs={24} sm={12} lg={currentScope === "TEMPLATE" ? 10 : 6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "indicatorCode"]}
+                            label="评估指标"
+                            rules={[{ required: true }]}
+                          >
+                            <Select
+                              showSearch
+                              optionFilterProp="label"
+                              placeholder="选择 ACTIVE 评估指标"
+                              options={outcomeIndicatorOptions}
+                              notFoundContent="暂无 ACTIVE 评估指标"
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={currentScope === "TEMPLATE" ? 8 : 4}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "packageVersion"]}
+                            label="指标包版本"
+                          >
+                            <Input placeholder="默认使用专病包版本" />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -2812,6 +3063,9 @@ export default function PathwayTemplates() {
         </Descriptions.Item>
         <Descriptions.Item label="关键时钟节点">{releaseImpact.timedNodeCount}</Descriptions.Item>
         <Descriptions.Item label="终止节点">{releaseImpact.terminalNodeCount}</Descriptions.Item>
+        <Descriptions.Item label="结局指标绑定">
+          {releaseImpact.outcomeBindingCount ?? 0}
+        </Descriptions.Item>
         <Descriptions.Item label="灰度比例">灰度发布默认 10%</Descriptions.Item>
         <Descriptions.Item label="回滚凭据">保留本次 impactDigest</Descriptions.Item>
       </Descriptions>
@@ -3076,6 +3330,15 @@ export default function PathwayTemplates() {
                 locale={{ emptyText: "暂无时钟指标绑定" }}
                 className="medkernel-table"
               />
+              <Table
+                dataSource={detailData.outcomeBindings ?? []}
+                rowKey={outcomeBindingKey}
+                pagination={false}
+                size="small"
+                columns={outcomeColumns}
+                locale={{ emptyText: "暂无结局指标绑定" }}
+                className="medkernel-table"
+              />
             </Space>
           ),
         },
@@ -3144,6 +3407,13 @@ export default function PathwayTemplates() {
                             }
                             onClick={() => {
                               setSelectedSnapshotId(snapshot.snapshotId);
+                              if (simulationMode === "QUEUE_REPLAY") {
+                                setReplaySnapshotIds((current) =>
+                                  current.includes(snapshot.snapshotId)
+                                    ? current
+                                    : [...current, snapshot.snapshotId],
+                                );
+                              }
                               setSimulationResponse(null);
                             }}
                             className={styles.snapshotButton}
@@ -3184,16 +3454,49 @@ export default function PathwayTemplates() {
                         </Form>
                       </Col>
                       <Col xs={24} md={12}>
-                        <Button
-                          type="primary"
-                          icon={<PlayCircleOutlined />}
-                          onClick={handleSimulate}
-                          loading={simulateMutation.isPending || selectedSnapshotLoading}
-                          disabled={!selectedSnapshotId}
-                          className={styles.primaryAction}
-                        >
-                          使用该快照试运行
-                        </Button>
+                        <Form layout="vertical">
+                          <Form.Item label="试运行模式">
+                            <Segmented
+                              block
+                              options={simulationModeOptions}
+                              value={simulationMode}
+                              onChange={(value) => {
+                                setSimulationMode(value as PathwaySimulationMode);
+                                setSimulationResponse(null);
+                              }}
+                            />
+                          </Form.Item>
+                          {simulationMode === "QUEUE_REPLAY" && (
+                            <Form.Item label="回放快照队列">
+                              <Select
+                                mode="multiple"
+                                value={replaySnapshotIds}
+                                onChange={setReplaySnapshotIds}
+                                placeholder="按顺序选择快照"
+                                options={snapshotList.map((snapshot) => ({
+                                  value: snapshot.snapshotId,
+                                  label: `${snapshot.snapshotId} / ${snapshot.qualityStatus}`,
+                                }))}
+                              />
+                            </Form.Item>
+                          )}
+                          <Button
+                            type="primary"
+                            icon={<PlayCircleOutlined />}
+                            onClick={handleSimulate}
+                            loading={simulateMutation.isPending || selectedSnapshotLoading}
+                            disabled={
+                              simulationMode === "QUEUE_REPLAY"
+                                ? replaySnapshotIds.length === 0
+                                : !selectedSnapshotId
+                            }
+                            className={styles.primaryAction}
+                          >
+                            {simulationMode === "QUEUE_REPLAY"
+                              ? "执行队列回放"
+                              : "使用该快照试运行"}
+                          </Button>
+                        </Form>
                       </Col>
                     </Row>
                     {selectedSnapshotDetail && (
@@ -3217,9 +3520,15 @@ export default function PathwayTemplates() {
                   <div className={styles.simulationResult}>
                     {simulationResponse ? (
                       <Space direction="vertical" size="middle" className="mk-full-width">
-                        <Tag color={simulationQuality === "COMPLETE" ? "green" : "orange"}>
-                          快照质量：{simulationQuality}
-                        </Tag>
+                        <Space wrap>
+                          <Tag color="blue">
+                            模式：{simulationResponse.simulationMode ?? "SINGLE_SNAPSHOT"}
+                          </Tag>
+                          <Tag color={simulationQuality === "COMPLETE" ? "green" : "orange"}>
+                            快照质量：{simulationQuality}
+                          </Tag>
+                          <Tag color="purple">最终状态：{simulationResponse.finalStatus}</Tag>
+                        </Space>
                         {simulationMapping.length > 0 && (
                           <Descriptions bordered size="small" column={1}>
                             {simulationMapping.map(([key, status]) => (
@@ -3228,6 +3537,24 @@ export default function PathwayTemplates() {
                               </Descriptions.Item>
                             ))}
                           </Descriptions>
+                        )}
+                        {(simulationResponse.replaySteps ?? []).length > 0 && (
+                          <Table
+                            dataSource={simulationResponse.replaySteps}
+                            rowKey={(step) => step.snapshotId ?? step.nodeTrajectory.join("-")}
+                            pagination={false}
+                            size="small"
+                            columns={[
+                              { title: "快照", dataIndex: "snapshotId" },
+                              {
+                                title: "轨迹",
+                                dataIndex: "nodeTrajectory",
+                                render: (trajectory: string[]) => trajectory.join(" → "),
+                              },
+                              { title: "最终状态", dataIndex: "finalStatus" },
+                            ]}
+                            className="medkernel-table"
+                          />
                         )}
                         <Timeline
                           items={simulationResponse.nodeTrajectory.map((nodeCode, index) => {
