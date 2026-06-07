@@ -678,6 +678,35 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "图画布移动节点后将布局持久化到同一份 L3 DSL",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+
+      fireEvent.keyDown(within(dialog).getByLabelText("路径节点 N1"), {
+        key: "ArrowRight",
+      });
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+
+      const dsl = JSON.parse(
+        (within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement).value,
+      ) as {
+        nodes: Array<{ config?: { authoringLayout?: { x: number; y: number } } }>;
+      };
+      expect(dsl.nodes[0].config?.authoringLayout).toEqual({ x: 16, y: 0 });
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径画布即时提示重复节点编码和缺少终止节点",
     async () => {
       apiMocks.packagesData = { items: [specialtyPackage], total: 1 };

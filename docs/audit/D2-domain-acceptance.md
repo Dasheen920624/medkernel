@@ -49,7 +49,7 @@ D2 试点准备域本轮完成域级验收收口：配置类资产从导入 / �
 - `DEFER-011`：GitHub Actions Node.js 20 action 弃用。
 - `DEFER-013`：OpenSpec 旧变更状态与当前卡体系不同步。
 - `DEFER-016`：历史迁移规约 inventory 债务。
-- `DEFER-017`：路径 X6/G6 拖拽图体验增强。
+- `DEFER-017`：路径图形编辑已于2026-06-07统一接入React Flow并关闭，证据以[待处理问题清单](deferred-issues.md)为准。
 - `DEFER-019`：随访模板资产化归 D3 后回接 D2 包发布。
 
 关闭标准仍以 [待处理问题清单](deferred-issues.md) 为准。

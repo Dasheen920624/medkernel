@@ -45,7 +45,7 @@ D4 质控改进域本轮完成域级验收收口：评估指标配置、病例�
 - `DEFER-011`：GitHub Actions Node.js 20 action 弃用风险。
 - `DEFER-013`：OpenSpec 旧变更状态与当前卡体系不同步。
 - `DEFER-016`：历史迁移规约 inventory 债务。
-- `DEFER-017`：路径 X6/G6 拖拽图体验增强。
+- `DEFER-017`：路径图形编辑已于2026-06-07统一接入React Flow并关闭，证据以[待处理问题清单](deferred-issues.md)为准。
 - `DEFER-019`：随访模板资产化归后续统一包发布 / 继承底座承接。
 - `DEFER-020`：本地旧 Docker 容器可能与当前源码不一致。
 
