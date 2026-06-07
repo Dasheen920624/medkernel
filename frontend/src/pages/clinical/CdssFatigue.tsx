@@ -35,10 +35,13 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import {
-  useCreateRecommendationTrigger,
   useClinicalRecommendationCards,
+  useContextSnapshotDetail,
+  useContextSnapshots,
+  useEvaluateRecommendations,
   useRecommendationCardDetail,
   useRecommendationCardSources,
   useRecommendationStats,
@@ -55,6 +58,7 @@ import type {
   RecommendationRiskLevel,
   RecommendationFeedbackType,
 } from "@/shared/api/hooks";
+import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -133,18 +137,13 @@ function getFatigueProgressPercent(signal: RecommendationFatigueSignal): number 
 }
 
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
-async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 export default function CdssFatigue() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [triggerModalVisible, setTriggerModalVisible] = useState<boolean>(false);
   const [diagnoseDrawerVisible, setDiagnoseDrawerVisible] = useState<boolean>(false);
+  const [snapshotPatientId, setSnapshotPatientId] = useState("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
 
   // 分页与过滤状态
   const [page, setPage] = useState<number>(1);
@@ -204,46 +203,68 @@ export default function CdssFatigue() {
     detailData?.card.triggerId || "",
   );
 
+  const patientFilter = snapshotPatientId.trim();
+  const encounterFilter = snapshotEncounterId.trim();
+  const hasSnapshotFilter = Boolean(patientFilter || encounterFilter);
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: patientFilter || undefined,
+      encounterId: encounterFilter || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    },
+    { enabled: triggerModalVisible && hasSnapshotFilter },
+  );
+  const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
+    enabled: triggerModalVisible && Boolean(selectedSnapshotId),
+  });
+  const selectedSnapshot = snapshotsQuery.data?.items.find(
+    (snapshot) => snapshot.snapshotId === selectedSnapshotId,
+  );
+
   // 突变动作
-  const triggerCdssMutation = useCreateRecommendationTrigger();
+  const triggerCdssMutation = useEvaluateRecommendations();
   const feedbackMutation = useSubmitRecommendationFeedback(selectedCardId || "");
   const selectedFatigueGovernance = getFatigueGovernance(detailData?.card);
 
-  // 触发一次推荐评估事件。后端为受控写入/治理层，不会凭患者+病种"生成"卡；
-  // 候选卡由上游引擎/适配器提交，本沙箱仅登记触发并按后端真实返回刷新列表。
+  // ACTIVE 临床快照是评估上下文的唯一来源，患者、就诊与配置包版本由服务端再次校验。
   const handleTriggerCdss = async () => {
     try {
       const values = await triggerForm.validateFields();
-      let payloadJsonParsed = "{}";
-      if (values.payloadJson) {
-        try {
-          JSON.parse(values.payloadJson);
-          payloadJsonParsed = values.payloadJson;
-        } catch {
-          message.error("病种快照 payload 的 JSON 格式不合法！");
-          return;
-        }
+      if (!selectedSnapshot || !snapshotDetailQuery.data?.packageVersion) {
+        message.error("请先选择包含配置包版本的 ACTIVE 临床快照");
+        return;
       }
 
       const res = await triggerCdssMutation.mutateAsync({
-        triggerCode: `CDSS-SANDBOX-${values.scenarioCode}`,
-        triggerType: "MANUAL_SANDBOX",
-        scenarioCode: values.scenarioCode,
-        inputDigest: await sha256Hex(payloadJsonParsed),
-        patientId: values.patientId,
-        encounterId: values.encounterId || undefined,
+        triggerCode: `CDSS-MANUAL-${values.triggerType}`,
+        triggerType: values.triggerType,
+        scenarioCode: values.triggerType,
+        contextSnapshotId: selectedSnapshot.snapshotId,
+        patientId: selectedSnapshot.patientId,
+        encounterId: selectedSnapshot.encounterId || undefined,
+        packageVersion: snapshotDetailQuery.data.packageVersion,
       });
 
       message.success(
-        `已登记推荐触发事件（trigger=${res.triggerId}），后端生成提醒卡 ${res.cardCount} 张；下方列表为后端真实数据。`,
+        `推荐评估已完成：展示 ${res.visibleCardCount} 张，疲劳策略抑制 ${res.suppressedCardCount} 张。`,
       );
-      setTriggerModalVisible(false);
-      triggerForm.resetFields();
+      closeTriggerModal();
       refetchCards();
     } catch (error: unknown) {
       if (applyApiFieldErrors(triggerForm, error)) return;
       message.error(getApiErrorMessage(error, "触发 CDSS 计算失败，请稍后重试"));
     }
+  };
+
+  const closeTriggerModal = () => {
+    setTriggerModalVisible(false);
+    setSnapshotPatientId("");
+    setSnapshotEncounterId("");
+    setSelectedSnapshotId("");
+    triggerForm.resetFields();
   };
 
   // 提交医师反馈 (ACCEPT / REJECT)。操作者身份由后端从登录态取真实用户，前端绝不伪造 physicianId。
@@ -284,13 +305,15 @@ export default function CdssFatigue() {
       title: "卡片编号",
       dataIndex: "cardId",
       key: "cardId",
-      render: (text: string) => <span className="font-normal text-xs font-semibold">{text}</span>,
+      render: (text: string) => (
+        <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
+      ),
     },
     {
       title: "提醒摘要 Title",
       dataIndex: "title",
       key: "title",
-      className: "font-semibold text-gray-800",
+      className: styles.textStrong,
       width: 280,
     },
     {
@@ -357,7 +380,7 @@ export default function CdssFatigue() {
             setSelectedCardId(record.cardId);
             setDiagnoseDrawerVisible(false);
           }}
-          className="text-indigo-600 hover:text-indigo-900 font-semibold"
+          className={styles.linkButton}
         >
           查看与人机反馈
         </Button>
@@ -407,9 +430,8 @@ export default function CdssFatigue() {
       title="智能建议治理"
       description="汇总临床运行中的 CDSS 医嘱提醒卡，结合权威医学文献提供透明化解释，支持临床医生实时采纳反馈并监控超频提醒疲劳度治理信号。"
     >
-      {/* 过滤搜索条 */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-        <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
+      <div className={`${styles.surface} ${styles.filterSurface}`}>
+        <Form layout="inline" className={styles.inlineForm}>
           <Form.Item label="状态">
             <Select
               placeholder="全部状态"
@@ -419,7 +441,7 @@ export default function CdssFatigue() {
                 setStatusFilter(v);
                 setPage(1);
               }}
-              className="w-[140px]"
+              className={styles.controlSm}
             >
               <Option value="PENDING">待处理</Option>
               <Option value="ACCEPTED">已采纳</Option>
@@ -436,7 +458,7 @@ export default function CdssFatigue() {
                 setRiskFilter(v);
                 setPage(1);
               }}
-              className="w-[140px]"
+              className={styles.controlSm}
             >
               <Option value="HIGH">HIGH (红线强阻断)</Option>
               <Option value="MEDIUM">MEDIUM (黄线软提醒)</Option>
@@ -452,117 +474,145 @@ export default function CdssFatigue() {
                 setPatientIdFilter(e.target.value);
                 setPage(1);
               }}
-              className="w-[160px]"
+              className={styles.controlMd}
             />
           </Form.Item>
-          <Form.Item className="ml-auto">
+          <Form.Item className={styles.actionItem}>
             <Button
               type="primary"
               icon={<FireOutlined />}
               onClick={() => setTriggerModalVisible(true)}
-              className="rounded-lg font-medium bg-amber-600 border-amber-600 hover:bg-amber-700"
             >
-              CDSS 触发沙箱
+              登记触发评估
             </Button>
           </Form.Item>
         </Form>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white border border-gray-100 rounded-lg p-4">
-          <div className="text-xs text-gray-500">提醒总数</div>
-          <div className="text-xl font-semibold text-gray-900">{statsData?.totalCount ?? 0}</div>
+      <div className={styles.statsGrid}>
+        <div className={styles.metricCard}>
+          <div className={styles.metricLabel}>提醒总数</div>
+          <div className={styles.metricNumber}>{statsData?.totalCount ?? 0}</div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-4">
-          <div className="text-xs text-gray-500">待处理</div>
-          <div className="text-xl font-semibold text-amber-700">{statsData?.pendingCount ?? 0}</div>
+        <div className={styles.metricCard}>
+          <div className={styles.metricLabel}>待处理</div>
+          <div className={`${styles.metricNumber} ${styles.metricPending}`}>
+            {statsData?.pendingCount ?? 0}
+          </div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-4">
-          <div className="text-xs text-gray-500">已采纳</div>
-          <div className="text-xl font-semibold text-emerald-700">
+        <div className={styles.metricCard}>
+          <div className={styles.metricLabel}>已采纳</div>
+          <div className={`${styles.metricNumber} ${styles.metricAccepted}`}>
             {statsData?.acceptedCount ?? 0}
           </div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-4">
-          <div className="text-xs text-gray-500">不采纳</div>
-          <div className="text-xl font-semibold text-rose-700">{statsData?.rejectedCount ?? 0}</div>
+        <div className={styles.metricCard}>
+          <div className={styles.metricLabel}>不采纳</div>
+          <div className={`${styles.metricNumber} ${styles.metricRejected}`}>
+            {statsData?.rejectedCount ?? 0}
+          </div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-4">
-          <div className="text-xs text-gray-500">采纳率</div>
-          <div className="text-xl font-semibold text-indigo-700">
+        <div className={styles.metricCard}>
+          <div className={styles.metricLabel}>采纳率</div>
+          <div className={`${styles.metricNumber} ${styles.metricRate}`}>
             {statsData?.acceptanceRatePercent ?? 0}%
           </div>
         </div>
       </div>
 
-      {/* 主表格数据 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {cardsTableContent}
-      </div>
+      <div className={styles.surface}>{cardsTableContent}</div>
 
-      {/* 触发 CDSS 沙箱 Modal */}
       <Modal
-        title="CDSS 触发沙箱 (登记一次推荐触发评估)"
+        title="登记一次推荐触发评估"
         open={triggerModalVisible}
         onOk={handleTriggerCdss}
-        onCancel={() => setTriggerModalVisible(false)}
-        width={560}
+        onCancel={closeTriggerModal}
+        okText="执行推荐评估"
+        cancelText="取消"
+        okButtonProps={{
+          disabled: !selectedSnapshotId || snapshotDetailQuery.isLoading,
+        }}
+        width={720}
         confirmLoading={triggerCdssMutation.isPending}
         destroyOnClose
       >
         <Alert
-          message="本沙箱仅向推荐引擎登记一次触发评估事件。候选提醒卡由上游临床引擎/适配器提交，触发本身不凭空生成卡片；提交后下方列表按后端真实数据刷新。"
+          message="推荐引擎将读取所选 ACTIVE 临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
           type="info"
           showIcon
-          className="mb-4 rounded-lg text-xs"
+          className={styles.sectionGap}
         />
-        <Form form={triggerForm} layout="vertical" className="mt-2">
+        <Form
+          form={triggerForm}
+          layout="vertical"
+          className={styles.marginTopSm}
+          initialValues={{ triggerType: "order-sign" }}
+        >
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="patientId" label="患者 ID (临床快照卡)" rules={[{ required: true }]}>
-                <Input placeholder="输入真实患者 ID" />
+              <Form.Item label="患者 ID" htmlFor="cdss-snapshot-patient">
+                <Input
+                  id="cdss-snapshot-patient"
+                  placeholder="输入患者 ID 检索 ACTIVE 快照"
+                  value={snapshotPatientId}
+                  onChange={(event) => {
+                    setSnapshotPatientId(event.target.value);
+                    setSelectedSnapshotId("");
+                  }}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="encounterId" label="就诊 ID (Encounter ID，可选)">
-                <Input placeholder="可留空" />
+              <Form.Item label="就诊 ID" htmlFor="cdss-snapshot-encounter">
+                <Input
+                  id="cdss-snapshot-encounter"
+                  placeholder="可单独按就诊 ID 检索"
+                  value={snapshotEncounterId}
+                  onChange={(event) => {
+                    setSnapshotEncounterId(event.target.value);
+                    setSelectedSnapshotId("");
+                  }}
+                />
               </Form.Item>
             </Col>
           </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="scenarioCode" label="触发决策就诊场景" rules={[{ required: true }]}>
-                <Select placeholder="选择触发场景">
-                  <Option value="PRESCRIPTION_SUBMIT">PRESCRIPTION_SUBMIT (开立医嘱提交)</Option>
-                  <Option value="ORDER_CHECK">ORDER_CHECK (医保规范核查)</Option>
-                  <Option value="CLINICAL_ADMIT">CLINICAL_ADMIT (办理入院评估)</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="diseaseCode" label="病种诊断 (ICD-10)" rules={[{ required: true }]}>
-                <Input placeholder="输入真实病种编码" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item
-            name="payloadJson"
-            label="病种快照上下文 JSON (可选，将计算 SHA-256 作为 inputDigest)"
-          >
-            <TextArea
-              rows={4}
-              placeholder="请输入临床上下文载荷 JSON..."
-              className="font-normal text-xs"
+          <Form.Item name="triggerType" label="触发时点" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: "patient-view", label: "查看患者" },
+                { value: "order-select", label: "选择医嘱" },
+                { value: "order-sign", label: "签署医嘱" },
+              ]}
             />
           </Form.Item>
+          <ContextSnapshotSelector
+            enabled={hasSnapshotFilter}
+            loading={snapshotsQuery.isLoading}
+            error={snapshotsQuery.isError}
+            snapshots={snapshotsQuery.data?.items ?? []}
+            selectedSnapshotId={selectedSnapshotId}
+            onSelect={setSelectedSnapshotId}
+          />
+          {snapshotDetailQuery.data && (
+            <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
+              <Descriptions.Item label="配置包">
+                {snapshotDetailQuery.data.packageVersion}
+              </Descriptions.Item>
+              <Descriptions.Item label="质量">
+                {snapshotDetailQuery.data.qualityStatus}
+              </Descriptions.Item>
+              <Descriptions.Item label="traceId">
+                {snapshotDetailQuery.data.traceId || "未返回"}
+              </Descriptions.Item>
+            </Descriptions>
+          )}
         </Form>
       </Modal>
 
-      {/* 采纳与疲劳治理抽屉 */}
       <Drawer
         title={
-          <div className="flex items-center gap-2">
-            <BookOutlined className="text-amber-600" />
+          <div className={styles.drawerTitle}>
+            <BookOutlined className={styles.iconInfo} />
             <span>智能建议人机闭环反馈与疲劳治理控制台</span>
           </div>
         }
@@ -578,16 +628,20 @@ export default function CdssFatigue() {
               bordered
               column={3}
               size="small"
-              className="mb-6"
+              className={styles.sectionGapLg}
             >
               <Descriptions.Item label="卡片编号">
-                <span className="font-normal text-xs font-semibold">{detailData.card.cardId}</span>
+                <span className={`${styles.codeText} ${styles.textStrong}`}>
+                  {detailData.card.cardId}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="患者 ID">
-                <span className="font-semibold">{detailData.trigger?.patientId || "未关联"}</span>
+                <span className={styles.textStrong}>
+                  {detailData.trigger?.patientId || "未关联"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="就诊编码">
-                <span className="font-normal text-xs">
+                <span className={styles.codeText}>
                   {detailData.trigger?.encounterId || "未关联"}
                 </span>
               </Descriptions.Item>
@@ -614,23 +668,23 @@ export default function CdssFatigue() {
                 <Tag color={selectedFatigueGovernance.color}>{selectedFatigueGovernance.label}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="提醒摘要描述" span={3}>
-                <span className="text-gray-800 font-medium">{detailData.card.summary}</span>
+                <span className={styles.textStrong}>{detailData.card.summary}</span>
               </Descriptions.Item>
             </Descriptions>
 
             {detailData.feedback.length > 0 && (
-              <Card size="small" className="mb-6 border-gray-200 rounded-lg">
-                <div className="text-sm font-semibold text-gray-800 mb-3">已记录医师反馈</div>
+              <Card size="small" className={`${styles.detailCard} ${styles.sectionGapLg}`}>
+                <div className={`${styles.textStrong} ${styles.sectionGap}`}>已记录医师反馈</div>
                 <Timeline
                   items={detailData.feedback.map((item) => ({
                     key: item.feedbackId,
                     color: item.feedbackType === "ACCEPT" ? "green" : "red",
                     children: (
                       <div>
-                        <div className="text-sm font-semibold text-gray-800">
+                        <div className={styles.timelineTitle}>
                           {item.operatorId} · {item.operatorRole || "DOCTOR"} · {item.feedbackType}
                         </div>
-                        <div className="text-xs text-gray-600 mt-1">
+                        <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
                         </div>
                       </div>
@@ -651,17 +705,17 @@ export default function CdssFatigue() {
                     </span>
                   ),
                   children: (
-                    <div className="flex flex-col gap-4 mt-2 max-h-[460px] overflow-y-auto pr-2">
+                    <div
+                      className={`${styles.stackLg} ${styles.scrollPanel} ${styles.marginTopSm}`}
+                    >
                       {sourcesData && sourcesData.length > 0 ? (
                         sourcesData.map((source: RecommendationSource) => (
                           <Card
                             key={source.sourceId}
                             size="small"
                             title={
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-gray-800 text-xs">
-                                  {source.title}
-                                </span>
+                              <div className={styles.rowBetween}>
+                                <span className={styles.timelineTitle}>{source.title}</span>
                                 <Tag
                                   color={
                                     typeof source.authorityScore === "number" ? "purple" : "default"
@@ -673,20 +727,12 @@ export default function CdssFatigue() {
                                 </Tag>
                               </div>
                             }
-                            className="border-gray-200 bg-gray-50 rounded-lg shadow-sm"
+                            className={styles.compactCard}
                           >
-                            <div className="text-xs text-gray-700 leading-relaxed font-normal">
-                              {source.content}
-                            </div>
-                            <Descriptions
-                              size="small"
-                              column={2}
-                              className="mt-3 bg-white p-2 rounded border border-gray-100"
-                            >
+                            <div className={styles.contentText}>{source.content}</div>
+                            <Descriptions size="small" column={2} className={styles.evidenceBox}>
                               <Descriptions.Item label="指南/文献出处">
-                                <span className="text-gray-500 font-semibold">
-                                  {source.sourceRef}
-                                </span>
+                                <span className={styles.textStrong}>{source.sourceRef}</span>
                               </Descriptions.Item>
                               <Descriptions.Item label="证据级别">
                                 {source.evidenceLevel ? (
@@ -714,27 +760,27 @@ export default function CdssFatigue() {
                     </span>
                   ),
                   children: (
-                    <Card className="border-gray-200 shadow-sm rounded-xl mt-2">
+                    <Card className={`${styles.detailCard} ${styles.marginTopSm}`}>
                       <Form form={feedbackForm} layout="vertical">
                         <Alert
                           message="合理化医师反馈是临床合理处方闭环的核心留痕。选择不采纳时，请录入客观严谨的临床医学抗拒理由，以便医疗质控追溯与持续优化CDSS阈值。操作者身份由系统按登录态如实记录。"
                           type="info"
                           showIcon
-                          className="mb-4 rounded-lg"
+                          className={styles.sectionGap}
                         />
 
                         <Tabs
                           defaultActiveKey="accept"
                           type="card"
                           size="small"
-                          className="mb-4"
+                          className={styles.sectionGap}
                           items={[
                             {
                               key: "accept",
                               label: "采纳合理建议 (ACCEPT)",
                               children: (
                                 <>
-                                  <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-800 text-xs mb-4">
+                                  <div className={styles.successEvidence}>
                                     确认采纳此建议。系统将登记采纳反馈并生成临床决策证据；是否下达/撤销医嘱由医师在
                                     HIS 中确认。
                                   </div>
@@ -745,7 +791,7 @@ export default function CdssFatigue() {
                                     type="primary"
                                     onClick={() => handleFeedback("ACCEPT")}
                                     loading={feedbackMutation.isPending}
-                                    className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+                                    className={styles.fullWidth}
                                   >
                                     确认并予以采纳 (ACCEPT)
                                   </Button>
@@ -795,7 +841,7 @@ export default function CdssFatigue() {
                                     danger
                                     onClick={() => handleFeedback("REJECT")}
                                     loading={feedbackMutation.isPending}
-                                    className="w-full"
+                                    className={styles.fullWidth}
                                   >
                                     确认拒绝采纳该建议 (REJECT)
                                   </Button>
@@ -817,19 +863,19 @@ export default function CdssFatigue() {
                     </span>
                   ),
                   children: (
-                    <div className="mt-2 pr-2">
+                    <div className={styles.marginTopSm}>
                       <Alert
                         message="为防范“提醒狼来了麻木”，MedKernel 引擎引入高阶提醒疲劳度限流控制事实。当特定场景超频触发且被医生频繁驳回时，系统会触发静音/限频甚至全面物理拦截阻断。"
                         type="warning"
                         showIcon
-                        className="mb-4 rounded-lg"
+                        className={styles.sectionGap}
                       />
                       <Alert
                         message="疲劳治理策略来自配置中心"
                         description={
-                          <div className="text-xs leading-relaxed">
+                          <div className={styles.contentText}>
                             <span>科室级疲劳阈值读取 </span>
-                            <Tag color="blue" className="mx-1">
+                            <Tag color="blue" className={styles.inlineTag}>
                               {FATIGUE_POLICY_CONFIG_KEY}
                             </Tag>
                             <span>{selectedFatigueGovernance.description}</span>
@@ -837,7 +883,7 @@ export default function CdssFatigue() {
                         }
                         type={selectedFatigueGovernance.isNonSuppressible ? "error" : "info"}
                         showIcon
-                        className="mb-4 rounded-lg"
+                        className={styles.sectionGap}
                       />
 
                       {fatigueSignalsData?.items && fatigueSignalsData.items.length > 0 ? (
@@ -845,11 +891,11 @@ export default function CdssFatigue() {
                           <Card
                             key={signal.signalId}
                             size="small"
-                            className="border-gray-200 bg-gray-50 rounded-lg shadow-sm mb-4"
+                            className={`${styles.compactCard} ${styles.sectionGap}`}
                           >
                             <Descriptions size="small" column={2}>
                               <Descriptions.Item label="疲劳 Key">
-                                <span className="font-normal text-xs font-semibold">
+                                <span className={`${styles.codeText} ${styles.textStrong}`}>
                                   {signal.fatigueKey}
                                 </span>
                               </Descriptions.Item>
@@ -862,13 +908,13 @@ export default function CdssFatigue() {
                                 <Tag color="blue">配置中心</Tag>
                               </Descriptions.Item>
                               <Descriptions.Item label="阈值作用域">
-                                <span className="text-xs text-gray-600">科室/场景</span>
+                                <span className={styles.textSmall}>科室/场景</span>
                               </Descriptions.Item>
                             </Descriptions>
-                            <div className="mt-3">
-                              <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                            <div className={styles.marginTopMd}>
+                              <div className={`${styles.rowBetween} ${styles.textSmall}`}>
                                 <span>疲劳触发进度 (当前触发 / 疲劳静音阈值)</span>
-                                <span className="font-semibold text-gray-700">
+                                <span className={styles.textStrong}>
                                   {signal.triggerCount} / {signal.governanceThreshold} 次
                                 </span>
                               </div>
@@ -882,7 +928,7 @@ export default function CdssFatigue() {
                               />
                             </div>
                             {signal.summary && (
-                              <div className="mt-3 text-xs text-gray-500 italic bg-white p-2 rounded border border-gray-100">
+                              <div className={`${styles.evidenceBox} ${styles.italic}`}>
                                 {signal.summary}
                               </div>
                             )}
@@ -897,8 +943,7 @@ export default function CdssFatigue() {
               ]}
             />
 
-            {/* 可信归因诊断按钮 */}
-            <div className="mt-6 flex justify-center w-full">
+            <div className={styles.centerAction}>
               <Button
                 type="default"
                 icon={<BugOutlined />}
@@ -906,7 +951,7 @@ export default function CdssFatigue() {
                   setDiagnoseDrawerVisible(true);
                   refetchDiagnose();
                 }}
-                className="rounded-lg border-indigo-500 text-indigo-600 hover:bg-indigo-50 w-full max-w-sm py-5 font-semibold text-center flex items-center justify-center gap-2"
+                className={styles.wideAction}
               >
                 可信推荐归因与决策审计追溯 (diagnose)
               </Button>
@@ -915,11 +960,10 @@ export default function CdssFatigue() {
         )}
       </Drawer>
 
-      {/* 可信诊断追溯 Drawer */}
       <Drawer
         title={
-          <div className="flex items-center gap-2">
-            <BugOutlined className="text-indigo-600" />
+          <div className={styles.drawerTitle}>
+            <BugOutlined className={styles.iconInfo} />
             <span>推荐决策链可信归因审计</span>
           </div>
         }
@@ -934,20 +978,24 @@ export default function CdssFatigue() {
               message="决策解释追溯数据提取自底座 StateTransitionRecorder 物理事件留痕，保证透明、可复核、可审计。"
               type="info"
               showIcon
-              className="mb-6 rounded-lg"
+              className={styles.sectionGapLg}
             />
 
-            <Descriptions title="求值Trace元数据" bordered column={1} size="small" className="mb-6">
+            <Descriptions
+              title="求值Trace元数据"
+              bordered
+              column={1}
+              size="small"
+              className={styles.sectionGapLg}
+            >
               <Descriptions.Item label="推荐 Trigger ID">
-                <span className="font-normal text-xs">{diagnoseData.executionId}</span>
+                <span className={styles.codeText}>{diagnoseData.executionId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="链路 Trace ID">
-                <span className="font-normal text-xs">{diagnoseData.traceId}</span>
+                <span className={styles.codeText}>{diagnoseData.traceId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
-                <span className="font-normal text-xs">
-                  {diagnoseData.inputPayloadSummary || "—"}
-                </span>
+                <span className={styles.codeText}>{diagnoseData.inputPayloadSummary || "—"}</span>
               </Descriptions.Item>
               <Descriptions.Item label="提醒卡风险定级">
                 <Tag color={diagnoseData.riskLevel === "HIGH" ? "red" : "orange"}>
@@ -958,51 +1006,51 @@ export default function CdssFatigue() {
 
             <Card
               title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <UserOutlined />
+                <div className={styles.sectionTitle}>
+                  <UserOutlined className={styles.iconInfo} />
                   <span>推荐决策求值证据与可信解释</span>
                 </div>
               }
-              className="mb-6 rounded-xl border-gray-200"
+              className={`${styles.detailCard} ${styles.sectionGapLg}`}
             >
-              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100">
+              <div className={styles.detailBody}>
                 {diagnoseData.explanationSnapshot || "暂无决策解释快照"}
               </div>
             </Card>
 
             <Card
               title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <CalendarOutlined />
+                <div className={styles.sectionTitle}>
+                  <CalendarOutlined className={styles.iconInfo} />
                   <span>审计流转历史 (State History)</span>
                 </div>
               }
-              className="rounded-xl border-gray-200"
+              className={styles.detailCard}
             >
               <Timeline>
                 {diagnoseData.statusHistory?.map((h, idx) => (
                   <Timeline.Item key={idx} color={h.status === "SIGNED" ? "green" : "blue"}>
-                    <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
+                    <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
                       <span>状态: {h.status}</span>
-                      <span className="text-gray-400 font-normal">
+                      <span className={styles.timelineMuted}>
                         {new Date(h.changedAt).toLocaleString()}
                       </span>
                     </div>
-                    <div className="text-gray-600 text-xs mt-1">
+                    <div className={styles.timelineMeta}>
                       <span>操作人: </span>
                       <Tag color="cyan" icon={<UserOutlined />}>
                         {h.changedBy}
                       </Tag>
                     </div>
-                    <div className="text-gray-500 text-xs mt-1 font-normal italic">{h.summary}</div>
+                    <div className={`${styles.timelineMeta} ${styles.italic}`}>{h.summary}</div>
                   </Timeline.Item>
                 ))}
               </Timeline>
             </Card>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-[200px] text-gray-400">
-            <ExclamationCircleOutlined className="text-48px mb-4" />
+          <div className={`${styles.emptyState} ${styles.emptyStateCompact}`}>
+            <ExclamationCircleOutlined className={styles.emptyIcon} />
             <span>无法获取该推荐触发实例的决策追溯链。</span>
           </div>
         )}

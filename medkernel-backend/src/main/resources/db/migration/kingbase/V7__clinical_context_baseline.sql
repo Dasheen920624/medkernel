@@ -8,9 +8,7 @@ CREATE TABLE IF NOT EXISTS context_snapshot (
     org_unit_id                 VARCHAR(64)  NOT NULL,
     patient_id                  VARCHAR(64)  NOT NULL,
     encounter_id                VARCHAR(64)  NULL,
-    knowledge_pkg_version       VARCHAR(64)  NOT NULL,
-    rule_pkg_version            VARCHAR(64)  NOT NULL,
-    pathway_pkg_version         VARCHAR(64)  NOT NULL,
+    package_version             VARCHAR(64)  NOT NULL,
     status                      VARCHAR(32)  NOT NULL DEFAULT 'ACTIVE',
     missing_fields              TEXT         NULL,
     mapping_status              TEXT         NULL,
@@ -27,6 +25,7 @@ CREATE TABLE IF NOT EXISTS context_snapshot (
 CREATE INDEX IF NOT EXISTS idx_context_snapshot_tenant_patient ON context_snapshot (tenant_id, patient_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_context_snapshot_tenant_enc     ON context_snapshot (tenant_id, encounter_id);
 CREATE INDEX IF NOT EXISTS idx_context_snapshot_status         ON context_snapshot (tenant_id, status, created_at);
+COMMENT ON TABLE context_snapshot IS '标准临床上下文快照，一经创建即不可变';
 
 CREATE TABLE IF NOT EXISTS canonical_resource (
     id                  BIGSERIAL PRIMARY KEY,
@@ -53,6 +52,7 @@ CREATE TABLE IF NOT EXISTS canonical_resource (
 
 CREATE INDEX IF NOT EXISTS idx_canonical_resource_snapshot     ON canonical_resource (snapshot_id, resource_type, seq_no);
 CREATE INDEX IF NOT EXISTS idx_canonical_resource_tenant_type  ON canonical_resource (tenant_id, resource_type);
+COMMENT ON TABLE canonical_resource IS '上下文快照内的标准临床资源单元';
 
 CREATE TABLE IF NOT EXISTS clinical_event (
     id                  BIGSERIAL PRIMARY KEY,
@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS clinical_event (
 
 CREATE INDEX IF NOT EXISTS idx_clinical_event_tenant_received ON clinical_event (tenant_id, received_at);
 CREATE INDEX IF NOT EXISTS idx_clinical_event_snapshot        ON clinical_event (snapshot_id);
+COMMENT ON TABLE clinical_event IS '触发上下文快照创建的临床事件来源';
 
 CREATE TABLE IF NOT EXISTS context_idempotency_key (
     id              BIGSERIAL PRIMARY KEY,
@@ -86,3 +87,4 @@ CREATE TABLE IF NOT EXISTS context_idempotency_key (
 );
 
 CREATE INDEX IF NOT EXISTS idx_context_idempotency_expires ON context_idempotency_key (expires_at);
+COMMENT ON TABLE context_idempotency_key IS '上下文快照请求的幂等键存储';

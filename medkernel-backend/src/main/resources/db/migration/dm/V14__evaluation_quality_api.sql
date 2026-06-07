@@ -27,7 +27,7 @@ CREATE TABLE evaluation_indicator (
     CONSTRAINT uk_eval_indicator_id UNIQUE (tenant_id, indicator_id),
     CONSTRAINT uk_eval_indicator_tenant_version UNIQUE (tenant_id, indicator_code, version_no),
     CONSTRAINT ck_eval_indicator_subject CHECK (subject_type IN ('PATIENT', 'MEDICAL_RECORD', 'DEPARTMENT', 'DOCTOR', 'DISEASE', 'PATHWAY', 'CLAIM', 'FOLLOWUP')),
-    CONSTRAINT ck_eval_indicator_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ACTIVE', 'OFFLINE', 'ARCHIVED'))
+    CONSTRAINT ck_eval_indicator_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'GRAY', 'ACTIVE', 'OFFLINE', 'ARCHIVED'))
 );
 
 CREATE INDEX idx_eval_indicator_tenant_status ON evaluation_indicator (tenant_id, status, updated_at);

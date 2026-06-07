@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS rule_test_case (
     rule_id              VARCHAR(64)  NOT NULL,
     version_id           VARCHAR(64)  NOT NULL,
     case_type            VARCHAR(32)  NOT NULL,
+    context_snapshot_id  VARCHAR(64)  NOT NULL,
     input_payload        CLOB         NOT NULL,
     expected_hit         BOOLEAN      NOT NULL,
     expected_severity    VARCHAR(16)  NULL,

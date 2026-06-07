@@ -65,6 +65,10 @@ class EvaluationEngineControllerSecurityTest {
         {"decision": "APPROVED", "comment": "证据充分，允许闭环", "evidenceRef": "review-proof-1"}
         """;
 
+    private static final String RELEASE_BODY = """
+        {"reason": "质控办审核通过并留存发布证据"}
+        """;
+
     @Autowired
     MockMvc mvc;
 
@@ -79,17 +83,19 @@ class EvaluationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_QA_MANAGER")
     void qaManagerCanConfigurePublishAndReviewButRequiresTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/evaluations/indicators")
+        mvc.perform(post("/api/v1/engine/evaluation/indicators")
                 .contentType("application/json")
                 .content(INDICATOR_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/evaluations/indicators/ei-1/publish"))
+        mvc.perform(post("/api/v1/engine/evaluation/indicators/ei-1/publish")
+                .contentType("application/json")
+                .content(RELEASE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/evaluations/findings/qf-1/review")
+        mvc.perform(post("/api/v1/engine/evaluation/rectifications/qf-1/review")
                 .contentType("application/json")
                 .content(REVIEW_BODY))
             .andExpect(status().isBadRequest())
@@ -99,24 +105,26 @@ class EvaluationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
     void medicalAffairsCanReadButCannotPublishEvaluationIndicator() throws Exception {
-        mvc.perform(get("/api/v1/engine/evaluations/indicators"))
+        mvc.perform(get("/api/v1/engine/evaluation/indicators"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/evaluations/indicators/ei-1/publish"))
+        mvc.perform(post("/api/v1/engine/evaluation/indicators/ei-1/publish")
+                .contentType("application/json")
+                .content(RELEASE_BODY))
             .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void itOpsCanWriteRunsButCannotReviewFindings() throws Exception {
-        mvc.perform(post("/api/v1/engine/evaluations/run")
+        mvc.perform(post("/api/v1/engine/evaluation/runs")
                 .contentType("application/json")
                 .content(RUN_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/evaluations/findings/qf-1/review")
+        mvc.perform(post("/api/v1/engine/evaluation/rectifications/qf-1/review")
                 .contentType("application/json")
                 .content(REVIEW_BODY))
             .andExpect(status().isForbidden());
@@ -125,13 +133,14 @@ class EvaluationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DEPT_HEAD")
     void departmentHeadCanRemediateButCannotReview() throws Exception {
-        mvc.perform(post("/api/v1/engine/evaluations/findings/qf-1/rectification")
+        mvc.perform(post("/api/v1/engine/evaluation/rectifications")
+                .queryParam("findingId", "qf-1")
                 .contentType("application/json")
                 .content(RECTIFICATION_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/evaluations/findings/qf-1/review")
+        mvc.perform(post("/api/v1/engine/evaluation/rectifications/qf-1/review")
                 .contentType("application/json")
                 .content(REVIEW_BODY))
             .andExpect(status().isForbidden());
@@ -140,12 +149,13 @@ class EvaluationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotUseEvaluationClosedLoopEndpoints() throws Exception {
-        mvc.perform(post("/api/v1/engine/evaluations/run")
+        mvc.perform(post("/api/v1/engine/evaluation/runs")
                 .contentType("application/json")
                 .content(RUN_BODY))
             .andExpect(status().isForbidden());
 
-        mvc.perform(post("/api/v1/engine/evaluations/findings/qf-1/rectification")
+        mvc.perform(post("/api/v1/engine/evaluation/rectifications")
+                .queryParam("findingId", "qf-1")
                 .contentType("application/json")
                 .content(RECTIFICATION_BODY))
             .andExpect(status().isForbidden());

@@ -9,8 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 租户自定义上下文字段（P2/P5 持久化扩展）。
  *
- * <p>系统级字段目录由 {@link ContextFieldCatalog} 从 canonical 派生（代码内、只读）；
- * 本表只存租户在前台维护的自定义/补充字段，与系统字段在读取时合并。沿用业务层级
+ * <p>平台字段目录由 {@link ContextFieldCatalog} 从 canonical 派生（代码内、只读）；
+ * 本表只存租户在前台维护的自定义/补充字段，与平台字段在读取时合并。沿用业务层级
  * {@code category}（一级）/{@code groupName}（二级）。
  */
 @Table("mk_context_field_catalog")
@@ -34,7 +34,7 @@ public record ContextFieldCatalogEntry(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId) {
 
-    /** 转换为对外字段目录条目（与系统派生字段同构）。 */
+    /** 转换为对外字段目录条目（与平台派生字段同构）。 */
     public ContextFieldDescriptor toDescriptor() {
         return new ContextFieldDescriptor(
             category, groupName, resourceType, fieldPath, displayName, dataType, unit, codeSystem,

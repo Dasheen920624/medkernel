@@ -34,7 +34,7 @@ import com.medkernel.shared.context.RequestContext;
  * <ul>
  *   <li>{@code POST /api/v1/engine/followup/plans/generate} — 生成随访计划</li>
  *   <li>{@code GET /api/v1/engine/followup/plans/{planId}} — 查询计划详情</li>
- *   <li>{@code POST /api/v1/engine/followup/tasks/{taskId}/questionnaires} — 提交随访问卷</li>
+ *   <li>{@code POST /api/v1/engine/followup/questionnaires} — 下发 / 提交随访问卷</li>
  *   <li>{@code POST /api/v1/engine/followup/events/report-abnormal} — 上报异常回院事件</li>
  * </ul>
  *
@@ -65,10 +65,7 @@ class FollowupEngineControllerTest {
 
     private static final String GENERATE_BODY = """
         {
-          "patientId": "P1001",
-          "encounterId": "E2001",
-          "pathwayId": "PATH01",
-          "diseaseCode": "I21.900",
+          "contextSnapshotId": "snapshot-1",
           "riskLevel": "HIGH",
           "taskTypes": ["QUESTIONNAIRE", "OUTPATIENT"]
         }
@@ -104,10 +101,9 @@ class FollowupEngineControllerTest {
     }
 
     @Test
-    void generatePlan_MissingPatientId_ReturnsBadRequest() throws Exception {
-        String bodyMissingPatientId = """
+    void generatePlan_MissingContextSnapshotId_ReturnsBadRequest() throws Exception {
+        String bodyMissingContextSnapshotId = """
             {
-              "encounterId": "E2001",
               "taskTypes": ["QUESTIONNAIRE"]
             }
             """;
@@ -119,7 +115,7 @@ class FollowupEngineControllerTest {
                     .claim("roles", List.of("medical-affairs")))
                     .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(bodyMissingPatientId))
+                .content(bodyMissingContextSnapshotId))
             .andExpect(status().isBadRequest());
     }
 
@@ -127,10 +123,7 @@ class FollowupEngineControllerTest {
     void generatePlan_MissingTaskTypesWithControlledFacts_ReturnsOk() throws Exception {
         String bodyMissingTaskTypes = """
             {
-              "patientId": "P1001",
-              "encounterId": "E2001",
-              "pathwayId": "PATH01",
-              "diseaseCode": "I21.900",
+              "contextSnapshotId": "snapshot-1",
               "riskLevel": "HIGH"
             }
             """;
@@ -271,52 +264,7 @@ class FollowupEngineControllerTest {
         verify(service).listTasks(any(FollowupTaskFilter.class), any(com.medkernel.shared.api.PageRequest.class));
     }
 
-    // ── 4. POST /questionnaires 与旧任务下问卷提交 ─────────────────────
-
-    private static final String QUESTIONNAIRE_BODY = """
-        {
-          "taskId": "TASK-001",
-          "formData": "{\\"q1\\": \\"yes\\", \\"q2\\": \\"no\\"}",
-          "executorId": "DOCTOR-001",
-          "executorType": "PHYSICIAN"
-        }
-        """;
-
-    @Test
-    void submitQuestionnaire_ReturnsOk() throws Exception {
-        doNothing().when(service).submitQuestionnaire(eq("TASK-001"), any(FollowupQuestionnaireSubmitRequest.class));
-
-        mockMvc.perform(post("/api/v1/engine/followup/tasks/TASK-001/questionnaires")
-                .with(jwt().jwt(token -> token
-                    .subject("test-user")
-                    .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(QUESTIONNAIRE_BODY))
-            .andExpect(status().isOk());
-
-        verify(service).submitQuestionnaire(eq("TASK-001"), any(FollowupQuestionnaireSubmitRequest.class));
-    }
-
-    @Test
-    void submitQuestionnaire_MissingFormData_ReturnsBadRequest() throws Exception {
-        String bodyMissingFormData = """
-            {
-              "taskId": "TASK-001"
-            }
-            """;
-
-        mockMvc.perform(post("/api/v1/engine/followup/tasks/TASK-001/questionnaires")
-                .with(jwt().jwt(token -> token
-                    .subject("test-user")
-                    .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("medical-affairs")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_MEDICAL_AFFAIRS")))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(bodyMissingFormData))
-            .andExpect(status().isBadRequest());
-    }
+    // ── 4. POST /questionnaires 顶层问卷入口 ─────────────────────
 
     private static final String QUESTIONNAIRE_DISPATCH_BODY = """
         {

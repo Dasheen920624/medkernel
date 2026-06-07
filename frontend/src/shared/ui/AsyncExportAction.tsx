@@ -36,6 +36,10 @@ export function AsyncExportAction({
   onSubmit,
   onPoll,
   pollDelayMs = DEFAULT_POLL_DELAY_MS,
+  buttonLabel = "导出",
+  buttonAriaLabel = "导出",
+  modalTitle = "提交导出任务",
+  submitLabel = "提交导出任务",
 }: AsyncExportActionProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -109,8 +113,8 @@ export function AsyncExportAction({
   if (!enabled) {
     return (
       <Space>
-        <Button aria-label="导出" icon={<DownloadOutlined />} disabled>
-          导出
+        <Button aria-label={buttonAriaLabel} icon={<DownloadOutlined />} disabled>
+          {buttonLabel}
         </Button>
         <Text type="secondary">{disabledReason ?? "导出任务接口尚未接入"}</Text>
       </Space>
@@ -120,8 +124,8 @@ export function AsyncExportAction({
   if (!permissionGranted) {
     return (
       <Space>
-        <Button aria-label="导出" icon={<DownloadOutlined />} disabled>
-          导出
+        <Button aria-label={buttonAriaLabel} icon={<DownloadOutlined />} disabled>
+          {buttonLabel}
         </Button>
         <Text type="secondary">当前权限不足，无法提交导出任务</Text>
       </Space>
@@ -131,20 +135,20 @@ export function AsyncExportAction({
   return (
     <Space direction="vertical" size="small">
       <Button
-        aria-label="导出"
+        aria-label={buttonAriaLabel}
         icon={<DownloadOutlined />}
         onClick={() => {
           activeRequestRef.current = undefined;
           setConfirmOpen(true);
         }}
       >
-        导出
+        {buttonLabel}
       </Button>
       <Modal
-        title="提交导出任务"
+        title={modalTitle}
         open={confirmOpen}
-        okText="提交导出任务"
-        okButtonProps={{ "aria-label": "提交导出任务" }}
+        okText={submitLabel}
+        okButtonProps={{ "aria-label": submitLabel }}
         cancelText="取消"
         confirmLoading={submitting}
         onOk={() => void submitRequest()}

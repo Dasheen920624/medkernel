@@ -8,9 +8,7 @@ import java.util.Map;
  *
  * <p>{@code ContextSnapshotService} 通过此端口查询每类资源的映射状态，
  * 而非直连 {@code engine.terminology} 内部实现，避免循环依赖。
- *
- * <p>当 terminology 模块未提供该端口的 Bean 时，使用 {@link NoopTerminologyMappingPort}
- * 默认 stub，返回 UNKNOWN 状态，snapshot 仍可创建但 mapping_status 标记为待补全。
+ * 完整应用必须装配真实术语映射实现；缺失实现属于启动配置错误，不允许静默降级。
  */
 public interface TerminologyMappingPort {
 

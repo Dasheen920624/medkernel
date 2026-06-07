@@ -16,17 +16,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
+import com.medkernel.engine.context.ContextSnapshotResponse;
+import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -39,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import static com.medkernel.engine.context.ContextSnapshotServiceFixtures.validResources;
+
 class RecommendationEngineServiceTest {
 
     private RecommendationTriggerRepository triggers;
@@ -46,7 +53,7 @@ class RecommendationEngineServiceTest {
     private RecommendationSourceRepository sources;
     private RecommendationFeedbackRepository feedback;
     private RecommendationFatigueSignalRepository fatigueSignals;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private IsolatedAuditPublisher isolatedAudit;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
@@ -55,6 +62,8 @@ class RecommendationEngineServiceTest {
     private RecommendationFatiguePolicyResolver fatiguePolicyResolver;
     private ClinicalSafetyGuard safetyGuard;
     private CdssRiskMatrixService riskMatrixService;
+    private ContextSnapshotService contextSnapshots;
+    private ObjectMapper json;
     private RecommendationEngineService service;
 
     @BeforeEach
@@ -64,7 +73,7 @@ class RecommendationEngineServiceTest {
         sources = mock(RecommendationSourceRepository.class);
         feedback = mock(RecommendationFeedbackRepository.class);
         fatigueSignals = mock(RecommendationFatigueSignalRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
@@ -73,10 +82,12 @@ class RecommendationEngineServiceTest {
         fatiguePolicyResolver = mock(RecommendationFatiguePolicyResolver.class);
         safetyGuard = mock(ClinicalSafetyGuard.class);
         riskMatrixService = mock(CdssRiskMatrixService.class);
+        contextSnapshots = mock(ContextSnapshotService.class);
+        json = new ObjectMapper().findAndRegisterModules();
         service = new RecommendationEngineService(
             triggers, cards, sources, feedback, fatigueSignals,
-            auditPublisher, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher,
-            fatiguePolicyResolver, safetyGuard, riskMatrixService);
+            auditRecorder, transitions, diagnoseAssembler, isolatedAudit, businessMetrics, deterministicMatcher,
+            fatiguePolicyResolver, safetyGuard, riskMatrixService, contextSnapshots, json);
 
         when(triggers.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cards.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -85,6 +96,9 @@ class RecommendationEngineServiceTest {
         when(fatigueSignals.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(deterministicMatcher.match(any())).thenReturn(List.of());
         when(fatiguePolicyResolver.resolve(any())).thenReturn(Optional.empty());
+        when(contextSnapshots.findById("snapshot-1")).thenReturn(new ContextSnapshotResponse(
+            "snapshot-1", ContextSnapshotStatus.ACTIVE, validResources(), "pkg-1",
+            QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-snapshot"));
         when(riskMatrixService.assess(any(), any(), any())).thenAnswer(inv -> {
             RecommendationRiskLevel severity = inv.getArgument(1);
             boolean highRisk = severity == RecommendationRiskLevel.HIGH || severity == RecommendationRiskLevel.CRITICAL;
@@ -136,10 +150,16 @@ class RecommendationEngineServiceTest {
         verify(fatigueSignals).save(signalCap.capture());
 
         assertThat(triggerCap.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(triggerCap.getValue().patientId()).isEqualTo("MPI-1");
+        assertThat(triggerCap.getValue().encounterId()).isEqualTo("ENC-1");
+        assertThat(triggerCap.getValue().packageVersion()).isEqualTo("pkg-1");
+        assertThat(triggerCap.getValue().inputDigest())
+            .startsWith("sha256:")
+            .isNotEqualTo("sha256:trigger");
         assertThat(cardCap.getValue().requiresPhysicianConfirmation()).isTrue();
         assertThat(sourceCap.getValue().cardId()).isEqualTo(cardCap.getValue().cardId());
         assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.SHOWN);
-        verify(auditPublisher).publish(AuditAction.EXECUTE, "recommendation_trigger",
+        verify(auditRecorder).record(AuditAction.EXECUTE, "recommendation_trigger",
             response.triggerId(), "接收推荐触发 TRG.ORDER");
         // CDSS-M-03：单卡触发应计入一次 CDSS 提醒指标
         verify(businessMetrics).incCdssAlerts();
@@ -235,9 +255,8 @@ class RecommendationEngineServiceTest {
         RecommendationCardRequest modelGenerated = cardRequest(
             "AI.REPLAY", true, RecommendationRiskLevel.MEDIUM,
             RecommendationInterruptLevel.INFO, false, List.of(sourceRequest()));
-        RecommendationTriggerRequest request = triggerRequest(
-            List.of(modelGenerated), null, null, true);
-        when(deterministicMatcher.match(request)).thenReturn(List.of(deterministic));
+        RecommendationTriggerRequest request = triggerRequest(List.of(modelGenerated), true);
+        when(deterministicMatcher.match(any())).thenReturn(List.of(deterministic));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
@@ -247,7 +266,7 @@ class RecommendationEngineServiceTest {
         assertThat(response.cards())
             .extracting(RecommendationCard::cardCode)
             .containsExactly("RULE.REPLAY.v3");
-        verify(deterministicMatcher).match(request);
+        verify(deterministicMatcher).match(any());
         verify(cards, times(1)).save(any());
     }
 
@@ -264,7 +283,7 @@ class RecommendationEngineServiceTest {
                     "context_snapshot:snapshot-1", null, "本次评估上下文")
             ));
         RecommendationTriggerRequest request = triggerRequest(List.of());
-        when(deterministicMatcher.match(request)).thenReturn(List.of(generated));
+        when(deterministicMatcher.match(any())).thenReturn(List.of(generated));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
@@ -272,7 +291,7 @@ class RecommendationEngineServiceTest {
         assertThat(response.visibleCardCount()).isEqualTo(1);
         assertThat(response.cards()).extracting(RecommendationCard::cardCode)
             .containsExactly("RULE.RISK.v1");
-        verify(deterministicMatcher).match(request);
+        verify(deterministicMatcher).match(any());
         verify(sources, times(2)).save(any());
     }
 
@@ -298,18 +317,15 @@ class RecommendationEngineServiceTest {
     }
 
     @Test
-    void evaluateSuppressesLowValueRepeatedCardByRequestThreshold() {
-        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+    void evaluateSuppressesLowValueRepeatedCardByConfiguredPolicy() {
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("MPI-1"),
                 eq("WARD_ORDER:ANTICOAG"), any()))
             .thenReturn(3L);
         RecommendationTriggerRequest request = triggerRequest(
             List.of(cardRequest(RecommendationRiskLevel.MEDIUM, RecommendationInterruptLevel.INFO,
-                false, List.of(sourceRequest()))),
-            3,
-            24,
-            false);
-        when(fatiguePolicyResolver.resolve(request))
-            .thenReturn(Optional.of(new RecommendationFatiguePolicy(3, 24, "REQUEST")));
+                false, List.of(sourceRequest()))));
+        when(fatiguePolicyResolver.resolve(any()))
+            .thenReturn(Optional.of(new RecommendationFatiguePolicy(3, 24, "CONFIG_CENTER")));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
@@ -329,38 +345,32 @@ class RecommendationEngineServiceTest {
 
     @Test
     void evaluateSuppressesByConfiguredDepartmentPolicyWhenRequestThresholdIsAbsent() {
-        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("MPI-1"),
                 eq("WARD_ORDER:ANTICOAG"), any()))
             .thenReturn(2L);
         RecommendationTriggerRequest request = triggerRequest(
             List.of(cardRequest(RecommendationRiskLevel.MEDIUM, RecommendationInterruptLevel.INFO,
-                false, List.of(sourceRequest()))),
-            null,
-            null,
-            false);
-        when(fatiguePolicyResolver.resolve(request))
+                false, List.of(sourceRequest()))));
+        when(fatiguePolicyResolver.resolve(any()))
             .thenReturn(Optional.of(new RecommendationFatiguePolicy(2, 12, "CONFIG_CENTER")));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
         assertThat(response.visibleCardCount()).isZero();
         assertThat(response.suppressedCardCount()).isEqualTo(1);
-        verify(fatiguePolicyResolver).resolve(request);
-        verify(fatigueSignals).countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+        verify(fatiguePolicyResolver).resolve(any());
+        verify(fatigueSignals).countLowValueSignals(eq("tenant-A"), eq("MPI-1"),
             eq("WARD_ORDER:ANTICOAG"), any());
     }
 
     @Test
     void evaluateDoesNotSuppressHighRiskCardEvenWhenFatigueThresholdReached() {
-        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("MPI-1"),
                 eq("WARD_ORDER:ANTICOAG"), any()))
             .thenReturn(99L);
         RecommendationTriggerRequest request = triggerRequest(
             List.of(cardRequest(RecommendationRiskLevel.HIGH, RecommendationInterruptLevel.WEAK_INTERRUPTIVE,
-                true, List.of(sourceRequest()))),
-            3,
-            24,
-            false);
+                true, List.of(sourceRequest()))));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
 
@@ -375,11 +385,8 @@ class RecommendationEngineServiceTest {
     void evaluateDoesNotSuppressCriticalRedlineCardEvenWhenConfiguredThresholdReached() {
         RecommendationTriggerRequest request = triggerRequest(
             List.of(cardRequest(RecommendationRiskLevel.CRITICAL, RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
-                true, List.of(sourceRequest()))),
-            null,
-            null,
-            false);
-        when(fatiguePolicyResolver.resolve(request))
+                true, List.of(sourceRequest()))));
+        when(fatiguePolicyResolver.resolve(any()))
             .thenReturn(Optional.of(new RecommendationFatiguePolicy(1, 24, "CONFIG_CENTER")));
 
         RecommendationEvaluationResponse response = service.evaluate(request);
@@ -408,10 +415,7 @@ class RecommendationEngineServiceTest {
                 RecommendationRiskLevel.CRITICAL,
                 RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
                 true,
-                List.of(redlineSource))),
-            1,
-            24,
-            false);
+                List.of(redlineSource))));
         when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.CRITICAL, CdssAutomationLevel.INTERRUPTIVE))
             .thenReturn(new CdssRiskAssessment(
                 "broken-matrix",
@@ -424,9 +428,9 @@ class RecommendationEngineServiceTest {
                 "NMPA_RESERVED",
                 "NOT_ASSESSED",
                 "错误配置不得降低红线优先级"));
-        when(fatiguePolicyResolver.resolve(request))
+        when(fatiguePolicyResolver.resolve(any()))
             .thenReturn(Optional.of(new RecommendationFatiguePolicy(1, 24, "CONFIG_CENTER")));
-        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("patient-1"),
+        when(fatigueSignals.countLowValueSignals(eq("tenant-A"), eq("MPI-1"),
                 eq("WARD_ORDER:ANTICOAG"), any()))
             .thenReturn(99L);
 
@@ -501,7 +505,7 @@ class RecommendationEngineServiceTest {
         assertThat(cardCap.getValue().status()).isEqualTo(RecommendationCardStatus.ACCEPTED);
         assertThat(feedbackCap.getValue().operatorId()).isEqualTo("doctor-1");
         assertThat(signalCap.getValue().signalType()).isEqualTo(RecommendationFatigueSignalType.ACCEPTED);
-        verify(auditPublisher).publish(AuditAction.FEEDBACK, "recommendation_card",
+        verify(auditRecorder).record(AuditAction.FEEDBACK, "recommendation_card",
             "card-1", "推荐卡反馈 ACCEPT");
     }
 
@@ -693,14 +697,12 @@ class RecommendationEngineServiceTest {
 
     private RecommendationTriggerRequest triggerRequest(
             List<RecommendationCardRequest> candidateCards,
-            Integer fatigueSuppressionThreshold,
-            Integer fatigueWindowHours,
             boolean modelEnhancementEnabled) {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), candidateCards,
-            fatigueSuppressionThreshold, fatigueWindowHours, modelEnhancementEnabled);
+            modelEnhancementEnabled);
     }
 
     private RecommendationCardRequest cardRequest(

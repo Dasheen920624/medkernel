@@ -15,7 +15,7 @@
 把评估质控能力**契约化**：指标配置、评估运行、结果查询、问题列表、整改派发、复核闭环，全部真实、可追溯、可降级。
 
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-已有实质基础：`engine/evaluation/` 下 `EvaluationEngineController` + `EvaluationIndicator{+CreateRequest/Filter/Status}` + `EvaluationResult{+Filter/Level/Request}` + `EvaluationEvaluateSnapshotRequest` + 整改 `RectificationTask/Review`。本卡＝把控制器契约化为统一 API（指标/运行/结果/问题/整改/复核），命中/闭环逻辑归 [EVAL-01](EVAL-01.md)/[SVC-QUALITY-03](SVC-QUALITY-03.md)。
+统一入口为 `EvaluationEngineCanonicalController` 与 `EvaluationEngineEvaluateSuffixController`，只暴露 `/api/v1/engine/evaluation/**` 和 `/api/v1/engine/evaluation:evaluate`；复数旧入口已删除。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 指标 CRUD：配置/查询评估指标（[API-13](../D0/API-13.md) 分页）。

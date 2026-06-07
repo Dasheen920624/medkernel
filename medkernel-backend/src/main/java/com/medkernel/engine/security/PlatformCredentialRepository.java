@@ -3,6 +3,7 @@ package com.medkernel.engine.security;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,7 +17,13 @@ public interface PlatformCredentialRepository extends ListCrudRepository<Platfor
 
     Optional<PlatformCredential> findByTenantIdAndUserId(String tenantId, String userId);
 
+    List<PlatformCredential> findByTenantIdAndUserIdIn(String tenantId, List<String> userIds);
+
     Optional<PlatformCredential> findByCredentialId(String credentialId);
 
     List<PlatformCredential> findByTenantIdOrderByUsernameAsc(String tenantId);
+
+    List<PlatformCredential> findByTenantIdOrderByUsernameAsc(String tenantId, Pageable pageable);
+
+    long countByTenantId(String tenantId);
 }

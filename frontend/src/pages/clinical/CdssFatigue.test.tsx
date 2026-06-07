@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useClinicalRecommendationCards,
-  useCreateRecommendationTrigger,
+  useContextSnapshotDetail,
+  useContextSnapshots,
+  useEvaluateRecommendations,
   useRecommendationCardDetail,
   useRecommendationCardSources,
   useRecommendationCards,
@@ -19,7 +21,9 @@ import CdssFatigue from "./CdssFatigue";
 
 vi.mock("@/shared/api/hooks", () => ({
   useClinicalRecommendationCards: vi.fn(),
-  useCreateRecommendationTrigger: vi.fn(),
+  useContextSnapshotDetail: vi.fn(),
+  useContextSnapshots: vi.fn(),
+  useEvaluateRecommendations: vi.fn(),
   useRecommendationCardDetail: vi.fn(),
   useRecommendationCardSources: vi.fn(),
   useRecommendationCards: vi.fn(),
@@ -30,7 +34,9 @@ vi.mock("@/shared/api/hooks", () => ({
 }));
 
 const mockUseClinicalRecommendationCards = vi.mocked(useClinicalRecommendationCards);
-const mockUseCreateRecommendationTrigger = vi.mocked(useCreateRecommendationTrigger);
+const mockUseContextSnapshotDetail = vi.mocked(useContextSnapshotDetail);
+const mockUseContextSnapshots = vi.mocked(useContextSnapshots);
+const mockUseEvaluateRecommendations = vi.mocked(useEvaluateRecommendations);
 const mockUseRecommendationCardDetail = vi.mocked(useRecommendationCardDetail);
 const mockUseRecommendationCardSources = vi.mocked(useRecommendationCardSources);
 const mockUseRecommendationCards = vi.mocked(useRecommendationCards);
@@ -56,6 +62,7 @@ describe("CdssFatigue", () => {
   const refetchFatigue = vi.fn();
   const refetchDiagnose = vi.fn();
   const submitFeedback = vi.fn();
+  const evaluateRecommendations = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -184,10 +191,60 @@ describe("CdssFatigue", () => {
       data: null,
       refetch: refetchDiagnose,
     } as unknown as ReturnType<typeof useRecommendationTriggerDiagnose>);
-    mockUseCreateRecommendationTrigger.mockReturnValue({
-      mutateAsync: vi.fn(),
+    mockUseContextSnapshots.mockReturnValue({
+      data: {
+        items: [
+          {
+            snapshotId: "snapshot-rec-1",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            status: "ACTIVE",
+            qualityStatus: "VALID",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useContextSnapshots>);
+    mockUseContextSnapshotDetail.mockImplementation(
+      (snapshotId: string) =>
+        ({
+          data:
+            snapshotId === "snapshot-rec-1"
+              ? {
+                  snapshotId,
+                  status: "ACTIVE",
+                  resources: {},
+                  packageVersion: "pkg-rec-2026.1",
+                  qualityStatus: "VALID",
+                  missingFields: [],
+                  mappingStatus: {},
+                  traceId: "trace-snapshot-rec",
+                }
+              : undefined,
+          isLoading: false,
+          isError: false,
+        }) as unknown as ReturnType<typeof useContextSnapshotDetail>,
+    );
+    evaluateRecommendations.mockResolvedValue({
+      triggerId: "trigger-evaluated-1",
+      status: "EVALUATED",
+      totalCardCount: 2,
+      visibleCardCount: 1,
+      suppressedCardCount: 1,
+      modelStatus: "MODEL_DISABLED",
+      cards: [],
+      traceId: "trace-evaluate-rec",
+    });
+    mockUseEvaluateRecommendations.mockReturnValue({
+      mutateAsync: evaluateRecommendations,
       isPending: false,
-    } as unknown as ReturnType<typeof useCreateRecommendationTrigger>);
+    } as unknown as ReturnType<typeof useEvaluateRecommendations>);
     submitFeedback.mockResolvedValue({
       cardId: "card-real-1",
       status: "ACCEPTED",
@@ -215,6 +272,29 @@ describe("CdssFatigue", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("采纳率")).toBeInTheDocument();
     expect(screen.getByText("66.7%")).toBeInTheDocument();
+  });
+
+  it("evaluates recommendations from a selected ACTIVE snapshot without manual JSON", async () => {
+    const user = userEvent.setup();
+    renderCdssFatigue();
+
+    await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
+    expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择 snapshot-rec-1" }));
+    await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
+
+    await waitFor(() =>
+      expect(evaluateRecommendations).toHaveBeenCalledWith({
+        triggerCode: "CDSS-MANUAL-order-sign",
+        triggerType: "order-sign",
+        scenarioCode: "order-sign",
+        contextSnapshotId: "snapshot-rec-1",
+        patientId: "patient-real-1",
+        encounterId: "enc-real-1",
+        packageVersion: "pkg-rec-2026.1",
+      }),
+    );
   });
 
   it("shows persisted physician feedback identity and never submits operatorId from the browser", async () => {

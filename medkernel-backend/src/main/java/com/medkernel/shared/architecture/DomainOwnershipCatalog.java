@@ -21,7 +21,7 @@ public final class DomainOwnershipCatalog {
         module("engine-security", packages("com.medkernel.engine.security"), prefixes("mk_security_"),
             tables("sys_role", "sys_permission", "role_permission", "user_role_assignment",
                 "platform_credential", "emergency_permission_grant", "sys_login_attempt",
-                "sys_password_reset_token")),
+                "sys_password_reset_token", "tenant_user")),
         module("engine-org", packages("com.medkernel.engine.org"), prefixes("org_"), tables()),
         module("engine-context", packages("com.medkernel.engine.context"),
             prefixes("context_", "clinical_event", "mk_context_"),
@@ -36,7 +36,7 @@ public final class DomainOwnershipCatalog {
                 "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
                 "mk_knowledge_invalidation", "mk_knowledge_affected_case_task")),
         module("engine-package", packages("com.medkernel.engine.pkg"), prefixes("mk_pkg_"),
-            tables("knowledge_package", "package_item", "release_plan", "sync_target", "sync_log")),
+            tables("knowledge_package", "package_item", "release_plan", "sync_log")),
         module("engine-versioning", packages("com.medkernel.engine.versioning"), prefixes("mk_version_"), tables()),
         module("engine-projection", packages("com.medkernel.engine.projection"), prefixes("mk_projection_"), tables()),
         module("engine-evaluation", packages("com.medkernel.engine.evaluation"),
@@ -65,12 +65,14 @@ public final class DomainOwnershipCatalog {
             tables("mk_engine_cdss_risk_matrix")),
         module("engine-llm", packages("com.medkernel.engine.llm"), prefixes("model_capability_"), tables()),
         module("engine-embed", packages("com.medkernel.engine.embed"), prefixes("embed_"), tables()),
-        module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes("tenant_"), tables()),
+        module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes(),
+            tables("tenant_branding", "tenant_success_plan")),
         module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),
         module("compliance-security", packages(
             "com.medkernel.compliance.datapermission",
             "com.medkernel.compliance.masking",
             "com.medkernel.compliance.exportapproval",
+            "com.medkernel.compliance.identitybinding",
             "com.medkernel.compliance.interopassessment"),
             prefixes("mk_compliance_"), tables())
     );

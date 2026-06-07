@@ -25,18 +25,18 @@ describe("route metadata", () => {
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);
   });
 
-  it("registers the WORKBENCH-02 production demo-validation route without opening a new menu slot", () => {
-    const route = findRouteByPath("/workbench/demo-validation");
+  it("registers the WORKBENCH-02 readiness validation route without opening a new menu slot", () => {
+    const route = findRouteByPath("/workbench/readiness-validation");
 
     expect(route).toMatchObject({
-      title: "演示与校验",
+      title: "验收自检",
       sectionKey: "workbench",
-      menuKey: "demo-validation",
-      menuLabel: "演示与校验",
+      menuKey: "readiness-validation",
+      menuLabel: "验收自检",
       hidden: true,
       pageType: "workbench",
     });
-    expect(route?.requiredPermissions).toEqual(["menu.workbench", "workbench:demo:view"]);
+    expect(route?.requiredPermissions).toEqual(["menu.workbench", "workbench:readiness:view"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-engineer",
       "it-ops",
@@ -61,6 +61,26 @@ describe("route metadata", () => {
           menuKeys: ["workbench"],
         }),
       ).toBe(true);
+    });
+  });
+
+  it("lets the built-in superadmin use every backend-granted authenticated route", () => {
+    const authenticatedRoutes = routeMetas.filter((route) => route.requireAuth);
+    const permissions = Array.from(
+      new Set(authenticatedRoutes.flatMap((route) => route.requiredPermissions)),
+      (code) => ({ code }),
+    );
+    const menuKeys = authenticatedRoutes
+      .map((route) => route.menuKey)
+      .filter((menuKey): menuKey is string => Boolean(menuKey));
+    const profile = {
+      roles: [{ code: "system-superadmin" }],
+      permissions,
+      menuKeys,
+    };
+
+    authenticatedRoutes.forEach((route) => {
+      expect(canAccessRoute(route, profile), route.path).toBe(true);
     });
   });
 
@@ -92,6 +112,7 @@ describe("route metadata", () => {
   it("limits tenant onboarding to tenant readers in implementation and administrator roles", () => {
     const route = findRouteByPath("/tenant/onboarding");
 
+    expect(route?.title).toBe("租户管理");
     expect(route?.requiredPermissions).toEqual(["menu.tenant-onboarding", "tenant.read"]);
     expect(route?.requiredRoles).toEqual([
       "implementation-engineer",
@@ -114,26 +135,59 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("requires both the operations menu and system read permission for runtime status", () => {
+    const route = findRouteByPath("/system/providers");
+
+    expect(route?.requiredPermissions).toEqual(["menu.system-providers", "system.read"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "it-ops" }],
+        permissions: [{ code: "system.read" }],
+        menuKeys: ["system-providers"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "audit-compliance" }],
+        permissions: [],
+        menuKeys: ["system-providers"],
+      }),
+    ).toBe(false);
+  });
+
   it("limits config packages to package publishers with the pilot setup menu", () => {
     const route = findRouteByPath("/config/packages");
 
-    expect(route?.requiredPermissions).toEqual(["menu.config-packages", "pkg.read", "pkg.release"]);
+    expect(route?.requiredPermissions).toEqual([
+      "menu.config-packages",
+      "package.read",
+      "package.publish",
+    ]);
     expect(route?.requiredRoles).toEqual([
       "implementation-engineer",
-      "medical-admin",
+      "it-ops",
+      "platform-admin",
+      "group-admin",
       "hospital-admin",
     ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "medical-admin" }],
-        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [{ code: "package.read" }, { code: "package.publish" }],
         menuKeys: ["config-packages"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
-        permissions: [{ code: "pkg.read" }, { code: "pkg.release" }],
+        permissions: [{ code: "package.read" }, { code: "package.publish" }],
+        menuKeys: ["config-packages"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "medical-affairs" }],
+        permissions: [{ code: "package.read" }, { code: "package.publish" }],
         menuKeys: ["config-packages"],
       }),
     ).toBe(false);
@@ -174,6 +228,9 @@ describe("route metadata", () => {
 
   it("limits adapter hub to integration operators with read/write/execute permissions", () => {
     const route = findRouteByPath("/adapter/hub");
+    const protocolFilter = route?.experience?.defaultFilters.find(
+      (filter) => filter.key === "protocolType",
+    );
 
     expect(route?.requiredPermissions).toEqual([
       "menu.adapter-hub",
@@ -182,6 +239,14 @@ describe("route metadata", () => {
       "integration.execute",
     ]);
     expect(route?.requiredRoles).toEqual(["it-ops", "implementation"]);
+    expect(protocolFilter?.label).toBe("接入协议");
+    expect(protocolFilter?.options?.map((option) => option.value)).toEqual([
+      "HL7",
+      "FHIR",
+      "Webhook",
+      "REST",
+      "WebService",
+    ]);
     expect(
       canAccessRoute(route, {
         roles: [{ code: "it-ops" }],
@@ -261,23 +326,23 @@ describe("route metadata", () => {
     ).toBe(true);
   });
 
-  it("requires the WORKBENCH-02 action permission in addition to the workbench menu", () => {
+  it("requires the WORKBENCH-02 readiness action permission in addition to the workbench menu", () => {
     expect(
-      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+      canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
         roles: [{ code: "implementation-engineer" }],
-        permissions: [{ code: "workbench:demo:view" }],
+        permissions: [{ code: "workbench:readiness:view" }],
         menuKeys: ["workbench"],
       }),
     ).toBe(true);
     expect(
-      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+      canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
         roles: [{ code: "doctor" }],
-        permissions: [{ code: "workbench:demo:view" }],
+        permissions: [{ code: "workbench:readiness:view" }],
         menuKeys: ["workbench"],
       }),
     ).toBe(false);
     expect(
-      canAccessRoute(findRouteByPath("/workbench/demo-validation"), {
+      canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
         roles: [{ code: "implementation-engineer" }],
         permissions: [],
         menuKeys: ["workbench"],
@@ -332,6 +397,36 @@ describe("route metadata", () => {
       expect(route.requiresStepFlow, `${route.path} 缺少 7 步流约束`).toBe(true);
       expect(["config", "change"]).toContain(route.stateMachine);
     });
+  });
+
+  it("classifies the unified security baseline as system management instead of a readonly dashboard", () => {
+    const route = findRouteByPath("/security/baseline");
+
+    expect(route).toEqual(
+      expect.objectContaining({
+        title: "安全基线与系统配置",
+        pageType: "system",
+        requiresStepFlow: false,
+      }),
+    );
+    expect(route?.experience?.goal).toContain("管理");
+    expect(route?.experience?.riskLevel).toBe("high");
+  });
+
+  it("treats identity binding as a tenant-scoped managed security workflow", () => {
+    const route = findRouteByPath("/security/identity-binding");
+
+    expect(route).toEqual(
+      expect.objectContaining({
+        title: "身份绑定",
+        pageType: "system",
+        stateMachine: "change",
+        requiredPermissions: ["menu.identity-bindings", "org.read"],
+        requiredRoles: ["it-ops", "platform-admin", "group-admin", "hospital-admin"],
+      }),
+    );
+    expect(route?.experience?.goal).toContain("管理");
+    expect(route?.experience?.riskLevel).toBe("high");
   });
 
   it("returns customer routes without hidden advanced tools", () => {

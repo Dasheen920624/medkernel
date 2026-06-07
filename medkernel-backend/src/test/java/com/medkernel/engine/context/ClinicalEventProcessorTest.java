@@ -24,6 +24,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.shared.observability.TransitionError;
@@ -32,6 +33,7 @@ class ClinicalEventProcessorTest {
 
     private ClinicalEventRepository events;
     private ClinicalEventPayloadRepository payloads;
+    private AuditRecorder auditRecorder;
     private AuditEventPublisher auditPublisher;
     private StateTransitionRecorder transitions;
     private ApplicationEventPublisher applicationEvents;
@@ -44,6 +46,7 @@ class ClinicalEventProcessorTest {
     void setUp() {
         events = mock(ClinicalEventRepository.class);
         payloads = mock(ClinicalEventPayloadRepository.class);
+        auditRecorder = mock(AuditRecorder.class);
         auditPublisher = mock(AuditEventPublisher.class);
         transitions = mock(StateTransitionRecorder.class);
         applicationEvents = mock(ApplicationEventPublisher.class);
@@ -51,7 +54,8 @@ class ClinicalEventProcessorTest {
         pathwayAdapter = new CapturingAdapter(ClinicalEventEngine.PATHWAY);
         cdssAdapter = new CapturingAdapter(ClinicalEventEngine.CDSS);
         ObjectMapper json = new ObjectMapper().findAndRegisterModules();
-        processor = new ClinicalEventProcessor(events, payloads, auditPublisher, transitions, applicationEvents,
+        processor = new ClinicalEventProcessor(
+            events, payloads, auditRecorder, auditPublisher, transitions, applicationEvents,
             new ClinicalEventContextFactory(json),
             new ClinicalEventEngineDispatcher(List.of(ruleAdapter, pathwayAdapter, cdssAdapter)));
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -74,7 +78,7 @@ class ClinicalEventProcessorTest {
             "RECEIVED", "MAPPED", "TERMINOLOGY_OK", null);
         verify(transitions).record("clinical_event", "evt-1",
             "MAPPED", "PROCESSED", "ENGINES_OK", null);
-        verify(auditPublisher).publish(AuditAction.EXECUTE, "clinical_event", "evt-1",
+        verify(auditRecorder).record(AuditAction.EXECUTE, "clinical_event", "evt-1",
             "处理临床事件成功 type=DIAGNOSIS");
         verify(applicationEvents).publishEvent(any(ClinicalEventProcessedEvent.class));
 

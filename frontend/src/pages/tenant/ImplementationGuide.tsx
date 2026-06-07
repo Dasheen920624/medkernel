@@ -29,7 +29,7 @@ import styles from "./Tenant.module.css";
 const { Text, Title } = Typography;
 
 const targetLabelByPath: Record<string, string> = {
-  "/tenant/onboarding": "租户开通",
+  "/tenant/onboarding": "租户实施配置",
   "/adapter/hub": "适配器中心",
   "/config/packages": "配置包中心",
   "/terminology/mapping": "字典映射",

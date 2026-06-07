@@ -12,6 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEventDispatchResponse;
@@ -21,7 +22,6 @@ import com.medkernel.engine.recommendation.RecommendationModelStatus;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
 import com.medkernel.engine.rule.RuleEngineService;
-import com.medkernel.engine.rule.RuleEvaluateRequest;
 import com.medkernel.engine.rule.RuleEvaluateResponse;
 import com.medkernel.shared.context.OrgScope;
 
@@ -32,7 +32,7 @@ class ClinicalEventEngineAdapterTest {
     @Test
     void ruleAdapterCallsRuleEngineWithSameEventContext() {
         RuleEngineService service = mock(RuleEngineService.class);
-        when(service.evaluate(any(RuleEvaluateRequest.class)))
+        when(service.evaluateContext(any(String.class), any(JsonNode.class), any(String.class), any(List.class)))
             .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, "trace-1"));
         var adapter = new ClinicalEventRuleEngineAdapter(service, json);
 
@@ -41,13 +41,15 @@ class ClinicalEventEngineAdapterTest {
         assertThat(result.engine()).isEqualTo(ClinicalEventEngine.RULE);
         assertThat(result.status()).isEqualTo(ClinicalEventEngineDispatchStatus.DISPATCHED);
         assertThat(result.downstreamReferenceId()).isEqualTo("eval-1");
-        ArgumentCaptor<RuleEvaluateRequest> requestCap = ArgumentCaptor.forClass(RuleEvaluateRequest.class);
-        verify(service).evaluate(requestCap.capture());
-        assertThat(requestCap.getValue().eventId()).isEqualTo("evt-1");
-        assertThat(requestCap.getValue().triggerPoint()).isEqualTo("patient-view");
-        assertThat(requestCap.getValue().context().path("event").path("eventId").asText()).isEqualTo("evt-1");
-        assertThat(requestCap.getValue().context().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
-        assertThat(requestCap.getValue().context().path("patient").path("patientId").asText()).isEqualTo("MPI-1");
+        ArgumentCaptor<String> triggerCap = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<JsonNode> contextCap = ArgumentCaptor.forClass(JsonNode.class);
+        ArgumentCaptor<String> eventCap = ArgumentCaptor.forClass(String.class);
+        verify(service).evaluateContext(triggerCap.capture(), contextCap.capture(), eventCap.capture(), any());
+        assertThat(eventCap.getValue()).isEqualTo("evt-1");
+        assertThat(triggerCap.getValue()).isEqualTo("patient-view");
+        assertThat(contextCap.getValue().path("event").path("eventId").asText()).isEqualTo("evt-1");
+        assertThat(contextCap.getValue().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
+        assertThat(contextCap.getValue().path("patient").path("patientId").asText()).isEqualTo("MPI-1");
     }
 
     @Test

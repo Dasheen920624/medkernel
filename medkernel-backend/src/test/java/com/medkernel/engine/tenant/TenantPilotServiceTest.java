@@ -206,8 +206,7 @@ class TenantPilotServiceTest {
             .extracting(ImplementationStep::targetPath)
             .contains(
                 "/tenant/onboarding",
-                "/admin/credentials",
-                "/compliance/user-roles",
+                "/admin/users",
                 "/integration/adapters",
                 "/config/packages"
             );

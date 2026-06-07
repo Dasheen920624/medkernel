@@ -76,6 +76,7 @@ public class ContextValidator {
         if (r.patient() != null) {
             all.add(r.patient().qualityStatus());
         }
+        r.allergyIntolerances().forEach(e -> all.add(e.qualityStatus()));
         r.encounters().forEach(e -> all.add(e.qualityStatus()));
         r.conditions().forEach(e -> all.add(e.qualityStatus()));
         r.nursingAssessments().forEach(e -> all.add(e.qualityStatus()));

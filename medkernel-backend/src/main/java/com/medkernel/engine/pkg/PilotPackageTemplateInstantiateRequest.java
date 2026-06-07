@@ -2,7 +2,7 @@ package com.medkernel.engine.pkg;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.Size;
 
@@ -10,18 +10,18 @@ import jakarta.validation.constraints.Size;
  * 首发模板实例化请求。
  */
 public record PilotPackageTemplateInstantiateRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String contextPackageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String contextPackageVersion,
 
     @Size(max = 128, message = "包编码长度不能超过128")
     String packageCode,

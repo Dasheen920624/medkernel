@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 
 /**
  * 应急权限授予服务。
@@ -23,22 +23,22 @@ public class EmergencyPermissionGrantService {
     private static final String RESOURCE_TYPE = "emergency_permission_grant";
 
     private final EmergencyPermissionGrantRepository repository;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final Clock clock;
 
     @Autowired
     public EmergencyPermissionGrantService(
             EmergencyPermissionGrantRepository repository,
-            AuditEventPublisher auditPublisher) {
-        this(repository, auditPublisher, Clock.systemUTC());
+            AuditRecorder auditRecorder) {
+        this(repository, auditRecorder, Clock.systemUTC());
     }
 
     EmergencyPermissionGrantService(
             EmergencyPermissionGrantRepository repository,
-            AuditEventPublisher auditPublisher,
+            AuditRecorder auditRecorder,
             Clock clock) {
         this.repository = repository;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
@@ -75,7 +75,7 @@ public class EmergencyPermissionGrantService {
             now,
             safeGrantedBy
         ));
-        auditPublisher.publish(
+        auditRecorder.record(
             AuditAction.PERMISSION_CHANGE,
             RESOURCE_TYPE,
             resourceId(safeTenantId, safeUserId),

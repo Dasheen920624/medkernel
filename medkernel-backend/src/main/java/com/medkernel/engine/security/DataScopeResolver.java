@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.security.DataAccessLevel;
+import com.medkernel.shared.security.ResolvedDataScope;
 
 /**
  * MedKernel v1.0 GA · 数据范围解析器。

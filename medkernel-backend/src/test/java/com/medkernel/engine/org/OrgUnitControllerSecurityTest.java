@@ -45,6 +45,9 @@ class OrgUnitControllerSecurityTest {
     @MockBean
     OrgUnitService orgUnitService;
 
+    @MockBean
+    OrgUserDirectoryService orgUserDirectoryService;
+
     @AfterEach
     void clearAll() {
         RequestContext.clear();
@@ -56,7 +59,7 @@ class OrgUnitControllerSecurityTest {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
-        mvc.perform(get("/api/v1/tenant/org-units"))
+        mvc.perform(get("/api/v1/engine/org/org-units"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -64,7 +67,7 @@ class OrgUnitControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestRoleIsForbidden() throws Exception {
-        mvc.perform(get("/api/v1/tenant/org-units"))
+        mvc.perform(get("/api/v1/engine/org/org-units"))
             .andExpect(status().isForbidden());
     }
 
@@ -74,7 +77,7 @@ class OrgUnitControllerSecurityTest {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
-        mvc.perform(get("/api/v1/tenant/org-units"))
+        mvc.perform(get("/api/v1/engine/org/org-units"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -85,8 +88,33 @@ class OrgUnitControllerSecurityTest {
         when(orgUnitService.listByCurrentTenant(any(PageRequest.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
-        mvc.perform(get("/api/v1/tenant/org-units"))
+        mvc.perform(get("/api/v1/engine/org/org-units"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_DOCTOR"})
+    void legacyTenantOrgUnitsRouteIsNotMounted() throws Exception {
+        mvc.perform(get("/api/v1/tenant/org-units"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(authorities = {"ROLE_QA_MANAGER"})
+    void qualityManagerCanReadUserDirectoryButStillNeedsTenant() throws Exception {
+        when(orgUserDirectoryService.list(any(PageRequest.class)))
+            .thenReturn(PageResponse.empty(PageRequest.defaults()));
+
+        mvc.perform(get("/api/v1/engine/org/org-units/users"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotReadUserDirectory() throws Exception {
+        mvc.perform(get("/api/v1/engine/org/org-units/users"))
+            .andExpect(status().isForbidden());
     }
 }

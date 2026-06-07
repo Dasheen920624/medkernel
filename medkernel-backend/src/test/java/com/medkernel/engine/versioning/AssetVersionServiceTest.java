@@ -108,18 +108,54 @@ class AssetVersionServiceTest {
         AssetVersion published = sample(AssetVersionStatus.PUBLISHED, "hash-a", "version:av-1");
         when(repository.findByVersionIdAndTenantId("av-1", "tenant-A")).thenReturn(Optional.of(published));
 
-        assertThatThrownBy(() -> service.updateDraftContent(
+        assertThatThrownBy(() -> service.updateDraft(new AssetVersionDraftUpdateCommand(
             "tenant-A",
             "av-1",
+            "RULE.VTE.RISK",
+            "/GROUP/g-1/HOSPITAL/h-1",
+            "adult|inpatient",
             "changed content",
             null,
+            "rule/RULE.VTE.RISK",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
             "reviewer-1"
-        ))
+        )))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
 
         verify(repository, never()).save(any(AssetVersion.class));
+    }
+
+    @Test
+    void draftUpdateReplacesTheCompleteRegistrationAtomically() {
+        AssetVersion draft = sample(AssetVersionStatus.DRAFT, "hash-a", "version:av-1");
+        when(repository.findByVersionIdAndTenantId("av-1", "tenant-A")).thenReturn(Optional.of(draft));
+        when(repository.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AssetVersion updated = service.updateDraft(new AssetVersionDraftUpdateCommand(
+            "tenant-A",
+            "av-1",
+            "RULE.VTE.RISK.V2",
+            "/GROUP/g-1/HOSPITAL/h-2",
+            "adult|outpatient",
+            "updated rule content",
+            null,
+            "rule/RULE.VTE.RISK.V2",
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED,
+            "reviewer-2"
+        ));
+
+        assertThat(updated.assetIdentity()).isEqualTo("RULE.VTE.RISK.V2");
+        assertThat(updated.organizationScope()).isEqualTo("/GROUP/g-1/HOSPITAL/h-2");
+        assertThat(updated.applicableScope()).isEqualTo("adult|outpatient");
+        assertThat(updated.contentHash()).isEqualTo(sha256("updated rule content"));
+        assertThat(updated.sourceRef()).isEqualTo("rule/RULE.VTE.RISK.V2");
+        assertThat(updated.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
+        assertThat(updated.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
+        assertThat(updated.updatedBy()).isEqualTo("reviewer-2");
     }
 
     @Test
@@ -155,6 +191,8 @@ class AssetVersionServiceTest {
             "/GROUP/g-1/HOSPITAL/h-1",
             "adult|inpatient",
             hash,
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
             status,
             activeScopeKey,
             "rule/RULE.VTE.RISK",

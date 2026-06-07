@@ -62,38 +62,18 @@ CREATE TABLE release_plan (
     trace_id          VARCHAR2(128 CHAR),
     CONSTRAINT uk_release_plan_id UNIQUE (tenant_id, plan_id),
     CONSTRAINT ck_release_plan_strategy CHECK (strategy IN ('GRAYSCALE','FULL')),
-    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
+    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_release_plan_status CHECK (status IN ('DRAFT','EXECUTING','SUCCESS','FAILED','ROLLBACKED'))
 );
 
 CREATE INDEX idx_release_plan_pkg ON release_plan (tenant_id, package_id, status);
-
-CREATE TABLE sync_target (
-    id                NUMBER(19) GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    target_id         VARCHAR2(64 CHAR)   NOT NULL,
-    tenant_id         VARCHAR2(64 CHAR)   NOT NULL,
-    target_name       VARCHAR2(128 CHAR)  NOT NULL,
-    target_type       VARCHAR2(32 CHAR)   NOT NULL,
-    connection_config CLOB,
-    status            VARCHAR2(32 CHAR)   DEFAULT 'ACTIVE' NOT NULL,
-    created_at        TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
-    created_by        VARCHAR2(64 CHAR)   DEFAULT 'system' NOT NULL,
-    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
-    updated_by        VARCHAR2(64 CHAR)   DEFAULT 'system' NOT NULL,
-    trace_id          VARCHAR2(128 CHAR),
-    CONSTRAINT uk_sync_target_id UNIQUE (tenant_id, target_id),
-    CONSTRAINT ck_sync_target_type CHECK (target_type IN ('CLINICAL_DB','DIFY','GRAPH_DB','REDIS')),
-    CONSTRAINT ck_sync_target_status CHECK (status IN ('ACTIVE','INACTIVE'))
-);
-
-CREATE INDEX idx_sync_target_tenant ON sync_target (tenant_id, status);
 
 CREATE TABLE sync_log (
     id                NUMBER(19) GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     log_id            VARCHAR2(64 CHAR)   NOT NULL,
     tenant_id         VARCHAR2(64 CHAR)   NOT NULL,
     plan_id           VARCHAR2(64 CHAR)   NOT NULL,
-    target_id         VARCHAR2(64 CHAR)   NOT NULL,
+    adapter_id         VARCHAR2(64 CHAR)   NOT NULL,
     status            VARCHAR2(32 CHAR)   DEFAULT 'RUNNING' NOT NULL,
     error_code        VARCHAR2(64 CHAR),
     error_message     CLOB,
@@ -131,16 +111,11 @@ COMMENT ON COLUMN release_plan.plan_id IS '发布计划 ID';
 COMMENT ON COLUMN release_plan.package_id IS '关联的知识包 ID → knowledge_package.package_id';
 COMMENT ON COLUMN release_plan.target_org_unit_id IS '发布的受众组织 ID';
 COMMENT ON COLUMN release_plan.strategy IS '发布策略：GRAYSCALE 灰度 / FULL 全量';
-COMMENT ON COLUMN release_plan.scope_type IS '作用范围类型：ALL 全量 / GROUP 集团 / HOSPITAL 医院 / CAMPUS 院区 / SITE 服务点 / DEPARTMENT 科室 / SPECIALTY 专病';
+COMMENT ON COLUMN release_plan.scope_type IS '组织作用范围类型：ALL 全量 / GROUP 集团 / HOSPITAL 医院 / CAMPUS 院区 / SITE 服务点 / DEPARTMENT 科室；专病由 specialty_id 横切表达';
 COMMENT ON COLUMN release_plan.scope_value IS '作用范围值快照（ID逗号分隔）';
-
-COMMENT ON TABLE sync_target IS '同步投影目标：保存 Dify、Neo4j、医院业务库等各种环境的同步通道信息';
-COMMENT ON COLUMN sync_target.target_id IS '同步目标 ID';
-COMMENT ON COLUMN sync_target.target_name IS '目标通道名称';
-COMMENT ON COLUMN sync_target.target_type IS '投影目标类型：CLINICAL_DB 业务库 / DIFY / GRAPH_DB 图库 / REDIS';
 
 COMMENT ON TABLE sync_log IS '同步执行日志：保存投影执行状态、错误码、重试与加密签名存证';
 COMMENT ON COLUMN sync_log.log_id IS '日志 ID';
 COMMENT ON COLUMN sync_log.plan_id IS '关联的发布计划 ID';
-COMMENT ON COLUMN sync_log.target_id IS '关联的投影目标 ID';
+COMMENT ON COLUMN sync_log.adapter_id IS '关联的统一集成适配器 ID';
 COMMENT ON COLUMN sync_log.sync_evidence IS '投影执行数字签名与内容摘要存证';

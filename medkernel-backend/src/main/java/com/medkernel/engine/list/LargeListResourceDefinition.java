@@ -31,8 +31,17 @@ record LargeListResourceDefinition(
         )
     );
 
+    private static final LargeListResourceDefinition TERMINOLOGY_MAPPINGS = new LargeListResourceDefinition(
+        Set.of("id"),
+        Set.of("sourceSystem", "category", "status", "keyword")
+    );
+
     static LargeListResourceDefinition auditEvents() {
         return AUDIT_EVENTS;
+    }
+
+    static LargeListResourceDefinition terminologyMappings() {
+        return TERMINOLOGY_MAPPINGS;
     }
 
     SortSpec validateSort(String sort) {

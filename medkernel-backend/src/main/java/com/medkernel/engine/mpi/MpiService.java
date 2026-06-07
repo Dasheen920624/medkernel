@@ -21,6 +21,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.ids.Ulid;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 
 /**
@@ -77,8 +78,8 @@ public class MpiService {
     /**
      * 创建当前租户下的患者主索引。
      *
-     * <p>以 {@code mpiId} 作为当前服务包的业务幂等键；同租户重复提交活跃患者时返回既有记录，
-     * 已归并主索引拒绝重新创建，避免把历史归并记录伪装为新患者。
+     * <p>主索引 ID 由服务端统一生成，调用方通过平台 {@code Idempotency-Key} 保证重复提交安全，
+     * 避免人工编排或外部系统覆盖平台患者身份权威。
      */
     @Transactional
     public MpiPatient createPatient(MpiPatientCreateRequest request) {
@@ -86,20 +87,11 @@ public class MpiService {
         if (request == null) {
             throw new IllegalArgumentException("患者主索引创建请求不能为空");
         }
-        String mpiId = requireText(request.mpiId(), "患者主索引 ID");
+        String mpiId = "mpi-" + Ulid.newUlid();
         String maskedName = requireText(request.maskedName(), "脱敏姓名");
         String gender = normalizeGender(request.gender());
         Integer age = normalizeAge(request.age());
         String idLast4 = normalizeIdLast4(request.idLast4());
-
-        Optional<MpiPatient> existing = repository.findByTenantIdAndMpiId(tenantId, mpiId);
-        if (existing.isPresent()) {
-            MpiPatient patient = existing.get();
-            if ("ACTIVE".equals(patient.status())) {
-                return patient;
-            }
-            throw new ApiException(ErrorCode.CONFLICT, "患者主索引已归并，不能作为新患者重新创建");
-        }
 
         String actor = RequestContext.currentUserId().orElse("system");
         Instant now = Instant.now();

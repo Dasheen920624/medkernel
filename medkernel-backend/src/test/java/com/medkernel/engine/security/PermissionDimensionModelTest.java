@@ -69,16 +69,13 @@ class PermissionDimensionModelTest {
     void platformAndGroupAdminsReceiveEveryNonEmergencyPermissionThroughPolicy() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY)
-            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY)
-            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     private String invokeDimension(Method dimensionMethod, PermissionCode permission) {

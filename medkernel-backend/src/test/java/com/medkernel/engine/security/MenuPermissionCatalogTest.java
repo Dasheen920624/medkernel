@@ -30,7 +30,7 @@ class MenuPermissionCatalogTest {
         "insurance-audit",
         "qc-eval-sets",
         "qc-eval-results",
-        "aik-review",
+        "knowledge-governance",
         "admin-users",
         "identity-bindings",
         "admin-audit",
@@ -61,13 +61,22 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void menuKeysForReturnsOnlySecondLevelKeysFromMenuPermissions() {
         assertThat(MenuPermissionCatalog.menuKeysFor(EnumSet.of(
             PermissionCode.MENU_WORKBENCH,
             PermissionCode.MENU_RULE_VALIDATE,
-            PermissionCode.MENU_QC_EVAL_RESULTS,
-            PermissionCode.MENU_ADVANCED_TOOLS)))
+            PermissionCode.MENU_QC_EVAL_RESULTS)))
             .containsExactly("workbench", "rule-validate", "qc-eval-results");
+    }
+
+    @Test
+    void legacySectionPermissionCodesDoNotExist() {
+        assertThat(Set.of(
+            "menu.pilot-setup",
+            "menu.clinical-run",
+            "menu.quality-improve",
+            "menu.compliance-ops",
+            "menu.advanced-tools"
+        )).allSatisfy(code -> assertThat(PermissionCode.fromCode(code)).isEmpty());
     }
 }

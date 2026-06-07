@@ -86,6 +86,103 @@ class PathwayProgressorTest {
     }
 
     @Test
+    void conditionEdgeReusesUnifiedRuleDslClinicalOperator() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("REVIEW", 10, false),
+                node("FOLLOWUP", 20, true),
+                node("PLAN", 30, false)
+            ),
+            List.of(
+                edge("e-condition", tenantId, templateId, "REVIEW", "FOLLOWUP",
+                    PathwayEdgeType.CONDITION, 1,
+                    """
+                    {
+                      "fact": "lab.potassium",
+                      "operator": "not_between",
+                      "value": {"min": 3.5, "max": 5.5, "unit": "mmol/L"}
+                    }
+                    """),
+                edge("e-default", tenantId, templateId, "REVIEW", "PLAN",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            graph, "REVIEW", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("lab.potassium", Map.of("value", 6.0, "unit", "mmol/L"))));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("FOLLOWUP");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
+        assertThat(decision.evidence()).containsKey("lab.potassium");
+    }
+
+    @Test
+    void conditionEdgeAcceptsValuelessUnifiedRuleDslOperator() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("REVIEW", 10, false),
+                node("FOLLOWUP", 20, true),
+                node("PLAN", 30, false)
+            ),
+            List.of(
+                edge("e-condition", tenantId, templateId, "REVIEW", "FOLLOWUP",
+                    PathwayEdgeType.CONDITION, 1,
+                    "{\"fact\":\"lab.potassium\",\"operator\":\"is_missing\"}"),
+                edge("e-default", tenantId, templateId, "REVIEW", "PLAN",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            graph, "REVIEW", PathwayAdvanceEventType.COMPLETE, null, Map.of()));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("FOLLOWUP");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
+    }
+
+    @Test
+    void conditionEdgeAcceptsUnifiedNotGroupGuard() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("REVIEW", 10, false),
+                node("FOLLOWUP", 20, true),
+                node("PLAN", 30, false)
+            ),
+            List.of(
+                edge("e-condition", tenantId, templateId, "REVIEW", "FOLLOWUP",
+                    PathwayEdgeType.CONDITION, 1,
+                    """
+                    {
+                      "all": [
+                        {"fact": "context.readyForFollowup", "operator": "equals", "value": true},
+                        {"not": {"fact": "allergyIntolerances[].code", "operator": "contains", "value": "PENICILLIN"}}
+                      ]
+                    }
+                    """),
+                edge("e-default", tenantId, templateId, "REVIEW", "PLAN",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
+            graph, "REVIEW", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of(
+                "context.readyForFollowup", true,
+                "allergyIntolerances", List.of(Map.of("code", "SULFA")))));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("FOLLOWUP");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
+        assertThat(decision.evidence()).containsKey("allergyIntolerances[].code");
+    }
+
+    @Test
     void completesPathwayWhenCurrentNodeHasNoOutgoingEdge() {
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
             graph(), "FOLLOWUP", PathwayAdvanceEventType.COMPLETE, null));

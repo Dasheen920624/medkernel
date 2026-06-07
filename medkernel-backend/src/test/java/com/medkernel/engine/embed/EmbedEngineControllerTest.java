@@ -111,7 +111,7 @@ class EmbedEngineControllerTest {
         EmbedLaunchContextResponse mockResponse = new EmbedLaunchContextResponse(
             "DOCTOR-001", "doctor", "tenant-1", "P1001", "E2001", "order-sign", true, "trace-123",
             EmbedIntegrationMode.SDK, "order-sign", "hook-order-001", EmbedModelStatus.MODEL_DISABLED,
-            EmbedConnectionStatus.CONNECTED, "1.0"
+            EmbedConnectionStatus.CONNECTED, "1.0", "https://his.hospital.com"
         );
         when(service.validateAndExchange(any(EmbedLaunchRequest.class), eq("https://his.hospital.com")))
             .thenReturn(mockResponse);
@@ -134,7 +134,8 @@ class EmbedEngineControllerTest {
             .andExpect(jsonPath("$.data.hookInstance").value("hook-order-001"))
             .andExpect(jsonPath("$.data.modelStatus").value("MODEL_DISABLED"))
             .andExpect(jsonPath("$.data.connectionStatus").value("CONNECTED"))
-            .andExpect(jsonPath("$.data.cdsHookVersion").value("1.0"));
+            .andExpect(jsonPath("$.data.cdsHookVersion").value("1.0"))
+            .andExpect(jsonPath("$.data.parentOrigin").value("https://his.hospital.com"));
 
         verify(service).validateAndExchange(any(EmbedLaunchRequest.class), eq("https://his.hospital.com"));
     }

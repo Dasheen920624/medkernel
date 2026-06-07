@@ -1,19 +1,15 @@
 package com.medkernel.engine.security;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 import static com.medkernel.engine.security.PermissionCode.MENU_ADMIN_AUDIT;
 import static com.medkernel.engine.security.PermissionCode.MENU_ADMIN_USERS;
-import static com.medkernel.engine.security.PermissionCode.MENU_ADVANCED_TOOLS;
 import static com.medkernel.engine.security.PermissionCode.MENU_AI_WORKFLOWS;
-import static com.medkernel.engine.security.PermissionCode.MENU_AIK_REVIEW;
+import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_GOVERNANCE;
 import static com.medkernel.engine.security.PermissionCode.MENU_ADAPTER_HUB;
 import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
-import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_RUN;
-import static com.medkernel.engine.security.PermissionCode.MENU_COMPLIANCE_OPS;
 import static com.medkernel.engine.security.PermissionCode.MENU_CONFIG_PACKAGES;
 import static com.medkernel.engine.security.PermissionCode.MENU_DEV_CONSOLE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
@@ -26,13 +22,11 @@ import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATIONS;
 import static com.medkernel.engine.security.PermissionCode.MENU_NOTIFICATION_SETTINGS;
 import static com.medkernel.engine.security.PermissionCode.MENU_PATIENT_PATHWAYS;
 import static com.medkernel.engine.security.PermissionCode.MENU_PATHWAY_TEMPLATES;
-import static com.medkernel.engine.security.PermissionCode.MENU_PILOT_SETUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_PROVENANCE;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_ALERTS;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_DASHBOARD;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_RESULTS;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_SETS;
-import static com.medkernel.engine.security.PermissionCode.MENU_QUALITY_IMPROVE;
 import static com.medkernel.engine.security.PermissionCode.MENU_RULE_DEFINITIONS;
 import static com.medkernel.engine.security.PermissionCode.MENU_RULE_VALIDATE;
 import static com.medkernel.engine.security.PermissionCode.MENU_SECURITY_BASELINE;
@@ -45,17 +39,9 @@ import static com.medkernel.engine.security.PermissionCode.MENU_WORKFLOW_TODOS;
 /**
  * 后端菜单权限目录（Menu Permission Catalog）。
  *
- * <p>INFRA-05 后，菜单维权限只承认 27 个二级菜单 + 5 个高级工具的细粒度 key。
- * 旧一级 section 权限仅保留枚举兼容，不能再用于可见菜单或路由授权。
+ * <p>菜单维权限只承认 27 个二级菜单 + 5 个高级工具的细粒度 key。
  */
 public final class MenuPermissionCatalog {
-
-    private static final Set<PermissionCode> LEGACY_SECTION_PERMISSIONS = EnumSet.of(
-        MENU_PILOT_SETUP,
-        MENU_CLINICAL_RUN,
-        MENU_QUALITY_IMPROVE,
-        MENU_COMPLIANCE_OPS,
-        MENU_ADVANCED_TOOLS);
 
     private static final List<MenuPermission> ALL_MENUS = List.of(
         menu("workbench", "workbench", "工作台", MENU_WORKBENCH),
@@ -78,7 +64,7 @@ public final class MenuPermissionCatalog {
         menu("quality-improve", "insurance-audit", "医保智能审核", MENU_INSURANCE_AUDIT),
         menu("quality-improve", "qc-eval-sets", "评估指标库", MENU_QC_EVAL_SETS),
         menu("quality-improve", "qc-eval-results", "评估结果", MENU_QC_EVAL_RESULTS),
-        menu("quality-improve", "aik-review", "AI 知识审核", MENU_AIK_REVIEW),
+        menu("quality-improve", "knowledge-governance", "知识治理", MENU_KNOWLEDGE_GOVERNANCE),
         menu("compliance-ops", "admin-users", "用户管理", MENU_ADMIN_USERS),
         menu("compliance-ops", "identity-bindings", "身份绑定", MENU_IDENTITY_BINDINGS),
         menu("compliance-ops", "admin-audit", "审计日志", MENU_ADMIN_AUDIT),
@@ -100,10 +86,6 @@ public final class MenuPermissionCatalog {
 
     public static List<String> allMenuKeys() {
         return ALL_MENUS.stream().map(MenuPermission::menuKey).toList();
-    }
-
-    public static Set<PermissionCode> legacySectionPermissions() {
-        return EnumSet.copyOf(LEGACY_SECTION_PERMISSIONS);
     }
 
     public static boolean isCatalogMenuPermission(PermissionCode permission) {

@@ -351,7 +351,7 @@ describe("TerminologyMapping experience sample", () => {
   it("renders the real high-risk mapping workspace instead of a read-only table", async () => {
     renderPage();
 
-    expect(screen.getByText(/目标：核查院内码与标准码的映射关系/)).toBeInTheDocument();
+    expect(screen.getByText(/核查院内码与标准码的映射关系/)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "映射状态" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入来源系统")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("输入院内码或标准码关键词")).toBeInTheDocument();
@@ -455,18 +455,35 @@ describe("TerminologyMapping experience sample", () => {
     });
   });
 
+  it("builds a new terminology package with an explicit version and current scope", async () => {
+    const buildPackage = vi.fn().mockResolvedValue(mappingPackage);
+    vi.mocked(useBuildTerminologyPackage).mockReturnValue({
+      mutateAsync: buildPackage,
+    } as never);
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "构建映射包" }));
+    expect(screen.getByText("构建术语映射包")).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("新版本"));
+    await userEvent.type(screen.getByLabelText("新版本"), "2026.06.1");
+    await userEvent.click(screen.getByRole("button", { name: "创建草稿" }));
+
+    expect(buildPackage).toHaveBeenCalledWith({
+      packageCode: "TERM.LAB",
+      packageVersion: "2026.06.1",
+      displayName: "检验字典映射包",
+      scopeLevel: "TENANT",
+      scopeCode: "tenant-1",
+    });
+  });
+
   it(
-    "publishes and rolls back terminology packages through the 7-step release flow",
+    "publishes terminology packages through the governed release flow",
     async () => {
       const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "GRAY" });
-      const rollbackPackage = vi
-        .fn()
-        .mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
       vi.mocked(usePublishTerminologyPackage).mockReturnValue({
         mutateAsync: publishPackage,
-      } as never);
-      vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
-        mutateAsync: rollbackPackage,
       } as never);
 
       renderPage();
@@ -485,8 +502,37 @@ describe("TerminologyMapping experience sample", () => {
           reason: "首发检验字典灰度验证",
         }),
       });
+    },
+    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
+  );
 
+  it(
+    "rolls back a published package only to a selectable historical release",
+    async () => {
+      const rollbackPackage = vi
+        .fn()
+        .mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
+      const current = { ...mappingPackage, status: "PUBLISHED" as const };
+      const target = {
+        ...mappingPackage,
+        id: 29,
+        packageVersion: "2026.05",
+        status: "SUPERSEDED" as const,
+      };
+      vi.mocked(useTerminologyPackages).mockReturnValue({
+        data: pageData([current, target]),
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as never);
+      vi.mocked(useRollbackTerminologyPackage).mockReturnValue({
+        mutateAsync: rollbackPackage,
+      } as never);
+
+      renderPage();
       await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
+      await userEvent.click(screen.getByLabelText("回滚目标"));
+      await userEvent.click(screen.getByText("2026.05 · 检验字典映射包"));
       await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
       await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
 
@@ -494,7 +540,7 @@ describe("TerminologyMapping experience sample", () => {
         packageId: 30,
         request: expect.objectContaining({
           packageVersion: "2026.06",
-          targetPackageId: 30,
+          targetPackageId: 29,
           reason: "灰度验证发现院内码需重裁",
         }),
       });

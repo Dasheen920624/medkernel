@@ -13,6 +13,7 @@ import {
 describe("RULE-01 规则 DSL 桥接（P1-2）", () => {
   it("装配嵌套规则 DSL：when/then/explain", () => {
     const draft: RuleDraft = {
+      triggerPoint: "patient-view",
       root: createGroup({
         logic: "all",
         children: [
@@ -36,10 +37,12 @@ describe("RULE-01 规则 DSL 桥接（P1-2）", () => {
     };
 
     const dsl = buildRuleDsl(draft) as {
+      trigger: string;
       when: { all: unknown[] };
       then: Array<{ actionCode: string }>;
       explain: { summary: string; authoring: { conditionCount: number } };
     };
+    expect(dsl.trigger).toBe("patient-view");
     expect(dsl.when.all).toHaveLength(2);
     expect(dsl.then[0].actionCode).toBe("BLOCK");
     expect(dsl.explain.summary).toBe("测试摘要");
@@ -65,17 +68,14 @@ describe("RULE-01 规则 DSL 桥接（P1-2）", () => {
     expect(parsed.explanationSummary).toBe(draft.explanationSummary);
   });
 
-  it("兼容旧扁平 when 还原为单层组", () => {
+  it("拒绝旧 when 包裹结构", () => {
     const legacy = {
-      when: { all: [{ fact: "context.scr", operator: "gte", value: 2 }] },
+      trigger: "patient-view",
+      when: { when: { all: [{ fact: "context.scr", operator: "gte", value: 2 }] } },
       then: [{ actionCode: "REVIEW_REQUIRED", severity: "LOW", message: "复核" }],
       explain: { summary: "旧规则" },
     };
-    const parsed = parseRuleDsl(legacy);
-    expect(parsed.root.logic).toBe("all");
-    expect(countLeaves(parsed.root)).toBe(1);
-    expect(parsed.action.severity).toBe("LOW");
-    expect(parsed.explanationSummary).toBe("旧规则");
+    expect(() => parseRuleDsl(legacy)).toThrow("规则算子不在受控目录内");
   });
 
   it("缺 when 抛错", () => {

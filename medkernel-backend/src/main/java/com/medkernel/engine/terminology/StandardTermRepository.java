@@ -10,44 +10,112 @@ import org.springframework.stereotype.Repository;
 /**
  * 标准术语字典持久化仓库。
  *
- * <p>所有查询按 tenant_id 隔离；按 standard_system + term_code 形成业务唯一性。
+ * <p>写入仍由 tenant_id 归属隔离；租户读路径通过平台基线 + 租户覆盖联合查询，
+ * 保证院内映射可以引用平台标准词。
  */
 @Repository
 public interface StandardTermRepository extends ListCrudRepository<StandardTerm, Long> {
 
-    Optional<StandardTerm> findByTenantIdAndId(String tenantId, Long id);
+    @Query("""
+        SELECT * FROM standard_term
+        WHERE tenant_id IN (:tenantIds)
+          AND id = :id
+        ORDER BY CASE WHEN tenant_id = :tenantId THEN 0 ELSE 1 END, updated_at DESC, id DESC
+        """)
+    List<StandardTerm> findByTenantIdsAndId(
+        List<String> tenantIds,
+        String tenantId,
+        Long id
+    );
+
+    default Optional<StandardTerm> findFirstByTenantIdsAndId(
+            List<String> tenantIds,
+            String tenantId,
+            Long id) {
+        return findByTenantIdsAndId(tenantIds, tenantId, id).stream().findFirst();
+    }
 
     /**
-     * 按租户 + 可选过滤条件（术语体系 / 分类 / 状态 / 关键词）统计标准术语数量。
+     * 平台标准 + 租户覆盖联合统计。tenantIds 应按平台优先、租户随后传入。
      */
     @Query("""
         SELECT COUNT(*) FROM standard_term
-        WHERE tenant_id = :tenantId
+        WHERE tenant_id IN (:tenantIds)
           AND (:standardSystem IS NULL OR standard_system = :standardSystem)
           AND (:category IS NULL OR category = :category)
           AND (:status IS NULL OR status = :status)
           AND (:keyword IS NULL OR LOWER(display_name) LIKE :keyword OR LOWER(term_code) LIKE :keyword)
         """)
-    long countByFilter(String tenantId, String standardSystem, String category, String status, String keyword);
+    long countByTenantIdsFilter(
+        List<String> tenantIds,
+        String standardSystem,
+        String category,
+        String status,
+        String keyword
+    );
 
     /**
-     * 按租户 + 可选过滤条件分页查询标准术语（更新时间倒序），用于映射候选挑选与管理后台列表。
+     * 平台标准 + 租户覆盖联合分页。先展示租户覆盖，再展示平台基线，保证本地覆盖更容易被人工看见。
      */
     @Query("""
         SELECT * FROM standard_term
-        WHERE tenant_id = :tenantId
+        WHERE tenant_id IN (:tenantIds)
           AND (:standardSystem IS NULL OR standard_system = :standardSystem)
           AND (:category IS NULL OR category = :category)
           AND (:status IS NULL OR status = :status)
           AND (:keyword IS NULL OR LOWER(display_name) LIKE :keyword OR LOWER(term_code) LIKE :keyword)
-        ORDER BY updated_at DESC, id DESC
+        ORDER BY CASE WHEN tenant_id = :tenantId THEN 0 ELSE 1 END, updated_at DESC, id DESC
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
-    List<StandardTerm> pageByFilter(String tenantId, String standardSystem, String category, String status,
-                                    String keyword, int offset, int limit);
+    List<StandardTerm> pageByTenantIdsFilter(
+        List<String> tenantIds,
+        String tenantId,
+        String standardSystem,
+        String category,
+        String status,
+        String keyword,
+        int offset,
+        int limit
+    );
 
     Optional<StandardTerm> findByTenantIdAndStandardSystemAndTermCodeAndStatus(
         String tenantId, String standardSystem, String termCode, StandardTermStatus status);
+
+    @Query("""
+        SELECT * FROM standard_term
+        WHERE tenant_id IN (:tenantIds)
+          AND standard_system = :standardSystem
+          AND term_code = :termCode
+          AND status = :status
+        ORDER BY CASE WHEN tenant_id = :tenantId THEN 0 ELSE 1 END, updated_at DESC, id DESC
+        """)
+    List<StandardTerm> findByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+        List<String> tenantIds,
+        String tenantId,
+        String standardSystem,
+        String termCode,
+        StandardTermStatus status
+    );
+
+    default Optional<StandardTerm> findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+            List<String> tenantIds,
+            String tenantId,
+            String standardSystem,
+            String termCode,
+            StandardTermStatus status) {
+        return findByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+            tenantIds, tenantId, standardSystem, termCode, status
+        ).stream().findFirst();
+    }
+
+    default Optional<StandardTerm> findFirstActiveByTenantIdsAndStandardSystemAndTermCode(
+            List<String> tenantIds,
+            String tenantId,
+            String standardSystem,
+            String termCode) {
+        return findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+            tenantIds, tenantId, standardSystem, termCode, StandardTermStatus.ACTIVE);
+    }
 
     /**
      * 查 ACTIVE 标准术语（按字典 standard_system + term_code）。把包私有的 {@link StandardTermStatus}
@@ -60,4 +128,16 @@ public interface StandardTermRepository extends ListCrudRepository<StandardTerm,
     }
 
     List<StandardTerm> findByTenantIdAndStatus(String tenantId, StandardTermStatus status);
+
+    @Query("""
+        SELECT * FROM standard_term
+        WHERE tenant_id IN (:tenantIds)
+          AND status = :status
+        ORDER BY CASE WHEN tenant_id = :tenantId THEN 0 ELSE 1 END, updated_at DESC, id DESC
+        """)
+    List<StandardTerm> findByTenantIdsAndStatus(
+        List<String> tenantIds,
+        String tenantId,
+        StandardTermStatus status
+    );
 }

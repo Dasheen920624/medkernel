@@ -11,6 +11,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditRecorder;
 
 class ProjectionSyncServiceTest {
@@ -126,6 +128,36 @@ class ProjectionSyncServiceTest {
         assertThat(report.status()).isEqualTo(ProjectionSyncStatus.FAILED);
         assertThat(report.extra()).extracting(ProjectionDiffItem::factKey)
             .containsExactly("NODE:KNOWLEDGE_VERSION:5");
+    }
+
+    @Test
+    void listProjectionFactsFiltersByKeywordAndPaginatesProjectionSnapshots() {
+        ProjectionFact patient = fact("NODE:PATIENT:pat-1");
+        ProjectionFact observationA = fact("NODE:OBSERVATION:obs-1");
+        ProjectionFact observationB = fact("NODE:OBSERVATION:obs-2");
+        List<ProjectionSnapshot> stored = new ArrayList<>();
+        stored.add(ProjectionSnapshot.fromFact("tenant-A", patient, now(), "trace-1"));
+        stored.add(ProjectionSnapshot.fromFact("tenant-A", observationA, now(), "trace-2"));
+        stored.add(ProjectionSnapshot.fromFact("tenant-A", observationB, now(), "trace-3"));
+        wireSnapshotStore(stored);
+
+        PageResponse<ProjectionFactItem> firstPage = service.listProjectionFacts(
+            "tenant-A",
+            ProjectionTargetType.CLINICAL_GRAPH,
+            "observation",
+            new PageRequest(1, 1, null));
+        PageResponse<ProjectionFactItem> secondPage = service.listProjectionFacts(
+            "tenant-A",
+            ProjectionTargetType.CLINICAL_GRAPH,
+            "observation",
+            new PageRequest(2, 1, null));
+
+        assertThat(firstPage.total()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.items()).extracting(ProjectionFactItem::factKey)
+            .containsExactly("NODE:OBSERVATION:obs-1");
+        assertThat(secondPage.items()).extracting(ProjectionFactItem::factKey)
+            .containsExactly("NODE:OBSERVATION:obs-2");
     }
 
     private void wireSnapshotStore(List<ProjectionSnapshot> stored) {

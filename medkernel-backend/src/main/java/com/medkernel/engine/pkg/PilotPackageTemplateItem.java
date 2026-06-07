@@ -13,8 +13,7 @@ import org.springframework.data.relational.core.mapping.Table;
  */
 @Table("mk_pkg_pilot_template_item")
 public record PilotPackageTemplateItem(
-    @Id Long id,
-    @Column("item_id") String itemId,
+    @Id @Column("item_id") String itemId,
     @Column("tenant_id") String tenantId,
     @Column("template_id") String templateId,
     @Column("asset_type") VersionedAssetType assetType,

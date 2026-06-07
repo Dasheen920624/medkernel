@@ -1,15 +1,7 @@
 package com.medkernel.engine.rule;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.Period;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.stereotype.Component;
 
@@ -32,14 +24,14 @@ import com.medkernel.shared.api.error.ErrorCode;
 public class RuleDslEvaluator {
 
     private final ObjectMapper json;
-    private final ClinicalRuleOperatorSupport clinicalOperators;
+    private final ConditionEvaluator conditionEvaluator;
 
     /**
      * 注入 JSON 处理器，用于缺省上下文、缺失节点与 DSL 条件树解析。
      */
     public RuleDslEvaluator(ObjectMapper json) {
         this.json = json;
-        this.clinicalOperators = new ClinicalRuleOperatorSupport(json);
+        this.conditionEvaluator = new ConditionEvaluator(json);
     }
 
     /**
@@ -57,10 +49,16 @@ public class RuleDslEvaluator {
         if (when == null || !when.isObject()) {
             throw invalid("规则 DSL 缺少 when 条件");
         }
-        JsonNode evalContext = withDerivedFields(context == null ? json.createObjectNode() : context);
-        ConditionEvaluation condition = evaluateConditionNode(when, evalContext);
-        JsonNode explanation = buildExplanation(dsl.path("explain"), condition.evidence());
-        if (!condition.matched()) {
+        MissingPolicy missingPolicy = parseMissingPolicy(dsl.path("missingPolicy").asText(null));
+        ConditionEvaluation condition = conditionEvaluator.evaluate(
+            when,
+            context == null ? json.createObjectNode() : context);
+        boolean unknownBlocked = !condition.matched()
+            && condition.unknown()
+            && missingPolicy == MissingPolicy.UNKNOWN_AS_BLOCK;
+        JsonNode explanation = buildExplanation(
+            dsl.path("explain"), condition.evidence(), missingPolicy, unknownBlocked);
+        if (!condition.matched() && !unknownBlocked) {
             return new RuleDslEvaluation(false, null, List.of(), explanation);
         }
 
@@ -69,145 +67,6 @@ public class RuleDslEvaluator {
             .map(RuleActionResult::severity)
             .reduce(null, RuleRiskLevel::max);
         return new RuleDslEvaluation(true, highest, actions, explanation);
-    }
-
-    /**
-     * 求值期补齐派生字段：{@code patient.age} 由 {@code patient.birthDate} 与 {@code patient.eventTime}
-     * 计算整岁（评估时刻取数据内 eventTime、可复现，不用 wall-clock）。缺 birthDate/eventTime 不补、
-     * 已显式带 age 不覆盖（按缺失数据策略，不臆测）。返回增强副本，不改调用方上下文。
-     */
-    private JsonNode withDerivedFields(JsonNode context) {
-        if (!context.isObject()) {
-            return context;
-        }
-        JsonNode patient = context.path("patient");
-        if (!patient.isObject() || patient.has("age")) {
-            return context;
-        }
-        Integer age = derivePatientAge(patient);
-        if (age == null) {
-            return context;
-        }
-        ObjectNode augmented = (ObjectNode) context.deepCopy();
-        ((ObjectNode) augmented.get("patient")).put("age", age);
-        return augmented;
-    }
-
-    private Integer derivePatientAge(JsonNode patient) {
-        LocalDate birthDate = parseLocalDate(patient.path("birthDate"));
-        Instant asOf = parseInstant(patient.path("eventTime"));
-        if (birthDate == null || asOf == null) {
-            return null;
-        }
-        LocalDate asOfDate = asOf.atZone(ZoneOffset.UTC).toLocalDate();
-        if (asOfDate.isBefore(birthDate)) {
-            return null; // 出生日期晚于评估时刻：数据异常，不臆测负年龄
-        }
-        return Period.between(birthDate, asOfDate).getYears();
-    }
-
-    private LocalDate parseLocalDate(JsonNode node) {
-        if (node == null || !node.isTextual() || node.asText().isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(node.asText());
-        } catch (DateTimeParseException e) {
-            return null;
-        }
-    }
-
-    private Instant parseInstant(JsonNode node) {
-        if (node == null || !node.isTextual() || node.asText().isBlank()) {
-            return null;
-        }
-        try {
-            return Instant.parse(node.asText());
-        } catch (DateTimeParseException e) {
-            return null;
-        }
-    }
-
-    private ConditionEvaluation evaluateConditionNode(JsonNode node, JsonNode context) {
-        JsonNode all = node.get("all");
-        if (all != null) {
-            if (!all.isArray()) {
-                throw invalid("when.all 必须是数组");
-            }
-            List<ConditionEvidence> evidence = new ArrayList<>();
-            for (JsonNode child : all) {
-                ConditionEvaluation result = evaluateConditionNode(child, context);
-                evidence.addAll(result.evidence());
-                if (!result.matched()) {
-                    return new ConditionEvaluation(false, List.copyOf(evidence));
-                }
-            }
-            return new ConditionEvaluation(true, List.copyOf(evidence));
-        }
-
-        JsonNode any = node.get("any");
-        if (any != null) {
-            if (!any.isArray()) {
-                throw invalid("when.any 必须是数组");
-            }
-            List<ConditionEvidence> evidence = new ArrayList<>();
-            for (JsonNode child : any) {
-                ConditionEvaluation result = evaluateConditionNode(child, context);
-                evidence.addAll(result.evidence());
-                if (result.matched()) {
-                    return new ConditionEvaluation(true, List.copyOf(evidence));
-                }
-            }
-            return new ConditionEvaluation(false, List.copyOf(evidence));
-        }
-
-        return evaluateLeaf(node, context);
-    }
-
-    private ConditionEvaluation evaluateLeaf(JsonNode node, JsonNode context) {
-        String fact = requiredText(node, "fact");
-        String operator = requiredText(node, "operator").toLowerCase(Locale.ROOT);
-        JsonNode actual = findPath(context, fact);
-        JsonNode expected = node.get("value");
-
-        ClinicalRuleOperatorSupport.Outcome outcome = switch (operator) {
-            case "exists" -> clinicalOperators.basicOutcome(exists(actual), actual, expected);
-            case "equals" -> clinicalOperators.basicOutcome(exists(actual) && valuesEqual(actual, expected), actual, expected);
-            case "not_equals" -> clinicalOperators.basicOutcome(!exists(actual) || !valuesEqual(actual, expected), actual, expected);
-            case "contains" -> clinicalOperators.basicOutcome(contains(actual, expected), actual, expected);
-            case "gt" -> clinicalOperators.basicOutcome(compare(actual, expected, "gt"), actual, expected);
-            case "gte" -> clinicalOperators.basicOutcome(compare(actual, expected, "gte"), actual, expected);
-            case "lt" -> clinicalOperators.basicOutcome(compare(actual, expected, "lt"), actual, expected);
-            case "lte" -> clinicalOperators.basicOutcome(compare(actual, expected, "lte"), actual, expected);
-            case "in" -> clinicalOperators.basicOutcome(in(actual, expected), actual, expected);
-            case "not_in" -> clinicalOperators.basicOutcome(!in(actual, expected), actual, expected);
-            case "between" -> clinicalOperators.between(fact, actual, expected);
-            case "not_between" -> clinicalOperators.notBetween(fact, actual, expected);
-            case "within_ref" -> clinicalOperators.referenceRange(fact, actual, "within");
-            case "above_ref" -> clinicalOperators.referenceRange(fact, actual, "above");
-            case "below_ref" -> clinicalOperators.referenceRange(fact, actual, "below");
-            case "is_missing" -> clinicalOperators.isMissing(actual);
-            case "is_critical" -> clinicalOperators.isCritical(actual, expected);
-            case "is_stale" -> clinicalOperators.isStale(fact, actual, expected);
-            case "unit_compare" -> clinicalOperators.unitCompare(fact, actual, expected);
-            case "temporal" -> clinicalOperators.temporal(fact, actual, expected);
-            case "derived" -> clinicalOperators.derived(fact, context, expected);
-            default -> throw operatorInvalid("不支持的规则算子: " + operator);
-        };
-        return new ConditionEvaluation(
-            outcome.matched(),
-            List.of(new ConditionEvidence(
-                fact,
-                "$." + fact,
-                operator,
-                outcome.expected(),
-                outcome.actual(),
-                outcome.matched(),
-                outcome.missing(),
-                outcome.value(),
-                outcome.unit(),
-                outcome.source(),
-                outcome.formula())));
     }
 
     private List<RuleActionResult> parseActions(JsonNode then) {
@@ -229,18 +88,12 @@ public class RuleDslEvaluator {
         return actions;
     }
 
-    private JsonNode findPath(JsonNode source, String path) {
-        JsonNode current = source;
-        for (String segment : path.split("\\.")) {
-            if (current == null || current.isMissingNode() || current.isNull()) {
-                return json.missingNode();
-            }
-            current = current.path(segment);
-        }
-        return current == null ? json.missingNode() : current;
-    }
-
-    private JsonNode buildExplanation(JsonNode source, List<ConditionEvidence> evidence) {
+    private JsonNode buildExplanation(
+        JsonNode source,
+        List<ConditionEvidence> evidence,
+        MissingPolicy missingPolicy,
+        boolean unknownBlocked
+    ) {
         ObjectNode explanation;
         if (source != null && source.isObject()) {
             explanation = source.deepCopy();
@@ -276,6 +129,10 @@ public class RuleDslEvaluator {
             conditionEvidence.add(entry);
         }
         explanation.set("conditionEvidence", conditionEvidence);
+        explanation.put("missingPolicy", missingPolicy.name());
+        if (unknownBlocked) {
+            explanation.put("unknownBlocked", true);
+        }
         return explanation;
     }
 
@@ -284,79 +141,6 @@ public class RuleDslEvaluator {
             return json.nullNode();
         }
         return node.deepCopy();
-    }
-
-    private boolean exists(JsonNode actual) {
-        if (actual == null || actual.isMissingNode() || actual.isNull()) {
-            return false;
-        }
-        if (actual.isTextual()) {
-            return !actual.asText().isBlank();
-        }
-        if (actual.isArray() || actual.isObject()) {
-            return actual.size() > 0;
-        }
-        return true;
-    }
-
-    private boolean valuesEqual(JsonNode actual, JsonNode expected) {
-        if (expected == null || expected.isMissingNode()) {
-            return !exists(actual);
-        }
-        if (actual.isNumber() && expected.isNumber()) {
-            return actual.decimalValue().compareTo(expected.decimalValue()) == 0;
-        }
-        if (actual.isBoolean() || expected.isBoolean()) {
-            return actual.asBoolean() == expected.asBoolean();
-        }
-        if (actual.isTextual() || expected.isTextual()) {
-            return actual.asText().equals(expected.asText());
-        }
-        return actual.equals(expected);
-    }
-
-    private boolean contains(JsonNode actual, JsonNode expected) {
-        if (!exists(actual) || expected == null || expected.isMissingNode()) {
-            return false;
-        }
-        if (actual.isArray()) {
-            Iterator<JsonNode> values = actual.elements();
-            while (values.hasNext()) {
-                if (valuesEqual(values.next(), expected)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return actual.isTextual() && actual.asText().contains(expected.asText());
-    }
-
-    private boolean in(JsonNode actual, JsonNode expected) {
-        if (!exists(actual) || expected == null || !expected.isArray()) {
-            return false;
-        }
-        for (JsonNode item : expected) {
-            if (valuesEqual(actual, item)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean compare(JsonNode actual, JsonNode expected, String operator) {
-        if (!exists(actual) || expected == null || !actual.isNumber() || !expected.isNumber()) {
-            return false;
-        }
-        BigDecimal left = actual.decimalValue();
-        BigDecimal right = expected.decimalValue();
-        int compared = left.compareTo(right);
-        return switch (operator) {
-            case "gt" -> compared > 0;
-            case "gte" -> compared >= 0;
-            case "lt" -> compared < 0;
-            case "lte" -> compared <= 0;
-            default -> throw invalid("不支持的数值比较算子: " + operator);
-        };
     }
 
     private String requiredText(JsonNode node, String field) {
@@ -378,6 +162,17 @@ public class RuleDslEvaluator {
         }
     }
 
+    private MissingPolicy parseMissingPolicy(String value) {
+        if (value == null || value.isBlank()) {
+            return MissingPolicy.UNKNOWN_AS_FALSE;
+        }
+        try {
+            return MissingPolicy.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("missingPolicy 无效: " + value);
+        }
+    }
+
     private boolean requiresConfirmation(String actionCode, RuleRiskLevel severity) {
         return severity == RuleRiskLevel.HIGH
             || severity == RuleRiskLevel.CRITICAL
@@ -387,27 +182,12 @@ public class RuleDslEvaluator {
     }
 
     private ApiException invalid(String message) {
-        return new ApiException(ErrorCode.RULE_DSL_INVALID, message);
+        return new ApiException(ErrorCode.ENG_RULE_001, message);
     }
 
-    private ApiException operatorInvalid(String message) {
-        return new ApiException(ErrorCode.DSL_OPERATOR_INVALID, message);
+    private enum MissingPolicy {
+        UNKNOWN_AS_FALSE,
+        UNKNOWN_AS_BLOCK
     }
 
-    private record ConditionEvaluation(boolean matched, List<ConditionEvidence> evidence) {
-    }
-
-    private record ConditionEvidence(
-        String fact,
-        String sourcePath,
-        String operator,
-        JsonNode expected,
-        JsonNode actual,
-        boolean matched,
-        boolean missing,
-        JsonNode value,
-        String unit,
-        String source,
-        String formula) {
-    }
 }

@@ -23,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>面向 D4 卡片约定的单数资源与冒号动作路径：
  * {@code /api/v1/engine/evaluation/**} 与 {@code /api/v1/engine/evaluation:evaluate}。
- * 旧版 {@code /api/v1/engine/evaluations/**} 由 {@link EvaluationEngineController}
- * 保持兼容，本控制器仅做路径契约适配并复用同一个服务主链路。
  */
 @RestController
 @RequestMapping("/api/v1/engine/evaluation")
@@ -87,8 +85,21 @@ public class EvaluationEngineCanonicalController {
      */
     @PostMapping("/indicators/{indicatorId}/publish")
     @PreAuthorize("@perm.has('evaluation.publish')")
-    public ApiResult<EvaluationIndicator> publishIndicator(@PathVariable String indicatorId) {
-        return ApiResult.ok(service.publishIndicator(indicatorId));
+    public ApiResult<EvaluationIndicator> publishIndicator(
+            @PathVariable String indicatorId,
+            @RequestBody @Valid EvaluationIndicatorReleaseRequest request) {
+        return ApiResult.ok(service.publishIndicator(indicatorId, request));
+    }
+
+    /**
+     * 将已发布指标进入默认 10% 床位灰度。
+     */
+    @PostMapping("/indicators/{indicatorId}/gray")
+    @PreAuthorize("@perm.has('evaluation.publish')")
+    public ApiResult<EvaluationIndicator> grayIndicator(
+            @PathVariable String indicatorId,
+            @RequestBody @Valid EvaluationIndicatorReleaseRequest request) {
+        return ApiResult.ok(service.grayIndicator(indicatorId, request));
     }
 
     /**
@@ -96,8 +107,10 @@ public class EvaluationEngineCanonicalController {
      */
     @PostMapping("/indicators/{indicatorId}/activate")
     @PreAuthorize("@perm.has('evaluation.publish')")
-    public ApiResult<EvaluationIndicator> activateIndicator(@PathVariable String indicatorId) {
-        return ApiResult.ok(service.activateIndicator(indicatorId));
+    public ApiResult<EvaluationIndicator> activateIndicator(
+            @PathVariable String indicatorId,
+            @RequestBody @Valid EvaluationIndicatorReleaseRequest request) {
+        return ApiResult.ok(service.activateIndicator(indicatorId, request));
     }
 
     /**

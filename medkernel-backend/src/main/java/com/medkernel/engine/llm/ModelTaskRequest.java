@@ -12,9 +12,5 @@ public record ModelTaskRequest(
     @NotBlank(message = "输入内容数据不能为空")
     String inputData,
 
-    String desensitizeStrategy,
-
-    String expectedSchema,
-
     Integer timeoutSeconds
 ) {}

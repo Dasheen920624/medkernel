@@ -17,7 +17,7 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准；API-05 收口 2026-06-02）
 `engine/rule` **控制器已建**，本卡＝**契约化 + 影响分析/解释/统一入参补全**：
 - 已有：`RuleEngineController`(+ 安全测试)、`RuleEngineService`、`RuleEvaluateRequest`/`Response`、`RuleSimulateRequest`、`RuleTestCase`、`RulePublishResponse`、`RuleCreateRequest`/`Response`/`RuleDetailResponse`/`RuleFilter`。
-- 已补：① 统一客户面入口 `/api/v1/engine/rule/**`，旧 `/api/v1/engine/rules` 客户面入口 404；② 规则定义创建/详情/列表/更新、测试病例、全量测试、仿真、影响分析、发布、执行、执行解释端点；③ 写接口、仿真、测试、发布、执行补 12 字段统一入参与租户一致性校验；④ 高危规则发布必须携带当前影响分析摘要，且测试用例需全绿；⑤ DSL 错误返回 `RULE_DSL_INVALID`，高危门禁返回 `RULE_PUBLISH_GATE_DENIED`；⑥ 规则影响分析已通过关系库只读索引定位路径模板、在径患者和发布同步目标，关闭 `DEFER-012`，无真实对象时返回空列表，不前端补造。
+- 已补：① 客户面入口统一为 `/api/v1/engine/rule/**`；② 规则定义创建/详情/列表/更新、测试病例、全量测试、仿真、影响分析、发布、执行、执行解释端点；③ 写接口、仿真、测试、发布、执行补 12 字段统一入参与租户一致性校验；④ 高危规则发布必须携带当前影响分析摘要，且测试用例需全绿；⑤ DSL 错误返回 `ENG-RULE-001`，高危门禁返回 `ENG-RULE-004`；⑥ 规则影响分析已通过关系库只读索引定位路径模板、在径患者和发布同步目标，关闭 `DEFER-012`，无真实对象时返回空列表，不前端补造。
 - 未在本卡伪造：真实 10 万级规则列表压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭。
 
 ## 功能要求（原子可测条目）
@@ -34,7 +34,7 @@
 - DTO：复用 `RuleCreateRequest`/`RuleDetailResponse`/`RuleEvaluateRequest`/`Response`/`RulePublishResponse`/`RuleFilter`。
 - 响应信封：`ApiResult` / `ProblemDetail`；大列表 `PageResult`（[API-13](../D0/API-13.md)）。
 - 状态机：规则版本核心 §3 配置类 + 变更类（[SYS-04](SYS-04.md)）。
-- 幂等 / 错误码 / traceId：发布幂等键；高危门禁 → `RULE_PUBLISH_GATE_DENIED`；DSL 错 → `RULE_DSL_INVALID`；traceId（[OBS-01](../D0/OBS-01.md)）。
+- 幂等 / 错误码 / traceId：发布幂等键；高危门禁 → `ENG-RULE-004`；DSL 错 → `ENG-RULE-001`；traceId（[OBS-01](../D0/OBS-01.md)）。
 ### 页面契约（页面卡）
 N·A —— 本卡无页面。被 [RULE-01](RULE-01.md) 规则库页消费。
 
@@ -60,7 +60,7 @@ N·A —— 本卡无页面。被 [RULE-01](RULE-01.md) 规则库页消费。
 
 ## 验收 + 验证
 - [x] **AC-1（FR-1/2）**：规则 CRUD + 用例测试，统一信封；用例不全绿不可发布。
-- [x] **AC-2（FR-3/4）**：影响分析返回受影响对象；高危无影响分析发布 → `RULE_PUBLISH_GATE_DENIED`。跨域真实影响对象由关系库只读索引返回路径模板、在径患者和同步目标，`DEFER-012` 已关闭；无真实引用时返回空列表，不伪造对象。
+- [x] **AC-2（FR-3/4）**：影响分析返回受影响对象；高危无影响分析发布 → `ENG-RULE-004`。跨域真实影响对象由关系库只读索引返回路径模板、在径患者和同步目标，`DEFER-012` 已关闭；无真实引用时返回空列表，不伪造对象。
 - [x] **AC-3（FR-5）**：对标准上下文求值返回结果 + 解释。
 - [x] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
 - 关联 A1–A9 剧本：A3 规则配置、A4 发布回滚。

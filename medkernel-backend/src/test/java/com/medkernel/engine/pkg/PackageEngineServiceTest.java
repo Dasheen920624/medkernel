@@ -1,5 +1,14 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionDraftUpdateCommand;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +39,8 @@ import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.evaluation.EvaluationSubjectType;
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeDomain;
@@ -39,6 +50,14 @@ import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.pathway.PathwayEdge;
+import com.medkernel.engine.pathway.PathwayEdgeRepository;
+import com.medkernel.engine.pathway.PathwayEdgeType;
+import com.medkernel.engine.pathway.PathwayNode;
+import com.medkernel.engine.pathway.PathwayNodeRepository;
+import com.medkernel.engine.pathway.PathwayNodeType;
+import com.medkernel.engine.pathway.SpecialtyMetricBinding;
+import com.medkernel.engine.pathway.SpecialtyMetricBindingRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
@@ -52,24 +71,30 @@ import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.terminology.TermMappingPackage;
 import com.medkernel.engine.terminology.TermMapping;
 import com.medkernel.engine.terminology.TermMappingPackageItem;
 import com.medkernel.engine.terminology.TermMappingPackageItemRepository;
 import com.medkernel.engine.terminology.TermMappingPackageRepository;
 import com.medkernel.engine.terminology.TermMappingRepository;
+import com.medkernel.engine.terminology.TermMappingSnapshot;
+import com.medkernel.engine.terminology.TermMappingSnapshotCodec;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -81,13 +106,16 @@ class PackageEngineServiceTest {
     private KnowledgePackageRepository packageRepository;
     private PackageItemRepository itemRepository;
     private ReleasePlanRepository planRepository;
-    private SyncTargetRepository targetRepository;
+    private IntegrationAdapterRepository adapterRepository;
     private SyncLogRepository logRepository;
     private TransactionTemplate transactionTemplate;
 
     private RuleDefinitionRepository ruleRepository;
     private RuleVersionRepository ruleVersionRepository;
     private PathwayTemplateRepository pathwayRepository;
+    private PathwayNodeRepository pathwayNodeRepository;
+    private PathwayEdgeRepository pathwayEdgeRepository;
+    private SpecialtyMetricBindingRepository pathwayMetricBindingRepository;
     private EvaluationIndicatorRepository evaluationRepository;
     private KnowledgeIdentityRepository knowledgeIdentityRepository;
     private KnowledgeAssetVersionRepository knowledgeVersionRepository;
@@ -98,7 +126,11 @@ class PackageEngineServiceTest {
     private PilotPackageTemplateItemRepository pilotTemplateItemRepository;
 
     private PackageSyncPort syncPort;
-    private AuditEventPublisher auditPublisher;
+    private EffectiveKnowledgePackageResolver effectivePackageResolver;
+    private AuditRecorder auditRecorder;
+    private PackageVersionedAssetAdapter versionedAssets;
+    private AssetVersionRepository assetVersions;
+    private ReleasePort releasePort;
 
     private PackageEngineService service;
 
@@ -107,12 +139,15 @@ class PackageEngineServiceTest {
         packageRepository = mock(KnowledgePackageRepository.class);
         itemRepository = mock(PackageItemRepository.class);
         planRepository = mock(ReleasePlanRepository.class);
-        targetRepository = mock(SyncTargetRepository.class);
+        adapterRepository = mock(IntegrationAdapterRepository.class);
         logRepository = mock(SyncLogRepository.class);
 
         ruleRepository = mock(RuleDefinitionRepository.class);
         ruleVersionRepository = mock(RuleVersionRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
+        pathwayNodeRepository = mock(PathwayNodeRepository.class);
+        pathwayEdgeRepository = mock(PathwayEdgeRepository.class);
+        pathwayMetricBindingRepository = mock(SpecialtyMetricBindingRepository.class);
         evaluationRepository = mock(EvaluationIndicatorRepository.class);
         knowledgeIdentityRepository = mock(KnowledgeIdentityRepository.class);
         knowledgeVersionRepository = mock(KnowledgeAssetVersionRepository.class);
@@ -123,8 +158,12 @@ class PackageEngineServiceTest {
         pilotTemplateItemRepository = mock(PilotPackageTemplateItemRepository.class);
 
         syncPort = mock(PackageSyncPort.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        effectivePackageResolver = mock(EffectiveKnowledgePackageResolver.class);
+        auditRecorder = mock(AuditRecorder.class);
         transactionTemplate = mock(TransactionTemplate.class);
+        versionedAssets = mock(PackageVersionedAssetAdapter.class);
+        assetVersions = mock(AssetVersionRepository.class);
+        releasePort = mock(ReleasePort.class);
 
         // 模拟 TransactionTemplate 编程式事务在测试下的行为
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
@@ -138,20 +177,48 @@ class PackageEngineServiceTest {
         }).when(transactionTemplate).executeWithoutResult(any());
 
         service = new PackageEngineService(
-            packageRepository, itemRepository, planRepository, targetRepository, logRepository,
-            ruleRepository, ruleVersionRepository, pathwayRepository, evaluationRepository,
+            packageRepository, itemRepository, planRepository, adapterRepository, logRepository,
+            ruleRepository, ruleVersionRepository, pathwayRepository,
+            pathwayNodeRepository, pathwayEdgeRepository, pathwayMetricBindingRepository,
+            evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
             terminologyPackageRepository, terminologyPackageItemRepository, terminologyMappingRepository,
             pilotTemplateRepository, pilotTemplateItemRepository,
-            syncPort, auditPublisher,
-            transactionTemplate
+            syncPort, effectivePackageResolver, auditRecorder,
+            transactionTemplate, versionedAssets, assetVersions, releasePort
         );
 
         when(packageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(planRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(targetRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(adapterRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(logRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pathwayRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pathwayNodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pathwayEdgeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pathwayMetricBindingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(effectivePackageResolver.resolve(any(), any(), any(), any()))
+            .thenAnswer(inv -> new EffectiveKnowledgePackageResponse(
+                inv.getArgument(0),
+                inv.getArgument(3),
+                "pkg-effective",
+                inv.getArgument(1),
+                inv.getArgument(2),
+                List.of(new EffectivePackageItem(
+                    VersionedAssetType.RULE,
+                    "RULE.BASELINE",
+                    "1",
+                    "1",
+                    inv.getArgument(0),
+                    "/TENANT-A/HOSP-A",
+                    SourceTier.ORG,
+                    false,
+                    false,
+                    true,
+                    "av-baseline",
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")),
+                List.of(),
+                List.of()));
         when(knowledgeIdentityRepository.save(any())).thenAnswer(inv -> {
             KnowledgeIdentity identity = inv.getArgument(0);
             if (identity.id() != null) {
@@ -207,14 +274,38 @@ class PackageEngineServiceTest {
         when(terminologyPackageItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pilotTemplateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pilotTemplateItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(versionedAssets.registerDraft(any())).thenAnswer(invocation -> {
+            AssetVersionRegisterCommand command = invocation.getArgument(0);
+            return packageAssetVersion(
+                "av-" + command.assetIdentity() + "-" + command.versionNo(),
+                command.assetIdentity(),
+                command.versionNo(),
+                command.organizationScope(),
+                AssetVersionStatus.DRAFT
+            );
+        });
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            org.mockito.ArgumentMatchers.anyString(),
+            eq(VersionedAssetType.PACKAGE),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString()
+        )).thenAnswer(invocation -> Optional.of(packageAssetVersion(
+            "av-" + invocation.getArgument(2) + "-" + invocation.getArgument(3),
+            invocation.getArgument(2),
+            invocation.getArgument(3),
+            "tenant:" + invocation.getArgument(0),
+            AssetVersionStatus.DRAFT
+        )));
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pkg", OrgScope.tenant("tenant-A"), "tester"));
+        authenticate(RoleCode.HOSPITAL_ADMIN);
     }
 
     @AfterEach
     void clear() {
         RequestContext.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -231,7 +322,14 @@ class PackageEngineServiceTest {
         ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
         verify(packageRepository).save(packCap.capture());
         assertThat(packCap.getValue().tenantId()).isEqualTo("tenant-A");
-        verify(auditPublisher).publish(eq(AuditAction.CREATE), eq("knowledge_package"), any(), any());
+        verify(versionedAssets).registerDraft(argThat(command ->
+            command.assetType() == VersionedAssetType.PACKAGE
+                && command.assetIdentity().equals("PKG.COPD")
+                && command.versionNo().equals("1.0.0")
+                && command.organizationScope().equals("tenant:tenant-A")
+                && command.applicableScope().equals("ALL")
+        ));
+        verify(auditRecorder).record(eq(AuditAction.CREATE), eq("knowledge_package"), any(), any());
     }
 
     @Test
@@ -418,13 +516,42 @@ class PackageEngineServiceTest {
 
         when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId("tenant-A", "pkg-1", VersionedAssetType.RULE, "rule-1"))
             .thenReturn(Optional.empty());
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-1"))
+            .thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PACKAGE, "PKG.COPD", "1.0.0"))
+            .thenReturn(Optional.of(packageAssetVersion(
+                "av-package-1", "PKG.COPD", "1.0.0", "tenant:tenant-A", AssetVersionStatus.DRAFT)));
 
         PackageItemResponse response = service.addPackageItem("pkg-1", new PackageItemRequest(
             VersionedAssetType.RULE, "rule-1", "1"));
 
         assertThat(response.itemId()).isNotNull();
         assertThat(response.assetId()).isEqualTo("rule-1");
-        verify(auditPublisher).publish(eq(AuditAction.UPDATE), eq("knowledge_package"), eq("pkg-1"), any());
+        verify(versionedAssets).updateDraft(argThat(
+            (AssetVersionDraftUpdateCommand command) ->
+                command.versionId().equals("av-package-1")
+                    && command.assetIdentity().equals("PKG.COPD")
+                    && command.contentHash() != null
+                    && command.contentHash().matches("[a-f0-9]{64}")
+        ));
+        verify(auditRecorder).record(eq(AuditAction.UPDATE), eq("knowledge_package"), eq("pkg-1"), any());
+    }
+
+    @Test
+    void addPackageItemRejectsAssetTypesWithoutPackageContract() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+
+        assertThatThrownBy(() -> service.addPackageItem("pkg-1", new PackageItemRequest(
+                VersionedAssetType.CDSS_RISK, "risk-1", "1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PACKAGE_002);
     }
 
     @Test
@@ -495,7 +622,7 @@ class PackageEngineServiceTest {
             assertThat(item.tenantId()).isEqualTo("tenant-A");
             assertThat(item.traceId()).isEqualTo("trace-pkg");
         });
-        verify(auditPublisher).publish(eq(AuditAction.CREATE), eq("knowledge_package"),
+        verify(auditRecorder).record(eq(AuditAction.CREATE), eq("knowledge_package"),
             eq(packCap.getValue().packageId()), any());
     }
 
@@ -552,7 +679,7 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(new ReleasePlan(
                 1L, "plan-gray", "tenant-A", "pkg-published", "hospital-1",
                 ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
-                "{\"strategy\":\"BED_PERCENT\",\"percentage\":10}",
+                "{\"rolloutStrategy\":\"CANARY_BED_PERCENT\",\"percentage\":10}",
                 ReleasePlanStatus.SUCCESS,
                 Instant.now(), "tester", Instant.now(), "tester", "trace"
             )));
@@ -715,7 +842,7 @@ class PackageEngineServiceTest {
             .contains("\"event\":\"PACKAGE_DIFF_CHANGE\"")
             .contains("\"changeType\":\"ADDED\"")
             .contains("\"assetId\":\"rule-added\"");
-        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-target"), any());
+        verify(auditRecorder).record(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-target"), any());
     }
 
     @Test
@@ -735,15 +862,22 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(publishedRuleVersion("rule-stable", "rule-version-2", 2)));
         when(evaluationRepository.findByIndicatorIdAndTenantId("eval-stable", "tenant-A"))
             .thenReturn(Optional.of(publishedIndicator("eval-stable", "dept-eval")));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.0.0", "hospital-1"))
+            .thenReturn(effectiveResponse("pkg-offline", "PKG.TEST", "3.0.0", "hospital-1", List.of(
+                effectiveItem(VersionedAssetType.RULE, "rule-stable", "2", "rule-source-version-2", "c".repeat(64)),
+                effectiveItem(VersionedAssetType.EVALUATION, "eval-stable", "1", "eval-source-version-1", "d".repeat(64))
+            )));
 
-        String exportJson = service.exportOfflinePackage("pkg-offline");
+        String exportJson = service.exportOfflinePackage("pkg-offline", "hospital-1");
 
         JsonNode root = TEST_MAPPER.readTree(exportJson);
-        assertThat(root.path("format").asText()).isEqualTo("MEDKERNEL_PACKAGE_OFFLINE_V1");
+        assertThat(root.path("format").asText()).isEqualTo("MEDKERNEL_PACKAGE_OFFLINE_V2");
         assertThat(root.path("manifest").path("packageId").asText()).isEqualTo("pkg-offline");
         assertThat(root.path("manifest").path("tenantId").asText()).isEqualTo("tenant-A");
         assertThat(root.path("manifest").path("packageCode").asText()).isEqualTo("PKG.TEST");
         assertThat(root.path("manifest").path("packageVersion").asText()).isEqualTo("3.0.0");
+        assertThat(root.path("manifest").path("targetOrgUnitId").asText()).isEqualTo("hospital-1");
+        assertThat(root.path("manifest").path("effectiveSnapshotSha256").asText()).matches("[a-f0-9]{64}");
         assertThat(root.path("manifest").path("itemCount").asInt()).isEqualTo(2);
         assertThat(root.path("manifest").path("assetSnapshotCount").asInt()).isEqualTo(2);
         assertThat(root.path("manifest").path("traceId").asText()).isEqualTo("trace-pkg");
@@ -757,13 +891,19 @@ class PackageEngineServiceTest {
             .isEqualTo(expectedSha256);
         assertThat(root.path("payload").path("packageInfo").path("packageId").asText())
             .isEqualTo("pkg-offline");
+        assertThat(root.path("payload").path("effectiveSnapshot").path("targetOrgUnitId").asText())
+            .isEqualTo("hospital-1");
+        assertThat(root.path("payload").path("effectiveSnapshot").path("contentSha256").asText())
+            .isEqualTo(root.path("manifest").path("effectiveSnapshotSha256").asText());
         assertThat(root.path("payload").path("items")).hasSize(2);
         JsonNode snapshots = root.path("payload").path("assetSnapshots");
         assertThat(snapshots).hasSize(2);
         assertThat(snapshots).anySatisfy(snapshot -> {
             assertThat(snapshot.path("assetType").asText()).isEqualTo("RULE");
             assertThat(snapshot.path("assetId").asText()).isEqualTo("rule-stable");
-            assertThat(snapshot.path("assetVersion").asText()).isEqualTo("2");
+            assertThat(snapshot.path("effectiveVersion").asText()).isEqualTo("2");
+            assertThat(snapshot.path("sourceVersionId").asText()).isEqualTo("rule-source-version-2");
+            assertThat(snapshot.path("contentHash").asText()).isEqualTo("c".repeat(64));
             assertThat(snapshot.path("content").path("version").path("dslJson").asText()).contains("rule-stable");
             assertThat(snapshot.path("contentSha256").asText())
                 .isEqualTo(sha256Node(snapshot.path("content")));
@@ -771,13 +911,13 @@ class PackageEngineServiceTest {
         assertThat(snapshots).anySatisfy(snapshot -> {
             assertThat(snapshot.path("assetType").asText()).isEqualTo("EVALUATION");
             assertThat(snapshot.path("assetId").asText()).isEqualTo("eval-stable");
-            assertThat(snapshot.path("assetVersion").asText()).isEqualTo("1");
+            assertThat(snapshot.path("effectiveVersion").asText()).isEqualTo("1");
             assertThat(snapshot.path("content").path("indicator").path("denominatorDefinition").asText())
                 .isEqualTo("denominator");
             assertThat(snapshot.path("contentSha256").asText())
                 .isEqualTo(sha256Node(snapshot.path("content")));
         });
-        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-offline"), any());
+        verify(auditRecorder).record(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-offline"), any());
     }
 
     @Test
@@ -790,9 +930,13 @@ class PackageEngineServiceTest {
         TermMappingPackage terminologyPackage = publishedTerminologyPackage(
             301L, "TERM.LAB", "2026.06", "DEPARTMENT", "CARD");
         TermMapping termMapping = publishedTermMapping(401L);
+        TermMappingSnapshot terminologySnapshot = new TermMappingSnapshot(
+            401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
+            1.0D, "LOW", "CONFIRMED", "人工确认", "tester", "2026-06-01T00:00:00Z"
+        );
         TermMappingPackageItem terminologyItem = new TermMappingPackageItem(
-            501L, "tenant-A", 301L, 401L,
-            "{\"mappingId\":401,\"localTermId\":11,\"standardTermId\":22,\"status\":\"CONFIRMED\"}",
+            501L, "tenant-A", 301L, 401L, 11L, 22L, "LIS", "HB", "LOINC", "718-7", "LAB",
+            TermMappingSnapshotCodec.write(terminologySnapshot),
             Instant.parse("2026-06-01T00:00:00Z"), "tester"
         );
 
@@ -811,8 +955,13 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(terminologyItem));
         when(terminologyMappingRepository.findByTenantIdAndId("tenant-A", 401L))
             .thenReturn(Optional.of(termMapping));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.1.0", "hospital-1"))
+            .thenReturn(effectiveResponse("pkg-all-assets", "PKG.TEST", "3.1.0", "hospital-1", List.of(
+                effectiveItem(VersionedAssetType.KNOWLEDGE, "KNOW.COPD.GUIDE", "v1", "knowledge-source-version-v1", "e".repeat(64)),
+                effectiveItem(VersionedAssetType.TERMINOLOGY, "TERM.LAB|DEPARTMENT|CARD", "2026.06", "term-source-version-202606", "f".repeat(64))
+            )));
 
-        String exportJson = service.exportOfflinePackage("pkg-all-assets");
+        String exportJson = service.exportOfflinePackage("pkg-all-assets", "hospital-1");
 
         JsonNode snapshots = TEST_MAPPER.readTree(exportJson).path("payload").path("assetSnapshots");
         assertThat(snapshots).hasSize(2);
@@ -834,6 +983,42 @@ class PackageEngineServiceTest {
                 .isEqualTo(11L);
             assertThat(snapshot.path("contentSha256").asText()).isEqualTo(sha256Node(snapshot.path("content")));
         });
+    }
+
+    @Test
+    void exportOfflinePackageIncludesCompletePathwayGraphSnapshot() throws Exception {
+        KnowledgePackage pack = packageVersion("pkg-pathway", "3.2.0", KnowledgePackageStatus.PUBLISHED);
+        PathwayTemplate template = publishedPathway("pathway-stable");
+        when(packageRepository.findByPackageIdAndTenantId("pkg-pathway", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-pathway"))
+            .thenReturn(List.of(
+                packageItem(1L, "pkg-pathway", VersionedAssetType.PATHWAY, "pathway-stable", "1")
+            ));
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.of(template));
+        when(pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+            "pathway-stable", "tenant-A")).thenReturn(pathwayNodes());
+        when(pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
+            "pathway-stable", "tenant-A")).thenReturn(List.of(pathwayEdge("edge-start-end")));
+        when(pathwayMetricBindingRepository.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+            "pathway-stable", "tenant-A")).thenReturn(List.of(pathwayBinding("binding-1")));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.2.0", "hospital-1"))
+            .thenReturn(effectiveResponse("pkg-pathway", "PKG.TEST", "3.2.0", "hospital-1", List.of(
+                effectiveItem(VersionedAssetType.PATHWAY, "pathway-stable", "1",
+                    "pathway-source-version-1", "e".repeat(64))
+            )));
+
+        JsonNode snapshot = TEST_MAPPER.readTree(
+            service.exportOfflinePackage("pkg-pathway", "hospital-1"))
+            .path("payload").path("assetSnapshots").get(0);
+
+        assertThat(snapshot.path("assetType").asText()).isEqualTo("PATHWAY");
+        assertThat(snapshot.path("content").path("template").path("templateId").asText())
+            .isEqualTo("pathway-stable");
+        assertThat(snapshot.path("content").path("nodes")).hasSize(2);
+        assertThat(snapshot.path("content").path("edges")).hasSize(1);
+        assertThat(snapshot.path("content").path("metricBindings")).hasSize(1);
     }
 
     @Test
@@ -894,7 +1079,7 @@ class PackageEngineServiceTest {
         assertThat(indicatorCap.getValue().indicatorId()).isEqualTo("eval-stable");
         assertThat(indicatorCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(indicatorCap.getValue().denominatorDefinition()).isEqualTo("denominator");
-        verify(auditPublisher).publish(eq(AuditAction.IMPORT), eq("knowledge_package"), eq(importedPack.packageId()), any());
+        verify(auditRecorder).record(eq(AuditAction.IMPORT), eq("knowledge_package"), eq(importedPack.packageId()), any());
     }
 
     @Test
@@ -904,9 +1089,9 @@ class PackageEngineServiceTest {
         items.add(offlineItem("tenant-A", "source-item-2", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06"));
 
         ArrayNode snapshots = TEST_MAPPER.createArrayNode();
-        snapshots.add(offlineSnapshot("KNOWLEDGE", "KNOW.COPD.GUIDE", "v1",
+        snapshots.add(offlineSnapshot("tenant-A", "KNOWLEDGE", "KNOW.COPD.GUIDE", "v1",
             offlineKnowledgeContent("KNOW.COPD.GUIDE", "v1")));
-        snapshots.add(offlineSnapshot("TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06",
+        snapshots.add(offlineSnapshot("tenant-A", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06",
             offlineTerminologyContent()));
         String offlineJson = offlinePackageJson("PKG.ALL.IMPORT", "2026.06.03", "tenant-A", items, snapshots);
 
@@ -944,6 +1129,38 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void importOfflinePackagePersistsCompletePathwayGraphSnapshot() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "PATHWAY", "pathway-stable", "1"));
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot(
+            "tenant-A", "PATHWAY", "pathway-stable", "1", offlinePathwayContent("pathway-stable")));
+        String offlineJson = offlinePackageJson(
+            "PKG.PATHWAY.IMPORT", "2026.06.04", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.PATHWAY.IMPORT", "2026.06.04"))
+            .thenReturn(Optional.empty());
+        when(pathwayRepository.findByTemplateIdAndTenantId("pathway-stable", "tenant-A"))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(publishedPathway("pathway-stable")));
+
+        PackageOfflineImportResponse response = service.importOfflinePackage(
+            new PackageOfflineImportRequest(offlineJson));
+
+        assertThat(response.itemCount()).isEqualTo(1);
+        verify(pathwayRepository).save(argThat(template ->
+            template.templateId().equals("pathway-stable")
+                && template.status() == PathwayTemplateStatus.PUBLISHED));
+        verify(pathwayNodeRepository).save(argThat(node ->
+            node.templateId().equals("pathway-stable") && node.nodeCode().equals("start")));
+        verify(pathwayEdgeRepository).save(argThat(edge ->
+            edge.templateId().equals("pathway-stable") && edge.edgeCode().equals("START_END")));
+        verify(pathwayMetricBindingRepository).save(argThat(binding ->
+            binding.templateId().equals("pathway-stable") && binding.metricCode().equals("METRIC.QC")));
+    }
+
+    @Test
     void importOfflinePackageRejectsInvalidTerminologyMappingEnumBeforePersisting() throws Exception {
         ArrayNode items = TEST_MAPPER.createArrayNode();
         items.add(offlineItem("tenant-A", "source-item-1", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06"));
@@ -951,7 +1168,7 @@ class PackageEngineServiceTest {
         ObjectNode terminologyContent = offlineTerminologyContent();
         ((ObjectNode) terminologyContent.path("mappings").get(0)).put("riskLevel", "DANGER");
         ArrayNode snapshots = TEST_MAPPER.createArrayNode();
-        snapshots.add(offlineSnapshot("TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06",
+        snapshots.add(offlineSnapshot("tenant-A", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06",
             terminologyContent));
         String offlineJson = offlinePackageJson("PKG.BAD.TERM", "2026.06.03", "tenant-A", items, snapshots);
 
@@ -967,6 +1184,39 @@ class PackageEngineServiceTest {
                 assertThat(api.getMessage())
                     .contains("离线包术语映射枚举不合法")
                     .contains("TermRiskLevel=DANGER");
+            });
+
+        verify(packageRepository, never()).save(any());
+        verify(terminologyPackageRepository, never()).save(any());
+        verify(terminologyMappingRepository, never()).save(any());
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void importOfflinePackageRejectsTerminologySnapshotBoundToAnotherMappingBeforePersisting() throws Exception {
+        ArrayNode items = TEST_MAPPER.createArrayNode();
+        items.add(offlineItem("tenant-A", "source-item-1", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06"));
+
+        ObjectNode terminologyContent = offlineTerminologyContent();
+        ((ObjectNode) terminologyContent.path("items").get(0)).put(
+            "mappingSnapshot",
+            "{\"mappingId\":401,\"localTermId\":12,\"standardTermId\":22,\"status\":\"CONFIRMED\"}"
+        );
+        ArrayNode snapshots = TEST_MAPPER.createArrayNode();
+        snapshots.add(offlineSnapshot("tenant-A", "TERMINOLOGY", "TERM.LAB|DEPARTMENT|CARD", "2026.06",
+            terminologyContent));
+        String offlineJson = offlinePackageJson("PKG.BAD.TERM.BINDING", "2026.06.03", "tenant-A", items, snapshots);
+
+        when(packageRepository.findByTenantIdAndPackageCodeAndPackageVersion(
+            "tenant-A", "PKG.BAD.TERM.BINDING", "2026.06.03"))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.importOfflinePackage(new PackageOfflineImportRequest(offlineJson)))
+            .isInstanceOf(ApiException.class)
+            .satisfies(ex -> {
+                ApiException api = (ApiException) ex;
+                assertThat(api.errorCode()).isEqualTo(ErrorCode.ENG_PACKAGE_002);
+                assertThat(api.getMessage()).contains("映射与不可变快照业务键不一致");
             });
 
         verify(packageRepository, never()).save(any());
@@ -1120,14 +1370,14 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-1");
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "同步目标", SyncTargetType.DIFY, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "同步目标", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
 
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-DIFY-001");
 
         PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
@@ -1137,13 +1387,16 @@ class PackageEngineServiceTest {
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
         assertThat(response.logs()).hasSize(1);
-        assertThat(response.logs().get(0).syncEvidence()).isEqualTo("EVIDENCE-DIFY-001");
+        assertThat(response.logs().get(0).syncEvidence()).contains("EVIDENCE-DIFY-001");
 
         ArgumentCaptor<KnowledgePackage> packCap = ArgumentCaptor.forClass(KnowledgePackage.class);
         verify(packageRepository).save(packCap.capture());
         // 全量成功后，原包状态应该原子更新为 ACTIVE
         assertThat(packCap.getValue().status()).isEqualTo(KnowledgePackageStatus.ACTIVE);
-        verify(auditPublisher).publish(eq(AuditAction.PUBLISH), eq("knowledge_package"), eq("pkg-1"), any());
+        verify(releasePort).submitForReview(any());
+        verify(releasePort).approveForSilentObservation(any());
+        verify(releasePort).releaseFull(any());
+        verify(auditRecorder).record(eq(AuditAction.PUBLISH), eq("knowledge_package"), eq("pkg-1"), any());
     }
 
     @Test
@@ -1156,14 +1409,14 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-1");
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "图谱同步", "REST", null,
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
 
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
 
         PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
@@ -1191,13 +1444,13 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-1");
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "院内配置库", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-RELEASE-001");
 
         PackageSyncResponse response = service.releasePackage("pkg-1", packageSyncRequest(
@@ -1207,7 +1460,71 @@ class PackageEngineServiceTest {
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.SUCCESS);
         assertThat(response.logs()).hasSize(1);
-        assertThat(response.logs().get(0).syncEvidence()).isEqualTo("EVIDENCE-RELEASE-001");
+        assertThat(response.logs().get(0).syncEvidence()).contains("EVIDENCE-RELEASE-001");
+    }
+
+    @Test
+    void releasePackageSendsResolvedEffectiveSnapshotToIntegrationAdapter() throws Exception {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-1", "tenant-A", "PKG.COPD", "1.0.0", "包草稿", null,
+            KnowledgePackageStatus.PUBLISHED, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        stubPackageReadyForRelease("pkg-1");
+
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "院内配置库", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(target));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.COPD", "1.0.0", "org-1"))
+            .thenReturn(new EffectiveKnowledgePackageResponse(
+                "tenant-A",
+                "org-1",
+                "pkg-1",
+                "PKG.COPD",
+                "1.0.0",
+                List.of(new EffectivePackageItem(
+                    VersionedAssetType.RULE,
+                    "RULE.VTE",
+                    "1",
+                    "2",
+                    "tenant-A",
+                    "/TENANT-A/HOSP-A",
+                    SourceTier.ORG,
+                    false,
+                    true,
+                    true,
+                    "av-rule-2",
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")),
+                List.of(),
+                List.of()));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
+            .thenReturn("EVIDENCE-SNAPSHOT");
+
+        PackageSyncResponse response = service.syncPackage("pkg-1", packageSyncRequest(
+            "org-1", ReleaseStrategy.FULL, ReleaseScopeType.ALL, null,
+            List.of("target-1"), List.of("hospital-admin")
+        ));
+
+        ArgumentCaptor<EffectivePackageSnapshot> snapshotCaptor =
+            ArgumentCaptor.forClass(EffectivePackageSnapshot.class);
+        verify(syncPort).sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), snapshotCaptor.capture());
+        EffectivePackageSnapshot snapshot = snapshotCaptor.getValue();
+        assertThat(snapshot.contentSha256()).matches("[a-f0-9]{64}");
+        assertThat(snapshot.items()).singleElement().satisfies(item -> {
+            assertThat(item.effectiveVersion()).isEqualTo("2");
+            assertThat(item.sourceVersionId()).isEqualTo("av-rule-2");
+            assertThat(item.contentHash()).isEqualTo("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        });
+        assertThat(response.logs()).singleElement().satisfies(log -> {
+            assertThat(log.status()).isEqualTo(SyncLogStatus.SUCCESS);
+            assertThat(log.syncEvidence())
+                .contains("EVIDENCE-SNAPSHOT")
+                .contains(snapshot.contentSha256());
+        });
     }
 
     @Test
@@ -1219,6 +1536,7 @@ class PackageEngineServiceTest {
         when(packageRepository.findByPackageIdAndTenantId("pkg-full-denied", "tenant-A"))
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-full-denied");
+        authenticate(RoleCode.IMPLEMENTATION_ENGINEER);
 
         PackageSyncRequest request = packageSyncRequest(
             "org-1",
@@ -1235,7 +1553,7 @@ class PackageEngineServiceTest {
             .isEqualTo(ErrorCode.ENG_PACKAGE_002);
 
         verify(planRepository, never()).save(any(ReleasePlan.class));
-        verify(syncPort, never()).sync(any(), any(), any());
+        verify(syncPort, never()).sync(any(), any(), any(), any());
     }
 
     @Test
@@ -1248,13 +1566,13 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-gray-default");
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "院内配置库", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-GRAY-001");
 
         PackageSyncResponse response = service.releasePackage("pkg-gray-default", packageSyncRequest(
@@ -1273,7 +1591,7 @@ class PackageEngineServiceTest {
         ReleasePlan executingPlan = planCap.getAllValues().get(0);
         assertThat(executingPlan.scopeType()).isEqualTo(ReleaseScopeType.HOSPITAL);
         assertThat(executingPlan.scopeValue())
-            .contains("\"strategy\":\"BED_PERCENT\"")
+            .contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"")
             .contains("\"percentage\":10")
             .contains("\"scopeCode\":\"hospital-1\"");
         verify(packageRepository).save(argThat(saved ->
@@ -1294,10 +1612,10 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-bad"))
             .thenReturn(List.of(item));
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
-            .thenReturn(Optional.of(new SyncTarget(
-                1L, "target-1", "tenant-A", "院内配置库", SyncTargetType.CLINICAL_DB, "config",
-                SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
+            .thenReturn(Optional.of(integrationAdapter(
+                1L, "target-1", "tenant-A", "院内配置库", "REST", "config",
+                "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
             )));
 
         assertThatThrownBy(() -> service.releasePackage("pkg-bad", packageSyncRequest(
@@ -1308,7 +1626,7 @@ class PackageEngineServiceTest {
             .hasMessageContaining("配置包发布前校验未通过")
             .hasMessageContaining("术语映射包资产 ID 必须为 packageCode|scopeLevel|scopeCode");
         verify(planRepository, never()).save(any(ReleasePlan.class));
-        verify(syncPort, never()).sync(any(), any(), any());
+        verify(syncPort, never()).sync(any(), any(), any(), any());
     }
 
     @Test
@@ -1350,7 +1668,7 @@ class PackageEngineServiceTest {
         ReleasePlan plan = new ReleasePlan(
             10L, "plan-1", "tenant-A", "pkg-1", "hospital-1",
             ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
-            "{\"strategy\":\"BED_PERCENT\",\"percentage\":10,\"scopeCode\":\"hospital-1\"}",
+            "{\"rolloutStrategy\":\"CANARY_BED_PERCENT\",\"percentage\":10,\"scopeCode\":\"hospital-1\"}",
             ReleasePlanStatus.FAILED, Instant.now(), "tester", Instant.now(), "tester", "trace-plan"
         );
         SyncLog successLog = new SyncLog(
@@ -1374,11 +1692,11 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(plan));
         when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-1"))
             .thenReturn(List.of(successLog, failedLog, notSyncedLog));
-        when(targetRepository.findByTargetIdAndTenantId("target-ok", "tenant-A"))
-            .thenReturn(Optional.of(syncTarget("target-ok", "院内规则库", SyncTargetType.CLINICAL_DB)));
-        when(targetRepository.findByTargetIdAndTenantId("target-fail", "tenant-A"))
-            .thenReturn(Optional.of(syncTarget("target-fail", "图谱同步", SyncTargetType.GRAPH_DB)));
-        when(targetRepository.findByTargetIdAndTenantId("target-offline", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-ok", "tenant-A"))
+            .thenReturn(Optional.of(releaseAdapter("target-ok", "院内规则库", "REST")));
+        when(adapterRepository.findByAdapterIdAndTenantId("target-fail", "tenant-A"))
+            .thenReturn(Optional.of(releaseAdapter("target-fail", "图谱同步", "REST")));
+        when(adapterRepository.findByAdapterIdAndTenantId("target-offline", "tenant-A"))
             .thenReturn(Optional.empty());
 
         String ndjson = service.exportSyncEvidence("pkg-1");
@@ -1395,42 +1713,42 @@ class PackageEngineServiceTest {
         assertThat(lines).hasSize(5);
         JsonNode summary = lines.get(0);
         assertThat(summary.path("event").asText()).isEqualTo("PACKAGE_SYNC_EVIDENCE_SUMMARY");
-        assertThat(summary.path("successTargetCount").asInt()).isEqualTo(1);
-        assertThat(summary.path("failedTargetCount").asInt()).isEqualTo(1);
-        assertThat(summary.path("notSyncedTargetCount").asInt()).isEqualTo(1);
+        assertThat(summary.path("successAdapterCount").asInt()).isEqualTo(1);
+        assertThat(summary.path("failedAdapterCount").asInt()).isEqualTo(1);
+        assertThat(summary.path("notSyncedAdapterCount").asInt()).isEqualTo(1);
         assertThat(lines).anySatisfy(line -> {
             assertThat(line.path("event").asText()).isEqualTo("PACKAGE_SYNC_PLAN");
             assertThat(line.path("planId").asText()).isEqualTo("plan-1");
-            assertThat(line.path("scopeValue").asText()).contains("BED_PERCENT");
+            assertThat(line.path("scopeValue").asText()).contains("CANARY_BED_PERCENT");
         });
         JsonNode failedLine = lines.stream()
-            .filter(line -> "target-fail".equals(line.path("targetId").asText()))
+            .filter(line -> "target-fail".equals(line.path("adapterId").asText()))
             .findFirst()
             .orElseThrow();
-        assertThat(failedLine.path("event").asText()).isEqualTo("PACKAGE_SYNC_TARGET");
-        assertThat(failedLine.path("targetName").asText()).isEqualTo("图谱同步");
+        assertThat(failedLine.path("event").asText()).isEqualTo("PACKAGE_RELEASE_ADAPTER");
+        assertThat(failedLine.path("adapterName").asText()).isEqualTo("图谱同步");
         assertThat(failedLine.path("status").asText()).isEqualTo("FAILED");
         assertThat(failedLine.path("errorMessage").asText()).contains("目标库写入失败");
         assertThat(failedLine.hasNonNull("syncEvidence")).isFalse();
         JsonNode notSyncedLine = lines.stream()
-            .filter(line -> "target-offline".equals(line.path("targetId").asText()))
+            .filter(line -> "target-offline".equals(line.path("adapterId").asText()))
             .findFirst()
             .orElseThrow();
         assertThat(notSyncedLine.path("status").asText()).isEqualTo("NOT_SYNCED");
-        assertThat(notSyncedLine.path("targetName").asText()).isEqualTo("target-offline");
+        assertThat(notSyncedLine.path("adapterName").asText()).isEqualTo("target-offline");
         assertThat(notSyncedLine.hasNonNull("syncEvidence")).isFalse();
         assertThat(lines).anySatisfy(line -> {
-            assertThat(line.path("targetId").asText()).isEqualTo("target-ok");
+            assertThat(line.path("adapterId").asText()).isEqualTo("target-ok");
             assertThat(line.path("syncEvidence").asText()).isEqualTo("EVIDENCE-OK");
         });
-        verify(auditPublisher).publish(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-1"),
+        verify(auditRecorder).record(eq(AuditAction.EXPORT), eq("knowledge_package"), eq("pkg-1"),
             argThat(message -> message.contains("导出配置包同步证据")
-                && message.contains("失败站点数: 1")
-                && message.contains("未接入站点数: 1")));
+                && message.contains("失败适配器数: 1")
+                && message.contains("未连通适配器数: 1")));
     }
 
     @Test
-    void syncPackageDoesNotPublishDraftWhenAllTargetsAreNotSynced() throws Exception {
+    void releasePackageDoesNotPublishDraftWhenAllAdaptersAreNotSynced() throws Exception {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待同步草稿包", null,
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -1439,13 +1757,13 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-draft");
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, null,
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "图谱同步", "REST", null,
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
 
         PackageSyncResponse response = service.syncPackage("pkg-draft", packageSyncRequest(
@@ -1460,7 +1778,7 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void syncPackageFailsPlanAndDoesNotPublishDraftWhenAnyTargetFails() throws Exception {
+    void releasePackageFailsPlanAndDoesNotPublishDraftWhenAnyAdapterFails() throws Exception {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-draft", "tenant-A", "PKG.TEST", "1.0.0", "待灰度草稿包", null,
             KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -1469,26 +1787,26 @@ class PackageEngineServiceTest {
             .thenReturn(Optional.of(pack));
         stubPackageReadyForRelease("pkg-draft");
 
-        SyncTarget successTarget = new SyncTarget(
-            1L, "target-ok", "tenant-A", "规则库", SyncTargetType.CLINICAL_DB, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter successAdapter = integrationAdapter(
+            1L, "target-ok", "tenant-A", "规则库", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        SyncTarget failedTarget = new SyncTarget(
-            2L, "target-fail", "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter failedAdapter = integrationAdapter(
+            2L, "target-fail", "tenant-A", "图谱同步", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-ok", "tenant-A"))
-            .thenReturn(Optional.of(successTarget));
-        when(targetRepository.findByTargetIdAndTenantId("target-fail", "tenant-A"))
-            .thenReturn(Optional.of(failedTarget));
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(successTarget)))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-ok", "tenant-A"))
+            .thenReturn(Optional.of(successAdapter));
+        when(adapterRepository.findByAdapterIdAndTenantId("target-fail", "tenant-A"))
+            .thenReturn(Optional.of(failedAdapter));
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(successAdapter), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-OK");
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(failedTarget)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(failedAdapter), any(EffectivePackageSnapshot.class)))
             .thenThrow(new IllegalStateException("目标库写入失败"));
 
         PackageSyncResponse response = service.syncPackage("pkg-draft", new PackageSyncRequest(
             "dept-1", ReleaseStrategy.GRAYSCALE, ReleaseScopeType.DEPARTMENT, "dept-1",
-            List.of("target-ok", "target-fail")
+            List.of("target-ok", "target-fail"), "灰度同步验证"
         ));
 
         assertThat(response.status()).isEqualTo(ReleasePlanStatus.FAILED);
@@ -1614,8 +1932,9 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
         when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
-        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        IntegrationAdapter target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        stubUnifiedRollbackVersions("org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-ROLLBACK");
 
         PackageRollbackRequest request = new PackageRollbackRequest(
@@ -1638,19 +1957,21 @@ class PackageEngineServiceTest {
             assertThat(plan.packageId()).isEqualTo("pkg-2");
             assertThat(plan.status()).isEqualTo(ReleasePlanStatus.ROLLBACKED);
         });
+        verify(releasePort).rollback(any());
 
         ArgumentCaptor<SyncLog> logCap = ArgumentCaptor.forClass(SyncLog.class);
         verify(logRepository, org.mockito.Mockito.times(2)).save(logCap.capture());
         assertThat(logCap.getAllValues()).anySatisfy(log -> {
-            assertThat(log.targetId()).isEqualTo("target-1");
+            assertThat(log.adapterId()).isEqualTo("target-1");
             assertThat(log.status()).isEqualTo(SyncLogStatus.RUNNING);
         });
         assertThat(logCap.getAllValues()).anySatisfy(log -> {
-            assertThat(log.targetId()).isEqualTo("target-1");
+            assertThat(log.adapterId()).isEqualTo("target-1");
             assertThat(log.status()).isEqualTo(SyncLogStatus.SUCCESS);
-            assertThat(log.syncEvidence()).isEqualTo("EVIDENCE-ROLLBACK");
+            assertThat(log.syncEvidence()).contains("EVIDENCE-ROLLBACK");
+            assertThat(log.syncEvidence()).contains("effectiveSnapshotSha256");
         });
-        verify(syncPort).sync(eq("tenant-A"), any(ReleasePlan.class), eq(target));
+        verify(syncPort).sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class));
     }
 
     @Test
@@ -1666,8 +1987,9 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
         when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
-        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        IntegrationAdapter target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        stubUnifiedRollbackVersions("org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenThrow(new PackageSyncNotConnectedException("NOT_SYNCED：未配置真实同步适配器"));
 
         PackageRollbackRequest request = new PackageRollbackRequest(
@@ -1696,7 +2018,7 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void rollbackPackageMarksPlanFailedWhenOriginalSyncTargetMissing() {
+    void rollbackPackageMarksPlanFailedWhenOriginalIntegrationAdapterMissing() {
         KnowledgePackage currentActive = new KnowledgePackage(
             1L, "pkg-1", "tenant-A", "PKG.COPD", "2.0.0", "当前在用包", null,
             KnowledgePackageStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -1722,7 +2044,7 @@ class PackageEngineServiceTest {
             .thenReturn(List.of(originalPlan));
         when(logRepository.findByTenantIdAndPlanId("tenant-A", "plan-current"))
             .thenReturn(List.of(originalSuccessLog));
-        when(targetRepository.findByTargetIdAndTenantId("target-missing", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-missing", "tenant-A"))
             .thenReturn(Optional.empty());
 
         PackageRollbackRequest request = new PackageRollbackRequest(
@@ -1746,7 +2068,7 @@ class PackageEngineServiceTest {
         assertThat(logCap.getAllValues()).anySatisfy(log -> {
             assertThat(log.status()).isEqualTo(SyncLogStatus.FAILED);
             assertThat(log.errorCode()).isEqualTo("ENG-PACKAGE-001");
-            assertThat(log.targetId()).isEqualTo("target-missing");
+            assertThat(log.adapterId()).isEqualTo("target-missing");
         });
     }
 
@@ -1763,8 +2085,8 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
         when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
-        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        IntegrationAdapter target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn(" ");
 
         PackageRollbackRequest request = new PackageRollbackRequest(
@@ -1805,8 +2127,9 @@ class PackageEngineServiceTest {
 
         when(packageRepository.findByPackageIdAndTenantId("pkg-1", "tenant-A")).thenReturn(Optional.of(currentActive));
         when(packageRepository.findByPackageIdAndTenantId("pkg-2", "tenant-A")).thenReturn(Optional.of(targetRollback));
-        SyncTarget target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        IntegrationAdapter target = givenSuccessfulRollbackSource("pkg-1", "plan-current", "target-1", "org-1");
+        stubUnifiedRollbackVersions("org-1");
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-ROLLBACK");
 
         PackageRollbackRequest request = new PackageRollbackRequest(
@@ -1832,7 +2155,7 @@ class PackageEngineServiceTest {
             assertThat(p.status()).isEqualTo(KnowledgePackageStatus.ACTIVE);
         });
 
-        verify(auditPublisher).publish(eq(AuditAction.ROLLBACK), eq("knowledge_package"), eq("pkg-2"), any());
+        verify(auditRecorder).record(eq(AuditAction.ROLLBACK), eq("knowledge_package"), eq("pkg-2"), any());
     }
 
     @Test
@@ -1861,13 +2184,13 @@ class PackageEngineServiceTest {
         when(packageRepository.findByTenantIdOrderByUpdatedAtDesc("tenant-A"))
             .thenReturn(List.of(oldCopd, stroke));
 
-        SyncTarget target = new SyncTarget(
-            1L, "target-1", "tenant-A", "同步目标", SyncTargetType.DIFY, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            1L, "target-1", "tenant-A", "同步目标", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTargetIdAndTenantId("target-1", "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId("target-1", "tenant-A"))
             .thenReturn(Optional.of(target));
-        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target)))
+        when(syncPort.sync(eq("tenant-A"), any(ReleasePlan.class), eq(target), any(EffectivePackageSnapshot.class)))
             .thenReturn("EVIDENCE-001");
 
         PackageSyncResponse response = service.syncPackage("pkg-copd-v2", packageSyncRequest(
@@ -1902,18 +2225,20 @@ class PackageEngineServiceTest {
     }
 
     @Test
-    void listSyncTargetsRetrievesActiveTargets() {
-        SyncTarget activeTarget = new SyncTarget(
-            1L, "target-active", "tenant-A", "激活通道", SyncTargetType.DIFY, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+    void listReleaseAdaptersRetrievesActiveAdapters() {
+        IntegrationAdapter activeAdapter = integrationAdapter(
+            1L, "target-active", "tenant-A", "激活通道", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        when(targetRepository.findByTenantIdAndStatus("tenant-A", SyncTargetStatus.ACTIVE))
-            .thenReturn(List.of(activeTarget));
+        when(adapterRepository.findAllByTenantId("tenant-A"))
+            .thenReturn(List.of(activeAdapter));
+        when(syncPort.supports(activeAdapter)).thenReturn(true);
 
-        List<SyncTarget> results = service.listSyncTargets();
+        List<PackageReleaseAdapterResponse> results = service.listReleaseAdapters();
 
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).targetId()).isEqualTo("target-active");
+        assertThat(results.get(0).adapterId()).isEqualTo("target-active");
+        assertThat(results.get(0).connectorAvailable()).isTrue();
     }
 
     private KnowledgePackage packageVersion(String packageId, String version, KnowledgePackageStatus status) {
@@ -1923,11 +2248,41 @@ class PackageEngineServiceTest {
         );
     }
 
-    private SyncTarget syncTarget(String targetId, String targetName, SyncTargetType targetType) {
-        return new SyncTarget(
-            1L, targetId, "tenant-A", targetName, targetType, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+    private IntegrationAdapter releaseAdapter(String adapterId, String adapterName, String protocolType) {
+        return integrationAdapter(
+            1L, adapterId, "tenant-A", adapterName, protocolType, "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
+    }
+
+    private IntegrationAdapter integrationAdapter(
+            Long id,
+            String adapterId,
+            String tenantId,
+            String name,
+            String protocolType,
+            String configJson,
+            String status,
+            Instant createdAt,
+            String createdBy,
+            Instant updatedAt,
+            String updatedBy,
+            String ignoredTraceId) {
+        return new IntegrationAdapter(
+            id,
+            adapterId,
+            tenantId,
+            name,
+            protocolType,
+            status,
+            configJson,
+            "HEALTHY",
+            5L,
+            updatedAt,
+            createdAt,
+            createdBy,
+            updatedAt,
+            updatedBy);
     }
 
     private String offlinePackageJson(String packageCode, String packageVersion) throws Exception {
@@ -1940,8 +2295,8 @@ class PackageEngineServiceTest {
         items.add(offlineItem(sourceTenantId, "source-item-2", "EVALUATION", "eval-stable", "1"));
 
         ArrayNode assetSnapshots = TEST_MAPPER.createArrayNode();
-        assetSnapshots.add(offlineSnapshot("RULE", "rule-stable", "2", offlineRuleContent("rule-stable", "rule-version-2", 2)));
-        assetSnapshots.add(offlineSnapshot("EVALUATION", "eval-stable", "1", offlineEvaluationContent("eval-stable")));
+        assetSnapshots.add(offlineSnapshot(sourceTenantId, "RULE", "rule-stable", "2", offlineRuleContent("rule-stable", "rule-version-2", 2)));
+        assetSnapshots.add(offlineSnapshot(sourceTenantId, "EVALUATION", "eval-stable", "1", offlineEvaluationContent("eval-stable")));
         return offlinePackageJson(packageCode, packageVersion, sourceTenantId, items, assetSnapshots);
     }
 
@@ -1967,6 +2322,18 @@ class PackageEngineServiceTest {
 
         ObjectNode payload = TEST_MAPPER.createObjectNode();
         payload.set("packageInfo", packageInfo);
+        EffectivePackageSnapshot effectiveSnapshot = EffectivePackageSnapshot.from(
+            new EffectiveKnowledgePackageResponse(
+                sourceTenantId,
+                "hospital-1",
+                "pkg-source",
+                packageCode,
+                packageVersion,
+                effectiveItemsFrom(items),
+                List.of(),
+                List.of()
+            ));
+        payload.set("effectiveSnapshot", TEST_MAPPER.valueToTree(effectiveSnapshot));
         payload.set("items", items);
         payload.set("assetSnapshots", assetSnapshots);
 
@@ -1980,28 +2347,71 @@ class PackageEngineServiceTest {
         manifest.put("packageCode", packageCode);
         manifest.put("packageVersion", packageVersion);
         manifest.put("status", "PUBLISHED");
+        manifest.put("targetOrgUnitId", "hospital-1");
+        manifest.put("effectiveSnapshotSha256", effectiveSnapshot.contentSha256());
         manifest.put("itemCount", items.size());
         manifest.put("assetSnapshotCount", assetSnapshots.size());
+        manifest.put("excludedItemCount", 0);
+        manifest.put("warningCount", 0);
         manifest.put("hashAlgorithm", "SHA-256");
         manifest.put("payloadSha256", payloadSha256);
         manifest.put("exportedAt", "2026-06-01T00:00:00Z");
         manifest.put("traceId", "trace-source");
 
         ObjectNode root = TEST_MAPPER.createObjectNode();
-        root.put("format", "MEDKERNEL_PACKAGE_OFFLINE_V1");
+        root.put("format", "MEDKERNEL_PACKAGE_OFFLINE_V2");
         root.set("manifest", manifest);
         root.set("payload", payload);
         return TEST_MAPPER.writeValueAsString(root);
     }
 
-    private ObjectNode offlineSnapshot(String assetType, String assetId, String assetVersion, ObjectNode content) throws Exception {
+    private ObjectNode offlineSnapshot(
+            String sourceTenantId,
+            String assetType,
+            String assetId,
+            String assetVersion,
+            ObjectNode content) throws Exception {
         ObjectNode snapshot = TEST_MAPPER.createObjectNode();
         snapshot.put("assetType", assetType);
         snapshot.put("assetId", assetId);
-        snapshot.put("assetVersion", assetVersion);
+        snapshot.put("declaredVersion", assetVersion);
+        snapshot.put("effectiveVersion", assetVersion);
+        snapshot.put("sourceTenantId", sourceTenantId);
+        snapshot.put("sourceVersionId", sourceVersionIdFor(assetType, assetId, assetVersion));
+        snapshot.put("contentHash", contentHashFor(sourceTenantId, assetType, assetId, assetVersion));
         snapshot.put("contentSha256", sha256Node(content));
         snapshot.set("content", content);
         return snapshot;
+    }
+
+    private List<EffectivePackageItem> effectiveItemsFrom(ArrayNode items) {
+        List<EffectivePackageItem> effectiveItems = new ArrayList<>();
+        for (JsonNode item : items) {
+            effectiveItems.add(new EffectivePackageItem(
+                VersionedAssetType.valueOf(item.path("assetType").asText()),
+                item.path("assetId").asText(),
+                item.path("declaredVersion").asText(),
+                item.path("effectiveVersion").asText(),
+                item.path("sourceTenantId").asText(),
+                item.path("sourceOrgPath").asText(),
+                SourceTier.valueOf(item.path("sourceTier").asText()),
+                item.path("inherited").asBoolean(),
+                item.path("overridden").asBoolean(),
+                item.path("resolvedByUnifiedVersioning").asBoolean(),
+                item.path("sourceVersionId").asText(),
+                item.path("contentHash").asText()
+            ));
+        }
+        return effectiveItems;
+    }
+
+    private String sourceVersionIdFor(String assetType, String assetId, String assetVersion) {
+        return "source-version-" + assetType + "-" + assetId + "-" + assetVersion;
+    }
+
+    private String contentHashFor(String sourceTenantId, String assetType, String assetId, String assetVersion) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
+            (sourceTenantId + ":" + assetType + ":" + assetId + ":" + assetVersion).getBytes(StandardCharsets.UTF_8)));
     }
 
     private ObjectNode offlineRuleContent(String ruleId, String versionId, int versionNo) {
@@ -2057,6 +2467,65 @@ class PackageEngineServiceTest {
 
         ObjectNode content = TEST_MAPPER.createObjectNode();
         content.set("indicator", indicator);
+        return content;
+    }
+
+    private ObjectNode offlinePathwayContent(String templateId) {
+        ObjectNode template = TEST_MAPPER.createObjectNode();
+        template.put("templateId", templateId);
+        template.put("packageId", "pathway-package");
+        template.put("templateCode", "PATH.TEST");
+        template.put("name", "测试路径");
+        template.put("diseaseCode", "DISEASE.TEST");
+        template.put("templateVersion", 1);
+        template.put("templateLevel", "DEPARTMENT");
+        template.put("status", "PUBLISHED");
+        template.put("startNodeCode", "start");
+        template.put("sourceRef", "source-ref");
+        template.put("description", "路径说明");
+        template.put("entryCriteriaJson", "{}");
+        template.put("exitCriteriaJson", "{}");
+
+        ArrayNode nodes = TEST_MAPPER.createArrayNode();
+        pathwayNodes().forEach(node -> {
+            ObjectNode item = nodes.addObject();
+            item.put("nodeId", node.nodeId());
+            item.put("nodeCode", node.nodeCode());
+            item.put("name", node.name());
+            item.put("nodeType", node.nodeType().name());
+            item.put("sortOrder", node.sortOrder());
+            item.put("responsibleRole", node.responsibleRole());
+            item.put("dependencyJson", node.dependencyJson());
+            if (node.timeWindowMinutes() == null) {
+                item.putNull("timeWindowMinutes");
+            } else {
+                item.put("timeWindowMinutes", node.timeWindowMinutes());
+            }
+            item.put("terminalFlag", node.terminalFlag());
+            item.put("configJson", node.configJson());
+        });
+        PathwayEdge pathwayEdge = pathwayEdge("edge-start-end");
+        ObjectNode edge = TEST_MAPPER.createObjectNode();
+        edge.put("edgeId", pathwayEdge.edgeId());
+        edge.put("edgeCode", pathwayEdge.edgeCode());
+        edge.put("fromNodeCode", pathwayEdge.fromNodeCode());
+        edge.put("toNodeCode", pathwayEdge.toNodeCode());
+        edge.put("edgeType", pathwayEdge.edgeType().name());
+        edge.put("conditionJson", pathwayEdge.conditionJson());
+        edge.put("priority", pathwayEdge.priority());
+        SpecialtyMetricBinding binding = pathwayBinding("binding-1");
+        ObjectNode metricBinding = TEST_MAPPER.createObjectNode();
+        metricBinding.put("bindingId", binding.bindingId());
+        metricBinding.put("packageId", binding.packageId());
+        metricBinding.put("nodeCode", binding.nodeCode());
+        metricBinding.put("metricCode", binding.metricCode());
+        metricBinding.put("requiredFlag", binding.requiredFlag());
+
+        ObjectNode content = TEST_MAPPER.createObjectNode();
+        content.set("template", template);
+        content.set("nodes", nodes);
+        content.set("edges", TEST_MAPPER.createArrayNode().add(edge));
+        content.set("metricBindings", TEST_MAPPER.createArrayNode().add(metricBinding));
         return content;
     }
 
@@ -2120,7 +2589,22 @@ class PackageEngineServiceTest {
         ObjectNode packageItem = TEST_MAPPER.createObjectNode();
         packageItem.put(
             "mappingSnapshot",
-            "{\"mappingId\":401,\"localTermId\":11,\"standardTermId\":22,\"status\":\"CONFIRMED\"}"
+            TermMappingSnapshotCodec.write(new TermMappingSnapshot(
+                401L,
+                11L,
+                22L,
+                "LIS",
+                "HB",
+                "LOINC",
+                "718-7",
+                "LAB",
+                0.98D,
+                "HIGH",
+                "CONFIRMED",
+                "来源编码一致且人工确认",
+                "tester",
+                "2026-06-01T00:00:00Z"
+            ))
         );
 
         ObjectNode content = TEST_MAPPER.createObjectNode();
@@ -2136,26 +2620,28 @@ class PackageEngineServiceTest {
                 .digest(TEST_MAPPER.writeValueAsString(node).getBytes(StandardCharsets.UTF_8)));
     }
 
-    private ObjectNode offlineItem(String sourceTenantId, String itemId, String assetType, String assetId, String assetVersion) {
+    private ObjectNode offlineItem(String sourceTenantId, String itemId, String assetType, String assetId, String assetVersion) throws Exception {
         ObjectNode item = TEST_MAPPER.createObjectNode();
-        item.put("itemId", itemId);
-        item.put("tenantId", sourceTenantId);
         item.put("packageId", "pkg-source");
         item.put("assetType", assetType);
         item.put("assetId", assetId);
-        item.put("assetVersion", assetVersion);
-        item.put("createdAt", "2026-06-01T00:00:00Z");
-        item.put("createdBy", "source-user");
-        item.put("updatedAt", "2026-06-01T00:00:00Z");
-        item.put("updatedBy", "source-user");
-        item.put("traceId", "trace-source");
+        item.put("declaredVersion", assetVersion);
+        item.put("effectiveVersion", assetVersion);
+        item.put("sourceTenantId", sourceTenantId);
+        item.put("sourceOrgPath", "/TENANT-A/HOSP-A");
+        item.put("sourceTier", "ORG");
+        item.put("inherited", false);
+        item.put("overridden", false);
+        item.put("resolvedByUnifiedVersioning", true);
+        item.put("sourceVersionId", sourceVersionIdFor(assetType, assetId, assetVersion));
+        item.put("contentHash", contentHashFor(sourceTenantId, assetType, assetId, assetVersion));
         return item;
     }
 
-    private SyncTarget givenSuccessfulRollbackSource(
+    private IntegrationAdapter givenSuccessfulRollbackSource(
             String currentPackageId,
             String planId,
-            String targetId,
+            String adapterId,
             String targetOrgUnitId) {
         ReleasePlan originalPlan = new ReleasePlan(
             10L, planId, "tenant-A", currentPackageId, targetOrgUnitId,
@@ -2163,20 +2649,20 @@ class PackageEngineServiceTest {
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
         SyncLog originalSuccessLog = new SyncLog(
-            20L, "log-" + targetId, "tenant-A", planId, targetId,
+            20L, "log-" + adapterId, "tenant-A", planId, adapterId,
             SyncLogStatus.SUCCESS, null, null, 0, "EVIDENCE-CURRENT",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
-        SyncTarget target = new SyncTarget(
-            30L, targetId, "tenant-A", "图谱同步", SyncTargetType.GRAPH_DB, "config",
-            SyncTargetStatus.ACTIVE, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        IntegrationAdapter target = integrationAdapter(
+            30L, adapterId, "tenant-A", "图谱同步", "REST", "config",
+            "ACTIVE", Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
 
         when(planRepository.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", currentPackageId))
             .thenReturn(List.of(originalPlan));
         when(logRepository.findByTenantIdAndPlanId("tenant-A", planId))
             .thenReturn(List.of(originalSuccessLog));
-        when(targetRepository.findByTargetIdAndTenantId(targetId, "tenant-A"))
+        when(adapterRepository.findByAdapterIdAndTenantId(adapterId, "tenant-A"))
             .thenReturn(Optional.of(target));
         return target;
     }
@@ -2186,12 +2672,13 @@ class PackageEngineServiceTest {
             ReleaseStrategy strategy,
             ReleaseScopeType scopeType,
             String scopeValue,
-            List<String> targetIds,
+            List<String> adapterIds,
             List<String> roleCodes) {
         return new PackageSyncRequest(
             "req-pkg-release", "trace-pkg-release", "tenant-A", null, "hospital-1", null,
             null, null, null, "tester", roleCodes, "pkg-ctx",
-            targetOrgUnitId, strategy, scopeType, scopeValue, targetIds
+            strategy == ReleaseStrategy.FULL ? "批准全量发布" : "批准默认灰度",
+            targetOrgUnitId, strategy, scopeType, scopeValue, adapterIds
         );
     }
 
@@ -2221,7 +2708,6 @@ class PackageEngineServiceTest {
             String templateCode,
             String name) {
         return new PilotPackageTemplate(
-            1L,
             templateId,
             tenantId,
             templateCode,
@@ -2245,7 +2731,6 @@ class PackageEngineServiceTest {
             String assetId,
             String assetVersion) {
         return new PilotPackageTemplateItem(
-            (long) sortOrder,
             "tpl-item-" + sortOrder,
             templateId.startsWith("tpl-first") ? "t-1" : "tenant-A",
             templateId,
@@ -2272,6 +2757,86 @@ class PackageEngineServiceTest {
         );
     }
 
+    private EffectiveKnowledgePackageResponse effectiveResponse(
+            String packageId,
+            String packageCode,
+            String packageVersion,
+            String targetOrgUnitId,
+            List<EffectivePackageItem> items) {
+        return new EffectiveKnowledgePackageResponse(
+            "tenant-A",
+            targetOrgUnitId,
+            packageId,
+            packageCode,
+            packageVersion,
+            items,
+            List.of(),
+            List.of()
+        );
+    }
+
+    private EffectivePackageItem effectiveItem(
+            VersionedAssetType assetType,
+            String assetId,
+            String effectiveVersion,
+            String sourceVersionId,
+            String contentHash) {
+        return new EffectivePackageItem(
+            assetType,
+            assetId,
+            effectiveVersion,
+            effectiveVersion,
+            "tenant-A",
+            "/TENANT-A/HOSP-A",
+            SourceTier.ORG,
+            false,
+            false,
+            true,
+            sourceVersionId,
+            contentHash
+        );
+    }
+
+    private void authenticate(RoleCode role) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "tester",
+                "n/a",
+                List.of(new SimpleGrantedAuthority(role.authority()))
+            )
+        );
+    }
+
+    private void stubUnifiedRollbackVersions(String targetOrgUnitId) {
+        String identity = "PKG.COPD@" + targetOrgUnitId;
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PACKAGE, identity, "2.0.0"
+        )).thenReturn(Optional.of(packageAssetVersion(
+            "av-package-2", identity, "2.0.0", targetOrgUnitId, AssetVersionStatus.ACTIVE
+        )));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PACKAGE, identity, "1.0.0"
+        )).thenReturn(Optional.of(packageAssetVersion(
+            "av-package-1", identity, "1.0.0", targetOrgUnitId, AssetVersionStatus.OFFLINE
+        )));
+    }
+
+    private AssetVersion packageAssetVersion(
+            String versionId,
+            String identity,
+            String versionNo,
+            String organizationScope,
+            AssetVersionStatus status) {
+        Instant now = Instant.now();
+        return new AssetVersion(
+            null, versionId, "tenant-A", VersionedAssetType.PACKAGE, identity, versionNo,
+            organizationScope, "ALL", "0".repeat(64),
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            status, "version:" + versionId, "knowledge-package:test",
+            null, null, now, "tester", now, "tester", "trace-pkg"
+        );
+    }
+
     private RuleVersion publishedRuleVersion(String ruleId, String versionId, int versionNo) {
         return new RuleVersion(
             1L, versionId, "tenant-A", ruleId, versionNo, "source-ref",
@@ -2288,6 +2853,39 @@ class PackageEngineServiceTest {
             "DISEASE.TEST", 1, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
             "start", "source-ref", "路径说明", "{}", "{}",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private List<PathwayNode> pathwayNodes() {
+        Instant now = Instant.now();
+        return List.of(
+            new PathwayNode(
+                1L, "node-start", "tenant-A", "pathway-stable", "start", "开始评估",
+                PathwayNodeType.ASSESSMENT, 1, "physician", "{}", 60, false, "{}",
+                now, "tester", now, "tester", "trace"
+            ),
+            new PathwayNode(
+                2L, "node-end", "tenant-A", "pathway-stable", "end", "完成路径",
+                PathwayNodeType.DISCHARGE, 2, "physician", "{}", null, true, "{}",
+                now, "tester", now, "tester", "trace"
+            )
+        );
+    }
+
+    private PathwayEdge pathwayEdge(String edgeId) {
+        Instant now = Instant.now();
+        return new PathwayEdge(
+            1L, edgeId, "tenant-A", "pathway-stable", "START_END",
+            "start", "end", PathwayEdgeType.DEFAULT, "{}", 1,
+            now, "tester", now, "tester", "trace"
+        );
+    }
+
+    private SpecialtyMetricBinding pathwayBinding(String bindingId) {
+        Instant now = Instant.now();
+        return new SpecialtyMetricBinding(
+            1L, bindingId, "tenant-A", "pathway-package", "pathway-stable",
+            "start", "METRIC.QC", true, now, "tester", now, "tester", "trace"
         );
     }
 

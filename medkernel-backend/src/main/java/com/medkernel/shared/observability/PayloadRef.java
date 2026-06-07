@@ -3,9 +3,8 @@ package com.medkernel.shared.observability;
 /**
  * 持久化 payload 的引用信息。
  *
- * <p>当前默认实现使用 storageType=INLINE，并把 payload 以 Base64 持久化到
- * {@code mk_obs_payload_store}；未来切对象存储时新写入 storageType=URI、uri 填外部地址，
- * 老数据保持 INLINE，{@link PayloadStoragePort#get(PayloadRef)} 兼容两种来源。
+ * <p>当前实现使用 storageType=INLINE，并把 payload 以 Base64 持久化到
+ * {@code mk_obs_payload_store}。
  *
  * @param storageType  "INLINE" 或 "URI"
  * @param digest       SHA-256 摘要

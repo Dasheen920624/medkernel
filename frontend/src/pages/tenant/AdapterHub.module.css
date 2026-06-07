@@ -1,18 +1,18 @@
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 190), 1fr));
-  gap: var(--mk-gap-md);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .summaryCard,
 .sectionCard {
-  border: var(--mk-border-width) var(--mk-border-style) var(--mk-color-border);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
 }
 
 .sectionStack {
   display: flex;
   flex-direction: column;
-  gap: var(--mk-gap-md);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .toolbar {
@@ -20,26 +20,40 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--mk-gap-md);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .identifier {
-  color: var(--mk-color-text-secondary);
-  font-size: var(--mk-font-size-sm);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
 }
 
 .gapList {
   margin: 0;
-  padding-inline-start: var(--mk-gap-lg);
+  padding-inline-start: calc(var(--mk-unit) * 24);
 }
 
 .qualityGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 180), 1fr));
-  gap: var(--mk-gap-md);
+  gap: calc(var(--mk-unit) * 16);
 }
 
 .qualityCard {
-  border: var(--mk-border-width) var(--mk-border-style) var(--mk-color-border);
-  background: var(--mk-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+}
+
+.resultAlert {
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.secretValue {
+  display: block;
+  margin-top: calc(var(--mk-unit) * 16);
+  padding: calc(var(--mk-unit) * 16);
+  overflow-wrap: anywhere;
+  background: var(--ant-color-fill-tertiary);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-sm);
 }

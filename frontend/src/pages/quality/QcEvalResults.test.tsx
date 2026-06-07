@@ -10,12 +10,16 @@ const mockUseEvaluationResults = vi.fn();
 const mockUseQualityFindings = vi.fn();
 const mockUseQualityFindingDetail = vi.fn();
 const mockUseDispatchRectification = vi.fn();
+const mockUseOrgUnits = vi.fn();
+const mockUseOrgUsers = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationResults: (params: unknown) => mockUseEvaluationResults(params),
   useQualityFindings: (params: unknown) => mockUseQualityFindings(params),
   useQualityFindingDetail: (findingId: string) => mockUseQualityFindingDetail(findingId),
   useDispatchRectification: () => mockUseDispatchRectification(),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
+  useOrgUsers: (params: unknown) => mockUseOrgUsers(params),
 }));
 
 const realResult = {
@@ -32,7 +36,7 @@ const realResult = {
   hitFlag: false,
   evidenceSummary: "病历 mr-real-1 缺少 VTE 风险评估记录",
   sourceRef: "canonical:medical-record:mr-real-1",
-  responsibleDepartmentId: "心内科",
+  responsibleDepartmentId: "dept-cardio",
   createdAt: "2026-06-06T01:00:00Z",
   traceId: "trace-result-real",
 };
@@ -49,7 +53,7 @@ const realFinding = {
   severity: "P1",
   status: "NEW",
   evidenceSummary: "来源 canonical:medical-record:mr-real-1，缺少 observations.VTE_ASSESSMENT",
-  responsibleDepartmentId: "心内科",
+  responsibleDepartmentId: "dept-cardio",
   dueAt: "2026-06-09T00:00:00Z",
   createdAt: "2026-06-06T01:01:00Z",
   traceId: "trace-finding-real",
@@ -91,6 +95,29 @@ beforeEach(() => {
   mockUseQualityFindings.mockReset();
   mockUseQualityFindingDetail.mockReset();
   mockUseDispatchRectification.mockReset();
+  mockUseOrgUnits.mockReset();
+  mockUseOrgUsers.mockReset();
+
+  mockUseOrgUnits.mockReturnValue({
+    data: {
+      items: [
+        {
+          id: "dept-cardio",
+          level: "DEPARTMENT",
+          code: "CARDIO",
+          name: "心内科",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    isLoading: false,
+  });
+  mockUseOrgUsers.mockReturnValue({
+    data: {
+      items: [{ userId: "u-quality-1", displayName: "质控专员" }],
+    },
+    isLoading: false,
+  });
 
   mockUseEvaluationResults.mockReturnValue({
     data: { items: [realResult], page: 1, size: 20, total: 1, hasNext: false },
@@ -178,8 +205,8 @@ describe("QcEvalResults", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看问题详情" }));
-    fireEvent.change(screen.getByLabelText("责任科室"), { target: { value: "心内科" } });
-    fireEvent.change(screen.getByLabelText("责任人"), { target: { value: "u-quality-1" } });
+    await user.click(screen.getByLabelText("责任人"));
+    await user.click(screen.getByText("质控专员 · u-quality-1"));
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
       target: { value: "2026-06-09T00:00:00Z" },
     });
@@ -191,7 +218,7 @@ describe("QcEvalResults", () => {
         expect.objectContaining({
           request: {
             findingId: "finding-real-1",
-            responsibleDepartmentId: "心内科",
+            responsibleDepartmentId: "dept-cardio",
             assigneeUserId: "u-quality-1",
             dueAt: "2026-06-09T00:00:00Z",
           },

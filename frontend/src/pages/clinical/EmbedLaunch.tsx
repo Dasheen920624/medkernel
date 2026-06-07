@@ -11,6 +11,8 @@ import {
   SendOutlined,
 } from "@ant-design/icons";
 import { useEmbedLaunch, useSubmitEmbedFeedback, useRecommendationCards } from "@/shared/api/hooks";
+import type { EmbedFeedbackResponse } from "@/shared/api/hooks";
+import styles from "./EmbedLaunch.module.css";
 
 const { TextArea } = Input;
 
@@ -32,6 +34,7 @@ export default function EmbedLaunch() {
   const [rejectReason, setRejectReason] = useState<string>("");
   const [customReason, setCustomReason] = useState<string>("");
   const [submittedFeedback, setSubmittedFeedback] = useState<boolean>(false);
+  const [feedbackDelivery, setFeedbackDelivery] = useState<EmbedFeedbackResponse | null>(null);
 
   // 3. 突变反馈 API
   const submitFeedbackMutation = useSubmitEmbedFeedback();
@@ -60,12 +63,13 @@ export default function EmbedLaunch() {
     } else {
       // 采纳临床建议
       try {
-        await submitFeedbackMutation.mutateAsync({
+        const result = await submitFeedbackMutation.mutateAsync({
           token,
           actionType: "ADOPT",
           reason: "医师确认符合临床指征并予以执行",
         });
-        message.success("已成功采纳建议并提交反馈！");
+        message.success("已记录采纳决策。");
+        setFeedbackDelivery(result);
         setSubmittedFeedback(true);
         sendPostMessage("ADOPT", "医师确认符合临床指征并予以执行");
       } catch {
@@ -83,12 +87,13 @@ export default function EmbedLaunch() {
     }
 
     try {
-      await submitFeedbackMutation.mutateAsync({
+      const result = await submitFeedbackMutation.mutateAsync({
         token,
         actionType: "REJECT",
         reason: finalReason,
       });
-      message.info("已拒绝该建议，感谢您的专业反馈！");
+      message.info("已记录不采纳决策。");
+      setFeedbackDelivery(result);
       setFeedbackVisible(false);
       setSubmittedFeedback(true);
       sendPostMessage("REJECT", finalReason);
@@ -99,19 +104,21 @@ export default function EmbedLaunch() {
 
   // 通过 window.postMessage 向父级工作站（集成方）派发物理双向通知事件
   const sendPostMessage = (actionType: "ADOPT" | "REJECT", reasonText: string) => {
-    if (window.parent) {
-      const eventData = {
-        source: "MEDKERNEL_CDSS_EMBED",
-        action: actionType,
-        reason: reasonText,
-        patientId: launchContext?.patientId || "未提供患者标识",
-        encounterId: launchContext?.encounterId || "未提供就诊标识",
-        triggerPoint: launchContext?.triggerPoint || "未提供触发点",
-        timestamp: new Date().toISOString(),
-        traceId: launchContext?.traceId || "未提供追踪链路",
-      };
-      window.parent.postMessage(eventData, "*");
-    }
+    const parentOrigin = launchContext?.parentOrigin;
+    if (!parentOrigin) return false;
+
+    const eventData = {
+      source: "MEDKERNEL_CDSS_EMBED",
+      action: actionType,
+      reason: reasonText,
+      patientId: launchContext.patientId,
+      encounterId: launchContext.encounterId,
+      triggerPoint: launchContext.triggerPoint,
+      timestamp: new Date().toISOString(),
+      traceId: launchContext.traceId,
+    };
+    window.parent.postMessage(eventData, parentOrigin);
+    return true;
   };
 
   // 针对单次原子消费令牌，在兑换失败、或者刷新导致 USED 时优雅降级至安全隔离状态
@@ -119,33 +126,31 @@ export default function EmbedLaunch() {
 
   if (loadingLaunch) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-slate-100 p-6 text-center">
+      <div className={styles.centerState}>
         <Spin size="large" />
-        <div className="mt-4 font-medium text-slate-400 text-sm animate-pulse">
-          集团医疗智能中枢正在进行一次性 Launch Token 安全兑换与就诊事实核查...
-        </div>
+        <div className={styles.loadingText}>正在兑换一次性启动令牌并核查当前就诊上下文</div>
       </div>
     );
   }
 
   if (isSessionInvalid || sessionClosed) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-200 p-8 text-center">
-        <div className="bg-rose-950/20 border border-rose-900/30 p-8 rounded-2xl max-w-md shadow-2xl flex flex-col items-center gap-4 animate-fadeIn">
-          <WarningOutlined className="text-4xl text-rose-500 animate-pulse" />
-          <div className="text-lg font-bold text-rose-400">页面嵌入式临床建议会话已安全隔离</div>
-          <div className="text-xs text-slate-400 leading-relaxed text-left bg-slate-900 p-4 rounded-xl border border-slate-800">
-            为了符合国家卫健委对电子病历互联互通和医院信息安全的物理红线规范：
-            <ul className="list-disc pl-5 mt-2 flex flex-col gap-1">
+      <div className={styles.centerState}>
+        <div className={styles.statePanel}>
+          <WarningOutlined className={styles.stateIcon} />
+          <div className={styles.stateTitle}>临床建议会话已安全隔离</div>
+          <div className={styles.stateBody}>
+            当前会话无法继续：
+            <ul className={styles.bulletList}>
               <li>就诊 Launch Token 仅允许消费一次。</li>
               <li>当前嵌入令牌已被单次兑换结案或失效。</li>
-              <li>检测到非法的跨域嵌入来源（CSRF 防护启用）。</li>
+              <li>嵌入来源未通过租户 Origin 白名单校验。</li>
             </ul>
           </div>
           <Alert
             message="请在 HIS / EMR 系统中重新发起点击，以瞬间原子化拉起当前患者的智能决策终端。"
             type="error"
-            className="text-[11px] rounded-lg text-left mt-2"
+            className={styles.stateAlert}
           />
         </div>
       </div>
@@ -153,65 +158,68 @@ export default function EmbedLaunch() {
   }
 
   return (
-    <div className="bg-slate-900 min-h-screen text-slate-100 p-4 flex flex-col gap-4">
-      {/* 顶栏事实 Badge 面板 (紧凑精简设计，最大化 iframe 空间) */}
-      <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <Badge status="processing" className="animate-pulse" />
-          <span className="text-xs text-slate-400">当前嵌入就诊上下文 facts：</span>
-          <Tag color="cyan" className="font-semibold m-0 text-xs">
+    <div className={styles.shell}>
+      <div className={styles.topBar}>
+        <div className={styles.contextRow}>
+          <Badge status="processing" />
+          <span className={styles.contextLabel}>当前就诊上下文</span>
+          <Tag color="cyan" className={styles.contextTag}>
             患者: {launchContext?.patientId}
           </Tag>
-          <Tag color="blue" className="font-semibold m-0 text-xs">
+          <Tag color="blue" className={styles.contextTag}>
             就诊: {launchContext?.encounterId}
           </Tag>
-          <Tag color="purple" className="m-0 text-[10px] font-normal">
+          <Tag color="purple" className={styles.contextTag}>
             触发点: {launchContext?.triggerPoint}
           </Tag>
         </div>
-        <div className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
-          <HeartOutlined className="text-rose-500" />
-          <span>MedKernel 智能决策内核已激活</span>
+        <div className={styles.brandStatus}>
+          <HeartOutlined className={styles.heartIcon} />
+          <span>MedKernel 临床建议已连接</span>
         </div>
       </div>
 
-      {/* 临床决策卡片 Panel 区域 */}
-      <div className="flex flex-col gap-4 flex-1 overflow-y-auto pr-1">
+      <div className={styles.content}>
         {submittedFeedback && (
-          <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl text-center shadow-lg animate-fadeIn">
-            <CheckCircleOutlined className="text-4xl text-emerald-500 mb-2 animate-bounce" />
-            <div className="text-sm font-bold text-emerald-400">医师反馈决策已安全同步并留痕！</div>
-            <div className="text-xs text-slate-400 mt-2">
+          <div className={styles.feedbackPanel}>
+            <CheckCircleOutlined className={styles.successIcon} />
+            <div className={styles.successTitle}>医师反馈已记录并留痕</div>
+            <div className={styles.feedbackMeta}>
               反馈结果：
               <Tag color={selectedAction === "ADOPT" ? "green" : "red"}>
                 {selectedAction === "ADOPT" ? "采纳建议" : "拒绝建议"}
               </Tag>
             </div>
             {selectedAction === "REJECT" && (
-              <div className="text-xs text-rose-300 mt-2 bg-rose-950/20 py-2 px-3 rounded-lg max-w-sm mx-auto">
+              <div className={styles.rejectReason}>
                 拒绝理由：{rejectReason === "OTHER" ? customReason : rejectReason}
               </div>
             )}
             <Alert
-              message="事件已通过 postMessage 双向同步回核心工作站。为了审计安全性，请完成后主动退出当前嵌入式令牌会话。"
-              type="info"
+              message="已向通过白名单校验的父工作站发送交互事件"
+              description={
+                feedbackDelivery?.callbackDelivered
+                  ? "服务端回调已送达，当前会话可以安全退出。"
+                  : `服务端回调未送达：${feedbackDelivery?.degradationReason || "未返回原因"}。反馈审计记录已保留。`
+              }
+              type={feedbackDelivery?.callbackDelivered ? "success" : "warning"}
               showIcon
-              className="text-left max-w-md mx-auto mt-4 text-xs bg-slate-900 border-slate-800 text-slate-300"
+              className={styles.feedbackAlert}
             />
             <Button
               type="default"
               size="small"
               onClick={() => setSessionClosed(true)}
-              className="mt-4 rounded-lg bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600"
+              className={styles.sessionButton}
             >
-              立即安全隔离退出
+              安全退出会话
             </Button>
           </div>
         )}
         {!submittedFeedback && loadingCards && (
-          <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl text-center">
+          <div className={styles.loadingPanel}>
             <Spin />
-            <div className="mt-3 text-xs text-slate-400">正在读取当前就诊的真实临床建议...</div>
+            <div className={styles.loadingMessage}>正在读取当前就诊的真实临床建议</div>
           </div>
         )}
         {!submittedFeedback && !loadingCards && cardsError && (
@@ -220,15 +228,17 @@ export default function EmbedLaunch() {
             showIcon
             message="临床建议接口读取失败"
             description="请返回工作站重试，或联系信息部门核查推荐服务状态。"
-            className="bg-slate-800 border-slate-700 text-slate-200"
+            className={styles.errorAlert}
           />
         )}
         {!submittedFeedback && !loadingCards && !cardsError && displayCards.length === 0 && (
-          <div className="bg-slate-800 border border-slate-700 p-10 rounded-2xl">
+          <div className={styles.emptyPanel}>
             <Empty
-              description={<span className="text-slate-300">当前就诊暂无可显示的临床建议</span>}
+              description={
+                <span className={styles.emptyDescription}>当前就诊暂无可显示的临床建议</span>
+              }
             />
-            <div className="text-center text-xs text-slate-500 mt-3">
+            <div className={styles.helperText}>
               请确认推荐引擎已为当前就诊生成有效建议，或返回工作站重新触发。
             </div>
           </div>
@@ -243,63 +253,51 @@ export default function EmbedLaunch() {
               <Card
                 key={card.cardId}
                 title={
-                  <div className="flex justify-between items-center w-full py-1 text-slate-100 text-xs font-semibold">
-                    <span className="flex items-center gap-1.5">
-                      <Badge color={isCritical ? "red" : "gold"} className="animate-ping" />
+                  <div className={styles.cardTitle}>
+                    <span className={styles.cardTitleLeft}>
+                      <Badge color={isCritical ? "red" : "gold"} />
                       <span>{card.title}</span>
                     </span>
-                    <Tag color={isCritical ? "red" : "orange"} className="text-[10px] m-0">
+                    <Tag color={isCritical ? "red" : "orange"} className={styles.severityTag}>
                       {card.severity} 级干预
                     </Tag>
                   </div>
                 }
-                className="bg-slate-800 border-slate-700/80 shadow-md rounded-2xl hover:border-slate-600 transition-all duration-300"
-                bodyStyle={{ padding: "16px" }}
+                className={styles.recommendationCard}
               >
-                <div className="flex flex-col gap-3">
-                  {/* 摘要与背景依据 */}
-                  <div className="text-xs text-slate-300 bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/30 leading-relaxed font-medium">
-                    {card.summary}
-                  </div>
+                <div className={styles.stack}>
+                  <div className={styles.summary}>{card.summary}</div>
 
-                  {/* 核心建议列表 */}
-                  <div className="flex flex-col gap-2">
-                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                      <SendOutlined className="text-sky-500" />
-                      <span>决策引擎推荐开具处方/处置动作：</span>
+                  <div className={styles.recommendationList}>
+                    <div className={styles.recommendationTitle}>
+                      <SendOutlined className={styles.recommendationIcon} />
+                      <span>建议处置动作</span>
                     </div>
                     {card.recommendations?.map((rec, i) => (
-                      <div
-                        key={i}
-                        className="bg-slate-900/30 border border-slate-700/50 p-2.5 rounded-lg text-xs flex items-start gap-2"
-                      >
-                        <Tag color="cyan" className="text-[9px] font-semibold mt-0.5 m-0 px-1">
+                      <div key={i} className={styles.recommendationItem}>
+                        <Tag color="cyan" className={styles.actionTag}>
                           {rec.actionType}
                         </Tag>
-                        <span className="text-slate-200 font-medium leading-relaxed">
-                          {rec.description}
-                        </span>
+                        <span className={styles.actionText}>{rec.description}</span>
                       </div>
                     ))}
                   </div>
 
-                  {/* 医学证据链 */}
                   <Alert
                     message="质控合规依据及客观证据"
                     description={card.evidenceSummary}
                     type="warning"
                     showIcon
                     icon={<InfoCircleOutlined />}
-                    className="text-[11px] bg-slate-900/40 border-slate-800 rounded-lg text-slate-300"
+                    className={styles.evidenceAlert}
                   />
 
-                  {/* 医师采纳与双向反馈 Action Area */}
-                  <div className="flex gap-4 mt-2">
+                  <div className={styles.actions}>
                     <Button
                       type="primary"
                       onClick={() => handleDecision("ADOPT")}
                       icon={<CheckCircleOutlined />}
-                      className="flex-1 py-4 font-semibold rounded-lg bg-emerald-600 border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700 flex items-center justify-center gap-1"
+                      className={styles.adoptButton}
                     >
                       符合指征，确认开具采纳
                     </Button>
@@ -307,7 +305,7 @@ export default function EmbedLaunch() {
                       danger
                       onClick={() => handleDecision("REJECT")}
                       icon={<CloseCircleOutlined />}
-                      className="py-4 font-semibold rounded-lg bg-rose-950/20 border-rose-900/30 hover:bg-rose-950/40 flex items-center justify-center gap-1"
+                      className={styles.rejectButton}
                     >
                       拒绝采纳
                     </Button>
@@ -318,20 +316,16 @@ export default function EmbedLaunch() {
           })}
       </div>
 
-      {/* 底部审计存证信息 */}
-      <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/40 flex items-center justify-between text-[10px] text-slate-500">
-        <span className="flex items-center gap-1">
+      <div className={styles.auditBar}>
+        <span className={styles.auditLabel}>
           <AuditOutlined /> 嵌入式交互合规审计凭证 traceId
         </span>
-        <span className="font-normal bg-slate-900 px-2 py-0.5 rounded text-slate-400">
-          {launchContext?.traceId || "暂无追踪链路"}
-        </span>
+        <span className={styles.auditTrace}>{launchContext?.traceId || "暂无追踪链路"}</span>
       </div>
 
-      {/* Modal: 拒绝采纳理由收集弹窗 */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-rose-700 font-bold border-b border-slate-100 pb-3">
+          <div className={styles.modalTitle}>
             <CloseCircleOutlined />
             <span>临床拒绝采纳建议审计理由备案</span>
           </div>
@@ -342,33 +336,29 @@ export default function EmbedLaunch() {
         width={480}
         okText="提交备案"
         cancelText="取消"
-        okButtonProps={{ className: "bg-rose-600 border-rose-600 hover:bg-rose-700" }}
+        okButtonProps={{ danger: true }}
       >
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="text-xs text-slate-500">
+        <div className={styles.modalBody}>
+          <div className={styles.modalHint}>
             作为医疗安全质控的必经环节，请选择并提供拒绝开具此建议的医学判断理由，以便提交至质控处备案：
           </div>
 
           <Radio.Group
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            className="flex flex-col gap-2.5 w-full bg-slate-50 p-4 rounded-xl border border-slate-200"
+            className={styles.reasonGroup}
           >
             <Radio value="CLINICAL_MISMATCH">
-              <span className="text-xs text-slate-700 font-medium">患者临床表现及风险指征不符</span>
+              <span className={styles.reasonText}>患者临床表现及风险指征不符</span>
             </Radio>
             <Radio value="CONTRAINDICATION_EXISTS">
-              <span className="text-xs text-slate-700 font-medium">
-                存在其他未被录入的绝对溶栓/用药禁忌症
-              </span>
+              <span className={styles.reasonText}>存在其他未被录入的绝对溶栓/用药禁忌症</span>
             </Radio>
             <Radio value="PATIENT_DECLINED">
-              <span className="text-xs text-slate-700 font-medium">
-                患者及家属明确拒绝此项治疗方案
-              </span>
+              <span className={styles.reasonText}>患者及家属明确拒绝此项治疗方案</span>
             </Radio>
             <Radio value="OTHER">
-              <span className="text-xs text-slate-700 font-medium">其他理由（手动录入说明）</span>
+              <span className={styles.reasonText}>其他理由（手动录入说明）</span>
             </Radio>
           </Radio.Group>
 
@@ -378,7 +368,7 @@ export default function EmbedLaunch() {
               placeholder="请输入真实的临床判断拒绝理由，例如：患者已安排于明日进行急诊起搏器植入手术，故暂停用药预防。"
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
-              className="rounded-lg text-xs"
+              className={styles.customReason}
             />
           )}
         </div>

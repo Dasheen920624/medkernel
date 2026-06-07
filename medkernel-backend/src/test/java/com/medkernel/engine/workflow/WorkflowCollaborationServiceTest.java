@@ -125,6 +125,7 @@ class WorkflowCollaborationServiceTest {
                 anyInt(),
                 anyInt()))
             .thenReturn(List.of());
+        when(notificationSettings.isSubscribed(any(), any(), any())).thenReturn(true);
         when(notifications.findByTenantIdAndDedupeKey(eq("tenant-A"), any())).thenReturn(Optional.empty());
         when(notifications.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(integrationService.enqueueOutboundMessage(eq("tenant-A"), any(IntegrationOutboundRequestDto.class)))
@@ -835,6 +836,10 @@ class WorkflowCollaborationServiceTest {
             assertThat(request.payload().has("patientId")).isFalse();
             assertThat(request.payload().has("message")).isFalse();
         });
+        verify(notificationSettings).isSubscribed(
+            WorkflowNotificationSourceType.WORKFLOW_TODO,
+            WorkflowNotificationLevel.INFO,
+            settings);
     }
 
     @Test
@@ -1754,7 +1759,15 @@ class WorkflowCollaborationServiceTest {
             "22:00",
             "07:00",
             Set.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH),
+            Set.of(
+                WorkflowNotificationType.SAFETY,
+                WorkflowNotificationType.FOLLOWUP,
+                WorkflowNotificationType.WORKFLOW,
+                WorkflowNotificationType.SYNC),
+            Set.of(WorkflowNotificationType.SAFETY),
+            WorkflowNotificationSettingsSource.PERSONAL,
             false,
+            1,
             1,
             Instant.parse("2026-06-04T08:00:00Z"),
             "doctor-1");

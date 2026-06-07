@@ -61,9 +61,9 @@ class PathwayEngineControllerSecurityTest {
 
     private static final String ENTER_BODY = """
         {
-          "patientId": "patient-1",
-          "encounterId": "enc-1",
-          "templateId": "pt-1"
+          "contextSnapshotId": "ctx-active-1",
+          "templateId": "pt-1",
+          "package_version": "pkg-2026.06"
         }
         """;
 

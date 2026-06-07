@@ -43,10 +43,10 @@ describe("menu config", () => {
     });
   });
 
-  it("keeps the demo-validation page inside the workbench tab instead of adding a second menu item", () => {
+  it("keeps the readiness validation page inside the workbench tab instead of adding a second menu item", () => {
     const workbench = menuSections.find((section) => section.key === "workbench");
 
-    expect(routeMetas.map((route) => route.path)).toContain("/workbench/demo-validation");
+    expect(routeMetas.map((route) => route.path)).toContain("/workbench/readiness-validation");
     expect(workbench?.items).toEqual([{ key: "workbench", label: "工作台", path: "/dashboard" }]);
   });
 
@@ -91,7 +91,7 @@ describe("menu config", () => {
           "insurance-audit",
           "qc-eval-sets",
           "qc-eval-results",
-          "aik-review",
+          "knowledge-governance",
         ],
       ],
       [

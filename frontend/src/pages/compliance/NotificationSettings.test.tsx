@@ -7,14 +7,23 @@ import NotificationSettings from "./NotificationSettings";
 
 const settingsHookMocks = vi.hoisted(() => ({
   refetchSettings: vi.fn(),
+  refetchSystemSettings: vi.fn(),
   saveSettings: vi.fn(),
+  saveSystemSettings: vi.fn(),
   useSaveWorkflowNotificationSettings: vi.fn(),
+  useSaveWorkflowSystemNotificationSettings: vi.fn(),
+  useSecurityProfile: vi.fn(),
   useWorkflowNotificationSettings: vi.fn(),
+  useWorkflowSystemNotificationSettings: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useSaveWorkflowNotificationSettings: settingsHookMocks.useSaveWorkflowNotificationSettings,
+  useSaveWorkflowSystemNotificationSettings:
+    settingsHookMocks.useSaveWorkflowSystemNotificationSettings,
+  useSecurityProfile: settingsHookMocks.useSecurityProfile,
   useWorkflowNotificationSettings: settingsHookMocks.useWorkflowNotificationSettings,
+  useWorkflowSystemNotificationSettings: settingsHookMocks.useWorkflowSystemNotificationSettings,
 }));
 
 function renderSettings() {
@@ -34,6 +43,16 @@ describe("NotificationSettings", () => {
       version: 4,
       quietHoursEnabled: true,
     });
+    settingsHookMocks.saveSystemSettings.mockResolvedValue({
+      systemVersion: 4,
+      quietHoursEnabled: true,
+    });
+    settingsHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "notification.write", risk: "LOW" }],
+      },
+      isLoading: false,
+    });
     settingsHookMocks.useWorkflowNotificationSettings.mockReturnValue({
       data: {
         inAppEnabled: true,
@@ -46,8 +65,12 @@ describe("NotificationSettings", () => {
         quietStart: "22:00",
         quietEnd: "07:00",
         quietBypassLevels: ["CRITICAL", "HIGH"],
+        subscribedTypes: ["SAFETY", "FOLLOWUP", "WORKFLOW"],
+        mandatoryTypes: ["SAFETY"],
+        source: "PERSONAL",
         quietActiveNow: false,
         version: 3,
+        systemVersion: 2,
         updatedAt: "2026-06-04T08:00:00Z",
         updatedBy: "doctor-1",
       },
@@ -55,9 +78,19 @@ describe("NotificationSettings", () => {
       isLoading: false,
       refetch: settingsHookMocks.refetchSettings,
     });
+    settingsHookMocks.useWorkflowSystemNotificationSettings.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isLoading: false,
+      refetch: settingsHookMocks.refetchSystemSettings,
+    });
     settingsHookMocks.useSaveWorkflowNotificationSettings.mockReturnValue({
       isPending: false,
       mutateAsync: settingsHookMocks.saveSettings,
+    });
+    settingsHookMocks.useSaveWorkflowSystemNotificationSettings.mockReturnValue({
+      isPending: false,
+      mutateAsync: settingsHookMocks.saveSystemSettings,
     });
   });
 
@@ -85,6 +118,9 @@ describe("NotificationSettings", () => {
     expect(screen.getByLabelText("免打扰结束时间")).toHaveValue("07:00");
     expect(screen.getByText("危急")).toBeInTheDocument();
     expect(screen.getByText("高")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "同步与接入" })).not.toBeChecked();
     expect(screen.getByText(/NOT_CONNECTED/)).toHaveTextContent(
       "不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递",
     );
@@ -116,8 +152,81 @@ describe("NotificationSettings", () => {
         quietStart: "21:30",
         quietEnd: "06:30",
         quietBypassLevels: ["CRITICAL", "HIGH"],
+        subscribedTypes: ["SAFETY", "FOLLOWUP", "WORKFLOW"],
       });
     });
     expect(settingsHookMocks.refetchSettings).toHaveBeenCalled();
+  });
+
+  it("keeps safety subscription mandatory when saving personal preferences", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole("checkbox", { name: "协作待办" }));
+    await user.click(screen.getByRole("button", { name: "保存通知设置" }));
+
+    await waitFor(() => {
+      expect(settingsHookMocks.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscribedTypes: ["SAFETY", "FOLLOWUP"],
+        }),
+      );
+    });
+  });
+
+  it("allows an authorized administrator to update tenant defaults with a reason", async () => {
+    const user = userEvent.setup();
+    settingsHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "notification.write", risk: "LOW" },
+          { code: "system.read", risk: "LOW" },
+          { code: "system.manage", risk: "HIGH" },
+        ],
+      },
+      isLoading: false,
+    });
+    settingsHookMocks.useWorkflowSystemNotificationSettings.mockReturnValue({
+      data: {
+        inAppEnabled: true,
+        smsEnabled: false,
+        emailEnabled: false,
+        pushEnabled: false,
+        webhookEnabled: false,
+        inHospitalMessageEnabled: true,
+        quietHoursEnabled: false,
+        quietStart: "22:00",
+        quietEnd: "07:00",
+        quietBypassLevels: ["CRITICAL", "HIGH"],
+        subscribedTypes: ["SAFETY", "WORKFLOW"],
+        mandatoryTypes: ["SAFETY"],
+        source: "SYSTEM_DEFAULT",
+        quietActiveNow: false,
+        version: 0,
+        systemVersion: 7,
+        updatedAt: "2026-06-04T08:00:00Z",
+        updatedBy: "system-admin-1",
+      },
+      isError: false,
+      isLoading: false,
+      refetch: settingsHookMocks.refetchSystemSettings,
+    });
+    renderSettings();
+
+    await user.click(screen.getByText("系统默认"));
+    await user.type(screen.getByLabelText("系统通知策略变更原因"), "统一院内通知策略");
+    await user.click(screen.getByRole("button", { name: "保存通知设置" }));
+
+    await waitFor(() => {
+      expect(settingsHookMocks.saveSystemSettings).toHaveBeenCalledWith({
+        settings: expect.objectContaining({
+          subscribedTypes: ["SAFETY", "WORKFLOW"],
+          inHospitalMessageEnabled: true,
+        }),
+        reason: "统一院内通知策略",
+        expectedVersion: 7,
+      });
+    });
+    expect(settingsHookMocks.refetchSystemSettings).toHaveBeenCalled();
   });
 });

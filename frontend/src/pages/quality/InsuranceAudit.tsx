@@ -23,7 +23,11 @@ import {
 
 import { getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import {
+  useContextSnapshotDetail,
+  useContextSnapshots,
+  useEvaluationIndicators,
   useInsuranceIssues,
+  useOrgUnits,
   useRunDrgGrouping,
   useRunInsuranceAudit,
   useRunQualityCaseReview,
@@ -35,6 +39,7 @@ import {
   type QualityCaseReviewResponse,
   type QualityFindingSeverity,
 } from "@/shared/api/hooks";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { PageShell } from "@/shared/ui/PageShell";
 
 const { Text } = Typography;
@@ -42,9 +47,7 @@ const { Text } = Typography;
 type TimeScope = "THIS_MONTH" | "LAST_7_DAYS" | "ALL";
 
 interface AuditFormValues {
-  contextSnapshotId: string;
   scenarioCode: string;
-  packageVersion?: string;
   responsibleDepartmentId: string;
   indicatorId: string;
   dueAt: string;
@@ -71,6 +74,9 @@ export default function InsuranceAudit() {
   const [caseReviewResult, setCaseReviewResult] = useState<QualityCaseReviewResponse | null>(null);
   const [drgResult, setDrgResult] = useState<DrgGroupingResponse | null>(null);
   const [auditResult, setAuditResult] = useState<InsuranceAuditResponse | null>(null);
+  const [snapshotPatientId, setSnapshotPatientId] = useState("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [auditFeedback, setAuditFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -89,6 +95,38 @@ export default function InsuranceAudit() {
   }, [severity, status, timeScope]);
 
   const issuesQuery = useInsuranceIssues(issueParams);
+  const departmentsQuery = useOrgUnits({ page: 1, size: 100, sort: "name,asc" });
+  const indicatorsQuery = useEvaluationIndicators(
+    { status: "ACTIVE", page: 1, size: 100, sort: "name,asc" },
+    { enabled: true },
+  );
+  const departmentOptions = (departmentsQuery.data?.items ?? [])
+    .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
+    .map((unit) => ({
+      value: unit.id as string,
+      label: `${unit.name} · ${unit.code}`,
+    }));
+  const indicatorOptions = (indicatorsQuery.data?.items ?? []).map((indicator) => ({
+    value: indicator.indicatorId,
+    label: `${indicator.name} · ${indicator.indicatorCode} · v${indicator.versionNo}`,
+  }));
+  const patientFilter = snapshotPatientId.trim();
+  const encounterFilter = snapshotEncounterId.trim();
+  const hasSnapshotFilter = Boolean(patientFilter || encounterFilter);
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: patientFilter || undefined,
+      encounterId: encounterFilter || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    },
+    { enabled: hasSnapshotFilter },
+  );
+  const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
+    enabled: Boolean(selectedSnapshotId),
+  });
   const caseReviewMutation = useRunQualityCaseReview();
   const drgMutation = useRunDrgGrouping();
   const auditMutation = useRunInsuranceAudit();
@@ -106,13 +144,17 @@ export default function InsuranceAudit() {
     setCaseReviewResult(null);
     setDrgResult(null);
     setAuditResult(null);
+    if (!selectedSnapshotId) {
+      setAuditFeedback({ type: "error", text: "请先选择 ACTIVE 病案快照。" });
+      return;
+    }
     try {
       const base = {
-        contextSnapshotId: values.contextSnapshotId.trim(),
+        contextSnapshotId: selectedSnapshotId,
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
       };
       const scenarioCode = values.scenarioCode.trim();
-      const packageVersion = optionalText(values.packageVersion);
+      const packageVersion = optionalText(snapshotDetailQuery.data?.packageVersion);
       const caseReview = await caseReviewMutation.mutateAsync({
         ...base,
         scenarioCode,
@@ -175,6 +217,7 @@ export default function InsuranceAudit() {
           type="primary"
           icon={<SafetyCertificateOutlined />}
           loading={isRunning}
+          disabled={!selectedSnapshotId || snapshotDetailQuery.isLoading}
           form="insurance-audit-form"
           htmlType="submit"
         >
@@ -255,26 +298,82 @@ export default function InsuranceAudit() {
           >
             <Space direction="vertical" size="small" className="mk-full-width">
               <Space wrap size="middle" className="mk-full-width">
-                <Form.Item
-                  label="病案快照 ID"
-                  name="contextSnapshotId"
-                  rules={[{ required: true, message: "请输入真实病案快照 ID" }]}
-                >
-                  <Input placeholder="输入后端 ContextSnapshot ID" />
+                <Form.Item label="患者 ID" htmlFor="insurance-snapshot-patient">
+                  <Input
+                    id="insurance-snapshot-patient"
+                    value={snapshotPatientId}
+                    placeholder="输入患者 ID 检索 ACTIVE 病案快照"
+                    onChange={(event) => {
+                      setSnapshotPatientId(event.target.value);
+                      setSelectedSnapshotId("");
+                    }}
+                  />
                 </Form.Item>
+                <Form.Item label="就诊 ID" htmlFor="insurance-snapshot-encounter">
+                  <Input
+                    id="insurance-snapshot-encounter"
+                    value={snapshotEncounterId}
+                    placeholder="可单独按就诊 ID 检索"
+                    onChange={(event) => {
+                      setSnapshotEncounterId(event.target.value);
+                      setSelectedSnapshotId("");
+                    }}
+                  />
+                </Form.Item>
+              </Space>
+
+              <ContextSnapshotSelector
+                enabled={hasSnapshotFilter}
+                loading={snapshotsQuery.isLoading}
+                error={snapshotsQuery.isError}
+                snapshots={snapshotsQuery.data?.items ?? []}
+                selectedSnapshotId={selectedSnapshotId}
+                onSelect={setSelectedSnapshotId}
+                noun="病案快照"
+              />
+
+              {snapshotDetailQuery.data && (
+                <Descriptions bordered size="small" column={3}>
+                  <Descriptions.Item label="配置包版本">
+                    {snapshotDetailQuery.data.packageVersion || "由服务端按快照解析"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="质量状态">
+                    {snapshotDetailQuery.data.qualityStatus}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="traceId">
+                    {snapshotDetailQuery.data.traceId || "未返回"}
+                  </Descriptions.Item>
+                </Descriptions>
+              )}
+
+              <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
                   label="责任科室"
                   name="responsibleDepartmentId"
-                  rules={[{ required: true, message: "请输入责任科室 ID" }]}
+                  rules={[{ required: true, message: "请选择责任科室" }]}
                 >
-                  <Input placeholder="按当前组织作用域填写" />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择责任科室"
+                    options={departmentOptions}
+                    loading={departmentsQuery.isLoading}
+                    notFoundContent="暂无可选科室"
+                  />
                 </Form.Item>
                 <Form.Item
-                  label="质控指标 ID"
+                  label="质控指标"
                   name="indicatorId"
-                  rules={[{ required: true, message: "请输入质控指标 ID" }]}
+                  rules={[{ required: true, message: "请选择质控指标" }]}
                 >
-                  <Input placeholder="绑定医保审核指标" />
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择已生效指标"
+                    options={indicatorOptions}
+                    loading={indicatorsQuery.isLoading}
+                    notFoundContent="暂无已生效质控指标"
+                  />
                 </Form.Item>
               </Space>
               <Space wrap size="middle" className="mk-full-width">
@@ -284,9 +383,6 @@ export default function InsuranceAudit() {
                   rules={[{ required: true, message: "请输入场景编码" }]}
                 >
                   <Input />
-                </Form.Item>
-                <Form.Item label="包版本" name="packageVersion">
-                  <Input placeholder="可选，留空由后端按快照处理" />
                 </Form.Item>
                 <Form.Item
                   label="整改截止时间"
@@ -628,7 +724,7 @@ function formatAmount(value: number | null) {
   return value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function optionalText(value?: string) {
+function optionalText(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 }

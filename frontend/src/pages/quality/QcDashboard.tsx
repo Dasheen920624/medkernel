@@ -5,8 +5,8 @@ import {
   Card,
   Drawer,
   Empty,
-  Input,
   List,
+  Pagination,
   Progress,
   Select,
   Space,
@@ -23,7 +23,7 @@ import {
 } from "@ant-design/icons";
 
 import { getApiErrorMessage, parseApiError } from "@/shared/api/errors";
-import { useQualityDashboard, useQualityDashboardDrilldown } from "@/shared/api/hooks";
+import { useOrgUnits, useQualityDashboard, useQualityDashboardDrilldown } from "@/shared/api/hooks";
 import type {
   QualityDashboardAlert,
   QualityDashboardDrilldownItem,
@@ -34,6 +34,8 @@ import type {
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 
+import styles from "./Quality.module.css";
+
 const { Text, Title } = Typography;
 
 type TimeScope = "CURRENT_MONTH" | "LAST_30_DAYS" | "ALL";
@@ -42,7 +44,26 @@ export default function QcDashboard() {
   const [timeScope, setTimeScope] = useState<TimeScope>("CURRENT_MONTH");
   const [departmentId, setDepartmentId] = useState("");
   const [drilldownType, setDrilldownType] = useState<QualityDashboardDrilldownType>("FINDING");
+  const [drilldownPage, setDrilldownPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [departmentSearch, setDepartmentSearch] = useState("");
+  const departmentsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    keyword: departmentSearch || undefined,
+    level: "DEPARTMENT",
+    status: "ACTIVE",
+  });
+  const departments = (departmentsQuery.data?.items ?? []).filter(
+    (unit) =>
+      unit.level === "DEPARTMENT" && (unit.status === undefined || unit.status === "ACTIVE"),
+  );
+  const departmentOptions = departments.map((unit) => ({
+    value: unit.id ?? unit.code,
+    label: `${unit.name} · ${unit.code}`,
+  }));
+  const departmentNames = new Map(departments.map((unit) => [unit.id ?? unit.code, unit.name]));
 
   const dashboardParams = useMemo(() => {
     const range = resolveTimeRange(timeScope);
@@ -57,10 +78,10 @@ export default function QcDashboard() {
     () => ({
       ...dashboardParams,
       type: drilldownType,
-      page: 1,
+      page: drilldownPage,
       size: 20,
     }),
-    [dashboardParams, drilldownType],
+    [dashboardParams, drilldownPage, drilldownType],
   );
   const drilldownQuery = useQualityDashboardDrilldown(drilldownParams);
 
@@ -160,34 +181,50 @@ export default function QcDashboard() {
       primary={primaryAction}
       extras={extraActions}
     >
-      <Space direction="vertical" size="large" className="w-full">
+      <Space direction="vertical" size="large" className={styles.fullWidth}>
         <Card>
-          <Space wrap className="w-full justify-between">
+          <Space wrap className={styles.rowBetween}>
             <Space wrap>
               <Select
                 aria-label="时间范围"
-                className="w-36"
+                className={styles.controlSm}
                 value={timeScope}
-                onChange={setTimeScope}
+                onChange={(value) => {
+                  setTimeScope(value);
+                  setDrilldownPage(1);
+                }}
                 options={[
                   { value: "CURRENT_MONTH", label: "本月" },
                   { value: "LAST_30_DAYS", label: "近 30 天" },
                   { value: "ALL", label: "全量" },
                 ]}
               />
-              <Input
+              <Select
                 aria-label="科室范围"
-                className="w-48"
+                className={styles.controlMd}
                 placeholder="科室范围"
+                allowClear
+                showSearch
+                filterOption={false}
+                onSearch={setDepartmentSearch}
                 value={departmentId}
-                onChange={(event) => setDepartmentId(event.target.value)}
-                onPressEnter={() => dashboardQuery.refetch()}
+                options={departmentOptions}
+                loading={departmentsQuery.isLoading}
+                disabled={departmentsQuery.isError}
+                notFoundContent="暂无可选科室"
+                onChange={(value) => {
+                  setDepartmentId(value ?? "");
+                  setDrilldownPage(1);
+                }}
               />
               <Select
                 aria-label="下钻类型"
-                className="w-36"
+                className={styles.controlSm}
                 value={drilldownType}
-                onChange={setDrilldownType}
+                onChange={(value) => {
+                  setDrilldownType(value);
+                  setDrilldownPage(1);
+                }}
                 options={[
                   { value: "FINDING", label: "问题证据" },
                   { value: "ALERT", label: "预警证据" },
@@ -208,35 +245,35 @@ export default function QcDashboard() {
           />
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={styles.statsGrid}>
           <MetricCard
-            icon={<AuditOutlined className="text-xl" />}
+            icon={<AuditOutlined className={styles.iconLarge} />}
             label="真实质控问题总数"
             value={formatCount(dashboard.summary.totalFindings)}
           />
           <MetricCard
-            icon={<WarningOutlined className="text-xl" />}
+            icon={<WarningOutlined className={styles.iconLarge} />}
             label="待闭环问题"
             value={formatCount(dashboard.summary.openFindings)}
             danger={dashboard.summary.openFindings > 0}
           />
           <MetricCard
-            icon={<FireOutlined className="text-xl" />}
+            icon={<FireOutlined className={styles.iconLarge} />}
             label="逾期整改任务"
             value={formatCount(dashboard.summary.overdueRectificationTasks)}
             danger={dashboard.summary.overdueRectificationTasks > 0}
           />
           <MetricCard
-            icon={<SearchOutlined className="text-xl" />}
+            icon={<SearchOutlined className={styles.iconLarge} />}
             label="当前打开预警"
             value={formatCount(dashboard.summary.activeAlerts)}
             danger={dashboard.summary.activeAlerts > 0}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className={styles.contentGrid}>
           <Card title="风险热力">
-            <HeatmapList cells={dashboard.heatmap} />
+            <HeatmapList cells={dashboard.heatmap} departmentNames={departmentNames} />
           </Card>
           <Card title="价值指标">
             <ValueMetricList metrics={dashboard.valueMetrics.metrics} />
@@ -244,13 +281,16 @@ export default function QcDashboard() {
         </div>
 
         <Card title="打开预警">
-          <AlertList alerts={dashboard.activeAlerts} />
+          <AlertList alerts={dashboard.activeAlerts} departmentNames={departmentNames} />
         </Card>
 
         <EvidenceDrawer
           open={drawerOpen}
           drilldownType={drilldownType}
           query={drilldownQuery}
+          page={drilldownPage}
+          departmentNames={departmentNames}
+          onPageChange={setDrilldownPage}
           onClose={() => setDrawerOpen(false)}
         />
       </Space>
@@ -272,12 +312,12 @@ function MetricCard({
   return (
     <Card>
       <Space align="center">
-        <span className={danger ? "text-rose-600" : "text-slate-600"}>{icon}</span>
+        <span className={danger ? styles.metricIconDanger : styles.metricIcon}>{icon}</span>
         <Space direction="vertical" size={0}>
-          <Text type="secondary" className="text-xs font-semibold">
+          <Text type="secondary" className={styles.metricLabel}>
             {label}
           </Text>
-          <Title level={3} className={danger ? "m-0 text-rose-600" : "m-0 text-slate-800"}>
+          <Title level={3} className={danger ? styles.metricValueDanger : styles.metricValue}>
             {value}
           </Title>
         </Space>
@@ -286,7 +326,13 @@ function MetricCard({
   );
 }
 
-function HeatmapList({ cells }: { cells: QualityDashboardHeatmapCell[] }) {
+function HeatmapList({
+  cells,
+  departmentNames,
+}: {
+  cells: QualityDashboardHeatmapCell[];
+  departmentNames: Map<string, string>;
+}) {
   if (cells.length === 0) {
     return <Empty description="暂无真实科室风险热力" />;
   }
@@ -295,10 +341,14 @@ function HeatmapList({ cells }: { cells: QualityDashboardHeatmapCell[] }) {
       dataSource={cells}
       renderItem={(cell) => (
         <List.Item>
-          <Space direction="vertical" className="w-full" size={6}>
-            <Space className="w-full justify-between" wrap>
+          <Space direction="vertical" className={styles.fullWidth} size={6}>
+            <Space className={styles.rowBetween} wrap>
               <Space wrap>
-                <Text strong>{cell.departmentId || "全院"}</Text>
+                <Text strong>
+                  {cell.departmentId
+                    ? (departmentNames.get(cell.departmentId) ?? cell.departmentId)
+                    : "全院"}
+                </Text>
                 <Tag color={cell.highRiskFindings > 0 ? "error" : "default"}>
                   {cell.maxSeverity || "未分级"}
                 </Tag>
@@ -331,8 +381,8 @@ function ValueMetricList({ metrics }: { metrics: QualityValueMetric[] }) {
       dataSource={metrics}
       renderItem={(metric) => (
         <List.Item>
-          <Space direction="vertical" size={4} className="w-full">
-            <Space className="w-full justify-between" wrap>
+          <Space direction="vertical" size={4} className={styles.fullWidth}>
+            <Space className={styles.rowBetween} wrap>
               <Text strong>{metric.displayName}</Text>
               {metric.status === "AVAILABLE" ? (
                 <Text strong>{formatMetricValue(metric)}</Text>
@@ -353,7 +403,13 @@ function ValueMetricList({ metrics }: { metrics: QualityValueMetric[] }) {
   );
 }
 
-function AlertList({ alerts }: { alerts: QualityDashboardAlert[] }) {
+function AlertList({
+  alerts,
+  departmentNames,
+}: {
+  alerts: QualityDashboardAlert[];
+  departmentNames: Map<string, string>;
+}) {
   if (alerts.length === 0) {
     return <Empty description="暂无打开预警" />;
   }
@@ -362,8 +418,8 @@ function AlertList({ alerts }: { alerts: QualityDashboardAlert[] }) {
       dataSource={alerts}
       renderItem={(alert) => (
         <List.Item>
-          <Space direction="vertical" size={4} className="w-full">
-            <Space className="w-full justify-between" wrap>
+          <Space direction="vertical" size={4} className={styles.fullWidth}>
+            <Space className={styles.rowBetween} wrap>
               <Space wrap>
                 <Tag color="error">{alert.severity}</Tag>
                 <Text strong>{alert.title}</Text>
@@ -372,7 +428,11 @@ function AlertList({ alerts }: { alerts: QualityDashboardAlert[] }) {
             </Space>
             <Text>{alert.evidenceSummary}</Text>
             <Space wrap size={4}>
-              <Tag>{alert.departmentId ? `科室：${alert.departmentId}` : "全院"}</Tag>
+              <Tag>
+                {alert.departmentId
+                  ? `科室：${departmentNames.get(alert.departmentId) ?? alert.departmentId}`
+                  : "全院"}
+              </Tag>
               <Tag>{alert.sourceType}</Tag>
               {alert.traceId && <Text type="secondary">traceId: {alert.traceId}</Text>}
             </Space>
@@ -387,18 +447,24 @@ function EvidenceDrawer({
   open,
   drilldownType,
   query,
+  page,
+  departmentNames,
+  onPageChange,
   onClose,
 }: {
   open: boolean;
   drilldownType: QualityDashboardDrilldownType;
   query: ReturnType<typeof useQualityDashboardDrilldown>;
+  page: number;
+  departmentNames: Map<string, string>;
+  onPageChange: (page: number) => void;
   onClose: () => void;
 }) {
   const items = query.data?.items ?? [];
   return (
     <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
-      <Space direction="vertical" size="middle" className="w-full">
-        <Space className="w-full justify-between" wrap>
+      <Space direction="vertical" size="middle" className={styles.fullWidth}>
+        <Space className={styles.rowBetween} wrap>
           <Tag color="processing">{drilldownType}</Tag>
           <Text type="secondary">
             {query.data ? `共 ${query.data.total} 项，当前 ${items.length} 项` : "等待读取"}
@@ -427,18 +493,33 @@ function EvidenceDrawer({
           loading={query.isLoading}
           dataSource={items}
           locale={{ emptyText: <Empty description="暂无真实下钻证据" /> }}
-          renderItem={(item) => <EvidenceItem item={item} />}
+          renderItem={(item) => <EvidenceItem item={item} departmentNames={departmentNames} />}
         />
+        {(query.data?.total ?? 0) > 20 && (
+          <Pagination
+            current={page}
+            pageSize={20}
+            total={query.data?.total ?? 0}
+            showSizeChanger={false}
+            onChange={onPageChange}
+          />
+        )}
       </Space>
     </Drawer>
   );
 }
 
-function EvidenceItem({ item }: { item: QualityDashboardDrilldownItem }) {
+function EvidenceItem({
+  item,
+  departmentNames,
+}: {
+  item: QualityDashboardDrilldownItem;
+  departmentNames: Map<string, string>;
+}) {
   return (
     <List.Item>
-      <Space direction="vertical" size={4} className="w-full">
-        <Space className="w-full justify-between" wrap>
+      <Space direction="vertical" size={4} className={styles.fullWidth}>
+        <Space className={styles.rowBetween} wrap>
           <Space wrap>
             <Tag color={item.severity === "P0" || item.severity === "P1" ? "error" : "default"}>
               {item.severity}
@@ -449,7 +530,11 @@ function EvidenceItem({ item }: { item: QualityDashboardDrilldownItem }) {
         </Space>
         <Text>{item.evidenceSummary}</Text>
         <Space wrap size={4}>
-          <Tag>{item.departmentId || "全院"}</Tag>
+          <Tag>
+            {item.departmentId
+              ? (departmentNames.get(item.departmentId) ?? item.departmentId)
+              : "全院"}
+          </Tag>
           <Tag>{item.status}</Tag>
           <Tag>{item.sourceType}</Tag>
           <Text type="secondary">sourceId: {item.sourceId}</Text>

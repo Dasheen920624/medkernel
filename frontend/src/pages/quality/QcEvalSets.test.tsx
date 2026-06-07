@@ -10,19 +10,23 @@ const mockUseEvaluationIndicators = vi.fn();
 const mockUseCreateEvaluationIndicator = vi.fn();
 const mockUseSubmitEvaluationIndicator = vi.fn();
 const mockUsePublishEvaluationIndicator = vi.fn();
+const mockUseGrayEvaluationIndicator = vi.fn();
 const mockUseActivateEvaluationIndicator = vi.fn();
 const mockUseEvaluateSnapshot = vi.fn();
 const mockUseContextSnapshots = vi.fn();
+const mockUseOrgUnits = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown) => mockUseEvaluationIndicators(params),
   useCreateEvaluationIndicator: () => mockUseCreateEvaluationIndicator(),
   useSubmitEvaluationIndicator: () => mockUseSubmitEvaluationIndicator(),
   usePublishEvaluationIndicator: () => mockUsePublishEvaluationIndicator(),
+  useGrayEvaluationIndicator: () => mockUseGrayEvaluationIndicator(),
   useActivateEvaluationIndicator: () => mockUseActivateEvaluationIndicator(),
   useEvaluateSnapshot: () => mockUseEvaluateSnapshot(),
   useContextSnapshots: (params: unknown, options: unknown) =>
     mockUseContextSnapshots(params, options),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
 }));
 
 const realIndicator = {
@@ -58,7 +62,7 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <ConfigProvider>
+      <ConfigProvider theme={{ token: { motion: false } }}>
         <AntdApp>
           <QcEvalSets />
         </AntdApp>
@@ -71,6 +75,7 @@ let refetch: ReturnType<typeof vi.fn>;
 let createIndicator: ReturnType<typeof vi.fn>;
 let submitIndicator: ReturnType<typeof vi.fn>;
 let publishIndicator: ReturnType<typeof vi.fn>;
+let grayIndicator: ReturnType<typeof vi.fn>;
 let activateIndicator: ReturnType<typeof vi.fn>;
 let evaluateSnapshot: ReturnType<typeof vi.fn>;
 
@@ -79,6 +84,7 @@ beforeEach(() => {
   createIndicator = vi.fn().mockResolvedValue(realIndicator);
   submitIndicator = vi.fn().mockResolvedValue({ ...realIndicator, status: "PENDING_REVIEW" });
   publishIndicator = vi.fn().mockResolvedValue({ ...realIndicator, status: "PUBLISHED" });
+  grayIndicator = vi.fn().mockResolvedValue({ ...realIndicator, status: "GRAY" });
   activateIndicator = vi.fn().mockResolvedValue({ ...realIndicator, status: "ACTIVE" });
   evaluateSnapshot = vi.fn().mockResolvedValue({
     runId: "run-real-1",
@@ -90,9 +96,25 @@ beforeEach(() => {
   });
 
   mockUseEvaluationIndicators.mockReset();
+  mockUseOrgUnits.mockReset();
+  mockUseOrgUnits.mockReturnValue({
+    data: {
+      items: [
+        {
+          id: "dept-ortho",
+          level: "DEPARTMENT",
+          code: "ORTHO",
+          name: "骨科",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    isLoading: false,
+  });
   mockUseCreateEvaluationIndicator.mockReset();
   mockUseSubmitEvaluationIndicator.mockReset();
   mockUsePublishEvaluationIndicator.mockReset();
+  mockUseGrayEvaluationIndicator.mockReset();
   mockUseActivateEvaluationIndicator.mockReset();
   mockUseEvaluateSnapshot.mockReset();
   mockUseContextSnapshots.mockReset();
@@ -114,6 +136,10 @@ beforeEach(() => {
   });
   mockUsePublishEvaluationIndicator.mockReturnValue({
     mutateAsync: publishIndicator,
+    isPending: false,
+  });
+  mockUseGrayEvaluationIndicator.mockReturnValue({
+    mutateAsync: grayIndicator,
     isPending: false,
   });
   mockUseActivateEvaluationIndicator.mockReturnValue({
@@ -175,24 +201,24 @@ describe("QcEvalSets", () => {
   });
 
   it("creates a draft indicator from condition-tree DSL instead of raw hard-coded JSON text", async () => {
-    const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole("button", { name: "新建指标" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建指标" }));
 
     fireEvent.change(screen.getByLabelText("指标编码"), { target: { value: "IND.NEW.VTE" } });
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
-    fireEvent.change(screen.getByLabelText("责任科室"), { target: { value: "骨科" } });
+    await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
+    await userEvent.click(await screen.findByText("骨科 · ORTHO"));
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
-    const factInputs = screen.getAllByLabelText("上下文字段路径");
+    const factInputs = screen.getAllByRole("combobox", { name: "上下文字段路径" });
     const valueInputs = screen.getAllByLabelText("比较值");
     fireEvent.change(factInputs[0], { target: { value: "encounters.0.admissionType" } });
     fireEvent.change(valueInputs[0], { target: { value: "SURGICAL" } });
     fireEvent.change(factInputs[1], { target: { value: "observations.0.code" } });
     fireEvent.change(valueInputs[1], { target: { value: "VTE_ASSESSMENT" } });
 
-    await user.click(screen.getByRole("button", { name: "创建指标草稿" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建指标草稿" }));
 
     await waitFor(() => expect(createIndicator).toHaveBeenCalledTimes(1));
     const payload = createIndicator.mock.calls[0][0];
@@ -200,7 +226,7 @@ describe("QcEvalSets", () => {
       expect.objectContaining({
         indicatorCode: "IND.NEW.VTE",
         name: "新 VTE 指标",
-        responsibleDepartmentId: "骨科",
+        responsibleDepartmentId: "dept-ortho",
       }),
     );
     expect(JSON.parse(payload.denominatorDefinition)).toEqual({
@@ -236,11 +262,43 @@ describe("QcEvalSets", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("runs snapshot simulation through the canonical evaluation endpoint", async () => {
-    const user = userEvent.setup();
+  it("requires release evidence before starting the default gray rollout", async () => {
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: {
+        items: [{ ...realIndicator, status: "PUBLISHED" }],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
     renderPage();
 
-    await user.click(screen.getByRole("button", { name: "仿真评估" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看指标详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "开始灰度" }));
+    fireEvent.change(await screen.findByLabelText("发布说明"), {
+      target: { value: "先在 10% 床位观察 24 小时" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认灰度" }));
+
+    await waitFor(() =>
+      expect(grayIndicator).toHaveBeenCalledWith({
+        indicatorId: "indicator-real-1",
+        reason: "先在 10% 床位观察 24 小时",
+      }),
+    );
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("runs snapshot simulation through the canonical evaluation endpoint", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "仿真评估" }));
+    expect(screen.queryByLabelText("临床快照 ID")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("患者 ID"), { target: { value: "patient-real-1" } });
     await waitFor(() =>
       expect(mockUseContextSnapshots).toHaveBeenLastCalledWith(
@@ -254,9 +312,9 @@ describe("QcEvalSets", () => {
       ),
     );
 
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "选择 snapshot-real-1" }));
     fireEvent.change(screen.getByLabelText("配置包版本"), { target: { value: "2026.06" } });
-    await user.click(screen.getByRole("button", { name: "执行仿真评估" }));
+    fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>
       expect(evaluateSnapshot).toHaveBeenCalledWith({

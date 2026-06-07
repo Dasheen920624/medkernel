@@ -1,17 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import QcDashboard from "./QcDashboard";
 
 const mockUseQualityDashboard = vi.fn();
 const mockUseQualityDashboardDrilldown = vi.fn();
+const mockUseOrgUnits = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useQualityDashboard: (params: unknown) => mockUseQualityDashboard(params),
   useQualityDashboardDrilldown: (params: unknown) => mockUseQualityDashboardDrilldown(params),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
 }));
 
 function renderPage() {
@@ -40,7 +42,7 @@ const dashboardData = {
   },
   heatmap: [
     {
-      departmentId: "心内科",
+      departmentId: "dept-card",
       totalFindings: 8,
       openFindings: 3,
       highRiskFindings: 2,
@@ -88,7 +90,7 @@ const dashboardData = {
       alertId: "alert-p1",
       alertType: "HIGH_RISK_FINDING",
       status: "OPEN",
-      departmentId: "心内科",
+      departmentId: "dept-card",
       sourceType: "quality_finding",
       sourceId: "finding-p1",
       severity: "P1",
@@ -106,6 +108,25 @@ const dashboardData = {
 };
 
 describe("QcDashboard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "dept-card",
+            level: "DEPARTMENT",
+            code: "CARD",
+            name: "心内科",
+            status: "ACTIVE",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+  });
+
   it("renders real dashboard aggregation instead of the old placeholder metrics", () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,
@@ -151,7 +172,7 @@ describe("QcDashboard", () => {
           {
             sourceType: "quality_finding",
             sourceId: "finding-p1",
-            departmentId: "心内科",
+            departmentId: "dept-card",
             severity: "P1",
             status: "OPEN",
             title: "病例 A 质控缺陷",
@@ -169,8 +190,8 @@ describe("QcDashboard", () => {
         },
         offset: 0,
         limit: 20,
-        total: 1,
-        hasNext: false,
+        total: 25,
+        hasNext: true,
       },
       isLoading: false,
       isError: false,
@@ -187,5 +208,35 @@ describe("QcDashboard", () => {
     expect(screen.getByText("真实下钻证据")).toBeInTheDocument();
     expect(screen.getByText("病例 A 质控缺陷")).toBeInTheDocument();
     expect(screen.getByText("trace-finding")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTitle("2"));
+    expect(mockUseQualityDashboardDrilldown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "FINDING", page: 2, size: 20 }),
+    );
+  });
+
+  it("filters the dashboard with a real department selection", async () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: dashboardData,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "科室范围" }));
+    await userEvent.click(await screen.findByText("心内科 · CARD"));
+
+    expect(mockUseQualityDashboard).toHaveBeenLastCalledWith(
+      expect.objectContaining({ departmentId: "dept-card" }),
+    );
   });
 });

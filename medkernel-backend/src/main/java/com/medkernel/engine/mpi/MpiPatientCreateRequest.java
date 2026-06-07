@@ -9,9 +9,6 @@ import jakarta.validation.constraints.Pattern;
  * 患者主索引创建请求 DTO。
  */
 public record MpiPatientCreateRequest(
-    @NotBlank(message = "患者主索引 ID 不能为空")
-    String mpiId,
-
     @NotBlank(message = "脱敏姓名不能为空")
     String maskedName,
 

@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   List,
+  Modal,
   Progress,
   Row,
   Select,
@@ -27,20 +28,24 @@ import {
   PictureOutlined,
   PlusOutlined,
   SaveOutlined,
-  StopOutlined,
 } from "@ant-design/icons";
 
 import {
-  useActivateOnboardingReadiness,
   useBranding,
   useCreateOrgUnit,
   useOnboardingReadiness,
   useOrgUnits,
+  useProvisionTenant,
+  useSecurityProfile,
+  useTenants,
   useUpdateBranding,
   type ImplementationStep,
   type OrgUnit,
+  type ProvisionTenantResult,
+  type TenantSummary,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { PageShell } from "@/shared/ui/PageShell";
 import styles from "./Tenant.module.css";
 
@@ -49,13 +54,13 @@ const { Text, Title } = Typography;
 
 type OrgLevelCode = OrgUnit["level"];
 
-const parentLevelByChildLevel: Partial<Record<OrgLevelCode, OrgLevelCode>> = {
-  GROUP: "TENANT",
-  HOSPITAL: "GROUP",
-  CAMPUS: "HOSPITAL",
-  SITE: "CAMPUS",
-  DEPARTMENT: "SITE",
-  SPECIALTY: "DEPARTMENT",
+const levelRank: Record<OrgLevelCode, number> = {
+  TENANT: 0,
+  GROUP: 1,
+  HOSPITAL: 2,
+  CAMPUS: 3,
+  SITE: 4,
+  DEPARTMENT: 5,
 };
 
 const levelLabel: Record<OrgLevelCode, string> = {
@@ -65,7 +70,6 @@ const levelLabel: Record<OrgLevelCode, string> = {
   CAMPUS: "院区",
   SITE: "社区服务点",
   DEPARTMENT: "科室",
-  SPECIALTY: "专病",
 };
 
 const themeOptions = [
@@ -112,7 +116,206 @@ function readinessPercent(steps: ImplementationStep[]) {
   return Math.round((done / steps.length) * 100);
 }
 
-export default function TenantOnboarding() {
+function PlatformTenantProvisioning() {
+  const { message } = App.useApp();
+  const [form] = Form.useForm();
+  const [formOpen, setFormOpen] = useState(false);
+  const [provisioned, setProvisioned] = useState<ProvisionTenantResult | null>(null);
+  const { data: tenants = [], isLoading, isError, refetch } = useTenants();
+  const provisionMutation = useProvisionTenant();
+
+  const columns = useMemo<ColumnsType<TenantSummary>>(
+    () => [
+      {
+        title: "租户标识",
+        dataIndex: "tenantId",
+        key: "tenantId",
+        render: (tenantId: string) => <span className={styles.orgCode}>{tenantId}</span>,
+      },
+      {
+        title: "租户名称",
+        dataIndex: "name",
+        key: "name",
+        render: (name: string) => <Text strong>{name}</Text>,
+      },
+      {
+        title: "状态",
+        dataIndex: "status",
+        key: "status",
+        render: (status: string) => (
+          <Tag color={status === "ACTIVE" ? "success" : "default"}>
+            {status === "ACTIVE" ? "已启用" : status}
+          </Tag>
+        ),
+      },
+      {
+        title: "开通时间",
+        dataIndex: "createdAt",
+        key: "createdAt",
+        render: (createdAt: string) => new Date(createdAt).toLocaleString(),
+      },
+    ],
+    [],
+  );
+
+  async function handleProvision() {
+    try {
+      const values = await form.validateFields();
+      const result = await provisionMutation.mutateAsync({
+        tenantId: values.tenantId.trim(),
+        tenantName: values.tenantName.trim(),
+        adminUsername: values.adminUsername.trim(),
+      });
+      setFormOpen(false);
+      form.resetFields();
+      setProvisioned(result);
+      void refetch();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(form, error)) return;
+      message.error(getApiErrorMessage(error, "客户租户开通失败"));
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <PageShell
+        title="客户租户开通"
+        description="读取客户租户台账"
+        state="loading"
+        stateProps={{
+          title: "正在加载客户租户",
+          description: "正在读取平台已开通的客户租户。",
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <PageShell
+        title="客户租户开通"
+        description="请重试或联系平台运维"
+        state="error"
+        stateProps={{
+          title: "客户租户台账读取失败",
+          description: "请重试；若持续失败，请带 traceId 联系平台运维排查租户供应接口。",
+          onRetry: () => refetch(),
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  return (
+    <>
+      <PageShell
+        title="客户租户开通"
+        description="创建独立客户租户并交付首个管理员账号"
+        primary={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
+            开通客户租户
+          </Button>
+        }
+      >
+        <Card title="客户租户">
+          <Table
+            dataSource={tenants}
+            columns={columns}
+            rowKey="tenantId"
+            pagination={{ pageSize: 10 }}
+            locale={{ emptyText: "尚未开通客户租户" }}
+            size="small"
+          />
+        </Card>
+      </PageShell>
+
+      <Modal
+        title="开通客户租户"
+        open={formOpen}
+        okText="确认开通"
+        cancelText="取消"
+        confirmLoading={provisionMutation.isPending}
+        onOk={handleProvision}
+        onCancel={() => {
+          setFormOpen(false);
+          form.resetFields();
+        }}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" preserve={false}>
+          <Form.Item
+            name="tenantId"
+            label="租户标识"
+            rules={[
+              { required: true, message: "请输入租户标识" },
+              {
+                pattern: /^[a-z0-9-]{2,64}$/,
+                message: "仅允许 2-64 位小写字母、数字和连字符",
+              },
+            ]}
+          >
+            <Input placeholder="例如 t-renmin" autoComplete="off" />
+          </Form.Item>
+          <Form.Item
+            name="tenantName"
+            label="租户名称"
+            rules={[{ required: true, message: "请输入租户名称" }]}
+          >
+            <Input placeholder="例如 人民医院" autoComplete="organization" />
+          </Form.Item>
+          <Form.Item
+            name="adminUsername"
+            label="首个管理员登录名"
+            rules={[{ required: true, message: "请输入首个管理员登录名" }]}
+          >
+            <Input placeholder="例如 renmin-admin" autoComplete="off" />
+          </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            message="系统将生成一次性临时密码"
+            description="开通结果关闭后不再显示，请安全转交管理员；管理员首次登录必须修改密码。"
+          />
+        </Form>
+      </Modal>
+
+      <Modal
+        title="客户租户已开通"
+        open={Boolean(provisioned)}
+        footer={
+          <Button type="primary" onClick={() => setProvisioned(null)}>
+            已安全记录
+          </Button>
+        }
+        closable={false}
+      >
+        {provisioned && (
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Text>
+              租户 <Text strong>{provisioned.tenantId}</Text> 与管理员{" "}
+              <Text strong>{provisioned.adminUsername}</Text> 已创建。
+            </Text>
+            {provisioned.tempPassword ? (
+              <Alert
+                type="warning"
+                showIcon
+                message="一次性临时密码"
+                description={<Text code>{provisioned.tempPassword}</Text>}
+              />
+            ) : (
+              <Alert type="success" showIcon message="已使用指定初始密码" />
+            )}
+          </Space>
+        )}
+      </Modal>
+    </>
+  );
+}
+
+function CustomerTenantImplementation() {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState("org");
   const [form] = Form.useForm();
@@ -132,7 +335,6 @@ export default function TenantOnboarding() {
     isError: readinessError,
     refetch: refetchReadiness,
   } = useOnboardingReadiness();
-  const activateReadinessMutation = useActivateOnboardingReadiness();
 
   const {
     data: branding,
@@ -166,9 +368,10 @@ export default function TenantOnboarding() {
     Form.useWatch("themeColor", brandForm) ?? branding?.themeColor ?? "var(--mk-theme-navy)";
 
   const parentCandidates = useMemo(() => {
-    const parentLevel = selectedLevel ? parentLevelByChildLevel[selectedLevel] : undefined;
-    if (!parentLevel) return [];
-    return orgItems.filter((item) => item.level === parentLevel);
+    if (!selectedLevel || selectedLevel === "TENANT") return [];
+    return orgItems.filter(
+      (item) => item.status === "ACTIVE" && levelRank[item.level] < levelRank[selectedLevel],
+    );
   }, [orgItems, selectedLevel]);
 
   const columns = useMemo<ColumnsType<OrgUnit>>(
@@ -250,24 +453,14 @@ export default function TenantOnboarding() {
     }
   }
 
-  async function handleActivate() {
-    try {
-      await activateReadinessMutation.mutateAsync();
-      message.success("租户开通门禁已通过");
-      void refetchReadiness();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "租户开通失败"));
-    }
-  }
-
   if (orgLoading || readinessLoading) {
     return (
       <PageShell
-        title="租户开通"
-        description="读取组织树与开通门禁"
+        title="租户实施配置"
+        description="读取组织树与实施就绪状态"
         state="loading"
         stateProps={{
-          title: "正在加载租户开通状态",
+          title: "正在加载租户实施状态",
           description: "正在读取组织树、开通就绪门和当前品牌信息。",
         }}
       >
@@ -279,11 +472,11 @@ export default function TenantOnboarding() {
   if (orgError || readinessError) {
     return (
       <PageShell
-        title="租户开通"
+        title="租户实施配置"
         description="请重试或联系信息科"
         state="error"
         stateProps={{
-          title: "租户开通状态读取失败",
+          title: "租户实施状态读取失败",
           description: "请重试；若持续失败，请带 traceId 联系信息科排查租户与组织引擎接口。",
           onRetry: () => {
             void refetchOrgs();
@@ -299,12 +492,12 @@ export default function TenantOnboarding() {
   if (!readiness || readinessSteps.length === 0) {
     return (
       <PageShell
-        title="租户开通"
-        description="等待开通门禁返回步骤"
+        title="租户实施配置"
+        description="等待实施就绪检查返回步骤"
         state="empty"
         stateProps={{
-          title: "暂无开通就绪步骤",
-          description: "当前租户尚未返回开通就绪步骤，请确认租户上下文已经建立。",
+          title: "暂无实施就绪步骤",
+          description: "当前租户尚未返回实施就绪步骤，请确认租户上下文已经建立。",
           onRetry: () => {
             void refetchReadiness();
           },
@@ -319,19 +512,8 @@ export default function TenantOnboarding() {
 
   return (
     <PageShell
-      title="租户开通"
-      description="按真实组织树和就绪门开通试点租户"
-      primary={
-        <Button
-          type="primary"
-          icon={ready ? <CheckCircleOutlined /> : <StopOutlined />}
-          disabled={!ready}
-          loading={activateReadinessMutation.isPending}
-          onClick={handleActivate}
-        >
-          开通租户
-        </Button>
-      }
+      title="租户实施配置"
+      description="配置当前客户租户的组织与品牌，实时核查实施就绪状态"
     >
       <Space direction="vertical" size="large" className="mk-full-width">
         <Row gutter={[16, 16]}>
@@ -366,14 +548,14 @@ export default function TenantOnboarding() {
           <Alert
             type="success"
             showIcon
-            message="开通就绪门已通过"
-            description="后端就绪门确认所有前置项完成，可以执行租户开通。"
+            message="实施就绪检查已通过"
+            description="组织、用户、权限、适配器、资产与灰度发布均已具备真实证据。"
           />
         ) : (
           <Alert
             type="warning"
             showIcon
-            message="开通就绪门未通过"
+            message="实施就绪检查未通过"
             description={
               <List
                 size="small"
@@ -389,7 +571,7 @@ export default function TenantOnboarding() {
           />
         )}
 
-        <Card title="开通就绪检查">
+        <Card title="实施就绪检查">
           <div className={styles.readinessGrid}>
             {readinessSteps.map((step) => (
               <Card key={step.key} size="small" className={styles.readinessStepCard}>
@@ -445,13 +627,11 @@ export default function TenantOnboarding() {
                           placeholder="请选择组织层级"
                           onChange={() => form.setFieldValue("parentId", undefined)}
                         >
-                          <Option value="TENANT">租户根</Option>
                           <Option value="GROUP">集团</Option>
                           <Option value="HOSPITAL">医院</Option>
                           <Option value="CAMPUS">院区</Option>
                           <Option value="SITE">社区服务点</Option>
                           <Option value="DEPARTMENT">科室</Option>
-                          <Option value="SPECIALTY">专病</Option>
                         </Select>
                       </Form.Item>
 
@@ -476,17 +656,17 @@ export default function TenantOnboarding() {
                         label="直接上级"
                         rules={[
                           {
-                            required: Boolean(selectedLevel && selectedLevel !== "TENANT"),
+                            required: Boolean(selectedLevel),
                             message: "请选择直接上级组织节点",
                           },
                         ]}
                       >
                         <Select
                           placeholder={
-                            selectedLevel === "TENANT" ? "租户根不需要上级" : "选择直接上级组织节点"
+                            selectedLevel ? "选择任一合法上级组织节点" : "请先选择组织层级"
                           }
                           allowClear
-                          disabled={!selectedLevel || selectedLevel === "TENANT"}
+                          disabled={!selectedLevel}
                         >
                           {parentCandidates.map((parent) => (
                             <Option key={parent.id} value={parent.id}>
@@ -496,19 +676,17 @@ export default function TenantOnboarding() {
                         </Select>
                       </Form.Item>
 
-                      {selectedLevel &&
-                        selectedLevel !== "TENANT" &&
-                        parentCandidates.length === 0 && (
-                          <Alert
-                            type="info"
-                            showIcon
-                            className={styles.formHint}
-                            message={`请先建立${levelLabel[parentLevelByChildLevel[selectedLevel] as OrgLevelCode]}层级，再新增${levelLabel[selectedLevel]}。`}
-                          />
-                        )}
+                      {selectedLevel && parentCandidates.length === 0 && (
+                        <Alert
+                          type="info"
+                          showIcon
+                          className={styles.formHint}
+                          message={`当前没有可作为${levelLabel[selectedLevel]}上级的活跃组织节点。`}
+                        />
+                      )}
 
-                      <Form.Item name="specialtyId" label="专病标识">
-                        <Input placeholder="仅专病层级需要填写" />
+                      <Form.Item name="specialtyId" label="专病适用维度">
+                        <Input placeholder="可选；用于规则、路径、知识包的横切适用范围" />
                       </Form.Item>
 
                       <Button
@@ -627,5 +805,49 @@ export default function TenantOnboarding() {
         />
       </Space>
     </PageShell>
+  );
+}
+
+export default function TenantOnboarding() {
+  const security = useSecurityProfile();
+
+  if (security.isLoading) {
+    return (
+      <PageShell
+        title="租户管理"
+        description="读取当前租户上下文"
+        state="loading"
+        stateProps={{
+          title: "正在确认租户范围",
+          description: "正在读取当前用户的租户与权限画像。",
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  const tenantId = security.data?.dataScope?.tenantId;
+  if (security.isError || !tenantId) {
+    return (
+      <PageShell
+        title="租户管理"
+        description="当前租户上下文不可用"
+        state="error"
+        stateProps={{
+          title: "无法确认当前租户",
+          description: "请重新登录；若持续失败，请带 traceId 联系平台运维排查安全画像。",
+          onRetry: () => security.refetch(),
+        }}
+      >
+        <></>
+      </PageShell>
+    );
+  }
+
+  return tenantId === platformTenantId ? (
+    <PlatformTenantProvisioning />
+  ) : (
+    <CustomerTenantImplementation />
   );
 }

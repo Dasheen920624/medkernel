@@ -108,6 +108,28 @@ class OrgUnitRepositoryTest {
         assertThat(thirdPage.get(thirdPage.size() - 1).code()).isEqualTo("HOSP-025");
     }
 
+    @Test
+    void directorySearchFiltersKeywordLevelStatusAndTenant() {
+        repository.save(newHospital("t-1", "HOSP-MAIN", "中心医院"));
+        repository.save(newDepartment("t-1", "DEPT-CARDIO", "心内科"));
+        repository.save(new OrgUnit(
+            null, null, "t-1", "/DEPT-OLD", OrgLevel.DEPARTMENT, "DEPT-OLD", "旧科室",
+            null, "cardiology", OrgUnitStatus.SUSPENDED, Instant.now(), "system", Instant.now(), "system"
+        ));
+        repository.save(newDepartment("t-2", "DEPT-CARDIO", "另一租户心内科"));
+
+        assertThat(repository.countDirectory("t-1", "心内", "DEPARTMENT", "ACTIVE"))
+            .isEqualTo(1);
+        assertThat(repository.pageDirectory("t-1", "心内", "DEPARTMENT", "ACTIVE", 0, 10))
+            .extracting(OrgUnit::code)
+            .containsExactly("DEPT-CARDIO");
+        assertThat(repository.pageDirectory("t-1", "cardiology", "DEPARTMENT", "SUSPENDED", 0, 10))
+            .extracting(OrgUnit::code)
+            .containsExactly("DEPT-OLD");
+        assertThat(repository.pageDirectory("t-1", null, null, null, 1, 1))
+            .hasSize(1);
+    }
+
     private OrgUnit newHospital(String tenantId, String code, String name) {
         Instant now = Instant.now();
         return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.HOSPITAL, code, name, null, null,

@@ -26,7 +26,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`GET/PUT /api/v1/compliance/data-permissions` · `GET/PUT /api/v1/compliance/masking-rules` · `POST /api/v1/compliance/exports:request`（导出申请）· `POST /api/v1/compliance/exports/{id}:approve` · `POST /api/v1/compliance/exports/{id}:complete`（登记真实导出产物）
+- 端点：`GET/PUT /api/v1/compliance/data-permissions` · `GET/PUT /api/v1/compliance/masking-rules` · `POST /api/v1/compliance/exports:request`（导出申请）· `POST /api/v1/compliance/exports/{id}:approve` · `POST /api/v1/compliance/exports/{id}:complete-from-job`（从后端任务登记真实导出产物）
 - DTO：数据权限/脱敏/导出审批 Record；信封 `ApiResult`/`ProblemDetail`
 - 状态机：变更类（导出：申请→审批→已导出/驳回）；配置类（数据权限）
 - 幂等 / traceId：审批幂等；trace（[OBS-01](../D0/OBS-01.md)）
@@ -83,5 +83,5 @@
 
 ### PR3 阶段证据（2026-06-06，SYS-06 整卡本地验收）
 - 实现范围：`com.medkernel.compliance.exportapproval` 新增导出审批 Record DTO / 仓储 / 服务 / 控制器，导出状态按 `REQUESTED → APPROVED/REJECTED → EXPORTED` 推进；审批阶段禁止申请人自审批；审批通过不伪造已导出，只有登记真实 `exportUri` 与 `sm3:<64 hex>` 摘要后才进入 `EXPORTED`。
-- 契约与迁移：新增 `POST /api/v1/compliance/exports:request`、`POST /api/v1/compliance/exports/{id}:approve`、`POST /api/v1/compliance/exports/{id}:complete`，权限为 `audit.export` 且要求租户数据范围；申请写 `CREATE` 审计，审批写 `REVIEW` 审计并生成 `COMPLIANCE_EXPORT_APPROVAL` 证据，真实导出完成写 `EXPORT` 审计并生成 `COMPLIANCE_EXPORT` 证据；`ServiceContractCatalog` 登记 `compliance-export-approval`，`DomainOwnershipCatalog` 登记 `compliance-security`；V92 五方言新增 `mk_compliance_export_approval` 并补迁移基线合同。
+- 契约与迁移：新增 `POST /api/v1/compliance/exports:request`、`POST /api/v1/compliance/exports/{id}:approve`、`POST /api/v1/compliance/exports/{id}:complete-from-job`，权限为 `audit.export` 且要求租户数据范围；完成登记只接受已成功的后端任务 ID，由服务端校验审批范围并按真实文件计算 SM3；申请写 `CREATE` 审计，审批写 `REVIEW` 审计并生成 `COMPLIANCE_EXPORT_APPROVAL` 证据，真实导出完成写 `EXPORT` 审计并生成 `COMPLIANCE_EXPORT` 证据；`ServiceContractCatalog` 登记 `compliance-export-approval`，`DomainOwnershipCatalog` 登记 `compliance-security`；V92 五方言新增 `mk_compliance_export_approval` 并补迁移基线合同。
 - 验证：红灯测试先失败于缺导出审批实现；随后 `mvn -Dtest=ExportApprovalServiceTest,ExportApprovalControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest test` 通过（90 测试），`mvn -Dtest=ServiceContractGovernanceTest,DomainOwnershipContractTest,FlywayMultiDialectSmokeTest test` 通过（9 测试，H2 / PostgreSQL 15.18 / Oracle 21.3 迁移到 V92 并二次 no-op），后端全量 `mvn test` 通过（1527 测试 / 0 失败 / 0 错误 / 0 跳过），前端全量 `npm run verify` 通过（67 文件 / 405 测试）。T-GATE：中文注释 0 fail / 0 warn，`git diff --check` / `git diff --cached --check` 通过，真实性显式文件扫描 12 文件与 changed-mode 12 文件通过，配置边界显式文件扫描 12 文件与 changed-mode 12 文件通过，迁移规约显式文件扫描 5 文件与 changed-mode 5 文件通过，门禁脚本单测 34 项通过。

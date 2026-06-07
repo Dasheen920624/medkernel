@@ -110,6 +110,25 @@ class ServiceContractGovernanceTest {
         assertThat(paths).containsExactlyElementsOf(expected);
     }
 
+    @Test
+    void controllersMustExposeSingleCanonicalBasePath() {
+        assertThat(apiControllers())
+            .allSatisfy(controller -> assertThat(classPaths(controller))
+                .as(controller.getName() + " 只能声明一个 canonical base path")
+                .hasSize(1));
+    }
+
+    @Test
+    void serviceContractsMustNotRegisterLegacyTenantPlatformRoutes() {
+        assertThat(ServiceContractCatalog.openApiPaths())
+            .doesNotContain(
+                "/api/v1/platform/branding/**",
+                "/api/v1/platform/success/lifecycle/**",
+                "/api/v1/tenant/org-units/**",
+                "/api/v1/engine/events/**",
+                "/api/v1/clinical/mpi/**");
+    }
+
     private List<Class<?>> apiControllers() {
         return classes.stream()
             .filter(javaClass -> javaClass.isAnnotatedWith(RestController.class))

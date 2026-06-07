@@ -18,7 +18,7 @@ import java.util.Optional;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -28,10 +28,21 @@ import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 class EvaluationEngineServiceTest {
 
@@ -42,13 +53,17 @@ class EvaluationEngineServiceTest {
     private RectificationTaskRepository tasks;
     private RectificationReviewRepository reviews;
     private EvaluationIdempotencyKeyRepository idempotencyKeys;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private com.medkernel.engine.context.CanonicalResourceRepository canonicalResources;
     private com.medkernel.engine.context.ContextSnapshotRepository snapshots;
     private com.medkernel.engine.rule.RuleDslEvaluator ruleEvaluator;
     private com.fasterxml.jackson.databind.ObjectMapper json;
+    private EvaluationVersionedAssetAdapter versionedAssets;
+    private AssetVersionRepository assetVersions;
+    private ReleasePort releasePort;
+    private com.medkernel.engine.org.OrgAssignmentValidator assignments;
     private EvaluationEngineService service;
 
     @BeforeEach
@@ -60,18 +75,23 @@ class EvaluationEngineServiceTest {
         tasks = mock(RectificationTaskRepository.class);
         reviews = mock(RectificationReviewRepository.class);
         idempotencyKeys = mock(EvaluationIdempotencyKeyRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         canonicalResources = mock(com.medkernel.engine.context.CanonicalResourceRepository.class);
         snapshots = mock(com.medkernel.engine.context.ContextSnapshotRepository.class);
         ruleEvaluator = mock(com.medkernel.engine.rule.RuleDslEvaluator.class);
         json = new com.fasterxml.jackson.databind.ObjectMapper();
+        versionedAssets = mock(EvaluationVersionedAssetAdapter.class);
+        assetVersions = mock(AssetVersionRepository.class);
+        releasePort = mock(ReleasePort.class);
+        assignments = mock(com.medkernel.engine.org.OrgAssignmentValidator.class);
 
         service = new EvaluationEngineService(
             indicators, runs, results, findings, tasks, reviews, idempotencyKeys,
-            auditPublisher, transitions, diagnoseAssembler,
-            canonicalResources, snapshots, ruleEvaluator, json);
+            auditRecorder, transitions, diagnoseAssembler,
+            canonicalResources, snapshots, ruleEvaluator, json,
+            versionedAssets, assetVersions, releasePort, assignments);
 
         when(indicators.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(runs.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -82,11 +102,13 @@ class EvaluationEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-eval", com.medkernel.shared.context.OrgScope.tenant("tenant-A"), "qa-1"));
+        authenticate(RoleCode.HOSPITAL_ADMIN);
     }
 
     @AfterEach
     void clear() {
         RequestContext.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -94,26 +116,58 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator draft = service.createIndicator(indicatorRequest(2));
         assertThat(draft.status()).isEqualTo(EvaluationIndicatorStatus.DRAFT);
         assertThat(draft.tenantId()).isEqualTo("tenant-A");
+        verify(versionedAssets).registerDraft(org.mockito.ArgumentMatchers.argThat(command ->
+            command.assetType() == VersionedAssetType.EVALUATION
+                && command.assetIdentity().equals("IND.VTE.PROPHYLAXIS")
+                && command.versionNo().equals("2")
+        ));
 
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.DRAFT)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(draft));
         EvaluationIndicator pending = service.submitIndicator(draft.indicatorId());
         assertThat(pending.status()).isEqualTo(EvaluationIndicatorStatus.PENDING_REVIEW);
+        verify(releasePort).submitForReview(any());
 
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PENDING_REVIEW)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(pending));
-        EvaluationIndicator published = service.publishIndicator(draft.indicatorId());
+        EvaluationIndicator published = service.publishIndicator(
+            draft.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("质控办已复核指标口径")
+        );
         assertThat(published.status()).isEqualTo(EvaluationIndicatorStatus.PUBLISHED);
+        verify(releasePort).approveForSilentObservation(any());
+
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
+        when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
+            .thenReturn(Optional.of(published));
+        EvaluationIndicator gray = service.grayIndicator(
+            draft.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("先按默认 10% 床位灰度")
+        );
+        assertThat(gray.status()).isEqualTo(EvaluationIndicatorStatus.GRAY);
+        verify(releasePort).releaseGray(any());
 
         EvaluationIndicator oldActive = indicator("ei-old", 1, EvaluationIndicatorStatus.ACTIVE);
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
-            .thenReturn(Optional.of(published));
+            .thenReturn(Optional.of(gray));
         when(indicators.findByTenantIdAndIndicatorCodeAndStatus(
             "tenant-A", "IND.VTE.PROPHYLAXIS", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of(oldActive));
-        EvaluationIndicator active = service.activateIndicator(draft.indicatorId());
+        EvaluationIndicator active = service.activateIndicator(
+            draft.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("灰度观察通过，批准全量")
+        );
 
         assertThat(active.status()).isEqualTo(EvaluationIndicatorStatus.ACTIVE);
+        verify(releasePort).releaseFull(any());
         ArgumentCaptor<EvaluationIndicator> saved = ArgumentCaptor.forClass(EvaluationIndicator.class);
         verify(indicators, org.mockito.Mockito.atLeast(5)).save(saved.capture());
         assertThat(saved.getAllValues())
@@ -121,8 +175,27 @@ class EvaluationEngineServiceTest {
                 assertThat(indicator.indicatorId()).isEqualTo("ei-old");
                 assertThat(indicator.status()).isEqualTo(EvaluationIndicatorStatus.OFFLINE);
             });
-        verify(auditPublisher).publish(AuditAction.PUBLISH, "evaluation_indicator",
+        verify(auditRecorder).record(AuditAction.PUBLISH, "evaluation_indicator",
             draft.indicatorId(), "发布评估指标 IND.VTE.PROPHYLAXIS");
+    }
+
+    @Test
+    void activateIndicatorRejectsSpoofedRequestRoleWhenAuthenticationIsNotHospitalAdmin() {
+        EvaluationIndicator gray = indicator("ei-gray", 2, EvaluationIndicatorStatus.GRAY);
+        when(indicators.findByIndicatorIdAndTenantId("ei-gray", "tenant-A"))
+            .thenReturn(Optional.of(gray));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
+        authenticate(RoleCode.QA_MANAGER);
+
+        assertThatThrownBy(() -> service.activateIndicator(
+            "ei-gray",
+            new EvaluationIndicatorReleaseRequest("请求体不再携带可伪造角色")
+        ))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -174,7 +247,7 @@ class EvaluationEngineServiceTest {
         assertThat(result.getValue().indicatorVersion()).isEqualTo(1);
         assertThat(finding.getValue().status()).isEqualTo(QualityFindingStatus.ASSIGNED);
         assertThat(task.getValue().status()).isEqualTo(RectificationTaskStatus.ASSIGNED);
-        verify(auditPublisher).publish(AuditAction.EXECUTE, "evaluation_run",
+        verify(auditRecorder).record(AuditAction.EXECUTE, "evaluation_run",
             response.runId(), "接收评估运行 RUN.VTE");
     }
 
@@ -248,7 +321,7 @@ class EvaluationEngineServiceTest {
         assertThat(approved.findingStatus()).isEqualTo(QualityFindingStatus.CLOSED);
         assertThat(approved.taskStatus()).isEqualTo(RectificationTaskStatus.CLOSED);
         verify(reviews).save(any(RectificationReview.class));
-        verify(auditPublisher).publish(eq(AuditAction.REVIEW), eq("quality_finding"), eq("qf-1"), any());
+        verify(auditRecorder).record(eq(AuditAction.REVIEW), eq("quality_finding"), eq("qf-1"), any());
     }
 
     @Test
@@ -283,7 +356,9 @@ class EvaluationEngineServiceTest {
         assertThat(task.getValue().findingId()).isEqualTo("qf-new");
         assertThat(task.getValue().responsibleDepartmentId()).isEqualTo("dept-quality");
         assertThat(task.getValue().assigneeUserId()).isEqualTo("head-quality");
-        verify(auditPublisher).publish(AuditAction.CREATE, "rectification_task",
+        verify(assignments).requireActiveDepartment("dept-quality");
+        verify(assignments).requireActiveUserIfPresent("head-quality");
+        verify(auditRecorder).record(AuditAction.CREATE, "rectification_task",
             task.getValue().taskId(), "派发质控整改 qf-new");
 
         RectificationTask existing = new RectificationTask(
@@ -481,8 +556,8 @@ class EvaluationEngineServiceTest {
     void evaluateSnapshotCalculatesMetricsAndCreatesDefectFindings() {
         // Mock ContextSnapshot
         ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-1", "tenant-A", "dept-1", "patient-1", "enc-1",
-            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
+            null, "snap-1", "tenant-A", "dept-1", null, null, "1.0.0",
+            "patient-1", "enc-1", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
             "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
             "sig", Instant.now(), "qa-1");
         when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
@@ -715,10 +790,31 @@ class EvaluationEngineServiceTest {
         verify(runs, never()).save(any());
     }
 
+    private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {
+        Instant now = Instant.now();
+        return new AssetVersion(
+            null, versionId, "tenant-A", VersionedAssetType.EVALUATION,
+            "IND.VTE.PROPHYLAXIS", versionNo, "全院", "MEDICAL_RECORD:DISCHARGE+24H",
+            "0".repeat(64), AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            status, "version:" + versionId, "guideline-1", null, null,
+            now, "qa-1", now, "qa-1", "trace-eval"
+        );
+    }
+
+    private void authenticate(RoleCode role) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "qa-1",
+                "n/a",
+                List.of(new SimpleGrantedAuthority(role.authority()))
+            )
+        );
+    }
+
     private ContextSnapshot snapshot(String snapshotId) {
         return new ContextSnapshot(
-            null, snapshotId, "tenant-A", "dept-1", "patient-1", "enc-1",
-            "1.0.0", "1.0.0", "1.0.0", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
+            null, snapshotId, "tenant-A", "dept-1", null, null, "1.0.0",
+            "patient-1", "enc-1", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
             "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
             "sig", Instant.now(), "qa-1");
     }

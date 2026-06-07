@@ -10,55 +10,87 @@ import {
   bindBootstrapMfa,
   changePassword,
   checkBootstrapInitToken,
+  completeApprovedExportJob,
+  createIdentityBinding,
   createBootstrapAdmin,
   fetchDelegatedAuthStatus,
+  fetchDataPermissionPolicies,
+  fetchExportApprovals,
+  fetchInteropAssessment,
+  fetchIdentityBindings,
+  fetchMaskingRules,
+  fetchSystemConfigs,
   fetchThemePreference,
   fetchSavedViews,
   importPackageOfflinePackage,
   saveThemePreference,
   saveExperienceViewSnapshot,
+  requestExportApproval,
+  reviewExportApproval,
   submitLargeListExport,
+  unbindIdentityBinding,
+  updateSystemConfig,
+  upsertDataPermissionPolicy,
+  upsertMaskingRule,
   useCompleteWorkflowTodo,
   useCreatePackage,
   useAdvanceIntegrationOnboarding,
-  useActivateOnboardingReadiness,
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
   useActivateEvaluationIndicator,
   useConfirmTerminologyCandidate,
+  useContextFieldCatalog,
   useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
+  useCreateWebhook,
   useDispatchRectification,
   useEvaluationIndicators,
   useEvaluationResults,
+  useEvaluateRecommendations,
   useEvaluateSnapshot,
+  useEnterPatientPathway,
   useGenerateDataQualityReport,
   useGenerateTerminologyCandidates,
+  useGrayEvaluationIndicator,
   useFollowupStats,
   useIntegrationOnboardings,
   useInsuranceIssues,
   useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
+  useFullRolloutRule,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useKnowledgeIdentities,
+  useLargeAuditEvents,
   useLocalTerms,
+  useCreateMpiPatient,
+  useMergeMpiPatients,
+  useMpiPatientDetail,
+  useMpiPatients,
+  useMpiStats,
   useOnboardingReadiness,
   useOrgUnits,
+  useOrgUsers,
   usePackages,
   usePackageAssetReadiness,
   usePackageSyncLogs,
+  usePathwayTemplates,
   usePilotPackageTemplates,
   usePublishTerminologyPackage,
   usePublishEvaluationIndicator,
   useQualityFindings,
+  useRegionalSources,
+  useRegisterRegionalSource,
+  useRuleDefinitions,
+  useRuleExecutions,
   useReviewRectification,
   useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
   useRunDrgGrouping,
   useRunInsuranceAudit,
   useRunQualityCaseReview,
+  useRunRuleTests,
   useSubmitRectification,
   useSyncPackage,
   useStandardTerms,
@@ -66,12 +98,17 @@ import {
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyPackages,
+  useTestWebhookSignature,
+  useWebhooks,
   useReadWorkflowNotification,
   useReportFollowupAbnormal,
   useSaveWorkflowNotificationSettings,
+  useSaveWorkflowSystemNotificationSettings,
+  useSplitMpiPatient,
   useTransferWorkflowTodo,
   useWorkflowNotificationSettings,
   useWorkflowNotifications,
+  useWorkflowSystemNotificationSettings,
   useWorkflowTodos,
 } from "./hooks";
 
@@ -80,6 +117,7 @@ vi.mock("./client", () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -134,14 +172,15 @@ describe("package export api helpers", () => {
     vi.mocked(apiClient.put).mockReset();
   });
 
-  it("downloads an offline package from the integrity-protected export endpoint", async () => {
+  it("downloads an effective offline package for a target organization", async () => {
     const offlineBlob = new Blob(["offline-package"]);
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: offlineBlob });
 
-    const result = await downloadPackageOfflineExport("pkg-1");
+    const result = await downloadPackageOfflineExport("pkg-1", "hospital-1");
 
     expect(result).toBe(offlineBlob);
     expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/offline/export", {
+      params: { targetOrgUnitId: "hospital-1" },
       responseType: "blob",
     });
   });
@@ -169,11 +208,11 @@ describe("package export api helpers", () => {
     };
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
 
-    const result = await importPackageOfflinePackage('{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}');
+    const result = await importPackageOfflinePackage('{"format":"MEDKERNEL_PACKAGE_OFFLINE_V2"}');
 
     expect(result).toBe(response);
     expect(apiClient.post).toHaveBeenCalledWith("/engine/pkg/packages/offline/import", {
-      offlinePackageJson: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
+      offlinePackageJson: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V2"}',
     });
   });
 
@@ -217,11 +256,12 @@ describe("package export api helpers", () => {
       packageId: "pkg-1",
       request: {
         packageVersion: "1.0.0",
+        reason: "验证灰度发布",
         targetOrgUnitId: "org-1",
         strategy: "GRAYSCALE",
         scopeType: "DEPARTMENT",
         scopeValue: "dept-A",
-        targetIds: ["target-1"],
+        adapterIds: ["target-1"],
       },
     });
 
@@ -232,7 +272,7 @@ describe("package export api helpers", () => {
         trace_id: "00000000-0000-4000-8000-000000000002",
         tenant_id: "tenant-A",
         package_version: "1.0.0",
-        targetIds: ["target-1"],
+        adapterIds: ["target-1"],
       }),
     );
   });
@@ -376,8 +416,12 @@ describe("package export api helpers", () => {
           quietStart: "22:00",
           quietEnd: "07:00",
           quietBypassLevels: ["CRITICAL", "HIGH"],
+          subscribedTypes: ["SAFETY", "FOLLOWUP", "WORKFLOW"],
+          mandatoryTypes: ["SAFETY"],
+          source: "PERSONAL",
           quietActiveNow: false,
           version: 3,
+          systemVersion: 2,
           updatedAt: "2026-06-04T08:00:00Z",
           updatedBy: "doctor-1",
         },
@@ -406,8 +450,12 @@ describe("package export api helpers", () => {
           quietStart: "21:30",
           quietEnd: "06:30",
           quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+          subscribedTypes: ["SAFETY", "WORKFLOW"],
+          mandatoryTypes: ["SAFETY"],
+          source: "PERSONAL",
           quietActiveNow: true,
           version: 4,
+          systemVersion: 2,
         },
       },
     });
@@ -425,6 +473,7 @@ describe("package export api helpers", () => {
       quietStart: "21:30",
       quietEnd: "06:30",
       quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+      subscribedTypes: ["SAFETY", "WORKFLOW"],
     });
 
     expect(apiClient.put).toHaveBeenCalledWith("/engine/notifications/settings", {
@@ -438,6 +487,58 @@ describe("package export api helpers", () => {
       quietStart: "21:30",
       quietEnd: "06:30",
       quietBypassLevels: ["CRITICAL", "HIGH", "INFO"],
+      subscribedTypes: ["SAFETY", "WORKFLOW"],
+    });
+  });
+
+  it("loads and updates tenant notification defaults through the system settings endpoint", async () => {
+    const systemSettings = {
+      inAppEnabled: true,
+      smsEnabled: false,
+      emailEnabled: false,
+      pushEnabled: false,
+      webhookEnabled: false,
+      inHospitalMessageEnabled: true,
+      quietHoursEnabled: false,
+      quietStart: "22:00",
+      quietEnd: "07:00",
+      quietBypassLevels: ["CRITICAL", "HIGH"],
+      subscribedTypes: ["SAFETY", "WORKFLOW"],
+      mandatoryTypes: ["SAFETY"],
+      source: "SYSTEM_DEFAULT",
+      quietActiveNow: false,
+      version: 0,
+      systemVersion: 7,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: systemSettings } });
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: systemSettings } });
+
+    const readHook = renderApiHook(() => useWorkflowSystemNotificationSettings(true));
+    await waitFor(() => expect(readHook.result.current.data?.systemVersion).toBe(7));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications/settings/system");
+
+    const saveHook = renderApiHook(() => useSaveWorkflowSystemNotificationSettings());
+    await saveHook.result.current.mutateAsync({
+      settings: {
+        inAppEnabled: true,
+        smsEnabled: false,
+        emailEnabled: false,
+        pushEnabled: false,
+        webhookEnabled: false,
+        inHospitalMessageEnabled: true,
+        quietHoursEnabled: false,
+        quietStart: "22:00",
+        quietEnd: "07:00",
+        quietBypassLevels: ["CRITICAL", "HIGH"],
+        subscribedTypes: ["SAFETY", "WORKFLOW"],
+      },
+      reason: "统一租户默认策略",
+      expectedVersion: 7,
+    });
+    expect(apiClient.put).toHaveBeenCalledWith("/engine/notifications/settings/system", {
+      settings: expect.objectContaining({ subscribedTypes: ["SAFETY", "WORKFLOW"] }),
+      reason: "统一租户默认策略",
+      expectedVersion: 7,
     });
   });
 
@@ -508,6 +609,88 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("does not load optional source asset lists when query options disable them", () => {
+    renderApiHook(() => {
+      useRuleDefinitions({ size: 100 }, { enabled: false });
+      usePathwayTemplates({ size: 100 }, { enabled: false });
+      useEvaluationIndicators({ size: 100 }, { enabled: false });
+    });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("runs all rule cases through the canonical rule test endpoint with standard context", async () => {
+    const response = {
+      ruleId: "rule-real-1",
+      total: 4,
+      passed: 4,
+      failed: 0,
+      error: 0,
+      allPassed: true,
+      results: [],
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useRunRuleTests("rule-real-1"));
+
+    await expect(result.current.mutateAsync({ packageVersion: "pkg-2026.06" })).resolves.toEqual(
+      response,
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-real-1/test",
+      expect.objectContaining({
+        tenant_id: "tenant-A",
+        group_id: "group-A",
+        hospital_id: "hospital-A",
+        campus_id: "campus-A",
+        site_id: "site-A",
+        department_id: "dept-A",
+        specialty_id: "specialty-A",
+        user_id: "user-1",
+        role_codes: ["it-ops"],
+        package_version: "pkg-2026.06",
+        request_id: expect.any(String),
+        trace_id: expect.any(String),
+      }),
+    );
+  });
+
+  it("activates a reviewed rule through the full-rollout endpoint", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          ruleId: "rule-real-1",
+          versionId: "version-1",
+          status: "PUBLISHED",
+          traceId: "trace-full",
+          results: [],
+          impactDigest: "sha256:impact",
+          impactStatus: "COMPLETE",
+          releaseEvidence: ["FULL 全量激活"],
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useFullRolloutRule());
+
+    await result.current.mutateAsync({
+      ruleId: "rule-real-1",
+      packageVersion: "1.0.0",
+      impactDigest: "sha256:impact",
+      reason: "院级管理员确认全量激活",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-real-1/rollout/full",
+      expect.objectContaining({
+        impactDigest: "sha256:impact",
+        reason: "院级管理员确认全量激活",
+        package_version: "1.0.0",
+      }),
+    );
+  });
+
   it("creates and advances evaluation indicator lifecycle through the API-08 canonical resource", async () => {
     const draft = {
       indicatorId: "indicator-real-1",
@@ -517,6 +700,7 @@ describe("package export api helpers", () => {
     };
     const pending = { ...draft, status: "PENDING_REVIEW" };
     const published = { ...draft, status: "PUBLISHED" };
+    const gray = { ...draft, status: "GRAY" };
     const active = { ...draft, status: "ACTIVE" };
     const createPayload = {
       indicatorCode: "IND.REAL",
@@ -535,17 +719,29 @@ describe("package export api helpers", () => {
       .mockResolvedValueOnce({ data: { data: draft } })
       .mockResolvedValueOnce({ data: { data: pending } })
       .mockResolvedValueOnce({ data: { data: published } })
+      .mockResolvedValueOnce({ data: { data: gray } })
       .mockResolvedValueOnce({ data: { data: active } });
 
     const createHook = renderApiHook(() => useCreateEvaluationIndicator());
     const submitHook = renderApiHook(() => useSubmitEvaluationIndicator());
     const publishHook = renderApiHook(() => usePublishEvaluationIndicator());
+    const grayHook = renderApiHook(() => useGrayEvaluationIndicator());
     const activateHook = renderApiHook(() => useActivateEvaluationIndicator());
 
     await createHook.result.current.mutateAsync(createPayload);
     await submitHook.result.current.mutateAsync("indicator-real-1");
-    await publishHook.result.current.mutateAsync("indicator-real-1");
-    await activateHook.result.current.mutateAsync("indicator-real-1");
+    await publishHook.result.current.mutateAsync({
+      indicatorId: "indicator-real-1",
+      reason: "审核结论明确",
+    });
+    await grayHook.result.current.mutateAsync({
+      indicatorId: "indicator-real-1",
+      reason: "默认 10% 床位灰度",
+    });
+    await activateHook.result.current.mutateAsync({
+      indicatorId: "indicator-real-1",
+      reason: "灰度观察通过",
+    });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
@@ -559,10 +755,17 @@ describe("package export api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(
       3,
       "/engine/evaluation/indicators/indicator-real-1/publish",
+      { reason: "审核结论明确" },
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       4,
+      "/engine/evaluation/indicators/indicator-real-1/gray",
+      { reason: "默认 10% 床位灰度" },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      5,
       "/engine/evaluation/indicators/indicator-real-1/activate",
+      { reason: "灰度观察通过" },
     );
   });
 
@@ -882,6 +1085,27 @@ describe("package export api helpers", () => {
     });
   });
 
+  it("loads context field catalog with package version params", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [] } });
+
+    const { result } = renderApiHook(() =>
+      useContextFieldCatalog({
+        resourceType: "Observation",
+        keyword: "血糖",
+        packageVersion: "pkg-2026.06",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/context/field-catalog", {
+      params: {
+        resourceType: "Observation",
+        keyword: "血糖",
+        packageVersion: "pkg-2026.06",
+      },
+    });
+  });
+
   it("loads pilot package templates from the dedicated API-10 endpoint", async () => {
     const templates = [
       {
@@ -986,22 +1210,6 @@ describe("package export api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness");
   });
 
-  it("activates tenant onboarding only through the tenant engine readiness gate", async () => {
-    const readiness = {
-      tenantId: "tenant-A",
-      ready: true,
-      steps: [],
-      blockers: [],
-      checkedAt: "2026-06-03T00:00:00Z",
-    };
-    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: readiness } });
-
-    const { result } = renderApiHook(() => useActivateOnboardingReadiness());
-
-    await expect(result.current.mutateAsync()).resolves.toBe(readiness);
-    expect(apiClient.post).toHaveBeenCalledWith("/engine/tenant/onboarding-readiness/activate");
-  });
-
   it("loads organization units from the engine org API root instead of the legacy tenant root", async () => {
     const page = {
       items: [{ id: "org-1", level: "TENANT", code: "T-1", name: "平台主租户" }],
@@ -1016,6 +1224,56 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data).toBe(page));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/org/org-units", {
       params: { size: 100 },
+    });
+  });
+
+  it("loads the active organization user directory without using the admin user API", async () => {
+    const page = {
+      items: [{ userId: "doctor-1", displayName: "王医生" }],
+      page: 1,
+      size: 200,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useOrgUsers({ page: 1, size: 200 }));
+
+    await waitFor(() => expect(result.current.data).toBe(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/org/org-units/users", {
+      params: { page: 1, size: 200 },
+    });
+  });
+
+  it("loads recent rule executions from the tenant-scoped execution directory", async () => {
+    const page = {
+      items: [
+        {
+          executionId: "rex-1",
+          ruleId: "rule-1",
+          versionId: "rv-1",
+          triggerPoint: "ORDER_SIGN",
+          hit: true,
+          severity: "HIGH",
+          status: "SUCCESS",
+          executedAt: "2026-06-07T08:00:00Z",
+          traceId: "trace-1",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() => useRuleExecutions({ page: 1, size: 20 }));
+
+    await waitFor(() => expect(result.current.data).toBe(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/executions", {
+      params: { page: 1, size: 20 },
     });
   });
 
@@ -1055,6 +1313,258 @@ describe("package export api helpers", () => {
         packageVersion: "2026.06.03",
         name: "首发配置包",
       }),
+    );
+  });
+});
+
+describe("recommendation evaluation api hook", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("evaluates recommendations from the selected ACTIVE context snapshot", async () => {
+    const request = {
+      triggerCode: "CDSS-MANUAL-order-sign",
+      triggerType: "order-sign",
+      scenarioCode: "order-sign",
+      contextSnapshotId: "snapshot-active-1",
+      patientId: "MPI-1",
+      encounterId: "encounter-1",
+      packageVersion: "pkg-2026.06",
+    };
+    const response = {
+      triggerId: "trigger-1",
+      status: "COMPLETED",
+      totalCardCount: 2,
+      visibleCardCount: 1,
+      suppressedCardCount: 1,
+      modelStatus: "NOT_REQUIRED",
+      cards: [],
+      traceId: "trace-1",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useEvaluateRecommendations());
+    const evaluated = await result.current.mutateAsync(request);
+
+    expect(evaluated).toBe(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/recommendations:evaluate", request);
+  });
+});
+
+describe("patient pathway entry api hook", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("submits only the context snapshot reference and pathway choices", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          patientPathway: { patientPathwayId: "pp-1" },
+          variances: [],
+          clocks: [],
+          traceId: "trace-pathway-1",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useEnterPatientPathway());
+    await result.current.mutateAsync({
+      contextSnapshotId: "ctx-active-1",
+      templateId: "pt-1",
+      startNodeCode: "ASSESS",
+      packageVersion: "pkg-2026.06",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pathway/patient-pathways/enter",
+      expect.objectContaining({
+        contextSnapshotId: "ctx-active-1",
+        templateId: "pt-1",
+        startNodeCode: "ASSESS",
+        package_version: "pkg-2026.06",
+      }),
+    );
+    const request = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(request).not.toHaveProperty("patientId");
+    expect(request).not.toHaveProperty("encounterId");
+  });
+});
+
+describe("large audit event api", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  it("preserves cursor pagination and approved audit filters", async () => {
+    const page = {
+      items: [
+        {
+          id: "7",
+          eventId: "evt-7",
+          occurredAt: "2026-06-06T12:00:00Z",
+          actorUserId: "auditor-1",
+          summary: "导出审计证据",
+          actionCode: "EXPORT",
+          resourceType: "audit",
+          resourceId: "snapshot-7",
+          traceId: "trace-7",
+          signature: "sm2:signature",
+          status: "SIGNED",
+          outcome: "SUCCESS",
+          superAdminAction: false,
+        },
+      ],
+      nextCursor: "Nw==",
+      totalEstimate: 101,
+      totalEstimated: true,
+      hasMore: true,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { code: "0", data: page } });
+
+    const { result } = renderApiHook(() =>
+      useLargeAuditEvents({
+        cursor: "MTA=",
+        size: 20,
+        sort: "id,desc",
+        action: "EXPORT",
+        outcome: "SUCCESS",
+        actorUserId: "auditor-1",
+        resourceType: "audit",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-07-01T00:00:00.000Z",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toEqual(page);
+    expect(apiClient.get).toHaveBeenCalledWith("/large-lists/audit-events/list", {
+      params: {
+        cursor: "MTA=",
+        size: 20,
+        sort: "id,desc",
+        action: "EXPORT",
+        outcome: "SUCCESS",
+        actorUserId: "auditor-1",
+        resourceType: "audit",
+        from: "2026-06-01T00:00:00.000Z",
+        to: "2026-07-01T00:00:00.000Z",
+      },
+    });
+  });
+});
+
+describe("mpi api helpers", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+  });
+
+  it("uses api-client-relative endpoints without duplicating the api version prefix", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: { items: [], total: 0 } } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            activeCount: 0,
+            mergedCount: 0,
+            activePathwayCount: 0,
+            averageAge: 0,
+            genderCounts: {},
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            patient: { mpiId: "mpi-real-1" },
+            activePathwayCount: 0,
+            activePathways: [],
+            traceId: "trace-mpi-detail",
+          },
+        },
+      });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: { mpiId: "mpi-new-1" } } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "MERGED",
+            sourceMpiId: "mpi-source-1",
+            targetMpiId: "mpi-target-1",
+            message: "已合并",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "SPLIT",
+            sourceMpiId: "mpi-source-1",
+            targetMpiId: "mpi-target-1",
+            message: "已拆分",
+          },
+        },
+      });
+
+    renderApiHook(() => useMpiPatients({ page: 1, size: 20 }));
+    renderApiHook(() => useMpiStats());
+    renderApiHook(() => useMpiPatientDetail("mpi-real-1"));
+    const createHook = renderApiHook(() => useCreateMpiPatient());
+    const mergeHook = renderApiHook(() => useMergeMpiPatients());
+    const splitHook = renderApiHook(() => useSplitMpiPatient());
+
+    await waitFor(() => {
+      expect(apiClient.get).toHaveBeenCalledWith("/engine/mpi/patients", {
+        params: { page: 1, size: 20 },
+      });
+      expect(apiClient.get).toHaveBeenCalledWith("/engine/mpi/stats");
+      expect(apiClient.get).toHaveBeenCalledWith("/engine/mpi/patients/mpi-real-1");
+    });
+
+    await createHook.result.current.mutateAsync({
+      maskedName: "赵*五",
+      gender: "UNKNOWN",
+      age: 50,
+      idLast4: "0000",
+      idempotencyKey: "mpi-create-1",
+    });
+    await mergeHook.result.current.mutateAsync({
+      sourceMpiId: "mpi-source-1",
+      targetMpiId: "mpi-target-1",
+      idempotencyKey: "mpi-merge-1",
+    });
+    await splitHook.result.current.mutateAsync({
+      sourceMpiId: "mpi-source/1",
+      reviewReason: "误合并复核",
+      idempotencyKey: "mpi-split-1",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/mpi/patients",
+      {
+        maskedName: "赵*五",
+        gender: "UNKNOWN",
+        age: 50,
+        idLast4: "0000",
+      },
+      { headers: { "Idempotency-Key": "mpi-create-1" } },
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/mpi/patients:merge",
+      {
+        sourceMpiId: "mpi-source-1",
+        targetMpiId: "mpi-target-1",
+      },
+      { headers: { "Idempotency-Key": "mpi-merge-1" } },
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/mpi/patients/mpi-source%2F1:split",
+      { reviewReason: "误合并复核" },
+      { headers: { "Idempotency-Key": "mpi-split-1" } },
     );
   });
 });
@@ -1278,7 +1788,7 @@ describe("integration adapter api helpers", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(onboardings);
-    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/engine/integration/onboardings");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/onboardings");
   });
 
   it("creates and advances integration onboarding records without inventing endpoints", async () => {
@@ -1320,7 +1830,7 @@ describe("integration adapter api helpers", () => {
       evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
     });
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/api/v1/engine/integration/onboardings", {
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/integration/onboardings", {
       onboardingId: "onb-his",
       name: "HIS 主数据接入申请",
       accessMode: "ADAPTER",
@@ -1331,12 +1841,123 @@ describe("integration adapter api helpers", () => {
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/api/v1/engine/integration/onboardings/onb-his/advance",
+      "/engine/integration/onboardings/onb-his/advance",
       {
         targetStatus: "ONLINE",
         evidenceText: "字段映射 12 项，外部连接仍按 NOT_CONNECTED 展示。",
       },
     );
+  });
+
+  it("loads public callback metadata and keeps the shared secret limited to creation", async () => {
+    const callback = {
+      webhookId: "clinical-events",
+      name: "临床事件回调",
+      callbackUrl: "https://his.example.test/events",
+      eventsSubscribed: "clinical.event.accepted",
+      status: "ACTIVE",
+      createdAt: "2026-06-06T08:00:00Z",
+      updatedAt: "2026-06-06T08:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [callback] } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: { data: { ...callback, sharedSecret: "whsec_once_only" } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            webhookId: callback.webhookId,
+            callbackUrl: callback.callbackUrl,
+            timestamp: 1780732800,
+            signature: "sha256=preview-signature",
+            status: "SIGNATURE_GENERATED",
+            connectionStatus: "NOT_TESTED",
+            message: "签名已在本地生成，未向外部地址发起请求。",
+          },
+        },
+      });
+
+    const listing = renderApiHook(() => useWebhooks());
+    await waitFor(() => expect(listing.result.current.isSuccess).toBe(true));
+    const create = renderApiHook(() => useCreateWebhook());
+    const preview = renderApiHook(() => useTestWebhookSignature());
+
+    const created = await create.result.current.mutateAsync({
+      webhookId: callback.webhookId,
+      name: callback.name,
+      callbackUrl: callback.callbackUrl,
+      eventsSubscribed: callback.eventsSubscribed,
+    });
+    const previewed = await preview.result.current.mutateAsync({
+      webhookId: callback.webhookId,
+      payload: '{"event":"clinical.test"}',
+    });
+
+    expect(listing.result.current.data).toEqual([callback]);
+    expect(listing.result.current.data?.[0]).not.toHaveProperty("sharedSecret");
+    expect(created.sharedSecret).toBe("whsec_once_only");
+    expect(previewed.connectionStatus).toBe("NOT_TESTED");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/webhooks");
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/integration/webhooks", {
+      webhookId: callback.webhookId,
+      name: callback.name,
+      callbackUrl: callback.callbackUrl,
+      eventsSubscribed: callback.eventsSubscribed,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/engine/integration/webhooks/test", {
+      webhookId: callback.webhookId,
+      payload: '{"event":"clinical.test"}',
+    });
+  });
+
+  it("loads and registers graded regional sources through the canonical integration endpoints", async () => {
+    const source = {
+      sourceId: "regional-lab",
+      regionalNetworkName: "区域检验互认平台",
+      sourceOrganizationId: "hospital-2",
+      sourceOrganizationName: "市二院",
+      trustLevel: "HIGH",
+      evidenceText: "区域互认协议与接口验收单",
+      adapterId: "lis-main",
+      onboardingId: "onb-lis",
+      orgPath: "集团/总院",
+      status: "ACTIVE",
+      createdAt: "2026-06-06T08:00:00Z",
+      updatedAt: "2026-06-06T08:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [source] } });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: source } });
+
+    const listing = renderApiHook(() => useRegionalSources());
+    await waitFor(() => expect(listing.result.current.isSuccess).toBe(true));
+    const register = renderApiHook(() => useRegisterRegionalSource());
+    const registered = await register.result.current.mutateAsync({
+      sourceId: source.sourceId,
+      regionalNetworkName: source.regionalNetworkName,
+      sourceOrganizationId: source.sourceOrganizationId,
+      sourceOrganizationName: source.sourceOrganizationName,
+      trustLevel: "HIGH",
+      evidenceText: source.evidenceText,
+      adapterId: source.adapterId,
+      onboardingId: source.onboardingId,
+      orgPath: source.orgPath,
+    });
+
+    expect(listing.result.current.data).toEqual([source]);
+    expect(registered).toEqual(source);
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/regional-sources");
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/integration/regional-sources", {
+      sourceId: source.sourceId,
+      regionalNetworkName: source.regionalNetworkName,
+      sourceOrganizationId: source.sourceOrganizationId,
+      sourceOrganizationName: source.sourceOrganizationName,
+      trustLevel: "HIGH",
+      evidenceText: source.evidenceText,
+      adapterId: source.adapterId,
+      onboardingId: source.onboardingId,
+      orgPath: source.orgPath,
+    });
   });
 
   it("generates data quality reports and replays dead letters through real integration endpoints", async () => {
@@ -1379,13 +2000,10 @@ describe("integration adapter api helpers", () => {
     await quality.result.current.mutateAsync();
     await replay.result.current.mutateAsync("msg-dead");
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/api/v1/engine/integration/data-quality/reports",
-    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/integration/data-quality/reports");
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/api/v1/engine/integration/dead-letter/msg-dead/replay",
+      "/engine/integration/dead-letter/msg-dead/replay",
     );
   });
 });
@@ -1573,6 +2191,140 @@ describe("experience foundation api helpers", () => {
     );
   });
 
+  it("uses the unified compliance configuration contracts", async () => {
+    const systemConfigs = [{ key: "medkernel.auth.password.min-length", value: "12" }];
+    const policies = [{ policyId: "policy-1", resourceType: "clinical_case" }];
+    const maskingRules = [{ ruleId: "mask-1", fieldName: "patientName" }];
+    const assessment = { standardVersion: "IOT-2026", totalItems: 1, items: [] };
+    const approvals = [{ approvalId: "exp-audit-1", status: "REQUESTED" }];
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: systemConfigs } })
+      .mockResolvedValueOnce({ data: { data: policies } })
+      .mockResolvedValueOnce({ data: { data: maskingRules } })
+      .mockResolvedValueOnce({ data: { data: assessment } })
+      .mockResolvedValueOnce({ data: { data: approvals } });
+
+    expect(await fetchSystemConfigs("medkernel.auth.")).toBe(systemConfigs);
+    expect(
+      await fetchDataPermissionPolicies({ resourceType: "clinical_case", action: "READ" }),
+    ).toBe(policies);
+    expect(await fetchMaskingRules({ resourceType: "clinical_case" })).toBe(maskingRules);
+    expect(await fetchInteropAssessment("IOT-2026")).toBe(assessment);
+    expect(await fetchExportApprovals({ resourceType: "AUDIT_EVENT", status: "REQUESTED" })).toBe(
+      approvals,
+    );
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/configs", {
+      params: { prefix: "medkernel.auth." },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/compliance/data-permissions", {
+      params: { resourceType: "clinical_case", action: "READ" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/compliance/masking-rules", {
+      params: { resourceType: "clinical_case" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(4, "/compliance/interop-assessment", {
+      params: { standardVersion: "IOT-2026" },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(5, "/compliance/exports", {
+      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED" },
+    });
+  });
+
+  it("writes configuration and compliance policies through audited mutations", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({
+      data: { data: { key: "medkernel.auth.password.min-length", value: "14", version: 2 } },
+    });
+    vi.mocked(apiClient.put)
+      .mockResolvedValueOnce({ data: { data: { policyId: "policy-1" } } })
+      .mockResolvedValueOnce({ data: { data: { ruleId: "mask-1" } } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: { data: { approvalId: "exp-audit-1", status: "REQUESTED" } },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { approvalId: "exp-audit-1", status: "APPROVED", version: 2 } },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { approvalId: "exp-audit-1", status: "EXPORTED", version: 3 } },
+      });
+
+    await updateSystemConfig("medkernel.auth.password.min-length", {
+      value: "14",
+      reason: "提升平台口令最小长度",
+      expectedVersion: 1,
+      confirmedHighRisk: true,
+    });
+    await upsertDataPermissionPolicy({
+      resourceType: "clinical_case",
+      action: "READ",
+      minDataLevel: "HOSPITAL",
+      allowedColumns: ["patientId"],
+      status: "ACTIVE",
+      reason: "限定院级病例读取范围",
+    });
+    await upsertMaskingRule({
+      resourceType: "clinical_case",
+      fieldName: "patientName",
+      scenarioCode: "DEFAULT",
+      strategy: "KEEP_FIRST_LAST",
+      maskChar: "*",
+      prefixKeep: 1,
+      suffixKeep: 0,
+      status: "ACTIVE",
+      reason: "默认隐藏患者姓名",
+    });
+    await requestExportApproval({
+      resourceType: "AUDIT_EVENT",
+      exportScope: { filters: {}, selectedScope: "FILTERED_RESULT" },
+      reason: "合规复核",
+      idempotencyKey: "audit-export-1",
+    });
+    await reviewExportApproval({
+      approvalId: "exp-audit-1",
+      decision: "APPROVE",
+      comment: "批准当前筛选范围",
+      expectedVersion: 1,
+    });
+    await completeApprovedExportJob({
+      approvalId: "exp-audit-1",
+      jobId: "job-audit-1",
+      reason: "后端任务已生成真实文件",
+      expectedVersion: 2,
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      "/system/configs/medkernel.auth.password.min-length",
+      expect.objectContaining({ value: "14", expectedVersion: 1 }),
+    );
+    expect(apiClient.put).toHaveBeenNthCalledWith(
+      1,
+      "/compliance/data-permissions",
+      expect.objectContaining({ resourceType: "clinical_case" }),
+    );
+    expect(apiClient.put).toHaveBeenNthCalledWith(
+      2,
+      "/compliance/masking-rules",
+      expect.objectContaining({ fieldName: "patientName" }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/compliance/exports:request",
+      expect.objectContaining({ idempotencyKey: "audit-export-1" }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/compliance/exports/exp-audit-1:approve",
+      expect.objectContaining({ decision: "APPROVE", expectedVersion: 1 }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/compliance/exports/exp-audit-1:complete-from-job",
+      {
+        jobId: "job-audit-1",
+        reason: "后端任务已生成真实文件",
+        expectedVersion: 2,
+      },
+    );
+  });
+
   it("loads the authenticated user's theme preference", async () => {
     const preference = {
       mode: "elder",
@@ -1722,5 +2474,54 @@ describe("auth identity api helpers", () => {
 
     expect(result).toBe(status);
     expect(apiClient.get).toHaveBeenCalledWith("/auth/delegated/status");
+  });
+
+  it("uses the canonical tenant-scoped identity binding endpoints", async () => {
+    const binding = {
+      bindingId: "idb-1",
+      userId: "doctor-1",
+      providerType: "EMPLOYEE_NO",
+      subjectHint: "****-001",
+      status: "ACTIVE",
+      version: 1,
+      createdAt: "2026-06-06T00:00:00Z",
+      updatedAt: "2026-06-06T00:00:00Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [binding] } });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: binding } })
+      .mockResolvedValueOnce({
+        data: { data: { ...binding, status: "UNBOUND", version: 2 } },
+      });
+
+    await expect(fetchIdentityBindings()).resolves.toEqual([binding]);
+    await expect(
+      createIdentityBinding({
+        userId: "doctor-1",
+        providerType: "EMPLOYEE_NO",
+        externalSubject: "EMP-001",
+        reason: "账号入职绑定",
+      }),
+    ).resolves.toEqual(binding);
+    await expect(
+      unbindIdentityBinding({
+        bindingId: "idb-1",
+        reason: "员工离岗",
+        expectedVersion: 1,
+      }),
+    ).resolves.toMatchObject({ status: "UNBOUND", version: 2 });
+
+    expect(apiClient.get).toHaveBeenCalledWith("/compliance/identity-bindings");
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/compliance/identity-bindings", {
+      userId: "doctor-1",
+      providerType: "EMPLOYEE_NO",
+      externalSubject: "EMP-001",
+      reason: "账号入职绑定",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/compliance/identity-bindings/idb-1:unbind",
+      { reason: "员工离岗", expectedVersion: 1 },
+    );
   });
 });

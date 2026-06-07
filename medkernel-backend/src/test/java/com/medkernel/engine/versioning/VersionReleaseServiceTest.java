@@ -11,12 +11,18 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
@@ -29,12 +35,24 @@ class VersionReleaseServiceTest {
     private VersionActivationTransactionRepository activationTransactions;
     private VersionReleaseService service;
 
+    @Test
+    void releaseScopeTypeContainsOnlyOrganizationScopeValues() {
+        assertThat(Arrays.stream(VersionReleaseScopeType.values()).map(Enum::name))
+            .containsExactly("ALL", "GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT");
+    }
+
     @BeforeEach
     void setUp() {
         assetVersions = mock(AssetVersionRepository.class);
         releasePlans = mock(VersionReleasePlanRepository.class);
         activationTransactions = mock(VersionActivationTransactionRepository.class);
         service = new VersionReleaseService(assetVersions, releasePlans, activationTransactions, CLOCK);
+        authenticate(RoleCode.HOSPITAL_ADMIN);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -100,7 +118,8 @@ class VersionReleaseServiceTest {
         assertThat(review.status()).isEqualTo(VersionReleaseStatus.PENDING_REVIEW);
         assertThat(observation.status()).isEqualTo(VersionReleaseStatus.SILENT_OBSERVATION);
         assertThat(gray.status()).isEqualTo(VersionReleaseStatus.GRAY);
-        assertThat(gray.scopeType()).isEqualTo(VersionReleaseScopeType.BED_PERCENT);
+        assertThat(gray.scopeType()).isEqualTo(VersionReleaseScopeType.HOSPITAL);
+        assertThat(gray.scopeValue()).contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"");
         assertThat(gray.scopeValue()).contains("\"percentage\":10");
         assertThat(full.status()).isEqualTo(VersionReleaseStatus.FULL);
         assertThat(full.evidenceSummary()).contains("FULL").contains("影响摘要 d1");
@@ -123,21 +142,32 @@ class VersionReleaseServiceTest {
     void rejectsDirectFullReleaseForNonHospitalAdminRole() {
         AssetVersion published = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(published));
+        authenticate(RoleCode.IT_OPS);
 
         assertThatThrownBy(() -> service.releaseFull(releaseCommand(
             "av-v2",
             VersionReleaseScopeType.ALL,
             null,
             "影响摘要 d1",
-            List.of("IMPLEMENTER")
+            List.of("hospital-admin")
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("直接全量")
             .extracting("errorCode")
-            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+            .isEqualTo(ErrorCode.FORBIDDEN);
 
         verify(releasePlans, never()).save(any(VersionReleasePlan.class));
         verify(assetVersions, never()).save(any(AssetVersion.class));
+    }
+
+    private void authenticate(RoleCode role) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "publisher-1",
+                "n/a",
+                List.of(new SimpleGrantedAuthority(role.authority()))
+            )
+        );
     }
 
     @Test
@@ -349,6 +379,7 @@ class VersionReleaseServiceTest {
             "adult|inpatient",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             safetyPolicy,
+            AssetVersionOverridePolicy.FREE,
             status,
             status == AssetVersionStatus.ACTIVE ? activeScopeKey() : "version:" + versionId,
             "rule/RULE.VTE.RISK",

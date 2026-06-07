@@ -415,6 +415,63 @@ class InheritanceResolverTest {
     }
 
     @Test
+    void disableOfPlatformLockedBaselineIsRefusedAndFallsBackToPlatform() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion platformLocked = platformVersion(
+            "av-platform-locked", "1.0.0",
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        InheritanceOverride disable = disableOverride(
+            "io-disable-platform-locked", platformLocked.versionId(), HOSP_PATH, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubDisableAt(HOSP_PATH, disable);
+        stubPlatformBaseline(platformLocked);
+        when(assetVersions.findByVersionIdAndTenantId(platformLocked.versionId(), PlatformAuthority.PLATFORM_TENANT_ID))
+            .thenReturn(Optional.of(platformLocked));
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.disabled()).isFalse();
+        assertThat(resolved.version()).isEqualTo(platformLocked);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-disable-platform-locked");
+    }
+
+    @Test
+    void replaceOfPlatformLockedBaselineWithoutDomainCheckFallsBackToPlatform() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        AssetVersion platformLocked = platformVersion(
+            "av-platform-locked", "1.0.0",
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
+        AssetVersion hospitalReplace = version(
+            "av-hosp-platform-replace", "1.0.0-hosp-a", HOSP_PATH,
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, HASH_OVERRIDE);
+        InheritanceOverride record = override(
+            "io-platform-locked-replace", platformLocked.versionId(), hospitalReplace.versionId(),
+            HOSP_PATH, "放宽平台安全阈值", "本院诉求", "仅 HOSP-A");
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubActiveAt(HOSP_PATH, hospitalReplace);
+        stubOverride(hospitalReplace, record);
+        stubPlatformBaseline(platformLocked);
+        when(assetVersions.findByVersionIdAndTenantId(platformLocked.versionId(), PlatformAuthority.PLATFORM_TENANT_ID))
+            .thenReturn(Optional.of(platformLocked));
+
+        ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(resolved.version()).isEqualTo(platformLocked);
+        assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
+        assertThat(resolved.overridden()).isFalse();
+        assertThat(resolved.explanation().resolutionSummary())
+            .contains("平台安全锁定").contains("io-platform-locked-replace");
+    }
+
+    @Test
     void unmatchedTenantInheritsPlatformBaselineWithPlatformTier() {
         OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
@@ -611,6 +668,148 @@ class InheritanceResolverTest {
         assertThat(resolved.overridden()).isTrue();
     }
 
+    @Test
+    void terminologyPlatformGroupHospitalAndSiteDisableResolveAsSingleInheritanceChain() {
+        String assetIdentity = "TERMINOLOGY.LOINC.718-7";
+        String applicableScope = "ALL";
+        String sitePath = HOSP_PATH + "/SITE-1";
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit site = org("site-1", "hospital-a", sitePath, OrgLevel.SITE, "SITE-1");
+        AssetVersion platform = terminologyVersion(
+            "av-term-platform", "LOINC-2026", PlatformAuthority.PLATFORM_TENANT_ID,
+            PlatformAuthority.PLATFORM_ORG_PATH, assetIdentity, applicableScope);
+        AssetVersion groupOverride = terminologyVersion(
+            "av-term-group", "LOINC-2026-group", "tenant-A", GROUP_PATH, assetIdentity, applicableScope);
+        AssetVersion hospitalOverride = terminologyVersion(
+            "av-term-hospital", "LOINC-2026-hospital", "tenant-A", HOSP_PATH, assetIdentity, applicableScope);
+        InheritanceOverride groupRecord = terminologyOverride(
+            "io-term-group", platform.versionId(), groupOverride.versionId(), GROUP_PATH,
+            assetIdentity, applicableScope, InheritanceOverrideMode.REPLACE, InheritancePropagation.INHERITABLE);
+        InheritanceOverride hospitalRecord = terminologyOverride(
+            "io-term-hospital", groupOverride.versionId(), hospitalOverride.versionId(), HOSP_PATH,
+            assetIdentity, applicableScope, InheritanceOverrideMode.REPLACE, InheritancePropagation.INHERITABLE);
+        InheritanceOverride siteDisable = terminologyOverride(
+            "io-term-site-disable", hospitalOverride.versionId(), null, sitePath,
+            assetIdentity, applicableScope, InheritanceOverrideMode.DISABLE, InheritancePropagation.INHERITABLE);
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", group.id())).thenReturn(List.of(group));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", site.id())).thenReturn(List.of(group, hospital, site));
+        stubTerminologyVersion(assetIdentity, applicableScope, GROUP_PATH, groupOverride);
+        stubTerminologyVersion(assetIdentity, applicableScope, HOSP_PATH, hospitalOverride);
+        stubTerminologyVersion(assetIdentity, applicableScope, sitePath);
+        stubTerminologyVersion(assetIdentity, applicableScope, PlatformAuthority.PLATFORM_ORG_PATH, platform);
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", groupOverride.versionId()))
+            .thenReturn(Optional.of(groupRecord));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOverride.versionId()))
+            .thenReturn(Optional.of(hospitalRecord));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", platform.versionId()))
+            .thenReturn(Optional.empty());
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideMode(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, sitePath, applicableScope,
+            InheritanceOverrideMode.DISABLE
+        )).thenReturn(List.of(siteDisable));
+
+        ResolvedAssetVersion atGroup = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, applicableScope, group.id()));
+        ResolvedAssetVersion atHospital = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, applicableScope, hospital.id()));
+        ResolvedAssetVersion atSite = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, applicableScope, site.id()));
+
+        assertThat(atGroup.version()).isEqualTo(groupOverride);
+        assertThat(atGroup.sourceTier()).isEqualTo(SourceTier.ORG);
+        assertThat(atHospital.version()).isEqualTo(hospitalOverride);
+        assertThat(atHospital.sourceOrgPath()).isEqualTo(HOSP_PATH);
+        assertThat(atSite.disabled()).isTrue();
+        assertThat(atSite.version()).isNull();
+        assertThat(atSite.sourceOrgPath()).isEqualTo(sitePath);
+        assertThat(atSite.explanation().resolutionSummary()).contains("停用", "io-term-site-disable");
+    }
+
+    private void stubTerminologyVersion(
+            String assetIdentity,
+            String applicableScope,
+            String orgPath,
+            AssetVersion... activeVersions) {
+        String tenantId = PlatformAuthority.PLATFORM_ORG_PATH.equals(orgPath)
+            ? PlatformAuthority.PLATFORM_TENANT_ID
+            : "tenant-A";
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity + "|" + orgPath + "|" + applicableScope,
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of(activeVersions));
+    }
+
+    private AssetVersion terminologyVersion(
+            String versionId,
+            String versionNo,
+            String tenantId,
+            String orgPath,
+            String assetIdentity,
+            String applicableScope) {
+        Instant now = Instant.parse("2026-06-03T08:00:00Z");
+        return new AssetVersion(
+            1L,
+            versionId,
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity,
+            versionNo,
+            orgPath,
+            applicableScope,
+            versionId + "-content-hash",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.ACTIVE,
+            assetIdentity + "|" + orgPath + "|" + applicableScope,
+            "terminology/" + assetIdentity,
+            null,
+            null,
+            now,
+            "terminology-admin",
+            now,
+            "terminology-admin",
+            "trace-term-chain"
+        );
+    }
+
+    private InheritanceOverride terminologyOverride(
+            String overrideId,
+            String inheritedVersionId,
+            String overrideVersionId,
+            String orgPath,
+            String assetIdentity,
+            String applicableScope,
+            InheritanceOverrideMode mode,
+            InheritancePropagation propagation) {
+        Instant now = Instant.parse("2026-06-03T08:00:00Z");
+        return new InheritanceOverride(
+            1L,
+            overrideId,
+            "tenant-A",
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity,
+            inheritedVersionId,
+            overrideVersionId,
+            mode,
+            propagation,
+            orgPath,
+            applicableScope,
+            "术语覆盖",
+            "机构术语口径调整",
+            "仅 " + orgPath,
+            now,
+            "terminology-admin",
+            now,
+            "terminology-admin",
+            "trace-term-chain"
+        );
+    }
+
     private void stubActiveAt(String orgPath, AssetVersion activeVersion) {
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A",
@@ -635,6 +834,18 @@ class InheritanceResolverTest {
     }
 
     private AssetVersion platformVersion(String versionId, String versionNo) {
+        return platformVersion(
+            versionId, versionNo, AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
+    }
+
+    private AssetVersion platformVersion(
+            String versionId,
+            String versionNo,
+            AssetVersionSafetyPolicy safetyPolicy,
+            AssetVersionOverridePolicy overridePolicy,
+            String contentHash) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new AssetVersion(
             1L,
@@ -645,9 +856,9 @@ class InheritanceResolverTest {
             versionNo,
             PlatformAuthority.PLATFORM_ORG_PATH,
             "adult|inpatient",
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            AssetVersionSafetyPolicy.NORMAL,
-            AssetVersionOverridePolicy.FREE,
+            contentHash,
+            safetyPolicy,
+            overridePolicy,
             AssetVersionStatus.ACTIVE,
             "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
             "rule/RULE.VTE.RISK",

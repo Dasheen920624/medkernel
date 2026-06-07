@@ -124,4 +124,8 @@ export interface AsyncExportActionProps {
   onSubmit?: (request: AsyncExportRequest) => Promise<AsyncExportJob>;
   onPoll?: (jobId: string) => Promise<AsyncExportJob>;
   pollDelayMs?: number;
+  buttonLabel?: string;
+  buttonAriaLabel?: string;
+  modalTitle?: string;
+  submitLabel?: string;
 }

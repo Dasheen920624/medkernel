@@ -84,6 +84,100 @@ test("合规迁移通过中文注释、命名规约和租户索引门禁", async
   );
 });
 
+test("V30 及以前的权威基线表名不被后续 mk 命名规则误判", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V30__legacy_authority.sql": `
+        CREATE TABLE context_snapshot (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id VARCHAR(64) NOT NULL
+        );
+
+        CREATE INDEX idx_context_snapshot_tenant ON context_snapshot(tenant_id);
+        COMMENT ON TABLE context_snapshot IS '标准临床上下文权威快照';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V30__legacy_authority.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+    },
+  );
+});
+
+test("V96 tenant_user 作为安全域唯一用户目录允许使用稳定权威表名", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V96__tenant_user_directory.sql": `
+        CREATE TABLE tenant_user (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id VARCHAR(64) NOT NULL,
+          user_id VARCHAR(64) NOT NULL
+        );
+
+        CREATE INDEX idx_tenant_user_directory ON tenant_user(tenant_id, user_id);
+        COMMENT ON TABLE tenant_user IS '租户用户唯一目录';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V96__tenant_user_directory.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+    },
+  );
+});
+
+test("tenant_id 前缀唯一约束可作为真实租户索引", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_unique.sql": `
+        CREATE TABLE mk_rule_sample (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id VARCHAR(64) NOT NULL,
+          sample_code VARCHAR(64) NOT NULL,
+          CONSTRAINT uk_mk_rule_sample_tenant_code UNIQUE (tenant_id, sample_code)
+        );
+
+        COMMENT ON TABLE mk_rule_sample IS '租户规则样例表';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_unique.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+    },
+  );
+});
+
+test("tenant_id 主键已具备唯一索引，不要求重复创建租户索引", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_primary_key.sql": `
+        CREATE TABLE mk_audit_chain_head (
+          tenant_id VARCHAR(64) PRIMARY KEY,
+          last_event_id VARCHAR(64)
+        );
+
+        COMMENT ON TABLE mk_audit_chain_head IS '每租户审计链头';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_primary_key.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
 test("SYS-05 系统任务表按权威卡允许使用 sys_task 表名", async () => {
   await withFixture(
     {

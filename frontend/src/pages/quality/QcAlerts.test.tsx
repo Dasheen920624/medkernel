@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import QcAlerts from "./QcAlerts";
@@ -9,11 +9,15 @@ import QcAlerts from "./QcAlerts";
 const mockUseQualityAlerts = vi.fn();
 const mockUseDispatchRectification = vi.fn();
 const mockUseAcknowledgeQualityAlert = vi.fn();
+const mockUseOrgUnits = vi.fn();
+const mockUseOrgUsers = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useQualityAlerts: (params: unknown) => mockUseQualityAlerts(params),
   useDispatchRectification: () => mockUseDispatchRectification(),
   useAcknowledgeQualityAlert: () => mockUseAcknowledgeQualityAlert(),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
+  useOrgUsers: (params: unknown) => mockUseOrgUsers(params),
 }));
 
 function renderPage() {
@@ -37,7 +41,7 @@ const alertsData = {
       alertId: "HIGH_RISK_FINDING:quality_finding:finding-p1",
       alertType: "HIGH_RISK_FINDING",
       status: "OPEN",
-      departmentId: "心内科",
+      departmentId: "dept-cardio",
       sourceType: "quality_finding",
       sourceId: "finding-p1",
       severity: "P1",
@@ -58,6 +62,31 @@ const alertsData = {
 };
 
 describe("QcAlerts", () => {
+  beforeEach(() => {
+    mockUseOrgUnits.mockReset();
+    mockUseOrgUsers.mockReset();
+    mockUseOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "dept-cardio",
+            level: "DEPARTMENT",
+            code: "CARDIO",
+            name: "心内科",
+            status: "ACTIVE",
+          },
+        ],
+      },
+      isLoading: false,
+    });
+    mockUseOrgUsers.mockReturnValue({
+      data: {
+        items: [{ userId: "u-quality-1", displayName: "质控专员" }],
+      },
+      isLoading: false,
+    });
+  });
+
   it("renders real quality alerts from SVC-QUALITY-01 instead of the old rectification workbench", () => {
     mockUseQualityAlerts.mockReturnValue({
       data: alertsData,
@@ -86,7 +115,7 @@ describe("QcAlerts", () => {
     expect(screen.getByText("真实质控预警总数")).toBeInTheDocument();
     expect(screen.getByText("1 条")).toBeInTheDocument();
     expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
-    expect(screen.getByText("心内科")).toBeInTheDocument();
+    expect(screen.getByText("心内科 · CARDIO")).toBeInTheDocument();
     expect(screen.getByText("trace-alert-p1")).toBeInTheDocument();
     expect(screen.queryByText("PDCA 质控整改与专家复核中心")).not.toBeInTheDocument();
     expect(screen.queryByText(/TRACE_NOT_FOUND|_TRACE/)).not.toBeInTheDocument();
@@ -122,6 +151,8 @@ describe("QcAlerts", () => {
     expect(screen.getByText("预警处置证据")).toBeInTheDocument();
     expect(screen.getByText("评估问题 finding-p1 仍未闭环")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByLabelText("责任人"));
+    await userEvent.click(screen.getByText("质控专员 · u-quality-1"));
     await userEvent.click(screen.getByRole("button", { name: "派发整改任务" }));
 
     await waitFor(() => {
@@ -129,7 +160,8 @@ describe("QcAlerts", () => {
         expect.objectContaining({
           request: expect.objectContaining({
             findingId: "finding-p1",
-            responsibleDepartmentId: "心内科",
+            responsibleDepartmentId: "dept-cardio",
+            assigneeUserId: "u-quality-1",
           }),
         }),
       );

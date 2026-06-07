@@ -1,5 +1,6 @@
 package com.medkernel.shared.crypto;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.SecureRandom;
@@ -26,6 +27,13 @@ class SmCryptoServiceTest {
     void sm3KnownValue() {
         // GB/T 32905-2016 标准测试向量 "abc"
         String hex = crypto.sm3Hex("abc");
+        assertThat(hex).isEqualTo("66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0");
+    }
+
+    @Test
+    void sm3StreamMatchesKnownValue() throws Exception {
+        String hex = crypto.sm3Hex(new ByteArrayInputStream("abc".getBytes(StandardCharsets.UTF_8)));
+
         assertThat(hex).isEqualTo("66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0");
     }
 

@@ -1,5 +1,7 @@
 package com.medkernel.shared.crypto;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -63,7 +65,21 @@ public class SmCryptoService {
 
     /** SM3 哈希返回 hex 字符串。 */
     public String sm3Hex(String text) {
-        byte[] hash = sm3(text.getBytes(StandardCharsets.UTF_8));
+        return toHex(sm3(text.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    /** 流式计算 SM3 哈希，避免大文件整体载入内存。 */
+    public String sm3Hex(InputStream input) throws IOException {
+        SM3.Digest digest = new SM3.Digest();
+        byte[] buffer = new byte[8192];
+        int length;
+        while ((length = input.read(buffer)) != -1) {
+            digest.update(buffer, 0, length);
+        }
+        return toHex(digest.digest());
+    }
+
+    private String toHex(byte[] hash) {
         StringBuilder sb = new StringBuilder(hash.length * 2);
         for (byte b : hash) {
             sb.append(String.format("%02x", b & 0xff));

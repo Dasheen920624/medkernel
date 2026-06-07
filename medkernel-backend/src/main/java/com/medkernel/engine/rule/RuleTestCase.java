@@ -21,6 +21,7 @@ public record RuleTestCase(
     @Column("rule_id") String ruleId,
     @Column("version_id") String versionId,
     @Column("case_type") RuleTestCaseType caseType,
+    @Column("context_snapshot_id") String contextSnapshotId,
     @Column("input_payload") String inputPayload,
     @Column("expected_hit") Boolean expectedHit,
     @Column("expected_severity") RuleRiskLevel expectedSeverity,

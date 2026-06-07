@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.TenantUser;
+import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.security.auth.CredentialPasswordService;
@@ -17,7 +19,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 
 /**
@@ -31,24 +33,27 @@ public class BootstrapIdentityService {
 
     private final BootstrapInitTokenService tokenService;
     private final PlatformCredentialRepository credentials;
+    private final TenantUserRepository users;
     private final UserRoleAssignmentRepository roleAssignments;
     private final CredentialPasswordService credentialPasswords;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
     private final PasswordPolicyService passwordPolicy;
 
     public BootstrapIdentityService(BootstrapInitTokenService tokenService,
                                     PlatformCredentialRepository credentials,
+                                    TenantUserRepository users,
                                     UserRoleAssignmentRepository roleAssignments,
                                     CredentialPasswordService credentialPasswords,
-                                    AuditEventPublisher auditPublisher,
+                                    AuditRecorder auditRecorder,
                                     IsolatedAuditPublisher isolatedAudit,
                                     PasswordPolicyService passwordPolicy) {
         this.tokenService = tokenService;
         this.credentials = credentials;
+        this.users = users;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
         this.passwordPolicy = passwordPolicy;
     }
@@ -63,7 +68,8 @@ public class BootstrapIdentityService {
     public BootstrapPasswordResponse createFirstAdmin(BootstrapPasswordRequest request) {
         String tenantId = request.tenantOrDefault();
         String username = request.usernameNormalized();
-        if (credentials.findByTenantIdAndUsername(tenantId, username).isPresent()) {
+        if (credentials.findByTenantIdAndUsername(tenantId, username).isPresent()
+                || users.findByTenantIdAndUserId(tenantId, username).isPresent()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
                 AuditAction.CREATE, "platform_credential", username,
                 ErrorCode.ENG_AUTH_006.code(), "首次接管失败：用户名已存在 " + username));
@@ -73,6 +79,9 @@ public class BootstrapIdentityService {
 
         tokenService.consume(request.token(), username, TRACE_ID);
         Instant now = Instant.now();
+        users.save(new TenantUser(
+            null, tenantId, username, username, "ACTIVE", 1L,
+            now, ACTOR, now, ACTOR, TRACE_ID));
         credentials.save(new PlatformCredential(
             null, "cred-" + username, tenantId, username, username,
             credentialPasswords.encode(request.password()), "ACTIVE", "Y", null,
@@ -83,7 +92,7 @@ public class BootstrapIdentityService {
                 null, tenantId, username, RoleCode.SYSTEM_SUPERADMIN.code(), "TENANT", tenantId, "Y",
                 now, ACTOR, now, ACTOR));
         }
-        auditPublisher.publish(AuditAction.CREATE, "platform_credential", username,
+        auditRecorder.record(AuditAction.CREATE, "platform_credential", username,
             "首次部署创建内置超级管理员 username=" + username);
         return new BootstrapPasswordResponse(
             username, tenantId, username, List.of(RoleCode.SYSTEM_SUPERADMIN.code()), true);

@@ -49,20 +49,27 @@ public class LargeListController {
      */
     @GetMapping("/audit-events/list")
     @PreAuthorize("@perm.has('audit.read')")
-    public ApiResult<PageResult<AuditEventRecord>> auditEvents(
+    public ApiResult<PageResult<LargeAuditEventRow>> auditEvents(
         @RequestParam(value = "cursor", required = false) String cursor,
         @RequestParam(value = "size", required = false) Integer size,
         @RequestParam(value = "offset", required = false) Long offset,
         @RequestParam(value = "sort", required = false) String sort,
         @RequestParam Map<String, String> params
     ) {
-        return ApiResult.ok(service.queryAuditEvents(new PageQuery(
+        PageResult<AuditEventRecord> result = service.queryAuditEvents(new PageQuery(
             cursor,
             size,
             offset,
             sort,
             extractFilters(params)
-        )));
+        ));
+        return ApiResult.ok(new PageResult<>(
+            result.items().stream().map(LargeAuditEventRow::from).toList(),
+            result.nextCursor(),
+            result.totalEstimate(),
+            result.totalEstimated(),
+            result.hasMore()
+        ));
     }
 
     /**

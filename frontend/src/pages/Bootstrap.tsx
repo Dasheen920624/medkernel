@@ -53,6 +53,21 @@ const handoverSignals = [
   },
 ];
 
+const accountSecuritySignals = [
+  {
+    label: "修改临时密码",
+    value: "首次登录先建立仅本人掌握的长期凭据",
+  },
+  {
+    label: "绑定双因素认证",
+    value: "按当前租户安全策略完成认证器绑定",
+  },
+  {
+    label: "进入租户工作台",
+    value: "安全设置完成后返回当前租户继续工作",
+  },
+];
+
 type BootstrapPhase =
   | "init-token"
   | "password"
@@ -93,6 +108,7 @@ export default function Bootstrap() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state ?? {}) as BootstrapLocationState;
+  const accountSecuritySetup = state.phase === "change-password" || state.phase === "mfa";
   const [phase, setPhase] = useState<BootstrapPhase>(() => normalizePhase(state.phase));
   const [initToken, setInitToken] = useState("");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
@@ -143,12 +159,28 @@ export default function Bootstrap() {
   } as CSSProperties;
 
   const currentStep = useMemo(() => {
+    if (accountSecuritySetup) {
+      if (phase === "change-password") return 0;
+      if (phase === "mfa") return 1;
+      return 2;
+    }
     if (phase === "init-token") return 0;
     if (phase === "password" || phase === "login-required") return 1;
     if (phase === "change-password") return 2;
     if (phase === "mfa") return 3;
     return 4;
-  }, [phase]);
+  }, [accountSecuritySetup, phase]);
+
+  const stepItems = accountSecuritySetup
+    ? [{ title: "改密" }, { title: "双因素" }, { title: "完成" }]
+    : [
+        { title: "接管码" },
+        { title: "账号" },
+        { title: "改密" },
+        { title: "双因素" },
+        { title: "完成" },
+      ];
+  const signals = accountSecuritySetup ? accountSecuritySignals : handoverSignals;
 
   const goLogin = () => navigate("/login");
 
@@ -278,21 +310,42 @@ export default function Bootstrap() {
         <ThemeSwitcher syncRemote={false} />
       </div>
 
-      <section className={styles.bootstrapShell} aria-label="首次部署接管工作区">
-        <section className={`${styles.hero} ${styles.heroCard}`} aria-label="首次部署接管说明">
+      <section
+        className={styles.bootstrapShell}
+        aria-label={accountSecuritySetup ? "账号安全设置工作区" : "首次部署接管工作区"}
+      >
+        <section
+          className={`${styles.hero} ${styles.heroCard}`}
+          aria-label={accountSecuritySetup ? "账号安全设置说明" : "首次部署接管说明"}
+        >
           <Space size={8} wrap>
-            <Tag color="processing">平台接管</Tag>
-            <Tag>离线可用</Tag>
-            <Tag>只初始化首发身份</Tag>
+            {accountSecuritySetup ? (
+              <>
+                <Tag color="processing">账号安全</Tag>
+                <Tag>首次改密</Tag>
+                <Tag>双因素认证</Tag>
+              </>
+            ) : (
+              <>
+                <Tag color="processing">平台接管</Tag>
+                <Tag>离线可用</Tag>
+                <Tag>只初始化首发身份</Tag>
+              </>
+            )}
           </Space>
           <Title level={1} className={styles.title}>
-            首次部署接管
+            {accountSecuritySetup ? "完成账号安全设置" : "首次部署接管"}
           </Title>
           <Text className={styles.lead}>
-            使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。
+            {accountSecuritySetup
+              ? "首次登录需要修改临时密码；如当前租户策略要求，再绑定双因素认证。完成后进入当前租户工作台。"
+              : "使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。客户集团、医院和院区租户进入工作台后再开通。"}
           </Text>
-          <ul className={styles.signalList} aria-label="接管流程说明">
-            {handoverSignals.map((item) => (
+          <ul
+            className={styles.signalList}
+            aria-label={accountSecuritySetup ? "账号安全设置流程说明" : "接管流程说明"}
+          >
+            {signals.map((item) => (
               <li className={styles.signalItem} key={item.label}>
                 <span>{item.label}</span>
                 <strong>{item.value}</strong>
@@ -301,23 +354,17 @@ export default function Bootstrap() {
           </ul>
           <div className={styles.guardRail}>
             <SafetyCertificateOutlined aria-hidden="true" />
-            <Text>接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。</Text>
+            <Text>
+              {accountSecuritySetup
+                ? "临时密码不得复用；恢复码只展示一次；高危动作会继续要求双因素认证。"
+                : "接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。"}
+            </Text>
           </div>
         </section>
 
         <Card className={styles.panel} bordered={false}>
           <div className={styles.panelStack}>
-            <Steps
-              size="small"
-              current={currentStep}
-              items={[
-                { title: "接管码" },
-                { title: "账号" },
-                { title: "改密" },
-                { title: "双因素" },
-                { title: "完成" },
-              ]}
-            />
+            <Steps size="small" current={currentStep} items={stepItems} />
 
             {globalError && <Alert type="error" showIcon message={globalError} />}
 
@@ -550,7 +597,7 @@ export default function Bootstrap() {
                   绑定双因素认证
                 </Title>
                 <Paragraph type="secondary">
-                  首发管理员必须完成双因素认证后才能执行高危配置、租户开通和应急操作。
+                  当前账号必须完成双因素认证后才能执行高危配置、租户管理和应急操作。
                 </Paragraph>
                 {mfaSetup && (
                   <div className={styles.mfaSetupGrid}>
@@ -608,7 +655,7 @@ export default function Bootstrap() {
                   form={mfaForm}
                   layout="vertical"
                   requiredMark={false}
-                  initialValues={{ label: state.username || "首发管理员安全设备" }}
+                  initialValues={{ label: state.username || "账号安全设备" }}
                   onFinish={submitMfa}
                 >
                   <Form.Item
@@ -662,8 +709,12 @@ export default function Bootstrap() {
             {phase === "done" && (
               <Result
                 status="success"
-                title="首发身份接管完成"
-                subTitle="现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户开通中维护。"
+                title={accountSecuritySetup ? "账号安全设置完成" : "首发身份接管完成"}
+                subTitle={
+                  accountSecuritySetup
+                    ? "当前账号已完成首次安全设置，可以进入当前租户工作台。"
+                    : "现在可以返回登录进入平台管理工作台；客户集团、医院和院区租户后续在租户管理中维护。"
+                }
                 extra={[
                   recoveryCode ? (
                     <div className={styles.recoveryBox} key="recovery">

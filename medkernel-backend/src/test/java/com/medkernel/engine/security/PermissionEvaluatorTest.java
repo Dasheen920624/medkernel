@@ -59,8 +59,7 @@ class PermissionEvaluatorTest {
     void platformAdminHasEveryNonEmergencyPermission() {
         authenticate(RoleCode.PLATFORM_ADMIN);
         for (PermissionCode perm : PermissionCode.values()) {
-            if (perm == PermissionCode.ENV_EMERGENCY
-                    || MenuPermissionCatalog.legacySectionPermissions().contains(perm)) {
+            if (perm == PermissionCode.ENV_EMERGENCY) {
                 continue;
             }
             assertThat(evaluator.has(perm.code()))

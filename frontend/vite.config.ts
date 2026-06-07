@@ -1,50 +1,69 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { loadEnv } from "vite";
+import { resolveApiProxyTarget } from "./src/shared/config/devProxy";
+
+function vendorChunkName(id: string) {
+  if (!id.includes("/node_modules/")) {
+    return undefined;
+  }
+  if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router")) {
+    return "vendor-react";
+  }
+  if (id.includes("/@tanstack/react-query/") || id.includes("/axios/")) {
+    return "vendor-data";
+  }
+  return undefined;
+}
 
 /**
  * MedKernel v1.0 GA · Vite 配置
- * 开发期 proxy /medkernel → http://localhost:18080，避免 CORS。
+ * 开发期 proxy /medkernel → MEDKERNEL_API_PROXY_TARGET / VITE_API_PROXY_TARGET。
  * 前端骨架按 FSD 分层（app/pages/widgets/features/entities/shared），alias 仅暴露 @ 根。
  */
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src"),
-    },
-  },
-  server: {
-    port: 5173,
-    host: "0.0.0.0",
-    proxy: {
-      "/medkernel": {
-        target: "http://localhost:18080",
-        changeOrigin: false,
+export default defineConfig(({ command, mode }) => {
+  const env = { ...process.env, ...loadEnv(mode, process.cwd(), "") };
+  const apiProxyTarget =
+    command === "serve" && mode !== "test" ? resolveApiProxyTarget(env) : undefined;
+
+  return {
+    plugins: [react()],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "src"),
       },
     },
-  },
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    target: "es2022",
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-antd": ["antd", "@ant-design/icons"],
-          "vendor-data": ["@tanstack/react-query", "axios"],
+    server: {
+      port: 5173,
+      host: "0.0.0.0",
+      proxy: apiProxyTarget
+        ? {
+            "/medkernel": {
+              target: apiProxyTarget,
+              changeOrigin: false,
+            },
+          }
+        : undefined,
+    },
+    build: {
+      outDir: "dist",
+      sourcemap: true,
+      target: "es2022",
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: vendorChunkName,
         },
       },
     },
-  },
-  test: {
-    globals: true,
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["e2e/**", "node_modules/**", "dist/**"],
-    css: false,
-  },
+    test: {
+      globals: true,
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
+      include: ["src/**/*.{test,spec}.{ts,tsx}"],
+      exclude: ["e2e/**", "node_modules/**", "dist/**"],
+      css: false,
+    },
+  };
 });

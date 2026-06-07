@@ -15,7 +15,7 @@
 
 ## 现状（搬迁时核查 2026-05-31；后端以 `medkernel-backend` 真实包为准复核）
 
-- **模型网关已有 MVP**＝`engine/llm/`：`ModelGatewayService`/`ModelGatewayController` + `ModelCapabilityPolicy`/`ModelCapabilityTask` 实体+repo + DTO + 五方言 `V18__model_gateway_api.sql`（表 `model_capability_task`/`model_capability_policy`）。端点 `/api/v1/model-capabilities/{status,tasks,tasks/{id},tasks/{id}/retry,policies/validate}`；8 能力码（`knowledge.discovery`/`knowledge.extract`/`terminology.map`/`rule.draft`/`pathway.draft`/`cdss.explain`/`quality.semantic-check`/`followup.draft`）；**B0 诚实回退**（无 provider 一律降级 B0，不伪造 B2 模型名/置信度/引文）+ 正则脱敏 + JSON Schema 校验 + 审计；`ErrorCode ENG_LLM_001/002/004`；perm `llm.read`/`llm.write`。
+- **模型网关已有 MVP**＝`engine/llm/`：关系库能力目录 `model_capability_definition` + 租户策略 `model_capability_policy` + 任务 `model_capability_task`，五方言由 `V18__model_gateway_api.sql` 统一创建并种入 8 项初始能力。端点 `/api/v1/model-capabilities/{status,catalog,catalog/{capabilityCode},tasks,tasks/{id},tasks/{id}/retry,policies/validate,policies/{capabilityCode}}`；**B0 诚实回退**（无 provider 一律降级 B0，不伪造 B2 模型名/置信度/引文）+ 正则脱敏 + JSON Schema 校验 + 审计；权限分离为 `llm.read`/`llm.execute`/`llm.manage`，全局目录维护另需 `system.manage`。
 - **明确缺口（建卡「现状」段照实写、勿夸大）**：真实 provider 接入（B1/B2/Dify，[LLM-08]）、故障切换矩阵（[LLM-02]）、数据最小化外调安全（[LLM-03]/[OPT-09]）、版本治理（[LLM-04]）、来源探索编排（[LLM-06]）、医学回归评测（[LLM-07]/[OPT-06]）、增强接入矩阵（[LLM-05]）；AI 工厂全线（AIK-STD-*，知识自动生成仅约 10-15%）、首发资产（KNOWGEN-*，未生产）、领域门面（X-DOMAIN，未建）。AI 生成依赖的知识/审核台**壳已在 D2/D4 建**（[KNOW-01](../D2/KNOW-01.md)/[KNOW-02](../D2/KNOW-02.md)/[AIREVIEW-01](../D4/AIREVIEW-01.md)）。
 
 ## 共享数据模型 / 实体（wave2 卡共用，单一归属在此声明、卡内只引用）

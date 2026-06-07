@@ -2,6 +2,8 @@ package com.medkernel.engine.pathway;
 
 import java.util.List;
 
+import com.medkernel.engine.versioning.AssetVersionStatus;
+
 /**
  * 路径模板详情响应。
  *
@@ -12,6 +14,7 @@ public record PathwayTemplateDetailResponse(
     List<PathwayNode> nodes,
     List<PathwayEdge> edges,
     List<SpecialtyMetricBinding> metricBindings,
+    AssetVersionStatus deploymentStatus,
     String traceId
 ) {
 

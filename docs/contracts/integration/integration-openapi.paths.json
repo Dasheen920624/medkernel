@@ -39,7 +39,7 @@
       "X-MedKernel-Signature",
       "X-MedKernel-Package-Version"
     ],
-    "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store secretKey inline.",
+    "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store shared secrets inline.",
     "degradation": {
       "disconnectedStatus": "NOT_CONNECTED",
       "note": "Missing or disconnected FHIR adapter returns OperationOutcome and never fabricates write success."
@@ -114,6 +114,21 @@
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
           "note": "Creation records configuration only; it must not fabricate connectivity."
+        }
+      }
+    },
+    "/api/v1/engine/integration/data-contract": {
+      "get": {
+        "operationId": "getIntegrationDataContract",
+        "summary": "Read the third-party integration field contract for one package version.",
+        "permission": "integration.read",
+        "auditTarget": "read-only",
+        "idempotency": {
+          "requirement": "Safe read; Idempotency-Key is not required."
+        },
+        "degradation": {
+          "disconnectedStatus": "NOT_CONNECTED",
+          "note": "The contract is generated from the relational field catalog and does not depend on external connectivity."
         }
       }
     },
@@ -279,7 +294,7 @@
     "/api/v1/engine/integration/webhooks/test": {
       "post": {
         "operationId": "testIntegrationWebhookSignature",
-        "summary": "Generate and verify webhook signature test evidence.",
+        "summary": "Generate a local webhook signature preview without claiming network connectivity.",
         "permission": "integration.execute",
         "auditTarget": "integration_webhook",
         "idempotency": {
@@ -287,7 +302,7 @@
         },
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
-          "note": "Failed callback delivery must be reported as test failure, not success."
+          "note": "The response reports SIGNATURE_GENERATED and connectionStatus NOT_TESTED because no external request is sent."
         }
       }
     },

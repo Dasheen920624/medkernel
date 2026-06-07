@@ -2,18 +2,24 @@ package com.medkernel.engine.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.experience.UserPreference;
 import com.medkernel.engine.experience.UserPreferenceRepository;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.config.SystemConfigItemResponse;
+import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.config.SystemConfigUpdateRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -23,16 +29,30 @@ import org.junit.jupiter.api.Test;
 class WorkflowNotificationSettingsServiceTest {
 
     private UserPreferenceRepository repository;
+    private SystemConfigService systemConfigService;
+    private AuditRecorder auditRecorder;
     private WorkflowNotificationSettingsService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(UserPreferenceRepository.class);
-        service = new WorkflowNotificationSettingsService(repository, new ObjectMapper());
+        systemConfigService = mock(SystemConfigService.class);
+        auditRecorder = mock(AuditRecorder.class);
+        service = new WorkflowNotificationSettingsService(
+            repository,
+            new ObjectMapper(),
+            systemConfigService,
+            auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-notify-settings",
             OrgScope.tenant("tenant-A"),
             "doctor-1"));
+        when(systemConfigService.getOrSeedTenantConfig(
+                eq("tenant-A"),
+                eq(WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY),
+                any(),
+                any()))
+            .thenReturn(systemDefaults());
     }
 
     @AfterEach
@@ -41,7 +61,7 @@ class WorkflowNotificationSettingsServiceTest {
     }
 
     @Test
-    void getSettingsReturnsSafeDefaultsWithoutPretendingExternalChannelsAreConnected() {
+    void getSettingsInheritsTenantDefaultsWithoutPretendingExternalChannelsAreConnected() {
         when(repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
                 "tenant-A",
                 "doctor-1",
@@ -60,6 +80,15 @@ class WorkflowNotificationSettingsServiceTest {
         assertThat(response.quietHoursEnabled()).isFalse();
         assertThat(response.quietBypassLevels())
             .containsExactly(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH);
+        assertThat(response.subscribedTypes())
+            .containsExactly(
+                WorkflowNotificationType.SAFETY,
+                WorkflowNotificationType.FOLLOWUP,
+                WorkflowNotificationType.WORKFLOW,
+                WorkflowNotificationType.SYNC);
+        assertThat(response.mandatoryTypes()).containsExactly(WorkflowNotificationType.SAFETY);
+        assertThat(response.source()).isEqualTo(WorkflowNotificationSettingsSource.SYSTEM_DEFAULT);
+        assertThat(response.systemVersion()).isEqualTo(7);
     }
 
     @Test
@@ -81,7 +110,8 @@ class WorkflowNotificationSettingsServiceTest {
                   "quietHoursEnabled": true,
                   "quietStart": "21:30",
                   "quietEnd": "06:30",
-                  "quietBypassLevels": ["CRITICAL", "HIGH"]
+                  "quietBypassLevels": ["CRITICAL", "HIGH"],
+                  "subscribedTypes": ["SAFETY", "FOLLOWUP"]
                 }
                 """,
             5,
@@ -106,6 +136,9 @@ class WorkflowNotificationSettingsServiceTest {
         assertThat(response.inHospitalMessageEnabled()).isTrue();
         assertThat(response.quietHoursEnabled()).isTrue();
         assertThat(response.quietStart()).isEqualTo("21:30");
+        assertThat(response.subscribedTypes())
+            .containsExactly(WorkflowNotificationType.SAFETY, WorkflowNotificationType.FOLLOWUP);
+        assertThat(response.source()).isEqualTo(WorkflowNotificationSettingsSource.PERSONAL);
         assertThat(response.version()).isEqualTo(5);
         verify(repository).findByTenantIdAndUserIdAndPrefKeyAndStatus(
             "tenant-A",
@@ -147,12 +180,78 @@ class WorkflowNotificationSettingsServiceTest {
             true,
             "22:00",
             "07:00",
-            Set.of(WorkflowNotificationLevel.INFO)));
+            Set.of(WorkflowNotificationLevel.INFO),
+            Set.of(WorkflowNotificationType.FOLLOWUP)));
 
         assertThat(response.version()).isEqualTo(3);
         assertThat(response.quietBypassLevels())
             .containsExactly(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH, WorkflowNotificationLevel.INFO);
+        assertThat(response.subscribedTypes())
+            .containsExactly(WorkflowNotificationType.SAFETY, WorkflowNotificationType.FOLLOWUP);
         verify(repository).save(any(UserPreference.class));
+        verify(auditRecorder).record(any());
+    }
+
+    @Test
+    void saveSystemSettingsUsesTenantConfigurationCenterWithOptimisticVersionAndReason() {
+        when(systemConfigService.updateTenant(
+                eq("tenant-A"),
+                eq(WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY),
+                any(SystemConfigUpdateRequest.class),
+                eq("doctor-1")))
+            .thenReturn(new SystemConfigItemResponse(
+                WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY,
+                """
+                    {
+                      "inAppEnabled": true,
+                      "smsEnabled": true,
+                      "emailEnabled": false,
+                      "pushEnabled": false,
+                      "webhookEnabled": false,
+                      "inHospitalMessageEnabled": true,
+                      "quietHoursEnabled": true,
+                      "quietStart": "21:00",
+                      "quietEnd": "07:30",
+                      "quietBypassLevels": ["CRITICAL", "HIGH"],
+                      "subscribedTypes": ["SAFETY", "WORKFLOW"]
+                    }
+                    """,
+                "JSON",
+                "租户通知默认策略",
+                "MEDIUM",
+                "医院管理员",
+                "租户通知渠道、订阅类型和免打扰默认策略。",
+                "API",
+                false,
+                8,
+                Instant.parse("2026-06-04T09:00:00Z")));
+
+        WorkflowNotificationSettingsResponse response = service.saveSystemSettings(
+            new WorkflowNotificationSystemSettingsRequest(
+                new WorkflowNotificationSettingsRequest(
+                    true,
+                    true,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true,
+                    "21:00",
+                    "07:30",
+                    Set.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH),
+                Set.of(WorkflowNotificationType.WORKFLOW)),
+                "统一夜间通知策略",
+                7L));
+
+        assertThat(response.source()).isEqualTo(WorkflowNotificationSettingsSource.SYSTEM_DEFAULT);
+        assertThat(response.systemVersion()).isEqualTo(8);
+        assertThat(response.subscribedTypes())
+            .containsExactly(WorkflowNotificationType.SAFETY, WorkflowNotificationType.WORKFLOW);
+        verify(systemConfigService).updateTenant(
+            eq("tenant-A"),
+            eq(WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY),
+            any(SystemConfigUpdateRequest.class),
+            eq("doctor-1"));
     }
 
     @Test
@@ -168,8 +267,12 @@ class WorkflowNotificationSettingsServiceTest {
             "22:00",
             "07:00",
             Set.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH),
+            Set.of(WorkflowNotificationType.SAFETY, WorkflowNotificationType.WORKFLOW),
+            Set.of(WorkflowNotificationType.SAFETY),
+            WorkflowNotificationSettingsSource.PERSONAL,
             true,
             1,
+            7,
             Instant.parse("2026-06-04T08:00:00Z"),
             "doctor-1");
 
@@ -179,5 +282,70 @@ class WorkflowNotificationSettingsServiceTest {
             .isFalse();
         assertThat(service.isMutedByQuietHours(WorkflowNotificationLevel.HIGH, settings, LocalTime.parse("23:30")))
             .isFalse();
+    }
+
+    @Test
+    void unsubscribedOrdinaryNotificationIsMutedButSafetyNotificationAlwaysRemainsSubscribed() {
+        WorkflowNotificationSettingsResponse settings = settingsWithSubscriptions(
+            Set.of(WorkflowNotificationType.SAFETY, WorkflowNotificationType.FOLLOWUP));
+
+        assertThat(service.isSubscribed(WorkflowNotificationSourceType.WORKFLOW_TODO,
+            WorkflowNotificationLevel.INFO, settings)).isFalse();
+        assertThat(service.isSubscribed(WorkflowNotificationSourceType.SAFETY_REVIEW,
+            WorkflowNotificationLevel.INFO, settings)).isTrue();
+        assertThat(service.isSubscribed(WorkflowNotificationSourceType.WORKFLOW_TODO,
+            WorkflowNotificationLevel.CRITICAL, settings)).isTrue();
+    }
+
+    private static WorkflowNotificationSettingsResponse settingsWithSubscriptions(
+            Set<WorkflowNotificationType> subscriptions) {
+        return new WorkflowNotificationSettingsResponse(
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            "22:00",
+            "07:00",
+            Set.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH),
+            subscriptions,
+            Set.of(WorkflowNotificationType.SAFETY),
+            WorkflowNotificationSettingsSource.PERSONAL,
+            false,
+            1,
+            7,
+            Instant.parse("2026-06-04T08:00:00Z"),
+            "doctor-1");
+    }
+
+    private static SystemConfigItemResponse systemDefaults() {
+        return new SystemConfigItemResponse(
+            WorkflowNotificationSettingsService.SYSTEM_DEFAULTS_KEY,
+            """
+                {
+                  "inAppEnabled": true,
+                  "smsEnabled": false,
+                  "emailEnabled": false,
+                  "pushEnabled": false,
+                  "webhookEnabled": false,
+                  "inHospitalMessageEnabled": false,
+                  "quietHoursEnabled": false,
+                  "quietStart": "22:00",
+                  "quietEnd": "07:00",
+                  "quietBypassLevels": ["CRITICAL", "HIGH"],
+                  "subscribedTypes": ["SAFETY", "FOLLOWUP", "WORKFLOW", "SYNC"]
+                }
+                """,
+            "JSON",
+            "租户通知默认策略",
+            "MEDIUM",
+            "医院管理员",
+            "租户通知渠道、订阅类型和免打扰默认策略。",
+            "SEED",
+            false,
+            7,
+            Instant.parse("2026-06-04T08:00:00Z"));
     }
 }

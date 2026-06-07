@@ -14,6 +14,19 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutStrategy;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -31,37 +44,48 @@ import com.medkernel.shared.context.RequestContext;
 @Service
 public class TerminologyService {
 
-    private static final String DEFAULT_GRAY_SCOPE_JSON = "{\"strategy\":\"BED_PERCENT\",\"percentage\":10}";
-    private static final String HOSPITAL_ADMIN_ROLE = "hospital-admin";
-
+    private static final String DEFAULT_GRAY_SCOPE_JSON = "{\"rolloutStrategy\":\""
+        + RolloutStrategy.CANARY_BED_PERCENT + "\",\"percentage\":10}";
     private final StandardTermRepository standardTermRepository;
     private final LocalTermRepository localTermRepository;
     private final TermMappingRepository mappingRepository;
+    private final EffectiveTermMappingResolver effectiveMappings;
     private final MappingCandidateRepository candidateRepository;
     private final MappingConflictRepository conflictRepository;
     private final TermMappingPackageRepository packageRepository;
     private final TermMappingPackageItemRepository packageItemRepository;
     private final TermMappingPackageReleaseRepository packageReleaseRepository;
     private final HighRiskRuleRepository highRiskRuleRepository;
+    private final TerminologyVersionedAssetAdapter versionedAssets;
+    private final AssetVersionRepository assetVersions;
+    private final ReleasePort releasePort;
 
     public TerminologyService(StandardTermRepository standardTermRepository,
                               LocalTermRepository localTermRepository,
                               TermMappingRepository mappingRepository,
+                              EffectiveTermMappingResolver effectiveMappings,
                               MappingCandidateRepository candidateRepository,
                               MappingConflictRepository conflictRepository,
                               TermMappingPackageRepository packageRepository,
                               TermMappingPackageItemRepository packageItemRepository,
                               TermMappingPackageReleaseRepository packageReleaseRepository,
-                              HighRiskRuleRepository highRiskRuleRepository) {
+                              HighRiskRuleRepository highRiskRuleRepository,
+                              TerminologyVersionedAssetAdapter versionedAssets,
+                              AssetVersionRepository assetVersions,
+                              ReleasePort releasePort) {
         this.standardTermRepository = standardTermRepository;
         this.localTermRepository = localTermRepository;
         this.mappingRepository = mappingRepository;
+        this.effectiveMappings = effectiveMappings;
         this.candidateRepository = candidateRepository;
         this.conflictRepository = conflictRepository;
         this.packageRepository = packageRepository;
         this.packageItemRepository = packageItemRepository;
         this.packageReleaseRepository = packageReleaseRepository;
         this.highRiskRuleRepository = highRiskRuleRepository;
+        this.versionedAssets = versionedAssets;
+        this.assetVersions = assetVersions;
+        this.releasePort = releasePort;
     }
 
     /**
@@ -72,12 +96,15 @@ public class TerminologyService {
         String category = name(filter.category());
         String status = name(filter.status());
         String keyword = normalizeKeyword(filter.keyword());
-        long total = standardTermRepository.countByFilter(tenantId, filter.standardSystem(), category, status, keyword);
+        List<String> standardSources = standardTermSources(tenantId);
+        long total = standardTermRepository.countByTenantIdsFilter(
+            standardSources, filter.standardSystem(), category, status, keyword);
         if (total == 0) {
             return PageResponse.empty(request);
         }
-        return PageResponse.of(standardTermRepository.pageByFilter(
-            tenantId, filter.standardSystem(), category, status, keyword, request.offset(), request.safeSize()
+        return PageResponse.of(standardTermRepository.pageByTenantIdsFilter(
+            standardSources, tenantId, filter.standardSystem(), category, status, keyword,
+            request.offset(), request.safeSize()
         ), request, total);
     }
 
@@ -223,7 +250,7 @@ public class TerminologyService {
         String tenantId = candidate.tenantId();
         LocalTerm localTerm = localTermRepository.findByTenantIdAndId(tenantId, candidate.localTermId())
             .orElseThrow(() -> ApiException.notFound("院内字典 id=" + candidate.localTermId()));
-        StandardTerm standardTerm = standardTermRepository.findByTenantIdAndId(tenantId, candidate.standardTermId())
+        StandardTerm standardTerm = findEffectiveStandardTermById(tenantId, candidate.standardTermId())
             .orElseThrow(() -> ApiException.notFound("标准字典 id=" + candidate.standardTermId()));
         if (localTerm.category() != null && standardTerm.category() != null
                 && localTerm.category() != standardTerm.category()) {
@@ -324,22 +351,41 @@ public class TerminologyService {
         String tenantId = requireValidatedTenant(request.context());
         String userId = currentUserId();
         Instant now = Instant.now();
-        List<TermMapping> mappings = mappingRepository.findConfirmedByTenantIdAndScope(
+        PackageScope packageScope = requireCurrentPackageScope(
             tenantId, request.scopeLevel(), request.scopeCode());
+        List<TermMapping> mappings = mappingRepository.findConfirmedByTenantIdAndScope(
+            tenantId, packageScope.level(), packageScope.code());
         if (mappings.isEmpty()) {
             throw ApiException.conflict("当前范围没有已确认映射，无法构建映射包");
         }
-        String contentHash = hashMappings(request, mappings);
+        List<TermMappingSnapshot> snapshots = mappings.stream()
+            .map(mapping -> mappingSnapshot(tenantId, mapping))
+            .toList();
+        String contentHash = hashMappings(request, packageScope, snapshots);
         TermMappingPackage saved = packageRepository.save(new TermMappingPackage(
             null, tenantId, request.packageCode(), request.packageVersion(), request.displayName(),
-            request.scopeLevel(), request.scopeCode(), TermMappingPackageStatus.DRAFT,
+            packageScope.level(), packageScope.code(), TermMappingPackageStatus.DRAFT,
             mappings.size(), contentHash, null, null, null, null, now, userId, now, userId
         ));
-        for (TermMapping mapping : mappings) {
-            packageItemRepository.save(new TermMappingPackageItem(
-                null, tenantId, saved.id(), mapping.id(), snapshot(mapping), now, userId
+        for (TermMappingSnapshot snapshot : snapshots) {
+            String mappingSnapshot = TermMappingSnapshotCodec.write(snapshot);
+            packageItemRepository.save(TermMappingPackageItem.fromSnapshot(
+                tenantId, saved.id(), snapshot.mappingId(), snapshot, mappingSnapshot, now, userId
             ));
         }
+        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            saved.packageCode(),
+            saved.packageVersion(),
+            releaseOrgScope(saved),
+            "ALL",
+            null,
+            saved.contentHash(),
+            terminologySourceRef(saved),
+            userId,
+            RequestContext.currentTraceId()
+        ));
         return saved;
     }
 
@@ -360,8 +406,11 @@ public class TerminologyService {
         if (pkg.status() == TermMappingPackageStatus.ROLLED_BACK || pkg.status() == TermMappingPackageStatus.ARCHIVED) {
             throw ApiException.conflict("映射包 id=" + packageId + " 已不可发布");
         }
-        ensurePublishTransition(pkg, request, context);
+        ensurePublishTransition(pkg, request);
         String grayScopeJson = normalizedGrayScope(request);
+        AssetVersion assetVersion = requireAssetVersion(pkg);
+        VersionReleaseCommand releaseCommand = releaseCommand(pkg, assetVersion, request, grayScopeJson, userId);
+        advanceRelease(assetVersion, releaseCommand, request.releaseMode());
         TermMappingPackage next = pkg.withGrayScope(grayScopeJson)
             .withStatus(request.releaseMode() == PackageReleaseMode.FULL
                 ? TermMappingPackageStatus.PUBLISHED
@@ -383,9 +432,9 @@ public class TerminologyService {
     }
 
     /**
-     * 把当前 PUBLISHED/GRAY 的映射包回滚到指定历史版本，同时写一条 ROLLBACK 事件流水。
+     * 把当前 PUBLISHED 的映射包回滚到指定历史版本，同时写一条 ROLLBACK 事件流水。
      *
-     * <p>目标包必须与当前包同 (packageCode + scope)，且处于 PUBLISHED 或 SUPERSEDED 状态。
+     * <p>目标包必须与当前包同 (packageCode + scope)，且处于 SUPERSEDED 状态。
      * 操作后当前包置 ROLLED_BACK，目标包重新置 PUBLISHED。
      */
     @Transactional
@@ -400,12 +449,27 @@ public class TerminologyService {
         if (!sameScope(current, target)) {
             throw ApiException.conflict("回滚目标必须与当前映射包同编码、同范围");
         }
-        if (current.status() != TermMappingPackageStatus.PUBLISHED && current.status() != TermMappingPackageStatus.GRAY) {
-            throw ApiException.conflict("当前映射包不是已发布或灰度状态，无法回滚");
+        if (current.status() != TermMappingPackageStatus.PUBLISHED) {
+            throw ApiException.conflict("当前映射包不是全量发布状态，无法执行版本回滚");
         }
-        if (target.status() != TermMappingPackageStatus.PUBLISHED && target.status() != TermMappingPackageStatus.SUPERSEDED) {
+        if (target.status() != TermMappingPackageStatus.SUPERSEDED) {
             throw ApiException.conflict("目标映射包不是可回滚发布点");
         }
+        AssetVersion currentVersion = requireAssetVersion(current);
+        AssetVersion targetVersion = requireAssetVersion(target);
+        releasePort.rollback(new VersionRollbackCommand(
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            current.packageCode(),
+            currentVersion.versionId(),
+            targetVersion.versionId(),
+            current.packageVersion(),
+            target.packageVersion(),
+            request.reason(),
+            true,
+            userId,
+            RequestContext.currentTraceId()
+        ));
         packageRepository.save(current.rolledBack(userId, now));
         TermMappingPackage restored = packageRepository.save(target.restoredFromRollback(current.id(), userId, now));
         packageReleaseRepository.save(new TermMappingPackageRelease(
@@ -432,15 +496,14 @@ public class TerminologyService {
             }
         }
         java.util.List<MappingCoverageItem> items = new java.util.ArrayList<>();
+        List<String> standardSources = standardTermSources(tenantId);
         for (String code : distinct) {
             var standardTerm = standardTermRepository
-                .findByTenantIdAndStandardSystemAndTermCodeAndStatus(
-                    tenantId, standardSystem, code, StandardTermStatus.ACTIVE);
+                .findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+                    standardSources, tenantId, standardSystem, code, StandardTermStatus.ACTIVE);
             int confirmed = standardTerm
-                .map(term -> mappingRepository
-                    .findByTenantIdAndStandardTermIdAndStatus(
-                        tenantId, term.id(), TermMappingStatus.CONFIRMED)
-                    .size())
+                .map(term -> effectiveMappings.countByStandardCode(
+                    tenantId, standardSystem, term.termCode()))
                 .orElse(0);
             items.add(new MappingCoverageItem(
                 code, MappingCoverageItem.classify(standardTerm.isPresent(), confirmed), confirmed));
@@ -460,6 +523,23 @@ public class TerminologyService {
         String tenantId = requireCurrentTenant();
         context.validateTenant(tenantId);
         return tenantId;
+    }
+
+    private Optional<StandardTerm> findEffectiveStandardTermById(String tenantId, Long standardTermId) {
+        return standardTermRepository
+            .findFirstByTenantIdsAndId(standardTermSources(tenantId), tenantId, standardTermId)
+            .filter(term -> term.status() == StandardTermStatus.ACTIVE);
+    }
+
+    private List<String> standardTermSources(String tenantId) {
+        String current = tenantId == null ? "" : tenantId.trim();
+        if (current.isBlank()) {
+            throw ApiException.tenantMissing();
+        }
+        if (PlatformAuthority.PLATFORM_TENANT_ID.equals(current)) {
+            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        }
+        return List.of(PlatformAuthority.PLATFORM_TENANT_ID, current);
     }
 
     private String currentUserId() {
@@ -502,23 +582,97 @@ public class TerminologyService {
     }
 
     private void ensurePublishTransition(TermMappingPackage pkg,
-                                         PublishTerminologyPackageRequest request,
-                                         TerminologyApiContext context) {
-        if (pkg.status() != TermMappingPackageStatus.DRAFT && pkg.status() != TermMappingPackageStatus.GRAY) {
-            throw ApiException.conflict("映射包必须处于草稿或灰度状态，才能继续发布");
+                                         PublishTerminologyPackageRequest request) {
+        if (pkg.status() == TermMappingPackageStatus.DRAFT) {
+            if (request.releaseMode() == PackageReleaseMode.FULL
+                    && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
+                throw new ApiException(ErrorCode.FORBIDDEN, "只有医院管理员可跳过灰度直接全量发布");
+            }
+            return;
         }
-        if (request.releaseMode() == PackageReleaseMode.FULL
-                && pkg.status() == TermMappingPackageStatus.DRAFT
-                && !hasHospitalAdminRole(context)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "只有医院管理员可跳过灰度直接全量发布");
+        if (pkg.status() == TermMappingPackageStatus.GRAY
+                && request.releaseMode() == PackageReleaseMode.FULL) {
+            return;
+        }
+        if (pkg.status() != TermMappingPackageStatus.DRAFT) {
+            throw ApiException.conflict("映射包必须处于草稿或灰度状态，才能继续发布");
         }
     }
 
-    private boolean hasHospitalAdminRole(TerminologyApiContext context) {
-        return context.roleCodes().stream()
-            .filter(Objects::nonNull)
-            .map(String::trim)
-            .anyMatch(HOSPITAL_ADMIN_ROLE::equals);
+    private AssetVersion requireAssetVersion(TermMappingPackage pkg) {
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            pkg.tenantId(),
+            VersionedAssetType.TERMINOLOGY,
+            pkg.packageCode(),
+            pkg.packageVersion()
+        ).orElseThrow(() -> new ApiException(
+            ErrorCode.CONFLICT,
+            "术语映射包缺少统一资产版本，禁止发布或回滚"
+        ));
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            TermMappingPackage pkg,
+            AssetVersion assetVersion,
+            PublishTerminologyPackageRequest request,
+            String grayScopeJson,
+            String actor) {
+        return new VersionReleaseCommand(
+            pkg.tenantId(),
+            VersionedAssetType.TERMINOLOGY,
+            pkg.packageCode(),
+            assetVersion.versionId(),
+            releaseOrgScope(pkg),
+            "ALL",
+            request.releaseMode() == PackageReleaseMode.GRAY
+                ? releaseScopeType(pkg.scopeLevel())
+                : VersionReleaseScopeType.ALL,
+            grayScopeJson,
+            pkg.contentHash(),
+            request.reason(),
+            List.of(),
+            actor,
+            RequestContext.currentTraceId()
+        );
+    }
+
+    private void advanceRelease(
+            AssetVersion assetVersion,
+            VersionReleaseCommand command,
+            PackageReleaseMode mode) {
+        if (assetVersion.status() == AssetVersionStatus.DRAFT) {
+            releasePort.submitForReview(command);
+            releasePort.approveForSilentObservation(command);
+        } else if (assetVersion.status() == AssetVersionStatus.PENDING_REVIEW) {
+            releasePort.approveForSilentObservation(command);
+        } else if (assetVersion.status() != AssetVersionStatus.PUBLISHED
+                && assetVersion.status() != AssetVersionStatus.ACTIVE) {
+            throw ApiException.conflict("统一术语资产版本状态不允许发布");
+        }
+        if (mode == PackageReleaseMode.GRAY) {
+            releasePort.releaseGray(command);
+        } else {
+            releasePort.releaseFull(command);
+        }
+    }
+
+    private String releaseOrgScope(TermMappingPackage pkg) {
+        return pkg.scopeLevel().trim().toUpperCase() + ":" + pkg.scopeCode().trim();
+    }
+
+    private VersionReleaseScopeType releaseScopeType(String scopeLevel) {
+        if ("TENANT".equalsIgnoreCase(scopeLevel)) {
+            return VersionReleaseScopeType.ALL;
+        }
+        try {
+            return VersionReleaseScopeType.valueOf(scopeLevel.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "术语映射包范围层级不受支持: " + scopeLevel);
+        }
+    }
+
+    private String terminologySourceRef(TermMappingPackage pkg) {
+        return "term-mapping-package:" + pkg.packageCode() + ":" + pkg.packageVersion();
     }
 
     private String normalizedGrayScope(PublishTerminologyPackageRequest request) {
@@ -531,17 +685,17 @@ public class TerminologyService {
         return request.grayScopeJson().trim();
     }
 
-    private String hashMappings(BuildTerminologyPackageRequest request, List<TermMapping> mappings) {
+    private String hashMappings(
+            BuildTerminologyPackageRequest request,
+            PackageScope packageScope,
+            List<TermMappingSnapshot> mappings) {
         StringBuilder payload = new StringBuilder()
             .append(request.packageCode()).append('|')
             .append(request.packageVersion()).append('|')
-            .append(request.scopeLevel()).append('|')
-            .append(request.scopeCode());
+            .append(packageScope.level()).append('|')
+            .append(packageScope.code());
         mappings.forEach(mapping -> payload.append('|')
-            .append(mapping.id()).append(':')
-            .append(mapping.localTermId()).append(':')
-            .append(mapping.standardTermId()).append(':')
-            .append(mapping.status()));
+            .append(TermMappingSnapshotCodec.write(mapping)));
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(payload.toString().getBytes(StandardCharsets.UTF_8)));
@@ -550,11 +704,43 @@ public class TerminologyService {
         }
     }
 
-    private String snapshot(TermMapping mapping) {
-        return "{\"mappingId\":" + mapping.id()
-            + ",\"localTermId\":" + mapping.localTermId()
-            + ",\"standardTermId\":" + mapping.standardTermId()
-            + ",\"status\":\"" + mapping.status() + "\"}";
+    private TermMappingSnapshot mappingSnapshot(String tenantId, TermMapping mapping) {
+        LocalTerm localTerm = localTermRepository.findByTenantIdAndId(tenantId, mapping.localTermId())
+            .orElseThrow(() -> ApiException.notFound("院内术语 id=" + mapping.localTermId()));
+        StandardTerm standardTerm = findEffectiveStandardTermById(tenantId, mapping.standardTermId())
+            .orElseThrow(() -> ApiException.notFound("标准术语 id=" + mapping.standardTermId()));
+        return TermMappingSnapshot.from(mapping, localTerm, standardTerm);
+    }
+
+    private PackageScope requireCurrentPackageScope(
+            String tenantId,
+            String rawLevel,
+            String rawCode) {
+        String level = rawLevel == null ? "" : rawLevel.trim().toUpperCase();
+        String code = rawCode == null ? "" : rawCode.trim();
+        OrgScope current = RequestContext.currentOrgScope();
+        String expectedCode = switch (level) {
+            case "TENANT" -> tenantId;
+            case "GROUP" -> current.groupId();
+            case "HOSPITAL" -> current.hospitalId();
+            case "CAMPUS" -> current.campusId();
+            case "SITE" -> current.siteId();
+            case "DEPARTMENT" -> current.departmentId();
+            default -> throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "术语映射包范围层级不受支持: " + rawLevel
+            );
+        };
+        if (expectedCode == null || expectedCode.isBlank() || !expectedCode.equals(code)) {
+            throw new ApiException(
+                ErrorCode.ORG_SCOPE_DENIED,
+                "术语映射包范围必须与当前组织上下文一致"
+            );
+        }
+        return new PackageScope(level, code);
+    }
+
+    private record PackageScope(String level, String code) {
     }
 
     /**
@@ -575,8 +761,8 @@ public class TerminologyService {
             return new TerminologyCandidateGenerationResponse(0, List.of());
         }
 
-        List<StandardTerm> standardTerms = standardTermRepository.findByTenantIdAndStatus(
-            tenantId, StandardTermStatus.ACTIVE);
+        List<StandardTerm> standardTerms = standardTermRepository.findByTenantIdsAndStatus(
+            standardTermSources(tenantId), tenantId, StandardTermStatus.ACTIVE);
         if (standardTerms.isEmpty()) {
             return new TerminologyCandidateGenerationResponse(0, List.of());
         }

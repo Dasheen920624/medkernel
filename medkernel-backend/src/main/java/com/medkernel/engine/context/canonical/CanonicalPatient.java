@@ -17,7 +17,6 @@ public record CanonicalPatient(
     @NotBlank String name,
     LocalDate birthDate,
     String gender,
-    List<String> allergies,
     List<String> specialPopulations,
     String sourceSystem,
     String sourceRecordId,

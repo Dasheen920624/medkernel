@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -14,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.engine.org.OrgUnitRepository;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 
@@ -39,6 +41,7 @@ class TenantProvisioningControllerTest {
     @Autowired MockMvc mvc;
     @Autowired OrgUnitRepository orgUnits;
     @Autowired PlatformCredentialRepository credentials;
+    @Autowired TenantUserRepository users;
     @Autowired UserRoleAssignmentRepository roleAssignments;
     @Autowired MfaSecretCodec mfaSecretCodec;
 
@@ -55,6 +58,8 @@ class TenantProvisioningControllerTest {
 
     @AfterEach
     void cleanUp() {
+        users.findByTenantIdOrderByDisplayNameAsc(NEW_TENANT, Pageable.unpaged())
+            .forEach(users::delete);
         orgUnits.findByTenantIdOrderByLevelAscCodeAsc(NEW_TENANT).forEach(orgUnits::delete);
         credentials.deleteAll();
         roleAssignments.deleteAll();
@@ -85,7 +90,8 @@ class TenantProvisioningControllerTest {
         mvc.perform(get("/api/v1/admin/tenants").with(platformAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.tenantId=='t-hosp2')].name").value(
-                org.hamcrest.Matchers.hasItem("测试医院2")));
+                org.hamcrest.Matchers.hasItem("测试医院2")))
+            .andExpect(jsonPath("$.data[?(@.tenantId=='t-1')]").isEmpty());
 
         // 新租户管理员可在 t-hosp2 登录（验证跨租户链路 + 角色）
         mvc.perform(post("/api/v1/auth/login")

@@ -10,6 +10,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.security.DataAccessLevel;
+import com.medkernel.shared.security.ResolvedDataScope;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

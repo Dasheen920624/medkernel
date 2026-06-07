@@ -86,15 +86,31 @@ describe("Mpi", () => {
             updatedAt: "2026-06-04T00:00:00Z",
             updatedBy: "doctor-a",
           },
+          {
+            id: 3,
+            mpiId: "mpi-target-1",
+            tenantId: "tenant-A",
+            maskedName: "王*五",
+            gender: "M",
+            age: 52,
+            idLast4: "5678",
+            mergedCount: 0,
+            status: "ACTIVE",
+            mergedIntoMpiId: null,
+            createdAt: "2026-06-04T00:00:00Z",
+            createdBy: "doctor-a",
+            updatedAt: "2026-06-04T00:00:00Z",
+            updatedBy: "doctor-a",
+          },
         ],
-        total: 2,
+        total: 3,
       },
       isLoading: false,
       refetch: refetchList,
     } as unknown as ReturnType<typeof useMpiPatients>);
     mockUseMpiStats.mockReturnValue({
       data: {
-        activeCount: 1,
+        activeCount: 2,
         mergedCount: 0,
         activePathwayCount: 2,
         averageAge: 36,
@@ -195,7 +211,7 @@ describe("Mpi", () => {
         expect(mockUseMpiPatientDetail).toHaveBeenCalledWith("mpi-real-1");
       });
       expect(screen.getByText("患者 360 视图")).toBeInTheDocument();
-      expect(screen.getAllByText("snapshot-real-1").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("snapshot-real-1")).toHaveLength(1);
       expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
       expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
     },
@@ -215,7 +231,7 @@ describe("Mpi", () => {
       await user.click(screen.getByRole("button", { name: /检索过滤/ }));
 
       await waitFor(() => {
-        expect(mockUseMpiPatients).toHaveBeenLastCalledWith({
+        expect(mockUseMpiPatients).toHaveBeenCalledWith({
           keyword: "mpi-real-1",
           status: "ACTIVE",
           page: 1,
@@ -232,14 +248,16 @@ describe("Mpi", () => {
       const user = userEvent.setup();
       renderMpi();
 
-      await user.click(screen.getByRole("button", { name: /合并患者/ }));
-      await user.type(screen.getByPlaceholderText("例如：mpi_yyyyy"), "mpi-target-1");
+      await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
+      await user.click(screen.getByRole("combobox", { name: "目标患者" }));
+      await user.click(await screen.findByText("王*五 · mpi-target-1 · ***5678"));
       await user.click(screen.getByRole("button", { name: "确认合并" }));
 
       await waitFor(() => {
         expect(mergePatient).toHaveBeenCalledWith({
           sourceMpiId: "mpi-real-1",
           targetMpiId: "mpi-target-1",
+          idempotencyKey: expect.any(String),
         });
       });
       expect(refetchList).toHaveBeenCalled();
@@ -260,7 +278,7 @@ describe("Mpi", () => {
       expect(screen.getByText(/在径路径实例 2 个/)).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /新增患者/ }));
-      await user.type(screen.getByPlaceholderText("例如：mpi-new"), "mpi-new");
+      expect(screen.queryByText("患者主索引 ID")).not.toBeInTheDocument();
       await user.type(screen.getByPlaceholderText("例如：李*四"), "李*四");
       await user.click(screen.getByRole("combobox", { name: "性别" }));
       const femaleOptions = await screen.findAllByText("女 (F)");
@@ -272,11 +290,11 @@ describe("Mpi", () => {
 
       await waitFor(() => {
         expect(createPatient).toHaveBeenCalledWith({
-          mpiId: "mpi-new",
           maskedName: "李*四",
           gender: "F",
           age: 41,
           idLast4: "9876",
+          idempotencyKey: expect.any(String),
         });
       });
       expect(refetchList).toHaveBeenCalled();
@@ -302,6 +320,7 @@ describe("Mpi", () => {
         expect(splitPatient).toHaveBeenCalledWith({
           sourceMpiId: "mpi-merged-1",
           reviewReason: "人工核查后确认不是同一患者",
+          idempotencyKey: expect.any(String),
         });
       });
       expect(refetchList).toHaveBeenCalled();

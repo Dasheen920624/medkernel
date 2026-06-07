@@ -11,9 +11,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotRequest;
+import com.medkernel.engine.context.ContextSnapshotRepository;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalFollowUp;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
@@ -48,6 +50,7 @@ public class FollowupEngineService {
     private final FollowupQuestionnaireRepository questionnaireRepository;
     private final FollowupEventRepository eventRepository;
     private final ContextSnapshotService contextSnapshotService;
+    private final ContextSnapshotRepository contextSnapshots;
     private final ClinicalClockRepository clinicalClockRepository;
     private final ObjectMapper json = new ObjectMapper();
 
@@ -57,6 +60,7 @@ public class FollowupEngineService {
         FollowupQuestionnaireRepository questionnaireRepository,
         FollowupEventRepository eventRepository,
         ContextSnapshotService contextSnapshotService,
+        ContextSnapshotRepository contextSnapshots,
         ClinicalClockRepository clinicalClockRepository
     ) {
         this.planRepository = planRepository;
@@ -64,14 +68,84 @@ public class FollowupEngineService {
         this.questionnaireRepository = questionnaireRepository;
         this.eventRepository = eventRepository;
         this.contextSnapshotService = contextSnapshotService;
+        this.contextSnapshots = contextSnapshots;
         this.clinicalClockRepository = clinicalClockRepository;
     }
 
     /**
-     * 根据出院事件、病种、风险分层生成随访计划（幂等）。
+     * 根据当前租户的 ACTIVE 标准上下文快照生成随访计划（幂等）。
      */
     @Transactional
     public FollowupPlanDetailResponse generatePlan(FollowupPlanGenerateRequest request) {
+        if (request == null || !hasText(request.contextSnapshotId())) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划必须选择 ACTIVE 标准上下文快照");
+        }
+        RequestContext.Snapshot ctx = requireContext();
+        String tenantId = ctx.orgScope().tenantId();
+        var snapshot = contextSnapshots
+            .findBySnapshotIdAndTenantId(request.contextSnapshotId(), tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_FOLLOW_004, "标准上下文快照不存在"));
+        if (snapshot.status() != ContextSnapshotStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划仅允许使用 ACTIVE 标准上下文快照");
+        }
+        ContextSnapshotResponse detail = contextSnapshotService.findById(request.contextSnapshotId());
+        ContextSnapshotResources resources = detail.resources();
+        String diseaseCode = resources == null ? null : resources.conditions().stream()
+            .filter(condition -> hasText(condition.code()))
+            .map(condition -> condition.code().trim())
+            .findFirst()
+            .orElse(null);
+        return generatePlan(new FollowupPlanCommand(
+            snapshot.patientId(),
+            snapshot.encounterId(),
+            null,
+            diseaseCode,
+            request.riskLevel(),
+            request.taskTypes(),
+            request.idempotencyKey(),
+            request.modelEnabled()));
+    }
+
+    @Transactional
+    public FollowupPlanDetailResponse generatePlanFromPathway(
+            String patientId,
+            String encounterId,
+            String pathwayId,
+            String diseaseCode,
+            String riskLevel,
+            List<String> taskTypes) {
+        return generatePlanFromPathway(
+            patientId,
+            encounterId,
+            pathwayId,
+            diseaseCode,
+            riskLevel,
+            taskTypes,
+            null,
+            null);
+    }
+
+    FollowupPlanDetailResponse generatePlanFromPathway(
+            String patientId,
+            String encounterId,
+            String pathwayId,
+            String diseaseCode,
+            String riskLevel,
+            List<String> taskTypes,
+            String idempotencyKey,
+            Boolean modelEnabled) {
+        return generatePlan(new FollowupPlanCommand(
+            patientId,
+            encounterId,
+            pathwayId,
+            diseaseCode,
+            riskLevel,
+            taskTypes,
+            idempotencyKey,
+            modelEnabled));
+    }
+
+    private FollowupPlanDetailResponse generatePlan(FollowupPlanCommand request) {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
         String traceId = ctx.traceId();
@@ -252,23 +326,6 @@ public class FollowupEngineService {
             ctx.traceId()
         ));
         return toQuestionnaireResponse(questionnaire);
-    }
-
-    /**
-     * 兼容旧任务下问卷提交端点：真实保存作答并标记任务完成。
-     */
-    @Transactional
-    public void submitQuestionnaire(String taskId, FollowupQuestionnaireSubmitRequest request) {
-        dispatchQuestionnaire(new FollowupQuestionnaireRequest(
-            taskId,
-            "LEGACY_TASK_FORM",
-            request.formData(),
-            request.formData(),
-            null,
-            null,
-            request.executorId(),
-            request.executorType()
-        ));
     }
 
     /**
@@ -520,7 +577,7 @@ public class FollowupEngineService {
         return Math.round((numerator * 1000.0) / denominator) / 10.0;
     }
 
-    private ControlledPlan resolveControlledPlan(FollowupPlanGenerateRequest request, String tenantId) {
+    private ControlledPlan resolveControlledPlan(FollowupPlanCommand request, String tenantId) {
         requireControlledFacts(request);
         String sourceFactType;
         String sourceFactId;
@@ -551,7 +608,7 @@ public class FollowupEngineService {
         );
     }
 
-    private void requireControlledFacts(FollowupPlanGenerateRequest request) {
+    private void requireControlledFacts(FollowupPlanCommand request) {
         boolean hasPathway = hasText(request.pathwayId());
         boolean hasDiagnosis = hasText(request.diseaseCode());
         boolean hasRisk = hasText(request.riskLevel());
@@ -573,7 +630,7 @@ public class FollowupEngineService {
         return runningClock.or(() -> clocks.stream().filter(clock -> clock.dueAt() != null).findFirst());
     }
 
-    private List<FollowupTaskType> resolveTaskTypes(FollowupPlanGenerateRequest request) {
+    private List<FollowupTaskType> resolveTaskTypes(FollowupPlanCommand request) {
         List<FollowupTaskType> explicit = request.taskTypes().stream()
             .filter(FollowupEngineService::hasText)
             .map(this::parseTaskType)
@@ -599,7 +656,7 @@ public class FollowupEngineService {
     }
 
     private String controlledExplanation(
-            FollowupPlanGenerateRequest request,
+            FollowupPlanCommand request,
             String sourceFactType,
             String sourceFactId,
             String ruleCode,
@@ -665,8 +722,15 @@ public class FollowupEngineService {
             task.status(),
             task.executorId(),
             task.executorType(),
-            task.clinicalClockId()
+            task.clinicalClockId(),
+            questionnaireTemplateId(task)
         );
+    }
+
+    private String questionnaireTemplateId(FollowupTask task) {
+        return task.taskType() == FollowupTaskType.QUESTIONNAIRE
+            ? "FOLLOWUP_QUESTIONNAIRE_DEFAULT"
+            : null;
     }
 
     private FollowupQuestionnaireResponse toQuestionnaireResponse(FollowupQuestionnaire questionnaire) {
@@ -691,7 +755,6 @@ public class FollowupEngineService {
             FOLLOWUP_BACKFLOW_UNKNOWN_NAME,
             null,
             null,
-            List.of(),
             List.of(),
             "FOLLOWUP",
             plan.patientId(),
@@ -724,6 +787,7 @@ public class FollowupEngineService {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
             List.of(followUp),
             List.of()
         );
@@ -744,9 +808,6 @@ public class FollowupEngineService {
             plan.encounterId(),
             firstNonBlank(scope.specialtyId(), scope.departmentId(), scope.tenantId()),
             request.packageVersion(),
-            null,
-            null,
-            null,
             resources
         );
     }

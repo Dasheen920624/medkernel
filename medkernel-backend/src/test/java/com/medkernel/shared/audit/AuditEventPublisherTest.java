@@ -3,29 +3,15 @@ package com.medkernel.shared.audit;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
-
-import com.medkernel.shared.context.OrgScope;
-import com.medkernel.shared.context.RequestContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AuditEventPublisherTest {
 
-    @AfterEach
-    void clear() {
-        RequestContext.clear();
-    }
-
     @Test
-    void publishCarriesContextSnapshotIntoEvent() {
-        RequestContext.restore(new RequestContext.Snapshot(
-            "trace-pub",
-            new OrgScope("t-1", "g-1", "h-1", null, null, "d-1", null),
-            "u-9"));
-
+    void publishSendsTheCompleteEventUnchanged() {
         List<AuditEvent> captured = new ArrayList<>();
         ApplicationEventPublisher capturingBus = event -> {
             if (event instanceof AuditEvent ae) {
@@ -34,18 +20,15 @@ class AuditEventPublisherTest {
         };
 
         AuditEventPublisher publisher = new AuditEventPublisher(capturingBus);
-        AuditEvent event = publisher.publish(AuditAction.PUBLISH, "rule", "r-7", "发布规则 r-7");
+        AuditEvent event = AuditEvent.failure(
+            AuditAction.EXECUTE,
+            "clinical_event",
+            "evt-1",
+            "ENG-EVENT-004",
+            "处理临床事件失败");
+        publisher.publish(event);
 
-        assertThat(captured).hasSize(1);
-        AuditEvent emitted = captured.get(0);
-        assertThat(emitted).isEqualTo(event);
-        assertThat(emitted.action()).isEqualTo(AuditAction.PUBLISH);
-        assertThat(emitted.resourceType()).isEqualTo("rule");
-        assertThat(emitted.resourceId()).isEqualTo("r-7");
-        assertThat(emitted.actorUserId()).isEqualTo("u-9");
-        assertThat(emitted.traceId()).isEqualTo("trace-pub");
-        assertThat(emitted.orgScope().tenantId()).isEqualTo("t-1");
-        assertThat(emitted.orgScope().departmentId()).isEqualTo("d-1");
+        assertThat(captured).containsExactly(event);
     }
 
     @Test

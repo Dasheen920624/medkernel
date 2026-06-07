@@ -11,8 +11,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.security.DataAccessLevel;
-import com.medkernel.engine.security.ResolvedDataScope;
+import com.medkernel.shared.security.DataAccessLevel;
+import com.medkernel.shared.security.ResolvedDataScope;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;

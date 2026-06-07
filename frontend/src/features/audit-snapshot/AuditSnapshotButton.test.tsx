@@ -25,7 +25,10 @@ vi.mock("@/shared/api/hooks", () => ({
 
 function renderButton() {
   return render(
-    <MemoryRouter initialEntries={["/qc/dashboard"]}>
+    <MemoryRouter
+      initialEntries={["/qc/dashboard"]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <AuditSnapshotButton />
     </MemoryRouter>,
   );

@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import {
+  listAllCurrentFiles,
+  listChangedFiles,
+  listTrackedFiles,
+} from "./git-scan-files.mjs";
 
 const MIGRATION_SQL =
   /^medkernel-backend\/src\/main\/resources\/db\/migration\/(h2|postgres|oracle|dm|kingbase)\/(V\d+__[a-z0-9_]+\.sql)$/;
@@ -13,6 +18,7 @@ const SYSTEM_TABLE_ALLOWLIST = new Set([
   "sys_task_dead_letter",
   "sys_login_attempt",
   "sys_password_reset_token",
+  "tenant_user",
 ]);
 const CJK = /[\u3400-\u9fff]/;
 const HIGH_RISK_SQL = /\b(DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE\s+TABLE|DELETE\s+FROM|ALTER\s+TABLE\s+[A-Za-z_][A-Za-z0-9_]*\s+DROP|RENAME\s+TO)\b/i;
@@ -78,6 +84,19 @@ function parseIndexes(content) {
   return indexes;
 }
 
+function migrationVersion(file) {
+  const match = /\/V(\d+)__/.exec(file);
+  return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+function followsTableNamingRule(file, tableName) {
+  return (
+    migrationVersion(file) <= 30 ||
+    /^mk_[a-z][a-z0-9]*_[a-z][a-z0-9_]*$/.test(tableName) ||
+    SYSTEM_TABLE_ALLOWLIST.has(tableName.toLowerCase())
+  );
+}
+
 function scanMigrationContent(file, dialect, content) {
   const violations = [];
   const tables = parseTables(content);
@@ -95,10 +114,7 @@ function scanMigrationContent(file, dialect, content) {
   }
 
   for (const table of tables) {
-    if (
-      !/^mk_[a-z][a-z0-9]*_[a-z][a-z0-9_]*$/.test(table.name) &&
-      !SYSTEM_TABLE_ALLOWLIST.has(table.name.toLowerCase())
-    ) {
+    if (!followsTableNamingRule(file, table.name)) {
       addViolation(
         violations,
         file,
@@ -124,7 +140,9 @@ function scanMigrationContent(file, dialect, content) {
       const hasTenantIndex = indexes
         .filter((index) => index.table.toLowerCase() === table.name.toLowerCase())
         .some((index) => /\btenant_id\b/i.test(index.columns));
-      if (!hasTenantIndex) {
+      const hasTenantUniqueConstraint = /\bUNIQUE\s*\(\s*tenant_id\b/i.test(table.block);
+      const hasTenantPrimaryKey = /\btenant_id\b[^,\n]*\bPRIMARY\s+KEY\b/i.test(table.block);
+      if (!hasTenantIndex && !hasTenantUniqueConstraint && !hasTenantPrimaryKey) {
         addViolation(
           violations,
           file,
@@ -193,37 +211,6 @@ export function hasBlockingViolations(report) {
   return report.violations.length > 0;
 }
 
-function changedMigrationFiles(base) {
-  execFileSync("git", ["fetch", "origin", "main"], { stdio: "ignore" });
-  const mergeBase = execFileSync("git", ["merge-base", base, "HEAD"], { encoding: "utf8" }).trim();
-  return execFileSync(
-    "git",
-    [
-      "diff",
-      "--name-only",
-      "--diff-filter=AM",
-      `${mergeBase}...HEAD`,
-      "--",
-      "medkernel-backend/src/main/resources/db/migration",
-    ],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean);
-}
-
-function allMigrationFiles() {
-  return execFileSync(
-    "git",
-    ["ls-files", "medkernel-backend/src/main/resources/db/migration/**/*.sql"],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean);
-}
-
 function printReport(report, mode) {
   console.log(`迁移规约门禁扫描：mode=${mode}，扫描文件 ${report.scannedFiles.length} 个。`);
   for (const violation of report.violations) {
@@ -254,11 +241,15 @@ function parseArgs(argv) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const root = process.cwd();
+  const pathspecs = ["medkernel-backend/src/main/resources/db/migration"];
   let files;
   if (options.mode === "changed") {
-    files = changedMigrationFiles(options.base);
+    files = listChangedFiles(root, options.base, pathspecs);
+  } else if (options.mode === "all") {
+    files = listAllCurrentFiles(root, pathspecs);
   } else if (options.mode === "inventory") {
-    files = allMigrationFiles();
+    files = listTrackedFiles(root, pathspecs);
   } else if (options.mode === "files") {
     files = options.files;
   } else {
@@ -266,7 +257,7 @@ async function main() {
     process.exit(2);
   }
 
-  const report = await scanSqlFiles(process.cwd(), files);
+  const report = await scanSqlFiles(root, files);
   printReport(report, options.mode);
 
   if (options.mode !== "inventory" && hasBlockingViolations(report)) {

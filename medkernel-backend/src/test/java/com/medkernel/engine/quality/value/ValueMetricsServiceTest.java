@@ -42,6 +42,7 @@ import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJdbcTest
@@ -65,10 +66,12 @@ class ValueMetricsServiceTest {
     @Autowired QualityFindingRepository findings;
     @Autowired RectificationTaskRepository tasks;
     @Autowired RectificationReviewRepository reviews;
+    @Autowired JdbcTemplate jdbc;
 
     @AfterEach
     void wipe() {
         RequestContext.clear();
+        jdbc.update("DELETE FROM mk_quality_insurance_issue");
         reviews.deleteAll();
         tasks.deleteAll();
         findings.deleteAll();
@@ -104,7 +107,7 @@ class ValueMetricsServiceTest {
             ValueMetricStatus.NOT_AVAILABLE, null, null, null);
         assertThat(metric(response, ValueMetricCode.ADOPTION_RATE).formulaVersion()).isEqualTo("OPT-08.v1");
         assertThat(metric(response, ValueMetricCode.INSURANCE_VIOLATION_REDUCTION).explanation())
-            .contains("医保违规事实源未接入");
+            .contains("需要完整时间窗");
     }
 
     @Test
@@ -141,6 +144,37 @@ class ValueMetricsServiceTest {
             .containsOnly(ValueMetricStatus.NOT_AVAILABLE);
         assertThat(metric(response, ValueMetricCode.ADOPTION_RATE).explanation())
             .contains("院区");
+    }
+
+    @Test
+    void computesInsuranceViolationReductionFromCurrentAndEqualLengthBaselinePeriods() {
+        Instant currentFrom = Instant.parse("2026-06-01T00:00:00Z");
+        Instant currentTo = Instant.parse("2026-06-08T00:00:00Z");
+        seedInsuranceIssue("tenant-A", "issue-baseline-1", "dept-1", currentFrom.minusSeconds(6 * 86400L));
+        seedInsuranceIssue("tenant-A", "issue-baseline-2", "dept-1", currentFrom.minusSeconds(5 * 86400L));
+        seedInsuranceIssue("tenant-A", "issue-baseline-3", "dept-1", currentFrom.minusSeconds(4 * 86400L));
+        seedInsuranceIssue("tenant-A", "issue-baseline-4", "dept-1", currentFrom.minusSeconds(3 * 86400L));
+        seedInsuranceIssue("tenant-A", "issue-current-1", "dept-1", currentFrom.plusSeconds(86400L));
+        seedInsuranceIssue("tenant-A", "issue-other-dept", "dept-2", currentFrom.plusSeconds(2 * 86400L));
+        seedInsuranceIssue("tenant-B", "issue-other-tenant", "dept-1", currentFrom.plusSeconds(3 * 86400L));
+
+        ValueMetricFilter filter = new ValueMetricFilter(currentFrom, currentTo, "dept-1");
+        ValueMetricSummaryResponse response = withTenant("tenant-A", () -> service.summary(filter));
+        ValueMetricResponse metric = metric(response, ValueMetricCode.INSURANCE_VIOLATION_REDUCTION);
+
+        assertThat(metric.status()).isEqualTo(ValueMetricStatus.AVAILABLE);
+        assertThat(metric.numerator()).isEqualByComparingTo("3");
+        assertThat(metric.denominator()).isEqualByComparingTo("4");
+        assertThat(metric.value()).isEqualByComparingTo("0.7500");
+        assertThat(metric.explanation()).contains("等长前置基线期");
+
+        ValueMetricDrilldownResponse drilldown = withTenant("tenant-A",
+            () -> service.drilldown(ValueMetricCode.INSURANCE_VIOLATION_REDUCTION, filter, 0, 20));
+        assertThat(drilldown.items()).singleElement().satisfies(item -> {
+            assertThat(item.sourceType()).isEqualTo("mk_quality_insurance_issue");
+            assertThat(item.sourceId()).isEqualTo("issue-current-1");
+            assertThat(item.departmentId()).isEqualTo("dept-1");
+        });
     }
 
     private static void assertMetric(
@@ -229,6 +263,28 @@ class ValueMetricsServiceTest {
             null, patientPathwayId, tenantId, "patient-1", "enc-1", "template-1",
             "ASSESS", status, enteredAt, completedAt, exitedAt, null, null,
             enteredAt, "tester", enteredAt, "tester", "trace-pathway"));
+    }
+
+    private void seedInsuranceIssue(String tenantId, String issueId, String departmentId, Instant createdAt) {
+        jdbc.update("""
+            INSERT INTO mk_quality_insurance_issue (
+                issue_id, tenant_id, context_snapshot_id, claim_id, patient_id, encounter_id,
+                department_id, issue_type, severity, status, rule_code, rule_version,
+                claim_amount, threshold_amount, evidence_summary,
+                created_at, created_by, updated_at, updated_by, trace_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'INSURANCE', 'P1', 'OPEN', 'RULE.INSURANCE', '1',
+                100, 80, '医保审核命中确定性规则', ?, 'qa-1', ?, 'qa-1', ?)
+            """,
+            issueId,
+            tenantId,
+            "snapshot-" + issueId,
+            "claim-" + issueId,
+            "patient-" + issueId,
+            "encounter-" + issueId,
+            departmentId,
+            java.sql.Timestamp.from(createdAt),
+            java.sql.Timestamp.from(createdAt),
+            "trace-" + issueId);
     }
 
     private static <T> T withTenant(String tenantId, ThrowingSupplier<T> supplier) {

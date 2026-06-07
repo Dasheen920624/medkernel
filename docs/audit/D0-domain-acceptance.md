@@ -20,7 +20,7 @@
 ## 已跑证据
 
 - 红灯复现：`mvn -B -q -Dtest=CredentialBootstrapGuardInterceptorTest test` 先失败，证明 `/medkernel/api/v1/auth/change-password` 被首登守卫误挡。
-- 后端聚焦：`mvn -B -q -Dtest=CredentialBootstrapGuardInterceptorTest,AuthControllerTest,CredentialAdminControllerTest,D0DomainAcceptanceTest test` 退出 0。
+- 后端聚焦：`mvn -B -q -Dtest=CredentialBootstrapGuardInterceptorTest,AuthControllerTest,ComplianceUserCredentialFlowTest,D0DomainAcceptanceTest test` 退出 0。
 - 后端全量：`mvn -B -q test` 退出 0。
 - 前端聚焦：`npm test -- --run src/widgets/AppLayout.test.tsx src/pages/Bootstrap.test.tsx src/shared/api/hooks.test.ts`，35/35。
 - 前端配置聚焦：`npm test -- --run src/pages/Bootstrap.test.tsx src/shared/api/hooks.test.ts src/shared/config/menu.test.ts src/shared/config/routes.test.ts`，34/34。

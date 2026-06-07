@@ -10,19 +10,22 @@ import org.springframework.stereotype.Component;
 import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.ClinicalCodeMappingAnchor;
 import com.medkernel.engine.context.TerminologyMappingPort;
+import com.medkernel.engine.versioning.PlatformAuthority;
 
 /**
- * TERM-01 已确认映射包对标准上下文 / FHIR 门面的字典状态端口实现。
+ * TERM-01 已全量激活映射包对标准上下文 / FHIR 门面的字典状态端口实现。
  */
 @Component
 public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
 
     private final StandardTermRepository standardTerms;
-    private final TermMappingRepository mappings;
+    private final EffectiveTermMappingResolver effectiveMappings;
 
-    public TerminologyMappingPortAdapter(StandardTermRepository standardTerms, TermMappingRepository mappings) {
+    public TerminologyMappingPortAdapter(
+            StandardTermRepository standardTerms,
+            EffectiveTermMappingResolver effectiveMappings) {
         this.standardTerms = standardTerms;
-        this.mappings = mappings;
+        this.effectiveMappings = effectiveMappings;
     }
 
     @Override
@@ -37,12 +40,13 @@ public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
     private String evaluateAnchor(String tenantId, ClinicalCodeMappingAnchor anchor) {
         String targetDictionary = normalize(anchor.targetDictionaryKey());
         String sourceSystem = normalize(anchor.localCodeSystem());
+        List<String> standardSources = standardTermSources(tenantId);
         if (!targetDictionary.isBlank() && targetDictionary.equals(sourceSystem)) {
-            return standardTerms.findByTenantIdAndStandardSystemAndTermCodeAndStatus(
-                    tenantId, targetDictionary, anchor.localCode(), StandardTermStatus.ACTIVE)
+            return standardTerms.findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+                    standardSources, tenantId, targetDictionary, anchor.localCode(), StandardTermStatus.ACTIVE)
                 .isPresent() ? "VALID" : "UNKNOWN";
         }
-        List<TermMapping> confirmed = mappings.findConfirmedByTenantIdAndAnchor(
+        List<EffectiveTermMapping> confirmed = effectiveMappings.resolve(
             tenantId,
             sourceSystem.isBlank() ? null : sourceSystem,
             anchor.localCode(),
@@ -65,6 +69,17 @@ public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
             case PROCEDURE -> TermCategory.PROCEDURE.name();
             default -> null;
         };
+    }
+
+    private static List<String> standardTermSources(String tenantId) {
+        String current = tenantId == null ? "" : tenantId.trim();
+        if (PlatformAuthority.PLATFORM_TENANT_ID.equals(current)) {
+            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        }
+        if (current.isBlank()) {
+            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        }
+        return List.of(PlatformAuthority.PLATFORM_TENANT_ID, current);
     }
 
     private static String normalize(String value) {

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 患者路径实例仓库。
  *
- * <p>保存患者与已发布路径模板的运行实例、当前节点、状态和退出/完成事实。
+ * <p>保存患者与入径时已激活路径模板版本的运行实例、当前节点、状态和退出/完成事实。
  */
 @Repository
 public interface PatientPathwayRepository extends ListCrudRepository<PatientPathway, Long> {

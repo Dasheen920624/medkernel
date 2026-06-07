@@ -15,7 +15,7 @@
 对外暴露**统一模型能力网关 API**：能力代码路由、数据脱敏、结构化输出校验、审计留痕、B0 诚实降级——上层业务只调能力码、不直连任何 provider。
 
 ## 现状（搬迁时核查 2026-05-31，以 `medkernel-backend` 为准）
-**MVP 已建**：`engine/llm/ModelGatewayController`（端点 `/api/v1/model-capabilities/{status,tasks,tasks/{id},tasks/{id}/retry,policies/validate}`，perm `llm.read`/`llm.write`，`@DataScope(requireTenant)`）。本卡＝**补全/固化契约**：能力码目录化（现 8 个硬编码于 service，需可配）、提交/查询/重试/校验入参出参 DTO 稳定化、错误码 `ENG_LLM_*` 完整化、异步与大列表分页对齐 [API-13](../D0/API-13.md)。
+**MVP 已建**：`engine/llm/ModelGatewayController`（端点 `/api/v1/model-capabilities/{status,catalog,catalog/{capabilityCode},tasks,tasks/{id},tasks/{id}/retry,policies/validate,policies/{capabilityCode}}`，perm `llm.read`/`llm.execute`/`llm.manage`/`system.manage`，`@DataScope(requireTenant)`）。能力代码、中文名称、说明、分类、顺序和启停统一由关系库 `model_capability_definition` 管理，前端不保留能力目录副本。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 能力状态：`GET /status` 返回租户全部能力码 + 路由策略 + 可用性，无策略时诚实 B0。

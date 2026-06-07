@@ -23,9 +23,24 @@ class OrgLevelTest {
     void allowsAdjacentAndSkippedHigherParent() {
         // 紧邻上一层仍然允许
         assertThat(OrgLevel.CAMPUS.canHaveParent(OrgLevel.HOSPITAL)).isTrue();
-        // 跳过可选层允许：科室直挂医院、专病直挂医院
+        // 跳过可选层允许：科室直挂医院
         assertThat(OrgLevel.DEPARTMENT.canHaveParent(OrgLevel.HOSPITAL)).isTrue();
-        assertThat(OrgLevel.SPECIALTY.canHaveParent(OrgLevel.HOSPITAL)).isTrue();
+    }
+
+    @Test
+    void organizationTreeLevelsExcludeSpecialtyDimension() {
+        assertThat(OrgLevel.values())
+            .containsExactly(
+                OrgLevel.PLATFORM,
+                OrgLevel.TENANT,
+                OrgLevel.GROUP,
+                OrgLevel.HOSPITAL,
+                OrgLevel.CAMPUS,
+                OrgLevel.SITE,
+                OrgLevel.DEPARTMENT
+            );
+        assertThat(OrgLevel.PLATFORM.isOrganizationTreeLevel()).isFalse();
+        assertThat(OrgLevel.DEPARTMENT.isOrganizationTreeLevel()).isTrue();
     }
 
     @Test

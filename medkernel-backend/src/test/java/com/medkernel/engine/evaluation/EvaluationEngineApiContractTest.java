@@ -29,8 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * API-08 面向客户面的评估质控契约测试。
  *
- * <p>旧版 {@code /api/v1/engine/evaluations/**} 继续兼容；本测试锁定 D4 卡片要求的
- * 单数资源路径、冒号动作路径和 {@code MODEL_DISABLED} 降级字段。
+ * <p>锁定 D4 卡片要求的单数资源路径、冒号动作路径和 {@code MODEL_DISABLED} 降级字段。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -98,6 +97,13 @@ class EvaluationEngineApiContractTest {
 
         verify(service).listIndicators(any(EvaluationIndicatorFilter.class), any(PageRequest.class));
         verify(service).listFindings(any(QualityFindingFilter.class), any(PageRequest.class));
+    }
+
+    @Test
+    void removedPluralEvaluationResourceIsNotExposed() throws Exception {
+        mvc.perform(get("/api/v1/engine/evaluations/indicators")
+                .with(jwtUser("medical-affairs", "ROLE_MEDICAL_AFFAIRS")))
+            .andExpect(status().isNotFound());
     }
 
     @Test

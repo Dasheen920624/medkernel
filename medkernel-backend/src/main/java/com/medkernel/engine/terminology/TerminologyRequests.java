@@ -3,7 +3,7 @@ package com.medkernel.engine.terminology;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.medkernel.shared.api.ApiError;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -26,18 +26,18 @@ public final class TerminologyRequests {
  * API-04 写入类请求的标准上下文字段。
  */
 record TerminologyApiContext(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion
 ) {
     TerminologyApiContext {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -95,21 +95,21 @@ interface TerminologyContextRequest {
  * 候选生成请求体；sourceSystem 指定院内来源系统。
  */
 record TerminologyCandidateGenerationRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 64) String sourceSystem,
     Double minimumScore,
-    @JsonAlias("semantic_assist_enabled") Boolean semanticAssistEnabled
+    Boolean semanticAssistEnabled
 ) implements TerminologyContextRequest {
     TerminologyCandidateGenerationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -129,18 +129,18 @@ record TerminologyCandidateGenerationRequest(
  * <p>高危候选必须逐条提交 highRiskAcknowledged 与 highRiskReason。
  */
 record TerminologyCandidateConfirmRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @Size(max = 500) String reviewNote,
     @Size(max = 1024) String evidenceOverride,
     Boolean highRiskAcknowledged,
@@ -162,18 +162,18 @@ record TerminologyCandidateConfirmRequest(
  * 批量确认候选请求体；服务层会拒绝任何高风险候选。
  */
 record TerminologyCandidateBatchConfirmRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @NotEmpty List<Long> candidateIds,
     @Size(max = 500) String reviewNote
 ) implements TerminologyContextRequest {
@@ -194,18 +194,18 @@ record TerminologyCandidateBatchConfirmRequest(
  * 冲突处置请求体；resolutionNote 必填，作为冲突处置原因留痕。
  */
 record ResolveConflictRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 500) String resolutionNote
 ) implements TerminologyContextRequest {
     ResolveConflictRequest {
@@ -227,18 +227,18 @@ record ResolveConflictRequest(
  * 与 (tenant_id) 一起构成包业务唯一键；displayName 用于前台展示。
  */
 record BuildTerminologyPackageRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String contextPackageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String contextPackageVersion,
     @NotBlank @Size(max = 128) String packageCode,
     @NotBlank @Size(max = 64) String packageVersion,
     @NotBlank @Size(max = 32) String scopeLevel,
@@ -263,18 +263,18 @@ record BuildTerminologyPackageRequest(
  * <p>releaseMode GRAY/FULL；reason 必填留痕；grayScopeJson 灰度发布时声明灰度作用域 JSON。
  */
 record PublishTerminologyPackageRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @NotNull PackageReleaseMode releaseMode,
     @NotBlank @Size(max = 500) String reason,
     @Size(max = 2048) String grayScopeJson
@@ -295,18 +295,18 @@ record PublishTerminologyPackageRequest(
  * 回滚术语映射包请求体；targetPackageId 必须是同 packageCode + scope 下的可回滚版本。
  */
 record RollbackTerminologyPackageRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
     @NotNull Long targetPackageId,
     @NotBlank @Size(max = 500) String reason
 ) implements TerminologyContextRequest {

@@ -1,14 +1,29 @@
 package com.medkernel.engine.context;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecordCommand;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 
 /**
- * 字段目录合并逻辑单测（P2/P5）：系统字段优先，租户字段去重/过滤后补充。
+ * 字段目录合并逻辑单测（P2/P5）：平台字段是唯一真实字段集，租户只能覆盖展示元数据。
  */
 class ContextFieldCatalogServiceMergeTest {
 
@@ -22,51 +37,182 @@ class ContextFieldCatalogServiceMergeTest {
             null, null, "扩展", "ACTIVE", now, "u", now, "u", "trace");
     }
 
-    @Test
-    void tenantCustomFieldAppended() {
-        var merged = ContextFieldCatalogService.merge(
-            systemFields, List.of(tenant("medications[].customFlag", "Medication", "医嘱信息")), null, null);
-        assertThat(merged).hasSize(systemFields.size() + 1);
-        assertThat(merged).anyMatch(f -> f.fieldPath().equals("medications[].customFlag"));
+    @AfterEach
+    void clearRequestContext() {
+        RequestContext.clear();
     }
 
     @Test
-    void tenantFieldWithSamePathAsSystemIsNotDuplicated() {
-        // conditions[].code 已是系统字段
+    void tenantUnknownFieldIsIgnoredInsteadOfBecomingUnusableFact() {
         var merged = ContextFieldCatalogService.merge(
-            systemFields, List.of(tenant("conditions[].code", "Condition", "诊断信息")), null, null);
+            systemFields, List.of(tenant("medications[].customFlag", "Medication", "医嘱信息")), null, null);
         assertThat(merged).hasSize(systemFields.size());
+        assertThat(merged).noneMatch(f -> f.fieldPath().equals("medications[].customFlag"));
+    }
+
+    @Test
+    void tenantOverrideForSystemFieldReplacesMetadataWithoutAddingDuplicate() {
+        // conditions[].code 已是平台字段
+        var merged = ContextFieldCatalogService.merge(
+            systemFields, List.of(new ContextFieldCatalogEntry(
+                1L, "f1", "t", "诊断信息", "诊断", "Condition", "conditions[].code",
+                "院内诊断编码", "code", null, "ICD-10-CM", "院内展示说明", "ACTIVE",
+                Instant.now(), "u", Instant.now(), "u", "trace")), null, null);
+        assertThat(merged).hasSize(systemFields.size());
+        assertThat(merged).filteredOn(f -> f.fieldPath().equals("conditions[].code"))
+            .singleElement()
+            .satisfies(field -> {
+                assertThat(field.displayName()).isEqualTo("院内诊断编码");
+                assertThat(field.description()).isEqualTo("院内展示说明");
+                assertThat(field.codeSystem()).isEqualTo("ICD-10-CM");
+                assertThat(field.source()).isEqualTo("TENANT");
+                assertThat(field.fieldId()).isEqualTo("f1");
+            });
     }
 
     @Test
     void buildEntryValidatesAndMaps() {
+        ContextFieldDescriptor systemField = systemFields.stream()
+            .filter(f -> f.fieldPath().equals("medications[].code"))
+            .findFirst()
+            .orElseThrow();
         var req = new ContextFieldCatalogUpsertRequest(
-            "医嘱信息", "用药医嘱", "Medication", " medications[].customFlag ", "院内自定义",
-            "string", "", "", "扩展说明");
-        var entry = ContextFieldCatalogService.buildEntry(req, "t-1", "u-1", "trace-1");
+            "医嘱信息", "用药医嘱", "Medication", " medications[].code ", "院内药品编码",
+            "code", "", "ATC-LOCAL", "扩展说明");
+        var entry = ContextFieldCatalogService.buildEntry(req, systemField, "t-1", "u-1", "trace-1");
         assertThat(entry.tenantId()).isEqualTo("t-1");
-        assertThat(entry.fieldPath()).isEqualTo("medications[].customFlag"); // 去空格
+        assertThat(entry.fieldPath()).isEqualTo("medications[].code"); // 去空格
         assertThat(entry.category()).isEqualTo("医嘱信息");
         assertThat(entry.groupName()).isEqualTo("用药医嘱");
         assertThat(entry.status()).isEqualTo("ACTIVE");
-        assertThat(entry.unit()).isNull(); // 空白归一为 null
+        assertThat(entry.displayName()).isEqualTo("院内药品编码");
+        assertThat(entry.codeSystem()).isEqualTo("ATC-LOCAL");
     }
 
     @Test
-    void buildEntryRejectsInvalidDataType() {
+    void buildEntryRejectsChangedDataType() {
+        ContextFieldDescriptor systemField = systemFields.stream()
+            .filter(f -> f.fieldPath().equals("medications[].code"))
+            .findFirst()
+            .orElseThrow();
         var req = new ContextFieldCatalogUpsertRequest(
-            "医嘱信息", "用药医嘱", "Medication", "x.y", "名", "weird", null, null, null);
-        org.assertj.core.api.Assertions
-            .assertThatThrownBy(() -> ContextFieldCatalogService.buildEntry(req, "t", "u", "tr"))
-            .hasMessageContaining("数据类型非法");
+            "医嘱信息", "用药医嘱", "Medication", "medications[].code", "名", "string", null, null, null);
+        assertThatThrownBy(() -> ContextFieldCatalogService.buildEntry(req, systemField, "t", "u", "tr"))
+            .hasMessageContaining("字段数据类型不能修改");
+    }
+
+    @Test
+    void createRejectsUnknownFieldPathBeforeSaving() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-A"), "u-1"));
+        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
+        AuditRecorder auditRecorder = mock(AuditRecorder.class);
+        ContextFieldCatalogService service =
+            new ContextFieldCatalogService(
+                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+        var req = new ContextFieldCatalogUpsertRequest(
+            "医嘱信息", "用药医嘱", "Medication", "medications[].customFlag", "院内自定义",
+            "string", null, null, "不可用字段");
+
+        assertThatThrownBy(() -> service.create(req)).hasMessageContaining("字段路径不属于 canonical 字段目录");
+        verify(repository, never()).save(any());
+        verify(auditRecorder, never()).record(any());
+    }
+
+    @Test
+    void updateExistingOverrideKeepsFieldIdAndSystemFieldShape() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-A"), "u-2"));
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
+        AuditRecorder auditRecorder = mock(AuditRecorder.class);
+        when(repository.findByTenantIdAndFieldId("tenant-A", "f1"))
+            .thenReturn(Optional.of(new ContextFieldCatalogEntry(
+                1L, "f1", "tenant-A", "诊断信息", "诊断", "Condition", "conditions[].code",
+                "诊断编码", "code", null, "ICD-10", null, "ACTIVE", now, "u-1", now, "u-1", "trace-old")));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ContextFieldCatalogService service =
+            new ContextFieldCatalogService(
+                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+
+        ContextFieldDescriptor updated = service.update("f1", new ContextFieldCatalogUpsertRequest(
+            "诊断信息", "诊断", "Condition", "conditions[].code", "院内诊断编码",
+            "code", null, "ICD-10-CM", "院内展示说明"));
+
+        assertThat(updated.fieldPath()).isEqualTo("conditions[].code");
+        assertThat(updated.displayName()).isEqualTo("院内诊断编码");
+        assertThat(updated.codeSystem()).isEqualTo("ICD-10-CM");
+        assertThat(updated.source()).isEqualTo("TENANT");
+        assertThat(updated.fieldId()).isEqualTo("f1");
+    }
+
+    @Test
+    void createUpdateAndDeleteRecordAuditForTenantMetadataOverride() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-audit", OrgScope.tenant("tenant-A"), "u-audit"));
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
+        AuditRecorder auditRecorder = mock(AuditRecorder.class);
+        ContextFieldCatalogService service =
+            new ContextFieldCatalogService(
+                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+        ContextFieldCatalogEntry existing = new ContextFieldCatalogEntry(
+            1L, "f1", "tenant-A", "诊断信息", "诊断", "Condition", "conditions[].code",
+            "诊断编码", "code", null, "ICD-10", null, "ACTIVE", now, "u-1", now, "u-1", "trace-old");
+        when(repository.findByTenantIdAndFieldPath("tenant-A", "conditions[].code")).thenReturn(Optional.empty());
+        when(repository.findByTenantIdAndFieldId("tenant-A", "f1")).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ContextFieldCatalogUpsertRequest request = new ContextFieldCatalogUpsertRequest(
+            "诊断信息", "诊断", "Condition", "conditions[].code", "院内诊断编码",
+            "code", null, "ICD-10-CM", "院内展示说明");
+
+        ContextFieldDescriptor created = service.create(request);
+        ContextFieldDescriptor updated = service.update("f1", request);
+        service.delete("f1");
+
+        ArgumentCaptor<AuditRecordCommand> audit = ArgumentCaptor.forClass(AuditRecordCommand.class);
+        verify(auditRecorder, org.mockito.Mockito.times(3)).record(audit.capture());
+        assertThat(audit.getAllValues()).extracting(AuditRecordCommand::action)
+            .containsExactly(AuditAction.CREATE, AuditAction.UPDATE, AuditAction.DELETE);
+        assertThat(audit.getAllValues()).allSatisfy(command -> {
+            assertThat(command.targetType()).isEqualTo("context_field_catalog");
+            assertThat(command.targetId()).isNotBlank();
+            assertThat(command.summary()).contains("上下文字段目录");
+        });
+        assertThat(audit.getAllValues().get(0).before()).isNull();
+        assertThat(audit.getAllValues().get(0).after()).isEqualTo(created);
+        assertThat(audit.getAllValues().get(1).before()).isEqualTo(existing.toDescriptor());
+        assertThat(audit.getAllValues().get(1).after()).isEqualTo(updated);
+        assertThat(audit.getAllValues().get(2).before()).isEqualTo(existing.toDescriptor());
+        assertThat(audit.getAllValues().get(2).after()).isNull();
     }
 
     @Test
     void tenantFieldFilteredByResourceTypeAndKeyword() {
-        var entries = List.of(tenant("medications[].customFlag", "Medication", "医嘱信息"));
+        var entries = List.of(new ContextFieldCatalogEntry(
+            1L, "f1", "t", "医嘱信息", "用药医嘱", "Medication", "medications[].code",
+            "院内药品编码", "code", null, "ATC-LOCAL", "院内", "ACTIVE",
+            Instant.now(), "u", Instant.now(), "u", "trace"));
         assertThat(ContextFieldCatalogService.merge(systemFields, entries, "Observation", null))
-            .hasSize(systemFields.size()); // 资源类型不匹配，不补充
+            .hasSize(new ContextFieldCatalog().query("Observation", null).size()); // 资源类型不匹配，不补充
         assertThat(ContextFieldCatalogService.merge(systemFields, entries, null, "自定义"))
-            .anyMatch(f -> f.fieldPath().equals("medications[].customFlag")); // 关键词命中分组
+            .isEmpty(); // 关键词不命中覆盖字段
+        assertThat(ContextFieldCatalogService.merge(systemFields, entries, null, "院内"))
+            .anyMatch(f -> f.fieldPath().equals("medications[].code")
+                && "院内药品编码".equals(f.displayName())); // 关键词命中覆盖元数据
+    }
+
+    @Test
+    void queryWithPackageVersionChecksVersionPortBeforeReturningCatalog() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-query", OrgScope.tenant("tenant-A"), "u-query"));
+        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
+        AuditRecorder auditRecorder = mock(AuditRecorder.class);
+        PackageVersionPort versions = mock(PackageVersionPort.class);
+        when(versions.exists("tenant-A", "pkg-2026.06")).thenReturn(true);
+        ContextFieldCatalogService service =
+            new ContextFieldCatalogService(new ContextFieldCatalog(), repository, auditRecorder, versions);
+
+        List<ContextFieldDescriptor> fields = service.query("Observation", "编码", "pkg-2026.06");
+
+        assertThat(fields).isNotEmpty();
+        assertThat(fields).allMatch(field -> field.resourceType().equals("Observation"));
+        verify(versions).exists("tenant-A", "pkg-2026.06");
     }
 }

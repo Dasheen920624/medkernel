@@ -17,8 +17,12 @@ public record WorkflowNotificationSettingsResponse(
     String quietStart,
     String quietEnd,
     Set<WorkflowNotificationLevel> quietBypassLevels,
+    Set<WorkflowNotificationType> subscribedTypes,
+    Set<WorkflowNotificationType> mandatoryTypes,
+    WorkflowNotificationSettingsSource source,
     boolean quietActiveNow,
     long version,
+    long systemVersion,
     Instant updatedAt,
     String updatedBy
 ) {

@@ -1,6 +1,7 @@
 package com.medkernel.compliance.exportapproval;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -12,6 +13,8 @@ import org.mockito.ArgumentCaptor;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
+import com.medkernel.engine.list.LargeListEngineService;
+import com.medkernel.engine.list.LargeListExportArtifact;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -34,6 +37,7 @@ class ExportApprovalServiceTest {
     private ExportApprovalRepository repository;
     private EvidenceService evidenceService;
     private AuditRecorder auditRecorder;
+    private LargeListEngineService largeListEngineService;
     private ExportApprovalService service;
 
     @BeforeEach
@@ -41,7 +45,13 @@ class ExportApprovalServiceTest {
         repository = mock(ExportApprovalRepository.class);
         evidenceService = mock(EvidenceService.class);
         auditRecorder = mock(AuditRecorder.class);
-        service = new ExportApprovalService(repository, evidenceService, auditRecorder, new ObjectMapper());
+        largeListEngineService = mock(LargeListEngineService.class);
+        service = new ExportApprovalService(
+            repository,
+            evidenceService,
+            auditRecorder,
+            largeListEngineService,
+            new ObjectMapper());
     }
 
     @Test
@@ -70,6 +80,24 @@ class ExportApprovalServiceTest {
         verify(auditRecorder).record(audit.capture());
         assertThat(audit.getValue().action()).isEqualTo(AuditAction.CREATE);
         assertThat(audit.getValue().targetType()).isEqualTo("mk_compliance_export_approval");
+    }
+
+    @Test
+    void listApprovalsReturnsTenantScopedRowsFilteredByStatusAndResource() {
+        ExportApproval requested = requestedApproval("exp-audit-event-idem-001", "auditor-1");
+        when(repository.findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
+            "t-1", "audit_event", "REQUESTED"))
+            .thenReturn(List.of(requested));
+
+        List<ExportApprovalResponse> responses = service.listApprovals(
+            "t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED);
+
+        assertThat(responses).extracting(ExportApprovalResponse::approvalId)
+            .containsExactly("exp-audit-event-idem-001");
+        assertThat(responses.getFirst().requestReason())
+            .isEqualTo("合规审计需要导出当前患者证据包");
+        verify(repository).findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
+            "t-1", "audit_event", "REQUESTED");
     }
 
     @Test
@@ -126,37 +154,74 @@ class ExportApprovalServiceTest {
     }
 
     @Test
-    void completeExportRequiresApprovedRequestAndCreatesExportEvidence() {
-        ExportApproval existing = approvedApproval("exp-clinical-case-idem-001");
+    void completeExportFromJobRequiresMatchingApprovedArtifactAndCreatesEvidence() {
+        ExportApproval existing = approvedAuditApproval();
         when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
             .thenReturn(Optional.of(existing));
+        when(largeListEngineService.completedExportArtifact("job-audit-1"))
+            .thenReturn(new LargeListExportArtifact(
+                "job-audit-1",
+                "AUDIT_EVENT",
+                existing.exportScopeSnapshot(),
+                existing.idempotencyKey(),
+                "/medkernel/api/v1/large-lists/exports/job-audit-1/download",
+                DIGEST));
         when(evidenceService.createSnapshot(eq("t-1"), any(EvidenceCreateDto.class)))
-            .thenReturn(evidence("evd-exp-clinical-case-idem-001-export",
-                "/api/v1/compliance/evidence/snapshots/evd-exp-clinical-case-idem-001-export/file"));
+            .thenReturn(evidence("evd-exp-audit-event-idem-001-export",
+                "/api/v1/compliance/evidence/snapshots/evd-exp-audit-event-idem-001-export/file"));
         when(repository.save(any(ExportApproval.class)))
             .thenAnswer(invocation -> invocation.<ExportApproval>getArgument(0));
-        ExportCompletionRequest request = new ExportCompletionRequest(
-            "s3://tenant-t-1/exports/clinical-case.ndjson",
-            DIGEST,
-            "真实导出文件已生成并完成摘要登记",
-            2L);
+        ExportJobCompletionRequest request = new ExportJobCompletionRequest(
+            "job-audit-1", "真实导出文件已生成并完成摘要登记", 2L);
 
-        ExportApprovalResponse response = service.completeExport("t-1", existing.approvalId(), request, "auditor-1");
+        ExportApprovalResponse response = service.completeExportFromJob(
+            "t-1", existing.approvalId(), request, "auditor-1");
 
         assertThat(response.status()).isEqualTo(ExportApprovalStatus.EXPORTED);
-        assertThat(response.exportUri()).isEqualTo("s3://tenant-t-1/exports/clinical-case.ndjson");
-        assertThat(response.exportEvidenceId()).isEqualTo("evd-exp-clinical-case-idem-001-export");
+        assertThat(response.exportUri())
+            .isEqualTo("/medkernel/api/v1/large-lists/exports/job-audit-1/download");
+        assertThat(response.exportDigest()).isEqualTo(DIGEST);
+        assertThat(response.exportEvidenceId()).isEqualTo("evd-exp-audit-event-idem-001-export");
         ArgumentCaptor<EvidenceCreateDto> evidence = ArgumentCaptor.forClass(EvidenceCreateDto.class);
         verify(evidenceService).createSnapshot(eq("t-1"), evidence.capture());
         assertThat(evidence.getValue().evidenceType()).isEqualTo("COMPLIANCE_EXPORT");
         assertThat(evidence.getValue().action()).isEqualTo("EXPORT");
         assertThat(evidence.getValue().payloadSnapshot())
-            .contains("\"exportUri\":\"s3://tenant-t-1/exports/clinical-case.ndjson\"")
+            .contains("\"jobId\":\"job-audit-1\"")
+            .contains("\"exportUri\":\"/medkernel/api/v1/large-lists/exports/job-audit-1/download\"")
             .contains("\"exportDigest\":\"" + DIGEST + "\"");
 
         ArgumentCaptor<AuditRecordCommand> audit = ArgumentCaptor.forClass(AuditRecordCommand.class);
         verify(auditRecorder).record(audit.capture());
         assertThat(audit.getValue().action()).isEqualTo(AuditAction.EXPORT);
+    }
+
+    @Test
+    void completeExportFromJobRejectsArtifactOutsideApprovedScope() {
+        ExportApproval existing = approvedAuditApproval();
+        when(repository.findByTenantIdAndApprovalId("t-1", existing.approvalId()))
+            .thenReturn(Optional.of(existing));
+        when(largeListEngineService.completedExportArtifact("job-audit-2"))
+            .thenReturn(new LargeListExportArtifact(
+                "job-audit-2",
+                "AUDIT_EVENT",
+                "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"LOGIN\"},\"selectedScope\":\"FILTERED_RESULT\"}",
+                existing.idempotencyKey(),
+                "/medkernel/api/v1/large-lists/exports/job-audit-2/download",
+                DIGEST));
+
+        ApiException exception = catchThrowableOfType(
+            () -> service.completeExportFromJob(
+                "t-1",
+                existing.approvalId(),
+                new ExportJobCompletionRequest("job-audit-2", "登记导出", 2L),
+                "auditor-1"),
+            ApiException.class);
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+        assertThat(exception.getMessage()).contains("审批范围");
+        verify(repository, never()).save(any());
+        verify(evidenceService, never()).createSnapshot(any(), any());
     }
 
     private ExportApproval requestedApproval(String approvalId, String requestedBy) {
@@ -212,6 +277,38 @@ class ExportApprovalServiceTest {
             null,
             "evd-exp-clinical-case-idem-001-approval",
             "/api/v1/compliance/evidence/snapshots/evd-exp-clinical-case-idem-001-approval/file",
+            null,
+            null,
+            2L,
+            requested.createdAt(),
+            requested.createdBy(),
+            reviewedAt,
+            "auditor-1",
+            "trace-test");
+    }
+
+    private ExportApproval approvedAuditApproval() {
+        ExportApproval requested = requestedApproval("exp-audit-event-idem-001", "requester-1");
+        Instant reviewedAt = Instant.parse("2026-06-05T01:00:00Z");
+        return new ExportApproval(
+            requested.id(),
+            requested.approvalId(),
+            requested.tenantId(),
+            "audit_event",
+            "{\"filters\":{\"action\":\"EXPORT\"},\"resourceType\":\"AUDIT_EVENT\",\"selectedScope\":\"FILTERED_RESULT\"}",
+            requested.idempotencyKey(),
+            requested.requestReason(),
+            requested.requestedBy(),
+            requested.requestedAt(),
+            "APPROVED",
+            "auditor-1",
+            "APPROVE",
+            "审批通过，允许生成真实导出文件",
+            reviewedAt,
+            null,
+            null,
+            "evd-exp-audit-event-idem-001-approval",
+            "/api/v1/compliance/evidence/snapshots/evd-exp-audit-event-idem-001-approval/file",
             null,
             null,
             2L,

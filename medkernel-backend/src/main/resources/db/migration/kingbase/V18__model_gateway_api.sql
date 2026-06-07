@@ -1,5 +1,31 @@
 -- MedKernel v1.0 GA · GA-ENG-API-12 模型能力网关 API（Kingbase）
 
+CREATE TABLE IF NOT EXISTS model_capability_definition (
+    capability_code VARCHAR(64)  PRIMARY KEY,
+    display_name    VARCHAR(120) NOT NULL,
+    description     VARCHAR(500) NOT NULL,
+    category        VARCHAR(64)  NOT NULL,
+    enabled_flag    CHAR(1)      NOT NULL DEFAULT 'Y',
+    sort_order      INTEGER      NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
+    CONSTRAINT ck_model_capability_definition_enabled CHECK (enabled_flag IN ('Y', 'N'))
+);
+
+INSERT INTO model_capability_definition
+    (capability_code, display_name, description, category, sort_order)
+VALUES
+    ('knowledge.discovery', '临床知识关联发现', '从临床事实中检索并关联可信知识依据。', '知识资产', 10),
+    ('knowledge.extract', '电子病历语义实体提取', '从病历文本中提取结构化临床事实。', '语义抽取', 20),
+    ('terminology.map', '标准术语字典匹配映射', '将院内术语映射到标准医学术语。', '字典映射', 30),
+    ('rule.draft', '临床规则草案拟定', '基于可信依据生成待人工审核的规则草案。', '规则引擎', 40),
+    ('pathway.draft', '临床路径草案拟定', '生成待人工审核的路径节点与变异草案。', '路径引擎', 50),
+    ('cdss.explain', '临床决策解释', '将确定性决策依据转换为可追溯说明。', '解释追溯', 60),
+    ('quality.semantic-check', '病历内涵质控', '识别病历中的逻辑缺项与质控风险。', '质控改进', 70),
+    ('followup.draft', '随访草案拟定', '生成待人工审核的随访计划与问卷草案。', '智能随访', 80);
+
 CREATE TABLE IF NOT EXISTS model_capability_task (
     id                        BIGSERIAL PRIMARY KEY,
     task_id                   VARCHAR(64)   NOT NULL,
@@ -32,7 +58,7 @@ CREATE TABLE IF NOT EXISTS model_capability_policy (
     id                        BIGSERIAL PRIMARY KEY,
     tenant_id                 VARCHAR(64)   NOT NULL,
     capability_code           VARCHAR(64)   NOT NULL,
-    route_strategy            VARCHAR(32)   NOT NULL DEFAULT 'BASEPLAY',
+    route_strategy            VARCHAR(32)   NOT NULL DEFAULT 'BASELINE',
     desensitize_strategy      VARCHAR(64)   NOT NULL DEFAULT 'DEFAULT',
     expected_schema           TEXT          NULL,
     created_at                TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -43,6 +69,13 @@ CREATE TABLE IF NOT EXISTS model_capability_policy (
 );
 
 COMMENT ON TABLE model_capability_task IS '模型网关调用任务表';
+COMMENT ON TABLE model_capability_definition IS '平台模型能力目录';
+COMMENT ON COLUMN model_capability_definition.capability_code IS '模型能力代码';
+COMMENT ON COLUMN model_capability_definition.display_name IS '能力中文名称';
+COMMENT ON COLUMN model_capability_definition.description IS '能力业务说明';
+COMMENT ON COLUMN model_capability_definition.category IS '能力业务分类';
+COMMENT ON COLUMN model_capability_definition.enabled_flag IS '是否启用';
+COMMENT ON COLUMN model_capability_definition.sort_order IS '展示顺序';
 COMMENT ON COLUMN model_capability_task.task_id IS '任务ID';
 COMMENT ON COLUMN model_capability_task.tenant_id IS '租户ID';
 COMMENT ON COLUMN model_capability_task.capability_code IS '能力标识代码';

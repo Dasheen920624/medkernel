@@ -20,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * BASE-01 AC-1：七层组织、闭包路径查询与防环约束的真实 H2 迁移集成测试。
+ * BASE-01 AC-1：组织树、闭包路径查询与防环约束的真实 H2 迁移集成测试。
+ *
+ * <p>SPECIALTY 专病作为横切维度由 applicableScope / specialtyId 表达，不再作为新组织树节点写入。
  */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -49,7 +51,7 @@ class OrgHierarchyIntegrationTest {
     }
 
     @Test
-    void createsSevenLayerOrgPathAndClosureQueries() {
+    void createsOrgTreePathAndClosureQueriesWithoutSpecialtyNode() {
         RequestContext.restore(new RequestContext.Snapshot("trace-org", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
@@ -58,15 +60,14 @@ class OrgHierarchyIntegrationTest {
         OrgUnit campus = service.createOrgUnit(input(hospital.id(), OrgLevel.CAMPUS, "CAMP-B", "院区B"));
         OrgUnit site = service.createOrgUnit(input(campus.id(), OrgLevel.SITE, "SITE-B", "服务点B"));
         OrgUnit department = service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
-        OrgUnit specialty = service.createOrgUnit(input(department.id(), OrgLevel.SPECIALTY, "SP-CARDIO", "心血管专病"));
 
-        assertThat(specialty.orgPath()).isEqualTo("/TENANT-A/GROUP-A/HOSP-B/CAMP-B/SITE-B/DEPT-C/SP-CARDIO");
+        assertThat(department.orgPath()).isEqualTo("/TENANT-A/GROUP-A/HOSP-B/CAMP-B/SITE-B/DEPT-C");
         assertThat(service.orgPathByCurrentTenant("DEPT-C"))
             .extracting(OrgUnit::code)
             .containsExactly("TENANT-A", "GROUP-A", "HOSP-B", "CAMP-B", "SITE-B", "DEPT-C");
         assertThat(service.descendantsByCurrentTenant("GROUP-A"))
             .extracting(OrgUnit::code)
-            .containsExactly("GROUP-A", "HOSP-B", "CAMP-B", "SITE-B", "DEPT-C", "SP-CARDIO");
+            .containsExactly("GROUP-A", "HOSP-B", "CAMP-B", "SITE-B", "DEPT-C");
     }
 
     @Test
@@ -140,22 +141,21 @@ class OrgHierarchyIntegrationTest {
         OrgUnit hospital = service.createOrgUnit(input(groupA.id(), OrgLevel.HOSPITAL, "HOSP-A", "医院A"));
         OrgUnit campus = service.createOrgUnit(input(hospital.id(), OrgLevel.CAMPUS, "CAMP-A", "院区A"));
         OrgUnit site = service.createOrgUnit(input(campus.id(), OrgLevel.SITE, "SITE-A", "服务点A"));
-        OrgUnit department = service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
-        service.createOrgUnit(input(department.id(), OrgLevel.SPECIALTY, "SP-CARDIO", "心血管专病"));
+        service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
 
         OrgUnit moved = service.reparentOrgUnit(hospital.id(), groupB.id());
 
         assertThat(moved.parentId()).isEqualTo(groupB.id());
         assertThat(moved.orgPath()).isEqualTo("/TENANT-A/GROUP-B/HOSP-A");
-        assertThat(service.orgPathByCurrentTenant("SP-CARDIO"))
+        assertThat(service.orgPathByCurrentTenant("DEPT-C"))
             .extracting(OrgUnit::code)
-            .containsExactly("TENANT-A", "GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C", "SP-CARDIO");
+            .containsExactly("TENANT-A", "GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C");
         assertThat(service.descendantsByCurrentTenant("GROUP-A"))
             .extracting(OrgUnit::code)
             .containsExactly("GROUP-A");
         assertThat(service.descendantsByCurrentTenant("GROUP-B"))
             .extracting(OrgUnit::code)
-            .containsExactly("GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C", "SP-CARDIO");
+            .containsExactly("GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C");
     }
 
     private OrgUnit input(String parentId, OrgLevel level, String code, String name) {

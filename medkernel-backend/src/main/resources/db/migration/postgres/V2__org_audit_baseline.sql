@@ -1,5 +1,5 @@
 -- MedKernel v1.0 GA · GA-ENG-BASE-01/04 baseline schema for PostgreSQL 15+
--- 引擎一切之根：组织七层树 + 闭包查询 + 审计留痕。后续 E1/E2/E3 任务在此基础上累积领域表。
+-- 引擎一切之根：组织树 + 专病横切维度 + 闭包查询 + 审计留痕。后续 E1/E2/E3 任务在此基础上累积领域表。
 
 CREATE TABLE IF NOT EXISTS org_unit (
     id              VARCHAR(26)  PRIMARY KEY,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS org_unit (
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
     CONSTRAINT uk_org_unit_tenant_code UNIQUE (tenant_id, code),
-    CONSTRAINT ck_org_unit_level CHECK (level_code IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
+    CONSTRAINT ck_org_unit_level CHECK (level_code IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_org_unit_status CHECK (status IN ('ACTIVE','SUSPENDED','ARCHIVED'))
 );
 
@@ -25,11 +25,11 @@ CREATE INDEX IF NOT EXISTS idx_org_unit_parent ON org_unit (parent_id);
 CREATE INDEX IF NOT EXISTS idx_org_unit_tenant_lv ON org_unit (tenant_id, level_code);
 CREATE INDEX IF NOT EXISTS idx_org_unit_path ON org_unit (tenant_id, org_path);
 
-COMMENT ON TABLE org_unit IS '组织七层树：tenant/group/hospital/campus/site/department/specialty';
+COMMENT ON TABLE org_unit IS '组织树：tenant/group/hospital/campus/site/department，专病通过 specialty_id 横切表达';
 COMMENT ON COLUMN org_unit.id IS '组织节点字符串主键（ULID 形态）';
 COMMENT ON COLUMN org_unit.parent_id IS '父级组织节点 ID；租户根为空';
 COMMENT ON COLUMN org_unit.org_path IS '组织路径，按组织编码拼接，用于前缀过滤和可读审计';
-COMMENT ON COLUMN org_unit.level_code IS '组织层级：租户根、集团、医院、院区、服务点、科室、专病';
+COMMENT ON COLUMN org_unit.level_code IS '组织层级：租户根、集团、医院、院区、服务点、科室';
 
 CREATE TABLE IF NOT EXISTS org_closure (
     tenant_id       VARCHAR(64)  NOT NULL,

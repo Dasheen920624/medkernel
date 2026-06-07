@@ -9,8 +9,7 @@ import java.util.Optional;
  * <p>命名约定：{@code <域>.<动作>}，小写点号分隔。
  * 域大致对应一级业务模块（org/tenant/rule/pathway/knowledge/recommendation/evaluation/followup/package/audit/system 等）。
  *
- * <p>新增权限只能在末尾追加，不得删除已发布权限（避免 DB 已绑定关系失效）；
- * 废弃权限标 {@code @Deprecated} 但保留枚举值。
+ * <p>项目上线前权限目录保持单一有效集合，不保留已淘汰权限别名。
  *
  * <p>风险等级用于产品宪法第 6 条的 6 态体验和"高风险逐条确认"门禁；
  * 高风险动作不允许批量；中风险要二次确认；低风险可批量。
@@ -87,7 +86,8 @@ public enum PermissionCode {
     EMBED_READ("embed.read", Risk.LOW, "验证和查看嵌入上下文"),
     EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动令牌和记录反馈"),
     LLM_READ("llm.read", Risk.LOW, "查看模型能力状态和调用记录"),
-    LLM_WRITE("llm.write", Risk.MEDIUM, "管理配置路由策略和提交模型任务"),
+    LLM_EXECUTE("llm.execute", Risk.MEDIUM, "提交和重试模型任务"),
+    LLM_MANAGE("llm.manage", Risk.HIGH, "管理租户模型路由、脱敏和输出结构策略"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
@@ -96,24 +96,14 @@ public enum PermissionCode {
     MPI_WRITE("mpi.write", Risk.HIGH, "合并患者主索引"),
     PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
     PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
-    WORKBENCH_DEMO_VIEW("workbench:demo:view", Risk.LOW, "查看演示与校验页面"),
+    WORKBENCH_READINESS_VIEW("workbench:readiness:view", Risk.LOW, "查看验收自检页面"),
     WORKFLOW_READ("workflow.read", Risk.LOW, "查看临床协同待办"),
     WORKFLOW_WRITE("workflow.write", Risk.MEDIUM, "完成或转交临床协同待办"),
     NOTIFICATION_READ("notification.read", Risk.LOW, "查看通知中心"),
     NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读和保存通知偏好"),
 
-    // ─── 菜单维度（INFRA-05 前的一级入口遗留权限，仅保留枚举兼容，不再作为有效菜单矩阵）──────────────
+    // ─── 菜单维度 ────────────────────────────────────────────────
     MENU_WORKBENCH("menu.workbench", PermissionDimension.MENU, Risk.LOW, "查看工作台入口"),
-    @Deprecated(forRemoval = false)
-    MENU_PILOT_SETUP("menu.pilot-setup", PermissionDimension.MENU, Risk.LOW, "查看试点准备入口"),
-    @Deprecated(forRemoval = false)
-    MENU_CLINICAL_RUN("menu.clinical-run", PermissionDimension.MENU, Risk.LOW, "查看临床运行入口"),
-    @Deprecated(forRemoval = false)
-    MENU_QUALITY_IMPROVE("menu.quality-improve", PermissionDimension.MENU, Risk.LOW, "查看质控改进入口"),
-    @Deprecated(forRemoval = false)
-    MENU_COMPLIANCE_OPS("menu.compliance-ops", PermissionDimension.MENU, Risk.LOW, "查看合规运维入口"),
-    @Deprecated(forRemoval = false)
-    MENU_ADVANCED_TOOLS("menu.advanced-tools", PermissionDimension.MENU, Risk.LOW, "查看高级工具入口"),
 
     // ─── 数据维度（BASE-01 orgPath 上的组织范围基线）──────────────────────
     DATA_DEPARTMENT("data.department", PermissionDimension.DATA, Risk.LOW, "访问本科室数据"),
@@ -154,7 +144,8 @@ public enum PermissionCode {
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保智能审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评估指标库"),
     MENU_QC_EVAL_RESULTS("menu.qc-eval-results", PermissionDimension.MENU, Risk.LOW, "查看评估结果"),
-    MENU_AIK_REVIEW("menu.aik-review", PermissionDimension.MENU, Risk.LOW, "查看 AI 知识审核"),
+    MENU_KNOWLEDGE_GOVERNANCE(
+        "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识治理"),
     MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看用户管理"),
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份绑定"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计日志"),

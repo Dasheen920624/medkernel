@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS integration_webhook_config (
     tenant_id           VARCHAR(64)   NOT NULL,
     name                VARCHAR(256)  NOT NULL,
     callback_url        VARCHAR(512)  NOT NULL,
-    secret_key          VARCHAR(128)  NOT NULL,
+    secret_cipher       VARCHAR(256)  NOT NULL,
     events_subscribed   VARCHAR(512)  NOT NULL,
     status              VARCHAR(32)   NOT NULL DEFAULT 'ACTIVE',
     created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -50,7 +50,7 @@ import com.medkernel.engine.recommendation.RecommendationTrigger;
 import com.medkernel.engine.recommendation.RecommendationTriggerRepository;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -70,7 +70,7 @@ class SafetyWithdrawalServiceTest {
     private RecommendationTriggerRepository recommendationTriggers;
     private PathwayTemplateRepository pathwayTemplates;
     private PatientPathwayRepository patientPathways;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private SafetyWithdrawalService service;
 
     @BeforeEach
@@ -83,12 +83,12 @@ class SafetyWithdrawalServiceTest {
         recommendationTriggers = mock(RecommendationTriggerRepository.class);
         pathwayTemplates = mock(PathwayTemplateRepository.class);
         patientPathways = mock(PatientPathwayRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         ObjectMapper json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new SafetyWithdrawalService(knowledgeVersions, invalidations, affectedTasks,
             recommendationSources, recommendationCards, recommendationTriggers, pathwayTemplates, patientPathways,
-            auditPublisher, json);
+            auditRecorder, json);
         when(affectedTasks.findByTenantIdAndTaskKey(any(), any())).thenReturn(Optional.empty());
         when(affectedTasks.save(any())).thenAnswer(inv -> inv.getArgument(0));
         RequestContext.restore(new RequestContext.Snapshot(
@@ -145,7 +145,7 @@ class SafetyWithdrawalServiceTest {
         assertThat(taskCaptor.getAllValues()).extracting(AffectedCaseTask::targetRef)
             .contains("patient:patient-1/encounter:enc-1/card:card-1", "patient-pathway:pp-active/template:pt-1")
             .doesNotContain("patient-pathway:pp-done/template:pt-1");
-        verify(auditPublisher).publish(AuditAction.PUBLISH, "safety_withdrawal", "90",
+        verify(auditRecorder).record(AuditAction.PUBLISH, "safety_withdrawal", "90",
             "安全撤回已隔离 versionId=5 affectedTasks=3");
     }
 
@@ -204,7 +204,7 @@ class SafetyWithdrawalServiceTest {
         assertThat(evidence).contains("\"recordType\":\"task\"");
         assertThat(evidence).contains("\"patientCaseCount\":1");
         assertThat(evidence).contains("\"targetRef\":\"patient:patient-1/encounter:enc-1/card:card-1\"");
-        verify(auditPublisher).publish(AuditAction.EXPORT, "safety_withdrawal", "90",
+        verify(auditRecorder).record(AuditAction.EXPORT, "safety_withdrawal", "90",
             "导出安全撤回影响证据 taskCount=2");
     }
 

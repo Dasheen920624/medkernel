@@ -63,6 +63,7 @@ CREATE TABLE rule_test_case (
     rule_id              VARCHAR2(64)  NOT NULL,
     version_id           VARCHAR2(64)  NOT NULL,
     case_type            VARCHAR2(32)  NOT NULL,
+    context_snapshot_id  VARCHAR2(64)  NOT NULL,
     input_payload        CLOB          NOT NULL,
     expected_hit         NUMBER(1)     NOT NULL,
     expected_severity    VARCHAR2(16)  NULL,

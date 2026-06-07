@@ -69,7 +69,7 @@ describe("ruleLayeredEditor 嵌套条件（P1-2 原地扩展）", () => {
     expect(restored.logic).toBe("any");
   });
 
-  it("dslWhenToRootGroup 兼容旧扁平 when", () => {
+  it("dslWhenToRootGroup 接受当前单层 all/any DSL", () => {
     const when = { all: [{ fact: "context.scr", operator: "gte", value: 2 }] };
     const root = dslWhenToRootGroup(when);
     expect(root.logic).toBe("all");
@@ -79,6 +79,7 @@ describe("ruleLayeredEditor 嵌套条件（P1-2 原地扩展）", () => {
 
   it("flatToRootGroup 把扁平树提升为根组", () => {
     const tree: RuleConditionTree = {
+      triggerPoint: "patient-view",
       logic: "any",
       conditions: [leaf("a"), leaf("b")],
       action: {

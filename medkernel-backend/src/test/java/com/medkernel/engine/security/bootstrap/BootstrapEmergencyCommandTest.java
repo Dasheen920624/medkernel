@@ -21,15 +21,17 @@ import org.springframework.boot.DefaultApplicationArguments;
 
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 
 class BootstrapEmergencyCommandTest {
 
     private PlatformCredentialRepository credentials;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
+    private TenantUserRepository users;
     private ByteArrayOutputStream output;
     private BootstrapEmergencyCommand command;
     private AtomicReference<PlatformCredential> saved;
@@ -37,9 +39,10 @@ class BootstrapEmergencyCommandTest {
     @BeforeEach
     void setUp() {
         credentials = mock(PlatformCredentialRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        users = mock(TenantUserRepository.class);
+        auditRecorder = mock(AuditRecorder.class);
         output = new ByteArrayOutputStream();
-        command = new BootstrapEmergencyCommand(credentials, auditPublisher,
+        command = new BootstrapEmergencyCommand(credentials, users, auditRecorder,
             new PrintStream(output, true, StandardCharsets.UTF_8));
         saved = new AtomicReference<>();
         when(credentials.save(any())).thenAnswer(inv -> {
@@ -87,7 +90,7 @@ class BootstrapEmergencyCommandTest {
         String text = output.toString(StandardCharsets.UTF_8);
         assertThat(text).contains("bootstrap-emergency=mfa-reset").contains("mfaStatus=RESET_REQUIRED");
         assertThat(saved.get().mfaSecret()).isNull();
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             AuditAction.EXECUTE, "platform_credential", "platform-owner",
             "应急重置 MFA actor=ops reason=值班应急");
     }

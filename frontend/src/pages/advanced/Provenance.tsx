@@ -41,6 +41,8 @@ import type {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 
+import styles from "./Advanced.module.css";
+
 const { Text } = Typography;
 
 const evidenceTypeOptions = [
@@ -71,18 +73,18 @@ function AuditEventList({ events }: { events: AuditEventRow[] }) {
   }
 
   return (
-    <Space direction="vertical" size="small" className="w-full">
+    <Space direction="vertical" size="small" className={styles.fullWidth}>
       {events.slice(0, 8).map((event) => (
         <Card key={event.eventId} size="small">
-          <Space direction="vertical" size={4} className="w-full">
-            <Space className="w-full justify-between">
-              <Text strong>{event.action}</Text>
+          <Space direction="vertical" size={4} className={styles.fullWidth}>
+            <Space className={styles.auditHeader}>
+              <Text strong>{event.summary}</Text>
               <Tag color={event.status === "FAILED" ? "red" : "blue"}>{event.status}</Tag>
             </Space>
-            <Text type="secondary" className="text-xs">
+            <Text type="secondary" className={styles.smallText}>
               {event.resourceType} / {event.resourceId}
             </Text>
-            <Text type="secondary" className="text-xs">
+            <Text type="secondary" className={styles.smallText}>
               {formatDateTime(event.occurredAt)}
             </Text>
           </Space>
@@ -225,8 +227,8 @@ export default function Provenance() {
       title="来源与临床证据追溯"
       description="按 traceId、证据类型或摘要检索真实证据快照；无后端证据时只显示空态，不构造本地证据链。"
     >
-      <Space direction="vertical" size="large" className="w-full">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <Space direction="vertical" size="large" className={styles.fullWidth}>
+        <div className={styles.statsGrid}>
           <Card>
             <Statistic
               title="真实证据快照"
@@ -246,7 +248,7 @@ export default function Provenance() {
         </div>
 
         <Card>
-          <Space wrap className="w-full justify-between">
+          <Space wrap className={styles.toolbar}>
             <Space wrap>
               <Input.Search
                 allowClear
@@ -256,7 +258,7 @@ export default function Provenance() {
                 value={keywordInput}
                 onChange={(event) => setKeywordInput(event.target.value)}
                 onSearch={handleSearch}
-                className="w-80"
+                className={styles.searchWide}
               />
               <Select
                 allowClear
@@ -264,7 +266,7 @@ export default function Provenance() {
                 value={evidenceType}
                 onChange={setEvidenceType}
                 options={evidenceTypeOptions}
-                className="w-44"
+                className={styles.selectWide}
               />
             </Space>
             <Space>
@@ -299,7 +301,7 @@ export default function Provenance() {
           />
         )}
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className={styles.contentGrid}>
           <Card title="真实证据快照">
             <Table
               columns={columns}
@@ -336,7 +338,7 @@ export default function Provenance() {
         ]}
       >
         {verifyResult && (
-          <Space direction="vertical" size="middle" className="w-full">
+          <Space direction="vertical" size="middle" className={styles.fullWidth}>
             <Alert
               type={verifyResult.isValid ? "success" : "error"}
               showIcon

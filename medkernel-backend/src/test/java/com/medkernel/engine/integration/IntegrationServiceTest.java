@@ -24,6 +24,7 @@ import com.medkernel.engine.integration.dto.*;
 import com.medkernel.engine.integration.repository.*;
 import com.medkernel.engine.integration.service.IntegrationAdapterHealthProbeWorker;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.integration.service.WebhookSecretCodec;
 import com.medkernel.engine.mpi.MpiPatient;
 import com.medkernel.engine.mpi.MpiPatientRepository;
 import com.medkernel.shared.api.error.ApiException;
@@ -44,6 +45,9 @@ class IntegrationServiceTest {
 
     @Autowired
     private IntegrationWebhookConfigRepository webhookRepository;
+
+    @Autowired
+    private WebhookSecretCodec webhookSecretCodec;
 
     @Autowired
     private IntegrationMessageLogRepository logRepository;
@@ -94,9 +98,9 @@ class IntegrationServiceTest {
         assertEquals("REST", updated.protocolType());
         assertEquals("SUSPENDED", updated.status());
 
-        // 健康检查：未接入真实外部连接器 → 配置合法只标 NOT_CONNECTED，不伪造 HEALTHY/网络 RTT，且不覆盖 configJson
+        // REST 缺少 baseUrl 属于配置错误，且健康检查不得覆盖原始 configJson。
         IntegrationAdapter checked = service.checkAdapterHealth(tenantId, "adp-1");
-        assertEquals("NOT_CONNECTED", checked.healthStatus());
+        assertEquals("MISCONFIGURED", checked.healthStatus());
         assertEquals(0L, checked.rttMs());
         assertEquals("{}", checked.configJson());
         assertFalse(checked.configJson().contains("dataQuality"));
@@ -199,7 +203,7 @@ class IntegrationServiceTest {
 
         assertEquals(2, status.totalAdapters());
         assertEquals(1, status.mappedAdapters());
-        assertEquals(2, status.notConnectedAdapters());
+        assertEquals(1, status.notConnectedAdapters());
         assertEquals(0, status.healthyAdapters());
         assertTrue(status.sources().stream().noneMatch(item -> "his-quality-other".equals(item.adapterId())));
         assertTrue(status.sources().stream().anyMatch(item ->
@@ -342,7 +346,8 @@ class IntegrationServiceTest {
         service.createAdapter(tenantId,
             new AdapterCreateDto("lis-periodic-bad", "一院 LIS 坏配置", "REST", "{bad-json"));
         service.createAdapter("tenant-002",
-            new AdapterCreateDto("emr-periodic", "二院 EMR", "FHIR", "{\"baseUrl\":\"http://emr.local\"}"));
+            new AdapterCreateDto("emr-periodic", "二院 EMR", "FHIR",
+                "{\"baseUrl\":\"http://127.0.0.1:1\",\"requestTimeoutMs\":200}"));
         service.createAdapter("tenant-002",
             new AdapterCreateDto("pacs-suspended", "二院 PACS 暂停", "DICOM", "{bad-json"));
         service.updateAdapter("tenant-002", "pacs-suspended",
@@ -361,7 +366,10 @@ class IntegrationServiceTest {
             "tenant-002".equals(item.tenantId()) && "emr-periodic".equals(item.adapterId())));
         assertTrue(result.adapters().stream().noneMatch(item -> "pacs-suspended".equals(item.adapterId())));
         assertTrue(result.adapters().stream().allMatch(item -> item.lastHeartbeatAt() != null));
-        assertTrue(result.adapters().stream().allMatch(item -> item.rttMs() == 0L));
+        assertTrue(result.adapters().stream().anyMatch(item ->
+            "his-periodic".equals(item.adapterId()) && item.rttMs() == 0L));
+        assertTrue(result.adapters().stream().anyMatch(item ->
+            "emr-periodic".equals(item.adapterId()) && item.rttMs() > 0L));
         assertTrue(result.adapters().stream().noneMatch(item -> "HEALTHY".equals(item.healthStatus())));
         IntegrationAdapter suspended = adapterRepository.findByAdapterIdAndTenantId("pacs-suspended", "tenant-002")
             .orElseThrow();
@@ -382,32 +390,44 @@ class IntegrationServiceTest {
     @Test
     void testWebhookLifecycleAndSignature() {
         WebhookCreateDto createDto = new WebhookCreateDto("whk-1", "出院回执", "http://localhost/callback", "OUTPATIENT_DIAGNOSIS");
-        IntegrationWebhookConfig created = service.createWebhook(tenantId, createDto);
+        WebhookCreateResponse created = service.createWebhook(tenantId, createDto);
 
         assertNotNull(created.id());
         assertEquals("whk-1", created.webhookId());
-        assertTrue(created.secretKey().startsWith("sec_key_"));
+        assertTrue(created.sharedSecret().startsWith("whsec_"));
 
-        List<IntegrationWebhookConfig> webhooks = service.getWebhooks(tenantId);
+        IntegrationWebhookConfig persisted = webhookRepository.findByWebhookIdAndTenantId("whk-1", tenantId)
+            .orElseThrow();
+        assertTrue(persisted.secretCipher().startsWith("sm4:v1:"));
+        assertFalse(persisted.secretCipher().contains(created.sharedSecret()));
+        assertEquals(created.sharedSecret(), webhookSecretCodec.decode(persisted.secretCipher()));
+
+        List<WebhookConfigResponse> webhooks = service.getWebhooks(tenantId);
         assertEquals(1, webhooks.size());
+        String listJson = assertDoesNotThrow(() -> objectMapper.writeValueAsString(webhooks));
+        assertFalse(listJson.contains("secret"));
 
-        // 签名生成与验证测试
+        // 仅生成本地签名预览，不伪造外部网络连通成功。
         WebhookTestDto testDto = new WebhookTestDto("whk-1", "{\"patientId\":\"P-101\"}");
         WebhookTestResultDto signResult = service.testWebhookSignature(tenantId, testDto);
-        assertEquals("SUCCESS", signResult.status());
+        assertEquals("SIGNATURE_GENERATED", signResult.status());
+        assertEquals("NOT_TESTED", signResult.connectionStatus());
         assertNotNull(signResult.signature());
         assertNotNull(signResult.timestamp());
+        String testJson = assertDoesNotThrow(() -> objectMapper.writeValueAsString(signResult));
+        assertFalse(testJson.contains("secret"));
+        assertFalse(testJson.contains("patientId"));
     }
 
     @Test
     void webhookIdIsUniqueOnlyInsideTenantScope() {
-        IntegrationWebhookConfig tenantOne = service.createWebhook(tenantId,
+        WebhookCreateResponse tenantOne = service.createWebhook(tenantId,
             new WebhookCreateDto("whk-shared", "一院 Webhook", "http://one.local/callback", "LAB_RESULT"));
-        IntegrationWebhookConfig tenantTwo = service.createWebhook("tenant-002",
+        WebhookCreateResponse tenantTwo = service.createWebhook("tenant-002",
             new WebhookCreateDto("whk-shared", "二院 Webhook", "http://two.local/callback", "LAB_RESULT"));
 
-        assertEquals("tenant-001", tenantOne.tenantId());
-        assertEquals("tenant-002", tenantTwo.tenantId());
+        assertEquals("whk-shared", tenantOne.webhookId());
+        assertEquals("whk-shared", tenantTwo.webhookId());
         assertEquals(1, service.getWebhooks(tenantId).size());
         assertEquals(1, service.getWebhooks("tenant-002").size());
 
@@ -449,12 +469,14 @@ class IntegrationServiceTest {
               ]
             }
             """.formatted(mappingId)));
-        IntegrationWebhookConfig webhook = service.createWebhook(tenantId,
+        service.createWebhook(tenantId,
             new WebhookCreateDto("whk-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-map", tenantId)
+            .orElseThrow();
         WebhookInboundRequestDto inbound = inboundRequest("msg-map-1", "trace-map-1", "lis-adapter",
             "{\"patientId\":\"P-100\",\"diagnosisCode\":\"DIA-A00\"}");
         String timestamp = currentTimestamp();
-        String signature = signInbound(webhook.secretKey(), timestamp, inbound);
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
 
         WebhookInboundResultDto result = service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound);
 
@@ -486,7 +508,7 @@ class IntegrationServiceTest {
         WebhookInboundRequestDto inbound = inboundRequest("msg-stale", "trace-stale", "lis-adapter",
             "{\"patientId\":\"P-100\"}");
         String staleTimestamp = String.valueOf(Instant.now().minus(Duration.ofMinutes(10)).getEpochSecond());
-        String signature = signInbound(webhook.secretKey(), staleTimestamp, inbound);
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), staleTimestamp, inbound);
 
         ApiException error = assertThrows(ApiException.class, () ->
             service.ingestWebhook(tenantId, "whk-stale", staleTimestamp, signature, inbound));
@@ -500,12 +522,14 @@ class IntegrationServiceTest {
     @Test
     void inboundWebhookStoresFailedLogWhenFieldMappingConfigurationIsInvalid() throws Exception {
         service.createAdapter(tenantId, new AdapterCreateDto("lis-bad-map", "LIS 坏映射适配器", "Webhook", "{}"));
-        IntegrationWebhookConfig webhook = service.createWebhook(tenantId,
+        service.createWebhook(tenantId,
             new WebhookCreateDto("whk-bad-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-bad-map", tenantId)
+            .orElseThrow();
         WebhookInboundRequestDto inbound = inboundRequest("msg-bad-map", "trace-bad-map", "lis-bad-map",
             "{\"patientId\":\"P-100\"}");
         String timestamp = currentTimestamp();
-        String signature = signInbound(webhook.secretKey(), timestamp, inbound);
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
 
         ApiException error = assertThrows(ApiException.class, () ->
             service.ingestWebhook(tenantId, "whk-bad-map", timestamp, signature, inbound));
@@ -587,11 +611,11 @@ class IntegrationServiceTest {
         assertEquals(1, logsPage.size());
         assertEquals("msg-1", logsPage.get(0).messageId());
 
-        // 执行重试：未接入真实外部连接器，即便 payload 合法也绝不伪造 SUCCESS（retryCount 1 < maxRetries 3 → NOT_CONNECTED）
+        // 历史裸字符串不是标准出站信封，不再兼容猜测目标或载荷。
         IntegrationMessageLog retried = service.retryMessage(tenantId, "msg-1");
         assertEquals(1, retried.retryCount());
-        assertEquals("NOT_CONNECTED", retried.status());
-        assertTrue(retried.errorMessage().contains("未接入真实外部连接器"));
+        assertEquals("FAILED", retried.status());
+        assertTrue(retried.errorMessage().contains("标准出站消息"));
 
         // 插入一条空 payload 的失败消息日志，测试其重试失败
         IntegrationMessageLog logEmpty = new IntegrationMessageLog(
@@ -618,7 +642,7 @@ class IntegrationServiceTest {
         IntegrationMessageLog retriedEmpty = service.retryMessage(tenantId, "msg-2");
         assertEquals(1, retriedEmpty.retryCount());
         assertEquals("FAILED", retriedEmpty.status());
-        assertTrue(retriedEmpty.errorMessage().contains("原始载荷报文为空"));
+        assertTrue(retriedEmpty.errorMessage().contains("标准出站消息"));
 
         // 重试次数累加到 maxRetries 时强制移入死信队列
         service.retryMessage(tenantId, "msg-2"); // retryCount = 2, FAILED
@@ -729,7 +753,7 @@ class IntegrationServiceTest {
         assertEquals("NOT_CONNECTED", log.status());
         assertEquals(0, log.retryCount());
         assertEquals(2, log.maxRetries());
-        assertTrue(log.errorMessage().contains("异步补偿"));
+        assertTrue(log.errorMessage().contains("补偿消息"));
         assertTrue(log.payload().contains("ORDER_SUBMITTED"));
     }
 

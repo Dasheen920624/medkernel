@@ -1,6 +1,5 @@
 package com.medkernel.engine.tenant;
 
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -21,8 +20,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -102,25 +99,22 @@ class TenantEngineControllerContractTest {
     }
 
     @Test
-    void activateReadinessReturnsTenantOnboardNotReadyWhenPrerequisitesAreMissing() throws Exception {
-        doThrow(new ApiException(
-            ErrorCode.TENANT_ONBOARD_NOT_READY,
-            "租户开通未就绪：组织树未建立；用户未配置"
-        )).when(service).assertOnboardingReady("tenant-A");
-
-        mvc.perform(post("/api/v1/engine/tenant/onboarding-readiness/activate")
-                .with(writeJwt()))
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.code").value("TENANT_ONBOARD_NOT_READY"))
-            .andExpect(jsonPath("$.detail").value("租户开通未就绪：组织树未建立；用户未配置"));
-    }
-
-    @Test
     void guestCannotReadTenantEnginePackage() throws Exception {
         mvc.perform(get("/api/v1/engine/tenant/onboarding-readiness")
                 .with(jwt().jwt(token -> token.subject("guest").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_GUEST"))))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void legacyPlatformTenantRoutesAreNotMounted() throws Exception {
+        mvc.perform(get("/api/v1/platform/branding")
+                .with(readJwt()))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/platform/success/lifecycle")
+                .with(readJwt()))
+            .andExpect(status().isNotFound());
     }
 
     private static RequestPostProcessor readJwt() {
@@ -131,11 +125,4 @@ class TenantEngineControllerContractTest {
             .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
     }
 
-    private static RequestPostProcessor writeJwt() {
-        return jwt().jwt(token -> token
-                .subject("implementer")
-                .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("hospital-admin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_ADMIN"));
-    }
 }

@@ -5,8 +5,13 @@ package com.medkernel.engine.llm;
   */
 public record ModelCapabilityStatusResponse(
     String capabilityCode,
+    String displayName,
+    String description,
+    String category,
     String routeStrategy,
     String desensitizeStrategy,
+    String expectedSchema,
+    Boolean configured,
     Boolean fallbackAvailable,
     String fallbackReason
 ) {}

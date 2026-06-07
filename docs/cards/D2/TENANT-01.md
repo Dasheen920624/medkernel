@@ -15,7 +15,7 @@
 
 ## 目标
 
-把租户开通页**真实化**：建/查组织树（核心 §9 七层：平台→集团→医院→院区→社区服务点→科室→专病）、配置租户基本信息、开通就绪门检查 → 一键开通。**组织树经 [BASE-01](../D0/BASE-01.md) 真实落地，开通经 [SVC-PILOT-01](SVC-PILOT-01.md) 就绪门，不前端假开通**。
+统一租户管理：平台主租户只负责供应客户租户与首个管理员；客户租户只配置自身组织树、品牌和实施就绪状态。组织树经 [BASE-01](../D0/BASE-01.md) 真实落地，进入试点由 [SVC-PILOT-01](SVC-PILOT-01.md) 生命周期状态机校验，不设前端假开通动作。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
 
@@ -24,7 +24,7 @@
 ## 功能要求（原子可测条目）
 
 - [x] **FR-1 组织树管理**：建/查核心 §9 七层组织树（[SVC-PILOT-01](SVC-PILOT-01.md) `org-units`）；层级合法校验提示；跨租户不可见。
-- [x] **FR-2 开通就绪门**：开通前展示就绪检查（[SVC-PILOT-01](SVC-PILOT-01.md) `onboarding-readiness`）；缺项阻塞，不可强开。
+- [x] **FR-2 实施就绪检查**：客户租户实时展示 [SVC-PILOT-01](SVC-PILOT-01.md) `onboarding-readiness`；缺项阻塞，生命周期不可进入试点。
 - [x] **FR-3 一键开通**：就绪后开通，结果真实回写 + 审计；失败明确原因。
 - [x] **FR-4 六态 + RBAC**：六态齐全；仅平台/医院管理员·实施工程师可操作；数据按 `OrgContext`。
 
@@ -76,7 +76,7 @@ N·A —— 页面卡不落库；消费 [SVC-PILOT-01](SVC-PILOT-01.md)/[BASE-01
 
 ## 完工证据
 
-- 代码 permalink：`frontend/src/pages/tenant/TenantOnboarding.tsx` 真实化 + `useOnboardingReadiness` / `useActivateOnboardingReadiness` / engine org `org-units` + PageShell 六态 + 路由 RBAC。
-- 测试：红灯先失败于缺 `useOnboardingReadiness` / `useActivateOnboardingReadiness`、组织 hook 仍打旧 `/tenant/org-units`、路由缺 `tenant.read` 和角色限制、页面缺真实就绪门；实现后 `npm test -- src/pages/tenant/TenantOnboarding.test.tsx src/shared/api/hooks.test.ts src/shared/config/routes.test.ts src/pages/tenant/RulePathwayCleanliness.test.ts`（4 files / 51 tests）通过；`npm run verify`（50 files / 285 tests）通过；`npm run build` 通过；`npm audit --omit=dev --json` 生产依赖漏洞 0；后端 `mvn -q test` 通过（186 reports / 1120 tests / failures 0 / errors 0 / skipped 0，PostgreSQL 15.18 + Oracle 21.3 到 V66）。
+- 代码 permalink：`TenantOnboarding.tsx` + `useTenants` / `useProvisionTenant` / `useOnboardingReadiness` / engine org `org-units` + PageShell 六态 + 路由 RBAC。
+- 测试：`TenantOnboarding.test.tsx` 覆盖平台供应与客户实施双模式；`TenantProvisioningControllerTest` 覆盖供应、登录、MFA 与重复冲突；`TenantProvisioningServiceTest` 锁定客户台账不混入 `t-1`。
 - T-GATE：提交后以 `origin/main..HEAD` 复跑 changed-mode 真实性门禁（扫描 3 个触碰文件）、配置边界、迁移规约、中文注释与 diff 检查，全部通过。
 - 审计员签字：待 PR reviewer（owner ≠ reviewer）。

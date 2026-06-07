@@ -9,7 +9,7 @@ import java.util.UUID;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,15 +24,15 @@ public class ClinicalRedlineService {
 
     private final ClinicalRedlineRepository repository;
     private final ClinicalRedlineTrialRepository trialRepository;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
 
     public ClinicalRedlineService(
             ClinicalRedlineRepository repository,
             ClinicalRedlineTrialRepository trialRepository,
-            AuditEventPublisher auditPublisher) {
+            AuditRecorder auditRecorder) {
         this.repository = repository;
         this.trialRepository = trialRepository;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -106,7 +106,7 @@ public class ClinicalRedlineService {
             actor,
             traceId));
         repository.save(rule.withStatus(ClinicalRedlineStatus.SILENT_RUNNING, now, actor, traceId));
-        auditPublisher.publish(AuditAction.EXECUTE, "mk_engine_clinical_redline_trial",
+        auditRecorder.record(AuditAction.EXECUTE, "mk_engine_clinical_redline_trial",
             saved.trialId(), "记录临床安全红线静默试运行证据");
         return saved.toResponse();
     }
@@ -155,7 +155,7 @@ public class ClinicalRedlineService {
         String traceId = traceId();
         ClinicalRedlineRule activated = repository.save(rule.withStatus(
             ClinicalRedlineStatus.ACTIVE, now, actor, traceId));
-        auditPublisher.publish(AuditAction.PUBLISH, "mk_engine_clinical_redline",
+        auditRecorder.record(AuditAction.PUBLISH, "mk_engine_clinical_redline",
             activated.redlineId(), "临床安全红线静默试运行达标后上线");
         return activated.toResponse();
     }

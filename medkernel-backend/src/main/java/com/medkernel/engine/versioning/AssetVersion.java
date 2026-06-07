@@ -36,66 +36,6 @@ public record AssetVersion(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
-
-    /** 兼容未声明安全策略与覆盖策略的旧调用：默认 NORMAL + FREE。 */
-    public AssetVersion(
-            Long id,
-            String versionId,
-            String tenantId,
-            VersionedAssetType assetType,
-            String assetIdentity,
-            String versionNo,
-            String organizationScope,
-            String applicableScope,
-            String contentHash,
-            AssetVersionStatus status,
-            String activeScopeKey,
-            String sourceRef,
-            Instant effectiveFrom,
-            Instant effectiveTo,
-            Instant createdAt,
-            String createdBy,
-            Instant updatedAt,
-            String updatedBy,
-            String traceId) {
-        this(
-            id, versionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, contentHash, AssetVersionSafetyPolicy.NORMAL,
-            AssetVersionOverridePolicy.FREE, status, activeScopeKey, sourceRef, effectiveFrom,
-            effectiveTo, createdAt, createdBy, updatedAt, updatedBy, traceId
-        );
-    }
-
-    /** 兼容声明了安全策略但未声明覆盖策略的旧调用：默认 FREE。 */
-    public AssetVersion(
-            Long id,
-            String versionId,
-            String tenantId,
-            VersionedAssetType assetType,
-            String assetIdentity,
-            String versionNo,
-            String organizationScope,
-            String applicableScope,
-            String contentHash,
-            AssetVersionSafetyPolicy safetyPolicy,
-            AssetVersionStatus status,
-            String activeScopeKey,
-            String sourceRef,
-            Instant effectiveFrom,
-            Instant effectiveTo,
-            Instant createdAt,
-            String createdBy,
-            Instant updatedAt,
-            String updatedBy,
-            String traceId) {
-        this(
-            id, versionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, contentHash, safetyPolicy,
-            AssetVersionOverridePolicy.FREE, status, activeScopeKey, sourceRef, effectiveFrom,
-            effectiveTo, createdAt, createdBy, updatedAt, updatedBy, traceId
-        );
-    }
-
     public AssetVersion withVersionId(String newVersionId) {
         return new AssetVersion(
             id, newVersionId, tenantId, assetType, assetIdentity, versionNo,
@@ -104,10 +44,20 @@ public record AssetVersion(
         );
     }
 
-    public AssetVersion withContentHash(String newContentHash, Instant now, String actor) {
+    public AssetVersion withDraftRegistration(
+            String newAssetIdentity,
+            String newOrganizationScope,
+            String newApplicableScope,
+            String newContentHash,
+            String newSourceRef,
+            AssetVersionSafetyPolicy newSafetyPolicy,
+            AssetVersionOverridePolicy newOverridePolicy,
+            Instant now,
+            String actor) {
         return new AssetVersion(
-            id, versionId, tenantId, assetType, assetIdentity, versionNo,
-            organizationScope, applicableScope, newContentHash, safetyPolicy, overridePolicy, status, activeScopeKey, sourceRef,
+            id, versionId, tenantId, assetType, newAssetIdentity, versionNo,
+            newOrganizationScope, newApplicableScope, newContentHash, newSafetyPolicy, newOverridePolicy,
+            status, activeScopeKey, newSourceRef,
             effectiveFrom, effectiveTo, createdAt, createdBy, now, actor, traceId
         );
     }

@@ -31,6 +31,8 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import {
   useSpecialtyPackages,
+  useContextSnapshotDetail,
+  useContextSnapshots,
   usePathwayTemplates,
   usePathwayTemplateDetail,
   useEnterPatientPathway,
@@ -47,6 +49,8 @@ import type {
   PathwayVariance,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -74,6 +78,9 @@ export default function PatientPathways() {
   const [page, setPage] = useState<number>(1);
   const [size] = useState<number>(10);
   const [patientFilter, setPatientFilter] = useState<string>("");
+  const [enterPatientFilter, setEnterPatientFilter] = useState<string>("");
+  const [enterEncounterFilter, setEnterEncounterFilter] = useState<string>("");
+  const [selectedContextSnapshotId, setSelectedContextSnapshotId] = useState<string>("");
 
   const { data: templatesData } = usePathwayTemplates({
     status: "PUBLISHED",
@@ -84,6 +91,24 @@ export default function PatientPathways() {
     page: 1,
     size: 100,
   });
+  const hasEnterSnapshotFilter = Boolean(enterPatientFilter.trim() || enterEncounterFilter.trim());
+  const enterSnapshotsQuery = useContextSnapshots(
+    {
+      patientId: enterPatientFilter.trim() || undefined,
+      encounterId: enterEncounterFilter.trim() || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    },
+    { enabled: enterModalVisible && hasEnterSnapshotFilter },
+  );
+  const selectedSnapshotDetailQuery = useContextSnapshotDetail(selectedContextSnapshotId, {
+    enabled: enterModalVisible && Boolean(selectedContextSnapshotId),
+  });
+  const selectedContextSnapshot = enterSnapshotsQuery.data?.items.find(
+    (snapshot) => snapshot.snapshotId === selectedContextSnapshotId,
+  );
 
   const {
     data: patientPathwaysData,
@@ -195,16 +220,25 @@ export default function PatientPathways() {
   const handleEnterPathway = async () => {
     try {
       const values = await enterForm.validateFields();
+      const packageVersion = selectedSnapshotDetailQuery.data?.packageVersion?.trim();
+      if (!selectedContextSnapshot || !packageVersion) {
+        message.error("请先选择包含配置包版本的 ACTIVE 临床快照");
+        return;
+      }
       const res = await enterPathwayMutation.mutateAsync({
-        patientId: values.patientId,
-        encounterId: values.encounterId?.trim() || undefined,
+        contextSnapshotId: selectedContextSnapshot.snapshotId,
         templateId: values.templateId,
         startNodeCode: values.startNodeCode?.trim() || undefined,
-        packageVersion: packageVersionForTemplate(values.templateId),
+        packageVersion,
       });
 
-      message.success(`患者 ${values.patientId} 入径成功，Trace ID: ${res?.traceId || ""}`);
+      message.success(
+        `患者 ${selectedContextSnapshot.patientId} 入径成功，Trace ID: ${res?.traceId || ""}`,
+      );
       setEnterModalVisible(false);
+      setEnterPatientFilter("");
+      setEnterEncounterFilter("");
+      setSelectedContextSnapshotId("");
       enterForm.resetFields();
       refetchPathways();
     } catch (error: unknown) {
@@ -299,13 +333,15 @@ export default function PatientPathways() {
       title: "实例编号",
       dataIndex: "patientPathwayId",
       key: "patientPathwayId",
-      render: (text: string) => <span className="font-normal text-xs font-semibold">{text}</span>,
+      render: (text: string) => (
+        <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
+      ),
     },
     {
       title: "患者 ID",
       dataIndex: "patientId",
       key: "patientId",
-      className: "font-semibold text-gray-800",
+      className: styles.textStrong,
     },
     {
       title: "就诊 ID",
@@ -356,7 +392,7 @@ export default function PatientPathways() {
             setSelectedPathwayId(record.patientPathwayId);
             setVarianceDrawerVisible(false);
           }}
-          className="text-indigo-600 hover:text-indigo-900 font-semibold"
+          className={styles.linkButton}
         >
           办理推进与解释追溯
         </Button>
@@ -371,24 +407,28 @@ export default function PatientPathways() {
       state={patientPathwaysPageState}
       stateProps={patientPathwaysStateProps}
     >
-      {/* 检索头 */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-        <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
+      <div className={`${styles.surface} ${styles.filterSurface}`}>
+        <Form layout="inline" className={styles.inlineForm}>
           <Form.Item label="患者 ID 检索">
             <Input
               placeholder="输入患者 ID"
               allowClear
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
-              className="w-[200px]"
+              className={styles.searchInput}
             />
           </Form.Item>
-          <Form.Item className="ml-auto">
+          <Form.Item className={styles.actionItem}>
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => setEnterModalVisible(true)}
-              className="rounded-lg font-medium bg-indigo-600 border-indigo-600 hover:bg-indigo-700"
+              onClick={() => {
+                setEnterPatientFilter("");
+                setEnterEncounterFilter("");
+                setSelectedContextSnapshotId("");
+                enterForm.resetFields();
+                setEnterModalVisible(true);
+              }}
             >
               办理患者入径
             </Button>
@@ -396,8 +436,7 @@ export default function PatientPathways() {
         </Form>
       </div>
 
-      {/* 数据列表 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className={styles.surface}>
         <Table
           columns={columns}
           dataSource={patientPathwayRows}
@@ -417,22 +456,59 @@ export default function PatientPathways() {
         />
       </div>
 
-      {/* 办理患者入径 Modal */}
       <Modal
         title="办理患者临床路径准入 (入径)"
         open={enterModalVisible}
         onOk={handleEnterPathway}
-        onCancel={() => setEnterModalVisible(false)}
-        width={560}
+        onCancel={() => {
+          setEnterModalVisible(false);
+          setEnterPatientFilter("");
+          setEnterEncounterFilter("");
+          setSelectedContextSnapshotId("");
+          enterForm.resetFields();
+        }}
+        width={680}
         confirmLoading={enterPathwayMutation.isPending}
         destroyOnClose
       >
-        <Form form={enterForm} layout="vertical" className="mt-4">
-          <Form.Item name="patientId" label="选择患者 ID (临床卡快照)" rules={[{ required: true }]}>
-            <Input placeholder="输入真实患者 ID" />
-          </Form.Item>
-          <Form.Item name="encounterId" label="关联就诊 ID (Encounter ID，可选)">
-            <Input placeholder="留空则由服务端按契约处理" />
+        <Form form={enterForm} layout="vertical" className={styles.formGap}>
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item label="患者 ID">
+                <Input
+                  allowClear
+                  placeholder="按患者 ID 查询快照"
+                  value={enterPatientFilter}
+                  onChange={(event) => {
+                    setEnterPatientFilter(event.target.value);
+                    setSelectedContextSnapshotId("");
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="就诊 ID">
+                <Input
+                  allowClear
+                  placeholder="按就诊 ID 查询快照"
+                  value={enterEncounterFilter}
+                  onChange={(event) => {
+                    setEnterEncounterFilter(event.target.value);
+                    setSelectedContextSnapshotId("");
+                  }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="ACTIVE 临床快照" required>
+            <ContextSnapshotSelector
+              enabled={hasEnterSnapshotFilter}
+              loading={enterSnapshotsQuery.isLoading}
+              error={enterSnapshotsQuery.isError}
+              snapshots={enterSnapshotsQuery.data?.items ?? []}
+              selectedSnapshotId={selectedContextSnapshotId}
+              onSelect={setSelectedContextSnapshotId}
+            />
           </Form.Item>
           <Form.Item name="templateId" label="选择受控专病路径模板" rules={[{ required: true }]}>
             <Select placeholder="选择已发布上线的临床路径模型" notFoundContent="暂无已发布路径模板">
@@ -449,11 +525,10 @@ export default function PatientPathways() {
         </Form>
       </Modal>
 
-      {/* 办理推进与解释追溯极宽抽屉 */}
       <Drawer
         title={
-          <div className="flex items-center gap-2">
-            <CompassOutlined className="text-indigo-600" />
+          <div className={styles.drawerTitle}>
+            <CompassOutlined className={styles.iconInfo} />
             <span>患者临床路径推进与解释追溯控制台</span>
           </div>
         }
@@ -469,19 +544,19 @@ export default function PatientPathways() {
               bordered
               column={3}
               size="small"
-              className="mb-6"
+              className={styles.sectionGapLg}
             >
               <Descriptions.Item label="患者 ID">
-                <span className="font-semibold">{detailData.patientPathway.patientId}</span>
+                <span className={styles.textStrong}>{detailData.patientPathway.patientId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="就诊编号">
-                <span className="font-normal text-xs">{detailData.patientPathway.encounterId}</span>
+                <span className={styles.codeText}>{detailData.patientPathway.encounterId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="所用模型">
                 <Tag color="geekblue">{detailData.patientPathway.templateId}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="入径实例">
-                <span className="font-normal text-xs">
+                <span className={styles.codeText}>
                   {detailData.patientPathway.patientPathwayId}
                 </span>
               </Descriptions.Item>
@@ -503,21 +578,20 @@ export default function PatientPathways() {
               </Descriptions.Item>
             </Descriptions>
 
-            <Row gutter={16}>
-              {/* 左半屏：Milestone Timeline 与关键时钟事实 */}
-              <Col span={10}>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} xl={10}>
                 <Card
                   title={
-                    <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                      <CalendarOutlined />
+                    <div className={styles.sectionTitle}>
+                      <CalendarOutlined className={styles.iconInfo} />
                       <span>时间线与关键时钟 (Milestones)</span>
                     </div>
                   }
-                  className="rounded-xl border-gray-200 shadow-sm"
+                  className={styles.detailCard}
                 >
-                  <div className="bg-gray-50 p-4 rounded-lg overflow-y-auto max-h-[460px]">
+                  <div className={styles.scrollPanel}>
                     <Timeline
-                      className="mt-4"
+                      className={styles.marginTopMd}
                       items={templateNodes.map((node) => {
                         const isCurrent =
                           node.nodeCode === detailData.patientPathway.currentNodeCode;
@@ -534,21 +608,20 @@ export default function PatientPathways() {
                           color,
                           children: (
                             <>
-                              <div className="flex justify-between items-center font-semibold text-gray-800 text-xs">
+                              <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
                                 <span>{node.name}</span>
                                 {isCurrent && <Tag color="blue">当前活动</Tag>}
                               </div>
-                              <div className="text-gray-400 text-xs font-normal">
+                              <div className={`${styles.codeText} ${styles.timelineMuted}`}>
                                 {node.nodeCode}
                               </div>
 
-                              {/* 关键时钟展示 */}
                               {activeClock && (
-                                <div className="mt-2 bg-white p-2 rounded border border-gray-100 text-[11px]">
-                                  <div className="flex justify-between font-medium">
+                                <div className={styles.evidenceBox}>
+                                  <div className={styles.rowBetween}>
                                     <span>
                                       时钟:{" "}
-                                      <Tag color="purple" className="text-[10px] px-1">
+                                      <Tag color="purple" className={styles.tagCompact}>
                                         {activeClock.clockId}
                                       </Tag>
                                     </span>
@@ -556,20 +629,20 @@ export default function PatientPathways() {
                                       状态:{" "}
                                       <Tag
                                         color={activeClock.status === "OVERDUE" ? "red" : "green"}
-                                        className="text-[10px] px-1"
+                                        className={styles.tagCompact}
                                       >
                                         {activeClock.status}
                                       </Tag>
                                     </span>
                                   </div>
-                                  <div className="text-gray-500 mt-1">
+                                  <div className={styles.timelineMeta}>
                                     开始: {new Date(activeClock.startedAt).toLocaleTimeString()}
                                   </div>
-                                  <div className="text-gray-500">
+                                  <div className={styles.timelineMeta}>
                                     截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
                                   </div>
                                   {activeClock.metricCode && (
-                                    <div className="text-indigo-500 mt-1">
+                                    <div className={styles.timelineMeta}>
                                       关联质控指标: {activeClock.metricCode}
                                     </div>
                                   )}
@@ -584,16 +657,15 @@ export default function PatientPathways() {
                 </Card>
               </Col>
 
-              {/* 右半屏：推进控制面板 */}
-              <Col span={14}>
+              <Col xs={24} xl={14}>
                 <Card
                   title={
-                    <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                      <RightCircleOutlined />
+                    <div className={styles.sectionTitle}>
+                      <RightCircleOutlined className={styles.iconInfo} />
                       <span>受控推进决策控制台 (Advance)</span>
                     </div>
                   }
-                  className="rounded-xl border-gray-200 shadow-sm"
+                  className={styles.detailCard}
                 >
                   <Tabs
                     defaultActiveKey="complete"
@@ -611,14 +683,14 @@ export default function PatientPathways() {
                           <Form
                             form={advanceForm}
                             layout="vertical"
-                            className="mt-2"
+                            className={styles.marginTopSm}
                             onFinish={handleCompleteAdvance}
                           >
                             <Alert
                               message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按模板出边计算下一步并刷新关键时钟。"
                               type="success"
                               showIcon
-                              className="mb-4 rounded-lg"
+                              className={styles.sectionGap}
                             />
                             <Form.Item
                               name="requestedNextNodeCode"
@@ -651,7 +723,7 @@ export default function PatientPathways() {
                               htmlType="submit"
                               icon={<RightCircleOutlined />}
                               loading={advancePathwayMutation.isPending}
-                              className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+                              className={styles.fullWidth}
                             >
                               完成当前节点并推进
                             </Button>
@@ -671,14 +743,14 @@ export default function PatientPathways() {
                           <Form
                             form={varianceForm}
                             layout="vertical"
-                            className="mt-2"
+                            className={styles.marginTopSm}
                             onFinish={handleVarianceAdvance}
                           >
                             <Alert
                               message="临床变异：当患者疾病进展偏离指南或自主拒绝时，在此登记医学/患者偏离事实。这允许偏离标准出边强制推进，并记录审计追溯依据。"
                               type="warning"
                               showIcon
-                              className="mb-4 rounded-lg"
+                              className={styles.sectionGap}
                             />
                             <Row gutter={12}>
                               <Col span={12}>
@@ -739,7 +811,7 @@ export default function PatientPathways() {
                               danger
                               icon={<WarningOutlined />}
                               loading={advancePathwayMutation.isPending}
-                              className="w-full mt-2"
+                              className={`${styles.fullWidth} ${styles.marginTopSm}`}
                             >
                               提交路径变异并强制推进
                             </Button>
@@ -759,14 +831,14 @@ export default function PatientPathways() {
                           <Form
                             form={exitForm}
                             layout="vertical"
-                            className="mt-2"
+                            className={styles.marginTopSm}
                             onFinish={handleExitAdvance}
                           >
                             <Alert
                               message="人工退径：将患者从此专病路径中退出。该操作属于高危行为，会关闭当前关键时钟，并需要接受临床质量管理监督。"
                               type="error"
                               showIcon
-                              className="mb-4 rounded-lg"
+                              className={styles.sectionGap}
                             />
                             <Form.Item
                               name="exitReason"
@@ -784,7 +856,7 @@ export default function PatientPathways() {
                               danger
                               icon={<DisconnectOutlined />}
                               loading={advancePathwayMutation.isPending}
-                              className="w-full mt-2"
+                              className={`${styles.fullWidth} ${styles.marginTopSm}`}
                             >
                               确认退出路径
                             </Button>
@@ -797,8 +869,7 @@ export default function PatientPathways() {
               </Col>
             </Row>
 
-            {/* 变异事实入口 */}
-            <div className="mt-6 flex justify-center w-full">
+            <div className={styles.centerAction}>
               <Button
                 type="default"
                 icon={<WarningOutlined />}
@@ -806,7 +877,7 @@ export default function PatientPathways() {
                   setVarianceDrawerVisible(true);
                   refetchVariances();
                 }}
-                className="rounded-lg border-indigo-500 text-indigo-600 hover:bg-indigo-50 w-full max-w-sm py-5 font-semibold text-center flex items-center justify-center gap-2"
+                className={styles.wideAction}
               >
                 查看变异事实与审计线索
               </Button>
@@ -815,11 +886,10 @@ export default function PatientPathways() {
         )}
       </Drawer>
 
-      {/* 变异事实 Drawer */}
       <Drawer
         title={
-          <div className="flex items-center gap-2">
-            <WarningOutlined className="text-indigo-600" />
+          <div className={styles.drawerTitle}>
+            <WarningOutlined className={styles.iconInfo} />
             <span>临床路径变异事实</span>
           </div>
         }
@@ -834,17 +904,17 @@ export default function PatientPathways() {
               message="这里仅展示后端返回的路径变异事实，页面不补写原因、不生成本地变异记录。"
               type="info"
               showIcon
-              className="mb-6 rounded-lg"
+              className={styles.sectionGapLg}
             />
 
             <Card
               title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <FileTextOutlined />
+                <div className={styles.sectionTitle}>
+                  <FileTextOutlined className={styles.iconInfo} />
                   <span>变异记录</span>
                 </div>
               }
-              className="mb-6 rounded-xl border-gray-200"
+              className={`${styles.detailCard} ${styles.sectionGapLg}`}
             >
               <Timeline
                 items={(variancesData ?? detailData?.variances ?? []).map(
@@ -853,30 +923,30 @@ export default function PatientPathways() {
                     color: "orange",
                     children: (
                       <div>
-                        <div className="font-semibold text-gray-800 text-xs">
+                        <div className={styles.timelineTitle}>
                           {variance.nodeCode} · {variance.varianceType}
                         </div>
-                        <div className="text-gray-500 text-xs mt-1">
+                        <div className={styles.timelineMeta}>
                           <span>变异 ID：</span>
                           <span>{variance.varianceId}</span>
                         </div>
-                        <div className="text-gray-600 text-xs mt-1">{variance.reason}</div>
-                        <div className="text-gray-500 text-xs mt-1">
+                        <div className={styles.timelineMeta}>{variance.reason}</div>
+                        <div className={styles.timelineMeta}>
                           <span>处置动作：</span>
                           <span>{variance.resolutionAction || "未记录"}</span>
                         </div>
                         {variance.continueNodeCode && (
-                          <div className="text-gray-500 text-xs mt-1">
+                          <div className={styles.timelineMeta}>
                             <span>继续节点：</span>
                             <Tag color="blue">{variance.continueNodeCode}</Tag>
                           </div>
                         )}
                         {variance.traceId && (
-                          <div className="text-gray-400 text-xs mt-1">
+                          <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
                             traceId: {variance.traceId}
                           </div>
                         )}
-                        <div className="text-gray-400 text-xs mt-1">
+                        <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
                           {variance.createdAt
                             ? new Date(variance.createdAt).toLocaleString()
                             : "未返回时间"}
@@ -889,8 +959,8 @@ export default function PatientPathways() {
             </Card>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-[200px] text-gray-400">
-            <WarningOutlined className="text-48px mb-4" />
+          <div className={`${styles.emptyState} ${styles.emptyStateCompact}`}>
+            <WarningOutlined className={styles.emptyIcon} />
             <span>当前路径实例暂无变异记录。</span>
           </div>
         )}

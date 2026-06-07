@@ -8,8 +8,8 @@
     "id",
     "eventId",
     "occurredAt",
-    "user",
-    "action",
+    "actorUserId",
+    "summary",
     "actionCode",
     "resourceType",
     "resourceId",
@@ -22,14 +22,16 @@
     "outcome",
     "errorCode",
     "payloadDigest",
+    "beforeSnapshot",
+    "afterSnapshot",
     "superAdminAction"
   ],
   "properties": {
     "id": { "type": ["string", "null"] },
     "eventId": { "type": ["string", "null"] },
     "occurredAt": { "type": ["string", "null"], "format": "date-time" },
-    "user": { "type": ["string", "null"] },
-    "action": { "type": ["string", "null"] },
+    "actorUserId": { "type": ["string", "null"] },
+    "summary": { "type": ["string", "null"] },
     "actionCode": { "type": ["string", "null"] },
     "resourceType": { "type": ["string", "null"] },
     "resourceId": { "type": ["string", "null"] },
@@ -42,6 +44,8 @@
     "outcome": { "type": ["string", "null"] },
     "errorCode": { "type": ["string", "null"] },
     "payloadDigest": { "type": ["string", "null"] },
+    "beforeSnapshot": { "type": ["string", "null"] },
+    "afterSnapshot": { "type": ["string", "null"] },
     "superAdminAction": { "type": "boolean" }
   }
 }

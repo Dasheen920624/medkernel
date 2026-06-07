@@ -6,7 +6,7 @@ package com.medkernel.engine.pkg;
 public record SyncLogResponse(
     String logId,
     String planId,
-    String targetId,
+    String adapterId,
     SyncLogStatus status,
     String errorCode,
     String errorMessage,
@@ -17,7 +17,7 @@ public record SyncLogResponse(
         return new SyncLogResponse(
             entity.logId(),
             entity.planId(),
-            entity.targetId(),
+            entity.adapterId(),
             entity.status(),
             entity.errorCode(),
             entity.errorMessage(),

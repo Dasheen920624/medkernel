@@ -10,14 +10,8 @@ type AuthSessionEventPayload = {
   nonce: string;
 };
 
-let fallbackNonce = 0;
-
 function createNonce() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  fallbackNonce += 1;
-  return `${Date.now()}-${fallbackNonce}`;
+  return crypto.randomUUID();
 }
 
 export function broadcastAuthSessionEvent(reason: AuthSessionEventReason) {

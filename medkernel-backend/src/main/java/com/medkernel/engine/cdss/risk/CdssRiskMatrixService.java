@@ -15,7 +15,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class CdssRiskMatrixService {
 
     private final CdssRiskMatrixRepository matrixRepository;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
 
-    public CdssRiskMatrixService(CdssRiskMatrixRepository matrixRepository, AuditEventPublisher auditPublisher) {
+    public CdssRiskMatrixService(CdssRiskMatrixRepository matrixRepository, AuditRecorder auditRecorder) {
         this.matrixRepository = matrixRepository;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -121,7 +121,7 @@ public class CdssRiskMatrixService {
             .comparing(CdssRiskMatrixRule::triggerPoint)
             .thenComparing(rule -> rule.severityLevel().name())
             .thenComparing(rule -> rule.automationLevel().name()));
-        auditPublisher.publish(AuditAction.UPDATE, "mk_engine_cdss_risk_matrix", matrixVersion,
+        auditRecorder.record(AuditAction.UPDATE, "mk_engine_cdss_risk_matrix", matrixVersion,
             "更新 CDSS 风险分级矩阵(" + status + ") " + changeReason);
         return new CdssRiskMatrixResponse(saved, traceId);
     }

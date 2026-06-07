@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS source_version (
 );
 
 CREATE INDEX IF NOT EXISTS idx_source_version_tenant_doc ON source_version (tenant_id, source_document_id);
+COMMENT ON TABLE source_version IS '权威来源的受控版本';
 
 CREATE TABLE IF NOT EXISTS source_fragment (
     id                  BIGSERIAL PRIMARY KEY,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS source_fragment (
 );
 
 CREATE INDEX IF NOT EXISTS idx_source_fragment_tenant_ver ON source_fragment (tenant_id, source_version_id);
+COMMENT ON TABLE source_fragment IS '权威来源版本的可引用内容片段';
 
 CREATE TABLE IF NOT EXISTS knowledge_identity (
     id                    BIGSERIAL PRIMARY KEY,
@@ -132,6 +134,7 @@ CREATE TABLE IF NOT EXISTS citation (
 
 CREATE INDEX IF NOT EXISTS idx_citation_tenant_av ON citation (tenant_id, asset_version_id);
 CREATE INDEX IF NOT EXISTS idx_citation_fragment  ON citation (source_fragment_id);
+COMMENT ON TABLE citation IS '知识资产版本与来源片段的引用关系';
 
 CREATE TABLE IF NOT EXISTS knowledge_supersession (
     id                  BIGSERIAL PRIMARY KEY,
@@ -177,3 +180,4 @@ CREATE TABLE IF NOT EXISTS knowledge_export_job (
 
 CREATE INDEX IF NOT EXISTS idx_export_job_tenant_status  ON knowledge_export_job (tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_export_job_tenant_created ON knowledge_export_job (tenant_id, created_at);
+COMMENT ON TABLE knowledge_export_job IS '知识资产异步导出任务';

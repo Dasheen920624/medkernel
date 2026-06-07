@@ -11,16 +11,16 @@ import com.medkernel.shared.audit.persistence.AuditEventRecord;
  * 合规审计列表 / 快照接口对外展示 DTO。
  *
  * <p>从持久化记录 {@link AuditEventRecord} 投影；不暴露内部主键 {@code id} 之外的存储细节。
- * 历史字段命名（{@code action} = 文案，{@code user} = 操作人）保留以兼容旧的合规页面；
- * 新增 {@code actionCode} / {@code resourceType} / {@code resourceId} 给可解释验签使用。
+ * {@code summary} 面向人工阅读，{@code actionCode} / {@code resourceType} / {@code resourceId}
+ * 面向可解释验签与筛选。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AuditEvent(
     String id,
     String eventId,
     Instant occurredAt,
-    String user,
-    String action,
+    String actorUserId,
+    String summary,
     String actionCode,
     String resourceType,
     String resourceId,
@@ -33,6 +33,8 @@ public record AuditEvent(
     String outcome,
     String errorCode,
     String payloadDigest,
+    String beforeSnapshot,
+    String afterSnapshot,
     boolean superAdminAction
 ) {
 
@@ -58,6 +60,8 @@ public record AuditEvent(
             record.outcome(),
             record.errorCode(),
             record.payloadDigest(),
+            record.beforeSnapshot(),
+            record.afterSnapshot(),
             AuditActorClassifier.isSuperAdminAction(record.actorRoles())
         );
     }

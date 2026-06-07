@@ -12,89 +12,89 @@
 
 > 来自代码审计（`design.md §13`）。P0 解除路径边复用规则条件、药物-过敏类场景的硬阻塞，是后续多阶段的地基。
 
-- [ ] P0-1 抽取共享 `ConditionEvaluator`：从 `RuleDslEvaluator` 提取条件核心，支持统一 `Group`(all/any/not)+叶子文法对 canonical 上下文求值；`RuleDslEvaluator` 改为依赖它，行为不变。
+- [x] P0-1 抽取共享 `ConditionEvaluator`：从 `RuleDslEvaluator` 提取条件核心，支持统一 `Group`(all/any/not)+叶子文法对 canonical 上下文求值；`RuleDslEvaluator` 改为依赖它，行为不变。
   - ✅ 后端测：抽取后既有规则求值回归全绿；新增 `not` 分支用例。
-- [ ] P0-2 `PathwayProgressor` 边 `guard` 改用 `ConditionEvaluator`，上下文来源切换为 canonical；既有扁平 `conditionJson` 适配为单叶子 Group（向后兼容，无需迁移）。
+- [x] P0-2 `PathwayProgressor` 边 `guard` 改用 `ConditionEvaluator`，上下文来源切换为 canonical；既有扁平 `conditionJson` 适配为单叶子 Group（向后兼容，无需迁移）。
   - ✅ 后端测：旧扁平边与新 Group 边均正确推进；同一条件规则/路径求值一致。
-- [ ] P0-3 新增 `CanonicalAllergyIntolerance` 资源 + 投影 + 字段目录纳入（解锁药物-过敏场景）。
+- [x] P0-3 新增 `CanonicalAllergyIntolerance` 资源 + 投影 + 字段目录纳入（解锁药物-过敏场景）。
   - ✅ 测试：过敏字段可被规则引用；投影正确归一。
-- [ ] P0-4 新增工件的租户隔离/版本/幂等可重放基线校验。
+- [x] P0-4 新增工件的租户隔离/版本/幂等可重放基线校验。
   - ✅ 测试：跨租户不可见；相同输入重放结果一致。
 
 ## 阶段 P1：规则递归条件树（纯前端，零后端风险）
 
-- [ ] P1-1 重写 `frontend/src/shared/config/ruleLayeredEditor.ts`：扁平 `conditions[]` 改为递归 `RuleNode`（group/leaf），`conditionTreeToDsl`/`dslToConditionTree` 改递归。
+- [x] P1-1 重写 `frontend/src/shared/config/ruleLayeredEditor.ts`：扁平 `conditions[]` 改为递归 `RuleNode`（group/leaf），`conditionTreeToDsl`/`dslToConditionTree` 改递归。
   - ✅ 单测：3 层嵌套 `all/any` 往返序列化无损；旧扁平 DSL 可被还原为单层组。
-- [ ] P1-2 `RuleDefinitions.tsx` L2：递归渲染条件树组件，支持「+条件 / +子条件组 / 切换 all|any / 删除」，缩进式层级。
+- [x] P1-2 `RuleDefinitions.tsx` L2：递归渲染条件树组件，支持「+条件 / +子条件组 / 切换 all|any / 删除」，缩进式层级。
   - ✅ 组件测：可构建 `A 且 (B 或 C)`；深度护栏（默认 5 层）与叶子上限（默认 50）拦截并提示。
-- [ ] P1-3 修复同步与专家模式：同步到 DSL 不再强制跳 L3；专家模式开关与同步解耦；L3 仅专家模式可见。
+- [x] P1-3 修复同步与专家模式：同步到 DSL 不再强制跳 L3；专家模式开关与同步解耦；L3 仅专家模式可见。
   - ✅ 组件测：点「同步到 DSL」后停留当前视图；关闭专家模式时 L3 隐藏。
-- [ ] P1-4 递归占位符校验：`hasUnresolvedPlaceholder` 改递归遍历，提交前拦截未解析字段。
+- [x] P1-4 递归占位符校验：`hasUnresolvedPlaceholder` 改递归遍历，提交前拦截未解析字段。
   - ✅ 测试：含 `<字段路径>` 的嵌套树被拦截。
-- [ ] P1-5 后端联调验证：构造嵌套 `when` 经 `RuleDslEvaluator` 端到端求值。
+- [x] P1-5 后端联调验证：构造嵌套 `when` 经 `RuleDslEvaluator` 端到端求值。
   - ✅ 后端测：嵌套 `all/any` 用例命中/未命中正确，证据链完整。
 
 ## 阶段 P3：路径图形拓扑创作（纯前端）
 
 > 与 P1 并行；可视化边条件构建器依赖 P1-2 组件。
 
-- [ ] P3-1 节点编码自动生成（`N1/N2`）可改 + 唯一性即时校验；边编码自动生成（`E1/E2`）。
+- [x] P3-1 节点编码自动生成（`N1/N2`）可改 + 唯一性即时校验；边编码自动生成（`E1/E2`）。
   - ✅ 测试：新增节点自动带编码；重复编码即时报错。
-- [ ] P3-2 边 `fromNodeCode`/`toNodeCode` 改 `Select` 选已建节点；`startNodeCode` 改下拉选择。
+- [x] P3-2 边 `fromNodeCode`/`toNodeCode` 改 `Select` 选已建节点；`startNodeCode` 改下拉选择。
   - ✅ 测试：边只能连已存在节点；删节点级联提示关联边。
-- [ ] P3-3 校验前移：时窗→时钟指标必填即时标红；孤立节点/断链/缺终止节点画布级提示。
+- [x] P3-3 校验前移：时窗→时钟指标必填即时标红；孤立节点/断链/缺终止节点画布级提示。
   - ✅ 测试：各拓扑问题在提交前以字段级/画布级提示出现，不再静默失败。
-- [ ] P3-4 文案与帮助：关键字段补 tooltip/placeholder/示例。
+- [x] P3-4 文案与帮助：关键字段补 tooltip/placeholder/示例。
   - ✅ 走查：截图核对歧义字段已有说明。
-- [ ] P3-5（依赖 P1-2）边条件复用递归条件构建器，对齐 `PathwayProgressor` 格式，替代手写 JSON。
+- [x] P3-5（依赖 P1-2）边条件复用递归条件构建器，对齐 `PathwayProgressor` 格式，替代手写 JSON。
   - ✅ 后端测：可视化产出的边条件被 `PathwayProgressor` 正确评估。
 
 ## 阶段 P2：上下文字段目录（后端 + 前端）
 
-- [ ] P2-1 后端表 `context_field_catalog` + 迁移脚本：从 `engine.context.canonical.*` 幂等派生导入。
+- [x] P2-1 后端表 `context_field_catalog` + 迁移脚本：从 `engine.context.canonical.*` 幂等派生导入。
   - ✅ 测试：迁移可重跑幂等；CI 校验目录字段均存在于 canonical。
-- [ ] P2-2 后端只读接口 `GET /context/field-catalog`（按资源类型/关键词/包版本查询）。
+- [x] P2-2 后端只读接口 `GET /context/field-catalog`（按资源类型/关键词/包版本查询）。
   - ✅ 契约测：返回字段元数据；数据源不可达诚实报错。
-- [ ] P2-3 后端维护接口 `POST/PUT /context/field-catalog`（受 RBAC + 审计；仅允许在派生集合上补充展示名/说明/字典绑定）。
+- [x] P2-3 后端维护接口 `POST/PUT /context/field-catalog`（受 RBAC + 审计；仅允许在派生集合上补充展示名/说明/字典绑定）。
   - ✅ 测试：不可凭空新增不存在的字段路径；变更留审计。
-- [ ] P2-4 前端字段选择器：`fact` 改资源→字段级联下拉，自动带出 dataType/valueKind/dictionaryCode。
+- [x] P2-4 前端字段选择器：`fact` 改资源→字段级联下拉，自动带出 dataType/valueKind/dictionaryCode。
   - ✅ 测试：选字段后比较值类型自动正确；编码字段比较值变字典下拉。
-- [ ] P2-5 前端字段目录维护页（前台可设计字段元数据与字典绑定）。
+- [x] P2-5 前端字段目录维护页（前台可设计字段元数据与字典绑定）。
   - ✅ 测试：维护操作走真实接口、有审计、诚实降级。
 
 ## 阶段 P5：院内 ↔ 标准字典对照（复用 terminology 域）
 
-- [ ] P5-1 编码类字段绑定标准字典（ICD/LOINC/ATC 等）；对照沿用现有字典映射能力。
+- [x] P5-1 编码类字段绑定标准字典（ICD/LOINC/ATC 等）；对照沿用现有字典映射能力。
   - ✅ 测试：字段绑定字典后，规则/路径条件比较值来自标准字典候选。
-- [ ] P5-2 对照覆盖率提示 + 未对照项明示；上线门禁增加对照覆盖检查。
+- [x] P5-2 对照覆盖率提示 + 未对照项明示；上线门禁增加对照覆盖检查。
   - ✅ 测试：存在未对照院内编码时，发布门禁阻断并明示。
-- [ ] P5-3 医学语义匹配遵循核心 §7：同义词典/交叉表/来源权重为主，字符相似度仅低权重召回。
+- [x] P5-3 医学语义匹配遵循核心 §7：同义词典/交叉表/来源权重为主，字符相似度仅低权重召回。
   - ✅ 测试：高危负样本不被字符相似度误自动确认。
 
 ## 阶段 P4：对外数据接入 API 规范
 
-- [ ] P4-1 基于字段目录生成机器可读字段契约（JSON Schema 风格）+ 中文接入说明文档，随 packageVersion 版本化。
+- [x] P4-1 基于字段目录生成机器可读字段契约（JSON Schema 风格）+ 中文接入说明文档，随 packageVersion 版本化。
   - ✅ 走查：契约覆盖各 resourceType 字段、类型、单位、绑定字典、必填。
-- [ ] P4-2 第三方传入数据经投影+对照归一后被规则/路径消费的端到端样例。
+- [x] P4-2 第三方传入数据经投影+对照归一后被规则/路径消费的端到端样例。
   - ✅ 端到端测：按契约传入的样例数据可被规则正确命中。
-- [ ] P4-3 更新 `docs/backlog.md` 中 `RULE-01`/`PATH-01` 承接说明与新增 API 文档索引。
+- [x] P4-3 更新 `docs/backlog.md` 中 `RULE-01`/`PATH-01` 承接说明与新增 API 文档索引。
   - ✅ 走查：文档链路可追溯。
 
 ## 阶段 P6：规则临床算子与受控函数库（后端加法式扩展 + 前端）
 
-- [ ] P6-1 评估器加算子：`between/not_between`、`above_ref/below_ref/within_ref`、`is_critical`、`is_missing/is_stale`（基于 Observation 的 referenceRange/criticalFlag/eventTime/qualityStatus）。
+- [x] P6-1 评估器加算子：`between/not_between`、`above_ref/below_ref/within_ref`、`is_critical`、`is_missing/is_stale`（基于 Observation 的 referenceRange/criticalFlag/eventTime/qualityStatus）。
   - ✅ 后端测：每算子金标准用例 + 边界 + 缺失。
-- [ ] P6-2 `evaluateExpression`：聚合/量词（latest/first/max/min/avg/sum/count + where）与时间窗 `over(window)`。
+- [x] P6-2 `evaluateExpression`：聚合/量词（latest/first/max/min/avg/sum/count + where）与时间窗 `over(window)`。
   - ✅ 后端测：窗口边界、空集合、多记录排序确定性。
-- [ ] P6-3 时序算子：`trend/sustained/delta/frequency`。
+- [x] P6-3 时序算子：`trend/sustained/delta/frequency`。
   - ✅ 后端测：连续 n 次趋势、窗口持续、变化量、频次用例。
-- [ ] P6-4 `ClinicalFunctionRegistry` 受控公式白名单：eGFR/CrCl/BSA/BMI 等，声明入参/单位/人群/来源。
+- [x] P6-4 `ClinicalFunctionRegistry` 受控公式白名单：eGFR/CrCl/BSA/BMI 等，声明入参/单位/人群/来源。
   - ✅ 后端测：对照权威算例；禁止运行期任意表达式注入。
-- [ ] P6-5 UCUM 子集单位服务：比较前单位归一；不可换算即拒绝并明示。
+- [x] P6-5 UCUM 子集单位服务：比较前单位归一；不可换算即拒绝并明示。
   - ✅ 后端测：mg/dL↔mmol/L（按物质摩尔质量）、不可换算拒绝。
-- [ ] P6-6 三值逻辑与缺失策略：TRUE/FALSE/UNKNOWN + 规则级 `UNKNOWN_AS_FALSE|UNKNOWN_AS_BLOCK`。
+- [x] P6-6 三值逻辑与缺失策略：TRUE/FALSE/UNKNOWN + 规则级 `UNKNOWN_AS_FALSE|UNKNOWN_AS_BLOCK`。
   - ✅ 后端测：缺失/陈旧在证据链明示；fail-open/fail-safe 行为正确。
-- [ ] P6-7 前端 L2 临床算子可视化：区间双值、参考范围、单位、时间窗、公式选择，全部结构化配置。
+- [x] P6-7 前端 L2 临床算子可视化：区间双值、参考范围、单位、时间窗、公式选择，全部结构化配置。
   - ✅ 组件测：L2 可产出全部算子，L3 仅核查。
 
 ## 阶段 P7：规则动作模型、交互治理与适用域

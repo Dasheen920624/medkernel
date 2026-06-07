@@ -18,6 +18,11 @@ public interface KnowledgePackageRepository extends ListCrudRepository<Knowledge
     Optional<KnowledgePackage> findByTenantIdAndPackageCodeAndPackageVersion(
         String tenantId, String packageCode, String packageVersion);
 
+    List<KnowledgePackage> findByTenantIdAndPackageVersion(String tenantId, String packageVersion);
+
+    Optional<KnowledgePackage> findFirstByTenantIdAndStatusOrderByUpdatedAtDesc(
+        String tenantId, KnowledgePackageStatus status);
+
     List<KnowledgePackage> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
 
     @Query("""

@@ -18,12 +18,16 @@ import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.org.OrgAssignmentValidator;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.VersionReleaseService;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -41,10 +45,18 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJdbcTest
-@Import(EvaluationEngineService.class)
+@Import({
+    EvaluationEngineService.class,
+    EvaluationVersionedAssetAdapter.class,
+    AssetVersionService.class,
+    VersionReleaseService.class
+})
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
 @TestPropertySource(properties = {
@@ -66,22 +78,31 @@ class EvaluationEngineIntegrationTest {
     @Autowired RectificationReviewRepository reviews;
     @Autowired EvaluationIdempotencyKeyRepository idempotencyKeys;
 
-    @MockBean AuditEventPublisher auditPublisher;
+    @MockBean AuditRecorder auditRecorder;
     @MockBean StateTransitionRecorder transitions;
     @MockBean DiagnoseResponseAssembler diagnoseAssembler;
     @MockBean com.medkernel.engine.context.CanonicalResourceRepository canonicalResources;
     @MockBean com.medkernel.engine.context.ContextSnapshotRepository snapshots;
     @MockBean com.medkernel.engine.rule.RuleDslEvaluator ruleEvaluator;
+    @MockBean OrgAssignmentValidator orgAssignmentValidator;
 
     @BeforeEach
     void setUp() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-real-flow", OrgScope.tenant("tenant-A"), "qa-1"));
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "qa-1",
+                "n/a",
+                List.of(new SimpleGrantedAuthority(RoleCode.HOSPITAL_ADMIN.authority()))
+            )
+        );
     }
 
     @AfterEach
     void wipe() {
         RequestContext.clear();
+        SecurityContextHolder.clearContext();
         idempotencyKeys.deleteAll();
         reviews.deleteAll();
         tasks.deleteAll();
@@ -100,8 +121,18 @@ class EvaluationEngineIntegrationTest {
             null, null,
             "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
         service.submitIndicator(indicator.indicatorId());
-        service.publishIndicator(indicator.indicatorId());
-        service.activateIndicator(indicator.indicatorId());
+        service.publishIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试审核通过")
+        );
+        service.grayIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试默认灰度")
+        );
+        service.activateIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试全量激活")
+        );
 
         EvaluationRunResponse run = service.run(new EvaluationRunRequest(
             "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT, "event-1", "snapshot-1",
@@ -214,12 +245,22 @@ class EvaluationEngineIntegrationTest {
             null, "P1级严重质控缺陷",
             "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
         service.submitIndicator(indicator.indicatorId());
-        service.publishIndicator(indicator.indicatorId());
-        service.activateIndicator(indicator.indicatorId());
+        service.publishIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试审核通过")
+        );
+        service.grayIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试默认灰度")
+        );
+        service.activateIndicator(
+            indicator.indicatorId(),
+            new EvaluationIndicatorReleaseRequest("集成测试全量激活")
+        );
 
         ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-auto-1", "tenant-A", "dept-1", "patient-1", "enc-1",
-            "1.0.0", "1.0.0", "1.0.0", ContextSnapshotStatus.ACTIVE,
+            null, "snap-auto-1", "tenant-A", "dept-1", null, null, "1.0.0",
+            "patient-1", "enc-1", ContextSnapshotStatus.ACTIVE,
             "[]", "{}", QualityStatus.VALID, "trace-auto", "sig-auto", Instant.now(), "qa-1");
         CanonicalResource patient = new CanonicalResource(
             null, "res-auto-1", "snap-auto-1", "tenant-A", CanonicalResourceType.PATIENT,

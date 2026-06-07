@@ -8,6 +8,5 @@ import jakarta.validation.constraints.NotNull;
 public record DiagnosisDifferentialRequest(
     @NotNull Long differentialIdentityId,
     String keyPoint,
-    String suggestedWorkup,
-    boolean bidirectional
+    String suggestedWorkup
 ) {}

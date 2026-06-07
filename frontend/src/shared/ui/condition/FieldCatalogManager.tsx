@@ -1,38 +1,31 @@
 /**
  * 上下文字段目录维护抽屉（RULE-01 / PATH-01，P2/P5 前台可维护）。
  *
- * <p>信息科按业务层级浏览字段目录（系统派生只读 + 租户自定义），并新增/删除租户自定义字段。
- * 系统字段标 SYSTEM 不可删；租户字段标 TENANT 可删。系统字段由 canonical 派生，诚实只读。
+ * <p>信息科按业务层级浏览字段目录（平台派生只读 + 租户元数据覆盖），并维护展示名/字典/说明。
+ * 字段路径、资源类型和数据类型由 canonical 目录派生，前台不允许手写，避免配置出规则引擎不可读路径。
  */
 import { useMemo, useState } from "react";
-import { App, Button, Drawer, Form, Input, Select, Space, Table, Tag } from "antd";
+import { Alert, App, Button, Drawer, Form, Input, Select, Space, Table, Tag } from "antd";
 import type { TableProps } from "antd";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { DeleteOutlined, SaveOutlined } from "@ant-design/icons";
 
 import {
   useContextFieldCatalog,
   useCreateContextField,
   useDeleteContextField,
+  useUpdateContextField,
   type ContextFieldDescriptor,
+  type ContextFieldUpsertPayload,
 } from "@/shared/api/hooks";
-
-const { Option } = Select;
-
-const DATA_TYPE_OPTIONS = ["number", "string", "boolean", "date", "code", "list"];
 
 export interface FieldCatalogManagerProps {
   open: boolean;
   onClose: () => void;
 }
 
-interface CreateFormValues {
-  category: string;
-  group: string;
-  resourceType: string;
-  fieldPath: string;
+interface FieldOverrideFormValues {
+  selectedFieldPath: string;
   displayName: string;
-  dataType: string;
-  unit?: string;
   codeSystem?: string;
   description?: string;
 }
@@ -41,9 +34,11 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
   const { message } = App.useApp();
   const catalog = useContextFieldCatalog();
   const createField = useCreateContextField();
+  const updateField = useUpdateContextField();
   const deleteField = useDeleteContextField();
-  const [form] = Form.useForm<CreateFormValues>();
+  const [form] = Form.useForm<FieldOverrideFormValues>();
   const [keyword, setKeyword] = useState("");
+  const [selectedField, setSelectedField] = useState<ContextFieldDescriptor | null>(null);
 
   const rows = useMemo(() => {
     const list = catalog.data ?? [];
@@ -58,15 +53,54 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
     );
   }, [catalog.data, keyword]);
 
-  const handleCreate = async () => {
+  const handleSelectField = (fieldPath: string) => {
+    const field = (catalog.data ?? []).find((item) => item.fieldPath === fieldPath);
+    if (!field) return;
+    setSelectedField(field);
+    form.setFieldsValue({
+      selectedFieldPath: field.fieldPath,
+      displayName: field.displayName,
+      codeSystem: field.codeSystem ?? undefined,
+      description: field.description ?? undefined,
+    });
+  };
+
+  const buildPayload = (
+    field: ContextFieldDescriptor,
+    values: FieldOverrideFormValues,
+  ): ContextFieldUpsertPayload => ({
+    category: field.category,
+    group: field.group,
+    resourceType: field.resourceType,
+    fieldPath: field.fieldPath,
+    displayName: values.displayName,
+    dataType: field.dataType,
+    unit: field.unit ?? undefined,
+    codeSystem: values.codeSystem || undefined,
+    description: values.description || undefined,
+  });
+
+  const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      await createField.mutateAsync(values);
-      message.success("已新增租户自定义字段");
-      form.resetFields();
+      const field =
+        selectedField ??
+        (catalog.data ?? []).find((item) => item.fieldPath === values.selectedFieldPath) ??
+        null;
+      if (!field) {
+        message.warning("请先选择字段");
+        return;
+      }
+      const payload = buildPayload(field, values);
+      if (field.source === "TENANT" && field.fieldId) {
+        await updateField.mutateAsync({ fieldId: field.fieldId, payload });
+      } else {
+        await createField.mutateAsync(payload);
+      }
+      message.success("已保存字段覆盖");
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) return;
-      message.error("新增字段失败");
+      message.error("保存字段覆盖失败");
     }
   };
 
@@ -74,9 +108,13 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
     if (!record.fieldId) return;
     try {
       await deleteField.mutateAsync(record.fieldId);
-      message.success("已删除租户自定义字段");
+      if (selectedField?.fieldId === record.fieldId) {
+        setSelectedField(null);
+        form.resetFields();
+      }
+      message.success("已删除字段覆盖");
     } catch {
-      message.error("删除字段失败");
+      message.error("删除字段覆盖失败");
     }
   };
 
@@ -101,7 +139,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
       dataIndex: "source",
       width: 90,
       render: (source?: string | null) =>
-        source === "TENANT" ? <Tag color="green">租户</Tag> : <Tag>系统</Tag>,
+        source === "TENANT" ? <Tag color="green">租户</Tag> : <Tag>平台</Tag>,
     },
     {
       title: "操作",
@@ -112,7 +150,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
           <Button
             size="small"
             danger
-            aria-label={`删除字段 ${record.fieldPath}`}
+            aria-label={`删除覆盖 ${record.fieldPath}`}
             icon={<DeleteOutlined />}
             loading={deleteField.isPending}
             onClick={() => handleDelete(record)}
@@ -127,48 +165,62 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
     <Drawer title="上下文字段目录维护" width={920} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="large" className="mk-full-width">
         <Form form={form} layout="inline" className="flex flex-wrap gap-2">
-          <Form.Item name="category" rules={[{ required: true, message: "业务域" }]}>
-            <Input aria-label="业务域" placeholder="业务域，如 医嘱信息" />
-          </Form.Item>
-          <Form.Item name="group" rules={[{ required: true, message: "分组" }]}>
-            <Input aria-label="分组" placeholder="分组，如 用药医嘱" />
-          </Form.Item>
-          <Form.Item name="resourceType" rules={[{ required: true, message: "资源" }]}>
-            <Input aria-label="资源类型" placeholder="资源类型，如 Medication" />
-          </Form.Item>
-          <Form.Item name="fieldPath" rules={[{ required: true, message: "路径" }]}>
-            <Input aria-label="字段路径" placeholder="字段路径，如 medications[].xx" />
+          <Form.Item
+            label="选择字段"
+            name="selectedFieldPath"
+            rules={[{ required: true, message: "请选择字段" }]}
+          >
+            <Select
+              className="min-w-72"
+              showSearch
+              disabled={catalog.isError}
+              placeholder="选择 canonical 字段"
+              optionFilterProp="label"
+              onChange={handleSelectField}
+              options={(catalog.data ?? []).map((field) => ({
+                value: field.fieldPath,
+                label: `${field.displayName} ${field.fieldPath}`,
+              }))}
+            />
           </Form.Item>
           <Form.Item name="displayName" rules={[{ required: true, message: "字段名" }]}>
-            <Input aria-label="字段名" placeholder="字段名" />
-          </Form.Item>
-          <Form.Item
-            name="dataType"
-            rules={[{ required: true, message: "类型" }]}
-            initialValue="string"
-          >
-            <Select aria-label="数据类型" className="w-28">
-              {DATA_TYPE_OPTIONS.map((t) => (
-                <Option key={t} value={t}>
-                  {t}
-                </Option>
-              ))}
-            </Select>
+            <Input aria-label="展示名" placeholder="展示名" />
           </Form.Item>
           <Form.Item name="codeSystem">
-            <Input aria-label="绑定字典" placeholder="字典(可空) 如 ICD-10" />
+            <Input aria-label="绑定字典" placeholder="绑定字典，如 ICD-10" />
+          </Form.Item>
+          <Form.Item name="description">
+            <Input aria-label="说明" placeholder="说明(可空)" />
           </Form.Item>
           <Form.Item>
             <Button
               type="primary"
-              icon={<PlusOutlined />}
-              loading={createField.isPending}
-              onClick={handleCreate}
+              icon={<SaveOutlined />}
+              loading={createField.isPending || updateField.isPending}
+              disabled={catalog.isError}
+              onClick={handleSave}
             >
-              新增字段
+              保存覆盖
             </Button>
           </Form.Item>
         </Form>
+        {catalog.isError ? (
+          <Alert
+            showIcon
+            type="warning"
+            message="字段目录暂不可用"
+            description="当前无法读取 canonical 字段目录，已暂停保存覆盖；请恢复接口后再维护字段元数据。"
+          />
+        ) : null}
+        {selectedField ? (
+          <Space size="small" wrap>
+            <Tag color="blue">{selectedField.category}</Tag>
+            <Tag>{selectedField.group}</Tag>
+            <Tag>{selectedField.resourceType}</Tag>
+            <Tag>{selectedField.dataType}</Tag>
+            <span className="font-normal text-xs">{selectedField.fieldPath}</span>
+          </Space>
+        ) : null}
 
         <Input.Search
           aria-label="搜索字段"
@@ -184,6 +236,9 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
           loading={catalog.isLoading}
           columns={columns}
           dataSource={rows}
+          onRow={(record) => ({
+            onClick: () => handleSelectField(record.fieldPath),
+          })}
           pagination={{ pageSize: 12, showTotal: (t) => `共 ${t} 个字段` }}
           className="medkernel-table"
         />

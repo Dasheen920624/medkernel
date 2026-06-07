@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Alert,
@@ -7,6 +7,7 @@ import {
   Descriptions,
   Form,
   Input,
+  InputNumber,
   Modal,
   Progress,
   Select,
@@ -21,6 +22,7 @@ import {
 import {
   ApiOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
   DisconnectOutlined,
   FileProtectOutlined,
   HeartOutlined,
@@ -36,23 +38,33 @@ import {
   useCheckAdapterHealth,
   useCreateAdapter,
   useCreateIntegrationOnboarding,
+  useCreateWebhook,
   useGenerateDataQualityReport,
   useIntegrationAdapters,
   useIntegrationLogs,
   useIntegrationOnboardings,
+  useRegionalSources,
+  useRegisterRegionalSource,
   useReplayDeadLetter,
   useRetryMessage,
   useSecurityProfile,
+  useTestWebhookSignature,
+  useTerminologyMappings,
   useUpdateAdapter,
+  useWebhooks,
   type AdapterHubSourceStatus,
   type DataQualityReport,
   type IntegrationAdapter,
   type IntegrationMessageLog,
   type IntegrationOnboarding,
+  type IntegrationWebhookConfig,
+  type RegionalSource,
   type SecurityProfile,
+  type WebhookCreateResult,
+  type WebhookSignatureTestResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -77,12 +89,49 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 
 const LOG_PAGE_SIZE = 10;
 
+interface AdapterFieldMappingFormValue {
+  sourcePath: string;
+  targetPath: string;
+  termMappingId?: string;
+}
+
+interface AdapterFormValue {
+  adapterId: string;
+  name: string;
+  protocolType: string;
+  baseUrl?: string;
+  healthPath?: string;
+  outboundPath?: string;
+  connectTimeoutMs?: number;
+  requestTimeoutMs?: number;
+  fieldMappings?: AdapterFieldMappingFormValue[];
+  configJson?: string;
+}
+
+const HTTP_PROTOCOLS = new Set(["REST", "FHIR", "WEBHOOK", "WEBSERVICE"]);
+
 const HEALTH_COLOR: Record<string, string> = {
   HEALTHY: "green",
   NOT_CONNECTED: "default",
   MISCONFIGURED: "red",
   UNHEALTHY: "red",
   ERROR: "red",
+};
+
+const HEALTH_ALERT_TYPE: Record<string, "success" | "error" | "warning"> = {
+  HEALTHY: "success",
+  MISCONFIGURED: "error",
+  NOT_CONNECTED: "warning",
+  UNHEALTHY: "warning",
+  ERROR: "warning",
+};
+
+const HEALTH_ALERT_MESSAGE: Record<string, string> = {
+  HEALTHY: "真实连接正常",
+  MISCONFIGURED: "连接配置需要修正",
+  NOT_CONNECTED: "外部系统当前不可达",
+  UNHEALTHY: "外部系统当前不可达",
+  ERROR: "外部系统当前不可达",
 };
 
 const ADAPTER_STATUS_COLOR: Record<string, string> = {
@@ -104,6 +153,12 @@ const ONBOARDING_STATUS_COLOR: Record<string, string> = {
   MAPPING_CONFIGURED: "orange",
   ONLINE: "green",
   OFFLINE: "default",
+};
+
+const TRUST_LEVEL_COLOR: Record<string, string> = {
+  HIGH: "green",
+  MEDIUM: "orange",
+  LOW: "red",
 };
 
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
@@ -167,18 +222,38 @@ export default function AdapterHub() {
   const [logPage, setLogPage] = useState(1);
   const [adapterModalOpen, setAdapterModalOpen] = useState(false);
   const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
+  const [webhookModalOpen, setWebhookModalOpen] = useState(false);
+  const [regionalSourceModalOpen, setRegionalSourceModalOpen] = useState(false);
   const [expertMode, setExpertMode] = useState(false);
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
   const [qualityReport, setQualityReport] = useState<DataQualityReport | null>(null);
+  const [createdWebhook, setCreatedWebhook] = useState<WebhookCreateResult | null>(null);
+  const [signatureResult, setSignatureResult] = useState<WebhookSignatureTestResult | null>(null);
+  const [signatureWebhookId, setSignatureWebhookId] = useState<string>();
 
   const [adapterForm] = Form.useForm();
   const [onboardingForm] = Form.useForm();
+  const [webhookForm] = Form.useForm();
+  const [signatureForm] = Form.useForm();
+  const [regionalSourceForm] = Form.useForm();
+  const selectedAdapterProtocol = Form.useWatch("protocolType", adapterForm);
+  const usesHttpConnector = HTTP_PROTOCOLS.has(
+    String(selectedAdapterProtocol ?? "REST").toUpperCase(),
+  );
 
   const security = useSecurityProfile();
   const adaptersQuery = useIntegrationAdapters();
   const statusQuery = useAdapterHubStatus();
   const logsQuery = useIntegrationLogs(logPage, LOG_PAGE_SIZE);
   const onboardingsQuery = useIntegrationOnboardings();
+  const webhooksQuery = useWebhooks();
+  const regionalSourcesQuery = useRegionalSources();
+  const terminologyMappingsQuery = useTerminologyMappings({
+    status: "CONFIRMED",
+    page: 1,
+    size: 100,
+    sort: "updatedAt,desc",
+  });
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
   const healthCheckMutation = useCheckAdapterHealth();
@@ -187,6 +262,9 @@ export default function AdapterHub() {
   const replayDeadLetterMutation = useReplayDeadLetter();
   const createOnboardingMutation = useCreateIntegrationOnboarding();
   const advanceOnboardingMutation = useAdvanceIntegrationOnboarding();
+  const createWebhookMutation = useCreateWebhook();
+  const testWebhookSignatureMutation = useTestWebhookSignature();
+  const registerRegionalSourceMutation = useRegisterRegionalSource();
 
   const profile = security.data;
   const canAccess = !!profile && canAccessRoute(route, profile);
@@ -197,6 +275,9 @@ export default function AdapterHub() {
   const status = statusQuery.data;
   const logs = logsQuery.data?.items ?? [];
   const onboardings = onboardingsQuery.data ?? [];
+  const webhooks = webhooksQuery.data ?? [];
+  const firstWebhookId = webhooksQuery.data?.[0]?.webhookId;
+  const regionalSources = regionalSourcesQuery.data ?? [];
   const totalAdapters = status?.totalAdapters ?? adapters.length;
   const healthyAdapters =
     status?.healthyAdapters ??
@@ -215,15 +296,49 @@ export default function AdapterHub() {
     securityLoading: security.isLoading,
     adaptersLoading: adaptersQuery.isLoading,
     adaptersError: adaptersQuery.isError,
-    partialError: statusQuery.isError || logsQuery.isError || onboardingsQuery.isError,
+    partialError:
+      statusQuery.isError ||
+      logsQuery.isError ||
+      onboardingsQuery.isError ||
+      webhooksQuery.isError ||
+      regionalSourcesQuery.isError,
     adapters,
     onboardings,
   });
 
+  useEffect(() => {
+    if (firstWebhookId && !signatureWebhookId) {
+      setSignatureWebhookId(firstWebhookId);
+    }
+  }, [firstWebhookId, signatureWebhookId]);
+
   async function handleCreateAdapter() {
     try {
-      const values = await adapterForm.validateFields();
-      await createAdapterMutation.mutateAsync(values);
+      const values = (await adapterForm.validateFields()) as AdapterFormValue;
+      const configJson = expertMode
+        ? values.configJson?.trim()
+        : JSON.stringify({
+            ...(usesHttpConnector
+              ? {
+                  baseUrl: values.baseUrl?.trim(),
+                  healthPath: values.healthPath?.trim() || "/",
+                  outboundPath: values.outboundPath?.trim() || "/",
+                  connectTimeoutMs: values.connectTimeoutMs ?? 2000,
+                  requestTimeoutMs: values.requestTimeoutMs ?? 5000,
+                }
+              : {}),
+            fieldMappings: (values.fieldMappings ?? []).map((mapping) => ({
+              sourcePath: mapping.sourcePath,
+              targetPath: mapping.targetPath,
+              ...(mapping.termMappingId ? { termMappingId: Number(mapping.termMappingId) } : {}),
+            })),
+          });
+      await createAdapterMutation.mutateAsync({
+        adapterId: values.adapterId,
+        name: values.name,
+        protocolType: values.protocolType,
+        configJson,
+      });
       message.success("适配器已提交到接入总线。");
       setAdapterModalOpen(false);
       adapterForm.resetFields();
@@ -262,8 +377,10 @@ export default function AdapterHub() {
       void statusQuery.refetch();
       if (result.healthStatus === "HEALTHY") {
         message.success("健康检查完成。");
+      } else if (result.healthStatus === "MISCONFIGURED") {
+        message.error("连接配置无效，请修正后重试。");
       } else {
-        message.info("外部连通性未知或不可用，已按真实状态展示。");
+        message.warning("外部系统当前不可达。");
       }
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "健康检查失败"));
@@ -326,6 +443,63 @@ export default function AdapterHub() {
       void onboardingsQuery.refetch();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "推进接入阶段失败"));
+    }
+  }
+
+  async function handleCreateWebhook() {
+    try {
+      const values = await webhookForm.validateFields();
+      const result = await createWebhookMutation.mutateAsync(values);
+      setCreatedWebhook(result);
+      setWebhookModalOpen(false);
+      webhookForm.resetFields();
+      void webhooksQuery.refetch();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(webhookForm, error)) return;
+      message.error(getApiErrorMessage(error, "创建回调通道失败"));
+    }
+  }
+
+  async function handleTestWebhookSignature() {
+    try {
+      const values = await signatureForm.validateFields();
+      if (!signatureWebhookId) {
+        message.warning("请选择回调通道。");
+        return;
+      }
+      const result = await testWebhookSignatureMutation.mutateAsync({
+        webhookId: signatureWebhookId,
+        payload: values.payload,
+      });
+      setSignatureResult(result);
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(signatureForm, error)) return;
+      message.error(getApiErrorMessage(error, "生成签名预览失败"));
+    }
+  }
+
+  async function handleRegisterRegionalSource() {
+    try {
+      const values = await regionalSourceForm.validateFields();
+      const payload = {
+        sourceId: values.sourceId,
+        regionalNetworkName: values.regionalNetworkName,
+        sourceOrganizationId: values.sourceOrganizationId,
+        sourceOrganizationName: values.sourceOrganizationName,
+        trustLevel: values.trustLevel,
+        evidenceText: values.evidenceText,
+        orgPath: values.orgPath,
+        ...(values.adapterId?.trim() ? { adapterId: values.adapterId.trim() } : {}),
+        ...(values.onboardingId?.trim() ? { onboardingId: values.onboardingId.trim() } : {}),
+      };
+      await registerRegionalSourceMutation.mutateAsync(payload);
+      message.success("区域来源已登记并纳入可信分级。");
+      setRegionalSourceModalOpen(false);
+      regionalSourceForm.resetFields();
+      void regionalSourcesQuery.refetch();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(regionalSourceForm, error)) return;
+      message.error(getApiErrorMessage(error, "登记区域来源失败"));
     }
   }
 
@@ -524,6 +698,75 @@ export default function AdapterHub() {
     },
   ];
 
+  const webhookColumns: ColumnsType<IntegrationWebhookConfig> = [
+    {
+      title: "回调通道",
+      key: "name",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          <Text className={styles.identifier}>{record.webhookId}</Text>
+        </Space>
+      ),
+    },
+    { title: "回调地址", dataIndex: "callbackUrl", key: "callbackUrl" },
+    { title: "订阅事件", dataIndex: "eventsSubscribed", key: "eventsSubscribed" },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => (
+        <Tag color={value === "ACTIVE" ? "green" : "default"}>
+          {value === "ACTIVE" ? "启用中" : "已挂起"}
+        </Tag>
+      ),
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updatedAt",
+      key: "updatedAt",
+      render: (value) => new Date(String(value)).toLocaleString(),
+    },
+  ];
+
+  const regionalSourceColumns: ColumnsType<RegionalSource> = [
+    {
+      title: "区域网络与来源",
+      key: "source",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.regionalNetworkName}</Text>
+          <Text type="secondary">{record.sourceOrganizationName}</Text>
+          <Text className={styles.identifier}>{record.sourceId}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "可信等级",
+      dataIndex: "trustLevel",
+      key: "trustLevel",
+      render: (value) => <Tag color={TRUST_LEVEL_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+    },
+    { title: "可信证据", dataIndex: "evidenceText", key: "evidenceText" },
+    { title: "组织范围", dataIndex: "orgPath", key: "orgPath" },
+    {
+      title: "绑定链路",
+      key: "binding",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text type="secondary">适配器：{record.adapterId ?? "未绑定"}</Text>
+          <Text type="secondary">接入申请：{record.onboardingId ?? "未绑定"}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (value) => <Tag color={value === "ACTIVE" ? "green" : "default"}>{value}</Tag>,
+    },
+  ];
+
   const fieldMappingItems = status?.sources ?? [];
 
   return (
@@ -575,6 +818,8 @@ export default function AdapterHub() {
           void statusQuery.refetch();
           void logsQuery.refetch();
           void onboardingsQuery.refetch();
+          void webhooksQuery.refetch();
+          void regionalSourcesQuery.refetch();
         }}
       >
         <Space direction="vertical" size="middle" className="mk-full-width">
@@ -627,9 +872,9 @@ export default function AdapterHub() {
 
           {healthResult && (
             <Alert
-              type={healthResult.healthStatus === "HEALTHY" ? "success" : "info"}
+              type={HEALTH_ALERT_TYPE[healthResult.healthStatus] ?? "warning"}
               showIcon
-              message={healthResult.healthStatus === "HEALTHY" ? "健康检查完成" : "外部连通性未知"}
+              message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
               description={`适配器 ${healthResult.adapterId} 返回 ${healthResult.healthStatus}，RTT ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
               }。页面仅展示后端真实状态。`}
@@ -649,8 +894,8 @@ export default function AdapterHub() {
                     <Alert
                       type="info"
                       showIcon
-                      message="断连不伪造"
-                      description="外部系统未接入真实连接器时保持 NOT_CONNECTED；配置非法显示 MISCONFIGURED，不用本地规则猜测 HEALTHY。"
+                      message="连接状态来自实时探活"
+                      description="HTTP、FHIR、Webhook 和 WebService 使用真实连接器；外部不可达显示 NOT_CONNECTED，配置非法显示 MISCONFIGURED。"
                     />
                     <Table
                       rowKey="adapterId"
@@ -740,10 +985,235 @@ export default function AdapterHub() {
                   </div>
                 ),
               },
+              {
+                key: "webhooks",
+                label: "回调通道",
+                children: (
+                  <div className={styles.sectionStack}>
+                    <div className={styles.toolbar}>
+                      <Text type="secondary">
+                        共享密钥仅在创建成功时显示一次；列表和签名预览不会返回密钥。
+                      </Text>
+                      <Button
+                        icon={<PlusOutlined aria-hidden="true" />}
+                        disabled={!canWrite}
+                        onClick={() => setWebhookModalOpen(true)}
+                      >
+                        新增回调通道
+                      </Button>
+                    </div>
+                    <Table
+                      rowKey="webhookId"
+                      columns={webhookColumns}
+                      dataSource={webhooks}
+                      loading={webhooksQuery.isLoading}
+                      pagination={false}
+                      scroll={{ x: 900 }}
+                    />
+                    <Card title="签名预览" className={styles.sectionCard}>
+                      <Form form={signatureForm} layout="vertical">
+                        <Form.Item label="回调通道" required>
+                          <Select
+                            value={signatureWebhookId}
+                            onChange={setSignatureWebhookId}
+                            options={webhooks.map((item) => ({
+                              label: `${item.name}（${item.webhookId}）`,
+                              value: item.webhookId,
+                            }))}
+                            placeholder="选择已登记通道"
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          name="payload"
+                          label="签名预览载荷"
+                          rules={[{ required: true, message: "请输入签名预览载荷" }]}
+                        >
+                          <Input.TextArea rows={3} placeholder='例如 {"event":"clinical.test"}' />
+                        </Form.Item>
+                        <Button
+                          loading={testWebhookSignatureMutation.isPending}
+                          disabled={!canExecute || webhooks.length === 0}
+                          onClick={handleTestWebhookSignature}
+                        >
+                          生成签名预览
+                        </Button>
+                      </Form>
+                      {signatureResult && (
+                        <Alert
+                          className={styles.resultAlert}
+                          type="info"
+                          showIcon
+                          message={
+                            <Space wrap>
+                              <Tag color="blue">{signatureResult.status}</Tag>
+                              <Tag>{signatureResult.connectionStatus}</Tag>
+                            </Space>
+                          }
+                          description={
+                            <Space direction="vertical" size="small">
+                              <Text>{signatureResult.message}</Text>
+                              <Text className={styles.identifier}>{signatureResult.signature}</Text>
+                            </Space>
+                          }
+                        />
+                      )}
+                    </Card>
+                  </div>
+                ),
+              },
+              {
+                key: "regional-sources",
+                label: "区域来源",
+                children: (
+                  <div className={styles.sectionStack}>
+                    <div className={styles.toolbar}>
+                      <Text type="secondary">
+                        跨机构来源必须先登记来源机构、可信等级和可核验证据。
+                      </Text>
+                      <Button
+                        icon={<PlusOutlined aria-hidden="true" />}
+                        disabled={!canWrite}
+                        onClick={() => setRegionalSourceModalOpen(true)}
+                      >
+                        登记区域来源
+                      </Button>
+                    </div>
+                    <Table
+                      rowKey="sourceId"
+                      columns={regionalSourceColumns}
+                      dataSource={regionalSources}
+                      loading={regionalSourcesQuery.isLoading}
+                      pagination={false}
+                      scroll={{ x: 900 }}
+                    />
+                  </div>
+                ),
+              },
             ]}
           />
         </Space>
       </PageState>
+
+      <Modal
+        title="新增回调通道"
+        open={webhookModalOpen}
+        onOk={handleCreateWebhook}
+        onCancel={() => setWebhookModalOpen(false)}
+        okText="创建回调通道"
+        cancelText="取消"
+        confirmLoading={createWebhookMutation.isPending}
+      >
+        <Form form={webhookForm} layout="vertical">
+          <Form.Item name="webhookId" label="回调标识" rules={[{ required: true }]}>
+            <Input placeholder="例如 clinical-events" />
+          </Form.Item>
+          <Form.Item name="name" label="通道名称" rules={[{ required: true }]}>
+            <Input placeholder="例如临床事件回调" />
+          </Form.Item>
+          <Form.Item
+            name="callbackUrl"
+            label="回调地址"
+            rules={[
+              { required: true },
+              { type: "url", message: "请输入合法的 HTTP 或 HTTPS 地址" },
+            ]}
+          >
+            <Input placeholder="https://his.example.org/medkernel/events" />
+          </Form.Item>
+          <Form.Item name="eventsSubscribed" label="订阅事件" rules={[{ required: true }]}>
+            <Input placeholder="例如 clinical.event.accepted" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="保存共享密钥"
+        open={createdWebhook !== null}
+        closable={false}
+        maskClosable={false}
+        cancelButtonProps={{ style: { display: "none" } }}
+        okText="我已安全保存"
+        onOk={() => setCreatedWebhook(null)}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="共享密钥仅显示一次"
+          description="请立即保存到受控凭证系统。关闭后，列表、测试和日志均不会再次返回该密钥。"
+        />
+        <Text className={styles.secretValue}>{createdWebhook?.sharedSecret}</Text>
+      </Modal>
+
+      <Modal
+        title="登记区域来源"
+        open={regionalSourceModalOpen}
+        onOk={handleRegisterRegionalSource}
+        onCancel={() => setRegionalSourceModalOpen(false)}
+        okText="保存区域来源"
+        cancelText="取消"
+        confirmLoading={registerRegionalSourceMutation.isPending}
+      >
+        <Form form={regionalSourceForm} layout="vertical">
+          <Form.Item name="sourceId" label="来源标识" rules={[{ required: true }]}>
+            <Input placeholder="例如 regional-lab" />
+          </Form.Item>
+          <Form.Item name="regionalNetworkName" label="区域网络" rules={[{ required: true }]}>
+            <Input placeholder="区域检验互认平台" />
+          </Form.Item>
+          <Form.Item name="sourceOrganizationId" label="来源机构标识" rules={[{ required: true }]}>
+            <Input placeholder="来源机构业务标识" />
+          </Form.Item>
+          <Form.Item
+            name="sourceOrganizationName"
+            label="来源机构名称"
+            rules={[{ required: true }]}
+          >
+            <Input placeholder="来源机构全称" />
+          </Form.Item>
+          <Form.Item name="trustLevel" label="可信等级" rules={[{ required: true }]}>
+            <Select
+              placeholder="选择可信等级"
+              options={[
+                { label: "HIGH", value: "HIGH" },
+                { label: "MEDIUM", value: "MEDIUM" },
+                { label: "LOW", value: "LOW" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="evidenceText" label="可信证据" rules={[{ required: true }]}>
+            <Input.TextArea rows={3} placeholder="填写协议、验收单或其他可核验证据" />
+          </Form.Item>
+          <Form.Item name="adapterId" label="绑定适配器">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="可选，按名称选择"
+              options={adapters.map((adapter) => ({
+                value: adapter.adapterId,
+                label: `${adapter.name} · ${adapter.protocolType}`,
+              }))}
+              notFoundContent="暂无可绑定适配器"
+            />
+          </Form.Item>
+          <Form.Item name="onboardingId" label="绑定接入申请">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="可选，按名称选择"
+              options={onboardings.map((item) => ({
+                value: item.onboardingId,
+                label: `${item.name} · ${item.status}`,
+              }))}
+              notFoundContent="暂无可绑定接入申请"
+            />
+          </Form.Item>
+          <Form.Item name="orgPath" label="组织范围" rules={[{ required: true }]}>
+            <Input placeholder="集团/医院/院区" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         title="新增适配器"
@@ -752,32 +1222,145 @@ export default function AdapterHub() {
         onCancel={() => setAdapterModalOpen(false)}
         okText="提交适配器"
         cancelText="取消"
+        width={760}
       >
-        <Form form={adapterForm} layout="vertical">
+        <Form
+          form={adapterForm}
+          layout="vertical"
+          initialValues={{
+            protocolType: "REST",
+            healthPath: "/health",
+            outboundPath: "/messages",
+            connectTimeoutMs: 2000,
+            requestTimeoutMs: 5000,
+            fieldMappings: [{}],
+          }}
+        >
           <Form.Item name="adapterId" label="适配器标识" rules={[{ required: true }]}>
             <Input placeholder="输入真实适配器标识" />
           </Form.Item>
           <Form.Item name="name" label="系统名称" rules={[{ required: true }]}>
             <Input placeholder="输入院内系统名称" />
           </Form.Item>
-          <Form.Item
-            name="protocolType"
-            label="接入协议"
-            initialValue="REST"
-            rules={[{ required: true }]}
-          >
-            <Select>
-              <Option value="HIS">HIS</Option>
-              <Option value="EMR">EMR</Option>
-              <Option value="LIS">LIS</Option>
-              <Option value="PACS">PACS</Option>
-              <Option value="FHIR">FHIR</Option>
-              <Option value="REST">REST</Option>
-            </Select>
+          <Form.Item name="protocolType" label="接入协议" rules={[{ required: true }]}>
+            <Select options={[...ADAPTER_PROTOCOL_OPTIONS]} />
           </Form.Item>
-          <Form.Item name="configJson" label="连接与字段映射 JSON">
-            <Input.TextArea rows={4} placeholder="输入真实连接配置或字段映射 JSON" />
-          </Form.Item>
+          {expertMode ? (
+            <Form.Item
+              name="configJson"
+              label="连接与字段映射 JSON"
+              rules={[
+                {
+                  validator: async (_, value?: string) => {
+                    if (!value?.trim()) return;
+                    try {
+                      JSON.parse(value);
+                    } catch {
+                      throw new Error("请输入合法 JSON");
+                    }
+                  },
+                },
+              ]}
+            >
+              <Input.TextArea rows={6} placeholder="输入后端契约支持的适配器配置 JSON" />
+            </Form.Item>
+          ) : (
+            <>
+              {usesHttpConnector && (
+                <>
+                  <Form.Item
+                    name="baseUrl"
+                    label="服务地址"
+                    rules={[
+                      { required: true, message: "请输入服务地址" },
+                      { type: "url", message: "请输入合法的 HTTP 或 HTTPS 地址" },
+                    ]}
+                  >
+                    <Input placeholder="https://his.example.org/api" />
+                  </Form.Item>
+                  <Space align="start" wrap className="mk-full-width">
+                    <Form.Item
+                      name="healthPath"
+                      label="探活路径"
+                      rules={[{ pattern: /^\/(?!\/)/, message: "请输入以 / 开头的站内路径" }]}
+                    >
+                      <Input placeholder="/health" />
+                    </Form.Item>
+                    <Form.Item
+                      name="outboundPath"
+                      label="投递路径"
+                      rules={[{ pattern: /^\/(?!\/)/, message: "请输入以 / 开头的站内路径" }]}
+                    >
+                      <Input placeholder="/messages" />
+                    </Form.Item>
+                    <Form.Item name="connectTimeoutMs" label="连接超时">
+                      <InputNumber min={200} max={30000} addonAfter="ms" />
+                    </Form.Item>
+                    <Form.Item name="requestTimeoutMs" label="请求超时">
+                      <InputNumber min={200} max={30000} addonAfter="ms" />
+                    </Form.Item>
+                  </Space>
+                </>
+              )}
+              <Form.List name="fieldMappings">
+                {(fields, { add, remove }) => (
+                  <Space direction="vertical" className="mk-full-width">
+                    {fields.map(({ key, name, ...field }) => (
+                      <Space key={key} align="start" wrap className="mk-full-width">
+                        <Form.Item
+                          {...field}
+                          name={[name, "sourcePath"]}
+                          label="来源字段路径"
+                          rules={[
+                            { required: true, message: "请输入来源字段路径" },
+                            { pattern: /^\//, message: "字段路径必须以 / 开头" },
+                          ]}
+                        >
+                          <Input placeholder="/patient/id" />
+                        </Form.Item>
+                        <Form.Item
+                          {...field}
+                          name={[name, "targetPath"]}
+                          label="标准字段路径"
+                          rules={[
+                            { required: true, message: "请输入标准字段路径" },
+                            { pattern: /^\//, message: "字段路径必须以 / 开头" },
+                          ]}
+                        >
+                          <Input placeholder="/patient/id" />
+                        </Form.Item>
+                        <Form.Item {...field} name={[name, "termMappingId"]} label="术语映射">
+                          <Select
+                            allowClear
+                            showSearch
+                            optionFilterProp="label"
+                            placeholder="可选，选择已确认映射"
+                            options={(terminologyMappingsQuery.data?.items ?? []).map(
+                              (mapping) => ({
+                                value: String(mapping.id),
+                                label: `${mapping.sourceSystem} · ${mapping.category} · 映射 ${mapping.id}`,
+                              }),
+                            )}
+                            notFoundContent="暂无已确认术语映射"
+                          />
+                        </Form.Item>
+                        {fields.length > 1 && (
+                          <Button
+                            aria-label="删除字段映射"
+                            icon={<DeleteOutlined />}
+                            onClick={() => remove(name)}
+                          />
+                        )}
+                      </Space>
+                    ))}
+                    <Button icon={<PlusOutlined />} onClick={() => add()}>
+                      添加字段映射
+                    </Button>
+                  </Space>
+                )}
+              </Form.List>
+            </>
+          )}
         </Form>
       </Modal>
 
@@ -808,10 +1391,27 @@ export default function AdapterHub() {
             </Select>
           </Form.Item>
           <Form.Item name="adapterId" label="绑定适配器标识">
-            <Input placeholder="适配器模式下填写" />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="适配器模式下选择"
+              options={adapters.map((adapter) => ({
+                value: adapter.adapterId,
+                label: `${adapter.name} · ${adapter.protocolType}`,
+              }))}
+              notFoundContent="暂无可用适配器"
+            />
           </Form.Item>
           <Form.Item name="fhirVersion" label="FHIR 版本">
-            <Input placeholder="FHIR 模式下填写 R4 或 R5" />
+            <Select
+              allowClear
+              placeholder="FHIR 模式下选择"
+              options={[
+                { value: "R4", label: "FHIR R4" },
+                { value: "R5", label: "FHIR R5" },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="sourceSystem" label="来源系统" rules={[{ required: true }]}>
             <Input placeholder="例如 HIS / EMR / LIS" />
@@ -823,7 +1423,17 @@ export default function AdapterHub() {
             <Input placeholder="集团/医院/院区/科室" />
           </Form.Item>
           <Form.Item name="callbackWebhookId" label="回调通道标识">
-            <Input placeholder="如已配置回调通道，可填写真实标识" />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="可选，选择已配置回调通道"
+              options={webhooks.map((item) => ({
+                value: item.webhookId,
+                label: `${item.name} · ${item.status}`,
+              }))}
+              notFoundContent="暂无回调通道"
+            />
           </Form.Item>
         </Form>
       </Modal>

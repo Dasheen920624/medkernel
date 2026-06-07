@@ -53,7 +53,7 @@ public class RecommendationEngineController {
     /**
      * 分页查询当前租户的推荐卡，支持按 status / riskLevel / scenarioCode / patientId / encounterId / triggerPoint 过滤。
      */
-    @GetMapping({"", "/cards"})
+    @GetMapping("/cards")
     @PreAuthorize("@perm.has('recommendation.read')")
     public ApiResult<PageResponse<RecommendationCard>> cards(
             @RequestParam(required = false) RecommendationCardStatus status,
@@ -109,7 +109,7 @@ public class RecommendationEngineController {
     /**
      * 查询推荐卡详情，聚合来源、反馈和疲劳治理信号。
      */
-    @GetMapping({"/{cardId}", "/cards/{cardId}"})
+    @GetMapping("/cards/{cardId}")
     @PreAuthorize("@perm.has('recommendation.read')")
     public ApiResult<RecommendationCardDetailResponse> cardDetail(@PathVariable String cardId) {
         return ApiResult.ok(service.cardDetail(cardId));
@@ -127,7 +127,7 @@ public class RecommendationEngineController {
     /**
      * 提交医师反馈并推进推荐卡状态；终止态卡或已过期卡禁止再反馈（{@code ENG_REC_004}）。
      */
-    @PostMapping({"/{cardId}/feedback", "/cards/{cardId}/feedback"})
+    @PostMapping("/cards/{cardId}/feedback")
     @PreAuthorize("@perm.has('recommendation.accept')")
     public ApiResult<RecommendationFeedbackResponse> feedback(
             @PathVariable String cardId,

@@ -1,17 +1,5 @@
 -- MedKernel v1.0 GA · INFRA-05 二级菜单权限粒度（达梦）
 
-UPDATE sys_permission
-SET active_flag = 'N',
-    updated_at = CURRENT_TIMESTAMP,
-    updated_by = 'migration-v43'
-WHERE permission_code IN (
-    'menu.pilot-setup',
-    'menu.clinical-run',
-    'menu.quality-improve',
-    'menu.compliance-ops',
-    'menu.advanced-tools'
-);
-
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.implementation-guide', 'MENU', 'implementation-guide', '查看客户实施向导', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.tenant-onboarding', 'MENU', 'tenant-onboarding', '查看租户开通', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.config-packages', 'MENU', 'config-packages', '查看配置包中心', 'LOW', 'migration-v43', 'migration-v43');
@@ -31,7 +19,7 @@ INSERT INTO sys_permission (permission_code, dimension, target, display_name, ri
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.insurance-audit', 'MENU', 'insurance-audit', '查看医保智能审核', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.qc-eval-sets', 'MENU', 'qc-eval-sets', '查看评估指标库', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.qc-eval-results', 'MENU', 'qc-eval-results', '查看评估结果', 'LOW', 'migration-v43', 'migration-v43');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.aik-review', 'MENU', 'aik-review', '查看 AI 知识审核', 'LOW', 'migration-v43', 'migration-v43');
+INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.knowledge-governance', 'MENU', 'knowledge-governance', '查看知识治理', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.admin-users', 'MENU', 'admin-users', '查看用户管理', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.identity-bindings', 'MENU', 'identity-bindings', '查看身份绑定', 'LOW', 'migration-v43', 'migration-v43');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.admin-audit', 'MENU', 'admin-audit', '查看审计日志', 'LOW', 'migration-v43', 'migration-v43');

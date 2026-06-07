@@ -174,6 +174,60 @@ class FhirR4CanonicalMapperTest {
         assertThat(payload.path("mappedVersion").asText()).isEqualTo("FHIR_R4:Observation");
     }
 
+    @Test
+    void mapsR4AllergyIntoleranceToCanonicalResourceAndPreservesDrugTerminologyWarning() throws Exception {
+        JsonNode allergy = json.readTree("""
+            {
+              "resourceType": "AllergyIntolerance",
+              "id": "alg-1",
+              "clinicalStatus": {"coding": [{"code": "active"}]},
+              "verificationStatus": {"coding": [{"code": "confirmed"}]},
+              "category": ["medication"],
+              "criticality": "high",
+              "code": {
+                "coding": [
+                  {
+                    "system": "urn:local:drug",
+                    "code": "PEN",
+                    "display": "青霉素"
+                  }
+                ]
+              },
+              "reaction": [
+                {"manifestation": [{"text": "皮疹"}, {"text": "喉头水肿"}]}
+              ],
+              "onsetDateTime": "2026-06-03T00:00:00Z"
+            }
+            """);
+
+        CanonicalResourceMappingResult result = mapper.fromR4(new FhirCanonicalMappingRequest(
+            "tenant-A",
+            "snapshot-fhir-allergy",
+            4,
+            "trace-fhir-allergy",
+            Instant.parse("2026-06-03T00:00:10Z"),
+            allergy));
+
+        CanonicalResource canonical = result.resource();
+        assertThat(canonical.resourceType()).isEqualTo(CanonicalResourceType.ALLERGY_INTOLERANCE);
+        assertThat(canonical.sourceRecordId()).isEqualTo("AllergyIntolerance/alg-1");
+        assertThat(canonical.mappedVersion()).isEqualTo("FHIR_R4:AllergyIntolerance");
+        assertThat(canonical.eventTime()).isEqualTo(Instant.parse("2026-06-03T00:00:00Z"));
+        assertThat(canonical.qualityStatus()).isEqualTo(QualityStatus.PARTIAL);
+
+        JsonNode payload = json.readTree(canonical.resourcePayloadJson());
+        assertThat(payload.path("allergyIntoleranceId").asText()).isEqualTo("alg-1");
+        assertThat(payload.path("code").asText()).isEqualTo("PEN");
+        assertThat(payload.path("codeSystem").asText()).isEqualTo("urn:local:drug");
+        assertThat(payload.path("substance").asText()).isEqualTo("青霉素");
+        assertThat(payload.path("category").asText()).isEqualTo("medication");
+        assertThat(payload.path("criticality").asText()).isEqualTo("high");
+        assertThat(payload.path("reactions")).extracting(JsonNode::asText).contains("皮疹", "喉头水肿");
+        assertThat(payload.path("qualityStatus").asText()).isEqualTo("PARTIAL");
+        assertThat(result.issues()).singleElement()
+            .satisfies(issue -> assertThat(issue.diagnostics()).contains("TERM-01", "PEN"));
+    }
+
     private static TerminologyMappingPort terminologyReturning(String status) {
         return (tenantId, anchors) -> anchors.stream()
             .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));

@@ -25,7 +25,7 @@ const allowedSections: MenuSection[] = [
 describe("CommandPalette", () => {
   it("only renders the authorized menu commands passed by the layout", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <CommandPalette open onClose={vi.fn()} sections={allowedSections} />
       </MemoryRouter>,
     );
@@ -38,7 +38,7 @@ describe("CommandPalette", () => {
   it("navigates to the selected menu command", () => {
     const onClose = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <CommandPalette open onClose={onClose} sections={allowedSections} />
       </MemoryRouter>,
     );

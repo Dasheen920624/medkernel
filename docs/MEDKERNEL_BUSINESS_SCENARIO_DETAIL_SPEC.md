@@ -1421,7 +1421,7 @@ flowchart TB
 | 临床智能 | `recommendation`、`recommendation_evidence`、`clinical_decision`、`alert_feedback` | 触发点、建议、证据、医生反馈 |
 | 质控评估 | `indicator`、`quality_finding`、`rectification_task`、`evaluation_result` | 级别、责任、闭环、病例证据 |
 | 随访 | `followup_plan`、`followup_task`、`followup_event`、`outcome_measure` | 时间窗、结果、异常、接续 |
-| 发布同步 | `asset_package`、`release_plan`、`activation_transaction`、`knowledge_invalidation`、`affected_case_task`、`sync_target`、`sync_log`、`projection_job` | 包版本、范围、激活/失效、受影响对象、灰度、回滚 |
+| 发布同步 | `asset_package`、`release_plan`、`activation_transaction`、`knowledge_invalidation`、`affected_case_task`、`sync_log`、`integration_adapter`、`projection_job` | 包版本、范围、激活/失效、统一适配器、受影响对象、灰度、回滚 |
 | 审计证据 | `audit_event`、`evidence_snapshot`、`export_approval` | trace、主体、动作、对象、前后版本 |
 
 ### 7.7 版本、继承与发布模型
@@ -2170,7 +2170,7 @@ flowchart LR
 | `/api/v1/tenant/hrp/interop/*` | POST | HRP 互操作 | GA-SVC-PILOT-02 |
 | `/api/v1/platform/branding/*` | GET/POST | 品牌定制 | GA-SVC-PILOT-01 |
 | `/api/v1/platform/success/*` | GET/POST | 客户成功 | GA-SVC-PILOT-01 |
-| `/api/v1/platform/license/*` | GET/POST | 离线许可 | GA-SVC-COMPLIANCE-02 |
+| `/api/v1/system/operations` | GET | 依赖健康、备份恢复与离线运行就绪状态 | GA-SVC-COMPLIANCE-02 |
 | `/api/v1/platform/emergency/*` | GET/POST | 应急预案 | GA-SVC-COMPLIANCE-02 |
 | `/api/v1/compliance/tenant-wall` | GET/POST | 租户墙 | GA-SVC-COMPLIANCE-01 |
 | `/api/v1/compliance/dr/*` | GET/POST | 灾备 | GA-SVC-COMPLIANCE-02 |

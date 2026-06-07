@@ -77,20 +77,28 @@ public class AssetVersionService implements VersionedAssetPort {
 
     @Override
     @Transactional
-    public AssetVersion updateDraftContent(
-            String tenantId,
-            String versionId,
-            String content,
-            String contentHash,
-            String actor) {
-        AssetVersion version = findOwnedVersion(tenantId, versionId);
+    public AssetVersion updateDraft(AssetVersionDraftUpdateCommand command) {
+        AssetVersion version = findOwnedVersion(command.tenantId(), command.versionId());
         if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.PENDING_REVIEW) {
             throw new ApiException(ErrorCode.CONFLICT, "已发布版本不可原地修改，必须登记新版本");
         }
-        return repository.save(version.withContentHash(
-            VersionContentHash.resolve(content, contentHash),
+        String assetIdentity = required(command.assetIdentity(), "资产身份");
+        repository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            version.tenantId(), version.assetType(), assetIdentity, version.versionNo()
+        ).filter(existing -> !existing.versionId().equals(version.versionId()))
+            .ifPresent(existing -> {
+                throw new ApiException(ErrorCode.CONFLICT, "同一资产版本号已存在，禁止覆盖旧版本");
+            });
+        return repository.save(version.withDraftRegistration(
+            assetIdentity,
+            required(command.organizationScope(), "组织生效域"),
+            required(command.applicableScope(), "适用人群或上下文"),
+            VersionContentHash.resolve(command.content(), command.contentHash()),
+            blankToNull(command.sourceRef()),
+            command.safetyPolicy() == null ? AssetVersionSafetyPolicy.NORMAL : command.safetyPolicy(),
+            command.overridePolicy() == null ? AssetVersionOverridePolicy.FREE : command.overridePolicy(),
             Instant.now(clock),
-            required(actor, "操作人")
+            required(command.actor(), "操作人")
         ));
     }
 

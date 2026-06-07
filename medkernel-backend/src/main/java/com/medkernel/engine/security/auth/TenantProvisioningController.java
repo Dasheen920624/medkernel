@@ -33,7 +33,7 @@ public class TenantProvisioningController {
         this.service = service;
     }
 
-    /** 列出所有租户（平台视角）。 */
+    /** 列出客户租户，不把唯一平台主租户混入客户台账。 */
     @GetMapping
     @PreAuthorize("@perm.has('tenant.read')")
     public ApiResult<List<TenantSummary>> list() {

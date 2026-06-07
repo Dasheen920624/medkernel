@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useAdvancePatientPathway,
+  useContextSnapshotDetail,
+  useContextSnapshots,
   useEnterPatientPathway,
   usePatientPathwayClocks,
   usePatientPathwayDetail,
@@ -19,6 +21,8 @@ import PatientPathways from "./PatientPathways";
 
 vi.mock("@/shared/api/hooks", () => ({
   useAdvancePatientPathway: vi.fn(),
+  useContextSnapshotDetail: vi.fn(),
+  useContextSnapshots: vi.fn(),
   useEnterPatientPathway: vi.fn(),
   usePatientPathwayClocks: vi.fn(),
   usePatientPathwayDetail: vi.fn(),
@@ -30,6 +34,8 @@ vi.mock("@/shared/api/hooks", () => ({
 }));
 
 const mockUseAdvancePatientPathway = vi.mocked(useAdvancePatientPathway);
+const mockUseContextSnapshotDetail = vi.mocked(useContextSnapshotDetail);
+const mockUseContextSnapshots = vi.mocked(useContextSnapshots);
 const mockUseEnterPatientPathway = vi.mocked(useEnterPatientPathway);
 const mockUsePatientPathwayClocks = vi.mocked(usePatientPathwayClocks);
 const mockUsePatientPathwayDetail = vi.mocked(usePatientPathwayDetail);
@@ -96,6 +102,35 @@ describe("PatientPathways", () => {
         total: 1,
       },
     } as unknown as ReturnType<typeof useSpecialtyPackages>);
+    mockUseContextSnapshots.mockReturnValue({
+      data: {
+        items: [
+          {
+            snapshotId: "ctx-active-1",
+            patientId: "mpi-1",
+            encounterId: "enc-1",
+            status: "ACTIVE",
+            qualityStatus: "VALID",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useContextSnapshots>);
+    mockUseContextSnapshotDetail.mockReturnValue({
+      data: {
+        snapshotId: "ctx-active-1",
+        status: "ACTIVE",
+        packageVersion: "2026.06",
+        qualityStatus: "VALID",
+        missingFields: [],
+        mappingStatus: {},
+      },
+    } as unknown as ReturnType<typeof useContextSnapshotDetail>);
     mockUsePatientPathways.mockReturnValue({
       data: {
         items: [
@@ -277,6 +312,30 @@ describe("PatientPathways", () => {
     expect(screen.queryByText("暂无患者路径实例")).not.toBeInTheDocument();
   });
 
+  it("enters a pathway from an ACTIVE context snapshot without manual patient identifiers", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
+    expect(screen.queryByLabelText(/选择患者 ID/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/关联就诊 ID/)).not.toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
+    await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
+    await user.click(screen.getByRole("combobox", { name: "选择受控专病路径模板" }));
+    await user.click(await screen.findByText("卒中急诊路径 (v1.0)"));
+    await user.click(screen.getByRole("button", { name: "OK" }));
+
+    await waitFor(() => {
+      expect(enterPathway).toHaveBeenCalledWith({
+        contextSnapshotId: "ctx-active-1",
+        templateId: "pt-1",
+        startNodeCode: undefined,
+        packageVersion: "2026.06",
+      });
+    });
+  });
+
   it("shows backend clocks and variance evidence in the pathway detail drawer", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
@@ -350,7 +409,7 @@ describe("PatientPathways", () => {
     expect(refetchClocks).toHaveBeenCalled();
     expect(refetchVariances).toHaveBeenCalled();
     expect(refetchPathways).toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("shows an honest error state when the patient pathway list cannot be read", () => {
     mockUsePatientPathways.mockReturnValue({

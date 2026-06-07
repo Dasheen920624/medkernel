@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import type { AxiosAdapter } from "axios";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -23,7 +23,7 @@ import AdapterHub from "./tenant/AdapterHub";
 import EmbedLaunch from "./clinical/EmbedLaunch";
 import QcEvalResults from "./quality/QcEvalResults";
 import QcEvalSets from "./quality/QcEvalSets";
-import AiReview from "./quality/AiReview";
+import KnowledgeGovernance from "./quality/KnowledgeGovernance";
 import PatientPathways from "./clinical/PatientPathways";
 import Mpi from "./clinical/Mpi";
 import CdssFatigue from "./clinical/CdssFatigue";
@@ -41,6 +41,10 @@ const testQueryClient = new QueryClient({
 });
 
 const originalApiAdapter = apiClient.defaults.adapter;
+
+beforeEach(() => {
+  apiClient.defaults.adapter = (() => new Promise(() => undefined)) as AxiosAdapter;
+});
 
 afterEach(() => {
   apiClient.defaults.adapter = originalApiAdapter;
@@ -169,11 +173,14 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical embed-launch console in fallback isolation state", () => {
     renderPage(
-      <MemoryRouter initialEntries={["/embed/launch"]}>
+      <MemoryRouter
+        initialEntries={["/embed/launch"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <EmbedLaunch />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/页面嵌入式临床建议会话已安全隔离/)).toBeInTheDocument();
+    expect(screen.getByText(/临床建议会话已安全隔离/)).toBeInTheDocument();
   });
 
   it("renders the clinical workflow-todos console with the real empty state", async () => {
@@ -213,21 +220,22 @@ describe("page smoke coverage", () => {
 
   it("renders the compliance admin-users console", () => {
     renderPage(<AdminUsers />);
-    expect(screen.getByRole("heading", { name: "用户与角色数据范围管理" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新增角色分配关系" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "用户管理" })).toBeInTheDocument();
+    expect(screen.getByText("正在读取用户")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument();
   });
 
   it("renders an advanced tool page with advanced-only messaging", () => {
     renderPage(<GraphExplore />);
     expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
-    expect(screen.getAllByText(/高级工具/).length).toBeGreaterThan(0);
+    expect(screen.getByText("查询关系库权威源生成的投影快照")).toBeInTheDocument();
   });
 
   it("renders the advanced ai-workflows engine workbench", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "大模型网关与 AI 工作流配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型能力网关" })).toBeInTheDocument();
     expect(screen.getByText(/混合路由去向策略/)).toBeInTheDocument();
-    expect(screen.getByText(/AI 推理脱敏与降级物理沙盒输入端/)).toBeInTheDocument();
+    expect(screen.getByText("任务输入")).toBeInTheDocument();
   });
 
   it("renders the advanced provenance audit console", () => {
@@ -239,7 +247,10 @@ describe("page smoke coverage", () => {
 
   it("renders the dashboard workbench without the old aggregation-api placeholder", () => {
     renderPage(
-      <MemoryRouter initialEntries={["/dashboard"]}>
+      <MemoryRouter
+        initialEntries={["/dashboard"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Dashboard />
       </MemoryRouter>,
     );
@@ -248,13 +259,13 @@ describe("page smoke coverage", () => {
     expect(screen.queryByText("真实工作台聚合数据待接入")).toBeNull();
     expect(screen.queryByText("等待真实聚合 API")).toBeNull();
     expect(screen.queryByText("本周建议动作")).toBeNull();
-    expect(screen.queryByText("演示与校验")).toBeNull();
+    expect(screen.queryByText("验收自检")).toBeNull();
   });
 
   it("renders the login page as a focused identity entry", async () => {
     mockDelegatedAuthStatus();
     renderPage(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Login />
       </MemoryRouter>,
     );
@@ -262,8 +273,8 @@ describe("page smoke coverage", () => {
     expect(screen.getByRole("heading", { name: "登录工作台" })).toBeInTheDocument();
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
     expect(screen.getByText("使用平台账号继续")).toBeInTheDocument();
-    expect(screen.getByText("平台主租户自动进入")).toBeInTheDocument();
-    expect(screen.getByText("平台主租户（唯一内置）")).toBeInTheDocument();
+    expect(await screen.findByText("平台主租户自动进入")).toBeInTheDocument();
+    expect(await screen.findByText("平台主租户（唯一内置）")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
@@ -277,7 +288,7 @@ describe("page smoke coverage", () => {
   it("renders delegated identity only for customer tenant login", async () => {
     mockDelegatedAuthStatus({ hasCustomerTenants: true });
     renderPage(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Login />
       </MemoryRouter>,
     );
@@ -317,10 +328,10 @@ describe("page smoke coverage", () => {
     expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
   });
 
-  it("renders the quality ai-review page through the real knowledge review loading state", () => {
-    renderPage(<AiReview />);
-    expect(screen.getByRole("heading", { name: "AI 知识审核" })).toBeInTheDocument();
-    expect(screen.getByText("正在加载 AI 知识审核")).toBeInTheDocument();
+  it("renders the knowledge governance page through the real candidate loading state", () => {
+    renderPage(<KnowledgeGovernance />);
+    expect(screen.getByRole("heading", { name: "知识治理" })).toBeInTheDocument();
+    expect(screen.getByText("正在加载知识候选审核")).toBeInTheDocument();
   });
 
   it("renders the clinical patient-pathways console", () => {
@@ -356,7 +367,7 @@ describe("page smoke coverage", () => {
   it("renders the compliance admin-audit console", () => {
     renderPage(<AdminAudit />);
     expect(screen.getByRole("heading", { name: "审计日志" })).toBeInTheDocument();
-    expect(screen.getByText("导出审计快照")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "申请导出" })).toBeInTheDocument();
   });
 
   it("renders the tenant terminology-mapping console", () => {

@@ -120,6 +120,7 @@ export default function Mpi() {
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined);
+  const [mergePatientSearch, setMergePatientSearch] = useState("");
 
   // API 数据读取
   const {
@@ -131,6 +132,12 @@ export default function Mpi() {
     status: filterStatus || undefined,
     page,
     size,
+  });
+  const activeDirectoryQuery = useMpiPatients({
+    keyword: mergePatientSearch || undefined,
+    status: "ACTIVE",
+    page: 1,
+    size: 50,
   });
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useMpiStats();
@@ -146,9 +153,13 @@ export default function Mpi() {
   const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
   const [splitPatientRecord, setSplitPatientRecord] = useState<MpiPatient | null>(null);
   const [detailMpiId, setDetailMpiId] = useState<string | undefined>(undefined);
+  const [createIdempotencyKey, setCreateIdempotencyKey] = useState("");
+  const [mergeIdempotencyKey, setMergeIdempotencyKey] = useState("");
+  const [splitIdempotencyKey, setSplitIdempotencyKey] = useState("");
   const [createForm] = Form.useForm<MpiPatientCreatePayload>();
-  const [mergeForm] = Form.useForm();
+  const [mergeForm] = Form.useForm<{ sourceMpiId: string; targetMpiId: string }>();
   const [splitForm] = Form.useForm<{ reviewReason: string }>();
+  const selectedSourceMpiId = Form.useWatch("sourceMpiId", mergeForm);
   const {
     data: patientDetail,
     isLoading: detailLoading,
@@ -177,6 +188,8 @@ export default function Mpi() {
   const showMergeModal = useCallback(
     (record?: MpiPatient) => {
       mergeForm.resetFields();
+      setMergePatientSearch("");
+      setMergeIdempotencyKey(`mpi-merge-${crypto.randomUUID()}`);
       if (record) {
         mergeForm.setFieldsValue({
           sourceMpiId: record.mpiId,
@@ -189,12 +202,14 @@ export default function Mpi() {
 
   const showCreateModal = () => {
     createForm.resetFields();
+    setCreateIdempotencyKey(`mpi-create-${crypto.randomUUID()}`);
     setIsCreateModalVisible(true);
   };
 
   const showSplitModal = useCallback(
     (record: MpiPatient) => {
       splitForm.resetFields();
+      setSplitIdempotencyKey(`mpi-split-${crypto.randomUUID()}`);
       setSplitPatientRecord(record);
       setIsSplitModalVisible(true);
     },
@@ -208,15 +223,15 @@ export default function Mpi() {
   const handleCreateSubmit = async () => {
     try {
       const values = await createForm.validateFields();
-      await createMutation.mutateAsync({
-        mpiId: values.mpiId.trim(),
+      const result = await createMutation.mutateAsync({
         maskedName: values.maskedName.trim(),
         gender: values.gender,
         age: Number(values.age),
         idLast4: values.idLast4.trim(),
+        idempotencyKey: createIdempotencyKey,
       });
 
-      message.success("患者主索引已创建，列表和统计已刷新");
+      message.success(`患者主索引 ${result.mpiId} 已创建，列表和统计已刷新`);
       setIsCreateModalVisible(false);
       createForm.resetFields();
       refetchList();
@@ -234,6 +249,7 @@ export default function Mpi() {
       const result = await splitMutation.mutateAsync({
         sourceMpiId: splitPatientRecord.mpiId,
         reviewReason: values.reviewReason.trim(),
+        idempotencyKey: splitIdempotencyKey,
       });
 
       message.success(result?.message || "患者主索引合并关系已拆分");
@@ -260,6 +276,7 @@ export default function Mpi() {
       const result = await mergeMutation.mutateAsync({
         sourceMpiId: values.sourceMpiId,
         targetMpiId: values.targetMpiId,
+        idempotencyKey: mergeIdempotencyKey,
       });
 
       message.success(result?.message || "患者主索引合并成功，已记录审计证据");
@@ -271,14 +288,31 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(mergeForm, error)) return;
-      const parsed = parseApiError(error, "合并失败，请检查主索引ID是否正确");
+      const parsed = parseApiError(error, "合并失败，请核查患者身份信息");
       if (parsed.code === "MPI_MERGE_REQUIRES_REVIEW") {
         message.warning(parsed.message);
         return;
       }
-      message.error(getApiErrorMessage(error, "合并失败，请检查主索引ID是否正确"));
+      message.error(getApiErrorMessage(error, "合并失败，请核查患者身份信息"));
     }
   };
+
+  const activePatients = useMemo(
+    () => (activeDirectoryQuery.data?.items ?? []).filter((patient) => patient.status === "ACTIVE"),
+    [activeDirectoryQuery.data?.items],
+  );
+  const patientOptions = useMemo(
+    () =>
+      activePatients.map((patient) => ({
+        value: patient.mpiId,
+        label: `${patient.maskedName} · ${patient.mpiId} · ***${patient.idLast4}`,
+      })),
+    [activePatients],
+  );
+  const targetPatientOptions = useMemo(
+    () => patientOptions.filter((option) => option.value !== selectedSourceMpiId),
+    [patientOptions, selectedSourceMpiId],
+  );
 
   // 定义表格列
   const columns = useMemo(
@@ -578,13 +612,6 @@ export default function Mpi() {
         >
           <Form form={createForm} layout="vertical">
             <Form.Item
-              name="mpiId"
-              label="患者主索引 ID"
-              rules={[{ required: true, message: "请输入患者主索引 ID" }]}
-            >
-              <Input placeholder="例如：mpi-new" />
-            </Form.Item>
-            <Form.Item
               name="maskedName"
               label="脱敏姓名"
               rules={[{ required: true, message: "请输入脱敏姓名" }]}
@@ -698,23 +725,56 @@ export default function Mpi() {
             </div>
           </div>
 
+          {activeDirectoryQuery.isError && (
+            <Alert
+              message="活跃患者目录暂时不可用"
+              description={getApiErrorMessage(
+                activeDirectoryQuery.error,
+                "无法读取当前租户的活跃患者，请重试后再执行合并。",
+              )}
+              type="error"
+              showIcon
+              action={
+                <Button size="small" onClick={() => activeDirectoryQuery.refetch()}>
+                  重试
+                </Button>
+              }
+            />
+          )}
+
           <Form form={mergeForm} layout="vertical">
             <Form.Item
               name="sourceMpiId"
-              label={<Text strong>源患者主索引 ID（合并后归档）</Text>}
-              rules={[{ required: true, message: "请输入源患者主索引 ID" }]}
+              label={<Text strong>源患者（合并后归档）</Text>}
+              rules={[{ required: true, message: "请选择源患者" }]}
               className={styles.modalFormItem}
             >
-              <Input placeholder="例如：mpi_xxxxx" />
+              <Select
+                aria-label="源患者"
+                placeholder="选择需要归档的活跃患者"
+                options={patientOptions}
+                loading={activeDirectoryQuery.isLoading}
+                showSearch
+                filterOption={false}
+                onSearch={setMergePatientSearch}
+              />
             </Form.Item>
 
             <Form.Item
               name="targetMpiId"
-              label={<Text strong>目标患者主索引 ID（最终保留）</Text>}
-              rules={[{ required: true, message: "请输入合并目标活跃患者主索引 ID" }]}
+              label={<Text strong>目标患者（最终保留）</Text>}
+              rules={[{ required: true, message: "请选择目标患者" }]}
               className={styles.modalFormItem}
             >
-              <Input placeholder="例如：mpi_yyyyy" />
+              <Select
+                aria-label="目标患者"
+                placeholder="选择最终保留的活跃患者"
+                options={targetPatientOptions}
+                loading={activeDirectoryQuery.isLoading}
+                showSearch
+                filterOption={false}
+                onSearch={setMergePatientSearch}
+              />
             </Form.Item>
           </Form>
         </Modal>

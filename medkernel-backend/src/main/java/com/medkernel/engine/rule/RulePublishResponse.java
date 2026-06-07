@@ -12,17 +12,29 @@ public record RulePublishResponse(
     String traceId,
     List<RuleTestCaseResult> results,
     String impactDigest,
-    String impactStatus
+    String impactStatus,
+    List<String> releaseEvidence
 ) {
     public RulePublishResponse(String ruleId,
                                String versionId,
                                RuleDefinitionStatus status,
                                String traceId,
                                List<RuleTestCaseResult> results) {
-        this(ruleId, versionId, status, traceId, results, null, null);
+        this(ruleId, versionId, status, traceId, results, null, null, List.of());
+    }
+
+    public RulePublishResponse(String ruleId,
+                               String versionId,
+                               RuleDefinitionStatus status,
+                               String traceId,
+                               List<RuleTestCaseResult> results,
+                               String impactDigest,
+                               String impactStatus) {
+        this(ruleId, versionId, status, traceId, results, impactDigest, impactStatus, List.of());
     }
 
     public RulePublishResponse {
         results = results == null ? List.of() : List.copyOf(results);
+        releaseEvidence = releaseEvidence == null ? List.of() : List.copyOf(releaseEvidence);
     }
 }

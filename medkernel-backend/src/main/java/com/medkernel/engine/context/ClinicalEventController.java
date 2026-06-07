@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
  * GA-ENG-API-02 临床事件 API。
  */
 @RestController
-@RequestMapping({"/api/v1/engine/events", "/api/v1/engine/clinical-events"})
+@RequestMapping("/api/v1/engine/clinical-events")
 @DataScope(requireTenant = true)
 public class ClinicalEventController {
 
@@ -39,22 +39,6 @@ public class ClinicalEventController {
             @RequestBody @Valid ClinicalEventRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.receive(request)));
-    }
-
-    @PostMapping("/async")
-    @PreAuthorize("@perm.has('event.write')")
-    public ResponseEntity<ApiResult<ClinicalEventAcceptedResponse>> receiveAsync(
-            @RequestBody @Valid ClinicalEventRequest request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-            .body(ApiResult.ok(service.receiveAsync(request)));
-    }
-
-    @PostMapping("/batch")
-    @PreAuthorize("@perm.has('event.write')")
-    public ResponseEntity<ApiResult<ClinicalEventBatchResponse>> receiveBatch(
-            @RequestBody @Valid ClinicalEventBatchRequest request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-            .body(ApiResult.ok(service.receiveBatch(request)));
     }
 
     @GetMapping("/{eventId}")
@@ -73,12 +57,6 @@ public class ClinicalEventController {
     @PreAuthorize("@perm.has('event.read')")
     public ApiResult<DiagnoseResponse> diagnose(@PathVariable String eventId) {
         return ApiResult.ok(service.diagnose(eventId));
-    }
-
-    @PostMapping("/{eventId}/replay")
-    @PreAuthorize("@perm.has('event.write')")
-    public ApiResult<ClinicalEventReplayResponse> replay(@PathVariable String eventId) {
-        return ApiResult.ok(service.replay(eventId));
     }
 
     @GetMapping("/dead-letter")

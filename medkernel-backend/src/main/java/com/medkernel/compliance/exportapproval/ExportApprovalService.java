@@ -1,6 +1,7 @@
 package com.medkernel.compliance.exportapproval;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.compliance.evidence.dto.EvidenceCreateDto;
 import com.medkernel.compliance.evidence.dto.EvidenceResponse;
 import com.medkernel.compliance.evidence.service.EvidenceService;
+import com.medkernel.engine.list.LargeListEngineService;
+import com.medkernel.engine.list.LargeListExportArtifact;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -36,19 +39,47 @@ public class ExportApprovalService {
     private final ExportApprovalRepository repository;
     private final EvidenceService evidenceService;
     private final AuditRecorder auditRecorder;
+    private final LargeListEngineService largeListEngineService;
     private final ObjectMapper objectMapper;
 
     public ExportApprovalService(
             ExportApprovalRepository repository,
             EvidenceService evidenceService,
             AuditRecorder auditRecorder,
+            LargeListEngineService largeListEngineService,
             ObjectMapper objectMapper) {
         this.repository = repository;
         this.evidenceService = evidenceService;
         this.auditRecorder = auditRecorder;
+        this.largeListEngineService = largeListEngineService;
         this.objectMapper = objectMapper.copy()
             .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExportApprovalResponse> listApprovals(
+            String tenantId, String resourceType, ExportApprovalStatus status) {
+        String safeTenant = requireTenant(tenantId);
+        String normalizedResource = resourceType == null || resourceType.isBlank()
+            ? null
+            : normalizeResourceType(resourceType);
+        String normalizedStatus = status == null ? null : status.name();
+
+        List<ExportApproval> approvals;
+        if (normalizedResource != null && normalizedStatus != null) {
+            approvals = repository.findByTenantIdAndResourceTypeAndStatusOrderByRequestedAtDesc(
+                safeTenant, normalizedResource, normalizedStatus);
+        } else if (normalizedResource != null) {
+            approvals = repository.findByTenantIdAndResourceTypeOrderByRequestedAtDesc(
+                safeTenant, normalizedResource);
+        } else if (normalizedStatus != null) {
+            approvals = repository.findByTenantIdAndStatusOrderByRequestedAtDesc(
+                safeTenant, normalizedStatus);
+        } else {
+            approvals = repository.findByTenantIdOrderByRequestedAtDesc(safeTenant);
+        }
+        return approvals.stream().map(ExportApprovalResponse::from).toList();
     }
 
     @Transactional
@@ -168,8 +199,8 @@ public class ExportApprovalService {
     }
 
     @Transactional
-    public ExportApprovalResponse completeExport(
-            String tenantId, String approvalId, ExportCompletionRequest request, String actor) {
+    public ExportApprovalResponse completeExportFromJob(
+            String tenantId, String approvalId, ExportJobCompletionRequest request, String actor) {
         String safeTenant = requireTenant(tenantId);
         String safeActor = safeActor(actor);
         ExportApproval current = findApproval(safeTenant, approvalId);
@@ -181,10 +212,13 @@ public class ExportApprovalService {
             throw ApiException.conflict("只有审批通过的导出申请才能登记导出完成");
         }
         checkVersion(current, request.expectedVersion());
-        String exportUri = normalizeReason(request.exportUri(), "真实导出 URI 不能为空");
-        String exportDigest = normalizeDigest(request.exportDigest());
+        LargeListExportArtifact artifact = largeListEngineService.completedExportArtifact(
+            normalizeToken(request.jobId(), "导出任务 ID 不能为空", 128));
+        assertApprovedArtifact(current, artifact);
+        String exportUri = artifact.downloadUri();
+        String exportDigest = normalizeDigest(artifact.exportDigest());
 
-        EvidenceResponse evidence = createExportEvidence(safeTenant, current, request, safeActor);
+        EvidenceResponse evidence = createExportEvidence(safeTenant, current, request, artifact, safeActor);
         Instant now = Instant.now();
         ExportApproval saved = repository.save(new ExportApproval(
             current.id(),
@@ -271,7 +305,11 @@ public class ExportApprovalService {
     }
 
     private EvidenceResponse createExportEvidence(
-            String tenantId, ExportApproval approval, ExportCompletionRequest request, String actor) {
+            String tenantId,
+            ExportApproval approval,
+            ExportJobCompletionRequest request,
+            LargeListExportArtifact artifact,
+            String actor) {
         return evidenceService.createSnapshot(tenantId, new EvidenceCreateDto(
             "evd-" + approval.approvalId() + "-export",
             RequestContext.currentTraceId(),
@@ -284,10 +322,28 @@ public class ExportApprovalService {
                 "approvalId", approval.approvalId(),
                 "resourceType", approval.resourceType(),
                 "exportScopeSnapshot", approval.exportScopeSnapshot(),
-                "exportUri", request.exportUri(),
-                "exportDigest", request.exportDigest(),
+                "jobId", artifact.jobId(),
+                "exportUri", artifact.downloadUri(),
+                "exportDigest", artifact.exportDigest(),
                 "operatorId", actor,
                 "reason", request.reason()))));
+    }
+
+    private void assertApprovedArtifact(ExportApproval approval, LargeListExportArtifact artifact) {
+        if (!approval.resourceType().equals(normalizeResourceType(artifact.resourceType()))) {
+            throw ApiException.conflict("导出任务资源类型与审批申请不一致");
+        }
+        if (!approval.idempotencyKey().equals(artifact.idempotencyKey())) {
+            throw ApiException.conflict("导出任务幂等键与审批申请不一致");
+        }
+        try {
+            if (!objectMapper.readTree(approval.exportScopeSnapshot())
+                    .equals(objectMapper.readTree(artifact.requestSnapshot()))) {
+                throw ApiException.conflict("导出任务审批范围与申请不一致");
+            }
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "导出审批范围快照不是合法 JSON");
+        }
     }
 
     private String payload(Map<String, Object> values) {

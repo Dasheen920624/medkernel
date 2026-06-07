@@ -28,6 +28,7 @@ import { getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import {
   useDispatchRectification,
   useEvaluationResults,
+  useOrgUnits,
   useQualityFindingDetail,
   useQualityFindings,
 } from "@/shared/api/hooks";
@@ -41,6 +42,7 @@ import type {
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
+import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
 
 const { Text } = Typography;
 
@@ -56,6 +58,7 @@ export default function QcEvalResults() {
   const [departmentId, setDepartmentId] = useState("");
   const [selectedFinding, setSelectedFinding] = useState<QualityFinding | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [departmentSearch, setDepartmentSearch] = useState("");
   const [dispatchFeedback, setDispatchFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -86,6 +89,14 @@ export default function QcEvalResults() {
 
   const resultsQuery = useEvaluationResults(resultParams);
   const findingsQuery = useQualityFindings(findingParams);
+  const departmentsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    keyword: departmentSearch || undefined,
+    level: "DEPARTMENT",
+    status: "ACTIVE",
+  });
   const findingDetailQuery = useQualityFindingDetail(selectedFinding?.findingId ?? "");
   const dispatchMutation = useDispatchRectification();
 
@@ -93,6 +104,26 @@ export default function QcEvalResults() {
   const findings = useMemo(() => findingsQuery.data?.items ?? [], [findingsQuery.data?.items]);
   const selectedFindingDetail = findingDetailQuery.data;
   const drawerFinding = selectedFindingDetail?.finding ?? selectedFinding;
+  const departmentOptions = useMemo(
+    () =>
+      (departmentsQuery.data?.items ?? [])
+        .filter((unit) => unit.level === "DEPARTMENT" && unit.status !== "ARCHIVED")
+        .map((unit) => ({
+          value: unit.id ?? unit.code,
+          label: `${unit.name} · ${unit.code}`,
+        })),
+    [departmentsQuery.data?.items],
+  );
+  const departmentNames = useMemo(
+    () =>
+      new Map(
+        (departmentsQuery.data?.items ?? []).map((unit) => [
+          unit.id ?? unit.code,
+          `${unit.name} · ${unit.code}`,
+        ]),
+      ),
+    [departmentsQuery.data?.items],
+  );
   const error = resultsQuery.error ?? findingsQuery.error;
   const parsedError =
     resultsQuery.isError || findingsQuery.isError ? parseApiError(error, "评估结果读取失败") : null;
@@ -197,7 +228,9 @@ export default function QcEvalResults() {
       title: "责任科室",
       dataIndex: "responsibleDepartmentId",
       key: "responsibleDepartmentId",
-      render: (department: string | undefined) => <Tag>{department ?? "全院"}</Tag>,
+      render: (department: string | undefined) => (
+        <Tag>{department ? (departmentNames.get(department) ?? department) : "全院"}</Tag>
+      ),
     },
     {
       title: "traceId",
@@ -248,7 +281,9 @@ export default function QcEvalResults() {
       title: "责任科室",
       dataIndex: "responsibleDepartmentId",
       key: "responsibleDepartmentId",
-      render: (department: string | undefined) => <Tag>{department ?? "未指定"}</Tag>,
+      render: (department: string | undefined) => (
+        <Tag>{department ? (departmentNames.get(department) ?? department) : "未指定"}</Tag>
+      ),
     },
     {
       title: "traceId",
@@ -325,13 +360,18 @@ export default function QcEvalResults() {
                   { value: "WAIVED", label: "已豁免" },
                 ]}
               />
-              <Input
+              <Select
                 aria-label="责任科室筛选"
                 className="mk-input-narrow"
                 placeholder="责任科室"
+                allowClear
+                showSearch
+                filterOption={false}
+                onSearch={setDepartmentSearch}
                 value={departmentId}
-                onChange={(event) => setDepartmentId(event.target.value)}
-                onPressEnter={refreshAll}
+                onChange={(value) => setDepartmentId(value ?? "")}
+                options={departmentOptions}
+                loading={departmentsQuery.isLoading}
               />
             </Space>
           </Card>
@@ -421,7 +461,10 @@ export default function QcEvalResults() {
                 {findingStatusTag(drawerFinding.status)}
               </Descriptions.Item>
               <Descriptions.Item label="责任科室">
-                {drawerFinding.responsibleDepartmentId ?? "未指定"}
+                {drawerFinding.responsibleDepartmentId
+                  ? (departmentNames.get(drawerFinding.responsibleDepartmentId) ??
+                    drawerFinding.responsibleDepartmentId)
+                  : "未指定"}
               </Descriptions.Item>
               <Descriptions.Item label="traceId">{drawerFinding.traceId ?? "--"}</Descriptions.Item>
             </Descriptions>
@@ -472,16 +515,7 @@ export default function QcEvalResults() {
                   onFinish={onDispatchRectification}
                   preserve={false}
                 >
-                  <Form.Item
-                    name="responsibleDepartmentId"
-                    label="责任科室"
-                    rules={[{ required: true, message: "请输入责任科室" }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="assigneeUserId" label="责任人">
-                    <Input placeholder="可选" />
-                  </Form.Item>
+                  <RectificationAssignmentFields />
                   <Form.Item
                     name="dueAt"
                     label="整改截止时间"

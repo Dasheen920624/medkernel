@@ -3,6 +3,7 @@ package com.medkernel.engine.quality.value;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +41,7 @@ public class ValueMetricsService {
             missedCaseRetrospective(tenantId, f, now),
             pathwayCompletionRate(tenantId, f, now),
             rectificationClosureRate(tenantId, f, now),
-            insuranceViolationReduction(now)
+            insuranceViolationReduction(tenantId, f, now)
         ));
     }
 
@@ -61,7 +62,7 @@ public class ValueMetricsService {
             case MISSED_CASE_RETROSPECTIVE -> missedCaseDrilldown(tenantId, f, safeOffset, safeLimit);
             case PATHWAY_COMPLETION_RATE -> pathwayDrilldown(tenantId, f, safeOffset, safeLimit);
             case RECTIFICATION_CLOSURE_RATE -> rectificationDrilldown(tenantId, f, safeOffset, safeLimit);
-            case INSURANCE_VIOLATION_REDUCTION -> new DrilldownPage(List.of(), 0);
+            case INSURANCE_VIOLATION_REDUCTION -> insuranceDrilldown(tenantId, f, safeOffset, safeLimit);
         };
         return new ValueMetricDrilldownResponse(
             metric, page.items(), safeOffset, safeLimit, page.total(), safeOffset + safeLimit < page.total());
@@ -75,7 +76,7 @@ public class ValueMetricsService {
             case MISSED_CASE_RETROSPECTIVE -> missedCaseRetrospective(tenantId, filter, now);
             case PATHWAY_COMPLETION_RATE -> pathwayCompletionRate(tenantId, filter, now);
             case RECTIFICATION_CLOSURE_RATE -> rectificationClosureRate(tenantId, filter, now);
-            case INSURANCE_VIOLATION_REDUCTION -> insuranceViolationReduction(now);
+            case INSURANCE_VIOLATION_REDUCTION -> insuranceViolationReduction(tenantId, filter, now);
         };
     }
 
@@ -171,11 +172,41 @@ public class ValueMetricsService {
             "整改闭环率来自整改任务状态机");
     }
 
-    private ValueMetricResponse insuranceViolationReduction(Instant now) {
-        return notAvailable(ValueMetricCode.INSURANCE_VIOLATION_REDUCTION, now,
-            source("insurance_violation_fact", "医保违规事实", ValueMetricStatus.NOT_AVAILABLE,
-                "SVC-QUALITY-02 尚未建立医保违规判定事实表"),
-            "医保违规事实源未接入，不能用 Claim 总量或费用金额伪造违规减少");
+    private ValueMetricResponse insuranceViolationReduction(
+            String tenantId, ValueMetricFilter filter, Instant now) {
+        if (filter.hasUnsupportedOrgScope()) {
+            return notAvailableForScope(ValueMetricCode.INSURANCE_VIOLATION_REDUCTION, filter, now,
+                "mk_quality_insurance_issue", "医保违规问题事实");
+        }
+        if (filter.from() == null || filter.to() == null || !filter.from().isBefore(filter.to())) {
+            return notAvailable(ValueMetricCode.INSURANCE_VIOLATION_REDUCTION, now,
+                source("mk_quality_insurance_issue", "医保违规问题事实", ValueMetricStatus.NOT_AVAILABLE,
+                    "需要明确查询起止时间，才能构造等长前置基线期"),
+                "医保违规减少率需要完整时间窗，不能用累计问题总量冒充改善");
+        }
+        Duration period = Duration.between(filter.from(), filter.to());
+        ValueMetricFilter baseline = new ValueMetricFilter(
+            filter.from().minus(period),
+            filter.from(),
+            filter.departmentId(),
+            null,
+            null);
+        long current = countInsuranceIssues(tenantId, filter);
+        long baselineCount = countInsuranceIssues(tenantId, baseline);
+        if (baselineCount == 0) {
+            return notAvailable(ValueMetricCode.INSURANCE_VIOLATION_REDUCTION, now,
+                source("mk_quality_insurance_issue", "医保违规问题事实", ValueMetricStatus.NOT_AVAILABLE,
+                    "等长前置基线期没有医保违规问题样本"),
+                "基线期样本为 0，无法计算违规减少率");
+        }
+        return ratioMetric(
+            ValueMetricCode.INSURANCE_VIOLATION_REDUCTION,
+            baselineCount - current,
+            baselineCount,
+            now,
+            source("mk_quality_insurance_issue", "医保违规问题事实", ValueMetricStatus.AVAILABLE,
+                "比较查询期与等长前置基线期的真实医保审核问题数"),
+            "医保违规减少率来自查询期与等长前置基线期的真实问题数比较");
     }
 
     private ValueMetricResponse ratioMetric(
@@ -258,6 +289,12 @@ public class ValueMetricsService {
             query.sql().append(" AND status = ?");
             query.params().add(status);
         }
+        return count(query);
+    }
+
+    private long countInsuranceIssues(String tenantId, ValueMetricFilter filter) {
+        QueryParts query = baseCount("mk_quality_insurance_issue", "created_at", tenantId, filter);
+        appendDepartment(query, filter, "department_id");
         return count(query);
     }
 
@@ -390,6 +427,25 @@ public class ValueMetricsService {
             """,
             tenantId, "entered_at", filter);
         return queryDrilldown("patient_pathway", query, offset, limit);
+    }
+
+    private DrilldownPage insuranceDrilldown(String tenantId, ValueMetricFilter filter, int offset, int limit) {
+        QueryParts query = baseDrilldown(
+            """
+            SELECT issue_id AS source_id,
+                   patient_id,
+                   encounter_id,
+                   department_id,
+                   status,
+                   evidence_summary AS reason,
+                   created_at AS occurred_at,
+                   trace_id
+            FROM mk_quality_insurance_issue
+            WHERE tenant_id = ?
+            """,
+            tenantId, "created_at", filter);
+        appendDepartment(query, filter, "department_id");
+        return queryDrilldown("mk_quality_insurance_issue", query, offset, limit);
     }
 
     private QueryParts baseDrilldown(

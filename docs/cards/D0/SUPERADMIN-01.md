@@ -68,8 +68,8 @@
 - B0 验收：纯确定性身份约束，天然 B0。
 
 ## 完工证据
-- 代码 permalink：PR 合并后补充；本地分支落点为 `RoleCode.SYSTEM_SUPERADMIN`、`DefaultPermissionPolicy`、`EffectivePermissionService`、`SystemSuperAdminGuard`、`CredentialAdminService`、`UserRoleAssignmentController`、`MenuPermissionController`、V44 五方言迁移、`AdminUsers`。
-- 测试：`PermissionDimensionModelTest` / `DefaultPermissionPolicyTest` / `EffectivePermissionServiceTest` / `MfaRequirementPolicyTest` / `UserRoleAssignmentControllerTest` / `MenuPermissionControllerTest` / `CredentialAdminControllerTest` / `BootstrapControllerTest` / `SystemConfigControllerTest` / `MigrationBaselineContractTest` / `H2BaselineMigrationTest` / `FlywayMultiDialectSmokeTest` / `AdminUsers.test.tsx`。
+- 代码落点：`RoleCode.SYSTEM_SUPERADMIN`、`DefaultPermissionPolicy`、`EffectivePermissionService`、`SystemSuperAdminGuard`、`ComplianceUserController/Service`、`MenuPermissionController`、五方言迁移、`AdminUsers`。
+- 测试：`PermissionDimensionModelTest` / `DefaultPermissionPolicyTest` / `EffectivePermissionServiceTest` / `MfaRequirementPolicyTest` / `ComplianceUserControllerTest` / `ComplianceUserCredentialFlowTest` / `MenuPermissionControllerTest` / `BootstrapControllerTest` / `SystemConfigControllerTest` / `MigrationBaselineContractTest` / `H2BaselineMigrationTest` / `FlywayMultiDialectSmokeTest` / `AdminUsers.test.tsx`。
 - 本地验证：后端全量 `mvn test` 784 tests / 0 failures / 0 errors / 0 skipped；前端 `npm run verify` 39 files / 176 tests 通过，`npm run build` 通过；PostgreSQL 15 / Oracle 21 / H2 迁移均至 V44；T-GATE 测试套件通过，提交后需重新跑 changed 门禁生成最终提交差异证据。
 - 浏览器证据：in-app browser 当前不可用，已登记 `DEFER-004`；用项目 Playwright 打开 `/admin/users` 验证超管显示为"内置超级管理员"且两处"系统内置"不可编辑，截图 `/tmp/medkernel-superadmin-01-admin-users.png`。
 - 审计员签字：@<reviewer>（owner ≠ reviewer，高风险双签）。

@@ -15,6 +15,9 @@ export interface StandardTermValueAutoCompleteProps {
   value?: string;
   onChange?: (value: string) => void;
   id?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  className?: string;
 }
 
 export function StandardTermValueAutoComplete({
@@ -22,6 +25,9 @@ export function StandardTermValueAutoComplete({
   value,
   onChange,
   id,
+  ariaLabel,
+  disabled = false,
+  className,
 }: StandardTermValueAutoCompleteProps) {
   const [keyword, setKeyword] = useState("");
   const { data } = useStandardTerms({
@@ -54,10 +60,13 @@ export function StandardTermValueAutoComplete({
     <div>
       <AutoComplete
         id={id}
+        aria-label={ariaLabel}
         value={value}
         options={options}
         onSearch={setKeyword}
         onChange={(next) => onChange?.(next)}
+        disabled={disabled}
+        className={className}
         filterOption={false}
         placeholder={`从 ${codeSystem} 标准字典选择或输入编码`}
       />

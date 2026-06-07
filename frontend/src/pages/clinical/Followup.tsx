@@ -34,6 +34,8 @@ import {
   useFollowupPlans,
   useFollowupStats,
   useGenerateFollowupPlan,
+  useContextSnapshotDetail,
+  useContextSnapshots,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
 } from "@/shared/api/hooks";
@@ -43,6 +45,9 @@ import type {
   FollowupPlanStatus,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+
+import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 
@@ -65,6 +70,9 @@ export default function Followup() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [patientFilter, setPatientFilter] = useState("");
+  const [snapshotPatientId, setSnapshotPatientId] = useState("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [abnormalEvidence, setAbnormalEvidence] = useState<FollowupAbnormalReportResponse | null>(
     null,
@@ -96,9 +104,26 @@ export default function Followup() {
   const generatePlanMutation = useGenerateFollowupPlan();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const hasSnapshotFilter = Boolean(snapshotPatientId.trim() || snapshotEncounterId.trim());
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: snapshotPatientId.trim() || undefined,
+      encounterId: snapshotEncounterId.trim() || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    },
+    { enabled: generateModalVisible && hasSnapshotFilter },
+  );
+  const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
+    enabled: generateModalVisible && Boolean(selectedSnapshotId),
+  });
 
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
+  const selectedTask =
+    selectedPlanDetail?.tasks.find((task) => task.taskId === selectedTaskId) ?? null;
 
   const stats = statsData ?? {
     totalPlans: 0,
@@ -119,16 +144,22 @@ export default function Followup() {
     try {
       const values = await generateForm.validateFields();
       const response = await generatePlanMutation.mutateAsync({
-        patientId: values.patientId.trim(),
-        encounterId: values.encounterId.trim(),
-        diseaseCode: values.diseaseCode.trim(),
+        contextSnapshotId: selectedSnapshotId,
         riskLevel: values.riskLevel,
         taskTypes: values.taskTypes,
+        idempotencyKey: buildPlanIdempotencyKey(
+          selectedSnapshotId,
+          values.riskLevel,
+          values.taskTypes,
+        ),
       });
 
       message.success(`随访计划已生成：${response.planId}`);
       setGenerateModalVisible(false);
       generateForm.resetFields();
+      setSnapshotPatientId("");
+      setSnapshotEncounterId("");
+      setSelectedSnapshotId("");
       setSelectedPlanId(response.planId);
       await refreshFollowupData();
     } catch (error: unknown) {
@@ -138,19 +169,26 @@ export default function Followup() {
   };
 
   const handleSubmitQuestionnaire = async () => {
-    if (!selectedTaskId) return;
+    if (!selectedTask?.questionnaireTemplateId) {
+      message.error("当前任务没有可用问卷模板，不能提交问卷。");
+      return;
+    }
     try {
       const values = await questionnaireForm.validateFields();
+      const answerData = JSON.stringify({
+        content: values.content,
+        submittedAt: new Date().toISOString(),
+      });
       await submitQuestionnaireMutation.mutateAsync({
-        taskId: selectedTaskId,
-        request: {
-          taskId: selectedTaskId,
-          formData: JSON.stringify({
-            content: values.content,
-            submittedAt: new Date().toISOString(),
-          }),
-          executorType: "PHYSICIAN",
-        },
+        taskId: selectedTask.taskId,
+        questionnaireTemplateId: selectedTask.questionnaireTemplateId,
+        formData: JSON.stringify({
+          templateId: selectedTask.questionnaireTemplateId,
+          taskId: selectedTask.taskId,
+        }),
+        answerData,
+        idempotencyKey: `questionnaire-${selectedTask.taskId}-${crypto.randomUUID()}`,
+        executorType: "PHYSICIAN",
       });
 
       message.success("随访问卷内容已提交，请以刷新后的任务状态为准");
@@ -193,7 +231,7 @@ export default function Followup() {
       title: "计划编号",
       dataIndex: "planId",
       key: "planId",
-      render: (planId: string) => <span className="font-semibold text-slate-800">{planId}</span>,
+      render: (planId: string) => <span className={styles.textStrong}>{planId}</span>,
     },
     {
       title: "患者 ID",
@@ -220,9 +258,9 @@ export default function Followup() {
         const done = record.tasks.filter((task) => task.status === "COMPLETED").length;
         const percent = total > 0 ? Math.round((done / total) * 100) : 0;
         return (
-          <Space className="min-w-[140px]">
-            <Progress percent={percent} size="small" className="mb-0 w-24" />
-            <span className="text-xs text-slate-500">
+          <Space className={styles.progressRow}>
+            <Progress percent={percent} size="small" className={styles.progress} />
+            <span className={styles.textSmall}>
               {done}/{total}
             </span>
           </Space>
@@ -250,7 +288,7 @@ export default function Followup() {
             setSelectedTaskId(null);
             setAbnormalEvidence(null);
           }}
-          className="p-0 font-semibold"
+          className={styles.buttonLink}
         >
           查看与办理
         </Button>
@@ -263,8 +301,8 @@ export default function Followup() {
       title="智能随访工作台"
       description="查看真实随访计划、提交问卷回收内容，并上报随访异常事件。页面只展示后端接口返回的数据。"
     >
-      <Row gutter={16} className="mb-6">
-        <Col span={6}>
+      <Row gutter={[16, 16]} className={styles.sectionGapLg}>
+        <Col xs={24} sm={12} xl={6}>
           <Card>
             <Statistic
               title="作用域随访计划数"
@@ -273,7 +311,7 @@ export default function Followup() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} xl={6}>
           <Card>
             <Statistic
               title="作用域执行中计划"
@@ -282,7 +320,7 @@ export default function Followup() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} xl={6}>
           <Card>
             <Statistic
               title="作用域已完成任务"
@@ -291,7 +329,7 @@ export default function Followup() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} sm={12} xl={6}>
           <Card>
             <Statistic
               title="作用域任务完成率"
@@ -313,8 +351,8 @@ export default function Followup() {
         </Col>
       </Row>
 
-      <Card className="mb-6">
-        <Space wrap className="w-full justify-between">
+      <Card className={styles.sectionGapLg}>
+        <Space wrap className={styles.rowBetween}>
           <Space wrap>
             <Input
               placeholder="按患者 ID 检索"
@@ -322,14 +360,17 @@ export default function Followup() {
               value={patientFilter}
               onChange={(event) => setPatientFilter(event.target.value)}
               onPressEnter={() => void refreshFollowupData()}
-              className="w-64"
+              className={styles.searchInput}
             />
             <Button onClick={() => void refreshFollowupData()}>查询</Button>
           </Space>
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setGenerateModalVisible(true)}
+            onClick={() => {
+              setSelectedSnapshotId("");
+              setGenerateModalVisible(true);
+            }}
           >
             生成随访计划
           </Button>
@@ -340,7 +381,7 @@ export default function Followup() {
         <Alert
           type="error"
           showIcon
-          className="mb-4"
+          className={styles.sectionGap}
           message="随访计划接口读取失败"
           description="请检查登录权限、租户上下文或后端接口状态。"
         />
@@ -350,7 +391,7 @@ export default function Followup() {
         <Alert
           type="error"
           showIcon
-          className="mb-4"
+          className={styles.sectionGap}
           message="随访统计接口读取失败"
           description="看板统计来自后端作用域聚合，当前不可用时不使用当前页数据冒充全局统计。"
         />
@@ -374,33 +415,76 @@ export default function Followup() {
         title="生成随访计划"
         open={generateModalVisible}
         onOk={handleGeneratePlan}
-        onCancel={() => setGenerateModalVisible(false)}
+        onCancel={() => {
+          setGenerateModalVisible(false);
+          setSnapshotPatientId("");
+          setSnapshotEncounterId("");
+          setSelectedSnapshotId("");
+          generateForm.resetFields();
+        }}
         confirmLoading={generatePlanMutation.isPending}
         destroyOnClose
         okText="生成"
         cancelText="取消"
       >
-        <Form form={generateForm} layout="vertical" className="mt-4">
+        <Form form={generateForm} layout="vertical" className={styles.formGap}>
+          <Space wrap className={styles.fullWidth}>
+            <Form.Item label="患者 ID">
+              <Input
+                aria-label="随访快照患者 ID"
+                placeholder="输入患者 ID 检索 ACTIVE 快照"
+                value={snapshotPatientId}
+                onChange={(event) => {
+                  setSnapshotPatientId(event.target.value);
+                  setSelectedSnapshotId("");
+                }}
+              />
+            </Form.Item>
+            <Form.Item label="就诊 ID">
+              <Input
+                aria-label="随访快照就诊 ID"
+                placeholder="可单独按就诊 ID 检索"
+                value={snapshotEncounterId}
+                onChange={(event) => {
+                  setSnapshotEncounterId(event.target.value);
+                  setSelectedSnapshotId("");
+                }}
+              />
+            </Form.Item>
+          </Space>
+          <ContextSnapshotSelector
+            enabled={hasSnapshotFilter}
+            loading={snapshotsQuery.isLoading}
+            error={snapshotsQuery.isError}
+            snapshots={snapshotsQuery.data?.items ?? []}
+            selectedSnapshotId={selectedSnapshotId}
+            onSelect={setSelectedSnapshotId}
+            noun="随访上下文快照"
+          />
+          {snapshotDetailQuery.data ? (
+            <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="配置包版本">
+                {snapshotDetailQuery.data.packageVersion ?? "未标注"}
+              </Descriptions.Item>
+              <Descriptions.Item label="质量状态">
+                {snapshotDetailQuery.data.qualityStatus}
+              </Descriptions.Item>
+            </Descriptions>
+          ) : null}
           <Form.Item
-            name="patientId"
-            label="患者 ID"
-            rules={[{ required: true, message: "请输入患者 ID" }]}
+            name="contextSnapshotId"
+            hidden
+            rules={[
+              {
+                validator: async () => {
+                  if (!selectedSnapshotId) {
+                    throw new Error("请选择 ACTIVE 随访上下文快照");
+                  }
+                },
+              },
+            ]}
           >
             <Input />
-          </Form.Item>
-          <Form.Item
-            name="encounterId"
-            label="就诊 ID"
-            rules={[{ required: true, message: "请输入就诊 ID" }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="diseaseCode"
-            label="病种或路径编码"
-            rules={[{ required: true, message: "请输入真实病种或路径编码" }]}
-          >
-            <Input placeholder="请输入当前患者实际关联的编码" />
           </Form.Item>
           <Form.Item
             name="riskLevel"
@@ -438,7 +522,7 @@ export default function Followup() {
         destroyOnClose
       >
         {selectedPlanDetail && (
-          <Space direction="vertical" size="large" className="w-full">
+          <Space direction="vertical" size="large" className={styles.fullWidth}>
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="计划编号">{selectedPlanDetail.planId}</Descriptions.Item>
               <Descriptions.Item label="租户">{selectedPlanDetail.tenantId}</Descriptions.Item>
@@ -460,25 +544,28 @@ export default function Followup() {
             </Descriptions>
 
             <Card title="随访任务">
-              <Space direction="vertical" className="w-full">
+              <Space direction="vertical" className={styles.fullWidth}>
                 {selectedPlanDetail.tasks.map((task) => (
                   <Card key={task.taskId} size="small">
-                    <Space wrap className="w-full justify-between">
+                    <Space wrap className={styles.rowBetween}>
                       <Space wrap>
                         <Tag color={task.status === "COMPLETED" ? "green" : "blue"}>
                           {task.status}
                         </Tag>
-                        <span className="font-semibold">{task.taskId}</span>
+                        <span className={styles.textStrong}>{task.taskId}</span>
                         <span>{task.taskType}</span>
-                        <span className="text-slate-500">
+                        <span className={styles.textMuted}>
                           截止：{new Date(task.dueDate).toLocaleDateString()}
                         </span>
                       </Space>
-                      {task.status === "PENDING" && selectedPlanDetail.status === "ACTIVE" && (
-                        <Button size="small" onClick={() => setSelectedTaskId(task.taskId)}>
-                          填报
-                        </Button>
-                      )}
+                      {task.taskType === "QUESTIONNAIRE" &&
+                        task.questionnaireTemplateId &&
+                        task.status === "PENDING" &&
+                        selectedPlanDetail.status === "ACTIVE" && (
+                          <Button size="small" onClick={() => setSelectedTaskId(task.taskId)}>
+                            填报
+                          </Button>
+                        )}
                     </Space>
                   </Card>
                 ))}
@@ -495,7 +582,7 @@ export default function Followup() {
                   <Alert
                     type="info"
                     showIcon
-                    className="mb-4"
+                    className={styles.sectionGap}
                     message={`正在提交随访任务：${selectedTaskId}`}
                   />
                   <Form.Item
@@ -563,7 +650,7 @@ export default function Followup() {
                 <Alert
                   type="warning"
                   showIcon
-                  className="mt-4"
+                  className={styles.formGap}
                   message="异常回院证据已登记"
                   description={
                     <Space wrap>
@@ -580,5 +667,12 @@ export default function Followup() {
         )}
       </Drawer>
     </PageShell>
+  );
+}
+
+function buildPlanIdempotencyKey(snapshotId: string, riskLevel: string, taskTypes: string[]) {
+  return `followup-plan-${snapshotId}-${riskLevel}-${[...taskTypes].sort().join("-")}`.slice(
+    0,
+    160,
   );
 }

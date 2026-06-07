@@ -17,7 +17,7 @@ public record SyncLog(
     @Column("log_id") String logId,
     @Column("tenant_id") String tenantId,
     @Column("plan_id") String planId,
-    @Column("target_id") String targetId,
+    @Column("adapter_id") String adapterId,
     SyncLogStatus status,
     @Column("error_code") String errorCode,
     @Column("error_message") String errorMessage,
@@ -31,7 +31,7 @@ public record SyncLog(
 ) {
     public SyncLog withStatus(SyncLogStatus newStatus, String errCode, String errMsg) {
         return new SyncLog(
-            id, logId, tenantId, planId, targetId, newStatus,
+            id, logId, tenantId, planId, adapterId, newStatus,
             errCode, errMsg, retryCount, syncEvidence,
             createdAt, createdBy, Instant.now(), updatedBy, traceId
         );
@@ -39,7 +39,7 @@ public record SyncLog(
 
     public SyncLog withRetry(int newCount, SyncLogStatus newStatus, String errCode, String errMsg) {
         return new SyncLog(
-            id, logId, tenantId, planId, targetId, newStatus,
+            id, logId, tenantId, planId, adapterId, newStatus,
             errCode, errMsg, newCount, syncEvidence,
             createdAt, createdBy, Instant.now(), updatedBy, traceId
         );

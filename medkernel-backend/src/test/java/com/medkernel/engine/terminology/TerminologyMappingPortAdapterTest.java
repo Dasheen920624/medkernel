@@ -1,6 +1,8 @@
 package com.medkernel.engine.terminology;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -10,21 +12,24 @@ import java.util.Optional;
 
 import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.ClinicalCodeMappingAnchor;
+import com.medkernel.engine.versioning.PlatformAuthority;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class TerminologyMappingPortAdapterTest {
 
     private final StandardTermRepository standardTerms = Mockito.mock(StandardTermRepository.class);
-    private final TermMappingRepository mappings = Mockito.mock(TermMappingRepository.class);
+    private final EffectiveTermMappingResolver effectiveMappings =
+        Mockito.mock(EffectiveTermMappingResolver.class);
     private final TerminologyMappingPortAdapter adapter =
-        new TerminologyMappingPortAdapter(standardTerms, mappings);
+        new TerminologyMappingPortAdapter(standardTerms, effectiveMappings);
 
     @Test
     void validatesDirectStandardCodingAgainstActiveDictionaryTerm() {
         ClinicalCodeMappingAnchor anchor = anchor("718-7", "http://loinc.org", "LOINC");
-        when(standardTerms.findByTenantIdAndStandardSystemAndTermCodeAndStatus(
-            "tenant-A", "LOINC", "718-7", StandardTermStatus.ACTIVE))
+        List<String> standardSources = List.of(PlatformAuthority.PLATFORM_TENANT_ID, "tenant-A");
+        when(standardTerms.findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
+            standardSources, "tenant-A", "LOINC", "718-7", StandardTermStatus.ACTIVE))
             .thenReturn(Optional.of(standardTerm("718-7")));
 
         Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
@@ -33,10 +38,10 @@ class TerminologyMappingPortAdapterTest {
     }
 
     @Test
-    void validatesLocalCodingThroughConfirmedMappingWithoutLcsFallback() {
+    void validatesLocalCodingThroughActivePackageSnapshot() {
         ClinicalCodeMappingAnchor anchor = anchor("HB", "LIS", "LOINC");
-        when(mappings.findConfirmedByTenantIdAndAnchor("tenant-A", "LIS", "HB", "LOINC", "LAB"))
-            .thenReturn(List.of(mapping(1L)));
+        when(effectiveMappings.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 2L, "718-7")));
 
         Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
 
@@ -44,14 +49,16 @@ class TerminologyMappingPortAdapterTest {
     }
 
     @Test
-    void marksUnknownWhenNoConfirmedMappingExists() {
+    void ignoresConfirmedMappingThatHasNotEnteredAnActivePackage() {
         ClinicalCodeMappingAnchor anchor = anchor("HB", "LIS", "LOINC");
-        when(mappings.findConfirmedByTenantIdAndAnchor("tenant-A", "LIS", "HB", "LOINC", "LAB"))
+        when(effectiveMappings.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
             .thenReturn(List.of());
 
         Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
 
         assertThat(result).containsEntry(anchor.key(), "UNKNOWN");
+        verify(standardTerms, never()).findFirstByTenantIdsAndId(
+            Mockito.anyList(), Mockito.anyString(), Mockito.anyLong());
     }
 
     private static ClinicalCodeMappingAnchor anchor(String code, String sourceSystem, String targetDictionary) {
@@ -88,24 +95,4 @@ class TerminologyMappingPortAdapterTest {
             "tester");
     }
 
-    private static TermMapping mapping(Long id) {
-        Instant now = Instant.parse("2026-06-03T00:00:00Z");
-        return new TermMapping(
-            id,
-            "tenant-A",
-            1L,
-            2L,
-            "LIS",
-            TermCategory.LAB,
-            1.0D,
-            TermRiskLevel.LOW,
-            TermMappingStatus.CONFIRMED,
-            "人工确认 LIS:HB -> LOINC:718-7",
-            "tester",
-            now,
-            now,
-            "tester",
-            now,
-            "tester");
-    }
 }

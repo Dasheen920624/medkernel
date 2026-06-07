@@ -8,13 +8,13 @@ import java.util.List;
 record RuleImpactIndexSnapshot(
     List<RuleImpactObject> affectedPathways,
     List<RuleImpactObject> inPathPatients,
-    List<RuleImpactObject> syncTargets,
+    List<RuleImpactObject> integrationAdapters,
     List<String> unavailableScopes
 ) {
     RuleImpactIndexSnapshot {
         affectedPathways = affectedPathways == null ? List.of() : List.copyOf(affectedPathways);
         inPathPatients = inPathPatients == null ? List.of() : List.copyOf(inPathPatients);
-        syncTargets = syncTargets == null ? List.of() : List.copyOf(syncTargets);
+        integrationAdapters = integrationAdapters == null ? List.of() : List.copyOf(integrationAdapters);
         unavailableScopes = unavailableScopes == null ? List.of() : List.copyOf(unavailableScopes);
     }
 }

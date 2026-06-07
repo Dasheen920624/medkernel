@@ -3,7 +3,7 @@ package com.medkernel.engine.knowledge;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.medkernel.shared.api.ApiError;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -15,18 +15,18 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 旧 GET 查询继续由 JWT → {@code RequestContext} 提供上下文；写入类请求必须显式携带本上下文。
  */
 public record KnowledgeApiContext(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion
 ) {
 
     public KnowledgeApiContext {

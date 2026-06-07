@@ -5,6 +5,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  listAllCurrentFiles,
+  listChangedFiles,
+  listTrackedFiles,
+} from "./git-scan-files.mjs";
+
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
@@ -399,29 +405,6 @@ function git(root, args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 }
 
-function listTrackedFiles(root) {
-  const output = git(root, ["ls-files"]);
-  return output ? output.split(/\r?\n/) : [];
-}
-
-function listChangedFiles(root, base) {
-  const candidates = [
-    ["diff", "--name-only", "--diff-filter=ACMR", `${base}...HEAD`],
-    ["diff", "--name-only", "--diff-filter=ACMR", `${base}..HEAD`],
-    ["diff", "--name-only", "--diff-filter=ACMR", "HEAD^..HEAD"],
-  ];
-
-  for (const args of candidates) {
-    try {
-      const output = git(root, args);
-      return output ? output.split(/\r?\n/) : [];
-    } catch {
-      // 尝试下一个 base 形式。
-    }
-  }
-  return [];
-}
-
 function resolveBase(root, explicitBase) {
   if (explicitBase) return explicitBase;
   if (process.env.GITHUB_BASE_REF)
@@ -514,10 +497,14 @@ async function main() {
     throw new Error(`未知 mode：${options.mode}`);
   }
 
-  const files =
-    options.mode === "changed"
-      ? listChangedFiles(root, resolveBase(root, options.base))
-      : listTrackedFiles(root);
+  let files;
+  if (options.mode === "changed") {
+    files = listChangedFiles(root, resolveBase(root, options.base));
+  } else if (options.mode === "all") {
+    files = listAllCurrentFiles(root);
+  } else {
+    files = listTrackedFiles(root);
+  }
   const report = await scanFiles(root, files);
   printReport(report, options);
 

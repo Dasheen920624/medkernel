@@ -20,13 +20,13 @@ public class FollowupPathwayHandoffAdapter implements PathwayFollowupHandoffPort
 
     @Override
     public PathwayFollowupHandoffResult handoff(PathwayFollowupHandoffCommand command) {
-        FollowupPlanDetailResponse response = followupService.generatePlan(new FollowupPlanGenerateRequest(
+        FollowupPlanDetailResponse response = followupService.generatePlanFromPathway(
             command.patientId(),
             command.encounterId(),
             command.patientPathwayId(),
             command.diseaseCode(),
             command.riskLevel(),
-            command.taskTypes()));
+            command.taskTypes());
         return new PathwayFollowupHandoffResult(
             response.planId(), response.tasks().size(), response.status().name(),
             RequestContext.currentTraceId());

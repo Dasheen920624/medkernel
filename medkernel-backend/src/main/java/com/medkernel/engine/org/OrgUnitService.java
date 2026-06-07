@@ -64,6 +64,33 @@ public class OrgUnitService {
     }
 
     /**
+     * 按关键词、层级和状态分页检索当前租户组织目录。
+     */
+    public PageResponse<OrgUnit> searchByCurrentTenant(
+            PageRequest request,
+            String keyword,
+            OrgLevel level,
+            OrgUnitStatus status) {
+        String tenantId = requireCurrentTenant();
+        PageRequest safe = request == null ? PageRequest.defaults() : request;
+        String normalizedKeyword = normalizeFilter(keyword);
+        String levelCode = level == null ? null : level.name();
+        String statusCode = status == null ? null : status.name();
+        long total = repository.countDirectory(tenantId, normalizedKeyword, levelCode, statusCode);
+        if (total == 0) {
+            return PageResponse.empty(safe);
+        }
+        List<OrgUnit> rows = repository.pageDirectory(
+            tenantId,
+            normalizedKeyword,
+            levelCode,
+            statusCode,
+            safe.offset(),
+            safe.safeSize());
+        return PageResponse.of(rows, safe, total);
+    }
+
+    /**
      * 按组织编码读取当前租户的组织单元。
      *
      * @param code 组织编码
@@ -246,6 +273,10 @@ public class OrgUnitService {
             .orElse("system");
     }
 
+    private String normalizeFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private String requireCurrentTenant() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
@@ -277,6 +308,9 @@ public class OrgUnitService {
     private void validateRootAndLevel(String tenantId, OrgUnit input, OrgUnit parent) {
         if (input.level() == null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "组织级别不能为空");
+        }
+        if (!input.level().isOrganizationTreeLevel()) {
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "专病/平台不是组织树节点，请使用 specialtyId 或 applicableScope 表达横切维度");
         }
         if (parent == null) {
             if (input.level() != OrgLevel.TENANT) {

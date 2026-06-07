@@ -3,8 +3,7 @@ import axios from "axios";
 /**
  * MedKernel v1.0 GA · axios HTTP client（全局单例）。
  *
- * baseURL 走 vite proxy → /medkernel/api → http://localhost:18080/medkernel/api
- * （vite.config.ts 已配 /medkernel → :18080）。
+ * baseURL 走 vite proxy → /medkernel/api；代理目标由开发环境显式配置。
  *
  * 登录态只放 httpOnly cookie；浏览器写操作通过 XSRF-TOKEN + X-XSRF-TOKEN 双提交防护。
  */

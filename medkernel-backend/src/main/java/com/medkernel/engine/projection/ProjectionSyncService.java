@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.clinical.model.ClinicalProjectionStatus;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -142,6 +144,25 @@ public class ProjectionSyncService {
             graphEnabled
                 ? "图投影开关已开启；状态由快照数量与同步结果决定"
                 : "graph-projection Feature Flag 关闭，关系库权威主链路保持可用");
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ProjectionFactItem> listProjectionFacts(
+            String tenantId,
+            ProjectionTargetType targetType,
+            String keyword,
+            PageRequest pageRequest) {
+        PageRequest page = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        String normalizedKeyword = normalizeKeyword(keyword);
+        List<ProjectionFactItem> rows = snapshots.findByTenantIdAndTargetType(tenantId, targetType)
+            .stream()
+            .map(ProjectionFactItem::fromSnapshot)
+            .filter(item -> matchesKeyword(item, normalizedKeyword))
+            .sorted(Comparator.comparing(ProjectionFactItem::factKey))
+            .toList();
+        int fromIndex = Math.min(page.offset(), rows.size());
+        int toIndex = Math.min(fromIndex + page.safeSize(), rows.size());
+        return PageResponse.of(rows.subList(fromIndex, toIndex), page, rows.size());
     }
 
     private ProjectionRebuildResponse rebuildTarget(String tenantId, ProjectionTargetType targetType,
@@ -367,6 +388,30 @@ public class ProjectionSyncService {
 
     private void sortDiffs(List<ProjectionDiffItem> items) {
         items.sort(Comparator.comparing(ProjectionDiffItem::factKey));
+    }
+
+    private boolean matchesKeyword(ProjectionFactItem item, String keyword) {
+        if (keyword == null) {
+            return true;
+        }
+        return contains(item.factKey(), keyword)
+            || contains(item.objectType(), keyword)
+            || contains(item.objectId(), keyword)
+            || contains(item.subjectKey(), keyword)
+            || contains(item.predicate(), keyword)
+            || contains(item.objectKey(), keyword)
+            || contains(item.traceId(), keyword);
+    }
+
+    private boolean contains(String value, String keyword) {
+        return value != null && value.toLowerCase().contains(keyword);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim().toLowerCase();
     }
 
     private String aggregateHashFromFacts(List<ProjectionFact> facts) {

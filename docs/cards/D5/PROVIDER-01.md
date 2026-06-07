@@ -1,36 +1,36 @@
-# PROVIDER-01 · Provider 状态页
+# PROVIDER-01 · 运行状态页
 
 > 读卡前置：[核心 CONSTITUTION](../../CONSTITUTION.md) + [D5 域简报](_brief.md) + [体验契约](../../EXPERIENCE_CONTRACT.md)。
 > 迁移来源（覆盖矩阵锚点）：详规 §3 S14 用户、权限与合规 · 核心 §11 B0 / 诚实降级 · 详规 Provider/模型状态。
-> 实化映射：占位 `D5-PAGE-Provider 状态` → 本卡 **PROVIDER-01**。
+> 实化映射：原占位 `D5-PAGE-Provider 状态` → 当前 **PROVIDER-01 运行状态**。
 
 ## 身份
-- 卡 ID：PROVIDER-01（页面卡；= backlog `D5-PAGE-Provider 状态` 实化）
+- 卡 ID：PROVIDER-01（页面卡；运行状态）
 - 域：D5 合规运维
 - 关联场景：S14 用户、权限与合规
-- 依赖卡：[SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md)（Provider 状态后端）· [CONFIG-01](../D0/CONFIG-01.md)（Provider 配置）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
+- 依赖卡：[SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md)（运行状态后端）· [CONFIG-01](../D0/CONFIG-01.md)（运行配置）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
 - 工作量：2d
 - owner / reviewer：待派单（owner ≠ reviewer）
 
 ## 目标
-把 Provider 状态页**真实化**：呈现各 Provider/模型（LLM/图/外部系统）真实连接与健康状态，**无连接诚实显示 `NOT_CONNECTED`**，全部接 [SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md)，**绝不伪造连接/绿灯**。
+把运行状态页**真实化**：普通视图呈现依赖健康、备份恢复就绪和国产化摘要；技术路径、方言、脚本、配置来源与风险枚举只在授权专家模式展示。外部依赖无连接诚实显示 `NOT_CONNECTED`/`MODEL_DISABLED`，绝不伪造绿灯。
 
 ## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化**：`pages/compliance/SystemProviders.tsx`（路由 `/system/providers` 已注册 `app/router.tsx`，有 `SystemProviders.test.tsx`）。本卡＝去占位/mock + 接 Provider 状态 API（[SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md)）+ 六态/五维 RBAC 齐全。
+页面实现为 `pages/compliance/SystemProviders.tsx`（路由 `/system/providers`）。本卡收口真实运行状态、普通/专家视图边界、六态和五维 RBAC。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 状态列表：列各 Provider（LLM/图/外部）真实连接/健康状态。
+- [ ] FR-1 状态列表：列数据库、备份恢复、模型工作流、图投影等依赖真实健康状态。
 - [ ] FR-2 诚实降级：未连接/不可用标 `NOT_CONNECTED`/`MODEL_DISABLED`，**不伪造绿灯**。
-- [ ] FR-3 健康详情：延迟/最近探测/错误信息真实可见。
+- [ ] FR-3 视图分层：普通视图只呈现可行动摘要；授权专家模式显示部署、迁移、脚本和配置来源。
 - [ ] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
 - [ ] FR-5 五维 RBAC：信息科/管理员可见；数据按 `OrgContext`。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费 [SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md) Provider 状态 API。
+N·A —— 消费 `GET /api/v1/system/operations`。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `compliance` / menuKey `system-providers` / menuLabel `Provider 状态` / path `/system/providers` / requiredPermissions 系统运维 / requiredRoles 信息科·平台管理员。
-- 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ Provider 状态卡（连接色阶 token）+ 健康详情抽屉 + 六态。
+- 路由元数据：sectionKey `compliance-ops` / menuKey `system-providers` / menuLabel `运行状态` / path `/system/providers`。
+- 结构：PageExperienceShell + 健康摘要 + 依赖列表 + 备份恢复就绪 + 国产化摘要 + 授权专家模式。
 - 主按钮 ≤1（重新探测）/ 默认筛选 ≤3（全部/异常/模型）/ 默认角色视图（信息科）。
 - 五维 RBAC：菜单 / 动作（探测）/ 数据（org）/ 资产 / 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码 hex/px（状态色用 token）。
@@ -53,7 +53,7 @@ N·A —— 页面卡不落库；消费 [SVC-COMPLIANCE-02](SVC-COMPLIANCE-02.md
 
 ## 适用不变量
 - 命中核心约束：**铁律 #1/#2 真实性（不伪造连接）** · **核心 §11 B0 诚实降级** · **§运维/国产化**。
-- 本卡落点：把 Provider 状态页变为接真实健康探测、无连接诚实标记的运维看板。
+- 本卡落点：把运行状态页变为异常优先、技术细节分层、无连接诚实标记的运维看板。
 
 ## 验收 + 验证
 - [ ] AC-1（FR-1/2）：状态真实；未连接标 `NOT_CONNECTED`、不伪造绿灯。

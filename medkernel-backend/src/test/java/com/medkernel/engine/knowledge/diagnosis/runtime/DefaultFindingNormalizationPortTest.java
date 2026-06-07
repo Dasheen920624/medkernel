@@ -11,10 +11,11 @@ import java.util.List;
 import java.util.Optional;
 
 import com.medkernel.engine.context.CanonicalResourceType;
+import com.medkernel.engine.terminology.EffectiveTermMapping;
+import com.medkernel.engine.terminology.EffectiveTermMappingResolver;
 import com.medkernel.engine.terminology.StandardTerm;
 import com.medkernel.engine.terminology.StandardTermRepository;
-import com.medkernel.engine.terminology.TermMapping;
-import com.medkernel.engine.terminology.TermMappingRepository;
+import com.medkernel.engine.versioning.PlatformAuthority;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,31 +25,33 @@ import org.junit.jupiter.api.Test;
 class DefaultFindingNormalizationPortTest {
 
     private final StandardTermRepository standardTerms = mock(StandardTermRepository.class);
-    private final TermMappingRepository mappings = mock(TermMappingRepository.class);
+    private final EffectiveTermMappingResolver effectiveMappings = mock(EffectiveTermMappingResolver.class);
     private final DefaultFindingNormalizationPort port =
-        new DefaultFindingNormalizationPort(standardTerms, mappings);
+        new DefaultFindingNormalizationPort(standardTerms, effectiveMappings);
 
     @Test
-    void resolvesSingleConfirmedLocalMappingToStandardCode() {
-        when(mappings.findConfirmedByTenantIdAndAnchor("t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
-            .thenReturn(List.of(mapping(5L)));
-        when(standardTerms.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(std("ICD-PNEU")));
+    void resolvesSingleActivePackageSnapshotToStandardCode() {
+        when(effectiveMappings.resolve(
+                "t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-PNEU")));
 
         assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
             .contains("ICD-PNEU");
     }
 
     @Test
-    void ambiguousConfirmedMappingsAreUnmapped() {
-        when(mappings.findConfirmedByTenantIdAndAnchor(any(), any(), any(), any(), any()))
-            .thenReturn(List.of(mapping(5L), mapping(6L)));
+    void ambiguousActivePackageMappingsAreUnmapped() {
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
+            .thenReturn(List.of(
+                new EffectiveTermMapping(1L, 5L, "ICD-A"),
+                new EffectiveTermMapping(2L, 6L, "ICD-B")));
 
         assertThat(port.normalize("t-1", CanonicalResourceType.OBSERVATION, "LOCAL-X", "HIS")).isEmpty();
     }
 
     @Test
-    void noConfirmedMappingIsUnmapped() {
-        when(mappings.findConfirmedByTenantIdAndAnchor(any(), any(), any(), any(), any()))
+    void confirmedButUnreleasedMappingIsUnmapped() {
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
             .thenReturn(List.of());
 
         assertThat(port.normalize("t-1", CanonicalResourceType.MEDICATION, "LOCAL-Y", "HIS")).isEmpty();
@@ -62,9 +65,11 @@ class DefaultFindingNormalizationPortTest {
     @Test
     void passesThroughLocalCodeThatIsItselfActiveStandardTerm() {
         // 院内直接用标准字典编码：无本地→标准映射，但 localCode 本身是该字典 ACTIVE 标准码 → 透传
-        when(mappings.findConfirmedByTenantIdAndAnchor(any(), any(), any(), any(), any()))
+        List<String> standardSources = List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
             .thenReturn(List.of());
-        when(standardTerms.findActiveByTenantIdAndStandardSystemAndTermCode("t-1", "TERM.DIAGNOSIS", "ICD-PNEU"))
+        when(standardTerms.findFirstActiveByTenantIdsAndStandardSystemAndTermCode(
+                standardSources, "t-1", "TERM.DIAGNOSIS", "ICD-PNEU"))
             .thenReturn(Optional.of(std("ICD-PNEU")));
 
         assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "ICD-PNEU", "ICD-10"))
@@ -72,15 +77,15 @@ class DefaultFindingNormalizationPortTest {
     }
 
     @Test
-    void confirmedMappingTakesPrecedenceOverPassthrough() {
-        when(mappings.findConfirmedByTenantIdAndAnchor("t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
-            .thenReturn(List.of(mapping(5L)));
-        when(standardTerms.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(std("ICD-MAPPED")));
+    void activePackageMappingTakesPrecedenceOverPassthrough() {
+        when(effectiveMappings.resolve(
+                "t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-MAPPED")));
 
         assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
             .contains("ICD-MAPPED");
         verify(standardTerms, never())
-            .findActiveByTenantIdAndStandardSystemAndTermCode(any(), any(), any());
+            .findFirstActiveByTenantIdsAndStandardSystemAndTermCode(any(), any(), any(), any());
     }
 
     private StandardTerm std(String code) {
@@ -88,8 +93,4 @@ class DefaultFindingNormalizationPortTest {
             null, null, null, null, null, null, null);
     }
 
-    private TermMapping mapping(Long standardTermId) {
-        return new TermMapping(1L, "t-1", 9L, standardTermId, "HIS", null, null, null,
-            null, null, null, null, null, null, null, null);
-    }
 }

@@ -29,7 +29,7 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -42,7 +42,7 @@ class ClinicalEventServiceTest {
     private ClinicalEventPayloadRepository payloads;
     private ClinicalEventOutboxRepository outbox;
     private ClinicalEventProcessor processor;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private IntegrationWebhookConfigRepository webhooks;
@@ -55,7 +55,7 @@ class ClinicalEventServiceTest {
         payloads = mock(ClinicalEventPayloadRepository.class);
         outbox = mock(ClinicalEventOutboxRepository.class);
         processor = mock(ClinicalEventProcessor.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         webhooks = mock(IntegrationWebhookConfigRepository.class);
@@ -63,7 +63,7 @@ class ClinicalEventServiceTest {
         json.findAndRegisterModules();
 
         service = new ClinicalEventService(
-            events, payloads, outbox, processor, auditPublisher, transitions, diagnoseAssembler, json,
+            events, payloads, outbox, processor, auditRecorder, transitions, diagnoseAssembler, json,
             new ClinicalEventProperties(1024, Duration.ofMillis(50), 10, 3, List.of(1L, 5L, 30L)), webhooks);
 
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -127,7 +127,7 @@ class ClinicalEventServiceTest {
         assertThat(outboxCap.getValue().claimStatus()).isEqualTo("PENDING");
 
         verify(transitions).record("clinical_event", "evt-1", null, "RECEIVED", "INITIAL_RECEIVE", null);
-        verify(auditPublisher).publish(AuditAction.CREATE, "clinical_event", "evt-1",
+        verify(auditRecorder).record(AuditAction.CREATE, "clinical_event", "evt-1",
             "接收临床事件 type=DIAGNOSIS patient=MPI-1");
     }
 
@@ -213,7 +213,7 @@ class ClinicalEventServiceTest {
     @Test
     void receiveAsyncRejectsOversizedPayload() {
         service = new ClinicalEventService(
-            events, payloads, outbox, processor, auditPublisher, transitions, diagnoseAssembler, json,
+            events, payloads, outbox, processor, auditRecorder, transitions, diagnoseAssembler, json,
             new ClinicalEventProperties(10, Duration.ofMillis(50), 10, 3, List.of(1L)), webhooks);
 
         assertThatThrownBy(() -> service.receiveAsync(sampleRequest("evt-big")))

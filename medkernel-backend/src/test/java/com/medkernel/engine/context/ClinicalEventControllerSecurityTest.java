@@ -55,7 +55,7 @@ class ClinicalEventControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotCreateClinicalEvent() throws Exception {
-        mvc.perform(post("/api/v1/engine/events")
+        mvc.perform(post("/api/v1/engine/clinical-events")
                 .contentType("application/json")
                 .content(VALID_BODY))
             .andExpect(status().isForbidden());
@@ -65,7 +65,7 @@ class ClinicalEventControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void itOpsCanReachAsyncCreateButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.receiveAsync(any())).thenReturn(accepted());
-        mvc.perform(post("/api/v1/engine/events/async")
+        mvc.perform(post("/api/v1/engine/clinical-events:async")
                 .contentType("application/json")
                 .content(VALID_BODY))
             .andExpect(status().isBadRequest())
@@ -123,7 +123,7 @@ class ClinicalEventControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanReachReadButDataScopeFailsOnMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/events/evt-1"))
+        mvc.perform(get("/api/v1/engine/clinical-events/evt-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -131,14 +131,16 @@ class ClinicalEventControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void unmappedRoleCannotReadClinicalEvent() throws Exception {
-        mvc.perform(get("/api/v1/engine/events/evt-1"))
+        mvc.perform(get("/api/v1/engine/clinical-events/evt-1"))
             .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_AUDIT_COMPLIANCE")
     void auditComplianceCannotReplayClinicalEvent() throws Exception {
-        mvc.perform(post("/api/v1/engine/events/evt-1/replay"))
+        mvc.perform(post("/api/v1/engine/clinical-events:replay")
+                .contentType("application/json")
+                .content("{\"sourceEventId\":\"evt-1\"}"))
             .andExpect(status().isForbidden());
     }
 
@@ -148,9 +150,29 @@ class ClinicalEventControllerSecurityTest {
         when(service.replay(anyString())).thenReturn(
             new ClinicalEventReplayResponse("evt-1", "evt-replay-1",
                 ClinicalEventStatus.RECEIVED, "trace"));
-        mvc.perform(post("/api/v1/engine/events/evt-1/replay"))
+        mvc.perform(post("/api/v1/engine/clinical-events:replay")
+                .contentType("application/json")
+                .content("{\"sourceEventId\":\"evt-1\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void legacyEventsAndSlashActionRoutesAreNotMounted() throws Exception {
+        mvc.perform(post("/api/v1/engine/events")
+                .contentType("application/json")
+                .content(VALID_BODY))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/clinical-events/async")
+                .contentType("application/json")
+                .content(VALID_BODY))
+            .andExpect(status().isMethodNotAllowed())
+            .andExpect(jsonPath("$.code").value("ENG-API-006"));
+
+        mvc.perform(post("/api/v1/engine/clinical-events/evt-1/replay"))
+            .andExpect(status().isNotFound());
     }
 
     private ClinicalEventAcceptedResponse accepted() {

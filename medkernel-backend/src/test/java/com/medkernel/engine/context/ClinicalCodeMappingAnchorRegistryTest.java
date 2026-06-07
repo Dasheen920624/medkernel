@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalClaim;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
@@ -29,6 +30,9 @@ class ClinicalCodeMappingAnchorRegistryTest {
         assertThat(ClinicalCodeMappingAnchorRegistry.definitions())
             .extracting(ClinicalCodeMappingAnchorDefinition::resourceType)
             .contains(CanonicalResourceType.values());
+        assertThat(ClinicalCodeMappingAnchorRegistry.definitions())
+            .noneMatch(definition -> definition.resourceType() == CanonicalResourceType.PATIENT
+                && "allergies".equals(definition.fieldName()));
     }
 
     @Test
@@ -60,13 +64,23 @@ class ClinicalCodeMappingAnchorRegistryTest {
             assertThat(anchor.localCode()).isEqualTo("DRG-A");
             assertThat(anchor.targetDictionaryKey()).isEqualTo("TERM.INSURANCE");
         });
+        assertThat(anchors).anySatisfy(anchor -> {
+            assertThat(anchor.resourceType()).isEqualTo(CanonicalResourceType.ALLERGY_INTOLERANCE);
+            assertThat(anchor.resourceId()).isEqualTo("alg-1");
+            assertThat(anchor.fieldName()).isEqualTo("code");
+            assertThat(anchor.localCode()).isEqualTo("ATC-J01C");
+            assertThat(anchor.targetDictionaryKey()).isEqualTo("TERM.DRUG");
+        });
     }
 
     private ContextSnapshotResources fullResources() {
         Instant now = Instant.parse("2026-06-01T01:00:00Z");
         return new ContextSnapshotResources(
             new CanonicalPatient("MPI-1", "张三", LocalDate.of(1980, 1, 1), "M",
-                List.of("ALG-PEN"), List.of("PREGNANT"), "HIS", "pat-rec-1", "v1", now, now, QualityStatus.VALID),
+                List.of("PREGNANT"), "HIS", "pat-rec-1", "v1", now, now, QualityStatus.VALID),
+            List.of(new CanonicalAllergyIntolerance("alg-1", "ATC-J01C", "ATC", "青霉素类",
+                "MEDICATION", "HIGH", List.of("皮疹", "喉头水肿"), "ACTIVE", "CONFIRMED",
+                "HIS", "alg-rec-1", "v1", now, now, QualityStatus.VALID)),
             List.of(new CanonicalEncounter("ENC-1", "IP", now, null,
                 "DEPT-A", "DOC-A", null, "HIS", "enc-rec-1", "v1", now, now, QualityStatus.VALID)),
             List.of(new CanonicalCondition("cond-1", "I10", "ICD-10", "原发性高血压",

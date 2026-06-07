@@ -11,6 +11,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.shared.observability.TransitionError;
 
@@ -24,6 +25,7 @@ public class ClinicalEventProcessor {
 
     private final ClinicalEventRepository events;
     private final ClinicalEventPayloadRepository payloads;
+    private final AuditRecorder auditRecorder;
     private final AuditEventPublisher auditPublisher;
     private final StateTransitionRecorder transitions;
     private final ApplicationEventPublisher applicationEvents;
@@ -32,6 +34,7 @@ public class ClinicalEventProcessor {
 
     public ClinicalEventProcessor(ClinicalEventRepository events,
                                   ClinicalEventPayloadRepository payloads,
+                                  AuditRecorder auditRecorder,
                                   AuditEventPublisher auditPublisher,
                                   StateTransitionRecorder transitions,
                                   ApplicationEventPublisher applicationEvents,
@@ -39,6 +42,7 @@ public class ClinicalEventProcessor {
                                   ClinicalEventEngineDispatcher engineDispatcher) {
         this.events = events;
         this.payloads = payloads;
+        this.auditRecorder = auditRecorder;
         this.auditPublisher = auditPublisher;
         this.transitions = transitions;
         this.applicationEvents = applicationEvents;
@@ -74,7 +78,7 @@ public class ClinicalEventProcessor {
             ClinicalEventStatus.MAPPED.name(), ClinicalEventStatus.PROCESSED.name(),
             "ENGINES_OK", null);
 
-        auditPublisher.publish(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
+        auditRecorder.record(AuditAction.EXECUTE, ENTITY_TYPE, eventId,
             "处理临床事件成功 type=" + event.eventType());
         applicationEvents.publishEvent(new ClinicalEventProcessedEvent(
             eventId, tenantId, event.traceId(), context));

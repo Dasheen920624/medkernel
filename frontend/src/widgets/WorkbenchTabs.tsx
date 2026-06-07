@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const tabRoutes = [
   { key: "/dashboard", label: "工作台" },
-  { key: "/workbench/demo-validation", label: "演示与校验" },
+  { key: "/workbench/readiness-validation", label: "验收自检" },
 ];
 
 export function WorkbenchTabs() {
@@ -13,7 +13,7 @@ export function WorkbenchTabs() {
 
   return (
     <Tabs
-      data-testid="demo-validation-tabs"
+      data-testid="readiness-validation-tabs"
       activeKey={activeKey}
       items={tabRoutes}
       onChange={(key) => navigate(key)}

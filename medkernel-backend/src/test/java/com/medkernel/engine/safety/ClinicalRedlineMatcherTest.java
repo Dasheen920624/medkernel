@@ -133,13 +133,13 @@ class ClinicalRedlineMatcherTest {
 
     private ContextSnapshotResponse snapshot() {
         CanonicalPatient patient = new CanonicalPatient(
-            "mpi-1", "测试患者", null, "FEMALE", List.of(), List.of(),
+            "mpi-1", "测试患者", null, "FEMALE", List.of(),
             "HIS", "patient-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
         return new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE,
             new ContextSnapshotResources(patient, List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
-            "1.0.0", "knowledge-1", "rule-1", "pathway-1",
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
+            "1.0.0",
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-redline-match");
     }
 

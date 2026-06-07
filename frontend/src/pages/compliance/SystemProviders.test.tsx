@@ -1,11 +1,12 @@
 import { ConfigProvider } from "antd";
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemProviders from "./SystemProviders";
-import { useRuntimeOperations } from "@/shared/api/hooks";
+import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: vi.fn(),
+  useSecurityProfile: vi.fn(),
 }));
 
 const snapshot = {
@@ -48,8 +49,8 @@ const snapshot = {
     {
       key: "backup-restore",
       displayName: "备份恢复",
-      status: "DEGRADED",
-      detail: "SHA-256 摘要随备份文件生成，恢复前自动校验；尚未附带本次恢复演练结果，不标记 UP",
+      status: "UP",
+      detail: "隔离恢复演练通过，迁移历史校验正常",
     },
     {
       key: "graph-projection",
@@ -71,6 +72,13 @@ const snapshot = {
     backupScript: "./deploy/docker/scripts/backup.sh",
     restoreScript: "./deploy/docker/scripts/restore.sh",
     checksumPolicy: "SHA-256 摘要随备份文件生成，恢复前自动校验",
+    drillEvidence: {
+      status: "SUCCESS",
+      completedAt: "2026-06-06T16:30:00Z",
+      migrationCount: 96,
+      evidenceReference: "latest-restore-drill.properties",
+      detail: "隔离恢复演练通过，迁移历史校验正常",
+    },
     source: "SAFE_DEFAULT",
     warning: "备份策略读取失败，已使用启动安全默认。",
   },
@@ -85,9 +93,131 @@ const snapshot = {
 };
 
 describe("SystemProviders", () => {
-  it("renders the real runtime operations snapshot instead of static provider demos", () => {
+  const runtimeRefetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useSecurityProfile).mockReturnValue({
+      data: {
+        userId: "u-ops",
+        username: "it-ops",
+        roles: [{ code: "it-ops" }],
+        permissions: [
+          {
+            code: "system.read",
+            dimension: "ACTION",
+            target: "system",
+            displayName: "查看系统状态",
+            risk: "LOW",
+          },
+          {
+            code: "system.debug",
+            dimension: "ACTION",
+            target: "system",
+            displayName: "查看系统诊断",
+            risk: "HIGH",
+          },
+        ],
+        menuKeys: ["system-providers"],
+        environmentKeys: ["prod"],
+        dataScope: {
+          tenantId: "t-1",
+          groupId: null,
+          hospitalId: null,
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          specialtyId: null,
+        },
+        mustChangePwd: false,
+        mfaRequired: true,
+        mfaBound: true,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
     vi.mocked(useRuntimeOperations).mockReturnValue({
       data: snapshot,
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: runtimeRefetch,
+    } as never);
+  });
+
+  it("keeps implementation details out of the default operations view", () => {
+    render(
+      <ConfigProvider>
+        <SystemProviders />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "运行状态" })).toBeInTheDocument();
+    expect(screen.getByText("核心服务")).toBeInTheDocument();
+    expect(screen.queryByText("整体健康")).not.toBeInTheDocument();
+    expect(screen.getByText("2 项依赖需关注")).toBeInTheDocument();
+    expect(screen.getAllByText("知识图谱投影").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Dify 工作流").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("备份恢复").length).toBeGreaterThan(0);
+    expect(screen.getByText("备份策略读取失败，已使用启动安全默认。")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("SHA-256 摘要随备份文件生成，恢复前自动校验").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("演练通过")).toBeInTheDocument();
+    expect(screen.getByText("迁移校验：96 条")).toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toBeInTheDocument();
+    expect(screen.getAllByText(/麒麟 \/ 统信 \/ openEuler/).length).toBeGreaterThan(0);
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("关系数据库"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getAllByText("正常"),
+    ).not.toHaveLength(0);
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("未连接"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText("模型未启用"),
+    ).toBeInTheDocument();
+    const dependencyRows = within(screen.getByTestId("runtime-dependencies")).getAllByRole("row");
+    expect(within(dependencyRows[1]).getByText("知识图谱投影")).toBeInTheDocument();
+
+    expect(screen.queryByText("Oracle 23ai · 主库")).not.toBeInTheDocument();
+    expect(screen.queryByText(/总院 PACS/)).not.toBeInTheDocument();
+    expect(screen.queryByText("DISABLED")).not.toBeInTheDocument();
+    expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
+    expect(screen.queryByText("postgres")).not.toBeInTheDocument();
+    expect(screen.queryByText("classpath:db/migration/postgres")).not.toBeInTheDocument();
+    expect(screen.queryByText("./deploy/docker/scripts/backup.sh")).not.toBeInTheDocument();
+    expect(screen.queryByText("./deploy/docker/scripts/restore.sh")).not.toBeInTheDocument();
+    expect(screen.queryByText("SAFE_DEFAULT")).not.toBeInTheDocument();
+    expect(screen.queryByText("MEDIUM")).not.toBeInTheDocument();
+    expect(screen.queryByText("配置中心读取失败，已使用启动安全默认。")).not.toBeInTheDocument();
+    expect(screen.queryByText("latest-restore-drill.properties")).not.toBeInTheDocument();
+  });
+
+  it("re-runs the real backend probe from the single page action", () => {
+    render(
+      <ConfigProvider>
+        <SystemProviders />
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "重新探测" }));
+
+    expect(runtimeRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not query or expose operations data without menu and system read permissions", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue({
+      data: {
+        userId: "u-doctor",
+        username: "doctor",
+        roles: [{ code: "doctor" }],
+        permissions: [],
+        menuKeys: [],
+      },
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -99,33 +229,28 @@ describe("SystemProviders", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Provider 状态" })).toBeInTheDocument();
+    expect(useRuntimeOperations).toHaveBeenLastCalledWith(false);
+    expect(screen.getByText("当前权限不足")).toBeInTheDocument();
+    expect(screen.queryByText("关系数据库")).not.toBeInTheDocument();
+  });
+
+  it("reveals deployment diagnostics only after an authorized operator enables expert mode", () => {
+    render(
+      <ConfigProvider>
+        <SystemProviders />
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "专家模式" }));
+
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
-    expect(screen.getAllByText("知识图谱投影").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Dify 工作流").length).toBeGreaterThan(0);
+    expect(screen.getByText("classpath:db/migration/postgres")).toBeInTheDocument();
+    expect(screen.getByText("./deploy/docker/scripts/backup.sh")).toBeInTheDocument();
+    expect(screen.getByText("./deploy/docker/scripts/restore.sh")).toBeInTheDocument();
+    expect(screen.getAllByText("SAFE_DEFAULT").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MEDIUM").length).toBeGreaterThan(0);
     expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
-    expect(screen.getAllByText("备份恢复").length).toBeGreaterThan(0);
-    expect(screen.getByText("备份策略读取失败，已使用启动安全默认。")).toBeInTheDocument();
-    expect(
-      screen.getAllByText("SHA-256 摘要随备份文件生成，恢复前自动校验").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getAllByText(/麒麟 \/ 统信 \/ openEuler/).length).toBeGreaterThan(0);
-    expect(
-      within(screen.getByTestId("runtime-dependencies")).getByText("关系数据库"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("runtime-dependencies")).getByText("降级"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("runtime-dependencies")).getByText("未连接"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("runtime-dependencies")).getByText("模型未启用"),
-    ).toBeInTheDocument();
-
-    expect(screen.queryByText("Oracle 23ai · 主库")).not.toBeInTheDocument();
-    expect(screen.queryByText(/总院 PACS/)).not.toBeInTheDocument();
-    expect(screen.queryByText("DISABLED")).not.toBeInTheDocument();
+    expect(screen.getByText("latest-restore-drill.properties")).toBeInTheDocument();
   });
 });

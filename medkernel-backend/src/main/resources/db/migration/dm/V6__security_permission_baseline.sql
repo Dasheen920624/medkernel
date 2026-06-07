@@ -41,7 +41,7 @@ CREATE TABLE sys_permission (
 CREATE INDEX idx_sys_permission_dimension
     ON sys_permission (dimension, target);
 
-INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_flag, active_flag, created_by, updated_by) VALUES ('SYSTEM', 'platform-admin', '平台管理员', '租户开通、许可证、全局标准包、系统配置', 'Y', 'Y', 'migration-v6', 'migration-v6');
+INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_flag, active_flag, created_by, updated_by) VALUES ('SYSTEM', 'platform-admin', '平台管理员', '租户开通、全局标准包、系统配置', 'Y', 'Y', 'migration-v6', 'migration-v6');
 INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_flag, active_flag, created_by, updated_by) VALUES ('SYSTEM', 'group-admin', '集团管理员', '集团组织、集团知识包、集团质控指标、跨院分析', 'Y', 'Y', 'migration-v6', 'migration-v6');
 INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_flag, active_flag, created_by, updated_by) VALUES ('SYSTEM', 'hospital-admin', '医院管理员', '院内组织、用户、适配器、院内映射、发布审批', 'Y', 'Y', 'migration-v6', 'migration-v6');
 INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_flag, active_flag, created_by, updated_by) VALUES ('SYSTEM', 'it-ops', '信息科', '接口、适配器、同步任务、国产化自检、运行监控', 'Y', 'Y', 'migration-v6', 'migration-v6');
@@ -57,11 +57,6 @@ INSERT INTO sys_role (tenant_id, role_code, display_name, description, built_in_
 
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('org.read', 'ACTION', 'org', '查看组织树', 'LOW', 'migration-v6', 'migration-v6');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.workbench', 'MENU', 'workbench', '查看工作台入口', 'LOW', 'migration-v6', 'migration-v6');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.pilot-setup', 'MENU', 'pilot-setup', '查看试点准备入口', 'LOW', 'migration-v6', 'migration-v6');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.clinical-run', 'MENU', 'clinical-run', '查看临床运行入口', 'LOW', 'migration-v6', 'migration-v6');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.quality-improve', 'MENU', 'quality-improve', '查看质控改进入口', 'LOW', 'migration-v6', 'migration-v6');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.compliance-ops', 'MENU', 'compliance-ops', '查看合规运维入口', 'LOW', 'migration-v6', 'migration-v6');
-INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('menu.advanced-tools', 'MENU', 'advanced-tools', '查看高级工具入口', 'LOW', 'migration-v6', 'migration-v6');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('data.department', 'DATA', 'department', '访问本科室数据', 'LOW', 'migration-v6', 'migration-v6');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('data.hospital', 'DATA', 'hospital', '访问全院数据', 'MEDIUM', 'migration-v6', 'migration-v6');
 INSERT INTO sys_permission (permission_code, dimension, target, display_name, risk_level, created_by, updated_by) VALUES ('data.group', 'DATA', 'group', '访问集团跨院数据', 'HIGH', 'migration-v6', 'migration-v6');

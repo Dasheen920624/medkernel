@@ -1,659 +1,635 @@
 import { useState } from "react";
-import { PageShell } from "@/shared/ui/PageShell";
 import {
+  Alert,
+  App,
+  Button,
+  Descriptions,
+  Divider,
+  Drawer,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Segmented,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import {
+  KeyOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+
+import { getApiErrorMessage } from "@/shared/api/errors";
+import {
+  useAssignComplianceUserRole,
+  useComplianceUserDetail,
+  useComplianceUsers,
+  useCreateComplianceUser,
+  useRemoveComplianceUserRole,
+  useResetComplianceUserPassword,
   useSecurityProfile,
-  useUserRoleAssignments,
-  useCreateUserRoleAssignment,
-  useDeleteUserRoleAssignment,
-  usePlatformCredentials,
-  useCreateMember,
-  useResetMemberPassword,
-  useSetCredentialStatus,
-  useTenants,
-  useProvisionTenant,
+  useSetComplianceUserStatus,
+} from "@/shared/api/hooks";
+import type {
+  ComplianceUserRole,
+  ComplianceUserSummary,
+  CreateComplianceUserPayload,
+  SecurityProfile,
 } from "@/shared/api/hooks";
 import { ROLE_OPTIONS, SCOPE_LEVEL_OPTIONS } from "@/shared/config/roleCatalog";
-import { getApiErrorMessage } from "@/shared/api/errors";
-import styles from "./Compliance.module.css";
+import { PageShell } from "@/shared/ui/PageShell";
+import { PageState } from "@/shared/ui/PageState";
 
-const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
-const SYSTEM_SUPERADMIN_NAME = "内置超级管理员";
+const { Text, Title } = Typography;
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "正常",
+  DISABLED: "已停用",
+  LOCKED: "已锁定",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  ACTIVE: "success",
+  DISABLED: "default",
+  LOCKED: "error",
+};
+
+interface RoleFormValue {
+  roleCode: string;
+  scopeLevel: string;
+  scopeCode: string;
+}
+
+function hasPermission(profile: SecurityProfile | undefined, code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
+function roleKey(role: ComplianceUserRole) {
+  return `${role.code}:${role.scopeLevel}:${role.scopeCode}`;
+}
+
+function renderAccountSecurity(credentialManaged: boolean, mustChangePwd: boolean) {
+  if (!credentialManaged) {
+    return <Text type="secondary">外部身份源</Text>;
+  }
+  return mustChangePwd ? <Tag color="warning">待首次改密</Tag> : <Text>已完成设置</Text>;
+}
+
+function accountSecurityDescription(credentialManaged: boolean, mustChangePwd: boolean) {
+  if (!credentialManaged) {
+    return "由外部身份源负责认证";
+  }
+  return mustChangePwd ? "待首次改密" : "已完成首次安全设置";
+}
+
+function riskColor(risk: string) {
+  if (risk === "HIGH") {
+    return "error";
+  }
+  if (risk === "MEDIUM") {
+    return "warning";
+  }
+  return "default";
+}
 
 export default function AdminUsers() {
-  const { data: securityProfile } = useSecurityProfile();
-  const { data: assignments, isLoading, refetch } = useUserRoleAssignments();
-  const createMutation = useCreateUserRoleAssignment();
-  const deleteMutation = useDeleteUserRoleAssignment();
+  const { message } = App.useApp();
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(20);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [oneTimeSecret, setOneTimeSecret] = useState<{
+    username: string;
+    password: string | null;
+  } | null>(null);
+  const [createForm] = Form.useForm<CreateComplianceUserPayload>();
+  const [roleForm] = Form.useForm<RoleFormValue>();
+  const credentialManaged = Form.useWatch("credentialManaged", createForm) ?? true;
 
-  // 成员账号（凭证）管理
-  const { data: credentials, refetch: refetchCredentials } = usePlatformCredentials();
-  const createMemberMutation = useCreateMember();
-  const resetPwdMutation = useResetMemberPassword();
-  const setStatusMutation = useSetCredentialStatus();
-  const [showMemberForm, setShowMemberForm] = useState(false);
-  const [memberUsername, setMemberUsername] = useState("");
-  const [memberRole, setMemberRole] = useState("doctor");
-  const [memberInitPwd, setMemberInitPwd] = useState("");
+  const security = useSecurityProfile();
+  const users = useComplianceUsers({ page, size });
+  const detail = useComplianceUserDetail(selectedUserId);
+  const createMutation = useCreateComplianceUser();
+  const assignRoleMutation = useAssignComplianceUserRole();
+  const removeRoleMutation = useRemoveComplianceUserRole();
+  const resetPasswordMutation = useResetComplianceUserPassword();
+  const statusMutation = useSetComplianceUserStatus();
 
-  // 平台租户开通（平台管理员）
-  const { data: tenants, refetch: refetchTenants } = useTenants();
-  const provisionTenantMutation = useProvisionTenant();
-  const [showTenantForm, setShowTenantForm] = useState(false);
-  const [newTenantId, setNewTenantId] = useState("");
-  const [newTenantName, setNewTenantName] = useState("");
-  const [newTenantAdmin, setNewTenantAdmin] = useState("");
+  const canRead = hasPermission(security.data, "org.read");
+  const canManage = hasPermission(security.data, "org.write");
 
-  // 表单状态
-  const [userId, setUserId] = useState("");
-  const [roleCode, setRoleCode] = useState("doctor");
-  const [scopeLevel, setScopeLevel] = useState("TENANT");
-  const [scopeCode, setScopeCode] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId.trim()) {
-      setMessage({ text: "用户ID不能为空", type: "error" });
-      return;
+  const refresh = async () => {
+    await Promise.all([users.refetch(), security.refetch()]);
+    if (selectedUserId) {
+      await detail.refetch();
     }
-    const normalizedScopeCode = scopeCode.trim() || securityProfile?.dataScope?.tenantId;
-    if (!normalizedScopeCode) {
-      setMessage({ text: "作用域编码不能为空，请输入当前租户或组织编码", type: "error" });
-      return;
-    }
+  };
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    createForm.resetFields();
+  };
+
+  const submitCreate = async (values: CreateComplianceUserPayload) => {
     try {
-      await createMutation.mutateAsync({
-        userId: userId.trim(),
-        roleCode,
-        scopeLevel,
-        scopeCode: normalizedScopeCode,
+      const result = await createMutation.mutateAsync({
+        credentialManaged: values.credentialManaged,
+        userId: values.userId?.trim() || undefined,
+        displayName: values.displayName?.trim() || undefined,
+        username: values.username?.trim() || undefined,
+        roleCode: values.roleCode,
+        initialPassword: values.initialPassword?.trim() || undefined,
       });
-      setMessage({ text: "角色范围分配成功！", type: "success" });
-      setUserId("");
-      setScopeCode("");
-      refetch();
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "操作失败");
-      setMessage({ text: `绑定失败: ${errMsg}`, type: "error" });
+      closeCreate();
+      if (result.user.credentialManaged) {
+        setOneTimeSecret({
+          username: result.user.username ?? result.user.displayName,
+          password: result.tempPassword,
+        });
+      } else {
+        message.success("外部身份用户已创建");
+      }
+      await users.refetch();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "用户创建失败"));
     }
   };
 
-  const handleDelete = async (id: number) => {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm("确定要移去/解除该用户的角色绑定关系吗？")) {
-      return;
-    }
+  const submitRole = async (values: RoleFormValue) => {
+    if (!selectedUserId) return;
     try {
-      await deleteMutation.mutateAsync(id);
-      setMessage({ text: "角色解绑成功！", type: "success" });
-      refetch();
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "解绑失败");
-      setMessage({ text: `操作失败: ${errMsg}`, type: "error" });
+      await assignRoleMutation.mutateAsync({
+        userId: selectedUserId,
+        roleCode: values.roleCode,
+        scopeLevel: values.scopeLevel,
+        scopeCode: values.scopeCode.trim(),
+      });
+      roleForm.resetFields();
+      message.success("角色范围已生效");
+      await Promise.all([detail.refetch(), users.refetch()]);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "角色分配失败"));
     }
   };
 
-  const handleCreateMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!memberUsername.trim()) {
-      setMessage({ text: "登录名不能为空", type: "error" });
-      return;
-    }
+  const removeRole = async (role: ComplianceUserRole) => {
+    if (!selectedUserId) return;
     try {
-      const res = await createMemberMutation.mutateAsync({
-        username: memberUsername.trim(),
-        roleCode: memberRole,
-        initialPassword: memberInitPwd.trim() || undefined,
+      await removeRoleMutation.mutateAsync({
+        userId: selectedUserId,
+        roleCode: role.code,
+        scopeLevel: role.scopeLevel,
+        scopeCode: role.scopeCode,
       });
-      setMessage({
-        text: res.tempPassword
-          ? `成员 ${res.username} 已开通，临时密码：${res.tempPassword}（请转交本人并提示首登改密）`
-          : `成员 ${res.username} 已开通（使用所设初始密码，须首登改密）`,
-        type: "success",
-      });
-      setMemberUsername("");
-      setMemberInitPwd("");
-      refetchCredentials();
-      refetch();
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "开通失败");
-      setMessage({ text: `开通成员失败: ${errMsg}`, type: "error" });
+      message.success("角色范围已移除");
+      await Promise.all([detail.refetch(), users.refetch()]);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "角色移除失败"));
     }
   };
 
-  const handleResetPassword = async (uid: string) => {
+  const resetPassword = async () => {
+    if (!selectedUserId || !detail.data) return;
     try {
-      const res = await resetPwdMutation.mutateAsync(uid);
-      setMessage({
-        text: `已重置 ${uid} 的密码，临时密码：${res.tempPassword}（请转交本人并提示首登改密）`,
-        type: "success",
+      const result = await resetPasswordMutation.mutateAsync(selectedUserId);
+      setOneTimeSecret({
+        username: detail.data.username ?? detail.data.displayName,
+        password: result.tempPassword,
       });
-      refetchCredentials();
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "重置失败");
-      setMessage({ text: `重置密码失败: ${errMsg}`, type: "error" });
+      await Promise.all([detail.refetch(), users.refetch()]);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "密码重置失败"));
     }
   };
 
-  const handleToggleStatus = async (uid: string, currentStatus: string) => {
-    const next = currentStatus === "ACTIVE" ? "DISABLED" : "ACTIVE";
+  const toggleStatus = async () => {
+    if (!selectedUserId || !detail.data) return;
+    const nextStatus = detail.data.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
     try {
-      await setStatusMutation.mutateAsync({ userId: uid, status: next });
-      setMessage({ text: `账号 ${uid} 已${next === "ACTIVE" ? "启用" : "停用"}`, type: "success" });
-      refetchCredentials();
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "操作失败");
-      setMessage({ text: `状态更新失败: ${errMsg}`, type: "error" });
+      await statusMutation.mutateAsync({ userId: selectedUserId, status: nextStatus });
+      message.success(nextStatus === "ACTIVE" ? "用户已启用" : "用户已停用");
+      await Promise.all([detail.refetch(), users.refetch()]);
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "用户状态更新失败"));
     }
   };
 
-  const handleProvisionTenant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTenantId.trim() || !newTenantName.trim() || !newTenantAdmin.trim()) {
-      setMessage({ text: "租户标识、租户名称、管理员登录名均不能为空", type: "error" });
-      return;
+  const pageContent = () => {
+    if (security.isLoading || users.isLoading) {
+      return <PageState state="loading" title="正在读取用户" />;
     }
-    try {
-      const res = await provisionTenantMutation.mutateAsync({
-        tenantId: newTenantId.trim(),
-        tenantName: newTenantName.trim(),
-        adminUsername: newTenantAdmin.trim(),
-      });
-      setMessage({
-        text: `租户 ${res.tenantId} 已开通，管理员 ${res.adminUsername} 临时密码：${res.tempPassword}（登录时租户填 ${res.tenantId}，须首登改密）`,
-        type: "success",
-      });
-      setNewTenantId("");
-      setNewTenantName("");
-      setNewTenantAdmin("");
-      refetchTenants();
-    } catch (err: unknown) {
-      const errMsg = getApiErrorMessage(err, "开通失败");
-      setMessage({ text: `开通租户失败: ${errMsg}`, type: "error" });
+    if (security.isError || users.isError) {
+      return (
+        <PageState
+          state="error"
+          title="用户列表读取失败"
+          description="请检查登录状态、租户上下文和身份安全服务。"
+          action={
+            <Button icon={<ReloadOutlined />} aria-label="重试" onClick={refresh}>
+              重试
+            </Button>
+          }
+        />
+      );
     }
-  };
-
-  const credStatusLabel = (statusCode: string) => {
-    if (statusCode === "ACTIVE") return "运行中";
-    if (statusCode === "DISABLED") return "已停用";
-    return statusCode;
-  };
-
-  const getRoleName = (code: string) => {
-    if (code === SYSTEM_SUPERADMIN_ROLE) {
-      return SYSTEM_SUPERADMIN_NAME;
+    if (!canRead) {
+      return <PageState state="forbidden" title="当前账号不能查看用户管理" />;
     }
-    const found = ROLE_OPTIONS.find((r) => r.code === code);
-    return found ? found.name : code;
+    if (!users.data || users.data.items.length === 0) {
+      return (
+        <PageState state="empty" title="暂无用户" description="当前租户还没有可管理的用户。" />
+      );
+    }
+
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        {users.data.partial && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`${users.data.partial.successCount} 项已读取，${users.data.partial.failureCount} 项失败`}
+            description={users.data.partial.failures.map((failure) => failure.reason).join("；")}
+          />
+        )}
+        <Table<ComplianceUserSummary>
+          rowKey="userId"
+          dataSource={users.data.items}
+          scroll={{ x: "max-content" }}
+          pagination={{
+            current: users.data.page,
+            pageSize: users.data.size,
+            total: users.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100, 200],
+            onChange: (nextPage, nextSize) => {
+              setPage(nextSize === size ? nextPage : 1);
+              setSize(nextSize);
+            },
+          }}
+          columns={[
+            {
+              title: "用户",
+              dataIndex: "displayName",
+              render: (value: string, record) => (
+                <Space direction="vertical" size={0}>
+                  <Text strong>{value}</Text>
+                  <Text type="secondary">
+                    {record.credentialManaged ? record.username : "外部身份"}
+                  </Text>
+                </Space>
+              ),
+            },
+            {
+              title: "角色",
+              dataIndex: "roles",
+              render: (roles: ComplianceUserRole[]) =>
+                roles.length > 0 ? (
+                  <Space wrap size={[4, 4]}>
+                    {roles.slice(0, 3).map((role) => (
+                      <Tag key={roleKey(role)}>{role.displayName}</Tag>
+                    ))}
+                    {roles.length > 3 && <Tag>+{roles.length - 3}</Tag>}
+                  </Space>
+                ) : (
+                  <Text type="secondary">未分配</Text>
+                ),
+            },
+            {
+              title: "状态",
+              dataIndex: "status",
+              render: (status: string) => (
+                <Tag color={STATUS_COLOR[status] ?? "default"}>
+                  {STATUS_LABEL[status] ?? status}
+                </Tag>
+              ),
+            },
+            {
+              title: "账号安全",
+              dataIndex: "mustChangePwd",
+              render: (mustChangePwd: boolean, record) =>
+                renderAccountSecurity(record.credentialManaged, mustChangePwd),
+            },
+            {
+              title: "操作",
+              key: "actions",
+              render: (_, record) => (
+                <Button
+                  type="link"
+                  size="small"
+                  aria-label={`查看 ${record.userId}`}
+                  onClick={() => setSelectedUserId(record.userId)}
+                >
+                  查看
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </Space>
+    );
   };
 
-  const systemSuperAdminUserIds = new Set(
-    (assignments || [])
-      .filter((assignment) => assignment.roleCode === SYSTEM_SUPERADMIN_ROLE)
-      .map((assignment) => assignment.userId),
-  );
-
-  const isSystemSuperAdminUser = (uid: string) => systemSuperAdminUserIds.has(uid);
-
-  const getStats = () => {
-    const list = assignments || [];
-    const adminCount = list.filter((a) => a.roleCode.includes("admin")).length;
-    const deptCount = list.filter((a) => a.scopeLevel === "DEPARTMENT").length;
-    return {
-      total: list.length,
-      adminCount,
-      deptCount,
-    };
-  };
-
-  const stats = getStats();
+  const selectedIsSystemAdmin =
+    detail.data?.roles.some((role) => role.code === "system-superadmin") ?? false;
 
   return (
-    <PageShell
-      title="用户与角色数据范围管理"
-      description="支撑 GA-SVC-COMPLIANCE-01。物理绑定医院员工身份、角色权限及多维组织数据隔离范围，操作实时留痕。"
-    >
-      <div className={styles.container}>
-        {/* 指标看板 */}
-        <div className={styles.grid}>
-          <div className={styles.card}>
-            <div className={styles.description}>当前已绑定关系数</div>
-            <div className={`${styles.title} ${styles.fontSize28}`}>
-              {isLoading ? "..." : stats.total} 个
-            </div>
-          </div>
-          <div className={styles.card}>
-            <div className={styles.description}>高层管理员级授权</div>
-            <div className={`${styles.title} ${styles.fontSize28}`}>
-              {isLoading ? "..." : stats.adminCount} 个
-            </div>
-          </div>
-          <div className={styles.card}>
-            <div className={styles.description}>科室与专科级细粒度授权</div>
-            <div className={`${styles.title} ${styles.fontSize28}`}>
-              {isLoading ? "..." : stats.deptCount} 个
-            </div>
-          </div>
-        </div>
+    <>
+      <PageShell
+        title="用户管理"
+        description="管理当前租户用户、角色范围和账号状态"
+        primary={
+          canManage ? (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              aria-label="新建用户"
+              onClick={() => setCreateOpen(true)}
+            >
+              新建用户
+            </Button>
+          ) : undefined
+        }
+        extras={
+          <Button icon={<ReloadOutlined />} aria-label="刷新" onClick={refresh}>
+            刷新
+          </Button>
+        }
+      >
+        {pageContent()}
+      </PageShell>
 
-        {/* 提示信息 */}
-        {message && (
-          <div className={message.type === "success" ? styles.alertSuccess : styles.alertError}>
-            {message.text}
-          </div>
+      <Modal
+        open={createOpen}
+        title="新建用户"
+        okText="创建"
+        cancelText="取消"
+        okButtonProps={{ "aria-label": "创建" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
+        confirmLoading={createMutation.isPending}
+        onCancel={closeCreate}
+        onOk={() => createForm.submit()}
+        destroyOnClose
+      >
+        <Form<CreateComplianceUserPayload>
+          form={createForm}
+          layout="vertical"
+          initialValues={{ credentialManaged: true, roleCode: "doctor" }}
+          onFinish={submitCreate}
+          preserve={false}
+        >
+          <Form.Item name="credentialManaged" label="认证方式" rules={[{ required: true }]}>
+            <Segmented
+              block
+              options={[
+                { label: "平台账号", value: true },
+                { label: "外部身份", value: false },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="displayName"
+            label="显示名称"
+            rules={
+              credentialManaged
+                ? []
+                : [{ required: true, whitespace: true, message: "请输入显示名称" }]
+            }
+          >
+            <Input
+              autoComplete="off"
+              placeholder={credentialManaged ? "留空时与登录名一致" : "例如：王医生"}
+            />
+          </Form.Item>
+          <Form.Item
+            name="username"
+            label="登录名"
+            hidden={!credentialManaged}
+            rules={
+              credentialManaged
+                ? [{ required: true, whitespace: true, message: "请输入登录名" }]
+                : []
+            }
+          >
+            <Input autoComplete="off" placeholder="员工登录名或工号" />
+          </Form.Item>
+          <Form.Item
+            name="userId"
+            label="用户标识"
+            rules={
+              credentialManaged
+                ? []
+                : [{ required: true, whitespace: true, message: "请输入用户标识" }]
+            }
+          >
+            <Input
+              autoComplete="off"
+              placeholder={credentialManaged ? "留空时与登录名一致" : "院方稳定人员标识"}
+            />
+          </Form.Item>
+          <Form.Item name="roleCode" label="初始角色">
+            <Select
+              options={ROLE_OPTIONS.map((role) => ({ value: role.code, label: role.name }))}
+            />
+          </Form.Item>
+          <Form.Item name="initialPassword" label="初始密码" hidden={!credentialManaged}>
+            <Input.Password autoComplete="new-password" placeholder="留空时生成一次性临时密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={Boolean(oneTimeSecret)}
+        title="账号凭证已更新"
+        footer={
+          <Button type="primary" onClick={() => setOneTimeSecret(null)}>
+            已妥善记录
+          </Button>
+        }
+        closable={false}
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="临时密码仅显示一次"
+          description={
+            oneTimeSecret?.password ? (
+              <Space direction="vertical" size="small">
+                <Text>{oneTimeSecret.username}</Text>
+                <Text code copyable>
+                  {oneTimeSecret.password}
+                </Text>
+              </Space>
+            ) : (
+              "账号已使用管理员设置的初始密码，用户首次登录仍需改密。"
+            )
+          }
+        />
+      </Modal>
+
+      <Drawer
+        open={Boolean(selectedUserId)}
+        title={detail.data ? `${detail.data.displayName} · 用户详情` : "用户详情"}
+        width={720}
+        onClose={() => {
+          setSelectedUserId(null);
+          roleForm.resetFields();
+        }}
+        extra={
+          <Button icon={<ReloadOutlined />} onClick={() => detail.refetch()}>
+            刷新
+          </Button>
+        }
+      >
+        {detail.isLoading && <PageState state="loading" />}
+        {!detail.isLoading && (detail.isError || !detail.data) && (
+          <PageState
+            state="error"
+            title="用户详情读取失败"
+            action={<Button onClick={() => detail.refetch()}>重试</Button>}
+          />
         )}
+        {!detail.isLoading && !detail.isError && detail.data && (
+          <Space direction="vertical" size="large" className="mk-full-width">
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="显示名称">{detail.data.displayName}</Descriptions.Item>
+              <Descriptions.Item label="认证方式">
+                {detail.data.credentialManaged ? "平台账号" : "外部身份"}
+              </Descriptions.Item>
+              {detail.data.credentialManaged && (
+                <Descriptions.Item label="登录名">{detail.data.username}</Descriptions.Item>
+              )}
+              <Descriptions.Item label="用户标识">{detail.data.userId}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <Tag color={STATUS_COLOR[detail.data.status] ?? "default"}>
+                  {STATUS_LABEL[detail.data.status] ?? detail.data.status}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="账号安全">
+                {accountSecurityDescription(
+                  detail.data.credentialManaged,
+                  detail.data.mustChangePwd,
+                )}
+              </Descriptions.Item>
+            </Descriptions>
 
-        {/* 平台租户开通卡片（平台管理员：建新医院租户 + 首个管理员） */}
-        <div className={styles.card}>
-          <div className={styles.flexBetween}>
-            <div className={styles.title}>平台租户开通（新建医院租户）</div>
-            <button
-              onClick={() => setShowTenantForm(!showTenantForm)}
-              className={styles.btnPrimary}
-            >
-              {showTenantForm ? "收起开通面板" : "开通新租户"}
-            </button>
-          </div>
-
-          {showTenantForm && (
-            <form onSubmit={handleProvisionTenant}>
-              <div className={styles.grid}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>租户标识（小写字母/数字/连字符）</label>
-                  <input
-                    type="text"
-                    value={newTenantId}
-                    onChange={(e) => setNewTenantId(e.target.value)}
-                    placeholder="如 t-renmin"
-                    className={styles.formInput}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>租户名称</label>
-                  <input
-                    type="text"
-                    value={newTenantName}
-                    onChange={(e) => setNewTenantName(e.target.value)}
-                    placeholder="如 人民医院"
-                    className={styles.formInput}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>首个管理员登录名</label>
-                  <input
-                    type="text"
-                    value={newTenantAdmin}
-                    onChange={(e) => setNewTenantAdmin(e.target.value)}
-                    placeholder="如 renmin-admin"
-                    className={styles.formInput}
-                  />
-                </div>
-              </div>
-              <div className={styles.btnGroup}>
-                <button
-                  type="submit"
-                  disabled={provisionTenantMutation.isPending}
-                  className={styles.btnPrimary}
+            {canManage && !selectedIsSystemAdmin && (
+              <Space wrap>
+                <Popconfirm
+                  title={detail.data.status === "ACTIVE" ? "确认停用该用户？" : "确认启用该用户？"}
+                  onConfirm={toggleStatus}
                 >
-                  {provisionTenantMutation.isPending ? "正在开通..." : "确认开通租户"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTenantForm(false);
-                    setMessage(null);
-                  }}
-                  className={styles.btnPrimary}
-                >
-                  取消
-                </button>
-              </div>
-            </form>
-          )}
+                  <Button danger={detail.data.status === "ACTIVE"}>
+                    {detail.data.status === "ACTIVE" ? "停用用户" : "启用用户"}
+                  </Button>
+                </Popconfirm>
+                {detail.data.credentialManaged && (
+                  <Popconfirm title="确认生成新的临时密码？" onConfirm={resetPassword}>
+                    <Button icon={<KeyOutlined />}>重置密码</Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            )}
 
-          {!tenants || tenants.length === 0 ? (
-            <div className={styles.description}>暂无租户记录（需平台管理员权限查看/开通）。</div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>租户标识</th>
-                    <th>租户名称</th>
-                    <th>状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tenants.map((t) => (
-                    <tr key={t.tenantId}>
-                      <td className={styles.fontMonospace}>{t.tenantId}</td>
-                      <td className={styles.fontWeight600}>{t.name}</td>
-                      <td>
-                        <span
-                          className={
-                            t.status === "ACTIVE" ? styles.badgeActive : styles.badgeInactive
-                          }
-                        >
-                          {t.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+            <Divider />
+            <Title level={5}>角色与数据范围</Title>
+            <Table<ComplianceUserRole>
+              rowKey={roleKey}
+              dataSource={detail.data.roles}
+              pagination={false}
+              scroll={{ x: "max-content" }}
+              columns={[
+                { title: "角色", dataIndex: "displayName" },
+                { title: "范围层级", dataIndex: "scopeLevel" },
+                { title: "范围", dataIndex: "scopeCode" },
+                {
+                  title: "操作",
+                  key: "actions",
+                  render: (_, role) =>
+                    canManage && role.code !== "system-superadmin" ? (
+                      <Popconfirm title="确认移除该角色范围？" onConfirm={() => removeRole(role)}>
+                        <Button type="link" danger size="small">
+                          移除
+                        </Button>
+                      </Popconfirm>
+                    ) : (
+                      <Text type="secondary">系统保护</Text>
+                    ),
+                },
+              ]}
+            />
 
-        {/* 成员账号管理卡片（开通登录账号 / 重置密码 / 启停） */}
-        <div className={styles.card}>
-          <div className={styles.flexBetween}>
-            <div className={styles.title}>成员账号管理（开通登录账号）</div>
-            <button
-              onClick={() => setShowMemberForm(!showMemberForm)}
-              className={styles.btnPrimary}
-            >
-              {showMemberForm ? "收起开通面板" : "开通新成员"}
-            </button>
-          </div>
-
-          {showMemberForm && (
-            <form onSubmit={handleCreateMember}>
-              <div className={styles.grid}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>登录名 / 工号</label>
-                  <input
-                    type="text"
-                    value={memberUsername}
-                    onChange={(e) => setMemberUsername(e.target.value)}
-                    placeholder="如 drwang"
-                    className={styles.formInput}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>初始角色</label>
-                  <select
-                    value={memberRole}
-                    onChange={(e) => setMemberRole(e.target.value)}
-                    className={styles.formInput}
+            {canManage && !selectedIsSystemAdmin && (
+              <Form<RoleFormValue>
+                form={roleForm}
+                layout="vertical"
+                initialValues={{ roleCode: "doctor", scopeLevel: "TENANT" }}
+                onFinish={submitRole}
+              >
+                <Space align="start" wrap>
+                  <Form.Item name="roleCode" label="新增角色">
+                    <Select
+                      className="mk-select-medium"
+                      options={ROLE_OPTIONS.map((role) => ({
+                        value: role.code,
+                        label: role.name,
+                      }))}
+                    />
+                  </Form.Item>
+                  <Form.Item name="scopeLevel" label="范围层级">
+                    <Select
+                      className="mk-select-medium"
+                      options={SCOPE_LEVEL_OPTIONS.map((scope) => ({
+                        value: scope.code,
+                        label: scope.name,
+                      }))}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="scopeCode"
+                    label="范围编码"
+                    rules={[{ required: true, whitespace: true, message: "请输入范围编码" }]}
                   >
-                    {ROLE_OPTIONS.map((role) => (
-                      <option key={role.code} value={role.code}>
-                        {role.name} ({role.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>初始密码（留空自动生成临时密码）</label>
-                  <input
-                    type="text"
-                    value={memberInitPwd}
-                    onChange={(e) => setMemberInitPwd(e.target.value)}
-                    placeholder="留空则系统生成并一次性返回"
-                    className={styles.formInput}
-                  />
-                </div>
-              </div>
-              <div className={styles.btnGroup}>
-                <button
-                  type="submit"
-                  disabled={createMemberMutation.isPending}
-                  className={styles.btnPrimary}
-                >
-                  {createMemberMutation.isPending ? "正在开通..." : "确认开通成员"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMemberForm(false);
-                    setMessage(null);
-                  }}
-                  className={styles.btnPrimary}
-                >
-                  取消
-                </button>
-              </div>
-            </form>
-          )}
+                    <Input className="mk-input-medium" />
+                  </Form.Item>
+                  <Form.Item label=" ">
+                    <Button
+                      htmlType="submit"
+                      icon={<SafetyCertificateOutlined />}
+                      loading={assignRoleMutation.isPending}
+                    >
+                      添加角色
+                    </Button>
+                  </Form.Item>
+                </Space>
+              </Form>
+            )}
 
-          {!credentials || credentials.length === 0 ? (
-            <div className={styles.description}>
-              当前租户暂无平台自建账号，可通过上方面板开通成员登录账号。
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>登录名</th>
-                    <th>用户标识</th>
-                    <th>状态</th>
-                    <th>须改密</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {credentials.map((c) => (
-                    <tr key={c.userId}>
-                      <td className={styles.fontWeight600}>{c.username}</td>
-                      <td className={styles.fontMonospace}>{c.userId}</td>
-                      <td>
-                        <span
-                          className={
-                            c.status === "ACTIVE" ? styles.badgeActive : styles.badgeInactive
-                          }
-                        >
-                          {credStatusLabel(c.status)}
-                        </span>
-                      </td>
-                      <td>
-                        {c.mustChangePwd ? <span className={styles.scopeTag}>待改密</span> : "—"}
-                      </td>
-                      <td>
-                        {isSystemSuperAdminUser(c.userId) ? (
-                          <button
-                            type="button"
-                            disabled
-                            title="内置超级管理员由系统保护，不能通过成员管理编辑"
-                            className={styles.btnPrimary}
-                          >
-                            系统内置
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleResetPassword(c.userId)}
-                              disabled={resetPwdMutation.isPending}
-                              className={styles.btnPrimary}
-                            >
-                              重置密码
-                            </button>{" "}
-                            <button
-                              onClick={() => handleToggleStatus(c.userId, c.status)}
-                              disabled={setStatusMutation.isPending}
-                              className={styles.btnDanger}
-                            >
-                              {c.status === "ACTIVE" ? "停用" : "启用"}
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* 新增绑定卡片 */}
-        <div className={styles.card}>
-          <div className={styles.flexBetween}>
-            <div className={styles.title}>用户角色与数据隔离范围配置</div>
-            <button onClick={() => setShowAddForm(!showAddForm)} className={styles.btnPrimary}>
-              {showAddForm ? "收起配置面板" : "新增角色分配关系"}
-            </button>
-          </div>
-
-          {showAddForm && (
-            <form onSubmit={handleSubmit}>
-              <div className={styles.grid}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>User ID / 账号标识</label>
-                  <input
-                    type="text"
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
-                    placeholder="请输入用户ID，如 doctor-1"
-                    className={styles.formInput}
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>系统核心角色</label>
-                  <select
-                    value={roleCode}
-                    onChange={(e) => setRoleCode(e.target.value)}
-                    className={styles.formInput}
-                  >
-                    {ROLE_OPTIONS.map((role) => (
-                      <option key={role.code} value={role.code}>
-                        {role.name} ({role.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>作用域级别</label>
-                  <select
-                    value={scopeLevel}
-                    onChange={(e) => setScopeLevel(e.target.value)}
-                    className={styles.formInput}
-                  >
-                    {SCOPE_LEVEL_OPTIONS.map((level) => (
-                      <option key={level.code} value={level.code}>
-                        {level.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>作用域编码</label>
-                  <input
-                    type="text"
-                    value={scopeCode}
-                    onChange={(e) => setScopeCode(e.target.value)}
-                    placeholder="不填时使用当前登录画像的租户编码"
-                    className={styles.formInput}
-                  />
-                </div>
-              </div>
-
-              <div className={styles.btnGroup}>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className={styles.btnPrimary}
-                >
-                  {createMutation.isPending ? "正在提交..." : "确认并物理入库保存"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setMessage(null);
-                  }}
-                  className={styles.btnPrimary}
-                >
-                  取消
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-
-        {/* 现有绑定台账列表 */}
-        <div className={styles.card}>
-          <div className={styles.title}>用户角色分配台账</div>
-          {isLoading && <div>正在加载安全底座数据...</div>}
-          {!isLoading && (!assignments || assignments.length === 0) && (
-            <div className={styles.description}>
-              当前租户暂无用户分配记录，可通过上方配置面板进行物理授权绑定。
-            </div>
-          )}
-          {!isLoading && assignments && assignments.length > 0 && (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>记录ID</th>
-                    <th>租户代码</th>
-                    <th>用户ID</th>
-                    <th>绑定角色</th>
-                    <th>隔离作用域级别</th>
-                    <th>隔离作用域编码</th>
-                    <th>运行状态</th>
-                    <th>创建者</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map((item) => (
-                    <tr key={item.id}>
-                      <td className={styles.fontMonospace}>{item.id}</td>
-                      <td>{item.tenantId}</td>
-                      <td className={styles.fontWeight600}>{item.userId}</td>
-                      <td>
-                        <span className={styles.roleTag}>{getRoleName(item.roleCode)}</span>
-                      </td>
-                      <td>
-                        <span className={styles.scopeTag}>{item.scopeLevel}</span>
-                      </td>
-                      <td className={styles.fontMonospace}>{item.scopeCode}</td>
-                      <td>
-                        <span
-                          className={
-                            item.activeFlag === "Y" ? styles.badgeActive : styles.badgeInactive
-                          }
-                        >
-                          {item.activeFlag === "Y" ? "激活运行中" : "已停用"}
-                        </span>
-                      </td>
-                      <td>{item.createdBy}</td>
-                      <td>
-                        {item.roleCode === SYSTEM_SUPERADMIN_ROLE ? (
-                          <button
-                            type="button"
-                            disabled
-                            title="内置超级管理员由系统保护，不能解除角色绑定"
-                            className={styles.btnPrimary}
-                          >
-                            系统内置
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => item.id && handleDelete(item.id)}
-                            disabled={deleteMutation.isPending}
-                            className={styles.btnDanger}
-                          >
-                            解除绑定
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </PageShell>
+            <Divider />
+            <Title level={5}>当前组织范围内的有效权限</Title>
+            <Table<(typeof detail.data.effectivePermissions)[number]>
+              rowKey="code"
+              dataSource={detail.data.effectivePermissions}
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              scroll={{ x: "max-content" }}
+              columns={[
+                { title: "权限", dataIndex: "displayName" },
+                { title: "编码", dataIndex: "code" },
+                { title: "维度", dataIndex: "dimension" },
+                {
+                  title: "风险",
+                  dataIndex: "risk",
+                  render: (risk: string) => <Tag color={riskColor(risk)}>{risk}</Tag>,
+                },
+              ]}
+            />
+          </Space>
+        )}
+      </Drawer>
+    </>
   );
 }

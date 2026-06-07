@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -44,6 +44,17 @@ function readSource(file: string) {
   return readFileSync(resolve(process.cwd(), file), "utf8");
 }
 
+function productionTsxFiles(directory: string): string[] {
+  return readdirSync(resolve(process.cwd(), directory), { withFileTypes: true }).flatMap(
+    (entry) => {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) return productionTsxFiles(path);
+      if (!entry.name.endsWith(".tsx") || entry.name.endsWith(".test.tsx")) return [];
+      return [path];
+    },
+  );
+}
+
 describe("BASE-09 rule and pathway page cleanliness", () => {
   it("does not keep hard-coded clinical examples or bypass-language in production pages", () => {
     const combinedSource = sourceFiles.map(readSource).join("\n");
@@ -81,6 +92,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).toContain("/engine/tenant/branding");
     expect(hooksSource).toContain("/engine/tenant/success-plan");
     expect(hooksSource).toContain("/engine/tenant/onboarding-readiness");
+    expect(hooksSource).not.toContain("/engine/tenant/onboarding-readiness/activate");
     expect(hooksSource).toContain("/engine/org/org-units");
     expect(hooksSource).not.toContain('"/tenant/org-units"');
   });
@@ -89,8 +101,9 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     const hooksSource = readSource("src/shared/api/hooks.ts");
 
     expect(hooksSource).not.toContain("/clinical/mpi");
-    expect(hooksSource).toContain("/api/v1/engine/mpi/patients");
-    expect(hooksSource).toContain("/api/v1/engine/mpi/stats");
+    expect(hooksSource).not.toContain("/api/v1/engine/mpi");
+    expect(hooksSource).toContain("/engine/mpi/patients");
+    expect(hooksSource).toContain("/engine/mpi/stats");
   });
 
   it("does not keep pathway hard-coded topology defaults or paste-style snapshot simulation", () => {
@@ -103,6 +116,64 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(pathwaySource).not.toContain("粘贴由上下文快照接口返回");
   });
 
+  it("does not depend on unavailable utility CSS in rule and pathway authoring pages", () => {
+    const authoringSource = [
+      readSource("src/pages/tenant/RuleDefinitions.tsx"),
+      readSource("src/pages/tenant/PathwayTemplates.tsx"),
+    ].join("\n");
+
+    for (const utilityMarker of [
+      "text-gray-",
+      "text-slate-",
+      "text-emerald-",
+      "bg-gray-",
+      "bg-slate-",
+      "bg-emerald-",
+      "border-gray-",
+      "border-slate-",
+      "border-emerald-",
+      "rounded-",
+      "shadow-",
+      "grid-cols-",
+      "w-[",
+      "min-h-[",
+      "max-h-[",
+    ]) {
+      expect(authoringSource).not.toContain(utilityMarker);
+    }
+  });
+
+  it("keeps production pages free of unavailable Tailwind utility classes", () => {
+    const utilityPatterns = [
+      /^(?:bg|text|border)-(?:slate|gray|indigo|emerald|amber|rose|sky)-/,
+      /^(?:rounded|shadow)(?:-|$)/,
+      /^(?:flex|grid)$/,
+      /^(?:items|justify|content|self|place)-/,
+      /^(?:gap|space|grid-cols|col-span)-/,
+      /^(?:m|p)[trblxy]?-/,
+      /^(?:w|h|min-w|min-h|max-w|max-h)-/,
+      /^(?:overflow|whitespace|leading|tracking|duration|transition|animate)-/,
+      /^font-/,
+    ];
+    const files = [...productionTsxFiles("src/pages"), ...productionTsxFiles("src/widgets")];
+
+    for (const file of files) {
+      const source = readSource(file);
+      const classValues = [
+        ...source.matchAll(/className\s*=\s*"([^"]+)"/g),
+        ...source.matchAll(/className\s*:\s*"([^"]+)"/g),
+      ].map((match) => match[1]);
+      for (const classValue of classValues) {
+        for (const classToken of classValue.split(/\s+/).filter(Boolean)) {
+          expect(
+            utilityPatterns.some((pattern) => pattern.test(classToken)),
+            `${file} 包含未安装 Tailwind 时不会生效的类名 ${classToken}`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
   it("does not keep fake tenant branding defaults in onboarding page", () => {
     const onboardingSource = readSource("src/pages/tenant/TenantOnboarding.tsx");
 
@@ -113,21 +184,17 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(onboardingSource).toContain("未配置医院名称");
   });
 
-  it("keeps tenant onboarding aligned with the seven-layer organization model", () => {
+  it("keeps tenant onboarding aligned with organization tree plus specialty dimension", () => {
     const onboardingSource = readSource("src/pages/tenant/TenantOnboarding.tsx");
 
-    for (const level of [
-      "TENANT",
-      "GROUP",
-      "HOSPITAL",
-      "CAMPUS",
-      "SITE",
-      "DEPARTMENT",
-      "SPECIALTY",
-    ]) {
+    expect(onboardingSource).not.toContain('value="TENANT"');
+    for (const level of ["GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT"]) {
       expect(onboardingSource).toContain(`value="${level}"`);
     }
-    expect(onboardingSource).toContain("parentLevelByChildLevel");
+    expect(onboardingSource).not.toContain('value="SPECIALTY"');
+    expect(onboardingSource).not.toContain("SPECIALTY");
+    expect(onboardingSource).toContain("专病适用维度");
+    expect(onboardingSource).toContain("levelRank");
   });
 
   it("keeps config package center free of legacy decorative layout and wired to StepFlow", () => {

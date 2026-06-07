@@ -83,6 +83,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
   useMappingCoverage: () => ({ data: [], isLoading: false, isError: false }),
   useCreateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useContextSnapshots: () => ({
     data: apiMocks.snapshotsData,
@@ -150,6 +151,7 @@ const rollbackTemplate: PathwayTemplate = {
 function createTemplateDetail(): PathwayTemplateDetailResponse {
   return {
     template: draftTemplate,
+    deploymentStatus: "DRAFT",
     nodes: [
       {
         id: 1,
@@ -317,6 +319,83 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "路径边条件复用递归条件树构建器并同步为嵌套 guard",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+      await user.type(
+        within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[0],
+        "context.ready",
+      );
+      await user.click(within(dialog).getByRole("button", { name: "新增子条件组" }));
+      const allergyFieldInput = within(dialog).getAllByRole("combobox", {
+        name: "上下文字段路径",
+      })[1];
+      await user.click(allergyFieldInput);
+      await user.paste("allergyIntolerances[].code");
+      fireEvent.mouseDown(within(dialog).getAllByLabelText("算子")[1]);
+      await user.click(await screen.findByTitle("包含"));
+      await user.type(within(dialog).getAllByLabelText("比较值")[1], "PENICILLIN");
+
+      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("路径 DSL JSON") as HTMLTextAreaElement;
+      const parsed = JSON.parse(dslEditor.value) as {
+        edges: Array<{ condition?: { all?: unknown[] } }>;
+      };
+
+      expect(parsed.edges[0].condition?.all).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fact: "context.ready" }),
+          expect.objectContaining({ all: expect.any(Array) }),
+        ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径关键字段提供简短示例与占位帮助",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+
+      expect(within(dialog).getByPlaceholderText("如 PATH.CARDIO.REVIEW")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 CARDIO 或 ICD10-I63")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 院内已审核路径制度 2026")).toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+
+      expect(within(dialog).getByPlaceholderText("如 N1，可改为 ASSESS")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 入径评估")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 专科医生")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 PATH.TIME.ASSESS")).toBeInTheDocument();
+      expect(
+        within(dialog).getByPlaceholderText("如 E1，可改为 EDGE.ASSESS.FOLLOWUP"),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByPlaceholderText("如 observations[].valueNumeric"),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 true / 90 / ATC-J01C")).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "从真实 API-01 快照选择试运行路径，并展示后端返回的质量与决策证据",
     async () => {
       apiMocks.templateListData = { items: [draftTemplate], total: 1 };
@@ -339,7 +418,6 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         snapshotId: "ctx-path-001",
         status: "ACTIVE",
         packageVersion: "pkg-2026.06",
-        pathwayPackageVersion: "pkg-2026.06",
         qualityStatus: "PARTIAL",
         missingFields: [{ resourceType: "CONDITION", fieldPath: "*", severity: "WARN" }],
         mappingStatus: { "OBSERVATION:obs-1:code:HB": "MAPPED" },
@@ -440,6 +518,78 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "内容已审核的路径显示待激活状态，并可院级确认全量激活",
+    async () => {
+      apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        template: publishedTemplate,
+        deploymentStatus: "PUBLISHED",
+      };
+      apiMocks.templateImpactData = {
+        templateId: "pt-path-published",
+        analysisStatus: "COMPLETE",
+        affectedPatientPathways: 1,
+        nodeCount: 2,
+        edgeCount: 1,
+        timedNodeCount: 2,
+        terminalNodeCount: 1,
+        canaryPercent: 10,
+        impactDigest: "sha256:path-full",
+        releaseEvidence: ["GRAY 灰度发布"],
+        traceId: "trace-impact",
+      };
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.fullRolloutTemplate.mockResolvedValue({
+        templateId: "pt-path-published",
+        status: "PUBLISHED",
+        releaseStep: "full_rollout",
+        canaryPercent: 100,
+        impactDigest: "sha256:path-full",
+        analysisStatus: "COMPLETE",
+        releaseEvidence: ["FULL 全量激活"],
+        traceId: "trace-full",
+      });
+
+      const user = await openPathwayDrawer();
+      expect(screen.getAllByText("内容已审核")).not.toHaveLength(0);
+      expect(screen.getByText("待全量激活")).toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      await user.type(screen.getByLabelText("发布审核说明"), "院级管理员确认全量激活");
+      await user.click(screen.getByRole("button", { name: /院级确认全量激活/ }));
+
+      await waitFor(() =>
+        expect(apiMocks.fullRolloutTemplate).toHaveBeenCalledWith({
+          templateId: "pt-path-published",
+          packageVersion: "pkg-2026.06",
+          impactDigest: "sha256:path-full",
+          reason: "院级管理员确认全量激活",
+        }),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "统一版本已激活时只展示运行状态，不再提供重复全量发布",
+    async () => {
+      apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        template: publishedTemplate,
+        deploymentStatus: "ACTIVE",
+      };
+
+      const user = await openPathwayDrawer();
+      expect(screen.getByText("运行中")).toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      expect(screen.getByText("当前路径版本已全量生效")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /院级确认全量激活/ })).not.toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径回滚目标来自同编码已下线历史版本查询",
     async () => {
       apiMocks.templateListData = { items: [publishedTemplate], total: 1 };
@@ -447,6 +597,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       apiMocks.templateDetailData = {
         ...createTemplateDetail(),
         template: publishedTemplate,
+        deploymentStatus: "PUBLISHED",
       };
       apiMocks.templateImpactData = {
         templateId: "pt-path-published",
@@ -522,6 +673,28 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       // 起点为下拉选择（不是文本框），且能选到已建节点 N1
       const startNodeField = within(dialog).getByLabelText("起始节点");
       expect(startNodeField).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径画布即时提示重复节点编码和缺少终止节点",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      const nodeCodeInputs = within(dialog).getAllByLabelText("节点编码");
+      fireEvent.change(nodeCodeInputs[1], { target: { value: "N1" } });
+
+      expect(await screen.findByText("节点编码 N1 重复，请改为唯一编码。")).toBeInTheDocument();
+      expect(screen.getByText("至少需要一个终止节点。")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

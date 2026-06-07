@@ -1,6 +1,7 @@
 package com.medkernel.engine.security;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
@@ -26,9 +27,29 @@ public interface UserRoleAssignmentRepository extends ListCrudRepository<UserRol
         """)
     List<UserRoleAssignment> findActiveByTenantIdAndUserId(String tenantId, String userId);
 
+    @Query("""
+        SELECT * FROM user_role_assignment
+        WHERE tenant_id = :tenantId
+          AND user_id IN (:userIds)
+          AND active_flag = 'Y'
+        ORDER BY user_id, role_code, scope_level, scope_code
+        """)
+    List<UserRoleAssignment> findActiveByTenantIdAndUserIdIn(
+        String tenantId,
+        List<String> userIds);
+
     boolean existsByTenantIdAndUserIdAndRoleCodeAndActiveFlag(
         String tenantId,
         String userId,
         String roleCode,
         String activeFlag);
+
+    boolean existsByTenantIdAndUserIdAndActiveFlag(String tenantId, String userId, String activeFlag);
+
+    Optional<UserRoleAssignment> findByTenantIdAndUserIdAndRoleCodeAndScopeLevelAndScopeCode(
+        String tenantId,
+        String userId,
+        String roleCode,
+        String scopeLevel,
+        String scopeCode);
 }

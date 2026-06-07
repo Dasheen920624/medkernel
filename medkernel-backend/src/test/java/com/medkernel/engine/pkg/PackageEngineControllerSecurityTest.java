@@ -56,7 +56,7 @@ class PackageEngineControllerSecurityTest {
         """;
 
     private static final String OFFLINE_IMPORT_BODY = """
-        {"offlinePackageJson":"{\\"format\\":\\"MEDKERNEL_PACKAGE_OFFLINE_V1\\"}"}
+        {"offlinePackageJson":"{\\"format\\":\\"MEDKERNEL_PACKAGE_OFFLINE_V2\\"}"}
         """;
 
     private static final String SYNC_BODY = """
@@ -65,7 +65,8 @@ class PackageEngineControllerSecurityTest {
           "strategy": "GRAYSCALE",
           "scopeType": "DEPARTMENT",
           "scopeValue": "dept-1",
-          "targetIds": ["target-dify-1"]
+          "reason": "验证配置包灰度发布",
+          "adapterIds": ["adapter-dify-1"]
         }
         """;
 
@@ -124,7 +125,8 @@ class PackageEngineControllerSecurityTest {
               "strategy": "GRAYSCALE",
               "scopeType": "DEPARTMENT",
               "scopeValue": "dept-1",
-              "targetIds": ["target-dify-1"]
+              "reason": "验证配置包灰度发布",
+          "adapterIds": ["adapter-dify-1"]
             }
             """.formatted(standardContextFields(tenantId));
     }
@@ -173,7 +175,8 @@ class PackageEngineControllerSecurityTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(get(PKG_ROOT + "/pkg-1/offline/export"))
+        mvc.perform(get(PKG_ROOT + "/pkg-1/offline/export")
+                .param("targetOrgUnitId", "hospital-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
@@ -461,24 +464,25 @@ class PackageEngineControllerSecurityTest {
 
     @Test
     void authorizedUserCanDownloadOfflinePackageJson() throws Exception {
-        when(service.exportOfflinePackage("pkg-1"))
-            .thenReturn("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V1\",\"manifest\":{\"payloadSha256\":\"abc\"}}\n");
+        when(service.exportOfflinePackage("pkg-1", "hospital-1"))
+            .thenReturn("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V2\",\"manifest\":{\"payloadSha256\":\"abc\"}}\n");
 
         mvc.perform(get(PKG_ROOT + "/pkg-1/offline/export")
+                .param("targetOrgUnitId", "hospital-1")
                 .with(jwt()
                     .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
                     .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-offline-pkg-1.json")))
-            .andExpect(content().string(containsString("MEDKERNEL_PACKAGE_OFFLINE_V1")))
+            .andExpect(content().string(containsString("MEDKERNEL_PACKAGE_OFFLINE_V2")))
             .andExpect(content().string(containsString("payloadSha256")));
     }
 
     @Test
     void authorizedUserCanDownloadSyncEvidenceNdjson() throws Exception {
         when(service.exportSyncEvidence("pkg-1"))
-            .thenReturn("{\"event\":\"PACKAGE_SYNC_EVIDENCE_SUMMARY\",\"failedTargetCount\":1}\n");
+            .thenReturn("{\"event\":\"PACKAGE_SYNC_EVIDENCE_SUMMARY\",\"failedAdapterCount\":1}\n");
 
         mvc.perform(get(PKG_ROOT + "/pkg-1/sync-logs/export")
                 .with(jwt()
@@ -488,12 +492,12 @@ class PackageEngineControllerSecurityTest {
             .andExpect(content().contentType("application/x-ndjson;charset=utf-8"))
             .andExpect(header().string("Content-Disposition", containsString("package-sync-evidence-pkg-1.jsonl")))
             .andExpect(content().string(containsString("PACKAGE_SYNC_EVIDENCE_SUMMARY")))
-            .andExpect(content().string(containsString("failedTargetCount")));
+            .andExpect(content().string(containsString("failedAdapterCount")));
     }
 
     @Test
     void authorizedUserCanImportOfflinePackageJson() throws Exception {
-        when(service.importOfflinePackage(new PackageOfflineImportRequest("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V1\"}")))
+        when(service.importOfflinePackage(new PackageOfflineImportRequest("{\"format\":\"MEDKERNEL_PACKAGE_OFFLINE_V2\"}")))
             .thenReturn(new PackageOfflineImportResponse(
                 "pkg-imported", "PKG.IMPORT", "2026.06.01", KnowledgePackageStatus.DRAFT, 2, "a".repeat(64)));
 

@@ -13,7 +13,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 基于七层组织闭包解析配置资产继承版本。
+ * 基于组织树闭包解析配置资产继承版本；专病通过适用域参与版本筛选。
  */
 @Service
 public class InheritanceResolver {
@@ -126,7 +126,7 @@ public class InheritanceResolver {
 
     /**
      * 前置回退平台权威基线：租户组织闭包无适用版本时，按 {@link PlatformAuthority} 约定读取
-     * {@code __platform__} 租户顶层组织路径下该身份的 ACTIVE 版本，标注 {@link SourceTier#PLATFORM}。
+     * 平台主租户顶层组织路径下该身份的 ACTIVE 版本，标注 {@link SourceTier#PLATFORM}。
      *
      * <p>平台版本是继承链最一般的根：未被任何租户覆盖遮蔽的身份恒解析到平台 ACTIVE 版本，平台升级后
      * 未定制方下次解析自动跟随，无需任何租户级复制（设计 platform-authority 规格）。平台亦无基线时返回
@@ -216,9 +216,7 @@ public class InheritanceResolver {
      */
     private boolean permitsLockedBaselineReplace(
             String tenantId, InheritanceOverride override, AssetVersion candidate) {
-        AssetVersion baseline = assetVersions
-            .findByVersionIdAndTenantId(override.inheritedVersionId(), tenantId)
-            .orElse(null);
+        AssetVersion baseline = findInheritedBaseline(tenantId, override.inheritedVersionId()).orElse(null);
         if (baseline == null) {
             return true;
         }
@@ -272,14 +270,29 @@ public class InheritanceResolver {
      * 基线缺失（如已退役）时按非锁定处理放行，主权威仍由登记期把关。
      */
     private boolean permitsDisable(String tenantId, InheritanceOverride disable) {
-        AssetVersion baseline = assetVersions
-            .findByVersionIdAndTenantId(disable.inheritedVersionId(), tenantId)
-            .orElse(null);
+        AssetVersion baseline = findInheritedBaseline(tenantId, disable.inheritedVersionId()).orElse(null);
         if (baseline == null) {
             return true;
         }
         return baseline.overridePolicy() != AssetVersionOverridePolicy.LOCKED
             && baseline.safetyPolicy() != AssetVersionSafetyPolicy.SAFETY_REDLINE;
+    }
+
+    /**
+     * 覆盖记录的 inherited_version_id 既可能指向当前租户组织链上的版本，也可能直接指向平台基线。
+     * 安全护栏必须同时识别两类来源，避免平台锁定/红线基线被租户覆盖绕过。
+     */
+    private Optional<AssetVersion> findInheritedBaseline(String tenantId, String inheritedVersionId) {
+        if (inheritedVersionId == null || inheritedVersionId.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<AssetVersion> tenantBaseline =
+            assetVersions.findByVersionIdAndTenantId(inheritedVersionId, tenantId);
+        if (tenantBaseline.isPresent()) {
+            return tenantBaseline;
+        }
+        return assetVersions.findByVersionIdAndTenantId(
+            inheritedVersionId, PlatformAuthority.PLATFORM_TENANT_ID);
     }
 
     private InheritanceExplanation disabledExplanation(

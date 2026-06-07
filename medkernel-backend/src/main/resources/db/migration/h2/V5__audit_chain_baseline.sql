@@ -10,3 +10,5 @@ CREATE TABLE IF NOT EXISTS audit_chain_head (
     last_signature VARCHAR(512) NOT NULL,
     updated_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+COMMENT ON TABLE audit_chain_head IS '每租户审计哈希链链头';

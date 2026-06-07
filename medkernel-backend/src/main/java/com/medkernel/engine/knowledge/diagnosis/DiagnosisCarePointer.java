@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 诊疗指针：确诊后指向治疗 / 检查（规则·知识）或专病路径（恒软建议）。
  *
- * <p>{@code isSoft} 恒为软建议（不自动执行、不自动下医嘱）；{@code targetRef} 指向规则 / 知识 / 路径编码。
+ * <p>{@code isSoft} 恒为软建议（不自动执行、不自动下医嘱）；目标由类型和编码共同确定。
  */
 @Table("mk_diagnosis_care_pointer")
 public record DiagnosisCarePointer(
@@ -17,6 +17,7 @@ public record DiagnosisCarePointer(
     @Column("tenant_id") String tenantId,
     @Column("diagnosis_version_id") Long diagnosisVersionId,
     @Column("pointer_type") DiagnosisCarePointerType pointerType,
+    @Column("target_type") DiagnosisCareTargetType targetType,
     @Column("target_ref") String targetRef,
     @Column("is_soft") boolean isSoft,
     @Column("description") String description,

@@ -27,7 +27,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/clinical-events` / `/api/v1/engine/events`（同步）· `POST .../clinical-events:async` 与 `/async`（异步）· `POST .../clinical-events:batch` 与 `/batch`（批量）· `POST .../clinical-events:replay` 与 `/{eventId}/replay`（回放）· `GET .../clinical-events/dead-letter` / `POST .../dead-letter/{deadLetterId}/replay`（死信）
+- 端点：`POST /api/v1/engine/clinical-events`（同步）· `POST .../clinical-events:async`（异步）· `POST .../clinical-events:batch`（批量）· `POST .../clinical-events:replay`（回放）· `GET .../clinical-events/dead-letter` / `POST .../dead-letter/{deadLetterId}/replay`（死信）
 - DTO：`ClinicalEventRequest`（Record + Bean Validation：`triggerPoint` / 患者 / 就诊 / 包版本 / 事件体 / 幂等键 / 回调 webhook）→ `ClinicalEventAcceptedResponse` / `ClinicalEventBatchResponse` / `ClinicalEventDeadLetterResponse`
 - 响应信封：`ApiResult` / `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）
 - 状态机：告警/待办类（受理→处理中→已触发/失败→死信）
@@ -63,7 +63,7 @@
 - B0 验收：关模型事件受理与确定性触发仍可用。
 
 ## 完工证据
-- 代码 permalink：PR 创建后补 `engine/context` ClinicalEvent 契约字段、同步 / 异步 / 批量 / 回放 / 死信 / 回调实现、suffix alias 控制器、服务契约目录、V67 五方言迁移与 `docs/contracts/events/clinical-event.v1.json`。
+- 代码 permalink：PR 创建后补 `engine/context` ClinicalEvent 契约字段、同步 / 异步 / 批量 / 回放 / 死信 / 回调实现、suffix 动作控制器、服务契约目录、V67 五方言迁移与 `docs/contracts/events/clinical-event.v1.json`。
 - 测试：`ClinicalEventContractTest`、`ClinicalEventServiceTest`、`ClinicalEventCallbackNotifierTest`、`ClinicalEventControllerSecurityTest`、`ClinicalEventEngineAdapterTest`、`ClinicalEventContextContractTest`、迁移 / OpenAPI / 服务契约治理测试。
 - 当前本地证据：
   - TDD 回归：`mvn -q -Dtest=ClinicalEventServiceTest#receiveAsyncReturnsExistingIdempotencyResultBeforeCallbackWhitelistChanges test` 先红后绿，锁定“相同幂等键命中首次结果，不受后续回调 webhook 白名单变更影响”。

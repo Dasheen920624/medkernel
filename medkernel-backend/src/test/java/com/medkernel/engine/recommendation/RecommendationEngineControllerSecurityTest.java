@@ -75,16 +75,6 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanReadAndFeedbackButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/recommendations/card-1"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
-
-        mvc.perform(post("/api/v1/engine/recommendations/card-1/feedback")
-                .contentType("application/json")
-                .content(FEEDBACK_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
-
         mvc.perform(get("/api/v1/engine/recommendations/cards/card-1"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
@@ -98,6 +88,21 @@ class RecommendationEngineControllerSecurityTest {
                 .content(FEEDBACK_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void legacyRootRecommendationCardRoutesAreNotMounted() throws Exception {
+        mvc.perform(get("/api/v1/engine/recommendations"))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/engine/recommendations/card-1"))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/recommendations/card-1/feedback")
+                .contentType("application/json")
+                .content(FEEDBACK_BODY))
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -141,9 +146,6 @@ class RecommendationEngineControllerSecurityTest {
     @Test
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadRecommendationCards() throws Exception {
-        mvc.perform(get("/api/v1/engine/recommendations"))
-            .andExpect(status().isForbidden());
-
         mvc.perform(get("/api/v1/engine/recommendations/cards"))
             .andExpect(status().isForbidden());
     }

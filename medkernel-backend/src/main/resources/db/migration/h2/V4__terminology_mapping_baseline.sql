@@ -155,12 +155,21 @@ CREATE TABLE IF NOT EXISTS term_mapping_package_item (
     tenant_id         VARCHAR(64)  NOT NULL,
     package_id        BIGINT       NULL,
     mapping_id        BIGINT       NOT NULL,
-    mapping_snapshot  VARCHAR(2048) NOT NULL,
+    local_term_id     BIGINT       NOT NULL,
+    standard_term_id  BIGINT       NOT NULL,
+    source_system     VARCHAR(64)  NOT NULL,
+    local_code        VARCHAR(128) NOT NULL,
+    target_dictionary_key VARCHAR(128) NOT NULL,
+    standard_code     VARCHAR(128) NOT NULL,
+    category          VARCHAR(32)  NULL,
+    mapping_snapshot  VARCHAR(4000) NOT NULL,
     created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by        VARCHAR(64)  NOT NULL DEFAULT 'system'
 );
 
 CREATE INDEX IF NOT EXISTS idx_term_pkg_item_package ON term_mapping_package_item (tenant_id, package_id);
+CREATE INDEX IF NOT EXISTS idx_term_pkg_item_anchor
+    ON term_mapping_package_item (tenant_id, source_system, local_code, target_dictionary_key, category);
 
 CREATE TABLE IF NOT EXISTS term_mapping_package_release (
     id                BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

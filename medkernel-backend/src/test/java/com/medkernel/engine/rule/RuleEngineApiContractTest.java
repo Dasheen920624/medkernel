@@ -74,6 +74,46 @@ class RuleEngineApiContractTest {
     }
 
     @Test
+    void createAcceptsCanonicalQualityRuleType() throws Exception {
+        when(service.createRule(any(RuleCreateRequest.class))).thenReturn(new RuleCreateResponse(
+            "rule-quality", "version-1", RuleDefinitionStatus.DRAFT, "trace-rule"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-quality",
+                      "trace_id": "trace-rule",
+                      "tenant_id": "t-1",
+                      "user_id": "api05-specialist",
+                      "role_codes": ["specialist"],
+                      "package_version": "1.0.0",
+                      "ruleCode": "RULE.CARDIOLOGY.HR",
+                      "name": "心率质控复核",
+                      "ruleType": "QUALITY",
+                      "authoringMode": "VISUAL",
+                      "riskLevel": "MEDIUM",
+                      "sourceRef": "院内已审核心血管诊疗规范 2026",
+                      "changeSummary": "初始化创建草稿版本",
+                      "dsl": {
+                        "when": {
+                          "all": [
+                            {"fact": "observations.0.value", "operator": "gte", "value": 100}
+                          ]
+                        },
+                        "then": [],
+                        "explain": {"summary": "心率阈值质控"}
+                      },
+                      "explanation": {"summary": "心率阈值质控"}
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.ruleId").value("rule-quality"));
+    }
+
+    @Test
     void oldPluralRootIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/rules")
                 .with(writeJwt())
@@ -124,7 +164,7 @@ class RuleEngineApiContractTest {
                       "role_codes": ["doctor"],
                       "package_version": "pkg-1",
                       "triggerPoint": "ORDER_SIGN",
-                      "context": {"patient": {"age": 72}},
+                      "contextSnapshotId": "snapshot-1",
                       "eventId": "evt-1",
                       "ruleIds": ["rule-1"]
                     }

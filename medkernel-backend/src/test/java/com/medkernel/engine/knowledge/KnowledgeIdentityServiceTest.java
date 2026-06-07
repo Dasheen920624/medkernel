@@ -51,6 +51,7 @@ class KnowledgeIdentityServiceTest {
         when(identityRepo.save(any(KnowledgeIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(sourceDocRepo.save(any(SourceDocument.class))).thenAnswer(inv -> inv.getArgument(0));
         when(sourceVerRepo.save(any(SourceVersion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(citationRepo.save(any(Citation.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @AfterEach
@@ -162,7 +163,6 @@ class KnowledgeIdentityServiceTest {
     @Test
     void getActiveVersionThrowsWhenIdentityExistsButNoActive() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getActiveVersion(1L))
             .isInstanceOf(ApiException.class)
@@ -180,7 +180,6 @@ class KnowledgeIdentityServiceTest {
         KnowledgeAssetVersion active = service.getActiveVersion(1L);
 
         assertThat(active.id()).isEqualTo(22L);
-        Mockito.verify(versionRepo, Mockito.never()).findActiveByIdentity(any(), any());
     }
 
     @Test
@@ -411,9 +410,59 @@ class KnowledgeIdentityServiceTest {
     }
 
     @Test
+    void createCitationPersistsTenantScopedEvidenceLink() {
+        when(versionRepo.findByTenantIdAndId("t-1", 20L))
+            .thenReturn(Optional.of(versionRowWithSource(20L, 1L, 1000L)));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(sourceFragment(100L, 1000L)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdAndSourceFragmentIdAndRelation(
+            "t-1", 20L, 100L, CitationRelation.DERIVED_FROM)).thenReturn(Optional.empty());
+
+        Citation created = service.createCitation(new CitationCreateRequest(
+            20L, 100L, CitationRelation.DERIVED_FROM, 90, 0, 8));
+
+        assertThat(created.tenantId()).isEqualTo("t-1");
+        assertThat(created.assetVersionId()).isEqualTo(20L);
+        assertThat(created.sourceFragmentId()).isEqualTo(100L);
+        assertThat(created.weight()).isEqualTo(90);
+        assertThat(created.createdBy()).isEqualTo("u-99");
+    }
+
+    @Test
+    void createCitationRejectsFragmentFromAnotherSourceVersion() {
+        when(versionRepo.findByTenantIdAndId("t-1", 20L))
+            .thenReturn(Optional.of(versionRowWithSource(20L, 1L, 1000L)));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(sourceFragment(100L, 2000L)));
+
+        assertThatThrownBy(() -> service.createCitation(new CitationCreateRequest(
+            20L, 100L, CitationRelation.DERIVED_FROM, 90, null, null)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        Mockito.verify(citationRepo, Mockito.never()).save(any());
+    }
+
+    @Test
+    void createCitationRejectsReversedOffsets() {
+        when(versionRepo.findByTenantIdAndId("t-1", 20L))
+            .thenReturn(Optional.of(versionRowWithSource(20L, 1L, 1000L)));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(sourceFragment(100L, 1000L)));
+
+        assertThatThrownBy(() -> service.createCitation(new CitationCreateRequest(
+            20L, 100L, CitationRelation.DERIVED_FROM, 90, 8, 2)))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        Mockito.verify(citationRepo, Mockito.never()).save(any());
+    }
+
+    @Test
     void listCitationsReturnsEmptyWhenIdentityHasNoActiveVersion() {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.empty());
 
         assertThat(service.listCitations(1L)).isEmpty();
         Mockito.verify(citationRepo, Mockito.never())
@@ -422,8 +471,9 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void listCitationsReadsCurrentActiveVersionOnly() {
-        when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identityRow(1L)));
-        when(versionRepo.findActiveByIdentity("t-1", 1L))
+        when(identityRepo.findByTenantIdAndId("t-1", 1L))
+            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
+        when(versionRepo.findByTenantIdAndId("t-1", 20L))
             .thenReturn(Optional.of(versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE)));
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
             .thenReturn(List.of(citation(8L, 20L, 90)));
@@ -447,7 +497,6 @@ class KnowledgeIdentityServiceTest {
 
         assertThat(citations).hasSize(1);
         assertThat(citations.get(0).assetVersionId()).isEqualTo(22L);
-        Mockito.verify(versionRepo, Mockito.never()).findActiveByIdentity(any(), any());
     }
 
     @Test
@@ -547,6 +596,21 @@ class KnowledgeIdentityServiceTest {
             status == KnowledgeVersionStatus.ACTIVE ? now : null, null,
             null, null,
             now, "init", now, "init"
+        );
+    }
+
+    private KnowledgeAssetVersion versionRowWithSource(Long id, Long identityId, Long sourceVersionId) {
+        KnowledgeAssetVersion row = versionRow(
+            id, identityId, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
+        return new KnowledgeAssetVersion(
+            row.id(), row.tenantId(), row.identityId(), row.versionNo(), row.versionLabel(),
+            10L, sourceVersionId, row.contentHash(), row.anchors(),
+            row.status(), row.riskLevel(), row.authorityLevel(), row.gradeQuality(),
+            row.gradeStrength(), row.conflictArbitration(), row.organizationScope(),
+            row.applicableScope(), row.activeScopeKey(), row.effectiveFrom(), row.effectiveTo(),
+            row.reviewedBy(), row.reviewedAt(), row.activatedAt(), row.supersededAt(),
+            row.withdrawnAt(), row.withdrawnReason(), row.createdAt(), row.createdBy(),
+            row.updatedAt(), row.updatedBy()
         );
     }
 

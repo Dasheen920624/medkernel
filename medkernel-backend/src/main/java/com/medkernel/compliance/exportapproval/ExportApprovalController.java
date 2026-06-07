@@ -1,12 +1,16 @@
 package com.medkernel.compliance.exportapproval;
 
+import java.util.List;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.medkernel.shared.api.ApiResult;
@@ -30,6 +34,15 @@ public class ExportApprovalController {
         this.service = service;
     }
 
+    @GetMapping("/exports")
+    @PreAuthorize("@perm.has('audit.export')")
+    public ApiResult<List<ExportApprovalResponse>> listExports(
+            @RequestParam(required = false) String resourceType,
+            @RequestParam(required = false) ExportApprovalStatus status) {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        return ApiResult.ok(service.listApprovals(tenantId, resourceType, status));
+    }
+
     @PostMapping("/exports:request")
     @PreAuthorize("@perm.has('audit.export')")
     public ApiResult<ExportApprovalResponse> requestExport(
@@ -49,14 +62,15 @@ public class ExportApprovalController {
         return ApiResult.ok(service.reviewExport(tenantId, approvalId, request, actor(authentication)));
     }
 
-    @PostMapping("/exports/{approvalId}:complete")
+    @PostMapping("/exports/{approvalId}:complete-from-job")
     @PreAuthorize("@perm.has('audit.export')")
-    public ApiResult<ExportApprovalResponse> completeExport(
+    public ApiResult<ExportApprovalResponse> completeExportFromJob(
             @PathVariable String approvalId,
-            @Valid @RequestBody ExportCompletionRequest request,
+            @Valid @RequestBody ExportJobCompletionRequest request,
             Authentication authentication) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
-        return ApiResult.ok(service.completeExport(tenantId, approvalId, request, actor(authentication)));
+        return ApiResult.ok(
+            service.completeExportFromJob(tenantId, approvalId, request, actor(authentication)));
     }
 
     private String actor(Authentication authentication) {

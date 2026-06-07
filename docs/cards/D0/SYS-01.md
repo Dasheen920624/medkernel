@@ -13,11 +13,11 @@
 
 ## 目标
 
-定义**12 类标准临床对象 + 标准事件上下文**：作为所有临床域（D3 及之后）共享的统一类型骨架，FHIR R4 兼容，唯一权威源关系库，事件上下文驱动规则/路径/CDSS 引擎。D0 只立类型与上下文，不做业务逻辑。
+定义**13 类标准临床对象 + 标准事件上下文**：作为所有临床域（D3 及之后）共享的统一类型骨架，FHIR R4 兼容，唯一权威源关系库，事件上下文驱动规则/路径/CDSS 引擎。D0 只立类型与上下文，不做业务逻辑。
 
 ## 功能要求（原子可测条目）
 
-- [x] **FR-1 12 类标准对象**：定义 Patient / Encounter / Condition / Observation / Medication / Procedure / DiagnosticReport / Document / NursingAssessment / CarePlan / FollowUp / Claim 标准对象，FHIR R4 兼容字段口径。
+- [x] **FR-1 13 类标准对象**：定义 Patient / AllergyIntolerance / Encounter / Condition / Observation / Medication / Procedure / DiagnosticReport / Document / NursingAssessment / CarePlan / FollowUp / Claim 标准对象，FHIR R4 兼容字段口径。
 - [x] **FR-2 标准事件上下文**：定义临床事件触发引擎的统一上下文 `ClinicalEventContext`（患者 + 就诊 + 组织 + 时间 + 触发源），供规则/路径/CDSS 同源消费。
 - [x] **FR-3 关系库权威**：12 对象唯一权威源为院内关系库（核心 #5）；图/Dify 仅投影，可重建（[SYS-03](SYS-03.md)）。
 - [x] **FR-4 字典映射锚点**：12 对象的编码字段（诊断/检验/药品…）提供标准↔院内字典映射锚点（D2 TERM 卡消费）。
@@ -80,15 +80,15 @@ N·A —— 无页面。患者主索引等页在 D3 消费本类型。
 - PR3：关系库权威 + 投影解耦 + FHIR 映射 → AC-3。
 
 ### PR1 进度证据（本 PR 不冒领整卡完成）
-- 覆盖范围：新增 12 类标准对象 Record、租户级 Repository、V38 五方言关系库权威表基础、跨租户读取测试、Patient 敏感字段密文 / 掩码字段；同步清理旧 `SYMPTOM` 口径，统一为 `NURSING_ASSESSMENT`。
+- 覆盖范围：13 类标准对象 Record、租户级 Repository、五方言关系库权威表、跨租户读取测试、Patient 敏感字段密文 / 掩码字段；过敏信息只保留结构化 `AllergyIntolerance`，不在 Patient 重复存粗粒度列表。
 - 验收口径：仅作为 **AC-1 12 对象建模 / 持久化基础** 与 **AC-5 组织字段 / 敏感字段基础** 的 PR1 证据；AC-2、AC-3、AC-4 仍由 PR2 / PR3 承接，整卡 FR / AC 不在本 PR 勾选。
 
 ### PR2 进度证据（本 PR 不冒领整卡完成）
 - 覆盖范围：新增 `ClinicalEventContext`、`ClinicalEventEngineDispatcher`、规则 / 路径 / CDSS 三个真实适配入口、`clinical_event.org_scope_json` V39 五方言迁移；临床事件处理从“只推进状态”调整为先构造同一个事件上下文，再派发给三类引擎，成功后才进入 `PROCESSED`。
-- 字典锚点：新增 `ClinicalCodeMappingAnchor` / `ClinicalCodeMappingAnchorRegistry`，12 类标准对象的编码字段均可生成 `anchor.key()`，`TerminologyMappingPort` 改为按锚点评估，未映射项以 `UNKNOWN` 可追踪返回。
+- 字典锚点：`ClinicalCodeMappingAnchor` / `ClinicalCodeMappingAnchorRegistry` 覆盖 13 类标准对象的编码字段，未映射项以 `UNKNOWN` 可追踪返回。
 - 验收口径：作为 **AC-2 事件上下文三引擎同源入口基础** 与 **AC-4 编码字段映射锚点基础** 的 PR2 证据；AC-3 关系库权威 / 图投影关闭 / FHIR 门面仍由 PR3 承接，整卡 FR / AC 不在本 PR 勾选。
 
 ### PR3 进度证据（SYS-01 收口，不冒领 OPT-01 / SYS-03）
 - 关系库权威：新增 `StandardClinicalAuthorityService`，按 `tenantId + patientId` 从 12 个 `mk_clinical_*` 关系库权威仓库聚合标准对象；`ClinicalProjectionStatusPort` 只返回图投影诚实状态，不参与业务事实读取，投影 `NOT_SYNCED` 时仍返回 `authoritySource=RELATIONAL_DATABASE`。
-- FHIR 映射：新增 `StandardClinicalFhirMappingRegistry` / `StandardClinicalFhirReference`，12 类标准对象均有 FHIR R4 资源类型锚点；已有 `fhir_resource_id` 时解析 `ResourceType/id`，缺失时以本地权威主键 fallback 并标记 `LOCAL_AUTHORITY_FALLBACK`，不伪造外部 FHIR id。
+- FHIR 映射：`StandardClinicalFhirMappingRegistry` / `StandardClinicalFhirReference` 覆盖 13 类标准对象；已有 `fhir_resource_id` 时解析 `ResourceType/id`，缺失时明确标记本地权威引用，不伪造外部 FHIR id。
 - 验收口径：本 PR 收口 **AC-3 关系库权威 / 图投影关闭不影响读取**，并补足 SYS-01 层面的 FHIR R4 映射锚点；完整 FHIR R4/R5 端点、CapabilityStatement、受控 create 与 INTEG 总线接入仍由 D2 [OPT-01](../D2/OPT-01.md) 承接，图投影重建 / 一致性校验仍由 [SYS-03](SYS-03.md) 承接。

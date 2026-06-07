@@ -17,7 +17,7 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
 基本待建：现有无统一价值/ROI 口径聚合。本卡＝新建价值指标聚合层，**口径单一归属在此**，消费 [EVAL-01](EVAL-01.md) 评估 + [CDSS-01](../D3/CDSS-01.md) 采纳/疲劳 + [SVC-CLINICAL-01](../D3/SVC-CLINICAL-01.md) 路径完成 的真实数据，非各页自算。
 
-2026-06-05 实施：已落后端 B0 聚合 API，使用 `recommendation_card`、`quality_finding`、`patient_pathway`、`rectification_task` 真实事实实时复算；医保违规减少在 SVC-QUALITY-02 事实源建立前返回 `NOT_AVAILABLE`，不以 Claim 总量或费用金额伪造。
+当前实现：后端 B0 聚合 API 使用 `recommendation_card`、`quality_finding`、`patient_pathway`、`rectification_task` 与 `mk_quality_insurance_issue` 真实事实实时复算。医保违规减少率比较查询期与等长前置基线期；缺时间窗或基线样本时返回 `NOT_AVAILABLE`。
 
 ## 功能要求（原子可测条目）
 - [x] FR-1 口径定义：6 类价值指标口径受控、版本化、可解释（公式 + 数据源）。
@@ -37,7 +37,7 @@
 ## 数据与迁移
 - B0 本批不新建表：实时只读聚合现有关系库权威事实，避免在事实源未齐时写入快照假数。
 - 事实源：`recommendation_card`（采纳率）、`quality_finding`（误报率 / 漏报回溯）、`patient_pathway`（路径完成率）、`rectification_task`（整改闭环率）。
-- 待源：医保违规减少依赖 [SVC-QUALITY-02](SVC-QUALITY-02.md) 建立医保违规判定事实源；当前诚实 `NOT_AVAILABLE`。
+- 医保违规减少：消费 [SVC-QUALITY-02](SVC-QUALITY-02.md) 的 `mk_quality_insurance_issue`，按租户、科室和时间窗计算并支持问题下钻。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：全平台价值证明的"指标口径中枢"。

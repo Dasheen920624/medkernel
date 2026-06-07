@@ -44,8 +44,9 @@ describe("PageExperienceShell", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByText("目标：核查映射风险")).toBeInTheDocument();
-    expect(screen.getByText("默认视图：最近更新")).toBeInTheDocument();
+    expect(screen.getByText("核查映射风险")).toBeInTheDocument();
+    expect(screen.queryByText("主要角色：实施工程师")).not.toBeInTheDocument();
+    expect(screen.queryByText("默认视图：最近更新")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "专家模式" })).toBeInTheDocument();
 
     rerender(

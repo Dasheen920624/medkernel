@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,8 @@ const followupHookMocks = vi.hoisted(() => ({
   submitQuestionnaire: vi.fn(),
   useFollowupStats: vi.fn(),
   useFollowupPlans: vi.fn(),
+  useContextSnapshotDetail: vi.fn(),
+  useContextSnapshots: vi.fn(),
   useGenerateFollowupPlan: vi.fn(),
   useReportFollowupAbnormal: vi.fn(),
   useSubmitFollowupQuestionnaire: vi.fn(),
@@ -20,6 +22,8 @@ const followupHookMocks = vi.hoisted(() => ({
 vi.mock("@/shared/api/hooks", () => ({
   useFollowupStats: followupHookMocks.useFollowupStats,
   useFollowupPlans: followupHookMocks.useFollowupPlans,
+  useContextSnapshotDetail: followupHookMocks.useContextSnapshotDetail,
+  useContextSnapshots: followupHookMocks.useContextSnapshots,
   useGenerateFollowupPlan: followupHookMocks.useGenerateFollowupPlan,
   useReportFollowupAbnormal: followupHookMocks.useReportFollowupAbnormal,
   useSubmitFollowupQuestionnaire: followupHookMocks.useSubmitFollowupQuestionnaire,
@@ -77,6 +81,7 @@ describe("Followup", () => {
                 taskType: "QUESTIONNAIRE",
                 dueDate: "2026-06-08T00:00:00Z",
                 status: "PENDING",
+                questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
               },
               {
                 taskId: "task-lab-1",
@@ -100,6 +105,36 @@ describe("Followup", () => {
       isPending: false,
       mutateAsync: followupHookMocks.generatePlan,
     });
+    followupHookMocks.useContextSnapshots.mockReturnValue({
+      data: {
+        items: [
+          {
+            snapshotId: "snapshot-followup-1",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            status: "ACTIVE",
+            qualityStatus: "VALID",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+    followupHookMocks.useContextSnapshotDetail.mockImplementation((snapshotId: string) => ({
+      data:
+        snapshotId === "snapshot-followup-1"
+          ? {
+              snapshotId,
+              status: "ACTIVE",
+              packageVersion: "2026.06",
+              qualityStatus: "VALID",
+              missingFields: [],
+              mappingStatus: {},
+            }
+          : undefined,
+      isLoading: false,
+      isError: false,
+    }));
     followupHookMocks.useReportFollowupAbnormal.mockReturnValue({
       isPending: false,
       mutateAsync: followupHookMocks.reportAbnormal,
@@ -137,8 +172,12 @@ describe("Followup", () => {
     await screen.findByText("异常事件上报");
     await user.click(screen.getByLabelText("严重性"));
     await user.click(await screen.findByText("高风险"));
-    await user.type(screen.getByLabelText("异常表现"), "患者随访反馈呼吸困难加重");
-    await user.type(screen.getByLabelText("处理建议"), "安排回院复核并通知责任医生");
+    fireEvent.change(screen.getByLabelText("异常表现"), {
+      target: { value: "患者随访反馈呼吸困难加重" },
+    });
+    fireEvent.change(screen.getByLabelText("处理建议"), {
+      target: { value: "安排回院复核并通知责任医生" },
+    });
     await user.click(screen.getByRole("button", { name: /上报异常事件/ }));
 
     await waitFor(() => expect(followupHookMocks.reportAbnormal).toHaveBeenCalledTimes(1));
@@ -158,5 +197,34 @@ describe("Followup", () => {
     expect(screen.getByText("通知事件 notify-event-1")).toBeInTheDocument();
     expect(screen.getByText("追踪链路 trace-followup-1")).toBeInTheDocument();
     expect(screen.getByText("异常事件 event-return-1")).toBeInTheDocument();
+  });
+
+  it("generates a plan from an ACTIVE context snapshot instead of typed patient facts", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
+    fireEvent.change(screen.getByLabelText("随访快照患者 ID"), {
+      target: { value: "patient-real-1" },
+    });
+    await user.click(screen.getByRole("button", { name: "选择 snapshot-followup-1" }));
+    await user.click(screen.getByLabelText("随访风险分层"));
+    await user.click(screen.getByText("高风险"));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "生成随访计划" })).getByRole("button", {
+        name: /生 成/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(followupHookMocks.generatePlan).toHaveBeenCalledWith({
+        contextSnapshotId: "snapshot-followup-1",
+        riskLevel: "HIGH",
+        taskTypes: ["QUESTIONNAIRE"],
+        idempotencyKey: "followup-plan-snapshot-followup-1-HIGH-QUESTIONNAIRE",
+      }),
+    );
+    expect(screen.queryByLabelText("患者 ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("就诊 ID")).not.toBeInTheDocument();
   });
 });

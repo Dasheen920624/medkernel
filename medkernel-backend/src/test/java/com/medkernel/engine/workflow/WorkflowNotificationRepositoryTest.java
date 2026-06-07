@@ -99,23 +99,23 @@ class WorkflowNotificationRepositoryTest {
             "todo:todo-own:created",
             WorkflowNotificationLevel.HIGH,
             "doctor-1",
-            "dept-b",
+            "hospital-b",
             now.plusSeconds(400)));
         repository.save(sample(
-            "notify-dept",
-            "event-dept",
-            "clinical-event:event-dept",
+            "notify-hospital",
+            "event-hospital",
+            "clinical-event:event-hospital",
+            WorkflowNotificationLevel.INFO,
+            null,
+            "hospital-a",
+            now.plusSeconds(300)));
+        repository.save(sample(
+            "notify-department",
+            "event-department",
+            "clinical-event:event-department",
             WorkflowNotificationLevel.INFO,
             null,
             "dept-a",
-            now.plusSeconds(300)));
-        repository.save(sample(
-            "notify-specialty",
-            "event-specialty",
-            "clinical-event:event-specialty",
-            WorkflowNotificationLevel.INFO,
-            null,
-            "spec-a1",
             now.plusSeconds(200)));
         repository.save(sample(
             "notify-tenant",
@@ -131,7 +131,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.INFO,
             null,
-            "dept-b",
+            "hospital-b",
             now.plusSeconds(500)));
 
         long total = repository.countByVisibleRecipientScope(
@@ -140,20 +140,20 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "dept-a");
+            "hospital-a");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScope(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
-            "dept-a",
+            "hospital-a",
             0,
             10);
 
         assertThat(total).isEqualTo(4);
         assertThat(page).extracting(WorkflowNotification::notificationId)
-            .containsExactly("notify-own", "notify-dept", "notify-specialty", "notify-tenant");
+            .containsExactly("notify-own", "notify-hospital", "notify-department", "notify-tenant");
     }
 
     @Test
@@ -166,7 +166,7 @@ class WorkflowNotificationRepositoryTest {
             "todo:todo-own-selected:created",
             WorkflowNotificationLevel.HIGH,
             "doctor-1",
-            "spec-a1",
+            "dept-a",
             now.plusSeconds(100)));
         repository.save(sample(
             "notify-selected-org",
@@ -174,7 +174,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-selected-org",
             WorkflowNotificationLevel.INFO,
             null,
-            "spec-a1",
+            "dept-a",
             now.plusSeconds(200)));
         repository.save(sample(
             "notify-selected-parent",
@@ -182,7 +182,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-selected-parent",
             WorkflowNotificationLevel.INFO,
             null,
-            "dept-a",
+            "hospital-a",
             now.plusSeconds(300)));
         repository.save(sample(
             "notify-tenant",
@@ -198,7 +198,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.INFO,
             null,
-            "dept-b",
+            "hospital-b",
             now.plusSeconds(500)));
 
         long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
@@ -207,16 +207,16 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "dept-a",
-            "spec-a1");
+            "hospital-a",
+            "dept-a");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
+            "hospital-a",
             "dept-a",
-            "spec-a1",
             0,
             10);
 
@@ -235,7 +235,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.HIGH,
             null,
-            "dept-b",
+            "hospital-b",
             now.plusSeconds(100)));
 
         long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
@@ -244,16 +244,16 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "dept-a",
-            "dept-b");
+            "hospital-a",
+            "hospital-b");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
-            "dept-a",
-            "dept-b",
+            "hospital-a",
+            "hospital-b",
             0,
             10);
 
@@ -345,26 +345,26 @@ class WorkflowNotificationRepositoryTest {
         jdbc.update("""
             INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "dept-a", "tenant-root", "tenant-A", "/TENANT-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
+            """, "hospital-a", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-A", "HOSPITAL", "HOSPITAL-A", "A 医院");
         jdbc.update("""
             INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "spec-a1", "dept-a", "tenant-A", "/TENANT-A/DEPT-A/SPEC-A1", "SPECIALTY", "SPEC-A1", "A1 专病");
+            """, "dept-a", "hospital-a", "tenant-A", "/TENANT-A/HOSPITAL-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
         jdbc.update("""
             INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "dept-b", "tenant-root", "tenant-A", "/TENANT-A/DEPT-B", "DEPARTMENT", "DEPT-B", "B 科室");
+            """, "hospital-b", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-B", "HOSPITAL", "HOSPITAL-B", "B 医院");
         jdbc.update("""
             INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
             VALUES
               ('tenant-A', 'tenant-root', 'tenant-root', 0),
-              ('tenant-A', 'tenant-root', 'dept-a', 1),
-              ('tenant-A', 'tenant-root', 'spec-a1', 2),
-              ('tenant-A', 'tenant-root', 'dept-b', 1),
+              ('tenant-A', 'tenant-root', 'hospital-a', 1),
+              ('tenant-A', 'tenant-root', 'dept-a', 2),
+              ('tenant-A', 'tenant-root', 'hospital-b', 1),
+              ('tenant-A', 'hospital-a', 'hospital-a', 0),
+              ('tenant-A', 'hospital-a', 'dept-a', 1),
               ('tenant-A', 'dept-a', 'dept-a', 0),
-              ('tenant-A', 'dept-a', 'spec-a1', 1),
-              ('tenant-A', 'spec-a1', 'spec-a1', 0),
-              ('tenant-A', 'dept-b', 'dept-b', 0)
+              ('tenant-A', 'hospital-b', 'hospital-b', 0)
             """);
     }
 }

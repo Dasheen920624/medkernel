@@ -12,7 +12,7 @@ import java.util.concurrent.Callable;
 import com.medkernel.engine.evaluation.EmrLevelRectificationBridge;
 import com.medkernel.engine.evaluation.RectificationTaskStatus;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -43,7 +43,7 @@ class EmrLevelServiceTest {
 
     @Autowired EmrLevelService service;
     @Autowired JdbcTemplate jdbc;
-    @MockBean AuditEventPublisher auditPublisher;
+    @MockBean AuditRecorder auditRecorder;
 
     @AfterEach
     void clear() {
@@ -244,7 +244,7 @@ class EmrLevelServiceTest {
               AND idempotency_key = 'idem-emr-2026-001'
               AND payload_sha256 = ?
             """, Long.class, target.targetId(), first.payloadSha256())).isEqualTo(1L);
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             eq(AuditAction.EXPORT),
             eq("mk_emr_level_evidence_package"),
             eq(first.packageId()),

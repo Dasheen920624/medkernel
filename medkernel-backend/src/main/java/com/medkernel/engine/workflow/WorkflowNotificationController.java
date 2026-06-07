@@ -78,4 +78,23 @@ public class WorkflowNotificationController {
             @Valid @RequestBody WorkflowNotificationSettingsRequest request) {
         return ApiResult.ok(settingsService.saveSettings(request));
     }
+
+    /**
+     * 读取当前租户的系统通知默认策略。
+     */
+    @GetMapping("/settings/system")
+    @PreAuthorize("@perm.has('system.read')")
+    public ApiResult<WorkflowNotificationSettingsResponse> systemSettings() {
+        return ApiResult.ok(settingsService.getSystemSettings());
+    }
+
+    /**
+     * 更新当前租户的系统通知默认策略。
+     */
+    @PutMapping("/settings/system")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<WorkflowNotificationSettingsResponse> saveSystemSettings(
+            @Valid @RequestBody WorkflowNotificationSystemSettingsRequest request) {
+        return ApiResult.ok(settingsService.saveSystemSettings(request));
+    }
 }

@@ -1,3 +1,17 @@
+import {
+  defaultValueKindForOperator,
+  inferRuleValueKind,
+  isRuleExpressionSelect,
+  isRuleOperator,
+  normalizeTemporalMode,
+  operatorNeedsValue,
+  type RuleExpressionSelect,
+  type RuleOperator,
+  type RuleValueKind,
+} from "./ruleOperatorCatalog";
+import type { RuleType } from "./ruleTypes";
+import { isClinicalTriggerPoint, type ClinicalTriggerPoint } from "./clinicalTriggerPoints";
+
 export type RuleTemplateKey =
   | "clinical_quality_monitor"
   | "drug_safety_review"
@@ -5,31 +19,7 @@ export type RuleTemplateKey =
   | "clinical_operator_review";
 
 export type RuleLogic = "all" | "any";
-export type RuleOperator =
-  | "exists"
-  | "equals"
-  | "not_equals"
-  | "contains"
-  | "gt"
-  | "gte"
-  | "lt"
-  | "lte"
-  | "in"
-  | "not_in"
-  | "between"
-  | "unit_compare"
-  | "temporal"
-  | "derived";
-export type RuleValueKind =
-  | "empty"
-  | "string"
-  | "number"
-  | "boolean"
-  | "list"
-  | "range"
-  | "measurement"
-  | "temporal"
-  | "derived";
+export type { RuleOperator, RuleValueKind };
 export type RuleSeverity = "LOW" | "MEDIUM" | "HIGH";
 export type RuleConditionValue =
   | string
@@ -42,9 +32,18 @@ export interface RuleCondition {
   id: string;
   label: string;
   fact: string;
+  expr?: RuleExpressionDraft;
   operator: RuleOperator;
   value?: RuleConditionValue;
   valueKind: RuleValueKind;
+}
+
+export interface RuleExpressionDraft {
+  field: string;
+  select?: RuleExpressionSelect;
+  where?: Record<string, unknown>;
+  over?: string;
+  referenceTime?: string;
 }
 
 export interface RuleActionDraft {
@@ -55,11 +54,13 @@ export interface RuleActionDraft {
 }
 
 export interface RuleConditionTree {
+  triggerPoint: ClinicalTriggerPoint;
   logic: RuleLogic;
+  /** L2 叶子索引，供列表、统计与默认模板使用；DSL 权威结构始终由 root 归一化得到。 */
   conditions: RuleCondition[];
   /**
-   * 递归条件根组（P1-2 嵌套支持，可选）。存在时作为权威条件结构，支持任意深度
-   * 「条件组(all/any/可取反)+叶子」；不存在时回退到扁平 logic+conditions（向后兼容）。
+   * 递归条件根组（P1-2 嵌套支持，可选输入）。存在时作为权威条件结构，支持任意深度
+   * 「条件组(all/any/可取反)+叶子」；缺失时由 conditions 显式归一化生成。
    */
   root?: RuleConditionGroup;
   action: RuleActionDraft;
@@ -87,13 +88,14 @@ export interface RuleLayerTemplate {
   key: RuleTemplateKey;
   title: string;
   description: string;
-  ruleType: "DRUG_SAFETY" | "INSURANCE_AUDIT" | "CLINICAL_QUALITY";
+  ruleType: RuleType;
   riskLevel: RuleSeverity;
   tree: RuleConditionTree;
 }
 
 type RuleDslCondition = {
-  fact: string;
+  fact?: string;
+  expr?: RuleExpressionDraft;
   operator: RuleOperator;
   value?: unknown;
   ui?: {
@@ -104,7 +106,8 @@ type RuleDslCondition = {
 };
 
 export type RuleDsl = {
-  when: Partial<Record<RuleLogic, RuleDslCondition[]>>;
+  trigger: ClinicalTriggerPoint;
+  when: Partial<Record<RuleLogic, RuleDslNode[]>> & { not?: RuleDslNode };
   then: RuleActionDraft[];
   explain: {
     summary: string;
@@ -127,9 +130,10 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     key: "clinical_quality_monitor",
     title: "临床质控阈值",
     description: "适合从真实上下文快照取一个数值字段，超过阈值后提交人工复核。",
-    ruleType: "CLINICAL_QUALITY",
+    ruleType: "QUALITY",
     riskLevel: "MEDIUM",
     tree: {
+      triggerPoint: "result-review",
       logic: "all",
       conditions: [
         {
@@ -152,9 +156,10 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     key: "drug_safety_review",
     title: "合理用药复核",
     description: "适合检查真实上下文中是否存在受控字段，命中后要求人工复核。",
-    ruleType: "DRUG_SAFETY",
+    ruleType: "ORDER",
     riskLevel: "LOW",
     tree: {
+      triggerPoint: "medication-prescribe",
       logic: "all",
       conditions: [
         {
@@ -173,9 +178,10 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     key: "insurance_policy_review",
     title: "医保规范核查",
     description: "适合检查真实上下文编码或状态字段是否进入受控集合。",
-    ruleType: "INSURANCE_AUDIT",
+    ruleType: "INSURANCE",
     riskLevel: "MEDIUM",
     tree: {
+      triggerPoint: "order-sign",
       logic: "any",
       conditions: [
         {
@@ -198,9 +204,10 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     key: "clinical_operator_review",
     title: "临床算子复核",
     description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或受控公式判断。",
-    ruleType: "CLINICAL_QUALITY",
+    ruleType: "QUALITY",
     riskLevel: "HIGH",
     tree: {
+      triggerPoint: "result-review",
       logic: "all",
       conditions: [
         {
@@ -233,16 +240,16 @@ export function instantiateRuleTemplate(key: RuleTemplateKey): RuleConditionTree
 }
 
 export function conditionTreeToDsl(tree: RuleConditionTree): RuleDsl {
+  const root = tree.root ?? flatToRootGroup(tree);
   return {
-    when: {
-      [tree.logic]: tree.conditions.map(conditionToDsl),
-    },
+    trigger: tree.triggerPoint,
+    when: conditionNodeToDsl(root) as RuleDsl["when"],
     then: [{ ...tree.action }],
     explain: {
       summary: tree.explanationSummary,
       authoring: {
         layer: "L2_VISUAL_TREE",
-        conditionCount: tree.conditions.length,
+        conditionCount: countConditionLeaves(root),
       },
     },
   };
@@ -252,10 +259,14 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
   if (!isRecord(dsl) || !isRecord(dsl.when)) {
     throw new Error("规则 DSL 缺少 when 条件");
   }
+  if (!isClinicalTriggerPoint(dsl.trigger)) {
+    throw new Error("规则 DSL 缺少或包含不支持的 trigger");
+  }
 
-  const logic: RuleLogic = Array.isArray(dsl.when.all) ? "all" : "any";
+  const root = dslWhenToRootGroup(dsl.when);
+  const logic = root.logic;
   const rawConditions = dsl.when[logic];
-  if (!Array.isArray(rawConditions) || rawConditions.length === 0) {
+  if ((!Array.isArray(rawConditions) || rawConditions.length === 0) && root.children.length === 0) {
     throw new Error("规则 DSL 至少需要一个条件");
   }
 
@@ -263,8 +274,10 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
   const explain = isRecord(dsl.explain) ? dsl.explain : undefined;
 
   return {
+    triggerPoint: dsl.trigger,
     logic,
-    conditions: rawConditions.map((condition, index) => dslConditionToTree(condition, index)),
+    conditions: collectConditionLeaves(root),
+    root,
     action: {
       actionCode: readString(then, "actionCode", DEFAULT_ACTION.actionCode),
       severity: readSeverity(then, "severity", DEFAULT_ACTION.severity),
@@ -282,8 +295,9 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
 
 export function createExplanationTemplate(tree: RuleConditionTree) {
   const variables: Record<string, string> = {};
-  for (const condition of tree.conditions) {
-    variables[condition.fact] = "由 L2 条件树选择的真实上下文字段";
+  const root = tree.root ?? flatToRootGroup(tree);
+  for (const condition of collectConditionLeaves(root)) {
+    variables[condition.expr?.field ?? condition.fact] = "由 L2 条件树选择的真实上下文字段";
   }
 
   return {
@@ -291,8 +305,8 @@ export function createExplanationTemplate(tree: RuleConditionTree) {
     variables,
     authoring: {
       layer: "L1/L2/L3",
-      conditionCount: tree.conditions.length,
-      logic: tree.logic,
+      conditionCount: countConditionLeaves(root),
+      logic: root.logic,
     },
   };
 }
@@ -310,13 +324,23 @@ export function parseRuleJson(text: string): unknown {
 }
 
 export function conditionNeedsValue(operator: RuleOperator): boolean {
-  return operator !== "exists";
+  return operatorNeedsValue(operator);
 }
 
 export function normalizeConditionValue(value: unknown, kind: RuleValueKind) {
   if (kind === "empty") return undefined;
-  if (kind === "range" || kind === "measurement" || kind === "temporal" || kind === "derived") {
+  if (kind === "temporal") {
+    const record = isRecord(value) ? cloneJsonRecord(value) : {};
+    return { ...record, mode: normalizeTemporalMode(record.mode) };
+  }
+  if (kind === "range" || kind === "measurement" || kind === "derived") {
     return isRecord(value) ? cloneJsonRecord(value) : {};
+  }
+  if (kind === "critical_flag") {
+    return normalizeCriticalFlagValue(value);
+  }
+  if (kind === "staleness") {
+    return isRecord(value) ? cloneJsonRecord(value) : { maxAge: "PT24H", referenceTime: "" };
   }
   if (kind === "number") {
     if (typeof value === "number") return value;
@@ -361,7 +385,7 @@ export function conditionNodeToDsl(node: RuleConditionNode): RuleDslNode {
   return conditionToDsl(node);
 }
 
-/** 递归把 DSL 还原为条件节点；兼容 all/any/not 与扁平叶子，叶子复用既有解析。 */
+/** 递归把 DSL 还原为条件节点；支持 all/any/not 与当前叶子节点，叶子复用既有解析。 */
 export function dslToConditionNode(dsl: unknown, index = 0): RuleConditionNode {
   if (!isRecord(dsl)) {
     throw new Error("规则 DSL 条件节点必须为对象");
@@ -398,7 +422,7 @@ export function dslWhenToRootGroup(when: unknown): RuleConditionGroup {
     : { id: nextNestedId("group"), logic: "all", children: [node] };
 }
 
-/** 把扁平 logic+conditions 提升为递归根组（供页面迁移到嵌套模型）。 */
+/** 把 L2 叶子索引提升为递归根组，保证序列化时只有一棵权威条件树。 */
 export function flatToRootGroup(tree: RuleConditionTree): RuleConditionGroup {
   if (tree.root) return tree.root;
   return {
@@ -408,9 +432,23 @@ export function flatToRootGroup(tree: RuleConditionTree): RuleConditionGroup {
   };
 }
 
+export function countConditionLeaves(node: RuleConditionNode): number {
+  if (!isConditionGroup(node)) {
+    return 1;
+  }
+  return node.children.reduce((sum, child) => sum + countConditionLeaves(child), 0);
+}
+
+function collectConditionLeaves(node: RuleConditionNode): RuleCondition[] {
+  if (!isConditionGroup(node)) {
+    return [node];
+  }
+  return node.children.flatMap((child) => collectConditionLeaves(child));
+}
+
 function conditionToDsl(condition: RuleCondition): RuleDslCondition {
+  const expr = normalizeConditionExpression(condition.expr);
   const node: RuleDslCondition = {
-    fact: condition.fact.trim(),
     operator: condition.operator,
     ui: {
       id: condition.id,
@@ -418,9 +456,17 @@ function conditionToDsl(condition: RuleCondition): RuleDslCondition {
       valueKind: condition.valueKind,
     },
   };
+  if (expr) {
+    node.expr = expr;
+  } else {
+    node.fact = condition.fact.trim();
+  }
 
   if (conditionNeedsValue(condition.operator)) {
-    node.value = normalizeConditionValue(condition.value, condition.valueKind);
+    const normalizedValue = normalizeConditionValue(condition.value, condition.valueKind);
+    if (normalizedValue !== undefined) {
+      node.value = normalizedValue;
+    }
   }
 
   return node;
@@ -431,23 +477,28 @@ function dslConditionToTree(condition: unknown, index: number): RuleCondition {
     throw new Error("规则 DSL 条件必须为对象");
   }
   const ui = isRecord(condition.ui) ? condition.ui : undefined;
-  const inferredKind = inferValueKind(condition.value);
+  const operator = readOperator(condition, "operator");
+  const inferredKind = inferRuleValueKind(condition.value);
+  const expr = readExpression(condition.expr);
   return {
     id: readString(ui, "id", `condition-${index + 1}`),
     label: readString(ui, "label", `条件 ${index + 1}`),
-    fact: readString(condition, "fact", ""),
-    operator: readOperator(condition, "operator"),
+    fact: readString(condition, "fact", expr?.field ?? ""),
+    expr,
+    operator,
     value: condition.value as RuleCondition["value"],
-    valueKind: readValueKind(ui, "valueKind", inferredKind),
+    valueKind: readValueKind(ui, "valueKind", defaultValueKindForOperator(operator, inferredKind)),
   };
 }
 
 function cloneTree(tree: RuleConditionTree): RuleConditionTree {
   return {
+    triggerPoint: tree.triggerPoint,
     logic: tree.logic,
     conditions: tree.conditions.map((condition) => ({
       ...condition,
       value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
+      expr: condition.expr ? normalizeConditionExpression(condition.expr) : undefined,
     })),
     action: { ...tree.action },
     explanationSummary: tree.explanationSummary,
@@ -472,29 +523,19 @@ function readSeverity(source: unknown, key: string, fallback: RuleSeverity): Rul
 }
 
 function readOperator(source: unknown, key: string): RuleOperator {
-  const value = readString(source, key, "exists");
-  const operators: RuleOperator[] = [
-    "exists",
-    "equals",
-    "not_equals",
-    "contains",
-    "gt",
-    "gte",
-    "lt",
-    "lte",
-    "in",
-    "not_in",
-    "between",
-    "unit_compare",
-    "temporal",
-    "derived",
-  ];
-  return operators.includes(value as RuleOperator) ? (value as RuleOperator) : "exists";
+  const value = readString(source, key, "");
+  if (!value) {
+    throw new Error("规则 DSL 条件缺少 operator");
+  }
+  if (isRuleOperator(value)) {
+    return value;
+  }
+  throw new Error(`不支持的规则算子: ${value}`);
 }
 
 function readValueKind(source: unknown, key: string, fallback: RuleValueKind): RuleValueKind {
   const value = readString(source, key, fallback);
-  const kinds: RuleValueKind[] = [
+  const kinds = [
     "empty",
     "string",
     "number",
@@ -504,24 +545,53 @@ function readValueKind(source: unknown, key: string, fallback: RuleValueKind): R
     "measurement",
     "temporal",
     "derived",
-  ];
+    "critical_flag",
+    "staleness",
+  ] satisfies RuleValueKind[];
   return kinds.includes(value as RuleValueKind) ? (value as RuleValueKind) : fallback;
-}
-
-function inferValueKind(value: unknown): RuleValueKind {
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-  if (Array.isArray(value)) return "list";
-  if (value === undefined || value === null) return "empty";
-  if (isRecord(value)) {
-    if ("formula" in value || "parameters" in value) return "derived";
-    if ("mode" in value || "window" in value || "referenceTime" in value) return "temporal";
-    if ("analyte" in value || "comparison" in value) return "measurement";
-    if ("min" in value || "max" in value) return "range";
-  }
-  return "string";
 }
 
 function cloneJsonRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function normalizeConditionExpression(expr?: RuleExpressionDraft): RuleExpressionDraft | undefined {
+  const field = expr?.field?.trim();
+  if (!field) return undefined;
+  const normalized: RuleExpressionDraft = { field };
+  if (expr?.select) normalized.select = expr.select;
+  if (expr?.where && isRecord(expr.where)) normalized.where = cloneJsonRecord(expr.where);
+  if (expr?.over?.trim()) normalized.over = expr.over.trim();
+  if (expr?.referenceTime?.trim()) normalized.referenceTime = expr.referenceTime.trim();
+  return normalized;
+}
+
+function readExpression(value: unknown): RuleExpressionDraft | undefined {
+  if (!isRecord(value)) return undefined;
+  const field = readString(value, "field", "").trim();
+  if (!field) return undefined;
+  const select = readString(value, "select", "");
+  if (select && !isRuleExpressionSelect(select)) {
+    throw new Error(`不支持的表达式聚合函数: ${select}`);
+  }
+  const expressionSelect = select && isRuleExpressionSelect(select) ? select : undefined;
+  return normalizeConditionExpression({
+    field,
+    select: expressionSelect,
+    where: isRecord(value.where) ? cloneJsonRecord(value.where) : undefined,
+    over: readString(value, "over", ""),
+    referenceTime: readString(value, "referenceTime", ""),
+  });
+}
+
+function normalizeCriticalFlagValue(value: unknown) {
+  const rawValues = isRecord(value) ? value.criticalValues : value;
+  const criticalValues = Array.isArray(rawValues)
+    ? rawValues.map((item) => String(item).trim()).filter(Boolean)
+    : String(rawValues ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return criticalValues.length > 0 ? { criticalValues } : undefined;
 }

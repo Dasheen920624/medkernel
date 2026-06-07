@@ -9,7 +9,7 @@ import org.mockito.ArgumentCaptor;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,10 +22,10 @@ import static org.mockito.Mockito.when;
 class EmergencyPermissionGrantServiceTest {
 
     private final EmergencyPermissionGrantRepository repository = mock(EmergencyPermissionGrantRepository.class);
-    private final AuditEventPublisher auditPublisher = mock(AuditEventPublisher.class);
+    private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-31T12:00:00Z"), ZoneOffset.UTC);
     private final EmergencyPermissionGrantService service =
-        new EmergencyPermissionGrantService(repository, auditPublisher, clock);
+        new EmergencyPermissionGrantService(repository, auditRecorder, clock);
 
     @Test
     void grantEmergencyPermissionPersistsTimeboxedRecordAndPublishesAudit() {
@@ -52,7 +52,7 @@ class EmergencyPermissionGrantServiceTest {
         assertThat(grant.grantedAt()).isEqualTo(clock.instant());
         assertThat(grant.expiresAt()).isEqualTo(expiresAt);
         assertThat(grant.activeAt(clock.instant())).isTrue();
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             eq(AuditAction.PERMISSION_CHANGE),
             eq("emergency_permission_grant"),
             eq("t-1:doctor-1:env.emergency"),

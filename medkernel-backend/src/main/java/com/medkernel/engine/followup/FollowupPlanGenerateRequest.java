@@ -4,13 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 /**
- * 随访计划生成请求数据契约 (GA-ENG-API-09)。
+ * 基于 ACTIVE 标准上下文快照的随访计划生成请求数据契约 (GA-ENG-API-09)。
  */
 public record FollowupPlanGenerateRequest(
-    @NotBlank String patientId,
-    @NotBlank String encounterId,
-    String pathwayId,
-    String diseaseCode,
+    @NotBlank String contextSnapshotId,
     String riskLevel,
     List<String> taskTypes,
     String idempotencyKey,
@@ -21,12 +18,9 @@ public record FollowupPlanGenerateRequest(
     }
 
     public FollowupPlanGenerateRequest(
-            String patientId,
-            String encounterId,
-            String pathwayId,
-            String diseaseCode,
+            String contextSnapshotId,
             String riskLevel,
             List<String> taskTypes) {
-        this(patientId, encounterId, pathwayId, diseaseCode, riskLevel, taskTypes, null, null);
+        this(contextSnapshotId, riskLevel, taskTypes, null, null);
     }
 }

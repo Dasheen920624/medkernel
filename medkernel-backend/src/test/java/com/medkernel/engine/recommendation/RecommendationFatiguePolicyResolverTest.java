@@ -28,7 +28,7 @@ class RecommendationFatiguePolicyResolverTest {
     }
 
     @Test
-    void configuredDepartmentScenarioPolicyTakesPrecedenceOverRequestThreshold() {
+    void configuredDepartmentScenarioPolicyTakesPrecedence() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec",
             new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-icu", null),
@@ -45,7 +45,7 @@ class RecommendationFatiguePolicyResolverTest {
                 }
                 """)));
 
-        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest(5, 48));
+        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest());
 
         assertThat(policy).isPresent();
         assertThat(policy.get().threshold()).isEqualTo(2);
@@ -54,18 +54,15 @@ class RecommendationFatiguePolicyResolverTest {
     }
 
     @Test
-    void missingConfigFallsBackToRequestCompatibilityPolicy() {
+    void missingConfigDoesNotSuppressWithoutConfiguredPolicy() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(configs.findActive("SYSTEM", RecommendationFatiguePolicyResolver.CONFIG_KEY))
             .thenReturn(Optional.empty());
 
-        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest(3, 24));
+        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest());
 
-        assertThat(policy).isPresent();
-        assertThat(policy.get().threshold()).isEqualTo(3);
-        assertThat(policy.get().windowHours()).isEqualTo(24);
-        assertThat(policy.get().source()).isEqualTo("REQUEST");
+        assertThat(policy).isEmpty();
     }
 
     @Test
@@ -75,7 +72,7 @@ class RecommendationFatiguePolicyResolverTest {
         when(configs.findActive("SYSTEM", RecommendationFatiguePolicyResolver.CONFIG_KEY))
             .thenReturn(Optional.of(config("{\"default\":{\"threshold\":\"bad\",\"windowHours\":24}}")));
 
-        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest(3, 24));
+        Optional<RecommendationFatiguePolicy> policy = resolver.resolve(triggerRequest());
 
         assertThat(policy).isEmpty();
     }
@@ -97,12 +94,12 @@ class RecommendationFatiguePolicyResolverTest {
             Instant.now());
     }
 
-    private RecommendationTriggerRequest triggerRequest(Integer threshold, Integer windowHours) {
+    private RecommendationTriggerRequest triggerRequest() {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
             "1.0.0", "sha256:trigger", Instant.now(), List.of(),
-            threshold, windowHours, false);
+            false);
     }
 
 }

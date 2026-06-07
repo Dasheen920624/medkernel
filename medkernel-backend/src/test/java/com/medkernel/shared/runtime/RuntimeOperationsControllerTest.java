@@ -78,6 +78,8 @@ class RuntimeOperationsControllerTest {
             .andExpect(jsonPath("$.data.dependencies[?(@.key=='external-provider')].status", hasItem("NOT_CONNECTED")))
             .andExpect(content().string(not(containsString("\"status\":\"DISABLED\""))))
             .andExpect(jsonPath("$.data.backup.checksumPolicy").value("SHA-256 摘要随备份文件生成，恢复前自动校验"))
+            .andExpect(jsonPath("$.data.backup.drillEvidence.status").value("NOT_AVAILABLE"))
+            .andExpect(jsonPath("$.data.backup.drillEvidence.detail").value("尚未提供隔离恢复演练证据"))
             .andExpect(jsonPath("$.data.domesticProfile.databaseVendors", hasItems("达梦", "人大金仓")))
             .andExpect(content().string(not(containsString("password"))))
             .andExpect(content().string(not(containsString("secret"))));

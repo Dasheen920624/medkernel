@@ -20,11 +20,7 @@ import {
   type LoginTenantOption,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import {
-  defaultTenantId,
-  platformTenantDescription,
-  platformTenantLabel,
-} from "@/shared/config/tenantDictionary";
+import { platformTenantDescription } from "@/shared/config/tenantDictionary";
 import styles from "./Login.module.css";
 
 const { Title, Text } = Typography;
@@ -35,18 +31,46 @@ const helpItems = [
   { label: "统一身份", value: "接入状态由后端实时返回；未接入时页面只展示状态，不伪造入口。" },
 ];
 
-const fallbackDelegatedProviders = ["OIDC", "CAS", "SAML", "国密CA"];
-const fallbackPlatformTenant: LoginTenantOption = {
-  tenantId: defaultTenantId,
-  name: platformTenantLabel,
-  kind: "PLATFORM",
-};
-
 type DelegatedAlert = {
   type: "info" | "error" | "success" | "warning";
   message: string;
   description: string;
 };
+
+function selectVisibleTenants({
+  hasCustomerTenants,
+  showPlatformTenant,
+  primaryTenants,
+  platformTenant,
+}: {
+  hasCustomerTenants: boolean;
+  showPlatformTenant: boolean;
+  primaryTenants: LoginTenantOption[];
+  platformTenant: LoginTenantOption | null;
+}) {
+  if (hasCustomerTenants && !showPlatformTenant) {
+    return primaryTenants;
+  }
+  return platformTenant ? [platformTenant] : [];
+}
+
+function getPlatformContextDescription({
+  activeTenant,
+  isPlatformLayer,
+  hasCustomerTenants,
+}: {
+  activeTenant?: LoginTenantOption;
+  isPlatformLayer: boolean;
+  hasCustomerTenants: boolean;
+}) {
+  if (!activeTenant) {
+    return "等待后端返回平台或客户租户后才能登录。";
+  }
+  if (isPlatformLayer && hasCustomerTenants) {
+    return "仅平台开发者和运维人员管理全局知识源时使用；客户定制不会回写平台主租户。";
+  }
+  return platformTenantDescription;
+}
 
 function buildDelegatedAlert({
   status,
@@ -120,7 +144,7 @@ export default function Login() {
   const [showSso, setShowSso] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPlatformTenant, setShowPlatformTenant] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState(defaultTenantId);
+  const [selectedTenantId, setSelectedTenantId] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loginForm] = Form.useForm<{
     username: string;
@@ -156,28 +180,41 @@ export default function Login() {
 
   const tenantDirectory = loginTenantDirectory.data;
   const hasCustomerTenants = tenantDirectory?.hasCustomerTenants ?? false;
-  const platformTenant = tenantDirectory?.platformTenant ?? fallbackPlatformTenant;
+  const platformTenant = tenantDirectory?.platformTenant ?? null;
   const primaryTenants = useMemo(() => {
-    const tenants = tenantDirectory?.primaryTenants?.length
-      ? tenantDirectory.primaryTenants
-      : [fallbackPlatformTenant];
-    return tenants;
+    return tenantDirectory?.primaryTenants ?? [];
   }, [tenantDirectory?.primaryTenants]);
   const visibleTenants = useMemo(
-    () => (hasCustomerTenants && !showPlatformTenant ? primaryTenants : [platformTenant]),
+    () =>
+      selectVisibleTenants({
+        hasCustomerTenants,
+        showPlatformTenant,
+        primaryTenants,
+        platformTenant,
+      }),
     [hasCustomerTenants, platformTenant, primaryTenants, showPlatformTenant],
   );
   const activeTenant =
-    visibleTenants.find((tenant) => tenant.tenantId === selectedTenantId) ??
-    visibleTenants[0] ??
-    fallbackPlatformTenant;
-  const isPlatformLayer = !hasCustomerTenants || showPlatformTenant;
-  const canUseDelegatedLogin = hasCustomerTenants && !showPlatformTenant;
+    visibleTenants.find((tenant) => tenant.tenantId === selectedTenantId) ?? visibleTenants[0];
+  const isPlatformLayer = activeTenant?.kind === "PLATFORM" || showPlatformTenant;
+  const canUseDelegatedLogin =
+    hasCustomerTenants && !showPlatformTenant && primaryTenants.length > 0;
+  const tenantDirectoryUnavailable =
+    !loginTenantDirectory.isLoading && !loginTenantDirectory.isError && !activeTenant;
+  const platformContextDescription = getPlatformContextDescription({
+    activeTenant,
+    isPlatformLayer,
+    hasCustomerTenants,
+  });
 
   const delegatedAuthStatus = useDelegatedAuthStatus(showSso && canUseDelegatedLogin);
 
   async function handleSubmit(values: { username: string; password: string; tenantId?: string }) {
     setErrorMsg(null);
+    if (!activeTenant) {
+      setErrorMsg("租户目录未就绪，后端未返回可登录租户，不能提交登录。");
+      return;
+    }
     try {
       const result = await login.mutateAsync({
         username: values.username,
@@ -206,10 +243,7 @@ export default function Login() {
   }
 
   const delegatedStatus = delegatedAuthStatus.data;
-  const delegatedProviders =
-    delegatedStatus?.providers && delegatedStatus.providers.length > 0
-      ? delegatedStatus.providers
-      : fallbackDelegatedProviders;
+  const delegatedProviders = delegatedStatus?.providers ?? [];
   const delegatedState = delegatedStatus?.status ?? "NOT_CONNECTED";
   const delegatedAlert = buildDelegatedAlert({
     status: delegatedStatus,
@@ -223,7 +257,7 @@ export default function Login() {
       (tenant) => tenant.tenantId === selectedTenantId,
     );
     if (!tenantStillVisible) {
-      setSelectedTenantId(visibleTenants[0]?.tenantId ?? defaultTenantId);
+      setSelectedTenantId(visibleTenants[0]?.tenantId ?? "");
     }
   }, [selectedTenantId, visibleTenants]);
 
@@ -292,11 +326,37 @@ export default function Login() {
           )}
 
           {errorMsg && <Alert type="error" showIcon message="登录失败" description={errorMsg} />}
+          {loginTenantDirectory.isLoading && (
+            <Alert
+              type="info"
+              showIcon
+              message="正在读取租户目录"
+              description="登录租户以服务端目录为唯一来源，请稍候。"
+            />
+          )}
+          {loginTenantDirectory.isError && (
+            <Alert
+              type="error"
+              showIcon
+              message="租户目录读取失败"
+              description={getApiErrorMessage(
+                loginTenantDirectory.error,
+                "暂时无法读取后端租户目录，登录入口已暂停提交。",
+              )}
+            />
+          )}
+          {tenantDirectoryUnavailable && (
+            <Alert
+              type="warning"
+              showIcon
+              message="没有可登录租户"
+              description="后端未返回平台或客户租户，登录入口已暂停提交。"
+            />
+          )}
 
           <Form
             disabled={login.isPending}
             form={loginForm}
-            initialValues={{ tenantId: defaultTenantId }}
             layout="vertical"
             requiredMark={false}
             onFinish={handleSubmit}
@@ -339,6 +399,7 @@ export default function Login() {
                         aria-pressed={selected}
                         className={selected ? styles.tenantChoiceActive : styles.tenantChoice}
                         loading={loginTenantDirectory.isLoading}
+                        disabled={!activeTenant}
                         onClick={() => setSelectedTenantId(tenant.tenantId)}
                       >
                         <span className={styles.tenantChoiceName}>{tenant.name}</span>
@@ -355,14 +416,12 @@ export default function Login() {
               <div className={styles.platformContext}>
                 <SafetyCertificateOutlined aria-hidden="true" />
                 <div>
-                  <Text strong>平台主租户自动进入</Text>
+                  <Text strong>{activeTenant ? "平台主租户自动进入" : "租户目录未就绪"}</Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {isPlatformLayer && hasCustomerTenants
-                      ? "仅平台开发者和运维人员管理全局知识源时使用；客户定制不会回写平台主租户。"
-                      : platformTenantDescription}
+                    {platformContextDescription}
                   </Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {activeTenant.name}
+                    {activeTenant?.name ?? "无可登录租户"}
                   </Text>
                 </div>
               </div>
@@ -375,6 +434,9 @@ export default function Login() {
                 size="large"
                 icon={<LoginOutlined />}
                 loading={login.isPending}
+                disabled={
+                  !activeTenant || loginTenantDirectory.isLoading || loginTenantDirectory.isError
+                }
               >
                 进入工作台
               </Button>
@@ -442,17 +504,23 @@ export default function Login() {
                 description={delegatedAlert.description}
               />
               <div className={styles.providerGrid} aria-label="统一身份方式">
-                {delegatedProviders.map((provider) => (
-                  <Button
-                    block
-                    disabled
-                    className={styles.providerButton}
-                    key={provider}
-                    loading={delegatedAuthStatus.isLoading}
-                  >
-                    {provider}（{delegatedState}）
-                  </Button>
-                ))}
+                {delegatedProviders.length > 0 ? (
+                  delegatedProviders.map((provider) => (
+                    <Button
+                      block
+                      disabled
+                      className={styles.providerButton}
+                      key={provider}
+                      loading={delegatedAuthStatus.isLoading}
+                    >
+                      {provider}（{delegatedState}）
+                    </Button>
+                  ))
+                ) : (
+                  <Text type="secondary" className={styles.helperText}>
+                    后端未返回统一身份方式，暂不展示登录跳转入口。
+                  </Text>
+                )}
               </div>
               <Text type="secondary" className={styles.helperText}>
                 当前页只展示已配置状态；真实院方 IdP、证书链和回调地址完成配置后才会开放跳转。

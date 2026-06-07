@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.rule.RuleEngineService;
-import com.medkernel.engine.rule.RuleEvaluateRequest;
 import com.medkernel.engine.rule.RuleEvaluateResponse;
 
 /**
@@ -31,12 +30,12 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
 
     @Override
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
-        RuleEvaluateResponse response = rules.evaluate(new RuleEvaluateRequest(
+        RuleEvaluateResponse response = rules.evaluateContext(
             context.triggerPoint(),
             toRuleContext(context),
             context.eventId(),
             List.of()
-        ));
+        );
         return ClinicalEventEngineDispatchResult.dispatched(
             engine(), response.requestId(), "规则引擎已接收临床事件上下文");
     }

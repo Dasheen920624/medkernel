@@ -40,7 +40,7 @@ CREATE TABLE integration_webhook_config (
     tenant_id           VARCHAR2(64)   NOT NULL,
     name                VARCHAR2(256)  NOT NULL,
     callback_url        VARCHAR2(512)  NOT NULL,
-    secret_key          VARCHAR2(128)  NOT NULL,
+    secret_cipher       VARCHAR2(256)  NOT NULL,
     events_subscribed   VARCHAR2(512)  NOT NULL,
     status              VARCHAR2(32)   DEFAULT 'ACTIVE' NOT NULL,
     created_at          TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -59,7 +59,7 @@ COMMENT ON COLUMN integration_webhook_config.webhook_id IS 'Webhook订阅配置�
 COMMENT ON COLUMN integration_webhook_config.tenant_id IS '租户ID';
 COMMENT ON COLUMN integration_webhook_config.name IS '订阅名称';
 COMMENT ON COLUMN integration_webhook_config.callback_url IS '目标系统的通知回调物理地址';
-COMMENT ON COLUMN integration_webhook_config.secret_key IS '用于生成 HMAC-SHA256 签名的共享私钥';
+COMMENT ON COLUMN integration_webhook_config.secret_cipher IS '用于生成 HMAC-SHA256 签名的共享密钥 SM4 密文';
 COMMENT ON COLUMN integration_webhook_config.events_subscribed IS '已订阅场景事件列表 (逗号分隔)';
 COMMENT ON COLUMN integration_webhook_config.status IS '订阅状态 (ACTIVE, SUSPENDED)';
 

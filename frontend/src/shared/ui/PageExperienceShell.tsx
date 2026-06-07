@@ -55,7 +55,7 @@ export function PageExperienceShell({
   return (
     <PageShell
       title={meta.title}
-      description={`目标：${meta.experience.goal}`}
+      description={meta.experience.goal}
       primary={primary}
       extras={
         <Space wrap>
@@ -64,13 +64,7 @@ export function PageExperienceShell({
         </Space>
       }
     >
-      <Space direction="vertical" size="middle" className="mk-full-width">
-        <Space wrap>
-          <Text type="secondary">主要角色：{meta.experience.primaryRole}</Text>
-          <Text type="secondary">默认视图：{meta.experience.defaultView}</Text>
-        </Space>
-        {children}
-      </Space>
+      {children}
     </PageShell>
   );
 }

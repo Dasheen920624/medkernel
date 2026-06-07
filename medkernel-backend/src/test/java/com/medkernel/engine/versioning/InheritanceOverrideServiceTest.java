@@ -66,7 +66,8 @@ class InheritanceOverrideServiceTest {
             "  医院检验科 2026 年参考区间已更新  ",
             "  仅 HOSP-A 成人住院  ",
             "publisher-1",
-            "trace-sys04"
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
         ));
 
         assertThat(saved.overrideId()).matches("io-[0-9A-HJKMNP-TV-Z]{26}");
@@ -132,7 +133,8 @@ class InheritanceOverrideServiceTest {
             "等待本院确认",
             "HOSP-A",
             "publisher-1",
-            "trace-sys04"
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("INHERITANCE_SAFETY_DENIED")
@@ -165,7 +167,8 @@ class InheritanceOverrideServiceTest {
             "本院流程暂不适用该集团规则",
             "HOSP-A 成人住院",
             "publisher-1",
-            "trace-sys04"
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
         ));
 
         // 停用无替换版本，但必须留下原因/影响/操作者/trace 作为发布证据链
@@ -203,7 +206,8 @@ class InheritanceOverrideServiceTest {
             "本院流程",
             "HOSP-A",
             "publisher-1",
-            "trace-sys04"
+            "trace-sys04",
+            InheritancePropagation.INHERITABLE
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("INHERITANCE_SAFETY_DENIED")

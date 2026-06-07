@@ -2,30 +2,30 @@ package com.medkernel.engine.pathway;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
 
 /**
  * 患者入径请求。
  *
- * <p>指定患者、就诊、路径模板和可选起始节点，用于创建新的患者路径运行实例。
+ * <p>指定 ACTIVE 标准上下文快照、路径模板和可选起始节点。患者、就诊与包版本均由服务端
+ * 从快照解析并复核，浏览器不提交可伪造的临床身份字段。
  */
 public record PatientPathwayEnterRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
-    @NotBlank String patientId,
-    String encounterId,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
+    @NotBlank String contextSnapshotId,
     @NotBlank String templateId,
     String startNodeCode
 ) implements PathwayContextRequest {
@@ -33,12 +33,12 @@ public record PatientPathwayEnterRequest(
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    public PatientPathwayEnterRequest(String patientId,
-                                      String encounterId,
+    public PatientPathwayEnterRequest(String contextSnapshotId,
                                       String templateId,
-                                      String startNodeCode) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            patientId, encounterId, templateId, startNodeCode);
+                                      String startNodeCode,
+                                      String packageVersion) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
+            contextSnapshotId, templateId, startNodeCode);
     }
 
     public PathwayApiContext apiContext() {

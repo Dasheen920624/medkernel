@@ -40,7 +40,17 @@ import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
+import ConditionTreeEditor from "@/shared/ui/condition/ConditionTreeEditor";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
+import {
+  countLeaves,
+  createGroup,
+  createLeaf,
+  dslToRootGroup,
+  hasUnresolvedFact,
+  nodeToDsl,
+  type RuleGroup,
+} from "@/shared/config/conditionModel";
 import {
   useContextFieldCatalog,
   useContextSnapshotDetail,
@@ -72,11 +82,47 @@ import type {
   SpecialtyPackage,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
+
+const PATHWAY_CONTENT_STATUS: Record<
+  PathwayTemplateStatus,
+  { status: PathwayBadgeStatus; text: string }
+> = {
+  DRAFT: { status: "warning", text: "设计中" },
+  PUBLISHED: { status: "processing", text: "内容已审核" },
+  OFFLINE: { status: "default", text: "已下线" },
+};
+
+const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; text: string }> = {
+  DRAFT: { status: "warning", text: "待提交" },
+  PENDING_REVIEW: { status: "processing", text: "审核中" },
+  PUBLISHED: { status: "processing", text: "待全量激活" },
+  ACTIVE: { status: "success", text: "运行中" },
+  OFFLINE: { status: "default", text: "已下线" },
+  WITHDRAWN: { status: "error", text: "已撤回" },
+  ARCHIVED: { status: "default", text: "已归档" },
+};
+
+function pathwayContentStatus(status: PathwayTemplateStatus) {
+  const config = PATHWAY_CONTENT_STATUS[status] ?? {
+    status: "default" as PathwayBadgeStatus,
+    text: status,
+  };
+  return <Badge status={config.status} text={config.text} />;
+}
+
+function pathwayDeploymentStatus(status: string) {
+  const config = PATHWAY_DEPLOYMENT_STATUS[status] ?? {
+    status: "default" as PathwayBadgeStatus,
+    text: status,
+  };
+  return <Badge status={config.status} text={config.text} />;
+}
 
 type PathwayNodeDraft = {
   nodeCode: string;
@@ -136,6 +182,7 @@ type PathwayEdgeFormValue = {
   fromNodeCode?: string;
   toNodeCode?: string;
   edgeType?: PathwayEdgeType;
+  conditionTree?: RuleGroup;
   conditionFact?: string;
   conditionOperator?: "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
   conditionValue?: string;
@@ -256,6 +303,13 @@ function inferPathwayConditionValueKind(
 }
 
 function normalizeEdgeCondition(edge: PathwayEdgeFormValue) {
+  if (
+    edge.conditionTree &&
+    countLeaves(edge.conditionTree) > 0 &&
+    !hasUnresolvedFact(edge.conditionTree)
+  ) {
+    return nodeToDsl(edge.conditionTree);
+  }
   const fact = cleanText(edge.conditionFact);
   if (fact) {
     return {
@@ -265,6 +319,21 @@ function normalizeEdgeCondition(edge: PathwayEdgeFormValue) {
     };
   }
   return parseConditionJson(edge.conditionJson);
+}
+
+function createDefaultEdgeConditionTree(): RuleGroup {
+  return createGroup({
+    logic: "all",
+    children: [
+      createLeaf({
+        label: "路径边条件",
+        fact: "",
+        operator: "equals",
+        value: "",
+        valueKind: "string",
+      }),
+    ],
+  });
 }
 
 function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
@@ -425,6 +494,7 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       const value = conditionRecord.value;
       return {
         ...base,
+        conditionTree: dslToRootGroup(condition),
         conditionFact: cleanText(conditionRecord.fact as string),
         conditionOperator:
           typeof conditionRecord.operator === "string"
@@ -436,6 +506,8 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
     }
     return {
       ...base,
+      conditionTree:
+        condition === undefined ? createDefaultEdgeConditionTree() : dslToRootGroup(condition),
       conditionJson: condition === undefined ? undefined : formatJson(condition),
     };
   });
@@ -458,6 +530,72 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
   };
 }
 
+function duplicatedCodes(values: Array<string | undefined>) {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const value of values) {
+    const code = cleanText(value);
+    if (!code) continue;
+    if (seen.has(code)) {
+      duplicates.add(code);
+      continue;
+    }
+    seen.add(code);
+  }
+  return [...duplicates];
+}
+
+function findPathwayTopologyIssues(
+  nodes: PathwayNodeDraft[],
+  edges: PathwayEdgeDraft[],
+  startNodeCode?: string,
+) {
+  if (nodes.length === 0) {
+    return [];
+  }
+
+  const issues: string[] = [];
+  for (const code of duplicatedCodes(nodes.map((node) => node.nodeCode))) {
+    issues.push(`节点编码 ${code} 重复，请改为唯一编码。`);
+  }
+  for (const code of duplicatedCodes(edges.map((edge) => edge.edgeCode))) {
+    issues.push(`边编码 ${code} 重复，请改为唯一编码。`);
+  }
+  if (!nodes.some((node) => node.terminal)) {
+    issues.push("至少需要一个终止节点。");
+  }
+
+  const nodeCodes = new Set(nodes.map((node) => node.nodeCode).filter(Boolean));
+  for (const edge of edges) {
+    if (!nodeCodes.has(edge.fromNodeCode) || !nodeCodes.has(edge.toNodeCode)) {
+      issues.push(`边 ${edge.edgeCode || "未编码"} 引用不存在节点，请从已建节点中选择。`);
+    }
+  }
+
+  const start = cleanText(startNodeCode) ?? nodes[0]?.nodeCode;
+  if (start && nodeCodes.has(start) && edges.length > 0) {
+    const reached = new Set<string>([start]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const edge of edges) {
+        if (reached.has(edge.fromNodeCode) && !reached.has(edge.toNodeCode)) {
+          reached.add(edge.toNodeCode);
+          changed = true;
+        }
+      }
+    }
+    const unreachable = nodes
+      .map((node) => node.nodeCode)
+      .filter((code) => code && !reached.has(code));
+    if (unreachable.length > 0) {
+      issues.push(`存在未从起始节点可达的节点：${unreachable.join("、")}。`);
+    }
+  }
+
+  return issues;
+}
+
 function PathwayCanvasPreview({
   nodes,
   edges,
@@ -470,37 +608,40 @@ function PathwayCanvasPreview({
   const orderedNodes = [...nodes].sort((left, right) => left.sortOrder - right.sortOrder);
   if (orderedNodes.length === 0) {
     return (
-      <div className="border border-slate-200 rounded-lg bg-slate-50 p-6">
+      <div className={styles.canvasEmpty}>
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />
       </div>
     );
   }
 
   return (
-    <div className="border border-slate-200 rounded-lg bg-slate-50 p-4 overflow-x-auto">
-      <div className="flex items-stretch gap-3 min-w-max">
+    <div className={styles.canvas}>
+      <div className={styles.canvasTrack}>
         {orderedNodes.map((node, index) => {
           const nextNode = orderedNodes[index + 1];
           const directEdge = edges.find(
             (edge) => edge.fromNodeCode === node.nodeCode && edge.toNodeCode === nextNode?.nodeCode,
           );
           return (
-            <div key={node.nodeCode || `${node.name}-${index}`} className="flex items-center gap-3">
-              <div className="w-[180px] min-h-[104px] rounded-lg border border-emerald-200 bg-white p-3 shadow-sm">
+            <div
+              key={`${node.nodeCode || node.name || "node"}-${index}`}
+              className={styles.canvasNodeRow}
+            >
+              <div className={styles.canvasNode}>
                 <Space direction="vertical" size={4} className="mk-full-width">
                   <Space className="mk-flex-between mk-full-width">
                     <Tag color="blue">{node.nodeCode || "未编码"}</Tag>
                     {node.terminal && <Tag color="green">终止</Tag>}
                   </Space>
-                  <div className="text-sm font-semibold text-gray-800">
-                    {node.name || "未命名节点"}
+                  <div className={styles.textStrong}>{node.name || "未命名节点"}</div>
+                  <div className={`${styles.textSmall} ${styles.textSecondary}`}>
+                    {node.nodeType}
                   </div>
-                  <div className="text-xs font-normal text-gray-500">{node.nodeType}</div>
                 </Space>
               </div>
               {nextNode && (
-                <div className="w-[88px] text-center text-xs font-normal text-gray-500">
-                  <div className="h-px bg-emerald-300 mb-2" />
+                <div className={styles.canvasEdge}>
+                  <div className={styles.canvasEdgeLine} />
                   {directEdge?.edgeCode ?? "顺序流转"}
                 </div>
               )}
@@ -509,20 +650,16 @@ function PathwayCanvasPreview({
         })}
       </div>
       {edges.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className={styles.edgeGrid}>
           {edges.map((edge, index) => (
             <div
               key={edge.edgeCode || `${edge.fromNodeCode}-${edge.toNodeCode}-${index}`}
-              className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-normal text-gray-600"
+              className={styles.edgeSummary}
             >
-              <span className="font-semibold text-gray-800">
-                {edge.fromNodeCode || "未设置源节点"}
-              </span>
-              <span className="mx-2">→</span>
-              <span className="font-semibold text-gray-800">
-                {edge.toNodeCode || "未设置目标节点"}
-              </span>
-              <Tag color="cyan" className="ml-2">
+              <span className={styles.textStrong}>{edge.fromNodeCode || "未设置源节点"}</span>
+              <span className={styles.inlineGap}>→</span>
+              <span className={styles.textStrong}>{edge.toNodeCode || "未设置目标节点"}</span>
+              <Tag color="cyan" className={styles.tagGap}>
                 {edge.edgeType}
               </Tag>
             </div>
@@ -642,9 +779,14 @@ export default function PathwayTemplates() {
   const [templateForm] = Form.useForm<PathwayTemplateFormValue>();
   const watchedNodes = Form.useWatch("nodes", templateForm);
   const watchedEdges = Form.useWatch("edges", templateForm);
+  const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
 
   const canvasNodes = useMemo(() => normalizeNodes(watchedNodes), [watchedNodes]);
   const canvasEdges = useMemo(() => normalizeEdgesForCanvas(watchedEdges), [watchedEdges]);
+  const topologyIssues = useMemo(
+    () => findPathwayTopologyIssues(canvasNodes, canvasEdges, watchedStartNodeCode),
+    [canvasEdges, canvasNodes, watchedStartNodeCode],
+  );
 
   // 已建节点下拉选项：边的源/目标与起始节点从此选择，杜绝手敲断链。
   const nodeSelectOptions = useMemo(
@@ -731,6 +873,11 @@ export default function PathwayTemplates() {
       );
       if (timedNodeWithoutMetric) {
         messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标编码`);
+        return;
+      }
+      const topologyIssuesForSubmit = findPathwayTopologyIssues(nodes, edges, values.startNodeCode);
+      if (topologyIssuesForSubmit.length > 0) {
+        messageApi.error(topologyIssuesForSubmit[0]);
         return;
       }
 
@@ -929,7 +1076,6 @@ export default function PathwayTemplates() {
     try {
       const result = await simulateMutation.mutateAsync({
         packageVersion:
-          selectedSnapshotDetail?.pathwayPackageVersion ??
           selectedSnapshotDetail?.packageVersion ??
           packageVersionFor(detailData?.template.packageId) ??
           String(detailData?.template.templateVersion ?? ""),
@@ -954,7 +1100,7 @@ export default function PathwayTemplates() {
       title: "路径名称",
       dataIndex: "name",
       key: "name",
-      className: "font-semibold text-gray-800",
+      className: styles.textStrong,
     },
     {
       title: "关联病种",
@@ -977,21 +1123,7 @@ export default function PathwayTemplates() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (status: PathwayTemplateStatus) => {
-        const config: Record<PathwayTemplateStatus, { status: PathwayBadgeStatus; text: string }> =
-          {
-            DRAFT: { status: "warning", text: "设计中" },
-            PUBLISHED: { status: "success", text: "运行中" },
-            OFFLINE: { status: "default", text: "已下线" },
-          };
-        const fallback = { status: "default" as PathwayBadgeStatus, text: status };
-        return (
-          <Badge
-            status={(config[status] ?? fallback).status}
-            text={(config[status] ?? fallback).text}
-          />
-        );
-      },
+      render: pathwayContentStatus,
     },
     {
       title: "管理动作",
@@ -1009,7 +1141,7 @@ export default function PathwayTemplates() {
             setSimulateStartNode(record.startNodeCode ?? "");
             resetSimulation();
           }}
-          className="text-emerald-600 hover:text-emerald-900 font-semibold"
+          className={styles.linkButton}
         >
           设计与试运行
         </Button>
@@ -1023,7 +1155,7 @@ export default function PathwayTemplates() {
       dataIndex: "nodeCode",
       render: (code: string) => <Tag color="blue">{code}</Tag>,
     },
-    { title: "名称", dataIndex: "name", className: "font-semibold" },
+    { title: "名称", dataIndex: "name", className: styles.textStrong },
     {
       title: "节点类型",
       dataIndex: "nodeType",
@@ -1063,7 +1195,7 @@ export default function PathwayTemplates() {
       title: "条件 DSL",
       dataIndex: "conditionJson",
       render: (condition?: string) => (
-        <span className="font-normal text-xs">{cleanText(condition) ?? "默认流转"}</span>
+        <span className={styles.codeText}>{cleanText(condition) ?? "默认流转"}</span>
       ),
     },
     { title: "优先级", dataIndex: "priority" },
@@ -1079,11 +1211,11 @@ export default function PathwayTemplates() {
       key: "l1",
       label: "L1 模板",
       children: (
-        <div className="pt-3">
+        <div className={styles.editorSection}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="packageId" label="归属专病包" rules={[{ required: true }]}>
-                <Select placeholder="选择包">
+                <Select placeholder="选择专病包">
                   {packagesData?.items?.map((pkg: SpecialtyPackage) => (
                     <Option key={pkg.packageId} value={pkg.packageId}>
                       {pkg.name} (v{pkg.packageVersion})
@@ -1094,19 +1226,29 @@ export default function PathwayTemplates() {
             </Col>
             <Col span={12}>
               <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
-                <Input placeholder="输入路径模型名称" />
+                <Input placeholder="如 心血管路径复核" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="templateCode" label="路径模型代码" rules={[{ required: true }]}>
-                <Input placeholder="输入路径模型代码" />
+              <Form.Item
+                name="templateCode"
+                label="路径模型代码"
+                tooltip="稳定业务编码，发布后用于包内引用与版本追踪"
+                rules={[{ required: true }]}
+              >
+                <Input placeholder="如 PATH.CARDIO.REVIEW" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="diseaseCode" label="病种代码" rules={[{ required: true }]}>
-                <Input placeholder="输入真实病种编码" />
+              <Form.Item
+                name="diseaseCode"
+                label="病种代码"
+                tooltip="填写真实病种或诊断分组编码，不写临时中文别名"
+                rules={[{ required: true }]}
+              >
+                <Input placeholder="如 CARDIO 或 ICD10-I63" />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -1117,12 +1259,27 @@ export default function PathwayTemplates() {
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="templateVersion" label="模板版本号" rules={[{ required: true }]}>
-                <InputNumber min={1} precision={0} className="w-full" />
+              <Form.Item
+                name="templateVersion"
+                label="模板版本号"
+                tooltip="同一路径模型代码下递增，用于发布、回滚和影响分析"
+                rules={[{ required: true }]}
+              >
+                <InputNumber
+                  min={1}
+                  precision={0}
+                  placeholder="如 1"
+                  className={styles.fullWidth}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="startNodeCode" label="起始节点" rules={[{ required: true }]}>
+              <Form.Item
+                name="startNodeCode"
+                label="起始节点"
+                tooltip="从 L2 已建节点选择，必须能连通到终止节点"
+                rules={[{ required: true }]}
+              >
                 <Select
                   showSearch
                   optionFilterProp="label"
@@ -1134,10 +1291,10 @@ export default function PathwayTemplates() {
             </Col>
           </Row>
           <Form.Item name="sourceRef" label="临床知识与指南基础" rules={[{ required: true }]}>
-            <Input placeholder="输入已审核指南、院内制度或配置包来源" />
+            <Input placeholder="如 院内已审核路径制度 2026" />
           </Form.Item>
           <Form.Item name="description" label="收治标准与排除指标">
-            <TextArea rows={3} placeholder="输入路径说明" />
+            <TextArea rows={3} placeholder="如 入径标准、排除条件、出径原则" />
           </Form.Item>
         </div>
       ),
@@ -1146,10 +1303,14 @@ export default function PathwayTemplates() {
       key: "l2",
       label: "L2 节点画布",
       children: (
-        <div className="pt-3">
-          <Space direction="vertical" size="middle" className="mk-full-width mb-4">
+        <div className={styles.editorSection}>
+          <Space
+            direction="vertical"
+            size="middle"
+            className={`mk-full-width ${styles.marginBottomMd}`}
+          >
             <Space className="mk-flex-between mk-full-width">
-              <div className="text-sm font-semibold text-gray-800">结构化节点画布</div>
+              <div className={styles.textStrong}>结构化节点画布</div>
               <Space>
                 <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
                   同步到 DSL
@@ -1168,6 +1329,20 @@ export default function PathwayTemplates() {
               edges={canvasEdges}
               emptyText="添加节点后形成路径画布"
             />
+            {topologyIssues.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                message="路径拓扑待完善"
+                description={
+                  <ul className={styles.issueList}>
+                    {topologyIssues.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                }
+              />
+            )}
           </Space>
 
           <Form.List name="nodes">
@@ -1177,7 +1352,7 @@ export default function PathwayTemplates() {
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
                   return (
-                    <div key={key} className="border border-gray-200 rounded-lg p-4">
+                    <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
                         <Tag color="blue">节点 {field.name + 1}</Tag>
                         <Button
@@ -1186,7 +1361,7 @@ export default function PathwayTemplates() {
                           onClick={() => remove(field.name)}
                         />
                       </Space>
-                      <Row gutter={12} className="mt-3">
+                      <Row gutter={12} className={styles.marginTopMd}>
                         <Col span={6}>
                           <Form.Item
                             {...fieldProps}
@@ -1195,7 +1370,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（N1/N2…），可改；用于边连接与起点引用"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="自动生成，可改" />
+                            <Input placeholder="如 N1，可改为 ASSESS" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1205,7 +1380,7 @@ export default function PathwayTemplates() {
                             label="节点名称"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="输入节点名称" />
+                            <Input placeholder="如 入径评估" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1215,7 +1390,7 @@ export default function PathwayTemplates() {
                             label="节点类型"
                             rules={[{ required: true }]}
                           >
-                            <Select options={nodeTypeOptions} />
+                            <Select placeholder="选择节点类型" options={nodeTypeOptions} />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1225,7 +1400,12 @@ export default function PathwayTemplates() {
                             label="顺序"
                             rules={[{ required: true }]}
                           >
-                            <InputNumber min={1} precision={0} className="w-full" />
+                            <InputNumber
+                              min={1}
+                              precision={0}
+                              placeholder="如 1"
+                              className={styles.fullWidth}
+                            />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1236,7 +1416,7 @@ export default function PathwayTemplates() {
                             name={[field.name, "responsibleRole"]}
                             label="责任角色"
                           >
-                            <Input placeholder="输入真实岗位或角色" />
+                            <Input placeholder="如 专科医生" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1244,8 +1424,14 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "timeWindowMinutes"]}
                             label="时窗分钟"
+                            tooltip="节点必须在该分钟数内完成；留空表示不启用节点时钟"
                           >
-                            <InputNumber min={0} precision={0} className="w-full" />
+                            <InputNumber
+                              min={0}
+                              precision={0}
+                              placeholder="如 60"
+                              className={styles.fullWidth}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={8}>
@@ -1272,7 +1458,7 @@ export default function PathwayTemplates() {
                               }),
                             ]}
                           >
-                            <Input placeholder="设置时窗时必填" />
+                            <Input placeholder="如 PATH.TIME.ASSESS" />
                           </Form.Item>
                         </Col>
                         <Col span={4}>
@@ -1315,7 +1501,7 @@ export default function PathwayTemplates() {
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
                   return (
-                    <div key={key} className="border border-gray-200 rounded-lg p-4">
+                    <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
                         <Tag color="green">流转边 {field.name + 1}</Tag>
                         <Button
@@ -1324,7 +1510,7 @@ export default function PathwayTemplates() {
                           onClick={() => remove(field.name)}
                         />
                       </Space>
-                      <Row gutter={12} className="mt-3">
+                      <Row gutter={12} className={styles.marginTopMd}>
                         <Col span={6}>
                           <Form.Item
                             {...fieldProps}
@@ -1333,7 +1519,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（E1/E2…），可改"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="自动生成，可改" />
+                            <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1375,7 +1561,7 @@ export default function PathwayTemplates() {
                             label="流转类型"
                             rules={[{ required: true }]}
                           >
-                            <Select options={edgeTypeOptions} />
+                            <Select placeholder="选择流转类型" options={edgeTypeOptions} />
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1387,7 +1573,12 @@ export default function PathwayTemplates() {
                             label="优先级"
                             rules={[{ required: true }]}
                           >
-                            <InputNumber min={1} precision={0} className="w-full" />
+                            <InputNumber
+                              min={1}
+                              precision={0}
+                              placeholder="如 10"
+                              className={styles.fullWidth}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -1407,8 +1598,9 @@ export default function PathwayTemplates() {
                                   .toLowerCase()
                                   .includes(input.toLowerCase());
                               }}
-                              placeholder="从字段目录选择或输入，如 observations[].valueNumeric"
-                            />
+                            >
+                              <Input placeholder="如 observations[].valueNumeric" />
+                            </AutoComplete>
                           </Form.Item>
                         </Col>
                         <Col span={5}>
@@ -1417,7 +1609,10 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionOperator"]}
                             label="条件算子"
                           >
-                            <Select options={pathwayConditionOperatorOptions} />
+                            <Select
+                              placeholder="选择算子"
+                              options={pathwayConditionOperatorOptions}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={4}>
@@ -1426,7 +1621,10 @@ export default function PathwayTemplates() {
                             name={[field.name, "conditionValueKind"]}
                             label="值类型"
                           >
-                            <Select options={pathwayConditionValueKindOptions} />
+                            <Select
+                              placeholder="选择值类型"
+                              options={pathwayConditionValueKindOptions}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={3}>
@@ -1443,12 +1641,32 @@ export default function PathwayTemplates() {
                               return edgeCodeSystem ? (
                                 <StandardTermValueAutoComplete codeSystem={edgeCodeSystem} />
                               ) : (
-                                <Input placeholder="如 true" />
+                                <Input placeholder="如 true / 90 / ATC-J01C" />
                               );
                             })()}
                           </Form.Item>
                         </Col>
                       </Row>
+                      <Card size="small" className={styles.marginTopMd} title="条件树构建器">
+                        <Form.Item noStyle shouldUpdate>
+                          {({ getFieldValue, setFieldValue }) => {
+                            const tree =
+                              (getFieldValue(["edges", field.name, "conditionTree"]) as
+                                | RuleGroup
+                                | undefined) ?? createDefaultEdgeConditionTree();
+                            return (
+                              <ConditionTreeEditor
+                                value={tree}
+                                fieldCatalog={fieldCatalogList}
+                                fieldCatalogError={fieldCatalogQuery.isError}
+                                onChange={(next) =>
+                                  setFieldValue(["edges", field.name, "conditionTree"], next)
+                                }
+                              />
+                            );
+                          }}
+                        </Form.Item>
+                      </Card>
                     </div>
                   );
                 })}
@@ -1458,6 +1676,7 @@ export default function PathwayTemplates() {
                     add({
                       edgeCode: nextSeqCode("edges", "edgeCode", "E"),
                       edgeType: "DEFAULT",
+                      conditionTree: createDefaultEdgeConditionTree(),
                       conditionOperator: "equals",
                       conditionValueKind: "string",
                       priority: fields.length + 1,
@@ -1478,10 +1697,10 @@ export default function PathwayTemplates() {
             key: "l3",
             label: "L3 DSL",
             children: (
-              <div className="pt-3">
+              <div className={styles.editorSection}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <Space className="mk-flex-between mk-full-width">
-                    <div className="text-sm font-semibold text-gray-800">路径 DSL JSON</div>
+                    <div className={styles.textStrong}>路径 DSL JSON</div>
                     <Space>
                       <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
                         重新从 L2 生成
@@ -1496,13 +1715,17 @@ export default function PathwayTemplates() {
                     showIcon
                     message="L3 是专家模式，普通路径配置请优先使用 L2 节点画布。"
                   />
-                  <Form.Item label="路径 DSL JSON" htmlFor="pathway-dsl-json" className="mb-0">
+                  <Form.Item
+                    label="路径 DSL JSON"
+                    htmlFor="pathway-dsl-json"
+                    className={styles.zeroBottom}
+                  >
                     <TextArea
                       id="pathway-dsl-json"
                       value={pathwayDslJson}
                       rows={18}
                       onChange={(event) => setPathwayDslJson(event.target.value)}
-                      className="font-normal text-xs"
+                      className={styles.codeText}
                     />
                   </Form.Item>
                 </Space>
@@ -1534,8 +1757,25 @@ export default function PathwayTemplates() {
         item.templateCode === detailData?.template.templateCode &&
         item.status === "OFFLINE",
     ) ?? [];
-  const releaseCurrentStep =
-    detailData?.template.status === "PUBLISHED" ? "full_rollout" : "submit_review";
+  const activeDeployment = detailData?.deploymentStatus === "ACTIVE";
+  const reviewedContent = detailData?.template.status === "PUBLISHED";
+  const releaseCurrentStep = activeDeployment || reviewedContent ? "full_rollout" : "submit_review";
+  let releaseFlowStatus: "process" | "finish" | "error" = "error";
+  if (activeDeployment) {
+    releaseFlowStatus = "finish";
+  } else if (releaseImpact?.impactDigest) {
+    releaseFlowStatus = "process";
+  }
+  let detailAlertMessage =
+    "当前临床路径处于设计中，可核查三层模型并使用真实上下文快照试运行后申请发布。";
+  let detailAlertType: "success" | "warning" | "info" = "info";
+  if (activeDeployment) {
+    detailAlertMessage = "当前路径版本已全量生效，拓扑结构写保护；修改需创建新版本。";
+    detailAlertType = "success";
+  } else if (reviewedContent) {
+    detailAlertMessage = "路径内容已审核并完成灰度，需由医院管理员确认后全量激活。";
+    detailAlertType = "warning";
+  }
   let releaseImpactSummary = <Alert type="warning" showIcon message="尚未返回路径发布影响摘要。" />;
   if (impactQuery.isLoading) {
     releaseImpactSummary = <Alert type="info" showIcon message="正在读取路径发布影响摘要..." />;
@@ -1574,10 +1814,18 @@ export default function PathwayTemplates() {
   const releaseStepPanel = (
     <Space direction="vertical" size="middle" className="mk-full-width">
       <Alert
-        type="info"
+        type={activeDeployment ? "success" : "info"}
         showIcon
-        message="路径发布将先进入 10% 灰度，并保留回滚证据。"
-        description="全量发布必须基于本次影响摘要和审计记录继续推进，不能跳过影响核查。"
+        message={
+          activeDeployment
+            ? "当前路径版本已全量生效"
+            : "路径发布将先进入 10% 灰度，并保留回滚证据。"
+        }
+        description={
+          activeDeployment
+            ? "运行态来自统一版本底座；仍可基于影响摘要和审计证据执行受控回滚。"
+            : "全量发布必须基于本次影响摘要和审计记录继续推进，不能跳过影响核查。"
+        }
       />
       {releaseImpactSummary}
       {releaseEvidenceItems.length > 0 && (
@@ -1606,23 +1854,23 @@ export default function PathwayTemplates() {
             onClick={handlePublishTemplate}
             loading={publishTemplateMutation.isPending}
             disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
-            className="bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
           >
             提交审核并进入灰度发布
           </Button>
         ) : (
           <Space direction="vertical" size="small" className="mk-full-width">
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              onClick={handleFullRolloutTemplate}
-              loading={fullRolloutMutation.isPending}
-              disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
-              className="bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
-            >
-              院级确认全量发布
-            </Button>
-            <Form.Item label="回滚目标版本" className="mb-0">
+            {!activeDeployment && (
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={handleFullRolloutTemplate}
+                loading={fullRolloutMutation.isPending}
+                disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
+              >
+                院级确认全量激活
+              </Button>
+            )}
+            <Form.Item label="回滚目标版本" className={styles.zeroBottom}>
               <Select
                 aria-label="回滚目标版本"
                 placeholder="选择已下线历史版本"
@@ -1658,7 +1906,7 @@ export default function PathwayTemplates() {
           key: "l1",
           label: "L1 模板",
           children: (
-            <Descriptions bordered column={2} className="mt-3">
+            <Descriptions bordered column={2} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
               <Descriptions.Item label="模板代码">
                 {detailData.template.templateCode}
@@ -1673,15 +1921,15 @@ export default function PathwayTemplates() {
                 {detailData.template.templateLevel}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
-                <Badge
-                  status={detailData.template.status === "PUBLISHED" ? "success" : "warning"}
-                  text={detailData.template.status}
-                />
+                {pathwayContentStatus(detailData.template.status)}
+              </Descriptions.Item>
+              <Descriptions.Item label="部署状态">
+                {pathwayDeploymentStatus(detailData.deploymentStatus)}
               </Descriptions.Item>
               <Descriptions.Item label="起始节点">
                 {detailData.template.startNodeCode ?? "未设置"}
               </Descriptions.Item>
-              <Descriptions.Item label="知识来源">
+              <Descriptions.Item label="知识来源" span={2}>
                 {detailData.template.sourceRef}
               </Descriptions.Item>
               <Descriptions.Item label="说明" span={2}>
@@ -1694,7 +1942,11 @@ export default function PathwayTemplates() {
           key: "l2",
           label: "L2 节点画布",
           children: (
-            <Space direction="vertical" size="large" className="mk-full-width mt-3">
+            <Space
+              direction="vertical"
+              size="large"
+              className={`mk-full-width ${styles.marginTopMd}`}
+            >
               <PathwayCanvasPreview
                 nodes={detailData.nodes.map((node) => ({
                   nodeCode: node.nodeCode,
@@ -1750,7 +2002,7 @@ export default function PathwayTemplates() {
                     value={buildDetailDslPreview(detailData)}
                     rows={22}
                     readOnly
-                    className="font-normal text-xs mt-3"
+                    className={`${styles.codeText} ${styles.marginTopMd}`}
                   />
                 ),
               },
@@ -1764,10 +2016,10 @@ export default function PathwayTemplates() {
             </span>
           ),
           children: (
-            <Row gutter={16} className="mt-3">
+            <Row gutter={16} className={styles.marginTopMd}>
               <Col span={9}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
-                  <div className="border border-gray-200 rounded-lg p-4">
+                  <div className={styles.formSection}>
                     <Form layout="vertical">
                       <Form.Item label="患者 ID" htmlFor="pathway-snapshot-patient-id">
                         <Input
@@ -1794,7 +2046,7 @@ export default function PathwayTemplates() {
                     </Form>
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg p-3 min-h-[160px]">
+                  <div className={styles.snapshotList}>
                     {snapshotList.length > 0 ? (
                       <Space direction="vertical" className="mk-full-width">
                         {snapshotList.map((snapshot: ContextSnapshotSummary) => (
@@ -1807,10 +2059,10 @@ export default function PathwayTemplates() {
                               setSelectedSnapshotId(snapshot.snapshotId);
                               setSimulationResponse(null);
                             }}
-                            className="mk-full-width text-left"
+                            className={styles.snapshotButton}
                           >
                             <span>{snapshot.snapshotId}</span>
-                            <Tag className="ml-2">{snapshot.qualityStatus}</Tag>
+                            <Tag className={styles.tagGap}>{snapshot.qualityStatus}</Tag>
                           </Button>
                         ))}
                       </Space>
@@ -1829,7 +2081,7 @@ export default function PathwayTemplates() {
               </Col>
               <Col span={15}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
-                  <div className="border border-gray-200 rounded-lg p-4">
+                  <div className={styles.simulationPanel}>
                     <Row gutter={12}>
                       <Col span={12}>
                         <Form layout="vertical">
@@ -1851,7 +2103,7 @@ export default function PathwayTemplates() {
                           onClick={handleSimulate}
                           loading={simulateMutation.isPending || selectedSnapshotLoading}
                           disabled={!selectedSnapshotId}
-                          className="mk-full-width mt-7 bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
+                          className={styles.primaryAction}
                         >
                           使用该快照试运行
                         </Button>
@@ -1869,15 +2121,13 @@ export default function PathwayTemplates() {
                           {selectedSnapshotDetail.qualityStatus}
                         </Descriptions.Item>
                         <Descriptions.Item label="路径包版本">
-                          {selectedSnapshotDetail.pathwayPackageVersion ??
-                            selectedSnapshotDetail.packageVersion ??
-                            "未返回"}
+                          {selectedSnapshotDetail.packageVersion ?? "未返回"}
                         </Descriptions.Item>
                       </Descriptions>
                     )}
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg p-4 min-h-[240px]">
+                  <div className={styles.simulationResult}>
                     {simulationResponse ? (
                       <Space direction="vertical" size="middle" className="mk-full-width">
                         <Tag color={simulationQuality === "COMPLETE" ? "green" : "orange"}>
@@ -1902,12 +2152,10 @@ export default function PathwayTemplates() {
                               color: index === 0 ? "blue" : "green",
                               children: (
                                 <>
-                                  <div className="font-semibold text-gray-800 text-xs">
+                                  <div className={styles.timelineTitle}>
                                     {nodeDetail?.name ?? "未知节点"}
                                   </div>
-                                  <div className="text-gray-500 text-xs font-normal mt-0.5">
-                                    {nodeCode}
-                                  </div>
+                                  <div className={styles.timelineMeta}>{nodeCode}</div>
                                 </>
                               ),
                             };
@@ -1934,7 +2182,7 @@ export default function PathwayTemplates() {
             </span>
           ),
           children: (
-            <div className="mt-3">
+            <div className={styles.marginTopMd}>
               <StepFlow
                 currentStep={releaseCurrentStep}
                 panelByStep={
@@ -1942,7 +2190,7 @@ export default function PathwayTemplates() {
                     ? { full_rollout: releaseStepPanel }
                     : { submit_review: releaseStepPanel }
                 }
-                status={releaseImpact?.impactDigest ? "process" : "error"}
+                status={releaseFlowStatus}
               />
             </div>
           ),
@@ -1955,18 +2203,18 @@ export default function PathwayTemplates() {
       title="路径中枢"
       description="配置并维护专病临床路径标准，设定生命周期节点与变异流转边拓扑，提供真实快照试运行与时窗门禁发布验证。"
     >
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
-        <Form layout="inline" className="flex flex-wrap gap-4 items-center w-full">
+      <div className={`${styles.surface} ${styles.filterSurface}`}>
+        <Form layout="inline" className={styles.inlineForm}>
           <Form.Item label="状态">
             <Select
               placeholder="选择状态"
               allowClear
               value={statusFilter}
               onChange={setStatusFilter}
-              className="w-[140px]"
+              className={styles.controlSm}
             >
               <Option value="DRAFT">设计中</Option>
-              <Option value="PUBLISHED">运行中</Option>
+              <Option value="PUBLISHED">内容已审核</Option>
               <Option value="OFFLINE">已下线</Option>
             </Select>
           </Form.Item>
@@ -1976,7 +2224,7 @@ export default function PathwayTemplates() {
               allowClear
               value={diseaseFilter}
               onChange={(event) => setDiseaseFilter(event.target.value)}
-              className="w-[140px]"
+              className={styles.controlSm}
             />
           </Form.Item>
           <Form.Item label="归属专病包">
@@ -1985,7 +2233,7 @@ export default function PathwayTemplates() {
               allowClear
               value={packageFilter}
               onChange={setPackageFilter}
-              className="w-[200px]"
+              className={styles.controlLg}
             >
               {packagesData?.items?.map((pkg: SpecialtyPackage) => (
                 <Option key={pkg.packageId} value={pkg.packageId}>
@@ -1994,12 +2242,8 @@ export default function PathwayTemplates() {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item className="ml-auto flex gap-2">
-            <Button
-              icon={<FolderOpenOutlined />}
-              onClick={() => setPackageDrawerVisible(true)}
-              className="rounded-lg font-medium border-emerald-500 text-emerald-600 hover:bg-emerald-50"
-            >
+          <Form.Item className={styles.toolbarActions}>
+            <Button icon={<FolderOpenOutlined />} onClick={() => setPackageDrawerVisible(true)}>
               管理专病包
             </Button>
             <Button
@@ -2017,7 +2261,6 @@ export default function PathwayTemplates() {
                 setCreateExpertMode(false);
                 setCreateTemplateVisible(true);
               }}
-              className="rounded-lg font-medium bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
             >
               新建路径模板
             </Button>
@@ -2025,7 +2268,7 @@ export default function PathwayTemplates() {
         </Form>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+      <div className={styles.surface}>
         <Table
           columns={columns}
           dataSource={listData?.items || []}
@@ -2053,10 +2296,10 @@ export default function PathwayTemplates() {
           message="专病包是临床路径和质控资产的容器实体，受租户级别数据隔离、版本升级和灰度发布控制。"
           type="info"
           showIcon
-          className="mb-6 rounded-lg"
+          className={styles.marginBottomLg}
         />
 
-        <Card title="新建专病包草稿" className="mb-6 border-gray-200 shadow-sm rounded-lg">
+        <Card title="新建专病包草稿" className={styles.marginBottomLg}>
           <Form form={packageForm} layout="vertical" onFinish={handleCreatePackage}>
             <Row gutter={12}>
               <Col span={12}>
@@ -2093,27 +2336,23 @@ export default function PathwayTemplates() {
               htmlType="submit"
               icon={<PlusOutlined />}
               loading={createPackageMutation.isPending}
-              className="w-full bg-emerald-600 border-emerald-600 hover:bg-emerald-700 mt-2"
+              className={`${styles.fullWidth} ${styles.marginTopSm}`}
             >
               提交创建并留痕审计
             </Button>
           </Form>
         </Card>
 
-        <div className="font-semibold text-gray-800 mb-3">已有专病包列表</div>
-        <Space direction="vertical" className="mk-full-width overflow-y-auto max-h-[300px]">
+        <div className={`${styles.textStrong} ${styles.marginBottomMd}`}>已有专病包列表</div>
+        <Space direction="vertical" className={`mk-full-width ${styles.packageList}`}>
           {packagesData?.items?.map((pkg: SpecialtyPackage) => (
-            <Card
-              key={pkg.packageId}
-              size="small"
-              className="border-gray-100 bg-gray-50 rounded-lg shadow-sm"
-            >
+            <Card key={pkg.packageId} size="small" className={styles.packageCard}>
               <Descriptions size="small" column={1} bordered={false}>
                 <Descriptions.Item label="名称">
-                  <span className="font-semibold text-gray-800">{pkg.name}</span>
+                  <span className={styles.textStrong}>{pkg.name}</span>
                 </Descriptions.Item>
                 <Descriptions.Item label="包编码">
-                  <span className="font-normal text-xs">{pkg.packageCode}</span>
+                  <span className={styles.codeText}>{pkg.packageCode}</span>
                 </Descriptions.Item>
                 <Descriptions.Item label="病种/版本">
                   <Tag color="cyan">{pkg.diseaseCode}</Tag>
@@ -2134,9 +2373,9 @@ export default function PathwayTemplates() {
         confirmLoading={createTemplateMutation.isPending}
         destroyOnClose
       >
-        <Form form={templateForm} layout="vertical" className="mt-4">
-          <Space className="mk-flex-between mk-full-width mb-4">
-            <span className="text-sm text-gray-500">
+        <Form form={templateForm} layout="vertical" className={styles.marginTopMd}>
+          <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
+            <span className={`${styles.textSmall} ${styles.textSecondary}`}>
               普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。
             </span>
             <Space>
@@ -2154,18 +2393,21 @@ export default function PathwayTemplates() {
 
       <Drawer
         title={
-          <div className="flex items-center justify-between w-full">
+          <div className={styles.drawerTitle}>
             <span>路径配置与真实快照试运行控制台</span>
-            {detailData?.template.status === "DRAFT" && (
-              <Button
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                onClick={() => setDetailActiveTab("release")}
-                className="mr-6 bg-emerald-600 border-emerald-600 hover:bg-emerald-700"
-              >
-                进入 7 步流发布
-              </Button>
-            )}
+            {detailData &&
+              detailData.deploymentStatus !== "ACTIVE" &&
+              (detailData.template.status === "DRAFT" ||
+                detailData.template.status === "PUBLISHED") && (
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => setDetailActiveTab("release")}
+                  className={styles.marginRightLg}
+                >
+                  进入 7 步流发布
+                </Button>
+              )}
           </div>
         }
         width={1080}
@@ -2185,17 +2427,13 @@ export default function PathwayTemplates() {
         {detailData && (
           <div>
             <Alert
-              message={
-                detailData.template.status === "PUBLISHED"
-                  ? "当前临床路径已上线，拓扑结构写保护。如需修改，请发布新版本包升级。"
-                  : "当前临床路径处于设计中，可核查三层模型并使用真实上下文快照试运行后申请发布。"
-              }
-              type={detailData.template.status === "PUBLISHED" ? "success" : "info"}
+              message={detailAlertMessage}
+              type={detailAlertType}
               showIcon
-              className="mb-6 rounded-lg"
+              className={styles.marginBottomLg}
             />
-            <Space className="mk-flex-between mk-full-width mb-4">
-              <span className="text-sm text-gray-500">
+            <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
+              <span className={`${styles.textSmall} ${styles.textSecondary}`}>
                 路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在专家模式显示。
               </span>
               <Space>

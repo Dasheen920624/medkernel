@@ -134,6 +134,76 @@ const terminologyMappingExperience: RouteExperience = {
   riskLevel: "medium",
 };
 
+const auditExperience: RouteExperience = {
+  primaryRole: "审计人员 / 信息科",
+  goal: "按时间、操作人、动作和对象追溯当前租户的关键操作证据",
+  defaultView: "最近发生的事件优先",
+  defaultFilters: [
+    {
+      key: "occurredAt",
+      label: "发生日期",
+      kind: "dateRange",
+    },
+    {
+      key: "actorUserId",
+      label: "操作人",
+      kind: "search",
+      placeholder: "输入操作人标识",
+    },
+    {
+      key: "action",
+      label: "操作编码",
+      kind: "search",
+      placeholder: "输入操作编码",
+    },
+  ],
+  expertContent: [
+    "对象类型筛选",
+    "执行结果筛选",
+    "事件编号",
+    "traceId",
+    "签名",
+    "载荷摘要",
+    "环境标识",
+  ],
+  interruptionLevel: "info",
+  evidence: "审计事件按租户隔离，异步导出保留任务、traceId 与下载证据",
+  dataScale: { expected: "massive", pagination: "cursor", exportStrategy: "async" },
+  riskLevel: "medium",
+};
+
+const securityBaselineExperience: RouteExperience = {
+  primaryRole: "信息科 / 安全管理员",
+  goal: "统一核查并管理运行配置、数据权限、脱敏规则与互操作测评证据",
+  defaultView: "安全基线概览",
+  defaultFilters: [],
+  expertContent: ["配置键", "版本", "组织范围", "证据 ID", "traceId"],
+  interruptionLevel: "weak",
+  evidence: "配置、权限、脱敏和测评变更均由后端校验并保留版本与审计证据",
+  dataScale: { expected: "small", pagination: "page", exportStrategy: "none" },
+  riskLevel: "high",
+};
+
+const identityBindingExperience: RouteExperience = {
+  primaryRole: "信息科 / 各级管理员",
+  goal: "管理系统用户与员工号、统一身份和国密证书的唯一绑定关系",
+  defaultView: "当前租户的有效绑定和解绑历史",
+  defaultFilters: [],
+  expertContent: ["绑定 ID", "身份源类型", "版本", "traceId"],
+  interruptionLevel: "strong",
+  evidence: "绑定与解绑均校验唯一性和版本，并保留租户隔离的审计证据",
+  dataScale: { expected: "large", pagination: "page", exportStrategy: "none" },
+  riskLevel: "high",
+};
+
+export const ADAPTER_PROTOCOL_OPTIONS = [
+  { label: "HL7 v2", value: "HL7" },
+  { label: "FHIR", value: "FHIR" },
+  { label: "Webhook", value: "Webhook" },
+  { label: "REST", value: "REST" },
+  { label: "WebService", value: "WebService" },
+] as const;
+
 const adapterHubExperience: RouteExperience = {
   primaryRole: "信息科 / 实施工程师",
   goal: "查看院内系统接入、健康、字段映射、死信和数据质量，确保断连诚实暴露",
@@ -141,17 +211,11 @@ const adapterHubExperience: RouteExperience = {
   defaultFilters: [
     {
       key: "protocolType",
-      label: "系统类型",
+      label: "接入协议",
       kind: "select",
-      placeholder: "请选择系统类型",
+      placeholder: "请选择接入协议",
       optionSource: "static",
-      options: [
-        { label: "HIS", value: "HIS" },
-        { label: "EMR", value: "EMR" },
-        { label: "LIS", value: "LIS" },
-        { label: "PACS", value: "PACS" },
-        { label: "FHIR", value: "FHIR" },
-      ],
+      options: [...ADAPTER_PROTOCOL_OPTIONS],
     },
     {
       key: "healthStatus",
@@ -222,14 +286,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     pageType: "workbench",
   },
   {
-    path: "/workbench/demo-validation",
-    title: "演示与校验",
-    breadcrumb: ["工作台", "演示与校验"],
+    path: "/workbench/readiness-validation",
+    title: "验收自检",
+    breadcrumb: ["工作台", "验收自检"],
     requireAuth: true,
     sectionKey: "workbench",
-    menuKey: "demo-validation",
-    menuLabel: "演示与校验",
-    requiredPermissions: ["menu.workbench", "workbench:demo:view"],
+    menuKey: "readiness-validation",
+    menuLabel: "验收自检",
+    requiredPermissions: ["menu.workbench", "workbench:readiness:view"],
     requiredRoles: [
       "implementation-engineer",
       "it-ops",
@@ -240,7 +304,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     hidden: true,
     experience: {
       primaryRole: "实施工程师 / 信息科 / 医院管理员 / 平台管理员",
-      goal: "确认当前租户演示就绪度和阻塞修复去处",
+      goal: "确认当前租户运行验收状态和阻塞修复去处",
       defaultView: "阻塞项优先",
       defaultFilters: [
         {
@@ -253,11 +317,11 @@ const routeMetaInputs: RouteMetaInput[] = [
         },
         {
           key: "ready",
-          label: "可演示",
+          label: "就绪",
           kind: "select",
-          placeholder: "可演示",
+          placeholder: "就绪",
           optionSource: "static",
-          options: [{ label: "可演示", value: "ready" }],
+          options: [{ label: "就绪", value: "ready" }],
         },
         {
           key: "disabled",
@@ -293,15 +357,15 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/tenant/onboarding",
-    title: "租户开通",
-    breadcrumb: ["试点准备", "租户开通"],
+    title: "租户管理",
+    breadcrumb: ["试点准备", "租户管理"],
     requireAuth: true,
     sectionKey: "pilot-setup",
     menuKey: "tenant-onboarding",
-    menuLabel: "租户开通",
+    menuLabel: "租户管理",
     requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
     requiredRoles: ["implementation-engineer", "platform-admin", "hospital-admin"],
-    experience: readonlyExperience("实施工程师", "核查租户开通准备状态", "待配置组织"),
+    experience: readonlyExperience("实施工程师", "开通客户租户或配置当前租户", "待配置组织"),
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -313,8 +377,14 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "pilot-setup",
     menuKey: "config-packages",
     menuLabel: "配置包中心",
-    requiredPermissions: ["menu.config-packages", "pkg.read", "pkg.release"],
-    requiredRoles: ["implementation-engineer", "medical-admin", "hospital-admin"],
+    requiredPermissions: ["menu.config-packages", "package.read", "package.publish"],
+    requiredRoles: [
+      "implementation-engineer",
+      "it-ops",
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+    ],
     experience: readonlyExperience(
       "实施工程师",
       "核查配置包准备和发布状态",
@@ -533,14 +603,21 @@ const routeMetaInputs: RouteMetaInput[] = [
     pageType: "list",
   },
   {
-    path: "/aik/review",
-    title: "AI 知识审核",
-    breadcrumb: ["质控改进", "AI 知识审核"],
+    path: "/knowledge/governance",
+    title: "知识治理",
+    breadcrumb: ["质控改进", "知识治理"],
     requireAuth: true,
     sectionKey: "quality-improve",
-    menuKey: "aik-review",
-    menuLabel: "AI 知识审核",
-    experience: readonlyExperience("医务处", "审核知识候选及其依据", "待我审核", "large"),
+    menuKey: "knowledge-governance",
+    menuLabel: "知识治理",
+    requiredPermissions: ["menu.knowledge-governance", "knowledge.read"],
+    requiredRoles: ["medical-affairs", "qa-manager", "dept-head", "specialist"],
+    experience: readonlyExperience(
+      "医务处 / 专科专家",
+      "审核知识候选并维护结构化诊断知识",
+      "待治理知识",
+      "large",
+    ),
     pageType: "review",
     stateMachine: "config",
   },
@@ -552,7 +629,9 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "compliance-ops",
     menuKey: "admin-users",
     menuLabel: "用户管理",
-    experience: readonlyExperience("信息科", "核查系统用户与权限状态", "有效用户", "large"),
+    requiredPermissions: ["menu.admin-users", "org.read"],
+    requiredRoles: ["system-superadmin", "platform-admin", "group-admin", "hospital-admin"],
+    experience: readonlyExperience("租户管理员", "管理用户、角色和认证状态", "有效用户", "large"),
     pageType: "list",
   },
   {
@@ -563,8 +642,11 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "compliance-ops",
     menuKey: "identity-bindings",
     menuLabel: "身份绑定",
-    experience: readonlyExperience("信息科", "核查身份绑定运行状态", "待确认绑定"),
+    requiredPermissions: ["menu.identity-bindings", "org.read"],
+    requiredRoles: ["it-ops", "platform-admin", "group-admin", "hospital-admin"],
+    experience: identityBindingExperience,
     pageType: "system",
+    stateMachine: "change",
   },
   {
     path: "/admin/audit",
@@ -574,29 +656,41 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "compliance-ops",
     menuKey: "admin-audit",
     menuLabel: "审计日志",
-    experience: readonlyExperience("审计人员", "追溯关键操作证据", "最近事件", "massive"),
+    experience: auditExperience,
     pageType: "list",
   },
   {
     path: "/security/baseline",
-    title: "安全基线",
-    breadcrumb: ["合规运维", "安全基线"],
+    title: "安全基线与系统配置",
+    breadcrumb: ["合规运维", "安全基线与系统配置"],
     requireAuth: true,
     sectionKey: "compliance-ops",
     menuKey: "security-baseline",
-    menuLabel: "安全基线",
-    experience: readonlyExperience("信息科", "查看安全配置基线状态", "当前基线"),
-    pageType: "dashboard",
+    menuLabel: "安全与配置",
+    experience: securityBaselineExperience,
+    pageType: "system",
   },
   {
     path: "/system/providers",
-    title: "Provider 状态",
-    breadcrumb: ["合规运维", "Provider 状态"],
+    title: "运行状态",
+    breadcrumb: ["合规运维", "运行状态"],
     requireAuth: true,
     sectionKey: "compliance-ops",
     menuKey: "system-providers",
-    menuLabel: "Provider 状态",
-    experience: readonlyExperience("运维人员", "核查依赖服务运行状态", "异常优先"),
+    menuLabel: "运行状态",
+    requiredPermissions: ["menu.system-providers", "system.read"],
+    requiredRoles: [
+      "implementation-engineer",
+      "it-ops",
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+    ],
+    experience: readonlyExperience(
+      "运维人员",
+      "核查依赖服务、备份恢复与国产化运行状态",
+      "异常优先",
+    ),
     pageType: "system",
   },
   {
@@ -607,7 +701,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "compliance-ops",
     menuKey: "notification-settings",
     menuLabel: "通知设置",
-    experience: readonlyExperience("信息科", "核查通知策略配置状态", "当前配置"),
+    experience: readonlyExperience("当前用户", "配置个人通知偏好与租户默认策略", "当前配置"),
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -741,7 +835,9 @@ export function canAccessRoute(
       (permission.startsWith("menu.") && grantedMenuKeys.has(permission.slice("menu.".length))),
   );
   const hasRequiredRole =
-    route.requiredRoles.length === 0 || route.requiredRoles.some((role) => grantedRoles.has(role));
+    grantedRoles.has(SYSTEM_SUPERADMIN_ROLE) ||
+    route.requiredRoles.length === 0 ||
+    route.requiredRoles.some((role) => grantedRoles.has(role));
 
   return hasRequiredPermissions && hasRequiredRole;
 }

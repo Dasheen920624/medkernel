@@ -9,12 +9,14 @@ import {
   countLeaves,
   createGroup,
   createLeaf,
-  fromLegacyWhen,
+  dslToRootGroup,
   nodeToDsl,
   type RuleGroup,
 } from "./conditionModel";
+import type { RuleType } from "./ruleTypes";
+import { isClinicalTriggerPoint, type ClinicalTriggerPoint } from "./clinicalTriggerPoints";
 
-/** 动作风险等级（与后端 RuleRiskLevel 对齐，含 CRITICAL 前向兼容）。 */
+/** 动作风险等级，与后端 RuleRiskLevel 完整对齐。 */
 export type RuleSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 /** 命中动作。 */
@@ -27,6 +29,7 @@ export interface RuleAction {
 
 /** 规则草稿：条件根组 + 动作 + 解释摘要。 */
 export interface RuleDraft {
+  triggerPoint: ClinicalTriggerPoint;
   root: RuleGroup;
   action: RuleAction;
   explanationSummary: string;
@@ -42,7 +45,7 @@ export interface RuleArchetype {
   key: RuleArchetypeKey;
   title: string;
   description: string;
-  ruleType: "DRUG_SAFETY" | "INSURANCE_AUDIT" | "CLINICAL_QUALITY";
+  ruleType: RuleType;
   riskLevel: RuleSeverity;
   build: () => RuleDraft;
 }
@@ -76,6 +79,7 @@ function readBoolean(source: unknown, key: string, fallback: boolean): boolean {
 /** 组装完整规则 DSL。 */
 export function buildRuleDsl(draft: RuleDraft): Record<string, unknown> {
   return {
+    trigger: draft.triggerPoint,
     when: nodeToDsl(draft.root),
     then: [{ ...draft.action }],
     explain: {
@@ -88,12 +92,15 @@ export function buildRuleDsl(draft: RuleDraft): Record<string, unknown> {
   };
 }
 
-/** 从 DSL 还原规则草稿（兼容旧扁平 when）。 */
+/** 从当前 DSL 还原规则草稿。 */
 export function parseRuleDsl(dsl: unknown): RuleDraft {
   if (!isRecord(dsl) || !("when" in dsl)) {
     throw new Error("规则 DSL 缺少 when 条件");
   }
-  const root = fromLegacyWhen((dsl as { when: unknown }).when);
+  if (!isClinicalTriggerPoint(dsl.trigger)) {
+    throw new Error("规则 DSL 缺少或包含不支持的 trigger");
+  }
+  const root = dslToRootGroup((dsl as { when: unknown }).when);
   const then = Array.isArray((dsl as { then?: unknown }).then)
     ? ((dsl as { then: unknown[] }).then[0] as unknown)
     : undefined;
@@ -101,6 +108,7 @@ export function parseRuleDsl(dsl: unknown): RuleDraft {
     ? (dsl as { explain: Record<string, unknown> }).explain
     : undefined;
   return {
+    triggerPoint: dsl.trigger,
     root,
     action: {
       actionCode: readString(then, "actionCode", DEFAULT_ACTION.actionCode),
@@ -149,9 +157,10 @@ export const RULE_ARCHETYPES: RuleArchetype[] = [
     key: "clinical_quality_monitor",
     title: "临床质控阈值",
     description: "从真实快照取一个数值字段，超过阈值后提交人工复核。",
-    ruleType: "CLINICAL_QUALITY",
+    ruleType: "QUALITY",
     riskLevel: "MEDIUM",
     build: () => ({
+      triggerPoint: "result-review",
       root: createGroup({
         logic: "all",
         children: [
@@ -172,9 +181,10 @@ export const RULE_ARCHETYPES: RuleArchetype[] = [
     key: "drug_safety_review",
     title: "合理用药复核",
     description: "检查真实上下文中是否存在受控字段，命中后要求人工复核。",
-    ruleType: "DRUG_SAFETY",
+    ruleType: "ORDER",
     riskLevel: "LOW",
     build: () => ({
+      triggerPoint: "medication-prescribe",
       root: createGroup({
         logic: "all",
         children: [
@@ -194,9 +204,10 @@ export const RULE_ARCHETYPES: RuleArchetype[] = [
     key: "insurance_policy_review",
     title: "医保规范核查",
     description: "检查真实上下文编码或状态字段是否进入受控集合。",
-    ruleType: "INSURANCE_AUDIT",
+    ruleType: "INSURANCE",
     riskLevel: "MEDIUM",
     build: () => ({
+      triggerPoint: "order-sign",
       root: createGroup({
         logic: "any",
         children: [

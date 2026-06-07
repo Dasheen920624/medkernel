@@ -15,7 +15,7 @@ public record IntegrationWebhookConfig(
     @Column("tenant_id") String tenantId,
     @Column("name") String name,
     @Column("callback_url") String callbackUrl,
-    @Column("secret_key") String secretKey,
+    @Column("secret_cipher") String secretCipher,
     @Column("events_subscribed") String eventsSubscribed,
     @Column("status") String status, // ACTIVE, SUSPENDED
     @Column("created_at") Instant createdAt,

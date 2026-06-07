@@ -22,6 +22,18 @@ cd "$ROOT"
 
 CJK_HELPER="$ROOT/scripts/check-comment-zh/cjk-detect.pl"
 
+git_changed_files() {
+  local diff_filter="$1"
+  shift
+  {
+    git diff --name-only --diff-filter="$diff_filter" "$MERGE_BASE"...HEAD -- "$@"
+    git diff --name-only --diff-filter="$diff_filter" HEAD -- "$@"
+    if [[ "$diff_filter" == *A* ]]; then
+      git ls-files --others --exclude-standard -- "$@"
+    fi
+  } | sort -u
+}
+
 # ---- 工具：判断 Java 文件类级 Javadoc 是否含中文 ----
 javadoc_has_chinese() {
   # $1: java 文件路径
@@ -73,7 +85,7 @@ case "$MODE" in
     warn=0
 
     echo "=== 检查 1：新增 Java 文件类级中文 Javadoc（fail） ==="
-    NEW_JAVA="$(git diff --name-only --diff-filter=A "$MERGE_BASE"...HEAD -- \
+    NEW_JAVA="$(git_changed_files A \
       'medkernel-backend/src/main/java/com/medkernel/engine/*' \
       'medkernel-backend/src/main/java/com/medkernel/engine/**' \
       'medkernel-backend/src/main/java/com/medkernel/shared/*' \
@@ -92,7 +104,7 @@ case "$MODE" in
     fi
 
     echo "=== 检查 2：新增 SQL 表 COMMENT ON TABLE 中文（fail） ==="
-    NEW_SQL="$(git diff --name-only --diff-filter=A "$MERGE_BASE"...HEAD -- \
+    NEW_SQL="$(git_changed_files A \
       'medkernel-backend/src/main/resources/db/migration/oracle/*.sql' \
       'medkernel-backend/src/main/resources/db/migration/postgres/*.sql' \
       'medkernel-backend/src/main/resources/db/migration/kingbase/*.sql' \
@@ -109,7 +121,7 @@ case "$MODE" in
     fi
 
     echo "=== 检查 3：修改文件缺口（warn） ==="
-    MOD_JAVA="$(git diff --name-only --diff-filter=M "$MERGE_BASE"...HEAD -- \
+    MOD_JAVA="$(git_changed_files M \
       'medkernel-backend/src/main/java/com/medkernel/engine/*' \
       'medkernel-backend/src/main/java/com/medkernel/engine/**' \
       'medkernel-backend/src/main/java/com/medkernel/shared/*' \
@@ -125,7 +137,7 @@ case "$MODE" in
       done <<< "$MOD_JAVA"
     fi
 
-    MOD_SQL="$(git diff --name-only --diff-filter=M "$MERGE_BASE"...HEAD -- \
+    MOD_SQL="$(git_changed_files M \
       'medkernel-backend/src/main/resources/db/migration/oracle/*.sql' \
       'medkernel-backend/src/main/resources/db/migration/postgres/*.sql' \
       'medkernel-backend/src/main/resources/db/migration/kingbase/*.sql' \
