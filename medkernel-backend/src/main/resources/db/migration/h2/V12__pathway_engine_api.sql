@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS pathway_template (
     disease_code         VARCHAR(128) NOT NULL,
     template_version     INT          NOT NULL DEFAULT 1,
     template_level       VARCHAR(32)  NOT NULL DEFAULT 'STANDARD',
+    parent_template_id   VARCHAR(64)  NULL,
     status               VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
     entry_mode           VARCHAR(32)  NOT NULL DEFAULT 'AUTO_SUGGEST',
     start_node_code      VARCHAR(128) NULL,
@@ -79,6 +80,7 @@ CREATE TABLE IF NOT EXISTS pathway_template (
 CREATE INDEX IF NOT EXISTS idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX IF NOT EXISTS idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
+CREATE INDEX IF NOT EXISTS idx_pathway_template_parent        ON pathway_template (tenant_id, parent_template_id);
 
 CREATE TABLE IF NOT EXISTS pathway_milestone (
     id                         BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -125,6 +127,7 @@ CREATE TABLE IF NOT EXISTS pathway_node (
     dependency_json     CLOB         NULL,
     time_window_minutes INT          NULL,
     terminal_flag       BOOLEAN      NOT NULL DEFAULT FALSE,
+    disabled_flag       BOOLEAN      NOT NULL DEFAULT FALSE,
     config_json         CLOB         NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by          VARCHAR(64)  NOT NULL DEFAULT 'system',
@@ -137,7 +140,8 @@ CREATE TABLE IF NOT EXISTS pathway_node (
         'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY',
         'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'
     )),
-    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (TRUE, FALSE))
+    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (TRUE, FALSE)),
+    CONSTRAINT ck_pathway_node_disabled CHECK (disabled_flag IN (TRUE, FALSE))
 );
 
 CREATE INDEX IF NOT EXISTS idx_pathway_node_template_order ON pathway_node (tenant_id, template_id, sort_order);

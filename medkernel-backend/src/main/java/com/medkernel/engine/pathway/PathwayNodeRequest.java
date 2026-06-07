@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 创建路径节点的请求片段。
  *
- * <p>用于在创建模板时定义临床步骤、节点类型、所属里程碑、排序、责任角色、依赖、时间窗和节点配置。
+ * <p>用于在创建模板时定义临床步骤、节点类型、所属里程碑、排序、责任角色、依赖、时间窗、禁用标记和节点配置。
  */
 public record PathwayNodeRequest(
     @NotBlank String nodeCode,
@@ -26,6 +26,7 @@ public record PathwayNodeRequest(
     JsonNode dependency,
     @Min(0) Integer timeWindowMinutes,
     Boolean terminal,
+    Boolean disabled,
     JsonNode config
 ) {
     public PathwayNodeRequest {
@@ -34,6 +35,7 @@ public record PathwayNodeRequest(
         }
         consultedRoles = consultedRoles == null ? List.of() : List.copyOf(consultedRoles);
         informedRoles = informedRoles == null ? List.of() : List.copyOf(informedRoles);
+        disabled = Boolean.TRUE.equals(disabled);
     }
 
     public PathwayNodeRequest(String nodeCode,
@@ -47,7 +49,7 @@ public record PathwayNodeRequest(
                               Boolean terminal,
                               JsonNode config) {
         this(nodeCode, name, nodeType, milestoneCode, sortOrder, responsibleRole, responsibleRole,
-            List.of(), List.of(), dependency, timeWindowMinutes, terminal, config);
+            List.of(), List.of(), dependency, timeWindowMinutes, terminal, false, config);
     }
 
     public PathwayNodeRequest(String nodeCode,
@@ -60,6 +62,6 @@ public record PathwayNodeRequest(
                               Boolean terminal,
                               JsonNode config) {
         this(nodeCode, name, nodeType, null, sortOrder, responsibleRole, responsibleRole,
-            List.of(), List.of(), dependency, timeWindowMinutes, terminal, config);
+            List.of(), List.of(), dependency, timeWindowMinutes, terminal, false, config);
     }
 }

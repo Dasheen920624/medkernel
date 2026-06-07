@@ -256,6 +256,134 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void templateInheritanceDiffMergesOverrideAddAndDisabledNodes() {
+        PathwayTemplate parent = template(
+            "pt-parent", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayTemplate child = template(
+            "pt-child", "tenant-A", "TPL.COPD.DEPT", 1, PathwayTemplateStatus.DRAFT,
+            PathwayTemplateLevel.DEPARTMENT, "pt-parent");
+        when(templates.findByTemplateIdAndTenantId("pt-child", "tenant-A")).thenReturn(Optional.of(child));
+        when(templates.findByTemplateIdAndTenantId("pt-parent", "tenant-A")).thenReturn(Optional.of(parent));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-parent", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-parent", "tenant-A", "ASSESS", PathwayNodeType.ASSESSMENT,
+                    null, 10, false, null, "医生", 60),
+                node("pt-parent", "tenant-A", "EDU", PathwayNodeType.NURSING,
+                    null, 20, false, null, "护士", 30),
+                node("pt-parent", "tenant-A", "FOLLOWUP", PathwayNodeType.FOLLOWUP,
+                    null, 30, true, null, "护士", 120)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-child", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-child", "tenant-A", "ASSESS", PathwayNodeType.ASSESSMENT,
+                    null, 10, false, null, "医生", 30),
+                disabledNode("pt-child", "tenant-A", "EDU"),
+                node("pt-child", "tenant-A", "REHAB", PathwayNodeType.REHAB,
+                    null, 25, false, null, "康复师", 90)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-parent", "tenant-A"))
+            .thenReturn(List.of(
+                edge("pt-parent", "tenant-A", "E.ASSESS.EDU", "ASSESS", "EDU", PathwayEdgeType.DEFAULT),
+                edge("pt-parent", "tenant-A", "E.EDU.FOLLOWUP", "EDU", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-child", "tenant-A"))
+            .thenReturn(List.of(
+                edge("pt-child", "tenant-A", "E.ASSESS.REHAB", "ASSESS", "REHAB", PathwayEdgeType.DEFAULT),
+                edge("pt-child", "tenant-A", "E.REHAB.FOLLOWUP", "REHAB", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+
+        PathwayTemplateInheritanceDiffResponse response = service.templateInheritanceDiff("pt-child");
+
+        assertThat(response.parentTemplateId()).isEqualTo("pt-parent");
+        assertThat(response.mergedNodes()).extracting(PathwayMergedNode::nodeCode)
+            .containsExactly("ASSESS", "REHAB", "FOLLOWUP");
+        assertThat(response.mergedNodes()).extracting(PathwayMergedNode::origin)
+            .containsExactly(
+                PathwayInheritanceOrigin.OVERRIDDEN,
+                PathwayInheritanceOrigin.ADDED,
+                PathwayInheritanceOrigin.INHERITED);
+        assertThat(response.mergedNodes().get(0).timeWindowMinutes()).isEqualTo(30);
+        assertThat(response.mergedEdges()).extracting(PathwayEdge::edgeCode)
+            .containsExactly("E.ASSESS.REHAB", "E.REHAB.FOLLOWUP");
+        assertThat(response.diffItems())
+            .extracting(PathwayTemplateInheritanceDiffItem::changeType, PathwayTemplateInheritanceDiffItem::itemCode)
+            .contains(
+                org.assertj.core.groups.Tuple.tuple(PathwayInheritanceChangeType.OVERRIDDEN, "ASSESS"),
+                org.assertj.core.groups.Tuple.tuple(PathwayInheritanceChangeType.DISABLED, "EDU"),
+                org.assertj.core.groups.Tuple.tuple(PathwayInheritanceChangeType.ADDED, "REHAB"));
+        assertThat(response.diffItems())
+            .anySatisfy(item -> {
+                assertThat(item.itemCode()).isEqualTo("ASSESS");
+                assertThat(item.fieldName()).isEqualTo("timeWindowMinutes");
+                assertThat(item.parentValue()).isEqualTo("60");
+                assertThat(item.childValue()).isEqualTo("30");
+            });
+    }
+
+    @Test
+    void inheritedTemplateUsesMergedGraphForPublishAndPatientEntry() {
+        PathwayTemplate parent = template(
+            "pt-parent", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED);
+        PathwayTemplate childDraft = template(
+            "pt-child", "tenant-A", "TPL.COPD.DEPT", 1, PathwayTemplateStatus.DRAFT,
+            PathwayTemplateLevel.DEPARTMENT, "pt-parent");
+        PathwayTemplate childPublished = template(
+            "pt-child", "tenant-A", "TPL.COPD.DEPT", 1, PathwayTemplateStatus.PUBLISHED,
+            PathwayTemplateLevel.DEPARTMENT, "pt-parent");
+        when(templates.findByTemplateIdAndTenantId("pt-child", "tenant-A"))
+            .thenReturn(Optional.of(childDraft))
+            .thenReturn(Optional.of(childDraft))
+            .thenReturn(Optional.of(childPublished));
+        when(templates.findByTemplateIdAndTenantId("pt-parent", "tenant-A")).thenReturn(Optional.of(parent));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-parent", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-parent", "tenant-A", "ASSESS", 10, false),
+                node("pt-parent", "tenant-A", "EDU", 20, false),
+                node("pt-parent", "tenant-A", "FOLLOWUP", 30, true)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-child", "tenant-A"))
+            .thenReturn(List.of(
+                node("pt-child", "tenant-A", "ASSESS", 10, false),
+                disabledNode("pt-child", "tenant-A", "EDU")));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-parent", "tenant-A"))
+            .thenReturn(List.of(
+                edge("pt-parent", "tenant-A", "E.ASSESS.EDU", "ASSESS", "EDU", PathwayEdgeType.DEFAULT),
+                edge("pt-parent", "tenant-A", "E.EDU.FOLLOWUP", "EDU", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-child", "tenant-A"))
+            .thenReturn(List.of(
+                edge("pt-child", "tenant-A", "E.ASSESS.FOLLOWUP", "ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-parent", "tenant-A"))
+            .thenReturn(List.of(binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-child", "tenant-A"))
+            .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-child", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.empty());
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-child", "tenant-A"))
+            .thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PATHWAY, "TPL.COPD.DEPT", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-pathway-child", VersionedAssetType.PATHWAY, "TPL.COPD.DEPT", "1",
+                AssetVersionStatus.DRAFT)))
+            .thenReturn(Optional.of(assetVersion(
+                "av-pathway-child", VersionedAssetType.PATHWAY, "TPL.COPD.DEPT", "1",
+                AssetVersionStatus.ACTIVE)));
+
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-child");
+        PathwayTemplatePublishResponse publishResponse = service.publishTemplate(
+            "pt-child",
+            new PathwayOperationRequest(impact.impactDigest(), "继承有效图已核查"));
+        PatientPathwayDetailResponse entryResponse = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "ctx-active-1", "pt-child", null, "pkg-2026.06"));
+
+        assertThat(impact.nodeCount()).isEqualTo(2);
+        assertThat(impact.edgeCount()).isEqualTo(1);
+        assertThat(impact.terminalNodeCount()).isEqualTo(1);
+        assertThat(publishResponse.status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
+        assertThat(entryResponse.patientPathway().currentNodeCode()).isEqualTo("ASSESS");
+        ArgumentCaptor<ClinicalClock> clockCap = ArgumentCaptor.forClass(ClinicalClock.class);
+        verify(clocks).save(clockCap.capture());
+        assertThat(clockCap.getValue().nodeCode()).isEqualTo("ASSESS");
+        assertThat(clockCap.getValue().metricCode()).isEqualTo("COPD.TIME_TO_ASSESS");
+    }
+
+    @Test
     void createTemplateBridgesSpecialtyPackageToUnifiedPackageItem() {
         PackageItemRepository packageItems = mock(PackageItemRepository.class);
         PathwayEngineService bridgedService = new PathwayEngineService(
@@ -1716,10 +1844,18 @@ class PathwayEngineServiceTest {
 
     private PathwayTemplate template(String templateId, String tenantId, String templateCode,
                                      Integer templateVersion, PathwayTemplateStatus status) {
+        return template(templateId, tenantId, templateCode, templateVersion, status,
+            PathwayTemplateLevel.STANDARD, null);
+    }
+
+    private PathwayTemplate template(String templateId, String tenantId, String templateCode,
+                                     Integer templateVersion, PathwayTemplateStatus status,
+                                     PathwayTemplateLevel templateLevel,
+                                     String parentTemplateId) {
         Instant now = Instant.now();
         return new PathwayTemplate(
             1L, templateId, tenantId, "sp-1", templateCode, "稳定期随访路径",
-            "COPD", templateVersion, PathwayTemplateLevel.STANDARD, status,
+            "COPD", templateVersion, templateLevel, parentTemplateId, status,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
             "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
@@ -1766,6 +1902,15 @@ class PathwayEngineServiceTest {
         return new PathwayNode(
             null, "pn-" + code, tenantId, templateId, code, code,
             nodeType, milestoneCode, sortOrder, responsibleRole, null, timeWindowMinutes, terminal, effectiveConfigJson,
+            now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayNode disabledNode(String templateId, String tenantId, String code) {
+        Instant now = Instant.now();
+        return new PathwayNode(
+            null, "pn-" + code + "-disabled", tenantId, templateId, code, code,
+            PathwayNodeType.ASSESSMENT, null, 0, "医生", "医生", "[]", "[]",
+            null, null, false, true, "{}",
             now, "tester", now, "tester", "trace-pathway");
     }
 
@@ -1832,6 +1977,15 @@ class PathwayEngineServiceTest {
 
     private PathwayEdge edge(String from, String to, PathwayEdgeType type, String conditionJson, int priority) {
         return edge("pt-1", "tenant-A", from, to, type, conditionJson, priority);
+    }
+
+    private PathwayEdge edge(String templateId, String tenantId, String edgeCode, String from, String to,
+                             PathwayEdgeType type) {
+        Instant now = Instant.now();
+        return new PathwayEdge(
+            null, "pe-" + edgeCode, tenantId, templateId,
+            edgeCode, from, to, type, null, 10,
+            now, "tester", now, "tester", "trace-pathway");
     }
 
     private PathwayEdge edge(String templateId, String tenantId, String from, String to,

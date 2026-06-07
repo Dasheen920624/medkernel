@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   rollbackTemplateListData: { items: [], total: 0 } as unknown,
   templateDetailData: null as unknown,
   templateImpactData: null as unknown,
+  templateInheritanceDiffData: null as unknown,
   packagesData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
@@ -48,6 +49,11 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   usePathwayTemplateImpact: () => ({
     data: apiMocks.templateImpactData,
+    isLoading: false,
+    isError: false,
+  }),
+  usePathwayTemplateInheritanceDiff: () => ({
+    data: apiMocks.templateInheritanceDiffData,
     isLoading: false,
     isError: false,
   }),
@@ -253,6 +259,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.rollbackTemplateListData = { items: [], total: 0 };
     apiMocks.templateDetailData = null;
     apiMocks.templateImpactData = null;
+    apiMocks.templateInheritanceDiffData = null;
     apiMocks.packagesData = { items: [], total: 0 };
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
@@ -853,6 +860,102 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(screen.getByText("入径评估（M-PREOP-ASSESS）")).toBeInTheDocument();
       expect(screen.getAllByText("M-PREOP-ASSESS").length).toBeGreaterThan(0);
       expect(screen.getByText("R 专科医生 / A 科主任 / C 护理组 / I 质控办")).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径详情展示继承差异与合并后的有效节点",
+    async () => {
+      const inheritedTemplate = {
+        ...draftTemplate,
+        parentTemplateId: "pt-standard",
+        templateLevel: "DEPARTMENT",
+      };
+      apiMocks.templateListData = { items: [inheritedTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        template: inheritedTemplate,
+      } as PathwayTemplateDetailResponse;
+      apiMocks.templateInheritanceDiffData = {
+        templateId: "pt-path-1",
+        parentTemplateId: "pt-standard",
+        diffItems: [
+          {
+            itemType: "NODE",
+            itemCode: "ASSESS",
+            changeType: "OVERRIDDEN",
+            fieldName: "timeWindowMinutes",
+            parentValue: "60",
+            childValue: "30",
+          },
+          {
+            itemType: "NODE",
+            itemCode: "REHAB",
+            changeType: "ADDED",
+            fieldName: null,
+            parentValue: null,
+            childValue: "康复指导",
+          },
+          {
+            itemType: "NODE",
+            itemCode: "EDU",
+            changeType: "DISABLED",
+            fieldName: null,
+            parentValue: "宣教",
+            childValue: null,
+          },
+        ],
+        mergedNodes: [
+          {
+            nodeCode: "ASSESS",
+            name: "入径评估",
+            nodeType: "ASSESSMENT",
+            sortOrder: 1,
+            responsibleRole: "专科医生",
+            accountableRole: "科主任",
+            timeWindowMinutes: 30,
+            terminalFlag: false,
+            origin: "OVERRIDDEN",
+          },
+          {
+            nodeCode: "REHAB",
+            name: "康复指导",
+            nodeType: "REHAB",
+            sortOrder: 2,
+            responsibleRole: "康复师",
+            accountableRole: "康复师",
+            timeWindowMinutes: 90,
+            terminalFlag: false,
+            origin: "ADDED",
+          },
+          {
+            nodeCode: "FOLLOWUP",
+            name: "出径随访",
+            nodeType: "FOLLOWUP",
+            sortOrder: 3,
+            responsibleRole: "随访护士",
+            accountableRole: "护理组长",
+            timeWindowMinutes: 120,
+            terminalFlag: true,
+            origin: "INHERITED",
+          },
+        ],
+        mergedEdges: [],
+        traceId: "trace-inheritance",
+      };
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /继承差异/ }));
+
+      expect(screen.getByText("父级模板：pt-standard")).toBeInTheDocument();
+      expect(screen.getAllByText("覆盖").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("新增").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("禁用")).toBeInTheDocument();
+      expect(screen.getAllByText("30").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("康复指导").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("继承")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
