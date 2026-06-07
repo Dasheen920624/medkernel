@@ -17,6 +17,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.context.ClinicalEventContext;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
@@ -25,6 +26,8 @@ import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.pkg.PackageItemRepository;
+import com.medkernel.engine.rule.ConditionEvaluation;
+import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
 import com.medkernel.engine.security.RoleCode;
@@ -244,7 +247,7 @@ public class PathwayEngineService {
         PathwayTemplate template = templates.save(new PathwayTemplate(
             null, templateId, tenantId, specialtyPackage.packageId(), request.templateCode(),
             request.name(), request.diseaseCode(), request.templateVersion(), request.templateLevel(),
-            PathwayTemplateStatus.DRAFT, request.startNodeCode(), request.sourceRef(),
+            PathwayTemplateStatus.DRAFT, request.entryMode(), request.startNodeCode(), request.sourceRef(),
             request.description(), writeJson(request.entryCriteria()), writeJson(request.exitCriteria()),
             now, actor, now, actor, traceId));
         List<PathwayNode> savedNodes = nullToEmpty(request.nodes()).stream()
@@ -571,6 +574,7 @@ public class PathwayEngineService {
             template.diseaseCode(),
             template.templateVersion(),
             template.templateLevel(),
+            template.entryMode(),
             template.startNodeCode(),
             template.sourceRef(),
             template.description(),
@@ -780,6 +784,7 @@ public class PathwayEngineService {
         PathwayTemplate template = effective.template();
         requireActivePathwayAssetVersion(template);
         safetyGuard.assertPathwayTemplateAllowed(template);
+        validateEntryCriteria(template, snapshot.resources());
         String startNodeCode = isBlank(request.startNodeCode()) ? template.startNodeCode() : request.startNodeCode();
         PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(
                 template.templateId(), effective.sourceTenantId(), startNodeCode)
@@ -803,6 +808,110 @@ public class PathwayEngineService {
         auditRecorder.record(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
             "患者入径 " + template.templateCode());
         return new PatientPathwayDetailResponse(runtime, List.of(), List.of(startClock), traceId);
+    }
+
+    private void validateEntryCriteria(PathwayTemplate template, ContextSnapshotResources resources) {
+        JsonNode criteria = readCriteriaJson(template.entryCriteriaJson(), "入径");
+        if (criteria == null || criteria.isNull() || criteria.isMissingNode() || criteria.isEmpty()) {
+            return;
+        }
+        JsonNode context = criteriaContext(resources);
+        JsonNode include = criteria.path("include");
+        boolean includeMatched = !isConfiguredCondition(include) || evaluateCriteria(include, context, "纳入").matched();
+        if (!includeMatched && template.entryMode() != PathwayEntryMode.MANUAL_CONFIRM) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者上下文不符合路径入径纳入标准: " + template.templateCode());
+        }
+        JsonNode exclude = criteria.path("exclude");
+        if (isConfiguredCondition(exclude) && evaluateCriteria(exclude, context, "排除").matched()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者上下文命中路径入径排除标准: " + template.templateCode());
+        }
+    }
+
+    private void validateExitCriteria(PathwayTemplate template, ContextSnapshotResources resources) {
+        JsonNode criteria = readCriteriaJson(template.exitCriteriaJson(), "出径");
+        if (criteria == null || criteria.isNull() || criteria.isMissingNode() || criteria.isEmpty()) {
+            return;
+        }
+        JsonNode context = criteriaContext(resources);
+        JsonNode include = criteria.path("include");
+        if (isConfiguredCondition(include) && !evaluateCriteria(include, context, "出径纳入").matched()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者上下文不符合路径出径纳入标准: " + template.templateCode());
+        }
+        JsonNode exclude = criteria.path("exclude");
+        if (isConfiguredCondition(exclude) && evaluateCriteria(exclude, context, "出径排除").matched()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者上下文命中路径出径排除标准: " + template.templateCode());
+        }
+    }
+
+    private JsonNode readCriteriaJson(String criteriaJson, String label) {
+        if (isBlank(criteriaJson)) {
+            return null;
+        }
+        try {
+            return json.readTree(criteriaJson);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "路径" + label + "条件 JSON 无法解析", exception);
+        }
+    }
+
+    private boolean isConfiguredCondition(JsonNode condition) {
+        if (condition == null || condition.isMissingNode() || condition.isNull()) {
+            return false;
+        }
+        if (condition.has("all") && condition.get("all").isArray()) {
+            return !condition.get("all").isEmpty();
+        }
+        if (condition.has("any") && condition.get("any").isArray()) {
+            return !condition.get("any").isEmpty();
+        }
+        if (condition.has("not")) {
+            return isConfiguredCondition(condition.get("not"));
+        }
+        return condition.has("fact") || condition.has("expr");
+    }
+
+    private ConditionEvaluation evaluateCriteria(JsonNode condition, JsonNode context, String label) {
+        try {
+            return new ConditionEvaluator(json).evaluate(condition, context);
+        } catch (ApiException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "路径" + label + "条件无法求值: " + exception.getMessage(), exception);
+        }
+    }
+
+    private JsonNode criteriaContext(ContextSnapshotResources resources) {
+        ObjectNode root = json.createObjectNode();
+        contextFacts(resources).forEach((path, value) -> putDottedPath(root, path, value));
+        return root;
+    }
+
+    private void putDottedPath(ObjectNode root, String path, Object value) {
+        if (isBlank(path)) {
+            return;
+        }
+        String[] segments = path.split("\\.");
+        ObjectNode current = root;
+        for (int index = 0; index < segments.length; index += 1) {
+            String segment = segments[index];
+            if (isBlank(segment)) {
+                continue;
+            }
+            if (index == segments.length - 1) {
+                current.set(segment, value == null ? json.nullNode() : json.valueToTree(value));
+                return;
+            }
+            JsonNode child = current.get(segment);
+            if (child == null || !child.isObject()) {
+                child = json.createObjectNode();
+                current.set(segment, child);
+            }
+            current = (ObjectNode) child;
+        }
     }
 
     /**
@@ -933,6 +1042,9 @@ public class PathwayEngineService {
             effective.template().templateId(), effective.sourceTenantId());
         ContextSnapshotResponse snapshot = isBlank(request.snapshotId())
             ? null : contextSnapshots.findById(request.snapshotId());
+        if (request.eventType() == PathwayAdvanceEventType.EXIT) {
+            validateExitCriteria(effective.template(), snapshot == null ? null : snapshot.resources());
+        }
         Map<String, Object> facts = snapshot == null ? Map.of() : contextFacts(snapshot.resources());
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
             new PathwayGraph(graphNodes, graphEdges), currentNodeCode,
@@ -1207,7 +1319,7 @@ public class PathwayEngineService {
         return new PathwayTemplate(
             template.id(), template.templateId(), template.tenantId(), template.packageId(),
             template.templateCode(), template.name(), template.diseaseCode(),
-            template.templateVersion(), template.templateLevel(), status, template.startNodeCode(),
+            template.templateVersion(), template.templateLevel(), status, template.entryMode(), template.startNodeCode(),
             template.sourceRef(), template.description(), template.entryCriteriaJson(),
             template.exitCriteriaJson(), template.createdAt(), template.createdBy(), now, actor, traceId);
     }
@@ -1518,6 +1630,7 @@ public class PathwayEngineService {
         String diseaseCode,
         Integer templateVersion,
         PathwayTemplateLevel templateLevel,
+        PathwayEntryMode entryMode,
         String startNodeCode,
         String sourceRef,
         String description,

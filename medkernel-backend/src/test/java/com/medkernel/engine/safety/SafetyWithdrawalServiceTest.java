@@ -33,6 +33,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
@@ -257,7 +258,8 @@ class SafetyWithdrawalServiceTest {
         Instant now = Instant.now();
         return new PathwayTemplate(1L, templateId, "tenant-A", "sp-1", "TPL.COPD",
             "稳定期路径", "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
-            "ASSESS", sourceRef, "路径引用知识版本", "{}", "{}", now, "planner", now, "planner", "trace-path");
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS", sourceRef, "路径引用知识版本", "{}", "{}",
+            now, "planner", now, "planner", "trace-path");
     }
 
     private PatientPathway patientPathway(String patientPathwayId, PatientPathwayStatus status) {

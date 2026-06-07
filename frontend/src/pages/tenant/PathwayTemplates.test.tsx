@@ -129,9 +129,18 @@ const draftTemplate: PathwayTemplate = {
   templateVersion: 1,
   templateLevel: "STANDARD",
   status: "DRAFT",
+  entryMode: "AUTO_SUGGEST",
   startNodeCode: "ASSESS",
   sourceRef: "院内已审核路径制度",
   description: "路径复核配置",
+  entryCriteriaJson: JSON.stringify({
+    include: { all: [{ fact: "patient.mpi", operator: "exists" }] },
+  }),
+  exitCriteriaJson: JSON.stringify({
+    include: {
+      all: [{ fact: "patient.dischargeReady", operator: "equals", value: true }],
+    },
+  }),
 };
 
 const publishedTemplate: PathwayTemplate = {
@@ -330,19 +339,23 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
 
       await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
-      await user.type(
-        within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[0],
-        "context.ready",
+      const factInputs = () =>
+        within(dialog).getAllByRole("combobox", {
+          name: "上下文字段路径",
+        });
+      await user.type(factInputs().at(-1) as HTMLElement, "context.ready");
+      await user.click(
+        within(dialog).getAllByRole("button", { name: "新增子条件组" }).at(-1) as HTMLElement,
       );
-      await user.click(within(dialog).getByRole("button", { name: "新增子条件组" }));
-      const allergyFieldInput = within(dialog).getAllByRole("combobox", {
-        name: "上下文字段路径",
-      })[1];
+      const allergyFieldInput = factInputs().at(-1) as HTMLElement;
       await user.click(allergyFieldInput);
       await user.paste("allergyIntolerances[].code");
-      fireEvent.mouseDown(within(dialog).getAllByLabelText("算子")[1]);
+      fireEvent.mouseDown(within(dialog).getAllByLabelText("算子").at(-1) as HTMLElement);
       await user.click(await screen.findByTitle("包含"));
-      await user.type(within(dialog).getAllByLabelText("比较值")[1], "PENICILLIN");
+      await user.type(
+        within(dialog).getAllByLabelText("比较值").at(-1) as HTMLElement,
+        "PENICILLIN",
+      );
 
       await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
@@ -357,6 +370,71 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           expect.objectContaining({ fact: "context.ready" }),
           expect.objectContaining({ all: expect.any(Array) }),
         ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "新建路径模板提交入径模式与入出径真实条件树",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+      await user.type(within(dialog).getByLabelText("路径模型名称"), "心血管路径复核");
+      await user.type(within(dialog).getByLabelText("路径模型代码"), "PATH.CARDIO.REVIEW");
+      await user.type(within(dialog).getByLabelText("病种代码"), "CARDIO");
+      await user.click(within(dialog).getByText("人工确认入径"));
+      await user.type(
+        within(dialog).getByLabelText("临床知识与指南基础"),
+        "院内已审核路径制度 2026",
+      );
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[0]);
+      await user.paste("patient.mpi");
+      await user.type(within(dialog).getAllByLabelText("比较值")[0], "patient-1");
+      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[1]);
+      await user.paste("observation.HB.value");
+      await user.type(within(dialog).getAllByLabelText("比较值")[1], "50");
+      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[2]);
+      await user.paste("patient.dischargeReady");
+      await user.type(within(dialog).getAllByLabelText("比较值")[2], "true");
+
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      fireEvent.change(within(dialog).getByLabelText("节点编码"), {
+        target: { value: "ASSESS" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("节点名称"), {
+        target: { value: "入径评估" },
+      });
+      await user.click(within(dialog).getByRole("switch", { name: "终止节点" }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
+      await user.click(await screen.findByText("入径评估（ASSESS）"));
+
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
+      const payload = apiMocks.createTemplate.mock.calls[0][0] as {
+        entryMode: string;
+        entryCriteria: { include?: { all?: unknown[] }; exclude?: { all?: unknown[] } };
+        exitCriteria: { include?: { all?: unknown[] } };
+      };
+      expect(payload.entryMode).toBe("MANUAL_CONFIRM");
+      expect(payload.entryCriteria.include?.all).toEqual(
+        expect.arrayContaining([expect.objectContaining({ fact: "patient.mpi" })]),
+      );
+      expect(payload.entryCriteria.exclude?.all).toEqual(
+        expect.arrayContaining([expect.objectContaining({ fact: "observation.HB.value" })]),
+      );
+      expect(payload.exitCriteria.include?.all).toEqual(
+        expect.arrayContaining([expect.objectContaining({ fact: "patient.dischargeReady" })]),
       );
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,

@@ -57,6 +57,7 @@ CREATE TABLE pathway_template (
     template_version     NUMBER(10)    DEFAULT 1 NOT NULL,
     template_level       VARCHAR2(32)  DEFAULT 'STANDARD' NOT NULL,
     status               VARCHAR2(32)  DEFAULT 'DRAFT' NOT NULL,
+    entry_mode           VARCHAR2(32)  DEFAULT 'AUTO_SUGGEST' NOT NULL,
     start_node_code      VARCHAR2(128) NULL,
     source_ref           VARCHAR2(512) NOT NULL,
     description          VARCHAR2(1024) NULL,
@@ -71,7 +72,8 @@ CREATE TABLE pathway_template (
     CONSTRAINT ck_pathway_template_level CHECK (template_level IN (
         'STANDARD','GROUP','HOSPITAL','DEPARTMENT','SPECIALTY'
     )),
-    CONSTRAINT ck_pathway_template_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
+    CONSTRAINT ck_pathway_template_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED')),
+    CONSTRAINT ck_pathway_entry_mode CHECK (entry_mode IN ('AUTO_SUGGEST','MANUAL_CONFIRM'))
 );
 
 CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);
@@ -278,6 +280,7 @@ COMMENT ON COLUMN pathway_template.disease_code IS '病种编码，用于按疾�
 COMMENT ON COLUMN pathway_template.template_version IS '路径模板版本号';
 COMMENT ON COLUMN pathway_template.template_level IS '模板层级：STANDARD 标准版、GROUP 集团版、HOSPITAL 医院版、DEPARTMENT 科室版、SPECIALTY 专科版';
 COMMENT ON COLUMN pathway_template.status IS '模板状态：DRAFT 草稿、PUBLISHED 已发布、OFFLINE 已下线、ARCHIVED 已归档';
+COMMENT ON COLUMN pathway_template.entry_mode IS '入径模式：AUTO_SUGGEST 自动建议入径、MANUAL_CONFIRM 人工确认入径';
 COMMENT ON COLUMN pathway_template.start_node_code IS '起始节点编码，患者入径时默认进入该节点';
 COMMENT ON COLUMN pathway_template.source_ref IS '路径模板来源引用';
 COMMENT ON COLUMN pathway_template.description IS '路径模板说明';

@@ -198,6 +198,7 @@ class PathwayEngineServiceTest {
             .containsExactly("ASSESS", "FOLLOWUP");
         assertThat(edgeCap.getValue().fromNodeCode()).isEqualTo("ASSESS");
         assertThat(bindingCap.getValue().metricCode()).isEqualTo("COPD.TIME_TO_FOLLOWUP");
+        assertThat(templateCap.getValue().entryMode()).isEqualTo(PathwayEntryMode.AUTO_SUGGEST);
         verify(versionedAssets).registerDraft(org.mockito.Mockito.argThat(command ->
             command.assetType() == VersionedAssetType.PATHWAY
                 && command.tenantId().equals("tenant-A")
@@ -242,7 +243,7 @@ class PathwayEngineServiceTest {
                 template.id(), "pt-fixed", template.tenantId(), template.packageId(),
                 template.templateCode(), template.name(), template.diseaseCode(),
                 template.templateVersion(), template.templateLevel(), template.status(),
-                template.startNodeCode(), template.sourceRef(), template.description(),
+                template.entryMode(), template.startNodeCode(), template.sourceRef(), template.description(),
                 template.entryCriteriaJson(), template.exitCriteriaJson(), template.createdAt(),
                 template.createdBy(), template.updatedAt(), template.updatedBy(), template.traceId());
         });
@@ -715,6 +716,50 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void enterPatientPathwayRejectsAutomaticEntryWhenExclusionCriteriaMatches() {
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithEntryCriteria(PathwayEntryMode.AUTO_SUGGEST,
+                "{\"include\":{\"all\":[{\"fact\":\"patient.mpi\",\"operator\":\"equals\",\"value\":\"patient-1\"}]},"
+                    + "\"exclude\":{\"any\":[{\"fact\":\"observation.HB.value\",\"operator\":\"lt\",\"value\":90}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node("ASSESS", 10, false)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+
+        assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
+                "ctx-active-1", "pt-1", null, "pkg-2026.06")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("排除")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
+    void enterPatientPathwayAllowsManualConfirmationWhenIncludeCriteriaDoesNotMatch() {
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithEntryCriteria(PathwayEntryMode.MANUAL_CONFIRM,
+                "{\"include\":{\"all\":[{\"fact\":\"patient.mpi\",\"operator\":\"equals\",\"value\":\"another-patient\"}]},"
+                    + "\"exclude\":{\"any\":[{\"fact\":\"observation.HB.value\",\"operator\":\"lt\",\"value\":50}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(node("ASSESS", 10, false)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+
+        PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "ctx-active-1", "pt-1", null, "pkg-2026.06"));
+
+        assertThat(response.patientPathway().patientPathwayId()).startsWith("pp-");
+        assertThat(response.patientPathway().status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        verify(patientPathways).save(any());
+        verify(clocks).save(any());
+    }
+
+    @Test
     void enterPatientPathwayRejectsNonActiveContextSnapshot() {
         ContextSnapshotResponse active = contextSnapshot("ctx-revoked-1");
         when(contextSnapshots.findById("ctx-revoked-1")).thenReturn(new ContextSnapshotResponse(
@@ -1090,6 +1135,34 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void exitRejectsWhenExitIncludeCriteriaDoesNotMatchSnapshotFacts() {
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(templateWithExitCriteria(
+                "{\"include\":{\"all\":[{\"fact\":\"patient.mpi\",\"operator\":\"equals\",\"value\":\"other-patient\"}]}}"
+            )));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+
+        assertThatThrownBy(() -> service.advance(new PathwayAdvanceRequest(
+                "pp-1", PathwayAdvanceEventType.EXIT, null, null, null,
+                null, null, "患者转院", "evt-exit", "ctx-active-1")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("出径")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
     void simulateReadsApi01SnapshotAndReturnsContextEvidenceWithoutWritingRuntimeFacts() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
@@ -1175,7 +1248,8 @@ class PathwayEngineServiceTest {
     private PathwayTemplateCreateRequest templateRequest() {
         return new PathwayTemplateCreateRequest(
             "sp-1", "TPL.COPD", "稳定期随访路径", "COPD", 1,
-            PathwayTemplateLevel.STANDARD, "ASSESS", "专病路径专家共识 2026",
+            PathwayTemplateLevel.STANDARD, PathwayEntryMode.AUTO_SUGGEST,
+            "ASSESS", "专病路径专家共识 2026",
             "用于路径 API 测试", json("{\"diagnosis\":\"COPD\"}"), json("{\"completed\":true}"),
             List.of(
                 new PathwayNodeRequest("ASSESS", "入径评估", PathwayNodeType.ASSESSMENT,
@@ -1205,9 +1279,31 @@ class PathwayEngineServiceTest {
         Instant now = Instant.now();
         return new PathwayTemplate(
             1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
-            "COPD", 1, PathwayTemplateLevel.STANDARD, status, "ASSESS",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, status, PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
             sourceRef, "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
+            now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayTemplate templateWithEntryCriteria(PathwayEntryMode entryMode, String entryCriteriaJson) {
+        Instant now = Instant.now();
+        return new PathwayTemplate(
+            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
+            entryMode, "ASSESS",
+            "专病路径专家共识 2026", "用于路径 API 测试",
+            entryCriteriaJson, "{\"completed\":true}",
+            now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayTemplate templateWithExitCriteria(String exitCriteriaJson) {
+        Instant now = Instant.now();
+        return new PathwayTemplate(
+            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
+            "专病路径专家共识 2026", "用于路径 API 测试",
+            "{}", exitCriteriaJson,
             now, "tester", now, "tester", "trace-pathway");
     }
 
@@ -1216,7 +1312,8 @@ class PathwayEngineServiceTest {
         Instant now = Instant.now();
         return new PathwayTemplate(
             1L, templateId, tenantId, "sp-1", templateCode, "稳定期随访路径",
-            "COPD", templateVersion, PathwayTemplateLevel.STANDARD, status, "ASSESS",
+            "COPD", templateVersion, PathwayTemplateLevel.STANDARD, status,
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
             "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");

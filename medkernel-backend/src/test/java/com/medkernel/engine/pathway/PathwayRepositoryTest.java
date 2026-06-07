@@ -180,7 +180,7 @@ class PathwayRepositoryTest {
         return new PathwayTemplate(
             null, templateId, tenantId, packageId, "TPL." + templateId, "稳定期随访路径",
             diseaseCode, 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.DRAFT,
-            "ASSESS", "专病路径专家共识 2026", "用于路径 API 测试",
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");
     }

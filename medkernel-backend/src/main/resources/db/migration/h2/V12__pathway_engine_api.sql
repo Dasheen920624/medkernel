@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS pathway_template (
     template_version     INT          NOT NULL DEFAULT 1,
     template_level       VARCHAR(32)  NOT NULL DEFAULT 'STANDARD',
     status               VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
+    entry_mode           VARCHAR(32)  NOT NULL DEFAULT 'AUTO_SUGGEST',
     start_node_code      VARCHAR(128) NULL,
     source_ref           VARCHAR(512) NOT NULL,
     description          VARCHAR(1024) NULL,
@@ -71,7 +72,8 @@ CREATE TABLE IF NOT EXISTS pathway_template (
     CONSTRAINT ck_pathway_template_level CHECK (template_level IN (
         'STANDARD','GROUP','HOSPITAL','DEPARTMENT','SPECIALTY'
     )),
-    CONSTRAINT ck_pathway_template_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
+    CONSTRAINT ck_pathway_template_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED')),
+    CONSTRAINT ck_pathway_entry_mode CHECK (entry_mode IN ('AUTO_SUGGEST','MANUAL_CONFIRM'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);

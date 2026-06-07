@@ -32,6 +32,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
@@ -484,7 +485,7 @@ class RecommendationDeterministicMatcherTest {
         return new PathwayTemplate(
             1L, "template-1", "tenant-A", "pkg-1", "PATH.RISK", "风险评估路径",
             "RISK", 3, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
-            "START", "source:pathway", "路径说明", "{}", "{}",
+            PathwayEntryMode.AUTO_SUGGEST, "START", "source:pathway", "路径说明", "{}", "{}",
             now, "tester", now, "tester", "trace-cdss");
     }
 }

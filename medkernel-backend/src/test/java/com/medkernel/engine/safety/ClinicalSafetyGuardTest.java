@@ -16,6 +16,7 @@ import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
@@ -93,7 +94,8 @@ class ClinicalSafetyGuardTest {
         Instant now = Instant.now();
         return new PathwayTemplate(
             1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
-            "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED, "ASSESS",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
             sourceRef, "路径引用知识版本", "{}", "{}", now, "tester", now, "tester", "trace-path");
     }
 }

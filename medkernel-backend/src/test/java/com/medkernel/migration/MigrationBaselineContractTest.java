@@ -409,7 +409,7 @@ class MigrationBaselineContractTest {
         "ck_rule_drift_rates", "ck_rule_drift_status",
         "uk_specialty_package_tenant_code", "ck_specialty_package_status",
         "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
-        "ck_pathway_template_level", "ck_pathway_template_status",
+        "ck_pathway_template_level", "ck_pathway_template_status", "ck_pathway_entry_mode",
         "uk_pathway_node_template_code", "ck_pathway_node_type", "ck_pathway_node_terminal",
         "uk_pathway_edge_template_code", "ck_pathway_edge_type",
         "uk_patient_pathway_id", "ck_patient_pathway_status",
@@ -2124,10 +2124,12 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_variance");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_clock");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_metric_binding");
+        assertThat(h2).contains("entry_mode");
         assertThat(h2).contains("entry_criteria_json");
         assertThat(h2).contains("condition_json");
         assertThat(h2).contains("current_node_code");
         assertThat(h2).contains("metric_code");
+        assertThat(h2).contains("ck_pathway_entry_mode");
         assertThat(h2).contains("ck_pathway_node_type");
         assertThat(h2).contains("ck_patient_pathway_status");
         assertThat(h2).contains("idx_clinical_clock_due");

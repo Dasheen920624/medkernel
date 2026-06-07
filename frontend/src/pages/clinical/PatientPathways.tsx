@@ -69,6 +69,11 @@ function isForbiddenApiError(code?: string) {
   return Boolean(code && FORBIDDEN_ERROR_CODES.has(code));
 }
 
+function pathwayEntryModeText(mode?: string) {
+  if (mode === "MANUAL_CONFIRM") return "人工确认入径";
+  return "自动建议入径";
+}
+
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
@@ -150,6 +155,10 @@ export default function PatientPathways() {
   const [advanceForm] = Form.useForm();
   const [varianceForm] = Form.useForm();
   const [exitForm] = Form.useForm();
+  const selectedEnterTemplateId = Form.useWatch("templateId", enterForm);
+  const selectedEnterTemplate = templatesData?.items?.find(
+    (item) => item.templateId === selectedEnterTemplateId,
+  );
 
   const packageVersionForTemplate = (templateId?: string | null) => {
     const selectedTemplate = templateDetail?.template;
@@ -514,11 +523,18 @@ export default function PatientPathways() {
             <Select placeholder="选择已发布上线的临床路径模型" notFoundContent="暂无已发布路径模板">
               {templatesData?.items?.map((t: PathwayTemplate) => (
                 <Option key={t.templateId} value={t.templateId}>
-                  {t.name} (v{t.templateVersion}.0)
+                  {t.name} (v{t.templateVersion}.0) · {pathwayEntryModeText(t.entryMode)}
                 </Option>
               ))}
             </Select>
           </Form.Item>
+          {selectedEnterTemplate && (
+            <Alert
+              type="info"
+              showIcon
+              message={`入径模式：${pathwayEntryModeText(selectedEnterTemplate.entryMode)}`}
+            />
+          )}
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
             <Input placeholder="留空使用已发布模板的起始节点" />
           </Form.Item>
