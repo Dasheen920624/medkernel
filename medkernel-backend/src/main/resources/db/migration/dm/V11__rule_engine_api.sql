@@ -87,6 +87,58 @@ CREATE TABLE rule_applicability (
 CREATE INDEX idx_rule_applicability_effective
     ON rule_applicability (tenant_id, effective_from, effective_to);
 
+CREATE TABLE rule_governance (
+    id                 NUMBER(19)    IDENTITY PRIMARY KEY,
+    governance_id      VARCHAR2(64)  NOT NULL,
+    tenant_id          VARCHAR2(64)  NOT NULL,
+    rule_version_id    VARCHAR2(64)  NOT NULL,
+    state              VARCHAR2(32)  NOT NULL,
+    required_signoffs  NUMBER(2)     NOT NULL,
+    review_round       NUMBER(10)    NOT NULL,
+    author_id          VARCHAR2(64)  NOT NULL,
+    last_reason        VARCHAR2(500) NOT NULL,
+    created_at         TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by         VARCHAR2(64)  NOT NULL,
+    updated_at         TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by         VARCHAR2(64)  NOT NULL,
+    trace_id           VARCHAR2(128) NULL,
+    lock_version       NUMBER(19)    DEFAULT 0 NOT NULL,
+    CONSTRAINT uk_rule_governance_id UNIQUE (governance_id),
+    CONSTRAINT uk_rule_governance_version UNIQUE (tenant_id, rule_version_id),
+    CONSTRAINT ck_rule_governance_state CHECK (
+        state IN ('DRAFT','PEER_REVIEW','COMMITTEE','SHADOW','CANARY','FULL','MONITOR','RETIRED')
+    ),
+    CONSTRAINT ck_rule_governance_signoffs CHECK (required_signoffs BETWEEN 1 AND 2),
+    CONSTRAINT ck_rule_governance_round CHECK (review_round >= 1)
+);
+
+CREATE INDEX idx_rule_governance_state
+    ON rule_governance (tenant_id, state, updated_at);
+
+CREATE TABLE rule_signoff (
+    id                 NUMBER(19)    IDENTITY PRIMARY KEY,
+    signoff_id         VARCHAR2(64)  NOT NULL,
+    tenant_id          VARCHAR2(64)  NOT NULL,
+    rule_version_id    VARCHAR2(64)  NOT NULL,
+    stage              VARCHAR2(32)  NOT NULL,
+    review_round       NUMBER(10)    NOT NULL,
+    signer_role        VARCHAR2(64)  NOT NULL,
+    signer_id          VARCHAR2(64)  NOT NULL,
+    decision           VARCHAR2(20)  NOT NULL,
+    reason             VARCHAR2(500) NOT NULL,
+    signed_at          TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id           VARCHAR2(128) NULL,
+    CONSTRAINT uk_rule_signoff_id UNIQUE (signoff_id),
+    CONSTRAINT uk_rule_signoff_signer UNIQUE (
+        tenant_id, rule_version_id, stage, review_round, signer_id
+    ),
+    CONSTRAINT ck_rule_signoff_stage CHECK (stage IN ('PEER_REVIEW','COMMITTEE')),
+    CONSTRAINT ck_rule_signoff_decision CHECK (decision IN ('APPROVED','REJECTED'))
+);
+
+CREATE INDEX idx_rule_signoff_version
+    ON rule_signoff (tenant_id, rule_version_id, stage, signed_at);
+
 CREATE TABLE rule_test_case (
     id                   NUMBER(19)    IDENTITY PRIMARY KEY,
     case_id              VARCHAR2(64)  NOT NULL,
@@ -184,5 +236,13 @@ COMMENT ON COLUMN rule_applicability.population_json IS '人群纳入与排除�
 COMMENT ON COLUMN rule_applicability.org_scope_json IS '集团、医院、科室组织范围 JSON';
 COMMENT ON COLUMN rule_applicability.settings_json IS '住院、门诊、急诊、随访场景 JSON';
 COMMENT ON COLUMN rule_applicability.rollout_percent IS '稳定灰度比例，取值 0 到 100';
+COMMENT ON TABLE rule_governance IS '规则版本知识治理事实，记录从草稿到退役的唯一当前阶段';
+COMMENT ON COLUMN rule_governance.required_signoffs IS '进入影子阶段前要求的独立委员会签署人数';
+COMMENT ON COLUMN rule_governance.review_round IS '当前评审轮次，驳回后递增，禁止复用旧轮次会签';
+COMMENT ON COLUMN rule_governance.author_id IS '规则版本作者，用于职责分离门禁';
+COMMENT ON COLUMN rule_governance.lock_version IS '治理状态并发更新版本号，防止批准与驳回相互覆盖';
+COMMENT ON TABLE rule_signoff IS '规则同行评审与临床委员会会签证据';
+COMMENT ON COLUMN rule_signoff.review_round IS '签署所属评审轮次';
+COMMENT ON COLUMN rule_signoff.signer_id IS '签署人用户 ID，同阶段同版本只能签署一次';
 COMMENT ON TABLE rule_override_log IS '规则越权日志：记录阻断或强提醒动作的人工越权理由';
 COMMENT ON COLUMN rule_override_log.override_reason IS '医师选择或填写的越权理由';

@@ -64,6 +64,25 @@ public class VersionReleaseService implements ReleasePort {
 
     @Override
     @Transactional
+    public VersionReleasePlan rejectReview(VersionReleaseCommand command) {
+        AssetVersion version = requireVersion(command);
+        requireStatus(version, AssetVersionStatus.PENDING_REVIEW, "只有待审核版本可以驳回到草稿");
+        Instant now = clock.instant();
+        assetVersions.save(version.withStatus(
+            AssetVersionStatus.DRAFT,
+            inactiveScopeKey(version),
+            now,
+            required(command.actor(), "操作人")
+        ));
+        String evidence = "REVIEW_REJECTED 审核拒绝："
+            + required(command.reviewConclusion(), "审核结论")
+            + "；" + required(command.impactDigest(), "影响摘要");
+        return savePlan(command, version, null, VersionReleaseStatus.REVIEW_REJECTED,
+            VersionReleaseScopeType.ALL, null, evidence, now);
+    }
+
+    @Override
+    @Transactional
     public VersionReleasePlan approveForSilentObservation(VersionReleaseCommand command) {
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.PENDING_REVIEW, "只有待审核版本可以进入静默观察");

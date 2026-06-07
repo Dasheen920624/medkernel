@@ -45,7 +45,6 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
-import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
 import com.medkernel.engine.security.RoleCode;
@@ -100,6 +99,7 @@ public class RuleEngineService {
     private final RuleVersionedAssetAdapter versionedAssets;
     private final AssetVersionRepository assetVersions;
     private final ReleasePort releasePort;
+    private final RuleGovernanceService governanceService;
     private final InheritanceResolver inheritanceResolver;
     private final ContextSnapshotService contextSnapshots;
     private final RuleConflictDetector conflictDetector = new RuleConflictDetector();
@@ -124,6 +124,7 @@ public class RuleEngineService {
                              RuleVersionedAssetAdapter versionedAssets,
                              AssetVersionRepository assetVersions,
                              ReleasePort releasePort,
+                             RuleGovernanceService governanceService,
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots) {
         this(definitions, versions, testCases, executions, overrides,
@@ -131,7 +132,8 @@ public class RuleEngineService {
             auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
-            versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
+            versionedAssets, assetVersions, releasePort, governanceService,
+            inheritanceResolver, contextSnapshots);
     }
 
     RuleEngineService(RuleDefinitionRepository definitions,
@@ -150,6 +152,7 @@ public class RuleEngineService {
                       RuleVersionedAssetAdapter versionedAssets,
                       AssetVersionRepository assetVersions,
                       ReleasePort releasePort,
+                      RuleGovernanceService governanceService,
                       InheritanceResolver inheritanceResolver,
                       ContextSnapshotService contextSnapshots) {
         this.definitions = definitions;
@@ -171,6 +174,7 @@ public class RuleEngineService {
         this.versionedAssets = Objects.requireNonNull(versionedAssets, "规则统一版本适配器不能为空");
         this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
         this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
+        this.governanceService = Objects.requireNonNull(governanceService, "规则治理服务不能为空");
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
         this.contextSnapshots = Objects.requireNonNull(contextSnapshots, "标准上下文快照服务不能为空");
     }
@@ -208,6 +212,8 @@ public class RuleEngineService {
 
         definitions.save(definition);
         versions.save(version);
+        governanceService.initialize(
+            tenantId, versionId, definition.riskLevel(), actor, traceId);
         applicabilityService.saveMirror(version, request.dsl(), now, actor, traceId);
         versionedAssets.registerDraft(new AssetVersionRegisterCommand(
             tenantId,
@@ -240,6 +246,7 @@ public class RuleEngineService {
         RuleDefinition rule = findRule(ruleId, tenantId);
         ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureGovernanceDraft(tenantId, version.versionId());
         validateDsl(request.dsl());
         ensureRuleCodeAvailable(tenantId, request.ruleCode(), ruleId);
 
@@ -285,7 +292,8 @@ public class RuleEngineService {
         return new RuleDetailResponse(
             updatedRule, updatedVersion,
             testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId),
-            updatedAssetVersion.status());
+            updatedAssetVersion.status(),
+            governanceSnapshot(updatedRule, updatedVersion, List.of(), null, null, List.of()));
     }
 
     /**
@@ -303,7 +311,8 @@ public class RuleEngineService {
             rule,
             version,
             testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId),
-            assetVersion.status());
+            assetVersion.status(),
+            governanceSnapshot(rule, version, List.of(), null, null, List.of()));
     }
 
     /**
@@ -339,6 +348,7 @@ public class RuleEngineService {
         RuleDefinition rule = findRule(ruleId, tenantId);
         ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
             throw new ApiException(ErrorCode.ENG_RULE_006, "规则测试用例只能固化 ACTIVE 标准上下文快照");
@@ -384,154 +394,330 @@ public class RuleEngineService {
     }
 
     /**
-     * 执行规则发布门禁并把状态从 {@code DRAFT} 推进到 {@code PUBLISHED}。
-     *
-     * <p>门禁：阳性/阴性/边界/冲突四类用例必须齐备且全部 PASS，否则抛 {@code ENG-RULE-004}；
-     * 前置规则非草稿抛 {@code ENG-RULE-006}。
+     * 记录同行评审或临床委员会会签。
      */
     @Transactional
-    public RulePublishResponse publish(String ruleId) {
-        return publish(ruleId, new RulePublishRequest(null, null));
-    }
-
-    /**
-     * 执行规则发布门禁并把状态从 {@code DRAFT} 推进到 {@code PUBLISHED}。
-     *
-     * <p>高危规则必须携带当前影响分析摘要；发布仍要求测试用例覆盖完整且全部通过。
-     */
-    @Transactional
-    public RulePublishResponse publish(String ruleId, RulePublishRequest request) {
+    public RuleGovernanceResponse signoffGovernance(String ruleId, RuleSignoffRequest request) {
         String tenantId = requireCurrentTenant();
         RuleDefinition rule = findRule(ruleId, tenantId);
-        ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
-        List<RuleTestCase> cases = testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
-        ensureCoverage(cases);
-        RuleImpactResponse impact = impactFor(rule, version);
-        if (requiresImpact(rule) && (request == null || request.impactDigest() == null
-                || !request.impactDigest().equals(impact.impactDigest()))) {
-            throw new ApiException(ErrorCode.ENG_RULE_004, "高危规则发布前必须提交当前影响分析摘要");
-        }
-        ensureTerminologyCoverage(version);
-        ensureSuppressionContract(rule, version, false);
-        ensureNoStaticConflicts(rule, version);
-
-        List<RuleTestCaseResult> results = cases.stream()
-            .map(testCase -> runTestCase(version, testCase))
-            .toList();
-        boolean passed = results.stream().allMatch(result -> result.status() == RuleTestCaseStatus.PASS);
-        if (!passed) {
-            throw new ApiException(ErrorCode.ENG_RULE_004, "规则测试用例未全部通过");
-        }
-
-        Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
-        RuleVersion publishedVersion = copyVersion(
-            version, RuleVersionStatus.PUBLISHED, now, actor, now, actor, RequestContext.currentTraceId());
-        RuleDefinition publishedRule = copyRule(
-            rule, RuleDefinitionStatus.PUBLISHED, version.versionId(), now, actor, RequestContext.currentTraceId());
-        versions.save(publishedVersion);
-        definitions.save(publishedRule);
-        List<String> releaseEvidence = coordinateCanaryRelease(rule, version, impact, request, actor);
-        transitions.record(RULE_ENTITY, ruleId, rule.status().name(),
-            RuleDefinitionStatus.PUBLISHED.name(), "PUBLISH_RULE", null);
-        auditRecorder.record(AuditAction.PUBLISH, RULE_ENTITY, ruleId, "发布规则版本 " + version.versionId());
-        return new RulePublishResponse(
-            ruleId, version.versionId(), RuleDefinitionStatus.PUBLISHED,
-            RequestContext.currentTraceId(), results, impact.impactDigest(), impact.analysisStatus(), releaseEvidence);
-    }
-
-    private List<String> coordinateCanaryRelease(
-            RuleDefinition rule,
-            RuleVersion version,
-            RuleImpactResponse impact,
-            RulePublishRequest request,
-            String actor) {
-        AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
-        VersionReleaseCommand command = new VersionReleaseCommand(
-            rule.tenantId(),
-            VersionedAssetType.RULE,
-            rule.ruleCode(),
-            assetVersion.versionId(),
-            releaseOrgScope(rule),
-            releaseApplicableScope(rule),
-            null,
-            null,
-            impact.impactDigest(),
-            releaseReason(request, "规则发布门禁通过"),
-            request == null ? List.of() : request.roleCodes(),
+        RoleCode role = authenticatedSignoffRole();
+        RuleGovernance updated = governanceService.recordSignoff(
+            tenantId,
+            version.versionId(),
+            request.stage(),
+            request.decision(),
+            request.reason(),
             actor,
+            role,
             RequestContext.currentTraceId()
         );
-        return advanceCanaryRelease(assetVersion, command);
+        List<String> releaseEvidence = new ArrayList<>();
+        String impactDigest = null;
+        String impactStatus = null;
+        if (updated.state() == RuleGovernanceState.DRAFT
+                && request.decision() == RuleSignoffDecision.REJECTED) {
+            RuleImpactResponse impact = impactFor(rule, version);
+            impactDigest = impact.impactDigest();
+            impactStatus = impact.analysisStatus();
+            appendEvidence(
+                releaseEvidence,
+                releasePort.rejectReview(
+                    governanceReleaseCommand(
+                        rule,
+                        version,
+                        impact,
+                        request.reason(),
+                        actor
+                    )
+                )
+            );
+        }
+        auditRecorder.record(
+            AuditAction.UPDATE,
+            RULE_ENTITY,
+            ruleId,
+            "规则治理签署 " + request.stage() + " / " + request.decision()
+        );
+        return governanceSnapshot(
+            rule,
+            version,
+            List.of(),
+            impactDigest,
+            impactStatus,
+            releaseEvidence
+        );
     }
 
     /**
-     * 将已通过灰度发布门禁的规则全量激活到统一版本生效域。
+     * 按八阶段闭集推进规则治理状态，发布端口只执行当前阶段对应的一步。
      */
     @Transactional
-    public RulePublishResponse fullRollout(String ruleId, RulePublishRequest request) {
+    public RuleGovernanceResponse transitionGovernance(
+            String ruleId,
+            RuleGovernanceTransitionRequest request) {
         String tenantId = requireCurrentTenant();
         RuleDefinition rule = findRule(ruleId, tenantId);
-        if (rule.status() != RuleDefinitionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "只有已发布规则可以全量激活");
-        }
-        if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "规则全量激活仅医院管理员可执行");
-        }
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
-        ensureSuppressionContract(rule, version, true);
+        RuleGovernance current = governanceService.requireGovernance(tenantId, version.versionId());
+        RuleGovernanceState target = request.targetState();
+        String actor = RequestContext.currentUserId().orElse("system");
+        String traceId = RequestContext.currentTraceId();
         RuleImpactResponse impact = impactFor(rule, version);
+        List<RuleTestCaseResult> testResults = List.of();
+        List<String> releaseEvidence = new ArrayList<>();
+
+        if (current.state() == RuleGovernanceState.DRAFT
+                && target == RuleGovernanceState.PEER_REVIEW) {
+            ensureDraft(rule);
+            validateGovernanceImpact(rule, request, impact);
+            List<RuleTestCase> cases =
+                testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
+            ensureCoverage(cases);
+            ensureTerminologyCoverage(version);
+            ensureSuppressionContract(rule, version, false);
+            ensureNoStaticConflicts(rule, version);
+            testResults = cases.stream().map(testCase -> runTestCase(version, testCase)).toList();
+            if (testResults.stream().anyMatch(result -> result.status() != RuleTestCaseStatus.PASS)) {
+                throw new ApiException(ErrorCode.ENG_RULE_004, "规则测试用例未全部通过");
+            }
+        } else if (target == RuleGovernanceState.SHADOW
+                || target == RuleGovernanceState.CANARY
+                || target == RuleGovernanceState.FULL) {
+            validateGovernanceImpact(rule, request, impact);
+        }
+        ensureGovernanceReleaseCoordinator(current, target);
+
+        RuleGovernance updated = governanceService.transition(
+            tenantId,
+            version.versionId(),
+            target,
+            request.reason(),
+            actor,
+            traceId
+        );
+        if (target == RuleGovernanceState.PEER_REVIEW) {
+            appendEvidence(
+                releaseEvidence,
+                releasePort.submitForReview(
+                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                )
+            );
+        } else if (target == RuleGovernanceState.SHADOW) {
+            appendEvidence(
+                releaseEvidence,
+                releasePort.approveForSilentObservation(
+                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                )
+            );
+            Instant now = Instant.now();
+            versions.save(copyVersion(
+                version, RuleVersionStatus.PUBLISHED, now, actor, now, actor, traceId));
+            definitions.save(copyRule(
+                rule, RuleDefinitionStatus.PUBLISHED, version.versionId(), now, actor, traceId));
+        } else if (target == RuleGovernanceState.CANARY) {
+            appendEvidence(
+                releaseEvidence,
+                releasePort.releaseGray(
+                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                )
+            );
+        } else if (target == RuleGovernanceState.FULL) {
+            ensureSuppressionContract(rule, version, true);
+            appendEvidence(
+                releaseEvidence,
+                releasePort.releaseFull(
+                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                )
+            );
+        } else if (target == RuleGovernanceState.RETIRED) {
+            retireRule(rule, version, actor, traceId);
+        }
+
+        transitions.record(
+            RULE_ENTITY,
+            ruleId,
+            current.state().name(),
+            updated.state().name(),
+            "TRANSITION_RULE_GOVERNANCE",
+            null
+        );
+        auditRecorder.record(
+            target == RuleGovernanceState.RETIRED ? AuditAction.UPDATE : AuditAction.PUBLISH,
+            RULE_ENTITY,
+            ruleId,
+            "规则治理推进至 " + target
+        );
+        return governanceSnapshot(
+            rule,
+            version,
+            testResults,
+            impact.impactDigest(),
+            impact.analysisStatus(),
+            releaseEvidence
+        );
+    }
+
+    private void validateGovernanceImpact(
+            RuleDefinition rule,
+            RuleGovernanceTransitionRequest request,
+            RuleImpactResponse impact) {
         if (request == null
                 || request.impactDigest() == null
                 || !request.impactDigest().equals(impact.impactDigest())
                 || request.reason() == null
                 || request.reason().isBlank()) {
-            throw new ApiException(ErrorCode.ENG_RULE_004, "规则全量激活必须提交当前影响摘要和确认说明");
+            String prefix = requiresImpact(rule) ? "高危规则" : "规则";
+            throw new ApiException(
+                ErrorCode.ENG_RULE_004,
+                prefix + "治理推进必须提交当前影响摘要和确认说明"
+            );
         }
-        String actor = RequestContext.currentUserId().orElse("system");
+    }
+
+    private VersionReleaseCommand governanceReleaseCommand(
+            RuleDefinition rule,
+            RuleVersion version,
+            RuleImpactResponse impact,
+            String reason,
+            String actor) {
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
-        VersionReleasePlan plan = releasePort.releaseFull(new VersionReleaseCommand(
+        return new VersionReleaseCommand(
             rule.tenantId(),
             VersionedAssetType.RULE,
             rule.ruleCode(),
             assetVersion.versionId(),
             releaseOrgScope(rule),
             releaseApplicableScope(rule),
-            VersionReleaseScopeType.ALL,
+            null,
             null,
             impact.impactDigest(),
-            request.reason().trim(),
-            request.roleCodes(),
+            reason.trim(),
+            authenticatedRoleCodes(),
             actor,
             RequestContext.currentTraceId()
-        ));
-        List<String> evidence = new ArrayList<>();
-        appendEvidence(evidence, plan);
-        transitions.record(
-            RULE_ENTITY,
-            ruleId,
-            RuleDefinitionStatus.PUBLISHED.name(),
-            RuleDefinitionStatus.PUBLISHED.name(),
-            "FULL_ROLLOUT_RULE",
-            null
         );
-        auditRecorder.record(
-            AuditAction.PUBLISH,
-            RULE_ENTITY,
-            ruleId,
-            "全量激活规则版本 " + version.versionId()
-        );
-        return new RulePublishResponse(
-            ruleId,
+    }
+
+    private RuleGovernanceResponse governanceSnapshot(
+            RuleDefinition rule,
+            RuleVersion version,
+            List<RuleTestCaseResult> testResults,
+            String impactDigest,
+            String impactStatus,
+            List<String> releaseEvidence) {
+        RuleGovernance governance =
+            governanceService.requireGovernance(rule.tenantId(), version.versionId());
+        List<RuleSignoff> signoffs =
+            governanceService.signoffs(rule.tenantId(), version.versionId());
+        int committeeApprovalCount = (int) signoffs.stream()
+            .filter(signoff -> signoff.reviewRound() == governance.reviewRound())
+            .filter(signoff -> signoff.stage() == RuleSignoffStage.COMMITTEE)
+            .filter(signoff -> signoff.decision() == RuleSignoffDecision.APPROVED)
+            .map(RuleSignoff::signerId)
+            .distinct()
+            .count();
+        return new RuleGovernanceResponse(
+            rule.ruleId(),
             version.versionId(),
-            RuleDefinitionStatus.PUBLISHED,
-            RequestContext.currentTraceId(),
-            List.of(),
-            impact.impactDigest(),
-            impact.analysisStatus(),
-            evidence
+            governance.state(),
+            governance.requiredSignoffs(),
+            governance.reviewRound(),
+            committeeApprovalCount,
+            governance.authorId(),
+            governance.lastReason(),
+            signoffs,
+            testResults,
+            impactDigest,
+            impactStatus,
+            releaseEvidence,
+            RequestContext.currentTraceId()
         );
+    }
+
+    private void retireRule(RuleDefinition rule, RuleVersion version, String actor, String traceId) {
+        Instant now = Instant.now();
+        definitions.save(copyRule(
+            rule, RuleDefinitionStatus.ARCHIVED, version.versionId(), now, actor, traceId));
+        versions.save(copyVersion(
+            version,
+            RuleVersionStatus.ARCHIVED,
+            version.publishedAt(),
+            version.publishedBy(),
+            now,
+            actor,
+            traceId
+        ));
+        AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
+        assetVersions.save(assetVersion.withStatusAndWindow(
+            AssetVersionStatus.ARCHIVED,
+            "version:" + assetVersion.versionId(),
+            assetVersion.effectiveFrom(),
+            now,
+            now,
+            actor
+        ));
+    }
+
+    private static RoleCode authenticatedSignoffRole() {
+        return List.of(
+                RoleCode.MEDICAL_AFFAIRS,
+                RoleCode.QA_MANAGER,
+                RoleCode.INSURANCE_MANAGER,
+                RoleCode.DEPT_HEAD,
+                RoleCode.SPECIALIST
+            ).stream()
+            .filter(AuthenticatedRoleGuard::has)
+            .findFirst()
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.FORBIDDEN,
+                "当前登录角色无权执行临床规则签署"
+            ));
+    }
+
+    private static void ensureGovernanceReleaseCoordinator(
+            RuleGovernance current,
+            RuleGovernanceState target) {
+        if (current.state() == RuleGovernanceState.DRAFT
+                && target == RuleGovernanceState.PEER_REVIEW) {
+            requireAnyRole(
+                "提交同行评审仅规则治理创作角色可执行",
+                RoleCode.MEDICAL_AFFAIRS,
+                RoleCode.DEPT_HEAD,
+                RoleCode.INSURANCE_MANAGER,
+                RoleCode.SPECIALIST
+            );
+            return;
+        }
+        if (target == RuleGovernanceState.FULL) {
+            requireAnyRole("规则全量激活仅医院管理员可执行", RoleCode.HOSPITAL_ADMIN);
+            return;
+        }
+        if (target == RuleGovernanceState.SHADOW
+                || target == RuleGovernanceState.CANARY
+                || target == RuleGovernanceState.MONITOR
+                || target == RuleGovernanceState.RETIRED) {
+            requireAnyRole(
+                "规则影子、灰度、监测和退役仅医务处或医院管理员可执行",
+                RoleCode.MEDICAL_AFFAIRS,
+                RoleCode.HOSPITAL_ADMIN
+            );
+        }
+    }
+
+    private static void requireAnyRole(String message, RoleCode... allowedRoles) {
+        boolean allowed = java.util.Arrays.stream(allowedRoles).anyMatch(AuthenticatedRoleGuard::has);
+        if (!allowed) {
+            throw new ApiException(ErrorCode.FORBIDDEN, message);
+        }
+    }
+
+    private static List<String> authenticatedRoleCodes() {
+        return java.util.Arrays.stream(RoleCode.values())
+            .filter(AuthenticatedRoleGuard::has)
+            .map(RoleCode::code)
+            .toList();
     }
 
     private AssetVersion requireRuleAssetVersion(RuleDefinition rule, RuleVersion version) {
@@ -541,26 +727,6 @@ public class RuleEngineService {
                 ErrorCode.CONFLICT,
                 "规则缺少统一资产版本，禁止发布: " + rule.ruleCode() + "@" + version.versionNo()
             ));
-    }
-
-    private List<String> advanceCanaryRelease(AssetVersion assetVersion, VersionReleaseCommand command) {
-        List<String> evidence = new ArrayList<>();
-        AssetVersionStatus status = assetVersion.status();
-        if (status == AssetVersionStatus.DRAFT) {
-            appendEvidence(evidence, releasePort.submitForReview(command));
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
-            appendEvidence(evidence, releasePort.releaseGray(command));
-            return evidence;
-        }
-        if (status == AssetVersionStatus.PENDING_REVIEW) {
-            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
-            appendEvidence(evidence, releasePort.releaseGray(command));
-            return evidence;
-        }
-        if (status == AssetVersionStatus.PUBLISHED || status == AssetVersionStatus.ACTIVE) {
-            appendEvidence(evidence, releasePort.releaseGray(command));
-        }
-        return evidence;
     }
 
     private static void appendEvidence(List<String> evidence, VersionReleasePlan plan) {
@@ -581,10 +747,6 @@ public class RuleEngineService {
 
     private static String releaseApplicableScope(RuleDefinition rule) {
         return notBlank(rule.packageVersion(), "ALL");
-    }
-
-    private static String releaseReason(RulePublishRequest request, String fallback) {
-        return request == null ? fallback : notBlank(request.reason(), fallback);
     }
 
     private static String notBlank(String value, String fallback) {
@@ -1190,6 +1352,13 @@ public class RuleEngineService {
     private void ensureDraft(RuleDefinition rule) {
         if (rule.status() != RuleDefinitionStatus.DRAFT) {
             throw new ApiException(ErrorCode.ENG_RULE_006, "仅草稿规则允许当前操作: " + rule.ruleId());
+        }
+    }
+
+    private void ensureGovernanceDraft(String tenantId, String versionId) {
+        RuleGovernance governance = governanceService.requireGovernance(tenantId, versionId);
+        if (governance.state() != RuleGovernanceState.DRAFT) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "只有治理草稿阶段可以修改规则内容");
         }
     }
 

@@ -59,7 +59,10 @@ class RuleEngineControllerSecurityTest {
         }
         """;
 
-    private static final String PUBLISH_BODY = "{}";
+    private static final String SIGNOFF_BODY =
+        "{\"stage\":\"COMMITTEE\",\"decision\":\"APPROVED\",\"reason\":\"同意进入影子验证\"}";
+    private static final String TRANSITION_BODY =
+        "{\"targetState\":\"SHADOW\",\"impactDigest\":\"sha256:impact\",\"reason\":\"会签完成\"}";
     private static final String OVERRIDE_BODY =
         "{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}";
 
@@ -146,31 +149,56 @@ class RuleEngineControllerSecurityTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
-    void medicalAffairsCanPublishButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/publish")
+    void medicalAffairsCanGovernRuleButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
                 .contentType("application/json")
-                .content(PUBLISH_BODY))
+                .content(SIGNOFF_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
 
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/rollout/full")
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
-                .content(PUBLISH_BODY))
+                .content(TRANSITION_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_QA_MANAGER")
+    void qaManagerCanReachRuleSignoffButCannotAdvanceRelease() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
+                .contentType("application/json")
+                .content(SIGNOFF_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
+                .contentType("application/json")
+                .content(TRANSITION_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    void specialistCanReachRuleGovernanceTransitionForDraftSubmission() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
+                .contentType("application/json")
+                .content(TRANSITION_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
-    void doctorCannotPublishRules() throws Exception {
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/publish")
+    void doctorCannotGovernRules() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
                 .contentType("application/json")
-                .content(PUBLISH_BODY))
+                .content(SIGNOFF_BODY))
             .andExpect(status().isForbidden());
 
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/rollout/full")
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
-                .content(PUBLISH_BODY))
+                .content(TRANSITION_BODY))
             .andExpect(status().isForbidden());
     }
 

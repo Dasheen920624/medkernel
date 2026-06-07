@@ -7,6 +7,8 @@ public interface ReleasePort {
 
     VersionReleasePlan submitForReview(VersionReleaseCommand command);
 
+    VersionReleasePlan rejectReview(VersionReleaseCommand command);
+
     VersionReleasePlan approveForSilentObservation(VersionReleaseCommand command);
 
     VersionReleasePlan releaseGray(VersionReleaseCommand command);

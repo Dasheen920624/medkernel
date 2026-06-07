@@ -4,7 +4,7 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import RuleDefinitions from "./RuleDefinitions";
-import type { RuleDefinition, RuleDetailResponse } from "@/shared/api/hooks";
+import type { RuleDefinition, RuleDetailResponse, SecurityProfile } from "@/shared/api/hooks";
 
 const apiMocks = vi.hoisted(() => ({
   ruleListData: { items: [], total: 0 } as unknown,
@@ -52,14 +52,77 @@ const apiMocks = vi.hoisted(() => ({
   addTestCase: vi.fn(),
   runRuleTests: vi.fn(),
   simulateRule: vi.fn(),
-  publishRule: vi.fn(),
-  fullRolloutRule: vi.fn(),
+  signoffRule: vi.fn(),
+  transitionRuleGovernance: vi.fn(),
+  securityData: {
+    userId: "u-admin",
+    username: "admin",
+    roles: [
+      {
+        code: "hospital-admin",
+        displayName: "医院管理员",
+        source: "DEFAULT",
+        scopeLevel: "HOSPITAL",
+        scopeCode: "HOSP-A",
+      },
+      {
+        code: "medical-affairs",
+        displayName: "医务处",
+        source: "DEFAULT",
+        scopeLevel: "HOSPITAL",
+        scopeCode: "HOSP-A",
+      },
+    ],
+    permissions: [
+      {
+        code: "rule.read",
+        dimension: "ACTION",
+        target: "rule.read",
+        displayName: "读取规则",
+        risk: "LOW",
+      },
+      {
+        code: "rule.write",
+        dimension: "ACTION",
+        target: "rule.write",
+        displayName: "维护规则",
+        risk: "MEDIUM",
+      },
+      {
+        code: "rule.publish",
+        dimension: "ACTION",
+        target: "rule.publish",
+        displayName: "发布规则",
+        risk: "HIGH",
+      },
+    ],
+    menuKeys: ["rule-definitions"],
+    environmentKeys: ["production"],
+    dataScope: {
+      tenantId: "tenant-A",
+      groupId: null,
+      hospitalId: "HOSP-A",
+      campusId: null,
+      siteId: null,
+      departmentId: null,
+      specialtyId: null,
+    },
+    mustChangePwd: false,
+    mfaRequired: false,
+    mfaBound: true,
+  } as SecurityProfile,
 }));
 
+const DEFAULT_SECURITY_DATA = structuredClone(apiMocks.securityData);
 const RULE_DEFINITION_INTERACTION_TIMEOUT_MS = 15_000;
 const RULE_DEFINITION_SUBMISSION_TIMEOUT_MS = 30_000;
 
 vi.mock("@/shared/api/hooks", () => ({
+  useSecurityProfile: () => ({
+    data: apiMocks.securityData,
+    isLoading: false,
+    isError: false,
+  }),
   useRuleDefinitions: () => ({
     data: apiMocks.ruleListData,
     isLoading: false,
@@ -114,12 +177,12 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.simulateRule,
     isPending: false,
   }),
-  usePublishRule: () => ({
-    mutateAsync: apiMocks.publishRule,
+  useSignoffRule: () => ({
+    mutateAsync: apiMocks.signoffRule,
     isPending: false,
   }),
-  useFullRolloutRule: () => ({
-    mutateAsync: apiMocks.fullRolloutRule,
+  useTransitionRuleGovernance: () => ({
+    mutateAsync: apiMocks.transitionRuleGovernance,
     isPending: false,
   }),
 }));
@@ -212,6 +275,20 @@ function createRuleDetail(): RuleDetailResponse {
       lastRunAt: "2026-06-02T00:00:00Z",
       createdAt: "2026-06-02T00:00:00Z",
     })),
+    governance: {
+      ruleId: "rule-1",
+      versionId: "ver-1",
+      state: "DRAFT",
+      requiredSignoffs: 2,
+      reviewRound: 1,
+      committeeApprovalCount: 0,
+      authorId: "u-1",
+      lastReason: "规则草稿已创建",
+      signoffs: [],
+      testResults: [],
+      releaseEvidence: [],
+      traceId: "trace-governance",
+    },
   };
 }
 
@@ -271,6 +348,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
+    apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
@@ -278,8 +356,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.addTestCase.mockReset();
     apiMocks.runRuleTests.mockReset();
     apiMocks.simulateRule.mockReset();
-    apiMocks.publishRule.mockReset();
-    apiMocks.fullRolloutRule.mockReset();
+    apiMocks.signoffRule.mockReset();
+    apiMocks.transitionRuleGovernance.mockReset();
   });
 
   it("创建规则弹窗宽度受窄屏视口约束", async () => {
@@ -661,7 +739,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "发布前展示 7 步流与影响摘要，并携带 impactDigest 与审核理由发布",
+    "展示八阶段治理与影响摘要，并只推进到同行评审",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
       apiMocks.ruleDetailData = createRuleDetail();
@@ -706,37 +784,46 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         unavailableScopes: [],
         traceId: "trace-impact",
       };
-      apiMocks.publishRule.mockResolvedValue({
+      apiMocks.transitionRuleGovernance.mockResolvedValue({
         ruleId: "rule-1",
         versionId: "ver-1",
-        status: "PUBLISHED",
-        traceId: "trace-publish",
-        results: [],
+        state: "PEER_REVIEW",
+        requiredSignoffs: 2,
+        reviewRound: 1,
+        committeeApprovalCount: 0,
+        authorId: "u-1",
+        lastReason: "提交同行评审",
+        signoffs: [],
+        testResults: [],
+        releaseEvidence: ["PENDING_REVIEW 提交审核"],
+        traceId: "trace-governance",
         impactDigest: "sha256:impact-abc",
         impactStatus: "COMPLETE",
       });
 
       const user = await openDraftRuleDrawer();
-      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
 
-      expect(screen.getByText("选模板/导入")).toBeInTheDocument();
-      expect(screen.getByText("自动校验")).toBeInTheDocument();
-      expect(screen.getByText("看影响")).toBeInTheDocument();
+      expect(screen.getByText("同行评审")).toBeInTheDocument();
+      expect(screen.getAllByText("委员会会签").length).toBeGreaterThan(0);
+      expect(screen.getByText("影子运行")).toBeInTheDocument();
+      expect(screen.getByText("退役")).toBeInTheDocument();
       expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
       expect(screen.getByText("已完成真实影响分析")).toBeInTheDocument();
       expect(screen.getByText(/慢阻肺抗凝路径/)).toBeInTheDocument();
       expect(screen.getByText(/患者 patient-1/)).toBeInTheDocument();
       expect(screen.getByText(/院内规则库/)).toBeInTheDocument();
 
-      await user.type(screen.getByLabelText("发布审核说明"), "已查看影响摘要并确认灰度发布");
-      await user.click(screen.getByRole("button", { name: "提交审核并进入灰度发布" }));
+      await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并提交同行评审");
+      await user.click(screen.getByRole("button", { name: "提交同行评审" }));
 
       await waitFor(() =>
-        expect(apiMocks.publishRule).toHaveBeenCalledWith({
+        expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
           packageVersion: "pkg-2026.06",
+          targetState: "PEER_REVIEW",
           impactDigest: "sha256:impact-abc",
-          reason: "已查看影响摘要并确认灰度发布",
+          reason: "已查看影响摘要并提交同行评审",
         }),
       );
     },
@@ -744,7 +831,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "内容已审核的规则显示统一部署状态，并可确认全量激活",
+    "灰度阶段只显示院级全量激活动作",
     async () => {
       const publishedRule = {
         ...draftRule,
@@ -755,6 +842,12 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ...createRuleDetail(),
         definition: publishedRule,
         deploymentStatus: "PUBLISHED",
+        governance: {
+          ...createRuleDetail().governance,
+          state: "CANARY",
+          committeeApprovalCount: 2,
+          lastReason: "影子验证达标，进入灰度",
+        },
       };
       apiMocks.impactData = {
         ruleId: "rule-1",
@@ -769,26 +862,33 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         unavailableScopes: [],
         traceId: "trace-impact",
       };
-      apiMocks.fullRolloutRule.mockResolvedValue({
+      apiMocks.transitionRuleGovernance.mockResolvedValue({
         ruleId: "rule-1",
         versionId: "ver-1",
-        status: "PUBLISHED",
+        state: "FULL",
+        requiredSignoffs: 2,
+        reviewRound: 1,
+        committeeApprovalCount: 2,
+        authorId: "u-1",
+        lastReason: "院级管理员确认全量激活",
+        signoffs: [],
+        testResults: [],
         traceId: "trace-full",
-        results: [],
         releaseEvidence: ["FULL 全量激活"],
       });
 
       const user = await openDraftRuleDrawer();
       expect(screen.getAllByText("内容已审核").length).toBeGreaterThan(0);
       expect(screen.getByText("待全量激活")).toBeInTheDocument();
-      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
-      await user.type(screen.getByLabelText("发布审核说明"), "院级管理员确认全量激活");
-      await user.click(screen.getByRole("button", { name: /院级确认全量激活/ }));
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
+      await user.type(screen.getByLabelText("治理说明"), "院级管理员确认全量激活");
+      await user.click(screen.getByRole("button", { name: /院级全量激活/ }));
 
       await waitFor(() =>
-        expect(apiMocks.fullRolloutRule).toHaveBeenCalledWith({
+        expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
           packageVersion: "pkg-2026.06",
+          targetState: "FULL",
           impactDigest: "sha256:impact-full",
           reason: "院级管理员确认全量激活",
         }),
@@ -798,7 +898,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "统一版本已激活时只展示生效结果，不再提供重复发布动作",
+    "监测阶段不再提供重复发布，只允许退役封存",
     async () => {
       const publishedRule = {
         ...draftRule,
@@ -809,13 +909,57 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ...createRuleDetail(),
         definition: publishedRule,
         deploymentStatus: "ACTIVE",
+        governance: {
+          ...createRuleDetail().governance,
+          state: "MONITOR",
+          committeeApprovalCount: 2,
+          lastReason: "全量运行进入监测",
+        },
       };
 
       const user = await openDraftRuleDrawer();
       expect(screen.getByText("运行中")).toBeInTheDocument();
-      await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
-      expect(screen.getByText("当前版本已全量生效")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "院级确认全量激活" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
+      expect(screen.getByRole("button", { name: "退役并封存" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "院级全量激活" })).not.toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "只读账号仅查看治理证据且不显示不可执行动作",
+    async () => {
+      apiMocks.ruleListData = { items: [draftRule], total: 1 };
+      apiMocks.ruleDetailData = createRuleDetail();
+      apiMocks.securityData = {
+        ...DEFAULT_SECURITY_DATA,
+        userId: "u-doctor",
+        username: "doctor",
+        roles: [
+          {
+            code: "doctor",
+            displayName: "临床医生",
+            source: "DEFAULT",
+            scopeLevel: "DEPARTMENT",
+            scopeCode: "DEPT-A",
+          },
+        ],
+        permissions: [
+          {
+            code: "rule.read",
+            dimension: "ACTION",
+            target: "rule.read",
+            displayName: "读取规则",
+            risk: "LOW",
+          },
+        ],
+      };
+      const user = await openDraftRuleDrawer();
+
+      await user.click(screen.getByText("治理与发布"));
+
+      expect(screen.getByText("当前账号仅可查看本阶段证据")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "提交同行评审" })).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

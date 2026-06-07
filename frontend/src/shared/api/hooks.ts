@@ -2457,6 +2457,7 @@ export interface RuleDetailResponse {
     | "OFFLINE"
     | "WITHDRAWN"
     | "ARCHIVED";
+  governance: RuleGovernanceResponse;
 }
 
 export interface RuleEvaluationItem {
@@ -2547,15 +2548,46 @@ export interface RuleImpactResponse {
   traceId: string;
 }
 
-export interface RulePublishResponse {
+export type RuleGovernanceState =
+  | "DRAFT"
+  | "PEER_REVIEW"
+  | "COMMITTEE"
+  | "SHADOW"
+  | "CANARY"
+  | "FULL"
+  | "MONITOR"
+  | "RETIRED";
+
+export type RuleSignoffStage = "PEER_REVIEW" | "COMMITTEE";
+export type RuleSignoffDecision = "APPROVED" | "REJECTED";
+
+export interface RuleSignoff {
+  signoffId: string;
+  ruleVersionId: string;
+  stage: RuleSignoffStage;
+  reviewRound: number;
+  signerRole: string;
+  signerId: string;
+  decision: RuleSignoffDecision;
+  reason: string;
+  signedAt: string;
+}
+
+export interface RuleGovernanceResponse {
   ruleId: string;
   versionId: string;
-  status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
-  traceId: string;
-  results: RuleTestCaseResult[];
+  state: RuleGovernanceState;
+  requiredSignoffs: number;
+  reviewRound: number;
+  committeeApprovalCount: number;
+  authorId: string;
+  lastReason: string;
+  signoffs: RuleSignoff[];
+  testResults: RuleTestCaseResult[];
   impactDigest?: string | null;
   impactStatus?: string | null;
   releaseEvidence: string[];
+  traceId: string;
 }
 
 export interface RuleEvaluateResponse {
@@ -2777,20 +2809,22 @@ export function useRuleImpact(
   });
 }
 
-export function usePublishRule() {
+export function useSignoffRule() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       ruleId: string;
       packageVersion: string;
-      impactDigest?: string;
-      reason?: string;
+      stage: RuleSignoffStage;
+      decision: RuleSignoffDecision;
+      reason: string;
     }) => {
-      const { data } = await apiClient.post<{ data: RulePublishResponse }>(
-        `/engine/rule/rules/${payload.ruleId}/publish`,
+      const { data } = await apiClient.post<{ data: RuleGovernanceResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/governance/signoffs`,
         withStandardApiContext(
           {
-            impactDigest: payload.impactDigest,
+            stage: payload.stage,
+            decision: payload.decision,
             reason: payload.reason,
           },
           security.data,
@@ -2802,19 +2836,21 @@ export function usePublishRule() {
   });
 }
 
-export function useFullRolloutRule() {
+export function useTransitionRuleGovernance() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       ruleId: string;
       packageVersion: string;
+      targetState: RuleGovernanceState;
       impactDigest?: string;
-      reason?: string;
+      reason: string;
     }) => {
-      const { data } = await apiClient.post<{ data: RulePublishResponse }>(
-        `/engine/rule/rules/${payload.ruleId}/rollout/full`,
+      const { data } = await apiClient.post<{ data: RuleGovernanceResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/governance/transitions`,
         withStandardApiContext(
           {
+            targetState: payload.targetState,
             impactDigest: payload.impactDigest,
             reason: payload.reason,
           },

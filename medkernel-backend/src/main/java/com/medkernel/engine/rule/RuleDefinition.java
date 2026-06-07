@@ -11,7 +11,8 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>承担规则的租户隔离、业务编码、类型/编写模式/风险级别、状态机和当前激活版本指针；
  * {@code tenant_id + rule_code} 唯一约束保证同租户内规则编码不重复；当前 API-05 服务推进
- * {@code DRAFT → PUBLISHED}，下线、归档和回滚由后续 SYS-04 统一发布框架接管。
+ * 内容状态仅表达可编辑与封存边界；知识治理阶段以 {@link RuleGovernance} 为唯一事实，
+ * 统一版本生效状态由 SYS-04 发布框架管理。
  */
 @Table("rule_definition")
 public record RuleDefinition(

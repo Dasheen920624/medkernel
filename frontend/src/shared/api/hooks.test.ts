@@ -62,7 +62,8 @@ import {
   useReplayDeadLetter,
   useImplementationSteps,
   useInstantiatePilotTemplate,
-  useFullRolloutRule,
+  useSignoffRule,
+  useTransitionRuleGovernance,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useKnowledgeIdentities,
@@ -763,16 +764,22 @@ describe("package export api helpers", () => {
     );
   });
 
-  it("activates a reviewed rule through the full-rollout endpoint", async () => {
+  it("advances a rule through the governance transition endpoint", async () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
         data: {
           ruleId: "rule-real-1",
           versionId: "version-1",
-          status: "PUBLISHED",
+          state: "FULL",
+          requiredSignoffs: 2,
+          reviewRound: 1,
+          committeeApprovalCount: 2,
+          authorId: "author-1",
+          lastReason: "院级管理员确认全量激活",
+          signoffs: [],
+          testResults: [],
           traceId: "trace-full",
-          results: [],
           impactDigest: "sha256:impact",
           impactStatus: "COMPLETE",
           releaseEvidence: ["FULL 全量激活"],
@@ -780,20 +787,63 @@ describe("package export api helpers", () => {
       },
     });
 
-    const { result } = renderApiHook(() => useFullRolloutRule());
+    const { result } = renderApiHook(() => useTransitionRuleGovernance());
 
     await result.current.mutateAsync({
       ruleId: "rule-real-1",
       packageVersion: "1.0.0",
+      targetState: "FULL",
       impactDigest: "sha256:impact",
       reason: "院级管理员确认全量激活",
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/rule/rules/rule-real-1/rollout/full",
+      "/engine/rule/rules/rule-real-1/governance/transitions",
       expect.objectContaining({
+        targetState: "FULL",
         impactDigest: "sha256:impact",
         reason: "院级管理员确认全量激活",
+        package_version: "1.0.0",
+      }),
+    );
+  });
+
+  it("records a committee signoff through the governance endpoint", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000004");
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          ruleId: "rule-real-1",
+          versionId: "version-1",
+          state: "COMMITTEE",
+          requiredSignoffs: 2,
+          reviewRound: 1,
+          committeeApprovalCount: 1,
+          authorId: "author-1",
+          lastReason: "委员会会签已记录",
+          signoffs: [],
+          testResults: [],
+          releaseEvidence: [],
+          traceId: "trace-signoff",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useSignoffRule());
+    await result.current.mutateAsync({
+      ruleId: "rule-real-1",
+      packageVersion: "1.0.0",
+      stage: "COMMITTEE",
+      decision: "APPROVED",
+      reason: "同意进入影子验证",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-real-1/governance/signoffs",
+      expect.objectContaining({
+        stage: "COMMITTEE",
+        decision: "APPROVED",
+        reason: "同意进入影子验证",
         package_version: "1.0.0",
       }),
     );

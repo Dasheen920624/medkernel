@@ -34,7 +34,6 @@ import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
-import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionReleaseStatus;
@@ -75,6 +74,7 @@ class RuleEngineServiceTest {
     private RuleVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
     private ReleasePort releasePort;
+    private RuleGovernanceService governanceService;
     private InheritanceResolver inheritanceResolver;
     private ContextSnapshotService contextSnapshots;
     private ObjectMapper json;
@@ -94,6 +94,7 @@ class RuleEngineServiceTest {
         versionedAssets = mock(RuleVersionedAssetAdapter.class);
         assetVersions = mock(AssetVersionRepository.class);
         releasePort = mock(ReleasePort.class);
+        governanceService = mock(RuleGovernanceService.class);
         inheritanceResolver = mock(InheritanceResolver.class);
         contextSnapshots = mock(ContextSnapshotService.class);
         json = new ObjectMapper();
@@ -105,7 +106,8 @@ class RuleEngineServiceTest {
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
-            versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
+            versionedAssets, assetVersions, releasePort, governanceService,
+            inheritanceResolver, contextSnapshots);
 
         when(definitions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versions.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -122,9 +124,13 @@ class RuleEngineServiceTest {
             .thenReturn(Optional.of(assetVersion(
                 "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1",
                 AssetVersionStatus.DRAFT)));
+        when(governanceService.requireGovernance(any(), any()))
+            .thenReturn(governance(RuleGovernanceState.DRAFT));
+        when(governanceService.signoffs(any(), any())).thenReturn(List.of());
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rule", OrgScope.tenant("tenant-A"), "tester"));
+        authenticate(RoleCode.SPECIALIST);
     }
 
     @AfterEach
@@ -168,8 +174,234 @@ class RuleEngineServiceTest {
                 && command.organizationScope().equals("dept-1")
                 && command.applicableScope().equals("rpv-1")
         ));
+        verify(governanceService).initialize(
+            "tenant-A", response.versionId(), RuleRiskLevel.HIGH, "tester", "trace-rule");
         verify(auditRecorder).record(AuditAction.CREATE, "rule_definition", response.ruleId(), "创建规则 RULE.ANTICOAG");
         verify(transitions).record("rule_definition", response.ruleId(), null, "DRAFT", "CREATE_RULE", null);
+    }
+
+    @Test
+    void draftTransitionSubmitsOnlyForPeerReview() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        RuleGovernance draft = governance(RuleGovernanceState.DRAFT);
+        RuleGovernance peerReview = governance(RuleGovernanceState.PEER_REVIEW);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(draft, peerReview);
+        when(governanceService.transition(
+            "tenant-A", "version-1", RuleGovernanceState.PEER_REVIEW,
+            "提交同行评审", "tester", "trace-rule"))
+            .thenReturn(peerReview);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
+        when(releasePort.submitForReview(any())).thenReturn(releasePlan(
+            "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG",
+            VersionReleaseStatus.PENDING_REVIEW, "PENDING_REVIEW 提交审核：规则影响摘要"));
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        RuleGovernanceResponse response = service.transitionGovernance(
+            "rule-1",
+            new RuleGovernanceTransitionRequest(
+                RuleGovernanceState.PEER_REVIEW,
+                impact.impactDigest(),
+                "提交同行评审"
+            )
+        );
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.PEER_REVIEW);
+        assertThat(response.testResults()).hasSize(4);
+        assertThat(response.releaseEvidence())
+            .containsExactly("PENDING_REVIEW 提交审核：规则影响摘要");
+        verify(releasePort).submitForReview(any());
+        verify(releasePort, org.mockito.Mockito.never()).approveForSilentObservation(any());
+        verify(releasePort, org.mockito.Mockito.never()).releaseGray(any());
+    }
+
+    @Test
+    void signoffUsesAuthenticatedRoleInsteadOfRequestRoleCodes() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        RuleGovernance committee = governance(RuleGovernanceState.COMMITTEE);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(committee);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
+        when(governanceService.recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.COMMITTEE,
+            RuleSignoffDecision.APPROVED,
+            "委员会同意进入影子验证",
+            "tester",
+            RoleCode.MEDICAL_AFFAIRS,
+            "trace-rule"
+        )).thenReturn(committee);
+        authenticate(RoleCode.MEDICAL_AFFAIRS);
+
+        service.signoffGovernance(
+            "rule-1",
+            new RuleSignoffRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                List.of(RoleCode.HOSPITAL_ADMIN.code()), null,
+                RuleSignoffStage.COMMITTEE,
+                RuleSignoffDecision.APPROVED,
+                "委员会同意进入影子验证"
+            )
+        );
+
+        verify(governanceService).recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.COMMITTEE,
+            RuleSignoffDecision.APPROVED,
+            "委员会同意进入影子验证",
+            "tester",
+            RoleCode.MEDICAL_AFFAIRS,
+            "trace-rule"
+        );
+    }
+
+    @Test
+    void rejectedSignoffReturnsUnifiedVersionToDraftForNextReviewRound() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        RuleGovernance draft = governance(RuleGovernanceState.DRAFT);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(governanceService.recordSignoff(
+            "tenant-A",
+            "version-1",
+            RuleSignoffStage.COMMITTEE,
+            RuleSignoffDecision.REJECTED,
+            "证据不足，退回修订",
+            "tester",
+            RoleCode.MEDICAL_AFFAIRS,
+            "trace-rule"
+        )).thenReturn(draft);
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(draft);
+        when(releasePort.rejectReview(any())).thenReturn(releasePlan(
+            "av-rule-default",
+            VersionedAssetType.RULE,
+            "RULE.ANTICOAG",
+            VersionReleaseStatus.REVIEW_REJECTED,
+            "REVIEW_REJECTED 审核拒绝：证据不足，退回修订"
+        ));
+        authenticate(RoleCode.MEDICAL_AFFAIRS);
+
+        RuleGovernanceResponse response = service.signoffGovernance(
+            "rule-1",
+            new RuleSignoffRequest(
+                RuleSignoffStage.COMMITTEE,
+                RuleSignoffDecision.REJECTED,
+                "证据不足，退回修订"
+            )
+        );
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.DRAFT);
+        assertThat(response.releaseEvidence())
+            .containsExactly("REVIEW_REJECTED 审核拒绝：证据不足，退回修订");
+        verify(releasePort).rejectReview(any());
+    }
+
+    @Test
+    void committeeTransitionPublishesContentAndEntersShadowOnly() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        RuleGovernance committee = governance(RuleGovernanceState.COMMITTEE);
+        RuleGovernance shadow = governance(RuleGovernanceState.SHADOW);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(committee, shadow);
+        when(governanceService.transition(
+            "tenant-A", "version-1", RuleGovernanceState.SHADOW,
+            "会签完成，进入影子验证", "tester", "trace-rule"))
+            .thenReturn(shadow);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
+        when(releasePort.approveForSilentObservation(any())).thenReturn(releasePlan(
+            "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG",
+            VersionReleaseStatus.SILENT_OBSERVATION,
+            "SILENT_OBSERVATION 静默观察：会签完成"));
+        authenticate(RoleCode.MEDICAL_AFFAIRS);
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        RuleGovernanceResponse response = service.transitionGovernance(
+            "rule-1",
+            new RuleGovernanceTransitionRequest(
+                RuleGovernanceState.SHADOW,
+                impact.impactDigest(),
+                "会签完成，进入影子验证"
+            )
+        );
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.SHADOW);
+        verify(releasePort).approveForSilentObservation(any());
+        verify(releasePort, org.mockito.Mockito.never()).releaseGray(any());
+        verify(definitions).save(org.mockito.Mockito.argThat(
+            saved -> saved.status() == RuleDefinitionStatus.PUBLISHED));
+        verify(versions).save(org.mockito.Mockito.argThat(
+            saved -> saved.status() == RuleVersionStatus.PUBLISHED));
+    }
+
+    @Test
+    void retirementArchivesRuleVersionAndUnifiedAssetWithoutDeletingEvidence() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.PUBLISHED);
+        RuleVersion version = existingVersion(RuleVersionStatus.PUBLISHED);
+        RuleGovernance monitoring = governance(RuleGovernanceState.MONITOR);
+        RuleGovernance retired = governance(RuleGovernanceState.RETIRED);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.RULE, "RULE.ANTICOAG", "1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1",
+                AssetVersionStatus.ACTIVE)));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(monitoring, retired);
+        when(governanceService.transition(
+            "tenant-A", "version-1", RuleGovernanceState.RETIRED,
+            "新版规则完成替代", "tester", "trace-rule"))
+            .thenReturn(retired);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
+        authenticate(RoleCode.MEDICAL_AFFAIRS);
+
+        RuleGovernanceResponse response = service.transitionGovernance(
+            "rule-1",
+            new RuleGovernanceTransitionRequest(
+                RuleGovernanceState.RETIRED,
+                null,
+                "新版规则完成替代"
+            )
+        );
+
+        assertThat(response.state()).isEqualTo(RuleGovernanceState.RETIRED);
+        verify(definitions).save(org.mockito.Mockito.argThat(
+            saved -> saved.status() == RuleDefinitionStatus.ARCHIVED));
+        verify(versions).save(org.mockito.Mockito.argThat(
+            saved -> saved.status() == RuleVersionStatus.ARCHIVED));
+        verify(assetVersions).save(org.mockito.Mockito.argThat(
+            saved -> saved.status() == AssetVersionStatus.ARCHIVED
+                && saved.effectiveTo() != null));
     }
 
     @Test
@@ -185,6 +417,32 @@ class RuleEngineServiceTest {
             .hasMessageContaining("触发点必须使用客户面编码")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_001);
+    }
+
+    @Test
+    void specialistCannotMoveCommitteeRuleIntoShadow() {
+        RuleDefinition rule = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleVersion version = existingVersion(RuleVersionStatus.DRAFT);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(version));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(governance(RuleGovernanceState.COMMITTEE));
+        authenticate(RoleCode.SPECIALIST);
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.SHADOW,
+                    impact.impactDigest(),
+                    "尝试进入影子运行"
+                )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("仅医务处或医院管理员")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -233,6 +491,30 @@ class RuleEngineServiceTest {
                     && command.safetyPolicy() == AssetVersionSafetyPolicy.NORMAL
                     && command.actor().equals("tester")
         ));
+    }
+
+    @Test
+    void updateRuleRejectsContentChangeAfterPeerReviewStarts() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(governance(RuleGovernanceState.PEER_REVIEW));
+
+        assertThatThrownBy(() -> service.updateRule("rule-1", new RuleUpdateRequest(
+            null, null, null, null, null, null, null, null, null, null,
+            List.of(), "rpv-1", "RULE.ANTICOAG", "抗凝风险提示", RuleType.ORDER,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, "dept-1",
+            "院内抗凝用药管理规范 2026", "审核中禁止修改", dsl(), dsl().path("explain")
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("只有治理草稿阶段可以修改")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_006);
+
+        verify(definitions, org.mockito.Mockito.never()).save(any());
+        verify(versions, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -292,7 +574,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void publishFailsWhenRequiredCaseTypeMissing() {
+    void peerReviewFailsWhenRequiredCaseTypeMissing() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -300,14 +582,22 @@ class RuleEngineServiceTest {
         when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
             .thenReturn(List.of(testCase(RuleTestCaseType.POSITIVE, true, hitContext())));
 
-        assertThatThrownBy(() -> service.publish("rule-1"))
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "提交同行评审"
+                )))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_004);
     }
 
     @Test
-    void publishFailsWhenAnyTestCaseExpectationDiffersAndStoresResult() {
+    void peerReviewFailsWhenAnyTestCaseExpectationDiffersAndStoresResult() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -321,7 +611,13 @@ class RuleEngineServiceTest {
             ));
         RuleImpactResponse impact = service.impact("rule-1");
 
-        assertThatThrownBy(() -> service.publish("rule-1", new RulePublishRequest(impact.impactDigest(), "已查看影响")))
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "提交同行评审"
+                )))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_004);
@@ -335,40 +631,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void publishSucceedsWhenAllTestCasesPass() {
-        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
-            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
-        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
-            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
-        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
-            .thenReturn(List.of(
-                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
-                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
-                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
-                testCase(RuleTestCaseType.CONFLICT, false, missContext())
-            ));
-        RuleImpactResponse impact = service.impact("rule-1");
-
-        RulePublishResponse response = service.publish("rule-1", new RulePublishRequest(impact.impactDigest(), "已查看影响"));
-
-        assertThat(response.status()).isEqualTo(RuleDefinitionStatus.PUBLISHED);
-        assertThat(response.impactDigest()).isEqualTo(impact.impactDigest());
-        assertThat(response.impactStatus()).isEqualTo("PARTIAL");
-        assertThat(response.results()).hasSize(4).allSatisfy(result ->
-            assertThat(result.status()).isEqualTo(RuleTestCaseStatus.PASS));
-        ArgumentCaptor<RuleDefinition> ruleCap = ArgumentCaptor.forClass(RuleDefinition.class);
-        ArgumentCaptor<RuleVersion> versionCap = ArgumentCaptor.forClass(RuleVersion.class);
-        verify(definitions, org.mockito.Mockito.atLeastOnce()).save(ruleCap.capture());
-        verify(versions, org.mockito.Mockito.atLeastOnce()).save(versionCap.capture());
-        assertThat(ruleCap.getAllValues()).anySatisfy(saved ->
-            assertThat(saved.status()).isEqualTo(RuleDefinitionStatus.PUBLISHED));
-        assertThat(versionCap.getAllValues()).anySatisfy(saved ->
-            assertThat(saved.status()).isEqualTo(RuleVersionStatus.PUBLISHED));
-        verify(auditRecorder).record(AuditAction.PUBLISH, "rule_definition", "rule-1", "发布规则版本 version-1");
-    }
-
-    @Test
-    void publishRejectsStaticConflictWithPublishedRuleBeforeStateChange() {
+    void peerReviewRejectsStaticConflictWithPublishedRuleBeforeStateChange() {
         RuleDefinition draft = existingRule(RuleDefinitionStatus.DRAFT);
         RuleDefinition published = governedRule(
             "rule-existing", "RULE.EXISTING", "version-existing", 100, null, 0);
@@ -393,8 +656,13 @@ class RuleEngineServiceTest {
             ));
         RuleImpactResponse impact = service.impact("rule-1");
 
-        assertThatThrownBy(() -> service.publish(
-                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "已核查影响摘要"
+                )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("RULE.EXISTING")
             .hasMessageContaining("patient.age")
@@ -406,7 +674,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void publishRejectsSuppressionSourceThatIsNotHigherPriority() {
+    void peerReviewRejectsSuppressionSourceThatIsNotHigherPriority() {
         RuleDefinition draft = governedRule(
             "rule-1", "RULE.ANTICOAG", "version-1", 200, "RULE.LOW", 0,
             RuleDefinitionStatus.DRAFT);
@@ -430,8 +698,13 @@ class RuleEngineServiceTest {
             ));
         RuleImpactResponse impact = service.impact("rule-1");
 
-        assertThatThrownBy(() -> service.publish(
-                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "已核查影响摘要"
+                )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("优先级必须高于")
             .extracting("errorCode")
@@ -439,7 +712,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void publishRejectsMissingSuppressionSource() {
+    void peerReviewRejectsMissingSuppressionSource() {
         RuleDefinition draft = governedRule(
             "rule-1", "RULE.ANTICOAG", "version-1", 100, "RULE.MISSING", 0,
             RuleDefinitionStatus.DRAFT);
@@ -460,8 +733,13 @@ class RuleEngineServiceTest {
             ));
         RuleImpactResponse impact = service.impact("rule-1");
 
-        assertThatThrownBy(() -> service.publish(
-                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "已核查影响摘要"
+                )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("抑制来源规则不存在或尚未发布")
             .extracting("errorCode")
@@ -469,61 +747,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void publishUsesPreRegisteredUnifiedVersionReleasePlan() {
-        RuleVersionedAssetAdapter versionedAssets = mock(RuleVersionedAssetAdapter.class);
-        AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
-        ReleasePort releasePort = mock(ReleasePort.class);
-        RuleEngineService unifiedService = new RuleEngineService(
-            definitions, versions, testCases, executions, overrides,
-            new RuleDslEvaluator(json), applicabilityService,
-            auditRecorder, transitions, diagnoseAssembler, json,
-            RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
-            versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
-        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
-            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
-        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
-            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
-        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
-            .thenReturn(List.of(
-                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
-                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
-                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
-                testCase(RuleTestCaseType.CONFLICT, false, missContext())
-            ));
-        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "tenant-A", VersionedAssetType.RULE, "RULE.ANTICOAG", "1"))
-            .thenReturn(Optional.of(assetVersion(
-                "av-rule-1", VersionedAssetType.RULE, "RULE.ANTICOAG", "1", AssetVersionStatus.DRAFT)));
-        when(releasePort.submitForReview(any())).thenReturn(releasePlan(
-            "av-rule-1", VersionedAssetType.RULE, "RULE.ANTICOAG",
-            VersionReleaseStatus.PENDING_REVIEW, "PENDING_REVIEW 提交审核：规则影响摘要"));
-        when(releasePort.approveForSilentObservation(any())).thenReturn(releasePlan(
-            "av-rule-1", VersionedAssetType.RULE, "RULE.ANTICOAG",
-            VersionReleaseStatus.SILENT_OBSERVATION, "SILENT_OBSERVATION 静默观察：规则影响摘要"));
-        when(releasePort.releaseGray(any())).thenReturn(releasePlan(
-            "av-rule-1", VersionedAssetType.RULE, "RULE.ANTICOAG",
-            VersionReleaseStatus.GRAY, "GRAY 灰度发布：规则影响摘要"));
-        RuleImpactResponse impact = unifiedService.impact("rule-1");
-
-        RulePublishResponse response = unifiedService.publish(
-            "rule-1", new RulePublishRequest(impact.impactDigest(), "已查看影响"));
-
-        assertThat(response.releaseEvidence())
-            .contains("PENDING_REVIEW 提交审核：规则影响摘要",
-                "SILENT_OBSERVATION 静默观察：规则影响摘要",
-                "GRAY 灰度发布：规则影响摘要");
-        verify(versionedAssets, org.mockito.Mockito.never()).registerDraft(any());
-        verify(releasePort).submitForReview(any());
-        verify(releasePort).approveForSilentObservation(any());
-        ArgumentCaptor<VersionReleaseCommand> releaseCommand =
-            ArgumentCaptor.forClass(VersionReleaseCommand.class);
-        verify(releasePort).releaseGray(releaseCommand.capture());
-        assertThat(releaseCommand.getValue().scopeType()).isNull();
-        assertThat(releaseCommand.getValue().scopeValue()).isNull();
-    }
-
-    @Test
-    void fullRolloutActivatesTheUnifiedRuleVersionForRuntimeResolution() {
+    void fullTransitionActivatesTheUnifiedRuleVersionForRuntimeResolution() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -536,18 +760,31 @@ class RuleEngineServiceTest {
         when(releasePort.releaseFull(any())).thenReturn(releasePlan(
             "av-rule-1", VersionedAssetType.RULE, "RULE.ANTICOAG",
             VersionReleaseStatus.FULL, "FULL 全量激活：规则影响摘要"));
+        RuleGovernance canary = governance(RuleGovernanceState.CANARY);
+        RuleGovernance full = governance(RuleGovernanceState.FULL);
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(canary, full);
+        when(governanceService.transition(
+            "tenant-A", "version-1", RuleGovernanceState.FULL,
+            "院级管理员确认全量激活", "tester", "trace-rule"))
+            .thenReturn(full);
+        when(governanceService.signoffs("tenant-A", "version-1")).thenReturn(List.of());
         authenticate(RoleCode.HOSPITAL_ADMIN);
         RuleImpactResponse impact = service.impact("rule-1");
 
-        RulePublishResponse response = service.fullRollout(
+        RuleGovernanceResponse response = service.transitionGovernance(
             "rule-1",
-            new RulePublishRequest(impact.impactDigest(), "院级管理员确认全量激活")
+            new RuleGovernanceTransitionRequest(
+                RuleGovernanceState.FULL,
+                impact.impactDigest(),
+                "院级管理员确认全量激活"
+            )
         );
 
         assertThat(response.releaseEvidence()).contains("FULL 全量激活：规则影响摘要");
         verify(releasePort).releaseFull(any());
         verify(auditRecorder).record(
-            AuditAction.PUBLISH, "rule_definition", "rule-1", "全量激活规则版本 version-1");
+            AuditAction.PUBLISH, "rule_definition", "rule-1", "规则治理推进至 FULL");
     }
 
     @Test
@@ -572,7 +809,7 @@ class RuleEngineServiceTest {
     }
 
     @Test
-    void highRiskPublishWithoutImpactDigestIsDeniedBeforeTesting() {
+    void highRiskPeerReviewWithoutImpactDigestIsDeniedBeforeTesting() {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -585,21 +822,28 @@ class RuleEngineServiceTest {
                 testCase(RuleTestCaseType.CONFLICT, false, missContext())
             ));
 
-        assertThatThrownBy(() -> service.publish("rule-1"))
+        assertThatThrownBy(() -> service.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    null,
+                    "提交同行评审"
+                )))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_004);
     }
 
     @Test
-    void publishFailsWhenTerminologyCoverageHasUnmappedCode() {
+    void peerReviewFailsWhenTerminologyCoverageHasUnmappedCode() {
         TerminologyCoverageGate coverageGate = mock(TerminologyCoverageGate.class);
         RuleEngineService gatedService = new RuleEngineService(
             definitions, versions, testCases, executions, overrides,
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
-            versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
+            versionedAssets, assetVersions, releasePort, governanceService,
+            inheritanceResolver, contextSnapshots);
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -616,8 +860,13 @@ class RuleEngineServiceTest {
                 "conditions[].code", "ICD-10", "E11", MappingCoverageItem.UNMAPPED, 0)));
         RuleImpactResponse impact = gatedService.impact("rule-1");
 
-        assertThatThrownBy(() -> gatedService.publish(
-                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+        assertThatThrownBy(() -> gatedService.transitionGovernance(
+                "rule-1",
+                new RuleGovernanceTransitionRequest(
+                    RuleGovernanceState.PEER_REVIEW,
+                    impact.impactDigest(),
+                    "已核查影响摘要"
+                )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("编码对照")
             .hasMessageContaining("E11")
@@ -727,7 +976,8 @@ class RuleEngineServiceTest {
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
-            versionedAssets, assetVersions, releasePort, resolver, contextSnapshots);
+            versionedAssets, assetVersions, releasePort, governanceService,
+            resolver, contextSnapshots);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
         RuleDefinition rule = existingRule(
@@ -1151,6 +1401,27 @@ class RuleEngineServiceTest {
             RuleRiskLevel.HIGH, "[{\"actionCode\":\"STRONG_REMINDER\"}]",
             "{\"title\":\"抗凝风险提示\"}", status, null, null,
             deduplicatedFromExecutionId, executedAt, executedAt, "trace-rule");
+    }
+
+    private RuleGovernance governance(RuleGovernanceState state) {
+        Instant now = Instant.parse("2026-06-07T13:30:00Z");
+        return new RuleGovernance(
+            1L,
+            "rg-1",
+            "tenant-A",
+            "version-1",
+            state,
+            2,
+            1,
+            "author-1",
+            "规则治理测试",
+            now,
+            "author-1",
+            now,
+            "author-1",
+            "trace-rule",
+            0L
+        );
     }
 
     private RuleVersion existingVersion(RuleVersionStatus status) {

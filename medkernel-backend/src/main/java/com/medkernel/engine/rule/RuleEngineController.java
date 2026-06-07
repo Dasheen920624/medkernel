@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
 /**
  * 规则引擎 REST 入口（GA-ENG-API-05 {@code /api/v1/engine/rule/**}）。
  *
- * <p>承担规则定义、版本、测试用例、试运行、影响分析、发布、真实执行与解释的 HTTP 合同；
+ * <p>承担规则定义、版本、测试用例、试运行、影响分析、治理、真实执行与解释的 HTTP 合同；
  * 权限由 {@code @PreAuthorize} 强校验 {@code rule.read}/{@code rule.write}/{@code rule.publish}，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
@@ -146,29 +146,27 @@ public class RuleEngineController {
     }
 
     /**
-     * 执行规则发布门禁并把规则推进到 {@code PUBLISHED}。
-     *
-     * <p>权限：{@code rule.publish}；要求阳性/阴性/边界/冲突四类测试用例齐备且全部 PASS，
-     * 否则抛错误码 {@code ENG-RULE-004}。
+     * 记录规则同行评审或临床委员会会签。
      */
-    @PostMapping("/rules/{ruleId}/publish")
-    @PreAuthorize("@perm.has('rule.publish')")
-    public ApiResult<RulePublishResponse> publish(@PathVariable String ruleId,
-                                                  @RequestBody @Valid RulePublishRequest request) {
+    @PostMapping("/rules/{ruleId}/governance/signoffs")
+    @PreAuthorize("@perm.hasAny('rule.publish','rule.write','evaluation.publish')")
+    public ApiResult<RuleGovernanceResponse> signoffGovernance(
+            @PathVariable String ruleId,
+            @RequestBody @Valid RuleSignoffRequest request) {
         validateContext(request);
-        return ApiResult.ok(service.publish(ruleId, request));
+        return ApiResult.ok(service.signoffGovernance(ruleId, request));
     }
 
     /**
-     * 由医院管理员确认当前影响摘要后，将已灰度规则全量激活。
+     * 按八阶段闭集推进规则治理状态。
      */
-    @PostMapping("/rules/{ruleId}/rollout/full")
-    @PreAuthorize("@perm.has('rule.publish')")
-    public ApiResult<RulePublishResponse> fullRollout(
+    @PostMapping("/rules/{ruleId}/governance/transitions")
+    @PreAuthorize("@perm.hasAny('rule.publish','rule.write')")
+    public ApiResult<RuleGovernanceResponse> transitionGovernance(
             @PathVariable String ruleId,
-            @RequestBody @Valid RulePublishRequest request) {
+            @RequestBody @Valid RuleGovernanceTransitionRequest request) {
         validateContext(request);
-        return ApiResult.ok(service.fullRollout(ruleId, request));
+        return ApiResult.ok(service.transitionGovernance(ruleId, request));
     }
 
     /**

@@ -19,6 +19,7 @@ import {
   Row,
   Select,
   Space,
+  Steps,
   Switch,
   Table,
   Tabs,
@@ -49,8 +50,9 @@ import {
   useAddTestCase,
   useRunRuleTests,
   useSimulateRule,
-  usePublishRule,
-  useFullRolloutRule,
+  useSignoffRule,
+  useTransitionRuleGovernance,
+  useSecurityProfile,
   useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
@@ -63,11 +65,12 @@ import type {
   RuleEvaluationItem,
   RuleImpactObject,
   RuleImpactResponse,
+  RuleGovernanceState,
+  RuleSignoffStage,
   RuleTestCase,
   ContextSnapshotSummary,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import { StepFlow } from "@/shared/ui/StepFlow";
 import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
@@ -132,6 +135,7 @@ import {
   rootHasUnresolvedFact,
 } from "@/shared/config/ruleConditionTreeOps";
 import { RULE_TYPE_LABELS, RULE_TYPE_OPTIONS } from "@/shared/config/ruleTypes";
+import { RULE_GOVERNANCE_STAGES, ruleGovernanceLabel } from "@/shared/config/ruleGovernance";
 import {
   CLINICAL_TRIGGER_POINT_OPTIONS,
   isClinicalTriggerPoint,
@@ -431,6 +435,25 @@ function releaseImpactStatus(impact?: RuleImpactResponse | null) {
 
 export default function RuleDefinitions() {
   const { message, modal } = AntdApp.useApp();
+  const securityQuery = useSecurityProfile();
+  const permissionCodes = useMemo(
+    () => new Set(securityQuery.data?.permissions.map((permission) => permission.code) ?? []),
+    [securityQuery.data?.permissions],
+  );
+  const roleCodes = useMemo(
+    () => new Set(securityQuery.data?.roles.map((role) => role.code) ?? []),
+    [securityQuery.data?.roles],
+  );
+  const canWriteRule = permissionCodes.has("rule.write");
+  const canPublishRule = permissionCodes.has("rule.publish");
+  const canSignRule =
+    (canWriteRule || canPublishRule || permissionCodes.has("evaluation.publish")) &&
+    ["medical-affairs", "qa-manager", "insurance-manager", "dept-head", "specialist"].some((role) =>
+      roleCodes.has(role),
+    );
+  const canCoordinateRelease =
+    canPublishRule && (roleCodes.has("medical-affairs") || roleCodes.has("hospital-admin"));
+  const canActivateFull = canPublishRule && roleCodes.has("hospital-admin");
   const [page, setPage] = useState(1);
   const [size] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -538,8 +561,8 @@ export default function RuleDefinitions() {
   const addTestCaseMutation = useAddTestCase(selectedRuleId || "");
   const runRuleTestsMutation = useRunRuleTests(selectedRuleId || "");
   const simulateMutation = useSimulateRule(selectedRuleId || "");
-  const publishMutation = usePublishRule();
-  const fullRolloutMutation = useFullRolloutRule();
+  const signoffMutation = useSignoffRule();
+  const governanceTransitionMutation = useTransitionRuleGovernance();
   const snapshotsQuery = useContextSnapshots(
     {
       patientId: snapshotSearchParams?.patientId,
@@ -556,9 +579,8 @@ export default function RuleDefinitions() {
   const impactQuery = useRuleImpact(selectedRuleId || "", {
     enabled: Boolean(
       selectedRuleId &&
-        detailData?.deploymentStatus !== "ACTIVE" &&
-        (detailData?.definition.status === "DRAFT" ||
-          detailData?.definition.status === "PUBLISHED"),
+        detailData?.governance.state &&
+        ["DRAFT", "COMMITTEE", "SHADOW", "CANARY"].includes(detailData.governance.state),
     ),
   });
   const snapshots = snapshotsQuery.data?.items ?? [];
@@ -1969,69 +1991,72 @@ export default function RuleDefinitions() {
     await runSimulation(snapshot.resources);
   };
 
-  const handlePublish = async () => {
+  const refreshGovernance = () => {
+    setReleaseReason("");
+    refetchDetail();
+    refetchList();
+  };
+
+  const handleGovernanceTransition = async (
+    targetState: RuleGovernanceState,
+    successMessage: string,
+  ) => {
     if (!selectedRuleId) return;
     const impactDigest = impactQuery.data?.impactDigest;
     const reason = releaseReason.trim();
-    if (!impactDigest) {
+    const impactRequired = ["PEER_REVIEW", "SHADOW", "CANARY", "FULL"].includes(targetState);
+    if (impactRequired && !impactDigest) {
       setActiveDetailLayer("release");
-      message.error("请先读取发布影响摘要，再提交发布门禁。");
+      message.error("请先读取当前影响摘要，再推进治理状态。");
       return;
     }
     if (!reason) {
       setActiveDetailLayer("release");
-      message.error("请填写发布审核说明。");
+      message.error("请填写本次治理说明。");
       return;
     }
     try {
-      await publishMutation.mutateAsync({
+      await governanceTransitionMutation.mutateAsync({
         ruleId: selectedRuleId,
         packageVersion: selectedRulePackageVersion,
+        targetState,
         impactDigest,
         reason,
       });
-      message.success("规则已通过门禁并进入灰度发布");
-      setReleaseReason("");
-      refetchDetail();
-      refetchList();
+      message.success(successMessage);
+      refreshGovernance();
     } catch (error: unknown) {
       modal.error({
-        title: "规则发布门禁拒绝",
-        content: getApiErrorMessage(
-          error,
-          "发布门禁校验未通过，请检查测试用例是否齐全且全部通过。",
-        ),
+        title: "规则治理推进被拒绝",
+        content: getApiErrorMessage(error, "当前阶段门禁未满足，请核查页面中的真实证据。"),
       });
     }
   };
 
-  const handleFullRollout = async () => {
+  const handleGovernanceSignoff = async (
+    stage: RuleSignoffStage,
+    decision: "APPROVED" | "REJECTED",
+  ) => {
     if (!selectedRuleId) return;
-    const impactDigest = impactQuery.data?.impactDigest;
     const reason = releaseReason.trim();
-    if (!impactDigest) {
-      message.error("请先读取发布影响摘要后再全量确认。");
-      return;
-    }
     if (!reason) {
-      message.error("请填写全量确认说明。");
+      message.error("请填写评审或会签说明。");
       return;
     }
     try {
-      await fullRolloutMutation.mutateAsync({
+      await signoffMutation.mutateAsync({
         ruleId: selectedRuleId,
         packageVersion: selectedRulePackageVersion,
-        impactDigest,
+        stage,
+        decision,
         reason,
       });
-      message.success("规则已完成院级全量激活");
-      setReleaseReason("");
-      refetchDetail();
-      refetchList();
+      message.success(decision === "APPROVED" ? "签署意见已记录" : "规则已退回草稿");
+      refreshGovernance();
     } catch (error: unknown) {
       modal.error({
-        title: "全量激活门禁拒绝",
-        content: getApiErrorMessage(error, "未通过院级管理员确认或影响摘要核查。"),
+        title: "规则签署被拒绝",
+        content: getApiErrorMessage(error, "当前登录角色或治理阶段不允许本次签署。"),
       });
     }
   };
@@ -2297,87 +2322,245 @@ export default function RuleDefinitions() {
     );
   }
 
-  const activeDeployment = detailData?.deploymentStatus === "ACTIVE";
-  const reviewedContent = detailData?.definition.status === "PUBLISHED";
-  const releaseCurrentStep = activeDeployment || reviewedContent ? "full_rollout" : "submit_review";
-  let releaseFlowStatus: "process" | "finish" | "error" = "error";
-  if (activeDeployment) {
-    releaseFlowStatus = "finish";
-  } else if (releaseGate.allPassed) {
-    releaseFlowStatus = "process";
-  }
-  let detailAlertMessage = "当前规则为草稿，可补测试用例、试运行，并在全绿后提交发布。";
+  const governance = detailData?.governance;
+  const governanceState = governance?.state ?? "DRAFT";
+  const governanceStep = Math.max(
+    0,
+    RULE_GOVERNANCE_STAGES.findIndex((stage) => stage.key === governanceState),
+  );
+  const governanceNeedsImpact = ["DRAFT", "COMMITTEE", "SHADOW", "CANARY"].includes(
+    governanceState,
+  );
+  let detailAlertMessage = "当前规则处于草稿阶段，可补测试用例和试运行。";
   let detailAlertType: "success" | "warning" | "info" = "info";
-  if (activeDeployment) {
-    detailAlertMessage = "当前规则版本已全量生效，修改需新建草稿版本并重新走发布门禁。";
-    detailAlertType = "success";
-  } else if (reviewedContent) {
-    detailAlertMessage = "规则内容已审核并完成灰度，需由医院管理员确认后全量激活。";
+  if (governanceState === "RETIRED") {
+    detailAlertMessage = "当前规则已退役封存，定义、版本与全部签署证据仅供审计追溯。";
     detailAlertType = "warning";
+  } else if (governanceState === "MONITOR") {
+    detailAlertMessage = "当前规则已进入运行监测，可查看真实运行证据或执行退役封存。";
+    detailAlertType = "success";
+  } else if (governanceState !== "DRAFT") {
+    detailAlertMessage = `当前治理阶段：${ruleGovernanceLabel(
+      governanceState,
+    )}。每次操作只推进一个阶段。`;
   }
 
-  const releaseStepPanel = activeDeployment ? (
-    <Alert
-      type="success"
-      showIcon
-      message="当前版本已全量生效"
-      description="运行态来自统一版本底座，规则执行只解析 ACTIVE 版本。"
-    />
-  ) : (
-    <Space direction="vertical" size="middle" className="mk-full-width">
-      <Alert
-        type={releaseGate.allPassed ? "success" : "warning"}
-        showIcon
-        message={
-          releaseGate.allPassed
-            ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
-            : `发布门禁未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
-        }
-      />
-      {detailData?.definition.riskLevel === "HIGH" && (
-        <Alert
-          type="warning"
-          showIcon
-          message="高危规则必须携带当前影响摘要和审核说明。"
-          description="影响摘要来自规则影响分析接口；路径、在径患者和同步目标只展示后端从关系库定位到的真实对象。"
-        />
-      )}
-      {impactSummaryPanel}
-      <Form layout="vertical">
-        <Form.Item label="发布审核说明" htmlFor="rule-release-reason">
-          <TextArea
-            id="rule-release-reason"
-            rows={3}
-            value={releaseReason}
-            onChange={(event) => setReleaseReason(event.target.value)}
-            placeholder={
-              detailData?.definition.status === "PUBLISHED"
-                ? "填写院级全量激活确认说明。"
-                : "填写已核查影响摘要、测试结果和灰度发布安排。"
-            }
-          />
-        </Form.Item>
-        {detailData?.definition.status === "PUBLISHED" ? (
+  const renderGovernanceAction = () => {
+    if (!governance) return null;
+    const transitionPending = governanceTransitionMutation.isPending;
+    const signoffPending = signoffMutation.isPending;
+    switch (governance.state) {
+      case "DRAFT":
+        if (!canWriteRule && !canPublishRule) return null;
+        return (
+          <Button
+            type="primary"
+            onClick={() => handleGovernanceTransition("PEER_REVIEW", "规则已提交同行评审")}
+            loading={transitionPending}
+            disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
+          >
+            提交同行评审
+          </Button>
+        );
+      case "PEER_REVIEW":
+        if (!canSignRule) return null;
+        return (
+          <Space wrap>
+            <Button
+              type="primary"
+              onClick={() => handleGovernanceSignoff("PEER_REVIEW", "APPROVED")}
+              loading={signoffPending}
+            >
+              同行评审通过
+            </Button>
+            <Button
+              danger
+              onClick={() => handleGovernanceSignoff("PEER_REVIEW", "REJECTED")}
+              loading={signoffPending}
+            >
+              退回草稿
+            </Button>
+          </Space>
+        );
+      case "COMMITTEE": {
+        if (!canSignRule && !canCoordinateRelease) return null;
+        const readyForShadow = governance.committeeApprovalCount >= governance.requiredSignoffs;
+        return (
+          <Space wrap>
+            {readyForShadow && canCoordinateRelease && (
+              <Button
+                type="primary"
+                onClick={() => handleGovernanceTransition("SHADOW", "规则已进入影子运行")}
+                loading={transitionPending}
+                disabled={!impactQuery.data?.impactDigest}
+              >
+                进入影子运行
+              </Button>
+            )}
+            {!readyForShadow && canSignRule && (
+              <Button
+                type="primary"
+                onClick={() => handleGovernanceSignoff("COMMITTEE", "APPROVED")}
+                loading={signoffPending}
+              >
+                委员会会签通过
+              </Button>
+            )}
+            {canSignRule && (
+              <Button
+                danger
+                onClick={() => handleGovernanceSignoff("COMMITTEE", "REJECTED")}
+                loading={signoffPending}
+              >
+                退回草稿
+              </Button>
+            )}
+          </Space>
+        );
+      }
+      case "SHADOW":
+        if (!canCoordinateRelease) return null;
+        return (
+          <Button
+            type="primary"
+            onClick={() => handleGovernanceTransition("CANARY", "规则已进入灰度验证")}
+            loading={transitionPending}
+            disabled={!impactQuery.data?.impactDigest}
+          >
+            进入灰度验证
+          </Button>
+        );
+      case "CANARY":
+        if (!canActivateFull) return null;
+        return (
           <Button
             type="primary"
             icon={<CheckCircleOutlined />}
-            onClick={handleFullRollout}
-            loading={fullRolloutMutation.isPending}
-            disabled={!impactQuery.data?.impactDigest || !releaseReason.trim()}
+            onClick={() => handleGovernanceTransition("FULL", "规则已完成院级全量激活")}
+            loading={transitionPending}
+            disabled={!impactQuery.data?.impactDigest}
           >
-            院级确认全量激活
+            院级全量激活
           </Button>
-        ) : (
+        );
+      case "FULL":
+        if (!canCoordinateRelease) return null;
+        return (
           <Button
             type="primary"
-            onClick={handlePublish}
-            loading={publishMutation.isPending}
-            disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
+            onClick={() => handleGovernanceTransition("MONITOR", "规则已进入运行监测")}
+            loading={transitionPending}
           >
-            提交审核并进入灰度发布
+            进入运行监测
           </Button>
+        );
+      case "MONITOR":
+        if (!canCoordinateRelease) return null;
+        return (
+          <Button
+            type="primary"
+            danger
+            onClick={() => handleGovernanceTransition("RETIRED", "规则已退役封存")}
+            loading={transitionPending}
+          >
+            退役并封存
+          </Button>
+        );
+      case "RETIRED":
+        return null;
+    }
+  };
+  const governanceAction = renderGovernanceAction();
+
+  const releaseStepPanel = (
+    <Space direction="vertical" size="middle" className="mk-full-width">
+      <Steps
+        current={governanceStep}
+        status={governanceState === "RETIRED" ? "finish" : "process"}
+        responsive
+        items={RULE_GOVERNANCE_STAGES.map((stage) => ({ title: stage.title }))}
+      />
+      <Descriptions bordered size="small" column={{ xs: 1, md: 3 }}>
+        <Descriptions.Item label="当前阶段">
+          {ruleGovernanceLabel(governanceState)}
+        </Descriptions.Item>
+        <Descriptions.Item label="评审轮次">第 {governance?.reviewRound ?? 1} 轮</Descriptions.Item>
+        <Descriptions.Item label="委员会会签">
+          {governance?.committeeApprovalCount ?? 0} / {governance?.requiredSignoffs ?? 1}
+        </Descriptions.Item>
+        <Descriptions.Item label="最近说明" span={3}>
+          {governance?.lastReason || "暂无"}
+        </Descriptions.Item>
+      </Descriptions>
+      {governanceState === "DRAFT" && (
+        <Alert
+          type={releaseGate.allPassed ? "success" : "warning"}
+          showIcon
+          message={
+            releaseGate.allPassed
+              ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
+              : `同行评审门禁未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
+          }
+        />
+      )}
+      {["HIGH", "CRITICAL"].includes(detailData?.definition.riskLevel ?? "") &&
+        ["PEER_REVIEW", "COMMITTEE"].includes(governanceState) && (
+          <Alert
+            type="warning"
+            showIcon
+            message="高危或红线规则要求两名独立委员会成员会签。"
+            description="影响摘要来自规则影响分析接口；路径、在径患者和同步目标只展示后端从关系库定位到的真实对象。"
+          />
         )}
-      </Form>
+      {governanceNeedsImpact && impactSummaryPanel}
+      {(governance?.signoffs.length ?? 0) > 0 && (
+        <Descriptions bordered size="small" column={1} title="签署证据">
+          {governance?.signoffs.map((signoff) => (
+            <Descriptions.Item
+              key={signoff.signoffId}
+              label={`${signoff.stage === "PEER_REVIEW" ? "同行评审" : "委员会"} · 第 ${
+                signoff.reviewRound
+              } 轮`}
+            >
+              <Space wrap>
+                <Tag color={signoff.decision === "APPROVED" ? "green" : "red"}>
+                  {signoff.decision === "APPROVED" ? "通过" : "驳回"}
+                </Tag>
+                <Text>{signoff.signerId}</Text>
+                <Text type="secondary">{signoff.reason}</Text>
+              </Space>
+            </Descriptions.Item>
+          ))}
+        </Descriptions>
+      )}
+      {governanceState === "RETIRED" ? (
+        <Alert
+          type="info"
+          showIcon
+          message="规则已封存"
+          description="内容、版本、评审轮次与签署证据均保留，不提供删除或重新发布入口。"
+        />
+      ) : (
+        <Form layout="vertical">
+          <Form.Item label="治理说明" htmlFor="rule-release-reason">
+            <TextArea
+              id="rule-release-reason"
+              rows={3}
+              value={releaseReason}
+              onChange={(event) => setReleaseReason(event.target.value)}
+              placeholder="填写本次评审、会签、发布、监测或退役依据。"
+            />
+          </Form.Item>
+          {governanceAction ?? (
+            <Alert
+              type="info"
+              showIcon
+              message="当前账号仅可查看本阶段证据"
+              description="可执行动作由规则写入权限、签署角色和发布职责共同决定。"
+            />
+          )}
+        </Form>
+      )}
     </Space>
   );
 
@@ -2518,17 +2701,17 @@ export default function RuleDefinitions() {
                 <Text type="secondary">
                   发布前必须覆盖阳性、阴性、边界和冲突用例，且所有用例通过。
                 </Text>
-                {detailData.definition.status === "DRAFT" && (
-                  <Space>
-                    {detailData.testCases.length > 0 && (
-                      <Button
-                        icon={<PlayCircleOutlined />}
-                        loading={runRuleTestsMutation.isPending}
-                        onClick={handleRunRuleTests}
-                      >
-                        执行全部用例
-                      </Button>
-                    )}
+                <Space>
+                  {detailData.testCases.length > 0 && detailData.governance.state !== "RETIRED" && (
+                    <Button
+                      icon={<PlayCircleOutlined />}
+                      loading={runRuleTestsMutation.isPending}
+                      onClick={handleRunRuleTests}
+                    >
+                      执行全部用例
+                    </Button>
+                  )}
+                  {detailData.governance.state === "DRAFT" && (
                     <Button
                       icon={<PlusOutlined />}
                       onClick={() => {
@@ -2543,8 +2726,8 @@ export default function RuleDefinitions() {
                     >
                       新增测试用例
                     </Button>
-                  </Space>
-                )}
+                  )}
+                </Space>
               </div>
 
               <Table
@@ -2710,19 +2893,10 @@ export default function RuleDefinitions() {
           key: "release",
           label: (
             <span>
-              <DeploymentUnitOutlined /> 7 步流发布
+              <DeploymentUnitOutlined /> 治理与发布
             </span>
           ),
-          children: (
-            <StepFlow
-              currentStep={releaseCurrentStep}
-              panelByStep={{
-                submit_review: releaseStepPanel,
-                full_rollout: releaseStepPanel,
-              }}
-              status={releaseFlowStatus}
-            />
-          ),
+          children: releaseStepPanel,
         },
       ]
     : [];
@@ -3374,7 +3548,7 @@ export default function RuleDefinitions() {
   return (
     <PageShell
       title="规则中枢"
-      description="配置规则资产，完成测试、解释和发布门禁。"
+      description="配置规则资产，完成测试、解释和临床治理。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           新建规则模板
@@ -3428,6 +3602,7 @@ export default function RuleDefinitions() {
               <Option value="LOW">低风险</Option>
               <Option value="MEDIUM">中风险</Option>
               <Option value="HIGH">高风险</Option>
+              <Option value="CRITICAL">红线规则</Option>
             </Select>
           </Form.Item>
         </Form>
@@ -3455,17 +3630,14 @@ export default function RuleDefinitions() {
         title={
           <div className={styles.drawerTitle}>
             <span>规则配置详情与试运行</span>
-            {detailData &&
-              detailData.deploymentStatus !== "ACTIVE" &&
-              (detailData.definition.status === "DRAFT" ||
-                detailData.definition.status === "PUBLISHED") && (
-                <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
-                  进入发布流
-                </Button>
-              )}
+            {detailData && detailData.governance.state !== "RETIRED" && (
+              <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
+                进入治理流
+              </Button>
+            )}
           </div>
         }
-        width={980}
+        width="min(61.25rem, 100vw)"
         onClose={() => {
           setSelectedRuleId(null);
           setActiveDetailLayer("l2");

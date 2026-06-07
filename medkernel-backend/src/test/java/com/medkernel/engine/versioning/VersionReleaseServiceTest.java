@@ -139,6 +139,38 @@ class VersionReleaseServiceTest {
     }
 
     @Test
+    void rejectedReviewReturnsPendingVersionToDraftWithEvidence() {
+        AssetVersion pending = version(
+            "av-v2",
+            "2.0.0",
+            AssetVersionStatus.PENDING_REVIEW,
+            AssetVersionSafetyPolicy.NORMAL
+        );
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
+            .thenReturn(Optional.of(pending));
+        when(assetVersions.save(any(AssetVersion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(releasePlans.save(any(VersionReleasePlan.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        VersionReleasePlan rejected = service.rejectReview(releaseCommand(
+            "av-v2",
+            null,
+            null,
+            "影响摘要 d1",
+            List.of("MEDICAL_AFFAIRS")
+        ));
+
+        assertThat(rejected.status()).isEqualTo(VersionReleaseStatus.REVIEW_REJECTED);
+        assertThat(rejected.evidenceSummary()).contains("审核拒绝").contains("审核结论");
+        verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
+            saved.versionId().equals("av-v2")
+                && saved.status() == AssetVersionStatus.DRAFT
+                && saved.activeScopeKey().equals("version:av-v2")
+        ));
+    }
+
+    @Test
     void rejectsDirectFullReleaseForNonHospitalAdminRole() {
         AssetVersion published = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(published));
