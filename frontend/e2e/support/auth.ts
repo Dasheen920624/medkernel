@@ -71,6 +71,14 @@ export async function loginWith(page: Page, username: string, password: string) 
 }
 
 export async function postApi(page: Page, path: string, data: unknown) {
+  return writeApi(page, "post", path, data);
+}
+
+export async function patchApi(page: Page, path: string, data: unknown) {
+  return writeApi(page, "patch", path, data);
+}
+
+async function writeApi(page: Page, method: "post" | "patch", path: string, data: unknown) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Trace-Id": `e2e-${Date.now()}`,
@@ -79,7 +87,7 @@ export async function postApi(page: Page, path: string, data: unknown) {
   if (xsrf) {
     headers["X-XSRF-TOKEN"] = xsrf.value;
   }
-  return page.request.post(`${apiBase}${path}`, { data, headers });
+  return page.request[method](`${apiBase}${path}`, { data, headers });
 }
 
 export async function expectOk(response: APIResponse, label: string) {

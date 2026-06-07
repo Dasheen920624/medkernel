@@ -375,6 +375,35 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
+  it("limits AI workflow status to real governance roles with read permission", () => {
+    const route = findRouteByPath("/advanced/ai-workflows");
+
+    expect(route?.hidden).toBe(false);
+    expect(route?.requiredPermissions).toEqual(["menu.ai-workflows", "llm.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "it-ops",
+      "medical-affairs",
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "medical-affairs" }],
+        permissions: [{ code: "llm.read" }],
+        menuKeys: ["ai-workflows"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [{ code: "llm.read" }],
+        menuKeys: ["ai-workflows"],
+      }),
+    ).toBe(false);
+  });
+
   it("requires the WORKBENCH-02 readiness action permission in addition to the workbench menu", () => {
     expect(
       canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {

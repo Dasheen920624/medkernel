@@ -231,11 +231,9 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
   });
 
-  it("renders the advanced ai-workflows engine workbench", () => {
+  it("renders the advanced AI workflow status page", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "模型能力网关" })).toBeInTheDocument();
-    expect(screen.getByText(/混合路由去向策略/)).toBeInTheDocument();
-    expect(screen.getByText("任务输入")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
   });
 
   it("renders the advanced knowledge provenance console", () => {

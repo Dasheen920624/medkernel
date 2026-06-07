@@ -5831,7 +5831,7 @@ export interface ModelCapabilityDefinitionUpsertRequest {
 }
 
 // 6. 扫描获取当前租户全部可用模型能力状态与降级指标
-export function useModelCapabilitiesStatus() {
+export function useModelCapabilitiesStatus(enabled = true) {
   return useQuery({
     queryKey: ["model", "capabilities-status"],
     queryFn: async () => {
@@ -5840,6 +5840,7 @@ export function useModelCapabilitiesStatus() {
       );
       return data.data ?? [];
     },
+    enabled,
   });
 }
 
