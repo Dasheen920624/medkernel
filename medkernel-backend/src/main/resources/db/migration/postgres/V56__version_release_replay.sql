@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS mk_version_release_plan (
     CONSTRAINT ck_mk_version_release_plan_scope CHECK (scope_type IN
         ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_mk_version_release_plan_status CHECK (status IN
-        ('PENDING_REVIEW','SILENT_OBSERVATION','GRAY','FULL','ROLLBACKED','FAILED'))
+        ('PENDING_REVIEW','REVIEW_REJECTED','SILENT_OBSERVATION','GRAY','FULL','ROLLBACKED','FAILED'))
 );
 
 CREATE TABLE IF NOT EXISTS mk_version_activation_transaction (

@@ -5,6 +5,7 @@ package com.medkernel.engine.versioning;
  */
 public enum VersionReleaseStatus {
     PENDING_REVIEW,
+    REVIEW_REJECTED,
     SILENT_OBSERVATION,
     GRAY,
     FULL,

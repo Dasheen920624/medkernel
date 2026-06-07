@@ -4,14 +4,14 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * 规则发布请求。
- *
- * <p>高危规则必须携带最近影响分析返回的 {@code impactDigest}；reason 用于审计留痕。
+ * 规则治理状态推进请求。
  */
-public record RulePublishRequest(
+public record RuleGovernanceTransitionRequest(
     @JsonProperty("request_id") String requestId,
     @JsonProperty("trace_id") String traceId,
     @JsonProperty("tenant_id") String tenantId,
@@ -24,15 +24,20 @@ public record RulePublishRequest(
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
     @JsonProperty("package_version") String packageVersion,
+    @NotNull RuleGovernanceState targetState,
     @Size(max = 128) String impactDigest,
-    @Size(max = 500) String reason
+    @NotBlank @Size(max = 500) String reason
 ) implements RuleContextRequest {
-    public RulePublishRequest {
+    public RuleGovernanceTransitionRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    public RulePublishRequest(String impactDigest, String reason) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null, impactDigest, reason);
+    public RuleGovernanceTransitionRequest(
+            RuleGovernanceState targetState,
+            String impactDigest,
+            String reason) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            targetState, impactDigest, reason);
     }
 
     public RuleApiContext apiContext() {
