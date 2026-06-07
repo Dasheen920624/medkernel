@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import PathwayGraphEditor from "./PathwayGraphEditor";
+import type { PathwayGraphNode } from "./PathwayGraphEditor";
 
-const nodes = [
+const nodes: PathwayGraphNode[] = [
   {
     nodeCode: "ASSESS",
     name: "入径评估",

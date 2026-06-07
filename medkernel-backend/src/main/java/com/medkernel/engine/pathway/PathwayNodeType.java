@@ -3,7 +3,7 @@ package com.medkernel.engine.pathway;
 /**
  * 路径节点类型。
  *
- * <p>覆盖筛查、评估、检查、检验、用药、手术、护理、康复、出院、随访和质控节点。
+ * <p>覆盖临床活动节点，以及决策、并行、等待计时、子路径、人工闸门和医嘱集等流程控制节点。
  */
 public enum PathwayNodeType {
     SCREENING,
@@ -16,5 +16,11 @@ public enum PathwayNodeType {
     REHAB,
     DISCHARGE,
     FOLLOWUP,
-    QUALITY
+    QUALITY,
+    DECISION,
+    PARALLEL,
+    WAIT_TIMER,
+    SUBPATHWAY,
+    MANUAL_GATE,
+    ORDER_SET
 }

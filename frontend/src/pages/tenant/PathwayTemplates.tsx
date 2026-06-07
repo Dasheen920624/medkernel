@@ -267,20 +267,34 @@ const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }>
 ];
 
 const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
+  { value: "SCREENING", label: "SCREENING 筛查" },
   { value: "ASSESSMENT", label: "ASSESSMENT 评估" },
-  { value: "DIAGNOSIS", label: "DIAGNOSIS 诊断" },
-  { value: "TREATMENT", label: "TREATMENT 治疗" },
+  { value: "EXAM", label: "EXAM 检查" },
+  { value: "LAB", label: "LAB 检验" },
+  { value: "MEDICATION", label: "MEDICATION 用药" },
+  { value: "SURGERY", label: "SURGERY 手术" },
   { value: "NURSING", label: "NURSING 护理" },
-  { value: "CHECK", label: "CHECK 检查" },
+  { value: "REHAB", label: "REHAB 康复" },
+  { value: "DISCHARGE", label: "DISCHARGE 出院" },
   { value: "FOLLOWUP", label: "FOLLOWUP 随访" },
   { value: "QUALITY", label: "QUALITY 质控" },
+  { value: "DECISION", label: "DECISION 决策分支" },
+  { value: "PARALLEL", label: "PARALLEL 并行/汇合" },
+  { value: "WAIT_TIMER", label: "WAIT_TIMER 等待计时" },
+  { value: "SUBPATHWAY", label: "SUBPATHWAY 子路径" },
+  { value: "MANUAL_GATE", label: "MANUAL_GATE 人工闸门" },
+  { value: "ORDER_SET", label: "ORDER_SET 医嘱集" },
 ];
 
 const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
   { value: "DEFAULT", label: "DEFAULT 默认流转" },
   { value: "CONDITION", label: "CONDITION 条件流转" },
-  { value: "VARIANCE", label: "VARIANCE 变异流转" },
+  { value: "RISK_STRATIFICATION", label: "RISK_STRATIFICATION 风险分层" },
+  { value: "PATIENT_CHOICE", label: "PATIENT_CHOICE 患者选择" },
+  { value: "RESOURCE_UNAVAILABLE", label: "RESOURCE_UNAVAILABLE 资源不可用" },
   { value: "PHYSICIAN_DECISION", label: "PHYSICIAN_DECISION 医师决策" },
+  { value: "ROLLBACK", label: "ROLLBACK 回退" },
+  { value: "JOIN", label: "JOIN 并行汇合" },
 ];
 
 const pathwayConditionOperatorOptions = [
@@ -478,7 +492,79 @@ function normalizeMilestones(milestones?: PathwayMilestoneFormValue[]) {
 }
 
 function normalizeNodeConfig(value: unknown): object | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const next: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof item === "string") {
+      const text = cleanText(item);
+      if (text !== undefined) next[key] = text;
+      continue;
+    }
+    if (hasConfiguredValue(item)) next[key] = item;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function configText(config: unknown, key: string) {
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return undefined;
+  const value = (config as Record<string, unknown>)[key];
+  return typeof value === "string" ? cleanText(value) : undefined;
+}
+
+function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdgeDraft[]) {
+  const outgoingByNode = new Map<string, PathwayEdgeDraft[]>();
+  for (const edge of edges) {
+    const list = outgoingByNode.get(edge.fromNodeCode) ?? [];
+    list.push(edge);
+    outgoingByNode.set(edge.fromNodeCode, list);
+  }
+  for (const node of nodes) {
+    const outgoing = outgoingByNode.get(node.nodeCode) ?? [];
+    if (node.nodeType === "DECISION") {
+      const hasConditionEdge = outgoing.some((edge) => edge.edgeType === "CONDITION");
+      if (outgoing.length < 2 || !hasConditionEdge) {
+        return `决策节点 ${node.nodeCode} 至少需要一个条件分支和一个兜底分支`;
+      }
+    }
+    if (node.nodeType === "PARALLEL") {
+      const hasFork = outgoing.length >= 2;
+      const hasJoin = outgoing.some((edge) => edge.edgeType === "JOIN");
+      if (!hasFork && !hasJoin) {
+        return `并行节点 ${node.nodeCode} 缺少并行分支或 JOIN 汇合边`;
+      }
+    }
+    if (node.nodeType === "WAIT_TIMER") {
+      const hasClock = configText(node.config, "clock") !== undefined;
+      const hasTimerGuard = outgoing.some((edge) => edge.edgeType === "CONDITION");
+      if (!hasClock && !node.timeWindowMinutes) {
+        return `等待计时节点 ${node.nodeCode} 必须填写 clock 或时窗分钟`;
+      }
+      if (!hasTimerGuard) {
+        return `等待计时节点 ${node.nodeCode} 必须配置计时条件边`;
+      }
+    }
+    if (node.nodeType === "SUBPATHWAY" && !configText(node.config, "subPathwayRef")) {
+      return `子路径节点 ${node.nodeCode} 必须填写子路径引用`;
+    }
+    if (node.nodeType === "MANUAL_GATE" && !node.responsibleRole) {
+      return `人工闸门节点 ${node.nodeCode} 必须填写责任角色`;
+    }
+    if (node.nodeType === "ORDER_SET" && !configText(node.config, "orderSetRef")) {
+      return `医嘱集节点 ${node.nodeCode} 必须填写医嘱集引用`;
+    }
+  }
+  return undefined;
+}
+
+function richNodeConfigSummary(node: PathwayNode) {
+  const config = parseLooseJson(node.configJson);
+  const orderSetRef = configText(config, "orderSetRef");
+  if (orderSetRef) return `医嘱集 ${orderSetRef}`;
+  const subPathwayRef = configText(config, "subPathwayRef");
+  if (subPathwayRef) return `子路径 ${subPathwayRef}`;
+  const clock = configText(config, "clock");
+  if (clock) return `计时 ${clock}`;
+  return "无";
 }
 
 function normalizeEdges(edges?: PathwayEdgeFormValue[]) {
@@ -1117,6 +1203,11 @@ export default function PathwayTemplates() {
         messageApi.error(topologyIssuesForSubmit[0]);
         return;
       }
+      const richNodeIssue = validateRichNodeContracts(nodes, edges);
+      if (richNodeIssue) {
+        messageApi.error(richNodeIssue);
+        return;
+      }
       const entryCriteria = normalizePathwayCriteria(values.entryCriteria, "入径");
       const exitCriteria = normalizePathwayCriteria(values.exitCriteria, "出径");
 
@@ -1419,6 +1510,11 @@ export default function PathwayTemplates() {
       title: "时窗",
       dataIndex: "timeWindowMinutes",
       render: (minutes?: number) => (minutes ? `${minutes} 分钟` : "无"),
+    },
+    {
+      title: "配置引用",
+      key: "config",
+      render: (_value, node) => richNodeConfigSummary(node),
     },
     { title: "责任角色", dataIndex: "responsibleRole" },
     {
@@ -1768,6 +1864,7 @@ export default function PathwayTemplates() {
                 {fields.length === 0 && <Empty description="尚未添加路径节点" />}
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
+                  const currentNodeType = watchedNodes?.[field.name]?.nodeType;
                   return (
                     <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
@@ -1814,7 +1911,12 @@ export default function PathwayTemplates() {
                             label="节点类型"
                             rules={[{ required: true }]}
                           >
-                            <Select placeholder="选择节点类型" options={nodeTypeOptions} />
+                            <Select
+                              placeholder="选择节点类型"
+                              options={nodeTypeOptions}
+                              optionFilterProp="label"
+                              virtual={false}
+                            />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -1839,6 +1941,19 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "responsibleRole"]}
                             label="责任角色"
+                            rules={[
+                              ({ getFieldValue }) => ({
+                                validator(_rule, value) {
+                                  const nodeType = getFieldValue(["nodes", field.name, "nodeType"]);
+                                  if (nodeType === "MANUAL_GATE" && !cleanText(value)) {
+                                    return Promise.reject(
+                                      new Error("人工闸门节点必须填写责任角色"),
+                                    );
+                                  }
+                                  return Promise.resolve();
+                                },
+                              }),
+                            ]}
                           >
                             <Input placeholder="如 专科医生" />
                           </Form.Item>
@@ -1912,6 +2027,47 @@ export default function PathwayTemplates() {
                           </Form.Item>
                         </Col>
                       </Row>
+                      {["ORDER_SET", "SUBPATHWAY", "WAIT_TIMER"].includes(
+                        currentNodeType ?? "",
+                      ) && (
+                        <Row gutter={12}>
+                          {currentNodeType === "ORDER_SET" && (
+                            <Col xs={24} sm={12} lg={8}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "config", "orderSetRef"]}
+                                label="医嘱集引用"
+                                rules={[{ required: true, message: "请填写医嘱集引用" }]}
+                              >
+                                <Input placeholder="如 sepsis-order-set" />
+                              </Form.Item>
+                            </Col>
+                          )}
+                          {currentNodeType === "SUBPATHWAY" && (
+                            <Col xs={24} sm={12} lg={8}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "config", "subPathwayRef"]}
+                                label="子路径引用"
+                                rules={[{ required: true, message: "请填写子路径引用" }]}
+                              >
+                                <Input placeholder="如 icu-transfer" />
+                              </Form.Item>
+                            </Col>
+                          )}
+                          {currentNodeType === "WAIT_TIMER" && (
+                            <Col xs={24} sm={12} lg={8}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "config", "clock"]}
+                                label="计时 clock"
+                              >
+                                <Input placeholder="如 AFTER_24H" />
+                              </Form.Item>
+                            </Col>
+                          )}
+                        </Row>
+                      )}
                     </div>
                   );
                 })}
@@ -2001,7 +2157,12 @@ export default function PathwayTemplates() {
                             label="流转类型"
                             rules={[{ required: true }]}
                           >
-                            <Select placeholder="选择流转类型" options={edgeTypeOptions} />
+                            <Select
+                              placeholder="选择流转类型"
+                              options={edgeTypeOptions}
+                              optionFilterProp="label"
+                              virtual={false}
+                            />
                           </Form.Item>
                         </Col>
                       </Row>

@@ -3126,7 +3126,12 @@ export type PathwayNodeType =
   | "DISCHARGE"
   | "FOLLOWUP"
   | "QUALITY"
-  | string;
+  | "DECISION"
+  | "PARALLEL"
+  | "WAIT_TIMER"
+  | "SUBPATHWAY"
+  | "MANUAL_GATE"
+  | "ORDER_SET";
 export type PathwayEdgeType =
   | "DEFAULT"
   | "CONDITION"
@@ -3135,7 +3140,7 @@ export type PathwayEdgeType =
   | "RESOURCE_UNAVAILABLE"
   | "PHYSICIAN_DECISION"
   | "ROLLBACK"
-  | string;
+  | "JOIN";
 export type PatientPathwayStatus =
   | "ENTERED"
   | "NODE_EXECUTING"

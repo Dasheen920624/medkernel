@@ -131,7 +131,8 @@ CREATE TABLE pathway_node (
     CONSTRAINT uk_pathway_node_template_code UNIQUE (tenant_id, template_id, node_code),
     CONSTRAINT ck_pathway_node_type CHECK (node_type IN (
         'SCREENING','ASSESSMENT','EXAM','LAB','MEDICATION','SURGERY',
-        'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY'
+        'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY',
+        'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'
     )),
     CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1))
 );
@@ -157,7 +158,7 @@ CREATE TABLE pathway_edge (
     CONSTRAINT uk_pathway_edge_template_code UNIQUE (tenant_id, template_id, edge_code),
     CONSTRAINT ck_pathway_edge_type CHECK (edge_type IN (
         'DEFAULT','CONDITION','RISK_STRATIFICATION','PATIENT_CHOICE',
-        'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK'
+        'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'
     ))
 );
 
@@ -347,7 +348,7 @@ COMMENT ON COLUMN pathway_node.tenant_id IS '租户 ID，用于多租户数据�
 COMMENT ON COLUMN pathway_node.template_id IS '关联路径模板业务 ID';
 COMMENT ON COLUMN pathway_node.node_code IS '节点编码，同一模板内唯一';
 COMMENT ON COLUMN pathway_node.name IS '节点名称';
-COMMENT ON COLUMN pathway_node.node_type IS '节点类型：SCREENING 筛查、ASSESSMENT 评估、EXAM 检查、LAB 检验、MEDICATION 用药、SURGERY 手术、NURSING 护理、REHAB 康复、DISCHARGE 出院、FOLLOWUP 随访、QUALITY 质控';
+COMMENT ON COLUMN pathway_node.node_type IS '节点类型：SCREENING 筛查、ASSESSMENT 评估、EXAM 检查、LAB 检验、MEDICATION 用药、SURGERY 手术、NURSING 护理、REHAB 康复、DISCHARGE 出院、FOLLOWUP 随访、QUALITY 质控、DECISION 决策、PARALLEL 并行、WAIT_TIMER 等待计时、SUBPATHWAY 子路径、MANUAL_GATE 人工闸门、ORDER_SET 医嘱集';
 COMMENT ON COLUMN pathway_node.milestone_code IS '节点所属里程碑编码，用于阶段天序视图和达成判定';
 COMMENT ON COLUMN pathway_node.sort_order IS '节点展示或执行排序';
 COMMENT ON COLUMN pathway_node.responsible_role IS '节点责任角色';
@@ -369,7 +370,7 @@ COMMENT ON COLUMN pathway_edge.template_id IS '关联路径模板业务 ID';
 COMMENT ON COLUMN pathway_edge.edge_code IS '路径边编码，同一模板内唯一';
 COMMENT ON COLUMN pathway_edge.from_node_code IS '源节点编码';
 COMMENT ON COLUMN pathway_edge.to_node_code IS '目标节点编码';
-COMMENT ON COLUMN pathway_edge.edge_type IS '路径边类型：DEFAULT 默认、CONDITION 条件、RISK_STRATIFICATION 风险分层、PATIENT_CHOICE 患者选择、RESOURCE_UNAVAILABLE 资源不可用、PHYSICIAN_DECISION 医生决策、ROLLBACK 回退';
+COMMENT ON COLUMN pathway_edge.edge_type IS '路径边类型：DEFAULT 默认、CONDITION 条件、RISK_STRATIFICATION 风险分层、PATIENT_CHOICE 患者选择、RESOURCE_UNAVAILABLE 资源不可用、PHYSICIAN_DECISION 医生决策、ROLLBACK 回退、JOIN 并行汇合';
 COMMENT ON COLUMN pathway_edge.condition_json IS '分支条件摘要 JSON';
 COMMENT ON COLUMN pathway_edge.priority IS '同一源节点出边优先级，数值越小越优先';
 COMMENT ON COLUMN pathway_edge.created_at IS '创建时间';

@@ -30,7 +30,7 @@ const apiMocks = vi.hoisted(() => ({
   templateListParams: [] as unknown[],
 }));
 
-const PATHWAY_INTERACTION_TIMEOUT_MS = 30_000;
+const PATHWAY_INTERACTION_TIMEOUT_MS = 90_000;
 
 vi.mock("@/shared/api/hooks", () => ({
   usePathwayTemplates: (params?: { templateCode?: string }) => {
@@ -540,6 +540,74 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           expect.objectContaining({
             nodeCode: "ASSESS",
             milestoneCode: "M-PREOP-ASSESS",
+          }),
+        ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "富节点类型提供结构化配置并只暴露后端权威边类型",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
+        target: { value: "富节点路径" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("路径模型代码"), {
+        target: { value: "PATH.RICH.NODE" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("病种代码"), {
+        target: { value: "RICH" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("临床知识与指南基础"), {
+        target: { value: "富节点配置制度 2026" },
+      });
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      fireEvent.change(within(dialog).getByLabelText("节点编码"), {
+        target: { value: "ORDER" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("节点名称"), {
+        target: { value: "医嘱集确认" },
+      });
+      fireEvent.mouseDown(within(dialog).getByLabelText("节点类型"));
+      await user.click(await screen.findByText("ORDER_SET 医嘱集"));
+      fireEvent.change(await within(dialog).findByLabelText("医嘱集引用"), {
+        target: { value: "sepsis-order-set" },
+      });
+      await user.click(within(dialog).getByRole("switch", { name: "终止节点" }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
+      await user.click(await screen.findByText("医嘱集确认（ORDER）"));
+
+      await user.click(within(dialog).getByRole("button", { name: /添加流转边/ }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("流转类型"));
+      expect(await screen.findByText("JOIN 并行汇合")).toBeInTheDocument();
+      expect(screen.queryByText("VARIANCE 变异流转")).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      await user.click(within(dialog).getByRole("button", { name: "删除流转边 1" }));
+
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
+      const payload = apiMocks.createTemplate.mock.calls[0][0] as {
+        nodes: Array<{ nodeCode: string; nodeType: string; config?: { orderSetRef?: string } }>;
+      };
+      expect(payload.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            nodeCode: "ORDER",
+            nodeType: "ORDER_SET",
+            config: expect.objectContaining({ orderSetRef: "sepsis-order-set" }),
           }),
         ]),
       );

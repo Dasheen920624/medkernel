@@ -369,6 +369,75 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenRichNodeRequiredConfigIsMissing() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("ORDER", PathwayNodeType.ORDER_SET, 20, false, null, "医生", null),
+                node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 30, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "ORDER", PathwayEdgeType.DEFAULT),
+                edge("ORDER", "FOLLOWUP", PathwayEdgeType.DEFAULT)
+            ));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.templateImpact("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("医嘱集节点 ORDER 缺少 orderSetRef")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
+    void publishSucceedsWhenRichNodeContractsAreComplete() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("DECIDE", PathwayNodeType.DECISION, 20, false, null, "医生", null),
+                node("ORDER", PathwayNodeType.ORDER_SET, 30, false,
+                    "{\"orderSetRef\":\"sepsis-order-set\"}", "医生", null),
+                node("SUB", PathwayNodeType.SUBPATHWAY, 40, false,
+                    "{\"subPathwayRef\":\"icu-transfer\"}", "医生", null),
+                node("WAIT24H", PathwayNodeType.WAIT_TIMER, 50, false,
+                    "{\"clock\":\"AFTER_24H\"}", "护士", 1440),
+                node("GATE", PathwayNodeType.MANUAL_GATE, 60, false, null, "临床负责人", null),
+                node("JOIN", PathwayNodeType.PARALLEL, 70, false, null, "医生", null),
+                node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 80, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "DECIDE", PathwayEdgeType.DEFAULT),
+                edge("DECIDE", "ORDER", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"HIGH\"}", 1),
+                edge("DECIDE", "SUB", PathwayEdgeType.DEFAULT, null, 2),
+                edge("ORDER", "WAIT24H", PathwayEdgeType.DEFAULT),
+                edge("SUB", "WAIT24H", PathwayEdgeType.DEFAULT),
+                edge("WAIT24H", "GATE", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"pathway.timer.WAIT24H.ready\",\"operator\":\"equals\",\"value\":true}", 1),
+                edge("GATE", "JOIN", PathwayEdgeType.DEFAULT),
+                edge("JOIN", "FOLLOWUP", PathwayEdgeType.JOIN)
+            ));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("WAIT24H", "COPD.TIME_TO_WAIT", true)));
+        when(patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+
+        PathwayTemplateImpactResponse impact = service.templateImpact("pt-1");
+        PathwayTemplatePublishResponse response = service.publishTemplate(
+            "pt-1",
+            new PathwayOperationRequest(impact.impactDigest(), "富节点路径语义已核查"));
+
+        assertThat(response.status()).isEqualTo(PathwayTemplateStatus.PUBLISHED);
+    }
+
+    @Test
     void publishTemplateUsesPreRegisteredUnifiedVersionReleasePlan() {
         PathwayVersionedAssetAdapter versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
@@ -1426,11 +1495,24 @@ class PathwayEngineServiceTest {
 
     private PathwayNode node(String templateId, String tenantId, String code,
                              String milestoneCode, int sortOrder, boolean terminal) {
+        return node(templateId, tenantId, code,
+            terminal ? PathwayNodeType.FOLLOWUP : PathwayNodeType.ASSESSMENT,
+            milestoneCode, sortOrder, terminal, null, "医生", 1440);
+    }
+
+    private PathwayNode node(String code, PathwayNodeType nodeType, int sortOrder, boolean terminal,
+                             String configJson, String responsibleRole, Integer timeWindowMinutes) {
+        return node("pt-1", "tenant-A", code, nodeType, null, sortOrder, terminal,
+            configJson, responsibleRole, timeWindowMinutes);
+    }
+
+    private PathwayNode node(String templateId, String tenantId, String code,
+                             PathwayNodeType nodeType, String milestoneCode, int sortOrder, boolean terminal,
+                             String configJson, String responsibleRole, Integer timeWindowMinutes) {
         Instant now = Instant.now();
         return new PathwayNode(
             null, "pn-" + code, tenantId, templateId, code, code,
-            terminal ? PathwayNodeType.FOLLOWUP : PathwayNodeType.ASSESSMENT,
-            milestoneCode, sortOrder, "医生", null, 1440, terminal, null,
+            nodeType, milestoneCode, sortOrder, responsibleRole, null, timeWindowMinutes, terminal, configJson,
             now, "tester", now, "tester", "trace-pathway");
     }
 
