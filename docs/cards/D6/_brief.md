@@ -14,8 +14,8 @@ D6 **天然 B0**：来源/图谱/自检/控制台全确定性；图谱是**投�
 
 - **来源追溯**＝`engine/knowledge/` `KnowledgeLineage`（来源链，[OPT-07](../D2/OPT-07.md) 来源证据分级在 D2）+ 各引擎命中可追溯版本；[PROV-01](PROV-01.md) 承接"追溯到条"。
 - **图谱投影**＝`engine/pathway/` `PathwayGraph` + 关系库权威源与投影同步（[SYS-03](../D0/SYS-03.md) 归属，Neo4j 为投影非权威）；[GRAPH-01](GRAPH-01.md) 承接图谱查询。
-- **前端 5 页面已存在待真实化**（`frontend/src/pages/advanced/`，`app/router.tsx` 真实路由）：`Provenance`→`/advanced/provenance` · `GraphExplore`→`/advanced/graph` · `AiWorkflows`→`/advanced/ai-workflows` · `DomesticCheck`→`/advanced/domestic` · `DevConsole`→`/advanced/dev-console`；现状＝页面壳已存在，页面卡＝去占位/mock + 接真实来源/图谱/自检 API + 六态/RBAC（专家/开发者可见）。
-- **明确缺口**（建卡"现状"段照实写、勿夸大）：插件生态安全边界（[OPT-10](OPT-10.md) 新建，插件只读/受控写入 + 门禁）；国产化自检 + 开发者控制台后端（[DOMCHK-01](DOMCHK-01.md)/[DEVCON-01](DEVCON-01.md) 待建为主）；AI 工作流编排（[AIFLOW-01](AIFLOW-01.md) **本期只做壳/查看，编排留 wave2**）。
+- **已验收**：[OPT-10](OPT-10.md)插件安全边界、[DOMCHK-01](DOMCHK-01.md)国产化自检、[DEVCON-01](DEVCON-01.md)开发者控制台。
+- **待统一整改**：[PROV-01](PROV-01.md)来源追溯、[GRAPH-01](GRAPH-01.md)图谱查询、[AIFLOW-01](AIFLOW-01.md)AI工作流；现有实现不等于卡片验收通过。
 
 ## 登入 / 使用角色（13 角色矩阵本域子集，全量见 [质量基线 §9](../../audit/质量基线.md)）
 

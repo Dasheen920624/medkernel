@@ -1,6 +1,7 @@
 package com.medkernel.shared.runtime;
 
 import java.time.Instant;
+import java.util.List;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -21,22 +22,95 @@ class RuntimeOperationsServiceTest {
 
     @Test
     void successfulRestoreDrillPromotesBackupReadinessToUp() {
+        RuntimeProperties properties = new RuntimeProperties();
+        properties.getBackup().setEnabled(true);
+        RuntimeOperationsFixture fixture = fixture(properties);
+        when(fixture.evidenceReader().read(any())).thenReturn(new RuntimeBackupDrillEvidence(
+            "SUCCESS",
+            Instant.parse("2026-06-06T16:30:00Z"),
+            96,
+            "latest-restore-drill.properties",
+            "隔离恢复演练通过，迁移历史校验正常"
+        ));
+
+        RuntimeOperationsSnapshot snapshot = fixture.service().snapshot();
+
+        RuntimeOperationsSnapshot.RuntimeDependencyStatus backup = snapshot.dependencies().stream()
+            .filter(item -> item.key().equals("backup-restore"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(backup.status()).isEqualTo("UP");
+        assertThat(backup.detail()).contains("隔离恢复演练通过");
+    }
+
+    @Test
+    void domesticCompatibilityWarnsInsteadOfFalseGreenForNonDomesticRuntime() {
+        RuntimeProperties properties = new RuntimeProperties();
+        properties.setDatabaseDialect("postgres");
+        properties.setMigrationLocation("classpath:db/migration/postgres");
+
+        RuntimeOperationsSnapshot snapshot = fixture(properties).service().snapshot();
+
+        assertThat(snapshot.domesticCompatibility().overallStatus()).isEqualTo("WARN");
+        assertThat(snapshot.domesticCompatibility().items())
+            .extracting(RuntimeOperationsSnapshot.RuntimeDomesticCheckItem::key)
+            .containsExactly(
+                "os",
+                "jdk",
+                "database",
+                "crypto-provider",
+                "middleware",
+                "browser",
+                "ca"
+            );
+        RuntimeOperationsSnapshot.RuntimeDomesticCheckItem database = snapshot.domesticCompatibility().items().stream()
+            .filter(item -> item.key().equals("database"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(database.status()).isEqualTo("WARN");
+        assertThat(database.actualValue()).contains("postgres");
+        assertThat(database.reason()).contains("不标记通过");
+        RuntimeOperationsSnapshot.RuntimeDomesticCheckItem browser = snapshot.domesticCompatibility().items().stream()
+            .filter(item -> item.key().equals("browser"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(browser.status()).isEqualTo("UNKNOWN");
+        assertThat(browser.reason()).contains("服务端无法读取客户端浏览器");
+    }
+
+    @Test
+    void domesticReportUsesSameRuntimeSnapshotAndKeepsWarningsVisible() {
+        RuntimeProperties properties = new RuntimeProperties();
+        properties.setDatabaseDialect("postgres");
+        properties.setMigrationLocation("classpath:db/migration/postgres");
+
+        String report = fixture(properties).service().domesticReport();
+
+        assertThat(report)
+            .contains("MedKernel 国产化自检报告")
+            .contains("整体状态: WARN")
+            .contains("关系数据库")
+            .contains("postgres")
+            .contains("不标记通过")
+            .doesNotContain("password")
+            .doesNotContain("secret");
+    }
+
+    private RuntimeOperationsFixture fixture(RuntimeProperties properties) {
         Environment environment = mock(Environment.class);
         HealthEndpoint healthEndpoint = mock(HealthEndpoint.class);
         SystemConfigService configService = mock(SystemConfigService.class);
         RuntimeBackupDrillEvidenceReader evidenceReader = mock(RuntimeBackupDrillEvidenceReader.class);
-        RuntimeProperties properties = new RuntimeProperties();
-        properties.getBackup().setEnabled(true);
 
         when(environment.getProperty("spring.application.name", "medkernel")).thenReturn("medkernel");
         when(environment.getActiveProfiles()).thenReturn(new String[] {"test"});
         when(environment.getProperty("spring.threads.virtual.enabled", Boolean.class, false))
             .thenReturn(false);
         when(healthEndpoint.health()).thenReturn(Health.up().build());
-        when(configService.runtimeFeatureFlags(properties)).thenReturn(java.util.List.of());
+        when(configService.runtimeFeatureFlags(properties)).thenReturn(List.of());
         when(configService.runtimeFeatureFlagEnabled(any(), any())).thenReturn(false);
         when(configService.runtimeBackupReadiness(properties)).thenReturn(new RuntimeBackupReadiness(
-            true,
+            properties.getBackup().isEnabled(),
             "24 小时",
             "4 小时",
             "./backup.sh",
@@ -46,28 +120,21 @@ class RuntimeOperationsServiceTest {
             "YML_SEED",
             null
         ));
-        when(evidenceReader.read(any())).thenReturn(new RuntimeBackupDrillEvidence(
-            "SUCCESS",
-            Instant.parse("2026-06-06T16:30:00Z"),
-            96,
-            "latest-restore-drill.properties",
-            "隔离恢复演练通过，迁移历史校验正常"
-        ));
+        when(evidenceReader.read(any())).thenReturn(RuntimeBackupDrillEvidence.notAvailable());
 
-        RuntimeOperationsSnapshot snapshot = new RuntimeOperationsService(
+        return new RuntimeOperationsFixture(evidenceReader, new RuntimeOperationsService(
             environment,
             healthEndpoint,
             new SimpleMeterRegistry(),
             properties,
             configService,
             evidenceReader
-        ).snapshot();
+        ));
+    }
 
-        RuntimeOperationsSnapshot.RuntimeDependencyStatus backup = snapshot.dependencies().stream()
-            .filter(item -> item.key().equals("backup-restore"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(backup.status()).isEqualTo("UP");
-        assertThat(backup.detail()).contains("隔离恢复演练通过");
+    private record RuntimeOperationsFixture(
+        RuntimeBackupDrillEvidenceReader evidenceReader,
+        RuntimeOperationsService service
+    ) {
     }
 }

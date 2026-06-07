@@ -65,6 +65,7 @@ public final class DomainOwnershipCatalog {
             tables("mk_engine_cdss_risk_matrix")),
         module("engine-llm", packages("com.medkernel.engine.llm"), prefixes("model_capability_"), tables()),
         module("engine-embed", packages("com.medkernel.engine.embed"), prefixes("embed_"), tables()),
+        module("engine-plugin", packages("com.medkernel.engine.plugin"), prefixes("mk_plugin_"), tables()),
         module("engine-tenant", packages("com.medkernel.engine.tenant"), prefixes(),
             tables("tenant_branding", "tenant_success_plan")),
         module("compliance-evidence", packages("com.medkernel.compliance.evidence"), prefixes("evidence_"), tables()),

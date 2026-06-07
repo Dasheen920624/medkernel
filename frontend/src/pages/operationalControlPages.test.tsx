@@ -1,5 +1,5 @@
 import { App as AntdApp, ConfigProvider } from "antd";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -10,33 +10,49 @@ import DevConsole from "./advanced/DevConsole";
 import IdentityBinding from "./compliance/IdentityBinding";
 import SecurityBaseline from "./compliance/SecurityBaseline";
 import {
-  useDelegatedAuthStatus,
+  downloadDomesticCompatibilityReport,
   useCreateIdentityBinding,
+  useDelegatedAuthStatus,
+  useDeveloperApiContracts,
+  useDisablePlugin,
+  useGrantPlugin,
   useIdentityBindings,
   useLoginTenantDirectory,
   useOrgUsers,
+  usePlugins,
+  useRegisterPlugin,
   useRuntimeOperations,
   useSecurityProfile,
   useSystemRuntime,
+  useTraceDiagnosis,
   useUnbindIdentityBinding,
 } from "@/shared/api/hooks";
 import type {
   DelegatedAuthStatus,
+  DeveloperApiContractDirectory,
   IdentityBinding as IdentityBindingRecord,
   LoginTenantDirectory,
+  PluginList,
   RuntimeOperationsSnapshot,
   SecurityProfile,
 } from "@/shared/api/hooks";
 
 vi.mock("@/shared/api/hooks", () => ({
-  useDelegatedAuthStatus: vi.fn(),
+  downloadDomesticCompatibilityReport: vi.fn(),
   useCreateIdentityBinding: vi.fn(),
+  useDelegatedAuthStatus: vi.fn(),
+  useDeveloperApiContracts: vi.fn(),
+  useDisablePlugin: vi.fn(),
+  useGrantPlugin: vi.fn(),
   useIdentityBindings: vi.fn(),
   useLoginTenantDirectory: vi.fn(),
   useOrgUsers: vi.fn(),
+  usePlugins: vi.fn(),
+  useRegisterPlugin: vi.fn(),
   useRuntimeOperations: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSystemRuntime: vi.fn(),
+  useTraceDiagnosis: vi.fn(),
   useUnbindIdentityBinding: vi.fn(),
 }));
 
@@ -142,6 +158,18 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
   migrationLocation: "classpath:db/migration/postgres",
   activeProfiles: ["dev", "container"],
   healthStatus: "UP",
+  jvm: {
+    javaVersion: "21.0.8",
+    javaVendor: "Eclipse Adoptium",
+    vmName: "OpenJDK 64-Bit Server VM",
+    virtualThreadsEnabled: false,
+    availableProcessors: 8,
+  },
+  os: {
+    name: "Mac OS X",
+    version: "15.5",
+    arch: "aarch64",
+  },
   featureFlags: [
     {
       key: "graph-projection",
@@ -208,6 +236,46 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
     evidence: "国产化自检、五方言迁移合同、国密算法 smoke",
   },
+  domesticCompatibility: {
+    overallStatus: "WARN",
+    summary: "0 项通过，4 项警告，0 项失败，3 项待现场确认",
+    checkedAt: "2026-06-06T04:00:00Z",
+    items: [
+      {
+        key: "os",
+        category: "OS",
+        displayName: "操作系统",
+        status: "WARN",
+        actualValue: "Mac OS X 15.5 aarch64",
+        expectedValue: "麒麟 / 统信 / openEuler",
+        reason: "当前操作系统未命中国产化目标清单，不标记通过。",
+        recommendation: "在目标国产 OS 重新运行自检。",
+        evidence: "System.getProperty(os.name/os.version/os.arch)",
+      },
+      {
+        key: "database",
+        category: "DATABASE",
+        displayName: "关系数据库",
+        status: "WARN",
+        actualValue: "postgres · classpath:db/migration/postgres",
+        expectedValue: "达梦 / 人大金仓",
+        reason: "当前数据库方言未命中国产化目标清单，不标记通过。",
+        recommendation: "切换 dm/kingbase profile 后重新运行迁移烟测。",
+        evidence: "medkernel.runtime.database-dialect",
+      },
+      {
+        key: "browser",
+        category: "BROWSER",
+        displayName: "国产浏览器",
+        status: "UNKNOWN",
+        actualValue: "服务端快照无法读取客户端浏览器",
+        expectedValue: "国产浏览器现场版本",
+        reason: "服务端无法读取客户端浏览器，不标记通过。",
+        recommendation: "在交付现场用目标浏览器打开本页并保存报告。",
+        evidence: "前端现场验收",
+      },
+    ],
+  },
   generatedAt: "2026-06-06T04:00:00Z",
 };
 
@@ -218,6 +286,52 @@ const systemRuntime = {
   activeProfiles: ["dev", "container"],
   databaseDialect: "postgres",
   runtime: "Java 21",
+};
+
+const developerContracts: DeveloperApiContractDirectory = {
+  contracts: [
+    {
+      id: "runtime-operations",
+      title: "运行状态服务",
+      basePath: "/api/v1/system",
+      openApiPaths: ["/api/v1/system/**"],
+      permissions: [{ code: "system.read", dimension: "ACTION", purpose: "查看运行状态" }],
+      auditPoints: [],
+      publicEndpoints: [],
+    },
+    {
+      id: "rule",
+      title: "规则引擎服务",
+      basePath: "/api/v1/engine/rule",
+      openApiPaths: ["/api/v1/engine/rule/**"],
+      permissions: [{ code: "rule.publish", dimension: "ACTION", purpose: "发布规则" }],
+      auditPoints: [{ action: "PUBLISH", targetType: "rule_definition", purpose: "发布规则" }],
+      publicEndpoints: [],
+    },
+  ],
+};
+
+const pluginList: PluginList = {
+  items: [
+    {
+      pluginId: "plug-1",
+      pluginCode: "ward-read-model",
+      displayName: "病区只读看板",
+      status: "PENDING_REVIEW",
+      authorityBoundary: "READ_ONLY",
+      capabilities: [
+        {
+          capabilityKey: "read-runtime",
+          capabilityType: "READ",
+          serviceContractId: "runtime-operations",
+          serviceContractTitle: "运行状态服务",
+          clinicalData: false,
+        },
+      ],
+      version: 1,
+      updatedAt: "2026-06-07T00:00:00Z",
+    },
+  ],
 };
 
 function renderPage(page: React.ReactElement) {
@@ -264,6 +378,24 @@ describe("operational control pages", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(query(securityProfile) as never);
     vi.mocked(useRuntimeOperations).mockReturnValue(query(runtimeSnapshot) as never);
     vi.mocked(useSystemRuntime).mockReturnValue(query(systemRuntime) as never);
+    vi.mocked(useDeveloperApiContracts).mockReturnValue(query(developerContracts) as never);
+    vi.mocked(usePlugins).mockReturnValue(query(pluginList) as never);
+    vi.mocked(useTraceDiagnosis).mockReturnValue(query(undefined) as never);
+    vi.mocked(useRegisterPlugin).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as never);
+    vi.mocked(useGrantPlugin).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as never);
+    vi.mocked(useDisablePlugin).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as never);
+    vi.mocked(downloadDomesticCompatibilityReport).mockResolvedValue(
+      new Blob(["MedKernel 国产化自检报告"]),
+    );
   });
 
   it("renders and submits a real identity binding workflow", async () => {
@@ -323,7 +455,7 @@ describe("operational control pages", () => {
     expect(screen.getAllByText("MFA 已绑定").length).toBeGreaterThan(0);
     expect(screen.getAllByText("高风险权限").length).toBeGreaterThan(0);
     expect(screen.getByText("用户写入")).toBeInTheDocument();
-    expect(screen.getByText("关系数据库")).toBeInTheDocument();
+    expect(screen.getAllByText("关系数据库").length).toBeGreaterThan(0);
     expect(screen.getByText("备份恢复")).toBeInTheDocument();
     expect(screen.queryByText("安全基线自查接口尚未接入")).not.toBeInTheDocument();
   });
@@ -346,20 +478,35 @@ describe("operational control pages", () => {
     );
   });
 
-  it("renders domestic compatibility evidence from the runtime operations snapshot", () => {
+  it("renders domestic compatibility evidence from the runtime operations snapshot", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     renderPage(<DomesticCheck />);
 
     expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
-    expect(screen.getByText("麒麟 / 统信 / openEuler")).toBeInTheDocument();
-    expect(screen.getByText("KAE-JDK 21 / BiSheng JDK 21")).toBeInTheDocument();
+    expect(screen.getByText("WARN")).toBeInTheDocument();
+    expect(screen.getByText(/0 项通过，4 项警告/)).toBeInTheDocument();
+    expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
     expect(screen.getByText("达梦")).toBeInTheDocument();
     expect(screen.getByText("人大金仓")).toBeInTheDocument();
     expect(screen.getByText("SM3")).toBeInTheDocument();
+    expect(screen.getAllByText("关系数据库").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/不标记通过/).length).toBeGreaterThan(0);
+    expect(screen.getByText("国产浏览器")).toBeInTheDocument();
     expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /导出报告/ }));
+    await waitFor(() => expect(downloadDomesticCompatibilityReport).toHaveBeenCalledTimes(1));
+    expect(consoleError.mock.calls.flat().join("\n")).not.toContain(
+      "Sum of column `span` in a line not match `column`",
+    );
+    consoleError.mockRestore();
   });
 
-  it("renders a controlled developer console without exposing a raw placeholder", () => {
+  it("renders API contracts, trace diagnosis and plugin management tools", async () => {
+    const user = userEvent.setup();
     renderPage(<DevConsole />);
 
     expect(screen.getByRole("heading", { name: "开发者控制台" })).toBeInTheDocument();
@@ -370,6 +517,63 @@ describe("operational control pages", () => {
     expect(
       within(screen.getByTestId("developer-dependencies")).getByText("统一身份 IdP"),
     ).toBeInTheDocument();
+    expect(screen.getByText("运行状态服务")).toBeInTheDocument();
+    expect(screen.getByText("rule.publish")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Trace 诊断" }));
+    expect(screen.getByPlaceholderText("输入 Trace ID")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "插件管理" }));
+    expect(screen.getByText("病区只读看板")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /注册插件/ })).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+  });
+
+  it("does not emit row key or dynamic form key warnings", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(useTraceDiagnosis).mockReturnValue(
+      query({
+        traceId: "trace-console",
+        startedAt: "2026-06-07T04:00:00Z",
+        endedAt: "2026-06-07T04:00:01Z",
+        durationMs: 1000,
+        stateHistory: [
+          {
+            fromStatus: "PENDING",
+            toStatus: "SUCCEEDED",
+            reason: "浏览器验收",
+            actor: "it-ops-1",
+            traceId: "trace-console",
+            occurredAt: "2026-06-07T04:00:01Z",
+          },
+        ],
+        payloads: [],
+      }) as never,
+    );
+
+    try {
+      renderPage(<DevConsole />);
+      fireEvent.click(screen.getByRole("tab", { name: "Trace 诊断" }));
+      const traceInput = screen.getByPlaceholderText("输入 Trace ID");
+      fireEvent.change(traceInput, { target: { value: "trace-console" } });
+      fireEvent.keyDown(traceInput, { key: "Enter", code: "Enter" });
+      expect(await screen.findByText("PENDING → SUCCEEDED")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("tab", { name: "插件管理" }));
+      fireEvent.click(screen.getByRole("button", { name: /授权/ }));
+      const grantDialog = screen.getByRole("dialog", { name: /授权 病区只读看板/ });
+      expect(grantDialog).toBeInTheDocument();
+      fireEvent.click(within(grantDialog).getByRole("button", { name: "取 消" }));
+
+      fireEvent.click(screen.getByRole("button", { name: /注册插件/ }));
+      expect(screen.getByRole("dialog", { name: "注册插件" })).toBeInTheDocument();
+
+      const warnings = consoleError.mock.calls.flat().join("\n");
+      expect(warnings).not.toContain("`index` parameter of `rowKey` function is deprecated");
+      expect(warnings).not.toContain('props object containing a "key" prop is being spread');
+      expect(warnings).not.toContain("Instance created by `useForm` is not connected");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

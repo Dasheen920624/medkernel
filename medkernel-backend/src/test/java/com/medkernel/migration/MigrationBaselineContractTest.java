@@ -122,7 +122,8 @@ class MigrationBaselineContractTest {
         "V93__interop_assessment_mapping.sql",
         "V94__structured_allergy_intolerance_resource.sql",
         "V95__compliance_identity_binding.sql",
-        "V96__tenant_user_directory.sql"
+        "V96__tenant_user_directory.sql",
+        "V97__plugin_security_boundary.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -133,6 +134,7 @@ class MigrationBaselineContractTest {
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
         "sys_role", "sys_permission", "role_permission", "user_role_assignment", "tenant_user",
+        "mk_plugin_registry", "mk_plugin_grant",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
@@ -288,6 +290,7 @@ class MigrationBaselineContractTest {
         "idx_compliance_interop_evidence_status",
         "idx_compliance_identity_binding_user", "idx_compliance_identity_binding_status",
         "idx_tenant_user_directory",
+        "idx_plugin_registry_tenant", "idx_mk_plugin_grant_tenant_status",
         "idx_mpi_patient_tenant_status",
         "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
@@ -361,6 +364,11 @@ class MigrationBaselineContractTest {
         "ck_sys_permission_active", "uk_role_permission", "ck_role_permission_effect",
         "uk_user_role_assignment", "ck_user_role_assignment_active",
         "uk_tenant_user_identity", "ck_tenant_user_status", "ck_tenant_user_version",
+        "uk_plugin_registry_id", "uk_plugin_registry_tenant_code",
+        "ck_plugin_registry_status", "ck_plugin_registry_boundary", "ck_plugin_registry_version",
+        "uk_mk_plugin_grant_id", "uk_mk_plugin_grant_capability", "fk_plugin_grant_registry",
+        "ck_mk_plugin_grant_type", "ck_mk_plugin_grant_status",
+        "ck_mk_plugin_grant_clinical", "ck_mk_plugin_grant_version",
         "uk_context_snapshot_id", "ck_context_snapshot_status", "ck_context_snapshot_quality",
         "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
         "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
@@ -1263,6 +1271,38 @@ class MigrationBaselineContractTest {
                     "platform_credential",
                     "user_role_assignment",
                     "COMMENT ON TABLE tenant_user");
+        }
+    }
+
+    @Test
+    void v97ShouldDefineTenantScopedPluginSecurityBoundaryInAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V97__plugin_security_boundary.sql");
+            assertThat(sql).as("%s V97 插件安全边界合同", dialect)
+                .contains(
+                    "mk_plugin_registry",
+                    "mk_plugin_grant",
+                    "tenant_id",
+                    "plugin_id",
+                    "plugin_code",
+                    "authority_boundary",
+                    "capabilities_json",
+                    "service_contract_id",
+                    "approval_reason",
+                    "clinical_safety_confirmed",
+                    "uk_plugin_registry_tenant_code",
+                    "uk_mk_plugin_grant_capability",
+                    "ck_plugin_registry_status",
+                    "ck_plugin_registry_boundary",
+                    "ck_mk_plugin_grant_type",
+                    "ck_mk_plugin_grant_status",
+                    "created_at",
+                    "created_by",
+                    "updated_at",
+                    "updated_by",
+                    "trace_id",
+                    "COMMENT ON TABLE mk_plugin_registry",
+                    "COMMENT ON TABLE mk_plugin_grant");
         }
     }
 

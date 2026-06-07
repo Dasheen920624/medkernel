@@ -280,6 +280,41 @@ export interface RuntimeDomesticProfile {
   evidence: string;
 }
 
+export interface RuntimeJvmMetadata {
+  javaVersion: string;
+  javaVendor: string;
+  vmName: string;
+  virtualThreadsEnabled: boolean;
+  availableProcessors: number;
+}
+
+export interface RuntimeOsMetadata {
+  name: string;
+  version: string;
+  arch: string;
+}
+
+export type RuntimeDomesticCheckStatus = "PASS" | "WARN" | "FAIL" | "UNKNOWN" | string;
+
+export interface RuntimeDomesticCheckItem {
+  key: string;
+  category: string;
+  displayName: string;
+  status: RuntimeDomesticCheckStatus;
+  actualValue: string;
+  expectedValue: string;
+  reason: string;
+  recommendation: string;
+  evidence: string;
+}
+
+export interface RuntimeDomesticCompatibility {
+  overallStatus: RuntimeDomesticCheckStatus;
+  summary: string;
+  items: RuntimeDomesticCheckItem[];
+  checkedAt: string;
+}
+
 export interface RuntimeOperationsSnapshot {
   serviceName: string;
   environment: string;
@@ -288,10 +323,13 @@ export interface RuntimeOperationsSnapshot {
   migrationLocation: string;
   activeProfiles: string[];
   healthStatus: "UP" | "DOWN" | "OUT_OF_SERVICE" | "UNKNOWN" | string;
+  jvm: RuntimeJvmMetadata;
+  os: RuntimeOsMetadata;
   featureFlags: RuntimeFeatureFlag[];
   dependencies: RuntimeDependencyStatus[];
   backup: RuntimeBackupReadiness;
   domesticProfile: RuntimeDomesticProfile;
+  domesticCompatibility: RuntimeDomesticCompatibility;
   generatedAt: string;
 }
 
@@ -311,11 +349,242 @@ export function useRuntimeOperations(enabled = true) {
   });
 }
 
+export async function downloadDomesticCompatibilityReport() {
+  const response = await apiClient.get<Blob>("/system/operations/domestic-report", {
+    responseType: "blob",
+  });
+  return response.data;
+}
+
 export function useSystemRuntime() {
   return useQuery({
     queryKey: ["system", "runtime"],
     queryFn: async () => (await apiClient.get("/system/runtime")).data as Record<string, unknown>,
     refetchInterval: 30_000,
+  });
+}
+
+export interface DeveloperApiPermission {
+  code: string;
+  dimension: PermissionDimension;
+  purpose: string;
+}
+
+export interface DeveloperApiAuditPoint {
+  action: string;
+  targetType: string;
+  purpose: string;
+}
+
+export interface DeveloperApiContract {
+  id: string;
+  title: string;
+  basePath: string;
+  openApiPaths: string[];
+  permissions: DeveloperApiPermission[];
+  auditPoints: DeveloperApiAuditPoint[];
+  publicEndpoints: string[];
+}
+
+export interface DeveloperApiContractDirectory {
+  contracts: DeveloperApiContract[];
+}
+
+type DeveloperApiContractDirectoryEnvelope = {
+  data: DeveloperApiContractDirectory;
+};
+
+export function useDeveloperApiContracts() {
+  return useQuery({
+    queryKey: ["system", "dev-console", "api-contracts"],
+    queryFn: async () => {
+      const response = await apiClient.get<DeveloperApiContractDirectoryEnvelope>(
+        "/system/dev-console/api-contracts",
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export interface TraceTransitionError {
+  errorCode?: string | null;
+  errorClass?: string | null;
+  message?: string | null;
+  retryCount?: number | null;
+  nextRetryAt?: string | null;
+}
+
+export interface TraceStateTransition {
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  reason?: string | null;
+  actor?: string | null;
+  traceId?: string | null;
+  error?: TraceTransitionError | null;
+  occurredAt?: string | null;
+}
+
+export interface TracePayloadSummary {
+  digest: string;
+  sizeBytes: number;
+  contentType: string;
+  storageType: string;
+  fetchUri?: string | null;
+}
+
+export interface TraceDiagnosis {
+  traceId: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationMs?: number | null;
+  stateHistory: TraceStateTransition[];
+  payloads: TracePayloadSummary[];
+}
+
+type TraceDiagnosisEnvelope = {
+  data: TraceDiagnosis;
+};
+
+export function useTraceDiagnosis(traceId: string, enabled = true) {
+  const normalizedTraceId = traceId.trim();
+  return useQuery({
+    queryKey: ["system", "trace-diagnosis", normalizedTraceId],
+    enabled: enabled && normalizedTraceId.length > 0,
+    queryFn: async () => {
+      const response = await apiClient.get<TraceDiagnosisEnvelope>(
+        `/engine/diagnose/traces/${encodeURIComponent(normalizedTraceId)}`,
+      );
+      return response.data.data;
+    },
+    retry: false,
+  });
+}
+
+export type PluginCapabilityType = "READ" | "EXECUTE" | "WRITE";
+export type PluginStatus = "PENDING_REVIEW" | "AUTHORIZED" | "DISABLED";
+export type PluginAuthorityBoundary = "READ_ONLY" | "CONTROLLED_WRITE";
+export type PluginGrantStatus = "AUTHORIZED" | "REVOKED";
+
+export interface PluginCapability {
+  capabilityKey: string;
+  capabilityType: PluginCapabilityType;
+  serviceContractId: string;
+  serviceContractTitle: string;
+  clinicalData: boolean;
+}
+
+export interface PluginItem {
+  pluginId: string;
+  pluginCode: string;
+  displayName: string;
+  status: PluginStatus;
+  authorityBoundary: PluginAuthorityBoundary;
+  capabilities: PluginCapability[];
+  version: number;
+  updatedAt?: string | null;
+}
+
+export interface PluginList {
+  items: PluginItem[];
+}
+
+export interface PluginRegisterPayload {
+  pluginCode: string;
+  displayName: string;
+  capabilities: Array<{
+    capabilityKey: string;
+    capabilityType: PluginCapabilityType;
+    serviceContractId: string;
+    clinicalData: boolean;
+  }>;
+}
+
+export interface PluginGrantPayload {
+  pluginId: string;
+  capabilityKeys: string[];
+  approvalReason: string;
+  clinicalSafetyConfirmed: boolean;
+}
+
+export interface PluginGrantItem {
+  grantId: string;
+  capabilityKey: string;
+  capabilityType: PluginCapabilityType;
+  serviceContractId: string;
+  status: PluginGrantStatus;
+  clinicalSafetyConfirmed: boolean;
+  grantedAt?: string | null;
+}
+
+export interface PluginGrantResult {
+  pluginId: string;
+  status: PluginGrantStatus;
+  grants: PluginGrantItem[];
+}
+
+type PluginListEnvelope = {
+  data: PluginList;
+};
+
+type PluginItemEnvelope = {
+  data: PluginItem;
+};
+
+type PluginGrantEnvelope = {
+  data: PluginGrantResult;
+};
+
+export function usePlugins() {
+  return useQuery({
+    queryKey: ["plugins"],
+    queryFn: async () => {
+      const response = await apiClient.get<PluginListEnvelope>("/plugins");
+      return response.data.data;
+    },
+  });
+}
+
+export function useRegisterPlugin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: PluginRegisterPayload) => {
+      const response = await apiClient.post<PluginItemEnvelope>("/plugins/register", payload);
+      return response.data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["plugins"] });
+    },
+  });
+}
+
+export function useGrantPlugin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pluginId, ...payload }: PluginGrantPayload) => {
+      const response = await apiClient.post<PluginGrantEnvelope>(
+        `/plugins/${encodeURIComponent(pluginId)}/grants`,
+        payload,
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["plugins"] });
+    },
+  });
+}
+
+export function useDisablePlugin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pluginId: string) => {
+      const response = await apiClient.post<PluginItemEnvelope>(
+        `/plugins/${encodeURIComponent(pluginId)}:disable`,
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["plugins"] });
+    },
   });
 }
 
