@@ -2136,6 +2136,8 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("ck_pathway_entry_mode");
         assertThat(h2).contains("ck_pathway_milestone_day");
         assertThat(h2).contains("ck_pathway_node_type");
+        assertThat(h2).contains("'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'");
+        assertThat(h2).contains("'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'");
         assertThat(h2).contains("ck_patient_pathway_status");
         assertThat(h2).contains("idx_clinical_clock_due");
     }

@@ -1671,6 +1671,7 @@ public class PackageEngineService {
             }
             parseEnum(com.medkernel.engine.pathway.PathwayEdgeType.class, edge.edgeType(), "路径边类型");
         }
+        validateOfflineRichPathwayNodeContracts(pathway);
         for (PackageOfflinePathwayMetricBinding binding : pathway.metricBindings()) {
             if (!nodeCodes.contains(binding.nodeCode())) {
                 throw new ApiException(
@@ -1678,6 +1679,92 @@ public class PackageEngineService {
                     "离线包路径指标绑定引用不存在的节点: " + binding.nodeCode()
                 );
             }
+        }
+    }
+
+    private void validateOfflineRichPathwayNodeContracts(PackageOfflinePathwayContent pathway) {
+        Map<String, List<PackageOfflinePathwayEdge>> outgoingByNode = new HashMap<>();
+        for (PackageOfflinePathwayEdge edge : pathway.edges()) {
+            outgoingByNode.computeIfAbsent(edge.fromNodeCode(), ignored -> new ArrayList<>()).add(edge);
+        }
+        for (PackageOfflinePathwayNode node : pathway.nodes()) {
+            com.medkernel.engine.pathway.PathwayNodeType nodeType =
+                parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class, node.nodeType(), "路径节点类型");
+            List<PackageOfflinePathwayEdge> outgoing = outgoingByNode.getOrDefault(node.nodeCode(), List.of());
+            switch (nodeType) {
+                case DECISION -> validateOfflineDecisionNode(node, outgoing);
+                case PARALLEL -> validateOfflineParallelNode(node, outgoing);
+                case WAIT_TIMER -> validateOfflineWaitTimerNode(node, outgoing);
+                case SUBPATHWAY -> requireOfflineNodeConfigText(
+                    node, "subPathwayRef", "离线包路径子路径节点 " + node.nodeCode() + " 缺少 subPathwayRef");
+                case MANUAL_GATE -> {
+                    if (normalizedText(node.responsibleRole()) == null) {
+                        throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                            "离线包路径人工闸门节点 " + node.nodeCode() + " 缺少责任角色");
+                    }
+                }
+                case ORDER_SET -> requireOfflineNodeConfigText(
+                    node, "orderSetRef", "离线包路径医嘱集节点 " + node.nodeCode() + " 缺少 orderSetRef");
+                default -> {
+                    // 普通活动节点只需要基础拓扑与枚举校验。
+                }
+            }
+        }
+    }
+
+    private void validateOfflineDecisionNode(PackageOfflinePathwayNode node,
+                                             List<PackageOfflinePathwayEdge> outgoing) {
+        boolean hasGuardedEdge = outgoing.stream()
+            .anyMatch(edge -> "CONDITION".equals(edge.edgeType()));
+        if (outgoing.size() < 2 || !hasGuardedEdge) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径决策节点 " + node.nodeCode() + " 至少需要一个条件分支和一个兜底分支");
+        }
+    }
+
+    private void validateOfflineParallelNode(PackageOfflinePathwayNode node,
+                                             List<PackageOfflinePathwayEdge> outgoing) {
+        boolean hasFork = outgoing.size() >= 2;
+        boolean hasJoin = outgoing.stream().anyMatch(edge -> "JOIN".equals(edge.edgeType()));
+        if (!hasFork && !hasJoin) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径并行节点 " + node.nodeCode() + " 缺少并行分支或 JOIN 汇合边");
+        }
+    }
+
+    private void validateOfflineWaitTimerNode(PackageOfflinePathwayNode node,
+                                              List<PackageOfflinePathwayEdge> outgoing) {
+        if (normalizedText(offlineNodeConfigText(node, "clock")) == null && node.timeWindowMinutes() == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径等待计时节点 " + node.nodeCode() + " 缺少 clock 或 timeWindowMinutes");
+        }
+        boolean hasTimerGuard = outgoing.stream().anyMatch(edge -> "CONDITION".equals(edge.edgeType()));
+        if (!hasTimerGuard) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径等待计时节点 " + node.nodeCode() + " 缺少计时条件边");
+        }
+    }
+
+    private String requireOfflineNodeConfigText(PackageOfflinePathwayNode node,
+                                                String field,
+                                                String message) {
+        String value = offlineNodeConfigText(node, field);
+        if (normalizedText(value) == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, message);
+        }
+        return value;
+    }
+
+    private String offlineNodeConfigText(PackageOfflinePathwayNode node, String field) {
+        if (normalizedText(node.configJson()) == null) {
+            return null;
+        }
+        try {
+            JsonNode value = OFFLINE_EXPORT_MAPPER.readTree(node.configJson()).get(field);
+            return value == null || value.isNull() ? null : value.asText();
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径节点配置 JSON 解析失败: " + node.nodeCode(), exception);
         }
     }
 

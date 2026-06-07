@@ -123,7 +123,7 @@
   - ✅ 测试：纳入排除标准生效。
 - [x] P9-2 阶段/里程碑/天序结构 + 里程碑达成判定。
   - ✅ 测试：天序视图与里程碑状态正确。
-- [ ] P9-3 富节点类型：DECISION/PARALLEL(fork-join)/WAIT-TIMER/SUBPATHWAY/MANUAL_GATE/ORDER_SET。
+- [x] P9-3 富节点类型：DECISION/PARALLEL(fork-join)/WAIT-TIMER/SUBPATHWAY/MANUAL_GATE/ORDER_SET。
   - ✅ 测试：各节点语义经 Progressor 推进正确。
 - [ ] P9-4 临床时钟 SLA：target/min/max + 基准事件 + 超时分级升级。
   - ✅ 测试：门球时间/抗生素时限类用例。

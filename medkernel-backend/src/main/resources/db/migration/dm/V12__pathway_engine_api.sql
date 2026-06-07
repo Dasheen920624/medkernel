@@ -131,7 +131,8 @@ CREATE TABLE pathway_node (
     CONSTRAINT uk_pathway_node_template_code UNIQUE (tenant_id, template_id, node_code),
     CONSTRAINT ck_pathway_node_type CHECK (node_type IN (
         'SCREENING','ASSESSMENT','EXAM','LAB','MEDICATION','SURGERY',
-        'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY'
+        'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY',
+        'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'
     )),
     CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1))
 );
@@ -157,7 +158,7 @@ CREATE TABLE pathway_edge (
     CONSTRAINT uk_pathway_edge_template_code UNIQUE (tenant_id, template_id, edge_code),
     CONSTRAINT ck_pathway_edge_type CHECK (edge_type IN (
         'DEFAULT','CONDITION','RISK_STRATIFICATION','PATIENT_CHOICE',
-        'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK'
+        'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'
     ))
 );
 

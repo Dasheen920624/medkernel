@@ -1440,7 +1440,85 @@ public class PathwayEngineService {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "非终止节点缺少出边: " + node.nodeCode());
             }
         }
+        validateRichNodeContracts(graphNodes, graphEdges);
         validateClockBindings(graphNodes, graphBindings);
+    }
+
+    private void validateRichNodeContracts(List<PathwayNode> graphNodes, List<PathwayEdge> graphEdges) {
+        Map<String, List<PathwayEdge>> outgoingByNode = new LinkedHashMap<>();
+        for (PathwayEdge edge : nullToEmpty(graphEdges)) {
+            outgoingByNode.computeIfAbsent(edge.fromNodeCode(), ignored -> new ArrayList<>()).add(edge);
+        }
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            List<PathwayEdge> outgoing = outgoingByNode.getOrDefault(node.nodeCode(), List.of());
+            switch (node.nodeType()) {
+                case DECISION -> validateDecisionNode(node, outgoing);
+                case PARALLEL -> validateParallelNode(node, outgoing);
+                case WAIT_TIMER -> validateWaitTimerNode(node, outgoing);
+                case SUBPATHWAY -> requireNodeConfigText(node, "subPathwayRef", "子路径节点 " + node.nodeCode() + " 缺少 subPathwayRef");
+                case MANUAL_GATE -> {
+                    if (isBlank(node.responsibleRole())) {
+                        throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                            "人工闸门节点 " + node.nodeCode() + " 缺少责任角色");
+                    }
+                }
+                case ORDER_SET -> requireNodeConfigText(node, "orderSetRef", "医嘱集节点 " + node.nodeCode() + " 缺少 orderSetRef");
+                default -> {
+                    // 临床活动节点仅使用通用拓扑与时钟校验。
+                }
+            }
+        }
+    }
+
+    private void validateDecisionNode(PathwayNode node, List<PathwayEdge> outgoing) {
+        boolean hasGuardedEdge = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.CONDITION);
+        if (outgoing.size() < 2 || !hasGuardedEdge) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "决策节点 " + node.nodeCode() + " 至少需要一个条件分支和一个兜底分支");
+        }
+    }
+
+    private void validateParallelNode(PathwayNode node, List<PathwayEdge> outgoing) {
+        boolean hasFork = outgoing.size() >= 2;
+        boolean hasJoin = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.JOIN);
+        if (!hasFork && !hasJoin) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "并行节点 " + node.nodeCode() + " 缺少并行分支或 JOIN 汇合边");
+        }
+    }
+
+    private void validateWaitTimerNode(PathwayNode node, List<PathwayEdge> outgoing) {
+        String clock = nodeConfigText(node, "clock");
+        if (isBlank(clock) && node.timeWindowMinutes() == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "等待计时节点 " + node.nodeCode() + " 缺少 clock 或 timeWindowMinutes");
+        }
+        boolean hasTimerGuard = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.CONDITION);
+        if (!hasTimerGuard) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "等待计时节点 " + node.nodeCode() + " 缺少计时条件边");
+        }
+    }
+
+    private String requireNodeConfigText(PathwayNode node, String field, String message) {
+        String value = nodeConfigText(node, field);
+        if (isBlank(value)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, message);
+        }
+        return value;
+    }
+
+    private String nodeConfigText(PathwayNode node, String field) {
+        if (isBlank(node.configJson())) {
+            return null;
+        }
+        try {
+            JsonNode value = json.readTree(node.configJson()).get(field);
+            return value == null || value.isNull() ? null : value.asText();
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径节点配置 JSON 解析失败：" + node.nodeCode(), exception);
+        }
     }
 
     private void validateClockBindings(List<PathwayNode> graphNodes, List<SpecialtyMetricBinding> graphBindings) {

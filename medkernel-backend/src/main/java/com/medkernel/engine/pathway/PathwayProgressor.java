@@ -1,6 +1,8 @@
 package com.medkernel.engine.pathway;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,8 +78,10 @@ public class PathwayProgressor {
         }
 
         LinkedHashMap<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("pathway.currentNodeType", current.nodeType().name());
+        validateRichNode(current, command, evidence);
         PathwayEdge selected = isBlank(command.requestedNextNodeCode())
-            ? selectNextEdge(outgoing, command.facts(), evidence)
+            ? selectNextEdge(outgoing, command.facts(), evidence, canUseDefaultFallback(current), isWaitTimer(current))
             : outgoing.stream()
                 .filter(edge -> Objects.equals(edge.toNodeCode(), command.requestedNextNodeCode()))
                 .findFirst()
@@ -85,6 +89,7 @@ public class PathwayProgressor {
                     ErrorCode.ENG_PATHWAY_006,
                     "目标节点不属于当前节点的可达出边: " + command.requestedNextNodeCode()));
         ensureTargetNodeExists(command.graph(), selected.toNodeCode());
+        validateSelectedEdge(command.graph(), current, selected, command.facts(), evidence);
         return new PathwayProgressDecision(
             current.nodeCode(), selected.toNodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             selected.edgeType(), selected.edgeCode(), evidence);
@@ -92,7 +97,9 @@ public class PathwayProgressor {
 
     private PathwayEdge selectNextEdge(List<PathwayEdge> outgoing,
                                        Map<String, Object> facts,
-                                       LinkedHashMap<String, Object> evidence) {
+                                       LinkedHashMap<String, Object> evidence,
+                                       boolean allowDefaultFallback,
+                                       boolean waitTimerNode) {
         PathwayEdge fallback = null;
         for (PathwayEdge edge : outgoing) {
             if (!hasCondition(edge)) {
@@ -105,10 +112,136 @@ public class PathwayProgressor {
                 return edge;
             }
         }
-        if (fallback != null) {
+        if (fallback != null && allowDefaultFallback) {
             return fallback;
         }
+        if (waitTimerNode) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "等待计时节点尚未满足推进条件");
+        }
         throw new ApiException(ErrorCode.ENG_PATHWAY_006, "没有满足条件的路径边");
+    }
+
+    private void validateRichNode(PathwayNode current,
+                                  PathwayProgressCommand command,
+                                  LinkedHashMap<String, Object> evidence) {
+        switch (current.nodeType()) {
+            case MANUAL_GATE -> validateManualGate(current, command, evidence);
+            case WAIT_TIMER -> recordWaitTimerEvidence(current, evidence);
+            case ORDER_SET -> evidence.put("pathway.orderSetRef", requiredConfigText(current, "orderSetRef", "医嘱集节点缺少 orderSetRef"));
+            case SUBPATHWAY -> evidence.put("pathway.subPathwayRef", requiredConfigText(current, "subPathwayRef", "子路径节点缺少 subPathwayRef"));
+            default -> {
+                // 普通活动节点不需要额外语义。
+            }
+        }
+    }
+
+    private void validateManualGate(PathwayNode current,
+                                    PathwayProgressCommand command,
+                                    LinkedHashMap<String, Object> evidence) {
+        if (isBlank(current.responsibleRole())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "人工闸门节点缺少责任角色");
+        }
+        if (command.eventType() == PathwayAdvanceEventType.COMPLETE && isBlank(command.requestedNextNodeCode())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "人工闸门节点需要显式确认目标节点");
+        }
+        evidence.put("pathway.manualGateConfirmed", !isBlank(command.requestedNextNodeCode()));
+        evidence.put("pathway.manualGateRole", current.responsibleRole());
+    }
+
+    private void recordWaitTimerEvidence(PathwayNode current, LinkedHashMap<String, Object> evidence) {
+        String clock = configText(current, "clock");
+        if (!isBlank(clock)) {
+            evidence.put("pathway.timerClock", clock);
+        }
+        if (current.timeWindowMinutes() != null) {
+            evidence.put("pathway.timerWindowMinutes", current.timeWindowMinutes());
+        }
+        if (isBlank(clock) && current.timeWindowMinutes() == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "等待计时节点缺少 clock 或 timeWindowMinutes");
+        }
+    }
+
+    private boolean canUseDefaultFallback(PathwayNode current) {
+        return !isWaitTimer(current);
+    }
+
+    private boolean isWaitTimer(PathwayNode current) {
+        return current.nodeType() == PathwayNodeType.WAIT_TIMER;
+    }
+
+    private void validateSelectedEdge(PathwayGraph graph,
+                                      PathwayNode current,
+                                      PathwayEdge selected,
+                                      Map<String, Object> facts,
+                                      LinkedHashMap<String, Object> evidence) {
+        if (selected.edgeType() == PathwayEdgeType.JOIN) {
+            validateJoinEdge(graph, current, facts, evidence);
+        }
+    }
+
+    private void validateJoinEdge(PathwayGraph graph,
+                                  PathwayNode current,
+                                  Map<String, Object> facts,
+                                  LinkedHashMap<String, Object> evidence) {
+        List<String> requiredNodeCodes = graph.edges().stream()
+            .filter(edge -> Objects.equals(edge.toNodeCode(), current.nodeCode()))
+            .filter(edge -> edge.edgeType() != PathwayEdgeType.JOIN)
+            .map(PathwayEdge::fromNodeCode)
+            .filter(code -> !isBlank(code))
+            .distinct()
+            .toList();
+        List<String> completedNodeCodes = completedNodeCodes(current.nodeCode(), facts);
+        evidence.put("pathway.joinRequiredNodeCodes", requiredNodeCodes);
+        evidence.put("pathway.joinCompletedNodeCodes", completedNodeCodes);
+        if (!new LinkedHashSet<>(completedNodeCodes).containsAll(requiredNodeCodes)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "并行汇合节点仍有未完成前置分支");
+        }
+    }
+
+    private List<String> completedNodeCodes(String joinNodeCode, Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return List.of();
+        }
+        Object value = facts.get("pathway.join." + joinNodeCode + ".completedNodeCodes");
+        if (value == null) {
+            value = facts.get("pathway.parallel.completedNodeCodes");
+        }
+        if (value instanceof Iterable<?> iterable) {
+            ArrayList<String> codes = new ArrayList<>();
+            for (Object item : iterable) {
+                if (item != null && !isBlank(String.valueOf(item))) {
+                    codes.add(String.valueOf(item));
+                }
+            }
+            return List.copyOf(codes);
+        }
+        if (value instanceof String text && !isBlank(text)) {
+            return List.of(text);
+        }
+        return List.of();
+    }
+
+    private String requiredConfigText(PathwayNode node, String field, String message) {
+        String value = configText(node, field);
+        if (isBlank(value)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, message);
+        }
+        return value;
+    }
+
+    private String configText(PathwayNode node, String field) {
+        if (isBlank(node.configJson())) {
+            return null;
+        }
+        try {
+            JsonNode value = json.readTree(node.configJson()).get(field);
+            if (value == null || value.isNull()) {
+                return null;
+            }
+            return value.asText();
+        } catch (Exception exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径节点配置 JSON 无法解析", exception);
+        }
     }
 
     private boolean hasCondition(PathwayEdge edge) {
