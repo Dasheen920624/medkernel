@@ -207,6 +207,7 @@ export default function PatientPathways() {
   const [varianceForm] = Form.useForm();
   const [exitForm] = Form.useForm();
   const selectedEnterTemplateId = Form.useWatch("templateId", enterForm);
+  const varianceResolutionDecision = Form.useWatch("resolutionDecision", varianceForm);
   const selectedEnterTemplate = templatesData?.items?.find(
     (item) => item.templateId === selectedEnterTemplateId,
   );
@@ -396,10 +397,15 @@ export default function PatientPathways() {
         packageVersion: selectedTemplatePackageVersion(),
         eventType: "VARIANCE",
         currentNodeCode: detailData.patientPathway.currentNodeCode,
-        requestedNextNodeCode: values.continueNodeCode,
+        requestedNextNodeCode:
+          values.resolutionDecision === "REENTER" ? values.continueNodeCode : undefined,
         varianceType: values.varianceType,
+        varianceReasonCode: values.reasonCode,
         varianceReason: values.reason,
+        responsibleRole: values.responsibleRole,
+        resolutionDecision: values.resolutionDecision,
         resolutionAction: values.resolutionAction,
+        exitReason: values.resolutionDecision === "TERMINATE" ? values.exitReason : undefined,
       });
 
       message.warning("患者路径偏离事实变异登记成功");
@@ -885,7 +891,7 @@ export default function PatientPathways() {
                             onFinish={handleVarianceAdvance}
                           >
                             <Alert
-                              message="临床变异：当患者疾病进展偏离指南或自主拒绝时，在此登记医学/患者偏离事实。这允许偏离标准出边强制推进，并记录审计追溯依据。"
+                              message="临床变异：登记患者偏离当前路径节点的事实、原因码、责任角色和处置决策，后端统一生成审计事实。"
                               type="warning"
                               showIcon
                               className={styles.sectionGap}
@@ -894,38 +900,48 @@ export default function PatientPathways() {
                               <Col span={12}>
                                 <Form.Item
                                   name="varianceType"
-                                  label="变异偏离类型"
+                                  label="变异分类"
                                   rules={[{ required: true }]}
                                 >
-                                  <Select placeholder="选择类型" aria-label="变异偏离类型">
-                                    <Option value="MEDICAL">MEDICAL (医学指征原因)</Option>
-                                    <Option value="PATIENT_REASON">
-                                      PATIENT_REASON (患者拒绝或意愿)
-                                    </Option>
-                                    <Option value="RESOURCE_REASON">
-                                      RESOURCE_REASON (医院资源限制)
-                                    </Option>
-                                    <Option value="DOCTOR_CHOICE">
-                                      DOCTOR_CHOICE (医生临床抉择)
-                                    </Option>
-                                    <Option value="SYSTEM_REASON">
-                                      SYSTEM_REASON (系统非预期偏离)
-                                    </Option>
+                                  <Select placeholder="选择分类" aria-label="变异分类">
+                                    <Option value="CLINICAL">CLINICAL (临床原因)</Option>
+                                    <Option value="SYSTEM">SYSTEM (系统原因)</Option>
+                                    <Option value="PATIENT">PATIENT (患者原因)</Option>
+                                    <Option value="FAMILY">FAMILY (家属原因)</Option>
                                   </Select>
                                 </Form.Item>
                               </Col>
                               <Col span={12}>
-                                <Form.Item name="continueNodeCode" label="强制调整/继续节点 (可选)">
-                                  <Select
-                                    placeholder="选择目标节点"
-                                    aria-label="强制调整或继续节点"
-                                  >
-                                    {templateDetail?.nodes.map((n) => (
-                                      <Option key={n.nodeId} value={n.nodeCode}>
-                                        {n.name} ({n.nodeCode})
-                                      </Option>
-                                    ))}
+                                <Form.Item
+                                  name="resolutionDecision"
+                                  label="处置决策"
+                                  rules={[{ required: true }]}
+                                >
+                                  <Select placeholder="选择处置决策" aria-label="处置决策">
+                                    <Option value="HOLD">HOLD (暂停观察)</Option>
+                                    <Option value="REENTER">REENTER (再入径)</Option>
+                                    <Option value="TERMINATE">TERMINATE (终止路径)</Option>
                                   </Select>
+                                </Form.Item>
+                              </Col>
+                            </Row>
+                            <Row gutter={12}>
+                              <Col span={12}>
+                                <Form.Item
+                                  name="reasonCode"
+                                  label="原因码"
+                                  rules={[{ required: true }]}
+                                >
+                                  <Input placeholder="如 CLINICAL_ESCALATION" />
+                                </Form.Item>
+                              </Col>
+                              <Col span={12}>
+                                <Form.Item
+                                  name="responsibleRole"
+                                  label="责任角色"
+                                  rules={[{ required: true }]}
+                                >
+                                  <Input placeholder="如 主管医师" />
                                 </Form.Item>
                               </Col>
                             </Row>
@@ -936,9 +952,30 @@ export default function PatientPathways() {
                             >
                               <TextArea rows={2} placeholder="请输入经医师确认的变异事实说明" />
                             </Form.Item>
+                            {varianceResolutionDecision === "REENTER" && (
+                              <Form.Item
+                                name="continueNodeCode"
+                                label="再入径节点"
+                                dependencies={["resolutionDecision"]}
+                                rules={[{ required: true, message: "请选择再入径节点" }]}
+                              >
+                                <Select placeholder="选择目标节点" aria-label="再入径节点">
+                                  {templateDetail?.nodes.map((n) => (
+                                    <Option key={n.nodeId} value={n.nodeCode}>
+                                      {n.name} ({n.nodeCode})
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            )}
+                            {varianceResolutionDecision === "TERMINATE" && (
+                              <Form.Item name="exitReason" label="终止原因">
+                                <Input placeholder="默认使用变异事实说明" />
+                              </Form.Item>
+                            )}
                             <Form.Item
                               name="resolutionAction"
-                              label="变异处置干预动作"
+                              label="处置动作说明"
                               rules={[{ required: true }]}
                             >
                               <Input placeholder="请输入已确认的处置动作" />
@@ -951,7 +988,7 @@ export default function PatientPathways() {
                               loading={advancePathwayMutation.isPending}
                               className={`${styles.fullWidth} ${styles.marginTopSm}`}
                             >
-                              提交路径变异并强制推进
+                              提交变异决策
                             </Button>
                           </Form>
                         ),
@@ -1068,7 +1105,21 @@ export default function PatientPathways() {
                           <span>变异 ID：</span>
                           <span>{variance.varianceId}</span>
                         </div>
+                        <div className={styles.timelineMeta}>
+                          <span>原因码：</span>
+                          <Tag color="orange">{variance.reasonCode}</Tag>
+                        </div>
                         <div className={styles.timelineMeta}>{variance.reason}</div>
+                        <div className={styles.timelineMeta}>
+                          <span>责任角色：</span>
+                          <span>{variance.responsibleRole}</span>
+                        </div>
+                        <div className={styles.timelineMeta}>
+                          <span>处置决策：</span>
+                          <Tag color={variance.resolutionDecision === "TERMINATE" ? "red" : "blue"}>
+                            {variance.resolutionDecision}
+                          </Tag>
+                        </div>
                         <div className={styles.timelineMeta}>
                           <span>处置动作：</span>
                           <span>{variance.resolutionAction || "未记录"}</span>

@@ -191,8 +191,11 @@ describe("PatientPathways", () => {
             varianceId: "var-1",
             patientPathwayId: "pp-real-1",
             nodeCode: "ASSESS",
-            varianceType: "MEDICAL",
+            varianceType: "CLINICAL",
+            reasonCode: "CLINICAL_ESCALATION",
             reason: "影像检查发现高危指征",
+            responsibleRole: "主管医师",
+            resolutionDecision: "REENTER",
             resolutionAction: "转入卒中绿色通道",
             continueNodeCode: "FOLLOWUP",
             createdAt: "2026-06-04T01:00:00Z",
@@ -313,8 +316,11 @@ describe("PatientPathways", () => {
           varianceId: "var-1",
           patientPathwayId: "pp-real-1",
           nodeCode: "ASSESS",
-          varianceType: "MEDICAL",
+          varianceType: "CLINICAL",
+          reasonCode: "CLINICAL_ESCALATION",
           reason: "影像检查发现高危指征",
+          responsibleRole: "主管医师",
+          resolutionDecision: "REENTER",
           resolutionAction: "转入卒中绿色通道",
           continueNodeCode: "FOLLOWUP",
           createdAt: "2026-06-04T01:00:00Z",
@@ -432,14 +438,20 @@ describe("PatientPathways", () => {
 
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
     await user.click(screen.getByRole("tab", { name: /登记变异/ }));
-    await user.click(screen.getByRole("combobox", { name: "变异偏离类型" }));
-    await user.click(await screen.findByText("MEDICAL (医学指征原因)"));
+    await user.click(screen.getByRole("combobox", { name: "变异分类" }));
+    await user.click(await screen.findByText("CLINICAL (临床原因)"));
+    await user.type(screen.getByPlaceholderText("如 CLINICAL_ESCALATION"), "CLINICAL_ESCALATION");
+    await user.type(screen.getByPlaceholderText("如 主管医师"), "主管医师");
+    await user.click(screen.getByRole("combobox", { name: "处置决策" }));
+    await user.click(await screen.findByText("REENTER (再入径)"));
+    await user.click(screen.getByRole("combobox", { name: "再入径节点" }));
+    await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
     await user.type(
       screen.getByPlaceholderText("请输入经医师确认的变异事实说明"),
       "患者突发高危指标",
     );
     await user.type(screen.getByPlaceholderText("请输入已确认的处置动作"), "转入专科会诊");
-    await user.click(screen.getByRole("button", { name: /提交路径变异并强制推进/ }));
+    await user.click(screen.getByRole("button", { name: /提交变异决策/ }));
 
     await waitFor(() => {
       expect(advancePathway).toHaveBeenCalledWith({
@@ -447,9 +459,12 @@ describe("PatientPathways", () => {
         packageVersion: "2026.06",
         eventType: "VARIANCE",
         currentNodeCode: "ASSESS",
-        requestedNextNodeCode: undefined,
-        varianceType: "MEDICAL",
+        requestedNextNodeCode: "FOLLOWUP",
+        varianceType: "CLINICAL",
+        varianceReasonCode: "CLINICAL_ESCALATION",
         varianceReason: "患者突发高危指标",
+        responsibleRole: "主管医师",
+        resolutionDecision: "REENTER",
         resolutionAction: "转入专科会诊",
       });
     });

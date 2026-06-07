@@ -200,7 +200,10 @@ CREATE TABLE pathway_variance (
     patient_pathway_id VARCHAR2(64)  NOT NULL,
     node_code          VARCHAR2(128) NOT NULL,
     variance_type      VARCHAR2(32)  NOT NULL,
+    reason_code        VARCHAR2(128) NOT NULL,
     reason             VARCHAR2(1024) NOT NULL,
+    responsible_role   VARCHAR2(128) NOT NULL,
+    resolution_decision VARCHAR2(32) NOT NULL,
     resolution_action  VARCHAR2(512) NULL,
     continue_node_code VARCHAR2(128) NULL,
     created_at         TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
@@ -210,7 +213,10 @@ CREATE TABLE pathway_variance (
     trace_id           VARCHAR2(128) NULL,
     CONSTRAINT uk_pathway_variance_id UNIQUE (variance_id),
     CONSTRAINT ck_pathway_variance_type CHECK (variance_type IN (
-        'MEDICAL','PATIENT_REASON','RESOURCE_REASON','DOCTOR_CHOICE','SYSTEM_REASON'
+        'CLINICAL','SYSTEM','PATIENT','FAMILY'
+    )),
+    CONSTRAINT ck_pathway_variance_resolution CHECK (resolution_decision IN (
+        'HOLD','REENTER','TERMINATE'
     ))
 );
 
@@ -409,14 +415,17 @@ COMMENT ON COLUMN patient_pathway.updated_at IS '更新时间';
 COMMENT ON COLUMN patient_pathway.updated_by IS '更新人';
 COMMENT ON COLUMN patient_pathway.trace_id IS '请求链路追踪 ID';
 
-COMMENT ON TABLE pathway_variance IS '路径变异记录表，保存患者路径执行偏离的类型、原因、处置动作和继续节点';
+COMMENT ON TABLE pathway_variance IS '路径变异记录表，保存患者路径执行偏离的分类、原因码、责任角色、处置决策和继续节点';
 COMMENT ON COLUMN pathway_variance.id IS '数据库自增主键';
 COMMENT ON COLUMN pathway_variance.variance_id IS '路径变异业务 ID';
 COMMENT ON COLUMN pathway_variance.tenant_id IS '租户 ID，用于多租户数据隔离';
 COMMENT ON COLUMN pathway_variance.patient_pathway_id IS '关联患者路径实例业务 ID';
 COMMENT ON COLUMN pathway_variance.node_code IS '发生变异的节点编码';
-COMMENT ON COLUMN pathway_variance.variance_type IS '变异类型：MEDICAL 医学原因、PATIENT_REASON 患者原因、RESOURCE_REASON 资源原因、DOCTOR_CHOICE 医生选择、SYSTEM_REASON 系统原因';
+COMMENT ON COLUMN pathway_variance.variance_type IS '变异分类：CLINICAL 临床、SYSTEM 系统、PATIENT 患者、FAMILY 家属';
+COMMENT ON COLUMN pathway_variance.reason_code IS '变异原因码';
 COMMENT ON COLUMN pathway_variance.reason IS '变异原因说明';
+COMMENT ON COLUMN pathway_variance.responsible_role IS '变异责任角色';
+COMMENT ON COLUMN pathway_variance.resolution_decision IS '变异处置决策：HOLD 暂停观察、REENTER 再入径、TERMINATE 终止路径';
 COMMENT ON COLUMN pathway_variance.resolution_action IS '变异处置动作';
 COMMENT ON COLUMN pathway_variance.continue_node_code IS '变异处理后继续进入的节点编码';
 COMMENT ON COLUMN pathway_variance.created_at IS '创建时间';

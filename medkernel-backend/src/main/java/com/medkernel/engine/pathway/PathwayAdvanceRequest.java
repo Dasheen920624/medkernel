@@ -30,7 +30,10 @@ public record PathwayAdvanceRequest(
     String currentNodeCode,
     String requestedNextNodeCode,
     VarianceType varianceType,
+    String varianceReasonCode,
     String varianceReason,
+    String responsibleRole,
+    VarianceResolutionDecision resolutionDecision,
     String resolutionAction,
     String exitReason,
     String eventId
@@ -50,7 +53,25 @@ public record PathwayAdvanceRequest(
                                  String eventId) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
             null, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
-            varianceReason, resolutionAction, exitReason, eventId);
+            null, varianceReason, null, null, resolutionAction, exitReason, eventId);
+    }
+
+    public PathwayAdvanceRequest(String patientPathwayId,
+                                 PathwayAdvanceEventType eventType,
+                                 String currentNodeCode,
+                                 String requestedNextNodeCode,
+                                 VarianceType varianceType,
+                                 String varianceReasonCode,
+                                 String varianceReason,
+                                 String responsibleRole,
+                                 VarianceResolutionDecision resolutionDecision,
+                                 String resolutionAction,
+                                 String exitReason,
+                                 String eventId) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            null, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+            varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
+            resolutionAction, exitReason, eventId);
     }
 
     public PathwayAdvanceRequest(String patientPathwayId,
@@ -65,7 +86,26 @@ public record PathwayAdvanceRequest(
                                  String snapshotId) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
             snapshotId, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
-            varianceReason, resolutionAction, exitReason, eventId);
+            null, varianceReason, null, null, resolutionAction, exitReason, eventId);
+    }
+
+    public PathwayAdvanceRequest(String patientPathwayId,
+                                 PathwayAdvanceEventType eventType,
+                                 String currentNodeCode,
+                                 String requestedNextNodeCode,
+                                 VarianceType varianceType,
+                                 String varianceReasonCode,
+                                 String varianceReason,
+                                 String responsibleRole,
+                                 VarianceResolutionDecision resolutionDecision,
+                                 String resolutionAction,
+                                 String exitReason,
+                                 String eventId,
+                                 String snapshotId) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+            snapshotId, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+            varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
+            resolutionAction, exitReason, eventId);
     }
 
     public PathwayAdvanceRequest withPatientPathwayId(String id) {
@@ -73,7 +113,8 @@ public record PathwayAdvanceRequest(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
             departmentId, specialtyId, userId, roleCodes, packageVersion, snapshotId, id,
             eventType, currentNodeCode, requestedNextNodeCode, varianceType,
-            varianceReason, resolutionAction, exitReason, eventId
+            varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
+            resolutionAction, exitReason, eventId
         );
     }
 

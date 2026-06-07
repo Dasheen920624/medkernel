@@ -1312,14 +1312,83 @@ class PathwayEngineServiceTest {
             .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
 
         PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
-            "pp-1", PathwayAdvanceEventType.VARIANCE, null, null, VarianceType.DOCTOR_CHOICE,
-            "医生根据患者情况调整节点", "人工确认后继续", null, "evt-2"));
+            "pp-1", PathwayAdvanceEventType.VARIANCE, null, null, VarianceType.CLINICAL,
+            "CLINICAL_ESCALATION", "医生根据患者情况调整节点", "主管医师",
+            VarianceResolutionDecision.HOLD, "等待多学科确认", null, "evt-2"));
 
         assertThat(response.status()).isEqualTo(PatientPathwayStatus.VARIANCE);
         assertThat(response.varianceId()).startsWith("pv-");
         ArgumentCaptor<PathwayVariance> varianceCap = ArgumentCaptor.forClass(PathwayVariance.class);
         verify(variances).save(varianceCap.capture());
-        assertThat(varianceCap.getValue().varianceType()).isEqualTo(VarianceType.DOCTOR_CHOICE);
+        assertThat(varianceCap.getValue().varianceType()).isEqualTo(VarianceType.CLINICAL);
+        assertThat(varianceCap.getValue().reasonCode()).isEqualTo("CLINICAL_ESCALATION");
+        assertThat(varianceCap.getValue().responsibleRole()).isEqualTo("主管医师");
+        assertThat(varianceCap.getValue().resolutionDecision()).isEqualTo(VarianceResolutionDecision.HOLD);
+        assertThat(varianceCap.getValue().continueNodeCode()).isNull();
+    }
+
+    @Test
+    void varianceCanReenterRequestedNodeAndPersistVarianceDecision() {
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.VARIANCE, null, "FOLLOWUP", VarianceType.PATIENT,
+            "PATIENT_REFUSES_STANDARD_NODE", "患者拒绝标准观察节点并签署知情记录", "主管医师",
+            VarianceResolutionDecision.REENTER, "转入随访节点并记录人工确认", null, "evt-reenter"));
+
+        assertThat(response.status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        assertThat(response.nextNodeCode()).isEqualTo("FOLLOWUP");
+        ArgumentCaptor<PathwayVariance> varianceCap = ArgumentCaptor.forClass(PathwayVariance.class);
+        verify(variances).save(varianceCap.capture());
+        assertThat(varianceCap.getValue().varianceType()).isEqualTo(VarianceType.PATIENT);
+        assertThat(varianceCap.getValue().reasonCode()).isEqualTo("PATIENT_REFUSES_STANDARD_NODE");
+        assertThat(varianceCap.getValue().responsibleRole()).isEqualTo("主管医师");
+        assertThat(varianceCap.getValue().resolutionDecision()).isEqualTo(VarianceResolutionDecision.REENTER);
+        assertThat(varianceCap.getValue().continueNodeCode()).isEqualTo("FOLLOWUP");
+        ArgumentCaptor<PatientPathway> pathwayCap = ArgumentCaptor.forClass(PatientPathway.class);
+        verify(patientPathways).save(pathwayCap.capture());
+        assertThat(pathwayCap.getValue().status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        assertThat(pathwayCap.getValue().currentNodeCode()).isEqualTo("FOLLOWUP");
+    }
+
+    @Test
+    void varianceCanTerminatePathwayAndPersistVarianceDecision() {
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-1", "ASSESS", ClinicalClockStatus.RUNNING)));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.VARIANCE, null, null, VarianceType.FAMILY,
+            "FAMILY_DECLINES_PATHWAY", "家属拒绝继续执行标准路径", "主管医师",
+            VarianceResolutionDecision.TERMINATE, "完成风险告知并终止路径", "家属拒绝继续路径", "evt-terminate"));
+
+        assertThat(response.status()).isEqualTo(PatientPathwayStatus.EXITED);
+        ArgumentCaptor<PathwayVariance> varianceCap = ArgumentCaptor.forClass(PathwayVariance.class);
+        verify(variances).save(varianceCap.capture());
+        assertThat(varianceCap.getValue().varianceType()).isEqualTo(VarianceType.FAMILY);
+        assertThat(varianceCap.getValue().reasonCode()).isEqualTo("FAMILY_DECLINES_PATHWAY");
+        assertThat(varianceCap.getValue().resolutionDecision()).isEqualTo(VarianceResolutionDecision.TERMINATE);
+        assertThat(varianceCap.getValue().continueNodeCode()).isNull();
+        ArgumentCaptor<PatientPathway> pathwayCap = ArgumentCaptor.forClass(PatientPathway.class);
+        verify(patientPathways).save(pathwayCap.capture());
+        assertThat(pathwayCap.getValue().status()).isEqualTo(PatientPathwayStatus.EXITED);
+        assertThat(pathwayCap.getValue().exitReason()).isEqualTo("家属拒绝继续路径");
     }
 
     @Test
@@ -1445,7 +1514,7 @@ class PathwayEngineServiceTest {
     @Test
     void variancesOnlyReturnsTenantScopedRuntimeFacts() {
         PatientPathway runtime = patientPathway(PatientPathwayStatus.VARIANCE, "ASSESS");
-        PathwayVariance variance = variance("pv-1", VarianceType.DOCTOR_CHOICE);
+        PathwayVariance variance = variance("pv-1", VarianceType.CLINICAL);
         when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
             .thenReturn(Optional.of(runtime));
         when(variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc("pp-1", "tenant-A"))
@@ -1741,7 +1810,8 @@ class PathwayEngineServiceTest {
         Instant now = Instant.now();
         return new PathwayVariance(
             1L, varianceId, "tenant-A", "pp-1", "ASSESS", type,
-            "医生根据患者情况调整节点", "人工确认后继续", "FOLLOWUP",
+            "CLINICAL_ESCALATION", "医生根据患者情况调整节点", "主管医师",
+            VarianceResolutionDecision.REENTER, "人工确认后继续", "FOLLOWUP",
             now.minusSeconds(30), "tester", now.minusSeconds(30), "tester", "trace-pathway");
     }
 
