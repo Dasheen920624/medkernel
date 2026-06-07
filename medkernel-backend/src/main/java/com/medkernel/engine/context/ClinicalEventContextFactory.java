@@ -33,6 +33,7 @@ public class ClinicalEventContextFactory {
             event.triggerPoint(),
             event.patientId(),
             event.encounterId(),
+            event.clinicalSetting(),
             event.snapshotId(),
             event.sourceSystem(),
             event.packageVersion(),

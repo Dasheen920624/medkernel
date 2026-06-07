@@ -14,6 +14,7 @@ import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEventDispatchResponse;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
@@ -50,6 +51,8 @@ class ClinicalEventEngineAdapterTest {
         assertThat(contextCap.getValue().path("event").path("eventId").asText()).isEqualTo("evt-1");
         assertThat(contextCap.getValue().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
         assertThat(contextCap.getValue().path("patient").path("patientId").asText()).isEqualTo("MPI-1");
+        assertThat(contextCap.getValue().path("encounters").path(0).path("encounterType").asText())
+            .isEqualTo("INPATIENT");
     }
 
     @Test
@@ -102,6 +105,7 @@ class ClinicalEventEngineAdapterTest {
             ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",
             "ENC-1",
+            ClinicalSetting.INPATIENT,
             "ctx-1",
             "HIS",
             "pkg-2026.06",

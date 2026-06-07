@@ -2467,7 +2467,7 @@ export interface RuleEvaluationItem {
   severity: RuleRiskLevel | null;
   actions: RuleActionResult[];
   explanation: unknown;
-  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  status: "SUCCESS" | "MISS" | "NOT_APPLICABLE" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
   suppressedBy?: string | null;
   deduplicatedFromExecutionId?: string | null;
 }
@@ -2577,7 +2577,7 @@ export interface RuleExplanationResponse {
   severity: RuleRiskLevel | string | null;
   actions?: unknown;
   explanation?: unknown;
-  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  status: "SUCCESS" | "MISS" | "NOT_APPLICABLE" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
   traceId: string;
 }
 
@@ -2588,7 +2588,7 @@ export interface RuleExecutionSummary {
   triggerPoint: string;
   hit: boolean;
   severity: RuleRiskLevel | string | null;
-  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  status: "SUCCESS" | "MISS" | "NOT_APPLICABLE" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
   executedAt: string;
   traceId: string;
 }

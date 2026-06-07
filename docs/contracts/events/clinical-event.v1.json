@@ -15,6 +15,7 @@
     "orgScopeJson",
     "patientId",
     "encounterId",
+    "clinicalSetting",
     "sourceSystem",
     "packageVersion",
     "payloadDigest",
@@ -39,6 +40,10 @@
     "orgScopeJson": { "type": ["string", "null"] },
     "patientId": { "type": ["string", "null"] },
     "encounterId": { "type": ["string", "null"] },
+    "clinicalSetting": {
+      "type": "string",
+      "enum": ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"]
+    },
     "sourceSystem": { "type": ["string", "null"] },
     "packageVersion": { "type": ["string", "null"] },
     "payloadDigest": { "type": ["string", "null"] },

@@ -62,7 +62,7 @@ class ContextValidatorTest {
         var patient = new CanonicalPatient("MPI-1", "张三", LocalDate.of(1980, 1, 1), "M",
             List.of(), "HIS", "rec-1", "v1",
             Instant.now(), Instant.now(), QualityStatus.VALID);
-        var enc = new CanonicalEncounter("ENC-1", "IP", null, null,
+        var enc = new CanonicalEncounter("ENC-1", "INPATIENT", null, null,
             "DEPT-A", "DOC-A", null, "HIS", "rec-2", "v1",
             Instant.now(), Instant.now(), QualityStatus.PARTIAL);
         var resources = new ContextSnapshotResources(patient,

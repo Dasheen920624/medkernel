@@ -3,6 +3,7 @@ package com.medkernel.engine.rule;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -36,12 +37,14 @@ class RuleRepositoryTest {
     @Autowired RuleTestCaseRepository testCases;
     @Autowired RuleExecutionLogRepository executions;
     @Autowired RuleOverrideLogRepository overrides;
+    @Autowired RuleApplicabilityRepository applicabilities;
 
     @AfterEach
     void wipe() {
         overrides.deleteAll();
         executions.deleteAll();
         testCases.deleteAll();
+        applicabilities.deleteAll();
         versions.deleteAll();
         definitions.deleteAll();
     }
@@ -63,16 +66,26 @@ class RuleRepositoryTest {
 
         RuleDefinition savedRule = definitions.save(sampleRule(ruleId, "tenant-A", "RULE.ANTICOAG"));
         RuleVersion savedVersion = versions.save(sampleVersion(versionId, "tenant-A", ruleId));
+        RuleApplicability savedApplicability = applicabilities.save(new RuleApplicability(
+            null, versionId, "tenant-A", "{}", "{}",
+            "[\"INPATIENT\",\"ED\"]", LocalDate.of(2026, 6, 1),
+            LocalDate.of(2026, 12, 31), 25, Instant.now(), "tester",
+            Instant.now(), "tester", "trace-rule"));
         RuleTestCase savedCase = testCases.save(sampleCase(caseId, "tenant-A", ruleId, versionId));
         RuleExecutionLog savedExecution = executions.save(sampleExecution(executionId, "tenant-A", ruleId, versionId));
 
         assertThat(savedRule.id()).isNotNull();
         assertThat(savedVersion.id()).isNotNull();
+        assertThat(savedApplicability.id()).isNotNull();
         assertThat(savedCase.id()).isNotNull();
         assertThat(savedExecution.id()).isNotNull();
 
         assertThat(definitions.findByRuleIdAndTenantId(ruleId, "tenant-A")).isPresent();
         assertThat(versions.findByVersionIdAndTenantId(versionId, "tenant-A")).isPresent();
+        assertThat(applicabilities.findByTenantIdAndRuleVersionId("tenant-A", versionId))
+            .get()
+            .extracting(RuleApplicability::rolloutPercent)
+            .isEqualTo(25);
         assertThat(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(versionId, "tenant-A"))
             .extracting(RuleTestCase::caseId)
             .containsExactly(caseId);

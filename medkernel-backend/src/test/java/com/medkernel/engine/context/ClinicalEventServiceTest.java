@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -111,6 +112,7 @@ class ClinicalEventServiceTest {
         assertThat(eventCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(eventCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(eventCap.getValue().encounterId()).isEqualTo("ENC-1");
+        assertThat(eventCap.getValue().clinicalSetting()).isEqualTo(ClinicalSetting.INPATIENT);
         assertThat(eventCap.getValue().orgScopeJson()).contains("\"tenantId\":\"tenant-A\"");
         assertThat(eventCap.getValue().orgScopeJson()).contains("\"departmentId\":\"dept-A\"");
         assertThat(eventCap.getValue().processingStatus()).isEqualTo(ClinicalEventStatus.RECEIVED);
@@ -367,6 +369,8 @@ class ClinicalEventServiceTest {
 
         assertThat(page.total()).isEqualTo(1);
         assertThat(page.items()).extracting(ClinicalEventDetailResponse::eventId).containsExactly("evt-1");
+        assertThat(page.items()).extracting(ClinicalEventDetailResponse::clinicalSetting)
+            .containsExactly(ClinicalSetting.INPATIENT);
     }
 
     private ClinicalEventRequest sampleRequest(String eventId) {
@@ -380,7 +384,7 @@ class ClinicalEventServiceTest {
     private ClinicalEventRequest sampleRequest(String eventId, String idempotencyKey, String callbackWebhookId) {
         return new ClinicalEventRequest(
             eventId, ClinicalEventType.DIAGNOSIS, "MPI-1", "ENC-1",
-            "HIS", "kpv-1", ClinicalEventTriggerPoint.PATIENT_VIEW,
+            ClinicalSetting.INPATIENT, "HIS", "kpv-1", ClinicalEventTriggerPoint.PATIENT_VIEW,
             idempotencyKey, callbackWebhookId, samplePayload(), Instant.parse("2026-05-27T01:00:00Z"));
     }
 
@@ -395,7 +399,7 @@ class ClinicalEventServiceTest {
             1L, eventId, "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
-            "MPI-1", "ENC-1", "HIS", "kpv-1", digest,
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", digest,
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-event");
     }

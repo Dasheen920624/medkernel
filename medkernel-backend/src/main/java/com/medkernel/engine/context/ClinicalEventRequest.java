@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.cdshook.CdsHookRequest;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,6 +20,7 @@ public record ClinicalEventRequest(
     @NotNull ClinicalEventType eventType,
     @NotBlank String patientId,
     String encounterId,
+    @NotNull ClinicalSetting clinicalSetting,
     String sourceSystem,
     @NotBlank String packageVersion,
     @NotNull ClinicalEventTriggerPoint triggerPoint,
@@ -56,6 +58,7 @@ public record ClinicalEventRequest(
         ObjectNode context = JsonNodeFactory.instance.objectNode()
             .put("eventId", eventId)
             .put("eventType", eventType == null ? null : eventType.name())
+            .put("clinicalSetting", clinicalSetting == null ? null : clinicalSetting.name())
             .put("triggerPoint", triggerPoint == null ? null : triggerPoint.wireValue());
         if (payload != null && payload.isObject()) {
             context.setAll((ObjectNode) payload.deepCopy());

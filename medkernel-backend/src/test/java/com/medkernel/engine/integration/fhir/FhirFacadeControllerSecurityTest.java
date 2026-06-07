@@ -71,6 +71,7 @@ class FhirFacadeControllerSecurityTest {
     void doctorCannotCreateFhirResourceThroughIntegrationFacade() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/fhir/R4/Observation")
                 .contentType("application/fhir+json")
+                .header("X-MedKernel-Clinical-Setting", "INPATIENT")
                 .content(OBSERVATION_BODY))
             .andExpect(status().isForbidden());
     }
@@ -83,6 +84,7 @@ class FhirFacadeControllerSecurityTest {
                 .header("X-MedKernel-Fhir-Adapter", "fhir-hub")
                 .header("X-MedKernel-Timestamp", "1780456123")
                 .header("X-MedKernel-Signature", "sha256=dummy")
+                .header("X-MedKernel-Clinical-Setting", "INPATIENT")
                 .content(OBSERVATION_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));

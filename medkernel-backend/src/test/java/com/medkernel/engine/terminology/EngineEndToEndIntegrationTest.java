@@ -189,7 +189,7 @@ class EngineEndToEndIntegrationTest {
                 List.of(),
                 List.of(
                     new com.medkernel.engine.context.canonical.CanonicalEncounter(
-                        "enc-stroke-888", "EMERGENCY", Instant.now(), null,
+                        "enc-stroke-888", "ED", Instant.now(), null,
                         "DEPT-01", doctorId, null, "HIS", "enc-rec-id", "v1.0", Instant.now(), Instant.now(), QualityStatus.VALID
                     )
                 ),

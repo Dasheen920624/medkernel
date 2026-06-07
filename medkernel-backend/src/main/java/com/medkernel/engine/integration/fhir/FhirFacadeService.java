@@ -32,6 +32,7 @@ import com.medkernel.engine.context.ClinicalEventService;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
 import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
@@ -224,6 +225,12 @@ public class FhirFacadeService {
         } catch (RuntimeException ex) {
             return error(HttpStatus.BAD_REQUEST, "invalid", ex.getMessage());
         }
+        ClinicalSetting clinicalSetting;
+        try {
+            clinicalSetting = requireClinicalSetting(mapped.resource(), command);
+        } catch (IllegalArgumentException exception) {
+            return error(HttpStatus.BAD_REQUEST, "invalid", exception.getMessage());
+        }
 
         CanonicalResource saved = resources.save(withStableResourceId(
             mapped.resource(), stableId(command.version(), resourceType, fhirId), snapshotId));
@@ -251,6 +258,7 @@ public class FhirFacadeService {
             eventTypeFor(saved.resourceType()),
             patientId,
             encounterId,
+            clinicalSetting,
             "FHIR_" + command.version().name(),
             packageVersion,
             triggerPointFor(saved.resourceType()),
@@ -423,6 +431,28 @@ public class FhirFacadeService {
         payload.put("mappingStatus", mapping.mappingStatus().name());
         payload.set("canonicalPayload", readJson(saved.resourcePayloadJson()));
         return payload;
+    }
+
+    private ClinicalSetting requireClinicalSetting(
+            CanonicalResource canonical,
+            FhirFacadeCreateCommand command) {
+        if (command.clinicalSetting() == null) {
+            throw new IllegalArgumentException("FHIR 回流必须提供标准临床场景");
+        }
+        if (canonical.resourceType() == CanonicalResourceType.ENCOUNTER) {
+            String mappedSetting = readJson(canonical.resourcePayloadJson())
+                .path("encounterType")
+                .asText();
+            if (!command.clinicalSetting().name().equals(mappedSetting)) {
+                throw new IllegalArgumentException(
+                    "FHIR Encounter 场景与 X-MedKernel-Clinical-Setting 不一致");
+            }
+        }
+        if (canonical.resourceType() == CanonicalResourceType.FOLLOW_UP
+                && command.clinicalSetting() != ClinicalSetting.FOLLOWUP) {
+            throw new IllegalArgumentException("FHIR 随访资源只允许 FOLLOWUP 场景");
+        }
+        return command.clinicalSetting();
     }
 
     private ObjectNode outboundPayload(CanonicalResource saved, FhirResourceMapping mapping, FhirFacadeCreateCommand command) {

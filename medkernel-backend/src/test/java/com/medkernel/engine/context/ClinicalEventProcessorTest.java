@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -139,7 +140,7 @@ class ClinicalEventProcessorTest {
             1L, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
-            "MPI-1", "ENC-1", "HIS", "kpv-1", "digest",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-1");
     }

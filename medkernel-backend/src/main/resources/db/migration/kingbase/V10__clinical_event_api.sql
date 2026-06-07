@@ -3,6 +3,7 @@
 
 ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS patient_id VARCHAR(64) NULL;
 ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS encounter_id VARCHAR(64) NULL;
+ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS clinical_setting VARCHAR(16) NOT NULL;
 ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS package_version VARCHAR(64) NULL;
 ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS error_code VARCHAR(64) NULL;
 ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS error_class VARCHAR(32) NULL;
@@ -12,9 +13,12 @@ ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS root_event_id VARCHAR(64) NU
 ALTER TABLE clinical_event DROP CONSTRAINT ck_clinical_event_status;
 ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_status
     CHECK (processing_status IN ('RECEIVED','MAPPED','PROCESSED','FAILED','SUPERSEDED'));
+ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_setting
+    CHECK (clinical_setting IN ('INPATIENT','OUTPATIENT','ED','FOLLOWUP'));
 
 CREATE INDEX IF NOT EXISTS idx_clinical_event_patient   ON clinical_event (tenant_id, patient_id, received_at);
 CREATE INDEX IF NOT EXISTS idx_clinical_event_encounter ON clinical_event (tenant_id, encounter_id, received_at);
+COMMENT ON COLUMN clinical_event.clinical_setting IS '标准临床场景：住院、门诊、急诊或随访';
 
 CREATE TABLE IF NOT EXISTS clinical_event_payload (
     id              BIGSERIAL PRIMARY KEY,

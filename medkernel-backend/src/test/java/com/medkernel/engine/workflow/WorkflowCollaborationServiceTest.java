@@ -28,6 +28,7 @@ import com.medkernel.engine.context.ClinicalEventRepository;
 import com.medkernel.engine.context.ClinicalEventStatus;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.followup.FollowupEventRepository;
 import com.medkernel.engine.followup.FollowupTaskRepository;
 import com.medkernel.engine.followup.FollowupTaskStatus;
@@ -1640,6 +1641,7 @@ class WorkflowCollaborationServiceTest {
                 "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
                 "patient-1",
                 "enc-1",
+                ClinicalSetting.INPATIENT,
                 "LIS",
                 "pkg-1",
                 "digest-report-1",

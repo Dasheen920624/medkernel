@@ -59,6 +59,7 @@ import com.medkernel.engine.pathway.SpecialtyMetricBinding;
 import com.medkernel.engine.pathway.SpecialtyMetricBindingRepository;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
+import com.medkernel.engine.rule.RuleApplicabilityService;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
@@ -108,6 +109,7 @@ public class PackageEngineService {
     private final SyncLogRepository logRepository;
 
     private final RuleDefinitionRepository ruleRepository;
+    private final RuleApplicabilityService ruleApplicabilityService;
     private final PathwayTemplateRepository pathwayRepository;
     private final EvaluationIndicatorRepository evaluationRepository;
     private final RuleVersionRepository ruleVersionRepository;
@@ -138,6 +140,7 @@ public class PackageEngineService {
             SyncLogRepository logRepository,
             RuleDefinitionRepository ruleRepository,
             RuleVersionRepository ruleVersionRepository,
+            RuleApplicabilityService ruleApplicabilityService,
             PathwayTemplateRepository pathwayRepository,
             PathwayNodeRepository pathwayNodeRepository,
             PathwayEdgeRepository pathwayEdgeRepository,
@@ -164,6 +167,7 @@ public class PackageEngineService {
         this.logRepository = logRepository;
         this.ruleRepository = ruleRepository;
         this.ruleVersionRepository = ruleVersionRepository;
+        this.ruleApplicabilityService = ruleApplicabilityService;
         this.pathwayRepository = pathwayRepository;
         this.pathwayNodeRepository = pathwayNodeRepository;
         this.pathwayEdgeRepository = pathwayEdgeRepository;
@@ -1498,6 +1502,7 @@ public class PackageEngineService {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包规则快照 versionNo 与资产条目不一致");
                 }
                 ensurePackageAssetPublished("规则", ruleContent.rule().status());
+                ruleApplicabilityService.validateDsl(readOfflineRuleDsl(ruleContent.version()));
             }
             case PATHWAY -> validateOfflinePathwayContent(assetId, assetVersion, content);
             case EVALUATION -> {
@@ -1702,7 +1707,7 @@ public class PackageEngineService {
             return;
         }
 
-        ruleVersionRepository.save(new RuleVersion(
+        RuleVersion importedVersion = ruleVersionRepository.save(new RuleVersion(
             null,
             ruleContent.version().versionId(),
             tenantId,
@@ -1722,6 +1727,12 @@ public class PackageEngineService {
             actor,
             traceId
         ));
+        ruleApplicabilityService.saveMirror(
+            importedVersion,
+            readOfflineRuleDsl(ruleContent.version()),
+            now,
+            actor,
+            traceId);
         ruleRepository.save(new RuleDefinition(
             null,
             ruleContent.rule().ruleId(),
@@ -1744,6 +1755,16 @@ public class PackageEngineService {
             actor,
             traceId
         ));
+    }
+
+    private JsonNode readOfflineRuleDsl(PackageOfflineRuleVersion version) {
+        try {
+            return PACKAGE_JSON_MAPPER.readTree(version.dslJson());
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "离线包规则 DSL 不是合法 JSON: " + version.versionId());
+        }
     }
 
     private void importOfflineEvaluationSnapshot(

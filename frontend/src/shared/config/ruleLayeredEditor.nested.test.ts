@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   conditionNodeToDsl,
+  createDefaultRuleApplicability,
   dslToConditionNode,
   dslWhenToRootGroup,
   flatToRootGroup,
@@ -80,6 +81,7 @@ describe("ruleLayeredEditor 嵌套条件（P1-2 原地扩展）", () => {
   it("flatToRootGroup 把扁平树提升为根组", () => {
     const tree: RuleConditionTree = {
       triggerPoint: "patient-view",
+      applicability: createDefaultRuleApplicability(),
       logic: "any",
       conditions: [leaf("a"), leaf("b")],
       actions: [

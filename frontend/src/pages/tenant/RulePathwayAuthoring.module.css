@@ -89,6 +89,25 @@
   border-radius: var(--ant-border-radius);
 }
 
+.populationSection {
+  padding-block: calc(var(--mk-unit) * 12);
+  border-top: var(--mk-line-width) solid var(--ant-color-border-secondary);
+}
+
+.populationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+  margin-bottom: calc(var(--mk-unit) * 12);
+}
+
+.populationCopy {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 2);
+}
+
 .suggestionSection {
   padding-block: calc(var(--mk-unit) * 12);
   border-top: var(--mk-line-width) solid var(--ant-color-border-secondary);

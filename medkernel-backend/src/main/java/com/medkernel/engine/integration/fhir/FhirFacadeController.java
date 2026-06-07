@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
@@ -83,6 +84,8 @@ public class FhirFacadeController {
                                            @RequestHeader(value = "X-Real-IP", required = false) String realIp,
                                            @RequestHeader(value = "X-MedKernel-Package-Version", required = false)
                                            String packageVersion,
+                                           @RequestHeader("X-MedKernel-Clinical-Setting")
+                                           ClinicalSetting clinicalSetting,
                                            @RequestParam(value = "snapshotId", required = false) String snapshotId,
                                            @Valid @RequestBody FhirFacadeCreateRequest request) {
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
@@ -94,7 +97,8 @@ public class FhirFacadeController {
             signature,
             sourceIp(forwardedFor, realIp),
             snapshotId,
-            packageVersion
+            packageVersion,
+            clinicalSetting
         ));
         return ResponseEntity.status(response.status())
             .header("X-Trace-Id", RequestContext.currentTraceId())

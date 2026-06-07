@@ -1,9 +1,12 @@
 package com.medkernel.engine.rule;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -31,6 +34,11 @@ public final class RuleConflictDetector {
                     || !sameText(trigger, target.dsl().path("trigger").asText(null))) {
                 continue;
             }
+            if (!applicabilityMayOverlap(
+                    candidate.path("applicability"),
+                    target.dsl().path("applicability"))) {
+                continue;
+            }
             boolean targetBlocks = hasBlockingAction(target.dsl().path("then"));
             if (candidateBlocks == targetBlocks) {
                 continue;
@@ -48,6 +56,118 @@ public final class RuleConflictDetector {
             }
         }
         return Optional.empty();
+    }
+
+    private static boolean applicabilityMayOverlap(JsonNode left, JsonNode right) {
+        if (!left.isObject() || !right.isObject()) {
+            return true;
+        }
+        if (!populationsMayOverlap(left.path("population"), right.path("population"))) {
+            return false;
+        }
+        if (!arraysMayOverlap(left.path("settings"), right.path("settings"))) {
+            return false;
+        }
+        JsonNode leftOrg = left.path("orgScope");
+        JsonNode rightOrg = right.path("orgScope");
+        if (!arraysMayOverlap(leftOrg.path("groupIds"), rightOrg.path("groupIds"))
+                || !arraysMayOverlap(leftOrg.path("hospitalIds"), rightOrg.path("hospitalIds"))
+                || !arraysMayOverlap(leftOrg.path("deptIds"), rightOrg.path("deptIds"))) {
+            return false;
+        }
+        JsonNode leftEffective = left.path("effective");
+        JsonNode rightEffective = right.path("effective");
+        if (leftEffective.path("rolloutPercent").asInt(100) == 0
+                || rightEffective.path("rolloutPercent").asInt(100) == 0) {
+            return false;
+        }
+        LocalDate leftFrom = optionalDate(leftEffective.path("from"));
+        LocalDate leftTo = optionalDate(leftEffective.path("to"));
+        LocalDate rightFrom = optionalDate(rightEffective.path("from"));
+        LocalDate rightTo = optionalDate(rightEffective.path("to"));
+        return !endsBefore(leftTo, rightFrom) && !endsBefore(rightTo, leftFrom);
+    }
+
+    private static boolean populationsMayOverlap(JsonNode left, JsonNode right) {
+        JsonNode leftInclude = left.path("include");
+        JsonNode rightInclude = right.path("include");
+        if (!leftInclude.isObject() || !rightInclude.isObject()) {
+            return true;
+        }
+        Optional<List<NumericCondition>> leftConditions =
+            conjunctiveNumericConditions(leftInclude);
+        Optional<List<NumericCondition>> rightConditions =
+            conjunctiveNumericConditions(rightInclude);
+        if (leftConditions.isEmpty() || rightConditions.isEmpty()) {
+            return true;
+        }
+        for (NumericCondition leftCondition : leftConditions.orElseThrow()) {
+            for (NumericCondition rightCondition : rightConditions.orElseThrow()) {
+                if (leftCondition.fact().equals(rightCondition.fact())
+                        && !leftCondition.range().overlaps(rightCondition.range())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static Optional<List<NumericCondition>> conjunctiveNumericConditions(JsonNode node) {
+        if (node == null || !node.isObject() || node.has("any") || node.has("not")) {
+            return Optional.empty();
+        }
+        JsonNode all = node.get("all");
+        if (all != null) {
+            if (!all.isArray()) {
+                return Optional.empty();
+            }
+            List<NumericCondition> conditions = new ArrayList<>();
+            for (JsonNode child : all) {
+                Optional<List<NumericCondition>> childConditions =
+                    conjunctiveNumericConditions(child);
+                if (childConditions.isEmpty()) {
+                    return Optional.empty();
+                }
+                conditions.addAll(childConditions.orElseThrow());
+            }
+            return Optional.of(conditions);
+        }
+        String fact = node.path("fact").asText(null);
+        NumericRange range = NumericRange.from(
+            node.path("operator").asText(null),
+            node.get("value"));
+        if (fact == null || fact.isBlank() || range == null) {
+            return Optional.empty();
+        }
+        return Optional.of(List.of(new NumericCondition(fact, range)));
+    }
+
+    private static boolean arraysMayOverlap(JsonNode left, JsonNode right) {
+        if (!left.isArray() || left.isEmpty() || !right.isArray() || right.isEmpty()) {
+            return true;
+        }
+        Set<String> values = new HashSet<>();
+        left.forEach(value -> {
+            if (value.isTextual()) {
+                values.add(value.asText());
+            }
+        });
+        for (JsonNode value : right) {
+            if (value.isTextual() && values.contains(value.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static LocalDate optionalDate(JsonNode value) {
+        return value != null && value.isTextual() && !value.asText().isBlank()
+            ? LocalDate.parse(value.asText())
+            : null;
+    }
+
+    private static boolean endsBefore(LocalDate end, LocalDate start) {
+        return end != null && start != null && end.isBefore(start);
     }
 
     private static List<NumericCondition> numericConditions(JsonNode node) {

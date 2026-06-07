@@ -53,6 +53,9 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
         ObjectNode patient = root.putObject("patient");
         patient.put("patientId", context.patientId());
         patient.put("encounterId", context.encounterId());
+        ObjectNode encounter = root.putArray("encounters").addObject();
+        encounter.put("encounterId", context.encounterId());
+        encounter.put("encounterType", context.clinicalSetting().name());
         root.set("orgScope", json.valueToTree(context.orgScope()));
         root.set("payload", context.payload());
         root.set("codeMappingAnchors", json.valueToTree(context.codeMappingAnchors()));

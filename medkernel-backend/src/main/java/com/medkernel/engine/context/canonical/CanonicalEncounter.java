@@ -24,4 +24,8 @@ public record CanonicalEncounter(
     Instant eventTime,
     Instant receivedTime,
     @NotNull QualityStatus qualityStatus
-) {}
+) {
+    public CanonicalEncounter {
+        ClinicalSetting.requireCanonical(encounterType);
+    }
+}

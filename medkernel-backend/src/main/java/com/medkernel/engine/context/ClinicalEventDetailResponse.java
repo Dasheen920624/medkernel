@@ -2,6 +2,8 @@ package com.medkernel.engine.context;
 
 import java.time.Instant;
 
+import com.medkernel.engine.context.canonical.ClinicalSetting;
+
 /**
  * 临床事件元数据响应，不含原始 payload。
  */
@@ -11,6 +13,7 @@ public record ClinicalEventDetailResponse(
     ClinicalEventTriggerPoint triggerPoint,
     String patientId,
     String encounterId,
+    ClinicalSetting clinicalSetting,
     String sourceSystem,
     String packageVersion,
     String callbackWebhookId,

@@ -120,7 +120,7 @@ class FhirCanonicalMapperPr4Test {
             case ENCOUNTER -> """
                 {
                   "encounterId": "enc-1",
-                  "encounterType": "inpatient",
+                  "encounterType": "INPATIENT",
                   "admissionTime": "2026-06-03T00:00:00Z",
                   "departmentId": "dept-A",
                   "attendingDoctorId": "doc-A",

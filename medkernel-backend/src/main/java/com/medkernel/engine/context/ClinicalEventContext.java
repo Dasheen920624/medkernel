@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.shared.context.OrgScope;
 
 import jakarta.validation.constraints.NotBlank;
@@ -21,6 +22,7 @@ public record ClinicalEventContext(
     @NotNull ClinicalEventTriggerPoint clinicalTriggerPoint,
     @NotBlank String patientId,
     String encounterId,
+    @NotNull ClinicalSetting clinicalSetting,
     String contextSnapshotId,
     String sourceSystem,
     @NotBlank String packageVersion,

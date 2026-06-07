@@ -17,6 +17,8 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.test.context.TestPropertySource;
 
+import com.medkernel.engine.context.canonical.ClinicalSetting;
+
 /**
  * 上下文模块仓储集成测试：H2 + Flyway V1..V7 + Spring Data JDBC。
  */
@@ -164,7 +166,8 @@ class ContextSnapshotRepositoryTest {
             null, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, "idem-evt-1", null,
             "{\"tenantId\":\"tenant-A\"}",
-            "patient-1", "enc-1", "HIS", "kpv-1", "digest-x", Instant.now(), Instant.now(), null,
+            "patient-1", "enc-1", ClinicalSetting.INPATIENT,
+            "HIS", "kpv-1", "digest-x", Instant.now(), Instant.now(), null,
             ClinicalEventStatus.RECEIVED, null, null, 0, null, "trace-1"));
         assertThat(saved.id()).isNotNull();
 

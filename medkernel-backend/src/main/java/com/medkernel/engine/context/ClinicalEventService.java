@@ -126,7 +126,8 @@ public class ClinicalEventService {
             null, req.eventId(), tenantId, req.eventType(),
             req.triggerPoint(), req.idempotencyKey(), req.callbackWebhookId(),
             writeOrgScope(),
-            req.patientId(), req.encounterId(), req.sourceSystem(), req.packageVersion(),
+            req.patientId(), req.encounterId(), req.clinicalSetting(),
+            req.sourceSystem(), req.packageVersion(),
             digest, req.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, null, traceId
         ));
@@ -249,7 +250,8 @@ public class ClinicalEventService {
             null, newEventId, tenantId, source.eventType(),
             source.triggerPoint(), null, source.callbackWebhookId(),
             source.orgScopeJson(),
-            source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
+            source.patientId(), source.encounterId(), source.clinicalSetting(),
+            source.sourceSystem(), source.packageVersion(),
             payload.digest(), source.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, source.eventId(), RequestContext.currentTraceId()
         ));
@@ -301,7 +303,8 @@ public class ClinicalEventService {
     private ClinicalEventDetailResponse toDetail(ClinicalEvent event) {
         return new ClinicalEventDetailResponse(
             event.eventId(), event.eventType(), event.triggerPoint(), event.patientId(), event.encounterId(),
-            event.sourceSystem(), event.packageVersion(), event.callbackWebhookId(), event.processingStatus(),
+            event.clinicalSetting(), event.sourceSystem(), event.packageVersion(),
+            event.callbackWebhookId(), event.processingStatus(),
             event.payloadDigest(), event.errorCode(), event.errorClass(),
             event.retryCount(), event.rootEventId(), event.occurredAt(),
             event.receivedAt(), event.traceId());
@@ -318,7 +321,8 @@ public class ClinicalEventService {
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
             source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
-            source.patientId(), source.encounterId(), source.sourceSystem(), source.packageVersion(),
+            source.patientId(), source.encounterId(), source.clinicalSetting(),
+            source.sourceSystem(), source.packageVersion(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             status, source.errorCode(), source.errorClass(), source.retryCount(),
             source.rootEventId(), source.traceId());

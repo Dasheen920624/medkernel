@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.shared.context.OrgScope;
 
 class ClinicalEventContextContractTest {
@@ -41,6 +42,7 @@ class ClinicalEventContextContractTest {
             ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",
             "ENC-1",
+            ClinicalSetting.INPATIENT,
             "ctx-1",
             "HIS",
             "pkg-2026.06",
@@ -56,6 +58,7 @@ class ClinicalEventContextContractTest {
         assertThat(context.orgScope().departmentId()).isEqualTo("dept-A");
         assertThat(context.patientId()).isEqualTo("MPI-1");
         assertThat(context.encounterId()).isEqualTo("ENC-1");
+        assertThat(context.clinicalSetting()).isEqualTo(ClinicalSetting.INPATIENT);
         assertThat(context.contextSnapshotId()).isEqualTo("ctx-1");
         assertThat(context.triggerSource()).isEqualTo("HIS:patient-view");
         assertThat(context.triggerPoint()).isEqualTo("patient-view");

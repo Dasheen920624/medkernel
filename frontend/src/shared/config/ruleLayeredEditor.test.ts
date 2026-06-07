@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   conditionTreeToDsl,
+  createDefaultRuleApplicability,
   createExplanationTemplate,
   dslToConditionTree,
   instantiateRuleTemplate,
@@ -20,6 +21,7 @@ function expectFlatDslConditions(nodes: RuleDslNode[] | undefined): RuleDslCondi
 
 function expectFlatTreeRoundTrip(restored: RuleConditionTree, tree: RuleConditionTree) {
   expect(restored.triggerPoint).toBe(tree.triggerPoint);
+  expect(restored.applicability).toEqual(tree.applicability);
   expect(restored.logic).toBe(tree.logic);
   expect(restored.conditions).toEqual(tree.conditions);
   expect(restored.root).toBeDefined();
@@ -50,6 +52,29 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("L2 条件树与 L3 DSL 双向转换保持条件、动作和解释摘要不丢失", () => {
     const tree: RuleConditionTree = {
       triggerPoint: "result-review",
+      applicability: {
+        population: {
+          exclude: {
+            all: [
+              {
+                fact: "patient.specialPopulations",
+                operator: "contains",
+                value: "PREGNANT",
+              },
+            ],
+          },
+        },
+        orgScope: {
+          hospitalIds: ["hospital-1"],
+          deptIds: ["dept-1"],
+        },
+        settings: ["INPATIENT", "ED"],
+        effective: {
+          from: "2026-06-01",
+          to: "2026-12-31",
+          rolloutPercent: 25,
+        },
+      },
       logic: "all",
       conditions: [
         {
@@ -110,6 +135,7 @@ describe("RULE-01 三层规则编辑模型", () => {
 
     expect(dsl).toEqual({
       trigger: "result-review",
+      applicability: tree.applicability,
       when: {
         all: [
           {
@@ -182,6 +208,7 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("递归根组通过统一转换保留 A 且非(B 或 C) 结构", () => {
     const tree: RuleConditionTree = {
       triggerPoint: "order-sign",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [],
       root: {
@@ -268,6 +295,7 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("L2 条件树可配置 MED-C2 已实现的临床算子并无损回填", () => {
     const tree: RuleConditionTree = {
       triggerPoint: "result-review",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [
         {
@@ -371,6 +399,7 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("L2 条件树可配置表达式聚合并保留 where 与 over", () => {
     const tree: RuleConditionTree = {
       triggerPoint: "result-review",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [
         {
@@ -433,6 +462,7 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("L3 DSL 回填时保留后端已实现的临床算子，不静默降级为 exists", () => {
     const dsl = {
       trigger: "result-review",
+      applicability: createDefaultRuleApplicability(),
       when: {
         all: [
           {
@@ -506,6 +536,14 @@ describe("RULE-01 三层规则编辑模型", () => {
     ).toThrow("不支持的规则算子");
   });
 
+  it("L3 DSL 缺少适用域时直接报错", () => {
+    const dsl = conditionTreeToDsl(instantiateRuleTemplate("clinical_quality_monitor"));
+    const invalid = { ...dsl } as Record<string, unknown>;
+    delete invalid.applicability;
+
+    expect(() => dslToConditionTree(invalid)).toThrow("缺少 applicability");
+  });
+
   it("L3 DSL 动作缺少后端必填数组时直接报错，避免提交后才失败", () => {
     const action = {
       actionCode: "REMIND",
@@ -518,6 +556,7 @@ describe("RULE-01 三层规则编辑模型", () => {
     };
     const baseDsl = {
       trigger: "result-review",
+      applicability: createDefaultRuleApplicability(),
       when: { all: [{ fact: "lab.potassium", operator: "exists" }] },
       explain: { summary: "校验动作契约" },
     };

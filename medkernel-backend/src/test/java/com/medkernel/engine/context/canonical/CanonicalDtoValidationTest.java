@@ -1,6 +1,7 @@
 package com.medkernel.engine.context.canonical;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,6 +45,15 @@ class CanonicalDtoValidationTest {
         Set<ConstraintViolation<CanonicalEncounter>> violations = validator.validate(invalid);
         assertThat(violations).extracting(v -> v.getPropertyPath().toString())
             .contains("encounterId", "encounterType", "admissionTime");
+    }
+
+    @Test
+    void canonicalEncounterRejectsNonCanonicalClinicalSetting() {
+        assertThatThrownBy(() -> new CanonicalEncounter(
+            "enc-1", "IP", Instant.now(), null, null, null, null,
+            "HIS", "REC-3", "v1", Instant.now(), Instant.now(), QualityStatus.VALID))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("INPATIENT/OUTPATIENT/ED/FOLLOWUP");
     }
 
     @Test

@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   Descriptions,
   Drawer,
   Empty,
@@ -54,8 +55,10 @@ import {
   useContextSnapshots,
   useContextSnapshotDetail,
   useRuleImpact,
+  useOrgUnits,
 } from "@/shared/api/hooks";
 import type {
+  OrgUnit,
   RuleDefinition,
   RuleEvaluationItem,
   RuleImpactObject,
@@ -65,9 +68,17 @@ import type {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { StepFlow } from "@/shared/ui/StepFlow";
+import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
+import {
+  createDefaultTree as createPopulationConditionTree,
+  dslToRootGroup,
+  hasUnresolvedFact as hasUnresolvedPopulationFact,
+  nodeToDsl,
+  type RuleGroup as PopulationConditionTree,
+} from "@/shared/config/conditionModel";
 import {
   RULE_OPERATOR_LABELS as OPERATOR_LABELS,
   RULE_VALUE_KIND_LABELS as VALUE_KIND_LABELS,
@@ -83,7 +94,6 @@ import {
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
-  conditionNodeToDsl,
   conditionTreeToDsl,
   createRuleActionDraft,
   createExplanationTemplate,
@@ -103,6 +113,8 @@ import {
   type RuleConditionTree,
   type RuleLogic,
   type RuleIndicator,
+  type RuleApplicability,
+  type RuleClinicalSetting,
   type RuleOperator,
   type RuleSeverity,
   type RuleTemplateKey,
@@ -111,7 +123,6 @@ import {
 import {
   MAX_TREE_DEPTH,
   addNodeToGroup,
-  countConditionLeaves,
   createConditionGroup,
   createConditionLeaf,
   mapConditionById,
@@ -138,6 +149,34 @@ type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
+const CLINICAL_SETTING_LABELS: Record<RuleClinicalSetting, string> = {
+  INPATIENT: "住院",
+  OUTPATIENT: "门诊",
+  ED: "急诊",
+  FOLLOWUP: "随访",
+};
+const ORG_LEVEL_LABELS: Record<OrgUnit["level"], string> = {
+  TENANT: "租户",
+  GROUP: "集团",
+  HOSPITAL: "医院",
+  CAMPUS: "院区",
+  SITE: "社区服务点",
+  DEPARTMENT: "科室",
+};
+type RuleOrgLevel = Extract<OrgUnit["level"], "GROUP" | "HOSPITAL" | "DEPARTMENT">;
+type OrgSelectOption = { value: string; label: string };
+
+const EMPTY_ORG_SEARCH: Record<RuleOrgLevel, string> = {
+  GROUP: "",
+  HOSPITAL: "",
+  DEPARTMENT: "",
+};
+
+const EMPTY_ORG_OPTION_CACHE: Record<RuleOrgLevel, OrgSelectOption[]> = {
+  GROUP: [],
+  HOSPITAL: [],
+  DEPARTMENT: [],
+};
 
 const RISK_LABELS: Record<RuleSeverity, string> = {
   LOW: "低风险",
@@ -275,6 +314,25 @@ function toStoredConditionTree(value?: string | null) {
   }
 }
 
+function toPopulationConditionTree(
+  value?: Record<string, unknown>,
+): PopulationConditionTree | null {
+  if (!value) return null;
+  try {
+    return dslToRootGroup(value);
+  } catch {
+    return null;
+  }
+}
+
+function populationConditionTreeToDsl(tree: PopulationConditionTree): Record<string, unknown> {
+  const dsl = nodeToDsl(tree);
+  if (!isRecord(dsl)) {
+    throw new Error("适用人群条件必须序列化为对象");
+  }
+  return dsl;
+}
+
 function findTemplate(key: RuleTemplateKey) {
   return RULE_LAYER_TEMPLATES.find((item) => item.key === key) ?? RULE_LAYER_TEMPLATES[0];
 }
@@ -388,6 +446,13 @@ export default function RuleDefinitions() {
   const [selectedTemplateKey, setSelectedTemplateKey] =
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
   const [conditionTree, setConditionTree] = useState<RuleConditionTree>(createDefaultTree);
+  const [populationIncludeTree, setPopulationIncludeTree] =
+    useState<PopulationConditionTree | null>(null);
+  const [populationExcludeTree, setPopulationExcludeTree] =
+    useState<PopulationConditionTree | null>(null);
+  const [orgSearch, setOrgSearch] = useState<Record<RuleOrgLevel, string>>(EMPTY_ORG_SEARCH);
+  const [selectedOrgOptions, setSelectedOrgOptions] =
+    useState<Record<RuleOrgLevel, OrgSelectOption[]>>(EMPTY_ORG_OPTION_CACHE);
   const [dslEditorValue, setDslEditorValue] = useState(createDefaultDslText);
   const [createForm] = Form.useForm();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
@@ -415,6 +480,30 @@ export default function RuleDefinitions() {
     status: statusFilter,
     ruleType: typeFilter,
     riskLevel: riskFilter,
+  });
+  const groupOrgUnitsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    keyword: orgSearch.GROUP || undefined,
+    level: "GROUP",
+    status: "ACTIVE",
+  });
+  const hospitalOrgUnitsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    keyword: orgSearch.HOSPITAL || undefined,
+    level: "HOSPITAL",
+    status: "ACTIVE",
+  });
+  const departmentOrgUnitsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    keyword: orgSearch.DEPARTMENT || undefined,
+    level: "DEPARTMENT",
+    status: "ACTIVE",
   });
 
   const {
@@ -483,6 +572,8 @@ export default function RuleDefinitions() {
     const nextTree = withStableRoot(instantiateRuleTemplate(templateKey));
     setSelectedTemplateKey(templateKey);
     setConditionTree(nextTree);
+    setPopulationIncludeTree(toPopulationConditionTree(nextTree.applicability.population.include));
+    setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
@@ -499,6 +590,8 @@ export default function RuleDefinitions() {
   const openCreateModal = () => {
     createForm.resetFields();
     setCreateExpertMode(false);
+    setOrgSearch(EMPTY_ORG_SEARCH);
+    setSelectedOrgOptions(EMPTY_ORG_OPTION_CACHE);
     resetLayeredAuthoring();
     setCreateModalVisible(true);
   };
@@ -522,6 +615,8 @@ export default function RuleDefinitions() {
     const nextTree = withStableRoot(instantiateRuleTemplate(templateKey));
     setSelectedTemplateKey(templateKey);
     setConditionTree(nextTree);
+    setPopulationIncludeTree(toPopulationConditionTree(nextTree.applicability.population.include));
+    setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     createForm.setFieldsValue({
       ruleType: template.ruleType,
@@ -534,20 +629,19 @@ export default function RuleDefinitions() {
   const buildRuleDslFromRoot = (
     root: RuleConditionGroup,
     triggerPoint: ClinicalTriggerPoint,
+    applicability: RuleApplicability,
     actions: RuleConditionTree["actions"],
     explanationSummary: string,
-  ) => ({
-    trigger: triggerPoint,
-    when: conditionNodeToDsl(root),
-    then: actions,
-    explain: {
-      summary: explanationSummary,
-      authoring: {
-        layer: "L2_VISUAL_TREE" as const,
-        conditionCount: countConditionLeaves(root),
-      },
-    },
-  });
+  ) =>
+    conditionTreeToDsl({
+      triggerPoint,
+      applicability,
+      logic: root.logic,
+      conditions: [],
+      root,
+      actions,
+      explanationSummary,
+    });
 
   const syncTreeToDsl = () => {
     setDslEditorValue(
@@ -555,6 +649,7 @@ export default function RuleDefinitions() {
         buildRuleDslFromRoot(
           conditionRoot,
           conditionTree.triggerPoint,
+          conditionTree.applicability,
           conditionTree.actions,
           conditionTree.explanationSummary,
         ),
@@ -573,6 +668,12 @@ export default function RuleDefinitions() {
       const nextTree = dslToConditionTree(parsed);
       const root = nextTree.root ?? dslWhenToRootGroup((parsed as { when: unknown }).when);
       setConditionTree({ ...nextTree, root, logic: root.logic });
+      setPopulationIncludeTree(
+        toPopulationConditionTree(nextTree.applicability.population.include),
+      );
+      setPopulationExcludeTree(
+        toPopulationConditionTree(nextTree.applicability.population.exclude),
+      );
       createForm.setFieldValue("triggerPoint", nextTree.triggerPoint);
       setActiveCreateLayer("l2");
       message.success("已从 L3 DSL 回填到 L2 条件树");
@@ -594,6 +695,36 @@ export default function RuleDefinitions() {
       const root = current.root ?? flatToRootGroup(current);
       return { ...current, root: updater(root) };
     });
+  };
+
+  const updateApplicability = (updater: (current: RuleApplicability) => RuleApplicability) => {
+    setConditionTree((current) => ({
+      ...current,
+      applicability: updater(current.applicability),
+    }));
+  };
+
+  const updatePopulationCondition = (
+    field: "include" | "exclude",
+    tree: PopulationConditionTree | null,
+  ) => {
+    if (field === "include") {
+      setPopulationIncludeTree(tree);
+    } else {
+      setPopulationExcludeTree(tree);
+    }
+    updateApplicability((current) => ({
+      ...current,
+      population: (() => {
+        const population = { ...current.population };
+        if (tree) {
+          population[field] = populationConditionTreeToDsl(tree);
+        } else {
+          delete population[field];
+        }
+        return population;
+      })(),
+    }));
   };
 
   const updateCondition = (id: string, patch: Partial<RuleCondition>) => {
@@ -1280,6 +1411,72 @@ export default function RuleDefinitions() {
   const fieldCatalogList = fieldCatalogQuery.data ?? [];
   const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
   const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  const orgOptions = (level: RuleOrgLevel, units: OrgUnit[] = []) => {
+    const options = units
+      .filter((unit) => unit.level === level && Boolean(unit.id))
+      .map((unit) => ({
+        value: unit.id as string,
+        label: `${unit.name} · ${ORG_LEVEL_LABELS[unit.level]} · ${unit.code}`,
+      }));
+    return Array.from(
+      new Map(
+        [...selectedOrgOptions[level], ...options].map((option) => [option.value, option]),
+      ).values(),
+    );
+  };
+
+  const updateOrgScope = (
+    level: RuleOrgLevel,
+    field: "groupIds" | "hospitalIds" | "deptIds",
+    values: string[],
+    units: OrgUnit[] | undefined,
+  ) => {
+    const options = orgOptions(level, units);
+    setSelectedOrgOptions((current) => ({
+      ...current,
+      [level]: options.filter((option) => values.includes(option.value)),
+    }));
+    updateApplicability((current) => ({
+      ...current,
+      orgScope: { ...current.orgScope, [field]: values },
+    }));
+  };
+
+  const renderPopulationConditionEditor = (
+    field: "include" | "exclude",
+    tree: PopulationConditionTree | null,
+  ) => {
+    const included = field === "include";
+    const title = included ? "纳入人群" : "排除人群";
+    return (
+      <section className={styles.populationSection} aria-label={`${title}条件`}>
+        <div className={styles.populationHeader}>
+          <div className={styles.populationCopy}>
+            <Text strong>{title}</Text>
+            <Text type="secondary">
+              {included ? "仅对满足条件的患者生效" : "命中条件的患者不执行本规则"}
+            </Text>
+          </div>
+          <Switch
+            aria-label={`启用${included ? "纳入" : "排除"}条件`}
+            checked={Boolean(tree)}
+            onChange={(checked) =>
+              updatePopulationCondition(field, checked ? createPopulationConditionTree() : null)
+            }
+          />
+        </div>
+        {tree ? (
+          <ConditionTreeEditor
+            value={tree}
+            onChange={(next) => updatePopulationCondition(field, next)}
+            fieldCatalog={fieldCatalogList}
+            fieldCatalogError={fieldCatalogQuery.isError}
+          />
+        ) : null}
+      </section>
+    );
+  };
+
   // 选中字段时按目录 dataType 自动带出比较值类型，降低手填出错。
   const dataTypeToValueKind = (dataType?: string): RuleValueKind => {
     switch (dataType) {
@@ -1610,6 +1807,7 @@ export default function RuleDefinitions() {
           : buildRuleDslFromRoot(
               conditionRoot,
               conditionTree.triggerPoint,
+              conditionTree.applicability,
               actions,
               conditionTree.explanationSummary,
             );
@@ -1635,6 +1833,18 @@ export default function RuleDefinitions() {
       }
       if (rootHasUnresolvedFact(submitRoot)) {
         message.error("请在 L2 条件树填写真实上下文字段路径，不能提交模板占位符。");
+        setActiveCreateLayer("l2");
+        return;
+      }
+      if (
+        (!createExpertMode && populationIncludeTree
+          ? hasUnresolvedPopulationFact(populationIncludeTree)
+          : false) ||
+        (!createExpertMode && populationExcludeTree
+          ? hasUnresolvedPopulationFact(populationExcludeTree)
+          : false)
+      ) {
+        message.error("请补全适用人群条件字段，或关闭对应人群条件。");
         setActiveCreateLayer("l2");
         return;
       }
@@ -2216,6 +2426,35 @@ export default function RuleDefinitions() {
                 <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 专家视图核查。" />
               )}
               <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="适用场景">
+                  <Space wrap>
+                    {detailTree.applicability.settings.map((setting) => (
+                      <Tag key={setting}>{CLINICAL_SETTING_LABELS[setting]}</Tag>
+                    ))}
+                  </Space>
+                </Descriptions.Item>
+                <Descriptions.Item label="组织范围">
+                  {[
+                    ...(detailTree.applicability.orgScope.groupIds ?? []).map(
+                      (value) => `集团 ${value}`,
+                    ),
+                    ...(detailTree.applicability.orgScope.hospitalIds ?? []).map(
+                      (value) => `医院 ${value}`,
+                    ),
+                    ...(detailTree.applicability.orgScope.deptIds ?? []).map(
+                      (value) => `科室 ${value}`,
+                    ),
+                  ].join("、") || "当前租户全部组织"}
+                </Descriptions.Item>
+                <Descriptions.Item label="生效范围">
+                  {detailTree.applicability.effective.from ?? "立即生效"} 至{" "}
+                  {detailTree.applicability.effective.to ?? "长期有效"} · 灰度{" "}
+                  {detailTree.applicability.effective.rolloutPercent}%
+                </Descriptions.Item>
+                <Descriptions.Item label="人群条件">
+                  {detailTree.applicability.population.include ? "已配置纳入条件" : "全人群"}
+                  {detailTree.applicability.population.exclude ? " · 已配置排除条件" : ""}
+                </Descriptions.Item>
                 <Descriptions.Item label="命中动作">
                   <Space wrap>
                     {detailTree.actions.map((action, index) => (
@@ -2544,6 +2783,201 @@ export default function RuleDefinitions() {
               }
             />
           </Form.Item>
+
+          <Collapse
+            items={[
+              {
+                key: "applicability",
+                label: "适用域与生效",
+                children: (
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    <Row gutter={12}>
+                      <Col xs={24} md={12}>
+                        <Form.Item label="临床场景" htmlFor="rule-applicability-settings" required>
+                          <Select
+                            id="rule-applicability-settings"
+                            mode="multiple"
+                            value={conditionTree.applicability.settings}
+                            options={Object.entries(CLINICAL_SETTING_LABELS).map(
+                              ([value, label]) => ({
+                                value: value as RuleClinicalSetting,
+                                label,
+                              }),
+                            )}
+                            onChange={(settings: RuleClinicalSetting[]) => {
+                              if (settings.length === 0) {
+                                message.error("至少保留一个临床场景。");
+                                return;
+                              }
+                              updateApplicability((current) => ({ ...current, settings }));
+                            }}
+                            className="mk-full-width"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item label="灰度比例" htmlFor="rule-applicability-rollout">
+                          <InputNumber
+                            id="rule-applicability-rollout"
+                            min={0}
+                            max={100}
+                            precision={0}
+                            addonAfter="%"
+                            value={conditionTree.applicability.effective.rolloutPercent}
+                            onChange={(value) =>
+                              updateApplicability((current) => ({
+                                ...current,
+                                effective: {
+                                  ...current.effective,
+                                  rolloutPercent: value ?? 0,
+                                },
+                              }))
+                            }
+                            className="mk-full-width"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row gutter={12}>
+                      <Col xs={24} md={8}>
+                        <Form.Item label="集团范围" htmlFor="rule-applicability-groups">
+                          <Select
+                            id="rule-applicability-groups"
+                            mode="multiple"
+                            showSearch
+                            filterOption={false}
+                            allowClear
+                            maxTagCount={1}
+                            placeholder="选择适用集团"
+                            value={conditionTree.applicability.orgScope.groupIds ?? []}
+                            options={orgOptions("GROUP", groupOrgUnitsQuery.data?.items)}
+                            loading={groupOrgUnitsQuery.isLoading}
+                            notFoundContent={
+                              groupOrgUnitsQuery.isError ? "组织目录读取失败" : "暂无可用集团"
+                            }
+                            onSearch={(value) =>
+                              setOrgSearch((current) => ({ ...current, GROUP: value.trim() }))
+                            }
+                            onChange={(groupIds: string[]) =>
+                              updateOrgScope(
+                                "GROUP",
+                                "groupIds",
+                                groupIds,
+                                groupOrgUnitsQuery.data?.items,
+                              )
+                            }
+                            className="mk-full-width"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Form.Item label="医院范围" htmlFor="rule-applicability-hospitals">
+                          <Select
+                            id="rule-applicability-hospitals"
+                            mode="multiple"
+                            showSearch
+                            filterOption={false}
+                            allowClear
+                            maxTagCount={1}
+                            placeholder="选择适用医院"
+                            value={conditionTree.applicability.orgScope.hospitalIds ?? []}
+                            options={orgOptions("HOSPITAL", hospitalOrgUnitsQuery.data?.items)}
+                            loading={hospitalOrgUnitsQuery.isLoading}
+                            notFoundContent={
+                              hospitalOrgUnitsQuery.isError ? "组织目录读取失败" : "暂无可用医院"
+                            }
+                            onSearch={(value) =>
+                              setOrgSearch((current) => ({ ...current, HOSPITAL: value.trim() }))
+                            }
+                            onChange={(hospitalIds: string[]) =>
+                              updateOrgScope(
+                                "HOSPITAL",
+                                "hospitalIds",
+                                hospitalIds,
+                                hospitalOrgUnitsQuery.data?.items,
+                              )
+                            }
+                            className="mk-full-width"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Form.Item label="科室范围" htmlFor="rule-applicability-depts">
+                          <Select
+                            id="rule-applicability-depts"
+                            mode="multiple"
+                            showSearch
+                            filterOption={false}
+                            allowClear
+                            maxTagCount={1}
+                            placeholder="选择适用科室"
+                            value={conditionTree.applicability.orgScope.deptIds ?? []}
+                            options={orgOptions("DEPARTMENT", departmentOrgUnitsQuery.data?.items)}
+                            loading={departmentOrgUnitsQuery.isLoading}
+                            notFoundContent={
+                              departmentOrgUnitsQuery.isError ? "组织目录读取失败" : "暂无可用科室"
+                            }
+                            onSearch={(value) =>
+                              setOrgSearch((current) => ({ ...current, DEPARTMENT: value.trim() }))
+                            }
+                            onChange={(deptIds: string[]) =>
+                              updateOrgScope(
+                                "DEPARTMENT",
+                                "deptIds",
+                                deptIds,
+                                departmentOrgUnitsQuery.data?.items,
+                              )
+                            }
+                            className="mk-full-width"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row gutter={12}>
+                      <Col xs={24} md={12}>
+                        <Form.Item label="生效日期" htmlFor="rule-applicability-from">
+                          <Input
+                            id="rule-applicability-from"
+                            type="date"
+                            value={conditionTree.applicability.effective.from ?? ""}
+                            onChange={(event) =>
+                              updateApplicability((current) => ({
+                                ...current,
+                                effective: {
+                                  ...current.effective,
+                                  from: event.target.value || undefined,
+                                },
+                              }))
+                            }
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item label="失效日期" htmlFor="rule-applicability-to">
+                          <Input
+                            id="rule-applicability-to"
+                            type="date"
+                            value={conditionTree.applicability.effective.to ?? ""}
+                            onChange={(event) =>
+                              updateApplicability((current) => ({
+                                ...current,
+                                effective: {
+                                  ...current.effective,
+                                  to: event.target.value || undefined,
+                                },
+                              }))
+                            }
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    {renderPopulationConditionEditor("include", populationIncludeTree)}
+                    {renderPopulationConditionEditor("exclude", populationExcludeTree)}
+                  </Space>
+                ),
+              },
+            ]}
+          />
 
           <Alert
             type="info"
@@ -3108,7 +3542,7 @@ export default function RuleDefinitions() {
         open={createModalVisible}
         onOk={handleCreateRule}
         onCancel={() => setCreateModalVisible(false)}
-        width={920}
+        width="min(920px, calc(100vw - 32px))"
         okText="创建草稿"
         cancelText="取消"
         confirmLoading={createRuleMutation.isPending}

@@ -33,6 +33,7 @@ class ClinicalEventControllerSecurityTest {
           "eventType": "DIAGNOSIS",
           "patientId": "MPI-1",
           "encounterId": "ENC-1",
+          "clinicalSetting": "INPATIENT",
           "sourceSystem": "HIS",
           "packageVersion": "kpv-1",
           "triggerPoint": "patient-view",
