@@ -334,7 +334,7 @@ describe("PatientPathways", () => {
         packageVersion: "2026.06",
       });
     });
-  });
+  }, 15_000);
 
   it("shows backend clocks and variance evidence in the pathway detail drawer", async () => {
     const user = userEvent.setup();

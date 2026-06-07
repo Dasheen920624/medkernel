@@ -726,8 +726,17 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "advanced-tools",
     menuKey: "graph-explore",
     menuLabel: "图谱查询",
+    requiredPermissions: ["menu.graph-explore", "projection.read"],
+    requiredRoles: [
+      "implementation-engineer",
+      "it-ops",
+      "specialist",
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+    ],
     experience: readonlyExperience("高级实施人员", "核查知识关系查询结果", "最近查询", "large"),
-    hidden: true,
+    hidden: false,
     pageType: "advanced",
   },
   {

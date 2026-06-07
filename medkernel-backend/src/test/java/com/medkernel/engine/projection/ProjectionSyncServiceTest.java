@@ -3,6 +3,8 @@ package com.medkernel.engine.projection;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -131,15 +133,23 @@ class ProjectionSyncServiceTest {
     }
 
     @Test
-    void listProjectionFactsFiltersByKeywordAndPaginatesProjectionSnapshots() {
+    void listProjectionFactsUsesDatabaseFilteringAndPagination() {
         ProjectionFact patient = fact("NODE:PATIENT:pat-1");
         ProjectionFact observationA = fact("NODE:OBSERVATION:obs-1");
         ProjectionFact observationB = fact("NODE:OBSERVATION:obs-2");
-        List<ProjectionSnapshot> stored = new ArrayList<>();
-        stored.add(ProjectionSnapshot.fromFact("tenant-A", patient, now(), "trace-1"));
-        stored.add(ProjectionSnapshot.fromFact("tenant-A", observationA, now(), "trace-2"));
-        stored.add(ProjectionSnapshot.fromFact("tenant-A", observationB, now(), "trace-3"));
-        wireSnapshotStore(stored);
+        ProjectionSnapshot observationRowA =
+            ProjectionSnapshot.fromFact("tenant-A", observationA, now(), "trace-2");
+        ProjectionSnapshot observationRowB =
+            ProjectionSnapshot.fromFact("tenant-A", observationB, now(), "trace-3");
+        when(snapshots.countByFilter(
+            "tenant-A", ProjectionTargetType.CLINICAL_GRAPH, "%observation%"))
+            .thenReturn(2L);
+        when(snapshots.pageByFilter(
+            "tenant-A", ProjectionTargetType.CLINICAL_GRAPH, "%observation%", 0, 1))
+            .thenReturn(List.of(observationRowA));
+        when(snapshots.pageByFilter(
+            "tenant-A", ProjectionTargetType.CLINICAL_GRAPH, "%observation%", 1, 1))
+            .thenReturn(List.of(observationRowB));
 
         PageResponse<ProjectionFactItem> firstPage = service.listProjectionFacts(
             "tenant-A",
@@ -158,6 +168,8 @@ class ProjectionSyncServiceTest {
             .containsExactly("NODE:OBSERVATION:obs-1");
         assertThat(secondPage.items()).extracting(ProjectionFactItem::factKey)
             .containsExactly("NODE:OBSERVATION:obs-2");
+        verify(snapshots, never())
+            .findByTenantIdAndTargetType("tenant-A", ProjectionTargetType.CLINICAL_GRAPH);
     }
 
     private void wireSnapshotStore(List<ProjectionSnapshot> stored) {

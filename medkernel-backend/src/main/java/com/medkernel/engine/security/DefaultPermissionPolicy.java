@@ -124,7 +124,6 @@ public final class DefaultPermissionPolicy {
             MENU_QC_EVAL_RESULTS,
             MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE,
-            MENU_GRAPH_EXPLORE,
             MENU_AI_WORKFLOWS));
 
         // 质控办：评估指标审核发布 + 质控发现 + 上下文只读
@@ -212,6 +211,7 @@ public final class DefaultPermissionPolicy {
             TERM_READ, TERM_WRITE,
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ,
+            PROJECTION_READ,
             MPI_READ,
             FOLLOWUP_READ,
             WORKFLOW_READ, WORKFLOW_WRITE,
@@ -226,7 +226,8 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP,
             MENU_KNOWLEDGE_GOVERNANCE,
-            MENU_PROVENANCE));
+            MENU_PROVENANCE,
+            MENU_GRAPH_EXPLORE));
 
         // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
         map.put(RoleCode.DOCTOR, withMenus(EnumSet.of(
@@ -295,8 +296,7 @@ public final class DefaultPermissionPolicy {
             MENU_IDENTITY_BINDINGS,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,
-            MENU_PROVENANCE,
-            MENU_GRAPH_EXPLORE));
+            MENU_PROVENANCE));
 
         // 实施工程师：试点准备阶段的接入与配置 + 临床上下文接入
         map.put(RoleCode.IMPLEMENTATION_ENGINEER, withMenus(EnumSet.of(
