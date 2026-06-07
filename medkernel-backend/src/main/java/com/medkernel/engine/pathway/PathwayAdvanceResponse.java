@@ -29,6 +29,8 @@ public record PathwayAdvanceResponse(
     String followupPlanId,
     int followupTaskCount,
     String followupHandoffStatus,
+    List<PathwayOutcomeBinding> outcomeBindings,
+    List<PathwayCoordinationWarning> coordinationWarnings,
     String traceId
 ) {
 
@@ -37,6 +39,8 @@ public record PathwayAdvanceResponse(
         mappingStatus = mappingStatus == null ? Map.of() : Map.copyOf(mappingStatus);
         contextResourceCounts = contextResourceCounts == null ? Map.of() : Map.copyOf(contextResourceCounts);
         decisionEvidence = decisionEvidence == null ? Map.of() : Map.copyOf(decisionEvidence);
+        outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
+        coordinationWarnings = coordinationWarnings == null ? List.of() : List.copyOf(coordinationWarnings);
     }
 
     public PathwayAdvanceResponse(
@@ -47,6 +51,7 @@ public record PathwayAdvanceResponse(
             String varianceId,
             String traceId) {
         this(patientPathwayId, previousNodeCode, nextNodeCode, status, varianceId,
-            null, null, null, null, List.of(), Map.of(), Map.of(), Map.of(), null, 0, null, traceId);
+            null, null, null, null, List.of(), Map.of(), Map.of(), Map.of(),
+            null, 0, null, List.of(), List.of(), traceId);
     }
 }

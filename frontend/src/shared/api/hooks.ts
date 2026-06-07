@@ -3154,6 +3154,9 @@ export type PathwayMilestoneStatus = "ACHIEVED" | "CURRENT" | "PENDING" | "OVERD
 export type VarianceType = "CLINICAL" | "SYSTEM" | "PATIENT" | "FAMILY";
 export type VarianceResolutionDecision = "HOLD" | "REENTER" | "TERMINATE";
 export type PathwayAdvanceEventType = "COMPLETE" | "VARIANCE" | "EXIT";
+export type PathwayOutcomeScope = "TEMPLATE" | "PHASE" | "MILESTONE";
+export type PathwaySimulationMode = "SINGLE_SNAPSHOT" | "QUEUE_REPLAY" | "TIME_MACHINE";
+export type PathwayCoordinationWarningType = "ORDER_SET_CONFLICT" | "CLOCK_WINDOW_OVERLAP" | string;
 
 export interface SpecialtyPackage {
   id?: number;
@@ -3255,6 +3258,17 @@ export interface SpecialtyMetricBinding {
   createdAt?: string;
 }
 
+export interface PathwayOutcomeBinding {
+  id?: number;
+  bindingId: string;
+  templateId: string;
+  scope: PathwayOutcomeScope;
+  refCode: string;
+  indicatorCode: string;
+  packageVersion?: string | null;
+  createdAt?: string;
+}
+
 export interface SpecialtyPackageResponse {
   packageId: string;
   status: SpecialtyPackageStatus;
@@ -3267,6 +3281,7 @@ export interface PathwayTemplateDetailResponse {
   nodes: PathwayNode[];
   edges: PathwayEdge[];
   metricBindings: SpecialtyMetricBinding[];
+  outcomeBindings?: PathwayOutcomeBinding[];
   deploymentStatus:
     | "DRAFT"
     | "PENDING_REVIEW"
@@ -3297,6 +3312,7 @@ export interface PathwayTemplateImpactResponse {
   edgeCount: number;
   timedNodeCount: number;
   terminalNodeCount: number;
+  outcomeBindingCount?: number;
   canaryPercent: number;
   impactDigest: string;
   releaseEvidence: string[];
@@ -3350,7 +3366,20 @@ export interface PathwaySimulationResponse {
   missingFields?: Array<Record<string, unknown>>;
   mappingStatus?: Record<string, string>;
   contextResourceCounts?: Record<string, number>;
+  simulationMode?: PathwaySimulationMode;
+  replaySteps?: PathwaySimulationReplayStep[];
+  timeMachineAt?: string | null;
   traceId: string;
+}
+
+export interface PathwaySimulationReplayStep {
+  snapshotId?: string | null;
+  nodeTrajectory: string[];
+  finalStatus: PatientPathwayStatus;
+  contextQualityStatus?: string | null;
+  missingFields?: Array<Record<string, unknown>>;
+  mappingStatus?: Record<string, string>;
+  contextResourceCounts?: Record<string, number>;
 }
 
 export interface PatientPathway {
@@ -3426,7 +3455,22 @@ export interface PatientPathwayDetailResponse {
   milestoneStatuses: PathwayMilestoneRuntimeStatus[];
   variances: PathwayVariance[];
   clocks: ClinicalClock[];
+  outcomeBindings?: PathwayOutcomeBinding[];
+  coordinationWarnings?: PathwayCoordinationWarning[];
   traceId: string;
+}
+
+export interface PathwayCoordinationWarning {
+  warningType: PathwayCoordinationWarningType;
+  severity: string;
+  patientPathwayId?: string | null;
+  templateId?: string | null;
+  nodeCode?: string | null;
+  conflictWithPatientPathwayId?: string | null;
+  conflictWithTemplateId?: string | null;
+  conflictWithNodeCode?: string | null;
+  sharedRef?: string | null;
+  message: string;
 }
 
 export interface PathwayAdvanceResponse {
@@ -3446,6 +3490,8 @@ export interface PathwayAdvanceResponse {
   followupPlanId?: string | null;
   followupTaskCount?: number;
   followupHandoffStatus?: string | null;
+  outcomeBindings?: PathwayOutcomeBinding[];
+  coordinationWarnings?: PathwayCoordinationWarning[];
   traceId: string;
 }
 
@@ -3617,6 +3663,12 @@ export function useCreatePathwayTemplate() {
         metricCode: string;
         required?: boolean;
       }>;
+      outcomeBindings?: Array<{
+        scope: PathwayOutcomeScope;
+        refCode?: string;
+        indicatorCode: string;
+        packageVersion?: string;
+      }>;
     }) => {
       const { packageVersion, ...templatePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwayTemplateDetailResponse }>(
@@ -3715,6 +3767,9 @@ export function useSimulatePathway(templateId: string) {
   return useMutation({
     mutationFn: async (payload: {
       packageVersion: string;
+      simulationMode?: PathwaySimulationMode;
+      replaySnapshotIds?: string[];
+      timeMachineAt?: string;
       snapshotId?: string;
       startNodeCode?: string;
       requestedNextNodeCodes?: string[];

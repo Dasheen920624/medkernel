@@ -284,3 +284,31 @@ CREATE TABLE IF NOT EXISTS specialty_metric_binding (
 
 CREATE INDEX IF NOT EXISTS idx_specialty_metric_package  ON specialty_metric_binding (tenant_id, package_id, metric_code);
 CREATE INDEX IF NOT EXISTS idx_specialty_metric_template ON specialty_metric_binding (tenant_id, template_id, node_code);
+
+CREATE TABLE IF NOT EXISTS pathway_outcome_binding (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    binding_id      VARCHAR(64)  NOT NULL,
+    tenant_id       VARCHAR(64)  NOT NULL,
+    template_id     VARCHAR(64)  NOT NULL,
+    scope           VARCHAR(32)  NOT NULL,
+    ref_code        VARCHAR(128) NOT NULL,
+    indicator_code  VARCHAR(128) NOT NULL,
+    package_version VARCHAR(64)  NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
+    trace_id        VARCHAR(128) NULL,
+    CONSTRAINT uk_pathway_outcome_binding UNIQUE (tenant_id, template_id, scope, ref_code, indicator_code),
+    CONSTRAINT ck_pathway_outcome_scope CHECK (scope IN ('TEMPLATE','PHASE','MILESTONE'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pathway_outcome_template
+    ON pathway_outcome_binding (tenant_id, template_id, scope, ref_code);
+CREATE INDEX IF NOT EXISTS idx_pathway_outcome_indicator
+    ON pathway_outcome_binding (tenant_id, indicator_code);
+
+COMMENT ON TABLE pathway_outcome_binding IS '路径结局指标绑定表，保存路径模板、阶段或里程碑与评估指标的关联';
+COMMENT ON COLUMN pathway_outcome_binding.binding_id IS '路径结局指标绑定业务 ID';
+COMMENT ON COLUMN pathway_outcome_binding.scope IS '绑定作用域：TEMPLATE 模板、PHASE 阶段、MILESTONE 里程碑';
+COMMENT ON COLUMN pathway_outcome_binding.indicator_code IS '评估指标编码，必须对应已激活 EvaluationIndicator';

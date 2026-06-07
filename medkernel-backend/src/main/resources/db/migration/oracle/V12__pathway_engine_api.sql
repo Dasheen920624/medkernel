@@ -285,6 +285,29 @@ CREATE TABLE specialty_metric_binding (
 CREATE INDEX idx_specialty_metric_package  ON specialty_metric_binding (tenant_id, package_id, metric_code);
 CREATE INDEX idx_specialty_metric_template ON specialty_metric_binding (tenant_id, template_id, node_code);
 
+CREATE TABLE pathway_outcome_binding (
+    id              NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    binding_id      VARCHAR2(64)  NOT NULL,
+    tenant_id       VARCHAR2(64)  NOT NULL,
+    template_id     VARCHAR2(64)  NOT NULL,
+    scope           VARCHAR2(32)  NOT NULL,
+    ref_code        VARCHAR2(128) NOT NULL,
+    indicator_code  VARCHAR2(128) NOT NULL,
+    package_version VARCHAR2(64)  NULL,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by      VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    updated_by      VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    trace_id        VARCHAR2(128) NULL,
+    CONSTRAINT uk_pathway_outcome_binding UNIQUE (tenant_id, template_id, scope, ref_code, indicator_code),
+    CONSTRAINT ck_pathway_outcome_scope CHECK (scope IN ('TEMPLATE','PHASE','MILESTONE'))
+);
+
+CREATE INDEX idx_pathway_outcome_template
+    ON pathway_outcome_binding (tenant_id, template_id, scope, ref_code);
+CREATE INDEX idx_pathway_outcome_indicator
+    ON pathway_outcome_binding (tenant_id, indicator_code);
+
 -- ===== 路径引擎中文注释（GA-ENG-API-06）=====
 COMMENT ON TABLE specialty_package IS '专病包主表，保存专病路径资产的病种、版本、状态和发布来源';
 COMMENT ON COLUMN specialty_package.id IS '数据库自增主键';
@@ -484,3 +507,18 @@ COMMENT ON COLUMN specialty_metric_binding.created_by IS '创建人';
 COMMENT ON COLUMN specialty_metric_binding.updated_at IS '更新时间';
 COMMENT ON COLUMN specialty_metric_binding.updated_by IS '更新人';
 COMMENT ON COLUMN specialty_metric_binding.trace_id IS '请求链路追踪 ID';
+
+COMMENT ON TABLE pathway_outcome_binding IS '路径结局指标绑定表，保存路径模板、阶段或里程碑与评估指标的关联';
+COMMENT ON COLUMN pathway_outcome_binding.id IS '数据库自增主键';
+COMMENT ON COLUMN pathway_outcome_binding.binding_id IS '路径结局指标绑定业务 ID';
+COMMENT ON COLUMN pathway_outcome_binding.tenant_id IS '租户 ID，用于多租户数据隔离';
+COMMENT ON COLUMN pathway_outcome_binding.template_id IS '关联路径模板业务 ID';
+COMMENT ON COLUMN pathway_outcome_binding.scope IS '绑定作用域：TEMPLATE 模板、PHASE 阶段、MILESTONE 里程碑';
+COMMENT ON COLUMN pathway_outcome_binding.ref_code IS '作用域引用编码，模板级固定为 TEMPLATE';
+COMMENT ON COLUMN pathway_outcome_binding.indicator_code IS '评估指标编码，必须对应已激活 EvaluationIndicator';
+COMMENT ON COLUMN pathway_outcome_binding.package_version IS '绑定时使用的专病包版本';
+COMMENT ON COLUMN pathway_outcome_binding.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_outcome_binding.created_by IS '创建人';
+COMMENT ON COLUMN pathway_outcome_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_outcome_binding.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_outcome_binding.trace_id IS '请求链路追踪 ID';

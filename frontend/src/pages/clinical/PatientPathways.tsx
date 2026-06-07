@@ -47,6 +47,8 @@ import type {
   PatientPathway,
   PatientPathwayStatus,
   PathwayMilestoneRuntimeStatus,
+  PathwayOutcomeBinding,
+  PathwayCoordinationWarning,
   PathwayVariance,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
@@ -119,6 +121,12 @@ function clockEscalationText(level?: string) {
     QUALITY_RECORD: "质控记录",
   };
   return level ? (text[level] ?? level) : "未升级";
+}
+
+function outcomeScopeText(scope?: string) {
+  if (scope === "PHASE") return "阶段";
+  if (scope === "MILESTONE") return "里程碑";
+  return "模板";
 }
 
 function formatDateTime(value?: string) {
@@ -447,6 +455,44 @@ export default function PatientPathways() {
     }
   };
 
+  const outcomeColumns: TableProps<PathwayOutcomeBinding>["columns"] = [
+    {
+      title: "作用域",
+      dataIndex: "scope",
+      render: (scope: string) => <Tag color="blue">{outcomeScopeText(scope)}</Tag>,
+    },
+    {
+      title: "引用",
+      key: "refCode",
+      render: (_value, binding) =>
+        binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-",
+    },
+    { title: "指标编码", dataIndex: "indicatorCode" },
+  ];
+
+  const warningColumns: TableProps<PathwayCoordinationWarning>["columns"] = [
+    {
+      title: "类型",
+      dataIndex: "warningType",
+      render: (type: string) => <Tag color="orange">{type}</Tag>,
+    },
+    {
+      title: "共享引用",
+      dataIndex: "sharedRef",
+      render: (value?: string | null) => value ?? "-",
+    },
+    {
+      title: "冲突路径",
+      key: "conflict",
+      render: (_value, warning) => (
+        <span className={styles.codeText}>
+          {warning.conflictWithPatientPathwayId ?? "-"} / {warning.conflictWithNodeCode ?? "-"}
+        </span>
+      ),
+    },
+    { title: "提示", dataIndex: "message" },
+  ];
+
   const columns: TableProps<PatientPathway>["columns"] = [
     {
       title: "实例编号",
@@ -703,6 +749,58 @@ export default function PatientPathways() {
                   : "未知"}
               </Descriptions.Item>
             </Descriptions>
+
+            {(detailData.coordinationWarnings ?? []).length > 0 && (
+              <Card
+                title={
+                  <div className={styles.sectionTitle}>
+                    <WarningOutlined className={styles.iconInfo} />
+                    <span>多路径协调提示</span>
+                  </div>
+                }
+                className={`${styles.detailCard} ${styles.sectionGapLg}`}
+              >
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="存在并行路径协调提示，系统仅提示协调，不自动改医嘱。"
+                  className={styles.sectionGap}
+                />
+                <Table
+                  dataSource={detailData.coordinationWarnings ?? []}
+                  rowKey={(warning) =>
+                    `${warning.warningType}-${warning.sharedRef ?? ""}-${warning.conflictWithPatientPathwayId ?? ""}`
+                  }
+                  columns={warningColumns}
+                  pagination={false}
+                  size="small"
+                  className="medkernel-table"
+                />
+              </Card>
+            )}
+
+            {(detailData.outcomeBindings ?? []).length > 0 && (
+              <Card
+                title={
+                  <div className={styles.sectionTitle}>
+                    <FileTextOutlined className={styles.iconInfo} />
+                    <span>结局指标闭环</span>
+                  </div>
+                }
+                className={`${styles.detailCard} ${styles.sectionGapLg}`}
+              >
+                <Table
+                  dataSource={detailData.outcomeBindings ?? []}
+                  rowKey={(binding) =>
+                    `${binding.scope}-${binding.refCode ?? "TEMPLATE"}-${binding.indicatorCode}`
+                  }
+                  columns={outcomeColumns}
+                  pagination={false}
+                  size="small"
+                  className="medkernel-table"
+                />
+              </Card>
+            )}
 
             <Row gutter={[16, 16]}>
               <Col xs={24} xl={10}>

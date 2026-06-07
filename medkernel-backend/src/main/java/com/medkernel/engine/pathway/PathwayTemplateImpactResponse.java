@@ -15,6 +15,7 @@ public record PathwayTemplateImpactResponse(
     int edgeCount,
     int timedNodeCount,
     int terminalNodeCount,
+    int outcomeBindingCount,
     int canaryPercent,
     String impactDigest,
     List<String> releaseEvidence,

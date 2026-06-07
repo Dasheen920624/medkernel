@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import PathwayTemplates from "./PathwayTemplates";
 import type {
+  EvaluationIndicator,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
   SpecialtyPackage,
@@ -16,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
   templateDetailData: null as unknown,
   templateImpactData: null as unknown,
   templateInheritanceDiffData: null as unknown,
+  evaluationIndicatorsData: { items: [], total: 0 } as unknown,
   packagesData: { items: [], total: 0 } as unknown,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
@@ -54,6 +56,11 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   usePathwayTemplateInheritanceDiff: () => ({
     data: apiMocks.templateInheritanceDiffData,
+    isLoading: false,
+    isError: false,
+  }),
+  useEvaluationIndicators: () => ({
+    data: apiMocks.evaluationIndicatorsData,
     isLoading: false,
     isError: false,
   }),
@@ -123,6 +130,21 @@ const specialtyPackage: SpecialtyPackage = {
   status: "DRAFT",
   sourceRef: "院内已审核路径制度",
   description: "院内路径配置包",
+};
+
+const losOutcomeIndicator: EvaluationIndicator = {
+  indicatorId: "indicator-los",
+  tenantId: "tenant-hospital",
+  indicatorCode: "PATH.OUTCOME.LOS",
+  versionNo: 1,
+  name: "平均住院日",
+  subjectType: "PATIENT",
+  timeWindow: "出院后 30 天",
+  organizationScope: "院级",
+  responsibleDepartmentId: "quality-office",
+  sourceRef: "院内路径结局指标制度 2026",
+  packageVersion: "pkg-2026.06",
+  status: "ACTIVE",
 };
 
 const draftTemplate: PathwayTemplate = {
@@ -260,6 +282,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.templateDetailData = null;
     apiMocks.templateImpactData = null;
     apiMocks.templateInheritanceDiffData = null;
+    apiMocks.evaluationIndicatorsData = { items: [], total: 0 };
     apiMocks.packagesData = { items: [], total: 0 };
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
@@ -477,6 +500,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     "新建路径模板提交阶段里程碑、天序与节点里程碑绑定",
     async () => {
       apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.evaluationIndicatorsData = { items: [losOutcomeIndicator], total: 1 };
       apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
       const user = userEvent.setup();
       renderPathwayTemplates();
@@ -549,6 +573,13 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
       await user.click(await screen.findByText("入径评估（ASSESS）"));
 
+      await user.click(within(dialog).getByRole("button", { name: /添加结局指标/ }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("评估指标"));
+      await user.click(await screen.findByText("平均住院日（PATH.OUTCOME.LOS）"));
+      fireEvent.change(within(dialog).getByLabelText("指标包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 
       await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
@@ -569,6 +600,12 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           };
         }>;
         metricBindings: Array<{ nodeCode: string; metricCode: string }>;
+        outcomeBindings: Array<{
+          scope: string;
+          refCode?: string;
+          indicatorCode: string;
+          packageVersion?: string;
+        }>;
       };
       expect(payload.milestones).toEqual(
         expect.arrayContaining([
@@ -609,6 +646,13 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           }),
         ]),
       );
+      expect(payload.outcomeBindings).toEqual([
+        {
+          scope: "TEMPLATE",
+          indicatorCode: "PATH.OUTCOME.LOS",
+          packageVersion: "pkg-2026.06",
+        },
+      ]);
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
@@ -1055,6 +1099,95 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(screen.getByText("OBSERVATION:obs-1:code:HB")).toBeInTheDocument();
       expect(screen.getAllByText("ASSESS").length).toBeGreaterThan(0);
       expect(screen.getAllByText("FOLLOWUP").length).toBeGreaterThan(0);
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "队列回放按快照选择顺序发送回放参数，并展示每一步轨迹",
+    async () => {
+      apiMocks.templateListData = { items: [draftTemplate], total: 1 };
+      apiMocks.templateDetailData = createTemplateDetail();
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.snapshotsData = {
+        items: [
+          {
+            snapshotId: "ctx-path-001",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "COMPLETE",
+            createdAt: "2026-06-02T08:00:00Z",
+          },
+          {
+            snapshotId: "ctx-path-002",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "PARTIAL",
+            createdAt: "2026-06-02T09:00:00Z",
+          },
+        ],
+        total: 2,
+      };
+      apiMocks.snapshotDetailData = {
+        snapshotId: "ctx-path-001",
+        status: "ACTIVE",
+        packageVersion: "pkg-2026.06",
+        qualityStatus: "COMPLETE",
+        missingFields: [],
+        mappingStatus: {},
+        resources: { patient: { patientId: "P-001" } },
+        createdAt: "2026-06-02T08:00:00Z",
+        traceId: "trace-ctx",
+      };
+      apiMocks.simulatePathway.mockResolvedValue({
+        templateId: "pt-path-1",
+        simulationMode: "QUEUE_REPLAY",
+        nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+        finalStatus: "COMPLETED",
+        contextQualityStatus: "PARTIAL",
+        missingFields: [],
+        mappingStatus: {},
+        contextResourceCounts: { patient: 1 },
+        replaySteps: [
+          {
+            snapshotId: "ctx-path-001",
+            nodeTrajectory: ["ASSESS"],
+            finalStatus: "RUNNING",
+          },
+          {
+            snapshotId: "ctx-path-002",
+            nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+            finalStatus: "COMPLETED",
+          },
+        ],
+        traceId: "trace-replay",
+      });
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
+
+      await user.type(screen.getByLabelText("患者 ID"), "P-001");
+      await user.type(screen.getByLabelText("就诊 ID"), "E-001");
+      await user.click(screen.getByRole("button", { name: /读取真实快照/ }));
+      await user.click(screen.getByText("队列回放"));
+      await user.click(await screen.findByRole("button", { name: /ctx-path-001/ }));
+      await user.click(await screen.findByRole("button", { name: /ctx-path-002/ }));
+      await user.click(screen.getByRole("button", { name: /执行队列回放/ }));
+
+      await waitFor(() =>
+        expect(apiMocks.simulatePathway).toHaveBeenCalledWith({
+          packageVersion: "pkg-2026.06",
+          replaySnapshotIds: ["ctx-path-001", "ctx-path-002"],
+          simulationMode: "QUEUE_REPLAY",
+          startNodeCode: "ASSESS",
+        }),
+      );
+      expect(await screen.findByText("模式：QUEUE_REPLAY")).toBeInTheDocument();
+      expect(screen.getAllByText("ctx-path-001").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("ctx-path-002").length).toBeGreaterThan(0);
+      expect(screen.getByText("ASSESS → FOLLOWUP")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

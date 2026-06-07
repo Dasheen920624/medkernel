@@ -44,11 +44,13 @@ public record PathwayTemplateCreateRequest(
     List<@Valid PathwayMilestoneRequest> milestones,
     @NotEmpty List<@Valid PathwayNodeRequest> nodes,
     List<@Valid PathwayEdgeRequest> edges,
-    List<@Valid SpecialtyMetricBindingRequest> metricBindings
+    List<@Valid SpecialtyMetricBindingRequest> metricBindings,
+    List<@Valid PathwayOutcomeBindingRequest> outcomeBindings
 ) implements PathwayContextRequest {
     public PathwayTemplateCreateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
         milestones = milestones == null ? List.of() : List.copyOf(milestones);
+        outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
     }
 
     public PathwayTemplateCreateRequest(String packageId,
@@ -70,7 +72,7 @@ public record PathwayTemplateCreateRequest(
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
             packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
             null, entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
-            milestones, nodes, edges, metricBindings);
+            milestones, nodes, edges, metricBindings, List.of());
     }
 
     public PathwayTemplateCreateRequest(String packageId,
