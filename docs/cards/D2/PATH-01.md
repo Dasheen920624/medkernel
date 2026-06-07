@@ -14,7 +14,7 @@
 
 ## 目标
 
-提供路径引擎 **B0 真实**：**三层配置**（L1 模板 / L2 React Flow 节点画布 / L3 DSL）+ **7 步流**发布 + **仿真** + **关键时钟**（绑定质控时限）+ **变异管理** + **随访接续**。让专科专家/科主任配置专病路径，患者入径后节点推进/变异/超时由引擎驱动，供 D3 临床运行消费。
+提供路径引擎 **B0 真实**：**三层配置**（L1 模板 / L2 React Flow 节点画布 / L3 DSL）+ **多级模板继承差异合并** + **7 步流**发布 + **仿真** + **关键时钟**（绑定质控时限）+ **变异管理** + **随访接续**。让专科专家/科主任配置专病路径，患者入径后节点推进/变异/超时由引擎驱动，供 D3 临床运行消费。
 
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准）
 
@@ -25,6 +25,7 @@
 - 2026-06-02 PR1 进展（`codex/d2-path-01-backend-contracts`）：后端仿真与实时推进新增 `snapshotId`，通过 `ContextSnapshotService.findById` 消费 [API-01](API-01.md) 真实快照，返回 `contextQualityStatus`、`missingFields`、`mappingStatus`、`contextResourceCounts`；`PathwayProgressor` 支持从快照事实评估 `condition_json`（如检验值条件），默认边仅作 fallback，不再抢走已满足条件边；`PathwayProgressDecision` / `PathwayAdvanceResponse` 携带命中边与事实证据；有时窗节点发布时必须绑定质控指标，缺失返回 `PATHWAY_CLOCK_MISSING`，入径 / 推进创建的 `ClinicalClock.metricCode` 来自真实 `SpecialtyMetricBinding`。未冒领三层前端、7 步发布、随访接续和 D4 超时信号闭环。
 - 2026-06-02 PR2 与 2026-06-07 统一验收：`PathwayTemplates` 已清理旧 `DEFAULT_NODES_JSON` / `DEFAULT_EDGES_JSON`、伪画布与粘贴式快照入口，形成 L1 模板、L2 React Flow 节点画布、L3 DSL 三层编辑；支持节点拖拽 / 键盘移动、连线、节点 / 边删除和布局持久化，所有操作回写同一份 `PathwayTemplate` 表单与 DSL。详情抽屉展示 L1 / L2 / L3 与真实快照试运行，仿真从 [API-01](API-01.md) ACTIVE 快照列表 / 详情选择 `snapshotId`，展示后端返回的快照质量、映射状态和节点轨迹；`DEFER-017` 已关闭。
 - 2026-06-03 PR3 进展（`codex/d2-path-01-pr3-release-followup`）：路径发布前新增真实影响摘要接口 `GET /pathway-templates/{templateId}/impact`，摘要只来自路径拓扑、关键时钟绑定和患者路径实例事实，不把生命周期状态写入 digest，确保灰度后可基于同一影响摘要继续全量确认；草稿发布必须携带当前 `impactDigest` 与审核说明，进入 `canary_release` 默认 10% 灰度；已发布模板支持院级管理员 `full_rollout` 全量确认；当前已发布模板可回滚到同编码 `OFFLINE` 历史版本，当前版本下线、目标版本恢复发布并写 `ROLLBACK` 审计；列表接口补 `templateCode` 过滤，前端回滚候选来自同编码历史版本查询，不再依赖当前分页。患者路径 `COMPLETED` 后通过路径→随访端口生成 / 复用随访计划，`PathwayAdvanceResponse` 返回 `followupPlanId`、`followupTaskCount` 和交接状态。前端 `PathwayTemplates` 新增“7 步流发布”页签，标题栏按钮只跳页签，不再绕过影响摘要；页签展示 digest、灰度、全量和回滚操作。未冒领通用 SYS-04 泛化 `ReleasePort/ReplayPort`。
+- 2026-06-07 P10-3 进展：`PathwayTemplate.parentTemplateId` 与 `PathwayNode.disabledFlag` 已进入 5 方言迁移；后端提供继承解析与 `GET /api/v1/engine/pathway/pathway-templates/{templateId}/inheritance-diff`，支持下级覆盖、下级新增和禁用父级节点，返回差异项与合并后的有效节点/边；前端路径详情新增“继承差异”页签，创建模板可选择父级模板，禁用继承节点不进入画布、发布拓扑、指标绑定校验、仿真、患者入径和推进主链路。
 
 ## 功能要求（原子可测条目）
 
@@ -34,12 +35,13 @@
 - [x] **FR-4 关键时钟**：节点绑 `ClinicalClock`（如"术后 24h 内 X"）；超时触发待办/质控信号（D4 消费）。
 - [x] **FR-5 仿真 + 7 步流**：仿真选真实快照走路径（不写库）；发布走 7 步流（[SYS-04](SYS-04.md)）。
 - [x] **FR-6 随访接续**：患者出径 → 生成随访计划交接 D3 随访（FOLLOW），不断链。
+- [x] **FR-7 多级模板继承差异合并**：STANDARD→HOSPITAL→DEPARTMENT→SPECIALTY 下级可覆盖/新增/禁用上级节点；系统提供 diff 视图和有效图解析，避免重复维护。
 
 ## 接口契约 / 页面契约
 
 ### 接口契约（引擎/API 卡）
 
-- 端点：推进/仿真/变异/时钟能力，REST 客户面在 [API-06](API-06.md)。
+- 端点：推进/仿真/变异/时钟能力，REST 客户面在 [API-06](API-06.md)；继承差异 `GET /api/v1/engine/pathway/pathway-templates/{templateId}/inheritance-diff`。
 - DTO：复用 `PathwayTemplate`/`PatientPathway`/`PathwayAdvanceRequest`/`PathwayVariance`/`ClinicalClock`/`PathwaySimulateRequest`。
 - 状态机：路径版本核心 §3 配置类 + 变更类；患者路径运行态 `PatientPathwayStatus`；**禁自创**。
 - 幂等 / 错误码 / traceId：节点推进按 `(patient_pathway, node, event)` 幂等；超时未配置时钟 → `PATHWAY_CLOCK_MISSING`；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -47,14 +49,14 @@
 ### 页面契约（页面卡 —— 路径配置页，S6）
 
 - 路由元数据：sectionKey `pilot` / menuKey `pathway-config` / requiredPermissions 路径配置 / requiredRoles 专科专家·科主任。
-- 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 路径列表 + React Flow 节点画布 + DSL/模板编辑 + 仿真 + 7 步流（[INFRA-09](../D1/INFRA-09.md)）+ 六态。
+- 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 路径列表 + React Flow 节点画布 + DSL/模板编辑 + 继承差异 + 仿真 + 7 步流（[INFRA-09](../D1/INFRA-09.md)）+ 六态。
 - 主按钮 ≤1 / 默认筛选 ≤3（专科/状态/版本）/ 默认角色视图。
 - 五维 RBAC：菜单 / 动作（发布权）/ 数据（org）/ 资产（路径包）/ 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码。
 
 ## 数据与迁移
 
-- 表族（已有）：`pathway_template`/`pathway_node`/`pathway_edge`/`patient_pathway`/`pathway_variance`/`clinical_clock`/`specialty_package`/`specialty_metric_binding`。
+- 表族（已有）：`pathway_template`（含 `parent_template_id`）/`pathway_node`（含 `disabled_flag`）/`pathway_edge`/`patient_pathway`/`pathway_variance`/`clinical_clock`/`specialty_package`/`specialty_metric_binding`。
 - 主键 ULID；唯一约束：`(pathway_identity, org_scope, version)` ACTIVE 唯一（[SYS-04](SYS-04.md)）；索引：`status`、`specialty`、`org_path`。
 - 5 方言迁移一致 + 中文注释。
 
@@ -83,6 +85,7 @@
 - [x] **AC-2（FR-2/3）**：患者入径推进节点、解释正确；偏离记 `PathwayVariance` 不静默。
 - [x] **AC-3（FR-4）**：节点绑关键时钟，超时触发待办/质控信号；未配时钟的超时节点发布 → `PATHWAY_CLOCK_MISSING` 告警。
 - [x] **AC-4（FR-5/6）**：仿真不写库；7 步流灰度→全量→回滚；出径生成随访计划交接 D3。
+- [x] **AC-5（FR-7）**：下级模板覆盖/新增/禁用父级节点后，diff 与合并后的有效节点/边一致；被禁用节点不进入画布、发布拓扑、指标绑定校验、仿真、患者入径和推进主链路。
 - 关联 A1–A9 剧本：A3 路径配置、A4 发布回滚、A7 随访接续。
 - T-GATE：前后端真实性门禁全绿（仿真/时钟真实、无写死流程）。
 - B0 验收：三层配置 + 确定性推进，**天然 B0**；关模型行为不变。

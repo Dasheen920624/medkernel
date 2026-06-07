@@ -114,6 +114,18 @@ public class PathwayEngineController {
     }
 
     /**
+     * 查看路径模板继承差异与有效合并结果。
+     *
+     * <p>权限：{@code pathway.read}；返回下级模板相对父级链路的新增、覆盖、禁用和合并图。
+     */
+    @GetMapping("/pathway-templates/{templateId}/inheritance-diff")
+    @PreAuthorize("@perm.has('pathway.read')")
+    public ApiResult<PathwayTemplateInheritanceDiffResponse> templateInheritanceDiff(
+            @PathVariable String templateId) {
+        return ApiResult.ok(service.templateInheritanceDiff(templateId));
+    }
+
+    /**
      * 读取路径模板发布前影响摘要。
      *
      * <p>权限：{@code pathway.read}；摘要来自真实拓扑、关键时钟和患者路径实例事实。

@@ -241,6 +241,7 @@ class MigrationBaselineContractTest {
         "idx_specialty_package_tenant_status", "idx_specialty_package_disease",
         "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
         "idx_pathway_template_package", "idx_pathway_template_disease",
+        "idx_pathway_template_parent",
         "idx_pathway_milestone_template_order", "idx_pathway_milestone_phase_day",
         "idx_pathway_node_template_order", "idx_pathway_edge_template_from",
         "idx_pathway_edge_template_to", "idx_patient_pathway_patient",
@@ -413,6 +414,7 @@ class MigrationBaselineContractTest {
         "ck_pathway_template_level", "ck_pathway_template_status", "ck_pathway_entry_mode",
         "uk_pathway_milestone_template_code", "ck_pathway_milestone_day", "ck_pathway_milestone_expected",
         "uk_pathway_node_template_code", "ck_pathway_node_type", "ck_pathway_node_terminal",
+        "ck_pathway_node_disabled",
         "uk_pathway_edge_template_code", "ck_pathway_edge_type",
         "uk_patient_pathway_id", "ck_patient_pathway_status",
         "uk_pathway_variance_id", "ck_pathway_variance_type", "ck_pathway_variance_resolution",
@@ -2128,8 +2130,10 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_clock");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_metric_binding");
         assertThat(h2).contains("entry_mode");
+        assertThat(h2).contains("parent_template_id");
         assertThat(h2).contains("entry_criteria_json");
         assertThat(h2).contains("milestone_code");
+        assertThat(h2).contains("disabled_flag");
         assertThat(h2).contains("condition_json");
         assertThat(h2).contains("current_node_code");
         assertThat(h2).contains("metric_code");
@@ -2141,6 +2145,7 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("ck_pathway_entry_mode");
         assertThat(h2).contains("ck_pathway_milestone_day");
         assertThat(h2).contains("ck_pathway_node_type");
+        assertThat(h2).contains("ck_pathway_node_disabled");
         assertThat(h2).contains("'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'");
         assertThat(h2).contains("'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'");
         assertThat(h2).contains("ck_patient_pathway_status");

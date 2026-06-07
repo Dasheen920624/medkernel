@@ -34,6 +34,7 @@ public record PathwayTemplateCreateRequest(
     @NotBlank String diseaseCode,
     @NotNull Integer templateVersion,
     @NotNull PathwayTemplateLevel templateLevel,
+    String parentTemplateId,
     @NotNull PathwayEntryMode entryMode,
     @NotBlank String startNodeCode,
     @NotBlank String sourceRef,
@@ -68,7 +69,7 @@ public record PathwayTemplateCreateRequest(
                                         List<SpecialtyMetricBindingRequest> metricBindings) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
             packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
-            entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
+            null, entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
             milestones, nodes, edges, metricBindings);
     }
 

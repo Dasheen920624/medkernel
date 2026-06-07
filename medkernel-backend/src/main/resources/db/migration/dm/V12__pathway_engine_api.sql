@@ -56,6 +56,7 @@ CREATE TABLE pathway_template (
     disease_code         VARCHAR2(128) NOT NULL,
     template_version     NUMBER(10)    DEFAULT 1 NOT NULL,
     template_level       VARCHAR2(32)  DEFAULT 'STANDARD' NOT NULL,
+    parent_template_id   VARCHAR2(64)  NULL,
     status               VARCHAR2(32)  DEFAULT 'DRAFT' NOT NULL,
     entry_mode           VARCHAR2(32)  DEFAULT 'AUTO_SUGGEST' NOT NULL,
     start_node_code      VARCHAR2(128) NULL,
@@ -79,6 +80,7 @@ CREATE TABLE pathway_template (
 CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);
 CREATE INDEX idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
+CREATE INDEX idx_pathway_template_parent        ON pathway_template (tenant_id, parent_template_id);
 
 CREATE TABLE pathway_milestone (
     id                         NUMBER(19)    IDENTITY PRIMARY KEY,
@@ -125,6 +127,7 @@ CREATE TABLE pathway_node (
     dependency_json     CLOB          NULL,
     time_window_minutes NUMBER(10)    NULL,
     terminal_flag       NUMBER(1)     DEFAULT 0 NOT NULL,
+    disabled_flag       NUMBER(1)     DEFAULT 0 NOT NULL,
     config_json         CLOB          NULL,
     created_at          TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by          VARCHAR2(64)  DEFAULT 'system' NOT NULL,
@@ -137,7 +140,8 @@ CREATE TABLE pathway_node (
         'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY',
         'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'
     )),
-    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1))
+    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1)),
+    CONSTRAINT ck_pathway_node_disabled CHECK (disabled_flag IN (0, 1))
 );
 
 CREATE INDEX idx_pathway_node_template_order ON pathway_node (tenant_id, template_id, sort_order);

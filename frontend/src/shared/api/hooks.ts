@@ -3181,6 +3181,7 @@ export interface PathwayTemplate {
   diseaseCode: string;
   templateVersion: number;
   templateLevel: PathwayTemplateLevel;
+  parentTemplateId?: string;
   status: PathwayTemplateStatus;
   entryMode: PathwayEntryMode;
   startNodeCode?: string;
@@ -3209,6 +3210,7 @@ export interface PathwayNode {
   dependencyJson?: string;
   timeWindowMinutes?: number;
   terminalFlag: boolean;
+  disabledFlag?: boolean;
   configJson?: string;
   createdAt?: string;
   traceId?: string;
@@ -3298,6 +3300,44 @@ export interface PathwayTemplateImpactResponse {
   canaryPercent: number;
   impactDigest: string;
   releaseEvidence: string[];
+  traceId: string;
+}
+
+export type PathwayInheritanceOrigin = "INHERITED" | "OVERRIDDEN" | "ADDED";
+export type PathwayInheritanceChangeType = "OVERRIDDEN" | "ADDED" | "DISABLED";
+
+export interface PathwayTemplateInheritanceDiffItem {
+  itemType: string;
+  itemCode: string;
+  changeType: PathwayInheritanceChangeType;
+  fieldName?: string | null;
+  parentValue?: string | null;
+  childValue?: string | null;
+}
+
+export interface PathwayMergedNode {
+  nodeCode: string;
+  name: string;
+  nodeType: PathwayNodeType;
+  milestoneCode?: string | null;
+  sortOrder?: number | null;
+  responsibleRole?: string | null;
+  accountableRole?: string | null;
+  consultedRolesJson?: string | null;
+  informedRolesJson?: string | null;
+  dependencyJson?: string | null;
+  timeWindowMinutes?: number | null;
+  terminalFlag?: boolean | null;
+  configJson?: string | null;
+  origin: PathwayInheritanceOrigin;
+}
+
+export interface PathwayTemplateInheritanceDiffResponse {
+  templateId: string;
+  parentTemplateId?: string | null;
+  diffItems: PathwayTemplateInheritanceDiffItem[];
+  mergedNodes: PathwayMergedNode[];
+  mergedEdges: PathwayEdge[];
   traceId: string;
 }
 
@@ -3503,6 +3543,24 @@ export function usePathwayTemplateImpact(
   });
 }
 
+export function usePathwayTemplateInheritanceDiff(
+  templateId: string,
+  options?: {
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ["pathways", "template-inheritance-diff", templateId],
+    enabled: (options?.enabled ?? true) && !!templateId,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PathwayTemplateInheritanceDiffResponse }>(
+        `/engine/pathway/pathway-templates/${templateId}/inheritance-diff`,
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useCreatePathwayTemplate() {
   const security = useSecurityProfile();
   return useMutation({
@@ -3513,6 +3571,7 @@ export function useCreatePathwayTemplate() {
       diseaseCode: string;
       packageVersion: string;
       templateLevel: PathwayTemplateLevel;
+      parentTemplateId?: string;
       templateVersion: number;
       entryMode: PathwayEntryMode;
       startNodeCode: string;
@@ -3542,6 +3601,7 @@ export function useCreatePathwayTemplate() {
         informedRoles?: string[];
         timeWindowMinutes?: number;
         terminal: boolean;
+        disabled?: boolean;
         config?: unknown;
       }>;
       edges: Array<{

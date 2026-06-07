@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -283,11 +284,13 @@ public class PathwayEngineService {
         SpecialtyPackage specialtyPackage = packages.findByPackageIdAndTenantId(request.packageId(), tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_007,
                 "专病包不存在: " + request.packageId()));
+        validateParentTemplate(request, tenantId);
         String templateId = "pt-" + UUID.randomUUID();
         PathwayTemplate template = templates.save(new PathwayTemplate(
             null, templateId, tenantId, specialtyPackage.packageId(), request.templateCode(),
             request.name(), request.diseaseCode(), request.templateVersion(), request.templateLevel(),
-            PathwayTemplateStatus.DRAFT, request.entryMode(), request.startNodeCode(), request.sourceRef(),
+            blankToNull(request.parentTemplateId()), PathwayTemplateStatus.DRAFT,
+            request.entryMode(), request.startNodeCode(), request.sourceRef(),
             request.description(), writeJson(request.entryCriteria()), writeJson(request.exitCriteria()),
             now, actor, now, actor, traceId));
         validateMilestoneBindings(request.milestones(), request.nodes());
@@ -305,7 +308,7 @@ public class PathwayEngineService {
                 node.name(), node.nodeType(), node.milestoneCode(), safeInt(node.sortOrder()),
                 node.responsibleRole(), node.accountableRole(), writeJson(node.consultedRoles()),
                 writeJson(node.informedRoles()), writeJson(node.dependency()), node.timeWindowMinutes(),
-                Boolean.TRUE.equals(node.terminal()), writeJson(node.config()),
+                Boolean.TRUE.equals(node.terminal()), Boolean.TRUE.equals(node.disabled()), writeJson(node.config()),
                 now, actor, now, actor, traceId)))
             .toList();
         List<PathwayEdge> savedEdges = nullToEmpty(request.edges()).stream()
@@ -389,18 +392,13 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         PathwayTemplate template = findTemplate(templateId, tenantId);
         ensureTemplateDraft(template);
-        List<PathwayMilestone> graphMilestones =
-            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
-        List<SpecialtyMetricBinding> graphBindings =
-            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId);
-        validatePublishGate(template, graphMilestones, graphNodes, graphEdges, graphBindings);
+        EffectivePathwayGraph graph = effectiveGraphFor(template, tenantId);
+        validatePublishGate(template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings());
         PathwayTemplateImpactResponse impact = templateImpactFor(
-            template, graphMilestones, graphNodes, graphEdges, graphBindings,
+            template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
         validateReleaseGate(request, impact);
-        ensureTerminologyCoverage(graphEdges);
+        ensureTerminologyCoverage(graph.edges());
 
         Instant now = Instant.now();
         String actor = currentActor();
@@ -629,6 +627,7 @@ public class PathwayEngineService {
             template.diseaseCode(),
             template.templateVersion(),
             template.templateLevel(),
+            template.parentTemplateId(),
             template.entryMode(),
             template.startNodeCode(),
             template.sourceRef(),
@@ -651,16 +650,72 @@ public class PathwayEngineService {
     public PathwayTemplateImpactResponse templateImpact(String templateId) {
         String tenantId = requireCurrentTenant();
         PathwayTemplate template = findTemplate(templateId, tenantId);
-        List<PathwayMilestone> graphMilestones =
-            milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, tenantId);
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(templateId, tenantId);
-        List<SpecialtyMetricBinding> graphBindings =
-            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(templateId, tenantId);
-        validatePublishGate(template, graphMilestones, graphNodes, graphEdges, graphBindings);
+        EffectivePathwayGraph graph = effectiveGraphFor(template, tenantId);
+        validatePublishGate(template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings());
         return templateImpactFor(
-            template, graphMilestones, graphNodes, graphEdges, graphBindings,
+            template, graph.milestones(), graph.nodes(), graph.edges(), graph.metricBindings(),
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
+    }
+
+    /**
+     * 读取路径模板相对父级模板链的差异，并返回有效合并后的节点和边。
+     */
+    @Transactional(readOnly = true)
+    public PathwayTemplateInheritanceDiffResponse templateInheritanceDiff(String templateId) {
+        String tenantId = requireCurrentTenant();
+        PathwayTemplate template = findTemplate(templateId, tenantId);
+        MergedPathwayGraph graph = resolveTemplateInheritanceGraph(template, tenantId, new HashSet<>());
+        return new PathwayTemplateInheritanceDiffResponse(
+            template.templateId(),
+            template.parentTemplateId(),
+            graph.diffItems(),
+            graph.nodes(),
+            graph.edges(),
+            RequestContext.currentTraceId());
+    }
+
+    private EffectivePathwayGraph effectiveGraphFor(PathwayTemplate template, String tenantId) {
+        MergedPathwayGraph inheritanceGraph = resolveTemplateInheritanceGraph(template, tenantId, new HashSet<>());
+        List<PathwayNode> graphNodes = inheritanceGraph.nodes().stream()
+            .map(node -> toEffectivePathwayNode(template, tenantId, node))
+            .toList();
+        Set<String> activeNodeCodes = pathwayNodeCodeSet(graphNodes);
+        return new EffectivePathwayGraph(
+            resolveEffectiveMilestones(template, tenantId, new HashSet<>()),
+            graphNodes,
+            inheritanceGraph.edges(),
+            resolveEffectiveMetricBindings(template, tenantId, new HashSet<>(), activeNodeCodes));
+    }
+
+    private PathwayNode toEffectivePathwayNode(
+            PathwayTemplate template,
+            String tenantId,
+            PathwayMergedNode node) {
+        Instant now = Instant.now();
+        return new PathwayNode(
+            null,
+            "effective-" + template.templateId() + "-" + node.nodeCode(),
+            tenantId,
+            template.templateId(),
+            node.nodeCode(),
+            node.name(),
+            node.nodeType(),
+            node.milestoneCode(),
+            node.sortOrder(),
+            node.responsibleRole(),
+            node.accountableRole(),
+            node.consultedRolesJson(),
+            node.informedRolesJson(),
+            node.dependencyJson(),
+            node.timeWindowMinutes(),
+            node.terminalFlag(),
+            false,
+            node.configJson(),
+            now,
+            "inheritance-resolver",
+            now,
+            "inheritance-resolver",
+            RequestContext.currentTraceId());
     }
 
     /**
@@ -845,17 +900,13 @@ public class PathwayEngineService {
         requireActivePathwayAssetVersion(template);
         safetyGuard.assertPathwayTemplateAllowed(template);
         validateEntryCriteria(template, snapshot.resources());
+        EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
         String startNodeCode = isBlank(request.startNodeCode()) ? template.startNodeCode() : request.startNodeCode();
-        PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(
-                template.templateId(), effective.sourceTenantId(), startNodeCode)
+        PathwayNode startNode = findEntryStartNode(template, effective.sourceTenantId(), graph, startNodeCode)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_006,
                 "入径起始节点不存在: " + startNodeCode));
-        List<PathwayMilestone> graphMilestones = milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            template.templateId(), effective.sourceTenantId());
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            template.templateId(), effective.sourceTenantId());
-        List<SpecialtyMetricBinding> graphBindings = metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
-            template.templateId(), effective.sourceTenantId());
+        List<SpecialtyMetricBinding> entryMetricBindings =
+            entryMetricBindings(template, effective.sourceTenantId(), graph);
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
         Instant now = Instant.now();
@@ -865,7 +916,7 @@ public class PathwayEngineService {
             template.templateId(), startNode.nodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             now, null, null, null, null, now, actor, now, actor, traceId));
         ClinicalClock startClock = clocks.save(newClock(
-            tenantId, patientPathwayId, startNode, metricCodeForNode(graphBindings, startNode.nodeCode()),
+            tenantId, patientPathwayId, startNode, metricCodeForNode(entryMetricBindings, startNode.nodeCode()),
             snapshot.resources(), now, now, actor, traceId));
         openNodeWorklist(runtime, startNode, startClock, actor, traceId);
         transitions.record(PATIENT_PATHWAY_ENTITY, patientPathwayId, null,
@@ -875,7 +926,7 @@ public class PathwayEngineService {
         List<ClinicalClock> runtimeClocks = List.of(startClock);
         return new PatientPathwayDetailResponse(
             runtime,
-            milestoneStatuses(runtime, graphMilestones, graphNodes, runtimeClocks),
+            milestoneStatuses(runtime, graph.milestones(), graph.nodes(), runtimeClocks),
             List.of(),
             runtimeClocks,
             traceId);
@@ -898,6 +949,36 @@ public class PathwayEngineService {
             throw new ApiException(ErrorCode.ENG_PATHWAY_001,
                 "患者上下文命中路径入径排除标准: " + template.templateCode());
         }
+    }
+
+    private Optional<PathwayNode> findEntryStartNode(
+            PathwayTemplate template,
+            String sourceTenantId,
+            EffectivePathwayGraph graph,
+            String startNodeCode) {
+        Optional<PathwayNode> effectiveStart = graph.nodes().stream()
+            .filter(node -> Objects.equals(node.nodeCode(), startNodeCode))
+            .findFirst();
+        if (effectiveStart.isPresent()
+                || !isBlank(template.parentTemplateId())
+                || !graph.nodes().isEmpty()) {
+            return effectiveStart;
+        }
+        return nodes.findByTemplateIdAndTenantIdAndNodeCode(
+            template.templateId(), sourceTenantId, startNodeCode);
+    }
+
+    private List<SpecialtyMetricBinding> entryMetricBindings(
+            PathwayTemplate template,
+            String sourceTenantId,
+            EffectivePathwayGraph graph) {
+        if (!graph.metricBindings().isEmpty()
+                || !isBlank(template.parentTemplateId())
+                || !graph.nodes().isEmpty()) {
+            return graph.metricBindings();
+        }
+        return metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+            template.templateId(), sourceTenantId);
     }
 
     private void validateExitCriteria(PathwayTemplate template, ContextSnapshotResources resources) {
@@ -995,17 +1076,14 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         PatientPathway runtime = findPatientPathway(patientPathwayId, tenantId);
         EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
-        List<PathwayMilestone> graphMilestones = milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            effective.template().templateId(), effective.sourceTenantId());
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            effective.template().templateId(), effective.sourceTenantId());
+        EffectivePathwayGraph graph = effectiveGraphFor(effective.template(), effective.sourceTenantId());
         List<ClinicalClock> runtimeClocks =
             projectClockSla(
                 clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId),
                 Instant.now());
         return new PatientPathwayDetailResponse(
             runtime,
-            milestoneStatuses(runtime, graphMilestones, graphNodes, runtimeClocks),
+            milestoneStatuses(runtime, graph.milestones(), graph.nodes(), runtimeClocks),
             variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc(patientPathwayId, tenantId),
             runtimeClocks,
             RequestContext.currentTraceId());
@@ -1065,10 +1143,7 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
         PathwayTemplate template = effective.template();
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            template.templateId(), effective.sourceTenantId());
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
-            template.templateId(), effective.sourceTenantId());
+        EffectivePathwayGraph graph = effectiveGraphFor(template, effective.sourceTenantId());
         String currentNode = request == null || isBlank(request.startNodeCode())
             ? template.startNodeCode() : request.startNodeCode();
         List<String> requestedTargets = request == null ? List.of() : request.requestedNextNodeCodes();
@@ -1078,10 +1153,10 @@ public class PathwayEngineService {
         java.util.ArrayList<String> trajectory = new java.util.ArrayList<>();
         trajectory.add(currentNode);
         PatientPathwayStatus finalStatus = PatientPathwayStatus.NODE_EXECUTING;
-        for (int i = 0; i <= graphNodes.size(); i++) {
+        for (int i = 0; i <= graph.nodes().size(); i++) {
             String requestedTarget = i < requestedTargets.size() ? requestedTargets.get(i) : null;
             PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
-                new PathwayGraph(graphNodes, graphEdges), currentNode,
+                new PathwayGraph(graph.nodes(), graph.edges()), currentNode,
                 PathwayAdvanceEventType.COMPLETE, requestedTarget, facts));
             finalStatus = decision.status();
             if (decision.nextNodeCode() == null) {
@@ -1117,12 +1192,7 @@ public class PathwayEngineService {
             ? runtime.currentNodeCode() : request.currentNodeCode();
         validateVarianceRequest(request);
         EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
-        List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
-            effective.template().templateId(), effective.sourceTenantId());
-        List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
-            effective.template().templateId(), effective.sourceTenantId());
-        List<SpecialtyMetricBinding> graphBindings = metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
-            effective.template().templateId(), effective.sourceTenantId());
+        EffectivePathwayGraph graph = effectiveGraphFor(effective.template(), effective.sourceTenantId());
         ContextSnapshotResponse snapshot = isBlank(request.snapshotId())
             ? null : contextSnapshots.findById(request.snapshotId());
         if (request.eventType() == PathwayAdvanceEventType.EXIT) {
@@ -1135,7 +1205,7 @@ public class PathwayEngineService {
         String requestedNextNodeCode = progressEventType == PathwayAdvanceEventType.EXIT
             ? null : request.requestedNextNodeCode();
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
-            new PathwayGraph(graphNodes, graphEdges), currentNodeCode,
+            new PathwayGraph(graph.nodes(), graph.edges()), currentNodeCode,
             progressEventType, requestedNextNodeCode, facts));
 
         String traceId = RequestContext.currentTraceId();
@@ -1156,11 +1226,11 @@ public class PathwayEngineService {
         }
         closeCurrentClocks(runtime.patientPathwayId(), tenantId, currentNodeCode, request.eventType(), now, actor, traceId);
         ClinicalClock nextClock = null;
-        PathwayNode nextNode = findNode(graphNodes, decision.nextNodeCode());
+        PathwayNode nextNode = findNode(graph.nodes(), decision.nextNodeCode());
         if (decision.status() == PatientPathwayStatus.NODE_EXECUTING && nextNode != null) {
             nextClock = clocks.save(newClock(
                 tenantId, runtime.patientPathwayId(), nextNode,
-                metricCodeForNode(graphBindings, nextNode.nodeCode()),
+                metricCodeForNode(graph.metricBindings(), nextNode.nodeCode()),
                 snapshot == null ? null : snapshot.resources(), runtime.enteredAt(), now, actor, traceId));
             openNodeWorklist(runtime, nextNode, nextClock, actor, traceId);
         }
@@ -1353,6 +1423,41 @@ public class PathwayEngineService {
         }
     }
 
+    private void validateParentTemplate(PathwayTemplateCreateRequest request, String tenantId) {
+        if (request == null || isBlank(request.parentTemplateId())) {
+            return;
+        }
+        PathwayTemplate parent = findTemplate(request.parentTemplateId(), tenantId);
+        if (!Objects.equals(parent.diseaseCode(), request.diseaseCode())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "父级路径模板病种必须与当前模板一致");
+        }
+        if (templateLevelRank(parent.templateLevel()) >= templateLevelRank(request.templateLevel())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "父级路径模板层级必须高于当前模板: " + parent.templateLevel() + " -> " + request.templateLevel());
+        }
+        assertParentChainAcyclic(parent, tenantId, new HashSet<>());
+    }
+
+    private void assertParentChainAcyclic(PathwayTemplate template, String tenantId, Set<String> visited) {
+        if (!visited.add(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径模板继承链存在环: " + template.templateId());
+        }
+        if (isBlank(template.parentTemplateId())) {
+            return;
+        }
+        assertParentChainAcyclic(findTemplate(template.parentTemplateId(), tenantId), tenantId, visited);
+    }
+
+    private int templateLevelRank(PathwayTemplateLevel level) {
+        return switch (level) {
+            case STANDARD -> 0;
+            case GROUP -> 1;
+            case HOSPITAL -> 2;
+            case DEPARTMENT -> 3;
+            case SPECIALTY -> 4;
+        };
+    }
+
     private List<PathwayMilestoneRuntimeStatus> milestoneStatuses(
             PatientPathway runtime,
             List<PathwayMilestone> graphMilestones,
@@ -1452,6 +1557,12 @@ public class PathwayEngineService {
                                      List<PathwayNode> graphNodes,
                                      List<PathwayEdge> graphEdges,
                                      List<SpecialtyMetricBinding> graphBindings) {
+        List<PathwayNode> executableNodes = activeNodes(graphNodes);
+        Set<String> executableNodeCodes = executableNodes.stream()
+            .map(PathwayNode::nodeCode)
+            .filter(code -> !isBlank(code))
+            .collect(java.util.stream.Collectors.toSet());
+        List<PathwayEdge> executableEdges = activeEdges(graphEdges, executableNodeCodes);
         validateMilestoneBindings(
             nullToEmpty(graphMilestones).stream()
                 .map(milestone -> new PathwayMilestoneRequest(
@@ -1459,17 +1570,17 @@ public class PathwayEngineService {
                     milestone.name(), milestone.dayOffset(), milestone.expectedOffsetMinutes(),
                     null, milestone.sortOrder()))
                 .toList(),
-            nullToEmpty(graphNodes).stream()
+            executableNodes.stream()
                 .map(node -> new PathwayNodeRequest(
                     node.nodeCode(), node.name(), node.nodeType(), node.milestoneCode(),
                     node.sortOrder(), node.responsibleRole(), node.accountableRole(),
                     readRoleList(node.consultedRolesJson()), readRoleList(node.informedRolesJson()),
                     null, node.timeWindowMinutes(),
-                    node.terminalFlag(), null))
+                    node.terminalFlag(), false, null))
                 .toList());
         Set<String> nodeCodes = new HashSet<>();
         boolean hasTerminal = false;
-        for (PathwayNode node : graphNodes) {
+        for (PathwayNode node : executableNodes) {
             if (isBlank(node.nodeCode()) || !nodeCodes.add(node.nodeCode())) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点编码重复或为空");
             }
@@ -1489,19 +1600,37 @@ public class PathwayEngineService {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径模板缺少终止节点");
         }
         Set<String> nodesWithOutgoing = new HashSet<>();
-        for (PathwayEdge edge : graphEdges) {
+        for (PathwayEdge edge : executableEdges) {
             if (!nodeCodes.contains(edge.fromNodeCode()) || !nodeCodes.contains(edge.toNodeCode())) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径边引用了不存在的节点");
             }
             nodesWithOutgoing.add(edge.fromNodeCode());
         }
-        for (PathwayNode node : graphNodes) {
+        for (PathwayNode node : executableNodes) {
             if (!Boolean.TRUE.equals(node.terminalFlag()) && !nodesWithOutgoing.contains(node.nodeCode())) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "非终止节点缺少出边: " + node.nodeCode());
             }
         }
-        validateRichNodeContracts(graphNodes, graphEdges);
-        validateClockBindings(graphNodes, graphBindings);
+        validateRichNodeContracts(executableNodes, executableEdges);
+        validateClockBindings(executableNodes, graphBindings);
+    }
+
+    private List<PathwayNode> activeNodes(List<PathwayNode> graphNodes) {
+        return nullToEmpty(graphNodes).stream()
+            .filter(node -> !Boolean.TRUE.equals(node.disabledFlag()))
+            .toList();
+    }
+
+    private List<PathwayEdge> activeEdges(List<PathwayEdge> graphEdges, Set<String> activeNodeCodes) {
+        return nullToEmpty(graphEdges).stream()
+            .filter(edge -> edgeEndpointsActive(edge, activeNodeCodes))
+            .toList();
+    }
+
+    private boolean edgeEndpointsActive(PathwayEdge edge, Set<String> activeNodeCodes) {
+        return edge != null
+            && activeNodeCodes.contains(edge.fromNodeCode())
+            && activeNodeCodes.contains(edge.toNodeCode());
     }
 
     private void validateRichNodeContracts(List<PathwayNode> graphNodes, List<PathwayEdge> graphEdges) {
@@ -1905,7 +2034,8 @@ public class PathwayEngineService {
         return new PathwayTemplate(
             template.id(), template.templateId(), template.tenantId(), template.packageId(),
             template.templateCode(), template.name(), template.diseaseCode(),
-            template.templateVersion(), template.templateLevel(), status, template.entryMode(), template.startNodeCode(),
+            template.templateVersion(), template.templateLevel(), template.parentTemplateId(), status,
+            template.entryMode(), template.startNodeCode(),
             template.sourceRef(), template.description(), template.entryCriteriaJson(),
             template.exitCriteriaJson(), template.createdAt(), template.createdBy(), now, actor, traceId);
     }
@@ -2007,6 +2137,253 @@ public class PathwayEngineService {
         return templates.findByTemplateIdAndTenantId(templateId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_002,
                 "路径模板不存在: " + templateId));
+    }
+
+    private MergedPathwayGraph resolveTemplateInheritanceGraph(
+            PathwayTemplate template,
+            String tenantId,
+            Set<String> visiting) {
+        if (!visiting.add(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径模板继承链存在环: " + template.templateId());
+        }
+        try {
+            List<PathwayNode> currentNodes =
+                nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), tenantId);
+            List<PathwayEdge> currentEdges =
+                edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), tenantId);
+            if (isBlank(template.parentTemplateId())) {
+                List<PathwayMergedNode> mergedNodes = activeNodes(currentNodes).stream()
+                    .map(node -> PathwayMergedNode.from(node, PathwayInheritanceOrigin.ADDED))
+                    .sorted(mergedNodeComparator())
+                    .toList();
+                return new MergedPathwayGraph(
+                    mergedNodes,
+                    activeEdges(currentEdges, nodeCodeSet(mergedNodes)),
+                    List.of());
+            }
+
+            PathwayTemplate parent = findTemplate(template.parentTemplateId(), tenantId);
+            MergedPathwayGraph parentGraph = resolveTemplateInheritanceGraph(parent, tenantId, visiting);
+            return mergeInheritedGraph(parentGraph, currentNodes, currentEdges);
+        } finally {
+            visiting.remove(template.templateId());
+        }
+    }
+
+    private MergedPathwayGraph mergeInheritedGraph(
+            MergedPathwayGraph parentGraph,
+            List<PathwayNode> childNodes,
+            List<PathwayEdge> childEdges) {
+        LinkedHashMap<String, PathwayMergedNode> parentByCode = new LinkedHashMap<>();
+        for (PathwayMergedNode node : parentGraph.nodes()) {
+            parentByCode.put(node.nodeCode(), node);
+        }
+
+        LinkedHashMap<String, PathwayNode> childActiveByCode = new LinkedHashMap<>();
+        for (PathwayNode node : activeNodes(childNodes)) {
+            childActiveByCode.put(node.nodeCode(), node);
+        }
+        Set<String> disabledCodes = new HashSet<>();
+        for (PathwayNode node : nullToEmpty(childNodes)) {
+            if (Boolean.TRUE.equals(node.disabledFlag())) {
+                disabledCodes.add(node.nodeCode());
+            }
+        }
+
+        List<PathwayTemplateInheritanceDiffItem> diffItems = new ArrayList<>();
+        List<PathwayMergedNode> mergedNodes = new ArrayList<>();
+        for (PathwayMergedNode parentNode : parentByCode.values()) {
+            if (disabledCodes.contains(parentNode.nodeCode())) {
+                diffItems.add(new PathwayTemplateInheritanceDiffItem(
+                    "NODE", parentNode.nodeCode(), PathwayInheritanceChangeType.DISABLED,
+                    null, parentNode.name(), null));
+                continue;
+            }
+            PathwayNode childNode = childActiveByCode.remove(parentNode.nodeCode());
+            if (childNode == null) {
+                mergedNodes.add(parentNode.withOrigin(PathwayInheritanceOrigin.INHERITED));
+                continue;
+            }
+            appendOverrideDiffItems(diffItems, parentNode, childNode);
+            mergedNodes.add(PathwayMergedNode.from(childNode, PathwayInheritanceOrigin.OVERRIDDEN));
+        }
+
+        for (PathwayNode childNode : childActiveByCode.values()) {
+            diffItems.add(new PathwayTemplateInheritanceDiffItem(
+                "NODE", childNode.nodeCode(), PathwayInheritanceChangeType.ADDED,
+                null, null, childNode.name()));
+            mergedNodes.add(PathwayMergedNode.from(childNode, PathwayInheritanceOrigin.ADDED));
+        }
+
+        List<PathwayMergedNode> sortedNodes = mergedNodes.stream()
+            .sorted(mergedNodeComparator())
+            .toList();
+        return new MergedPathwayGraph(
+            sortedNodes,
+            mergeEdges(parentGraph.edges(), childEdges, nodeCodeSet(sortedNodes)),
+            diffItems);
+    }
+
+    private void appendOverrideDiffItems(
+            List<PathwayTemplateInheritanceDiffItem> diffItems,
+            PathwayMergedNode parent,
+            PathwayNode child) {
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "name", parent.name(), child.name());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "nodeType", parent.nodeType(), child.nodeType());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "milestoneCode", parent.milestoneCode(), child.milestoneCode());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "sortOrder", parent.sortOrder(), child.sortOrder());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "responsibleRole", parent.responsibleRole(), child.responsibleRole());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "accountableRole", parent.accountableRole(), child.accountableRole());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "consultedRolesJson", parent.consultedRolesJson(), child.consultedRolesJson());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "informedRolesJson", parent.informedRolesJson(), child.informedRolesJson());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "dependencyJson", parent.dependencyJson(), child.dependencyJson());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "timeWindowMinutes", parent.timeWindowMinutes(), child.timeWindowMinutes());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "terminalFlag", parent.terminalFlag(), child.terminalFlag());
+        appendOverrideDiffItem(diffItems, child.nodeCode(), "configJson", parent.configJson(), child.configJson());
+    }
+
+    private void appendOverrideDiffItem(
+            List<PathwayTemplateInheritanceDiffItem> diffItems,
+            String nodeCode,
+            String fieldName,
+            Object parentValue,
+            Object childValue) {
+        if (Objects.equals(parentValue, childValue)) {
+            return;
+        }
+        diffItems.add(new PathwayTemplateInheritanceDiffItem(
+            "NODE", nodeCode, PathwayInheritanceChangeType.OVERRIDDEN,
+            fieldName, diffValue(parentValue), diffValue(childValue)));
+    }
+
+    private List<PathwayEdge> mergeEdges(
+            List<PathwayEdge> parentEdges,
+            List<PathwayEdge> childEdges,
+            Set<String> activeNodeCodes) {
+        LinkedHashMap<String, PathwayEdge> byCode = new LinkedHashMap<>();
+        Set<String> childEdgeCodes = new HashSet<>();
+        for (PathwayEdge edge : nullToEmpty(childEdges)) {
+            if (!isBlank(edge.edgeCode())) {
+                childEdgeCodes.add(edge.edgeCode());
+            }
+        }
+        for (PathwayEdge edge : nullToEmpty(parentEdges)) {
+            if (!childEdgeCodes.contains(edge.edgeCode()) && edgeEndpointsActive(edge, activeNodeCodes)) {
+                byCode.put(edge.edgeCode(), edge);
+            }
+        }
+        for (PathwayEdge edge : nullToEmpty(childEdges)) {
+            if (edgeEndpointsActive(edge, activeNodeCodes)) {
+                byCode.put(edge.edgeCode(), edge);
+            }
+        }
+        return byCode.values().stream()
+            .sorted(Comparator
+                .comparingInt((PathwayEdge edge) -> safeInt(edge.priority()))
+                .thenComparing(PathwayEdge::edgeCode, Comparator.nullsLast(String::compareTo)))
+            .toList();
+    }
+
+    private Set<String> nodeCodeSet(List<PathwayMergedNode> graphNodes) {
+        Set<String> nodeCodes = new HashSet<>();
+        for (PathwayMergedNode node : nullToEmpty(graphNodes)) {
+            if (!isBlank(node.nodeCode())) {
+                nodeCodes.add(node.nodeCode());
+            }
+        }
+        return nodeCodes;
+    }
+
+    private Set<String> pathwayNodeCodeSet(List<PathwayNode> graphNodes) {
+        Set<String> nodeCodes = new HashSet<>();
+        for (PathwayNode node : nullToEmpty(graphNodes)) {
+            if (!isBlank(node.nodeCode())) {
+                nodeCodes.add(node.nodeCode());
+            }
+        }
+        return nodeCodes;
+    }
+
+    private List<PathwayMilestone> resolveEffectiveMilestones(
+            PathwayTemplate template,
+            String tenantId,
+            Set<String> visiting) {
+        if (!visiting.add(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径模板继承链存在环: " + template.templateId());
+        }
+        try {
+            LinkedHashMap<String, PathwayMilestone> byCode = new LinkedHashMap<>();
+            if (!isBlank(template.parentTemplateId())) {
+                PathwayTemplate parent = findTemplate(template.parentTemplateId(), tenantId);
+                for (PathwayMilestone milestone : resolveEffectiveMilestones(parent, tenantId, visiting)) {
+                    byCode.put(milestone.milestoneCode(), milestone);
+                }
+            }
+            for (PathwayMilestone milestone
+                    : milestones.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), tenantId)) {
+                if (!isBlank(milestone.milestoneCode())) {
+                    byCode.put(milestone.milestoneCode(), milestone);
+                }
+            }
+            return byCode.values().stream()
+                .sorted(Comparator
+                    .comparingInt((PathwayMilestone milestone) -> safeInt(milestone.sortOrder()))
+                    .thenComparing(PathwayMilestone::milestoneCode, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        } finally {
+            visiting.remove(template.templateId());
+        }
+    }
+
+    private List<SpecialtyMetricBinding> resolveEffectiveMetricBindings(
+            PathwayTemplate template,
+            String tenantId,
+            Set<String> visiting,
+            Set<String> activeNodeCodes) {
+        if (!visiting.add(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径模板继承链存在环: " + template.templateId());
+        }
+        try {
+            LinkedHashMap<String, SpecialtyMetricBinding> byKey = new LinkedHashMap<>();
+            if (!isBlank(template.parentTemplateId())) {
+                PathwayTemplate parent = findTemplate(template.parentTemplateId(), tenantId);
+                for (SpecialtyMetricBinding binding
+                        : resolveEffectiveMetricBindings(parent, tenantId, visiting, activeNodeCodes)) {
+                    byKey.put(metricBindingKey(binding), binding);
+                }
+            }
+            for (SpecialtyMetricBinding binding
+                    : metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(template.templateId(), tenantId)) {
+                if (activeNodeCodes.contains(binding.nodeCode())) {
+                    byKey.put(metricBindingKey(binding), binding);
+                }
+            }
+            return byKey.values().stream()
+                .filter(binding -> activeNodeCodes.contains(binding.nodeCode()))
+                .sorted(Comparator
+                    .comparing(SpecialtyMetricBinding::nodeCode, Comparator.nullsLast(String::compareTo))
+                    .thenComparing(SpecialtyMetricBinding::metricCode, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        } finally {
+            visiting.remove(template.templateId());
+        }
+    }
+
+    private String metricBindingKey(SpecialtyMetricBinding binding) {
+        return notBlank(binding.nodeCode(), "-") + ":" + notBlank(binding.metricCode(), "-");
+    }
+
+    private Comparator<PathwayMergedNode> mergedNodeComparator() {
+        return Comparator
+            .comparingInt((PathwayMergedNode node) -> safeInt(node.sortOrder()))
+            .thenComparing(PathwayMergedNode::nodeCode, Comparator.nullsLast(String::compareTo));
+    }
+
+    private static String diffValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private EffectivePathwayTemplate findEffectiveTemplate(String templateId, String tenantId) {
@@ -2288,8 +2665,38 @@ public class PathwayEngineService {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private record MergedPathwayGraph(
+        List<PathwayMergedNode> nodes,
+        List<PathwayEdge> edges,
+        List<PathwayTemplateInheritanceDiffItem> diffItems
+    ) {
+        private MergedPathwayGraph {
+            nodes = nodes == null ? List.of() : List.copyOf(nodes);
+            edges = edges == null ? List.of() : List.copyOf(edges);
+            diffItems = diffItems == null ? List.of() : List.copyOf(diffItems);
+        }
+    }
+
+    private record EffectivePathwayGraph(
+        List<PathwayMilestone> milestones,
+        List<PathwayNode> nodes,
+        List<PathwayEdge> edges,
+        List<SpecialtyMetricBinding> metricBindings
+    ) {
+        private EffectivePathwayGraph {
+            milestones = milestones == null ? List.of() : List.copyOf(milestones);
+            nodes = nodes == null ? List.of() : List.copyOf(nodes);
+            edges = edges == null ? List.of() : List.copyOf(edges);
+            metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
+        }
     }
 
     private record PathwayAssetContent(
@@ -2298,6 +2705,7 @@ public class PathwayEngineService {
         String diseaseCode,
         Integer templateVersion,
         PathwayTemplateLevel templateLevel,
+        String parentTemplateId,
         PathwayEntryMode entryMode,
         String startNodeCode,
         String sourceRef,
@@ -2347,6 +2755,7 @@ public class PathwayEngineService {
         String dependencyJson,
         Integer timeWindowMinutes,
         boolean terminal,
+        boolean disabled,
         String configJson
     ) {
         private static PathwayNodeAssetContent from(PathwayNode node) {
@@ -2362,7 +2771,8 @@ public class PathwayEngineService {
                 node.informedRolesJson(),
                 node.dependencyJson(),
                 node.timeWindowMinutes(),
-                node.terminalFlag(),
+                Boolean.TRUE.equals(node.terminalFlag()),
+                Boolean.TRUE.equals(node.disabledFlag()),
                 node.configJson()
             );
         }

@@ -61,6 +61,7 @@ import {
   useCreateSpecialtyPackage,
   useFullRolloutPathwayTemplate,
   usePathwayTemplateDetail,
+  usePathwayTemplateInheritanceDiff,
   usePathwayTemplateImpact,
   usePathwayTemplates,
   usePublishPathwayTemplate,
@@ -73,13 +74,16 @@ import type {
   PathwayEdge,
   PathwayEdgeType,
   PathwayEntryMode,
+  PathwayInheritanceChangeType,
   PathwayMilestone,
+  PathwayMergedNode,
   PathwayNode,
   PathwayNodeType,
   PathwaySimulationResponse,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
   PathwayTemplateImpactResponse,
+  PathwayTemplateInheritanceDiffItem,
   PathwayTemplateLevel,
   PathwayTemplateStatus,
   SpecialtyMetricBinding,
@@ -140,6 +144,32 @@ function pathwayEntryModeText(mode: PathwayEntryMode | string | undefined) {
   return "自动建议入径";
 }
 
+function inheritanceChangeText(type: PathwayInheritanceChangeType | string | undefined) {
+  if (type === "OVERRIDDEN") return "覆盖";
+  if (type === "ADDED") return "新增";
+  if (type === "DISABLED") return "禁用";
+  return type ?? "-";
+}
+
+function inheritanceChangeColor(type: PathwayInheritanceChangeType | string | undefined) {
+  if (type === "DISABLED") return "red";
+  if (type === "ADDED") return "green";
+  return "orange";
+}
+
+function inheritanceOriginText(origin: string | undefined) {
+  if (origin === "INHERITED") return "继承";
+  if (origin === "OVERRIDDEN") return "覆盖";
+  if (origin === "ADDED") return "新增";
+  return origin ?? "-";
+}
+
+function inheritanceOriginColor(origin: string | undefined) {
+  if (origin === "INHERITED") return "blue";
+  if (origin === "ADDED") return "green";
+  return "orange";
+}
+
 type PathwayNodeDraft = {
   nodeCode: string;
   name: string;
@@ -152,6 +182,7 @@ type PathwayNodeDraft = {
   informedRoles?: string[];
   timeWindowMinutes?: number;
   terminal: boolean;
+  disabled?: boolean;
   config?: unknown;
 };
 
@@ -201,6 +232,7 @@ type PathwayNodeFormValue = {
   informedRoles?: string[];
   timeWindowMinutes?: number;
   terminal?: boolean;
+  disabled?: boolean;
   metricCode?: string;
   config?: object;
 };
@@ -249,6 +281,7 @@ type PathwayTemplateFormValue = {
   name: string;
   diseaseCode: string;
   templateLevel: PathwayTemplateLevel;
+  parentTemplateId?: string;
   templateVersion: number;
   entryMode: PathwayEntryMode;
   startNodeCode: string;
@@ -519,6 +552,7 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
         informedRoles: normalizeRoleList(node.informedRoles),
         timeWindowMinutes,
         terminal: Boolean(node.terminal),
+        disabled: Boolean(node.disabled),
         config: normalizeNodeConfig(node.config, timeWindowMinutes),
       };
     });
@@ -733,7 +767,7 @@ function normalizeEdges(edges?: PathwayEdgeFormValue[]) {
 
 function normalizeMetricBindings(nodes?: PathwayNodeFormValue[]) {
   return (nodes ?? [])
-    .filter((node) => cleanText(node.nodeCode) && cleanText(node.metricCode))
+    .filter((node) => !node.disabled && cleanText(node.nodeCode) && cleanText(node.metricCode))
     .map<PathwayMetricBindingDraft>((node) => ({
       nodeCode: cleanText(node.nodeCode) ?? "",
       metricCode: cleanText(node.metricCode) ?? "",
@@ -779,6 +813,7 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       templateCode: detail.template.templateCode,
       diseaseCode: detail.template.diseaseCode,
       templateLevel: detail.template.templateLevel,
+      parentTemplateId: detail.template.parentTemplateId,
       templateVersion: detail.template.templateVersion,
       entryMode: detail.template.entryMode,
       startNodeCode: detail.template.startNodeCode,
@@ -808,6 +843,7 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       informedRoles: parseRoleListJson(node.informedRolesJson),
       timeWindowMinutes: node.timeWindowMinutes,
       terminal: node.terminalFlag,
+      disabled: Boolean(node.disabledFlag),
       config: parseLooseJson(node.configJson),
     })),
     edges: detail.edges.map((edge) => ({
@@ -952,6 +988,7 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
           ? node.timeWindowMinutes
           : undefined,
       terminal: Boolean(node.terminal),
+      disabled: Boolean(node.disabled),
       metricCode: metricByNode.get(node.nodeCode),
       config: normalizeNodeConfig(node.config),
     })),
@@ -1079,6 +1116,9 @@ export default function PathwayTemplates() {
   const impactQuery = usePathwayTemplateImpact(selectedTemplateId || "", {
     enabled: !!selectedTemplateId,
   });
+  const inheritanceDiffQuery = usePathwayTemplateInheritanceDiff(selectedTemplateId || "", {
+    enabled: !!selectedTemplateId,
+  });
   const { data: rollbackTargetsData } = usePathwayTemplates(
     {
       status: "OFFLINE",
@@ -1139,7 +1179,10 @@ export default function PathwayTemplates() {
   const watchedEdges = Form.useWatch("edges", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
 
-  const canvasNodes = useMemo(() => normalizeNodes(watchedNodes), [watchedNodes]);
+  const canvasNodes = useMemo(
+    () => normalizeNodes(watchedNodes).filter((node) => !node.disabled),
+    [watchedNodes],
+  );
   const canvasEdges = useMemo(() => normalizeEdgesForCanvas(watchedEdges), [watchedEdges]);
   const topologyIssues = useMemo(
     () => findPathwayTopologyIssues(canvasNodes, canvasEdges, watchedStartNodeCode),
@@ -1217,6 +1260,17 @@ export default function PathwayTemplates() {
           label: `${cleanText(node.name) ?? "未命名节点"}（${node.nodeCode}）`,
         })),
     [canvasNodes],
+  );
+
+  const parentTemplateOptions = useMemo(
+    () =>
+      (listData?.items ?? [])
+        .filter((template: PathwayTemplate) => template.status !== "OFFLINE")
+        .map((template: PathwayTemplate) => ({
+          value: template.templateId,
+          label: `${template.templateCode} v${template.templateVersion}.0 / ${template.templateLevel}`,
+        })),
+    [listData?.items],
   );
 
   const milestoneSelectOptions = useMemo(
@@ -1312,7 +1366,11 @@ export default function PathwayTemplates() {
       const nodes = normalizeNodes(values.nodes);
       const edges = normalizeEdges(values.edges);
       const metricBindings = normalizeMetricBindings(values.nodes);
-      const nodeCodes = new Set(nodes.map((node) => node.nodeCode));
+      const activeNodes = nodes.filter((node) => !node.disabled);
+      const activeNodeCodes = new Set(activeNodes.map((node) => node.nodeCode));
+      const activeEdges = edges.filter(
+        (edge) => activeNodeCodes.has(edge.fromNodeCode) && activeNodeCodes.has(edge.toNodeCode),
+      );
       if (nodes.length === 0) {
         messageApi.error("请至少添加一个生命周期节点");
         return;
@@ -1335,17 +1393,17 @@ export default function PathwayTemplates() {
         milestoneCodes.add(milestone.milestoneCode);
       }
       const invalidMilestoneNode = nodes.find(
-        (node) => node.milestoneCode && !milestoneCodes.has(node.milestoneCode),
+        (node) => !node.disabled && node.milestoneCode && !milestoneCodes.has(node.milestoneCode),
       );
       if (invalidMilestoneNode) {
         messageApi.error(`节点 ${invalidMilestoneNode.nodeCode} 引用了不存在的里程碑`);
         return;
       }
-      if (!nodeCodes.has(values.startNodeCode)) {
+      if (!activeNodeCodes.has(values.startNodeCode)) {
         messageApi.error("起始节点编码必须来自 L2 节点画布");
         return;
       }
-      const timedNodeWithoutMetric = nodes.find(
+      const timedNodeWithoutMetric = activeNodes.find(
         (node) =>
           (node.timeWindowMinutes ?? 0) > 0 &&
           !metricBindings.some((binding) => binding.nodeCode === node.nodeCode),
@@ -1354,12 +1412,16 @@ export default function PathwayTemplates() {
         messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标编码`);
         return;
       }
-      const topologyIssuesForSubmit = findPathwayTopologyIssues(nodes, edges, values.startNodeCode);
+      const topologyIssuesForSubmit = findPathwayTopologyIssues(
+        activeNodes,
+        activeEdges,
+        values.startNodeCode,
+      );
       if (topologyIssuesForSubmit.length > 0) {
         messageApi.error(topologyIssuesForSubmit[0]);
         return;
       }
-      const richNodeIssue = validateRichNodeContracts(nodes, edges);
+      const richNodeIssue = validateRichNodeContracts(activeNodes, activeEdges);
       if (richNodeIssue) {
         messageApi.error(richNodeIssue);
         return;
@@ -1374,6 +1436,7 @@ export default function PathwayTemplates() {
         diseaseCode: values.diseaseCode,
         packageVersion: packageVersionFor(values.packageId) ?? String(values.templateVersion),
         templateLevel: values.templateLevel,
+        parentTemplateId: cleanText(values.parentTemplateId),
         templateVersion: Number(values.templateVersion),
         entryMode: values.entryMode,
         startNodeCode: values.startNodeCode,
@@ -1688,6 +1751,11 @@ export default function PathwayTemplates() {
       dataIndex: "terminalFlag",
       render: (terminal: boolean) => (terminal ? "是" : "否"),
     },
+    {
+      title: "启用",
+      dataIndex: "disabledFlag",
+      render: (disabled?: boolean) => (disabled ? "禁用" : "启用"),
+    },
   ];
 
   const milestoneColumns: TableProps<PathwayMilestone>["columns"] = [
@@ -1739,6 +1807,45 @@ export default function PathwayTemplates() {
   const metricColumns: TableProps<SpecialtyMetricBinding>["columns"] = [
     { title: "节点代码", dataIndex: "nodeCode" },
     { title: "指标编码", dataIndex: "metricCode" },
+  ];
+
+  const inheritanceDiffColumns: TableProps<PathwayTemplateInheritanceDiffItem>["columns"] = [
+    { title: "对象", dataIndex: "itemCode", render: (code: string) => <Tag>{code}</Tag> },
+    {
+      title: "类型",
+      dataIndex: "changeType",
+      render: (type: PathwayInheritanceChangeType) => {
+        const color = inheritanceChangeColor(type);
+        return <Tag color={color}>{inheritanceChangeText(type)}</Tag>;
+      },
+    },
+    { title: "字段", dataIndex: "fieldName", render: (value?: string | null) => value ?? "-" },
+    { title: "父级值", dataIndex: "parentValue", render: (value?: string | null) => value ?? "-" },
+    { title: "当前值", dataIndex: "childValue", render: (value?: string | null) => value ?? "-" },
+  ];
+
+  const mergedNodeColumns: TableProps<PathwayMergedNode>["columns"] = [
+    { title: "节点代码", dataIndex: "nodeCode", render: (code: string) => <Tag>{code}</Tag> },
+    { title: "名称", dataIndex: "name", className: styles.textStrong },
+    { title: "类型", dataIndex: "nodeType" },
+    {
+      title: "来源",
+      dataIndex: "origin",
+      render: (origin: string) => {
+        const color = inheritanceOriginColor(origin);
+        return <Tag color={color}>{inheritanceOriginText(origin)}</Tag>;
+      },
+    },
+    {
+      title: "时窗",
+      dataIndex: "timeWindowMinutes",
+      render: (minutes?: number | null) => (typeof minutes === "number" ? minutes : "-"),
+    },
+    {
+      title: "终止",
+      dataIndex: "terminalFlag",
+      render: (terminal?: boolean | null) => (terminal ? "是" : "否"),
+    },
   ];
 
   const createLayerItems: TabsProps["items"] = [
@@ -1793,7 +1900,7 @@ export default function PathwayTemplates() {
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col xs={24} md={8}>
+            <Col xs={24} sm={12} lg={6}>
               <Form.Item
                 name="templateVersion"
                 label="模板版本号"
@@ -1808,7 +1915,18 @@ export default function PathwayTemplates() {
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} sm={12} lg={6}>
+              <Form.Item name="parentTemplateId" label="父级模板">
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="不继承"
+                  options={parentTemplateOptions}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
               <Form.Item
                 name="entryMode"
                 label="入径模式"
@@ -1817,7 +1935,7 @@ export default function PathwayTemplates() {
                 <Segmented block options={pathwayEntryModeOptions} />
               </Form.Item>
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} sm={12} lg={6}>
               <Form.Item
                 name="startNodeCode"
                 label="起始节点"
@@ -2218,6 +2336,16 @@ export default function PathwayTemplates() {
                             <Switch />
                           </Form.Item>
                         </Col>
+                        <Col xs={24} sm={12} lg={4}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "disabled"]}
+                            label="禁用继承节点"
+                            valuePropName="checked"
+                          >
+                            <Switch />
+                          </Form.Item>
+                        </Col>
                       </Row>
                       {currentTimeWindow > 0 && (
                         <Row gutter={12}>
@@ -2349,6 +2477,7 @@ export default function PathwayTemplates() {
                       consultedRoles: [],
                       informedRoles: [],
                       terminal: false,
+                      disabled: false,
                     })
                   }
                 >
@@ -2608,10 +2737,17 @@ export default function PathwayTemplates() {
   ];
 
   const snapshotList = snapshotsData?.items ?? [];
+  const detailExecutableNodes = (detailData?.nodes ?? []).filter((node) => !node.disabledFlag);
+  const detailExecutableNodeCodes = new Set(detailExecutableNodes.map((node) => node.nodeCode));
+  const detailExecutableEdges = (detailData?.edges ?? []).filter(
+    (edge) =>
+      detailExecutableNodeCodes.has(edge.fromNodeCode) &&
+      detailExecutableNodeCodes.has(edge.toNodeCode),
+  );
   const selectedStartNode =
     cleanText(simulateStartNode) ??
     cleanText(detailData?.template.startNodeCode) ??
-    cleanText(detailData?.nodes[0]?.nodeCode) ??
+    cleanText(detailExecutableNodes[0]?.nodeCode) ??
     "";
 
   const simulationQuality =
@@ -2771,6 +2907,55 @@ export default function PathwayTemplates() {
     </Space>
   );
 
+  const inheritanceDiff = inheritanceDiffQuery.data;
+  const inheritanceSummaryMessage = inheritanceDiff?.parentTemplateId
+    ? `父级模板：${inheritanceDiff.parentTemplateId}`
+    : "未继承父级模板";
+  const inheritancePanelContent = (() => {
+    if (inheritanceDiffQuery.isLoading) {
+      return <Alert type="info" showIcon message="正在读取继承差异..." />;
+    }
+    if (inheritanceDiffQuery.isError) {
+      return <Alert type="error" showIcon message="继承差异读取失败" />;
+    }
+    return (
+      <>
+        <Alert
+          type={inheritanceDiff?.parentTemplateId ? "info" : "success"}
+          showIcon
+          message={inheritanceSummaryMessage}
+        />
+        <Table
+          title={() => "差异项"}
+          dataSource={inheritanceDiff?.diffItems ?? []}
+          rowKey={(item) =>
+            `${item.itemType}-${item.itemCode}-${item.changeType}-${item.fieldName ?? ""}`
+          }
+          pagination={false}
+          size="small"
+          columns={inheritanceDiffColumns}
+          locale={{ emptyText: "暂无差异" }}
+          className="medkernel-table"
+        />
+        <Table
+          title={() => "有效节点"}
+          dataSource={inheritanceDiff?.mergedNodes ?? []}
+          rowKey="nodeCode"
+          pagination={false}
+          size="small"
+          columns={mergedNodeColumns}
+          locale={{ emptyText: "暂无有效节点" }}
+          className="medkernel-table"
+        />
+      </>
+    );
+  })();
+  const inheritancePanel = (
+    <Space direction="vertical" size="middle" className={`mk-full-width ${styles.marginTopMd}`}>
+      {inheritancePanelContent}
+    </Space>
+  );
+
   const detailLayerItems: TabsProps["items"] = detailData
     ? [
         {
@@ -2791,6 +2976,9 @@ export default function PathwayTemplates() {
               <Descriptions.Item label="层级">
                 {detailData.template.templateLevel}
               </Descriptions.Item>
+              <Descriptions.Item label="父级模板">
+                {detailData.template.parentTemplateId ?? "无"}
+              </Descriptions.Item>
               <Descriptions.Item label="状态">
                 {pathwayContentStatus(detailData.template.status)}
               </Descriptions.Item>
@@ -2800,7 +2988,7 @@ export default function PathwayTemplates() {
               <Descriptions.Item label="入径模式">
                 {pathwayEntryModeText(detailData.template.entryMode)}
               </Descriptions.Item>
-              <Descriptions.Item label="起始节点" span={2}>
+              <Descriptions.Item label="起始节点">
                 {detailData.template.startNodeCode ?? "未设置"}
               </Descriptions.Item>
               <Descriptions.Item label="入径条件" span={2}>
@@ -2823,6 +3011,11 @@ export default function PathwayTemplates() {
           ),
         },
         {
+          key: "inheritance",
+          label: "继承差异",
+          children: inheritancePanel,
+        },
+        {
           key: "l2",
           label: "L2 节点画布",
           children: (
@@ -2832,7 +3025,7 @@ export default function PathwayTemplates() {
               className={`mk-full-width ${styles.marginTopMd}`}
             >
               <PathwayGraphEditor
-                nodes={detailData.nodes.map((node) => ({
+                nodes={detailExecutableNodes.map((node) => ({
                   nodeCode: node.nodeCode,
                   name: node.name,
                   nodeType: node.nodeType,
@@ -2841,7 +3034,7 @@ export default function PathwayTemplates() {
                   terminal: node.terminalFlag,
                   config: normalizeNodeConfig(parseLooseJson(node.configJson)),
                 }))}
-                edges={detailData.edges.map((edge) => ({
+                edges={detailExecutableEdges.map((edge) => ({
                   edgeCode: edge.edgeCode,
                   fromNodeCode: edge.fromNodeCode,
                   toNodeCode: edge.toNodeCode,
@@ -2981,7 +3174,7 @@ export default function PathwayTemplates() {
                         <Form layout="vertical">
                           <Form.Item label="试运行起点节点">
                             <Select value={selectedStartNode} onChange={setSimulateStartNode}>
-                              {detailData.nodes.map((node) => (
+                              {detailExecutableNodes.map((node) => (
                                 <Option key={node.nodeCode} value={node.nodeCode}>
                                   {node.name} ({node.nodeCode})
                                 </Option>

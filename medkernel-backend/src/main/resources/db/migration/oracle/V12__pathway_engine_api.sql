@@ -56,6 +56,7 @@ CREATE TABLE pathway_template (
     disease_code         VARCHAR2(128) NOT NULL,
     template_version     NUMBER(10)    DEFAULT 1 NOT NULL,
     template_level       VARCHAR2(32)  DEFAULT 'STANDARD' NOT NULL,
+    parent_template_id   VARCHAR2(64)  NULL,
     status               VARCHAR2(32)  DEFAULT 'DRAFT' NOT NULL,
     entry_mode           VARCHAR2(32)  DEFAULT 'AUTO_SUGGEST' NOT NULL,
     start_node_code      VARCHAR2(128) NULL,
@@ -79,6 +80,7 @@ CREATE TABLE pathway_template (
 CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);
 CREATE INDEX idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
+CREATE INDEX idx_pathway_template_parent        ON pathway_template (tenant_id, parent_template_id);
 
 CREATE TABLE pathway_milestone (
     id                         NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -125,6 +127,7 @@ CREATE TABLE pathway_node (
     dependency_json     CLOB          NULL,
     time_window_minutes NUMBER(10)    NULL,
     terminal_flag       NUMBER(1)     DEFAULT 0 NOT NULL,
+    disabled_flag       NUMBER(1)     DEFAULT 0 NOT NULL,
     config_json         CLOB          NULL,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
     created_by          VARCHAR2(64)  DEFAULT 'system' NOT NULL,
@@ -137,7 +140,8 @@ CREATE TABLE pathway_node (
         'NURSING','REHAB','DISCHARGE','FOLLOWUP','QUALITY',
         'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'
     )),
-    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1))
+    CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN (0, 1)),
+    CONSTRAINT ck_pathway_node_disabled CHECK (disabled_flag IN (0, 1))
 );
 
 CREATE INDEX idx_pathway_node_template_order ON pathway_node (tenant_id, template_id, sort_order);
@@ -328,6 +332,7 @@ COMMENT ON COLUMN pathway_template.name IS '路径模板名称';
 COMMENT ON COLUMN pathway_template.disease_code IS '病种编码，用于按疾病或专病范围检索模板';
 COMMENT ON COLUMN pathway_template.template_version IS '路径模板版本号';
 COMMENT ON COLUMN pathway_template.template_level IS '模板层级：STANDARD 标准版、GROUP 集团版、HOSPITAL 医院版、DEPARTMENT 科室版、SPECIALTY 专科版';
+COMMENT ON COLUMN pathway_template.parent_template_id IS '父级路径模板业务 ID，用于多级模板继承和差异合并';
 COMMENT ON COLUMN pathway_template.status IS '模板状态：DRAFT 草稿、PUBLISHED 已发布、OFFLINE 已下线、ARCHIVED 已归档';
 COMMENT ON COLUMN pathway_template.entry_mode IS '入径模式：AUTO_SUGGEST 自动建议入径、MANUAL_CONFIRM 人工确认入径';
 COMMENT ON COLUMN pathway_template.start_node_code IS '起始节点编码，患者入径时默认进入该节点';
@@ -377,6 +382,7 @@ COMMENT ON COLUMN pathway_node.informed_roles_json IS '节点知会角色列表 
 COMMENT ON COLUMN pathway_node.dependency_json IS '节点依赖条件摘要 JSON';
 COMMENT ON COLUMN pathway_node.time_window_minutes IS '节点建议完成时间窗，单位分钟';
 COMMENT ON COLUMN pathway_node.terminal_flag IS '是否终止节点';
+COMMENT ON COLUMN pathway_node.disabled_flag IS '是否禁用继承节点，仅作为下级模板遮罩不参与执行';
 COMMENT ON COLUMN pathway_node.config_json IS '节点配置摘要 JSON';
 COMMENT ON COLUMN pathway_node.created_at IS '创建时间';
 COMMENT ON COLUMN pathway_node.created_by IS '创建人';
