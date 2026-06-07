@@ -147,6 +147,9 @@ type PathwayNodeDraft = {
   milestoneCode?: string;
   sortOrder: number;
   responsibleRole?: string;
+  accountableRole?: string;
+  consultedRoles?: string[];
+  informedRoles?: string[];
   timeWindowMinutes?: number;
   terminal: boolean;
   config?: unknown;
@@ -193,6 +196,9 @@ type PathwayNodeFormValue = {
   milestoneCode?: string;
   sortOrder?: number;
   responsibleRole?: string;
+  accountableRole?: string;
+  consultedRoles?: string[];
+  informedRoles?: string[];
   timeWindowMinutes?: number;
   terminal?: boolean;
   metricCode?: string;
@@ -352,6 +358,37 @@ function parseLooseJson(value?: string | null) {
   }
 }
 
+function normalizeRoleList(roles?: string[]) {
+  return Array.from(
+    new Set(
+      (roles ?? []).map((role) => cleanText(role)).filter((role): role is string => Boolean(role)),
+    ),
+  );
+}
+
+function parseRoleListJson(value?: string | null) {
+  const parsed = parseLooseJson(value);
+  return Array.isArray(parsed)
+    ? normalizeRoleList(parsed.filter((role): role is string => typeof role === "string"))
+    : [];
+}
+
+function roleListText(roles?: string[]) {
+  const normalized = normalizeRoleList(roles);
+  return normalized.length > 0 ? normalized.join("、") : "无";
+}
+
+function raciSummary(node: {
+  responsibleRole?: string;
+  accountableRole?: string;
+  consultedRoles?: string[];
+  informedRoles?: string[];
+}) {
+  const responsible = cleanText(node.responsibleRole) ?? "未配置";
+  const accountable = cleanText(node.accountableRole) ?? responsible;
+  return `R ${responsible} / A ${accountable} / C ${roleListText(node.consultedRoles)} / I ${roleListText(node.informedRoles)}`;
+}
+
 function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
@@ -468,13 +505,18 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
         typeof node.timeWindowMinutes === "number" && node.timeWindowMinutes > 0
           ? node.timeWindowMinutes
           : undefined;
+      const responsibleRole = cleanText(node.responsibleRole) ?? "专科医生";
+      const accountableRole = cleanText(node.accountableRole) ?? responsibleRole;
       return {
         nodeCode: cleanText(node.nodeCode) ?? "",
         name: cleanText(node.name) ?? "",
         nodeType: node.nodeType ?? "ASSESSMENT",
         milestoneCode: cleanText(node.milestoneCode),
         sortOrder: Number(node.sortOrder ?? index + 1),
-        responsibleRole: cleanText(node.responsibleRole),
+        responsibleRole,
+        accountableRole,
+        consultedRoles: normalizeRoleList(node.consultedRoles),
+        informedRoles: normalizeRoleList(node.informedRoles),
         timeWindowMinutes,
         terminal: Boolean(node.terminal),
         config: normalizeNodeConfig(node.config, timeWindowMinutes),
@@ -645,8 +687,11 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
     if (node.nodeType === "SUBPATHWAY" && !configText(node.config, "subPathwayRef")) {
       return `子路径节点 ${node.nodeCode} 必须填写子路径引用`;
     }
-    if (node.nodeType === "MANUAL_GATE" && !node.responsibleRole) {
-      return `人工闸门节点 ${node.nodeCode} 必须填写责任角色`;
+    if (!node.responsibleRole) {
+      return `节点 ${node.nodeCode} 必须填写责任角色`;
+    }
+    if (!node.accountableRole) {
+      return `节点 ${node.nodeCode} 必须填写签责角色`;
     }
     if (node.nodeType === "ORDER_SET" && !configText(node.config, "orderSetRef")) {
       return `医嘱集节点 ${node.nodeCode} 必须填写医嘱集引用`;
@@ -758,6 +803,9 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       milestoneCode: node.milestoneCode,
       sortOrder: node.sortOrder,
       responsibleRole: node.responsibleRole,
+      accountableRole: node.accountableRole,
+      consultedRoles: parseRoleListJson(node.consultedRolesJson),
+      informedRoles: parseRoleListJson(node.informedRolesJson),
       timeWindowMinutes: node.timeWindowMinutes,
       terminal: node.terminalFlag,
       config: parseLooseJson(node.configJson),
@@ -896,6 +944,9 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       milestoneCode: cleanText(node.milestoneCode),
       sortOrder: Number(node.sortOrder ?? index + 1),
       responsibleRole: cleanText(node.responsibleRole),
+      accountableRole: cleanText(node.accountableRole),
+      consultedRoles: normalizeRoleList(node.consultedRoles),
+      informedRoles: normalizeRoleList(node.informedRoles),
       timeWindowMinutes:
         typeof node.timeWindowMinutes === "number" && node.timeWindowMinutes > 0
           ? node.timeWindowMinutes
@@ -1621,7 +1672,17 @@ export default function PathwayTemplates() {
       key: "config",
       render: (_value, node) => richNodeConfigSummary(node),
     },
-    { title: "责任角色", dataIndex: "responsibleRole" },
+    {
+      title: "RACI",
+      key: "raci",
+      render: (_value, node) =>
+        raciSummary({
+          responsibleRole: node.responsibleRole,
+          accountableRole: node.accountableRole,
+          consultedRoles: parseRoleListJson(node.consultedRolesJson),
+          informedRoles: parseRoleListJson(node.informedRolesJson),
+        }),
+    },
     {
       title: "终止",
       dataIndex: "terminalFlag",
@@ -2049,21 +2110,18 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "responsibleRole"]}
                             label="责任角色"
-                            rules={[
-                              ({ getFieldValue }) => ({
-                                validator(_rule, value) {
-                                  const nodeType = getFieldValue(["nodes", field.name, "nodeType"]);
-                                  if (nodeType === "MANUAL_GATE" && !cleanText(value)) {
-                                    return Promise.reject(
-                                      new Error("人工闸门节点必须填写责任角色"),
-                                    );
-                                  }
-                                  return Promise.resolve();
-                                },
-                              }),
-                            ]}
+                            rules={[{ required: true, message: "请填写责任角色" }]}
                           >
                             <Input placeholder="如 专科医生" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "accountableRole"]}
+                            label="签责角色"
+                          >
+                            <Input placeholder="默认同责任角色" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2094,6 +2152,32 @@ export default function PathwayTemplates() {
                               precision={0}
                               placeholder="如 60"
                               className={styles.fullWidth}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "consultedRoles"]}
+                            label="会诊角色"
+                          >
+                            <Select
+                              mode="tags"
+                              tokenSeparators={[",", "，", "、"]}
+                              placeholder="输入后回车"
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} lg={6}>
+                          <Form.Item
+                            {...fieldProps}
+                            name={[field.name, "informedRoles"]}
+                            label="知会角色"
+                          >
+                            <Select
+                              mode="tags"
+                              tokenSeparators={[",", "，", "、"]}
+                              placeholder="输入后回车"
                             />
                           </Form.Item>
                         </Col>
@@ -2260,6 +2344,10 @@ export default function PathwayTemplates() {
                       nodeCode: nextSeqCode("nodes", "nodeCode", "N"),
                       nodeType: "ASSESSMENT",
                       sortOrder: fields.length + 1,
+                      responsibleRole: "专科医生",
+                      accountableRole: "专科医生",
+                      consultedRoles: [],
+                      informedRoles: [],
                       terminal: false,
                     })
                   }

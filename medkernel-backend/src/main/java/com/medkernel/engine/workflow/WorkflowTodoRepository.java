@@ -39,6 +39,21 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
                   )
                 )
               )
+              AND (
+                t.assignee_role IS NULL
+                OR (
+                  :currentUserId IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1
+                    FROM user_role_assignment role_scope
+                    WHERE role_scope.tenant_id = :tenantId
+                      AND role_scope.user_id = :currentUserId
+                      AND role_scope.active_flag = 'Y'
+                      AND UPPER(REPLACE(role_scope.role_code, '-', '_')) =
+                          UPPER(REPLACE(t.assignee_role, '-', '_'))
+                  )
+                )
+              )
             )
           )
         """)
@@ -137,6 +152,21 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
                       )
                     )
                   )
+                  AND (
+                    t.assignee_role IS NULL
+                    OR (
+                      :currentUserId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM user_role_assignment role_scope
+                        WHERE role_scope.tenant_id = :tenantId
+                          AND role_scope.user_id = :currentUserId
+                          AND role_scope.active_flag = 'Y'
+                          AND UPPER(REPLACE(role_scope.role_code, '-', '_')) =
+                              UPPER(REPLACE(t.assignee_role, '-', '_'))
+                      )
+                    )
+                  )
                 )
               )
             )
@@ -185,6 +215,21 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
                         (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
                         OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
                       )
+                  )
+                  AND (
+                    t.assignee_role IS NULL
+                    OR (
+                      :currentUserId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM user_role_assignment role_scope
+                        WHERE role_scope.tenant_id = :tenantId
+                          AND role_scope.user_id = :currentUserId
+                          AND role_scope.active_flag = 'Y'
+                          AND UPPER(REPLACE(role_scope.role_code, '-', '_')) =
+                              UPPER(REPLACE(t.assignee_role, '-', '_'))
+                      )
+                    )
                   )
                 )
               )
@@ -285,7 +330,22 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
                           AND (
                             (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
                             OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
-                          )
+                        )
+                      )
+                    )
+                  )
+                  AND (
+                    t.assignee_role IS NULL
+                    OR (
+                      :currentUserId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM user_role_assignment role_scope
+                        WHERE role_scope.tenant_id = :tenantId
+                          AND role_scope.user_id = :currentUserId
+                          AND role_scope.active_flag = 'Y'
+                          AND UPPER(REPLACE(role_scope.role_code, '-', '_')) =
+                              UPPER(REPLACE(t.assignee_role, '-', '_'))
                       )
                     )
                   )
@@ -352,6 +412,21 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
                         (c.ancestor_id = :currentOrgUnitId AND c.descendant_id = t.org_unit_id)
                         OR (c.ancestor_id = t.org_unit_id AND c.descendant_id = :currentOrgUnitId)
                       )
+                  )
+                  AND (
+                    t.assignee_role IS NULL
+                    OR (
+                      :currentUserId IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1
+                        FROM user_role_assignment role_scope
+                        WHERE role_scope.tenant_id = :tenantId
+                          AND role_scope.user_id = :currentUserId
+                          AND role_scope.active_flag = 'Y'
+                          AND UPPER(REPLACE(role_scope.role_code, '-', '_')) =
+                              UPPER(REPLACE(t.assignee_role, '-', '_'))
+                      )
+                    )
                   )
                 )
               )

@@ -106,6 +106,7 @@ public class PathwayEngineService {
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
     private final PathwayFollowupHandoffPort followupHandoff;
+    private final PathwayWorklistPort worklist;
     private final ClinicalSafetyGuard safetyGuard;
     private final TerminologyCoverageGate terminologyCoverageGate;
     private final PathwayVersionedAssetAdapter versionedAssets;
@@ -136,6 +137,7 @@ public class PathwayEngineService {
                                 ObjectMapper json,
                                 ClinicalSafetyGuard safetyGuard,
                                 ObjectProvider<PathwayFollowupHandoffPort> followupHandoffProvider,
+                                ObjectProvider<PathwayWorklistPort> worklistProvider,
                                 ObjectProvider<TerminologyCoverageGate> terminologyCoverageGateProvider,
                                 PathwayVersionedAssetAdapter versionedAssets,
                                 AssetVersionRepository assetVersions,
@@ -145,9 +147,64 @@ public class PathwayEngineService {
         this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
             metricBindings, contextSnapshots, progressor, auditRecorder, transitions,
             diagnoseAssembler, json,
-            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop), safetyGuard,
+            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop),
+            worklistProvider.getIfAvailable(PathwayWorklistPort::noop), safetyGuard,
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
             versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
+    }
+
+    PathwayEngineService(SpecialtyPackageRepository packages,
+                         SpecialtyProfileRepository profiles,
+                         PathwayTemplateRepository templates,
+                         PathwayNodeRepository nodes,
+                         PathwayMilestoneRepository milestones,
+                         PathwayEdgeRepository edges,
+                         PatientPathwayRepository patientPathways,
+                         PathwayVarianceRepository variances,
+                         ClinicalClockRepository clocks,
+                         SpecialtyMetricBindingRepository metricBindings,
+                         ContextSnapshotService contextSnapshots,
+                         PathwayProgressor progressor,
+                         AuditRecorder auditRecorder,
+                         StateTransitionRecorder transitions,
+                         DiagnoseResponseAssembler diagnoseAssembler,
+                         ObjectMapper json,
+                         PathwayFollowupHandoffPort followupHandoff,
+                         PathwayWorklistPort worklist,
+                         ClinicalSafetyGuard safetyGuard,
+                         TerminologyCoverageGate terminologyCoverageGate,
+                         PathwayVersionedAssetAdapter versionedAssets,
+                         AssetVersionRepository assetVersions,
+                         ReleasePort releasePort,
+                         PackageItemRepository packageItems,
+                         InheritanceResolver inheritanceResolver) {
+        this.packages = packages;
+        this.profiles = profiles;
+        this.templates = templates;
+        this.nodes = nodes;
+        this.milestones = milestones;
+        this.edges = edges;
+        this.patientPathways = patientPathways;
+        this.variances = variances;
+        this.clocks = clocks;
+        this.metricBindings = metricBindings;
+        this.contextSnapshots = contextSnapshots;
+        this.progressor = progressor;
+        this.auditRecorder = auditRecorder;
+        this.transitions = transitions;
+        this.diagnoseAssembler = diagnoseAssembler;
+        this.json = json;
+        this.followupHandoff = followupHandoff == null ? PathwayFollowupHandoffPort.noop() : followupHandoff;
+        this.worklist = worklist == null ? PathwayWorklistPort.noop() : worklist;
+        this.safetyGuard = safetyGuard;
+        this.terminologyCoverageGate = terminologyCoverageGate == null
+            ? TerminologyCoverageGate.noop()
+            : terminologyCoverageGate;
+        this.versionedAssets = Objects.requireNonNull(versionedAssets, "路径统一版本适配器不能为空");
+        this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
+        this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
+        this.packageItems = Objects.requireNonNull(packageItems, "知识包条目仓库不能为空");
+        this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
     }
 
     PathwayEngineService(SpecialtyPackageRepository packages,
@@ -174,32 +231,10 @@ public class PathwayEngineService {
                          ReleasePort releasePort,
                          PackageItemRepository packageItems,
                          InheritanceResolver inheritanceResolver) {
-        this.packages = packages;
-        this.profiles = profiles;
-        this.templates = templates;
-        this.nodes = nodes;
-        this.milestones = milestones;
-        this.edges = edges;
-        this.patientPathways = patientPathways;
-        this.variances = variances;
-        this.clocks = clocks;
-        this.metricBindings = metricBindings;
-        this.contextSnapshots = contextSnapshots;
-        this.progressor = progressor;
-        this.auditRecorder = auditRecorder;
-        this.transitions = transitions;
-        this.diagnoseAssembler = diagnoseAssembler;
-        this.json = json;
-        this.followupHandoff = followupHandoff == null ? PathwayFollowupHandoffPort.noop() : followupHandoff;
-        this.safetyGuard = safetyGuard;
-        this.terminologyCoverageGate = terminologyCoverageGate == null
-            ? TerminologyCoverageGate.noop()
-            : terminologyCoverageGate;
-        this.versionedAssets = Objects.requireNonNull(versionedAssets, "路径统一版本适配器不能为空");
-        this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
-        this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
-        this.packageItems = Objects.requireNonNull(packageItems, "知识包条目仓库不能为空");
-        this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
+        this(packages, profiles, templates, nodes, milestones, edges, patientPathways, variances, clocks,
+            metricBindings, contextSnapshots, progressor, auditRecorder, transitions, diagnoseAssembler, json,
+            followupHandoff, PathwayWorklistPort.noop(), safetyGuard, terminologyCoverageGate, versionedAssets,
+            assetVersions, releasePort, packageItems, inheritanceResolver);
     }
 
     /**
@@ -268,7 +303,8 @@ public class PathwayEngineService {
             .map(node -> nodes.save(new PathwayNode(
                 null, "pn-" + UUID.randomUUID(), tenantId, templateId, node.nodeCode(),
                 node.name(), node.nodeType(), node.milestoneCode(), safeInt(node.sortOrder()),
-                node.responsibleRole(), writeJson(node.dependency()), node.timeWindowMinutes(),
+                node.responsibleRole(), node.accountableRole(), writeJson(node.consultedRoles()),
+                writeJson(node.informedRoles()), writeJson(node.dependency()), node.timeWindowMinutes(),
                 Boolean.TRUE.equals(node.terminal()), writeJson(node.config()),
                 now, actor, now, actor, traceId)))
             .toList();
@@ -831,6 +867,7 @@ public class PathwayEngineService {
         ClinicalClock startClock = clocks.save(newClock(
             tenantId, patientPathwayId, startNode, metricCodeForNode(graphBindings, startNode.nodeCode()),
             snapshot.resources(), now, now, actor, traceId));
+        openNodeWorklist(runtime, startNode, startClock, actor, traceId);
         transitions.record(PATIENT_PATHWAY_ENTITY, patientPathwayId, null,
             PatientPathwayStatus.NODE_EXECUTING.name(), "ENTER_PATHWAY", null);
         auditRecorder.record(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
@@ -1105,6 +1142,7 @@ public class PathwayEngineService {
         String actor = currentActor();
         Instant now = Instant.now();
         String varianceId = null;
+        ClinicalClock currentClock = runningClockForNode(runtime.patientPathwayId(), tenantId, currentNodeCode);
         if (request.eventType() == PathwayAdvanceEventType.VARIANCE) {
             varianceId = "pv-" + UUID.randomUUID();
             variances.save(new PathwayVariance(
@@ -1112,6 +1150,9 @@ public class PathwayEngineService {
                 request.varianceType(), request.varianceReasonCode(), request.varianceReason(),
                 request.responsibleRole(), request.resolutionDecision(), request.resolutionAction(),
                 request.requestedNextNodeCode(), now, actor, now, actor, traceId));
+        }
+        if (decision.status() != PatientPathwayStatus.VARIANCE) {
+            completeNodeWorklist(runtime, currentNodeCode, currentClock, decision, now, actor, traceId);
         }
         closeCurrentClocks(runtime.patientPathwayId(), tenantId, currentNodeCode, request.eventType(), now, actor, traceId);
         ClinicalClock nextClock = null;
@@ -1121,6 +1162,7 @@ public class PathwayEngineService {
                 tenantId, runtime.patientPathwayId(), nextNode,
                 metricCodeForNode(graphBindings, nextNode.nodeCode()),
                 snapshot == null ? null : snapshot.resources(), runtime.enteredAt(), now, actor, traceId));
+            openNodeWorklist(runtime, nextNode, nextClock, actor, traceId);
         }
 
         PatientPathway updated = copyRuntime(runtime, decision, request, now, actor, traceId);
@@ -1420,7 +1462,9 @@ public class PathwayEngineService {
             nullToEmpty(graphNodes).stream()
                 .map(node -> new PathwayNodeRequest(
                     node.nodeCode(), node.name(), node.nodeType(), node.milestoneCode(),
-                    node.sortOrder(), node.responsibleRole(), null, node.timeWindowMinutes(),
+                    node.sortOrder(), node.responsibleRole(), node.accountableRole(),
+                    readRoleList(node.consultedRolesJson()), readRoleList(node.informedRolesJson()),
+                    null, node.timeWindowMinutes(),
                     node.terminalFlag(), null))
                 .toList());
         Set<String> nodeCodes = new HashSet<>();
@@ -1428,6 +1472,10 @@ public class PathwayEngineService {
         for (PathwayNode node : graphNodes) {
             if (isBlank(node.nodeCode()) || !nodeCodes.add(node.nodeCode())) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点编码重复或为空");
+            }
+            if (isBlank(node.responsibleRole()) || isBlank(node.accountableRole())) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                    "路径节点 " + node.nodeCode() + " 缺少 Responsible 或 Accountable 角色");
             }
             if (node.timeWindowMinutes() != null && node.timeWindowMinutes() < 0) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点时间窗不能为负数");
@@ -1762,6 +1810,64 @@ public class PathwayEngineService {
         } catch (JsonProcessingException | IllegalArgumentException exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "关键时钟超时升级策略无法解析", exception);
         }
+    }
+
+    private ClinicalClock runningClockForNode(String patientPathwayId, String tenantId, String nodeCode) {
+        return clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, tenantId).stream()
+            .filter(clock -> Objects.equals(clock.nodeCode(), nodeCode))
+            .filter(clock -> clock.status() == ClinicalClockStatus.RUNNING)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private void openNodeWorklist(
+            PatientPathway runtime,
+            PathwayNode node,
+            ClinicalClock clock,
+            String actor,
+            String traceId) {
+        worklist.openNodeTodo(new PathwayNodeWorklistCommand(
+            runtime.tenantId(),
+            targetOrgUnitId(),
+            runtime.patientPathwayId(),
+            runtime.patientId(),
+            runtime.encounterId(),
+            node.nodeCode(),
+            node.name(),
+            node.nodeType(),
+            clock == null ? null : clock.clockId(),
+            node.responsibleRole(),
+            node.accountableRole(),
+            readRoleList(node.consultedRolesJson()),
+            readRoleList(node.informedRolesJson()),
+            clock == null ? null : clock.dueAt(),
+            "/clinical/pathways?patientPathwayId=" + runtime.patientPathwayId() + "&nodeCode=" + node.nodeCode(),
+            traceId,
+            actor));
+    }
+
+    private void completeNodeWorklist(
+            PatientPathway runtime,
+            String nodeCode,
+            ClinicalClock clock,
+            PathwayProgressDecision decision,
+            Instant now,
+            String actor,
+            String traceId) {
+        String reason = decision.status() == PatientPathwayStatus.COMPLETED
+            ? "路径已完成，节点工作清单自动闭环"
+            : decision.status() == PatientPathwayStatus.EXITED
+                ? "路径已退出，节点工作清单自动闭环"
+                : "路径已推进至 " + decision.nextNodeCode() + "，节点工作清单自动闭环";
+        worklist.completeNodeTodo(new PathwayNodeWorklistCompletionCommand(
+            runtime.tenantId(),
+            runtime.patientPathwayId(),
+            nodeCode,
+            clock == null ? null : clock.clockId(),
+            reason,
+            now,
+            traceId,
+            actor));
     }
 
     private void closeCurrentClocks(String patientPathwayId, String tenantId, String nodeCode,
@@ -2124,6 +2230,42 @@ public class PathwayEngineService {
         return writeObject(node);
     }
 
+    private String writeJson(List<String> values) {
+        return writeObject(normalizedRoles(values));
+    }
+
+    private List<String> readRoleList(String source) {
+        if (isBlank(source)) {
+            return List.of();
+        }
+        try {
+            JsonNode root = json.readTree(source);
+            if (!root.isArray()) {
+                return List.of();
+            }
+            List<String> roles = new ArrayList<>();
+            for (JsonNode item : root) {
+                if (item != null && !item.isNull()) {
+                    roles.add(item.asText());
+                }
+            }
+            return normalizedRoles(roles);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点 RACI 角色无法解析", exception);
+        }
+    }
+
+    private List<String> normalizedRoles(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .filter(value -> !isBlank(value))
+            .map(String::trim)
+            .distinct()
+            .toList();
+    }
+
     private String writeObject(Object value) {
         try {
             return json.writeValueAsString(value);
@@ -2199,6 +2341,9 @@ public class PathwayEngineService {
         String milestoneCode,
         Integer sortOrder,
         String responsibleRole,
+        String accountableRole,
+        String consultedRolesJson,
+        String informedRolesJson,
         String dependencyJson,
         Integer timeWindowMinutes,
         boolean terminal,
@@ -2212,6 +2357,9 @@ public class PathwayEngineService {
                 node.milestoneCode(),
                 node.sortOrder(),
                 node.responsibleRole(),
+                node.accountableRole(),
+                node.consultedRolesJson(),
+                node.informedRolesJson(),
                 node.dependencyJson(),
                 node.timeWindowMinutes(),
                 node.terminalFlag(),

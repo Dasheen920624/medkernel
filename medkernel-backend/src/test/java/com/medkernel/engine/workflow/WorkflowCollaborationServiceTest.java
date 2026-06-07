@@ -38,6 +38,8 @@ import com.medkernel.engine.knowledge.AffectedCaseTask;
 import com.medkernel.engine.knowledge.AffectedCaseTaskRepository;
 import com.medkernel.engine.knowledge.AffectedCaseTaskStatus;
 import com.medkernel.engine.knowledge.AffectedCaseTaskType;
+import com.medkernel.engine.pathway.PathwayNodeType;
+import com.medkernel.engine.pathway.PathwayNodeWorklistCommand;
 import com.medkernel.engine.recommendation.RecommendationCardRepository;
 import com.medkernel.engine.recommendation.RecommendationCardStatus;
 import com.medkernel.engine.recommendation.RecommendationCardType;
@@ -1188,6 +1190,56 @@ class WorkflowCollaborationServiceTest {
                 assertThat(item.deepLink()).contains("card-high-risk-1");
             });
         verify(todos).save(any(WorkflowTodo.class));
+    }
+
+    @Test
+    void openPathwayNodeTodoProjectsRaciCommandIntoUnifiedTodoCenter() {
+        Instant dueAt = Instant.parse("2026-06-04T09:30:00Z");
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A",
+                WorkflowTodoSourceType.PATHWAY_NODE,
+                "pp-1:ASSESS:clock-1"))
+            .thenReturn(Optional.empty());
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(notifications.findByTenantIdAndDedupeKey(eq("tenant-A"), any())).thenReturn(Optional.empty());
+
+        service.openPathwayNodeTodo(new PathwayNodeWorklistCommand(
+            "tenant-A",
+            "dept-a",
+            "pp-1",
+            "patient-1",
+            "enc-1",
+            "ASSESS",
+            "入径评估",
+            PathwayNodeType.MANUAL_GATE,
+            "clock-1",
+            "doctor",
+            "dept-head",
+            List.of("nurse"),
+            List.of("quality"),
+            dueAt,
+            "/clinical/pathways?patientPathwayId=pp-1&nodeCode=ASSESS",
+            "trace-pathway",
+            "doctor-1"));
+
+        ArgumentCaptor<WorkflowTodo> todoCaptor = ArgumentCaptor.forClass(WorkflowTodo.class);
+        verify(todos).save(todoCaptor.capture());
+        WorkflowTodo saved = todoCaptor.getValue();
+        assertThat(saved.sourceType()).isEqualTo(WorkflowTodoSourceType.PATHWAY_NODE);
+        assertThat(saved.sourceId()).isEqualTo("pp-1:ASSESS:clock-1");
+        assertThat(saved.title()).isEqualTo("路径节点待处理：入径评估");
+        assertThat(saved.summary()).isEqualTo("责任：doctor；签责：dept-head；会诊：nurse；知会：quality");
+        assertThat(saved.priority()).isEqualTo(WorkflowPriority.HIGH);
+        assertThat(saved.assigneeRole()).isEqualTo("doctor");
+        assertThat(saved.dueAt()).isEqualTo(dueAt);
+        assertThat(saved.deepLink()).contains("patientPathwayId=pp-1");
+
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().recipientRole()).isEqualTo("doctor");
+        assertThat(notificationCaptor.getValue().sourceType())
+            .isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
     }
 
     @Test
