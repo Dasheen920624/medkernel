@@ -202,6 +202,46 @@ public class RuleEngineController {
     }
 
     /**
+     * 基于当前规则版本的金标准样本运行历史回测。
+     */
+    @PostMapping("/rules/{ruleId}/backtest")
+    @PreAuthorize("@perm.has('rule.write')")
+    public ApiResult<RuleBacktestResponse> runBacktest(
+            @PathVariable String ruleId,
+            @RequestBody(required = false) @Valid RuleBacktestRequest request) {
+        return ApiResult.ok(service.runBacktest(ruleId, request));
+    }
+
+    /**
+     * 查看当前规则最近一次历史回测结果。
+     */
+    @GetMapping("/rules/{ruleId}/backtest/latest")
+    @PreAuthorize("@perm.has('rule.read')")
+    public ApiResult<RuleBacktestResponse> latestBacktest(@PathVariable String ruleId) {
+        return ApiResult.ok(service.latestBacktest(ruleId));
+    }
+
+    /**
+     * 基于生产执行窗口记录上线后漂移快照。
+     */
+    @PostMapping("/rules/{ruleId}/drift")
+    @PreAuthorize("@perm.has('rule.write')")
+    public ApiResult<RuleDriftSnapshotResponse> captureDriftSnapshot(
+            @PathVariable String ruleId,
+            @RequestBody @Valid RuleDriftSnapshotRequest request) {
+        return ApiResult.ok(service.captureDriftSnapshot(ruleId, request));
+    }
+
+    /**
+     * 查看当前规则最近一次漂移监测结果。
+     */
+    @GetMapping("/rules/{ruleId}/drift/latest")
+    @PreAuthorize("@perm.has('rule.read')")
+    public ApiResult<RuleDriftSnapshotResponse> latestDriftSnapshot(@PathVariable String ruleId) {
+        return ApiResult.ok(service.latestDriftSnapshot(ruleId));
+    }
+
+    /**
      * 查看一次规则执行的客户面解释响应（命中链、动作、解释快照等）。
      *
      * <p>权限：{@code rule.read}；执行记录不存在抛错误码 {@code ENG-RULE-002}。

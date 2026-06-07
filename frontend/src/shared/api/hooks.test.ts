@@ -97,6 +97,10 @@ import {
   useRuleExecutions,
   useRuleShadowStats,
   useCaptureRuleShadowFeedback,
+  useRuleBacktestLatest,
+  useRunRuleBacktest,
+  useRuleDriftLatest,
+  useCaptureRuleDriftSnapshot,
   useReviewRectification,
   useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
@@ -900,6 +904,151 @@ describe("package export api helpers", () => {
         reason: "影子提示与当前处置不匹配",
       },
     );
+  });
+
+  it("loads the latest rule backtest metrics", async () => {
+    const backtest = {
+      backtestId: "rbt-1",
+      ruleId: "rule-real-1",
+      versionId: "ver-1",
+      cohortRef: "ckd-2026-q1",
+      sampleCount: 4,
+      truePositiveCount: 1,
+      falsePositiveCount: 1,
+      trueNegativeCount: 1,
+      falseNegativeCount: 1,
+      sensitivity: 0.5,
+      specificity: 0.5,
+      accuracy: 0.5,
+      fireRate: 0.5,
+      falsePositiveCaseIds: ["case-CONFLICT"],
+      falseNegativeCaseIds: ["case-BOUNDARY"],
+      createdAt: "2026-06-07T08:00:00Z",
+      traceId: "trace-backtest",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: backtest } });
+
+    const { result } = renderApiHook(() => useRuleBacktestLatest("rule-real-1"));
+
+    await waitFor(() => expect(result.current.data).toEqual(backtest));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/backtest/latest");
+  });
+
+  it("keeps an empty latest rule backtest as an explicit null state", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: {} });
+
+    const { result } = renderApiHook(() => useRuleBacktestLatest("rule-real-1"));
+
+    await waitFor(() => expect(result.current.data).toBeNull());
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/backtest/latest");
+  });
+
+  it("runs a rule backtest through the governance endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          backtestId: "rbt-1",
+          ruleId: "rule-real-1",
+          versionId: "ver-1",
+          cohortRef: "ckd-2026-q1",
+          sampleCount: 4,
+          truePositiveCount: 1,
+          falsePositiveCount: 1,
+          trueNegativeCount: 1,
+          falseNegativeCount: 1,
+          sensitivity: 0.5,
+          specificity: 0.5,
+          accuracy: 0.5,
+          fireRate: 0.5,
+          falsePositiveCaseIds: [],
+          falseNegativeCaseIds: [],
+          createdAt: "2026-06-07T08:00:00Z",
+          traceId: "trace-backtest",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useRunRuleBacktest());
+    await result.current.mutateAsync({ ruleId: "rule-real-1", cohortRef: "ckd-2026-q1" });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/backtest", {
+      cohortRef: "ckd-2026-q1",
+    });
+  });
+
+  it("loads the latest rule drift snapshot", async () => {
+    const drift = {
+      driftId: "rds-1",
+      ruleId: "rule-real-1",
+      versionId: "ver-1",
+      baselineBacktestId: "rbt-1",
+      windowStart: "2026-06-01T00:00:00Z",
+      windowEnd: "2026-06-07T00:00:00Z",
+      sampleCount: 10,
+      hitCount: 8,
+      baselineFireRate: 0.5,
+      currentFireRate: 0.8,
+      driftDelta: 0.3,
+      threshold: 0.1,
+      status: "WARNING" as const,
+      createdAt: "2026-06-07T08:00:00Z",
+      traceId: "trace-drift",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: drift } });
+
+    const { result } = renderApiHook(() => useRuleDriftLatest("rule-real-1"));
+
+    await waitFor(() => expect(result.current.data).toEqual(drift));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/drift/latest");
+  });
+
+  it("keeps an empty latest rule drift snapshot as an explicit null state", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: {} });
+
+    const { result } = renderApiHook(() => useRuleDriftLatest("rule-real-1"));
+
+    await waitFor(() => expect(result.current.data).toBeNull());
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/drift/latest");
+  });
+
+  it("records a rule drift snapshot through the governance endpoint", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          driftId: "rds-1",
+          ruleId: "rule-real-1",
+          versionId: "ver-1",
+          baselineBacktestId: "rbt-1",
+          windowStart: "2026-06-01T00:00:00Z",
+          windowEnd: "2026-06-07T00:00:00Z",
+          sampleCount: 10,
+          hitCount: 8,
+          baselineFireRate: 0.5,
+          currentFireRate: 0.8,
+          driftDelta: 0.3,
+          threshold: 0.1,
+          status: "WARNING",
+          createdAt: "2026-06-07T08:00:00Z",
+          traceId: "trace-drift",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useCaptureRuleDriftSnapshot());
+    await result.current.mutateAsync({
+      ruleId: "rule-real-1",
+      windowStart: "2026-06-01T00:00:00.000Z",
+      windowEnd: "2026-06-07T00:00:00.000Z",
+      baselineBacktestId: "rbt-1",
+      threshold: 0.1,
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/drift", {
+      windowStart: "2026-06-01T00:00:00.000Z",
+      windowEnd: "2026-06-07T00:00:00.000Z",
+      baselineBacktestId: "rbt-1",
+      threshold: 0.1,
+    });
   });
 
   it("creates and advances evaluation indicator lifecycle through the API-08 canonical resource", async () => {
