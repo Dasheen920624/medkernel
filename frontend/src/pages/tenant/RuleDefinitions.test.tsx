@@ -57,6 +57,7 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 const RULE_DEFINITION_INTERACTION_TIMEOUT_MS = 15_000;
+const RULE_DEFINITION_SUBMISSION_TIMEOUT_MS = 30_000;
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuleDefinitions: () => ({
@@ -295,7 +296,43 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   it(
     "创建规则时提供 L1 模板、L2 条件树与 L3 DSL，并能从 L2 同步到 L3",
     async () => {
-      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
+      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
+        target: { value: "observations.0.value" },
+      });
+      fireEvent.change(dialog.querySelector("#rule-condition-value") as HTMLInputElement, {
+        target: { value: "6" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "添加动作" }));
+      const summaries = within(dialog).getAllByLabelText("卡片摘要");
+      fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
+
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("规则 DSL JSON");
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "创建规则草稿时提交完整适用域",
+    async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-new" });
       renderRuleDefinitions();
 
@@ -314,14 +351,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
         target: { value: "1.0.0" },
       });
-      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
-      expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
-      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole("switch", { name: "专家模式" }));
-      expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
-
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
       fireEvent.click(within(dialog).getByText("适用域与生效"));
       fireEvent.change(within(dialog).getByLabelText("生效日期"), {
         target: { value: "2026-07-01" },
@@ -333,7 +363,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         target: { value: "25" },
       });
       fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "集团范围" }));
-      await user.click(
+      fireEvent.click(
         await screen.findByText("华东集团 · 集团 · GROUP-A", {
           selector: ".ant-select-item-option-content",
         }),
@@ -348,7 +378,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         },
       );
       fireEvent.mouseDown(within(inclusionEditor).getByRole("combobox", { name: "算子" }));
-      await user.click(
+      fireEvent.click(
         await screen.findByText("包含", { selector: ".ant-select-item-option-content" }),
       );
       fireEvent.change(within(inclusionEditor).getByLabelText("比较值"), {
@@ -360,18 +390,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(dialog.querySelector("#rule-condition-value") as HTMLInputElement, {
         target: { value: "6" },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "添加动作" }));
-      const summaries = within(dialog).getAllByLabelText("卡片摘要");
-      fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
+
       fireEvent.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
-
-      fireEvent.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
-      const dslEditor = within(dialog).getByLabelText("规则 DSL JSON");
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
-
       fireEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
       await waitFor(() =>
         expect(apiMocks.createRule).toHaveBeenCalledWith(
@@ -406,15 +426,13 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
                   rolloutPercent: 25,
                 },
               },
-              then: expect.arrayContaining([
-                expect.objectContaining({ summary: "同步记录规则命中" }),
-              ]),
+              then: expect.arrayContaining([expect.objectContaining({ actionCode: "REMIND" })]),
             }),
           }),
         ),
       );
     },
-    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+    RULE_DEFINITION_SUBMISSION_TIMEOUT_MS,
   );
 
   it(

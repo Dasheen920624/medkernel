@@ -85,7 +85,7 @@
 
 ## 完工证据
 - 代码 permalink：三层编辑器前端 + `RuleDslEvaluator` 接 [API-01](API-01.md) + 仿真真实快照选择器 + 7 步流发布页签 + 影响摘要门禁。
-- 测试：三层互转测试 + 阳阴边界冲突用例 + 仿真真实快照测试 + 高危影响摘要门禁测试 + 优先级/抑制/持久化去重/人工继续权限与理由测试 + 适用域人群/组织/场景/日期/稳定灰度及旁路一致性测试 + 组织分层服务端检索与窄屏弹窗回归 + 临床事件/FHIR场景传递回归 + `RelationalRuleImpactIndexTest` / `RelationalRuleImpactIndexRepositoryTest` 规则跨域影响索引测试；本轮后端全量1826项、前端528项、生产构建和T-GATE均通过，通用灰度 / 全量 / 回滚 E2E 归 [SYS-04](SYS-04.md) 域级收口。
+- 测试：三层互转测试 + 阳阴边界冲突用例 + 仿真真实快照测试 + 高危影响摘要门禁测试 + 优先级/抑制/持久化去重/人工继续权限与理由测试 + 适用域人群/组织/场景/日期/稳定灰度及旁路一致性测试 + 组织分层服务端检索与窄屏弹窗回归 + 临床事件/FHIR场景传递回归 + `RelationalRuleImpactIndexTest` / `RelationalRuleImpactIndexRepositoryTest` 规则跨域影响索引测试；本轮后端全量1826项、前端529项、生产构建和T-GATE均通过，通用灰度 / 全量 / 回滚 E2E 归 [SYS-04](SYS-04.md) 域级收口。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（12d，后端 + 三层前端；按 PR 拆分）
