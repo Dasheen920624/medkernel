@@ -249,6 +249,84 @@ CREATE INDEX idx_rule_shadow_feedback_rule_time
 CREATE INDEX idx_rule_shadow_feedback_decision
     ON rule_shadow_feedback (tenant_id, rule_id, decision);
 
+CREATE TABLE rule_backtest_run (
+    id                            NUMBER(19)    IDENTITY PRIMARY KEY,
+    backtest_id                   VARCHAR2(64)  NOT NULL,
+    tenant_id                     VARCHAR2(64)  NOT NULL,
+    rule_id                       VARCHAR2(64)  NOT NULL,
+    version_id                    VARCHAR2(64)  NOT NULL,
+    cohort_ref                    VARCHAR2(120) NULL,
+    sample_count                  NUMBER(10)    NOT NULL,
+    true_positive_count           NUMBER(10)    NOT NULL,
+    false_positive_count          NUMBER(10)    NOT NULL,
+    true_negative_count           NUMBER(10)    NOT NULL,
+    false_negative_count          NUMBER(10)    NOT NULL,
+    sensitivity                   NUMBER(12,6)  NOT NULL,
+    specificity                   NUMBER(12,6)  NOT NULL,
+    accuracy                      NUMBER(12,6)  NOT NULL,
+    fire_rate                     NUMBER(12,6)  NOT NULL,
+    false_positive_examples_json  CLOB          NOT NULL,
+    false_negative_examples_json  CLOB          NOT NULL,
+    created_at                    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by                    VARCHAR2(64)  NOT NULL,
+    trace_id                      VARCHAR2(128) NULL,
+    CONSTRAINT uk_rule_backtest_id UNIQUE (backtest_id),
+    CONSTRAINT ck_rule_backtest_sample CHECK (sample_count > 0),
+    CONSTRAINT ck_rule_backtest_counts CHECK (
+        true_positive_count >= 0
+        AND false_positive_count >= 0
+        AND true_negative_count >= 0
+        AND false_negative_count >= 0
+    ),
+    CONSTRAINT ck_rule_backtest_rates CHECK (
+        sensitivity BETWEEN 0 AND 1
+        AND specificity BETWEEN 0 AND 1
+        AND accuracy BETWEEN 0 AND 1
+        AND fire_rate BETWEEN 0 AND 1
+    )
+);
+
+CREATE INDEX idx_rule_backtest_rule_time
+    ON rule_backtest_run (tenant_id, rule_id, created_at);
+CREATE INDEX idx_rule_backtest_version_time
+    ON rule_backtest_run (tenant_id, version_id, created_at);
+
+CREATE TABLE rule_drift_snapshot (
+    id                    NUMBER(19)    IDENTITY PRIMARY KEY,
+    drift_id              VARCHAR2(64)  NOT NULL,
+    tenant_id             VARCHAR2(64)  NOT NULL,
+    rule_id               VARCHAR2(64)  NOT NULL,
+    version_id            VARCHAR2(64)  NOT NULL,
+    baseline_backtest_id  VARCHAR2(64)  NOT NULL,
+    window_start          TIMESTAMP     NOT NULL,
+    window_end            TIMESTAMP     NOT NULL,
+    sample_count          NUMBER(19)    NOT NULL,
+    hit_count             NUMBER(19)    NOT NULL,
+    baseline_fire_rate    NUMBER(12,6)  NOT NULL,
+    current_fire_rate     NUMBER(12,6)  NOT NULL,
+    drift_delta           NUMBER(12,6)  NOT NULL,
+    threshold             NUMBER(12,6)  NOT NULL,
+    status                VARCHAR2(32)  NOT NULL,
+    created_at            TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by            VARCHAR2(64)  NOT NULL,
+    trace_id              VARCHAR2(128) NULL,
+    CONSTRAINT uk_rule_drift_snapshot_id UNIQUE (drift_id),
+    CONSTRAINT ck_rule_drift_window CHECK (window_start < window_end),
+    CONSTRAINT ck_rule_drift_sample CHECK (sample_count > 0 AND hit_count BETWEEN 0 AND sample_count),
+    CONSTRAINT ck_rule_drift_rates CHECK (
+        baseline_fire_rate BETWEEN 0 AND 1
+        AND current_fire_rate BETWEEN 0 AND 1
+        AND threshold BETWEEN 0 AND 1
+        AND drift_delta BETWEEN -1 AND 1
+    ),
+    CONSTRAINT ck_rule_drift_status CHECK (status IN ('STABLE','WARNING'))
+);
+
+CREATE INDEX idx_rule_drift_rule_time
+    ON rule_drift_snapshot (tenant_id, rule_id, created_at);
+CREATE INDEX idx_rule_drift_status
+    ON rule_drift_snapshot (tenant_id, rule_id, status);
+
 COMMENT ON COLUMN rule_definition.priority IS '规则优先级，数值越大越先执行';
 COMMENT ON COLUMN rule_definition.suppressed_by IS '抑制当前规则的高阶规则编码';
 COMMENT ON COLUMN rule_definition.dedupe_window_seconds IS '同患者同语义动作去重窗口秒数，0 表示不去重';
@@ -275,3 +353,11 @@ COMMENT ON TABLE rule_shadow_feedback IS '规则影子运行复核事实，用�
 COMMENT ON COLUMN rule_shadow_feedback.decision IS '影子复核结论：TRUE_POSITIVE 真实命中 / FALSE_POSITIVE 误报';
 COMMENT ON COLUMN rule_shadow_feedback.reason IS '影子复核说明，误报时必填';
 COMMENT ON COLUMN rule_shadow_feedback.assessed_by IS '执行影子复核的用户 ID';
+COMMENT ON TABLE rule_backtest_run IS '规则历史回测事实，基于真实脱敏金标准样本计算灵敏度与特异度';
+COMMENT ON COLUMN rule_backtest_run.cohort_ref IS '回测样本集引用，例如脱敏快照批次或测试用例集合';
+COMMENT ON COLUMN rule_backtest_run.false_positive_examples_json IS '误报样本 ID 列表 JSON';
+COMMENT ON COLUMN rule_backtest_run.false_negative_examples_json IS '漏报样本 ID 列表 JSON';
+COMMENT ON TABLE rule_drift_snapshot IS '规则上线后漂移监测快照，比较生产窗口命中率与回测基线';
+COMMENT ON COLUMN rule_drift_snapshot.baseline_backtest_id IS '作为漂移基线的历史回测 ID';
+COMMENT ON COLUMN rule_drift_snapshot.drift_delta IS '当前命中率减基线命中率的差值';
+COMMENT ON COLUMN rule_drift_snapshot.status IS '漂移状态：STABLE 稳定 / WARNING 告警';

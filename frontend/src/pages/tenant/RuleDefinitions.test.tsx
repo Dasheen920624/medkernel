@@ -13,6 +13,8 @@ const apiMocks = vi.hoisted(() => ({
   snapshotDetailData: null as unknown,
   impactData: null as unknown,
   shadowStatsData: null as unknown,
+  backtestData: null as unknown,
+  driftData: null as unknown,
   orgUnitRequests: [] as Array<Record<string, unknown> | undefined>,
   orgUnitsData: {
     items: [
@@ -49,12 +51,16 @@ const apiMocks = vi.hoisted(() => ({
   } as unknown,
   refetchList: vi.fn(),
   refetchDetail: vi.fn(),
+  refetchBacktest: vi.fn(),
+  refetchDrift: vi.fn(),
   createRule: vi.fn(),
   addTestCase: vi.fn(),
   runRuleTests: vi.fn(),
   simulateRule: vi.fn(),
   signoffRule: vi.fn(),
   transitionRuleGovernance: vi.fn(),
+  runRuleBacktest: vi.fn(),
+  captureRuleDriftSnapshot: vi.fn(),
   securityData: {
     userId: "u-admin",
     username: "admin",
@@ -168,6 +174,18 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useRuleBacktestLatest: () => ({
+    data: apiMocks.backtestData,
+    isLoading: false,
+    isError: false,
+    refetch: apiMocks.refetchBacktest,
+  }),
+  useRuleDriftLatest: () => ({
+    data: apiMocks.driftData,
+    isLoading: false,
+    isError: false,
+    refetch: apiMocks.refetchDrift,
+  }),
   useCreateRule: () => ({
     mutateAsync: apiMocks.createRule,
     isPending: false,
@@ -190,6 +208,14 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useTransitionRuleGovernance: () => ({
     mutateAsync: apiMocks.transitionRuleGovernance,
+    isPending: false,
+  }),
+  useRunRuleBacktest: () => ({
+    mutateAsync: apiMocks.runRuleBacktest,
+    isPending: false,
+  }),
+  useCaptureRuleDriftSnapshot: () => ({
+    mutateAsync: apiMocks.captureRuleDriftSnapshot,
     isPending: false,
   }),
 }));
@@ -356,16 +382,22 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
     apiMocks.shadowStatsData = null;
+    apiMocks.backtestData = null;
+    apiMocks.driftData = null;
     apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
+    apiMocks.refetchBacktest.mockReset();
+    apiMocks.refetchDrift.mockReset();
     apiMocks.createRule.mockReset();
     apiMocks.addTestCase.mockReset();
     apiMocks.runRuleTests.mockReset();
     apiMocks.simulateRule.mockReset();
     apiMocks.signoffRule.mockReset();
     apiMocks.transitionRuleGovernance.mockReset();
+    apiMocks.runRuleBacktest.mockReset();
+    apiMocks.captureRuleDriftSnapshot.mockReset();
   });
 
   it("创建规则弹窗宽度受窄屏视口约束", async () => {
@@ -1024,6 +1056,92 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(screen.getByText("60.0%")).toBeInTheDocument();
       expect(screen.getByText("误报率")).toBeInTheDocument();
       expect(screen.getByText("33.3%")).toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "监测阶段展示回测与漂移证据并可触发新快照",
+    async () => {
+      const publishedRule = {
+        ...draftRule,
+        status: "PUBLISHED" as const,
+      };
+      apiMocks.ruleListData = { items: [publishedRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        definition: publishedRule,
+        deploymentStatus: "ACTIVE",
+        governance: {
+          ...createRuleDetail().governance,
+          state: "MONITOR",
+          committeeApprovalCount: 2,
+          lastReason: "进入运行监测",
+        },
+      };
+      apiMocks.backtestData = {
+        backtestId: "rbt-1",
+        ruleId: "rule-1",
+        versionId: "ver-1",
+        cohortRef: "ckd-2026-q1",
+        sampleCount: 4,
+        truePositiveCount: 1,
+        falsePositiveCount: 1,
+        trueNegativeCount: 1,
+        falseNegativeCount: 1,
+        sensitivity: 0.5,
+        specificity: 0.5,
+        accuracy: 0.5,
+        fireRate: 0.5,
+        falsePositiveCaseIds: ["case-CONFLICT"],
+        falseNegativeCaseIds: ["case-BOUNDARY"],
+        createdAt: "2026-06-07T08:00:00Z",
+        traceId: "trace-backtest",
+      };
+      apiMocks.driftData = {
+        driftId: "rds-1",
+        ruleId: "rule-1",
+        versionId: "ver-1",
+        baselineBacktestId: "rbt-1",
+        windowStart: "2026-06-01T00:00:00Z",
+        windowEnd: "2026-06-07T00:00:00Z",
+        sampleCount: 10,
+        hitCount: 8,
+        baselineFireRate: 0.5,
+        currentFireRate: 0.8,
+        driftDelta: 0.3,
+        threshold: 0.1,
+        status: "WARNING",
+        createdAt: "2026-06-07T08:30:00Z",
+        traceId: "trace-drift",
+      };
+
+      const user = await openDraftRuleDrawer();
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
+
+      expect(screen.getByText("历史回测与漂移监测")).toBeInTheDocument();
+      expect(screen.getByText("回测样本")).toBeInTheDocument();
+      expect(screen.getAllByText("50.0%").length).toBeGreaterThanOrEqual(3);
+      expect(screen.getByText("case-CONFLICT")).toBeInTheDocument();
+      expect(screen.getByText("case-BOUNDARY")).toBeInTheDocument();
+      expect(screen.getByText("告警")).toBeInTheDocument();
+      expect(screen.getByText("80.0%")).toBeInTheDocument();
+      expect(screen.getByText("+30.0%")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "运行历史回测" }));
+      expect(apiMocks.runRuleBacktest).toHaveBeenCalledWith({
+        ruleId: "rule-1",
+        cohortRef: "test-cases:ver-1",
+      });
+
+      await user.click(screen.getByRole("button", { name: "记录漂移快照" }));
+      expect(apiMocks.captureRuleDriftSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ruleId: "rule-1",
+          baselineBacktestId: "rbt-1",
+          threshold: 0.1,
+        }),
+      );
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

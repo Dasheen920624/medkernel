@@ -2613,6 +2613,46 @@ export interface RuleShadowFeedbackResponse {
   traceId: string;
 }
 
+export interface RuleBacktestResponse {
+  backtestId: string;
+  ruleId: string;
+  versionId: string;
+  cohortRef: string | null;
+  sampleCount: number;
+  truePositiveCount: number;
+  falsePositiveCount: number;
+  trueNegativeCount: number;
+  falseNegativeCount: number;
+  sensitivity: number;
+  specificity: number;
+  accuracy: number;
+  fireRate: number;
+  falsePositiveCaseIds: string[];
+  falseNegativeCaseIds: string[];
+  createdAt: string;
+  traceId: string;
+}
+
+export type RuleDriftStatus = "STABLE" | "WARNING";
+
+export interface RuleDriftSnapshotResponse {
+  driftId: string;
+  ruleId: string;
+  versionId: string;
+  baselineBacktestId: string;
+  windowStart: string;
+  windowEnd: string;
+  sampleCount: number;
+  hitCount: number;
+  baselineFireRate: number;
+  currentFireRate: number;
+  driftDelta: number;
+  threshold: number;
+  status: RuleDriftStatus;
+  createdAt: string;
+  traceId: string;
+}
+
 export interface RuleEvaluateResponse {
   requestId: string;
   traceId: string;
@@ -2983,6 +3023,81 @@ export function useCaptureRuleShadowFeedback() {
         },
       );
       return data.data;
+    },
+  });
+}
+
+export function useRuleBacktestLatest(ruleId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["rules", "backtest", "latest", ruleId],
+    queryFn: async () => {
+      if (!ruleId) return null;
+      const { data } = await apiClient.get<{ data: RuleBacktestResponse | null }>(
+        `/engine/rule/rules/${ruleId}/backtest/latest`,
+      );
+      return data.data ?? null;
+    },
+    enabled: Boolean(ruleId) && (options?.enabled ?? true),
+  });
+}
+
+export function useRunRuleBacktest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { ruleId: string; cohortRef?: string }) => {
+      const { data } = await apiClient.post<{ data: RuleBacktestResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/backtest`,
+        {
+          cohortRef: payload.cohortRef,
+        },
+      );
+      return data.data;
+    },
+    onSuccess: (_result, payload) => {
+      queryClient.invalidateQueries({ queryKey: ["rules", "backtest", "latest", payload.ruleId] });
+      queryClient.invalidateQueries({ queryKey: ["rules", "detail", payload.ruleId] });
+    },
+  });
+}
+
+export function useRuleDriftLatest(ruleId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["rules", "drift", "latest", ruleId],
+    queryFn: async () => {
+      if (!ruleId) return null;
+      const { data } = await apiClient.get<{ data: RuleDriftSnapshotResponse | null }>(
+        `/engine/rule/rules/${ruleId}/drift/latest`,
+      );
+      return data.data ?? null;
+    },
+    enabled: Boolean(ruleId) && (options?.enabled ?? true),
+  });
+}
+
+export function useCaptureRuleDriftSnapshot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      ruleId: string;
+      windowStart: string;
+      windowEnd: string;
+      baselineBacktestId?: string | null;
+      threshold?: number;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuleDriftSnapshotResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/drift`,
+        {
+          windowStart: payload.windowStart,
+          windowEnd: payload.windowEnd,
+          baselineBacktestId: payload.baselineBacktestId,
+          threshold: payload.threshold,
+        },
+      );
+      return data.data;
+    },
+    onSuccess: (_result, payload) => {
+      queryClient.invalidateQueries({ queryKey: ["rules", "drift", "latest", payload.ruleId] });
+      queryClient.invalidateQueries({ queryKey: ["rules", "detail", payload.ruleId] });
     },
   });
 }

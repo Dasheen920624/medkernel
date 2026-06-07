@@ -51,6 +51,35 @@ public interface RuleExecutionLogRepository extends ListCrudRepository<RuleExecu
     long countShadowByRuleAndHit(String tenantId, String ruleId, boolean hit);
 
     /**
+     * 按生产执行状态统计某规则在时间窗口内的可观测样本数，用于上线后漂移监测。
+     */
+    @Query("""
+        SELECT COUNT(*) FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+          AND rule_id = :ruleId
+          AND status IN ('SUCCESS','MISS','DEDUPLICATED')
+          AND executed_at >= :windowStart
+          AND executed_at < :windowEnd
+        """)
+    long countProductionByRuleBetween(
+        String tenantId, String ruleId, Instant windowStart, Instant windowEnd);
+
+    /**
+     * 按生产执行状态统计某规则在时间窗口内的命中数，用于与回测基线命中率对比。
+     */
+    @Query("""
+        SELECT COUNT(*) FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+          AND rule_id = :ruleId
+          AND status IN ('SUCCESS','MISS','DEDUPLICATED')
+          AND hit = TRUE
+          AND executed_at >= :windowStart
+          AND executed_at < :windowEnd
+        """)
+    long countProductionHitsByRuleBetween(
+        String tenantId, String ruleId, Instant windowStart, Instant windowEnd);
+
+    /**
      * 按执行时间倒序分页读取当前租户的规则执行日志。
      */
     @Query("""

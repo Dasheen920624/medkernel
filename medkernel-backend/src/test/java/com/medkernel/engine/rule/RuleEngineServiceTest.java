@@ -67,6 +67,8 @@ class RuleEngineServiceTest {
     private RuleExecutionLogRepository executions;
     private RuleOverrideLogRepository overrides;
     private RuleShadowFeedbackRepository shadowFeedback;
+    private RuleBacktestRunRepository backtests;
+    private RuleDriftSnapshotRepository driftSnapshots;
     private RuleApplicabilityRepository applicabilities;
     private RuleApplicabilityService applicabilityService;
     private AuditRecorder auditRecorder;
@@ -89,6 +91,8 @@ class RuleEngineServiceTest {
         executions = mock(RuleExecutionLogRepository.class);
         overrides = mock(RuleOverrideLogRepository.class);
         shadowFeedback = mock(RuleShadowFeedbackRepository.class);
+        backtests = mock(RuleBacktestRunRepository.class);
+        driftSnapshots = mock(RuleDriftSnapshotRepository.class);
         applicabilities = mock(RuleApplicabilityRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
@@ -109,7 +113,7 @@ class RuleEngineServiceTest {
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            inheritanceResolver, contextSnapshots);
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots);
 
         when(definitions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versions.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -117,6 +121,8 @@ class RuleEngineServiceTest {
         when(executions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(overrides.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(shadowFeedback.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(backtests.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(driftSnapshots.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(applicabilities.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
             "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1", AssetVersionStatus.DRAFT));
@@ -846,7 +852,7 @@ class RuleEngineServiceTest {
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            inheritanceResolver, contextSnapshots);
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots);
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
         when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
@@ -1041,7 +1047,7 @@ class RuleEngineServiceTest {
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            resolver, contextSnapshots);
+            backtests, driftSnapshots, resolver, contextSnapshots);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
         RuleDefinition rule = existingRule(
@@ -1468,6 +1474,78 @@ class RuleEngineServiceTest {
         assertThat(response.falsePositiveRate()).isEqualTo(1.0 / 3.0);
     }
 
+    @Test
+    void backtestRuleCalculatesSensitivitySpecificityAndPersistsRun() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, missContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, hitContext())
+            ));
+
+        RuleBacktestResponse response = service.runBacktest(
+            "rule-1", new RuleBacktestRequest("ckd-2026-q1"));
+
+        assertThat(response.sampleCount()).isEqualTo(4);
+        assertThat(response.truePositiveCount()).isEqualTo(1);
+        assertThat(response.falseNegativeCount()).isEqualTo(1);
+        assertThat(response.trueNegativeCount()).isEqualTo(1);
+        assertThat(response.falsePositiveCount()).isEqualTo(1);
+        assertThat(response.sensitivity()).isEqualTo(0.5);
+        assertThat(response.specificity()).isEqualTo(0.5);
+        assertThat(response.accuracy()).isEqualTo(0.5);
+        assertThat(response.fireRate()).isEqualTo(0.5);
+        assertThat(response.falsePositiveCaseIds()).containsExactly("case-CONFLICT");
+        assertThat(response.falseNegativeCaseIds()).containsExactly("case-BOUNDARY");
+        ArgumentCaptor<RuleBacktestRun> saved = ArgumentCaptor.forClass(RuleBacktestRun.class);
+        verify(backtests).save(saved.capture());
+        assertThat(saved.getValue().cohortRef()).isEqualTo("ckd-2026-q1");
+        assertThat(saved.getValue().versionId()).isEqualTo("version-1");
+        verify(auditRecorder).record(
+            AuditAction.EXECUTE, "rule_backtest_run", saved.getValue().backtestId(),
+            "执行规则历史回测 rule-1/4");
+    }
+
+    @Test
+    void monitorDriftComparesCurrentWindowWithLatestBacktest() {
+        Instant windowStart = Instant.parse("2026-06-01T00:00:00Z");
+        Instant windowEnd = Instant.parse("2026-06-07T00:00:00Z");
+        RuleBacktestRun baseline = backtestRun("rbt-1", 0.50);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(governance(RuleGovernanceState.MONITOR));
+        when(backtests.findLatestByTenantIdAndRuleId("tenant-A", "rule-1"))
+            .thenReturn(Optional.of(baseline));
+        when(executions.countProductionByRuleBetween("tenant-A", "rule-1", windowStart, windowEnd))
+            .thenReturn(10L);
+        when(executions.countProductionHitsByRuleBetween("tenant-A", "rule-1", windowStart, windowEnd))
+            .thenReturn(8L);
+
+        RuleDriftSnapshotResponse response = service.captureDriftSnapshot(
+            "rule-1",
+            new RuleDriftSnapshotRequest(windowStart, windowEnd, null, 0.10));
+
+        assertThat(response.baselineBacktestId()).isEqualTo("rbt-1");
+        assertThat(response.sampleCount()).isEqualTo(10);
+        assertThat(response.hitCount()).isEqualTo(8);
+        assertThat(response.baselineFireRate()).isEqualTo(0.50);
+        assertThat(response.currentFireRate()).isEqualTo(0.80);
+        assertThat(response.driftDelta()).isEqualTo(0.30);
+        assertThat(response.status()).isEqualTo(RuleDriftStatus.WARNING);
+        ArgumentCaptor<RuleDriftSnapshot> saved = ArgumentCaptor.forClass(RuleDriftSnapshot.class);
+        verify(driftSnapshots).save(saved.capture());
+        assertThat(saved.getValue().threshold()).isEqualTo(0.10);
+        assertThat(saved.getValue().status()).isEqualTo(RuleDriftStatus.WARNING);
+    }
+
     private RuleDefinition existingRule(RuleDefinitionStatus status) {
         return existingRule("rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示", "version-1", status);
     }
@@ -1596,6 +1674,14 @@ class RuleEngineServiceTest {
             "ctx-" + type, input.toString(), expectedHit, expectedHit ? RuleRiskLevel.HIGH : null,
             expectedHit ? "STRONG_REMINDER" : null, null, null, null, null,
             now, "tester", now, "tester", "trace-rule");
+    }
+
+    private RuleBacktestRun backtestRun(String backtestId, double fireRate) {
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        return new RuleBacktestRun(
+            1L, backtestId, "tenant-A", "rule-1", "version-1", "ckd-2026-q1",
+            20, 8, 2, 9, 1, 0.8889, 0.8182, 0.85, fireRate,
+            "[]", "[]", now, "tester", "trace-rule");
     }
 
     private JsonNode dsl() {

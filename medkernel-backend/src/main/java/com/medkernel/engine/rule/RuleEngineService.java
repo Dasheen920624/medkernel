@@ -89,6 +89,8 @@ public class RuleEngineService {
     private final RuleExecutionLogRepository executions;
     private final RuleOverrideLogRepository overrides;
     private final RuleShadowFeedbackRepository shadowFeedback;
+    private final RuleBacktestRunRepository backtests;
+    private final RuleDriftSnapshotRepository driftSnapshots;
     private final RuleDslEvaluator evaluator;
     private final RuleApplicabilityService applicabilityService;
     private final AuditRecorder auditRecorder;
@@ -139,6 +141,8 @@ public class RuleEngineService {
                              ReleasePort releasePort,
                              RuleGovernanceService governanceService,
                              RuleShadowFeedbackRepository shadowFeedback,
+                             RuleBacktestRunRepository backtests,
+                             RuleDriftSnapshotRepository driftSnapshots,
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots) {
         this(definitions, versions, testCases, executions, overrides,
@@ -147,7 +151,7 @@ public class RuleEngineService {
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
-            inheritanceResolver, contextSnapshots);
+            backtests, driftSnapshots, inheritanceResolver, contextSnapshots);
     }
 
     RuleEngineService(RuleDefinitionRepository definitions,
@@ -168,6 +172,8 @@ public class RuleEngineService {
                       ReleasePort releasePort,
                       RuleGovernanceService governanceService,
                       RuleShadowFeedbackRepository shadowFeedback,
+                      RuleBacktestRunRepository backtests,
+                      RuleDriftSnapshotRepository driftSnapshots,
                       InheritanceResolver inheritanceResolver,
                       ContextSnapshotService contextSnapshots) {
         this.definitions = definitions;
@@ -177,6 +183,8 @@ public class RuleEngineService {
         this.overrides = overrides;
         this.shadowFeedback = Objects.requireNonNull(
             shadowFeedback, "规则影子运行反馈仓库不能为空");
+        this.backtests = Objects.requireNonNull(backtests, "规则回测仓库不能为空");
+        this.driftSnapshots = Objects.requireNonNull(driftSnapshots, "规则漂移监测仓库不能为空");
         this.evaluator = evaluator;
         this.applicabilityService = Objects.requireNonNull(
             applicabilityService, "规则适用域服务不能为空");
@@ -992,6 +1000,282 @@ public class RuleEngineService {
             falsePositiveRate,
             RequestContext.currentTraceId()
         );
+    }
+
+    /**
+     * 基于当前规则版本的真实脱敏金标准样本执行历史回测，产出临床有效性指标。
+     */
+    @Transactional
+    public RuleBacktestResponse runBacktest(String ruleId, RuleBacktestRequest request) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        List<RuleTestCase> cases =
+            testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
+        ensureBacktestGoldStandard(cases);
+
+        int truePositive = 0;
+        int falsePositive = 0;
+        int trueNegative = 0;
+        int falseNegative = 0;
+        List<String> falsePositiveExamples = new ArrayList<>();
+        List<String> falseNegativeExamples = new ArrayList<>();
+        for (RuleTestCase testCase : cases) {
+            BacktestCaseOutcome outcome = evaluateBacktestCase(version, testCase);
+            if (outcome.expectedHit() && outcome.actualHit()) {
+                truePositive++;
+            } else if (!outcome.expectedHit() && outcome.actualHit()) {
+                falsePositive++;
+                falsePositiveExamples.add(outcome.caseId());
+            } else if (!outcome.expectedHit()) {
+                trueNegative++;
+            } else {
+                falseNegative++;
+                falseNegativeExamples.add(outcome.caseId());
+            }
+        }
+
+        int sampleCount = cases.size();
+        RuleBacktestRun saved = backtests.save(new RuleBacktestRun(
+            null,
+            "rbt-" + UUID.randomUUID(),
+            tenantId,
+            rule.ruleId(),
+            version.versionId(),
+            request == null ? null : trimToNull(request.cohortRef()),
+            sampleCount,
+            truePositive,
+            falsePositive,
+            trueNegative,
+            falseNegative,
+            ratio(truePositive, truePositive + falseNegative),
+            ratio(trueNegative, trueNegative + falsePositive),
+            ratio(truePositive + trueNegative, sampleCount),
+            ratio(truePositive + falsePositive, sampleCount),
+            writeObject(falsePositiveExamples),
+            writeObject(falseNegativeExamples),
+            Instant.now(),
+            RequestContext.currentUserId().orElse("system"),
+            RequestContext.currentTraceId()
+        ));
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            "rule_backtest_run",
+            saved.backtestId(),
+            "执行规则历史回测 " + rule.ruleId() + "/" + sampleCount
+        );
+        return toBacktestResponse(saved);
+    }
+
+    /**
+     * 基于真实生产执行日志窗口记录规则上线后命中率漂移快照。
+     */
+    @Transactional
+    public RuleDriftSnapshotResponse captureDriftSnapshot(
+            String ruleId,
+            RuleDriftSnapshotRequest request) {
+        if (request == null || request.windowStart() == null || request.windowEnd() == null
+                || !request.windowStart().isBefore(request.windowEnd())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "漂移监测窗口必须包含合法开始与结束时间");
+        }
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureDriftGovernanceReady(tenantId, version.versionId());
+        RuleBacktestRun baseline = resolveDriftBaseline(tenantId, rule.ruleId(), request.baselineBacktestId());
+        long sampleCount = executions.countProductionByRuleBetween(
+            tenantId, rule.ruleId(), request.windowStart(), request.windowEnd());
+        if (sampleCount <= 0) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "漂移监测窗口内没有真实生产执行样本");
+        }
+        long hitCount = executions.countProductionHitsByRuleBetween(
+            tenantId, rule.ruleId(), request.windowStart(), request.windowEnd());
+        double currentFireRate = ratio(hitCount, sampleCount);
+        double driftDelta = roundRate(currentFireRate - baseline.fireRate());
+        double threshold = thresholdOrDefault(request.threshold());
+        RuleDriftStatus status = Math.abs(driftDelta) > threshold
+            ? RuleDriftStatus.WARNING
+            : RuleDriftStatus.STABLE;
+        RuleDriftSnapshot saved = driftSnapshots.save(new RuleDriftSnapshot(
+            null,
+            "rds-" + UUID.randomUUID(),
+            tenantId,
+            rule.ruleId(),
+            version.versionId(),
+            baseline.backtestId(),
+            request.windowStart(),
+            request.windowEnd(),
+            sampleCount,
+            hitCount,
+            baseline.fireRate(),
+            currentFireRate,
+            driftDelta,
+            threshold,
+            status,
+            Instant.now(),
+            RequestContext.currentUserId().orElse("system"),
+            RequestContext.currentTraceId()
+        ));
+        auditRecorder.record(
+            AuditAction.EXECUTE,
+            "rule_drift_snapshot",
+            saved.driftId(),
+            "记录规则漂移监测 " + rule.ruleId() + "/" + status.name()
+        );
+        return toDriftResponse(saved);
+    }
+
+    /**
+     * 查看最新历史回测结果；无数据时返回空，由前端呈现待回测状态。
+     */
+    @Transactional(readOnly = true)
+    public RuleBacktestResponse latestBacktest(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        return backtests.findLatestByTenantIdAndRuleId(tenantId, rule.ruleId())
+            .map(this::toBacktestResponse)
+            .orElse(null);
+    }
+
+    /**
+     * 查看最新漂移快照；无数据时返回空，由前端呈现待监测状态。
+     */
+    @Transactional(readOnly = true)
+    public RuleDriftSnapshotResponse latestDriftSnapshot(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        return driftSnapshots.findLatestByTenantIdAndRuleId(tenantId, rule.ruleId())
+            .map(this::toDriftResponse)
+            .orElse(null);
+    }
+
+    private record BacktestCaseOutcome(String caseId, boolean expectedHit, boolean actualHit) {}
+
+    private BacktestCaseOutcome evaluateBacktestCase(RuleVersion version, RuleTestCase testCase) {
+        try {
+            JsonNode input = readJson(testCase.inputPayload());
+            RuleApplicabilityDecision applicability = evaluateApplicability(version, input);
+            RuleDslEvaluation evaluation = applicability.applicable()
+                ? evaluator.evaluate(readJson(version.dslJson()), input)
+                : notApplicableEvaluation(applicability);
+            return new BacktestCaseOutcome(
+                testCase.caseId(),
+                Boolean.TRUE.equals(testCase.expectedHit()),
+                evaluation.hit()
+            );
+        } catch (ApiException exception) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "规则回测样本无法求值: " + testCase.caseId(),
+                exception
+            );
+        }
+    }
+
+    private void ensureBacktestGoldStandard(List<RuleTestCase> cases) {
+        if (cases == null || cases.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "规则回测必须先配置真实脱敏金标准样本");
+        }
+        boolean hasPositive = cases.stream().anyMatch(testCase -> Boolean.TRUE.equals(testCase.expectedHit()));
+        boolean hasNegative = cases.stream().anyMatch(testCase -> !Boolean.TRUE.equals(testCase.expectedHit()));
+        if (!hasPositive || !hasNegative) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "规则回测金标准必须同时包含阳性与阴性样本");
+        }
+    }
+
+    private void ensureDriftGovernanceReady(String tenantId, String versionId) {
+        RuleGovernance governance = governanceService.requireGovernance(tenantId, versionId);
+        if (governance.state() != RuleGovernanceState.FULL
+                && governance.state() != RuleGovernanceState.MONITOR) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "只有全量或监测阶段规则允许记录漂移快照");
+        }
+    }
+
+    private RuleBacktestRun resolveDriftBaseline(
+            String tenantId,
+            String ruleId,
+            String baselineBacktestId) {
+        String explicitId = trimToNull(baselineBacktestId);
+        Optional<RuleBacktestRun> baseline = explicitId == null
+            ? backtests.findLatestByTenantIdAndRuleId(tenantId, ruleId)
+            : backtests.findByTenantIdAndBacktestId(tenantId, explicitId);
+        RuleBacktestRun resolved = baseline
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_006, "漂移监测必须先完成规则历史回测"));
+        if (!ruleId.equals(resolved.ruleId())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "漂移基线不属于当前规则");
+        }
+        return resolved;
+    }
+
+    private RuleBacktestResponse toBacktestResponse(RuleBacktestRun run) {
+        return new RuleBacktestResponse(
+            run.backtestId(),
+            run.ruleId(),
+            run.versionId(),
+            run.cohortRef(),
+            run.sampleCount(),
+            run.truePositiveCount(),
+            run.falsePositiveCount(),
+            run.trueNegativeCount(),
+            run.falseNegativeCount(),
+            run.sensitivity(),
+            run.specificity(),
+            run.accuracy(),
+            run.fireRate(),
+            readStringList(run.falsePositiveExamplesJson()),
+            readStringList(run.falseNegativeExamplesJson()),
+            run.createdAt(),
+            run.traceId()
+        );
+    }
+
+    private RuleDriftSnapshotResponse toDriftResponse(RuleDriftSnapshot snapshot) {
+        return new RuleDriftSnapshotResponse(
+            snapshot.driftId(),
+            snapshot.ruleId(),
+            snapshot.versionId(),
+            snapshot.baselineBacktestId(),
+            snapshot.windowStart(),
+            snapshot.windowEnd(),
+            snapshot.sampleCount(),
+            snapshot.hitCount(),
+            snapshot.baselineFireRate(),
+            snapshot.currentFireRate(),
+            snapshot.driftDelta(),
+            snapshot.threshold(),
+            snapshot.status(),
+            snapshot.createdAt(),
+            snapshot.traceId()
+        );
+    }
+
+    private List<String> readStringList(String source) {
+        if (source == null || source.isBlank()) {
+            return List.of();
+        }
+        try {
+            return json.readerForListOf(String.class).readValue(source);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_RULE_005, "规则指标样例解析失败", exception);
+        }
+    }
+
+    private static double ratio(long numerator, long denominator) {
+        if (denominator <= 0) {
+            return 0.0;
+        }
+        return roundRate((double) numerator / denominator);
+    }
+
+    private static double thresholdOrDefault(Double threshold) {
+        if (threshold == null) {
+            return 0.10;
+        }
+        return roundRate(threshold);
+    }
+
+    private static double roundRate(double value) {
+        return Math.round(value * 1_000_000.0) / 1_000_000.0;
     }
 
     private List<RuleTestCaseResult> runTestCases(RuleVersion version, String tenantId) {

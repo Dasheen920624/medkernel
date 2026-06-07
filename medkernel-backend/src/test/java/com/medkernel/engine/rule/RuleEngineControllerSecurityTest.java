@@ -67,6 +67,10 @@ class RuleEngineControllerSecurityTest {
         "{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}";
     private static final String SHADOW_FEEDBACK_BODY =
         "{\"decision\":\"FALSE_POSITIVE\",\"reason\":\"影子提示与当前处置不匹配\"}";
+    private static final String BACKTEST_BODY =
+        "{\"cohortRef\":\"ckd-2026-q1\"}";
+    private static final String DRIFT_BODY =
+        "{\"windowStart\":\"2026-06-01T00:00:00Z\",\"windowEnd\":\"2026-06-07T00:00:00Z\",\"threshold\":0.10}";
 
     @Autowired
     MockMvc mvc;
@@ -209,6 +213,22 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
+    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    void specialistCanReachBacktestAndDriftButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/backtest")
+                .contentType("application/json")
+                .content(BACKTEST_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/drift")
+                .contentType("application/json")
+                .content(DRIFT_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotGovernRules() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
@@ -236,6 +256,16 @@ class RuleEngineControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/shadow-feedback")
                 .contentType("application/json")
                 .content(SHADOW_FEEDBACK_BODY))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/backtest")
+                .contentType("application/json")
+                .content(BACKTEST_BODY))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/drift")
+                .contentType("application/json")
+                .content(DRIFT_BODY))
             .andExpect(status().isForbidden());
     }
 }

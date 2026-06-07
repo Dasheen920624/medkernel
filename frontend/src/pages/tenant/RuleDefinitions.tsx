@@ -58,6 +58,10 @@ import {
   useContextSnapshotDetail,
   useRuleImpact,
   useRuleShadowStats,
+  useRuleBacktestLatest,
+  useRunRuleBacktest,
+  useRuleDriftLatest,
+  useCaptureRuleDriftSnapshot,
   useOrgUnits,
 } from "@/shared/api/hooks";
 import type {
@@ -439,6 +443,30 @@ function formatShadowRate(rate?: number | null) {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
+function formatMetricRate(rate?: number | null) {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) return "-";
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+function formatSignedRate(rate?: number | null) {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) return "-";
+  const sign = rate > 0 ? "+" : "";
+  return `${sign}${(rate * 100).toFixed(1)}%`;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function renderDriftStatus(status?: string | null) {
+  if (status === "WARNING") return <Tag color="red">告警</Tag>;
+  if (status === "STABLE") return <Tag color="green">稳定</Tag>;
+  return <Tag>未监测</Tag>;
+}
+
 export default function RuleDefinitions() {
   const { message, modal } = AntdApp.useApp();
   const securityQuery = useSecurityProfile();
@@ -496,6 +524,8 @@ export default function RuleDefinitions() {
   } | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [releaseReason, setReleaseReason] = useState("");
+  const [driftWindowDays, setDriftWindowDays] = useState(7);
+  const [driftThreshold, setDriftThreshold] = useState(0.1);
 
   const {
     data: listData,
@@ -569,6 +599,8 @@ export default function RuleDefinitions() {
   const simulateMutation = useSimulateRule(selectedRuleId || "");
   const signoffMutation = useSignoffRule();
   const governanceTransitionMutation = useTransitionRuleGovernance();
+  const runBacktestMutation = useRunRuleBacktest();
+  const captureDriftMutation = useCaptureRuleDriftSnapshot();
   const snapshotsQuery = useContextSnapshots(
     {
       patientId: snapshotSearchParams?.patientId,
@@ -591,6 +623,12 @@ export default function RuleDefinitions() {
   });
   const shadowStatsQuery = useRuleShadowStats(selectedRuleId || "", {
     enabled: Boolean(selectedRuleId && detailData?.governance.state === "SHADOW"),
+  });
+  const backtestQuery = useRuleBacktestLatest(selectedRuleId || "", {
+    enabled: Boolean(selectedRuleId),
+  });
+  const driftQuery = useRuleDriftLatest(selectedRuleId || "", {
+    enabled: Boolean(selectedRuleId),
   });
   const snapshots = snapshotsQuery.data?.items ?? [];
   const releaseGate = useMemo(
@@ -2006,6 +2044,57 @@ export default function RuleDefinitions() {
     refetchList();
   };
 
+  const refreshRuleMetrics = () => {
+    backtestQuery.refetch();
+    driftQuery.refetch();
+    refetchDetail();
+  };
+
+  const handleRunBacktest = async () => {
+    if (!selectedRuleId || !detailData) return;
+    if (detailData.testCases.length === 0) {
+      message.error("请先配置真实脱敏金标准样本。");
+      return;
+    }
+    try {
+      await runBacktestMutation.mutateAsync({
+        ruleId: selectedRuleId,
+        cohortRef: `test-cases:${detailData.version.versionId}`,
+      });
+      message.success("历史回测完成");
+      refreshRuleMetrics();
+    } catch (error: unknown) {
+      modal.error({
+        title: "历史回测未完成",
+        content: getApiErrorMessage(error, "请核查金标准样本和规则 DSL 后重试。"),
+      });
+    }
+  };
+
+  const handleCaptureDriftSnapshot = async () => {
+    if (!selectedRuleId || !backtestQuery.data) return;
+    const safeDays = Math.max(1, Math.min(90, Math.round(driftWindowDays || 7)));
+    const safeThreshold = Math.max(0, Math.min(1, driftThreshold || 0.1));
+    const windowEnd = new Date();
+    const windowStart = new Date(windowEnd.getTime() - safeDays * 86_400_000);
+    try {
+      await captureDriftMutation.mutateAsync({
+        ruleId: selectedRuleId,
+        windowStart: windowStart.toISOString(),
+        windowEnd: windowEnd.toISOString(),
+        baselineBacktestId: backtestQuery.data.backtestId,
+        threshold: safeThreshold,
+      });
+      message.success("漂移快照已记录");
+      refreshRuleMetrics();
+    } catch (error: unknown) {
+      modal.error({
+        title: "漂移监测未完成",
+        content: getApiErrorMessage(error, "请核查生产执行样本、回测基线和治理阶段后重试。"),
+      });
+    }
+  };
+
   const handleGovernanceTransition = async (
     targetState: RuleGovernanceState,
     successMessage: string,
@@ -2497,9 +2586,7 @@ export default function RuleDefinitions() {
         <Descriptions.Item label="委员会会签">
           {governance?.committeeApprovalCount ?? 0} / {governance?.requiredSignoffs ?? 1}
         </Descriptions.Item>
-        <Descriptions.Item label="最近说明" span={3}>
-          {governance?.lastReason || "暂无"}
-        </Descriptions.Item>
+        <Descriptions.Item label="最近说明">{governance?.lastReason || "暂无"}</Descriptions.Item>
       </Descriptions>
       {governanceState === "DRAFT" && (
         <Alert
@@ -2541,6 +2628,94 @@ export default function RuleDefinitions() {
             {formatShadowRate(shadowStatsQuery.data?.falsePositiveRate)}
           </Descriptions.Item>
         </Descriptions>
+      )}
+      {detailData && (
+        <Space direction="vertical" size="small" className="mk-full-width">
+          <div className={styles.toolbar}>
+            <Text strong>历史回测与漂移监测</Text>
+            <Space wrap>
+              <Button
+                aria-label="运行历史回测"
+                icon={<FileSearchOutlined />}
+                loading={runBacktestMutation.isPending}
+                onClick={handleRunBacktest}
+                disabled={!canWriteRule || governanceState === "RETIRED"}
+              >
+                运行历史回测
+              </Button>
+              <InputNumber
+                aria-label="漂移窗口天数"
+                min={1}
+                max={90}
+                value={driftWindowDays}
+                onChange={(value) => setDriftWindowDays(Number(value) || 7)}
+                addonAfter="天"
+              />
+              <InputNumber
+                aria-label="漂移阈值"
+                min={1}
+                max={100}
+                value={Math.round(driftThreshold * 100)}
+                onChange={(value) => setDriftThreshold((Number(value) || 10) / 100)}
+                addonAfter="%"
+              />
+              <Button
+                aria-label="记录漂移快照"
+                icon={<SyncOutlined />}
+                loading={captureDriftMutation.isPending}
+                onClick={handleCaptureDriftSnapshot}
+                disabled={
+                  !canWriteRule ||
+                  !backtestQuery.data ||
+                  !["FULL", "MONITOR"].includes(governanceState)
+                }
+              >
+                记录漂移快照
+              </Button>
+            </Space>
+          </div>
+          <Descriptions bordered size="small" column={{ xs: 1, md: 4 }}>
+            <Descriptions.Item label="回测样本">
+              {backtestQuery.data?.sampleCount ?? "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="灵敏度">
+              {formatMetricRate(backtestQuery.data?.sensitivity)}
+            </Descriptions.Item>
+            <Descriptions.Item label="特异度">
+              {formatMetricRate(backtestQuery.data?.specificity)}
+            </Descriptions.Item>
+            <Descriptions.Item label="准确率">
+              {formatMetricRate(backtestQuery.data?.accuracy)}
+            </Descriptions.Item>
+            <Descriptions.Item label="触发率">
+              {formatMetricRate(backtestQuery.data?.fireRate)}
+            </Descriptions.Item>
+            <Descriptions.Item label="误报样本">
+              {backtestQuery.data?.falsePositiveCaseIds?.join("、") || "无"}
+            </Descriptions.Item>
+            <Descriptions.Item label="漏报样本">
+              {backtestQuery.data?.falseNegativeCaseIds?.join("、") || "无"}
+            </Descriptions.Item>
+            <Descriptions.Item label="漂移状态">
+              {renderDriftStatus(driftQuery.data?.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="当前命中率">
+              {formatMetricRate(driftQuery.data?.currentFireRate)}
+            </Descriptions.Item>
+            <Descriptions.Item label="基线命中率">
+              {formatMetricRate(driftQuery.data?.baselineFireRate)}
+            </Descriptions.Item>
+            <Descriptions.Item label="漂移差值">
+              {formatSignedRate(driftQuery.data?.driftDelta)}
+            </Descriptions.Item>
+            <Descriptions.Item label="最近回测">
+              {formatDateTime(backtestQuery.data?.createdAt)}
+            </Descriptions.Item>
+            <Descriptions.Item label="最近监测">
+              {formatDateTime(driftQuery.data?.createdAt)}
+            </Descriptions.Item>
+          </Descriptions>
+        </Space>
       )}
       {(governance?.signoffs.length ?? 0) > 0 && (
         <Descriptions bordered size="small" column={1} title="签署证据">

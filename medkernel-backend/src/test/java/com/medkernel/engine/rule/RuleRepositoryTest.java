@@ -39,6 +39,8 @@ class RuleRepositoryTest {
     @Autowired RuleTestCaseRepository testCases;
     @Autowired RuleExecutionLogRepository executions;
     @Autowired RuleOverrideLogRepository overrides;
+    @Autowired RuleBacktestRunRepository backtests;
+    @Autowired RuleDriftSnapshotRepository driftSnapshots;
     @Autowired RuleApplicabilityRepository applicabilities;
     @Autowired RuleGovernanceRepository governance;
     @Autowired RuleSignoffRepository signoffs;
@@ -47,6 +49,8 @@ class RuleRepositoryTest {
     void wipe() {
         signoffs.deleteAll();
         governance.deleteAll();
+        driftSnapshots.deleteAll();
+        backtests.deleteAll();
         overrides.deleteAll();
         executions.deleteAll();
         testCases.deleteAll();
@@ -242,6 +246,38 @@ class RuleRepositoryTest {
         assertThat(saved.id()).isNotNull();
         assertThat(overrides.findByTenantIdAndExecutionIdAndActionCode(
             "tenant-A", executionId, RuleActionCode.STRONG_REMINDER)).isPresent();
+    }
+
+    @Test
+    void persistsBacktestAndDriftEvidence() {
+        String ruleId = "rule-" + UUID.randomUUID();
+        String versionId = "rv-" + UUID.randomUUID();
+        String backtestId = "rbt-" + UUID.randomUUID();
+        String driftId = "rds-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        definitions.save(sampleRule(ruleId, "tenant-A", "RULE.METRICS"));
+        versions.save(sampleVersion(versionId, "tenant-A", ruleId));
+
+        RuleBacktestRun backtest = backtests.save(new RuleBacktestRun(
+            null, backtestId, "tenant-A", ruleId, versionId, "ckd-2026-q1",
+            4, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5,
+            "[\"case-fp\"]", "[\"case-fn\"]", now, "tester", "trace-rule"));
+        RuleDriftSnapshot drift = driftSnapshots.save(new RuleDriftSnapshot(
+            null, driftId, "tenant-A", ruleId, versionId, backtestId,
+            now.minusSeconds(3600), now, 10, 8, 0.5, 0.8, 0.3,
+            0.1, RuleDriftStatus.WARNING, now, "tester", "trace-rule"));
+
+        assertThat(backtest.id()).isNotNull();
+        assertThat(drift.id()).isNotNull();
+        assertThat(backtests.findLatestByTenantIdAndRuleId("tenant-A", ruleId))
+            .get()
+            .extracting(RuleBacktestRun::sensitivity)
+            .isEqualTo(0.5);
+        assertThat(backtests.findByTenantIdAndBacktestId("tenant-A", backtestId)).isPresent();
+        assertThat(driftSnapshots.findLatestByTenantIdAndRuleId("tenant-A", ruleId))
+            .get()
+            .extracting(RuleDriftSnapshot::status)
+            .isEqualTo(RuleDriftStatus.WARNING);
     }
 
     @Test
