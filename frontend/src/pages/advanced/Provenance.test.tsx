@@ -2,19 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
 import Provenance from "./Provenance";
 
-const mockUseAuditEvents = vi.fn();
-const mockUseEvidences = vi.fn();
-const mockUseVerifyEvidence = vi.fn();
-const mockUseExportEvidences = vi.fn();
+const mockUseKnowledgeIdentities = vi.fn();
+const mockUseKnowledgeProvenance = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
-  useAuditEvents: () => mockUseAuditEvents(),
-  useEvidences: (params: unknown) => mockUseEvidences(params),
-  useVerifyEvidence: () => mockUseVerifyEvidence(),
-  useExportEvidences: () => mockUseExportEvidences(),
+  useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
+  useKnowledgeProvenance: (identityId?: number) => mockUseKnowledgeProvenance(identityId),
 }));
 
 function renderPage() {
@@ -25,40 +22,125 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <ConfigProvider>
-        <Provenance />
-      </ConfigProvider>
+      <MemoryRouter
+        initialEntries={["/advanced/provenance?identityId=1"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <ConfigProvider>
+          <Provenance />
+        </ConfigProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe("Provenance", () => {
-  it("renders honest empty evidence state without local demo provenance chains", () => {
-    mockUseAuditEvents.mockReturnValue({
-      data: [],
-      isLoading: false,
-      refetch: vi.fn(),
-    });
-    mockUseEvidences.mockReturnValue({
-      data: { items: [], total: 0 },
+  it("renders an exact knowledge source chain instead of the audit snapshot console", () => {
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 1,
+            tenantId: "t-1",
+            identityCode: "DRUG.ROSUVA",
+            domain: "DRUG",
+            subject: "瑞舒伐他汀说明书",
+            status: "ACTIVE",
+            currentVersionId: 22,
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
     });
-    mockUseVerifyEvidence.mockReturnValue({
-      mutateAsync: vi.fn(),
-      isPending: false,
-    });
-    mockUseExportEvidences.mockReturnValue({
-      mutateAsync: vi.fn(),
-      isPending: false,
+    mockUseKnowledgeProvenance.mockReturnValue({
+      data: {
+        identity: {
+          id: 1,
+          tenantId: "t-1",
+          identityCode: "DRUG.ROSUVA",
+          domain: "DRUG",
+          subject: "瑞舒伐他汀说明书",
+          status: "ACTIVE",
+          currentVersionId: 22,
+        },
+        currentVersionId: 22,
+        versions: [
+          {
+            id: 22,
+            tenantId: "t-1",
+            identityId: 1,
+            versionNo: "v2026.1",
+            versionLabel: "2026 版",
+            status: "ACTIVE",
+          },
+          {
+            id: 20,
+            tenantId: "t-1",
+            identityId: 1,
+            versionNo: "v2024.1",
+            versionLabel: "2024 版",
+            status: "SUPERSEDED",
+          },
+        ],
+        supersessions: [],
+        sourceEvidence: [
+          {
+            assetVersionId: 22,
+            citationId: 1,
+            sourceFragmentId: 100,
+            sourceDocumentId: 7,
+            sourceVersionId: 8,
+            sourceCode: "SRC.NHC.2026",
+            sourceTitle: "国家药品说明书",
+            sourceType: "POLICY",
+            authorityLevel: "A_REGULATION",
+            authorityLabel: "A 法规",
+            authorityBasis: "国家卫健委发布文件编号 NHC-2026-01",
+            sourceVersionNo: "2026.1",
+            sourceVersionHash: "source-version-hash",
+            anchorPath: "section-3.2.1",
+            anchorLabel: "适应证",
+            textExcerpt: "用于符合适应证的患者。",
+            fragmentHash: "fragment-hash",
+            startOffset: 0,
+            endOffset: 12,
+            publishedAt: "2026-01-01T00:00:00Z",
+            relation: "SUPPORTS",
+            weight: 90,
+            displayRole: "PRIMARY",
+            recommendedByDefault: true,
+            supplementary: false,
+            displayLabel: "A 法规 · 主证据",
+            rankingReason: "按可信分级、来源发布时间和适用域精确度排序",
+          },
+        ],
+        unresolvedCitationCount: 1,
+        partial: true,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
     });
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "来源与临床证据追溯" })).toBeInTheDocument();
-    expect(screen.getByText("暂无真实证据快照")).toBeInTheDocument();
-    expect(screen.queryByText(/tr-stk-proof-009/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/演示证据链|防伪盖章|自校验沙箱/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getAllByText("瑞舒伐他汀说明书").length).toBeGreaterThan(0);
+    expect(screen.getByText("国家药品说明书")).toBeInTheDocument();
+    expect(screen.getByText("section-3.2.1")).toBeInTheDocument();
+    expect(screen.getByText("2024 版")).toBeInTheDocument();
+    expect(screen.getByText(/1 条引用未能解析/)).toBeInTheDocument();
+    expect(screen.getAllByText("药品说明书").length).toBeGreaterThan(0);
+    expect(screen.getByText("有效身份")).toBeInTheDocument();
+    expect(screen.queryByText("DRUG")).not.toBeInTheDocument();
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("真实证据快照")).not.toBeInTheDocument();
+    expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1);
   });
 });

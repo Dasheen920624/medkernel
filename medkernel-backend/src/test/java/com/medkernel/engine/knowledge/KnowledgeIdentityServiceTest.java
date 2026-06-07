@@ -545,6 +545,47 @@ class KnowledgeIdentityServiceTest {
             });
     }
 
+    @Test
+    void provenanceReturnsExactAnchorAndMarksUnresolvedCitationAsPartial() {
+        when(identityRepo.findByTenantIdAndId("t-1", 1L))
+            .thenReturn(Optional.of(identityRow(1L, "t-1", "DRUG.X", 20L)));
+        KnowledgeAssetVersion active = versionRow(20L, 1L, KnowledgeVersionStatus.ACTIVE);
+        KnowledgeAssetVersion historical = versionRow(19L, 1L, KnowledgeVersionStatus.SUPERSEDED);
+        when(versionRepo.listByIdentity("t-1", 1L)).thenReturn(List.of(active, historical));
+        when(versionRepo.findByTenantIdAndId("t-1", 20L)).thenReturn(Optional.of(active));
+        Citation resolved = new Citation(
+            1L, "t-1", 20L, 100L, CitationRelation.SUPPORTS, 90, 2, 12, Instant.now(), "u");
+        Citation unresolved = new Citation(
+            2L, "t-1", 20L, 999L, CitationRelation.SUPPORTS, 80, 0, 8, Instant.now(), "u");
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 20L))
+            .thenReturn(List.of(resolved, unresolved));
+        when(sourceFragRepo.findByTenantIdAndId("t-1", 100L))
+            .thenReturn(Optional.of(sourceFragment(100L, 1000L)));
+        when(sourceVerRepo.findByTenantIdAndId("t-1", 1000L))
+            .thenReturn(Optional.of(sourceVersion(1000L, 10L, Instant.parse("2026-01-01T00:00:00Z"))));
+        when(sourceDocRepo.findByTenantIdAndId("t-1", 10L))
+            .thenReturn(Optional.of(sourceDocument(10L, SourceAuthorityLevel.A_REGULATION, "国家法规")));
+
+        KnowledgeProvenanceResponse provenance = service.getProvenance(1L);
+
+        assertThat(provenance.currentVersionId()).isEqualTo(20L);
+        assertThat(provenance.versions()).extracting(KnowledgeAssetVersion::id)
+            .containsExactly(20L, 19L);
+        assertThat(provenance.unresolvedCitationCount()).isEqualTo(1);
+        assertThat(provenance.partial()).isTrue();
+        assertThat(provenance.sourceEvidence()).singleElement().satisfies(item -> {
+            assertThat(item.assetVersionId()).isEqualTo(20L);
+            assertThat(item.sourceVersionNo()).isEqualTo("v1000");
+            assertThat(item.sourceVersionHash()).isNotBlank();
+            assertThat(item.anchorPath()).isEqualTo("§100");
+            assertThat(item.anchorLabel()).isEqualTo("条款 100");
+            assertThat(item.textExcerpt()).isEqualTo("真实来源片段 100");
+            assertThat(item.fragmentHash()).isNotBlank();
+            assertThat(item.startOffset()).isEqualTo(2);
+            assertThat(item.endOffset()).isEqualTo(12);
+        });
+    }
+
     private KnowledgeIdentity identityRow(Long id) {
         return identityRow(id, "t-1", "DRUG.X");
     }

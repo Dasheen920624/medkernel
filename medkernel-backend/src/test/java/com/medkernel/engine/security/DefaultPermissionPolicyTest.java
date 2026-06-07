@@ -158,6 +158,21 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void provenanceRolesHaveBothMenuAndKnowledgeReadPermission() {
+        for (RoleCode role : new RoleCode[]{
+            RoleCode.IT_OPS,
+            RoleCode.MEDICAL_AFFAIRS,
+            RoleCode.QA_MANAGER,
+            RoleCode.SPECIALIST,
+            RoleCode.AUDIT_COMPLIANCE,
+            RoleCode.IMPLEMENTATION_ENGINEER}) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                .as("%s 的来源追溯入口和读取权限必须成对授权", role.code())
+                .contains(PermissionCode.MENU_PROVENANCE, PermissionCode.KNOWLEDGE_READ);
+        }
+    }
+
+    @Test
     void roleCodeRoundtripsThroughAuthority() {
         for (RoleCode role : RoleCode.values()) {
             assertThat(RoleCode.fromAuthority(role.authority())).contains(role);

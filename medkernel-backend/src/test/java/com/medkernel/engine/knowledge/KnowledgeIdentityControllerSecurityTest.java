@@ -79,6 +79,21 @@ class KnowledgeIdentityControllerSecurityTest {
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
+    @Test
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void doctorCanReachProvenanceButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestRoleIsForbiddenFromProvenance() throws Exception {
+        mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance"))
+            .andExpect(status().isForbidden());
+    }
+
     // ─── knowledge.publish（activate）─────────────────────────
 
     @Test

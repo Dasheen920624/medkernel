@@ -14,8 +14,8 @@ D6 **天然 B0**：来源/图谱/自检/控制台全确定性；图谱是**投�
 
 - **来源追溯**＝`engine/knowledge/` `KnowledgeLineage`（来源链，[OPT-07](../D2/OPT-07.md) 来源证据分级在 D2）+ 各引擎命中可追溯版本；[PROV-01](PROV-01.md) 承接"追溯到条"。
 - **图谱投影**＝`engine/pathway/` `PathwayGraph` + 关系库权威源与投影同步（[SYS-03](../D0/SYS-03.md) 归属，Neo4j 为投影非权威）；[GRAPH-01](GRAPH-01.md) 承接图谱查询。
-- **已验收**：[OPT-10](OPT-10.md)插件安全边界、[DOMCHK-01](DOMCHK-01.md)国产化自检、[DEVCON-01](DEVCON-01.md)开发者控制台。
-- **待统一整改**：[PROV-01](PROV-01.md)来源追溯、[GRAPH-01](GRAPH-01.md)图谱查询、[AIFLOW-01](AIFLOW-01.md)AI工作流；现有实现不等于卡片验收通过。
+- **已验收**：[OPT-10](OPT-10.md)插件安全边界、[DOMCHK-01](DOMCHK-01.md)国产化自检、[DEVCON-01](DEVCON-01.md)开发者控制台、[PROV-01](PROV-01.md)来源追溯。
+- **待统一整改**：[GRAPH-01](GRAPH-01.md)图谱查询、[AIFLOW-01](AIFLOW-01.md)AI工作流；现有实现不等于卡片验收通过。
 
 ## 登入 / 使用角色（13 角色矩阵本域子集，全量见 [质量基线 §9](../../audit/质量基线.md)）
 

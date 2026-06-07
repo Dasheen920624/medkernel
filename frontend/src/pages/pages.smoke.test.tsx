@@ -238,11 +238,18 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("任务输入")).toBeInTheDocument();
   });
 
-  it("renders the advanced provenance audit console", () => {
-    renderPage(<Provenance />);
-    expect(screen.getByRole("heading", { name: "来源与临床证据追溯" })).toBeInTheDocument();
-    expect(screen.getAllByText("真实证据快照").length).toBeGreaterThan(0);
-    expect(screen.getByText("真实审计事件")).toBeInTheDocument();
+  it("renders the advanced knowledge provenance console", () => {
+    renderPage(
+      <MemoryRouter
+        initialEntries={["/advanced/provenance"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Provenance />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入知识主题或身份编码")).toBeInTheDocument();
+    expect(screen.getByText("知识身份")).toBeInTheDocument();
   });
 
   it("renders the dashboard workbench without the old aggregation-api placeholder", () => {

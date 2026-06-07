@@ -51,6 +51,7 @@ public final class DefaultPermissionPolicy {
             TENANT_READ, TENANT_WRITE,
             PACKAGE_READ, PACKAGE_PUBLISH, PACKAGE_ROLLBACK,
             TERM_READ, TERM_WRITE, TERM_PUBLISH,
+            KNOWLEDGE_READ,
             CONTEXT_READ, CONTEXT_WRITE,
             EVENT_READ, EVENT_WRITE,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE,
@@ -224,7 +225,8 @@ public final class DefaultPermissionPolicy {
             MENU_RULE_VALIDATE,
             MENU_NOTIFICATIONS,
             MENU_CLINICAL_FOLLOWUP,
-            MENU_KNOWLEDGE_GOVERNANCE));
+            MENU_KNOWLEDGE_GOVERNANCE,
+            MENU_PROVENANCE));
 
         // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
         map.put(RoleCode.DOCTOR, withMenus(EnumSet.of(
@@ -305,6 +307,7 @@ public final class DefaultPermissionPolicy {
             TENANT_READ,
             PACKAGE_READ, PACKAGE_PUBLISH,
             TERM_READ, TERM_WRITE,
+            KNOWLEDGE_READ,
             CONTEXT_READ, CONTEXT_WRITE,
             EVENT_READ, EVENT_WRITE,
             SYSTEM_READ,

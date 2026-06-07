@@ -217,6 +217,26 @@ class KnowledgeAssetApiContractTest {
     }
 
     @Test
+    void provenanceRouteReturnsExactSourceChainInsteadOfAuditSnapshot() throws Exception {
+        when(identityService.getProvenance(1L)).thenReturn(provenance());
+
+        mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance")
+                .with(readJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.identity.identityCode").value("DRUG.ROSUVA"))
+            .andExpect(jsonPath("$.data.currentVersionId").value(22))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionNo").value("2026.1"))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].sourceVersionHash").value("source-version-hash"))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].anchorPath").value("section-3.2.1"))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].anchorLabel").value("适应证"))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].fragmentHash").value("fragment-hash"))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].startOffset").value(0))
+            .andExpect(jsonPath("$.data.sourceEvidence[0].endOffset").value(12))
+            .andExpect(jsonPath("$.data.unresolvedCitationCount").value(1))
+            .andExpect(jsonPath("$.data.partial").value(true));
+    }
+
+    @Test
     void replayRouteMarksHistoricalVersion() throws Exception {
         when(versionService.replayVersion(eq(1L), eq(10L), eq("pkg-2026.06"), eq("ctx-snap-001")))
             .thenReturn(new KnowledgeReplayResponse(
@@ -385,6 +405,14 @@ class KnowledgeAssetApiContractTest {
             SourceAuthorityLevel.A_REGULATION,
             "A 法规",
             "国家卫健委发布文件编号 NHC-2026-01",
+            "2026.1",
+            "source-version-hash",
+            "section-3.2.1",
+            "适应证",
+            "用于符合适应证的患者。",
+            "fragment-hash",
+            0,
+            12,
             GradeEvidenceQuality.HIGH,
             GradeRecommendationStrength.STRONG,
             Instant.parse("2026-01-01T00:00:00Z"),
@@ -401,12 +429,37 @@ class KnowledgeAssetApiContractTest {
         );
     }
 
-    @SuppressWarnings("unused")
+    private static KnowledgeProvenanceResponse provenance() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        KnowledgeIdentity identity = identity(1L);
+        KnowledgeAssetVersion active = new KnowledgeAssetVersion(
+            22L, "t-1", 1L, "v2026.1", "2026 版",
+            7L, 8L, "asset-version-hash", null,
+            KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.A_REGULATION, GradeEvidenceQuality.HIGH,
+            GradeRecommendationStrength.STRONG, null,
+            "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeAssetVersion.activeScopeKey(
+                1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
+            null, null, null, null, now, null, null, null,
+            now, "u-99", now, "u-99"
+        );
+        return new KnowledgeProvenanceResponse(
+            identity,
+            active.id(),
+            List.of(active),
+            List.of(),
+            List.of(sourceEvidence()),
+            1,
+            true
+        );
+    }
+
     private static KnowledgeIdentity identity(Long id) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(
             id, "t-1", "DRUG.ROSUVA", KnowledgeDomain.DRUG, "瑞舒伐他汀说明书",
-            "sp-1", "真实来源说明书", KnowledgeIdentityStatus.ACTIVE, null,
+            "sp-1", "真实来源说明书", KnowledgeIdentityStatus.ACTIVE, 22L,
             now, "u-99", now, "u-99"
         );
     }
