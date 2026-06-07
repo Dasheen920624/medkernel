@@ -384,7 +384,7 @@ public class WorkflowNotificationSettingsService {
                 "MEDIUM",
                 "医院管理员",
                 "租户通知渠道、订阅类型和免打扰默认策略。",
-                "SAFE_DEFAULT",
+                "API",
                 false,
                 now),
             currentActor());
