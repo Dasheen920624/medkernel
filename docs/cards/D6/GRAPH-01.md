@@ -8,31 +8,32 @@
 - 卡 ID：GRAPH-01（页面卡；= backlog `D6-PAGE-图谱查询` 实化）
 - 域：D6 高级工具
 - 关联场景：S7 图谱与来源追溯
-- 依赖卡：[SYS-03](../D0/SYS-03.md)（关系库权威与投影同步，单一归属）· [PATH-01](../D2/PATH-01.md)（PathwayGraph）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
+- 依赖卡：[SYS-03](../D0/SYS-03.md)（关系库权威与投影同步，单一归属）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
 - 工作量：3d
 - owner / reviewer：待派单（owner ≠ reviewer）
 
 ## 目标
 把图谱查询页**真实化**：查询知识/路径图谱**投影**（节点/关系/路径），与关系库权威一致，**图谱是投影非权威**、替换权威后投影随之失效/重建，**不前端造图、不把图当权威**。
 
-## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化**：`pages/advanced/GraphExplore.tsx`（路由 `/advanced/graph` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接图谱投影查询 API（`engine/pathway` `PathwayGraph` + [SYS-03](../D0/SYS-03.md) 投影）+ 六态/RBAC 齐全。
+## 现状（2026-06-07）
+页面已接入`engine/projection`真实投影API，关系库仍为唯一权威源；前端只展示服务端投影事实，不生成业务数据。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 图谱查询：按实体/关系查询图谱投影（节点/边/路径），真实。
-- [ ] FR-2 投影一致：图谱与关系库权威一致（[SYS-03](../D0/SYS-03.md)），不一致可检出。
-- [ ] FR-3 投影非权威：明示"投影"、替换权威后投影失效/重建提示，不把图当权威。
-- [ ] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
-- [ ] FR-5 RBAC：架构师/专家可见；数据按 `OrgContext`；不入客户主菜单。
+- [x] FR-1 图谱查询：按实体、关系、对象标识或追踪号查询真实投影节点和边。
+- [x] FR-2 投影一致：展示关系库源事实、投影快照和一致性差异。
+- [x] FR-3 投影非权威：明示投影用途；仅高权限角色可从权威源重建。
+- [x] FR-4 六态：加载、空、错误、无权限、部分成功、正常齐全。
+- [x] FR-5 RBAC：读与重建分权；租户隔离；不入临床客户主路径。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费 `engine/pathway` 图谱投影 + [SYS-03](../D0/SYS-03.md) API。
+消费`/api/v1/projections/{target}/status|consistency|facts|rebuild`；列表使用服务端分页与关键词过滤。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `advanced` / menuKey `graph-explore` / menuLabel `图谱查询` / path `/advanced/graph` / requiredPermissions 图谱查询 / requiredRoles 架构师·专科专家。
+- 路由元数据：sectionKey `advanced-tools` / menuKey `graph-explore` / path `/advanced/graph` / requiredPermissions `menu.graph-explore` + `projection.read`。
+- 可见角色：平台/集团/医院管理员、实施工程师、信息运维、专科专家；仅具`projection.rebuild`者可重建。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 图谱画布（节点/边）+ 查询面板 + "投影非权威"标识 + 六态。
-- 主按钮 ≤1（查询）/ 默认筛选 ≤3 / 默认角色视图（架构师）。
-- 五维 RBAC：菜单 / 动作（查询/导出）/ 数据（org）/ 资产 / 环境。
+- 主按钮 ≤1（查询）/ 默认筛选 ≤3 / 默认角色视图（专科专家只读）。
+- 五维 RBAC：菜单 / 动作（查询/重建）/ 数据（tenant）/ 资产 / 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码 hex/px。
 
 ## 数据与迁移
@@ -44,7 +45,7 @@ N·A —— 页面卡不落库；消费图谱投影（投影非权威，源在�
 3. 系统与数据架构：★图谱投影查询；大图分页/聚焦；P95 ≤2s。
 4. 临床医疗安全：图谱仅探索、不驱动临床决策（决策走引擎）。
 5. 知识与数据治理：★投影非权威，与关系库一致、替换随之重建。
-6. 安全合规与监管：查询/导出留审计（[BASE-04](../D0/BASE-04.md)）。
+6. 安全合规与监管：重建留审计，查询按权限与租户隔离（[BASE-04](../D0/BASE-04.md)）。
 7. 集团化与多租户治理：按 `OrgContext` 作用域。
 8. 集成与互操作：图谱投影来自关系库同步（[SYS-03](../D0/SYS-03.md)）。
 9. 运维 / SRE / 国产化：投影失效/重建可观测。
@@ -56,14 +57,14 @@ N·A —— 页面卡不落库；消费图谱投影（投影非权威，源在�
 - 本卡落点：把图谱查询页变为接真实图谱投影、明示非权威、与关系库一致的探索工具。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：图谱投影真实、与关系库一致。
-- [ ] AC-2（FR-3）：明示投影非权威、替换后重建。
-- [ ] AC-3（FR-4/5）：六态齐全；架构师可见、不入客户主菜单。
+- [x] AC-1（FR-1/2）：图谱投影真实、与关系库一致。
+- [x] AC-2（FR-3）：明示投影非权威、替换后可受控重建。
+- [x] AC-3（FR-4/5）：六态齐全；读写分权，不入临床客户主路径。
 - 关联 A1–A9 剧本：A9 图谱查询。
 - T-GATE：前端真实性门禁全绿（no-page-mock、图不作权威、不造图）。
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/advanced/GraphExplore` 真实化 + 接图谱投影 API + 六态。
-- 测试：图谱查询/投影一致/非权威标识 + 六态 + RBAC + no-page-mock 门禁。
+- 代码：`GraphExplore`、`ProjectionGraphCanvas`、`ProjectionSnapshotRepository`、`ProjectionSyncService`及统一权限策略。
+- 测试：后端分页/租户/搜索/权限，前端图谱/六态/路由，真实API桌面与390px移动端E2E。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

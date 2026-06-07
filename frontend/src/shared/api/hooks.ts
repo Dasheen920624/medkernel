@@ -680,7 +680,10 @@ function projectionPath(targetType: ProjectionTargetType) {
   }
 }
 
-export function useProjectionRuntimeStatus(targetType: ProjectionTargetType = "CLINICAL_GRAPH") {
+export function useProjectionRuntimeStatus(
+  targetType: ProjectionTargetType = "CLINICAL_GRAPH",
+  enabled = true,
+) {
   return useQuery({
     queryKey: ["projections", targetType, "status"],
     queryFn: async () => {
@@ -689,12 +692,12 @@ export function useProjectionRuntimeStatus(targetType: ProjectionTargetType = "C
       );
       return data.data;
     },
-    enabled: targetType === "CLINICAL_GRAPH",
+    enabled: enabled && targetType === "CLINICAL_GRAPH",
     refetchInterval: 30_000,
   });
 }
 
-export function useProjectionConsistency(targetType: ProjectionTargetType) {
+export function useProjectionConsistency(targetType: ProjectionTargetType, enabled = true) {
   return useQuery({
     queryKey: ["projections", targetType, "consistency"],
     queryFn: async () => {
@@ -703,10 +706,11 @@ export function useProjectionConsistency(targetType: ProjectionTargetType) {
       );
       return data.data;
     },
+    enabled,
   });
 }
 
-export function useProjectionFacts(query: ProjectionFactsQuery) {
+export function useProjectionFacts(query: ProjectionFactsQuery, enabled = true) {
   return useQuery({
     queryKey: [
       "projections",
@@ -729,6 +733,7 @@ export function useProjectionFacts(query: ProjectionFactsQuery) {
       );
       return data.data;
     },
+    enabled,
   });
 }
 

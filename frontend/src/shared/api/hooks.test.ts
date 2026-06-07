@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -79,6 +79,9 @@ import {
   useOrgUsers,
   usePackages,
   usePlugins,
+  useProjectionConsistency,
+  useProjectionFacts,
+  useProjectionRuntimeStatus,
   usePackageAssetReadiness,
   usePackageSyncLogs,
   usePathwayTemplates,
@@ -2580,6 +2583,61 @@ describe("bootstrap identity api helpers", () => {
     expect(setup.mfaBound).toBe(false);
     expect(setup.secret).toBe("JBSWY3DPEHPK3PXP");
     expect(mfa.recoveryCode).toBe("RECOVERY-CODE-ONCE");
+  });
+});
+
+describe("projection api hooks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  it("does not query projection endpoints before read permission is confirmed", async () => {
+    renderApiHook(() => useProjectionRuntimeStatus("CLINICAL_GRAPH", false));
+    renderApiHook(() => useProjectionConsistency("CLINICAL_GRAPH", false));
+    renderApiHook(() =>
+      useProjectionFacts(
+        { targetType: "CLINICAL_GRAPH", keyword: "observation", page: 1, size: 40 },
+        false,
+      ),
+    );
+
+    await act(async () => undefined);
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("queries projection facts with server-side filter and pagination parameters", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [],
+          page: 2,
+          size: 40,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      useProjectionFacts({
+        targetType: "KNOWLEDGE_GRAPH",
+        keyword: "guideline",
+        page: 2,
+        size: 40,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/projections/knowledge-graph/facts", {
+      params: {
+        keyword: "guideline",
+        page: 2,
+        size: 40,
+      },
+    });
   });
 });
 

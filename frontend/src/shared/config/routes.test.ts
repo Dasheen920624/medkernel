@@ -12,7 +12,7 @@ describe("route metadata", () => {
   it("registers every current frontend page route", () => {
     expect(routeMetas.length).toBeGreaterThanOrEqual(34);
     expect(findRouteByPath("/terminology/mapping")?.title).toBe("字典映射");
-    expect(findRouteByPath("/advanced/graph")?.hidden).toBe(true);
+    expect(findRouteByPath("/advanced/graph")?.hidden).toBe(false);
   });
 
   it("keeps paths unique", () => {
@@ -342,6 +342,35 @@ describe("route metadata", () => {
         roles: [{ code: "implementation-engineer" }],
         permissions: [],
         menuKeys: ["provenance"],
+      }),
+    ).toBe(false);
+  });
+
+  it("limits graph exploration to projection readers in advanced technical roles", () => {
+    const route = findRouteByPath("/advanced/graph");
+
+    expect(route?.hidden).toBe(false);
+    expect(route?.requiredPermissions).toEqual(["menu.graph-explore", "projection.read"]);
+    expect(route?.requiredRoles).toEqual([
+      "implementation-engineer",
+      "it-ops",
+      "specialist",
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+    ]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "specialist" }],
+        permissions: [{ code: "projection.read" }],
+        menuKeys: ["graph-explore"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "doctor" }],
+        permissions: [{ code: "projection.read" }],
+        menuKeys: ["graph-explore"],
       }),
     ).toBe(false);
   });

@@ -173,6 +173,15 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void specialistCanReadGraphProjectionButCannotRebuildIt() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.SPECIALIST))
+            .contains(PermissionCode.MENU_GRAPH_EXPLORE, PermissionCode.PROJECTION_READ)
+            .doesNotContain(PermissionCode.PROJECTION_REBUILD);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
+            .doesNotContain(PermissionCode.MENU_GRAPH_EXPLORE, PermissionCode.PROJECTION_READ);
+    }
+
+    @Test
     void roleCodeRoundtripsThroughAuthority() {
         for (RoleCode role : RoleCode.values()) {
             assertThat(RoleCode.fromAuthority(role.authority())).contains(role);

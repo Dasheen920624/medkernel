@@ -154,15 +154,17 @@ public class ProjectionSyncService {
             PageRequest pageRequest) {
         PageRequest page = pageRequest == null ? PageRequest.defaults() : pageRequest;
         String normalizedKeyword = normalizeKeyword(keyword);
-        List<ProjectionFactItem> rows = snapshots.findByTenantIdAndTargetType(tenantId, targetType)
+        long total = snapshots.countByFilter(tenantId, targetType, normalizedKeyword);
+        List<ProjectionFactItem> rows = snapshots.pageByFilter(
+                tenantId,
+                targetType,
+                normalizedKeyword,
+                page.offset(),
+                page.safeSize())
             .stream()
             .map(ProjectionFactItem::fromSnapshot)
-            .filter(item -> matchesKeyword(item, normalizedKeyword))
-            .sorted(Comparator.comparing(ProjectionFactItem::factKey))
             .toList();
-        int fromIndex = Math.min(page.offset(), rows.size());
-        int toIndex = Math.min(fromIndex + page.safeSize(), rows.size());
-        return PageResponse.of(rows.subList(fromIndex, toIndex), page, rows.size());
+        return PageResponse.of(rows, page, total);
     }
 
     private ProjectionRebuildResponse rebuildTarget(String tenantId, ProjectionTargetType targetType,
@@ -390,28 +392,11 @@ public class ProjectionSyncService {
         items.sort(Comparator.comparing(ProjectionDiffItem::factKey));
     }
 
-    private boolean matchesKeyword(ProjectionFactItem item, String keyword) {
-        if (keyword == null) {
-            return true;
-        }
-        return contains(item.factKey(), keyword)
-            || contains(item.objectType(), keyword)
-            || contains(item.objectId(), keyword)
-            || contains(item.subjectKey(), keyword)
-            || contains(item.predicate(), keyword)
-            || contains(item.objectKey(), keyword)
-            || contains(item.traceId(), keyword);
-    }
-
-    private boolean contains(String value, String keyword) {
-        return value != null && value.toLowerCase().contains(keyword);
-    }
-
     private String normalizeKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return null;
         }
-        return keyword.trim().toLowerCase();
+        return "%" + keyword.trim().toLowerCase() + "%";
     }
 
     private String aggregateHashFromFacts(List<ProjectionFact> facts) {

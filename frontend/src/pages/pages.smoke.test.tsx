@@ -228,7 +228,7 @@ describe("page smoke coverage", () => {
   it("renders an advanced tool page with advanced-only messaging", () => {
     renderPage(<GraphExplore />);
     expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
-    expect(screen.getByText("查询关系库权威源生成的投影快照")).toBeInTheDocument();
+    expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
   });
 
   it("renders the advanced ai-workflows engine workbench", () => {

@@ -1,50 +1,51 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
+  Descriptions,
   Empty,
   Input,
+  List,
+  Result,
   Select,
   Space,
-  Statistic,
+  Spin,
   Table,
+  Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
 import type { TableProps } from "antd";
-import {
-  ApartmentOutlined,
-  DatabaseOutlined,
-  ReloadOutlined,
-  SafetyCertificateOutlined,
-  SearchOutlined,
-  SyncOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
+import { ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
+
 import {
   useProjectionConsistency,
   useProjectionFacts,
   useProjectionRuntimeStatus,
   useRebuildProjection,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
+  ProjectionDiffItem,
   ProjectionFactItem,
   ProjectionSyncStatus,
   ProjectionTargetType,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { PageShell } from "@/shared/ui/PageShell";
+import { ProjectionGraphCanvas } from "./ProjectionGraphCanvas";
+import { projectionObjectLabel, projectionPredicateLabel } from "./projectionGraph";
 
-import styles from "./Advanced.module.css";
+import styles from "./GraphExplore.module.css";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const targetOptions: Array<{ label: string; value: ProjectionTargetType }> = [
-  { label: "临床图投影", value: "CLINICAL_GRAPH" },
-  { label: "知识图投影", value: "KNOWLEDGE_GRAPH" },
-  { label: "知识搜索投影", value: "KNOWLEDGE_SEARCH" },
+  { label: "临床关系投影", value: "CLINICAL_GRAPH" },
+  { label: "知识关系投影", value: "KNOWLEDGE_GRAPH" },
+  { label: "知识检索投影", value: "KNOWLEDGE_SEARCH" },
 ];
 
 const statusText: Record<string, string> = {
@@ -57,12 +58,6 @@ const statusText: Record<string, string> = {
   MODEL_DISABLED: "模型未启用",
   NOT_CONNECTED: "未连接",
 };
-
-function statusTag(status?: ProjectionSyncStatus | string | null) {
-  const value = status ?? "UNKNOWN";
-  const color = value === "SUCCESS" || value === "UP" || value === "READY" ? "success" : "warning";
-  return <Tag color={color}>{statusText[value] ?? value}</Tag>;
-}
 
 function targetLabel(targetType: ProjectionTargetType) {
   return targetOptions.find((option) => option.value === targetType)?.label ?? targetType;
@@ -81,42 +76,94 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString();
 }
 
-function nullableText(value?: string | null) {
-  return value && value.trim() ? value : "未返回";
+function statusTag(status?: ProjectionSyncStatus | string | null) {
+  const value = status ?? "UNKNOWN";
+  const color = value === "SUCCESS" || value === "UP" || value === "READY" ? "success" : "warning";
+  return <Tag color={color}>{statusText[value] ?? value}</Tag>;
+}
+
+function diffPanel(title: string, items: ProjectionDiffItem[]) {
+  return (
+    <section className={styles.diffPanel}>
+      <div className={styles.diffHeader}>
+        <Text strong>{title}</Text>
+        <Tag>{items.length}</Tag>
+      </div>
+      {items.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无差异" />
+      ) : (
+        <List
+          size="small"
+          dataSource={items}
+          renderItem={(item) => (
+            <List.Item>
+              <Text code className={styles.diffKey}>
+                {item.factKey}
+              </Text>
+            </List.Item>
+          )}
+        />
+      )}
+    </section>
+  );
 }
 
 export default function GraphExplore() {
+  const securityQuery = useSecurityProfile();
+  const permissionCodes = useMemo(
+    () => new Set(securityQuery.data?.permissions.map((permission) => permission.code) ?? []),
+    [securityQuery.data],
+  );
+  const canRead = permissionCodes.has("projection.read");
+  const canRebuild = permissionCodes.has("projection.rebuild");
+
   const [targetType, setTargetType] = useState<ProjectionTargetType>("CLINICAL_GRAPH");
   const [keywordInput, setKeywordInput] = useState("");
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
+  const [selectedFact, setSelectedFact] = useState<ProjectionFactItem | null>(null);
 
-  const runtimeQuery = useProjectionRuntimeStatus(targetType);
-  const consistencyQuery = useProjectionConsistency(targetType);
-  const factsQuery = useProjectionFacts({
-    targetType,
-    keyword,
-    page,
-    size: 20,
-  });
+  const runtimeStatusEnabled = canRead && targetType === "CLINICAL_GRAPH";
+  const runtimeQuery = useProjectionRuntimeStatus(targetType, runtimeStatusEnabled);
+  const consistencyQuery = useProjectionConsistency(targetType, canRead);
+  const factsQuery = useProjectionFacts(
+    {
+      targetType,
+      keyword,
+      page,
+      size: 40,
+    },
+    canRead,
+  );
   const rebuildMutation = useRebuildProjection();
 
   const facts = factsQuery.data?.items ?? [];
   const total = factsQuery.data?.total ?? 0;
-  const runtimeStatusEnabled = targetType === "CLINICAL_GRAPH";
-  const diffCount = useMemo(() => {
-    const report = consistencyQuery.data;
-    if (!report) return 0;
-    return report.missing.length + report.extra.length + report.changed.length;
-  }, [consistencyQuery.data]);
+  const report = consistencyQuery.data;
+  const diffCount =
+    (report?.missing.length ?? 0) + (report?.extra.length ?? 0) + (report?.changed.length ?? 0);
+  const partial =
+    Boolean(factsQuery.data) &&
+    (consistencyQuery.isError || (runtimeStatusEnabled && runtimeQuery.isError));
+  const loading =
+    securityQuery.isLoading ||
+    factsQuery.isLoading ||
+    consistencyQuery.isLoading ||
+    (runtimeStatusEnabled && runtimeQuery.isLoading);
+
+  useEffect(() => {
+    setSelectedNodeKey(null);
+    setSelectedFact(null);
+  }, [factsQuery.data]);
 
   const handleTargetChange = (next: ProjectionTargetType) => {
     setTargetType(next);
     setPage(1);
   };
 
-  const handleSearch = (value?: string) => {
-    setKeyword((value ?? keywordInput).trim());
+  const handleSearch = () => {
+    setKeyword(keywordInput.trim());
     setPage(1);
   };
 
@@ -131,7 +178,7 @@ export default function GraphExplore() {
   const handleRebuild = async () => {
     try {
       const result = await rebuildMutation.mutateAsync(targetType);
-      message.success(result.message || "投影重建请求已提交");
+      message.success(result.message || "投影重建完成");
       await handleReload();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "投影重建失败"));
@@ -140,23 +187,11 @@ export default function GraphExplore() {
 
   const columns: TableProps<ProjectionFactItem>["columns"] = [
     {
-      title: "事实键",
-      dataIndex: "factKey",
-      key: "factKey",
-      render: (value: string) => <Text strong>{value}</Text>,
-    },
-    {
-      title: "类型",
-      dataIndex: "factKind",
-      key: "factKind",
-      render: (value: string) => <Tag color={value === "EDGE" ? "purple" : "blue"}>{value}</Tag>,
-    },
-    {
       title: "对象",
       key: "object",
       render: (_value, record) => (
         <Space direction="vertical" size={0}>
-          <Text>{record.objectType}</Text>
+          <Text strong>{projectionObjectLabel(record.objectType)}</Text>
           <Text type="secondary">{record.objectId}</Text>
         </Space>
       ),
@@ -167,9 +202,9 @@ export default function GraphExplore() {
       render: (_value, record) =>
         record.factKind === "EDGE" ? (
           <Space direction="vertical" size={0}>
-            <Text>{nullableText(record.subjectKey)}</Text>
-            <Text type="secondary">{nullableText(record.predicate)}</Text>
-            <Text>{nullableText(record.objectKey)}</Text>
+            <Text>{record.subjectKey}</Text>
+            <Text type="secondary">{projectionPredicateLabel(record.predicate)}</Text>
+            <Text>{record.objectKey}</Text>
           </Space>
         ) : (
           <Text type="secondary">节点</Text>
@@ -188,158 +223,229 @@ export default function GraphExplore() {
       render: (value: string) => <Text type="secondary">{formatDateTime(value)}</Text>,
     },
     {
-      title: "traceId",
+      title: "追踪号",
       dataIndex: "traceId",
       key: "traceId",
-      render: (value: string) => nullableText(value),
+      render: (value?: string | null) => value || "未返回",
     },
   ];
 
-  const loading =
-    consistencyQuery.isLoading ||
-    factsQuery.isLoading ||
-    (runtimeStatusEnabled && runtimeQuery.isLoading);
-  const hasError =
-    consistencyQuery.isError ||
-    factsQuery.isError ||
-    (runtimeStatusEnabled && runtimeQuery.isError);
+  if (securityQuery.isLoading) {
+    return (
+      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
+        <Spin aria-label="正在核验访问权限" />
+      </PageShell>
+    );
+  }
+
+  if (securityQuery.isError || !canRead) {
+    return (
+      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
+        <Result status="403" title="无权查看图谱投影" subTitle="需要图谱投影读取权限。" />
+      </PageShell>
+    );
+  }
+
+  if (factsQuery.isError) {
+    return (
+      <PageShell title="图谱查询" description="关系库权威源的可重建投影">
+        <Result
+          status="error"
+          title="投影事实读取失败"
+          subTitle="未使用本地演示数据替代真实结果。"
+          extra={
+            <Button type="primary" onClick={() => factsQuery.refetch()}>
+              重新读取
+            </Button>
+          }
+        />
+      </PageShell>
+    );
+  }
+
+  const graphTab = (
+    <div className={styles.workspaceGrid}>
+      <section className={styles.graphPane}>
+        {loading && facts.length === 0 ? (
+          <Spin aria-label="正在读取投影关系" />
+        ) : (
+          <ProjectionGraphCanvas
+            facts={facts}
+            selectedKey={selectedNodeKey}
+            onSelect={(nodeKey, fact) => {
+              setSelectedNodeKey(nodeKey);
+              setSelectedFact(fact ?? null);
+            }}
+          />
+        )}
+      </section>
+      <aside className={styles.detailPane}>
+        <Title level={5} className={styles.detailTitle}>
+          选中对象
+        </Title>
+        {selectedFact ? (
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="类型">
+              {projectionObjectLabel(selectedFact.objectType)}
+            </Descriptions.Item>
+            <Descriptions.Item label="对象标识">{selectedFact.objectId}</Descriptions.Item>
+            <Descriptions.Item label="关系">
+              {selectedFact.factKind === "EDGE"
+                ? projectionPredicateLabel(selectedFact.predicate)
+                : "节点"}
+            </Descriptions.Item>
+            <Descriptions.Item label="内容摘要">
+              {shortHash(selectedFact.contentHash)}
+            </Descriptions.Item>
+            <Descriptions.Item label="同步时间">
+              {formatDateTime(selectedFact.syncedAt)}
+            </Descriptions.Item>
+            <Descriptions.Item label="追踪号">{selectedFact.traceId || "未返回"}</Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择节点查看投影证据" />
+        )}
+      </aside>
+    </div>
+  );
+
+  const factsTab = (
+    <div className={styles.tableWrap}>
+      <Table
+        rowKey="factKey"
+        loading={factsQuery.isLoading}
+        columns={columns}
+        dataSource={facts}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="当前查询范围没有真实投影事实"
+            />
+          ),
+        }}
+        pagination={{
+          current: page,
+          pageSize: factsQuery.data?.size ?? 40,
+          total,
+          showSizeChanger: false,
+          showTotal: (count) => `共 ${count} 条投影事实`,
+          onChange: setPage,
+        }}
+      />
+    </div>
+  );
+
+  const consistencyTab = (
+    <>
+      <div className={styles.diffList}>
+        {diffPanel("关系库有、投影缺失", report?.missing ?? [])}
+        {diffPanel("投影多余", report?.extra ?? [])}
+        {diffPanel("内容已变化", report?.changed ?? [])}
+      </div>
+      {canRebuild && (
+        <div className={styles.rebuildRow}>
+          <Button
+            aria-label="重建投影"
+            icon={<SyncOutlined />}
+            loading={rebuildMutation.isPending}
+            onClick={handleRebuild}
+          >
+            重建投影
+          </Button>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <PageShell
       title="图谱查询"
-      description="查询关系库权威源生成的投影快照"
+      description="关系库权威源的可重建投影"
       extras={
-        <Button icon={<ReloadOutlined />} onClick={handleReload} loading={loading}>
-          刷新
-        </Button>
-      }
-      primary={
-        <Button
-          type="primary"
-          icon={<SyncOutlined />}
-          onClick={handleRebuild}
-          loading={rebuildMutation.isPending}
-        >
-          重建投影
-        </Button>
+        <Tooltip title="刷新当前结果">
+          <Button
+            aria-label="刷新当前结果"
+            icon={<ReloadOutlined />}
+            loading={loading}
+            onClick={handleReload}
+          />
+        </Tooltip>
       }
     >
-      <Space direction="vertical" size="large" className={styles.fullWidth}>
+      <div className={styles.pageStack}>
         <Alert
-          type={hasError ? "error" : "info"}
+          type={partial || report?.consistent === false ? "warning" : "info"}
           showIcon
           message={
-            hasError ? "投影状态读取失败" : (consistencyQuery.data?.message ?? "正在读取投影状态")
+            partial
+              ? "部分状态暂不可用"
+              : (runtimeQuery.data?.message ?? report?.message ?? "正在读取投影状态")
           }
           description={
-            (runtimeStatusEnabled ? runtimeQuery.data?.message : null) ??
-            "页面只展示关系库权威源派生的投影快照；外部图谱或模型未连接时不伪造查询结果。"
+            partial ? (
+              "真实投影事实仍可查询；一致性或运行状态暂未返回，未以本地数据补齐。"
+            ) : (
+              <Space direction="vertical" size={0}>
+                <Text>图谱仅用于探索关系库权威数据生成的可重建投影，不直接驱动临床决策。</Text>
+                {report?.message && <Text type="secondary">{report.message}</Text>}
+              </Space>
+            )
           }
         />
 
-        <Card>
-          <Space wrap className={styles.toolbar}>
-            <Space wrap>
-              <Select
-                aria-label="投影目标"
-                value={targetType}
-                options={targetOptions}
-                onChange={handleTargetChange}
-                className={styles.selectWide}
-              />
-              <Input.Search
-                allowClear
-                enterButton="检索"
-                prefix={<SearchOutlined />}
-                placeholder="输入 factKey、对象 ID、traceId 或关系谓词"
-                value={keywordInput}
-                onChange={(event) => setKeywordInput(event.target.value)}
-                onSearch={handleSearch}
-                className={styles.searchWide}
-              />
-            </Space>
-            <Text type="secondary">当前目标：{targetLabel(targetType)}</Text>
-          </Space>
-        </Card>
-
-        <div className={styles.statsGrid}>
-          <Card>
-            <Statistic
-              title="投影目标"
-              value={targetLabel(targetType)}
-              prefix={<ApartmentOutlined />}
-            />
-          </Card>
-          <Card>
-            <Statistic
-              title="源事实"
-              value={consistencyQuery.data?.sourceCount ?? 0}
-              prefix={<DatabaseOutlined />}
-            />
-          </Card>
-          <Card>
-            <Statistic
-              title="投影快照"
-              value={
-                consistencyQuery.data?.projectionCount ?? runtimeQuery.data?.snapshotCount ?? 0
-              }
-              prefix={<SafetyCertificateOutlined />}
-            />
-          </Card>
-          <Card>
-            <Statistic title="差异项" value={diffCount} prefix={<WarningOutlined />} />
-          </Card>
+        <div className={styles.queryBar}>
+          <Select
+            aria-label="投影目标"
+            value={targetType}
+            options={targetOptions}
+            onChange={handleTargetChange}
+          />
+          <Input
+            aria-label="实体、关系或追踪号"
+            allowClear
+            value={keywordInput}
+            placeholder="实体、关系、对象标识或追踪号"
+            onChange={(event) => setKeywordInput(event.target.value)}
+            onPressEnter={handleSearch}
+          />
+          <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+            查询
+          </Button>
         </div>
 
-        <Card title="一致性状态" extra={statusTag(consistencyQuery.data?.status)}>
-          <Space direction="vertical" size="small" className={styles.fullWidth}>
-            <Text>{consistencyQuery.data?.message ?? "正在读取一致性报告"}</Text>
-            <Space wrap>
-              <Tag>源摘要：{shortHash(consistencyQuery.data?.sourceHash)}</Tag>
-              <Tag>投影摘要：{shortHash(consistencyQuery.data?.projectionHash)}</Tag>
-              {targetType === "CLINICAL_GRAPH" && (
-                <Tag>运行状态：{runtimeQuery.data?.clinicalProjectionStatus ?? "未返回"}</Tag>
-              )}
-            </Space>
-            {diffCount > 0 && (
-              <Alert
-                type="warning"
-                showIcon
-                message={`缺失 ${consistencyQuery.data?.missing.length ?? 0} / 多余 ${
-                  consistencyQuery.data?.extra.length ?? 0
-                } / 变更 ${consistencyQuery.data?.changed.length ?? 0}`}
-              />
-            )}
-          </Space>
-        </Card>
-
-        <Card title="投影事实">
-          <div data-testid="projection-facts-table">
-            <Table
-              rowKey="factKey"
-              loading={factsQuery.isLoading}
-              columns={columns}
-              dataSource={facts}
-              locale={{
-                emptyText: (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="当前筛选范围暂无真实投影事实"
-                  />
-                ),
-              }}
-              pagination={{
-                current: page,
-                pageSize: factsQuery.data?.size ?? 20,
-                total,
-                showSizeChanger: false,
-                showTotal: (count) => `共 ${count} 条投影事实`,
-                onChange: (nextPage) => setPage(nextPage),
-              }}
-            />
+        <div className={styles.statusStrip}>
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>投影目标</span>
+            <span className={styles.statusValue}>{targetLabel(targetType)}</span>
           </div>
-        </Card>
-      </Space>
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>源事实</span>
+            <span className={styles.statusValue}>{report?.sourceCount ?? "未返回"}</span>
+          </div>
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>投影快照</span>
+            <span className={styles.statusValue}>
+              {report?.projectionCount ?? runtimeQuery.data?.snapshotCount ?? "未返回"}
+            </span>
+          </div>
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>一致性</span>
+            <span className={styles.statusValue}>
+              {statusTag(report?.status)} {diffCount > 0 ? `${diffCount} 项差异` : ""}
+            </span>
+          </div>
+        </div>
+
+        <Tabs
+          defaultActiveKey="graph"
+          items={[
+            { key: "graph", label: "关系图", children: graphTab },
+            { key: "facts", label: `事实明细 (${total})`, children: factsTab },
+            { key: "consistency", label: `一致性差异 (${diffCount})`, children: consistencyTab },
+          ]}
+        />
+      </div>
     </PageShell>
   );
 }
