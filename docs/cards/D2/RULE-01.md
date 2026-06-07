@@ -23,6 +23,7 @@
 - 进度（2026-06-02 PR3）：规则详情页补真实上下文快照选择器，按患者 / 就诊读取 ACTIVE 快照详情，用快照 `resources` 试运行，不再要求主流程人工粘贴 JSON；发布页签接入 `StepFlow` 7 步流、测试用例全绿提示、真实影响摘要 `impactDigest`、审核说明和高危发布门禁。
 - 进度（2026-06-03 D2 域级验收收口）：新增 `RelationalRuleImpactIndex` 关系库只读索引，按路径节点 / 边 JSON 中真实规则引用定位路径模板，按患者路径运行实例定位在径患者，按配置包条目 → 发布计划 → 同步日志 → 同步目标定位发布同步目标；规则发布页展示三类真实对象，`DEFER-012` 已关闭。
 - 进度（2026-06-07 P7-1）：规则动作统一为闭集动作码与结构化卡片，前后端共用 `indicator/source/suggestions/overrideReasons` 契约；高危、阻断、强提醒和建议医嘱强制医师确认，不生成自动医嘱。
+- 进度（2026-06-07 P7-2）：规则定义补齐优先级、抑制关系和同患者去重窗口；发布前静态检测冲突与非法抑制，运行期按优先级求值并持久化抑制/去重证据；人工继续必须有权限、理由和审计记录。规则边界只接受六个标准触发值，发布统一复用版本服务的灰度范围。
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 三层配置**：L1 从模板实例化；L2 可视化条件树（与/或/比较/分组）双向 ↔ L3 DSL；三层产出**同一 `RuleDefinition`**，互转无损。
@@ -32,10 +33,11 @@
 - [x] **FR-5 7 步流发布**：选模板/导入 → 自动校验 → 看影响 → 提交审核 → 灰度（10%）→ 全量 → 留证据/可回滚（核心 §4，[SYS-04](SYS-04.md)）。
 - [x] **FR-6 发布门禁**：高危规则（`RuleRiskLevel=HIGH`）无测试病例/无影响分析/无审核 → **拒绝发布**（详规 §4.7 / 核心 §13）。
 - [x] **FR-7 分级动作卡**：支持多动作、来源、建议项和覆盖理由；运行结果输出 CDS Hooks 卡片，高危动作强制医师确认。
+- [x] **FR-8 交互治理**：支持执行优先级、规则抑制、同患者窗口去重、发布前静态冲突检测和人工继续理由留痕；被抑制/去重结果不重复返回动作。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：执行/仿真/测试能力，REST 客户面在 [API-05](API-05.md)。`RuleDslEvaluator` 求值入参为标准上下文快照。
+- 端点：执行/仿真/测试能力，REST 客户面在 [API-05](API-05.md)；人工继续使用 `POST /api/v1/engine/rule/rules/executions/{executionId}/override`。`RuleDslEvaluator` 求值入参为标准上下文快照。
 - DTO：复用 `RuleDefinition`/`RuleVersion`/`RuleTestCase`/`RuleSimulateRequest`/`RuleActionResult`。
 - 状态机：规则版本走核心 §3 配置类 + 变更类（发布 [SYS-04](SYS-04.md)）；**禁自创**。
 - 幂等 / 错误码 / traceId：高危无测试病例发布 → `ENG-RULE-004`；DSL 语法错 → `ENG-RULE-001` + 行列；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -47,7 +49,7 @@
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码 hex/px。
 
 ## 数据与迁移
-- 表族（已有）：`rule_definition`/`rule_version`/`rule_test_case`/`rule_execution_log`；本卡补发布/仿真关联字段 + 测试病例必填门禁。
+- 表族：`rule_definition`/`rule_version`/`rule_test_case`/`rule_execution_log`/`rule_override_log`；规则定义持久化优先级、抑制关系与去重窗口，执行日志持久化患者/就诊/语义键、抑制或去重来源，人工继续独立留痕。
 - 主键 ULID；唯一约束：`(rule_identity, org_scope, version)` ACTIVE 唯一（经 [SYS-04](SYS-04.md)）；索引：`status`、`risk_level`、`org_path`。
 - 5 方言迁移一致 + 中文注释。
 
@@ -73,13 +75,14 @@
 - [x] **AC-2（FR-2/3）**：挂阳/阴/边界/冲突用例 → 求值结果符合预期且可解释；用例不全绿 → 不可发布。
 - [x] **AC-3（FR-4）**：仿真选真实快照跑规则 → 命中与解释正确、不写库不发提醒。
 - [x] **AC-4（FR-5/6）**：7 步流发布；高危规则无测试病例点发布 → `ENG-RULE-004`；当前规则影响摘要门禁已闭环，跨域真实影响索引返回路径模板、在径患者和同步目标，灰度 / 全量 / 回滚通用框架按 [SYS-04](SYS-04.md) 复用。
+- [x] **AC-5（FR-8）**：互斥或非法抑制关系发布前被拒；真实规则首次执行返回动作、窗口内再次执行标记去重且关联首次执行；有权角色填写理由后可人工继续并写入审计，未授权角色拒绝。
 - 关联 A1–A9 剧本：A3 规则配置、A4 发布回滚。
 - T-GATE：前后端真实性门禁按本分支提交后 changed-mode 与脚本测试执行，证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)；仿真非造数、无写死常量、高危门禁保持为不可回退红线。
 - B0 验收：三层配置 + 确定性执行，**天然 B0**；关模型行为不变。
 
 ## 完工证据
 - 代码 permalink：三层编辑器前端 + `RuleDslEvaluator` 接 [API-01](API-01.md) + 仿真真实快照选择器 + 7 步流发布页签 + 影响摘要门禁。
-- 测试：三层互转测试 + 阳阴边界冲突用例 + 仿真真实快照测试 + 高危影响摘要门禁测试 + `RelationalRuleImpactIndexTest` / `RelationalRuleImpactIndexRepositoryTest` 规则跨域影响索引测试；通用灰度 / 全量 / 回滚 E2E 归 [SYS-04](SYS-04.md) 域级收口。
+- 测试：三层互转测试 + 阳阴边界冲突用例 + 仿真真实快照测试 + 高危影响摘要门禁测试 + 优先级/抑制/持久化去重/人工继续权限与理由测试 + `RelationalRuleImpactIndexTest` / `RelationalRuleImpactIndexRepositoryTest` 规则跨域影响索引测试；通用灰度 / 全量 / 回滚 E2E 归 [SYS-04](SYS-04.md) 域级收口。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（12d，后端 + 三层前端；按 PR 拆分）

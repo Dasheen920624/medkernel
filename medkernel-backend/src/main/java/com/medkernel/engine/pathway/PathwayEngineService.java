@@ -379,7 +379,7 @@ public class PathwayEngineService {
             assetVersion.versionId(),
             releaseOrgScope(template),
             releaseApplicableScope(template),
-            VersionReleaseScopeType.HOSPITAL,
+            null,
             null,
             impact.impactDigest(),
             releaseReason(request, "路径发布门禁通过"),

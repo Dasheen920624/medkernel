@@ -337,7 +337,7 @@ class RecommendationDeterministicMatcherTest {
         return new RuleDefinition(
             1L, "rule-risk", "tenant-A", "RISK_GENDER", "性别风险评估",
             RuleType.DIAGNOSIS, RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM,
-            RuleDefinitionStatus.PUBLISHED, "rv-risk-v1", "rule-1", "dept-1",
+            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-risk-v1", "rule-1", "dept-1",
             now, "tester", now, "tester", "trace-cdss");
     }
 
@@ -370,7 +370,7 @@ class RecommendationDeterministicMatcherTest {
         return new RuleDefinition(
             2L, "rule-platform-risk", "t-1", "RISK_GENDER", "性别风险评估",
             RuleType.DIAGNOSIS, RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM,
-            RuleDefinitionStatus.PUBLISHED, "rv-platform-risk-v1", "rule-platform-package", "dept-1",
+            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-platform-risk-v1", "rule-platform-package", "dept-1",
             now, "tester", now, "tester", "trace-cdss");
     }
 

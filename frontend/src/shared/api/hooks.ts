@@ -2400,6 +2400,9 @@ export interface RuleDefinition {
   ruleType: RuleType;
   authoringMode: "DSL" | "VISUAL" | string;
   riskLevel: RuleRiskLevel;
+  priority: number;
+  suppressedBy?: string | null;
+  dedupeWindowSeconds: number;
   status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
   activeVersionId: string | null;
   packageVersion?: string | null;
@@ -2464,6 +2467,9 @@ export interface RuleEvaluationItem {
   severity: RuleRiskLevel | null;
   actions: RuleActionResult[];
   explanation: unknown;
+  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  suppressedBy?: string | null;
+  deduplicatedFromExecutionId?: string | null;
 }
 
 export interface RuleActionResult {
@@ -2571,7 +2577,7 @@ export interface RuleExplanationResponse {
   severity: RuleRiskLevel | string | null;
   actions?: unknown;
   explanation?: unknown;
-  status: "SUCCESS" | "FAILED" | string;
+  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
   traceId: string;
 }
 
@@ -2582,7 +2588,7 @@ export interface RuleExecutionSummary {
   triggerPoint: string;
   hit: boolean;
   severity: RuleRiskLevel | string | null;
-  status: "SUCCESS" | "MISS" | "FAILED" | string;
+  status: "SUCCESS" | "MISS" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
   executedAt: string;
   traceId: string;
 }
@@ -2654,6 +2660,9 @@ export function useCreateRule() {
       ruleType: RuleType;
       authoringMode: string;
       riskLevel: string;
+      priority: number;
+      suppressedBy?: string;
+      dedupeWindowSeconds: number;
       packageVersion: string;
       sourceRef: string;
       changeSummary: string;
@@ -2668,6 +2677,34 @@ export function useCreateRule() {
           security.data,
           packageVersion,
         ),
+      );
+      return data.data;
+    },
+  });
+}
+
+export interface RuleOverrideResponse {
+  overrideId: string;
+  executionId: string;
+  ruleId: string;
+  actionCode: "BLOCK" | "STRONG_REMINDER";
+  reason: string;
+  overriddenBy: string;
+  overriddenAt: string;
+  traceId: string;
+}
+
+export function useCaptureRuleOverride() {
+  return useMutation({
+    mutationFn: async (payload: {
+      executionId: string;
+      actionCode: "BLOCK" | "STRONG_REMINDER";
+      reason: string;
+    }) => {
+      const { executionId, ...request } = payload;
+      const { data } = await apiClient.post<{ data: RuleOverrideResponse }>(
+        `/engine/rule/rules/executions/${executionId}/override`,
+        request,
       );
       return data.data;
     },

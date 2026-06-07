@@ -103,7 +103,7 @@ class RelationalRuleImpactIndexTest {
         return new RuleDefinition(
             1L, "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示",
             RuleType.ORDER, RuleAuthoringMode.DSL, RuleRiskLevel.HIGH,
-            RuleDefinitionStatus.DRAFT, "version-1", "rpv-1", "dept-1",
+            100, null, 0, RuleDefinitionStatus.DRAFT, "version-1", "rpv-1", "dept-1",
             now, "tester", now, "tester", "trace-rule");
     }
 
@@ -112,7 +112,7 @@ class RelationalRuleImpactIndexTest {
         return new RuleVersion(
             1L, "version-1", "tenant-A", "rule-1", 1,
             "院内抗凝用药管理规范 2026", "初始版本",
-            "{\"trigger\":\"ORDER_SIGN\",\"when\":{},\"then\":[],\"explain\":{}}",
+            "{\"trigger\":\"order-sign\",\"when\":{},\"then\":[],\"explain\":{}}",
             "{}", RuleVersionStatus.DRAFT, null, null, null,
             now, "tester", now, "tester", "trace-rule");
     }

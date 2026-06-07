@@ -3,6 +3,7 @@ package com.medkernel.engine.rule;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,13 +35,23 @@ class RuleRepositoryTest {
     @Autowired RuleVersionRepository versions;
     @Autowired RuleTestCaseRepository testCases;
     @Autowired RuleExecutionLogRepository executions;
+    @Autowired RuleOverrideLogRepository overrides;
 
     @AfterEach
     void wipe() {
+        overrides.deleteAll();
         executions.deleteAll();
         testCases.deleteAll();
         versions.deleteAll();
         definitions.deleteAll();
+    }
+
+    @Test
+    void ruleDefinitionExposesInteractionGovernanceFields() {
+        assertThat(Arrays.stream(RuleDefinition.class.getRecordComponents())
+            .map(component -> component.getName())
+            .toList())
+            .contains("priority", "suppressedBy", "dedupeWindowSeconds");
     }
 
     @Test
@@ -79,6 +90,43 @@ class RuleRepositoryTest {
     }
 
     @Test
+    void findsRecentSuccessfulExecutionByPatientAndSemanticKey() {
+        String ruleId = "rule-" + UUID.randomUUID();
+        String versionId = "rv-" + UUID.randomUUID();
+        String executionId = "rex-" + UUID.randomUUID();
+        definitions.save(sampleRule(ruleId, "tenant-A", "RULE.ANTICOAG"));
+        versions.save(sampleVersion(versionId, "tenant-A", ruleId));
+        executions.save(sampleExecution(executionId, "tenant-A", ruleId, versionId));
+
+        Optional<RuleExecutionLog> recent = executions.findRecentSuccessful(
+            "tenant-A", "MPI-1", "RULE.ANTICOAG:STRONG_REMINDER",
+            Instant.now().minusSeconds(60));
+
+        assertThat(recent).isPresent();
+        assertThat(recent.orElseThrow().executionId()).isEqualTo(executionId);
+    }
+
+    @Test
+    void persistsOverrideAgainstRealExecution() {
+        String ruleId = "rule-" + UUID.randomUUID();
+        String versionId = "rv-" + UUID.randomUUID();
+        String executionId = "rex-" + UUID.randomUUID();
+        definitions.save(sampleRule(ruleId, "tenant-A", "RULE.ANTICOAG"));
+        versions.save(sampleVersion(versionId, "tenant-A", ruleId));
+        executions.save(sampleExecution(executionId, "tenant-A", ruleId, versionId));
+        Instant now = Instant.now();
+
+        RuleOverrideLog saved = overrides.save(new RuleOverrideLog(
+            null, "rov-" + UUID.randomUUID(), "tenant-A", executionId, ruleId, versionId,
+            "MPI-1", "ENC-1", RuleActionCode.STRONG_REMINDER, "已完成临床复核",
+            "doctor-1", now, now, "trace-rule"));
+
+        assertThat(saved.id()).isNotNull();
+        assertThat(overrides.findByTenantIdAndExecutionIdAndActionCode(
+            "tenant-A", executionId, RuleActionCode.STRONG_REMINDER)).isPresent();
+    }
+
+    @Test
     void pagesRulesByStatusTypeAndRisk() {
         definitions.save(sampleRule("rule-low", "tenant-A", "RULE.LOW"));
         definitions.save(sampleRule("rule-high", "tenant-A", "RULE.HIGH"));
@@ -96,7 +144,7 @@ class RuleRepositoryTest {
         Instant now = Instant.now();
         return new RuleDefinition(
             null, ruleId, tenantId, ruleCode, "抗凝风险提示", RuleType.ORDER,
-            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, RuleDefinitionStatus.DRAFT,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, RuleDefinitionStatus.DRAFT,
             null, "rpv-1", "dept-1", now, "tester", now, "tester", "trace-rule");
     }
 
@@ -104,7 +152,7 @@ class RuleRepositoryTest {
         Instant now = Instant.now();
         return new RuleVersion(
             null, versionId, tenantId, ruleId, 1, "院内抗凝用药管理规范 2026",
-            "初始版本", "{\"trigger\":\"ORDER_SIGN\",\"when\":{\"all\":[]},\"then\":[],\"explain\":{}}",
+            "初始版本", "{\"trigger\":\"order-sign\",\"when\":{\"all\":[]},\"then\":[],\"explain\":{}}",
             "{\"title\":\"抗凝风险提示\"}", RuleVersionStatus.DRAFT,
             null, null, null, now, "tester", now, "tester", "trace-rule");
     }
@@ -120,9 +168,10 @@ class RuleRepositoryTest {
     private RuleExecutionLog sampleExecution(String executionId, String tenantId, String ruleId, String versionId) {
         Instant now = Instant.now();
         return new RuleExecutionLog(
-            null, executionId, tenantId, ruleId, versionId, "ORDER_SIGN", "evt-1", "tester",
-            "sha256:abc", true, RuleRiskLevel.HIGH, "[{\"actionCode\":\"STRONG_REMINDER\"}]",
+            null, executionId, tenantId, ruleId, versionId, "order-sign", "evt-1", "tester",
+            "MPI-1", "ENC-1", "RULE.ANTICOAG:STRONG_REMINDER", "sha256:abc", true,
+            RuleRiskLevel.HIGH, "[{\"actionCode\":\"STRONG_REMINDER\"}]",
             "{\"title\":\"抗凝风险提示\"}", RuleExecutionStatus.SUCCESS,
-            null, null, now, now, "trace-rule");
+            null, null, null, now, now, "trace-rule");
     }
 }

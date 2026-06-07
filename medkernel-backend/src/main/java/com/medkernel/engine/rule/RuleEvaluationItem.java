@@ -14,7 +14,10 @@ public record RuleEvaluationItem(
     boolean hit,
     RuleRiskLevel severity,
     List<RuleActionResult> actions,
-    JsonNode explanation
+    JsonNode explanation,
+    RuleExecutionStatus status,
+    String suppressedBy,
+    String deduplicatedFromExecutionId
 ) {
     public RuleEvaluationItem {
         actions = actions == null ? List.of() : List.copyOf(actions);

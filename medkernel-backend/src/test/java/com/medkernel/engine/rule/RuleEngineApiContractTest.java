@@ -1,6 +1,7 @@
 package com.medkernel.engine.rule;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -64,7 +65,7 @@ class RuleEngineApiContractTest {
                       "ruleType": "ORDER",
                       "sourceRef": "院内抗凝用药管理规范 2026",
                       "dsl": {
-                        "trigger": "ORDER_SIGN",
+                        "trigger": "order-sign",
                         "when": {"all": []},
                         "then": [],
                         "explain": {"title": "抗凝风险提示"}
@@ -136,7 +137,7 @@ class RuleEngineApiContractTest {
     @Test
     void explainEndpointUsesCustomerRouteAndTenantScope() throws Exception {
         when(service.explain("rex-1")).thenReturn(new RuleExplanationResponse(
-            "rex-1", "rule-1", "version-1", "ORDER_SIGN", "evt-1", "sha256:abc",
+            "rex-1", "rule-1", "version-1", "order-sign", "evt-1", "sha256:abc",
             true, RuleRiskLevel.HIGH, read("[{\"actionCode\":\"STRONG_REMINDER\"}]"),
             evidenceExplanation(), RuleExecutionStatus.SUCCESS, "trace-rule"));
 
@@ -151,7 +152,8 @@ class RuleEngineApiContractTest {
     @Test
     void evaluateEndpointReturnsConditionEvidenceInExplanation() throws Exception {
         RuleEvaluationItem item = new RuleEvaluationItem(
-            "rex-1", "rule-1", "version-1", true, RuleRiskLevel.HIGH, List.of(), evidenceExplanation());
+            "rex-1", "rule-1", "version-1", true, RuleRiskLevel.HIGH, List.of(),
+            evidenceExplanation(), RuleExecutionStatus.SUCCESS, null, null);
         CdsHookCard card = new CdsHookCard(
             "rex-1-action-1",
             "高风险规则命中",
@@ -178,7 +180,7 @@ class RuleEngineApiContractTest {
                       "user_id": "api05-doctor",
                       "role_codes": ["doctor"],
                       "package_version": "pkg-1",
-                      "triggerPoint": "ORDER_SIGN",
+                      "triggerPoint": "order-sign",
                       "contextSnapshotId": "snapshot-1",
                       "eventId": "evt-1",
                       "ruleIds": ["rule-1"]
@@ -193,6 +195,24 @@ class RuleEngineApiContractTest {
             .andExpect(jsonPath("$.data.cards[0].suggestions[0].payload.department")
                 .value("CARDIOLOGY"))
             .andExpect(jsonPath("$.data.cards[0].requiresPhysicianConfirmation").value(true));
+    }
+
+    @Test
+    void overrideEndpointReturnsPersistedClinicalReason() throws Exception {
+        when(service.captureOverride(eq("rex-1"), any(RuleOverrideRequest.class)))
+            .thenReturn(new RuleOverrideResponse(
+                "rov-1", "rex-1", "rule-1", RuleActionCode.BLOCK,
+                "已完成临床复核", "doctor-1", java.time.Instant.parse("2026-06-07T08:00:00Z"),
+                "trace-rule"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
+                .with(readJwt())
+                .contentType("application/json")
+                .content("{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.overrideId").value("rov-1"))
+            .andExpect(jsonPath("$.data.reason").value("已完成临床复核"));
     }
 
     private static RequestPostProcessor readJwt() {

@@ -1361,7 +1361,7 @@ describe("package export api helpers", () => {
           executionId: "rex-1",
           ruleId: "rule-1",
           versionId: "rv-1",
-          triggerPoint: "ORDER_SIGN",
+          triggerPoint: "order-sign",
           hit: true,
           severity: "HIGH",
           status: "SUCCESS",

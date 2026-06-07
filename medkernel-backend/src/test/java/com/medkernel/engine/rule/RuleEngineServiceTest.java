@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +34,7 @@ import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionReleaseStatus;
@@ -64,6 +66,7 @@ class RuleEngineServiceTest {
     private RuleVersionRepository versions;
     private RuleTestCaseRepository testCases;
     private RuleExecutionLogRepository executions;
+    private RuleOverrideLogRepository overrides;
     private AuditRecorder auditRecorder;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
@@ -81,6 +84,7 @@ class RuleEngineServiceTest {
         versions = mock(RuleVersionRepository.class);
         testCases = mock(RuleTestCaseRepository.class);
         executions = mock(RuleExecutionLogRepository.class);
+        overrides = mock(RuleOverrideLogRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
@@ -92,7 +96,7 @@ class RuleEngineServiceTest {
         json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new RuleEngineService(
-            definitions, versions, testCases, executions,
+            definitions, versions, testCases, executions, overrides,
             new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
@@ -101,6 +105,7 @@ class RuleEngineServiceTest {
         when(versions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(testCases.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(executions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(overrides.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
             "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1", AssetVersionStatus.DRAFT));
         when(versionedAssets.updateDraft(any())).thenReturn(assetVersion(
@@ -154,6 +159,21 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void createRuleRejectsLegacyTriggerEnumName() {
+        JsonNode legacyDsl = dsl().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) legacyDsl).put("trigger", "ORDER_SIGN");
+
+        assertThatThrownBy(() -> service.createRule(new RuleCreateRequest(
+            "RULE.LEGACY.TRIGGER", "旧触发点规则", RuleType.ORDER, RuleAuthoringMode.DSL,
+            RuleRiskLevel.MEDIUM, "rpv-1", "dept-1", "规则触发点契约",
+            "拒绝旧枚举名", legacyDsl, legacyDsl.path("explain"))))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("触发点必须使用客户面编码")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_001);
+    }
+
+    @Test
     void updateRuleUpdatesTheRegisteredUnifiedVersionContent() throws Exception {
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
@@ -168,7 +188,7 @@ class RuleEngineServiceTest {
         service.updateRule("rule-1", new RuleUpdateRequest(
             null, null, null, null, null, null, null, null, null, null,
             List.of(), "rpv-1", "RULE.ANTICOAG", "抗凝风险提示", RuleType.ORDER,
-            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, "dept-1",
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, "dept-1",
             "院内抗凝用药管理规范 2026", "更新解释", updatedDsl, updatedDsl.path("explain")
         ));
 
@@ -319,12 +339,113 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void publishRejectsStaticConflictWithPublishedRuleBeforeStateChange() {
+        RuleDefinition draft = existingRule(RuleDefinitionStatus.DRAFT);
+        RuleDefinition published = governedRule(
+            "rule-existing", "RULE.EXISTING", "version-existing", 100, null, 0);
+        RuleVersion candidateVersion = ruleVersionWithAction(
+            "version-1", "rule-1", RuleVersionStatus.DRAFT, "BLOCK");
+        RuleVersion existingVersion = ruleVersionWithAction(
+            "version-existing", "rule-existing", RuleVersionStatus.PUBLISHED, "REMIND");
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(draft));
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(published));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(candidateVersion));
+        when(versions.findByVersionIdAndTenantId("version-existing", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.publish(
+                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("RULE.EXISTING")
+            .hasMessageContaining("patient.age")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_004);
+
+        verify(definitions, org.mockito.Mockito.never()).save(any());
+        verify(versions, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void publishRejectsSuppressionSourceThatIsNotHigherPriority() {
+        RuleDefinition draft = governedRule(
+            "rule-1", "RULE.ANTICOAG", "version-1", 200, "RULE.LOW", 0,
+            RuleDefinitionStatus.DRAFT);
+        RuleDefinition lowerPriority = governedRule(
+            "rule-low", "RULE.LOW", "version-low", 100, null, 0);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(draft));
+        when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.LOW"))
+            .thenReturn(Optional.of(lowerPriority));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+        when(versions.findByVersionIdAndTenantId("version-low", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-low", "tenant-A", "rule-low", RuleVersionStatus.PUBLISHED)));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.publish(
+                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("优先级必须高于")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_004);
+    }
+
+    @Test
+    void publishRejectsMissingSuppressionSource() {
+        RuleDefinition draft = governedRule(
+            "rule-1", "RULE.ANTICOAG", "version-1", 100, "RULE.MISSING", 0,
+            RuleDefinitionStatus.DRAFT);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(draft));
+        when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.MISSING"))
+            .thenReturn(Optional.empty());
+        when(definitions.findByTenantIdAndRuleCode("t-1", "RULE.MISSING"))
+            .thenReturn(Optional.empty());
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.DRAFT)));
+        when(testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc("version-1", "tenant-A"))
+            .thenReturn(List.of(
+                testCase(RuleTestCaseType.POSITIVE, true, hitContext()),
+                testCase(RuleTestCaseType.NEGATIVE, false, missContext()),
+                testCase(RuleTestCaseType.BOUNDARY, true, boundaryContext()),
+                testCase(RuleTestCaseType.CONFLICT, false, missContext())
+            ));
+        RuleImpactResponse impact = service.impact("rule-1");
+
+        assertThatThrownBy(() -> service.publish(
+                "rule-1", new RulePublishRequest(impact.impactDigest(), "已核查影响摘要")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("抑制来源规则不存在或尚未发布")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_004);
+    }
+
+    @Test
     void publishUsesPreRegisteredUnifiedVersionReleasePlan() {
         RuleVersionedAssetAdapter versionedAssets = mock(RuleVersionedAssetAdapter.class);
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
         ReleasePort releasePort = mock(ReleasePort.class);
         RuleEngineService unifiedService = new RuleEngineService(
-            definitions, versions, testCases, executions,
+            definitions, versions, testCases, executions, overrides,
             new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
@@ -364,7 +485,11 @@ class RuleEngineServiceTest {
         verify(versionedAssets, org.mockito.Mockito.never()).registerDraft(any());
         verify(releasePort).submitForReview(any());
         verify(releasePort).approveForSilentObservation(any());
-        verify(releasePort).releaseGray(any());
+        ArgumentCaptor<VersionReleaseCommand> releaseCommand =
+            ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).releaseGray(releaseCommand.capture());
+        assertThat(releaseCommand.getValue().scopeType()).isNull();
+        assertThat(releaseCommand.getValue().scopeValue()).isNull();
     }
 
     @Test
@@ -440,7 +565,7 @@ class RuleEngineServiceTest {
     void publishFailsWhenTerminologyCoverageHasUnmappedCode() {
         TerminologyCoverageGate coverageGate = mock(TerminologyCoverageGate.class);
         RuleEngineService gatedService = new RuleEngineService(
-            definitions, versions, testCases, executions,
+            definitions, versions, testCases, executions, overrides,
             new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
@@ -500,7 +625,7 @@ class RuleEngineServiceTest {
             .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
         stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-1", List.of("rule-1"));
+            "order-sign", hitContext(), "evt-1", List.of("rule-1"));
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.highestSeverity()).isEqualTo(RuleRiskLevel.HIGH);
@@ -538,7 +663,7 @@ class RuleEngineServiceTest {
         when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
 
         RuleEvaluateResponse response = service.evaluate(new RuleEvaluateRequest(
-            "ORDER_SIGN", "snapshot-1", "evt-1", List.of()));
+            "order-sign", "snapshot-1", "evt-1", List.of()));
 
         assertThat(response.items()).isEmpty();
         verify(contextSnapshots).findById("snapshot-1");
@@ -557,7 +682,7 @@ class RuleEngineServiceTest {
                 AssetVersionStatus.PUBLISHED)));
 
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-reviewed", List.of("rule-1"));
+            "order-sign", hitContext(), "evt-reviewed", List.of("rule-1"));
 
         assertThat(response.items()).isEmpty();
         verify(executions, org.mockito.Mockito.never()).save(any());
@@ -567,7 +692,7 @@ class RuleEngineServiceTest {
     void evaluateSpecifiedRuleUsesInheritanceResolvedVersionForCurrentDepartment() {
         InheritanceResolver resolver = mock(InheritanceResolver.class);
         RuleEngineService inheritedService = new RuleEngineService(
-            definitions, versions, testCases, executions,
+            definitions, versions, testCases, executions, overrides,
             new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, resolver, contextSnapshots);
@@ -592,7 +717,7 @@ class RuleEngineServiceTest {
         stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "2", AssetVersionStatus.ACTIVE);
 
         RuleEvaluateResponse response = inheritedService.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-effective", List.of("rule-1"));
+            "order-sign", hitContext(), "evt-effective", List.of("rule-1"));
 
         assertThat(response.items()).singleElement()
             .extracting(RuleEvaluationItem::versionId)
@@ -626,7 +751,7 @@ class RuleEngineServiceTest {
         stubRuleAssetStatus("t-1", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
 
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-explicit-platform", List.of("rule-platform"));
+            "order-sign", hitContext(), "evt-explicit-platform", List.of("rule-platform"));
 
         assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
             .containsExactly("rule-platform");
@@ -645,7 +770,7 @@ class RuleEngineServiceTest {
         stubRuleAssetStatus("t-1", "RULE.PLATFORM.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
 
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-platform", List.of());
+            "order-sign", hitContext(), "evt-platform", List.of());
 
         assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
             .containsExactly("rule-platform");
@@ -676,7 +801,7 @@ class RuleEngineServiceTest {
         stubRuleAssetStatus("t-1", "RULE.DVT", "1", AssetVersionStatus.ACTIVE);
 
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-merge", List.of());
+            "order-sign", hitContext(), "evt-merge", List.of());
 
         assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
             .containsExactly("rule-local", "rule-platform-dvt");
@@ -706,19 +831,124 @@ class RuleEngineServiceTest {
         stubRuleAssetStatus("t-1", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
 
         RuleEvaluateResponse response = service.evaluateContext(
-            "ORDER_SIGN", hitContext(), "evt-platform-until-local-active", List.of());
+            "order-sign", hitContext(), "evt-platform-until-local-active", List.of());
 
         assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
             .containsExactly("rule-platform");
     }
 
     @Test
+    void evaluateRunsHigherPriorityFirstAndRecordsExplicitSuppression() {
+        RuleDefinition high = governedRule(
+            "rule-high", "RULE.HIGH", "version-high", 900, null, 0);
+        RuleDefinition low = governedRule(
+            "rule-low", "RULE.LOW", "version-low", 100, "RULE.HIGH", 0);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(low, high));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-high", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-high", "tenant-A", "rule-high", RuleVersionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-low", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-low", "tenant-A", "rule-low", RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.HIGH", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAssetStatus("tenant-A", "RULE.LOW", "1", AssetVersionStatus.ACTIVE);
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContextWithPatient(), "evt-priority", List.of());
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
+            .containsExactly("rule-high", "rule-low");
+        assertThat(response.items()).extracting(RuleEvaluationItem::status)
+            .containsExactly(RuleExecutionStatus.SUCCESS, RuleExecutionStatus.SUPPRESSED);
+        assertThat(response.items().get(1).suppressedBy()).isEqualTo("RULE.HIGH");
+        assertThat(response.items().get(1).actions()).isEmpty();
+        assertThat(response.cards()).hasSize(1);
+        assertThat(response.highestSeverity()).isEqualTo(RuleRiskLevel.HIGH);
+
+        ArgumentCaptor<RuleExecutionLog> logs = ArgumentCaptor.forClass(RuleExecutionLog.class);
+        verify(executions, org.mockito.Mockito.times(2)).save(logs.capture());
+        assertThat(logs.getAllValues()).extracting(RuleExecutionLog::status)
+            .containsExactly(RuleExecutionStatus.SUCCESS, RuleExecutionStatus.SUPPRESSED);
+    }
+
+    @Test
+    void evaluateKeepsLowerRuleSuppressedWhenHigherRuleIsDeduplicated() {
+        RuleDefinition high = governedRule(
+            "rule-high", "RULE.HIGH", "version-high", 900, null, 120);
+        RuleDefinition low = governedRule(
+            "rule-low", "RULE.LOW", "version-low", 100, "RULE.HIGH", 0);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(low, high));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-high", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-high", "tenant-A", "rule-high", RuleVersionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-low", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-low", "tenant-A", "rule-low", RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.HIGH", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAssetStatus("tenant-A", "RULE.LOW", "1", AssetVersionStatus.ACTIVE);
+        when(executions.findRecentSuccessful(
+            eq("tenant-A"), eq("MPI-1"), eq("RULE.HIGH:STRONG_REMINDER"), any(Instant.class)))
+            .thenReturn(Optional.of(executionLog(
+                "rex-first", "rule-high", "version-high", RuleExecutionStatus.SUCCESS,
+                "MPI-1", "RULE.HIGH:STRONG_REMINDER", null,
+                Instant.now().minus(30, ChronoUnit.SECONDS))));
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContextWithPatient(), "evt-repeat-priority", List.of());
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::status)
+            .containsExactly(RuleExecutionStatus.DEDUPLICATED, RuleExecutionStatus.SUPPRESSED);
+        assertThat(response.items().get(1).suppressedBy()).isEqualTo("RULE.HIGH");
+        assertThat(response.cards()).isEmpty();
+    }
+
+    @Test
+    void evaluateDeduplicatesSamePatientAndSemanticActionWithinConfiguredWindow() {
+        RuleDefinition rule = governedRule(
+            "rule-1", "RULE.ANTICOAG", "version-1", 100, null, 120);
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(rule));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.ACTIVE);
+        RuleExecutionLog first = executionLog(
+            "rex-first", "rule-1", "version-1", RuleExecutionStatus.SUCCESS,
+            "MPI-1", "RULE.ANTICOAG:STRONG_REMINDER", null,
+            Instant.now().minus(30, ChronoUnit.SECONDS));
+        when(executions.findRecentSuccessful(
+            eq("tenant-A"), eq("MPI-1"), eq("RULE.ANTICOAG:STRONG_REMINDER"), any(Instant.class)))
+            .thenReturn(Optional.of(first));
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContextWithPatient(), "evt-repeat", List.of("rule-1"));
+
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.hit()).isTrue();
+            assertThat(item.status()).isEqualTo(RuleExecutionStatus.DEDUPLICATED);
+            assertThat(item.deduplicatedFromExecutionId()).isEqualTo("rex-first");
+            assertThat(item.actions()).isEmpty();
+        });
+        assertThat(response.cards()).isEmpty();
+        assertThat(response.highestSeverity()).isNull();
+
+        ArgumentCaptor<RuleExecutionLog> log = ArgumentCaptor.forClass(RuleExecutionLog.class);
+        verify(executions).save(log.capture());
+        assertThat(log.getValue().status()).isEqualTo(RuleExecutionStatus.DEDUPLICATED);
+        assertThat(log.getValue().deduplicatedFromExecutionId()).isEqualTo("rex-first");
+        assertThat(log.getValue().patientId()).isEqualTo("MPI-1");
+        assertThat(log.getValue().encounterId()).isEqualTo("ENC-1");
+    }
+
+    @Test
     void diagnoseAssemblesFromExecutionLog() {
         RuleExecutionLog execution = new RuleExecutionLog(
-            1L, "rex-1", "tenant-A", "rule-1", "version-1", "ORDER_SIGN",
-            "evt-1", "tester", "sha256:abc", true, RuleRiskLevel.HIGH,
+            1L, "rex-1", "tenant-A", "rule-1", "version-1", "order-sign",
+            "evt-1", "tester", "MPI-1", "ENC-1", "RULE.ANTICOAG:STRONG_REMINDER",
+            "sha256:abc", true, RuleRiskLevel.HIGH,
             "[]", "{\"title\":\"抗凝风险提示\"}", RuleExecutionStatus.SUCCESS,
-            null, null, Instant.now(), Instant.now(), "trace-rule");
+            null, null, null, Instant.now(), Instant.now(), "trace-rule");
         DiagnoseResponse expected = new DiagnoseResponse(
             "rule_execution", "rex-1", "tenant-A", "SUCCESS",
             execution, List.of(), List.of(), Map.of(), null, "trace-rule", null);
@@ -744,10 +974,11 @@ class RuleEngineServiceTest {
     @Test
     void explainReturnsHitChainFromExecutionLog() {
         RuleExecutionLog execution = new RuleExecutionLog(
-            1L, "rex-1", "tenant-A", "rule-1", "version-1", "ORDER_SIGN",
-            "evt-1", "tester", "sha256:abc", true, RuleRiskLevel.HIGH,
+            1L, "rex-1", "tenant-A", "rule-1", "version-1", "order-sign",
+            "evt-1", "tester", "MPI-1", "ENC-1", "RULE.ANTICOAG:STRONG_REMINDER",
+            "sha256:abc", true, RuleRiskLevel.HIGH,
             "[{\"actionCode\":\"STRONG_REMINDER\"}]", "{\"title\":\"抗凝风险提示\"}",
-            RuleExecutionStatus.SUCCESS, null, null, Instant.now(), Instant.now(), "trace-rule");
+            RuleExecutionStatus.SUCCESS, null, null, null, Instant.now(), Instant.now(), "trace-rule");
         when(executions.findByExecutionIdAndTenantId("rex-1", "tenant-A")).thenReturn(Optional.of(execution));
 
         RuleExplanationResponse response = service.explain("rex-1");
@@ -763,10 +994,11 @@ class RuleEngineServiceTest {
     void listExecutionsReturnsCurrentTenantPageInReverseChronologicalOrder() {
         Instant executedAt = Instant.parse("2026-06-07T08:00:00Z");
         RuleExecutionLog execution = new RuleExecutionLog(
-            1L, "rex-1", "tenant-A", "rule-1", "version-1", "ORDER_SIGN",
-            "evt-1", "tester", "sha256:abc", true, RuleRiskLevel.HIGH,
+            1L, "rex-1", "tenant-A", "rule-1", "version-1", "order-sign",
+            "evt-1", "tester", "MPI-1", "ENC-1", "RULE.ANTICOAG:STRONG_REMINDER",
+            "sha256:abc", true, RuleRiskLevel.HIGH,
             "[]", "{\"title\":\"抗凝风险提示\"}", RuleExecutionStatus.SUCCESS,
-            null, null, executedAt, executedAt, "trace-rule");
+            null, null, null, executedAt, executedAt, "trace-rule");
         when(executions.countByTenantId("tenant-A")).thenReturn(1L);
         when(executions.pageByTenantId("tenant-A", 0, 20)).thenReturn(List.of(execution));
 
@@ -777,10 +1009,40 @@ class RuleEngineServiceTest {
         assertThat(response.items()).singleElement().satisfies(item -> {
             assertThat(item.executionId()).isEqualTo("rex-1");
             assertThat(item.ruleId()).isEqualTo("rule-1");
-            assertThat(item.triggerPoint()).isEqualTo("ORDER_SIGN");
+            assertThat(item.triggerPoint()).isEqualTo("order-sign");
             assertThat(item.status()).isEqualTo(RuleExecutionStatus.SUCCESS);
             assertThat(item.executedAt()).isEqualTo(executedAt);
         });
+    }
+
+    @Test
+    void captureOverrideRequiresRealBlockingActionAndPersistsReason() {
+        Instant executedAt = Instant.parse("2026-06-07T08:00:00Z");
+        RuleExecutionLog execution = new RuleExecutionLog(
+            1L, "rex-1", "tenant-A", "rule-1", "version-1", "order-sign",
+            "evt-1", "tester", "MPI-1", "ENC-1", "RULE.ANTICOAG:BLOCK",
+            "sha256:abc", true, RuleRiskLevel.CRITICAL,
+            "[{\"actionCode\":\"BLOCK\"}]", "{\"title\":\"禁忌阻断\"}",
+            RuleExecutionStatus.SUCCESS, null, null, null, executedAt, executedAt, "trace-rule");
+        when(executions.findByExecutionIdAndTenantId("rex-1", "tenant-A"))
+            .thenReturn(Optional.of(execution));
+        when(overrides.findByTenantIdAndExecutionIdAndActionCode(
+            "tenant-A", "rex-1", RuleActionCode.BLOCK))
+            .thenReturn(Optional.empty());
+
+        RuleOverrideResponse response = service.captureOverride(
+            "rex-1", new RuleOverrideRequest(RuleActionCode.BLOCK, "已完成临床复核，继续处置"));
+
+        assertThat(response.executionId()).isEqualTo("rex-1");
+        assertThat(response.actionCode()).isEqualTo(RuleActionCode.BLOCK);
+        ArgumentCaptor<RuleOverrideLog> saved = ArgumentCaptor.forClass(RuleOverrideLog.class);
+        verify(overrides).save(saved.capture());
+        assertThat(saved.getValue().patientId()).isEqualTo("MPI-1");
+        assertThat(saved.getValue().encounterId()).isEqualTo("ENC-1");
+        assertThat(saved.getValue().overrideReason()).isEqualTo("已完成临床复核，继续处置");
+        verify(auditRecorder).record(
+            AuditAction.FEEDBACK, "rule_override_log", saved.getValue().overrideId(),
+            "记录规则越权 rex-1/BLOCK");
     }
 
     private RuleDefinition existingRule(RuleDefinitionStatus status) {
@@ -792,8 +1054,43 @@ class RuleEngineServiceTest {
         Instant now = Instant.now();
         return new RuleDefinition(
             1L, ruleId, tenantId, ruleCode, name, RuleType.ORDER,
-            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, status, versionId,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, status, versionId,
             "rpv-1", "dept-1", now, "tester", now, "tester", "trace-rule");
+    }
+
+    private RuleDefinition governedRule(String ruleId, String ruleCode, String versionId,
+                                        int priority, String suppressedBy, int dedupeWindowSeconds) {
+        return governedRule(
+            ruleId, ruleCode, versionId, priority, suppressedBy, dedupeWindowSeconds,
+            RuleDefinitionStatus.PUBLISHED);
+    }
+
+    private RuleDefinition governedRule(String ruleId, String ruleCode, String versionId,
+                                        int priority, String suppressedBy, int dedupeWindowSeconds,
+                                        RuleDefinitionStatus status) {
+        Instant now = Instant.now();
+        return new RuleDefinition(
+            1L, ruleId, "tenant-A", ruleCode, ruleCode, RuleType.ORDER,
+            RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, priority, suppressedBy, dedupeWindowSeconds,
+            status, versionId, "rpv-1", "dept-1",
+            now, "tester", now, "tester", "trace-rule");
+    }
+
+    private RuleExecutionLog executionLog(
+            String executionId,
+            String ruleId,
+            String versionId,
+            RuleExecutionStatus status,
+            String patientId,
+            String semanticKey,
+            String deduplicatedFromExecutionId,
+            Instant executedAt) {
+        return new RuleExecutionLog(
+            1L, executionId, "tenant-A", ruleId, versionId, "order-sign",
+            "evt-1", "tester", patientId, null, semanticKey, "sha256:abc", true,
+            RuleRiskLevel.HIGH, "[{\"actionCode\":\"STRONG_REMINDER\"}]",
+            "{\"title\":\"抗凝风险提示\"}", status, null, null,
+            deduplicatedFromExecutionId, executedAt, executedAt, "trace-rule");
     }
 
     private RuleVersion existingVersion(RuleVersionStatus status) {
@@ -813,6 +1110,18 @@ class RuleEngineServiceTest {
             null, null, null, now, "tester", now, "tester", "trace-rule");
     }
 
+    private RuleVersion ruleVersionWithAction(
+            String versionId, String ruleId, RuleVersionStatus status, String actionCode) {
+        Instant now = Instant.now();
+        JsonNode actionDsl = dsl().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) actionDsl.path("then").get(0))
+            .put("actionCode", actionCode);
+        return new RuleVersion(
+            1L, versionId, "tenant-A", ruleId, 1, "院内规则治理规范 2026",
+            "静态冲突测试", actionDsl.toString(), actionDsl.path("explain").toString(), status,
+            null, null, null, now, "tester", now, "tester", "trace-rule");
+    }
+
     private RuleTestCase testCase(RuleTestCaseType type, boolean expectedHit, JsonNode input) {
         Instant now = Instant.now();
         return new RuleTestCase(
@@ -825,7 +1134,7 @@ class RuleEngineServiceTest {
     private JsonNode dsl() {
         return read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {"fact": "patient.age", "operator": "gte", "value": 18},
@@ -847,6 +1156,16 @@ class RuleEngineServiceTest {
     private JsonNode hitContext() {
         return read("""
             {"patient": {"age": 72}, "order": {"drugClass": "ANTICOAGULANT"}}
+            """);
+    }
+
+    private JsonNode hitContextWithPatient() {
+        return read("""
+            {
+              "patient": {"mpi": "MPI-1", "age": 72},
+              "encounters": [{"encounterId": "ENC-1"}],
+              "order": {"drugClass": "ANTICOAGULANT"}
+            }
             """);
     }
 

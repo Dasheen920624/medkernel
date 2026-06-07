@@ -31,7 +31,7 @@ class RuleEngineControllerSecurityTest {
           "riskLevel": "HIGH",
           "sourceRef": "院内抗凝用药管理规范 2026",
           "dsl": {
-            "trigger": "ORDER_SIGN",
+            "trigger": "order-sign",
             "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 18}]},
             "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
             "explain": {"title": "抗凝风险提示", "reason": "测试"}
@@ -52,7 +52,7 @@ class RuleEngineControllerSecurityTest {
 
     private static final String EVALUATE_BODY = """
         {
-          "triggerPoint": "ORDER_SIGN",
+          "triggerPoint": "order-sign",
           "contextSnapshotId": "snapshot-1",
           "eventId": "evt-1",
           "ruleIds": ["rule-1"]
@@ -60,6 +60,8 @@ class RuleEngineControllerSecurityTest {
         """;
 
     private static final String PUBLISH_BODY = "{}";
+    private static final String OVERRIDE_BODY =
+        "{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}";
 
     @Autowired
     MockMvc mvc;
@@ -102,6 +104,16 @@ class RuleEngineControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanListExecutionsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void doctorCanCaptureOverrideButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
+                .contentType("application/json")
+                .content(OVERRIDE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -166,6 +178,11 @@ class RuleEngineControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_GUEST")
     void guestCannotReadRules() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules"))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
+                .contentType("application/json")
+                .content(OVERRIDE_BODY))
             .andExpect(status().isForbidden());
     }
 }

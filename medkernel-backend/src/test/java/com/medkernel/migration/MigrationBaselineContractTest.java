@@ -137,7 +137,7 @@ class MigrationBaselineContractTest {
         "mk_plugin_registry", "mk_plugin_grant",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
-        "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
+        "rule_definition", "rule_version", "rule_test_case", "rule_execution_log", "rule_override_log",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
@@ -225,10 +225,11 @@ class MigrationBaselineContractTest {
         "idx_audit_event_outcome",
         "idx_cep_tenant_time", "idx_outbox_pending", "idx_outbox_tenant",
         "idx_clinical_event_patient", "idx_clinical_event_encounter",
-        "idx_rule_definition_tenant_status", "idx_rule_definition_type_risk",
+        "idx_rule_definition_tenant_status", "idx_rule_definition_type_risk", "idx_rule_definition_priority",
         "idx_rule_version_rule_status", "idx_rule_test_case_version_type",
         "idx_rule_execution_tenant_time", "idx_rule_execution_rule_time",
-        "idx_rule_execution_trigger",
+        "idx_rule_execution_trigger", "idx_rule_execution_dedupe",
+        "idx_rule_override_rule_time", "idx_rule_override_execution",
         "idx_specialty_package_tenant_status", "idx_specialty_package_disease",
         "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
         "idx_pathway_template_package", "idx_pathway_template_disease",
@@ -380,10 +381,12 @@ class MigrationBaselineContractTest {
         "uk_event_payload", "ck_storage_type",
         "uk_outbox_event_id", "ck_outbox_status",
         "uk_rule_definition_tenant_code", "ck_rule_definition_type",
-        "ck_rule_definition_mode", "ck_rule_definition_risk", "ck_rule_definition_status",
+        "ck_rule_definition_mode", "ck_rule_definition_risk", "ck_rule_definition_priority",
+        "ck_rule_definition_dedupe", "ck_rule_definition_status",
         "uk_rule_version_rule_no", "ck_rule_version_status",
         "uk_rule_test_case_id", "ck_rule_test_case_type", "ck_rule_test_case_status",
         "uk_rule_execution_id", "ck_rule_execution_status", "ck_rule_execution_severity",
+        "uk_rule_override_id", "uk_rule_override_execution_action", "ck_rule_override_action",
         "uk_specialty_package_tenant_code", "ck_specialty_package_status",
         "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
         "ck_pathway_template_level", "ck_pathway_template_status",
@@ -538,7 +541,7 @@ class MigrationBaselineContractTest {
         "term_mapping_package_release", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
-        "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
+        "rule_definition", "rule_version", "rule_test_case", "rule_execution_log", "rule_override_log",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
@@ -627,6 +630,7 @@ class MigrationBaselineContractTest {
         Map.entry("term_mapping_package_release", Set.of("created_at", "created_by")),
         Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
         Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
+        Map.entry("rule_override_log", Set.of("overridden_by", "overridden_at", "created_at")),
         Map.entry("specialty_package", Set.of("published_at", "published_by")),
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
         Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
@@ -668,6 +672,7 @@ class MigrationBaselineContractTest {
         Map.entry("rule_version", Set.of("version_no", "status")),
         Map.entry("rule_test_case", Set.of("case_type", "last_status")),
         Map.entry("rule_execution_log", Set.of("status", "severity")),
+        Map.entry("rule_override_log", Set.of("action_code")),
         Map.entry("specialty_package", Set.of("package_version", "status")),
         Map.entry("pathway_template", Set.of("template_version", "status")),
         Map.entry("pathway_node", Set.of("node_type")),
@@ -2024,10 +2029,19 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("dsl_json");
         assertThat(h2).contains("explanation_json");
         assertThat(h2).contains("input_digest");
+        assertThat(h2).contains("priority");
+        assertThat(h2).contains("suppressed_by");
+        assertThat(h2).contains("dedupe_window_seconds");
+        assertThat(h2).contains("patient_id");
+        assertThat(h2).contains("semantic_key");
+        assertThat(h2).contains("deduplicated_from_execution_id");
+        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_override_log");
         assertThat(h2).contains("uk_rule_definition_tenant_code");
         assertThat(h2).contains("ck_rule_definition_status");
         assertThat(h2).contains("ck_rule_test_case_type");
         assertThat(h2).contains("idx_rule_execution_trigger");
+        assertThat(h2).contains("idx_rule_execution_dedupe");
+        assertThat(h2).contains("ck_rule_override_action");
     }
 
     @Test

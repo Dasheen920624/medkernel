@@ -5,13 +5,16 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
@@ -84,6 +88,7 @@ public class RuleEngineService {
     private final RuleVersionRepository versions;
     private final RuleTestCaseRepository testCases;
     private final RuleExecutionLogRepository executions;
+    private final RuleOverrideLogRepository overrides;
     private final RuleDslEvaluator evaluator;
     private final AuditRecorder auditRecorder;
     private final StateTransitionRecorder transitions;
@@ -96,6 +101,7 @@ public class RuleEngineService {
     private final ReleasePort releasePort;
     private final InheritanceResolver inheritanceResolver;
     private final ContextSnapshotService contextSnapshots;
+    private final RuleConflictDetector conflictDetector = new RuleConflictDetector();
 
     /**
      * 注入规则引擎所需仓库、DSL 执行器、审计发布器、状态记录器与 JSON 处理器。
@@ -105,6 +111,7 @@ public class RuleEngineService {
                              RuleVersionRepository versions,
                              RuleTestCaseRepository testCases,
                              RuleExecutionLogRepository executions,
+                             RuleOverrideLogRepository overrides,
                              RuleDslEvaluator evaluator,
                              AuditRecorder auditRecorder,
                              StateTransitionRecorder transitions,
@@ -117,7 +124,7 @@ public class RuleEngineService {
                              ReleasePort releasePort,
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots) {
-        this(definitions, versions, testCases, executions, evaluator, auditRecorder, transitions,
+        this(definitions, versions, testCases, executions, overrides, evaluator, auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
@@ -127,6 +134,7 @@ public class RuleEngineService {
                       RuleVersionRepository versions,
                       RuleTestCaseRepository testCases,
                       RuleExecutionLogRepository executions,
+                      RuleOverrideLogRepository overrides,
                       RuleDslEvaluator evaluator,
                       AuditRecorder auditRecorder,
                       StateTransitionRecorder transitions,
@@ -143,6 +151,7 @@ public class RuleEngineService {
         this.versions = versions;
         this.testCases = testCases;
         this.executions = executions;
+        this.overrides = overrides;
         this.evaluator = evaluator;
         this.auditRecorder = auditRecorder;
         this.transitions = transitions;
@@ -180,6 +189,9 @@ public class RuleEngineService {
             null, ruleId, tenantId, request.ruleCode(), request.name(), request.ruleType(),
             request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode(),
             request.riskLevel() == null ? RuleRiskLevel.MEDIUM : request.riskLevel(),
+            request.priority() == null ? 100 : request.priority(),
+            trimToNull(request.suppressedBy()),
+            request.dedupeWindowSeconds() == null ? 0 : request.dedupeWindowSeconds(),
             RuleDefinitionStatus.DRAFT, versionId, request.packageVersion(), request.applicableOrgUnitId(),
             now, actor, now, actor, traceId);
         RuleVersion version = new RuleVersion(
@@ -229,6 +241,9 @@ public class RuleEngineService {
             rule.id(), rule.ruleId(), rule.tenantId(), request.ruleCode(), request.name(),
             request.ruleType(), request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode(),
             request.riskLevel() == null ? RuleRiskLevel.MEDIUM : request.riskLevel(),
+            request.priority() == null ? 100 : request.priority(),
+            trimToNull(request.suppressedBy()),
+            request.dedupeWindowSeconds() == null ? 0 : request.dedupeWindowSeconds(),
             RuleDefinitionStatus.DRAFT, rule.activeVersionId(), request.packageVersion(),
             request.applicableOrgUnitId(), rule.createdAt(), rule.createdBy(), now, actor,
             RequestContext.currentTraceId());
@@ -388,6 +403,8 @@ public class RuleEngineService {
             throw new ApiException(ErrorCode.ENG_RULE_004, "高危规则发布前必须提交当前影响分析摘要");
         }
         ensureTerminologyCoverage(version);
+        ensureSuppressionContract(rule, version, false);
+        ensureNoStaticConflicts(rule, version);
 
         List<RuleTestCaseResult> results = cases.stream()
             .map(testCase -> runTestCase(version, testCase))
@@ -428,7 +445,7 @@ public class RuleEngineService {
             assetVersion.versionId(),
             releaseOrgScope(rule),
             releaseApplicableScope(rule),
-            VersionReleaseScopeType.HOSPITAL,
+            null,
             null,
             impact.impactDigest(),
             releaseReason(request, "规则发布门禁通过"),
@@ -453,6 +470,7 @@ public class RuleEngineService {
             throw new ApiException(ErrorCode.FORBIDDEN, "规则全量激活仅医院管理员可执行");
         }
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureSuppressionContract(rule, version, true);
         RuleImpactResponse impact = impactFor(rule, version);
         if (request == null
                 || request.impactDigest() == null
@@ -563,6 +581,10 @@ public class RuleEngineService {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private String ruleAssetContent(RuleDefinition rule, RuleVersion version) {
         return writeObject(new RuleAssetContent(
             rule.ruleCode(),
@@ -617,23 +639,44 @@ public class RuleEngineService {
     @Transactional
     public RuleEvaluateResponse evaluateContext(String triggerPoint, JsonNode context,
                                                 String eventId, List<String> ruleIds) {
+        requireCanonicalTrigger(triggerPoint);
         String tenantId = requireCurrentTenant();
         List<String> selectedRuleIds = ruleIds == null ? List.of() : ruleIds;
         List<RuleDefinition> candidates = selectedRuleIds.isEmpty()
             ? effectiveActiveRules(tenantId)
             : selectedRuleIds.stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
-        List<RuleEvaluationItem> items = candidates.stream()
+        List<Map.Entry<RuleDefinition, RuleVersion>> executable = candidates.stream()
             .map(rule -> Map.entry(rule, findVersion(rule.activeVersionId(), rule.tenantId())))
             .filter(this::isActiveUnifiedVersion)
             .filter(entry -> triggerMatches(entry.getValue(), triggerPoint))
-            .map(entry -> evaluateAndLog(entry.getKey(), entry.getValue(), tenantId,
-                context, triggerPoint, eventId))
             .toList();
+        executable = executable.stream()
+            .sorted(Comparator
+                .<Map.Entry<RuleDefinition, RuleVersion>>comparingInt(entry -> entry.getKey().priority())
+                .reversed()
+                .thenComparing(entry -> entry.getKey().ruleCode()))
+            .toList();
+
+        Set<String> matchedRuleCodes = new HashSet<>();
+        List<RuleEvaluationItem> items = new ArrayList<>();
+        for (Map.Entry<RuleDefinition, RuleVersion> entry : executable) {
+            RuleDefinition rule = entry.getKey();
+            RuleEvaluationItem item = isSuppressed(rule, matchedRuleCodes)
+                ? recordSuppressed(rule, entry.getValue(), tenantId, context, triggerPoint, eventId)
+                : evaluateAndLog(rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+            items.add(item);
+            if (item.hit()) {
+                matchedRuleCodes.add(rule.ruleCode());
+            }
+        }
         RuleRiskLevel highest = items.stream()
+            .filter(item -> item.status() == RuleExecutionStatus.SUCCESS)
+            .filter(RuleEvaluationItem::hit)
             .map(RuleEvaluationItem::severity)
             .reduce(null, RuleRiskLevel::max);
         List<com.medkernel.engine.cdshook.CdsHookCard> cards = items.stream()
+            .filter(item -> item.status() == RuleExecutionStatus.SUCCESS)
             .filter(RuleEvaluationItem::hit)
             .flatMap(item -> java.util.stream.IntStream.range(0, item.actions().size())
                 .mapToObj(index -> item.actions().get(index).toCdsHookCard(
@@ -743,18 +786,160 @@ public class RuleEngineService {
                                               JsonNode context, String triggerPoint, String eventId) {
         RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), context);
         String executionId = "rex-" + UUID.randomUUID();
-        RuleExecutionStatus status = evaluation.hit() ? RuleExecutionStatus.SUCCESS : RuleExecutionStatus.MISS;
+        Instant now = Instant.now();
+        String patientId = patientId(context);
+        String semanticKey = evaluation.hit() ? semanticKey(rule, evaluation.actions()) : null;
+        Optional<RuleExecutionLog> duplicate = recentDuplicate(
+            rule, executionTenantId, patientId, semanticKey, now);
+        RuleExecutionStatus status = duplicate.isPresent()
+            ? RuleExecutionStatus.DEDUPLICATED
+            : evaluation.hit() ? RuleExecutionStatus.SUCCESS : RuleExecutionStatus.MISS;
+        String deduplicatedFromExecutionId = duplicate.map(RuleExecutionLog::executionId).orElse(null);
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
             null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
             triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            patientId, encounterId(context), semanticKey,
             digest(context), evaluation.hit(), evaluation.severity(), writeObject(evaluation.actions()),
             writeJson(evaluation.explanation()), status, null, null,
-            Instant.now(), Instant.now(), RequestContext.currentTraceId()));
+            deduplicatedFromExecutionId, now, now, RequestContext.currentTraceId()));
         transitions.record(EXECUTION_ENTITY, log.executionId(), null, status.name(), "EXECUTE_RULE", null);
         auditRecorder.record(AuditAction.EXECUTE, EXECUTION_ENTITY, log.executionId(), "执行规则 " + rule.ruleId());
         return new RuleEvaluationItem(
             log.executionId(), rule.ruleId(), version.versionId(), evaluation.hit(),
-            evaluation.severity(), evaluation.actions(), evaluation.explanation());
+            evaluation.severity(),
+            status == RuleExecutionStatus.SUCCESS ? evaluation.actions() : List.of(),
+            evaluation.explanation(), status, null, deduplicatedFromExecutionId);
+    }
+
+    private RuleEvaluationItem recordSuppressed(
+            RuleDefinition rule,
+            RuleVersion version,
+            String executionTenantId,
+            JsonNode context,
+            String triggerPoint,
+            String eventId) {
+        String executionId = "rex-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        JsonNode explanation = json.createObjectNode()
+            .put("title", "规则已被高阶规则抑制")
+            .put("reason", "本次执行已命中抑制规则 " + rule.suppressedBy())
+            .put("suppressedBy", rule.suppressedBy());
+        RuleExecutionLog log = executions.save(new RuleExecutionLog(
+            null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
+            triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            patientId(context), encounterId(context), null, digest(context), false, null, "[]",
+            writeJson(explanation), RuleExecutionStatus.SUPPRESSED, null, null,
+            null, now, now, RequestContext.currentTraceId()));
+        transitions.record(
+            EXECUTION_ENTITY, log.executionId(), null, RuleExecutionStatus.SUPPRESSED.name(),
+            "SUPPRESS_RULE_BY_" + rule.suppressedBy(), null);
+        auditRecorder.record(
+            AuditAction.EXECUTE, EXECUTION_ENTITY, log.executionId(),
+            "抑制规则 " + rule.ruleId() + " by " + rule.suppressedBy());
+        return new RuleEvaluationItem(
+            log.executionId(), rule.ruleId(), version.versionId(), false, null,
+            List.of(), explanation, RuleExecutionStatus.SUPPRESSED, rule.suppressedBy(), null);
+    }
+
+    private Optional<RuleExecutionLog> recentDuplicate(
+            RuleDefinition rule,
+            String tenantId,
+            String patientId,
+            String semanticKey,
+            Instant now) {
+        if (rule.dedupeWindowSeconds() <= 0 || patientId == null || semanticKey == null) {
+            return Optional.empty();
+        }
+        return executions.findRecentSuccessful(
+            tenantId, patientId, semanticKey, now.minusSeconds(rule.dedupeWindowSeconds()));
+    }
+
+    private static boolean isSuppressed(RuleDefinition rule, Set<String> matchedRuleCodes) {
+        return rule.suppressedBy() != null
+            && !rule.suppressedBy().isBlank()
+            && matchedRuleCodes.contains(rule.suppressedBy());
+    }
+
+    private static String patientId(JsonNode context) {
+        String mpi = context.path("patient").path("mpi").asText(null);
+        if (mpi != null && !mpi.isBlank()) {
+            return mpi.trim();
+        }
+        String root = context.path("patientId").asText(null);
+        return root == null || root.isBlank() ? null : root.trim();
+    }
+
+    private static String encounterId(JsonNode context) {
+        JsonNode encounters = context.path("encounters");
+        if (encounters.isArray() && !encounters.isEmpty()) {
+            String canonical = encounters.get(0).path("encounterId").asText(null);
+            if (canonical != null && !canonical.isBlank()) {
+                return canonical.trim();
+            }
+        }
+        String root = context.path("encounterId").asText(null);
+        return root == null || root.isBlank() ? null : root.trim();
+    }
+
+    private static String semanticKey(RuleDefinition rule, List<RuleActionResult> actions) {
+        List<String> actionCodes = actions.stream()
+            .map(action -> action.actionCode().name())
+            .distinct()
+            .sorted()
+            .toList();
+        return actionCodes.isEmpty() ? null : rule.ruleCode() + ":" + String.join(",", actionCodes);
+    }
+
+    /**
+     * 捕获阻断或强提醒动作的人工越权理由，并绑定真实执行事实。
+     */
+    @Transactional
+    public RuleOverrideResponse captureOverride(String executionId, RuleOverrideRequest request) {
+        String tenantId = requireCurrentTenant();
+        RuleExecutionLog execution = executions.findByExecutionIdAndTenantId(executionId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则执行记录不存在: " + executionId));
+        if (execution.status() != RuleExecutionStatus.SUCCESS || !Boolean.TRUE.equals(execution.hit())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "仅真实命中的规则动作允许人工越权");
+        }
+        if (request == null || !supportsOverride(request.actionCode())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "仅 BLOCK 或 STRONG_REMINDER 动作允许人工越权");
+        }
+        String reason = trimToNull(request.reason());
+        if (reason == null) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "人工越权必须填写理由");
+        }
+        boolean actionExists = false;
+        for (JsonNode action : readJsonOrArray(execution.actionsJson())) {
+            if (request.actionCode().name().equals(action.path("actionCode").asText())) {
+                actionExists = true;
+                break;
+            }
+        }
+        if (!actionExists) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "执行记录中不存在待越权动作: " + request.actionCode());
+        }
+        if (overrides.findByTenantIdAndExecutionIdAndActionCode(
+                tenantId, executionId, request.actionCode()).isPresent()) {
+            throw new ApiException(ErrorCode.CONFLICT, "该规则动作已记录人工越权");
+        }
+
+        Instant now = Instant.now();
+        String overrideId = "rov-" + UUID.randomUUID();
+        String actor = RequestContext.currentUserId().orElse("system");
+        RuleOverrideLog saved = overrides.save(new RuleOverrideLog(
+            null, overrideId, tenantId, execution.executionId(), execution.ruleId(), execution.versionId(),
+            execution.patientId(), execution.encounterId(), request.actionCode(), reason,
+            actor, now, now, RequestContext.currentTraceId()));
+        auditRecorder.record(
+            AuditAction.FEEDBACK, "rule_override_log", saved.overrideId(),
+            "记录规则越权 " + executionId + "/" + request.actionCode().name());
+        return new RuleOverrideResponse(
+            saved.overrideId(), saved.executionId(), saved.ruleId(), saved.actionCode(),
+            saved.overrideReason(), saved.overriddenBy(), saved.overriddenAt(), saved.traceId());
+    }
+
+    private static boolean supportsOverride(RuleActionCode actionCode) {
+        return actionCode == RuleActionCode.BLOCK || actionCode == RuleActionCode.STRONG_REMINDER;
     }
 
     private boolean matchesExpectation(RuleTestCase testCase, RuleDslEvaluation evaluation) {
@@ -809,6 +994,80 @@ public class RuleEngineService {
         }
     }
 
+    private void ensureNoStaticConflicts(RuleDefinition candidate, RuleVersion candidateVersion) {
+        LinkedHashMap<String, RuleDefinition> publishedByCode = new LinkedHashMap<>();
+        definitions.findPublishedByTenantId(candidate.tenantId())
+            .forEach(rule -> publishedByCode.put(rule.ruleCode(), rule));
+        if (!PlatformTenant.isPlatformTenant(candidate.tenantId())) {
+            definitions.findPublishedByTenantId(PlatformTenant.ID)
+                .forEach(rule -> publishedByCode.putIfAbsent(rule.ruleCode(), rule));
+        }
+        List<RuleConflictTarget> targets = publishedByCode.values().stream()
+            .filter(rule -> !rule.ruleCode().equals(candidate.ruleCode()))
+            .filter(rule -> !hasExplicitSuppression(candidate, rule))
+            .map(rule -> new RuleConflictTarget(
+                rule.ruleCode(),
+                readJson(findVersion(rule.activeVersionId(), rule.tenantId()).dslJson())))
+            .toList();
+        conflictDetector.detect(readJson(candidateVersion.dslJson()), targets)
+            .ifPresent(conflict -> {
+                throw new ApiException(
+                    ErrorCode.ENG_RULE_004,
+                    "规则与已发布规则 " + conflict.ruleCode() + " 在事实 " + conflict.fact()
+                        + " 上存在" + conflict.reason()
+                );
+            });
+    }
+
+    private void ensureSuppressionContract(
+            RuleDefinition candidate,
+            RuleVersion candidateVersion,
+            boolean requireActiveSource) {
+        String sourceCode = trimToNull(candidate.suppressedBy());
+        if (sourceCode == null) {
+            return;
+        }
+        if (sourceCode.equals(candidate.ruleCode())) {
+            throw new ApiException(ErrorCode.ENG_RULE_004, "规则不能抑制自身");
+        }
+        RuleDefinition source = findPublishedSuppressionSource(candidate.tenantId(), sourceCode)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_RULE_004,
+                "抑制来源规则不存在或尚未发布: " + sourceCode));
+        if (source.priority() <= candidate.priority()) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_004,
+                "抑制来源规则 " + sourceCode + " 的优先级必须高于当前规则");
+        }
+        RuleVersion sourceVersion = findVersion(source.activeVersionId(), source.tenantId());
+        String trigger = readJson(candidateVersion.dslJson()).path("trigger").asText(null);
+        if (!triggerMatches(sourceVersion, trigger)) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_004,
+                "抑制来源规则 " + sourceCode + " 必须与当前规则使用相同触发点");
+        }
+        if (requireActiveSource && !hasActiveUnifiedVersion(source)) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_004,
+                "抑制来源规则 " + sourceCode + " 尚未全量激活");
+        }
+    }
+
+    private Optional<RuleDefinition> findPublishedSuppressionSource(String tenantId, String ruleCode) {
+        Optional<RuleDefinition> local = definitions.findByTenantIdAndRuleCode(tenantId, ruleCode)
+            .filter(rule -> rule.status() == RuleDefinitionStatus.PUBLISHED);
+        if (local.isPresent() || PlatformTenant.isPlatformTenant(tenantId)) {
+            return local;
+        }
+        return definitions.findByTenantIdAndRuleCode(PlatformTenant.ID, ruleCode)
+            .filter(rule -> rule.status() == RuleDefinitionStatus.PUBLISHED);
+    }
+
+    private static boolean hasExplicitSuppression(RuleDefinition left, RuleDefinition right) {
+        return right.ruleCode().equals(left.suppressedBy())
+            || left.ruleCode().equals(right.suppressedBy());
+    }
+
     private String impactDigest(RuleDefinition rule, RuleVersion version, String status, List<String> unavailable,
                                 List<RuleImpactObject> affectedRules,
                                 List<RuleImpactObject> affectedPathways,
@@ -849,11 +1108,26 @@ public class RuleEngineService {
 
     private void validateDsl(JsonNode dsl) {
         evaluator.evaluate(dsl, json.createObjectNode());
-        if (dsl.path("trigger").asText(null) == null || dsl.path("trigger").asText().isBlank()) {
+        String trigger = dsl.path("trigger").asText(null);
+        if (trigger == null || trigger.isBlank()) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 trigger");
         }
+        requireCanonicalTrigger(trigger);
         if (!dsl.has("then") || !dsl.has("explain")) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 then 或 explain");
+        }
+    }
+
+    private static void requireCanonicalTrigger(String triggerPoint) {
+        boolean canonical = triggerPoint != null
+            && EnumSet.allOf(ClinicalEventTriggerPoint.class).stream()
+                .anyMatch(candidate -> candidate.wireValue().equals(triggerPoint));
+        if (!canonical) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_001,
+                "规则触发点必须使用客户面编码: patient-view/order-sign/medication-prescribe/"
+                    + "result-review/discharge-sign/followup-alert"
+            );
         }
     }
 
@@ -1061,6 +1335,7 @@ public class RuleEngineService {
         return new RuleDefinition(
             source.id(), source.ruleId(), source.tenantId(), source.ruleCode(),
             source.name(), source.ruleType(), source.authoringMode(), source.riskLevel(),
+            source.priority(), source.suppressedBy(), source.dedupeWindowSeconds(),
             status, activeVersionId, source.packageVersion(), source.applicableOrgUnitId(),
             source.createdAt(), source.createdBy(), updatedAt, updatedBy, traceId);
     }

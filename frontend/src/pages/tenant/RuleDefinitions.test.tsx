@@ -104,6 +104,9 @@ const draftRule: RuleDefinition = {
   ruleType: "QUALITY",
   authoringMode: "VISUAL",
   riskLevel: "HIGH",
+  priority: 100,
+  suppressedBy: null,
+  dedupeWindowSeconds: 0,
   status: "DRAFT",
   activeVersionId: "ver-1",
   packageVersion: "pkg-2026.06",
@@ -285,6 +288,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           expect.objectContaining({
             ruleCode: "RULE.CARDIOLOGY.HR",
             ruleType: "QUALITY",
+            priority: 100,
+            suppressedBy: undefined,
+            dedupeWindowSeconds: 0,
             packageVersion: "1.0.0",
             dslJson: expect.objectContaining({
               trigger: "result-review",

@@ -1,5 +1,6 @@
 package com.medkernel.engine.rule;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,4 +48,20 @@ public interface RuleExecutionLogRepository extends ListCrudRepository<RuleExecu
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<RuleExecutionLog> pageByRule(String tenantId, String ruleId, int offset, int limit);
+
+    /**
+     * 查询同患者同语义动作窗口内最近一次真实产出，用于跨事件去重。
+     */
+    @Query("""
+        SELECT * FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+          AND patient_id = :patientId
+          AND semantic_key = :semanticKey
+          AND status = 'SUCCESS'
+          AND executed_at >= :cutoff
+        ORDER BY executed_at DESC
+        FETCH NEXT 1 ROWS ONLY
+        """)
+    Optional<RuleExecutionLog> findRecentSuccessful(
+        String tenantId, String patientId, String semanticKey, Instant cutoff);
 }

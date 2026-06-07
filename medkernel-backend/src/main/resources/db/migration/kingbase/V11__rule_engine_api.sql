@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS rule_definition (
     rule_type               VARCHAR(32)  NOT NULL,
     authoring_mode          VARCHAR(32)  NOT NULL DEFAULT 'DSL',
     risk_level              VARCHAR(16)  NOT NULL DEFAULT 'MEDIUM',
+    priority                INT          NOT NULL DEFAULT 100,
+    suppressed_by           VARCHAR(128) NULL,
+    dedupe_window_seconds   INT          NOT NULL DEFAULT 0,
     status                  VARCHAR(32)  NOT NULL DEFAULT 'DRAFT',
     active_version_id       VARCHAR(64)  NULL,
     package_version         VARCHAR(64)  NULL,
@@ -25,11 +28,14 @@ CREATE TABLE IF NOT EXISTS rule_definition (
     )),
     CONSTRAINT ck_rule_definition_mode CHECK (authoring_mode IN ('TEMPLATE','VISUAL','DSL')),
     CONSTRAINT ck_rule_definition_risk CHECK (risk_level IN ('LOW','MEDIUM','HIGH','CRITICAL')),
+    CONSTRAINT ck_rule_definition_priority CHECK (priority BETWEEN 0 AND 1000),
+    CONSTRAINT ck_rule_definition_dedupe CHECK (dedupe_window_seconds BETWEEN 0 AND 86400),
     CONSTRAINT ck_rule_definition_status CHECK (status IN ('DRAFT','PUBLISHED','OFFLINE','ARCHIVED'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_rule_definition_tenant_status ON rule_definition (tenant_id, status, updated_at);
 CREATE INDEX IF NOT EXISTS idx_rule_definition_type_risk     ON rule_definition (tenant_id, rule_type, risk_level);
+CREATE INDEX IF NOT EXISTS idx_rule_definition_priority      ON rule_definition (tenant_id, status, priority);
 
 CREATE TABLE IF NOT EXISTS rule_version (
     id                  BIGSERIAL PRIMARY KEY,
@@ -93,6 +99,9 @@ CREATE TABLE IF NOT EXISTS rule_execution_log (
     trigger_point    VARCHAR(64)  NOT NULL,
     event_id         VARCHAR(64)  NULL,
     actor_user_id    VARCHAR(64)  NULL,
+    patient_id       VARCHAR(64)  NULL,
+    encounter_id     VARCHAR(64)  NULL,
+    semantic_key     VARCHAR(256) NULL,
     input_digest     VARCHAR(128) NOT NULL,
     hit              BOOLEAN      NOT NULL,
     severity         VARCHAR(16)  NULL,
@@ -101,17 +110,42 @@ CREATE TABLE IF NOT EXISTS rule_execution_log (
     status           VARCHAR(32)  NOT NULL DEFAULT 'SUCCESS',
     error_code       VARCHAR(64)  NULL,
     error_class      VARCHAR(32)  NULL,
+    deduplicated_from_execution_id VARCHAR(64) NULL,
     executed_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     trace_id         VARCHAR(128) NULL,
     CONSTRAINT uk_rule_execution_id UNIQUE (execution_id),
-    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','FAILED')),
+    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','SUPPRESSED','DEDUPLICATED','FAILED')),
     CONSTRAINT ck_rule_execution_severity CHECK (severity IS NULL OR severity IN ('LOW','MEDIUM','HIGH','CRITICAL'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_rule_execution_tenant_time ON rule_execution_log (tenant_id, executed_at);
 CREATE INDEX IF NOT EXISTS idx_rule_execution_rule_time   ON rule_execution_log (tenant_id, rule_id, executed_at);
 CREATE INDEX IF NOT EXISTS idx_rule_execution_trigger     ON rule_execution_log (tenant_id, trigger_point, executed_at);
+CREATE INDEX IF NOT EXISTS idx_rule_execution_dedupe      ON rule_execution_log (tenant_id, patient_id, semantic_key, executed_at);
+
+CREATE TABLE IF NOT EXISTS rule_override_log (
+    id               BIGSERIAL PRIMARY KEY,
+    override_id      VARCHAR(64)  NOT NULL,
+    tenant_id        VARCHAR(64)  NOT NULL,
+    execution_id     VARCHAR(64)  NOT NULL,
+    rule_id          VARCHAR(64)  NOT NULL,
+    version_id       VARCHAR(64)  NOT NULL,
+    patient_id       VARCHAR(64)  NULL,
+    encounter_id     VARCHAR(64)  NULL,
+    action_code      VARCHAR(40)  NOT NULL,
+    override_reason  VARCHAR(500) NOT NULL,
+    overridden_by    VARCHAR(64)  NOT NULL,
+    overridden_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    trace_id         VARCHAR(128) NULL,
+    CONSTRAINT uk_rule_override_id UNIQUE (override_id),
+    CONSTRAINT uk_rule_override_execution_action UNIQUE (tenant_id, execution_id, action_code),
+    CONSTRAINT ck_rule_override_action CHECK (action_code IN ('BLOCK','STRONG_REMINDER'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_override_rule_time ON rule_override_log (tenant_id, rule_id, overridden_at);
+CREATE INDEX IF NOT EXISTS idx_rule_override_execution ON rule_override_log (tenant_id, execution_id);
 
 -- ===== 表与列中文注释（GA-ENG-API-05）=====
 
@@ -123,6 +157,9 @@ COMMENT ON COLUMN rule_definition.name                   IS '规则展示名称'
 COMMENT ON COLUMN rule_definition.rule_type              IS '规则业务类型：DIAGNOSIS 诊断 / ORDER 医嘱 / LAB 检验 / REPORT 报告 / DISCHARGE 出院 / FOLLOWUP 随访 / INSURANCE 医保 / QUALITY 质控 / RECORD 病历 / PATHWAY 路径';
 COMMENT ON COLUMN rule_definition.authoring_mode         IS '规则编写模式：TEMPLATE 模板 / VISUAL 可视化 / DSL JSON DSL（首版默认 DSL）';
 COMMENT ON COLUMN rule_definition.risk_level             IS '规则风险级别：LOW 低 / MEDIUM 中 / HIGH 高 / CRITICAL 红线（HIGH/CRITICAL 必须医师确认）';
+COMMENT ON COLUMN rule_definition.priority               IS '规则优先级，数值越大越先执行';
+COMMENT ON COLUMN rule_definition.suppressed_by          IS '抑制当前规则的高阶规则编码';
+COMMENT ON COLUMN rule_definition.dedupe_window_seconds  IS '同患者同语义动作去重窗口秒数，0 表示不去重';
 COMMENT ON COLUMN rule_definition.status                 IS '规则状态机：DRAFT 草稿 / PUBLISHED 已发布 / OFFLINE 已下线 / ARCHIVED 归档';
 COMMENT ON COLUMN rule_definition.active_version_id      IS '当前激活版本 ID → rule_version.version_id';
 COMMENT ON COLUMN rule_definition.package_version        IS '规则包版本（预留 GA-ENG-RULE-01 多版本灰度/回滚）';
@@ -163,15 +200,22 @@ COMMENT ON COLUMN rule_execution_log.execution_id     IS '执行 ID（业务键�
 COMMENT ON COLUMN rule_execution_log.tenant_id        IS '租户 ID';
 COMMENT ON COLUMN rule_execution_log.rule_id          IS '关联规则 ID → rule_definition.rule_id';
 COMMENT ON COLUMN rule_execution_log.version_id       IS '执行时使用的规则版本 ID → rule_version.version_id';
-COMMENT ON COLUMN rule_execution_log.trigger_point    IS '触发点（如 ORDER_SIGN、ENCOUNTER_OPEN 等）';
+COMMENT ON COLUMN rule_execution_log.trigger_point    IS '触发点（如 order-sign、patient-view 等）';
 COMMENT ON COLUMN rule_execution_log.event_id         IS '关联业务事件 ID（可空）';
 COMMENT ON COLUMN rule_execution_log.actor_user_id    IS '触发该执行的 user_id（可空）';
+COMMENT ON COLUMN rule_execution_log.patient_id       IS '用于交互治理的患者业务 ID，不保存患者详情';
+COMMENT ON COLUMN rule_execution_log.encounter_id     IS '用于交互治理的就诊业务 ID，不保存就诊详情';
+COMMENT ON COLUMN rule_execution_log.semantic_key     IS '规则动作语义键，用于同患者窗口去重';
 COMMENT ON COLUMN rule_execution_log.input_digest     IS '输入上下文 SHA-256 摘要（不落完整患者上下文）';
 COMMENT ON COLUMN rule_execution_log.hit              IS '是否命中规则条件';
 COMMENT ON COLUMN rule_execution_log.severity         IS '本次命中最高严重度：LOW 低 / MEDIUM 中 / HIGH 高 / CRITICAL 红线（未命中可空）';
 COMMENT ON COLUMN rule_execution_log.actions_json     IS '命中动作清单 JSON 快照';
 COMMENT ON COLUMN rule_execution_log.explanation_json IS '可解释性 JSON 快照（含来源引用、推理依据）';
-COMMENT ON COLUMN rule_execution_log.status           IS '执行终态：SUCCESS 命中并产出 / MISS 未命中 / FAILED 异常';
+COMMENT ON COLUMN rule_execution_log.status           IS '执行终态：SUCCESS 命中 / MISS 未命中 / SUPPRESSED 被高阶规则抑制 / DEDUPLICATED 窗口去重 / FAILED 异常';
 COMMENT ON COLUMN rule_execution_log.error_code       IS '失败错误码（仅 FAILED 写入）';
 COMMENT ON COLUMN rule_execution_log.error_class      IS '失败错误分类（仅 FAILED 写入）';
+COMMENT ON COLUMN rule_execution_log.deduplicated_from_execution_id IS '命中窗口去重时指向首次执行 ID';
 COMMENT ON COLUMN rule_execution_log.executed_at      IS '规则执行时间';
+
+COMMENT ON TABLE rule_override_log IS '规则越权日志：记录阻断或强提醒动作的人工越权理由';
+COMMENT ON COLUMN rule_override_log.override_reason IS '医师选择或填写的越权理由';

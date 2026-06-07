@@ -2751,7 +2751,7 @@ class PackageEngineServiceTest {
     private RuleDefinition publishedRule(String ruleId, String applicableOrgUnitId) {
         return new RuleDefinition(
             1L, ruleId, "tenant-A", "RULE.TEST", "测试规则", RuleType.QUALITY,
-            RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, RuleDefinitionStatus.PUBLISHED,
+            RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, 100, null, 0, RuleDefinitionStatus.PUBLISHED,
             "rule-version-1", "1.0.0", applicableOrgUnitId,
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );

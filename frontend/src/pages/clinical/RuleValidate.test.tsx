@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ import {
   useEvaluateRules,
   useRuleExecutions,
   useRuleExecutionExplain,
+  useCaptureRuleOverride,
 } from "@/shared/api/hooks";
 
 import RuleValidate from "./RuleValidate";
@@ -19,6 +20,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useEvaluateRules: vi.fn(),
   useRuleExecutions: vi.fn(),
   useRuleExecutionExplain: vi.fn(),
+  useCaptureRuleOverride: vi.fn(),
 }));
 
 const mockUseContextSnapshotDetail = vi.mocked(useContextSnapshotDetail);
@@ -26,6 +28,7 @@ const mockUseContextSnapshots = vi.mocked(useContextSnapshots);
 const mockUseEvaluateRules = vi.mocked(useEvaluateRules);
 const mockUseRuleExecutions = vi.mocked(useRuleExecutions);
 const mockUseRuleExecutionExplain = vi.mocked(useRuleExecutionExplain);
+const mockUseCaptureRuleOverride = vi.mocked(useCaptureRuleOverride);
 
 function renderRuleValidate() {
   return render(
@@ -39,6 +42,7 @@ function renderRuleValidate() {
 
 describe("RuleValidate", () => {
   const evaluate = vi.fn();
+  const captureOverride = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -54,6 +58,9 @@ describe("RuleValidate", () => {
           versionId: "rv-real-1",
           hit: true,
           severity: "HIGH",
+          status: "SUCCESS",
+          suppressedBy: null,
+          deduplicatedFromExecutionId: null,
           actions: [
             {
               actionCode: "BLOCK",
@@ -75,6 +82,20 @@ describe("RuleValidate", () => {
       mutateAsync: evaluate,
       isPending: false,
     } as unknown as ReturnType<typeof useEvaluateRules>);
+    captureOverride.mockResolvedValue({
+      overrideId: "rov-1",
+      executionId: "exec-item-1",
+      ruleId: "rule-real-1",
+      actionCode: "BLOCK",
+      reason: "已完成临床复核",
+      overriddenBy: "doctor-1",
+      overriddenAt: "2026-06-07T08:00:00Z",
+      traceId: "trace-rule",
+    });
+    mockUseCaptureRuleOverride.mockReturnValue({
+      mutateAsync: captureOverride,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCaptureRuleOverride>);
     mockUseContextSnapshots.mockReturnValue({
       data: {
         items: [
@@ -150,7 +171,8 @@ describe("RuleValidate", () => {
     const user = userEvent.setup();
     renderRuleValidate();
 
-    expect(screen.getByPlaceholderText("输入触发时点编码")).toHaveValue("order-sign");
+    expect(screen.getByRole("combobox", { name: "触发时点" })).toBeInTheDocument();
+    expect(screen.getByText("签署医嘱")).toBeInTheDocument();
 
     expect(screen.queryByLabelText(/Payload JSON/)).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
@@ -184,6 +206,9 @@ describe("RuleValidate", () => {
           versionId: "rv-redline-2026.2",
           hit: true,
           severity: "CRITICAL",
+          status: "SUCCESS",
+          suppressedBy: null,
+          deduplicatedFromExecutionId: null,
           actions: [
             {
               actionCode: "BLOCK",
@@ -212,6 +237,28 @@ describe("RuleValidate", () => {
     expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
     expect(screen.getByText("BLOCK")).toBeInTheDocument();
     expect(screen.getByText(/该校验只提示和阻断，不自动改写医嘱/)).toBeInTheDocument();
+  });
+
+  it("requires and submits a reason when overriding a blocking action", async () => {
+    const user = userEvent.setup();
+    renderRuleValidate();
+
+    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
+    await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
+    await user.click(await screen.findByRole("button", { name: "记录人工继续" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "记录人工继续" });
+    await user.type(within(dialog).getByLabelText("越权理由"), "已完成临床复核");
+    await user.click(within(dialog).getByRole("button", { name: "确认留痕" }));
+
+    await waitFor(() =>
+      expect(captureOverride).toHaveBeenCalledWith({
+        executionId: "exec-item-1",
+        actionCode: "BLOCK",
+        reason: "已完成临床复核",
+      }),
+    );
   });
 
   it("replays a historical rule execution explanation from the tenant execution directory", async () => {

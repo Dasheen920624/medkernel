@@ -6,7 +6,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 创建规则的入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules}）。
@@ -32,6 +35,9 @@ public record RuleCreateRequest(
     @NotNull RuleType ruleType,
     RuleAuthoringMode authoringMode,
     RuleRiskLevel riskLevel,
+    @Min(0) @Max(1000) Integer priority,
+    @Size(max = 128) String suppressedBy,
+    @Min(0) @Max(86400) Integer dedupeWindowSeconds,
     String applicableOrgUnitId,
     @NotBlank String sourceRef,
     String changeSummary,
@@ -54,7 +60,7 @@ public record RuleCreateRequest(
                              JsonNode dsl,
                              JsonNode explanation) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
-            ruleCode, name, ruleType, authoringMode, riskLevel, applicableOrgUnitId,
+            ruleCode, name, ruleType, authoringMode, riskLevel, 100, null, 0, applicableOrgUnitId,
             sourceRef, changeSummary, dsl, explanation);
     }
 

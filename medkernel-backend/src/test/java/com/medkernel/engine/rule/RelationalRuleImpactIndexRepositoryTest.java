@@ -121,7 +121,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         return new RuleDefinition(
             null, ruleId, "tenant-A", "RULE.IMPACT.TEST", "规则影响索引测试",
             RuleType.ORDER, RuleAuthoringMode.DSL, RuleRiskLevel.HIGH,
-            RuleDefinitionStatus.DRAFT, versionId, "pkg-version", "dept-1",
+            100, null, 0, RuleDefinitionStatus.DRAFT, versionId, "pkg-version", "dept-1",
             now, "tester", now, "tester", "trace-rule");
     }
 
@@ -129,7 +129,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         Instant now = Instant.now();
         return new RuleVersion(
             null, versionId, "tenant-A", ruleId, 1, "测试来源",
-            "索引验证", "{\"trigger\":\"ORDER_SIGN\",\"when\":{},\"then\":[],\"explain\":{}}",
+            "索引验证", "{\"trigger\":\"order-sign\",\"when\":{},\"then\":[],\"explain\":{}}",
             "{}", RuleVersionStatus.DRAFT, null, null, null,
             now, "tester", now, "tester", "trace-rule");
     }

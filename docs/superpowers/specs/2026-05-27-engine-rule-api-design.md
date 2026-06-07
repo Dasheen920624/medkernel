@@ -108,7 +108,7 @@
 
 ```json
 {
-  "trigger": "ORDER_SIGN",
+  "trigger": "order-sign",
   "when": {
     "all": [
       {"fact": "patient.age", "operator": "gte", "value": 18},

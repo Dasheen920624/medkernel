@@ -45,6 +45,7 @@ public enum PermissionCode {
     RULE_READ("rule.read", Risk.LOW, "查看规则"),
     RULE_WRITE("rule.write", Risk.MEDIUM, "新增 / 修改规则草稿"),
     RULE_PUBLISH("rule.publish", Risk.HIGH, "灰度 / 全量发布规则"),
+    RULE_OVERRIDE("rule.override", Risk.HIGH, "记录阻断或强提醒的人工越权理由"),
 
     // ─── 路径（GA-ENG-PATH-01）─────────────────────────────────
     PATHWAY_READ("pathway.read", Risk.LOW, "查看路径模板 / 患者路径"),
