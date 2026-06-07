@@ -102,10 +102,10 @@ function authenticatedProfile() {
         risk: "LOW",
       },
       {
-        code: "workbench:demo:view",
+        code: "workbench:readiness:view",
         dimension: "ACTION",
-        target: "workbench:demo:view",
-        displayName: "查看演示与校验",
+        target: "workbench:readiness:view",
+        displayName: "查看验收自检",
         risk: "LOW",
       },
     ],
@@ -147,8 +147,8 @@ vi.mock("@/pages/Bootstrap", () => ({
   ),
 }));
 
-vi.mock("@/pages/workbench/DemoValidation", () => ({
-  default: () => <div>演示就绪度自检</div>,
+vi.mock("@/pages/workbench/ReadinessValidation", () => ({
+  default: () => <div>运行验收自检</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -160,7 +160,10 @@ function renderRouter(initialPath: string) {
     <QueryClientProvider client={client}>
       <ConfigProvider>
         <AntdApp>
-          <MemoryRouter initialEntries={[initialPath]}>
+          <MemoryRouter
+            initialEntries={[initialPath]}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
             <AppRouter />
           </MemoryRouter>
         </AntdApp>
@@ -201,11 +204,11 @@ describe("AppRouter", () => {
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 
-  it("routes the WORKBENCH-02 demo-validation page through the protected layout", async () => {
+  it("routes the WORKBENCH-02 readiness validation page through the protected layout", async () => {
     securityProfileState.value = { data: authenticatedProfile(), isError: false };
-    renderRouter("/workbench/demo-validation");
+    renderRouter("/workbench/readiness-validation");
 
-    expect(await screen.findByText("演示就绪度自检")).toBeInTheDocument();
+    expect(await screen.findByText("运行验收自检")).toBeInTheDocument();
     expect(screen.queryByText("此功能待 W3 业务域任务实装")).toBeNull();
   });
 });

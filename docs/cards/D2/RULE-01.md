@@ -36,7 +36,7 @@
 - 端点：执行/仿真/测试能力，REST 客户面在 [API-05](API-05.md)。`RuleDslEvaluator` 求值入参为标准上下文快照。
 - DTO：复用 `RuleDefinition`/`RuleVersion`/`RuleTestCase`/`RuleSimulateRequest`/`RuleActionResult`。
 - 状态机：规则版本走核心 §3 配置类 + 变更类（发布 [SYS-04](SYS-04.md)）；**禁自创**。
-- 幂等 / 错误码 / traceId：高危无测试病例发布 → `RULE_PUBLISH_GATE_DENIED`；DSL 语法错 → `RULE_DSL_INVALID` + 行列；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
+- 幂等 / 错误码 / traceId：高危无测试病例发布 → `ENG-RULE-004`；DSL 语法错 → `ENG-RULE-001` + 行列；全链路 traceId（[OBS-01](../D0/OBS-01.md)）。
 ### 页面契约（页面卡 —— 规则库页，S5）
 - 路由元数据：sectionKey `pilot` / menuKey `rule-library` / requiredPermissions 规则配置 / requiredRoles 医务处·质控·专家。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 规则列表（大列表 [API-13](../D0/API-13.md)）+ 三层编辑器（L1 模板 / L2 条件树画布 / L3 DSL）+ 仿真面板 + 7 步流（[INFRA-09](../D1/INFRA-09.md) StepFlow）+ 六态。
@@ -70,7 +70,7 @@
 - [x] **AC-1（FR-1）**：L2 条件树编辑 → 切 L3 DSL 内容一致、回切无损；产出同一 `RuleDefinition`。
 - [x] **AC-2（FR-2/3）**：挂阳/阴/边界/冲突用例 → 求值结果符合预期且可解释；用例不全绿 → 不可发布。
 - [x] **AC-3（FR-4）**：仿真选真实快照跑规则 → 命中与解释正确、不写库不发提醒。
-- [x] **AC-4（FR-5/6）**：7 步流发布；高危规则无测试病例点发布 → `RULE_PUBLISH_GATE_DENIED`；当前规则影响摘要门禁已闭环，跨域真实影响索引返回路径模板、在径患者和同步目标，灰度 / 全量 / 回滚通用框架按 [SYS-04](SYS-04.md) 复用。
+- [x] **AC-4（FR-5/6）**：7 步流发布；高危规则无测试病例点发布 → `ENG-RULE-004`；当前规则影响摘要门禁已闭环，跨域真实影响索引返回路径模板、在径患者和同步目标，灰度 / 全量 / 回滚通用框架按 [SYS-04](SYS-04.md) 复用。
 - 关联 A1–A9 剧本：A3 规则配置、A4 发布回滚。
 - T-GATE：前后端真实性门禁按本分支提交后 changed-mode 与脚本测试执行，证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)；仿真非造数、无写死常量、高危门禁保持为不可回退红线。
 - B0 验收：三层配置 + 确定性执行，**天然 B0**；关模型行为不变。

@@ -24,6 +24,8 @@ import {
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
+import styles from "./Clinical.module.css";
+
 const statusText: Record<WorkflowNotificationStatus, string> = {
   UNREAD: "未读",
   READ: "已读",
@@ -172,8 +174,8 @@ export default function Notifications() {
         </Space>
       }
     >
-      <Card className="mb-4">
-        <Space direction="vertical" size="middle" className="mk-full-width">
+      <Card className={styles.sectionGap}>
+        <Space direction="vertical" size="middle" className={styles.fullWidth}>
           {quietSettingsAlert}
           <Space wrap>
             <Select
@@ -181,7 +183,7 @@ export default function Notifications() {
               value={status}
               onChange={setStatus}
               allowClear
-              className="w-36"
+              className={styles.controlSm}
               options={[
                 { value: "UNREAD", label: "未读" },
                 { value: "READ", label: "已读" },
@@ -193,7 +195,7 @@ export default function Notifications() {
               onChange={setLevel}
               allowClear
               placeholder="级别"
-              className="w-36"
+              className={styles.controlSm}
               options={[
                 { value: "CRITICAL", label: "危急" },
                 { value: "HIGH", label: "高" },
@@ -209,7 +211,7 @@ export default function Notifications() {
               allowClear
               loading={orgUnitsLoading}
               placeholder="组织范围"
-              className="w-44"
+              className={styles.controlMd}
               options={orgUnitOptions}
             />
             <label className="mk-sr-only" htmlFor="notifications-org-unit">
@@ -223,7 +225,7 @@ export default function Notifications() {
         <Alert
           type="error"
           showIcon
-          className="mb-4"
+          className={styles.sectionGap}
           message="通知读取失败"
           description="请检查登录状态、租户上下文或后端通知接口。"
         />
@@ -243,7 +245,7 @@ export default function Notifications() {
                 type="link"
                 aria-label="打开来源"
                 href={sourceLink}
-                className="px-0 font-semibold"
+                className={styles.buttonLink}
               >
                 打开来源
               </Button>
@@ -269,7 +271,7 @@ export default function Notifications() {
                   icon={<CheckOutlined />}
                   loading={readMutation.isPending}
                   onClick={() => markRead(item)}
-                  className="px-0 font-semibold"
+                  className={styles.buttonLink}
                 >
                   标为已读
                 </Button>
@@ -287,7 +289,7 @@ export default function Notifications() {
                 <List.Item.Meta
                   title={
                     <Space wrap>
-                      <span className="font-semibold text-slate-800">{item.title}</span>
+                      <span className={styles.textStrong}>{item.title}</span>
                       <Tag color={levelColor[item.level]}>{item.level}</Tag>
                       {isMutedByQuietHours(item.level) && <Tag color="default">免打扰中</Tag>}
                       {quietActiveNow && isQuietBypassLevel(item.level) && (
@@ -299,7 +301,7 @@ export default function Notifications() {
                   description={
                     <Space direction="vertical" size={2}>
                       <span>{item.message}</span>
-                      <Space wrap className="text-xs text-slate-500">
+                      <Space wrap className={styles.textSmall}>
                         <span>{sourceText[item.sourceType]}</span>
                         <span>{item.patientId || "-"}</span>
                         <span>{item.encounterId || "-"}</span>
@@ -309,7 +311,7 @@ export default function Notifications() {
                         </span>
                       </Space>
                       {externalDeliveries.length > 0 && (
-                        <Space wrap className="text-xs text-slate-500">
+                        <Space wrap className={styles.textSmall}>
                           <span>外发状态</span>
                           {externalDeliveries.map((delivery) => (
                             <Tag

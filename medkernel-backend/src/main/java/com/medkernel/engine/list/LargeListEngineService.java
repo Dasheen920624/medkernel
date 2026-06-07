@@ -5,7 +5,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -41,6 +44,7 @@ import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.crypto.SmCryptoService;
 
 /**
  * 大规模数据列表检索与异步批量导出核心服务引擎。
@@ -59,6 +63,7 @@ public class LargeListEngineService {
     private final JdbcTemplate jdbc;
     private final Executor knowledgeExportExecutor;
     private final ObjectMapper objectMapper;
+    private final SmCryptoService crypto;
 
     public LargeListEngineService(
         LargeListExportJobRepository jobRepository,
@@ -66,7 +71,8 @@ public class LargeListEngineService {
         AuditEventPublisher auditPublisher,
         IsolatedAuditPublisher isolatedAudit,
         JdbcTemplate jdbc,
-        @Qualifier("knowledgeExportExecutor") Executor knowledgeExportExecutor
+        @Qualifier("knowledgeExportExecutor") Executor knowledgeExportExecutor,
+        SmCryptoService crypto
     ) {
         this.jobRepository = jobRepository;
         this.auditRepository = auditRepository;
@@ -75,6 +81,7 @@ public class LargeListEngineService {
         this.jdbc = jdbc;
         this.knowledgeExportExecutor = knowledgeExportExecutor;
         this.objectMapper = new ObjectMapper();
+        this.crypto = crypto;
     }
 
     /**
@@ -126,15 +133,17 @@ public class LargeListEngineService {
             nextCursor = encodeCursor(last.id());
         }
 
-        long totalEstimate = estimateCount(tenantId, filters);
+        long knownMinimum = norm.safeOffset() + records.size() + (hasMore ? 1L : 0L);
+        long totalEstimate = estimateCount(tenantId, filters, knownMinimum);
 
         return new PageResult<>(records, nextCursor, totalEstimate, true, hasMore);
     }
 
     /**
      * 近似总行数估算，使用 SQL 标准 FETCH FIRST 限制以兼容 PostgreSQL 与 Oracle。
+     * 计数不可用时返回当前分页结果能够证明的下界，不将未知总数误报为零。
      */
-    private long estimateCount(String tenantId, Map<String, String> filters) {
+    private long estimateCount(String tenantId, Map<String, String> filters, long knownMinimum) {
         StringBuilder sql = new StringBuilder("SELECT count(*) FROM (SELECT 1 FROM audit_event WHERE tenant_id = ?");
         List<Object> params = new ArrayList<>();
         params.add(tenantId);
@@ -187,11 +196,11 @@ public class LargeListEngineService {
 
         try {
             Long val = jdbc.queryForObject(sql.toString(), Long.class, params.toArray());
-            long count = val == null ? 0L : val;
-            return count > 10000 ? 10000L : count;
+            long count = val == null ? knownMinimum : Math.max(val, knownMinimum);
+            return Math.min(10000L, count);
         } catch (Exception e) {
-            log.warn("Total estimate count failed, fallback to 0", e);
-            return 0L;
+            log.warn("总数估算失败，返回当前分页结果的已知下界: {}", knownMinimum, e);
+            return Math.min(10000L, knownMinimum);
         }
     }
 
@@ -252,13 +261,22 @@ public class LargeListEngineService {
         String creator = currentActor();
 
         String resourceType = normalizeExportResource(request.resourceType());
+        Map<String, String> validatedFilters = exportDefinition(resourceType).validateFilters(request.filters());
+        ExportSubmitRequest normalizedRequest = new ExportSubmitRequest(
+            resourceType,
+            validatedFilters,
+            request.selectedScope(),
+            request.idempotencyKey()
+        );
 
-        if (!"CURRENT_PAGE".equals(request.selectedScope()) && !"FILTERED_RESULT".equals(request.selectedScope())) {
+        if (!"CURRENT_PAGE".equals(normalizedRequest.selectedScope())
+            && !"FILTERED_RESULT".equals(normalizedRequest.selectedScope())) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "导出范围仅支持 CURRENT_PAGE 或 FILTERED_RESULT");
         }
 
-        String requestSnapshot = buildRequestSnapshot(resourceType, request);
-        ExportSubmitResponse existingResponse = reuseExistingIdempotentJob(tenantId, request, requestSnapshot);
+        String requestSnapshot = buildRequestSnapshot(resourceType, normalizedRequest);
+        ExportSubmitResponse existingResponse =
+            reuseExistingIdempotentJob(tenantId, normalizedRequest, requestSnapshot);
         if (existingResponse != null) {
             return existingResponse;
         }
@@ -268,9 +286,9 @@ public class LargeListEngineService {
             tenantId,
             resourceType,
             requestSnapshot,
-            request.selectedScope(),
+            normalizedRequest.selectedScope(),
             traceId,
-            request.idempotencyKey(),
+            normalizedRequest.idempotencyKey(),
             creator
         );
 
@@ -344,6 +362,35 @@ public class LargeListEngineService {
     }
 
     /**
+     * 返回已完成导出任务的可信产物信息，由服务器读取真实文件并计算 SM3 摘要。
+     */
+    public LargeListExportArtifact completedExportArtifact(String jobId) {
+        LargeListExportJob job = getExportJob(jobId);
+        if (!"SUCCESS".equals(job.status())) {
+            throw new ApiException(ErrorCode.ENG_LIST_003, "导出任务尚未成功，不能登记审批产物");
+        }
+        if (job.filePath() == null || job.filePath().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_LIST_004, "导出任务没有真实物理文件");
+        }
+        Path path = Path.of(job.filePath()).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(path)) {
+            throw new ApiException(ErrorCode.ENG_LIST_004, "导出的物理 CSV 文件不存在或已被清理");
+        }
+        try (InputStream input = Files.newInputStream(path)) {
+            return new LargeListExportArtifact(
+                job.jobId(),
+                job.resourceType(),
+                job.requestSnapshot(),
+                job.idempotencyKey(),
+                "/medkernel/api/v1/large-lists/exports/" + job.jobId() + "/download",
+                "sm3:" + crypto.sm3Hex(input)
+            );
+        } catch (IOException exception) {
+            throw new ApiException(ErrorCode.ENG_LIST_004, "导出文件摘要计算失败", exception);
+        }
+    }
+
+    /**
      * 后台线程实际执行大规模列表数据的分批拉取与 CSV 文件物理生成。
      */
     void executeExport(String jobId) throws IOException {
@@ -363,9 +410,6 @@ public class LargeListEngineService {
         updateJobStatus(job, "RUNNING", null, null, 0L, null);
 
         Map<String, String> filterMap = extractFilters(job.requestSnapshot());
-        String actionFilter = filterValue(filterMap, "action");
-        String resourceTypeFilter = filterValue(filterMap, "resourceType");
-        String actorFilter = filterValue(filterMap, "actorUserId");
 
         // 生成本地临时文件
         File tempDir = new File(System.getProperty("java.io.tmpdir"), "medkernel-exports");
@@ -378,7 +422,7 @@ public class LargeListEngineService {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile))) {
             writer.write("\uFEFF"); // 写入 UTF-8 BOM，防止 Excel 乱码
             if ("AUDIT_EVENT".equals(job.resourceType())) {
-                count = writeAuditEventExport(writer, tenantId, actionFilter, resourceTypeFilter, actorFilter);
+                count = writeAuditEventExport(writer, tenantId, filterMap);
             } else if ("TERMINOLOGY_MAPPING".equals(job.resourceType())) {
                 count = writeTerminologyMappingExport(writer, tenantId, filterMap);
             } else {
@@ -529,6 +573,17 @@ public class LargeListEngineService {
         return normalized;
     }
 
+    private LargeListResourceDefinition exportDefinition(String resourceType) {
+        return switch (resourceType) {
+            case "AUDIT_EVENT" -> LargeListResourceDefinition.auditEvents();
+            case "TERMINOLOGY_MAPPING" -> LargeListResourceDefinition.terminologyMappings();
+            default -> throw new ApiException(
+                ErrorCode.ENG_LIST_001,
+                "不支持的异步导出资源类型: " + resourceType
+            );
+        };
+    }
+
     private String buildRequestSnapshot(String resourceType, ExportSubmitRequest request) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("resourceType", resourceType);
@@ -568,9 +623,7 @@ public class LargeListEngineService {
     private long writeAuditEventExport(
         BufferedWriter writer,
         String tenantId,
-        String actionFilter,
-        String resourceTypeFilter,
-        String actorFilter
+        Map<String, String> filters
     ) throws IOException {
         writer.write("自增ID,事件ID,追踪ID,发生时间,操作人ID,操作动作,资源类型,资源ID,摘要,outcome,错误码\n");
 
@@ -581,11 +634,15 @@ public class LargeListEngineService {
 
         while (hasNext) {
             AuditEventQuery query = new AuditEventQuery(
-                actionFilter,
-                resourceTypeFilter,
-                actorFilter,
-                null,
-                null,
+                filterValue(filters, "action"),
+                filterValue(filters, "resourceType"),
+                filterValue(filters, "actorUserId"),
+                filterValue(filters, "orgPathPrefix"),
+                filterValue(filters, "environmentKey"),
+                filterValue(filters, "outcome"),
+                Boolean.parseBoolean(filterValue(filters, "superAdminOnly")),
+                parseInstantFilter(filters, "from"),
+                parseInstantFilter(filters, "to"),
                 cursorId,
                 batchSize
             );

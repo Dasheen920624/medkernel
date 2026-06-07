@@ -13,7 +13,7 @@
 - **五方言 ✅**：org_unit / user_role_assignment 等齐全。
 - **代码净化 ✅**：嗅探 0。
 - **错误处理 ✅**：无权限响应 + ProblemDetail。
-- **测试 ✅ 最充分**：security 22 测试（含 UserRoleAssignmentControllerTest 5 MVC、JWT 角色匹配 403）。
+- **测试 ✅ 最充分**：组织与安全测试覆盖统一用户管理、角色层级、租户隔离与 JWT 角色匹配 403。
 - **可观测性 🟡 A1-M-01**：缺登录/授权失败计数指标。
 - **契约一致 ✅**：compliance 前端（AdminUsers/IdentityBinding）嗅探基本干净。
 

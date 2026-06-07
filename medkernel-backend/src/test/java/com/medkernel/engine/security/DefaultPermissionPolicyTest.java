@@ -12,36 +12,30 @@ class DefaultPermissionPolicyTest {
     void platformAdminHasAllNonEmergencyPermissions() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY)
-            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
     void groupAdminHasAllNonEmergencyPermissions() {
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
         expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.GROUP_ADMIN))
             .containsAll(expected)
-            .doesNotContain(PermissionCode.ENV_EMERGENCY)
-            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            .doesNotContain(PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
     void systemSuperAdminHasEveryRuntimePermissionIncludingEmergency() {
         RoleCode systemSuperAdmin = RoleCode.fromCode("system-superadmin").orElseThrow();
         EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
-        expected.removeAll(MenuPermissionCatalog.legacySectionPermissions());
 
         assertThat(DefaultPermissionPolicy.permissionsOf(systemSuperAdmin))
             .containsAll(expected)
-            .contains(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY)
-            .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
+            .contains(PermissionCode.SYSTEM_MANAGE, PermissionCode.ENV_EMERGENCY);
     }
 
     @Test
@@ -52,8 +46,8 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
-    void workbenchDemoValidationPermissionIsRealAndClinicalRolesCannotUseIt() {
-        PermissionCode.fromCode("workbench:demo:view")
+    void workbenchReadinessValidationPermissionIsRealAndClinicalRolesCannotUseIt() {
+        PermissionCode.fromCode("workbench:readiness:view")
             .ifPresentOrElse(permission -> {
                 assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
                     .contains(permission);
@@ -68,7 +62,7 @@ class DefaultPermissionPolicyTest {
                 assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
                     .doesNotContain(permission);
             }, () -> {
-                throw new AssertionError("WORKBENCH-02 动作权限 workbench:demo:view 未登记");
+                throw new AssertionError("WORKBENCH-02 动作权限 workbench:readiness:view 未登记");
             });
     }
 
@@ -83,6 +77,30 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void modelExecutionAndTenantPolicyManagementUseSeparatePermissions() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.DOCTOR))
+            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
+            .doesNotContain(PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.NURSE))
+            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
+            .doesNotContain(PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.MEDICAL_AFFAIRS))
+            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE)
+            .doesNotContain(PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.QA_MANAGER))
+            .contains(PermissionCode.LLM_READ)
+            .doesNotContain(PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+            .contains(PermissionCode.LLM_READ, PermissionCode.LLM_EXECUTE, PermissionCode.LLM_MANAGE);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .contains(PermissionCode.MENU_AI_WORKFLOWS);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IMPLEMENTATION_ENGINEER))
+            .contains(PermissionCode.MENU_AI_WORKFLOWS);
+    }
+
+    @Test
     void auditComplianceIsReadOnly() {
         var perms = DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE);
         for (PermissionCode p : perms) {
@@ -92,7 +110,19 @@ class DefaultPermissionPolicyTest {
                     .matches("(.+\\.read|.+\\.export)");
             }
         }
-        assertThat(perms).contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT);
+        assertThat(perms)
+            .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
+            .doesNotContain(PermissionCode.MENU_SYSTEM_PROVIDERS);
+    }
+
+    @Test
+    void onlyAdministratorRolesReceiveUserManagementMenu() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.HOSPITAL_ADMIN))
+            .contains(PermissionCode.MENU_ADMIN_USERS);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IT_OPS))
+            .doesNotContain(PermissionCode.MENU_ADMIN_USERS);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.AUDIT_COMPLIANCE))
+            .doesNotContain(PermissionCode.MENU_ADMIN_USERS);
     }
 
     @Test
@@ -242,9 +272,6 @@ class DefaultPermissionPolicyTest {
             assertThat(menuPermissions)
                 .as("%s 必须拥有至少一个二级菜单权限", role.code())
                 .isNotEmpty();
-            assertThat(menuPermissions)
-                .as("%s 不得继续使用一级 section 菜单权限", role.code())
-                .doesNotContainAnyElementsOf(MenuPermissionCatalog.legacySectionPermissions());
             assertThat(menuPermissions)
                 .as("%s 菜单权限必须全部来自 INFRA-05 32 项目录", role.code())
                 .allMatch(MenuPermissionCatalog::isCatalogMenuPermission);

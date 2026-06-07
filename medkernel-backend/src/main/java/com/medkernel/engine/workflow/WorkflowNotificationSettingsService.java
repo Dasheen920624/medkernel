@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -13,6 +14,13 @@ import com.medkernel.engine.experience.UserPreference;
 import com.medkernel.engine.experience.UserPreferenceRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecordCommand;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.config.SystemConfigItemResponse;
+import com.medkernel.shared.config.SystemConfigSeed;
+import com.medkernel.shared.config.SystemConfigService;
+import com.medkernel.shared.config.SystemConfigUpdateRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
@@ -21,24 +29,36 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 通知偏好与免打扰策略服务。
  *
- * <p>当前保存用户个人偏好；外部通道启用后仅用于登记出站补偿，不声明短信、移动推送等通道已真实投递。
+ * <p>租户默认策略由配置中心托管，个人偏好按用户覆盖；外部通道只登记真实出站补偿，
+ * 不声明短信、移动推送等未连接通道已完成投递。
  */
 @Service
 public class WorkflowNotificationSettingsService {
 
+    public static final String SYSTEM_DEFAULTS_KEY = "medkernel.notification.defaults";
     private static final String ACTIVE = "ACTIVE";
     private static final String PREF_KEY = "notification.settings";
     private static final String DEFAULT_QUIET_START = "22:00";
     private static final String DEFAULT_QUIET_END = "07:00";
     private static final Set<WorkflowNotificationLevel> SAFETY_BYPASS_LEVELS =
         Set.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH);
+    private static final Set<WorkflowNotificationType> MANDATORY_TYPES =
+        Set.of(WorkflowNotificationType.SAFETY);
 
     private final UserPreferenceRepository repository;
     private final ObjectMapper objectMapper;
+    private final SystemConfigService systemConfigService;
+    private final AuditRecorder auditRecorder;
 
-    public WorkflowNotificationSettingsService(UserPreferenceRepository repository, ObjectMapper objectMapper) {
+    public WorkflowNotificationSettingsService(
+            UserPreferenceRepository repository,
+            ObjectMapper objectMapper,
+            SystemConfigService systemConfigService,
+            AuditRecorder auditRecorder) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.systemConfigService = systemConfigService;
+        this.auditRecorder = auditRecorder;
     }
 
     /**
@@ -58,10 +78,32 @@ public class WorkflowNotificationSettingsService {
     public WorkflowNotificationSettingsResponse getSettingsForUser(String tenantId, String userId) {
         String normalizedTenantId = requireText(tenantId, "租户标识");
         String normalizedUserId = requireText(userId, "接收人");
+        SystemSettings systemSettings = systemSettings(normalizedTenantId);
         return repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
                 normalizedTenantId, normalizedUserId, PREF_KEY, ACTIVE)
-            .map(this::responseFromPreference)
-            .orElseGet(() -> response(defaultPayload(), 0, null, null));
+            .map(preference -> responseFromPreference(preference, systemSettings.version()))
+            .orElseGet(() -> response(
+                systemSettings.payload(),
+                WorkflowNotificationSettingsSource.SYSTEM_DEFAULT,
+                0,
+                systemSettings.version(),
+                systemSettings.updatedAt(),
+                null));
+    }
+
+    /**
+     * 读取当前租户的系统通知默认策略。
+     */
+    @Transactional
+    public WorkflowNotificationSettingsResponse getSystemSettings() {
+        SystemSettings systemSettings = systemSettings(requireTenantId());
+        return response(
+            systemSettings.payload(),
+            WorkflowNotificationSettingsSource.SYSTEM_DEFAULT,
+            0,
+            systemSettings.version(),
+            systemSettings.updatedAt(),
+            null);
     }
 
     /**
@@ -72,24 +114,15 @@ public class WorkflowNotificationSettingsService {
         SettingsPayload payload = normalize(request);
         String tenantId = requireTenantId();
         String userId = requireUserId();
+        SystemSettings systemSettings = systemSettings(tenantId);
         Instant now = Instant.now();
         String value = writePayload(payload);
-
-        UserPreference preference = repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
+        UserPreference existing = repository.findByTenantIdAndUserIdAndPrefKeyAndStatus(
                 tenantId, userId, PREF_KEY, ACTIVE)
-            .map(existing -> new UserPreference(
-                existing.userPrefId(),
-                existing.tenantId(),
-                existing.userId(),
-                existing.prefKey(),
-                value,
-                existing.version() + 1,
-                ACTIVE,
-                existing.createdAt(),
-                existing.createdBy(),
-                now,
-                userId))
-            .orElseGet(() -> new UserPreference(
+            .orElse(null);
+
+        UserPreference preference = existing == null
+            ? new UserPreference(
                 "up-" + UUID.randomUUID(),
                 tenantId,
                 userId,
@@ -100,10 +133,67 @@ public class WorkflowNotificationSettingsService {
                 now,
                 userId,
                 now,
-                userId));
+                userId)
+            : new UserPreference(
+                existing.userPrefId(),
+                existing.tenantId(),
+                existing.userId(),
+                existing.prefKey(),
+                value,
+                existing.version() + 1,
+                ACTIVE,
+                existing.createdAt(),
+                existing.createdBy(),
+                now,
+                userId);
 
         UserPreference saved = repository.save(preference);
-        return response(payload, saved.version(), saved.updatedAt(), saved.updatedBy());
+        auditRecorder.record(new AuditRecordCommand(
+            AuditAction.UPDATE,
+            "notification_settings",
+            userId,
+            "更新个人通知设置",
+            existing == null ? Map.of() : Map.of("version", existing.version()),
+            auditSnapshot(payload),
+            null));
+        return response(
+            payload,
+            WorkflowNotificationSettingsSource.PERSONAL,
+            saved.version(),
+            systemSettings.version(),
+            saved.updatedAt(),
+            saved.updatedBy());
+    }
+
+    /**
+     * 更新当前租户的系统通知默认策略。
+     */
+    @Transactional
+    public WorkflowNotificationSettingsResponse saveSystemSettings(
+            WorkflowNotificationSystemSettingsRequest request) {
+        if (request == null || request.settings() == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "租户通知默认策略不能为空");
+        }
+        SettingsPayload payload = normalize(request.settings());
+        String tenantId = requireTenantId();
+        String actor = requireUserId();
+        SystemConfigItemResponse saved = systemConfigService.updateTenant(
+            tenantId,
+            SYSTEM_DEFAULTS_KEY,
+            new SystemConfigUpdateRequest(
+                writePayload(payload),
+                request.reason(),
+                request.expectedVersion(),
+                false),
+            actor);
+        SettingsPayload savedPayload = readPayload(saved.value(), "租户通知默认策略已损坏");
+        return response(
+            savedPayload,
+            WorkflowNotificationSettingsSource.SYSTEM_DEFAULT,
+            0,
+            saved.version(),
+            saved.updatedAt(),
+            actor);
     }
 
     boolean isMutedByQuietHours(
@@ -119,13 +209,42 @@ public class WorkflowNotificationSettingsService {
         return quietActive(settings.quietStart(), settings.quietEnd(), now);
     }
 
-    private WorkflowNotificationSettingsResponse responseFromPreference(UserPreference preference) {
-        return response(readPayload(preference), preference.version(), preference.updatedAt(), preference.updatedBy());
+    boolean isSubscribed(
+            WorkflowNotificationSourceType sourceType,
+            WorkflowNotificationLevel level,
+            WorkflowNotificationSettingsResponse settings) {
+        if (settings == null) {
+            return false;
+        }
+        if (level == WorkflowNotificationLevel.CRITICAL || level == WorkflowNotificationLevel.HIGH) {
+            return true;
+        }
+        WorkflowNotificationType type = switch (sourceType) {
+            case SAFETY_REVIEW -> WorkflowNotificationType.SAFETY;
+            case FOLLOWUP_EVENT -> WorkflowNotificationType.FOLLOWUP;
+            case WORKFLOW_TODO -> WorkflowNotificationType.WORKFLOW;
+            case SYNC_EVENT -> WorkflowNotificationType.SYNC;
+        };
+        return settings.subscribedTypes().contains(type);
+    }
+
+    private WorkflowNotificationSettingsResponse responseFromPreference(
+            UserPreference preference,
+            long systemVersion) {
+        return response(
+            readPayload(preference),
+            WorkflowNotificationSettingsSource.PERSONAL,
+            preference.version(),
+            systemVersion,
+            preference.updatedAt(),
+            preference.updatedBy());
     }
 
     private WorkflowNotificationSettingsResponse response(
             SettingsPayload payload,
+            WorkflowNotificationSettingsSource source,
             long version,
+            long systemVersion,
             Instant updatedAt,
             String updatedBy) {
         return new WorkflowNotificationSettingsResponse(
@@ -139,8 +258,12 @@ public class WorkflowNotificationSettingsService {
             payload.quietStart(),
             payload.quietEnd(),
             payload.quietBypassLevels(),
+            payload.subscribedTypes(),
+            MANDATORY_TYPES,
+            source,
             payload.quietHoursEnabled() && quietActive(payload.quietStart(), payload.quietEnd(), LocalTime.now()),
             version,
+            systemVersion,
             updatedAt,
             updatedBy);
     }
@@ -161,14 +284,19 @@ public class WorkflowNotificationSettingsService {
             defaultFalse(request.quietHoursEnabled()),
             quietStart,
             quietEnd,
-            normalizeBypassLevels(request.quietBypassLevels()));
+            normalizeBypassLevels(request.quietBypassLevels()),
+            normalizeSubscribedTypes(request.subscribedTypes()));
     }
 
     private SettingsPayload readPayload(UserPreference preference) {
+        return readPayload(preference.prefValue(), "通知设置偏好已损坏，请重新保存");
+    }
+
+    private SettingsPayload readPayload(String value, String errorMessage) {
         try {
-            return normalize(objectMapper.readValue(preference.prefValue(), SettingsPayload.class));
+            return normalize(objectMapper.readValue(value, SettingsPayload.class));
         } catch (JsonProcessingException ex) {
-            throw new ApiException(ErrorCode.CONFLICT, "通知设置偏好已损坏，请重新保存");
+            throw new ApiException(ErrorCode.CONFLICT, errorMessage);
         }
     }
 
@@ -186,7 +314,8 @@ public class WorkflowNotificationSettingsService {
             payload.quietHoursEnabled(),
             normalizeTime(payload.quietStart(), DEFAULT_QUIET_START),
             normalizeTime(payload.quietEnd(), DEFAULT_QUIET_END),
-            normalizeBypassLevels(payload.quietBypassLevels()));
+            normalizeBypassLevels(payload.quietBypassLevels()),
+            normalizeSubscribedTypes(payload.subscribedTypes()));
     }
 
     private String writePayload(SettingsPayload payload) {
@@ -208,7 +337,8 @@ public class WorkflowNotificationSettingsService {
             false,
             DEFAULT_QUIET_START,
             DEFAULT_QUIET_END,
-            normalizeBypassLevels(null));
+            normalizeBypassLevels(null),
+            normalizeSubscribedTypes(null));
     }
 
     private static Set<WorkflowNotificationLevel> normalizeBypassLevels(Set<WorkflowNotificationLevel> levels) {
@@ -219,6 +349,69 @@ public class WorkflowNotificationSettingsService {
             normalized.addAll(levels);
         }
         return Collections.unmodifiableSet(normalized);
+    }
+
+    private static Set<WorkflowNotificationType> normalizeSubscribedTypes(
+            Set<WorkflowNotificationType> types) {
+        LinkedHashSet<WorkflowNotificationType> normalized = new LinkedHashSet<>();
+        normalized.add(WorkflowNotificationType.SAFETY);
+        if (types == null) {
+            normalized.add(WorkflowNotificationType.FOLLOWUP);
+            normalized.add(WorkflowNotificationType.WORKFLOW);
+            normalized.add(WorkflowNotificationType.SYNC);
+        } else {
+            for (WorkflowNotificationType type : WorkflowNotificationType.values()) {
+                if (types.contains(type)) {
+                    normalized.add(type);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(normalized);
+    }
+
+    private SystemSettings systemSettings(String tenantId) {
+        SettingsPayload defaults = defaultPayload();
+        Instant now = Instant.now();
+        SystemConfigItemResponse config = systemConfigService.getOrSeedTenantConfig(
+            tenantId,
+            SYSTEM_DEFAULTS_KEY,
+            new SystemConfigSeed(
+                tenantId,
+                SYSTEM_DEFAULTS_KEY,
+                writePayload(defaults),
+                "JSON",
+                "租户通知默认策略",
+                "MEDIUM",
+                "医院管理员",
+                "租户通知渠道、订阅类型和免打扰默认策略。",
+                "SAFE_DEFAULT",
+                false,
+                now),
+            currentActor());
+        return new SystemSettings(
+            readPayload(config.value(), "租户通知默认策略已损坏"),
+            config.version(),
+            config.updatedAt());
+    }
+
+    private static Map<String, Object> auditSnapshot(SettingsPayload payload) {
+        return Map.of(
+            "inAppEnabled", payload.inAppEnabled(),
+            "externalChannelCount", enabledExternalChannelCount(payload),
+            "quietHoursEnabled", payload.quietHoursEnabled(),
+            "quietWindow", payload.quietStart() + "-" + payload.quietEnd(),
+            "subscribedTypes", payload.subscribedTypes().stream().map(Enum::name).toList());
+    }
+
+    private static long enabledExternalChannelCount(SettingsPayload payload) {
+        return java.util.stream.Stream.of(
+                payload.smsEnabled(),
+                payload.emailEnabled(),
+                payload.pushEnabled(),
+                payload.webhookEnabled(),
+                payload.inHospitalMessageEnabled())
+            .filter(Boolean::booleanValue)
+            .count();
     }
 
     private static String normalizeTime(String value, String fallback) {
@@ -254,6 +447,12 @@ public class WorkflowNotificationSettingsService {
             .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "当前用户上下文缺失"));
     }
 
+    private String currentActor() {
+        return RequestContext.currentUserId()
+            .filter(userId -> !userId.isBlank())
+            .orElse("system");
+    }
+
     private static boolean defaultTrue(Boolean value) {
         return value == null || value;
     }
@@ -279,7 +478,15 @@ public class WorkflowNotificationSettingsService {
         boolean quietHoursEnabled,
         String quietStart,
         String quietEnd,
-        Set<WorkflowNotificationLevel> quietBypassLevels
+        Set<WorkflowNotificationLevel> quietBypassLevels,
+        Set<WorkflowNotificationType> subscribedTypes
+    ) {
+    }
+
+    private record SystemSettings(
+        SettingsPayload payload,
+        long version,
+        Instant updatedAt
     ) {
     }
 }

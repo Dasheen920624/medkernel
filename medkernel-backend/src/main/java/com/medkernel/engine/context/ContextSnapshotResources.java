@@ -2,6 +2,7 @@ package com.medkernel.engine.context;
 
 import java.util.List;
 
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalClaim;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
@@ -18,10 +19,11 @@ import com.medkernel.engine.context.canonical.CanonicalProcedure;
 import jakarta.validation.Valid;
 
 /**
- * 12 类标准临床资源容器（snapshot 请求的 resources 字段）。
+ * 13 类标准临床资源容器（snapshot 请求的 resources 字段）。
  */
 public record ContextSnapshotResources(
     @Valid CanonicalPatient patient,
+    @Valid List<CanonicalAllergyIntolerance> allergyIntolerances,
     @Valid List<CanonicalEncounter> encounters,
     @Valid List<CanonicalCondition> conditions,
     @Valid List<CanonicalNursingAssessment> nursingAssessments,
@@ -36,6 +38,7 @@ public record ContextSnapshotResources(
 ) {
 
     public ContextSnapshotResources {
+        allergyIntolerances = safeList(allergyIntolerances);
         encounters = safeList(encounters);
         conditions = safeList(conditions);
         nursingAssessments = safeList(nursingAssessments);

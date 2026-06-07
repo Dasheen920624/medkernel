@@ -19,10 +19,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.medkernel.engine.context.ContextSnapshotRequest;
+import com.medkernel.engine.context.ContextSnapshot;
+import com.medkernel.engine.context.ContextSnapshotRepository;
+import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalCondition;
 import com.medkernel.engine.pathway.ClinicalClock;
 import com.medkernel.engine.pathway.ClinicalClockRepository;
 import com.medkernel.engine.pathway.ClinicalClockStatus;
@@ -66,6 +70,8 @@ class FollowupEngineServiceTest {
     @Mock
     private ContextSnapshotService contextSnapshotService;
     @Mock
+    private ContextSnapshotRepository contextSnapshots;
+    @Mock
     private ClinicalClockRepository clinicalClockRepository;
 
     @InjectMocks
@@ -85,8 +91,9 @@ class FollowupEngineServiceTest {
 
     @Test
     void testGeneratePlan() {
+        stubActiveSnapshot("ctx-plan-1", "PAT01", "ENC01", "D01");
         FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE")
+            "ctx-plan-1", "HIGH", List.of("QUESTIONNAIRE")
         );
         
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
@@ -108,10 +115,72 @@ class FollowupEngineServiceTest {
     }
 
     @Test
-    void generatePlanReusesExistingPathwayPlan() {
-        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE")
+    void generatePlanRejectsSupersededSnapshot() {
+        stubSnapshotEntity(
+            "ctx-superseded-1",
+            "PAT01",
+            "ENC01",
+            ContextSnapshotStatus.SUPERSEDED
         );
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.generatePlan(
+            new FollowupPlanGenerateRequest("ctx-superseded-1", "HIGH", List.of("QUESTIONNAIRE"))
+        ));
+
+        assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
+        verify(contextSnapshotService, never()).findById(any(String.class));
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+    }
+
+    @Test
+    void generatePlanUsesRiskFactWhenSnapshotHasNoResourceBody() {
+        stubSnapshotEntity("ctx-empty-resources-1", "PAT01", "ENC01", ContextSnapshotStatus.ACTIVE);
+        when(contextSnapshotService.findById("ctx-empty-resources-1")).thenReturn(new ContextSnapshotResponse(
+            "ctx-empty-resources-1",
+            ContextSnapshotStatus.ACTIVE,
+            null,
+            "2026.06",
+            QualityStatus.PARTIAL,
+            List.of(),
+            Map.of(),
+            Instant.now(),
+            "trace-123"
+        ));
+        FollowupPlan existing = new FollowupPlan(
+            1L,
+            "PLAN01",
+            "tenant-1",
+            "PAT01",
+            "ENC01",
+            null,
+            null,
+            "HIGH",
+            FollowupPlanStatus.ACTIVE,
+            "risk-plan-key-1",
+            Instant.now(),
+            "sys",
+            Instant.now(),
+            "sys",
+            "trace-123"
+        );
+        when(planRepository.findByTenantIdAndIdempotencyKey("tenant-1", "risk-plan-key-1"))
+            .thenReturn(Optional.of(existing));
+        when(taskRepository.findByTenantIdAndPlanId("tenant-1", "PLAN01")).thenReturn(List.of());
+
+        FollowupPlanDetailResponse response = service.generatePlan(new FollowupPlanGenerateRequest(
+            "ctx-empty-resources-1",
+            "HIGH",
+            List.of("QUESTIONNAIRE"),
+            "risk-plan-key-1",
+            false
+        ));
+
+        assertThat(response.planId()).isEqualTo("PLAN01");
+        verify(planRepository, never()).save(any(FollowupPlan.class));
+    }
+
+    @Test
+    void generatePlanReusesExistingPathwayPlan() {
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
             FollowupPlanStatus.ACTIVE, Instant.now(), "sys", Instant.now(), "sys", "trace-123");
         FollowupTask task = new FollowupTask(1L, "TASK01", "tenant-1", "PLAN01", FollowupTaskType.QUESTIONNAIRE,
@@ -122,7 +191,8 @@ class FollowupEngineServiceTest {
         when(taskRepository.findByTenantIdAndPlanId("tenant-1", "PLAN01"))
             .thenReturn(List.of(task));
 
-        FollowupPlanDetailResponse response = service.generatePlan(request);
+        FollowupPlanDetailResponse response = service.generatePlanFromPathway(
+            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE"));
 
         assertEquals("PLAN01", response.planId());
         assertEquals(1, response.tasks().size());
@@ -132,8 +202,9 @@ class FollowupEngineServiceTest {
 
     @Test
     void generatePlanRejectsTaskTypesWithoutControlledFacts() {
+        stubActiveSnapshot("ctx-no-fact-1", "PAT01", "ENC01", null);
         FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", null, null, null, List.of("QUESTIONNAIRE"), "unsafe-task-only", false
+            "ctx-no-fact-1", null, List.of("QUESTIONNAIRE"), "unsafe-task-only", false
         );
 
         ApiException exception = assertThrows(ApiException.class, () -> service.generatePlan(request));
@@ -145,8 +216,9 @@ class FollowupEngineServiceTest {
 
     @Test
     void generatePlanRejectsIdempotencyReplayWithoutControlledFacts() {
+        stubActiveSnapshot("ctx-no-fact-2", "PAT01", "ENC01", null);
         FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", null, null, null, List.of("QUESTIONNAIRE"), "replay-without-fact", false
+            "ctx-no-fact-2", null, List.of("QUESTIONNAIRE"), "replay-without-fact", false
         );
         FollowupPlan existing = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", null, null, null,
             FollowupPlanStatus.ACTIVE, "replay-without-fact", Instant.now(), "sys", Instant.now(), "sys",
@@ -175,10 +247,6 @@ class FollowupEngineServiceTest {
             startedAt, dueAt, null, ClinicalClockStatus.RUNNING,
             startedAt, "pathway", startedAt, "pathway", "trace-pathway"
         );
-        FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", "pp-1", "D01", "HIGH", List.of(), "fact-plan-key-1", false
-        );
-
         when(clinicalClockRepository.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-1"))
             .thenReturn(List.of(clock));
         when(planRepository.save(any(FollowupPlan.class))).thenAnswer(inv -> {
@@ -199,7 +267,8 @@ class FollowupEngineServiceTest {
             );
         });
 
-        FollowupPlanDetailResponse response = service.generatePlan(request);
+        FollowupPlanDetailResponse response = service.generatePlanFromPathway(
+            "PAT01", "ENC01", "pp-1", "D01", "HIGH", List.of(), "fact-plan-key-1", false);
 
         assertThat(response.sourceFactType()).isEqualTo("PATHWAY");
         assertThat(response.sourceFactId()).isEqualTo("pp-1");
@@ -241,9 +310,9 @@ class FollowupEngineServiceTest {
 
     @Test
     void generatePlanReusesIdempotencyKeyAndReportsModelDisabled() {
+        stubActiveSnapshot("ctx-idempotent-1", "PAT01", "ENC01", "D01");
         FollowupPlanGenerateRequest request = new FollowupPlanGenerateRequest(
-            "PAT01", "ENC01", "PATH01", "D01", "HIGH", List.of("QUESTIONNAIRE"),
-            "follow-plan-key-1", false
+            "ctx-idempotent-1", "HIGH", List.of("QUESTIONNAIRE"), "follow-plan-key-1", false
         );
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
             FollowupPlanStatus.ACTIVE, "follow-plan-key-1", Instant.now(), "sys", Instant.now(), "sys", "trace-123");
@@ -375,13 +444,12 @@ class FollowupEngineServiceTest {
         });
         when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("b0-result-key")))
             .thenReturn(new ContextSnapshotResponse(
-                "ctx-b0", ContextSnapshotStatus.ACTIVE, null, null, null, null, null,
+                "ctx-b0", ContextSnapshotStatus.ACTIVE, null, null,
                 QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
             ));
 
-        FollowupPlanDetailResponse plan = service.generatePlan(new FollowupPlanGenerateRequest(
-            "PAT-B0", "ENC-B0", "path-b0", "D-B0", "STANDARD", List.of(), "b0-plan-key", true
-        ));
+        FollowupPlanDetailResponse plan = service.generatePlanFromPathway(
+            "PAT-B0", "ENC-B0", "path-b0", "D-B0", "STANDARD", List.of(), "b0-plan-key", true);
         FollowupQuestionnaireResponse questionnaire = service.dispatchQuestionnaire(new FollowupQuestionnaireRequest(
             plan.tasks().get(0).taskId(),
             "TPL-B0",
@@ -428,6 +496,81 @@ class FollowupEngineServiceTest {
             );
         assertThat(events.get(1).payload()).contains("\"abnormalPayload\":{\"reason\":\"painScore上升\",\"score\":4}");
         verify(contextSnapshotService).create(any(ContextSnapshotRequest.class), eq("b0-result-key"));
+    }
+
+    private void stubActiveSnapshot(
+            String snapshotId,
+            String patientId,
+            String encounterId,
+            String diseaseCode) {
+        Instant now = Instant.now();
+        stubSnapshotEntity(snapshotId, patientId, encounterId, ContextSnapshotStatus.ACTIVE);
+        List<CanonicalCondition> conditions = diseaseCode == null
+            ? List.of()
+            : List.of(new CanonicalCondition(
+                "condition-1",
+                diseaseCode,
+                "ICD-10",
+                diseaseCode,
+                null,
+                null,
+                "HIS",
+                "source-1",
+                "2026.06",
+                now,
+                now,
+                QualityStatus.VALID));
+        ContextSnapshotResources resources = new ContextSnapshotResources(
+            null,
+            List.of(),
+            List.of(),
+            conditions,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of());
+        when(contextSnapshotService.findById(snapshotId)).thenReturn(new ContextSnapshotResponse(
+            snapshotId,
+            ContextSnapshotStatus.ACTIVE,
+            resources,
+            "2026.06",
+            QualityStatus.VALID,
+            List.of(),
+            Map.of(),
+            now,
+            "trace-123"));
+    }
+
+    private void stubSnapshotEntity(
+            String snapshotId,
+            String patientId,
+            String encounterId,
+            ContextSnapshotStatus status) {
+        Instant now = Instant.now();
+        when(contextSnapshots.findBySnapshotIdAndTenantId(snapshotId, "tenant-1"))
+            .thenReturn(Optional.of(new ContextSnapshot(
+                1L,
+                snapshotId,
+                "tenant-1",
+                "dept-1",
+                "request-1",
+                "/tenant-1/dept-1",
+                "2026.06",
+                patientId,
+                encounterId,
+                status,
+                "[]",
+                "{}",
+                QualityStatus.VALID,
+                "trace-123",
+                "signature",
+                now,
+                "system")));
     }
 
     @Test
@@ -505,10 +648,12 @@ class FollowupEngineServiceTest {
     }
 
     @Test
-    void submitQuestionnaireRejectsNonJsonObjectAnswer() {
-        ApiException exception = assertThrows(ApiException.class, () -> service.submitQuestionnaire(
-            "TASK01",
-            new FollowupQuestionnaireSubmitRequest("TASK01", "[\"非结构化答案\"]", "nurse-1", "FOLLOWUP_NURSE")
+    void dispatchQuestionnaireRejectsNonJsonObjectAnswer() {
+        ApiException exception = assertThrows(ApiException.class, () -> service.dispatchQuestionnaire(
+            new FollowupQuestionnaireRequest(
+                "TASK01", "FOLLOWUP_QUESTIONNAIRE_DEFAULT", "{\"title\":\"随访问卷\"}",
+                "[\"非结构化答案\"]", null, "questionnaire-key-invalid", "nurse-1", "FOLLOWUP_NURSE"
+            )
         ));
 
         assertThat(exception.errorCode()).isEqualTo(ErrorCode.ENG_FOLLOW_004);
@@ -584,7 +729,7 @@ class FollowupEngineServiceTest {
         when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
         when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("result-key-1")))
             .thenReturn(new ContextSnapshotResponse(
-                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, null, null, null, null,
+                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, null,
                 QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
             ));
         when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {

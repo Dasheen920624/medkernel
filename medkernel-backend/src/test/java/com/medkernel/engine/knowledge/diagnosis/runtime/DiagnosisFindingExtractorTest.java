@@ -39,7 +39,7 @@ class DiagnosisFindingExtractorTest {
             conditions.add(new CanonicalCondition("c-" + code, code, "ICD-10", code,
                 null, null, null, null, null, null, null, null));
         }
-        return new ContextSnapshotResources(null, null, conditions, null, null, null,
-            null, null, null, null, null, null);
+        return new ContextSnapshotResources(null, null, null, conditions, null, null,
+            null, null, null, null, null, null, null);
     }
 }

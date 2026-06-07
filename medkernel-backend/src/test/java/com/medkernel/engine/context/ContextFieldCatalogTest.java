@@ -20,7 +20,7 @@ class ContextFieldCatalogTest {
         assertThat(all).extracting(ContextFieldDescriptor::resourceType)
             .contains("Patient", "Encounter", "Condition", "Medication", "Procedure",
                 "Observation", "DiagnosticReport", "NursingAssessment", "FollowUp", "Claim",
-                "CarePlan", "Document");
+                "CarePlan", "Document", "AllergyIntolerance");
     }
 
     @Test
@@ -36,8 +36,8 @@ class ContextFieldCatalogTest {
         // 业务一级域齐全
         assertThat(all).extracting(ContextFieldDescriptor::category)
             .contains("基本信息", "诊断信息", "医嘱信息", "检验检查");
-        // 系统派生字段标记 SYSTEM 且无 fieldId（不可前台删除）
-        assertThat(all).allMatch(f -> "SYSTEM".equals(f.source()) && f.fieldId() == null);
+        // 平台派生字段标记 PLATFORM 且无 fieldId（不可前台删除）
+        assertThat(all).allMatch(f -> "PLATFORM".equals(f.source()) && f.fieldId() == null);
     }
 
     @Test
@@ -46,6 +46,8 @@ class ContextFieldCatalogTest {
         assertThat(all).anyMatch(f -> f.fieldPath().equals("conditions[].code")
             && "ICD-10".equals(f.codeSystem()));
         assertThat(all).anyMatch(f -> f.fieldPath().equals("medications[].code")
+            && "ATC".equals(f.codeSystem()));
+        assertThat(all).anyMatch(f -> f.fieldPath().equals("allergyIntolerances[].code")
             && "ATC".equals(f.codeSystem()));
         assertThat(all).anyMatch(f -> f.fieldPath().equals("observations[].code")
             && "LOINC".equals(f.codeSystem()));
@@ -66,7 +68,7 @@ class ContextFieldCatalogTest {
         // age 是求值期由出生日期算得的派生整岁
         assertThat(age.derived()).isTrue();
         assertThat(age.dataType()).isEqualTo("number");
-        assertThat(age.source()).isEqualTo("SYSTEM");
+        assertThat(age.source()).isEqualTo("PLATFORM");
         assertThat(age.category()).isEqualTo("基本信息");
         // 对照：原始存储字段（出生日期）非派生
         ContextFieldDescriptor birthDate = patientFields.stream()
@@ -74,6 +76,31 @@ class ContextFieldCatalogTest {
             .findFirst()
             .orElseThrow();
         assertThat(birthDate.derived()).isFalse();
+    }
+
+    @Test
+    void exposesStructuredAllergyIntoleranceFieldsForMedicationAllergyAuthoring() {
+        List<ContextFieldDescriptor> fields = catalog.query("AllergyIntolerance", null);
+
+        assertThat(fields).extracting(ContextFieldDescriptor::fieldPath)
+            .contains(
+                "allergyIntolerances[].code",
+                "allergyIntolerances[].substance",
+                "allergyIntolerances[].category",
+                "allergyIntolerances[].criticality",
+                "allergyIntolerances[].reactions",
+                "allergyIntolerances[].onsetTime",
+                "allergyIntolerances[].qualityStatus");
+        assertThat(fields).filteredOn(f -> f.fieldPath().equals("allergyIntolerances[].code"))
+            .singleElement()
+            .satisfies(field -> {
+                assertThat(field.displayName()).contains("过敏物质");
+                assertThat(field.dataType()).isEqualTo("code");
+                assertThat(field.codeSystem()).isEqualTo("ATC");
+            });
+        assertThat(catalog.query(null, null))
+            .extracting(ContextFieldDescriptor::fieldPath)
+            .doesNotContain("patient.allergies");
     }
 
     @Test

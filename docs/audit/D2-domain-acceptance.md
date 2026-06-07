@@ -25,7 +25,7 @@ D2 试点准备域本轮完成域级验收收口：配置类资产从导入 / �
 
 1. `RelationalRuleImpactIndex` 读取路径节点 / 边 JSON 中的真实规则引用，定位受影响路径模板。
 2. 同一索引读取 `patient_pathway`，仅返回 `ENTERED` / `NODE_EXECUTING` / `VARIANCE` 在径实例，已完成 / 已退出实例不冒充当前影响。
-3. 同一索引读取 `package_item` → `release_plan` → `sync_log` → `sync_target`，定位规则资产已发布到的真实同步目标和状态。
+3. 同一索引读取 `package_item` → `release_plan` → `sync_log` → `integration_adapter`，定位规则资产实际投递到的统一适配器和状态。
 4. `RuleEngineService.impact()` 将影响对象纳入 `impactDigest`，高危发布必须携带当前摘要，避免发布时使用过期影响分析。
 5. 规则发布页展示完整影响对象：已定位规则、受影响路径、在径患者、同步目标；`COMPLETE` 显示为“已完成真实影响分析”。
 

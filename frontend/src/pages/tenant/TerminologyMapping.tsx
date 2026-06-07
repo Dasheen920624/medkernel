@@ -11,6 +11,7 @@ import {
   Input,
   Modal,
   Radio,
+  Select,
   Space,
   Statistic,
   Table,
@@ -44,6 +45,7 @@ import {
   useTerminologyMappings,
   useTerminologyPackages,
   type MappingConflict,
+  type SecurityProfile,
   type TermMapping,
   type TermMappingCandidate,
   type TermMappingPackage,
@@ -72,6 +74,7 @@ const { Text } = Typography;
 
 const VIEW_KEY = "terminology.mapping";
 const PAGE_SIZE = 20;
+const AUTHORING_CONTEXT_VERSION = "AUTHORING";
 const route = findRouteByPath("/terminology/mapping");
 
 if (!route?.experience) {
@@ -217,6 +220,33 @@ function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], c
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
+function hasHospitalAdminRole(roles: SecurityProfile["roles"] | undefined) {
+  return (roles ?? []).some((role) => {
+    const normalized = role.code.trim().toUpperCase().replace(/[-.]/g, "_");
+    return normalized === "HOSPITAL_ADMIN" || normalized === "ROLE_HOSPITAL_ADMIN";
+  });
+}
+
+function packageScopeOptions(profile: SecurityProfile | undefined) {
+  const scope = profile?.dataScope;
+  if (!scope) return [];
+  return [
+    { level: "DEPARTMENT", code: scope.departmentId, label: "当前科室" },
+    { level: "SITE", code: scope.siteId, label: "当前站点" },
+    { level: "CAMPUS", code: scope.campusId, label: "当前院区" },
+    { level: "HOSPITAL", code: scope.hospitalId, label: "当前医院" },
+    { level: "GROUP", code: scope.groupId, label: "当前集团" },
+    { level: "TENANT", code: scope.tenantId, label: "当前租户" },
+  ]
+    .filter((item): item is { level: string; code: string; label: string } => Boolean(item.code))
+    .map((item) => ({
+      value: `${item.level}|${item.code}`,
+      label: `${item.label} · ${item.code}`,
+      level: item.level,
+      code: item.code,
+    }));
+}
+
 function candidateRiskTag(candidate: TermMappingCandidate) {
   if (candidate.highRiskFlag) {
     return <Tag color="red">高危</Tag>;
@@ -241,9 +271,11 @@ export default function TerminologyMapping() {
   }>();
   const [selectedMapping, setSelectedMapping] = useState<TermMapping>();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [buildOpen, setBuildOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [confirmForm] = Form.useForm();
+  const [buildForm] = Form.useForm();
   const [publishForm] = Form.useForm();
   const [rollbackForm] = Form.useForm();
 
@@ -347,6 +379,22 @@ export default function TerminologyMapping() {
   const selectedCandidate = highRiskCandidates[0] ?? candidateItems[0];
   const selectedPackage = packageItems[0];
   const currentPackageVersion = selectedPackage?.packageVersion;
+  const requestPackageVersion = currentPackageVersion ?? AUTHORING_CONTEXT_VERSION;
+  const scopeOptions = packageScopeOptions(security.data);
+  const rollbackCandidates = selectedPackage
+    ? packageItems.filter(
+        (item) =>
+          item.id !== selectedPackage.id &&
+          item.packageCode === selectedPackage.packageCode &&
+          item.scopeLevel === selectedPackage.scopeLevel &&
+          item.scopeCode === selectedPackage.scopeCode &&
+          item.status === "SUPERSEDED",
+      )
+    : [];
+  const canReleaseSelected =
+    selectedPackage?.status === "DRAFT" || selectedPackage?.status === "GRAY";
+  const canRollbackSelected =
+    selectedPackage?.status === "PUBLISHED" && rollbackCandidates.length > 0;
 
   let pageState: PageStateKind = "ready";
   if (!routeAllowed) pageState = "forbidden";
@@ -435,12 +483,12 @@ export default function TerminologyMapping() {
   ];
 
   async function submitHighRiskConfirmation() {
-    if (!selectedCandidate || !currentPackageVersion) return;
+    if (!selectedCandidate) return;
     const values = await confirmForm.validateFields();
     await confirmCandidate.mutateAsync({
       candidateId: selectedCandidate.id,
       request: {
-        packageVersion: currentPackageVersion,
+        packageVersion: requestPackageVersion,
         reviewNote: selectedCandidate.highRiskFlag ? "逐条确认高危候选" : "确认普通候选",
         highRiskAcknowledged: Boolean(values.highRiskAcknowledged),
         highRiskReason: values.highRiskReason,
@@ -451,17 +499,40 @@ export default function TerminologyMapping() {
   }
 
   async function submitOrdinaryBatchConfirmation() {
-    if (
-      !currentPackageVersion ||
-      ordinaryCandidates.length === 0 ||
-      highRiskCandidates.length > 0
-    ) {
+    if (ordinaryCandidates.length === 0 || highRiskCandidates.length > 0) {
       return;
     }
     await batchConfirmCandidates.mutateAsync({
       candidateIds: ordinaryCandidates.map((candidate) => candidate.id),
-      request: { packageVersion: currentPackageVersion, reviewNote: "批量确认普通候选" },
+      request: { packageVersion: requestPackageVersion, reviewNote: "批量确认普通候选" },
     });
+  }
+
+  function openBuildPackage() {
+    const defaultScope = scopeOptions[0];
+    if (!defaultScope) return;
+    buildForm.setFieldsValue({
+      packageCode: selectedPackage?.packageCode ?? "TERM.MAPPING",
+      packageVersion: undefined,
+      displayName: selectedPackage?.displayName ?? "术语映射包",
+      scopeKey: defaultScope.value,
+    });
+    setBuildOpen(true);
+  }
+
+  async function submitBuildPackage() {
+    const values = await buildForm.validateFields();
+    const scope = scopeOptions.find((item) => item.value === values.scopeKey);
+    if (!scope) return;
+    await buildPackage.mutateAsync({
+      packageCode: values.packageCode.trim(),
+      packageVersion: values.packageVersion.trim(),
+      scopeLevel: scope.level,
+      scopeCode: scope.code,
+      displayName: values.displayName.trim(),
+    });
+    setBuildOpen(false);
+    buildForm.resetFields();
   }
 
   async function submitPublish() {
@@ -487,7 +558,7 @@ export default function TerminologyMapping() {
       packageId: selectedPackage.id,
       request: {
         packageVersion: currentPackageVersion,
-        targetPackageId: selectedPackage.rollbackFromPackageId ?? selectedPackage.id,
+        targetPackageId: values.targetPackageId,
         reason: values.reason,
       },
     });
@@ -506,7 +577,7 @@ export default function TerminologyMapping() {
           type="primary"
           aria-label="确认候选"
           icon={<SafetyCertificateOutlined aria-hidden="true" />}
-          disabled={!canWrite || !selectedCandidate || !currentPackageVersion}
+          disabled={!canWrite || !selectedCandidate}
           onClick={() => setConfirmOpen(true)}
         >
           确认候选
@@ -524,24 +595,15 @@ export default function TerminologyMapping() {
           <Button
             aria-label="构建映射包"
             icon={<CheckCircleOutlined aria-hidden="true" />}
-            disabled={!canWrite || mappingItems.length === 0}
-            onClick={() =>
-              void buildPackage.mutateAsync({
-                packageCode: selectedPackage?.packageCode ?? "TERM.MAPPING",
-                packageVersion:
-                  currentPackageVersion ?? mappingItems[0]?.updatedAt?.slice(0, 7) ?? "待定版本",
-                scopeLevel: selectedPackage?.scopeLevel ?? "HOSPITAL",
-                scopeCode: selectedPackage?.scopeCode ?? "CURRENT",
-                displayName: selectedPackage?.displayName ?? "字典映射包",
-              })
-            }
+            disabled={!canWrite || mappingItems.length === 0 || scopeOptions.length === 0}
+            onClick={openBuildPackage}
           >
             构建映射包
           </Button>
           <Button
             aria-label="发布映射包"
             icon={<CloudUploadOutlined aria-hidden="true" />}
-            disabled={!canPublish || !selectedPackage}
+            disabled={!canPublish || !selectedPackage || !canReleaseSelected}
             onClick={() => setPublishOpen(true)}
           >
             发布映射包
@@ -549,7 +611,7 @@ export default function TerminologyMapping() {
           <Button
             aria-label="回滚映射包"
             icon={<RollbackOutlined aria-hidden="true" />}
-            disabled={!canRollback || !selectedPackage}
+            disabled={!canRollback || !selectedPackage || !canRollbackSelected}
             onClick={() => setRollbackOpen(true)}
           >
             回滚映射包
@@ -730,6 +792,41 @@ export default function TerminologyMapping() {
         </Form>
       </Modal>
       <Modal
+        title="构建术语映射包"
+        open={buildOpen}
+        onCancel={() => setBuildOpen(false)}
+        onOk={() => void submitBuildPackage()}
+        okText="创建草稿"
+        destroyOnClose
+      >
+        <Form form={buildForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="packageCode"
+            label="包编码"
+            rules={[{ required: true, whitespace: true, message: "请输入包编码" }]}
+          >
+            <Input maxLength={128} />
+          </Form.Item>
+          <Form.Item
+            name="packageVersion"
+            label="新版本"
+            rules={[{ required: true, whitespace: true, message: "请输入新版本" }]}
+          >
+            <Input maxLength={64} placeholder="例如 2026.06.1" />
+          </Form.Item>
+          <Form.Item
+            name="displayName"
+            label="名称"
+            rules={[{ required: true, whitespace: true, message: "请输入名称" }]}
+          >
+            <Input maxLength={256} />
+          </Form.Item>
+          <Form.Item name="scopeKey" label="生效范围" rules={[{ required: true }]}>
+            <Select options={scopeOptions} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
         title="发布映射包流程"
         open={publishOpen}
         onCancel={() => setPublishOpen(false)}
@@ -746,7 +843,9 @@ export default function TerminologyMapping() {
           <Form.Item name="releaseMode" label="发布模式" rules={[{ required: true }]}>
             <Radio.Group>
               <Radio value="GRAY">10% 灰度</Radio>
-              <Radio value="FULL">全量</Radio>
+              <Radio value="FULL" disabled={!hasHospitalAdminRole(security.data?.roles)}>
+                全量
+              </Radio>
             </Radio.Group>
           </Form.Item>
           <Form.Item name="reason" label="发布原因" rules={[{ required: true }]}>
@@ -763,6 +862,18 @@ export default function TerminologyMapping() {
         destroyOnClose
       >
         <Form form={rollbackForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="targetPackageId"
+            label="回滚目标"
+            rules={[{ required: true, message: "请选择历史发布版本" }]}
+          >
+            <Select
+              options={rollbackCandidates.map((item) => ({
+                value: item.id,
+                label: `${item.packageVersion} · ${item.displayName}`,
+              }))}
+            />
+          </Form.Item>
           <Form.Item name="reason" label="回滚原因" rules={[{ required: true }]}>
             <Input.TextArea rows={3} maxLength={500} />
           </Form.Item>

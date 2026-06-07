@@ -15,12 +15,16 @@ const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
   downloadPackageSyncEvidenceExport: vi.fn(),
   importOfflinePackage: vi.fn(),
+  createPackage: vi.fn(),
   addPackageItem: vi.fn(),
   instantiatePilotTemplate: vi.fn(),
   releasePackage: vi.fn(),
   refetchPackages: vi.fn(),
   refetchPackageDetail: vi.fn(),
   refetchAssetReadiness: vi.fn(),
+  useRuleDefinitions: vi.fn(),
+  usePathwayTemplates: vi.fn(),
+  useEvaluationIndicators: vi.fn(),
   packagesData: null as Record<string, unknown> | null,
   packagesLoading: false,
   packagesError: false,
@@ -29,6 +33,7 @@ const apiMocks = vi.hoisted(() => ({
   assetReadiness: null as Record<string, unknown> | null,
   assetReadinessLoading: false,
   assetReadinessError: false,
+  releaseAdapters: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
@@ -62,13 +67,31 @@ vi.mock("@/shared/api/hooks", () => ({
       mfaBound: true,
     },
   }),
-  useSyncTargets: () => ({
-    data: [
-      { targetId: "target-his", targetName: "院内 HIS 同步通道" },
-      { targetId: "target-graph", targetName: "图谱同步通道" },
-    ],
+  usePackageReleaseAdapters: () => ({
+    data: apiMocks.releaseAdapters,
   }),
-  useCreatePackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useOrgUnits: () => ({
+    data: {
+      items: [
+        {
+          id: "hospital-1",
+          tenantId: "tenant-A",
+          orgPath: "tenant-A/hospital-1",
+          level: "HOSPITAL",
+          code: "HOSPITAL-1",
+          name: "总院",
+          status: "ACTIVE",
+        },
+      ],
+      page: 1,
+      size: 100,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    },
+    isLoading: false,
+  }),
+  useCreatePackage: () => ({ mutateAsync: apiMocks.createPackage, isPending: false }),
   usePackages: () => ({
     data: apiMocks.packagesData ?? {
       items: [
@@ -122,9 +145,9 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.instantiatePilotTemplate,
     isPending: false,
   }),
-  useRuleDefinitions: () => ({ data: { items: [] } }),
-  usePathwayTemplates: () => ({ data: { items: [] } }),
-  useEvaluationIndicators: () => ({ data: { items: [] } }),
+  useRuleDefinitions: (...args: unknown[]) => apiMocks.useRuleDefinitions(...args),
+  usePathwayTemplates: (...args: unknown[]) => apiMocks.usePathwayTemplates(...args),
+  useEvaluationIndicators: (...args: unknown[]) => apiMocks.useEvaluationIndicators(...args),
   useTerminologyPackages: () => ({
     data: {
       items: [
@@ -159,15 +182,44 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.downloadPackageSyncEvidenceExport.mockReset();
     apiMocks.downloadPackageSyncEvidenceExport.mockResolvedValue(new Blob(["sync-evidence"]));
     apiMocks.importOfflinePackage.mockReset();
+    apiMocks.createPackage.mockReset();
     apiMocks.addPackageItem.mockReset();
     apiMocks.instantiatePilotTemplate.mockReset();
     apiMocks.refetchAssetReadiness.mockReset();
+    apiMocks.useRuleDefinitions.mockReset();
+    apiMocks.useRuleDefinitions.mockReturnValue({ data: { items: [] } });
+    apiMocks.usePathwayTemplates.mockReset();
+    apiMocks.usePathwayTemplates.mockReturnValue({ data: { items: [] } });
+    apiMocks.useEvaluationIndicators.mockReset();
+    apiMocks.useEvaluationIndicators.mockReturnValue({ data: { items: [] } });
     apiMocks.packagesData = null;
     apiMocks.packagesLoading = false;
     apiMocks.packagesError = false;
     apiMocks.pilotTemplatesLoading = false;
     apiMocks.assetReadinessLoading = false;
     apiMocks.assetReadinessError = false;
+    apiMocks.releaseAdapters = [
+      {
+        adapterId: "target-his",
+        adapterName: "院内 HIS 同步通道",
+        protocolType: "REST",
+        status: "ACTIVE",
+        healthStatus: "HEALTHY",
+        rttMs: 8,
+        lastHeartbeatAt: "2026-06-07T00:00:00Z",
+        connectorAvailable: true,
+      },
+      {
+        adapterId: "target-graph",
+        adapterName: "图谱同步通道",
+        protocolType: "REST",
+        status: "ACTIVE",
+        healthStatus: "HEALTHY",
+        rttMs: 12,
+        lastHeartbeatAt: "2026-06-07T00:00:00Z",
+        connectorAvailable: true,
+      },
+    ];
     apiMocks.pilotTemplates = [
       {
         templateId: "tpl-first-run",
@@ -241,6 +293,12 @@ describe("ConfigPackages offline package export", () => {
       itemCount: 2,
       payloadSha256: "a".repeat(64),
     });
+    apiMocks.createPackage.mockResolvedValue({
+      packageId: "pkg-created",
+      packageCode: "PKG.CARDIOLOGY",
+      packageVersion: "1.0.0",
+      status: "DRAFT",
+    });
     apiMocks.instantiatePilotTemplate.mockResolvedValue({
       templateCode: "TPL.FIRST_RUN",
       packageInfo: {
@@ -258,7 +316,7 @@ describe("ConfigPackages offline package export", () => {
         {
           logId: "log-1",
           planId: "plan-1",
-          targetId: "target-his",
+          adapterId: "target-his",
           status: "NOT_SYNCED",
           errorMessage: "未接入真实同步通道",
           syncEvidence: "",
@@ -278,7 +336,7 @@ describe("ConfigPackages offline package export", () => {
   });
 
   it(
-    "offers a real offline package download action for each package row",
+    "exports an effective offline package for a target organization",
     async () => {
       render(
         <ConfigProvider>
@@ -289,9 +347,12 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "导出离线包" }));
+      fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
+      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.click(screen.getByRole("button", { name: "导出有效快照" }));
 
       await waitFor(() => {
-        expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline");
+        expect(downloadPackageOfflineExport).toHaveBeenCalledWith("pkg-offline", "hospital-1");
       });
     },
     PAGE_INTERACTION_TIMEOUT_MS,
@@ -374,6 +435,23 @@ describe("ConfigPackages offline package export", () => {
     expect(within(cumulativeStatistic as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
+  it("does not enable optional source asset queries when the package operator lacks source permissions", () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(apiMocks.useRuleDefinitions).toHaveBeenCalledWith({ size: 100 }, { enabled: false });
+    expect(apiMocks.usePathwayTemplates).toHaveBeenCalledWith({ size: 100 }, { enabled: false });
+    expect(apiMocks.useEvaluationIndicators).toHaveBeenCalledWith(
+      { size: 100 },
+      { enabled: false },
+    );
+  });
+
   it(
     "shows asset readiness and instantiates a draft package from the first-run template",
     async () => {
@@ -425,7 +503,15 @@ describe("ConfigPackages offline package export", () => {
     PAGE_INTERACTION_TIMEOUT_MS,
   );
 
-  it("keeps first-run template creation disabled when readiness blockers exist", () => {
+  it("在没有首发模板时仍允许从空白草案启动配置包主流程", async () => {
+    apiMocks.packagesData = {
+      items: [],
+      page: 1,
+      size: 10,
+      total: 0,
+      hasNext: false,
+      totalEstimated: false,
+    };
     apiMocks.pilotTemplates = [];
     apiMocks.assetReadiness = {
       tenantId: "tenant-A",
@@ -448,9 +534,38 @@ describe("ConfigPackages offline package export", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "从首发模板创建" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "从首发模板创建" })).not.toBeInTheDocument();
     expect(screen.getByText("尚未配置首发模板")).toBeInTheDocument();
     expect(screen.getByText("尚未完成灰度发布证据")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导入离线包" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "新建配置包草案" }));
+    const createDialog = screen
+      .getByRole("button", { name: "提交创建草案" })
+      .closest('[role="dialog"]') as HTMLElement | null;
+    expect(createDialog).not.toBeNull();
+    if (!createDialog) {
+      throw new Error("未找到配置包创建对话框");
+    }
+    fireEvent.change(within(createDialog).getByLabelText("配置包编码"), {
+      target: { value: "PKG.CARDIOLOGY" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("配置包版本"), {
+      target: { value: "1.0.0" },
+    });
+    fireEvent.change(within(createDialog).getByLabelText("配置包名称"), {
+      target: { value: "心血管配置包" },
+    });
+    await userEvent.click(within(createDialog).getByRole("button", { name: "提交创建草案" }));
+
+    await waitFor(() => {
+      expect(apiMocks.createPackage).toHaveBeenCalledWith({
+        packageCode: "PKG.CARDIOLOGY",
+        packageVersion: "1.0.0",
+        name: "心血管配置包",
+        description: undefined,
+      });
+    });
+    expect(apiMocks.refetchPackages).toHaveBeenCalled();
   });
 
   it(
@@ -465,15 +580,27 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "导入离线包" }));
-      fireEvent.change(screen.getByLabelText("离线包 JSON"), {
-        target: { value: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}' },
+      expect(screen.queryByLabelText("离线包 JSON")).not.toBeInTheDocument();
+      const offlineJson = JSON.stringify({
+        format: "MEDKERNEL_PACKAGE_OFFLINE_V2",
+        manifest: {
+          packageCode: "PKG.OFFLINE",
+          packageVersion: "1.0.0",
+          itemCount: 3,
+        },
       });
+      const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+      expect(fileInput).not.toBeNull();
+      await userEvent.upload(
+        fileInput as HTMLInputElement,
+        new File([offlineJson], "package-offline.json", { type: "application/json" }),
+      );
+      expect(await screen.findByText("package-offline.json")).toBeInTheDocument();
+      expect(screen.getByText("PKG.OFFLINE / 1.0.0")).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "导入并校验" }));
 
       await waitFor(() => {
-        expect(apiMocks.importOfflinePackage).toHaveBeenCalledWith(
-          '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V1"}',
-        );
+        expect(apiMocks.importOfflinePackage).toHaveBeenCalledWith(offlineJson);
       });
     },
     PAGE_INTERACTION_TIMEOUT_MS,
@@ -522,6 +649,41 @@ describe("ConfigPackages offline package export", () => {
   );
 
   it(
+    "blocks release and links to adapter hub when no healthy connector is available",
+    async () => {
+      apiMocks.releaseAdapters = [
+        {
+          adapterId: "target-offline",
+          adapterName: "未连通通道",
+          protocolType: "REST",
+          status: "ACTIVE",
+          healthStatus: "NOT_CONNECTED",
+          rttMs: 0,
+          lastHeartbeatAt: null,
+          connectorAvailable: true,
+        },
+      ];
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
+
+      expect(screen.getByText("暂无可用同步适配器")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "前往适配器中心" })).toHaveAttribute(
+        "href",
+        "/adapter/hub",
+      );
+      expect(screen.getByRole("button", { name: /开始同步发布/ })).toBeDisabled();
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "submits the default release request as grayscale rollout",
     async () => {
       render(
@@ -534,22 +696,23 @@ describe("ConfigPackages offline package export", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
 
-      fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
-      await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
-      fireEvent.change(screen.getByLabelText("接收组织单元"), {
-        target: { value: "hospital-1" },
-      });
+      fireEvent.mouseDown(screen.getByLabelText("选择发布适配器"));
+      await userEvent.click(await screen.findByText(/院内 HIS 同步通道/));
+      fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
+      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.type(screen.getByLabelText("发布说明"), "先按默认灰度验证");
       await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
 
       await waitFor(() => {
         expect(apiMocks.releasePackage).toHaveBeenCalledWith({
           packageId: "pkg-offline",
           request: {
+            reason: "先按默认灰度验证",
             targetOrgUnitId: "hospital-1",
             strategy: "GRAYSCALE",
             scopeType: "ALL",
             scopeValue: "",
-            targetIds: ["target-his"],
+            adapterIds: ["target-his"],
             packageVersion: "3.0.0",
           },
         });
@@ -559,7 +722,7 @@ describe("ConfigPackages offline package export", () => {
   );
 
   it(
-    "shows failed and not-connected sites and exports sync evidence",
+    "shows failed and not-connected adapters and exports sync evidence",
     async () => {
       apiMocks.releasePackage.mockResolvedValueOnce({
         status: "FAILED",
@@ -567,7 +730,7 @@ describe("ConfigPackages offline package export", () => {
           {
             logId: "log-fail",
             planId: "plan-1",
-            targetId: "target-his",
+            adapterId: "target-his",
             status: "FAILED",
             errorCode: "ENG-PACKAGE-005",
             errorMessage: "目标库写入失败",
@@ -577,7 +740,7 @@ describe("ConfigPackages offline package export", () => {
           {
             logId: "log-not-synced",
             planId: "plan-1",
-            targetId: "target-graph",
+            adapterId: "target-graph",
             status: "NOT_SYNCED",
             errorCode: "NOT_SYNCED",
             errorMessage: "未配置真实同步适配器",
@@ -595,14 +758,14 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "院内同步发布" }));
-      fireEvent.mouseDown(screen.getByLabelText("选择同步通道目标"));
-      await userEvent.click(await screen.findByText("院内 HIS 同步通道"));
-      fireEvent.change(screen.getByLabelText("接收组织单元"), {
-        target: { value: "hospital-1" },
-      });
+      fireEvent.mouseDown(screen.getByLabelText("选择发布适配器"));
+      await userEvent.click(await screen.findByText(/院内 HIS 同步通道/));
+      fireEvent.mouseDown(screen.getByLabelText("接收组织单元"));
+      await userEvent.click(await screen.findByText("总院 · HOSPITAL · HOSPITAL-1"));
+      await userEvent.type(screen.getByLabelText("发布说明"), "验证失败适配器证据");
       await userEvent.click(screen.getByRole("button", { name: /开始同步发布/ }));
 
-      expect(await screen.findByText("失败 / 未接入站点")).toBeInTheDocument();
+      expect(await screen.findByText("失败 / 未连通适配器")).toBeInTheDocument();
       expect(screen.getAllByText("院内 HIS 同步通道").length).toBeGreaterThan(0);
       expect(screen.getAllByText("图谱同步通道").length).toBeGreaterThan(0);
       expect(screen.getAllByText("目标库写入失败").length).toBeGreaterThan(0);

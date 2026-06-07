@@ -16,14 +16,14 @@ class OpenApiContractConfigurationTest {
 
         assertThat(api).isNotNull();
         assertThat(ServiceContractCatalog.openApiPaths())
-            .contains("/api/v1/engine/events/**")
             .contains("/api/v1/engine/clinical-events/**")
             .contains("/api/v1/engine/clinical-events:batch/**")
             .contains("/api/v1/engine/clinical-events:replay/**")
             .contains("/api/v1/engine/recommendations/**")
             .contains("/api/v1/engine/recommendations:evaluate/**")
             .contains("/api/v1/engine/rule/**")
-            .contains("/api/v1/engine/pathway/**");
+            .contains("/api/v1/engine/pathway/**")
+            .doesNotContain("/api/v1/engine/events/**", "/api/v1/clinical/mpi/**");
     }
 
     @Test

@@ -63,6 +63,7 @@ CREATE TABLE rule_test_case (
     rule_id              VARCHAR2(64)  NOT NULL,
     version_id           VARCHAR2(64)  NOT NULL,
     case_type            VARCHAR2(32)  NOT NULL,
+    context_snapshot_id  VARCHAR2(64)  NOT NULL,
     input_payload        CLOB          NOT NULL,
     expected_hit         NUMBER(1)     NOT NULL,
     expected_severity    VARCHAR2(16)  NULL,
@@ -147,6 +148,7 @@ COMMENT ON COLUMN rule_test_case.tenant_id            IS '租户 ID';
 COMMENT ON COLUMN rule_test_case.rule_id              IS '关联规则 ID → rule_definition.rule_id';
 COMMENT ON COLUMN rule_test_case.version_id           IS '关联规则版本 ID → rule_version.version_id';
 COMMENT ON COLUMN rule_test_case.case_type            IS '用例类型：POSITIVE 阳性 / NEGATIVE 阴性 / BOUNDARY 边界 / CONFLICT 冲突（发布门禁要求四类齐备）';
+COMMENT ON COLUMN rule_test_case.context_snapshot_id  IS '固化该用例时使用的 ACTIVE 标准上下文快照 ID';
 COMMENT ON COLUMN rule_test_case.input_payload        IS '用例输入 JSON 快照';
 COMMENT ON COLUMN rule_test_case.expected_hit         IS '期望是否命中';
 COMMENT ON COLUMN rule_test_case.expected_severity    IS '期望严重度：LOW 低 / MEDIUM 中 / HIGH 高 / CRITICAL 红线（可空）';

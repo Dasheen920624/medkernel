@@ -3,7 +3,7 @@ package com.medkernel.shared.context;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 组织上下文快照，对应核心 §9 所需的七层组织树。
+ * 组织上下文快照，对应核心 §9 所需的组织树与专病横切维度。
  *
  * <p>所有 API、规则执行、路径判断、推荐生成、质控评估都必须携带这些字段，
  * 由 GA-ENG-BASE-01 / GA-ENG-BASE-02 在 JWT 解析阶段填充并注入 {@link RequestContext}。
@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param campusId     院区 / 分院 ID
  * @param siteId       社区卫生服务中心 / 医联体成员 ID
  * @param departmentId 科室 ID
- * @param specialtyId  专科 / 专病 ID
+ * @param specialtyId  专病横切适用维度 ID
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record OrgScope(

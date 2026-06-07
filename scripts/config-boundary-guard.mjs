@@ -1,7 +1,12 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, relative } from "node:path";
+
+import {
+  listAllCurrentFiles,
+  listChangedFiles,
+  listTrackedFiles,
+} from "./git-scan-files.mjs";
 
 const JAVA_SOURCE = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const ALLOWED_BOOTSTRAP_KEYS = [
@@ -60,21 +65,6 @@ export function hasBlockingViolations(report) {
   return report.violations.length > 0;
 }
 
-function git(root, args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
-}
-
-function changedFiles(root, base) {
-  const mergeBase = git(root, ["merge-base", base, "HEAD"]);
-  const output = git(root, ["diff", "--name-only", "--diff-filter=ACMR", `${mergeBase}...HEAD`]);
-  return output ? output.split(/\r?\n/) : [];
-}
-
-function trackedFiles(root) {
-  const output = git(root, ["ls-files", "medkernel-backend/src/main/java"]);
-  return output ? output.split(/\r?\n/) : [];
-}
-
 function parseArgs(argv) {
   const options = { mode: "changed", base: "origin/main" };
   for (const arg of argv) {
@@ -101,7 +91,17 @@ function printReport(report, mode) {
 async function main() {
   const root = process.cwd();
   const options = parseArgs(process.argv.slice(2));
-  const files = options.mode === "inventory" ? trackedFiles(root) : changedFiles(root, options.base);
+  const pathspecs = ["medkernel-backend/src/main/java"];
+  let files;
+  if (options.mode === "changed") {
+    files = listChangedFiles(root, options.base, pathspecs);
+  } else if (options.mode === "all") {
+    files = listAllCurrentFiles(root, pathspecs);
+  } else if (options.mode === "inventory") {
+    files = listTrackedFiles(root, pathspecs);
+  } else {
+    throw new Error(`未知 mode：${options.mode}`);
+  }
   const report = await scanFiles(root, files);
   printReport(report, options.mode);
   if (options.mode !== "inventory" && hasBlockingViolations(report)) {

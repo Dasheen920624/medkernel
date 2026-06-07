@@ -80,7 +80,8 @@ class DiagnosisAssistApiContractTest {
     void itOpsWithTenantGetsRankedCandidates() throws Exception {
         when(service.assist(any())).thenReturn(new DiagnosisAssistResponse(
             List.of(new DiagnosisCandidate(100L, "社区获得性肺炎", "DX.PNEU", DiagnosisConfidence.STRONG,
-                List.of("FEVER", "COUGH"), List.of(), List.of(), "A_REGULATION", false, 10L)),
+                List.of("FEVER", "COUGH"), List.of(), List.of(), List.of(),
+                "A_REGULATION", false, 10L)),
             List.of("LOCALX"), "辅助建议，需医师确认（非自动诊断）。", "trace-dx"));
 
         mockMvc.perform(post(PATH).with(tenantJwt("ROLE_IT_OPS"))

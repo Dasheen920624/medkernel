@@ -22,7 +22,7 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -43,7 +43,7 @@ public class ClinicalEventService {
     private final ClinicalEventPayloadRepository payloads;
     private final ClinicalEventOutboxRepository outbox;
     private final ClinicalEventProcessor processor;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
@@ -54,7 +54,7 @@ public class ClinicalEventService {
                                 ClinicalEventPayloadRepository payloads,
                                 ClinicalEventOutboxRepository outbox,
                                 ClinicalEventProcessor processor,
-                                AuditEventPublisher auditPublisher,
+                                AuditRecorder auditRecorder,
                                 StateTransitionRecorder transitions,
                                 DiagnoseResponseAssembler diagnoseAssembler,
                                 ObjectMapper json,
@@ -64,7 +64,7 @@ public class ClinicalEventService {
         this.payloads = payloads;
         this.outbox = outbox;
         this.processor = processor;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
         this.json = json;
@@ -141,7 +141,7 @@ public class ClinicalEventService {
 
         transitions.record(ENTITY_TYPE, req.eventId(), null,
             ClinicalEventStatus.RECEIVED.name(), "INITIAL_RECEIVE", null);
-        auditPublisher.publish(AuditAction.CREATE, ENTITY_TYPE, req.eventId(),
+        auditRecorder.record(AuditAction.CREATE, ENTITY_TYPE, req.eventId(),
             "接收临床事件 type=" + req.eventType() + " patient=" + req.patientId());
 
         return accepted(saved, digest, traceId, now);
@@ -268,7 +268,7 @@ public class ClinicalEventService {
             "REPLAY_SUPERSEDE", null);
         transitions.record(ENTITY_TYPE, newEventId, null,
             ClinicalEventStatus.RECEIVED.name(), "REPLAY_RECEIVE", null);
-        auditPublisher.publish(AuditAction.ROLLBACK, ENTITY_TYPE, source.eventId(),
+        auditRecorder.record(AuditAction.ROLLBACK, ENTITY_TYPE, source.eventId(),
             "重放临床事件 newEventId=" + newEventId);
         return new ClinicalEventReplayResponse(
             source.eventId(), newEventId, ClinicalEventStatus.RECEIVED, RequestContext.currentTraceId());

@@ -1,7 +1,7 @@
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
 
-const apiBase = process.env.E2E_API_BASE_URL || "http://localhost:18080/medkernel/api/v1";
+const apiBase = requireEnv("E2E_API_BASE_URL");
 const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
 
@@ -22,6 +22,14 @@ const roleAccounts = [
 ] as const;
 
 type RoleAccount = (typeof roleAccounts)[number];
+
+function requireEnv(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} 未配置，E2E 必须显式指向当前真实后端。`);
+  }
+  return value;
+}
 
 test.describe.configure({ mode: "serial" });
 

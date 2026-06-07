@@ -35,8 +35,7 @@ import com.medkernel.shared.context.RequestContext;
 class ContextSnapshotControllerSecurityTest {
 
     private static final String VALID_BODY = "{\"patientId\":\"MPI-1\",\"orgUnitId\":\"ORG-1\","
-        + "\"knowledgePackageVersion\":\"kpv-1\",\"rulePackageVersion\":\"rpv-1\","
-        + "\"pathwayPackageVersion\":\"ppv-1\","
+        + "\"package_version\":\"pkg-1\","
         + "\"resources\":{\"patient\":null,\"encounters\":[],\"conditions\":[],"
         + "\"nursingAssessments\":[],\"observations\":[],\"diagnosticReports\":[],"
         + "\"medications\":[],\"procedures\":[],\"documents\":[],"

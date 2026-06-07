@@ -18,11 +18,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
 import com.medkernel.shared.observability.StateTransitionRecorder;
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalClaim;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
@@ -63,7 +64,7 @@ public class ContextSnapshotService {
     private final ContextValidator validator;
     private final PackageVersionPort versions;
     private final TerminologyMappingPort mapping;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
@@ -75,7 +76,7 @@ public class ContextSnapshotService {
                                   ContextValidator validator,
                                   PackageVersionPort versions,
                                   TerminologyMappingPort mapping,
-                                  AuditEventPublisher auditPublisher,
+                                  AuditRecorder auditRecorder,
                                   IsolatedAuditPublisher isolatedAudit,
                                   StateTransitionRecorder transitions,
                                   DiagnoseResponseAssembler diagnoseAssembler,
@@ -86,7 +87,7 @@ public class ContextSnapshotService {
         this.validator = validator;
         this.versions = versions;
         this.mapping = mapping;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
@@ -134,9 +135,8 @@ public class ContextSnapshotService {
             null, snapshotId, tenantId, req.orgUnitId(),
             ContextSnapshotRequest.firstNonBlank(req.requestId(), effectiveIdempotencyKey),
             orgPath(scope, req),
-            req.effectivePackageVersion(),
+            req.packageVersion(),
             req.patientId(), req.encounterId(),
-            req.knowledgePackageVersion(), req.rulePackageVersion(), req.pathwayPackageVersion(),
             ContextSnapshotStatus.ACTIVE,
             writeJson(missing), writeJson(mappingStatus),
             quality, traceId, null, now, userId
@@ -151,7 +151,7 @@ public class ContextSnapshotService {
             ));
         }
 
-        auditPublisher.publish(AuditAction.CREATE, "context_snapshot", saved.snapshotId(),
+        auditRecorder.record(AuditAction.CREATE, "context_snapshot", saved.snapshotId(),
             "创建标准上下文 quality=" + quality + " patient=" + req.patientId());
 
         transitions.record("context_snapshot", saved.snapshotId(),
@@ -253,9 +253,7 @@ public class ContextSnapshotService {
     }
 
     private void validatePackageVersions(String tenantId, ContextSnapshotRequest req) {
-        if (!versions.exists(tenantId, "knowledge", req.knowledgePackageVersion())
-            || !versions.exists(tenantId, "rule", req.rulePackageVersion())
-            || !versions.exists(tenantId, "pathway", req.pathwayPackageVersion())) {
+        if (!versions.exists(tenantId, req.packageVersion())) {
             publishFailureAudit(ErrorCode.ENG_CONTEXT_002, "包版本不存在 patient=" + req.patientId());
             throw new ApiException(ErrorCode.ENG_CONTEXT_002, "包版本不存在");
         }
@@ -266,6 +264,10 @@ public class ContextSnapshotService {
         if (r.patient() != null) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.PATIENT,
                 r.patient(), r.patient().qualityStatus(), seq);
+        }
+        for (CanonicalAllergyIntolerance a : safeList(r.allergyIntolerances())) {
+            seq = persistOne(snapshotId, tenantId, CanonicalResourceType.ALLERGY_INTOLERANCE,
+                a, a.qualityStatus(), seq);
         }
         for (CanonicalEncounter e : safeList(r.encounters())) {
             seq = persistOne(snapshotId, tenantId, CanonicalResourceType.ENCOUNTER, e, e.qualityStatus(), seq);
@@ -329,11 +331,7 @@ public class ContextSnapshotService {
             snap.snapshotId(),
             snap.status(),
             resourcesDto,
-            ContextSnapshotRequest.firstNonBlank(
-                snap.packageVersion(), snap.knowledgePackageVersion(), snap.rulePackageVersion(), snap.pathwayPackageVersion()),
-            snap.knowledgePackageVersion(),
-            snap.rulePackageVersion(),
-            snap.pathwayPackageVersion(),
+            snap.packageVersion(),
             snap.qualityStatus(),
             missing,
             mappingStatus,
@@ -346,6 +344,7 @@ public class ContextSnapshotService {
         List<CanonicalResource> rows = resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc(
             snap.snapshotId(), snap.tenantId());
         CanonicalPatient patient = null;
+        List<CanonicalAllergyIntolerance> allergyIntolerances = new ArrayList<>();
         List<CanonicalEncounter> encounters = new ArrayList<>();
         List<CanonicalCondition> conditions = new ArrayList<>();
         List<CanonicalNursingAssessment> nursingAssessments = new ArrayList<>();
@@ -361,6 +360,8 @@ public class ContextSnapshotService {
         for (CanonicalResource row : rows) {
             switch (row.resourceType()) {
                 case PATIENT -> patient = readPayload(row, CanonicalPatient.class);
+                case ALLERGY_INTOLERANCE -> allergyIntolerances.add(
+                    readPayload(row, CanonicalAllergyIntolerance.class));
                 case ENCOUNTER -> encounters.add(readPayload(row, CanonicalEncounter.class));
                 case CONDITION -> conditions.add(readPayload(row, CanonicalCondition.class));
                 case NURSING_ASSESSMENT -> nursingAssessments.add(readPayload(row, CanonicalNursingAssessment.class));
@@ -374,7 +375,7 @@ public class ContextSnapshotService {
                 case CLAIM -> claims.add(readPayload(row, CanonicalClaim.class));
             }
         }
-        return new ContextSnapshotResources(patient, encounters, conditions, nursingAssessments,
+        return new ContextSnapshotResources(patient, allergyIntolerances, encounters, conditions, nursingAssessments,
             observations, diagnosticReports, medications, procedures, documents, carePlans, followUps, claims);
     }
 

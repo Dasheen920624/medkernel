@@ -6,6 +6,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,13 +44,39 @@ public class ModelGatewayController {
     }
 
     /**
+     * 查询平台模型能力目录，包括停用项。
+     *
+     * @return 模型能力目录
+     */
+    @GetMapping("/catalog")
+    @PreAuthorize("@perm.has('llm.read')")
+    public ApiResult<List<ModelCapabilityDefinitionResponse>> getCatalog() {
+        return ApiResult.ok(service.listDefinitions());
+    }
+
+    /**
+     * 新增或更新平台模型能力目录项。
+     *
+     * @param capabilityCode 能力代码
+     * @param request 能力目录定义
+     * @return 保存后的目录项
+     */
+    @PutMapping("/catalog/{capabilityCode}")
+    @PreAuthorize("@perm.has('system.manage')")
+    public ApiResult<ModelCapabilityDefinitionResponse> saveCatalogEntry(
+            @PathVariable String capabilityCode,
+            @Valid @RequestBody ModelCapabilityDefinitionUpsertRequest request) {
+        return ApiResult.ok(service.saveDefinition(capabilityCode, request));
+    }
+
+    /**
      * 提交语义抽取、关系发现、智能生成或临床评估任务，由网关执行路由、数据脱敏与Schema检验。
      *
      * @param request 任务提交流入参数
      * @return 推理成功结果或降级回退基线响应
      */
     @PostMapping("/tasks")
-    @PreAuthorize("@perm.has('llm.write')")
+    @PreAuthorize("@perm.has('llm.execute')")
     public ApiResult<ModelTaskResponse> submitTask(@Valid @RequestBody ModelTaskRequest request) {
         return ApiResult.ok(service.submitTask(request));
     }
@@ -73,7 +100,7 @@ public class ModelGatewayController {
      * @return 新任务处理结果
      */
     @PostMapping("/tasks/{id}/retry")
-    @PreAuthorize("@perm.has('llm.write')")
+    @PreAuthorize("@perm.has('llm.execute')")
     public ApiResult<ModelTaskResponse> retryTask(@PathVariable String id) {
         return ApiResult.ok(service.retryTask(id));
     }
@@ -85,8 +112,23 @@ public class ModelGatewayController {
      * @return 逻辑校验报告响应
      */
     @PostMapping("/policies/validate")
-    @PreAuthorize("@perm.has('llm.write')")
+    @PreAuthorize("@perm.has('llm.manage')")
     public ApiResult<ModelPolicyValidateResponse> validatePolicy(@Valid @RequestBody ModelPolicyValidateRequest request) {
         return ApiResult.ok(service.validatePolicy(request));
+    }
+
+    /**
+     * 保存当前租户指定能力的路由、脱敏与结构化输出策略。
+     *
+     * @param capabilityCode 能力代码
+     * @param request 策略配置
+     * @return 保存后的真实策略状态
+     */
+    @PutMapping("/policies/{capabilityCode}")
+    @PreAuthorize("@perm.has('llm.manage')")
+    public ApiResult<ModelCapabilityStatusResponse> savePolicy(
+            @PathVariable String capabilityCode,
+            @Valid @RequestBody ModelPolicyUpsertRequest request) {
+        return ApiResult.ok(service.savePolicy(capabilityCode, request));
     }
 }

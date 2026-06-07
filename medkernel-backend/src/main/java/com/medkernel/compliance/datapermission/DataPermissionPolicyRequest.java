@@ -2,7 +2,7 @@ package com.medkernel.compliance.datapermission;
 
 import java.util.List;
 
-import com.medkernel.engine.security.DataAccessLevel;
+import com.medkernel.shared.security.DataAccessLevel;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;

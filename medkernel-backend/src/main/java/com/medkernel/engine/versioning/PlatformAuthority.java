@@ -1,18 +1,20 @@
 package com.medkernel.engine.versioning;
 
+import com.medkernel.shared.context.PlatformTenant;
+
 /**
- * 平台权威层空间约定（设计附录 G·决策 D1：平台层 = {@code __platform__} 租户 + 顶层组织路径，迁移最小）。
+ * 平台权威资产空间约定。
  *
- * <p>平台发布的资产版本以 {@link #PLATFORM_TENANT_ID} 为租户、{@link #PLATFORM_ORG_PATH} 为组织生效域持久化，
- * 与任何真实租户隔离；{@link InheritanceResolver} 在租户组织闭包无适用版本时，按此约定前置回退读取平台
- * ACTIVE 基线（{@link SourceTier#PLATFORM}）。租户对平台资产按 {@code asset_identity} 引用、不预先复制副本。
+ * <p>平台发布版本归属唯一平台主租户，并使用独立的顶层组织路径标记平台作用域。
+ * {@link InheritanceResolver} 在客户租户组织闭包无适用版本时读取平台 ACTIVE 基线；
+ * 客户租户按资产身份引用，不复制平台主源。
  */
 public final class PlatformAuthority {
 
-    /** 平台权威层租户标识：平台版本归属此保留租户，高于所有真实租户。 */
-    public static final String PLATFORM_TENANT_ID = "__platform__";
+    /** 平台资产统一归属唯一平台主租户，不另设技术租户。 */
+    public static final String PLATFORM_TENANT_ID = PlatformTenant.ID;
 
-    /** 平台权威层顶层组织路径：平台基线版本的组织生效域，作为继承链最一般的根。 */
+    /** 平台基线版本的顶层组织生效域，作为继承链最一般的根。 */
     public static final String PLATFORM_ORG_PATH = "/__platform__";
 
     private PlatformAuthority() {

@@ -1,4 +1,5 @@
 -- MedKernel v1.0 GA · GA-ENG-API-02 临床事件 API（Oracle）
+-- ROLLBACK: 回退时先恢复原临床事件状态约束，再删除本迁移新增的事件载荷、出站表与字段。
 
 ALTER TABLE clinical_event ADD patient_id VARCHAR2(64) NULL;
 ALTER TABLE clinical_event ADD encounter_id VARCHAR2(64) NULL;
@@ -32,6 +33,7 @@ CREATE TABLE clinical_event_payload (
 );
 
 CREATE INDEX idx_cep_tenant_time ON clinical_event_payload (tenant_id, created_at);
+COMMENT ON TABLE clinical_event_payload IS '临床事件原始载荷与摘要';
 
 CREATE TABLE clinical_event_outbox (
     id              NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -53,3 +55,4 @@ CREATE TABLE clinical_event_outbox (
 
 CREATE INDEX idx_outbox_pending ON clinical_event_outbox (claim_status, next_attempt_at);
 CREATE INDEX idx_outbox_tenant  ON clinical_event_outbox (tenant_id, created_at);
+COMMENT ON TABLE clinical_event_outbox IS '临床事件可靠处理出站队列';

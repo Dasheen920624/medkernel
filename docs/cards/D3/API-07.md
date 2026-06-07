@@ -26,7 +26,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`POST /api/v1/engine/recommendations:evaluate`（触发）· `GET .../recommendations`（列表）· `GET .../recommendations/{id}`（详情）· `POST .../recommendations/{id}/feedback`（反馈）
+- 端点：`POST /api/v1/engine/recommendations:evaluate`（触发）· `GET .../recommendations/cards`（列表）· `GET .../recommendations/cards/{id}`（详情）· `POST .../recommendations/cards/{id}/feedback`（反馈）
 - DTO：`RecommendationCardRequest` / `RecommendationCardFilter` → `RecommendationCardDetailResponse`；反馈 DTO 含 `accepted` + `reason`
 - 响应信封：`ApiResult` / `ProblemDetail`；状态机：告警类（待处理→已采纳/已拒绝/已抑制）
 - 幂等 / 错误码 / traceId：反馈幂等键；trace（[OBS-01](../D0/OBS-01.md)）
@@ -60,7 +60,7 @@
 - B0 验收：关模型推荐契约仍可用（确定性卡）。
 
 ## 完工证据
-- 代码：`RecommendationEvaluateSuffixController` 新增 `POST /api/v1/engine/recommendations:evaluate`；`RecommendationEngineController` 暴露根列表/详情/反馈契约；`RecommendationEngineService` 落实确定性评估、模型关闭 `MODEL_DISABLED`、疲劳抑制和反馈幂等；`V68__recommendation_cdss_contract.sql` 五方言补反馈幂等键与 `SUPPRESSED` 约束。
+- 代码：`RecommendationEvaluateSuffixController` 新增 `POST /api/v1/engine/recommendations:evaluate`；`RecommendationEngineController` 暴露 `cards` 列表/详情/反馈契约；`RecommendationEngineService` 落实确定性评估、模型关闭 `MODEL_DISABLED`、疲劳抑制和反馈幂等；`V68__recommendation_cdss_contract.sql` 五方言补反馈幂等键与 `SUPPRESSED` 约束。
 - 测试：先跑红灯套件，确认缺 `RecommendationEvaluationResponse` / `evaluate` / `MODEL_DISABLED` / `SUPPRESSED` / `ENG_REC_007` / 幂等仓储等能力导致编译失败；实现后 `mvn -q -Dtest=RecommendationEngineServiceTest,RecommendationRepositoryTest,RecommendationEngineControllerSecurityTest,OpenApiContractConfigurationTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ErrorCodeTest test` 通过；`mvn -q -Dtest=ClinicalEventEngineAdapterTest,EngineEndToEndIntegrationTest,ServiceContractGovernanceTest,FlywayMultiDialectSmokeTest test` 通过；补 ROLLBACK 说明后 `mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test` 通过；最终 `mvn -q test` 通过，Surefire 190 reports / 1149 tests / 0 failures / 0 errors / 0 skipped，H2 / PostgreSQL / Oracle 均迁移到 V68 且二次 migrate no-op。
 - T-GATE：提交前工作树扫描通过：真实性门禁候选 31 个 / 实扫 15 个、配置边界候选 31 个 / 实扫 15 个、迁移规约 files-mode 扫 5 个 V68 文件；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs` 34/34 通过；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check` 通过。提交后 changed-mode：真实性门禁扫描 15 个、配置边界扫描 15 个、迁移规约扫描 5 个，均通过；中文注释 0 fail / 0 warn；`git diff --check origin/main..HEAD` 通过。
 - 审计员签字：@<reviewer>（owner ≠ reviewer，PR 审核时补）。

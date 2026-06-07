@@ -23,16 +23,17 @@ class DiagnosisCriterionMappingTest {
     @Test
     void buildsDifferential() {
         var d = new DiagnosisDifferential(null, "t-1", 10L, 99L, "胸痛三联鉴别", "D-二聚体/CTA",
-            true, Instant.now(), "u", Instant.now(), "u", "tr");
+            Instant.now(), "u", Instant.now(), "u", "tr");
         assertThat(d.differentialIdentityId()).isEqualTo(99L);
-        assertThat(d.bidirectional()).isTrue();
     }
 
     @Test
     void buildsCarePointer() {
         var p = new DiagnosisCarePointer(null, "t-1", 10L, DiagnosisCarePointerType.PATHWAY,
-            "PATHWAY-ACS", true, "确诊后进入 ACS 路径", Instant.now(), "u", Instant.now(), "u", "tr");
+            DiagnosisCareTargetType.PATHWAY, "PATHWAY-ACS", true, "确诊后进入 ACS 路径",
+            Instant.now(), "u", Instant.now(), "u", "tr");
         assertThat(p.pointerType()).isEqualTo(DiagnosisCarePointerType.PATHWAY);
+        assertThat(p.targetType()).isEqualTo(DiagnosisCareTargetType.PATHWAY);
         assertThat(p.isSoft()).isTrue();
         assertThat(p.targetRef()).isEqualTo("PATHWAY-ACS");
     }

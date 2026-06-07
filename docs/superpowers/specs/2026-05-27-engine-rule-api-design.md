@@ -36,11 +36,11 @@
 | 状态 | 含义 | 允许动作 |
 |---|---|---|
 | `DRAFT` | 草稿，可编辑和补测试用例 | 修改、仿真、提交发布 |
-| `PUBLISHED` | 已通过发布门禁，成为可执行版本 | 执行、解释、下线 |
+| `PUBLISHED` | 内容已通过审核并写保护，尚未证明运行生效 | 查看影响、全量激活、回滚 |
 | `OFFLINE` | 已下线，不再参与默认执行 | 查询、解释历史执行 |
 | `ARCHIVED` | 归档，仅保留审计与追溯 | 查询历史 |
 
-首版规则定义只有一个当前版本。后续 `GA-ENG-RULE-01` 可扩展为多版本灰度、回滚和规则包。
+规则运行状态以统一资产版本为唯一权威；只有对应统一版本为 `ACTIVE` 时才参与执行。
 
 ### 4.2 发布门禁
 
@@ -73,7 +73,7 @@
 | `POST /api/v1/engine/rule/rules/{ruleId}/simulate` | `rule.write` | 对指定上下文或测试用例仿真 |
 | `GET /api/v1/engine/rule/rules/{ruleId}/impact` | `rule.read` | 查看发布前影响分析 |
 | `POST /api/v1/engine/rule/rules/{ruleId}/publish` | `rule.publish` | 执行发布门禁并发布 |
-| `POST /api/v1/engine/rule/rules/evaluate` | `rule.read` | 按触发点和上下文执行已发布规则 |
+| `POST /api/v1/engine/rule/rules/evaluate` | `rule.read` | 按触发点和上下文执行统一版本已激活规则 |
 | `GET /api/v1/engine/rule/rules/executions/{executionId}/explain` | `rule.read` | 查看一次执行的客户面解释 |
 
 ## 6. 数据模型

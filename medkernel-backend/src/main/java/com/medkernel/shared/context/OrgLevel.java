@@ -4,8 +4,9 @@ package com.medkernel.shared.context;
  * 组织层级枚举。
  *
  * <p>声明顺序即层级高低（根在前、叶在后）：PLATFORM 平台权威层高于所有租户，其后是
- * 租户组织树 TENANT→GROUP→HOSPITAL→CAMPUS→SITE→DEPARTMENT；SPECIALTY 专病暂作树叶
- * （后续将迁为横切维度）。{@link #canHaveParent(OrgLevel)} 据此判定父子层级关系。
+ * 租户组织树 TENANT→GROUP→HOSPITAL→CAMPUS→SITE→DEPARTMENT。专病通过
+ * applicableScope / specialtyId 表达为横切维度，不作为组织树节点。
+ * {@link #canHaveParent(OrgLevel)} 据此判定父子层级关系。
  *
  * @see OrgScope
  */
@@ -23,9 +24,7 @@ public enum OrgLevel {
     /** 社区卫生服务中心 / 街道卫生所 / 医联体成员机构 */
     SITE,
     /** 科室 */
-    DEPARTMENT,
-    /** 专病 / 专科维度 */
-    SPECIALTY;
+    DEPARTMENT;
 
     /**
      * 判断当前层级是否允许挂在指定父层级之下。
@@ -38,5 +37,16 @@ public enum OrgLevel {
      */
     public boolean canHaveParent(OrgLevel parent) {
         return parent != null && parent.ordinal() < ordinal();
+    }
+
+    /**
+     * 是否可作为新建组织树节点。
+     *
+     * <p>PLATFORM 是权威层，不属于租户组织树。
+     *
+     * @return 可作为租户组织树节点时返回 {@code true}
+     */
+    public boolean isOrganizationTreeLevel() {
+        return this != PLATFORM;
     }
 }

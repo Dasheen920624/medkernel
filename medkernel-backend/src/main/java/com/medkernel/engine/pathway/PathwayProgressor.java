@@ -1,6 +1,5 @@
 package com.medkernel.engine.pathway;
 
-import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +10,10 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.rule.ConditionEvaluation;
+import com.medkernel.engine.rule.ConditionEvaluator;
+import com.medkernel.engine.rule.ConditionEvidence;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
@@ -23,7 +26,17 @@ import com.medkernel.shared.api.error.ErrorCode;
 @Component
 public class PathwayProgressor {
 
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json;
+    private final ConditionEvaluator conditionEvaluator;
+
+    public PathwayProgressor(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
+        this.json = json;
+        this.conditionEvaluator = conditionEvaluator;
+    }
+
+    PathwayProgressor() {
+        this(new ObjectMapper(), new ConditionEvaluator(new ObjectMapper()));
+    }
 
     /**
      * 计算一次路径推进决策。
@@ -106,68 +119,75 @@ public class PathwayProgressor {
                                      LinkedHashMap<String, Object> evidence) {
         try {
             JsonNode condition = json.readTree(conditionJson);
-            String fact = condition.path("fact").asText(null);
-            String operator = condition.path("operator").asText("equals");
-            JsonNode expectedNode = condition.path("value");
-            if (isBlank(fact) || expectedNode.isMissingNode()) {
-                throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径条件缺少 fact 或 value");
-            }
-            Object actual = facts.get(fact);
-            evidence.put(fact, actual);
-            return compare(actual, expectedNode, operator);
+            ConditionEvaluation evaluation = conditionEvaluator.evaluate(toConditionGroup(condition), factsToContext(facts));
+            recordConditionEvidence(evaluation.evidence(), evidence);
+            return evaluation.matched();
         } catch (ApiException exception) {
-            throw exception;
+            if (exception.errorCode() == ErrorCode.INSUFFICIENT_DATA) {
+                throw exception;
+            }
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, exception.getMessage(), exception);
         } catch (Exception exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径条件 JSON 无法解析", exception);
         }
     }
 
-    private boolean compare(Object actual, JsonNode expectedNode, String operator) {
-        return switch (operator) {
-            case "equals", "eq" -> Objects.equals(normalize(actual), jsonValue(expectedNode));
-            case "notEquals", "not_equals", "ne" -> !Objects.equals(normalize(actual), jsonValue(expectedNode));
-            case "gt", "greaterThan" -> numeric(actual).compareTo(numeric(jsonValue(expectedNode))) > 0;
-            case "gte", "greaterOrEqual" -> numeric(actual).compareTo(numeric(jsonValue(expectedNode))) >= 0;
-            case "lt", "lessThan" -> numeric(actual).compareTo(numeric(jsonValue(expectedNode))) < 0;
-            case "lte", "lessOrEqual" -> numeric(actual).compareTo(numeric(jsonValue(expectedNode))) <= 0;
-            default -> throw new ApiException(ErrorCode.ENG_PATHWAY_006, "不支持的路径条件操作符: " + operator);
-        };
+    private JsonNode toConditionGroup(JsonNode condition) {
+        if (condition.has("when")) {
+            return condition.get("when");
+        }
+        if (condition.has("all") || condition.has("any") || condition.has("not")) {
+            return condition;
+        }
+        ObjectNode when = json.createObjectNode();
+        when.putArray("all").add(condition);
+        return when;
     }
 
-    private Object jsonValue(JsonNode node) {
-        if (node.isBoolean()) {
-            return node.booleanValue();
+    private JsonNode factsToContext(Map<String, Object> facts) {
+        ObjectNode root = json.createObjectNode();
+        if (facts == null || facts.isEmpty()) {
+            return root;
         }
-        if (node.isNumber()) {
-            return node.decimalValue();
+        for (Map.Entry<String, Object> entry : facts.entrySet()) {
+            putDottedPath(root, entry.getKey(), entry.getValue());
         }
-        if (node.isTextual()) {
-            return node.textValue();
-        }
-        if (node.isNull()) {
-            return null;
-        }
-        return node.toString();
+        return root;
     }
 
-    private Object normalize(Object value) {
-        if (value instanceof Number number) {
-            return new BigDecimal(number.toString());
+    private void putDottedPath(ObjectNode root, String path, Object value) {
+        if (isBlank(path)) {
+            return;
         }
-        return value;
+        String[] segments = path.split("\\.");
+        ObjectNode current = root;
+        for (int index = 0; index < segments.length; index += 1) {
+            String segment = segments[index];
+            if (isBlank(segment)) {
+                continue;
+            }
+            if (index == segments.length - 1) {
+                current.set(segment, value == null ? json.nullNode() : json.valueToTree(value));
+                return;
+            }
+            JsonNode child = current.get(segment);
+            if (child == null || !child.isObject()) {
+                child = json.createObjectNode();
+                current.set(segment, child);
+            }
+            current = (ObjectNode) child;
+        }
     }
 
-    private BigDecimal numeric(Object value) {
-        if (value instanceof BigDecimal decimal) {
-            return decimal;
+    private void recordConditionEvidence(List<ConditionEvidence> conditionEvidence, LinkedHashMap<String, Object> evidence) {
+        for (ConditionEvidence item : conditionEvidence) {
+            String fact = item.fact();
+            if (!isBlank(fact)) {
+                JsonNode actual = item.actual();
+                Object value = actual == null || actual.isMissingNode() ? null : json.convertValue(actual, Object.class);
+                evidence.put(fact, value);
+            }
         }
-        if (value instanceof Number number) {
-            return new BigDecimal(number.toString());
-        }
-        if (value instanceof String text && !text.isBlank()) {
-            return new BigDecimal(text);
-        }
-        throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径条件需要数值事实");
     }
 
     private PathwayNode findCurrentNode(PathwayGraph graph, String currentNodeCode) {

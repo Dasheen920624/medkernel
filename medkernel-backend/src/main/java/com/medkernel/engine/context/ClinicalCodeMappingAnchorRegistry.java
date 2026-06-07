@@ -3,6 +3,7 @@ package com.medkernel.engine.context;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalClaim;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
@@ -34,8 +35,11 @@ public final class ClinicalCodeMappingAnchorRegistry {
 
     private static final List<ClinicalCodeMappingAnchorDefinition> DEFINITIONS = List.of(
         definition(CanonicalResourceType.PATIENT, "gender", TERM_OTHER),
-        definition(CanonicalResourceType.PATIENT, "allergies", TERM_OTHER),
         definition(CanonicalResourceType.PATIENT, "specialPopulations", TERM_OTHER),
+        definition(CanonicalResourceType.ALLERGY_INTOLERANCE, "code", TERM_DRUG),
+        definition(CanonicalResourceType.ALLERGY_INTOLERANCE, "category", TERM_OTHER),
+        definition(CanonicalResourceType.ALLERGY_INTOLERANCE, "criticality", TERM_OTHER),
+        definition(CanonicalResourceType.ALLERGY_INTOLERANCE, "reactions", TERM_OTHER),
         definition(CanonicalResourceType.ENCOUNTER, "encounterType", TERM_OTHER),
         definition(CanonicalResourceType.ENCOUNTER, "departmentId", TERM_DEPARTMENT),
         definition(CanonicalResourceType.CONDITION, "code", TERM_DIAGNOSIS),
@@ -78,6 +82,22 @@ public final class ClinicalCodeMappingAnchorRegistry {
         }
         List<ClinicalCodeMappingAnchor> anchors = new ArrayList<>();
         addPatient(anchors, resources.patient());
+        for (CanonicalAllergyIntolerance allergy : safe(resources.allergyIntolerances())) {
+            add(anchors, CanonicalResourceType.ALLERGY_INTOLERANCE, allergy.allergyIntoleranceId(), "code",
+                allergy.code(), allergy.codeSystem(), allergy.substance(), TERM_DRUG,
+                allergy.sourceSystem(), allergy.sourceRecordId(), allergy.mappedVersion());
+            add(anchors, CanonicalResourceType.ALLERGY_INTOLERANCE, allergy.allergyIntoleranceId(), "category",
+                allergy.category(), null, allergy.category(), TERM_OTHER,
+                allergy.sourceSystem(), allergy.sourceRecordId(), allergy.mappedVersion());
+            add(anchors, CanonicalResourceType.ALLERGY_INTOLERANCE, allergy.allergyIntoleranceId(), "criticality",
+                allergy.criticality(), null, allergy.criticality(), TERM_OTHER,
+                allergy.sourceSystem(), allergy.sourceRecordId(), allergy.mappedVersion());
+            for (String reaction : safe(allergy.reactions())) {
+                add(anchors, CanonicalResourceType.ALLERGY_INTOLERANCE, allergy.allergyIntoleranceId(), "reactions",
+                    reaction, null, reaction, TERM_OTHER,
+                    allergy.sourceSystem(), allergy.sourceRecordId(), allergy.mappedVersion());
+            }
+        }
         for (CanonicalEncounter encounter : safe(resources.encounters())) {
             add(anchors, CanonicalResourceType.ENCOUNTER, encounter.encounterId(), "encounterType",
                 encounter.encounterType(), null, encounter.encounterType(), TERM_OTHER,
@@ -191,11 +211,6 @@ public final class ClinicalCodeMappingAnchorRegistry {
         add(anchors, CanonicalResourceType.PATIENT, patient.mpi(), "gender",
             patient.gender(), null, patient.gender(), TERM_OTHER,
             patient.sourceSystem(), patient.sourceRecordId(), patient.mappedVersion());
-        for (String allergy : safe(patient.allergies())) {
-            add(anchors, CanonicalResourceType.PATIENT, patient.mpi(), "allergies",
-                allergy, null, allergy, TERM_OTHER,
-                patient.sourceSystem(), patient.sourceRecordId(), patient.mappedVersion());
-        }
         for (String population : safe(patient.specialPopulations())) {
             add(anchors, CanonicalResourceType.PATIENT, patient.mpi(), "specialPopulations",
                 population, null, population, TERM_OTHER,

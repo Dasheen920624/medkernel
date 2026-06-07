@@ -14,8 +14,7 @@ import org.springframework.data.relational.core.mapping.Table;
  */
 @Table("mk_pkg_pilot_package_template")
 public record PilotPackageTemplate(
-    @Id Long id,
-    @Column("template_id") String templateId,
+    @Id @Column("template_id") String templateId,
     @Column("tenant_id") String tenantId,
     @Column("template_code") String templateCode,
     String name,

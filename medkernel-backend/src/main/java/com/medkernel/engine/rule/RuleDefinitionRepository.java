@@ -26,7 +26,9 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
     Optional<RuleDefinition> findByTenantIdAndRuleCode(String tenantId, String ruleCode);
 
     /**
-     * 按租户查询所有处于 {@code PUBLISHED} 状态的规则定义，按更新时间倒序，用于 evaluate 候选筛选。
+     * 按租户查询内容已审核的规则定义，按更新时间倒序。
+     *
+     * <p>运行入口还必须校验对应统一资产版本为 {@code ACTIVE}，本查询不能单独证明规则可执行。
      */
     @Query("""
         SELECT * FROM rule_definition

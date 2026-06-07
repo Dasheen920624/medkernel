@@ -253,7 +253,7 @@ AI 知识工厂要覆盖的内容不是“病种介绍”，而是能支撑临�
 
 | 角色 | 核心权限 |
 |---|---|
-| 平台管理员 | 租户开通、许可证、全局标准包、系统配置 |
+| 平台管理员 | 租户开通、全局标准包、系统配置 |
 | 集团管理员 | 集团组织、集团知识包、集团质控指标、跨院分析 |
 | 医院管理员 | 院内组织、用户、适配器、院内映射、发布审批 |
 | 信息科 | 接口、适配器、同步任务、国产化自检、运行监控 |
@@ -579,7 +579,7 @@ flowchart TB
 | 包 | 职责 |
 |---|---|
 | `shared` | ApiResult、ProblemDetail、审计上下文、组织上下文、分页、i18n、脱敏、加密、日志 |
-| `platform` | 租户、许可证、Provider、部署形态、品牌、运行状态 |
+| `platform` | 租户、外部依赖、部署形态、品牌、运行状态 |
 | `compliance` | 用户、角色、权限、身份绑定、审计、数据墙、合规证据、安全基线 |
 | `tenant` | 组织层级、适配器、配置包、字典映射、规则配置、路径模板、试点生命周期 |
 | `clinical` | 患者上下文、临床事件、CDSS、专病路径/关键时钟、护理决策、报告解读、床旁知识、随访计划、医生反馈 |
@@ -603,7 +603,7 @@ flowchart TB
 | 护理与报告服务 | `nursing_assessment`、`nursing_plan`、`nursing_reassessment`、`report_interpretation`、`knowledge_query_log` |
 | 评估质控 | `evaluation_indicator`、`evaluation_result`、`quality_finding`、`rectification_task` |
 | 随访 | `followup_plan`、`followup_task`、`followup_questionnaire`、`followup_event` |
-| 包发布 | `knowledge_package`、`package_item`、`release_plan`、`sync_target`、`sync_log` |
+| 包发布 | `knowledge_package`、`package_item`、`release_plan`、`sync_log`；连接目录复用 `integration_adapter` |
 | AI 工作流 | `ai_workflow_definition`、`ai_workflow_version`、`ai_workflow_binding`、`ai_workflow_sync_log`、`ai_workflow_fallback_policy` |
 | 审计证据 | `audit_event`、`evidence_snapshot`、`release_evidence`、`export_record` |
 

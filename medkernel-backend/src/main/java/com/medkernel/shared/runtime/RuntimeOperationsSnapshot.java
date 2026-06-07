@@ -68,9 +68,39 @@ public record RuntimeOperationsSnapshot(
         String backupScript,
         String restoreScript,
         String checksumPolicy,
+        RuntimeBackupDrillEvidence drillEvidence,
         String source,
         String warning
     ) {
+    }
+
+    public record RuntimeBackupDrillEvidence(
+        String status,
+        Instant completedAt,
+        Integer migrationCount,
+        String evidenceReference,
+        String detail
+    ) {
+
+        public static RuntimeBackupDrillEvidence notAvailable() {
+            return new RuntimeBackupDrillEvidence(
+                "NOT_AVAILABLE",
+                null,
+                null,
+                null,
+                "尚未提供隔离恢复演练证据"
+            );
+        }
+
+        public static RuntimeBackupDrillEvidence invalid() {
+            return new RuntimeBackupDrillEvidence(
+                "INVALID",
+                null,
+                null,
+                null,
+                "隔离恢复演练证据格式无效"
+            );
+        }
     }
 
     public record RuntimeDomesticProfile(

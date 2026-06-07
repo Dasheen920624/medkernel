@@ -3,7 +3,6 @@ package com.medkernel.engine.versioning;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -11,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.ids.Ulid;
@@ -20,8 +21,6 @@ import com.medkernel.shared.ids.Ulid;
  */
 @Service
 public class VersionReleaseService implements ReleasePort {
-
-    private static final String HOSPITAL_ADMIN = "HOSPITAL_ADMIN";
 
     private final AssetVersionRepository assetVersions;
     private final VersionReleasePlanRepository releasePlans;
@@ -99,7 +98,7 @@ public class VersionReleaseService implements ReleasePort {
     @Override
     @Transactional
     public VersionReleasePlan releaseFull(VersionReleaseCommand command) {
-        requireHospitalAdmin(command.roleCodes());
+        requireHospitalAdmin();
         AssetVersion target = requireVersion(command);
         if (target.status() != AssetVersionStatus.PUBLISHED && target.status() != AssetVersionStatus.ACTIVE) {
             throw new ApiException(ErrorCode.CONFLICT, "只有已发布版本可以全量激活");
@@ -329,30 +328,25 @@ public class VersionReleaseService implements ReleasePort {
         }
     }
 
-    private void requireHospitalAdmin(List<String> roleCodes) {
-        boolean allowed = roleCodes != null && roleCodes.stream()
-            .filter(Objects::nonNull)
-            .map(role -> role.trim().toUpperCase(Locale.ROOT))
-            .anyMatch(HOSPITAL_ADMIN::equals);
-        if (!allowed) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "直接全量仅院级管理员可执行");
+    private void requireHospitalAdmin() {
+        if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "直接全量仅院级管理员可执行");
         }
     }
 
     private ReleaseScope normalizeGrayScope(VersionReleaseCommand command) {
         if (command.scopeType() == null || command.scopeType() == VersionReleaseScopeType.ALL) {
-            return new ReleaseScope(
-                VersionReleaseScopeType.BED_PERCENT,
-                "{\"percentage\":10,\"scopeCode\":\"" + required(command.targetOrgPath(), "目标组织路径") + "\"}"
-            );
-        }
-        if (command.scopeType() == VersionReleaseScopeType.BED_PERCENT && isBlank(command.scopeValue())) {
-            return new ReleaseScope(
-                VersionReleaseScopeType.BED_PERCENT,
-                "{\"percentage\":10,\"scopeCode\":\"" + required(command.targetOrgPath(), "目标组织路径") + "\"}"
-            );
+            return defaultCanaryBedPercentScope(command.targetOrgPath());
         }
         return new ReleaseScope(command.scopeType(), required(command.scopeValue(), "灰度范围"));
+    }
+
+    private ReleaseScope defaultCanaryBedPercentScope(String targetOrgPath) {
+        return new ReleaseScope(
+            VersionReleaseScopeType.HOSPITAL,
+            "{\"rolloutStrategy\":\"" + RolloutStrategy.CANARY_BED_PERCENT
+                + "\",\"percentage\":10,\"scopeCode\":\"" + required(targetOrgPath, "目标组织路径") + "\"}"
+        );
     }
 
     private VersionReleasePlan savePlan(

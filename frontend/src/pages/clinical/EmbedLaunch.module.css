@@ -1,0 +1,367 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 16);
+  min-height: 100vh;
+  padding: calc(var(--mk-unit) * 16);
+  color: var(--ant-color-text);
+  background: var(--ant-color-bg-layout);
+}
+
+.centerState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: calc(var(--mk-unit) * 24);
+  text-align: center;
+  background: var(--ant-color-bg-layout);
+}
+
+.loadingText {
+  margin-top: calc(var(--mk-unit) * 16);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+.statePanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--mk-unit) * 16);
+  width: min(calc(var(--mk-unit) * 480), 100%);
+  padding: calc(var(--mk-unit) * 24);
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-error-border);
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.stateIcon {
+  color: var(--ant-color-error);
+  font-size: calc(var(--mk-unit) * 40);
+}
+
+.stateTitle {
+  color: var(--ant-color-error-text);
+  font-size: var(--ant-font-size-lg);
+  font-weight: 600;
+}
+
+.stateBody {
+  padding: calc(var(--mk-unit) * 16);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+  line-height: var(--ant-line-height);
+  text-align: start;
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.bulletList {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+  padding-inline-start: calc(var(--mk-unit) * 20);
+  margin: calc(var(--mk-unit) * 8) 0 0;
+}
+
+.stateAlert {
+  width: 100%;
+  text-align: start;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+  padding: calc(var(--mk-unit) * 12);
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.contextRow,
+.brandStatus,
+.cardTitleLeft,
+.recommendationTitle,
+.auditLabel,
+.modalTitle {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.contextRow {
+  flex-wrap: wrap;
+}
+
+.contextLabel,
+.brandStatus,
+.helperText {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+.contextTag,
+.severityTag,
+.actionTag {
+  margin: 0;
+  font-size: var(--ant-font-size-sm);
+}
+
+.contextTag {
+  font-weight: 600;
+}
+
+.heartIcon {
+  color: var(--ant-color-error);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 16);
+  overflow-y: auto;
+}
+
+.feedbackPanel,
+.loadingPanel,
+.emptyPanel {
+  padding: calc(var(--mk-unit) * 24);
+  text-align: center;
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.successIcon {
+  margin-bottom: calc(var(--mk-unit) * 8);
+  color: var(--ant-color-success);
+  font-size: calc(var(--mk-unit) * 40);
+}
+
+.successTitle {
+  color: var(--ant-color-success-text);
+  font-size: var(--ant-font-size);
+  font-weight: 600;
+}
+
+.feedbackMeta {
+  margin-top: calc(var(--mk-unit) * 8);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+.rejectReason {
+  width: min(calc(var(--mk-unit) * 384), 100%);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 12);
+  margin: calc(var(--mk-unit) * 8) auto 0;
+  color: var(--ant-color-error-text);
+  font-size: var(--ant-font-size-sm);
+  background: var(--ant-color-error-bg);
+  border: var(--mk-line-width) solid var(--ant-color-error-border);
+  border-radius: var(--ant-border-radius);
+}
+
+.feedbackAlert {
+  width: min(calc(var(--mk-unit) * 480), 100%);
+  margin: calc(var(--mk-unit) * 16) auto 0;
+  text-align: start;
+}
+
+.sessionButton {
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.loadingMessage {
+  margin-top: calc(var(--mk-unit) * 12);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+.errorAlert {
+  border-color: var(--ant-color-error-border);
+}
+
+.emptyDescription {
+  color: var(--ant-color-text-secondary);
+}
+
+.helperText {
+  margin-top: calc(var(--mk-unit) * 12);
+  text-align: center;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+  width: 100%;
+  color: var(--ant-color-text);
+  font-size: var(--ant-font-size-sm);
+  font-weight: 600;
+}
+
+.recommendationCard {
+  border-color: var(--ant-color-border-secondary);
+}
+
+.recommendationCard :global(.ant-card-body) {
+  padding: calc(var(--mk-unit) * 16);
+}
+
+.stack,
+.recommendationList,
+.modalBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.stack {
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.summary {
+  padding: calc(var(--mk-unit) * 12);
+  color: var(--ant-color-text);
+  font-size: var(--ant-font-size-sm);
+  line-height: var(--ant-line-height);
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.recommendationList {
+  gap: calc(var(--mk-unit) * 8);
+}
+
+.recommendationTitle {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+  font-weight: 600;
+}
+
+.recommendationIcon {
+  color: var(--ant-color-info);
+}
+
+.recommendationItem {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--mk-unit) * 8);
+  padding: calc(var(--mk-unit) * 10);
+  font-size: var(--ant-font-size-sm);
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.actionTag {
+  flex: none;
+  font-weight: 600;
+}
+
+.actionText {
+  color: var(--ant-color-text);
+  line-height: var(--ant-line-height);
+}
+
+.evidenceAlert {
+  font-size: var(--ant-font-size-sm);
+}
+
+.actions {
+  display: flex;
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 8);
+}
+
+.adoptButton {
+  flex: 1;
+  min-height: calc(var(--mk-unit) * 42);
+  font-weight: 600;
+}
+
+.rejectButton {
+  min-height: calc(var(--mk-unit) * 42);
+  font-weight: 600;
+}
+
+.auditBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 12);
+  padding: calc(var(--mk-unit) * 12);
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
+.auditTrace {
+  padding: calc(var(--mk-unit) * 2) calc(var(--mk-unit) * 8);
+  color: var(--ant-color-text-secondary);
+  font-family: var(--ant-font-family-code);
+  background: var(--ant-color-bg-layout);
+  border-radius: var(--ant-border-radius-sm);
+}
+
+.modalTitle {
+  padding-bottom: calc(var(--mk-unit) * 12);
+  color: var(--ant-color-error-text);
+  font-weight: 600;
+  border-bottom: var(--mk-line-width) solid var(--ant-color-border-secondary);
+}
+
+.modalBody {
+  gap: calc(var(--mk-unit) * 16);
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.modalHint {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+}
+
+.reasonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 10);
+  width: 100%;
+  padding: calc(var(--mk-unit) * 16);
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.reasonText {
+  color: var(--ant-color-text);
+  font-size: var(--ant-font-size-sm);
+}
+
+.customReason {
+  font-size: var(--ant-font-size-sm);
+}
+
+@media (max-width: 48em) {
+  .actions,
+  .auditBar,
+  .topBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .brandStatus {
+    align-self: flex-start;
+  }
+
+  .rejectButton {
+    width: 100%;
+  }
+}

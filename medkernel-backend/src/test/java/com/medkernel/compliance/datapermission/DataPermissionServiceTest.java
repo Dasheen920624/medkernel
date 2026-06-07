@@ -9,33 +9,37 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medkernel.engine.security.DataAccessLevel;
-import com.medkernel.engine.security.ResolvedDataScope;
+import com.medkernel.shared.security.DataAccessLevel;
+import com.medkernel.shared.security.ResolvedDataScope;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.engine.org.OrgAssignmentValidator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DataPermissionServiceTest {
 
     private DataPermissionPolicyRepository repository;
     private AuditRecorder auditRecorder;
+    private OrgAssignmentValidator orgAssignments;
     private DataPermissionService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(DataPermissionPolicyRepository.class);
         auditRecorder = mock(AuditRecorder.class);
-        service = new DataPermissionService(repository, auditRecorder, new ObjectMapper());
+        orgAssignments = mock(OrgAssignmentValidator.class);
+        service = new DataPermissionService(repository, auditRecorder, new ObjectMapper(), orgAssignments);
     }
 
     @Test
@@ -110,6 +114,34 @@ class DataPermissionServiceTest {
         assertThat(audit.getValue().targetType()).isEqualTo("mk_compliance_data_permission");
         assertThat(audit.getValue().targetId()).isEqualTo("dperm-clinical-case-read");
         assertThat(audit.getValue().summary()).contains("SYS-06 PR1 行列权限基线");
+        verify(orgAssignments).requireActiveScopeReferences(
+            "t-1", "g-1", "h-1", null, null, "cardiology", null);
+    }
+
+    @Test
+    void upsertPolicyRejectsNoneAsPersistedMinimumScope() {
+        DataPermissionPolicyRequest request = new DataPermissionPolicyRequest(
+            "clinical_case",
+            DataPermissionAction.READ,
+            DataAccessLevel.NONE,
+            List.of("patientId"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            DataPermissionStatus.ACTIVE,
+            "拒绝无效作用域",
+            null);
+
+        ApiException ex = catchThrowableOfType(
+            () -> service.upsertPolicy("t-1", request, "admin-1"),
+            ApiException.class);
+
+        assertThat(ex.errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+        assertThat(ex.getMessage()).isEqualTo("最小数据范围必须是科室、医院或集团");
+        verifyNoInteractions(repository, auditRecorder, orgAssignments);
     }
 
     private DataPermissionPolicy activePolicy(String allowedColumnsJson) {

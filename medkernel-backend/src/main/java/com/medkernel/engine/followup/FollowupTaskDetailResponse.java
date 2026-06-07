@@ -13,14 +13,15 @@ public record FollowupTaskDetailResponse(
     FollowupTaskStatus status,
     String executorId,
     String executorType,
-    String clinicalClockId
+    String clinicalClockId,
+    String questionnaireTemplateId
 ) {
     public FollowupTaskDetailResponse(
             String taskId,
             FollowupTaskType taskType,
             Instant dueDate,
             FollowupTaskStatus status) {
-        this(taskId, null, taskType, dueDate, status, null, null, null);
+        this(taskId, null, taskType, dueDate, status, null, null, null, null);
     }
 
     public FollowupTaskDetailResponse(
@@ -31,6 +32,6 @@ public record FollowupTaskDetailResponse(
             FollowupTaskStatus status,
             String executorId,
             String executorType) {
-        this(taskId, planId, taskType, dueDate, status, executorId, executorType, null);
+        this(taskId, planId, taskType, dueDate, status, executorId, executorType, null, null);
     }
 }

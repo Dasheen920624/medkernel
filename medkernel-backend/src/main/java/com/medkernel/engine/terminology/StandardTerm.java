@@ -9,7 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 标准临床术语字典记录（ICD-10 / SNOMED CT / LOINC / RxNorm / ATC 等标准词条）。
  *
- * <p>当前仍按租户隔离存储，由术语包 {@link TermMappingPackage} 管理版本发布；
+ * <p>平台标准词以平台主租户归属作为权威基线；客户租户可保留少量本地覆盖记录，
+ * 院内术语与标准词的适配关系由 {@link LocalTerm} / {@link TermMapping} 表达。
  * 业务键 (tenant_id, standard_system, term_code, version_no) 唯一。
  * 状态字段 {@link StandardTermStatus} 决定是否可被映射引用（ACTIVE 可用 / DISABLED 禁用）。
  */

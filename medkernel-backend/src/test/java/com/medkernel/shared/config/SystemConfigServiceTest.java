@@ -1,5 +1,6 @@
 package com.medkernel.shared.config;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
@@ -14,8 +15,10 @@ import com.medkernel.shared.runtime.RuntimeProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -32,6 +35,110 @@ class SystemConfigServiceTest {
     private final HighRiskChangeGuard highRiskChangeGuard = mock(HighRiskChangeGuard.class);
     private final SystemConfigService service = new SystemConfigService(
         repository, auditSafetyGuard, auditRecorder, logLevelManager, highRiskChangeGuard);
+
+    @Test
+    void tenantConfigurationIsSeededAndReadWithinItsOwnTenantBoundary() {
+        String key = "medkernel.notification.defaults";
+        Instant now = Instant.parse("2026-06-07T02:00:00Z");
+        SystemConfigSeed seed = new SystemConfigSeed(
+            "tenant-A",
+            key,
+            "{}",
+            "JSON",
+            "租户通知默认策略",
+            "MEDIUM",
+            "医院管理员",
+            "租户通知默认策略。",
+            "SAFE_DEFAULT",
+            false,
+            now);
+        SystemConfigItem saved = new SystemConfigItem(
+            "tenant-A",
+            key,
+            "{}",
+            "JSON",
+            "租户通知默认策略",
+            "MEDIUM",
+            "医院管理员",
+            "租户通知默认策略。",
+            "SAFE_DEFAULT",
+            false,
+            true,
+            1,
+            now);
+        when(repository.findActive("tenant-A", key))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(saved));
+
+        SystemConfigItemResponse response =
+            service.getOrSeedTenantConfig("tenant-A", key, seed, "admin-1");
+
+        assertThat(response.key()).isEqualTo(key);
+        assertThat(response.version()).isEqualTo(1);
+        verify(repository).insertSeedIfAbsent(any(SystemConfigSeed.class), eq("admin-1"));
+    }
+
+    @Test
+    void tenantConfigurationUpdateUsesTenantScopedOptimisticVersion() {
+        String key = "medkernel.notification.defaults";
+        SystemConfigItem before = new SystemConfigItem(
+            "tenant-A",
+            key,
+            "{}",
+            "JSON",
+            "租户通知默认策略",
+            "MEDIUM",
+            "医院管理员",
+            "租户通知默认策略。",
+            "SAFE_DEFAULT",
+            false,
+            true,
+            3,
+            null);
+        SystemConfigItem after = new SystemConfigItem(
+            "tenant-A",
+            key,
+            "{\"inAppEnabled\":true}",
+            "JSON",
+            "租户通知默认策略",
+            "MEDIUM",
+            "医院管理员",
+            "租户通知默认策略。",
+            "API",
+            false,
+            true,
+            4,
+            null);
+        when(repository.findActive("tenant-A", key)).thenReturn(Optional.of(before));
+        when(repository.updateValue(
+                "tenant-A",
+                key,
+                "{\"inAppEnabled\":true}",
+                "admin-1",
+                "更新医院默认策略",
+                3L))
+            .thenReturn(after);
+
+        SystemConfigItemResponse response = service.updateTenant(
+            "tenant-A",
+            key,
+            new SystemConfigUpdateRequest(
+                "{\"inAppEnabled\":true}",
+                "更新医院默认策略",
+                3L,
+                false),
+            "admin-1");
+
+        assertThat(response.version()).isEqualTo(4);
+        verify(repository).updateValue(
+            "tenant-A",
+            key,
+            "{\"inAppEnabled\":true}",
+            "admin-1",
+            "更新医院默认策略",
+            3L);
+        verify(auditRecorder).record(any());
+    }
 
     @Test
     void runtimeFeatureFlagsFallBackToSafeDefaultWithHonestWarningWhenConfigStoreReadFails() {

@@ -176,12 +176,6 @@ public enum ErrorCode {
     ENG_DX_005("ENG-DX-005", 409, "诊断置信策略缺失或非法", ErrorClass.DATA, false),
     ENG_DX_006("ENG-DX-006", 409, "诊断测试病例未通过，不得发布", ErrorClass.DATA, false);
 
-    /** API-05 业务语义别名，保持对外错误码与既有 {@code ENG-RULE-001} 单一真相一致。 */
-    public static final ErrorCode RULE_DSL_INVALID = ENG_RULE_001;
-
-    /** API-05 业务语义别名，保持对外错误码与既有 {@code ENG-RULE-004} 单一真相一致。 */
-    public static final ErrorCode RULE_PUBLISH_GATE_DENIED = ENG_RULE_004;
-
     private final String code;
     private final int httpStatus;
     private final String defaultMessage;

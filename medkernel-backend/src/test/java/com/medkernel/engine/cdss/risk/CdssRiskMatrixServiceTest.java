@@ -17,7 +17,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -28,14 +28,14 @@ import org.mockito.ArgumentCaptor;
 class CdssRiskMatrixServiceTest {
 
     private CdssRiskMatrixRepository matrixRepository;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private CdssRiskMatrixService service;
 
     @BeforeEach
     void setUp() {
         matrixRepository = mock(CdssRiskMatrixRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
-        service = new CdssRiskMatrixService(matrixRepository, auditPublisher);
+        auditRecorder = mock(AuditRecorder.class);
+        service = new CdssRiskMatrixService(matrixRepository, auditRecorder);
         when(matrixRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-risk-matrix", OrgScope.tenant("tenant-A"), "medical-admin-1"));
@@ -99,7 +99,7 @@ class CdssRiskMatrixServiceTest {
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_REC_001);
 
         verify(matrixRepository, never()).save(any());
-        verify(auditPublisher, never()).publish(any(), any(), any(), any());
+        verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
     @Test
@@ -126,7 +126,7 @@ class CdssRiskMatrixServiceTest {
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_REC_001);
 
         verify(matrixRepository, never()).save(any());
-        verify(auditPublisher, never()).publish(any(), any(), any(), any());
+        verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
     @Test
@@ -154,7 +154,7 @@ class CdssRiskMatrixServiceTest {
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_REC_001);
 
         verify(matrixRepository, never()).save(any());
-        verify(auditPublisher, never()).publish(any(), any(), any(), any());
+        verify(auditRecorder, never()).record(any(), any(), any(), any());
     }
 
     @Test
@@ -186,7 +186,7 @@ class CdssRiskMatrixServiceTest {
         assertThat(saved.status()).isEqualTo(CdssRiskMatrixStatus.ACTIVE);
         assertThat(saved.silentRunHours()).isEqualTo(72);
         assertThat(response.rules()).containsExactly(saved);
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             AuditAction.UPDATE,
             "mk_engine_cdss_risk_matrix",
             "4",
@@ -217,7 +217,7 @@ class CdssRiskMatrixServiceTest {
         assertThat(response.rules()).singleElement()
             .extracting(CdssRiskMatrixRule::status)
             .isEqualTo(CdssRiskMatrixStatus.PUBLISHED);
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             AuditAction.UPDATE,
             "mk_engine_cdss_risk_matrix",
             "5",

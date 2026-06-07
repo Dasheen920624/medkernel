@@ -15,7 +15,7 @@
 把**用户 + 身份绑定 + 数据权限 + 租户隔离 + 安全基线**编排为身份安全服务包：管理员可管用户/角色/权限、配身份绑定、设数据权限与安全基线，**严格租户隔离、不重造身份引擎**。
 
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend` 为准）
-底座在 D0（编排为主）：`engine/security/` 已有 `AuthController/Service`、`CredentialAdminController/Service`、`EffectivePermissionService`、`PermissionEvaluator`、`MenuPermissionCatalog`、`ProvisionTenant*`（[AUTH-01](../D0/AUTH-01.md)/[BASE-02](../D0/BASE-02.md)/[INFRA-05](../D0/INFRA-05.md) 归属）。本卡＝把用户/身份绑定/数据权限/安全基线编排为前端可消费的服务包，**不重定义身份引擎**。
+底座在 D0（编排为主）：`engine/security/` 提供认证、有效权限、菜单权限与租户开通能力；D5 通过 `ComplianceUserController/Service` 提供唯一用户管理入口。`tenant_user` 是凭证、角色与外部身份绑定共同引用的用户主体，`platform_credential` 只保存平台认证凭证。
 
 ## 功能要求（原子可测条目）
 - [ ] FR-1 用户管理：管理员管用户/角色/状态（复用 [BASE-02](../D0/BASE-02.md)），按租户隔离。
@@ -26,11 +26,11 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 复用 D0 身份/权限端点（`engine/security`）+ 本卡编排端点 `GET/POST /api/v1/compliance/identity-bindings` · `GET/PUT .../security-baseline`
+- 用户管理统一端点：`GET/POST /api/v1/compliance/users` 及用户详情、状态、角色、密码动作；身份绑定：`GET/POST /api/v1/compliance/identity-bindings`；安全基线：`GET/PUT .../security-baseline`
 - 状态机：配置类（安全基线）；身份绑定变更类；幂等 + trace（[OBS-01](../D0/OBS-01.md)）
 
 ## 数据与迁移
-- 复用 D0 用户/角色/权限表 + 身份绑定/安全基线表（组织字段 + 审计）；五方言（[BASE-05](../D0/BASE-05.md)）
+- `tenant_user` 为用户主体权威表；凭证、角色、身份绑定与安全基线按租户关联并留审计；五方言一致（[BASE-05](../D0/BASE-05.md)）。
 
 ## 视角清单（11 视角逐条）
 1. 产品架构：身份安全管理的服务编排（脊柱在 D0）。

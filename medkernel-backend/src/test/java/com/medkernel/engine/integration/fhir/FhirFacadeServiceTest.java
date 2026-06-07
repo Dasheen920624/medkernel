@@ -35,6 +35,7 @@ import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.integration.repository.IntegrationWebhookConfigRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.integration.service.WebhookSecretCodec;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.task.RuntimeTaskMode;
@@ -59,6 +60,7 @@ class FhirFacadeServiceTest {
     private final ClinicalEventService events = org.mockito.Mockito.mock(ClinicalEventService.class);
     private final IntegrationService integration = org.mockito.Mockito.mock(IntegrationService.class);
     private final RuntimeTaskService tasks = org.mockito.Mockito.mock(RuntimeTaskService.class);
+    private final WebhookSecretCodec webhookSecretCodec = org.mockito.Mockito.mock(WebhookSecretCodec.class);
     private final FhirFacadeService service = new FhirFacadeService(
         new FhirR4CanonicalMapper(json, terminologyReturning("VALID")),
         new FhirR5CanonicalMapper(json, terminologyReturning("VALID")),
@@ -71,7 +73,8 @@ class FhirFacadeServiceTest {
         events,
         integration,
         tasks,
-        json);
+        json,
+        webhookSecretCodec);
 
     @BeforeEach
     void setUp() {
@@ -89,6 +92,7 @@ class FhirFacadeServiceTest {
             false, true, "已登记异步补偿，不阻断主流程"));
         when(webhookSecrets.findByWebhookIdAndTenantId("wh-fhir", "tenant-A"))
             .thenReturn(Optional.of(activeWebhookSecret()));
+        when(webhookSecretCodec.decode("sm4:v1:test-cipher")).thenReturn("secret-1");
     }
 
     @AfterEach
@@ -428,7 +432,7 @@ class FhirFacadeServiceTest {
             "tenant-A",
             "FHIR 签名密钥",
             "https://example.invalid/fhir",
-            "secret-1",
+            "sm4:v1:test-cipher",
             "FHIR_CREATE",
             "ACTIVE",
             Instant.parse("2026-06-03T00:00:00Z"),

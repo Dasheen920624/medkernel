@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -23,8 +24,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.medkernel.shared.api.PageQuery;
+import com.medkernel.shared.api.PageResult;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.context.RequestContext;
 
 @SpringBootTest
@@ -59,6 +62,9 @@ class LargeListControllerSecurityTest {
 
     @Test
     void testQueryWithValidRole_ShouldReturnOk() throws Exception {
+        when(service.queryAuditEvents(any(PageQuery.class)))
+            .thenReturn(new PageResult<>(List.of(), null, 0L, false, false));
+
         mockMvc.perform(get("/api/v1/large-lists/audit-events/list")
                 .param("size", "20")
                 .param("sort", "id,desc")
@@ -70,6 +76,55 @@ class LargeListControllerSecurityTest {
                 .andExpect(status().isOk());
 
         verify(service).queryAuditEvents(any(PageQuery.class));
+    }
+
+    @Test
+    void queryProjectsPersistenceRecordToPublicAuditView() throws Exception {
+        AuditEventRecord record = new AuditEventRecord(
+            7L,
+            "evt-7",
+            "trace-7",
+            Instant.parse("2026-06-06T12:00:00Z"),
+            "auditor-1",
+            "EXPORT",
+            "audit",
+            "snapshot-7",
+            "导出审计证据",
+            "sm3:digest",
+            "tenant-1",
+            "hospital-1",
+            "department-1",
+            null,
+            null,
+            "sm2:signature",
+            "SUCCESS",
+            "SUCCESS",
+            null,
+            Instant.parse("2026-06-06T12:00:01Z"),
+            "ROLE_AUDIT_COMPLIANCE",
+            "tenant:tenant-1/hospital:hospital-1",
+            "prod",
+            "{\"enabled\":true}",
+            "{\"enabled\":false}",
+            "audit-event-7"
+        );
+        when(service.queryAuditEvents(any(PageQuery.class)))
+            .thenReturn(new PageResult<>(List.of(record), null, 1L, false, false));
+
+        mockMvc.perform(get("/api/v1/large-lists/audit-events/list")
+                .param("size", "20")
+                .with(jwt().jwt(token -> token
+                    .subject("auditor-1")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("qa-manager")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_QA_MANAGER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].actionCode").value("EXPORT"))
+                .andExpect(jsonPath("$.data.items[0].summary").value("导出审计证据"))
+                .andExpect(jsonPath("$.data.items[0].beforeSnapshot").value("{\"enabled\":true}"))
+                .andExpect(jsonPath("$.data.items[0].afterSnapshot").value("{\"enabled\":false}"))
+                .andExpect(jsonPath("$.data.items[0].tenantId").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].action").doesNotExist());
     }
 
     @Test

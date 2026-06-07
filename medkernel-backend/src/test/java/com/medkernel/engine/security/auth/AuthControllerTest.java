@@ -318,6 +318,26 @@ class AuthControllerTest {
     }
 
     @Test
+    void cookieSessionRenewRejectsNonCanonicalXsrfHeaderAlias() throws Exception {
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andReturn();
+        Cookie xsrf = login.getResponse().getCookie(XSRF_COOKIE);
+
+        mvc.perform(post("/api/v1/auth/session/renew")
+                .cookie(login.getResponse().getCookie("mk_access"))
+                .cookie(xsrf)
+                .header(XSRF_COOKIE, xsrf.getValue()))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-API-004"));
+    }
+
+    @Test
     void protectedSessionRejectsJwtWhenRuntimeSessionPolicyIsShortened() throws Exception {
         jdbcTemplate.update("UPDATE mk_config_item SET config_value = '5' WHERE config_key = ?", SESSION_IDLE_TIMEOUT_KEY);
         jdbcTemplate.update("UPDATE mk_config_item SET config_value = '300' WHERE config_key = ?", SESSION_MAX_DURATION_KEY);

@@ -42,6 +42,8 @@ import {
 } from "@/shared/lib/sourceLink";
 import { PageShell } from "@/shared/ui/PageShell";
 
+import styles from "./Clinical.module.css";
+
 const { TextArea } = Input;
 
 const statusText: Record<WorkflowTodoStatus, string> = {
@@ -199,9 +201,9 @@ export default function WorkflowTodos() {
       key: "title",
       render: (_value, record) => (
         <Space direction="vertical" size={2}>
-          <span className="font-semibold text-slate-800">{record.title}</span>
-          <span className="text-xs text-slate-500">{record.summary}</span>
-          <Space wrap size={8} className="text-xs text-slate-500">
+          <span className={styles.textStrong}>{record.title}</span>
+          <span className={styles.textSmall}>{record.summary}</span>
+          <Space wrap size={8} className={styles.textSmall}>
             <span>来源对象 {record.sourceId}</span>
             <span>{record.traceId ? `追踪链路 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
           </Space>
@@ -259,7 +261,7 @@ export default function WorkflowTodos() {
                 aria-label="打开来源"
                 icon={<LinkOutlined />}
                 href={sourceLink}
-                className="px-0 font-semibold"
+                className={styles.buttonLink}
               >
                 打开来源
               </Button>
@@ -279,7 +281,7 @@ export default function WorkflowTodos() {
                 setCompletingTodo(record);
                 completeForm.setFieldsValue({ completionReason: "" });
               }}
-              className="px-0 font-semibold"
+              className={styles.buttonLink}
             >
               完成
             </Button>
@@ -296,7 +298,7 @@ export default function WorkflowTodos() {
                   transferReason: "",
                 });
               }}
-              className="px-0 font-semibold"
+              className={styles.buttonLink}
             >
               转交
             </Button>
@@ -316,14 +318,14 @@ export default function WorkflowTodos() {
         </Button>
       }
     >
-      <Card className="mb-4">
+      <Card className={styles.sectionGap}>
         <Space wrap>
           <Select
             aria-label="待办状态"
             value={status}
             onChange={setStatus}
             allowClear
-            className="w-36"
+            className={styles.controlSm}
             options={[
               { value: "PENDING", label: "待处理" },
               { value: "IN_PROGRESS", label: "处理中" },
@@ -336,7 +338,7 @@ export default function WorkflowTodos() {
             onChange={setPriority}
             allowClear
             placeholder="优先级"
-            className="w-36"
+            className={styles.controlSm}
             options={[
               { value: "CRITICAL", label: "危急" },
               { value: "HIGH", label: "高" },
@@ -350,7 +352,7 @@ export default function WorkflowTodos() {
             onChange={setSourceType}
             allowClear
             placeholder="来源"
-            className="w-44"
+            className={styles.controlMd}
             options={[
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
@@ -367,7 +369,7 @@ export default function WorkflowTodos() {
             allowClear
             loading={orgUnitsLoading}
             placeholder="组织范围"
-            className="w-44"
+            className={styles.controlMd}
             options={orgUnitOptions}
           />
           <label className="mk-sr-only" htmlFor="workflow-todos-org-unit">
@@ -380,7 +382,7 @@ export default function WorkflowTodos() {
         <Alert
           type="error"
           showIcon
-          className="mb-4"
+          className={styles.sectionGap}
           message="协同待办读取失败"
           description="请检查登录状态、租户上下文或后端工作流接口。"
         />
@@ -411,7 +413,7 @@ export default function WorkflowTodos() {
         confirmLoading={completeMutation.isPending}
         destroyOnClose
       >
-        <Form form={completeForm} layout="vertical" className="mt-4">
+        <Form form={completeForm} layout="vertical" className={styles.formGap}>
           <Form.Item
             name="completionReason"
             label="完成说明"
@@ -432,7 +434,7 @@ export default function WorkflowTodos() {
         confirmLoading={transferMutation.isPending}
         destroyOnClose
       >
-        <Form form={transferForm} layout="vertical" className="mt-4">
+        <Form form={transferForm} layout="vertical" className={styles.formGap}>
           <Form.Item
             name="transferTo"
             label="接收人"

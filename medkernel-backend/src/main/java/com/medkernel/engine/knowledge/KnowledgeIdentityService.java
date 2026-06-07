@@ -263,11 +263,11 @@ public class KnowledgeIdentityService {
 
     private Optional<KnowledgeAssetVersion> findDefaultActiveVersion(EffectiveKnowledgeIdentity effective) {
         KnowledgeIdentity identity = effective.identity();
-        if (identity.currentVersionId() != null) {
-            return versionRepository.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
-                .filter(KnowledgeAssetVersion::isAuthoritative);
+        if (identity.currentVersionId() == null) {
+            return Optional.empty();
         }
-        return versionRepository.findActiveByIdentity(effective.sourceTenantId(), identity.id());
+        return versionRepository.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
+            .filter(KnowledgeAssetVersion::isAuthoritative);
     }
 
     private Optional<SourceEvidenceDraft> resolveSourceEvidence(String tenantId, KnowledgeAssetVersion active,
@@ -495,6 +495,59 @@ public class KnowledgeIdentityService {
             Instant.now()
         );
         return sourceFragmentRepository.save(fragment);
+    }
+
+    /**
+     * 创建知识版本到来源片段的结构化引用；同一版本、片段和关系重复提交时幂等返回。
+     */
+    public Citation createCitation(CitationCreateRequest request) {
+        String tenantId = requireCurrentTenant();
+        KnowledgeAssetVersion version = versionRepository.findByTenantIdAndId(tenantId, request.assetVersionId())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_KNOW_001, "知识资产版本不存在 id=" + request.assetVersionId()));
+        SourceFragment fragment = sourceFragmentRepository.findByTenantIdAndId(
+                tenantId, request.sourceFragmentId())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_KNOW_001, "来源片段不存在 id=" + request.sourceFragmentId()));
+
+        if (version.sourceVersionId() == null
+                || !version.sourceVersionId().equals(fragment.sourceVersionId())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                "来源片段不属于知识版本登记的来源版本");
+        }
+        validateCitationOffsets(request, fragment);
+
+        return citationRepository
+            .findByTenantIdAndAssetVersionIdAndSourceFragmentIdAndRelation(
+                tenantId, version.id(), fragment.id(), request.relation())
+            .orElseGet(() -> citationRepository.save(new Citation(
+                null,
+                tenantId,
+                version.id(),
+                fragment.id(),
+                request.relation(),
+                request.weight(),
+                request.startOffset(),
+                request.endOffset(),
+                Instant.now(),
+                currentActor()
+            )));
+    }
+
+    private void validateCitationOffsets(CitationCreateRequest request, SourceFragment fragment) {
+        Integer start = request.startOffset();
+        Integer end = request.endOffset();
+        if ((start == null) != (end == null)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "引用起止偏移必须同时填写或同时省略");
+        }
+        if (start == null) {
+            return;
+        }
+        int textLength = fragment.textExcerpt() == null ? 0 : fragment.textExcerpt().length();
+        if (start > end || end > textLength) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                "引用偏移无效，必须满足 0 <= startOffset <= endOffset <= 来源片段长度");
+        }
     }
 
     private String requireAuthorityBasis(String authorityBasis) {

@@ -4,7 +4,7 @@ import { Spin } from "antd";
 import { AppLayout } from "@/widgets/AppLayout";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const DemoValidation = lazy(() => import("@/pages/workbench/DemoValidation"));
+const ReadinessValidation = lazy(() => import("@/pages/workbench/ReadinessValidation"));
 const Login = lazy(() => import("@/pages/Login"));
 const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -34,7 +34,7 @@ const QcAlerts = lazy(() => import("@/pages/quality/QcAlerts"));
 const InsuranceAudit = lazy(() => import("@/pages/quality/InsuranceAudit"));
 const QcEvalSets = lazy(() => import("@/pages/quality/QcEvalSets"));
 const QcEvalResults = lazy(() => import("@/pages/quality/QcEvalResults"));
-const AiReview = lazy(() => import("@/pages/quality/AiReview"));
+const KnowledgeGovernance = lazy(() => import("@/pages/quality/KnowledgeGovernance"));
 
 // 合规运维域
 const AdminUsers = lazy(() => import("@/pages/compliance/AdminUsers"));
@@ -61,7 +61,7 @@ export function AppRouter() {
         <Route path="/embed/launch" element={<EmbedLaunch />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/workbench/demo-validation" element={<DemoValidation />} />
+          <Route path="/workbench/readiness-validation" element={<ReadinessValidation />} />
 
           {/* 试点准备 */}
           <Route path="/onboarding/guide" element={<ImplementationGuide />} />
@@ -87,7 +87,7 @@ export function AppRouter() {
           <Route path="/qc/insurance" element={<InsuranceAudit />} />
           <Route path="/qc/eval/sets" element={<QcEvalSets />} />
           <Route path="/qc/eval/results" element={<QcEvalResults />} />
-          <Route path="/aik/review" element={<AiReview />} />
+          <Route path="/knowledge/governance" element={<KnowledgeGovernance />} />
 
           {/* 合规运维 */}
           <Route path="/admin/users" element={<AdminUsers />} />

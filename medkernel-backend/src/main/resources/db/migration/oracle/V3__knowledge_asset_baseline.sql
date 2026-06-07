@@ -42,6 +42,7 @@ CREATE TABLE source_version (
 );
 
 CREATE INDEX idx_source_version_tenant_doc ON source_version (tenant_id, source_document_id);
+COMMENT ON TABLE source_version IS '权威来源的受控版本';
 
 CREATE TABLE source_fragment (
     id                  NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -55,6 +56,7 @@ CREATE TABLE source_fragment (
 );
 
 CREATE INDEX idx_source_fragment_tenant_ver ON source_fragment (tenant_id, source_version_id);
+COMMENT ON TABLE source_fragment IS '权威来源版本的可引用内容片段';
 
 CREATE TABLE knowledge_identity (
     id                    NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -135,6 +137,7 @@ CREATE TABLE citation (
 
 CREATE INDEX idx_citation_tenant_av ON citation (tenant_id, asset_version_id);
 CREATE INDEX idx_citation_fragment  ON citation (source_fragment_id);
+COMMENT ON TABLE citation IS '知识资产版本与来源片段的引用关系';
 
 CREATE TABLE knowledge_supersession (
     id                  NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -181,3 +184,4 @@ CREATE TABLE knowledge_export_job (
 
 CREATE INDEX idx_export_job_tenant_status  ON knowledge_export_job (tenant_id, status);
 CREATE INDEX idx_export_job_tenant_created ON knowledge_export_job (tenant_id, created_at);
+COMMENT ON TABLE knowledge_export_job IS '知识资产异步导出任务';

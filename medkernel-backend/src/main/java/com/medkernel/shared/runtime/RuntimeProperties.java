@@ -133,6 +133,7 @@ public class RuntimeProperties {
         private String backupScript = "./deploy/docker/scripts/backup.sh";
         private String restoreScript = "./deploy/docker/scripts/restore.sh";
         private String checksumPolicy = "SHA-256 摘要随备份文件生成，恢复前自动校验";
+        private String drillEvidenceFile = "";
 
         public boolean isEnabled() {
             return enabled;
@@ -180,6 +181,14 @@ public class RuntimeProperties {
 
         public void setChecksumPolicy(String checksumPolicy) {
             this.checksumPolicy = checksumPolicy;
+        }
+
+        public String getDrillEvidenceFile() {
+            return drillEvidenceFile;
+        }
+
+        public void setDrillEvidenceFile(String drillEvidenceFile) {
+            this.drillEvidenceFile = drillEvidenceFile;
         }
     }
 

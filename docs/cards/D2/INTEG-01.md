@@ -21,11 +21,11 @@
 
 ## 功能要求（原子可测条目）
 - [x] **FR-1 适配器目录**：登记/启停适配器（HIS/EMR/LIS/PACS/医保/病案…），统一 `IntegrationAdapter` + 连通状态。PR1：`adapter_id` 收敛为租户内唯一，清理全局仓储查找，前后端目录继续只按当前租户读取。
-- [x] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。PR1 已完成手动健康检查与健康目录汇总：`GET /api/v1/engine/integration/health`、`POST /api/v1/engine/integration/adapters/{id}/health-check`；PR4 新增周期探活 worker/scheduler，跨租户扫描 `ACTIVE` 适配器，配置合法标 `NOT_CONNECTED`、配置非法标 `MISCONFIGURED`，暂停适配器不改心跳，不伪造 `HEALTHY`。
+- [x] **FR-2 健康检查**：周期探活 → 断连标 `NOT_CONNECTED`（不伪造连接）；状态供 [OBS-01](../D0/OBS-01.md)/工作台。HTTP/FHIR/Webhook/WebService 走真实 GET 探活并记录 RTT；配置非法标 `MISCONFIGURED`，协议无连接器或外部不可达标 `NOT_CONNECTED`，暂停适配器不改心跳。
 - [x] **FR-3 Webhook 签名**：入站 Webhook 验签（`IntegrationWebhookConfig`）；验签失败拒绝 + 记 `IntegrationMessageLog`。PR2：新增 `POST /api/v1/engine/integration/webhooks/{id}/inbound`，按 `timestamp + "." + canonical request` 做 HMAC-SHA256 验签，并校验 5 分钟时间窗口防重放；失败拒绝并写 `FAILED` 入站日志，成功后按 `message_id + tenant_id` 幂等。
 - [x] **FR-4 字段映射**：外部字段 ↔ 标准上下文（[API-01](API-01.md)）字段映射，编码经 [TERM-01](TERM-01.md) 归一。PR2：适配器 `configJson.fieldMappings` 使用 JSON Pointer 映射到标准上下文载荷 `mappedPayload`；带 `termMappingId` 的字段只允许 TERM-01 `CONFIRMED` 映射 + `ACTIVE` 标准术语归一，不猜测标准码、不直写医嘱/病历。
 - [x] **FR-5 重试 + 死信**：失败消息按策略重试，超限入死信队列可人工重放；不静默丢。PR3：`retryMessage` 按 `max_retries` 推进入 `DEAD_LETTER`；`GET /dead-letter` 按租户列出死信；`POST /dead-letter/{id}/replay` 创建新的补偿日志，保留原死信证据不物理删除。
-- [x] **FR-6 不阻断主流程**：同步超时/断连**不阻断**医生临床主流程，降级标记 + 异步补偿（核心 §10）。PR3：`POST /messages/outbound` 在未配置真实外部连接器时返回 `NOT_CONNECTED + blocksMainFlow=false + compensationRequired=true`，不伪造 `SUCCESS`。
+- [x] **FR-6 不阻断主流程**：同步超时/断连**不阻断**医生临床主流程，降级标记 + 异步补偿（核心 §10）。连接配置有效时 `POST /messages/outbound` 先落 `RETRYING`，事务提交后真实 POST；成功转 `SUCCESS`，失败保留 `FAILED/NOT_CONNECTED` 并可重试、进死信和重放。Webhook 使用密文共享密钥动态生成时间戳与 HMAC 签名。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
@@ -60,7 +60,7 @@ N·A —— 本卡无页面。呈现在 **D2 适配器中心页**（适配器状
 - 本卡落点：把第三方对接做成统一、可观测、诚实降级、不丢消息的总线。
 
 ## 验收 + 验证
-- [x] **AC-1（FR-1/2）**：登记适配器 + 健康探活；断连 → `NOT_CONNECTED`（不伪造）。PR1 已红绿覆盖跨租户同名适配器、租户内冲突、健康汇总不串租户和不伪造 `HEALTHY`；PR4 已红绿覆盖周期 worker 跨租户扫描 `ACTIVE` 适配器、跳过 `SUSPENDED`、配置合法只标 `NOT_CONNECTED`、配置非法标 `MISCONFIGURED`、RTT 为 0 且不伪造 `HEALTHY`。
+- [x] **AC-1（FR-1/2）**：登记适配器 + 真实健康探活；真实 2xx → `HEALTHY`，断连 → `NOT_CONNECTED`，配置错误 → `MISCONFIGURED`。跨租户隔离、暂停跳过和 RTT 均有测试。
 - [x] **AC-2（FR-3/4）**：Webhook 验签失败拒绝 + 记日志；外部字段映射到标准上下文、编码归一。PR2 已覆盖验签失败日志、验签成功映射、TERM-01 确认映射归一、配置错误失败日志和租户内幂等。
 - [x] **AC-3（FR-5/6）**：失败消息重试 → 超限入死信可重放；同步超时不阻断主流程（降级标记）。PR3 已覆盖出站断连不阻断、超限入 `DEAD_LETTER`、人工重放追加补偿日志且不删除原死信证据、控制器权限与 V62 五方言状态约束。
 - 关联 A1–A9 剧本：A1 接入、A6 合规（对接审计）。

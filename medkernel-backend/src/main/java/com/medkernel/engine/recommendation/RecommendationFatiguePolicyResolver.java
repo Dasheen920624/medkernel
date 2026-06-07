@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * CDSS 疲劳治理策略解析器。
  *
  * <p>配置中心键 {@code medkernel.cdss.fatigue.policy} 支持按科室、场景或科室+场景覆盖；
- * 配置缺失时兼容旧请求阈值。配置存在但非法时不抑制，避免错误配置静默临床安全提醒。
+ * 配置缺失或非法时不抑制，避免错误配置静默临床安全提醒。
  */
 @Component
 public class RecommendationFatiguePolicyResolver {
@@ -23,7 +23,6 @@ public class RecommendationFatiguePolicyResolver {
     static final String CONFIG_KEY = "medkernel.cdss.fatigue.policy";
     private static final String SYSTEM_TENANT = "SYSTEM";
     private static final String CONFIG_SOURCE = "CONFIG_CENTER";
-    private static final String REQUEST_SOURCE = "REQUEST";
 
     private final SystemConfigRepository configs;
     private final ObjectMapper json;
@@ -42,7 +41,7 @@ public class RecommendationFatiguePolicyResolver {
         } catch (DataAccessException ignored) {
             return Optional.empty();
         }
-        return requestPolicy(request);
+        return Optional.empty();
     }
 
     private Optional<RecommendationFatiguePolicy> parseConfiguredPolicy(
@@ -56,7 +55,7 @@ public class RecommendationFatiguePolicyResolver {
                 policyAt(root.path("scenarios").path(request.scenarioCode()), CONFIG_SOURCE),
                 policyAt(firstExisting(root, "default", "defaults"), CONFIG_SOURCE)
             );
-            return scoped.isPresent() ? scoped : requestPolicy(request);
+            return scoped;
         } catch (Exception ignored) {
             return Optional.empty();
         }
@@ -75,19 +74,6 @@ public class RecommendationFatiguePolicyResolver {
     private JsonNode firstExisting(JsonNode root, String first, String second) {
         JsonNode firstNode = root.path(first);
         return firstNode.isMissingNode() ? root.path(second) : firstNode;
-    }
-
-    private Optional<RecommendationFatiguePolicy> requestPolicy(RecommendationTriggerRequest request) {
-        if (request.fatigueSuppressionThreshold() == null
-                || request.fatigueWindowHours() == null
-                || request.fatigueSuppressionThreshold() <= 0
-                || request.fatigueWindowHours() <= 0) {
-            return Optional.empty();
-        }
-        return Optional.of(new RecommendationFatiguePolicy(
-            request.fatigueSuppressionThreshold(),
-            request.fatigueWindowHours(),
-            REQUEST_SOURCE));
     }
 
     private Optional<RecommendationFatiguePolicy> policyAt(JsonNode node, String source) {

@@ -28,14 +28,14 @@
  */
 
 const MEDICAL_DOMAINS = [
-  'rule',
-  'quality',
-  'insurance',
-  'pathway',
-  'aik',
-  'graph',
-  'medical',
-  'cdss',
+  "rule",
+  "quality",
+  "insurance",
+  "pathway",
+  "aik",
+  "graph",
+  "medical",
+  "cdss",
 ];
 
 const MEDICAL_FIELD_PATTERNS = [
@@ -51,16 +51,15 @@ const MEDICAL_FIELD_PATTERNS = [
 
 export default {
   meta: {
-    type: 'suggestion',
+    type: "suggestion",
     docs: {
-      description:
-        '医学/医保/质控/规则相关页面必须使用 <SourceInfo> 组件展示来源',
+      description: "医学/医保/质控/规则相关页面必须使用 <SourceInfo> 组件展示来源",
       recommended: true,
     },
     messages: {
       missingSourceInfo:
         '文件 "{{filename}}" 渲染了医学/规则内容（命中字段：{{field}}），但未使用 <SourceInfo> 组件。' +
-        '医学内容必须有来源（ADR-0004）。请引入 import { SourceInfo } from "@/components"。',
+        '医学内容必须有来源（ADR-0004）。请引入 import { SourceInfo } from "@/shared/ui/SourceInfo"。',
     },
     schema: [],
   },
@@ -70,8 +69,8 @@ export default {
     const lowerName = filename.toLowerCase();
 
     // 1. 只检测医学相关文件
-    const isMedicalFile = MEDICAL_DOMAINS.some(d =>
-      lowerName.includes(`/${d}/`) || lowerName.includes(`\\${d}\\`),
+    const isMedicalFile = MEDICAL_DOMAINS.some(
+      (d) => lowerName.includes(`/${d}/`) || lowerName.includes(`\\${d}\\`),
     );
     if (!isMedicalFile) return {};
 
@@ -85,12 +84,12 @@ export default {
       // 检测是否引入了 SourceInfo
       ImportDeclaration(node) {
         const src = node.source.value;
-        if (typeof src !== 'string') return;
-        if (src.includes('SourceInfo')) {
+        if (typeof src !== "string") return;
+        if (src.includes("SourceInfo")) {
           hasSourceInfo = true;
         }
         for (const spec of node.specifiers) {
-          if (spec.imported && spec.imported.name === 'SourceInfo') {
+          if (spec.imported && spec.imported.name === "SourceInfo") {
             hasSourceInfo = true;
           }
         }
@@ -99,13 +98,13 @@ export default {
       // 检测是否使用了 <SourceInfo>
       JSXElement(node) {
         const open = node.openingElement;
-        if (open && open.name && open.name.name === 'SourceInfo') {
+        if (open && open.name && open.name.name === "SourceInfo") {
           hasSourceInfo = true;
         }
       },
 
       // 在源文件全文中查找医学字段
-      'Program:exit'(node) {
+      "Program:exit"(node) {
         if (hasSourceInfo) return;
         const src = context.getSourceCode().getText();
         for (const pattern of MEDICAL_FIELD_PATTERNS) {
@@ -118,7 +117,7 @@ export default {
         if (medicalFieldHit) {
           context.report({
             node,
-            messageId: 'missingSourceInfo',
+            messageId: "missingSourceInfo",
             data: {
               filename: filename.split(/[\\/]/).pop(),
               field: medicalFieldHit,

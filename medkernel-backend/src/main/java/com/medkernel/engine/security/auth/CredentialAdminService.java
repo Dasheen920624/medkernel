@@ -3,7 +3,6 @@ package com.medkernel.engine.security.auth;
 import java.time.Instant;
 import java.util.List;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +16,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.RequestContext;
 
@@ -25,16 +24,15 @@ import com.medkernel.shared.context.RequestContext;
  * 平台成员账号（凭证）管理服务：租户管理员开通成员、重置临时密码、启用/停用。
  *
  * <p>仅 dev/test profile（与平台登录一致）；内网 govcloud 走院方 IdP，不在此管理凭证。
- * 所有操作按当前请求租户隔离；成功走 {@code AuditEventPublisher}，失败走 {@code IsolatedAuditPublisher}。
+ * 所有操作按当前请求租户隔离；成功走 {@code AuditRecorder}，失败走 {@code IsolatedAuditPublisher}。
  */
 @Service
-@Profile({"dev", "test"})
 public class CredentialAdminService {
 
     private final PlatformCredentialRepository credentials;
     private final UserRoleAssignmentRepository roleAssignments;
     private final CredentialPasswordService credentialPasswords;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
     private final SystemSuperAdminGuard superAdminGuard;
     private final PasswordPolicyService passwordPolicy;
@@ -44,7 +42,7 @@ public class CredentialAdminService {
     public CredentialAdminService(PlatformCredentialRepository credentials,
                                   UserRoleAssignmentRepository roleAssignments,
                                   CredentialPasswordService credentialPasswords,
-                                  AuditEventPublisher auditPublisher,
+                                  AuditRecorder auditRecorder,
                                   IsolatedAuditPublisher isolatedAudit,
                                   SystemSuperAdminGuard superAdminGuard,
                                   PasswordPolicyService passwordPolicy,
@@ -53,7 +51,7 @@ public class CredentialAdminService {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
         this.superAdminGuard = superAdminGuard;
         this.passwordPolicy = passwordPolicy;
@@ -72,32 +70,35 @@ public class CredentialAdminService {
 
     /** 开通成员：登录名租户内唯一；可选授角色；初始密码留空则生成临时密码并一次性返回（须首登改密）。 */
     @Transactional
-    public CreateMemberResponse createMember(CreateMemberRequest req) {
+    public CredentialCreationResult createMember(
+            String username,
+            String userId,
+            String roleCodeValue,
+            String initialPassword) {
         String tenantId = tenantId();
         String actor = actor();
-        if (credentials.findByTenantIdAndUsername(tenantId, req.username()).isPresent()) {
+        if (credentials.findByTenantIdAndUsername(tenantId, username).isPresent()) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
-                AuditAction.CREATE, "platform_credential", req.username(),
-                ErrorCode.ENG_AUTH_006.code(), "开通成员失败：用户名已存在 " + req.username()));
+                AuditAction.CREATE, "platform_credential", username,
+                ErrorCode.ENG_AUTH_006.code(), "开通成员失败：用户名已存在 " + username));
             throw new ApiException(ErrorCode.ENG_AUTH_006);
         }
-        String userId = req.userIdOrUsername();
-        boolean generated = req.initialPassword() == null || req.initialPassword().isBlank();
-        String rawPassword = generated ? passwordPolicy.generateTemporaryPassword() : req.initialPassword();
+        boolean generated = initialPassword == null || initialPassword.isBlank();
+        String rawPassword = generated ? passwordPolicy.generateTemporaryPassword() : initialPassword;
         passwordPolicy.assertCompliant(rawPassword);
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
-            null, "cred-" + userId, tenantId, userId, req.username(),
+            null, "cred-" + userId, tenantId, userId, username,
             credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
-        String roleCode = normalizedRoleCode(req.roleCode());
+        String roleCode = normalizedRoleCode(roleCodeValue);
         if (roleCode != null && !hasRole(tenantId, userId, roleCode)) {
             roleAssignments.save(new UserRoleAssignment(
                 null, tenantId, userId, roleCode, "TENANT", tenantId, "Y", now, actor, now, actor));
         }
-        auditPublisher.publish(AuditAction.CREATE, "platform_credential", userId,
-            "开通成员 username=" + req.username() + " role=" + roleCode);
-        return new CreateMemberResponse(userId, req.username(), generated ? rawPassword : null);
+        auditRecorder.record(AuditAction.CREATE, "platform_credential", userId,
+            "开通成员 username=" + username + " role=" + roleCode);
+        return new CredentialCreationResult(userId, username, generated ? rawPassword : null);
     }
 
     /** 重置成员密码为新临时密码（须首登改密），一次性返回。 */
@@ -109,7 +110,7 @@ public class CredentialAdminService {
         Instant now = Instant.now();
         loginAttempts.clearStateForCredential(cred, actor());
         credentials.save(rewrite(cred, credentialPasswords.encode(rawPassword), cred.status(), "Y", now, actor()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "重置成员密码");
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", userId, "重置成员密码");
         return new ResetPasswordResponse(rawPassword);
     }
 
@@ -131,7 +132,7 @@ public class CredentialAdminService {
         Instant now = Instant.now();
         loginAttempts.clearStateForCredential(cred, actor());
         credentials.save(rewrite(cred, cred.passwordHash(), status, cred.mustChangePwd(), now, actor()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "更新账号状态 status=" + status);
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", userId, "更新账号状态 status=" + status);
     }
 
     private String normalizedRoleCode(String roleCode) {

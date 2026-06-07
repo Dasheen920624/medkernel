@@ -185,7 +185,6 @@ class KnowledgeVersionServiceTest {
 
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 11L)).thenReturn(Optional.of(cardiologyCandidate));
-        when(versionRepo.findActiveByIdentity("t-1", 1L)).thenReturn(Optional.of(otherScopeActive));
         when(versionRepo.findActiveByEffectiveScope(
             "t-1", 1L, "tenant:t-1", "specialty:CARD")).thenReturn(Optional.empty());
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
@@ -194,7 +193,6 @@ class KnowledgeVersionServiceTest {
         KnowledgeAssetVersion activated = service.activate(1L, 11L, "心内科专项版本");
 
         verify(versionRepo, times(1)).save(any(KnowledgeAssetVersion.class));
-        verify(versionRepo, never()).findActiveByIdentity("t-1", 1L);
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
         assertThat(activated.activeScopeKey()).isEqualTo("1|tenant:t-1|specialty:CARD");
         ArgumentCaptor<KnowledgeSupersession> spCap = ArgumentCaptor.forClass(KnowledgeSupersession.class);

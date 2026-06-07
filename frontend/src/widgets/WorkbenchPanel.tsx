@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   Col,
-  Drawer,
   List,
   Row,
   Segmented,
@@ -32,7 +31,7 @@ import { parseApiError } from "@/shared/api/errors";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 type SourceQuery<T> = {
   data?: T;
@@ -48,6 +47,11 @@ type RoleView = {
   showLifecycle: boolean;
 };
 
+type SourceAccess = {
+  runtime: boolean;
+  audit: boolean;
+};
+
 type TimeFilter = "today" | "week" | "month";
 
 type DrilldownTarget = {
@@ -55,11 +59,9 @@ type DrilldownTarget = {
   path: string;
 };
 
-type UnavailableDomain = {
-  id: string;
-  title: string;
-  description: string;
-  nextStep: string;
+type DomainEntryAction = {
+  label: string;
+  path: string;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -99,14 +101,19 @@ const STAGE_LABEL: Record<string, string> = {
 export function WorkbenchPanel() {
   const navigate = useNavigate();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("week");
-  const [unavailableDomain, setUnavailableDomain] = useState<UnavailableDomain | null>(null);
   const security = useSecurityProfile();
   const profile = security.data;
-  const canQuerySources = Boolean(profile && canOpenWorkbench(profile));
-  const runtime = useRuntimeOperations(canQuerySources);
-  const audit = useAuditEvents(canQuerySources);
   const view = resolveRoleView(profile);
-  const successPlan = useSuccessPlan(canQuerySources && view.showLifecycle);
+  const canQueryWorkbench = Boolean(profile && canOpenWorkbench(profile));
+  const sourceAccess: SourceAccess = {
+    runtime: canQueryWorkbench && hasPermission(profile, "system.read"),
+    audit: canQueryWorkbench && hasPermission(profile, "audit.read"),
+  };
+  const canQuerySuccessPlan =
+    canQueryWorkbench && view.showLifecycle && hasPermission(profile, "tenant.read");
+  const runtime = useRuntimeOperations(sourceAccess.runtime);
+  const audit = useAuditEvents(sourceAccess.audit);
+  const successPlan = useSuccessPlan(canQuerySuccessPlan);
 
   if (security.isLoading) {
     return (
@@ -142,16 +149,15 @@ export function WorkbenchPanel() {
     );
   }
 
-  const sourceFailures = collectFailures([
-    ["运行状态", runtime],
-    ["最近变化", audit],
-    ...(view.showLifecycle ? ([["租户生命周期", successPlan]] as const) : []),
-  ]);
+  const sourceQueries: Array<readonly [string, SourceQuery<unknown>]> = [];
+  if (sourceAccess.runtime) sourceQueries.push(["运行状态", runtime]);
+  if (sourceAccess.audit) sourceQueries.push(["最近变化", audit]);
+  if (canQuerySuccessPlan) sourceQueries.push(["租户生命周期", successPlan]);
+  const sourceFailures = collectFailures(sourceQueries);
   const allSourcesFailed =
     sourceFailures.length > 0 &&
-    [runtime, audit, view.showLifecycle ? successPlan : undefined]
-      .filter(Boolean)
-      .every((query) => query?.isError);
+    sourceQueries.length > 0 &&
+    sourceQueries.every(([, query]) => query.isError);
 
   if (allSourcesFailed) {
     const firstFailure = sourceFailures[0];
@@ -189,22 +195,23 @@ export function WorkbenchPanel() {
           timeFilter={timeFilter}
           onTimeFilterChange={setTimeFilter}
         />
-        {view.showLifecycle ? <TenantLifecyclePanel /> : null}
-        {view.showLifecycle ? (
+        {canQuerySuccessPlan ? <TenantLifecyclePanel /> : null}
+        {canQuerySuccessPlan ? (
           <GovernanceSlices successPlan={successPlan} runtime={runtime} />
         ) : null}
         <WorkbenchCards
           view={view}
+          sourceAccess={sourceAccess}
           runtime={runtime}
           audit={audit}
           timeFilter={timeFilter}
           onNavigate={navigate}
-          onUnavailableSelect={setUnavailableDomain}
         />
-        <WeeklyActions view={view} runtime={runtime} onNavigate={navigate} />
-        <UnavailableDomainDrawer
-          domain={unavailableDomain}
-          onClose={() => setUnavailableDomain(null)}
+        <WeeklyActions
+          view={view}
+          sourceAccess={sourceAccess}
+          runtime={runtime}
+          onNavigate={navigate}
         />
       </Space>
     </PageShell>
@@ -213,18 +220,18 @@ export function WorkbenchPanel() {
 
 function WorkbenchCards({
   view,
+  sourceAccess,
   runtime,
   audit,
   timeFilter,
   onNavigate,
-  onUnavailableSelect,
 }: {
   view: RoleView;
+  sourceAccess: SourceAccess;
   runtime: SourceQuery<RuntimeOperationsSnapshot>;
   audit: SourceQuery<AuditEventRow[]>;
   timeFilter: TimeFilter;
   onNavigate: (path: string) => void;
-  onUnavailableSelect: (domain: UnavailableDomain) => void;
 }) {
   if (view.kind === "operations") {
     return (
@@ -252,19 +259,17 @@ function WorkbenchCards({
           <TodoCard onNavigate={onNavigate} />
         </Col>
         <Col xs={24} lg={12}>
-          <UnavailableDomainCard
+          <DomainEntryCard
             id="clinical"
-            title="临床运行"
-            description="临床运行摘要将在 D3 域上线后由真实来源回灌。"
-            nextStep="D3 临床运行域完成后，将从路径、随访和通知来源回灌。"
-            onSelect={onUnavailableSelect}
+            title="临床运行入口"
+            description="从已上线页面进入患者路径、智能建议、随访与通知；工作台不伪造跨页聚合数量。"
+            actions={[
+              { label: "患者路径", path: "/pathway/patients" },
+              { label: "智能建议", path: "/cdss/fatigue" },
+              { label: "通知中心", path: "/notifications" },
+            ]}
+            onNavigate={onNavigate}
           />
-        </Col>
-        <Col xs={24} lg={12}>
-          <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
-        </Col>
-        <Col xs={24} lg={12}>
-          <KnowledgeSyncCard runtime={runtime} onNavigate={onNavigate} />
         </Col>
       </Row>
     );
@@ -274,29 +279,42 @@ function WorkbenchCards({
     return (
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <UnavailableDomainCard
+          <DomainEntryCard
             id="value"
             title="价值指标"
-            description="价值成效摘要将在质控与合规域完成后展示真实趋势。"
-            nextStep="等待真实指标域上线；当前不展示伪造趋势或验收分。"
-            onSelect={onUnavailableSelect}
+            marker="价值指标入口"
+            description="进入院级质控驾驶舱查看真实指标、风险热力与价值指标；工作台不伪造趋势。"
+            actions={[
+              { label: "院级质控驾驶舱", path: "/qc/dashboard" },
+              { label: "评估指标库", path: "/qc/eval/sets" },
+            ]}
+            onNavigate={onNavigate}
           />
         </Col>
         <Col xs={24} lg={12}>
-          <UnavailableDomainCard
+          <DomainEntryCard
             id="quality"
             title="质控整改"
-            description="质控整改摘要将在 D4 域上线后按责任范围展示。"
-            nextStep="D4 质控改进域完成后，将下钻到真实整改对象和责任范围。"
-            onSelect={onUnavailableSelect}
+            marker="质控整改入口"
+            description="进入评估结果、质控预警和医保审核，查看真实整改对象、责任范围与证据。"
+            actions={[
+              { label: "院级质控驾驶舱", path: "/qc/dashboard" },
+              { label: "评估结果", path: "/qc/eval/results" },
+              { label: "医保审核", path: "/qc/insurance" },
+            ]}
+            onNavigate={onNavigate}
           />
         </Col>
-        <Col xs={24} lg={12}>
-          <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
-        </Col>
-        <Col xs={24} lg={12}>
-          <SimpleRuntimeCard runtime={runtime} onNavigate={onNavigate} />
-        </Col>
+        {sourceAccess.audit ? (
+          <Col xs={24} lg={12}>
+            <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
+        {sourceAccess.runtime ? (
+          <Col xs={24} lg={12}>
+            <SimpleRuntimeCard runtime={runtime} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
       </Row>
     );
   }
@@ -304,19 +322,27 @@ function WorkbenchCards({
   if (view.kind === "audit") {
     return (
       <Row gutter={[16, 16]}>
+        {sourceAccess.audit ? (
+          <Col xs={24} lg={12}>
+            <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
+        {sourceAccess.runtime ? (
+          <Col xs={24} lg={12}>
+            <SimpleRuntimeCard runtime={runtime} onNavigate={onNavigate} />
+          </Col>
+        ) : null}
         <Col xs={24} lg={12}>
-          <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
-        </Col>
-        <Col xs={24} lg={12}>
-          <SimpleRuntimeCard runtime={runtime} onNavigate={onNavigate} />
-        </Col>
-        <Col xs={24} lg={12}>
-          <UnavailableDomainCard
+          <DomainEntryCard
             id="quality"
-            title="质控整改"
-            description="质控整改证据将在 D4/D5 完成后按权限展示。"
-            nextStep="等待质控与合规证据域完成后回灌真实整改证据。"
-            onSelect={onUnavailableSelect}
+            title="合规证据入口"
+            description="进入审计、质控和导出审批相关页面复核真实证据；未连接外部系统时保持诚实降级。"
+            actions={[
+              { label: "审计日志", path: "/admin/audit" },
+              { label: "质控预警", path: "/qc/alerts" },
+              { label: "评估结果", path: "/qc/eval/results" },
+            ]}
+            onNavigate={onNavigate}
           />
         </Col>
       </Row>
@@ -325,28 +351,40 @@ function WorkbenchCards({
 
   return (
     <Row gutter={[16, 16]}>
+      {sourceAccess.runtime ? (
+        <Col xs={24} lg={12}>
+          <SystemHealthCard runtime={runtime} onNavigate={onNavigate} />
+        </Col>
+      ) : null}
+      {sourceAccess.audit ? (
+        <Col xs={24} lg={12}>
+          <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
+        </Col>
+      ) : null}
       <Col xs={24} lg={12}>
-        <SystemHealthCard runtime={runtime} onNavigate={onNavigate} />
-      </Col>
-      <Col xs={24} lg={12}>
-        <AuditChangesCard audit={audit} timeFilter={timeFilter} onNavigate={onNavigate} />
-      </Col>
-      <Col xs={24} lg={12}>
-        <UnavailableDomainCard
+        <DomainEntryCard
           id="quality"
           title="质控整改"
-          description="质控整改摘要将在 D4 域上线后按责任范围展示。"
-          nextStep="D4 质控改进域完成后，将下钻到真实整改对象和责任范围。"
-          onSelect={onUnavailableSelect}
+          marker="质控整改入口"
+          description="进入质控驾驶舱和评估结果查看真实整改对象；工作台不伪造汇总趋势。"
+          actions={[
+            { label: "院级质控驾驶舱", path: "/qc/dashboard" },
+            { label: "评估结果", path: "/qc/eval/results" },
+          ]}
+          onNavigate={onNavigate}
         />
       </Col>
       <Col xs={24} lg={12}>
-        <UnavailableDomainCard
+        <DomainEntryCard
           id="value"
           title="价值指标"
-          description="价值成效摘要将在真实指标域上线后展示。"
-          nextStep="等待真实指标域上线；当前不展示伪造趋势或验收分。"
-          onSelect={onUnavailableSelect}
+          marker="价值指标入口"
+          description="进入质控驾驶舱查看真实价值指标；暂无工作台独立聚合时只提供入口。"
+          actions={[
+            { label: "院级质控驾驶舱", path: "/qc/dashboard" },
+            { label: "医保审核", path: "/qc/insurance" },
+          ]}
+          onNavigate={onNavigate}
         />
       </Col>
     </Row>
@@ -549,9 +587,9 @@ function AuditChangesCard({
           renderItem={(event) => (
             <List.Item>
               <Space direction="vertical" size={0}>
-                <Text>{event.action}</Text>
+                <Text>{event.summary}</Text>
                 <Text type="secondary">
-                  {event.user ?? "系统"} · {formatTime(event.occurredAt)}
+                  {event.actorUserId ?? "系统"} · {formatTime(event.occurredAt)}
                 </Text>
               </Space>
             </List.Item>
@@ -579,28 +617,43 @@ function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
   );
 }
 
-function UnavailableDomainCard({
+function DomainEntryCard({
   id,
   title,
+  marker,
   description,
-  nextStep,
-  onSelect,
+  actions,
+  onNavigate,
 }: {
   id: string;
   title: string;
+  marker?: string;
   description: string;
-  nextStep: string;
-  onSelect: (domain: UnavailableDomain) => void;
+  actions: DomainEntryAction[];
+  onNavigate: (path: string) => void;
 }) {
-  const domain = { id, title, description, nextStep };
   return (
-    <Card data-testid={`workbench-card-${id}`} title={title} extra={<Tag>该域未启用</Tag>}>
+    <Card
+      data-testid={`workbench-card-${id}`}
+      title={title}
+      extra={<Tag color="processing">已上线</Tag>}
+    >
       <Space direction="vertical" size="small">
-        <Text strong>该域未启用</Text>
-        <Paragraph type="secondary">{description}</Paragraph>
-        <Button type="link" icon={<ArrowRightOutlined />} onClick={() => onSelect(domain)}>
-          查看接入状态
-        </Button>
+        {marker ? <Text strong>{marker}</Text> : null}
+        <Text type="secondary">{description}</Text>
+        <Space wrap>
+          {actions.map((action) => (
+            <Button
+              key={action.path}
+              type="link"
+              aria-label={action.label}
+              icon={<ArrowRightOutlined />}
+              onClick={() => onNavigate(action.path)}
+            >
+              {action.label}
+            </Button>
+          ))}
+        </Space>
       </Space>
     </Card>
   );
@@ -760,14 +813,16 @@ function GovernanceSlices({
 
 function WeeklyActions({
   view,
+  sourceAccess,
   runtime,
   onNavigate,
 }: {
   view: RoleView;
+  sourceAccess: SourceAccess;
   runtime: SourceQuery<RuntimeOperationsSnapshot>;
   onNavigate: (path: string) => void;
 }) {
-  const actions = resolveWeeklyActions(view, runtime.data);
+  const actions = resolveWeeklyActions(view, sourceAccess, runtime.data);
   return (
     <Card title="本周建议动作">
       <List
@@ -786,30 +841,6 @@ function WeeklyActions({
         )}
       />
     </Card>
-  );
-}
-
-function UnavailableDomainDrawer({
-  domain,
-  onClose,
-}: {
-  domain: UnavailableDomain | null;
-  onClose: () => void;
-}) {
-  return (
-    <Drawer
-      title={domain ? `${domain.title}接入状态` : "接入状态"}
-      open={!!domain}
-      onClose={onClose}
-    >
-      {domain ? (
-        <Space direction="vertical" size="large" className="mk-full-width">
-          <Tag>该域未启用</Tag>
-          <Paragraph>{domain.description}</Paragraph>
-          <Paragraph type="secondary">{domain.nextStep}</Paragraph>
-        </Space>
-      ) : null}
-    </Drawer>
   );
 }
 
@@ -899,7 +930,11 @@ function resolveTimeBoundary(timeFilter: TimeFilter): Date {
   return boundary;
 }
 
-function resolveWeeklyActions(view: RoleView, runtime?: RuntimeOperationsSnapshot) {
+function resolveWeeklyActions(
+  view: RoleView,
+  sourceAccess: SourceAccess,
+  runtime?: RuntimeOperationsSnapshot,
+) {
   const disconnected = runtime?.dependencies.some((dependency) => dependency.status !== "UP");
   const actions = [
     {
@@ -929,20 +964,22 @@ function resolveWeeklyActions(view: RoleView, runtime?: RuntimeOperationsSnapsho
   }
 
   if (view.kind === "operations") {
-    actions.push(
-      {
+    if (sourceAccess.runtime) {
+      actions.push({
         key: "providers",
         title: disconnected ? "核对未连接依赖" : "核对 Provider 连通",
         description: "查看运行底座返回的依赖连通状态。",
         path: "/system/providers",
-      },
-      {
+      });
+    }
+    if (sourceAccess.audit) {
+      actions.push({
         key: "audit",
         title: "查看最近变化",
         description: "按真实审计来源复核近期动作。",
         path: "/admin/audit",
-      },
-    );
+      });
+    }
     return actions;
   }
 
@@ -964,20 +1001,20 @@ function resolveWeeklyActions(view: RoleView, runtime?: RuntimeOperationsSnapsho
     return actions;
   }
 
-  actions.push(
-    {
+  if (sourceAccess.audit) {
+    actions.push({
       key: "audit",
       title: "查看最近变化",
       description: "按真实审计来源复核近期动作。",
       path: "/admin/audit",
-    },
-    {
-      key: "quality",
-      title: "复核整改入口",
-      description: "进入质控改进域查看已上线的真实整改对象。",
-      path: "/qc/eval/results",
-    },
-  );
+    });
+  }
+  actions.push({
+    key: "quality",
+    title: "复核整改入口",
+    description: "进入质控改进域查看已上线的真实整改对象。",
+    path: "/qc/eval/results",
+  });
   return actions;
 }
 
@@ -988,6 +1025,10 @@ function canOpenWorkbench(profile: SecurityProfile): boolean {
       (permission) => permission.code === "menu.workbench" || permission.target === "workbench",
     )
   );
+}
+
+function hasPermission(profile: SecurityProfile | undefined, code: string): boolean {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
 function resolveRoleView(profile?: SecurityProfile): RoleView {

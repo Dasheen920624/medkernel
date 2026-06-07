@@ -13,14 +13,14 @@
 
 ## 目标
 
-交付**四类运行框架**：在线（同步）/ 异步（任务队列）/ 批量（大规模处理）/ 离线（内网离线许可），含故障重试 + 死信 + 回放，使引擎能力在不同负载与网络形态下都可运行、可重试、可降级。
+交付**四类运行框架**：在线（同步）/ 异步（任务队列）/ 批量（大规模处理）/ 离线（本地包 + 本地执行器），含故障重试 + 死信 + 回放，使引擎能力在不同负载与网络形态下都可运行、可重试、可降级。
 
 ## 功能要求（原子可测条目）
 
 - [x] **FR-1 在线模式**：同步请求执行（实时 CDSS/规则校验等），超时不阻断主流程（核心 §10）。PR1 已交付 `ONLINE` 模式，超时返回 `ESCALATED` + 诚实提示，不抛 5xx 阻断调用方。
 - [x] **FR-2 异步模式**：任务队列 + 状态轮询（**待办类**状态机，核心 §3）；长任务异步化。PR1 已交付 `ASYNC` 入队为 `UNREAD`，通过 `/api/v1/system/tasks/{taskId}` 轮询状态。
 - [x] **FR-3 批量模式**：大规模批处理 + 进度 + **部分成功**（成功数/失败数/失败明细/可重试，呼应六态部分成功态）。PR1 已交付 `BATCH` 结果计数、失败明细和可重试数量。
-- [x] **FR-4 离线模式**：内网离线包 / 离线许可运行（核心 §12），无外网依赖主链路可用。PR2 已交付 `OFFLINE` 模式，使用本地 payload 引用 + 本地执行器运行，不依赖外网；平台许可服务由 D5 `SVC-COMPLIANCE-02` 承接，本卡收口运行框架。
+- [x] **FR-4 离线模式**：内网使用本地包、本地 payload 引用和本地执行器运行，无外网依赖主链路可用。当前产品不设置未经商业模型定义的许可服务闸门。
 - [x] **FR-5 故障重试 + 死信 + 回放**：失败任务重试 → 死信队列 → 人工回放/补偿（核心 §10）。PR2 已交付 `retryTask`、`replayDeadLetter`、`sys_task_dead_letter` 和审计链路。
 - [x] **FR-6 四模式诚实降级**：外部依赖断开时诚实状态（`NOT_CONNECTED`/`NOT_SYNCED`），不伪造完成（核心 §11/#18）。PR2 已交付 `NOT_CONNECTED` 终态，成功数保持 0、错误码可追踪。
 
@@ -47,7 +47,7 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 3. **系统与数据架构**：★本卡主战场 —— 在线/异步/批量/离线 + 重试/死信/回放；高吞吐 + 故障韧性。
 4. **临床医疗安全**：在线 CDSS 超时不阻断医生主流程（核心 §6/§10）；批量不自动执行医疗动作。
 5. **知识与数据治理**：知识工厂批量生成/同步走批量模式（核心 §7，wave2 AIK 消费）。
-6. **安全合规与监管**：任务/死信留审计（[BASE-04](BASE-04.md)）；离线许可合规。
+6. **安全合规与监管**：任务/死信留审计（[BASE-04](BASE-04.md)）；离线数据不出院内边界。
 7. **集团化与多租户治理**：任务带组织维隔离调度。
 8. **集成与互操作**：★外部同步/回调走异步 + 重试 + 死信 + 回放（核心 §10）。
 9. **运维 / SRE / 国产化**：★离线模式 + 国产化内网形态（核心 §12）；死信人工补偿运维闭环。
@@ -61,7 +61,7 @@ N·A —— 任务/死信管理在 D6 开发者控制台 / D5 运维消费。
 ## 验收 + 验证
 - [x] **AC-1（FR-1）**：在线 CDSS 超时 → 主流程不阻断 + 诚实降级提示。PR1 `RuntimeTaskServiceTest.onlineTimeoutReturnsEscalatedWithoutThrowingAndAudits` 已红绿覆盖。
 - [x] **AC-2（FR-2/3）**：长任务异步化可轮询；批量返回部分成功（成功/失败/可重试明细）。PR1 `RuntimeTaskServiceTest.asyncSubmitPersistsUnreadTaskAndStatusCanBePolled` / `batchPartialSuccessPersistsCountsAndRetryableFailures` 已红绿覆盖。
-- [x] **AC-3（FR-4）**：断外网/离线形态下主链路可运行（离线许可生效）。PR2 `RuntimeTaskServiceTest.offlineModeRunsWithLocalExecutorAndNoExternalDependency` 已覆盖离线运行框架。
+- [x] **AC-3（FR-4）**：断外网/离线形态下本地执行主链路可运行。PR2 `RuntimeTaskServiceTest.offlineModeRunsWithLocalExecutorAndNoExternalDependency` 已覆盖。
 - [x] **AC-4（FR-5）**：失败任务重试耗尽进死信 → 人工回放成功。PR2 `RuntimeTaskServiceTest.retryExhaustionMovesTaskToDeadLetterAndReplayCreatesNewCompletedTask` 已覆盖。
 - [x] **AC-5（FR-6）**：外部依赖断开任务返回 `NOT_CONNECTED`，不伪造完成。PR2 `RuntimeTaskServiceTest.notConnectedResultIsPersistedHonestlyWithoutSuccess` 已覆盖。
 - 关联 A1–A9：A2 知识工厂（批量）、A6 合规运维（离线/降级）。

@@ -1,5 +1,5 @@
 -- MedKernel v1.0 GA · H2 2.2 baseline schema（MODE=PostgreSQL 兼容）
--- 引擎一切之根：组织七层树 + 闭包查询 + 审计留痕。
+-- 引擎一切之根：组织树 + 专病横切维度 + 闭包查询 + 审计留痕。
 
 CREATE TABLE IF NOT EXISTS org_unit (
     id              VARCHAR(26)  PRIMARY KEY,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS org_unit (
     updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by      VARCHAR(64)  NOT NULL DEFAULT 'system',
     CONSTRAINT uk_org_unit_tenant_code UNIQUE (tenant_id, code),
-    CONSTRAINT ck_org_unit_level CHECK (level_code IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
+    CONSTRAINT ck_org_unit_level CHECK (level_code IN ('TENANT','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_org_unit_status CHECK (status IN ('ACTIVE','SUSPENDED','ARCHIVED'))
 );
 

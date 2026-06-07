@@ -11,4 +11,13 @@ public record DiagnosisCandidate(
     Long identityId, String diagnosisName, String icdCode,
     DiagnosisConfidence confidence,
     List<String> supporting, List<String> refuting, List<String> missingRequired,
-    String authorityLevel, boolean redline, Long sourceVersionId) {}
+    List<DiagnosisCareSuggestion> careSuggestions,
+    String authorityLevel, boolean redline, Long sourceVersionId
+) {
+    public DiagnosisCandidate {
+        supporting = supporting == null ? List.of() : List.copyOf(supporting);
+        refuting = refuting == null ? List.of() : List.copyOf(refuting);
+        missingRequired = missingRequired == null ? List.of() : List.copyOf(missingRequired);
+        careSuggestions = careSuggestions == null ? List.of() : List.copyOf(careSuggestions);
+    }
+}

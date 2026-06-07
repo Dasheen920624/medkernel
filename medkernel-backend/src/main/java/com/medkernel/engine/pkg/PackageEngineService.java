@@ -1,5 +1,16 @@
 package com.medkernel.engine.pkg;
 
+import com.medkernel.engine.versioning.RolloutStrategy;
+import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionDraftUpdateCommand;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
 import java.nio.charset.StandardCharsets;
@@ -13,8 +24,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -25,6 +36,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
 import com.medkernel.engine.knowledge.GradeRecommendationStrength;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
@@ -38,21 +51,31 @@ import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
+import com.medkernel.engine.pathway.PathwayEdge;
+import com.medkernel.engine.pathway.PathwayEdgeRepository;
+import com.medkernel.engine.pathway.PathwayNode;
+import com.medkernel.engine.pathway.PathwayNodeRepository;
+import com.medkernel.engine.pathway.SpecialtyMetricBinding;
+import com.medkernel.engine.pathway.SpecialtyMetricBindingRepository;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.terminology.TermMapping;
 import com.medkernel.engine.terminology.TermMappingPackage;
 import com.medkernel.engine.terminology.TermMappingPackageItem;
 import com.medkernel.engine.terminology.TermMappingPackageItemRepository;
 import com.medkernel.engine.terminology.TermMappingPackageRepository;
 import com.medkernel.engine.terminology.TermMappingRepository;
+import com.medkernel.engine.terminology.TermMappingSnapshot;
+import com.medkernel.engine.terminology.TermMappingSnapshotCodec;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.api.error.ApiException;
@@ -74,14 +97,14 @@ public class PackageEngineService {
     private static final Logger log = LoggerFactory.getLogger(PackageEngineService.class);
     private static final ObjectMapper PACKAGE_JSON_MAPPER = new ObjectMapper();
     private static final ObjectMapper OFFLINE_EXPORT_MAPPER = new ObjectMapper();
-    private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V1";
-    private static final String DEFAULT_GRAY_SCOPE_STRATEGY = "BED_PERCENT";
+    private static final String OFFLINE_PACKAGE_FORMAT = "MEDKERNEL_PACKAGE_OFFLINE_V2";
+    private static final RolloutStrategy DEFAULT_GRAY_SCOPE_STRATEGY = RolloutStrategy.CANARY_BED_PERCENT;
     private static final int DEFAULT_GRAY_SCOPE_PERCENTAGE = 10;
 
     private final KnowledgePackageRepository packageRepository;
     private final PackageItemRepository itemRepository;
     private final ReleasePlanRepository planRepository;
-    private final SyncTargetRepository targetRepository;
+    private final IntegrationAdapterRepository adapterRepository;
     private final SyncLogRepository logRepository;
 
     private final RuleDefinitionRepository ruleRepository;
@@ -89,6 +112,9 @@ public class PackageEngineService {
     private final EvaluationIndicatorRepository evaluationRepository;
     private final RuleVersionRepository ruleVersionRepository;
     private final KnowledgeIdentityRepository knowledgeIdentityRepository;
+    private final PathwayNodeRepository pathwayNodeRepository;
+    private final PathwayEdgeRepository pathwayEdgeRepository;
+    private final SpecialtyMetricBindingRepository pathwayMetricBindingRepository;
     private final KnowledgeAssetVersionRepository knowledgeVersionRepository;
     private final TermMappingPackageRepository terminologyPackageRepository;
     private final TermMappingPackageItemRepository terminologyPackageItemRepository;
@@ -97,18 +123,25 @@ public class PackageEngineService {
     private final PilotPackageTemplateItemRepository pilotTemplateItemRepository;
 
     private final PackageSyncPort syncPort;
-    private final AuditEventPublisher auditPublisher;
+    private final EffectiveKnowledgePackageResolver effectivePackageResolver;
+    private final AuditRecorder auditRecorder;
     private final TransactionTemplate transactionTemplate;
+    private final PackageVersionedAssetAdapter versionedAssets;
+    private final AssetVersionRepository assetVersions;
+    private final ReleasePort releasePort;
 
     public PackageEngineService(
             KnowledgePackageRepository packageRepository,
             PackageItemRepository itemRepository,
             ReleasePlanRepository planRepository,
-            SyncTargetRepository targetRepository,
+            IntegrationAdapterRepository adapterRepository,
             SyncLogRepository logRepository,
             RuleDefinitionRepository ruleRepository,
             RuleVersionRepository ruleVersionRepository,
             PathwayTemplateRepository pathwayRepository,
+            PathwayNodeRepository pathwayNodeRepository,
+            PathwayEdgeRepository pathwayEdgeRepository,
+            SpecialtyMetricBindingRepository pathwayMetricBindingRepository,
             EvaluationIndicatorRepository evaluationRepository,
             KnowledgeIdentityRepository knowledgeIdentityRepository,
             KnowledgeAssetVersionRepository knowledgeVersionRepository,
@@ -118,16 +151,23 @@ public class PackageEngineService {
             PilotPackageTemplateRepository pilotTemplateRepository,
             PilotPackageTemplateItemRepository pilotTemplateItemRepository,
             PackageSyncPort syncPort,
-            AuditEventPublisher auditPublisher,
-            TransactionTemplate transactionTemplate) {
+            EffectiveKnowledgePackageResolver effectivePackageResolver,
+            AuditRecorder auditRecorder,
+            TransactionTemplate transactionTemplate,
+            PackageVersionedAssetAdapter versionedAssets,
+            AssetVersionRepository assetVersions,
+            ReleasePort releasePort) {
         this.packageRepository = packageRepository;
         this.itemRepository = itemRepository;
         this.planRepository = planRepository;
-        this.targetRepository = targetRepository;
+        this.adapterRepository = adapterRepository;
         this.logRepository = logRepository;
         this.ruleRepository = ruleRepository;
         this.ruleVersionRepository = ruleVersionRepository;
         this.pathwayRepository = pathwayRepository;
+        this.pathwayNodeRepository = pathwayNodeRepository;
+        this.pathwayEdgeRepository = pathwayEdgeRepository;
+        this.pathwayMetricBindingRepository = pathwayMetricBindingRepository;
         this.evaluationRepository = evaluationRepository;
         this.knowledgeIdentityRepository = knowledgeIdentityRepository;
         this.knowledgeVersionRepository = knowledgeVersionRepository;
@@ -137,8 +177,12 @@ public class PackageEngineService {
         this.pilotTemplateRepository = pilotTemplateRepository;
         this.pilotTemplateItemRepository = pilotTemplateItemRepository;
         this.syncPort = syncPort;
-        this.auditPublisher = auditPublisher;
+        this.effectivePackageResolver = effectivePackageResolver;
+        this.auditRecorder = auditRecorder;
         this.transactionTemplate = transactionTemplate;
+        this.versionedAssets = versionedAssets;
+        this.assetVersions = assetVersions;
+        this.releasePort = releasePort;
     }
 
     /**
@@ -174,7 +218,8 @@ public class PackageEngineService {
         );
 
         KnowledgePackage saved = packageRepository.save(pack);
-        auditPublisher.publish(AuditAction.CREATE, "knowledge_package", saved.packageId(), 
+        registerPackageDraft(saved, List.of(), actor, traceId);
+        auditRecorder.record(AuditAction.CREATE, "knowledge_package", saved.packageId(),
             "创建知识包草稿: " + saved.name() + " (" + saved.packageVersion() + ")");
         return PackageResponse.from(saved);
     }
@@ -247,8 +292,12 @@ public class PackageEngineService {
             traceId
         );
 
+        List<PackageItem> currentItems = itemRepository.findByTenantIdAndPackageId(tenantId, packageId);
         PackageItem saved = itemRepository.save(item);
-        auditPublisher.publish(AuditAction.UPDATE, "knowledge_package", packageId,
+        List<PackageItem> updatedItems = new ArrayList<>(currentItems);
+        updatedItems.add(saved);
+        updatePackageDraft(pack, updatedItems, actor);
+        auditRecorder.record(AuditAction.UPDATE, "knowledge_package", packageId,
             "向知识包添加资产条目 (" + request.assetType() + "): " + request.assetId());
         return PackageItemResponse.from(saved);
     }
@@ -341,7 +390,7 @@ public class PackageEngineService {
             traceId
         );
         KnowledgePackage savedPackage = packageRepository.save(pack);
-        List<PackageItemResponse> savedItems = validItems.stream()
+        List<PackageItem> savedItemEntities = validItems.stream()
             .map(item -> itemRepository.save(new PackageItem(
                 null,
                 UUID.randomUUID().toString(),
@@ -356,10 +405,13 @@ public class PackageEngineService {
                 actor,
                 traceId
             )))
+            .toList();
+        registerPackageDraft(savedPackage, savedItemEntities, actor, traceId);
+        List<PackageItemResponse> savedItems = savedItemEntities.stream()
             .map(PackageItemResponse::from)
             .toList();
 
-        auditPublisher.publish(AuditAction.CREATE, "knowledge_package", savedPackage.packageId(),
+        auditRecorder.record(AuditAction.CREATE, "knowledge_package", savedPackage.packageId(),
             "由首发模板实例化配置包草稿: " + template.templateCode()
                 + "，资产条目数: " + savedItems.size());
         return new PilotPackageInstantiationResponse(
@@ -488,6 +540,54 @@ public class PackageEngineService {
         ));
     }
 
+    private void registerPackageDraft(
+            KnowledgePackage pack,
+            List<PackageItem> items,
+            String actor,
+            String traceId) {
+        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            pack.tenantId(),
+            VersionedAssetType.PACKAGE,
+            packageAssetIdentity(pack),
+            pack.packageVersion(),
+            packageOrganizationScope(pack),
+            "ALL",
+            null,
+            packageContentSha256(pack, items),
+            "knowledge-package:" + pack.packageId(),
+            actor,
+            traceId
+        ));
+    }
+
+    private void updatePackageDraft(KnowledgePackage pack, List<PackageItem> items, String actor) {
+        AssetVersion assetVersion = assetVersions
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                pack.tenantId(),
+                VersionedAssetType.PACKAGE,
+                packageAssetIdentity(pack),
+                pack.packageVersion()
+            )
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "配置包缺少统一资产版本，禁止修改: "
+                    + pack.packageCode() + "@" + pack.packageVersion()
+            ));
+        versionedAssets.updateDraft(new AssetVersionDraftUpdateCommand(
+            pack.tenantId(),
+            assetVersion.versionId(),
+            packageAssetIdentity(pack),
+            packageOrganizationScope(pack),
+            "ALL",
+            null,
+            packageContentSha256(pack, items),
+            "knowledge-package:" + pack.packageId(),
+            assetVersion.safetyPolicy(),
+            assetVersion.overridePolicy(),
+            actor
+        ));
+    }
+
     /**
      * 计算两个包版本之间的资产差异与变动影响分析。
      */
@@ -610,7 +710,7 @@ public class PackageEngineService {
             ));
         }
 
-        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+        auditRecorder.record(AuditAction.EXPORT, "knowledge_package", packageId,
             "导出配置包差异影响证据，基准版本: " + diff.baseVersion()
                 + "，目标版本: " + diff.targetVersion()
                 + "，变更资产数: " + diff.changes().size());
@@ -618,7 +718,7 @@ public class PackageEngineService {
     }
 
     /**
-     * 导出配置包同步证据与失败站点清单。
+     * 导出配置包同步证据与异常适配器清单。
      */
     public String exportSyncEvidence(String packageId) {
         String tenantId = currentTenantId();
@@ -634,13 +734,13 @@ public class PackageEngineService {
             allLogs.addAll(logs);
         }
 
-        long successTargetCount = allLogs.stream()
+        long successAdapterCount = allLogs.stream()
             .filter(log -> log.status() == SyncLogStatus.SUCCESS)
             .count();
-        long failedTargetCount = allLogs.stream()
+        long failedAdapterCount = allLogs.stream()
             .filter(log -> log.status() == SyncLogStatus.FAILED)
             .count();
-        long notSyncedTargetCount = allLogs.stream()
+        long notSyncedAdapterCount = allLogs.stream()
             .filter(log -> log.status() == SyncLogStatus.NOT_SYNCED)
             .count();
 
@@ -652,9 +752,9 @@ public class PackageEngineService {
             pack.packageVersion(),
             plans.size(),
             allLogs.size(),
-            successTargetCount,
-            failedTargetCount,
-            notSyncedTargetCount,
+            successAdapterCount,
+            failedAdapterCount,
+            notSyncedAdapterCount,
             traceId
         ));
         for (ReleasePlan plan : plans) {
@@ -672,13 +772,13 @@ public class PackageEngineService {
                 traceId
             ));
             for (SyncLog log : logsByPlanId.getOrDefault(plan.planId(), List.of())) {
-                appendEvidenceExportLine(ndjson, new PackageSyncTargetExportLine(
-                    "PACKAGE_SYNC_TARGET",
+                appendEvidenceExportLine(ndjson, new PackageReleaseAdapterExportLine(
+                    "PACKAGE_RELEASE_ADAPTER",
                     packageId,
                     log.planId(),
                     log.logId(),
-                    log.targetId(),
-                    resolveSyncTargetName(tenantId, log.targetId()),
+                    log.adapterId(),
+                    resolveReleaseAdapterName(tenantId, log.adapterId()),
                     log.status(),
                     log.errorCode(),
                     log.errorMessage(),
@@ -690,20 +790,20 @@ public class PackageEngineService {
             }
         }
 
-        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+        auditRecorder.record(AuditAction.EXPORT, "knowledge_package", packageId,
             "导出配置包同步证据，发布计划数: " + plans.size()
                 + "，同步日志数: " + allLogs.size()
-                + "，失败站点数: " + failedTargetCount
-                + "，未接入站点数: " + notSyncedTargetCount);
+                + "，失败适配器数: " + failedAdapterCount
+                + "，未连通适配器数: " + notSyncedAdapterCount);
         return ndjson.toString();
     }
 
-    private String resolveSyncTargetName(String tenantId, String targetId) {
-        return targetRepository.findByTargetIdAndTenantId(targetId, tenantId)
-            .map(SyncTarget::targetName)
+    private String resolveReleaseAdapterName(String tenantId, String adapterId) {
+        return adapterRepository.findByAdapterIdAndTenantId(adapterId, tenantId)
+            .map(IntegrationAdapter::name)
             .map(String::trim)
             .filter(name -> !name.isEmpty())
-            .orElse(targetId);
+            .orElse(adapterId);
     }
 
     private void addAffectedDepartment(List<String> affectedDepartments, String departmentId) {
@@ -756,9 +856,9 @@ public class PackageEngineService {
         String packageVersion,
         int planCount,
         int logCount,
-        long successTargetCount,
-        long failedTargetCount,
-        long notSyncedTargetCount,
+        long successAdapterCount,
+        long failedAdapterCount,
+        long notSyncedAdapterCount,
         String traceId
     ) {}
 
@@ -776,13 +876,13 @@ public class PackageEngineService {
         String traceId
     ) {}
 
-    private record PackageSyncTargetExportLine(
+    private record PackageReleaseAdapterExportLine(
         String event,
         String packageId,
         String planId,
         String logId,
-        String targetId,
-        String targetName,
+        String adapterId,
+        String adapterName,
         SyncLogStatus status,
         String errorCode,
         String errorMessage,
@@ -798,17 +898,20 @@ public class PackageEngineService {
      * <p>导出文件包含逻辑业务标识和当前支持资产的内容快照，不包含数据库自增主键；
      * 完整性摘要基于 payload 的真实字节生成，供后续离线导入验签使用。
      */
-    public String exportOfflinePackage(String packageId) {
+    public String exportOfflinePackage(String packageId, String targetOrgUnitId) {
         String tenantId = currentTenantId();
         String traceId = RequestContext.currentTraceId();
+        String normalizedTargetOrgUnitId = requireOfflineTargetOrgUnitId(targetOrgUnitId);
         KnowledgePackage pack = packageRepository.findByPackageIdAndTenantId(packageId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
-        List<PackageItem> items = itemRepository.findByTenantIdAndPackageId(tenantId, packageId);
+        EffectivePackageSnapshot effectiveSnapshot = buildEffectiveSnapshot(tenantId, pack, normalizedTargetOrgUnitId);
 
-        List<PackageOfflineAssetSnapshot> assetSnapshots = buildOfflineAssetSnapshots(tenantId, items);
+        List<PackageOfflineItem> items = buildOfflineItems(packageId, effectiveSnapshot.items());
+        List<PackageOfflineAssetSnapshot> assetSnapshots = buildOfflineAssetSnapshots(effectiveSnapshot.items());
         PackageOfflinePayload payload = new PackageOfflinePayload(
             PackageOfflinePackageInfo.from(pack),
-            items.stream().map(PackageOfflineItem::from).toList(),
+            effectiveSnapshot,
+            items,
             assetSnapshots
         );
         String payloadSha256 = sha256Json(payload);
@@ -820,8 +923,12 @@ public class PackageEngineService {
                 pack.packageCode(),
                 pack.packageVersion(),
                 pack.status(),
+                normalizedTargetOrgUnitId,
+                effectiveSnapshot.contentSha256(),
                 items.size(),
                 assetSnapshots.size(),
+                effectiveSnapshot.excludedItems().size(),
+                effectiveSnapshot.warnings().size(),
                 "SHA-256",
                 payloadSha256,
                 Instant.now().toString(),
@@ -830,8 +937,10 @@ public class PackageEngineService {
             payload
         );
 
-        auditPublisher.publish(AuditAction.EXPORT, "knowledge_package", packageId,
+        auditRecorder.record(AuditAction.EXPORT, "knowledge_package", packageId,
             "导出配置包离线安装包，版本: " + pack.packageVersion()
+                + "，目标组织: " + normalizedTargetOrgUnitId
+                + "，有效快照: " + effectiveSnapshot.contentSha256()
                 + "，资产条目数: " + items.size()
                 + "，payloadSha256: " + payloadSha256);
         return writeOfflineJson(export);
@@ -854,8 +963,10 @@ public class PackageEngineService {
         JsonNode manifest = requireObject(root, "manifest", "离线包缺少 manifest 清单");
         JsonNode payload = requireObject(root, "payload", "离线包缺少 payload 内容");
         JsonNode packageInfo = requireObject(payload, "packageInfo", "离线包缺少 packageInfo 包元信息");
+        JsonNode effectiveSnapshotNode = requireObject(payload, "effectiveSnapshot", "离线包缺少 effectiveSnapshot 有效快照");
         JsonNode itemsNode = requireArray(payload, "items", "离线包缺少 items 资产条目列表");
         JsonNode assetSnapshotsNode = requireArray(payload, "assetSnapshots", "离线包缺少 assetSnapshots 资产内容快照");
+        EffectivePackageSnapshot effectiveSnapshot = readOfflineContent(effectiveSnapshotNode, EffectivePackageSnapshot.class);
 
         String packageCode = requireText(packageInfo, "packageCode", "离线包缺少 packageCode");
         String packageVersion = requireText(packageInfo, "packageVersion", "离线包缺少 packageVersion");
@@ -878,15 +989,30 @@ public class PackageEngineService {
         }
 
         validateManifestPayloadMatch(manifest, packageInfo, sourcePackageId, sourceTenantId, packageCode, packageVersion);
+        String targetOrgUnitId = requireText(manifest, "targetOrgUnitId", "离线包缺少 targetOrgUnitId");
+        String declaredEffectiveSnapshotSha256 =
+            requireText(manifest, "effectiveSnapshotSha256", "离线包缺少 effectiveSnapshotSha256");
+        validateEffectiveSnapshot(
+            effectiveSnapshot, sourcePackageId, packageCode, packageVersion, targetOrgUnitId,
+            declaredEffectiveSnapshotSha256);
+        validateOfflineItemsMatchEffectiveSnapshot(itemsNode, sourcePackageId, effectiveSnapshot);
         validateOfflineImportTenantLineage(tenantId, sourceTenantId);
 
         int itemCount = requireInt(manifest, "itemCount", "离线包 itemCount 不合法");
-        if (itemCount != itemsNode.size()) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 itemCount 与资产条目数量不一致");
+        if (itemCount != itemsNode.size() || itemCount != effectiveSnapshot.items().size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 itemCount 与有效快照资产条目数量不一致");
         }
         int assetSnapshotCount = requireInt(manifest, "assetSnapshotCount", "离线包 assetSnapshotCount 不合法");
         if (assetSnapshotCount != assetSnapshotsNode.size() || assetSnapshotCount != itemsNode.size()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照数量与资产条目数量不一致");
+        }
+        int excludedItemCount = requireInt(manifest, "excludedItemCount", "离线包 excludedItemCount 不合法");
+        if (excludedItemCount != effectiveSnapshot.excludedItems().size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 excludedItemCount 与有效快照排除项数量不一致");
+        }
+        int warningCount = requireInt(manifest, "warningCount", "离线包 warningCount 不合法");
+        if (warningCount != effectiveSnapshot.warnings().size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包 warningCount 与有效快照警告数量不一致");
         }
         if (packageRepository
             .findByTenantIdAndPackageCodeAndPackageVersion(tenantId, packageCode, packageVersion)
@@ -895,7 +1021,6 @@ public class PackageEngineService {
         }
 
         Instant now = Instant.now();
-        boolean platformSourceReference = isPlatformSourceReferenceImport(tenantId, sourceTenantId);
         importOfflineAssetSnapshots(
             assetSnapshotsNode, itemsNode, tenantId, sourceTenantId, actor, traceId, now);
         KnowledgePackage importedPackage = new KnowledgePackage(
@@ -915,11 +1040,12 @@ public class PackageEngineService {
         );
         KnowledgePackage savedPackage = packageRepository.save(importedPackage);
         List<PackageItem> importedItems = buildOfflineImportItems(
-            itemsNode, tenantId, sourceTenantId, savedPackage.packageId(), sourcePackageId,
-            actor, traceId, now, platformSourceReference);
+            itemsNode, tenantId, savedPackage.packageId(), sourcePackageId,
+            actor, traceId, now);
         importedItems.forEach(itemRepository::save);
+        registerPackageDraft(savedPackage, importedItems, actor, traceId);
 
-        auditPublisher.publish(AuditAction.IMPORT, "knowledge_package", savedPackage.packageId(),
+        auditRecorder.record(AuditAction.IMPORT, "knowledge_package", savedPackage.packageId(),
             "导入配置包离线安装包为草案，版本: " + packageVersion
                 + "，源租户: " + sourceTenantId
                 + "，源包: " + sourcePackageId
@@ -935,33 +1061,82 @@ public class PackageEngineService {
         );
     }
 
-    private List<PackageOfflineAssetSnapshot> buildOfflineAssetSnapshots(String tenantId, List<PackageItem> items) {
-        return items.stream()
-            .map(item -> buildOfflineAssetSnapshot(tenantId, item))
+    private String requireOfflineTargetOrgUnitId(String targetOrgUnitId) {
+        String normalized = normalizedText(targetOrgUnitId);
+        if (normalized == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线导出目标组织 ID 不能为空");
+        }
+        return normalized;
+    }
+
+    private List<PackageOfflineItem> buildOfflineItems(
+            String packageId,
+            List<EffectivePackageItem> effectiveItems) {
+        return effectiveItems.stream()
+            .map(item -> PackageOfflineItem.from(packageId, item))
             .toList();
     }
 
-    private PackageOfflineAssetSnapshot buildOfflineAssetSnapshot(String tenantId, PackageItem item) {
+    private List<PackageOfflineAssetSnapshot> buildOfflineAssetSnapshots(List<EffectivePackageItem> items) {
+        return items.stream()
+            .map(this::buildOfflineAssetSnapshot)
+            .toList();
+    }
+
+    private PackageOfflineAssetSnapshot buildOfflineAssetSnapshot(EffectivePackageItem item) {
+        String sourceTenantId = normalizedText(item.sourceTenantId());
+        if (sourceTenantId == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "有效包条目缺少来源租户: " + item.assetType() + ":" + item.assetId());
+        }
+        String effectiveVersion = normalizedText(item.effectiveVersion());
+        if (effectiveVersion == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "有效包条目缺少生效版本: " + item.assetType() + ":" + item.assetId());
+        }
         JsonNode content = switch (item.assetType()) {
             case RULE -> buildRuleAssetContent(
-                ruleRepository.findByRuleIdAndTenantId(item.assetId(), tenantId)
+                ruleRepository.findByRuleIdAndTenantId(item.assetId(), sourceTenantId)
                     .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "离线导出规则不存在: " + item.assetId())),
                 ruleVersionRepository.findByRuleIdAndTenantIdAndVersionNo(
-                    item.assetId(), tenantId, parseAssetVersionNo(item.assetVersion()))
-                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "离线导出规则版本不存在: " + item.assetId() + "@" + item.assetVersion()))
+                    item.assetId(), sourceTenantId, parseAssetVersionNo(effectiveVersion))
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "离线导出规则版本不存在: " + item.assetId() + "@" + effectiveVersion))
             );
+            case PATHWAY -> {
+                PathwayTemplate template = pathwayRepository
+                    .findByTemplateIdAndTenantId(item.assetId(), sourceTenantId)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PATHWAY_002,
+                        "离线导出路径模板不存在: " + item.assetId()
+                    ));
+                if (!Integer.toString(template.templateVersion()).equals(effectiveVersion)) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "离线导出路径版本不存在: " + item.assetId() + "@" + effectiveVersion
+                    );
+                }
+                yield buildPathwayAssetContent(
+                    template,
+                    pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                        item.assetId(), sourceTenantId),
+                    pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
+                        item.assetId(), sourceTenantId),
+                    pathwayMetricBindingRepository.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+                        item.assetId(), sourceTenantId)
+                );
+            }
             case EVALUATION -> buildEvaluationAssetContent(
-                evaluationRepository.findByIndicatorIdAndTenantId(item.assetId(), tenantId)
+                evaluationRepository.findByIndicatorIdAndTenantId(item.assetId(), sourceTenantId)
                     .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_002, "离线导出评估指标不存在: " + item.assetId()))
             );
             case KNOWLEDGE -> {
-                KnowledgeIdentity identity = knowledgeIdentityRepository.findByTenantIdAndIdentityCode(tenantId, item.assetId())
+                KnowledgeIdentity identity = knowledgeIdentityRepository.findByTenantIdAndIdentityCode(sourceTenantId, item.assetId())
                     .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_002, "离线导出知识身份不存在: " + item.assetId()));
                 KnowledgeAssetVersion version = knowledgeVersionRepository
-                    .findByTenantIdAndIdentityIdAndVersionNo(tenantId, identity.id(), item.assetVersion())
+                    .findByTenantIdAndIdentityIdAndVersionNo(sourceTenantId, identity.id(), effectiveVersion)
                     .orElseThrow(() -> new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
-                        "离线导出知识版本不存在: " + item.assetId() + "@" + item.assetVersion()
+                        "离线导出知识版本不存在: " + item.assetId() + "@" + effectiveVersion
                     ));
                 yield buildKnowledgeAssetContent(identity, version);
             }
@@ -969,21 +1144,25 @@ public class PackageEngineService {
                 TerminologyAssetKey key = parseTerminologyAssetKey(item.assetId());
                 TermMappingPackage terminologyPackage = terminologyPackageRepository
                     .findByTenantIdAndPackageCodeAndPackageVersionAndScopeLevelAndScopeCode(
-                        tenantId, key.packageCode(), item.assetVersion(), key.scopeLevel(), key.scopeCode())
+                        sourceTenantId, key.packageCode(), effectiveVersion, key.scopeLevel(), key.scopeCode())
                     .orElseThrow(() -> new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
-                        "离线导出术语映射包不存在: " + item.assetId() + "@" + item.assetVersion()
+                        "离线导出术语映射包不存在: " + item.assetId() + "@" + effectiveVersion
                     ));
                 yield buildTerminologyAssetContent(terminologyPackage);
             }
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
-                "离线包暂不支持完整资产内容迁移: " + item.assetType());
+                "配置包包含不允许迁移的资产类型: " + item.assetType());
         };
         return new PackageOfflineAssetSnapshot(
             item.assetType(),
             item.assetId(),
-            item.assetVersion(),
+            item.declaredVersion(),
+            effectiveVersion,
+            sourceTenantId,
+            item.sourceVersionId(),
+            item.contentHash(),
             sha256Json(content),
             content
         );
@@ -1043,6 +1222,58 @@ public class PackageEngineService {
         ));
     }
 
+    private JsonNode buildPathwayAssetContent(
+            PathwayTemplate template,
+            List<PathwayNode> nodes,
+            List<PathwayEdge> edges,
+            List<SpecialtyMetricBinding> metricBindings) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflinePathwayContent(
+            new PackageOfflinePathwayTemplate(
+                template.templateId(),
+                template.packageId(),
+                template.templateCode(),
+                template.name(),
+                template.diseaseCode(),
+                template.templateVersion(),
+                enumName(template.templateLevel()),
+                enumName(template.status()),
+                template.startNodeCode(),
+                template.sourceRef(),
+                template.description(),
+                template.entryCriteriaJson(),
+                template.exitCriteriaJson()
+            ),
+            nodes.stream().map(node -> new PackageOfflinePathwayNode(
+                node.nodeId(),
+                node.nodeCode(),
+                node.name(),
+                enumName(node.nodeType()),
+                node.sortOrder(),
+                node.responsibleRole(),
+                node.dependencyJson(),
+                node.timeWindowMinutes(),
+                node.terminalFlag(),
+                node.configJson()
+            )).toList(),
+            edges.stream().map(edge -> new PackageOfflinePathwayEdge(
+                edge.edgeId(),
+                edge.edgeCode(),
+                edge.fromNodeCode(),
+                edge.toNodeCode(),
+                enumName(edge.edgeType()),
+                edge.conditionJson(),
+                edge.priority()
+            )).toList(),
+            metricBindings.stream().map(binding -> new PackageOfflinePathwayMetricBinding(
+                binding.bindingId(),
+                binding.packageId(),
+                binding.nodeCode(),
+                binding.metricCode(),
+                binding.requiredFlag()
+            )).toList()
+        ));
+    }
+
     private JsonNode buildKnowledgeAssetContent(KnowledgeIdentity identity, KnowledgeAssetVersion version) {
         return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineKnowledgeContent(
             new PackageOfflineKnowledgeIdentity(
@@ -1090,23 +1321,22 @@ public class PackageEngineService {
                 TermMappingPackageItem::mappingId,
                 Comparator.nullsLast(Comparator.naturalOrder())))
             .toList();
-        List<PackageOfflineTermMapping> mappings = packageItems.stream()
-            .map(item -> terminologyMappingRepository.findByTenantIdAndId(terminologyPackage.tenantId(), item.mappingId())
-                .orElseThrow(() -> new ApiException(
-                    ErrorCode.ENG_PACKAGE_002,
-                    "离线导出术语映射包条目缺少正式映射: " + terminologyPackage.packageCode() + "#" + item.mappingId()
-                )))
-            .map(mapping -> new PackageOfflineTermMapping(
-                mapping.localTermId(),
-                mapping.standardTermId(),
-                mapping.sourceSystem(),
-                mapping.categoryName(),
-                mapping.confidence(),
-                mapping.riskLevelName(),
-                mapping.statusName(),
-                mapping.evidenceText(),
-                mapping.confirmedBy(),
-                instantText(mapping.confirmedAt())
+        List<TermMappingSnapshot> snapshots = packageItems.stream()
+            .map(TermMappingPackageItem::mappingSnapshot)
+            .map(TermMappingSnapshotCodec::read)
+            .toList();
+        List<PackageOfflineTermMapping> mappings = snapshots.stream()
+            .map(snapshot -> new PackageOfflineTermMapping(
+                snapshot.localTermId(),
+                snapshot.standardTermId(),
+                snapshot.sourceSystem(),
+                snapshot.category(),
+                snapshot.confidence(),
+                snapshot.riskLevel(),
+                snapshot.status(),
+                snapshot.evidenceText(),
+                snapshot.confirmedBy(),
+                snapshot.confirmedAt()
             ))
             .toList();
         List<PackageOfflineTermMappingPackageItem> items = packageItems.stream()
@@ -1141,13 +1371,20 @@ public class PackageEngineService {
             String traceId,
             Instant now) {
         Map<String, JsonNode> snapshotsByKey = new HashMap<>();
+        Map<String, String> itemContentHashesByKey = offlineItemContentHashes(itemsNode);
         for (JsonNode snapshotNode : assetSnapshotsNode) {
             if (snapshotNode == null || !snapshotNode.isObject()) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照必须是对象");
             }
             VersionedAssetType assetType = parseAssetType(requireText(snapshotNode, "assetType", "离线包资产快照缺少 assetType"));
             String assetId = requireText(snapshotNode, "assetId", "离线包资产快照缺少 assetId");
-            String assetVersion = requireText(snapshotNode, "assetVersion", "离线包资产快照缺少 assetVersion");
+            String effectiveVersion = requireText(snapshotNode, "effectiveVersion", "离线包资产快照缺少 effectiveVersion");
+            String itemSourceTenantId = requireText(snapshotNode, "sourceTenantId", "离线包资产快照缺少 sourceTenantId");
+            validateOfflineItemSourceLineage(tenantId, itemSourceTenantId);
+            String contentHash = requireText(snapshotNode, "contentHash", "离线包资产快照缺少 contentHash");
+            if (!contentHash.matches("[a-f0-9]{64}")) {
+                throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产版本 contentHash 格式不合法");
+            }
             String contentSha256 = requireText(snapshotNode, "contentSha256", "离线包资产快照缺少 contentSha256");
             if (!contentSha256.matches("[a-f0-9]{64}")) {
                 throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产内容摘要格式不合法");
@@ -1157,7 +1394,14 @@ public class PackageEngineService {
             if (!contentSha256.equals(actualSha256)) {
                 throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产内容摘要与实际内容不一致");
             }
-            String key = offlineAssetKey(assetType, assetId, assetVersion);
+            String key = offlineAssetKey(assetType, itemSourceTenantId, assetId, effectiveVersion);
+            String itemContentHash = itemContentHashesByKey.get(key);
+            if (itemContentHash == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产内容快照不在有效资产条目内: " + key);
+            }
+            if (!itemContentHash.equals(contentHash)) {
+                throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产内容快照 contentHash 与有效资产条目不一致");
+            }
             if (snapshotsByKey.putIfAbsent(key, snapshotNode) != null) {
                 throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产内容快照: " + key);
             }
@@ -1166,8 +1410,10 @@ public class PackageEngineService {
         for (JsonNode itemNode : itemsNode) {
             VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
             String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
-            String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
-            String key = offlineAssetKey(assetType, assetId, assetVersion);
+            String effectiveVersion = requireText(itemNode, "effectiveVersion", "离线包资产条目缺少 effectiveVersion");
+            String itemSourceTenantId = requireText(itemNode, "sourceTenantId", "离线包资产条目缺少 sourceTenantId");
+            validateOfflineItemSourceLineage(tenantId, itemSourceTenantId);
+            String key = offlineAssetKey(assetType, itemSourceTenantId, assetId, effectiveVersion);
             JsonNode snapshot = snapshotsByKey.get(key);
             if (snapshot == null) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包缺少资产内容快照: " + key);
@@ -1175,14 +1421,36 @@ public class PackageEngineService {
             importOfflineAssetSnapshot(
                 assetType,
                 assetId,
-                assetVersion,
+                effectiveVersion,
                 snapshot,
                 tenantId,
-                sourceTenantId,
+                itemSourceTenantId,
                 actor,
                 traceId,
                 now);
         }
+    }
+
+    private Map<String, String> offlineItemContentHashes(JsonNode itemsNode) {
+        Map<String, String> contentHashesByKey = new HashMap<>();
+        for (JsonNode itemNode : itemsNode) {
+            if (itemNode == null || !itemNode.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产条目必须是对象");
+            }
+            VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
+            String effectiveVersion = requireText(itemNode, "effectiveVersion", "离线包资产条目缺少 effectiveVersion");
+            String itemSourceTenantId = requireText(itemNode, "sourceTenantId", "离线包资产条目缺少 sourceTenantId");
+            String contentHash = requireText(itemNode, "contentHash", "离线包资产条目缺少 contentHash");
+            if (!contentHash.matches("[a-f0-9]{64}")) {
+                throw new ApiException(ErrorCode.ENG_EVID_002, "离线包资产条目 contentHash 格式不合法");
+            }
+            String key = offlineAssetKey(assetType, itemSourceTenantId, assetId, effectiveVersion);
+            if (contentHashesByKey.putIfAbsent(key, contentHash) != null) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产条目: " + key);
+            }
+        }
+        return contentHashesByKey;
     }
 
     private void importOfflineAssetSnapshot(
@@ -1202,12 +1470,13 @@ public class PackageEngineService {
         }
         switch (assetType) {
             case RULE -> importOfflineRuleSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
+            case PATHWAY -> importOfflinePathwaySnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case KNOWLEDGE -> importOfflineKnowledgeSnapshot(assetId, assetVersion, content, tenantId, actor, now);
             case TERMINOLOGY -> importOfflineTerminologySnapshot(assetId, assetVersion, content, tenantId, actor, now);
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
-                "离线包暂不支持完整资产内容迁移: " + assetType);
+                "配置包包含不允许迁移的资产类型: " + assetType);
         }
     }
 
@@ -1227,6 +1496,7 @@ public class PackageEngineService {
                 }
                 ensurePackageAssetPublished("规则", ruleContent.rule().status());
             }
+            case PATHWAY -> validateOfflinePathwayContent(assetId, assetVersion, content);
             case EVALUATION -> {
                 PackageOfflineEvaluationContent evaluationContent =
                     readOfflineContent(content, PackageOfflineEvaluationContent.class);
@@ -1273,10 +1543,11 @@ public class PackageEngineService {
                     throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射包 mappingCount 与映射快照数量不一致");
                 }
                 validateOfflineTerminologyMappings(terminologyContent.mappings());
+                validateOfflineTerminologySnapshots(terminologyContent);
             }
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
-                "离线包暂不支持完整资产内容迁移: " + assetType);
+                "配置包包含不允许迁移的资产类型: " + assetType);
         }
     }
 
@@ -1287,6 +1558,77 @@ public class PackageEngineService {
         }
     }
 
+    private void validateOfflinePathwayContent(
+            String assetId,
+            String assetVersion,
+            JsonNode content) {
+        PackageOfflinePathwayContent pathway =
+            readOfflineContent(content, PackageOfflinePathwayContent.class);
+        PackageOfflinePathwayTemplate template = pathway.template();
+        if (template == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径快照缺少 template");
+        }
+        if (!assetId.equals(template.templateId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径快照 templateId 与资产条目不一致");
+        }
+        if (template.templateVersion() == null
+                || !Integer.toString(template.templateVersion()).equals(assetVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径快照 templateVersion 与资产条目不一致");
+        }
+        if (normalizedText(template.packageId()) == null
+                || normalizedText(template.templateCode()) == null
+                || normalizedText(template.startNodeCode()) == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径模板缺少专病包、模板编码或起始节点");
+        }
+        ensurePackageAssetPublished("路径模板", template.status());
+        parseEnum(com.medkernel.engine.pathway.PathwayTemplateLevel.class,
+            template.templateLevel(), "路径模板层级");
+        parseEnum(com.medkernel.engine.pathway.PathwayTemplateStatus.class,
+            template.status(), "路径模板状态");
+        if (pathway.nodes().isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径快照至少需要一个节点");
+        }
+        Set<String> nodeCodes = new HashSet<>();
+        boolean hasTerminalNode = false;
+        for (PackageOfflinePathwayNode node : pathway.nodes()) {
+            if (normalizedText(node.nodeId()) == null || normalizedText(node.nodeCode()) == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径节点缺少业务 ID 或节点编码");
+            }
+            if (!nodeCodes.add(node.nodeCode())) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包路径节点编码重复: " + node.nodeCode());
+            }
+            parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class, node.nodeType(), "路径节点类型");
+            hasTerminalNode = hasTerminalNode || Boolean.TRUE.equals(node.terminalFlag());
+        }
+        if (!nodeCodes.contains(template.startNodeCode())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径起始节点不存在: " + template.startNodeCode());
+        }
+        if (!hasTerminalNode) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径缺少终止节点");
+        }
+        Set<String> edgeCodes = new HashSet<>();
+        for (PackageOfflinePathwayEdge edge : pathway.edges()) {
+            if (normalizedText(edge.edgeId()) == null || normalizedText(edge.edgeCode()) == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径边缺少业务 ID 或边编码");
+            }
+            if (!edgeCodes.add(edge.edgeCode())) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包路径边编码重复: " + edge.edgeCode());
+            }
+            if (!nodeCodes.contains(edge.fromNodeCode()) || !nodeCodes.contains(edge.toNodeCode())) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径边引用不存在的节点: " + edge.edgeCode());
+            }
+            parseEnum(com.medkernel.engine.pathway.PathwayEdgeType.class, edge.edgeType(), "路径边类型");
+        }
+        for (PackageOfflinePathwayMetricBinding binding : pathway.metricBindings()) {
+            if (!nodeCodes.contains(binding.nodeCode())) {
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径指标绑定引用不存在的节点: " + binding.nodeCode()
+                );
+            }
+        }
+    }
+
     private void validateOfflineTerminologyMappings(List<PackageOfflineTermMapping> mappings) {
         for (PackageOfflineTermMapping mapping : mappings) {
             try {
@@ -1294,6 +1636,33 @@ public class PackageEngineService {
             } catch (IllegalArgumentException ex) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                     "离线包术语映射枚举不合法: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void validateOfflineTerminologySnapshots(PackageOfflineTerminologyContent content) {
+        if (content.items().size() != content.mappings().size()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射与不可变快照数量不一致");
+        }
+        for (int index = 0; index < content.mappings().size(); index++) {
+            PackageOfflineTermMapping mapping = content.mappings().get(index);
+            TermMappingSnapshot snapshot;
+            try {
+                snapshot = TermMappingSnapshotCodec.read(content.items().get(index).mappingSnapshot());
+            } catch (ApiException exception) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射不可变快照结构不合法");
+            }
+            if (!Objects.equals(mapping.localTermId(), snapshot.localTermId())
+                    || !Objects.equals(mapping.standardTermId(), snapshot.standardTermId())
+                    || !Objects.equals(mapping.sourceSystem(), snapshot.sourceSystem())
+                    || !Objects.equals(mapping.category(), snapshot.category())
+                    || !Objects.equals(mapping.confidence(), snapshot.confidence())
+                    || !Objects.equals(mapping.riskLevel(), snapshot.riskLevel())
+                    || !Objects.equals(mapping.status(), snapshot.status())
+                    || !Objects.equals(mapping.evidenceText(), snapshot.evidenceText())
+                    || !Objects.equals(mapping.confirmedBy(), snapshot.confirmedBy())
+                    || !Objects.equals(mapping.confirmedAt(), snapshot.confirmedAt())) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包术语映射与不可变快照业务键不一致");
             }
         }
     }
@@ -1421,6 +1790,121 @@ public class PackageEngineService {
             actor,
             traceId
         ));
+    }
+
+    private void importOfflinePathwaySnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        validateOfflinePathwayContent(assetId, assetVersion, content);
+        PackageOfflinePathwayContent pathway =
+            readOfflineContent(content, PackageOfflinePathwayContent.class);
+
+        Optional<PathwayTemplate> existingTemplate =
+            pathwayRepository.findByTemplateIdAndTenantId(assetId, tenantId);
+        if (existingTemplate.isPresent()) {
+            ensureLocalSnapshotMatches(
+                "路径模板",
+                assetId,
+                content,
+                buildPathwayAssetContent(
+                    existingTemplate.get(),
+                    pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                        assetId, tenantId),
+                    pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
+                        assetId, tenantId),
+                    pathwayMetricBindingRepository.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+                        assetId, tenantId)
+                )
+            );
+            return;
+        }
+
+        PackageOfflinePathwayTemplate template = pathway.template();
+        pathwayRepository.save(new PathwayTemplate(
+            null,
+            template.templateId(),
+            tenantId,
+            template.packageId(),
+            template.templateCode(),
+            template.name(),
+            template.diseaseCode(),
+            template.templateVersion(),
+            parseEnum(com.medkernel.engine.pathway.PathwayTemplateLevel.class,
+                template.templateLevel(), "路径模板层级"),
+            parseEnum(com.medkernel.engine.pathway.PathwayTemplateStatus.class,
+                template.status(), "路径模板状态"),
+            template.startNodeCode(),
+            template.sourceRef(),
+            template.description(),
+            template.entryCriteriaJson(),
+            template.exitCriteriaJson(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+        pathway.nodes().forEach(node -> pathwayNodeRepository.save(new PathwayNode(
+            null,
+            node.nodeId(),
+            tenantId,
+            assetId,
+            node.nodeCode(),
+            node.name(),
+            parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class,
+                node.nodeType(), "路径节点类型"),
+            node.sortOrder(),
+            node.responsibleRole(),
+            node.dependencyJson(),
+            node.timeWindowMinutes(),
+            node.terminalFlag(),
+            node.configJson(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        )));
+        pathway.edges().forEach(edge -> pathwayEdgeRepository.save(new PathwayEdge(
+            null,
+            edge.edgeId(),
+            tenantId,
+            assetId,
+            edge.edgeCode(),
+            edge.fromNodeCode(),
+            edge.toNodeCode(),
+            parseEnum(com.medkernel.engine.pathway.PathwayEdgeType.class,
+                edge.edgeType(), "路径边类型"),
+            edge.conditionJson(),
+            edge.priority(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        )));
+        pathway.metricBindings().forEach(binding ->
+            pathwayMetricBindingRepository.save(new SpecialtyMetricBinding(
+                null,
+                binding.bindingId(),
+                tenantId,
+                binding.packageId(),
+                assetId,
+                binding.nodeCode(),
+                binding.metricCode(),
+                binding.requiredFlag(),
+                now,
+                actor,
+                now,
+                actor,
+                traceId
+            ))
+        );
     }
 
     private void importOfflineKnowledgeSnapshot(
@@ -1588,27 +2072,23 @@ public class PackageEngineService {
             savedMappings.add(savedMapping);
         }
 
+        if (terminologyContent.items().size() != savedMappings.size()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "术语离线包映射与不可变快照数量不一致");
+        }
         for (int i = 0; i < savedMappings.size(); i++) {
             TermMapping savedMapping = savedMappings.get(i);
-            String mappingSnapshot = i < terminologyContent.items().size()
-                ? terminologyContent.items().get(i).mappingSnapshot()
-                : termMappingSnapshot(savedMapping);
-            terminologyPackageItemRepository.save(new TermMappingPackageItem(
-                null,
-                tenantId,
-                savedPackage.id(),
-                savedMapping.id(),
-                mappingSnapshot,
-                now,
-                actor
+            String mappingSnapshot = terminologyContent.items().get(i).mappingSnapshot();
+            TermMappingSnapshot snapshot = TermMappingSnapshotCodec.read(mappingSnapshot)
+                .withPersistenceIds(
+                    savedMapping.id(),
+                    savedMapping.localTermId(),
+                    savedMapping.standardTermId()
+                );
+            String persistedSnapshot = TermMappingSnapshotCodec.write(snapshot);
+            terminologyPackageItemRepository.save(TermMappingPackageItem.fromSnapshot(
+                tenantId, savedPackage.id(), savedMapping.id(), snapshot, persistedSnapshot, now, actor
             ));
         }
-    }
-
-    private String termMappingSnapshot(TermMapping mapping) {
-        return "{\"localTermId\":" + mapping.localTermId()
-            + ",\"standardTermId\":" + mapping.standardTermId()
-            + ",\"status\":\"" + mapping.statusName() + "\"}";
     }
 
     private <T> T readOfflineContent(JsonNode content, Class<T> type) {
@@ -1683,6 +2163,84 @@ public class PackageEngineService {
             "离线包仅允许本租户恢复，或从平台主租户下发到客户 / 集团租户");
     }
 
+    private void validateOfflineItemSourceLineage(String currentTenantId, String itemSourceTenantId) {
+        if (currentTenantId.equals(itemSourceTenantId)) {
+            return;
+        }
+        if (PlatformTenant.isPlatformTenant(itemSourceTenantId) && !PlatformTenant.isPlatformTenant(currentTenantId)) {
+            return;
+        }
+        throw new ApiException(
+            ErrorCode.TENANT_FORBIDDEN,
+            "离线包资产来源租户不允许导入当前租户: " + itemSourceTenantId);
+    }
+
+    private void validateEffectiveSnapshot(
+            EffectivePackageSnapshot snapshot,
+            String sourcePackageId,
+            String packageCode,
+            String packageVersion,
+            String targetOrgUnitId,
+            String declaredSha256) {
+        if (snapshot == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包有效快照不能为空");
+        }
+        if (!declaredSha256.matches("[a-f0-9]{64}")) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "离线包 effectiveSnapshotSha256 格式不合法");
+        }
+        if (!sourcePackageId.equals(snapshot.packageId())
+                || !packageCode.equals(snapshot.packageCode())
+                || !packageVersion.equals(snapshot.packageVersion())
+                || !targetOrgUnitId.equals(snapshot.targetOrgUnitId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包有效快照与包元信息不一致");
+        }
+        String actualSha256 = EffectivePackageSnapshot.from(new EffectiveKnowledgePackageResponse(
+            snapshot.tenantId(),
+            snapshot.targetOrgUnitId(),
+            snapshot.packageId(),
+            snapshot.packageCode(),
+            snapshot.packageVersion(),
+            snapshot.items(),
+            snapshot.excludedItems(),
+            snapshot.warnings()
+        )).contentSha256();
+        if (!declaredSha256.equals(snapshot.contentSha256()) || !actualSha256.equals(snapshot.contentSha256())) {
+            throw new ApiException(ErrorCode.ENG_EVID_002, "离线包有效快照摘要与实际内容不一致");
+        }
+    }
+
+    private void validateOfflineItemsMatchEffectiveSnapshot(
+            JsonNode itemsNode,
+            String sourcePackageId,
+            EffectivePackageSnapshot snapshot) {
+        Map<String, EffectivePackageItem> effectiveItemsByKey = new HashMap<>();
+        for (EffectivePackageItem item : snapshot.items()) {
+            String key = offlineAssetKey(
+                item.assetType(), item.sourceTenantId(), item.assetId(), item.effectiveVersion());
+            if (effectiveItemsByKey.putIfAbsent(key, item) != null) {
+                throw new ApiException(ErrorCode.CONFLICT, "离线包有效快照内存在重复资产条目: " + key);
+            }
+        }
+        for (JsonNode itemNode : itemsNode) {
+            VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
+            String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
+            String effectiveVersion = requireText(itemNode, "effectiveVersion", "离线包资产条目缺少 effectiveVersion");
+            String itemSourceTenantId = requireText(itemNode, "sourceTenantId", "离线包资产条目缺少 sourceTenantId");
+            requireSameText(itemNode, "packageId", sourcePackageId, "离线包资产条目 packageId 与包元信息不一致");
+            String key = offlineAssetKey(assetType, itemSourceTenantId, assetId, effectiveVersion);
+            EffectivePackageItem effectiveItem = effectiveItemsByKey.remove(key);
+            if (effectiveItem == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产条目不在有效快照内: " + key);
+            }
+            requireSameText(itemNode, "declaredVersion", effectiveItem.declaredVersion(), "离线包资产条目声明版本与有效快照不一致");
+            requireSameText(itemNode, "sourceVersionId", effectiveItem.sourceVersionId(), "离线包资产条目来源版本指针与有效快照不一致");
+            requireSameText(itemNode, "contentHash", effectiveItem.contentHash(), "离线包资产条目内容哈希与有效快照不一致");
+        }
+        if (!effectiveItemsByKey.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包缺少有效快照资产条目: " + effectiveItemsByKey.keySet());
+        }
+    }
+
     private void validateManifestPayloadMatch(
             JsonNode manifest,
             JsonNode packageInfo,
@@ -1705,29 +2263,28 @@ public class PackageEngineService {
     private List<PackageItem> buildOfflineImportItems(
             JsonNode itemsNode,
             String tenantId,
-            String sourceTenantId,
             String importedPackageId,
             String sourcePackageId,
             String actor,
             String traceId,
-            Instant now,
-            boolean platformSourceReference) {
+            Instant now) {
         List<PackageItem> items = new ArrayList<>();
         Set<String> uniqueAssets = new HashSet<>();
         for (JsonNode itemNode : itemsNode) {
             if (itemNode == null || !itemNode.isObject()) {
                 throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包资产条目必须是对象");
             }
-            requireSameText(itemNode, "tenantId", sourceTenantId, "离线包资产条目租户与源租户不一致");
             requireSameText(itemNode, "packageId", sourcePackageId, "离线包资产条目 packageId 与包元信息不一致");
             VersionedAssetType assetType = parseAssetType(requireText(itemNode, "assetType", "离线包资产条目缺少 assetType"));
             String assetId = requireText(itemNode, "assetId", "离线包资产条目缺少 assetId");
-            String assetVersion = requireText(itemNode, "assetVersion", "离线包资产条目缺少 assetVersion");
-            String assetKey = assetType.name() + ":" + assetId;
+            String assetVersion = requireText(itemNode, "effectiveVersion", "离线包资产条目缺少 effectiveVersion");
+            String itemSourceTenantId = requireText(itemNode, "sourceTenantId", "离线包资产条目缺少 sourceTenantId");
+            validateOfflineItemSourceLineage(tenantId, itemSourceTenantId);
+            String assetKey = offlineAssetKey(assetType, itemSourceTenantId, assetId, assetVersion);
             if (!uniqueAssets.add(assetKey)) {
                 throw new ApiException(ErrorCode.CONFLICT, "离线包内存在重复资产条目: " + assetKey);
             }
-            if (!platformSourceReference) {
+            if (!isPlatformSourceReferenceImport(tenantId, itemSourceTenantId)) {
                 validateAssetStatus(tenantId, assetType, assetId, assetVersion);
             }
 
@@ -1769,8 +2326,12 @@ public class PackageEngineService {
         }
     }
 
-    private String offlineAssetKey(VersionedAssetType assetType, String assetId, String assetVersion) {
-        return assetType.name() + ":" + assetId + ":" + assetVersion;
+    private String offlineAssetKey(
+            VersionedAssetType assetType,
+            String sourceTenantId,
+            String assetId,
+            String assetVersion) {
+        return assetType.name() + ":" + sourceTenantId + ":" + assetId + ":" + assetVersion;
     }
 
     private static String enumName(Enum<?> value) {
@@ -1885,8 +2446,12 @@ public class PackageEngineService {
         String packageCode,
         String packageVersion,
         KnowledgePackageStatus status,
+        String targetOrgUnitId,
+        String effectiveSnapshotSha256,
         int itemCount,
         int assetSnapshotCount,
+        int excludedItemCount,
+        int warningCount,
         String hashAlgorithm,
         String payloadSha256,
         String exportedAt,
@@ -1895,6 +2460,7 @@ public class PackageEngineService {
 
     private record PackageOfflinePayload(
         PackageOfflinePackageInfo packageInfo,
+        EffectivePackageSnapshot effectiveSnapshot,
         List<PackageOfflineItem> items,
         List<PackageOfflineAssetSnapshot> assetSnapshots
     ) {}
@@ -1902,7 +2468,11 @@ public class PackageEngineService {
     private record PackageOfflineAssetSnapshot(
         VersionedAssetType assetType,
         String assetId,
-        String assetVersion,
+        String declaredVersion,
+        String effectiveVersion,
+        String sourceTenantId,
+        String sourceVersionId,
+        String contentHash,
         String contentSha256,
         JsonNode content
     ) {}
@@ -1940,31 +2510,35 @@ public class PackageEngineService {
     }
 
     private record PackageOfflineItem(
-        String itemId,
-        String tenantId,
         String packageId,
         VersionedAssetType assetType,
         String assetId,
-        String assetVersion,
-        String createdAt,
-        String createdBy,
-        String updatedAt,
-        String updatedBy,
-        String traceId
+        String declaredVersion,
+        String effectiveVersion,
+        String sourceTenantId,
+        String sourceOrgPath,
+        SourceTier sourceTier,
+        boolean inherited,
+        boolean overridden,
+        boolean resolvedByUnifiedVersioning,
+        String sourceVersionId,
+        String contentHash
     ) {
-        static PackageOfflineItem from(PackageItem item) {
+        static PackageOfflineItem from(String packageId, EffectivePackageItem item) {
             return new PackageOfflineItem(
-                item.itemId(),
-                item.tenantId(),
-                item.packageId(),
+                packageId,
                 item.assetType(),
                 item.assetId(),
-                item.assetVersion(),
-                instantText(item.createdAt()),
-                item.createdBy(),
-                instantText(item.updatedAt()),
-                item.updatedBy(),
-                item.traceId()
+                item.declaredVersion(),
+                item.effectiveVersion(),
+                item.sourceTenantId(),
+                item.sourceOrgPath(),
+                item.sourceTier(),
+                item.inherited(),
+                item.overridden(),
+                item.resolvedByUnifiedVersioning(),
+                item.sourceVersionId(),
+                item.contentHash()
             );
         }
     }
@@ -2002,6 +2576,66 @@ public class PackageEngineService {
         String publishedAt,
         String publishedBy,
         String rollbackVersionId
+    ) {}
+
+    private record PackageOfflinePathwayContent(
+        PackageOfflinePathwayTemplate template,
+        List<PackageOfflinePathwayNode> nodes,
+        List<PackageOfflinePathwayEdge> edges,
+        List<PackageOfflinePathwayMetricBinding> metricBindings
+    ) {
+        PackageOfflinePathwayContent {
+            nodes = nodes == null ? List.of() : List.copyOf(nodes);
+            edges = edges == null ? List.of() : List.copyOf(edges);
+            metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
+        }
+    }
+
+    private record PackageOfflinePathwayTemplate(
+        String templateId,
+        String packageId,
+        String templateCode,
+        String name,
+        String diseaseCode,
+        Integer templateVersion,
+        String templateLevel,
+        String status,
+        String startNodeCode,
+        String sourceRef,
+        String description,
+        String entryCriteriaJson,
+        String exitCriteriaJson
+    ) {}
+
+    private record PackageOfflinePathwayNode(
+        String nodeId,
+        String nodeCode,
+        String name,
+        String nodeType,
+        Integer sortOrder,
+        String responsibleRole,
+        String dependencyJson,
+        Integer timeWindowMinutes,
+        Boolean terminalFlag,
+        String configJson
+    ) {}
+
+    private record PackageOfflinePathwayEdge(
+        String edgeId,
+        String edgeCode,
+        String fromNodeCode,
+        String toNodeCode,
+        String edgeType,
+        String conditionJson,
+        Integer priority
+    ) {}
+
+    private record PackageOfflinePathwayMetricBinding(
+        String bindingId,
+        String packageId,
+        String nodeCode,
+        String metricCode,
+        Boolean requiredFlag
     ) {}
 
     private record PackageOfflineEvaluationContent(
@@ -2125,6 +2759,12 @@ public class PackageEngineService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "知识包不存在: " + packageId));
 
         assertPackageReadyForRelease(packageId);
+        EffectivePackageSnapshot effectiveSnapshot = buildEffectiveSnapshot(
+            tenantId, pack, releaseRequest.targetOrgUnitId());
+        AssetVersion packageAsset = prepareUnifiedPackageRelease(pack);
+        VersionReleaseCommand unifiedRelease = packageReleaseCommand(
+            pack, packageAsset, effectiveSnapshot, releaseRequest, normalizedScope, actor, traceId);
+        preparePackageReleaseStatus(packageAsset, unifiedRelease);
 
         // 创建发布计划（独立小事务中写库）
         ReleasePlan plan = new ReleasePlan(
@@ -2151,9 +2791,9 @@ public class PackageEngineService {
         boolean anyNotSynced = false;
         boolean anyFailed = false;
 
-        for (String targetId : request.targetIds()) {
-            SyncTarget target = targetRepository.findByTargetIdAndTenantId(targetId, tenantId)
-                .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "同步通道目标不存在: " + targetId));
+        for (String adapterId : request.adapterIds()) {
+            IntegrationAdapter adapter = adapterRepository.findByAdapterIdAndTenantId(adapterId, tenantId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ENG_PACKAGE_001, "同步适配器不存在: " + adapterId));
 
             // 小事务1：插入同步初始 RUNNING 日志
             SyncLog savedLog = transactionTemplate.execute(status -> {
@@ -2162,7 +2802,7 @@ public class PackageEngineService {
                     UUID.randomUUID().toString(),
                     tenantId,
                     savedPlan.planId(),
-                    targetId,
+                    adapterId,
                     SyncLogStatus.RUNNING,
                     null, null, 0, null,
                     Instant.now(), actor, Instant.now(), actor, traceId
@@ -2175,12 +2815,14 @@ public class PackageEngineService {
 
             try {
                 // 事务外部安全执行：同步发布（包含长 IO）
-                evidence = syncPort.sync(tenantId, savedPlan, target);
+                evidence = syncPort.sync(tenantId, savedPlan, adapter, effectiveSnapshot);
+                requireAdapterEvidence(evidence, "同步未返回同步证据: " + adapterId);
+                evidence = syncEvidenceWithSnapshot(evidence, effectiveSnapshot);
             } catch (Exception e) {
                 if (e instanceof PackageSyncNotConnectedException) {
-                    log.warn("同步发布未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                    log.warn("同步发布未接入真实同步适配器, adapterId: {}, reason: {}", adapterId, e.getMessage());
                 } else {
-                    log.error("同步发布失败, targetId: {}", targetId, e);
+                    log.error("同步发布失败, adapterId: {}", adapterId, e);
                 }
                 syncError = e;
             }
@@ -2196,7 +2838,7 @@ public class PackageEngineService {
                         savedLog.logId(),
                         tenantId,
                         savedPlan.planId(),
-                        targetId,
+                        adapterId,
                         SyncLogStatus.SUCCESS,
                         null, null, 0, finalEvidence,
                         savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
@@ -2208,7 +2850,7 @@ public class PackageEngineService {
                         savedLog.logId(),
                         tenantId,
                         savedPlan.planId(),
-                        targetId,
+                        adapterId,
                         SyncLogStatus.NOT_SYNCED,
                         PackageSyncNotConnectedException.CODE,
                         finalError.getMessage(),
@@ -2222,7 +2864,7 @@ public class PackageEngineService {
                         savedLog.logId(),
                         tenantId,
                         savedPlan.planId(),
-                        targetId,
+                        adapterId,
                         SyncLogStatus.FAILED,
                         "ENG-PACKAGE-005",
                         finalError.getMessage(),
@@ -2254,6 +2896,13 @@ public class PackageEngineService {
         transactionTemplate.executeWithoutResult(status -> {
             planRepository.save(savedPlan.withStatus(finalStatus));
 
+            if (finalAllSuccess) {
+                if (releaseRequest.strategy() == ReleaseStrategy.FULL) {
+                    releasePort.releaseFull(unifiedRelease);
+                } else {
+                    releasePort.releaseGray(unifiedRelease);
+                }
+            }
             if (releaseRequest.strategy() == ReleaseStrategy.FULL && finalAllSuccess) {
                 // 原子切换：仅失效相同 packageCode 的 ACTIVE 知识包，不污染其他病种包
                 List<KnowledgePackage> activePacks = packageRepository.findByTenantIdOrderByUpdatedAtDesc(tenantId).stream()
@@ -2274,10 +2923,10 @@ public class PackageEngineService {
 
         // 事务外部：发布审计事实日志，确保子事务安全
         if (releaseRequest.strategy() == ReleaseStrategy.FULL && allSuccess) {
-            auditPublisher.publish(AuditAction.PUBLISH, "knowledge_package", packageId, 
+            auditRecorder.record(AuditAction.PUBLISH, "knowledge_package", packageId,
                 "知识包发布并同步全量成功: " + pack.name() + " (" + pack.packageVersion() + ")");
         } else {
-            auditPublisher.publish(AuditAction.PUBLISH, "knowledge_package", packageId, 
+            auditRecorder.record(AuditAction.PUBLISH, "knowledge_package", packageId,
                 "知识包发布计划执行完成, 策略为: " + releaseRequest.strategy()
                     + ", 作用域为: " + normalizedScope.scopeType()
                     + ", 状态为: " + finalStatus);
@@ -2296,11 +2945,92 @@ public class PackageEngineService {
         if (request.targetOrgUnitId() == null || request.targetOrgUnitId().isBlank()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "目标组织 ID 不能为空");
         }
+        if (request.reason() == null || request.reason().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "发布说明不能为空");
+        }
         return request;
     }
 
+    private AssetVersion prepareUnifiedPackageRelease(KnowledgePackage pack) {
+        AssetVersion assetVersion = assetVersions
+            .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                pack.tenantId(),
+                VersionedAssetType.PACKAGE,
+                packageAssetIdentity(pack),
+                pack.packageVersion()
+            )
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "配置包缺少统一资产版本，禁止发布: "
+                    + pack.packageCode() + "@" + pack.packageVersion()
+            ));
+        return assetVersion;
+    }
+
+    private void preparePackageReleaseStatus(
+            AssetVersion assetVersion,
+            VersionReleaseCommand command) {
+        if (assetVersion.status() == AssetVersionStatus.DRAFT) {
+            releasePort.submitForReview(command);
+            releasePort.approveForSilentObservation(command);
+        } else if (assetVersion.status() == AssetVersionStatus.PENDING_REVIEW) {
+            releasePort.approveForSilentObservation(command);
+        } else if (assetVersion.status() != AssetVersionStatus.PUBLISHED
+                && assetVersion.status() != AssetVersionStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "统一配置包版本状态不允许发布");
+        }
+    }
+
+    private VersionReleaseCommand packageReleaseCommand(
+            KnowledgePackage pack,
+            AssetVersion assetVersion,
+            EffectivePackageSnapshot snapshot,
+            PackageSyncRequest request,
+            ReleaseScope scope,
+            String actor,
+            String traceId) {
+        return new VersionReleaseCommand(
+            pack.tenantId(),
+            VersionedAssetType.PACKAGE,
+            packageAssetIdentity(pack),
+            assetVersion.versionId(),
+            assetVersion.organizationScope(),
+            "ALL",
+            request.strategy() == ReleaseStrategy.FULL
+                ? VersionReleaseScopeType.ALL
+                : VersionReleaseScopeType.valueOf(scope.scopeType().name()),
+            request.strategy() == ReleaseStrategy.FULL ? null : scope.scopeValue(),
+            snapshot.contentSha256(),
+            request.reason().trim(),
+            List.of(),
+            actor,
+            traceId
+        );
+    }
+
+    private AssetVersion requirePackageAsset(KnowledgePackage pack) {
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            pack.tenantId(),
+            VersionedAssetType.PACKAGE,
+            packageAssetIdentity(pack),
+            pack.packageVersion()
+        ).orElseThrow(() -> new ApiException(
+            ErrorCode.ENG_PACKAGE_002,
+            "配置包缺少统一资产版本，禁止回滚"
+        ));
+    }
+
+    private String packageAssetIdentity(KnowledgePackage pack) {
+        return pack.packageCode();
+    }
+
+    private String packageOrganizationScope(KnowledgePackage pack) {
+        return "tenant:" + pack.tenantId();
+    }
+
     private void validateReleaseAuthorization(PackageSyncRequest request) {
-        if (request.strategy() == ReleaseStrategy.FULL && !hasHospitalAdminRole(request.roleCodes())) {
+        if (request.strategy() == ReleaseStrategy.FULL
+                && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "配置包直接全量发布必须由院级管理员确认");
         }
     }
@@ -2323,20 +3053,10 @@ public class PackageEngineService {
     private ReleaseScope defaultGrayScope(String targetOrgUnitId) {
         String scopeCode = normalizedText(targetOrgUnitId);
         ObjectNode scope = PACKAGE_JSON_MAPPER.createObjectNode();
-        scope.put("strategy", DEFAULT_GRAY_SCOPE_STRATEGY);
+        scope.put("rolloutStrategy", DEFAULT_GRAY_SCOPE_STRATEGY.name());
         scope.put("percentage", DEFAULT_GRAY_SCOPE_PERCENTAGE);
         scope.put("scopeCode", scopeCode);
         return new ReleaseScope(ReleaseScopeType.HOSPITAL, scope.toString());
-    }
-
-    private boolean hasHospitalAdminRole(List<String> roleCodes) {
-        return roleCodes == null ? false : roleCodes.stream()
-            .map(role -> role == null ? "" : role.trim().toUpperCase(Locale.ROOT)
-                .replace('-', '_').replace('.', '_'))
-            .anyMatch(role -> role.equals("HOSPITAL_ADMIN")
-                || role.equals("ROLE_HOSPITAL_ADMIN")
-                || role.equals("TENANT_ADMIN")
-                || role.equals("ROLE_TENANT_ADMIN"));
     }
 
     private String normalizedText(String value) {
@@ -2494,20 +3214,36 @@ public class PackageEngineService {
         );
         ReleasePlan savedPlan = transactionTemplate.execute(status -> planRepository.save(rollbackPlan));
 
-        RollbackProjectionResult projectionResult = projectRollbackToOriginalTargets(
-            tenantId, savedPlan, rollbackScope.targetIds(), actor, traceId);
-
+        EffectivePackageSnapshot rollbackSnapshot = buildEffectiveSnapshot(
+            tenantId, targetRollback, rollbackScope.originalPlan().targetOrgUnitId());
+        RollbackProjectionResult projectionResult = projectRollbackToOriginalAdapters(
+            tenantId, savedPlan, rollbackScope.adapterIds(), rollbackSnapshot, actor, traceId);
         final KnowledgePackage[] savedTargetHolder = new KnowledgePackage[1];
         transactionTemplate.executeWithoutResult(status -> {
             planRepository.save(savedPlan.withStatus(projectionResult.finalStatus()));
             if (projectionResult.allSuccess()) {
+                AssetVersion currentVersion = requirePackageAsset(currentActive);
+                AssetVersion targetVersion = requirePackageAsset(targetRollback);
+                releasePort.rollback(new VersionRollbackCommand(
+                    tenantId,
+                    VersionedAssetType.PACKAGE,
+                    packageAssetIdentity(currentActive),
+                    currentVersion.versionId(),
+                    targetVersion.versionId(),
+                    currentActive.packageVersion(),
+                    targetRollback.packageVersion(),
+                    rollbackReason,
+                    rollbackRequest.confirmedHighRisk(),
+                    actor,
+                    traceId
+                ));
                 packageRepository.save(currentActive.withStatus(KnowledgePackageStatus.OFFLINE));
                 savedTargetHolder[0] = packageRepository.save(targetRollback.withStatus(KnowledgePackageStatus.ACTIVE));
             }
         });
 
         if (!projectionResult.allSuccess()) {
-            auditPublisher.publish(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
+            auditRecorder.record(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
                 "一键回滚包版本从 " + currentActive.packageVersion()
                     + " 回退到 " + targetRollback.packageVersion()
                     + " 失败，发布计划状态: " + projectionResult.finalStatus()
@@ -2517,7 +3253,7 @@ public class PackageEngineService {
         }
 
         // 异步发布回滚审计事实存证
-        auditPublisher.publish(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
+        auditRecorder.record(AuditAction.ROLLBACK, "knowledge_package", targetPackageId,
             "一键回滚包版本从 " + currentActive.packageVersion()
                 + " 回退到 " + targetRollback.packageVersion()
                 + "，原因: " + rollbackReason
@@ -2527,15 +3263,53 @@ public class PackageEngineService {
     }
 
     /**
-     * 获取当前租户下状态为 ACTIVE 的所有同步目标列表。
+     * 获取当前租户下可用于配置包发布的启用适配器。
      *
-     * @return 状态为 ACTIVE 的同步目标实体列表
+     * @return 发布适配器列表
      */
     @Transactional(readOnly = true)
-    public List<SyncTarget> listSyncTargets() {
+    public List<PackageReleaseAdapterResponse> listReleaseAdapters() {
         String tenantId = currentTenantId();
-        return targetRepository.findByTenantIdAndStatus(tenantId, SyncTargetStatus.ACTIVE);
+        return adapterRepository.findAllByTenantId(tenantId).stream()
+            .filter(adapter -> "ACTIVE".equalsIgnoreCase(adapter.status()))
+            .map(adapter -> PackageReleaseAdapterResponse.from(adapter, syncPort.supports(adapter)))
+            .toList();
     }
+
+    private EffectivePackageSnapshot buildEffectiveSnapshot(
+            String tenantId,
+            KnowledgePackage pack,
+            String targetOrgUnitId) {
+        return EffectivePackageSnapshot.from(effectivePackageResolver.resolve(
+            tenantId, pack.packageCode(), pack.packageVersion(), targetOrgUnitId));
+    }
+
+    private String syncEvidenceWithSnapshot(String adapterEvidence, EffectivePackageSnapshot snapshot) {
+        try {
+            return PACKAGE_JSON_MAPPER.writeValueAsString(new PackageSyncSnapshotEvidence(
+                snapshot.contentSha256(),
+                snapshot.items().size(),
+                snapshot.excludedItems().size(),
+                snapshot.warnings(),
+                adapterEvidence));
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "同步证据快照序列化失败", e);
+        }
+    }
+
+    private void requireAdapterEvidence(String adapterEvidence, String message) {
+        if (adapterEvidence == null || adapterEvidence.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_005, message);
+        }
+    }
+
+    private record PackageSyncSnapshotEvidence(
+        String effectiveSnapshotSha256,
+        int effectiveItemCount,
+        int excludedItemCount,
+        List<String> warnings,
+        String adapterEvidence
+    ) {}
 
     // ────────────────────────── 辅助支撑逻辑 ──────────────────────────
 
@@ -2596,23 +3370,24 @@ public class PackageEngineService {
             .toList();
 
         for (ReleasePlan plan : reusablePlans) {
-            List<String> targetIds = logRepository.findByTenantIdAndPlanId(tenantId, plan.planId()).stream()
+            List<String> adapterIds = logRepository.findByTenantIdAndPlanId(tenantId, plan.planId()).stream()
                 .filter(syncLog -> syncLog.status() == SyncLogStatus.SUCCESS)
-                .map(SyncLog::targetId)
+                .map(SyncLog::adapterId)
                 .distinct()
                 .toList();
-            if (!targetIds.isEmpty()) {
-                return new RollbackSyncScope(plan, targetIds);
+            if (!adapterIds.isEmpty()) {
+                return new RollbackSyncScope(plan, adapterIds);
             }
         }
 
-        throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前在用包缺少成功同步目标记录，不能执行回滚");
+        throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前在用包缺少成功发布适配器记录，不能执行回滚");
     }
 
-    private RollbackProjectionResult projectRollbackToOriginalTargets(
+    private RollbackProjectionResult projectRollbackToOriginalAdapters(
             String tenantId,
             ReleasePlan savedPlan,
-            List<String> targetIds,
+            List<String> adapterIds,
+            EffectivePackageSnapshot rollbackSnapshot,
             String actor,
             String traceId) {
         boolean anySuccess = false;
@@ -2620,14 +3395,14 @@ public class PackageEngineService {
         boolean anyNotSynced = false;
         boolean anyFailed = false;
 
-        for (String targetId : targetIds) {
+        for (String adapterId : adapterIds) {
             SyncLog savedLog = transactionTemplate.execute(status -> {
                 SyncLog syncLog = new SyncLog(
                     null,
                     UUID.randomUUID().toString(),
                     tenantId,
                     savedPlan.planId(),
-                    targetId,
+                    adapterId,
                     SyncLogStatus.RUNNING,
                     null, null, 0, null,
                     Instant.now(), actor, Instant.now(), actor, traceId
@@ -2637,20 +3412,22 @@ public class PackageEngineService {
 
             String evidence = null;
             Exception syncError = null;
-            Optional<SyncTarget> target = targetRepository.findByTargetIdAndTenantId(targetId, tenantId);
-            if (target.isEmpty()) {
-                syncError = new ApiException(ErrorCode.ENG_PACKAGE_001, "回滚同步通道目标不存在: " + targetId);
+            Optional<IntegrationAdapter> adapter = adapterRepository.findByAdapterIdAndTenantId(adapterId, tenantId);
+            if (adapter.isEmpty()) {
+                syncError = new ApiException(ErrorCode.ENG_PACKAGE_001, "回滚同步适配器不存在: " + adapterId);
             } else {
                 try {
-                    evidence = syncPort.sync(tenantId, savedPlan, target.get());
+                    evidence = syncPort.sync(tenantId, savedPlan, adapter.get(), rollbackSnapshot);
                     if (evidence == null || evidence.isBlank()) {
-                        syncError = new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚同步未返回同步证据: " + targetId);
+                        syncError = new ApiException(ErrorCode.ENG_PACKAGE_005, "回滚同步未返回同步证据: " + adapterId);
+                    } else {
+                        evidence = syncEvidenceWithSnapshot(evidence, rollbackSnapshot);
                     }
                 } catch (Exception e) {
                     if (e instanceof PackageSyncNotConnectedException) {
-                        log.warn("回滚同步发布未接入真实同步适配器, targetId: {}, reason: {}", targetId, e.getMessage());
+                        log.warn("回滚同步发布未接入真实同步适配器, adapterId: {}, reason: {}", adapterId, e.getMessage());
                     } else {
-                        log.error("回滚同步发布失败, targetId: {}", targetId, e);
+                        log.error("回滚同步发布失败, adapterId: {}", adapterId, e);
                     }
                     syncError = e;
                 }
@@ -2665,7 +3442,7 @@ public class PackageEngineService {
                         savedLog.logId(),
                         tenantId,
                         savedPlan.planId(),
-                        targetId,
+                        adapterId,
                         SyncLogStatus.SUCCESS,
                         null, null, 0, finalEvidence,
                         savedLog.createdAt(), savedLog.createdBy(), Instant.now(), actor, traceId
@@ -2676,7 +3453,7 @@ public class PackageEngineService {
                         savedLog.logId(),
                         tenantId,
                         savedPlan.planId(),
-                        targetId,
+                        adapterId,
                         SyncLogStatus.NOT_SYNCED,
                         PackageSyncNotConnectedException.CODE,
                         finalError.getMessage(),
@@ -2689,7 +3466,7 @@ public class PackageEngineService {
                     savedLog.logId(),
                     tenantId,
                     savedPlan.planId(),
-                    targetId,
+                    adapterId,
                     SyncLogStatus.FAILED,
                     syncFailureCode(finalError),
                     finalError.getMessage(),
@@ -2722,7 +3499,7 @@ public class PackageEngineService {
         return ErrorCode.ENG_PACKAGE_005.code();
     }
 
-    private record RollbackSyncScope(ReleasePlan originalPlan, List<String> targetIds) {}
+    private record RollbackSyncScope(ReleasePlan originalPlan, List<String> adapterIds) {}
 
     private record RollbackProjectionResult(ReleasePlanStatus finalStatus, boolean allSuccess) {}
 
@@ -2823,6 +3600,10 @@ public class PackageEngineService {
                     "随访计划属于患者运行数据，不允许作为配置包资产入包；请在 D3 FOLLOW-01 建立随访模板资产后再接入包发布"
                 );
             }
+            default -> throw new ApiException(
+                ErrorCode.ENG_PACKAGE_002,
+                "该资产类型尚未定义配置包迁移契约，不允许入包: " + type
+            );
         }
     }
 

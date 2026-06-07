@@ -20,12 +20,14 @@ import { getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import {
   useAcknowledgeQualityAlert,
   useDispatchRectification,
+  useOrgUnits,
   useQualityAlerts,
   type QualityAlertsQueryParams,
   type QualityDashboardAlert,
   type QualityDashboardAlertStatus,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
+import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
 
 const { Text } = Typography;
 
@@ -62,6 +64,13 @@ export default function QcAlerts() {
   }, [severity, status, timeScope]);
 
   const alertsQuery = useQualityAlerts(alertsParams);
+  const departmentsQuery = useOrgUnits({
+    page: 1,
+    size: 50,
+    sort: "name,asc",
+    level: "DEPARTMENT",
+    status: "ACTIVE",
+  });
   const dispatchMutation = useDispatchRectification();
   const acknowledgeMutation = useAcknowledgeQualityAlert();
   const alertItems = alertsQuery.data?.items ?? [];
@@ -69,6 +78,16 @@ export default function QcAlerts() {
   const parsedError = alertsQuery.isError
     ? parseApiError(alertsQuery.error, "质控预警读取失败")
     : null;
+  const departmentNames = useMemo(
+    () =>
+      new Map(
+        (departmentsQuery.data?.items ?? []).map((unit) => [
+          unit.id ?? unit.code,
+          `${unit.name} · ${unit.code}`,
+        ]),
+      ),
+    [departmentsQuery.data?.items],
+  );
 
   function openAlertDrawer(alert: QualityDashboardAlert) {
     setSelectedAlert(alert);
@@ -224,7 +243,11 @@ export default function QcAlerts() {
                     <Space direction="vertical" size={4}>
                       <Space wrap>
                         <Text type="secondary">科室</Text>
-                        <Text>{alert.departmentId ?? "未指定"}</Text>
+                        <Text>
+                          {alert.departmentId
+                            ? (departmentNames.get(alert.departmentId) ?? alert.departmentId)
+                            : "未指定"}
+                        </Text>
                         <Text type="secondary">阈值</Text>
                         <Text>{alert.thresholdCode}</Text>
                       </Space>
@@ -279,7 +302,9 @@ export default function QcAlerts() {
                 {severityTag(selectedAlert.severity)}
               </Descriptions.Item>
               <Descriptions.Item label="责任科室">
-                {selectedAlert.departmentId ?? "未指定"}
+                {selectedAlert.departmentId
+                  ? (departmentNames.get(selectedAlert.departmentId) ?? selectedAlert.departmentId)
+                  : "未指定"}
               </Descriptions.Item>
               <Descriptions.Item label="来源对象">{selectedAlert.sourceId}</Descriptions.Item>
               <Descriptions.Item label="traceId">
@@ -321,16 +346,7 @@ export default function QcAlerts() {
                   onFinish={onDispatchRectification}
                   preserve={false}
                 >
-                  <Form.Item
-                    name="responsibleDepartmentId"
-                    label="责任科室"
-                    rules={[{ required: true, message: "请输入责任科室" }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                  <Form.Item name="assigneeUserId" label="责任人">
-                    <Input placeholder="可选" />
-                  </Form.Item>
+                  <RectificationAssignmentFields />
                   <Form.Item
                     name="dueAt"
                     label="整改截止时间"

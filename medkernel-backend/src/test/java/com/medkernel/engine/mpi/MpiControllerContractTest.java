@@ -79,7 +79,7 @@ class MpiControllerContractTest {
         mvc.perform(post("/api/v1/engine/mpi/patients")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"mpiId\":\"mpi-new\",\"maskedName\":\"李*四\",\"gender\":\"F\",\"age\":41,\"idLast4\":\"9876\"}"))
+                .content("{\"maskedName\":\"李*四\",\"gender\":\"F\",\"age\":41,\"idLast4\":\"9876\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mpiId").value("mpi-new"))
             .andExpect(jsonPath("$.data.status").value("ACTIVE"));
@@ -129,13 +129,32 @@ class MpiControllerContractTest {
             "高危患者主索引合并需要人工确认，审核单：mrv-1；原因：身份证后四位不一致"
         )).when(service).mergePatients("mpi-source", "mpi-target");
 
-        mvc.perform(post("/api/v1/engine/mpi/patients/merge")
+        mvc.perform(post("/api/v1/engine/mpi/patients:merge")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"sourceMpiId\":\"mpi-source\",\"targetMpiId\":\"mpi-target\"}"))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("MPI_MERGE_REQUIRES_REVIEW"))
             .andExpect(jsonPath("$.detail").value("高危患者主索引合并需要人工确认，审核单：mrv-1；原因：身份证后四位不一致"));
+    }
+
+    @Test
+    void legacyClinicalMpiAndSlashMergeRoutesAreNotMounted() throws Exception {
+        mvc.perform(get("/api/v1/clinical/mpi/stats").with(readJwt()))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/mpi/patients/merge")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sourceMpiId\":\"mpi-source\",\"targetMpiId\":\"mpi-target\"}"))
+            .andExpect(status().isMethodNotAllowed())
+            .andExpect(jsonPath("$.code").value("ENG-API-006"));
+
+        mvc.perform(post("/api/v1/engine/mpi/patients/mpi-source/split")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"误合并\"}"))
+            .andExpect(status().isNotFound());
     }
 
     private static RequestPostProcessor readJwt() {

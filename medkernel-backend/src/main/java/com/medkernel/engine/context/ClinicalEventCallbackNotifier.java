@@ -16,8 +16,8 @@ import com.medkernel.engine.integration.service.IntegrationService;
 /**
  * 临床事件处理完成后登记客户回调出站消息。
  *
- * <p>只登记到统一集成总线；当前无真实外部发送连接器时由集成层诚实落
- * {@code NOT_CONNECTED}，不伪造回调成功，也不把密钥或原始 payload 放进回调摘要。
+ * <p>只登记到统一集成总线；启用中的 Webhook 由集成层在事务提交后签名并真实投递，
+ * 不可达时诚实降级且不伪造回调成功，也不把密钥或原始 payload 放进回调摘要。
  */
 @Service
 public class ClinicalEventCallbackNotifier {

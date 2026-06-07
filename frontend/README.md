@@ -43,8 +43,8 @@ npm install
 复制 `.env.example` 为 `.env.local`，按需修改：
 
 ```text
-VITE_API_BASE_URL=          # 预留项；当前 apiClient 固定同源 /medkernel/api/v1，并由 vite proxy 转发到后端
-VITE_ENABLE_MSW=false       # true 启用浏览器 mock，离开后端也可运行
+VITE_API_PROXY_TARGET=http://localhost:18080
+E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1
 ```
 
 ### 3. 运行 dev 服务器
@@ -59,7 +59,7 @@ npm run dev
 ```powershell
 cd ../medkernel-backend
 mvn spring-boot:run
-# 健康检查 http://localhost:18080/medkernel/actuator/health
+# 健康检查使用 VITE_API_PROXY_TARGET 对应后端：/medkernel/actuator/health
 ```
 
 ### 4. 构建产物
@@ -84,7 +84,7 @@ npm run typecheck     # 类型检查
 frontend/
 ├── index.html              # Vite 入口
 ├── package.json            # 依赖与脚本
-├── public/mockServiceWorker.js # 浏览器 MSW worker（VITE_ENABLE_MSW=true 时使用）
+├── public/mockServiceWorker.js # 测试资源，不作为产品运行入口
 ├── vite.config.ts          # Vite + proxy + vitest 配置
 ├── tsconfig*.json          # TypeScript 配置（分 app / node 引用）
 ├── .env.example            # 环境变量样例
@@ -208,18 +208,16 @@ export function PatientList() {
 - 保存视图必须经 `experienceView.ts` 校验后进入受控 UI 偏好存储，禁止写入 token、患者标识等敏感内容。
 - 当前真实样板页为“字典映射”，仅提供筛选、分页和证据详情的只读核查，不包含确认、发布、回滚或批量处理动作。
 
-### MSW
+### 测试数据
 
-- 默认 **关闭**（`VITE_ENABLE_MSW=false`），调真实后端。
-- 设为 `true` 后可离线/无后端运行（用于演示和单测）。
-- 单测自动启用 MSW（见 `src/test/setup.ts`）。
+- 页面运行必须连接真实后端；单测如需隔离网络，统一在 `src/test/setup.ts` 内封装测试桩，不作为产品入口。
 
 ## 与后端的对接
 
 开发期：
 
-- vite proxy：`/medkernel` → `http://localhost:18080`，无 CORS 困扰。
-- 当前 `apiClient` 固定使用 `/medkernel/api/v1`，与后端 servlet path 对齐，并由 vite proxy 转发到 `http://localhost:18080`。
+- vite proxy：`/medkernel` → `VITE_API_PROXY_TARGET`，未配置时 dev server 直接失败。
+- 当前 `apiClient` 固定使用 `/medkernel/api/v1`，与后端 servlet path 对齐。
 
 内网部署：
 

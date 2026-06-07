@@ -46,8 +46,10 @@ import {
   useRuleDetail,
   useCreateRule,
   useAddTestCase,
+  useRunRuleTests,
   useSimulateRule,
   usePublishRule,
+  useFullRolloutRule,
   useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
@@ -66,6 +68,18 @@ import { StepFlow } from "@/shared/ui/StepFlow";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
 import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
+import {
+  RULE_OPERATOR_LABELS as OPERATOR_LABELS,
+  RULE_VALUE_KIND_LABELS as VALUE_KIND_LABELS,
+  DERIVED_FORMULA_OPTIONS,
+  DEFAULT_TEMPORAL_MODE,
+  RULE_EXPRESSION_SELECT_OPTIONS,
+  TEMPORAL_MODE_OPTIONS,
+  defaultValueKindForOperator,
+  isClinicalRuleOperator,
+  normalizeTemporalMode,
+  parameterKeysForDerivedFormula,
+} from "@/shared/config/ruleOperatorCatalog";
 import {
   RULE_LAYER_TEMPLATES,
   conditionNeedsValue,
@@ -101,6 +115,13 @@ import {
   rootDepth,
   rootHasUnresolvedFact,
 } from "@/shared/config/ruleConditionTreeOps";
+import { RULE_TYPE_LABELS, RULE_TYPE_OPTIONS } from "@/shared/config/ruleTypes";
+import {
+  CLINICAL_TRIGGER_POINT_OPTIONS,
+  isClinicalTriggerPoint,
+  type ClinicalTriggerPoint,
+} from "@/shared/config/clinicalTriggerPoints";
+import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -113,45 +134,10 @@ type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
 
-const RULE_TYPE_LABELS: Record<string, string> = {
-  DRUG_SAFETY: "合理用药安全",
-  INSURANCE_AUDIT: "医保规范核查",
-  CLINICAL_QUALITY: "临床诊疗质控",
-};
-
 const RISK_LABELS: Record<RuleSeverity, string> = {
   LOW: "低风险",
   MEDIUM: "中风险",
   HIGH: "高风险",
-};
-
-const OPERATOR_LABELS: Record<RuleOperator, string> = {
-  exists: "存在",
-  equals: "等于",
-  not_equals: "不等于",
-  contains: "包含",
-  gt: "大于",
-  gte: "大于等于",
-  lt: "小于",
-  lte: "小于等于",
-  in: "属于集合",
-  not_in: "不属于集合",
-  between: "区间比较",
-  unit_compare: "单位换算比较",
-  temporal: "时间窗/连续/趋势",
-  derived: "受控公式",
-};
-
-const VALUE_KIND_LABELS: Record<RuleValueKind, string> = {
-  empty: "无比较值",
-  string: "文本",
-  number: "数值",
-  boolean: "布尔",
-  list: "集合",
-  range: "区间",
-  measurement: "带单位阈值",
-  temporal: "时间窗",
-  derived: "受控公式",
 };
 
 const numericComparisonChoices = [
@@ -162,21 +148,8 @@ const numericComparisonChoices = [
   { value: "equals", label: "等于" },
 ];
 
-const derivedFormulaChoices = [
-  { value: "CKD_EPI_2021_EGFR", label: "eGFR CKD-EPI 2021" },
-  { value: "COCKCROFT_GAULT_CRCL", label: "CrCl Cockcroft-Gault" },
-  { value: "MOSTELLER_BSA", label: "BSA Mosteller" },
-];
-
-const CLINICAL_OPERATOR_SET = new Set<RuleOperator>([
-  "between",
-  "unit_compare",
-  "temporal",
-  "derived",
-]);
-
 function isClinicalOperator(operator: RuleOperator) {
-  return CLINICAL_OPERATOR_SET.has(operator);
+  return isClinicalRuleOperator(operator);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -215,21 +188,43 @@ function conditionValueBoolean(condition: RuleCondition, key: string, fallback =
 }
 
 function defaultValueForOperator(operator: RuleOperator, currentValue: RuleCondition["value"]) {
-  if (isRecord(currentValue)) return currentValue;
   switch (operator) {
     case "between":
+    case "not_between":
+      if (isRecord(currentValue) && ("min" in currentValue || "max" in currentValue)) {
+        return currentValue;
+      }
       return { min: "", max: "", includeMin: true, includeMax: true, unit: "" };
     case "unit_compare":
+      if (isRecord(currentValue) && ("analyte" in currentValue || "comparison" in currentValue)) {
+        return currentValue;
+      }
       return { comparison: "gte", value: "", unit: "", analyte: "" };
     case "temporal":
+      if (isRecord(currentValue) && ("mode" in currentValue || "window" in currentValue)) {
+        return currentValue;
+      }
       return {
-        mode: "consecutive",
+        mode: DEFAULT_TEMPORAL_MODE,
         window: "PT24H",
         referenceTime: "",
         count: 2,
         condition: { operator: "gt", value: "", unit: "" },
       };
+    case "is_critical":
+      if (isRecord(currentValue) && "criticalValues" in currentValue) {
+        return currentValue;
+      }
+      return { criticalValues: [] };
+    case "is_stale":
+      if (isRecord(currentValue) && ("maxAge" in currentValue || "referenceTime" in currentValue)) {
+        return currentValue;
+      }
+      return { maxAge: "PT24H", referenceTime: "" };
     case "derived":
+      if (isRecord(currentValue) && ("formula" in currentValue || "parameters" in currentValue)) {
+        return currentValue;
+      }
       return {
         formula: "CKD_EPI_2021_EGFR",
         comparison: "gte",
@@ -242,18 +237,8 @@ function defaultValueForOperator(operator: RuleOperator, currentValue: RuleCondi
         },
       };
     default:
-      return currentValue ?? "";
+      return isRecord(currentValue) ? "" : (currentValue ?? "");
   }
-}
-
-function derivedParameterKeys(formula: string) {
-  if (formula === "MOSTELLER_BSA") {
-    return ["heightCm", "weightKg"];
-  }
-  if (formula === "COCKCROFT_GAULT_CRCL") {
-    return ["creatinine", "age", "sex", "weightKg"];
-  }
-  return ["creatinine", "age", "sex"];
 }
 
 function parseJsonInput(value: string, errorMessage: string, onError: (message: string) => void) {
@@ -315,9 +300,23 @@ function renderRiskTag(level: string) {
 function renderStatus(status: string) {
   const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
     DRAFT: { text: "草稿设计中", status: "warning" },
-    PUBLISHED: { text: "已上线运行", status: "success" },
+    PUBLISHED: { text: "内容已审核", status: "processing" },
     OFFLINE: { text: "已下线封存", status: "default" },
     ARCHIVED: { text: "已归档历史", status: "default" },
+  };
+  const config = statusMap[status] || { text: status, status: "processing" };
+  return <Badge status={config.status} text={config.text} />;
+}
+
+function renderDeploymentStatus(status: string) {
+  const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
+    DRAFT: { text: "待提交", status: "warning" },
+    PENDING_REVIEW: { text: "审核中", status: "processing" },
+    PUBLISHED: { text: "待全量激活", status: "processing" },
+    ACTIVE: { text: "运行中", status: "success" },
+    OFFLINE: { text: "已下线", status: "default" },
+    WITHDRAWN: { text: "已撤回", status: "error" },
+    ARCHIVED: { text: "已归档", status: "default" },
   };
   const config = statusMap[status] || { text: status, status: "processing" };
   return <Badge status={config.status} text={config.text} />;
@@ -336,12 +335,7 @@ function conditionValueText(condition: RuleCondition) {
 }
 
 function valueKindForOperator(operator: RuleOperator, currentKind: RuleValueKind): RuleValueKind {
-  if (!conditionNeedsValue(operator)) return "empty";
-  if (operator === "between") return "range";
-  if (operator === "unit_compare") return "measurement";
-  if (operator === "temporal") return "temporal";
-  if (operator === "derived") return "derived";
-  return currentKind === "empty" ? "string" : currentKind;
+  return defaultValueKindForOperator(operator, currentKind);
 }
 
 function valueForOperator(operator: RuleOperator, currentValue: RuleCondition["value"]) {
@@ -391,7 +385,7 @@ export default function RuleDefinitions() {
   const [createForm] = Form.useForm();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
-  const [simulatePayload, setSimulatePayload] = useState<string>("");
+  const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
   const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
@@ -446,8 +440,10 @@ export default function RuleDefinitions() {
 
   const createRuleMutation = useCreateRule();
   const addTestCaseMutation = useAddTestCase(selectedRuleId || "");
+  const runRuleTestsMutation = useRunRuleTests(selectedRuleId || "");
   const simulateMutation = useSimulateRule(selectedRuleId || "");
   const publishMutation = usePublishRule();
+  const fullRolloutMutation = useFullRolloutRule();
   const snapshotsQuery = useContextSnapshots(
     {
       patientId: snapshotSearchParams?.patientId,
@@ -462,7 +458,12 @@ export default function RuleDefinitions() {
     enabled: Boolean(selectedRuleId && selectedSnapshotId),
   });
   const impactQuery = useRuleImpact(selectedRuleId || "", {
-    enabled: Boolean(selectedRuleId && detailData?.definition.status === "DRAFT"),
+    enabled: Boolean(
+      selectedRuleId &&
+        detailData?.deploymentStatus !== "ACTIVE" &&
+        (detailData?.definition.status === "DRAFT" ||
+          detailData?.definition.status === "PUBLISHED"),
+    ),
   });
   const snapshots = snapshotsQuery.data?.items ?? [];
   const releaseGate = useMemo(
@@ -479,6 +480,7 @@ export default function RuleDefinitions() {
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
       ruleType: template.ruleType,
+      triggerPoint: nextTree.triggerPoint,
       riskLevel: template.riskLevel,
       changeSummary: "初始化创建草稿版本",
     });
@@ -513,6 +515,7 @@ export default function RuleDefinitions() {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     createForm.setFieldsValue({
       ruleType: template.ruleType,
+      triggerPoint: nextTree.triggerPoint,
       riskLevel: template.riskLevel,
     });
     setActiveCreateLayer("l2");
@@ -520,9 +523,11 @@ export default function RuleDefinitions() {
 
   const buildRuleDslFromRoot = (
     root: RuleConditionGroup,
+    triggerPoint: ClinicalTriggerPoint,
     action: RuleConditionTree["action"],
     explanationSummary: string,
   ) => ({
+    trigger: triggerPoint,
     when: conditionNodeToDsl(root),
     then: [{ ...action }],
     explain: {
@@ -537,7 +542,12 @@ export default function RuleDefinitions() {
   const syncTreeToDsl = () => {
     setDslEditorValue(
       formatRuleJson(
-        buildRuleDslFromRoot(conditionRoot, conditionTree.action, conditionTree.explanationSummary),
+        buildRuleDslFromRoot(
+          conditionRoot,
+          conditionTree.triggerPoint,
+          conditionTree.action,
+          conditionTree.explanationSummary,
+        ),
       ),
     );
     // 仅静默同步，不强制切到 L3 / 不强开专家模式（修复「同步即跳专家模式」）。
@@ -551,8 +561,9 @@ export default function RuleDefinitions() {
         throw new Error("缺少 when");
       }
       const nextTree = dslToConditionTree(parsed);
-      const root = dslWhenToRootGroup((parsed as { when: unknown }).when);
-      setConditionTree({ ...nextTree, root, logic: root.logic, conditions: [] });
+      const root = nextTree.root ?? dslWhenToRootGroup((parsed as { when: unknown }).when);
+      setConditionTree({ ...nextTree, root, logic: root.logic });
+      createForm.setFieldValue("triggerPoint", nextTree.triggerPoint);
       setActiveCreateLayer("l2");
       message.success("已从 L3 DSL 回填到 L2 条件树");
     } catch {
@@ -561,6 +572,12 @@ export default function RuleDefinitions() {
   };
 
   const conditionRoot = conditionTree.root ?? flatToRootGroup(conditionTree);
+
+  const updateTriggerPoint = (triggerPoint: ClinicalTriggerPoint) => {
+    const nextTree = { ...conditionTree, triggerPoint };
+    setConditionTree(nextTree);
+    setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
+  };
 
   const updateRoot = (updater: (root: RuleConditionGroup) => RuleConditionGroup) => {
     setConditionTree((current) => {
@@ -624,6 +641,34 @@ export default function RuleDefinitions() {
     });
   };
 
+  const updateConditionExpression = (
+    condition: RuleCondition,
+    patch: Partial<NonNullable<RuleCondition["expr"]>>,
+  ) => {
+    updateCondition(condition.id, {
+      expr: {
+        field: condition.expr?.field ?? condition.fact,
+        ...condition.expr,
+        ...patch,
+      },
+    });
+  };
+
+  const clearConditionExpression = (condition: RuleCondition) => {
+    updateCondition(condition.id, { expr: undefined });
+  };
+
+  const updateExpressionWhere = (condition: RuleCondition, text: string) => {
+    if (!text.trim()) {
+      updateConditionExpression(condition, { where: undefined });
+      return;
+    }
+    const parsed = parseJsonInput(text, "where 条件 JSON 不合法。", message.error);
+    if (isRecord(parsed)) {
+      updateConditionExpression(condition, { where: parsed });
+    }
+  };
+
   const renderConditionValueEditor = (
     condition: RuleCondition,
     needsValue: boolean,
@@ -641,14 +686,14 @@ export default function RuleDefinitions() {
           </Col>
           <Col span={16}>
             <Form.Item label="比较值">
-              <Input value="存在性判断不需要比较值" disabled />
+              <Input value="该算子不需要比较值" disabled />
             </Form.Item>
           </Col>
         </Row>
       );
     }
 
-    if (condition.operator === "between") {
+    if (condition.operator === "between" || condition.operator === "not_between") {
       return (
         <Row gutter={16}>
           <Col span={5}>
@@ -746,7 +791,88 @@ export default function RuleDefinitions() {
     if (condition.operator === "temporal") {
       const value = conditionValueRecord(condition);
       const nested = isRecord(value.condition) ? value.condition : {};
-      const mode = conditionValueString(condition, "mode") || "consecutive";
+      const mode = normalizeTemporalMode(conditionValueString(condition, "mode"));
+      const temporalDetailEditor = (() => {
+        if (mode === "delta") {
+          return (
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item label="差值方向">
+                  <Select
+                    value={conditionValueString(condition, "direction") || "increase"}
+                    onChange={(direction) => updateConditionValue(condition, { direction })}
+                  >
+                    <Option value="increase">上升</Option>
+                    <Option value="decrease">下降</Option>
+                    <Option value="change">绝对变化</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item label="差值阈值">
+                  <InputNumber
+                    min={0}
+                    value={conditionValueNumber(condition, "delta")}
+                    onChange={(delta) => updateConditionValue(condition, { delta: delta ?? "" })}
+                    className="mk-full-width"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          );
+        }
+
+        if (mode === "trend") {
+          return (
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item label="趋势方向">
+                  <Select
+                    value={conditionValueString(condition, "direction") || "up"}
+                    onChange={(direction) => updateConditionValue(condition, { direction })}
+                  >
+                    <Option value="up">上升</Option>
+                    <Option value="down">下降</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+          );
+        }
+
+        return (
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={mode === "frequency" ? "频次条件比较符" : "持续条件比较符"}>
+                <Select
+                  value={String(nested.operator ?? "gt")}
+                  onChange={(operator) => updateTemporalCondition(condition, { operator })}
+                  options={numericComparisonChoices}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item label={mode === "frequency" ? "频次条件阈值" : "持续条件阈值"}>
+                <InputNumber
+                  value={typeof nested.value === "number" ? nested.value : undefined}
+                  onChange={(value) => updateTemporalCondition(condition, { value: value ?? "" })}
+                  className="mk-full-width"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={5}>
+              <Form.Item label={mode === "frequency" ? "频次条件单位" : "持续条件单位"}>
+                <Input
+                  value={String(nested.unit ?? "")}
+                  onChange={(event) =>
+                    updateTemporalCondition(condition, { unit: event.target.value })
+                  }
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        );
+      })();
       return (
         <Space direction="vertical" size="small" className="mk-full-width">
           <Row gutter={16}>
@@ -756,8 +882,11 @@ export default function RuleDefinitions() {
                   value={mode}
                   onChange={(nextMode) => updateConditionValue(condition, { mode: nextMode })}
                 >
-                  <Option value="consecutive">连续命中</Option>
-                  <Option value="trend">趋势判断</Option>
+                  {TEMPORAL_MODE_OPTIONS.map((option) => (
+                    <Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
@@ -783,17 +912,19 @@ export default function RuleDefinitions() {
                 />
               </Form.Item>
             </Col>
-            <Col span={4}>
-              <Form.Item label="次数">
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  value={conditionValueNumber(condition, "count")}
-                  onChange={(count) => updateConditionValue(condition, { count: count ?? 1 })}
-                  className="mk-full-width"
-                />
-              </Form.Item>
-            </Col>
+            {mode !== "delta" && (
+              <Col span={4}>
+                <Form.Item label="次数">
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    value={conditionValueNumber(condition, "count")}
+                    onChange={(count) => updateConditionValue(condition, { count: count ?? 1 })}
+                    className="mk-full-width"
+                  />
+                </Form.Item>
+              </Col>
+            )}
             <Col span={3}>
               <Form.Item label="单位">
                 <Input
@@ -805,60 +936,78 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
           </Row>
-          {mode === "trend" ? (
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item label="趋势方向">
-                  <Select
-                    value={conditionValueString(condition, "direction") || "up"}
-                    onChange={(direction) => updateConditionValue(condition, { direction })}
-                  >
-                    <Option value="up">上升</Option>
-                    <Option value="down">下降</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-          ) : (
-            <Row gutter={16}>
-              <Col span={6}>
-                <Form.Item label="连续条件比较符">
-                  <Select
-                    value={String(nested.operator ?? "gt")}
-                    onChange={(operator) => updateTemporalCondition(condition, { operator })}
-                    options={numericComparisonChoices}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item label="连续条件阈值">
-                  <InputNumber
-                    value={typeof nested.value === "number" ? nested.value : undefined}
-                    onChange={(value) => updateTemporalCondition(condition, { value: value ?? "" })}
-                    className="mk-full-width"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item label="连续条件单位">
-                  <Input
-                    value={String(nested.unit ?? "")}
-                    onChange={(event) =>
-                      updateTemporalCondition(condition, { unit: event.target.value })
-                    }
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          )}
+          {temporalDetailEditor}
         </Space>
+      );
+    }
+
+    if (condition.operator === "is_critical") {
+      const rawValues = conditionValueRecord(condition).criticalValues;
+      const criticalValues = Array.isArray(rawValues)
+        ? rawValues.map((item) => String(item)).join(",")
+        : String(rawValues ?? "");
+      return (
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item label="比较值类型">
+              <Select value={condition.valueKind} disabled>
+                <Option value="critical_flag">危急标记集合</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={16}>
+            <Form.Item label="危急标记">
+              <Input
+                value={criticalValues}
+                onChange={(event) =>
+                  updateConditionValue(condition, {
+                    criticalValues: event.target.value
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="如 HH,LL；留空时按来源系统任意非空危急标记判定"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+      );
+    }
+
+    if (condition.operator === "is_stale") {
+      return (
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item label="最大时效">
+              <Input
+                value={conditionValueString(condition, "maxAge")}
+                onChange={(event) =>
+                  updateConditionValue(condition, { maxAge: event.target.value })
+                }
+                placeholder="PT24H"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={16}>
+            <Form.Item label="参考时间">
+              <Input
+                value={conditionValueString(condition, "referenceTime")}
+                onChange={(event) =>
+                  updateConditionValue(condition, { referenceTime: event.target.value })
+                }
+                placeholder="2026-06-06T00:00:00Z"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
       );
     }
 
     if (condition.operator === "derived") {
       const formula = conditionValueString(condition, "formula") || "CKD_EPI_2021_EGFR";
       const comparison = conditionValueString(condition, "comparison") || "gte";
-      const parameterKeys = derivedParameterKeys(formula);
+      const parameterKeys = parameterKeysForDerivedFormula(formula);
       const parameters = isRecord(conditionValueRecord(condition).parameters)
         ? (conditionValueRecord(condition).parameters as Record<string, unknown>)
         : {};
@@ -869,7 +1018,7 @@ export default function RuleDefinitions() {
               <Form.Item label="白名单公式">
                 <Select
                   value={formula}
-                  options={derivedFormulaChoices}
+                  options={[...DERIVED_FORMULA_OPTIONS]}
                   onChange={(nextFormula) =>
                     updateConditionValue(condition, { formula: nextFormula })
                   }
@@ -1042,9 +1191,12 @@ export default function RuleDefinitions() {
   const renderConditionLeaf = (condition: RuleCondition) => {
     const needsValue = conditionNeedsValue(condition.operator);
     const isFirstLeaf = condition.id === firstLeafId;
+    const expressionEnabled = Boolean(condition.expr);
+    const expressionField = condition.expr?.field ?? condition.fact;
+    const expressionWhereText = condition.expr?.where ? formatRuleJson(condition.expr.where) : "";
     return (
-      <div key={condition.id} className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div key={condition.id} className={styles.conditionCard}>
+        <div className={styles.conditionHeader}>
           <Space>
             <Text strong>{condition.label || "条件"}</Text>
             {isClinicalOperator(condition.operator) && <Tag color="volcano">临床算子</Tag>}
@@ -1106,6 +1258,100 @@ export default function RuleDefinitions() {
             </Form.Item>
           </Col>
         </Row>
+        <div className={styles.expressionPanel}>
+          <Space direction="vertical" size="small" className="mk-full-width">
+            <Switch
+              checked={expressionEnabled}
+              checkedChildren="聚合表达式"
+              unCheckedChildren="普通字段"
+              onChange={(checked) => {
+                if (checked) {
+                  updateConditionExpression(condition, {
+                    field: expressionField,
+                    select: condition.expr?.select ?? "latest",
+                  });
+                } else {
+                  clearConditionExpression(condition);
+                }
+              }}
+            />
+            {expressionEnabled && (
+              <>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item label="表达式字段">
+                      <AutoComplete
+                        value={expressionField}
+                        options={fieldCatalogOptions}
+                        filterOption={(input, option) => {
+                          const leaf = option as { value?: string; label?: string } | undefined;
+                          const haystack =
+                            `${leaf?.value ?? ""} ${leaf?.label ?? ""}`.toLowerCase();
+                          return haystack.includes(input.toLowerCase());
+                        }}
+                        onSelect={(value) =>
+                          updateCondition(condition.id, {
+                            fact: value,
+                            expr: { ...condition.expr, field: value },
+                          })
+                        }
+                        onChange={(value) =>
+                          updateCondition(condition.id, {
+                            fact: value,
+                            expr: { ...condition.expr, field: value },
+                          })
+                        }
+                        placeholder="如 observations[].value"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={4}>
+                    <Form.Item label="聚合函数">
+                      <Select
+                        value={condition.expr?.select ?? "latest"}
+                        options={[...RULE_EXPRESSION_SELECT_OPTIONS]}
+                        onChange={(select) => updateConditionExpression(condition, { select })}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={4}>
+                    <Form.Item label="窗口">
+                      <Input
+                        value={condition.expr?.over ?? ""}
+                        onChange={(event) =>
+                          updateConditionExpression(condition, { over: event.target.value })
+                        }
+                        placeholder="PT48H"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label="参考时间">
+                      <Input
+                        value={condition.expr?.referenceTime ?? ""}
+                        onChange={(event) =>
+                          updateConditionExpression(condition, {
+                            referenceTime: event.target.value,
+                          })
+                        }
+                        placeholder="2026-06-03T00:00:00Z"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item label="where 过滤条件">
+                  <TextArea
+                    key={`${condition.id}-${expressionWhereText}`}
+                    defaultValue={expressionWhereText}
+                    autoSize={{ minRows: 2, maxRows: 5 }}
+                    onBlur={(event) => updateExpressionWhere(condition, event.target.value)}
+                    placeholder='{"all":[{"expr":{"field":"observations[].code"},"operator":"equals","value":{"const":"CREATININE"}}]}'
+                  />
+                </Form.Item>
+              </>
+            )}
+          </Space>
+        </div>
         {renderConditionValueEditor(condition, needsValue, isFirstLeaf)}
       </div>
     );
@@ -1115,25 +1361,23 @@ export default function RuleDefinitions() {
     const isRoot = depth === 0;
     const depthReached = rootDepth(conditionRoot) >= MAX_TREE_DEPTH;
     // 根组用中性白底；子组按深度加淡绿底 + 左边线 + 缩进，使嵌套层级清晰可读。
-    const groupClassName = isRoot
-      ? "rounded-lg border border-gray-200 bg-white p-4"
-      : "rounded-lg border border-emerald-100 bg-emerald-50/30 p-3 ml-4 border-l-4 border-l-emerald-300";
+    const groupClassName = isRoot ? styles.rootGroup : styles.nestedGroup;
     return (
       <div key={group.id} className={groupClassName}>
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className={styles.groupHeader}>
           <Tag color="green">{isRoot ? "条件根组" : "子条件组"}</Tag>
           <Select
             aria-label="条件组关系"
             size="small"
             value={group.logic}
-            className="w-[140px]"
+            className={styles.controlSm}
             onChange={(value: RuleLogic) => updateGroup(group.id, { logic: value })}
           >
             <Option value="all">全部条件满足</Option>
             <Option value="any">任一条件满足</Option>
           </Select>
           <Space size={4}>
-            <Text type="secondary" className="text-xs">
+            <Text type="secondary" className={styles.textSmall}>
               取反
             </Text>
             <Switch
@@ -1148,7 +1392,7 @@ export default function RuleDefinitions() {
               size="small"
               aria-label="删除条件组"
               icon={<DeleteOutlined />}
-              className="ml-auto"
+              className={styles.toolbarActions}
               onClick={() => removeNode(group.id)}
             />
           )}
@@ -1188,11 +1432,8 @@ export default function RuleDefinitions() {
   const renderReadonlyNode = (node: RuleConditionNode): ReactNode => {
     if (isConditionGroup(node)) {
       return (
-        <div
-          key={node.id}
-          className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 ml-2 border-l-4 border-l-emerald-300"
-        >
-          <Space className="mb-2">
+        <div key={node.id} className={styles.readonlyGroup}>
+          <Space className={styles.marginBottomSm}>
             <Tag color="green">{node.negate ? "非（NOT）" : "组"}</Tag>
             <Text type="secondary">{node.logic === "all" ? "全部条件满足" : "任一条件满足"}</Text>
           </Space>
@@ -1205,7 +1446,12 @@ export default function RuleDefinitions() {
     return (
       <Descriptions key={node.id} bordered column={2} size="small">
         <Descriptions.Item label="条件标签">{node.label}</Descriptions.Item>
-        <Descriptions.Item label="字段路径">{node.fact}</Descriptions.Item>
+        <Descriptions.Item label="字段路径">{node.expr?.field ?? node.fact}</Descriptions.Item>
+        {node.expr && (
+          <Descriptions.Item label="表达式">
+            {node.expr.select ?? "字段"} {node.expr.over ? `· ${node.expr.over}` : ""}
+          </Descriptions.Item>
+        )}
         <Descriptions.Item label="算子">{OPERATOR_LABELS[node.operator]}</Descriptions.Item>
         <Descriptions.Item label="比较值">{conditionValueText(node)}</Descriptions.Item>
       </Descriptions>
@@ -1223,11 +1469,16 @@ export default function RuleDefinitions() {
           ? parseRuleJson(dslEditorValue)
           : buildRuleDslFromRoot(
               conditionRoot,
+              conditionTree.triggerPoint,
               conditionTree.action,
               conditionTree.explanationSummary,
             );
-        if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
-          throw new Error("缺少 when");
+        if (
+          !isRecord(parsedDsl) ||
+          !("when" in parsedDsl) ||
+          !isClinicalTriggerPoint(parsedDsl.trigger)
+        ) {
+          throw new Error("缺少 trigger 或 when");
         }
         submitRoot = dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
@@ -1277,20 +1528,23 @@ export default function RuleDefinitions() {
   const handleAddTestCase = async () => {
     try {
       const values = await caseForm.validateFields();
-      const inputPayload = parseJsonInput(
-        values.inputPayload,
-        "请粘贴真实脱敏测试输入载荷 JSON",
-        message.error,
-      );
-      if (!inputPayload) return;
+      const snapshot = snapshotDetailQuery.data;
+      if (!selectedSnapshotId || !snapshot) {
+        message.error("请先检索并选择一份 ACTIVE 标准上下文快照。");
+        return;
+      }
+      if (snapshot.status !== "ACTIVE" || !snapshot.resources) {
+        message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+        return;
+      }
 
       await addTestCaseMutation.mutateAsync({
         packageVersion: selectedRulePackageVersion,
         caseType: values.caseType,
-        inputPayload,
+        contextSnapshotId: snapshot.snapshotId,
         expectedHit: values.expectedHit,
-        expectedSeverity: values.expectedSeverity,
-        expectedActionCode: values.expectedActionCode,
+        expectedSeverity: values.expectedHit ? values.expectedSeverity : undefined,
+        expectedActionCode: values.expectedHit ? values.expectedActionCode : undefined,
       });
 
       message.success("成功新增测试用例");
@@ -1317,14 +1571,20 @@ export default function RuleDefinitions() {
     }
   };
 
-  const handleManualSimulate = async () => {
-    const inputPayload = parseJsonInput(
-      simulatePayload,
-      "请先粘贴真实脱敏上下文快照 JSON",
-      message.error,
-    );
-    if (!inputPayload) return;
-    await runSimulation(inputPayload);
+  const handleRunRuleTests = async () => {
+    try {
+      const result = await runRuleTestsMutation.mutateAsync({
+        packageVersion: selectedRulePackageVersion,
+      });
+      if (result.allPassed) {
+        message.success("全部发布门禁用例执行通过");
+      } else {
+        message.warning("用例执行完成，存在未通过项，请核对期望与规则配置。");
+      }
+      refetchDetail();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "执行规则测试用例失败"));
+    }
   };
 
   const handleSnapshotSearch = () => {
@@ -1376,7 +1636,8 @@ export default function RuleDefinitions() {
         impactDigest,
         reason,
       });
-      message.success("发布成功，门禁测试通过");
+      message.success("规则已通过门禁并进入灰度发布");
+      setReleaseReason("");
       refetchDetail();
       refetchList();
     } catch (error: unknown) {
@@ -1386,6 +1647,37 @@ export default function RuleDefinitions() {
           error,
           "发布门禁校验未通过，请检查测试用例是否齐全且全部通过。",
         ),
+      });
+    }
+  };
+
+  const handleFullRollout = async () => {
+    if (!selectedRuleId) return;
+    const impactDigest = impactQuery.data?.impactDigest;
+    const reason = releaseReason.trim();
+    if (!impactDigest) {
+      message.error("请先读取发布影响摘要后再全量确认。");
+      return;
+    }
+    if (!reason) {
+      message.error("请填写全量确认说明。");
+      return;
+    }
+    try {
+      await fullRolloutMutation.mutateAsync({
+        ruleId: selectedRuleId,
+        packageVersion: selectedRulePackageVersion,
+        impactDigest,
+        reason,
+      });
+      message.success("规则已完成院级全量激活");
+      setReleaseReason("");
+      refetchDetail();
+      refetchList();
+    } catch (error: unknown) {
+      modal.error({
+        title: "全量激活门禁拒绝",
+        content: getApiErrorMessage(error, "未通过院级管理员确认或影响摘要核查。"),
       });
     }
   };
@@ -1401,13 +1693,13 @@ export default function RuleDefinitions() {
       title: "规则名称",
       dataIndex: "name",
       key: "name",
-      className: "font-semibold text-gray-800",
+      className: styles.textStrong,
     },
     {
       title: "规则类别",
       dataIndex: "ruleType",
       key: "ruleType",
-      render: (type: string) => RULE_TYPE_LABELS[type] || type,
+      render: (type: RuleDefinition["ruleType"]) => RULE_TYPE_LABELS[type],
     },
     {
       title: "风险评级",
@@ -1425,7 +1717,7 @@ export default function RuleDefinitions() {
       title: "当前包版本",
       dataIndex: "packageVersion",
       key: "packageVersion",
-      render: (val: string) => val || <span className="text-gray-400">未锁定</span>,
+      render: (val: string) => val || <span className={styles.textMuted}>未锁定</span>,
     },
     {
       title: "操作",
@@ -1438,7 +1730,6 @@ export default function RuleDefinitions() {
             setActiveDetailLayer("l2");
             setSelectedSnapshotId("");
             setSnapshotSearchParams(null);
-            setSimulatePayload("");
             setSimulateResult(null);
             setReleaseReason("");
             setDetailExpertMode(false);
@@ -1560,6 +1851,31 @@ export default function RuleDefinitions() {
     );
   };
 
+  const renderSelectedCaseSnapshot = () => {
+    if (snapshotDetailQuery.isLoading) {
+      return <Alert type="info" showIcon message="正在校验所选快照..." />;
+    }
+    if (snapshotDetailQuery.isError || !snapshotDetailQuery.data?.resources) {
+      return <Alert type="error" showIcon message="所选快照详情不可用，请重新选择。" />;
+    }
+    return (
+      <Descriptions bordered column={2} size="small">
+        <Descriptions.Item label="已选快照">
+          {snapshotDetailQuery.data.snapshotId}
+        </Descriptions.Item>
+        <Descriptions.Item label="质量状态">
+          {snapshotDetailQuery.data.qualityStatus}
+        </Descriptions.Item>
+        <Descriptions.Item label="绑定包版本">
+          {snapshotDetailQuery.data.packageVersion || selectedRulePackageVersion || "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Trace">
+          {snapshotDetailQuery.data.traceId || "-"}
+        </Descriptions.Item>
+      </Descriptions>
+    );
+  };
+
   const renderImpactObjectList = (title: string, objects: RuleImpactObject[]) => (
     <Descriptions.Item label={title}>
       {objects.length === 0 ? (
@@ -1593,13 +1909,13 @@ export default function RuleDefinitions() {
       <Descriptions.Item label="在径患者">
         {impactCount(impactQuery.data?.inPathPatients)}
       </Descriptions.Item>
-      <Descriptions.Item label="同步目标">
-        {impactCount(impactQuery.data?.syncTargets)}
+      <Descriptions.Item label="集成适配器">
+        {impactCount(impactQuery.data?.integrationAdapters)}
       </Descriptions.Item>
       {renderImpactObjectList("已定位规则", impactQuery.data?.affectedRules ?? [])}
       {renderImpactObjectList("受影响路径", impactQuery.data?.affectedPathways ?? [])}
       {renderImpactObjectList("在径患者", impactQuery.data?.inPathPatients ?? [])}
-      {renderImpactObjectList("同步目标", impactQuery.data?.syncTargets ?? [])}
+      {renderImpactObjectList("集成适配器", impactQuery.data?.integrationAdapters ?? [])}
       <Descriptions.Item label="不可用范围">
         {impactQuery.data?.unavailableScopes?.length ? (
           <Space wrap>
@@ -1627,7 +1943,33 @@ export default function RuleDefinitions() {
     );
   }
 
-  const releaseStepPanel = (
+  const activeDeployment = detailData?.deploymentStatus === "ACTIVE";
+  const reviewedContent = detailData?.definition.status === "PUBLISHED";
+  const releaseCurrentStep = activeDeployment || reviewedContent ? "full_rollout" : "submit_review";
+  let releaseFlowStatus: "process" | "finish" | "error" = "error";
+  if (activeDeployment) {
+    releaseFlowStatus = "finish";
+  } else if (releaseGate.allPassed) {
+    releaseFlowStatus = "process";
+  }
+  let detailAlertMessage = "当前规则为草稿，可补测试用例、试运行，并在全绿后提交发布。";
+  let detailAlertType: "success" | "warning" | "info" = "info";
+  if (activeDeployment) {
+    detailAlertMessage = "当前规则版本已全量生效，修改需新建草稿版本并重新走发布门禁。";
+    detailAlertType = "success";
+  } else if (reviewedContent) {
+    detailAlertMessage = "规则内容已审核并完成灰度，需由医院管理员确认后全量激活。";
+    detailAlertType = "warning";
+  }
+
+  const releaseStepPanel = activeDeployment ? (
+    <Alert
+      type="success"
+      showIcon
+      message="当前版本已全量生效"
+      description="运行态来自统一版本底座，规则执行只解析 ACTIVE 版本。"
+    />
+  ) : (
     <Space direction="vertical" size="middle" className="mk-full-width">
       <Alert
         type={releaseGate.allPassed ? "success" : "warning"}
@@ -1654,17 +1996,33 @@ export default function RuleDefinitions() {
             rows={3}
             value={releaseReason}
             onChange={(event) => setReleaseReason(event.target.value)}
-            placeholder="填写已核查影响摘要、测试结果和灰度发布安排。"
+            placeholder={
+              detailData?.definition.status === "PUBLISHED"
+                ? "填写院级全量激活确认说明。"
+                : "填写已核查影响摘要、测试结果和灰度发布安排。"
+            }
           />
         </Form.Item>
-        <Button
-          type="primary"
-          onClick={handlePublish}
-          loading={publishMutation.isPending}
-          disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
-        >
-          提交发布门禁
-        </Button>
+        {detailData?.definition.status === "PUBLISHED" ? (
+          <Button
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            onClick={handleFullRollout}
+            loading={fullRolloutMutation.isPending}
+            disabled={!impactQuery.data?.impactDigest || !releaseReason.trim()}
+          >
+            院级确认全量激活
+          </Button>
+        ) : (
+          <Button
+            type="primary"
+            onClick={handlePublish}
+            loading={publishMutation.isPending}
+            disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
+          >
+            提交审核并进入灰度发布
+          </Button>
+        )}
       </Form>
     </Space>
   );
@@ -1742,12 +2100,12 @@ export default function RuleDefinitions() {
                 children: (
                   <Row gutter={16}>
                     <Col span={12}>
-                      <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
+                      <div className={`${styles.codePanel} ${styles.codeText}`}>
                         {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
                       </div>
                     </Col>
                     <Col span={12}>
-                      <div className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-xs font-normal">
+                      <div className={`${styles.codePanel} ${styles.codeText}`}>
                         {detailExplanation
                           ? formatRuleJson(detailExplanation)
                           : "当前版本解释模板为空或无法解析"}
@@ -1767,26 +2125,36 @@ export default function RuleDefinitions() {
           ),
           children: (
             <>
-              <div className="flex justify-between items-center mb-4">
+              <div className={`${styles.toolbar} ${styles.marginBottomMd}`}>
                 <Text type="secondary">
                   发布前必须覆盖阳性、阴性、边界和冲突用例，且所有用例通过。
                 </Text>
                 {detailData.definition.status === "DRAFT" && (
-                  <Button
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                      caseForm.setFieldsValue({
-                        inputPayload: "",
-                        expectedHit: true,
-                        expectedSeverity: "LOW",
-                        expectedActionCode: "REVIEW_REQUIRED",
-                        caseType: "POSITIVE",
-                      });
-                      setCaseModalVisible(true);
-                    }}
-                  >
-                    新增测试用例
-                  </Button>
+                  <Space>
+                    {detailData.testCases.length > 0 && (
+                      <Button
+                        icon={<PlayCircleOutlined />}
+                        loading={runRuleTestsMutation.isPending}
+                        onClick={handleRunRuleTests}
+                      >
+                        执行全部用例
+                      </Button>
+                    )}
+                    <Button
+                      icon={<PlusOutlined />}
+                      onClick={() => {
+                        caseForm.setFieldsValue({
+                          expectedHit: true,
+                          expectedSeverity: "LOW",
+                          expectedActionCode: "REVIEW_REQUIRED",
+                          caseType: "POSITIVE",
+                        });
+                        setCaseModalVisible(true);
+                      }}
+                    >
+                      新增测试用例
+                    </Button>
+                  </Space>
                 )}
               </div>
 
@@ -1800,6 +2168,12 @@ export default function RuleDefinitions() {
                     dataIndex: "caseType",
                     key: "caseType",
                     render: (t) => <Tag color="blue">{t}</Tag>,
+                  },
+                  {
+                    title: "来源快照",
+                    dataIndex: "contextSnapshotId",
+                    key: "contextSnapshotId",
+                    render: (value: string) => <Text code>{value}</Text>,
                   },
                   {
                     title: "期望命中",
@@ -1816,17 +2190,18 @@ export default function RuleDefinitions() {
                     title: "最新执行结果",
                     key: "lastStatus",
                     render: (_, row) => {
-                      if (!row.lastStatus || row.lastStatus === "PENDING") {
+                      if (!row.lastStatus || row.lastStatus === "NOT_RUN") {
                         return <Badge status="default" text="待执行" />;
                       }
                       return row.lastStatus === "PASS" ? (
-                        <span className="text-green-600 font-medium">
-                          <CheckCircleOutlined className="mr-1" /> PASS
+                        <span className={styles.successText}>
+                          <CheckCircleOutlined className={styles.iconGap} /> 通过
                         </span>
                       ) : (
                         <Tooltip title={row.lastMessage}>
-                          <span className="text-red-600 font-medium cursor-help">
-                            <CloseCircleOutlined className="mr-1" /> FAIL
+                          <span className={styles.errorText}>
+                            <CloseCircleOutlined className={styles.iconGap} />
+                            {row.lastStatus === "ERROR" ? "执行错误" : "未通过"}
                           </span>
                         </Tooltip>
                       );
@@ -1890,76 +2265,40 @@ export default function RuleDefinitions() {
                       读取真实快照
                     </Button>
                   </Form>
-                  <div className="mt-4">{renderSnapshotChoices()}</div>
+                  <div className={styles.marginTopMd}>{renderSnapshotChoices()}</div>
                 </Col>
                 <Col span={12}>{renderSelectedSnapshotDetail()}</Col>
               </Row>
 
-              <Row gutter={16}>
-                <Col span={12}>
-                  {detailExpertMode ? (
-                    <Card size="small" title="专家手工 JSON 兜底">
-                      <Form layout="vertical">
-                        <Form.Item label="真实脱敏上下文快照 JSON">
-                          <TextArea
-                            rows={8}
-                            value={simulatePayload}
-                            onChange={(e) => setSimulatePayload(e.target.value)}
-                            placeholder="仅在已知快照 ID 无法检索时使用；仍必须来自真实脱敏上下文。"
-                            className="font-normal text-xs"
-                          />
-                        </Form.Item>
-                        <Button
-                          icon={<PlayCircleOutlined />}
-                          onClick={handleManualSimulate}
-                          loading={simulateMutation.isPending}
-                          block
-                        >
-                          运行手工 JSON 试运行
-                        </Button>
-                      </Form>
-                    </Card>
-                  ) : (
-                    <Alert
-                      type="info"
-                      showIcon
-                      message="手工 JSON 试运行已收纳到专家模式"
-                      description="普通流程请先读取标准上下文快照，再使用所选快照试运行。"
-                    />
-                  )}
-                </Col>
-                <Col span={12}>
-                  {simulateResult ? (
-                    <div className="bg-gray-50 p-4 rounded-lg min-h-64 overflow-auto max-h-96">
-                      <Descriptions column={1} size="small" bordered className="mb-4">
-                        <Descriptions.Item label="规则是否命中">
-                          {simulateResult.hit ? (
-                            <Tag color="red">命中</Tag>
-                          ) : (
-                            <Tag color="green">未命中</Tag>
-                          )}
+              {simulateResult ? (
+                <div className={styles.resultPanel}>
+                  <Descriptions column={1} size="small" bordered className={styles.marginBottomMd}>
+                    <Descriptions.Item label="规则是否命中">
+                      {simulateResult.hit ? (
+                        <Tag color="red">命中</Tag>
+                      ) : (
+                        <Tag color="green">未命中</Tag>
+                      )}
+                    </Descriptions.Item>
+                    {simulateResult.hit && (
+                      <>
+                        <Descriptions.Item label="动作代码">
+                          {simulateResult.actionCode}
                         </Descriptions.Item>
-                        {simulateResult.hit && (
-                          <>
-                            <Descriptions.Item label="动作代码">
-                              {simulateResult.actionCode}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="最高严重等级">
-                              {simulateResult.severity}
-                            </Descriptions.Item>
-                          </>
-                        )}
-                      </Descriptions>
-                      <Text strong>详细决策动作说明</Text>
-                      <div className="text-xs text-gray-600 bg-white p-3 rounded border border-gray-200 font-normal mt-2 whitespace-pre-wrap">
-                        {formatEvaluationExplanation(simulateResult.explanation)}
-                      </div>
-                    </div>
-                  ) : (
-                    <Empty description="选择真实快照并试运行后展示命中与解释" />
-                  )}
-                </Col>
-              </Row>
+                        <Descriptions.Item label="最高严重等级">
+                          {simulateResult.severity}
+                        </Descriptions.Item>
+                      </>
+                    )}
+                  </Descriptions>
+                  <Text strong>详细决策动作说明</Text>
+                  <div className={styles.explanation}>
+                    {formatEvaluationExplanation(simulateResult.explanation)}
+                  </div>
+                </div>
+              ) : (
+                <Empty description="选择真实快照并试运行后展示命中与解释" />
+              )}
             </Space>
           ),
         },
@@ -1972,9 +2311,12 @@ export default function RuleDefinitions() {
           ),
           children: (
             <StepFlow
-              currentStep="submit_review"
-              panelByStep={{ submit_review: releaseStepPanel }}
-              status={releaseGate.allPassed ? "process" : "error"}
+              currentStep={releaseCurrentStep}
+              panelByStep={{
+                submit_review: releaseStepPanel,
+                full_rollout: releaseStepPanel,
+              }}
+              status={releaseFlowStatus}
             />
           ),
         },
@@ -1995,7 +2337,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="模板只提供规则结构，不内置患者、药品、诊断或剂量常量；提交前必须在 L2 填写真实上下文字段。"
-            className="mb-4"
+            className={styles.marginBottomMd}
           />
           <Radio.Group
             value={selectedTemplateKey}
@@ -2042,7 +2384,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗连续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「条件组 + 子条件组」嵌套；L3 JSON 仅保留给专家核查。"
           />
 
           {renderConditionGroup(conditionRoot, 0)}
@@ -2123,7 +2465,7 @@ export default function RuleDefinitions() {
                   type="warning"
                   showIcon
                   message="L3 是专家模式，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
-                  className="mb-4"
+                  className={styles.marginBottomMd}
                 />
                 <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
                   <TextArea
@@ -2131,7 +2473,7 @@ export default function RuleDefinitions() {
                     rows={16}
                     value={dslEditorValue}
                     onChange={(event) => setDslEditorValue(event.target.value)}
-                    className="font-normal text-xs"
+                    className={styles.codeText}
                   />
                 </Form.Item>
                 <Space>
@@ -2175,18 +2517,18 @@ export default function RuleDefinitions() {
         onRetry: refetchList,
       }}
     >
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6">
-        <Form layout="inline" className="flex flex-wrap gap-4 items-center">
+      <div className={`${styles.surface} ${styles.filterSurface}`}>
+        <Form layout="inline" className={styles.inlineForm}>
           <Form.Item label="状态">
             <Select
               placeholder="全部状态"
               allowClear
               value={statusFilter}
               onChange={setStatusFilter}
-              className="w-[140px]"
+              className={styles.controlSm}
             >
               <Option value="DRAFT">草稿设计中</Option>
-              <Option value="PUBLISHED">已上线运行</Option>
+              <Option value="PUBLISHED">内容已审核</Option>
               <Option value="OFFLINE">已下线封存</Option>
             </Select>
           </Form.Item>
@@ -2196,11 +2538,13 @@ export default function RuleDefinitions() {
               allowClear
               value={typeFilter}
               onChange={setTypeFilter}
-              className="w-[150px]"
+              className={styles.controlMd}
             >
-              <Option value="DRUG_SAFETY">合理用药安全</Option>
-              <Option value="INSURANCE_AUDIT">医保规范核查</Option>
-              <Option value="CLINICAL_QUALITY">临床诊疗质控</Option>
+              {RULE_TYPE_OPTIONS.map((option) => (
+                <Option key={option.value} value={option.value}>
+                  {option.label}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item label="风险评级">
@@ -2209,7 +2553,7 @@ export default function RuleDefinitions() {
               allowClear
               value={riskFilter}
               onChange={setRiskFilter}
-              className="w-[120px]"
+              className={styles.controlXs}
             >
               <Option value="LOW">低风险</Option>
               <Option value="MEDIUM">中风险</Option>
@@ -2219,7 +2563,7 @@ export default function RuleDefinitions() {
         </Form>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+      <div className={styles.surface}>
         <Table
           columns={columns}
           dataSource={listData?.items || []}
@@ -2239,13 +2583,16 @@ export default function RuleDefinitions() {
 
       <Drawer
         title={
-          <div className="flex items-center justify-between w-full">
+          <div className={styles.drawerTitle}>
             <span>规则配置详情与试运行</span>
-            {detailData?.definition.status === "DRAFT" && (
-              <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
-                进入发布流
-              </Button>
-            )}
+            {detailData &&
+              detailData.deploymentStatus !== "ACTIVE" &&
+              (detailData.definition.status === "DRAFT" ||
+                detailData.definition.status === "PUBLISHED") && (
+                <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
+                  进入发布流
+                </Button>
+              )}
           </div>
         }
         width={980}
@@ -2254,7 +2601,6 @@ export default function RuleDefinitions() {
           setActiveDetailLayer("l2");
           setSelectedSnapshotId("");
           setSnapshotSearchParams(null);
-          setSimulatePayload("");
           setSimulateResult(null);
           setReleaseReason("");
           setDetailExpertMode(false);
@@ -2265,15 +2611,7 @@ export default function RuleDefinitions() {
       >
         {detailData && (
           <Space direction="vertical" size="large" className="mk-full-width">
-            <Alert
-              message={
-                detailData.definition.status === "PUBLISHED"
-                  ? "当前规则已上线，修改需新建草稿版本并重新走发布门禁。"
-                  : "当前规则为草稿，可补测试用例、试运行，并在全绿后提交发布。"
-              }
-              type={detailData.definition.status === "PUBLISHED" ? "success" : "info"}
-              showIcon
-            />
+            <Alert message={detailAlertMessage} type={detailAlertType} showIcon />
 
             <Descriptions title="基本元数据" bordered column={2}>
               <Descriptions.Item label="规则编码">
@@ -2281,7 +2619,7 @@ export default function RuleDefinitions() {
               </Descriptions.Item>
               <Descriptions.Item label="名称">{detailData.definition.name}</Descriptions.Item>
               <Descriptions.Item label="类型">
-                {RULE_TYPE_LABELS[detailData.definition.ruleType] ?? detailData.definition.ruleType}
+                {RULE_TYPE_LABELS[detailData.definition.ruleType]}
               </Descriptions.Item>
               <Descriptions.Item label="风险级别">
                 {renderRiskTag(detailData.definition.riskLevel)}
@@ -2289,13 +2627,16 @@ export default function RuleDefinitions() {
               <Descriptions.Item label="状态">
                 {renderStatus(detailData.definition.status)}
               </Descriptions.Item>
+              <Descriptions.Item label="部署状态">
+                {renderDeploymentStatus(detailData.deploymentStatus)}
+              </Descriptions.Item>
               <Descriptions.Item label="当前版本">
                 {detailData.version?.versionNo || 0} 版
               </Descriptions.Item>
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">技术 DSL、解释模板与手工 JSON 兜底默认隐藏。</Text>
+              <Text type="secondary">技术 DSL 与解释模板默认隐藏。</Text>
               <Space>
                 <Text>专家模式</Text>
                 <Switch
@@ -2351,9 +2692,11 @@ export default function RuleDefinitions() {
             <Col span={8}>
               <Form.Item name="ruleType" label="规则门类" rules={[{ required: true }]}>
                 <Select>
-                  <Option value="DRUG_SAFETY">合理用药安全</Option>
-                  <Option value="INSURANCE_AUDIT">医保规范核查</Option>
-                  <Option value="CLINICAL_QUALITY">临床诊疗质控</Option>
+                  {RULE_TYPE_OPTIONS.map((option) => (
+                    <Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Option>
+                  ))}
                 </Select>
               </Form.Item>
             </Col>
@@ -2367,6 +2710,19 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
             <Col span={8}>
+              <Form.Item name="triggerPoint" label="触发时点" rules={[{ required: true }]}>
+                <Select onChange={updateTriggerPoint}>
+                  {CLINICAL_TRIGGER_POINT_OPTIONS.map((option) => (
+                    <Option key={option.value} value={option.value}>
+                      {option.label}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
               <Form.Item
                 name="sourceRef"
                 label="医学依据/来源"
@@ -2375,19 +2731,21 @@ export default function RuleDefinitions() {
                 <Input placeholder="输入已审核医学依据、院内制度或配置包来源" />
               </Form.Item>
             </Col>
+            <Col span={12}>
+              <Form.Item
+                name="packageVersion"
+                label="标准上下文包版本"
+                rules={[{ required: true, message: "请输入本规则绑定的配置包版本" }]}
+              >
+                <Input placeholder="输入当前已审核的标准上下文包版本" />
+              </Form.Item>
+            </Col>
           </Row>
-          <Form.Item
-            name="packageVersion"
-            label="标准上下文包版本"
-            rules={[{ required: true, message: "请输入本规则绑定的配置包版本" }]}
-          >
-            <Input placeholder="输入当前已审核的标准上下文包版本" />
-          </Form.Item>
           <Form.Item name="changeSummary" label="初始化变更内容说明" rules={[{ required: true }]}>
             <Input placeholder="本次创建版本的修改概述" />
           </Form.Item>
 
-          <Space className="mk-flex-between mk-full-width mb-4">
+          <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。</Text>
             <Space>
               <Text>专家模式</Text>
@@ -2409,13 +2767,14 @@ export default function RuleDefinitions() {
 
       <Modal
         title="新增测试用例"
+        zIndex={1100}
         open={caseModalVisible}
         onOk={handleAddTestCase}
         onCancel={() => setCaseModalVisible(false)}
         okText="保存用例"
         cancelText="取消"
         confirmLoading={addTestCaseMutation.isPending}
-        forceRender
+        width={760}
       >
         <Form form={caseForm} layout="vertical">
           <Form.Item name="caseType" label="用例类别" rules={[{ required: true }]}>
@@ -2426,47 +2785,89 @@ export default function RuleDefinitions() {
               <Option value="CONFLICT">规则冲突校验用例</Option>
             </Select>
           </Form.Item>
-          <Form.Item
-            name="inputPayload"
-            label="真实脱敏测试输入 JSON 快照"
-            rules={[{ required: true, message: "请输入快照" }]}
+          <Alert
+            type="info"
+            showIcon
+            className={styles.marginBottomMd}
+            message="从 ACTIVE 标准上下文快照固化回归用例"
+            description="服务端校验快照状态并保存来源 ID 与资源副本，不接受人工粘贴的上下文 JSON。"
+          />
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item label="患者 ID" htmlFor="rule-case-snapshot-patient-id">
+                <Input
+                  id="rule-case-snapshot-patient-id"
+                  aria-label="测试用例患者 ID"
+                  value={snapshotPatientId}
+                  onChange={(event) => setSnapshotPatientId(event.target.value)}
+                  placeholder="输入患者主索引"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="就诊 ID" htmlFor="rule-case-snapshot-encounter-id">
+                <Input
+                  id="rule-case-snapshot-encounter-id"
+                  aria-label="测试用例就诊 ID"
+                  value={snapshotEncounterId}
+                  onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                  placeholder="输入就诊号"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Button
+            icon={<FileSearchOutlined />}
+            aria-label="读取 ACTIVE 快照"
+            onClick={handleSnapshotSearch}
           >
-            <TextArea
-              rows={8}
-              placeholder="粘贴真实脱敏上下文快照 JSON"
-              className="font-normal text-xs"
-            />
-          </Form.Item>
+            读取 ACTIVE 快照
+          </Button>
+          <div className={styles.marginTopMd}>{renderSnapshotChoices()}</div>
+          {selectedSnapshotId && (
+            <div className={styles.marginTopMd}>{renderSelectedCaseSnapshot()}</div>
+          )}
           <Form.Item name="expectedHit" label="期望求值结果">
-            <Select>
+            <Select
+              onChange={(expectedHit) => {
+                if (!expectedHit) {
+                  caseForm.setFieldsValue({
+                    expectedSeverity: undefined,
+                    expectedActionCode: undefined,
+                  });
+                }
+              }}
+            >
               <Option value={true}>应当触发规则命中</Option>
               <Option value={false}>不应当命中</Option>
             </Select>
           </Form.Item>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="expectedSeverity"
-                label="期望动作严重度"
-                rules={[{ required: true }]}
-              >
-                <Select>
-                  <Option value="LOW">低风险</Option>
-                  <Option value="MEDIUM">中风险</Option>
-                  <Option value="HIGH">高风险</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="expectedActionCode"
-                label="期望动作代码"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="如 REVIEW_REQUIRED / BLOCK" />
-              </Form.Item>
-            </Col>
-          </Row>
+          {caseExpectedHit && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="expectedSeverity"
+                  label="期望动作严重度"
+                  rules={[{ required: true }]}
+                >
+                  <Select>
+                    <Option value="LOW">低风险</Option>
+                    <Option value="MEDIUM">中风险</Option>
+                    <Option value="HIGH">高风险</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="expectedActionCode"
+                  label="期望动作代码"
+                  rules={[{ required: true }]}
+                >
+                  <Input placeholder="如 REVIEW_REQUIRED / BLOCK" />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
         </Form>
       </Modal>
 

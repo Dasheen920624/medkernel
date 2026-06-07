@@ -20,7 +20,7 @@ import com.medkernel.shared.crypto.SmCryptoService;
 /**
  * 审计统一入口。
  *
- * <p>任何业务留痕应优先调用本类；旧 {@link AuditEventPublisher} 仅作为事件总线承载发布，
+ * <p>任何业务成功留痕必须调用本类；{@link AuditEventPublisher} 仅作为事件总线承载发布，
  * 不再由业务层手写完整事件，避免字段缺漏和哈希口径分叉。
  */
 @Component
@@ -39,6 +39,10 @@ public class AuditRecorder {
             .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
         this.crypto = crypto;
+    }
+
+    public AuditEvent record(AuditAction action, String targetType, String targetId, String summary) {
+        return record(new AuditRecordCommand(action, targetType, targetId, summary, null, null, null));
     }
 
     public AuditEvent record(AuditRecordCommand command) {

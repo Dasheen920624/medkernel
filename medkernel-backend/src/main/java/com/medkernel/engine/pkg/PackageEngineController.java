@@ -186,8 +186,9 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.read')")
     public void exportOfflinePackage(
             @PathVariable String packageId,
+            @RequestParam String targetOrgUnitId,
             HttpServletResponse response) throws IOException {
-        String exportedPackage = service.exportOfflinePackage(packageId);
+        String exportedPackage = service.exportOfflinePackage(packageId, targetOrgUnitId);
         String safePackageId = packageId.replaceAll("[^A-Za-z0-9_.-]", "_");
         response.setContentType("application/json;charset=utf-8");
         response.setHeader("Content-Disposition", "attachment; filename=\"package-offline-" + safePackageId + ".json\"");
@@ -197,7 +198,7 @@ public class PackageEngineController {
     }
 
     /**
-     * 导出包发布同步证据与失败站点清单。
+     * 导出包发布同步证据与异常适配器清单。
      *
      * <p>权限：{@code package.read}。
      */
@@ -283,16 +284,16 @@ public class PackageEngineController {
     }
 
     /**
-     * 获取当前租户下的所有激活同步目标列表。
+     * 获取当前租户下可用于配置包发布的适配器。
      *
      * <p>权限：{@code package.read}。
      *
-     * @return 包含同步目标列表的统一返回包络对象
+     * @return 发布适配器列表
      */
-    @GetMapping("/sync-targets")
+    @GetMapping("/release-adapters")
     @PreAuthorize("@perm.has('package.read')")
-    public ApiResult<List<SyncTarget>> listSyncTargets() {
-        return ApiResult.ok(service.listSyncTargets());
+    public ApiResult<List<PackageReleaseAdapterResponse>> listReleaseAdapters() {
+        return ApiResult.ok(service.listReleaseAdapters());
     }
 
     private void validateContext(PackageContextRequest request) {

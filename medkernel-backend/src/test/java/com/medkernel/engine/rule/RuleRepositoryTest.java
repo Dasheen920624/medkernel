@@ -113,7 +113,7 @@ class RuleRepositoryTest {
         Instant now = Instant.now();
         return new RuleTestCase(
             null, caseId, tenantId, ruleId, versionId, RuleTestCaseType.POSITIVE,
-            "{\"patient\":{\"age\":72}}", true, RuleRiskLevel.HIGH, "STRONG_REMINDER",
+            "ctx-1", "{\"patient\":{\"age\":72}}", true, RuleRiskLevel.HIGH, "STRONG_REMINDER",
             null, null, null, null, now, "tester", now, "tester", "trace-rule");
     }
 

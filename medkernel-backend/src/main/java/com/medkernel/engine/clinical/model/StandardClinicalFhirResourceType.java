@@ -5,6 +5,7 @@ package com.medkernel.engine.clinical.model;
  */
 public enum StandardClinicalFhirResourceType {
     PATIENT("Patient"),
+    ALLERGY_INTOLERANCE("AllergyIntolerance"),
     ENCOUNTER("Encounter"),
     CONDITION("Condition"),
     OBSERVATION("Observation"),

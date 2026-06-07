@@ -35,12 +35,12 @@ CREATE TABLE IF NOT EXISTS mk_diagnosis_differential (
     differential_identity_id BIGINT       NOT NULL,
     key_point                VARCHAR(1024),
     suggested_workup         VARCHAR(512),
-    bidirectional            BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at               TIMESTAMP    NOT NULL,
     created_by               VARCHAR(64)  NOT NULL,
     updated_at               TIMESTAMP    NOT NULL,
     updated_by               VARCHAR(64)  NOT NULL,
-    trace_id                 VARCHAR(128)
+    trace_id                 VARCHAR(128),
+    CONSTRAINT uk_mk_dx_diff_version_target UNIQUE (tenant_id, diagnosis_version_id, differential_identity_id)
 );
 CREATE INDEX IF NOT EXISTS idx_mk_diagnosis_differential_version ON mk_diagnosis_differential (tenant_id, diagnosis_version_id);
 
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS mk_diagnosis_care_pointer (
     tenant_id            VARCHAR(64)  NOT NULL,
     diagnosis_version_id BIGINT       NOT NULL,
     pointer_type         VARCHAR(16)  NOT NULL,
+    target_type          VARCHAR(16)  NOT NULL,
     target_ref           VARCHAR(128) NOT NULL,
     is_soft              BOOLEAN      NOT NULL DEFAULT TRUE,
     description          VARCHAR(512),
@@ -57,7 +58,8 @@ CREATE TABLE IF NOT EXISTS mk_diagnosis_care_pointer (
     updated_at           TIMESTAMP    NOT NULL,
     updated_by           VARCHAR(64)  NOT NULL,
     trace_id             VARCHAR(128),
-    CONSTRAINT ck_mk_diagnosis_pointer_type CHECK (pointer_type IN ('TREATMENT','WORKUP','PATHWAY'))
+    CONSTRAINT ck_mk_diagnosis_pointer_type CHECK (pointer_type IN ('TREATMENT','WORKUP','PATHWAY')),
+    CONSTRAINT ck_mk_diagnosis_pointer_target CHECK (target_type IN ('RULE','KNOWLEDGE','PATHWAY'))
 );
 CREATE INDEX IF NOT EXISTS idx_mk_diagnosis_pointer_version ON mk_diagnosis_care_pointer (tenant_id, diagnosis_version_id);
 
@@ -100,6 +102,7 @@ COMMENT ON COLUMN mk_diagnosis_criterion.direction IS '方向：SUPPORTING 支�
 COMMENT ON COLUMN mk_diagnosis_criterion.temporal_constraint IS '时序/趋势约束（可选，求值留后续阶段接 RuleDslEvaluator，Spec 1 命中到编码级）';
 COMMENT ON TABLE mk_diagnosis_differential IS '鉴别清单：与本诊断需鉴别的疾病、鉴别要点与建议补充检查';
 COMMENT ON TABLE mk_diagnosis_care_pointer IS '诊疗指针：确诊后指向治疗/检查（规则·知识）或专病路径（恒软建议）';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.target_type IS '目标资产类型：RULE 规则 / KNOWLEDGE 知识 / PATHWAY 专病路径';
 COMMENT ON TABLE mk_diagnosis_test_case IS '诊断测试病例：发现集→期望候选/置信，作为发布门禁回归集';
 COMMENT ON TABLE mk_diagnosis_confidence_policy IS '置信分级策略：权重→等级阈值，可按租户/科室 scope_key 覆盖，不硬编码';
 

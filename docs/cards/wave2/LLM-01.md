@@ -18,7 +18,7 @@
 **MVP 已建**：`engine/llm/ModelGatewayService`（470 行）实现能力状态、`submitTask`（脱敏→hash→路由→Schema 校验→B0 回退→审计）、`getTask`/`retryTask`/`validatePolicy`；`ModelCapabilityPolicy`(route_strategy/desensitize_strategy/expected_schema) + `ModelCapabilityTask` 实体；五方言 `V18`。当前 **provider 未接入，一律 B0 诚实回退**（注释明确 B1/B2 由 [LLM-08](LLM-08.md) 落地）。本卡＝**固化引擎契约**：路由策略组织继承（现仅租户级）、B0 候选去硬编码（现 `executeB0Fallback` 内置高血压样例，需改为引既有规则/字典/路径事实而非写死）、能力码目录化。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 路由裁决：按策略 `BASEPLAY/LOCAL_MODEL/EXTERNAL_MODEL/DISABLED` 选路；无 provider → B0。
+- [ ] FR-1 路由裁决：按策略 `BASELINE/LOCAL_MODEL/EXTERNAL_MODEL/DISABLED` 选路；无 provider → B0。
 - [ ] FR-2 策略持久化 + 组织继承：策略按 平台→集团→医院→…→科室 继承覆盖（呼应核心 §9）。
 - [ ] FR-3 B0 诚实空候选：无 provider 时返回**确定性来源**（既有规则/字典/路径事实）或诚实空态，**不写死病种**。
 - [ ] FR-4 脱敏 + 存证：调用前脱敏 + `input_hash` SHA-256 存证。

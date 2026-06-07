@@ -13,7 +13,6 @@ import org.springframework.stereotype.Repository;
  * <p>关键查询：
  * <ul>
  *   <li>{@link #findActiveByEffectiveScope(String, Long, String, String)}：定位完整适用域内当前权威版本</li>
- *   <li>{@link #findActiveByIdentity(String, Long)}：无适用域旧接口的默认权威版本兜底查询</li>
  *   <li>{@link #findByTenantIdAndIdentityIdOrderByCreatedAtDesc(String, Long)}：版本列表</li>
  * </ul>
  */
@@ -34,14 +33,6 @@ public interface KnowledgeAssetVersionRepository extends ListCrudRepository<Know
         String tenantId,
         KnowledgeVersionStatus status
     );
-
-    @Query("""
-        SELECT * FROM knowledge_asset_version
-        WHERE tenant_id = :tenantId AND identity_id = :identityId AND status = 'ACTIVE'
-        ORDER BY activated_at DESC, id DESC
-        OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
-        """)
-    Optional<KnowledgeAssetVersion> findActiveByIdentity(String tenantId, Long identityId);
 
     /**
      * 查询租户下所有 ACTIVE 的诊断知识版本（join 身份过滤 {@code domain=DIAGNOSIS}），供运行时鉴别诊断遍历命中。

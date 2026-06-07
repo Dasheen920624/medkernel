@@ -63,7 +63,7 @@ class KnowledgeAssetApiContractTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "identity_code": "DRUG.ROSUVA",
+                      "identityCode": "DRUG.ROSUVA",
                       "domain": "DRUG",
                       "subject": "瑞舒伐他汀说明书"
                     }
@@ -113,9 +113,9 @@ class KnowledgeAssetApiContractTest {
                       "user_id": "u-99",
                       "role_codes": ["medical-affairs"],
                       "package_version": "pkg-2026.06",
-                      "version_no": "2026",
+                      "versionNo": "2026",
                       "content": "瑞舒伐他汀说明书来源原文",
-                      "file_uri": "file://controlled/source.pdf"
+                      "fileUri": "file://controlled/source.pdf"
                     }
                     """))
             .andExpect(status().isOk());
@@ -146,15 +146,15 @@ class KnowledgeAssetApiContractTest {
                       "user_id": "u-99",
                       "role_codes": ["medical-affairs"],
                       "package_version": "pkg-2026.06",
-                      "version_no": "2026",
-                      "version_label": "2026 版",
-                      "source_document_id": 7,
-                      "source_version_id": 8,
+                      "versionNo": "2026",
+                      "versionLabel": "2026 版",
+                      "sourceDocumentId": 7,
+                      "sourceVersionId": 8,
                       "content": "真实指南内容",
                       "anchors": "[]",
-                      "risk_level": "LOW",
-                      "grade_quality": "HIGH",
-                      "grade_strength": "STRONG"
+                      "riskLevel": "LOW",
+                      "gradeQuality": "HIGH",
+                      "gradeStrength": "STRONG"
                     }
                     """))
             .andExpect(status().isOk());
@@ -174,6 +174,31 @@ class KnowledgeAssetApiContractTest {
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void citationCreateRouteAcceptsStructuredEvidenceLink() throws Exception {
+        mvc.perform(post("/api/v1/engine/knowledge/citations")
+                .with(medicalAffairsJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "assetVersionId": 10,
+                      "sourceFragmentId": 20,
+                      "relation": "DERIVED_FROM",
+                      "weight": 90,
+                      "startOffset": 0,
+                      "endOffset": 12
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<CitationCreateRequest> requestCaptor =
+            ArgumentCaptor.forClass(CitationCreateRequest.class);
+        verify(identityService).createCitation(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().assetVersionId()).isEqualTo(10L);
+        assertThat(requestCaptor.getValue().sourceFragmentId()).isEqualTo(20L);
+        assertThat(requestCaptor.getValue().relation()).isEqualTo(CitationRelation.DERIVED_FROM);
     }
 
     @Test

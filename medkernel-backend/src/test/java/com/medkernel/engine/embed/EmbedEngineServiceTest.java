@@ -23,7 +23,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -34,7 +34,7 @@ class EmbedEngineServiceTest {
 
     private EmbedLaunchTokenRepository tokenRepo;
     private EmbedOriginWhitelistRepository originRepo;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private IsolatedAuditPublisher isolatedAudit;
     private EmbedEngineService service;
 
@@ -42,9 +42,9 @@ class EmbedEngineServiceTest {
     void setUp() {
         tokenRepo = mock(EmbedLaunchTokenRepository.class);
         originRepo = mock(EmbedOriginWhitelistRepository.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
-        service = new EmbedEngineService(tokenRepo, originRepo, auditPublisher, isolatedAudit);
+        service = new EmbedEngineService(tokenRepo, originRepo, auditRecorder, isolatedAudit);
 
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "user-1"));
     }
@@ -65,7 +65,7 @@ class EmbedEngineServiceTest {
         assertThat(res.embedUrl()).contains(res.token());
         assertThat(res.expiredAt()).isAfter(Instant.now());
         verify(tokenRepo).save(any(EmbedLaunchToken.class));
-        verify(auditPublisher).publish(eq(AuditAction.CREATE), eq("embed_launch_token"), eq(res.token()), any());
+        verify(auditRecorder).record(eq(AuditAction.CREATE), eq("embed_launch_token"), eq(res.token()), any());
     }
 
     @Test
@@ -143,10 +143,11 @@ class EmbedEngineServiceTest {
         assertThat(res.modelStatus()).isEqualTo(EmbedModelStatus.MODEL_DISABLED);
         assertThat(res.connectionStatus()).isEqualTo(EmbedConnectionStatus.CONNECTED);
         assertThat(res.cdsHookVersion()).isEqualTo("1.0");
+        assertThat(res.parentOrigin()).isEqualTo(TRUSTED_ORIGIN);
 
         verify(tokenRepo).consumeUnusedToken(eq(tokenVal), eq("tenant-1"), any(), any(), eq("user-1"));
         verify(tokenRepo, never()).save(any(EmbedLaunchToken.class));
-        verify(auditPublisher).publish(eq(AuditAction.EXECUTE), eq("embed_launch_token"), eq(tokenVal), any());
+        verify(auditRecorder).record(eq(AuditAction.EXECUTE), eq("embed_launch_token"), eq(tokenVal), any());
     }
 
     @Test
@@ -346,7 +347,7 @@ class EmbedEngineServiceTest {
         assertThat(response.callbackDelivered()).isFalse();
         assertThat(response.degradationReason()).isEqualTo("HOST_CALLBACK_NOT_CONFIGURED");
         assertThat(response.traceId()).isEqualTo("trace-1");
-        verify(auditPublisher).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), eq(tokenVal), any());
+        verify(auditRecorder).record(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), eq(tokenVal), any());
     }
 
     @Test
@@ -358,8 +359,14 @@ class EmbedEngineServiceTest {
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
 
-        verify(auditPublisher, never()).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
+        verify(auditRecorder, never()).record(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
         verify(isolatedAudit).publishInNewTx(any());
+    }
+
+    @Test
+    void feedback_RejectsRemovedAcceptAlias() {
+        assertThatThrownBy(() -> EmbedFeedbackActionType.fromWireValue("ACCEPT"))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -376,7 +383,7 @@ class EmbedEngineServiceTest {
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_005);
 
-        verify(auditPublisher, never()).publish(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
+        verify(auditRecorder, never()).record(eq(AuditAction.FEEDBACK), eq("embed_launch_token"), any(), any());
         verify(isolatedAudit).publishInNewTx(any());
     }
 
@@ -404,7 +411,7 @@ class EmbedEngineServiceTest {
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EMBED_003);
 
-        verify(auditPublisher, never()).publish(eq(AuditAction.EXECUTE), eq("embed_launch_token"), any(), any());
+        verify(auditRecorder, never()).record(eq(AuditAction.EXECUTE), eq("embed_launch_token"), any(), any());
         verify(isolatedAudit).publishInNewTx(any());
     }
 

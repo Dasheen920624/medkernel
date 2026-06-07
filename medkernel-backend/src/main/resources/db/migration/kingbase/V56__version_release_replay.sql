@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS mk_version_release_plan (
     CONSTRAINT ck_mk_version_release_plan_type CHECK (asset_type IN
         ('KNOWLEDGE','TERMINOLOGY','RULE','PATHWAY','PACKAGE','EVALUATION')),
     CONSTRAINT ck_mk_version_release_plan_scope CHECK (scope_type IN
-        ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY','BED_PERCENT')),
+        ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_mk_version_release_plan_status CHECK (status IN
         ('PENDING_REVIEW','SILENT_OBSERVATION','GRAY','FULL','ROLLBACKED','FAILED'))
 );
@@ -102,8 +102,8 @@ COMMENT ON COLUMN mk_version_release_plan.version_id IS '目标版本 ID';
 COMMENT ON COLUMN mk_version_release_plan.from_version_id IS '来源版本 ID，全量替换或回滚时记录';
 COMMENT ON COLUMN mk_version_release_plan.target_org_path IS '发布目标组织路径';
 COMMENT ON COLUMN mk_version_release_plan.applicable_scope IS '发布适用范围';
-COMMENT ON COLUMN mk_version_release_plan.scope_type IS '发布范围类型，灰度默认 BED_PERCENT';
-COMMENT ON COLUMN mk_version_release_plan.scope_value IS '发布范围取值，灰度时记录百分比或范围快照';
+COMMENT ON COLUMN mk_version_release_plan.scope_type IS '发布组织范围类型';
+COMMENT ON COLUMN mk_version_release_plan.scope_value IS '发布范围取值，灰度时记录放量策略与范围快照';
 COMMENT ON COLUMN mk_version_release_plan.status IS '发布计划状态';
 COMMENT ON COLUMN mk_version_release_plan.impact_digest IS '发布影响摘要';
 COMMENT ON COLUMN mk_version_release_plan.review_conclusion IS '审核结论';

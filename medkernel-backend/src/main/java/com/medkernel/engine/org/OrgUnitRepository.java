@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.medkernel.shared.context.OrgLevel;
@@ -51,6 +52,15 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
      * @return 按编码排序的组织单元列表
      */
     List<OrgUnit> findByTenantIdAndLevelOrderByCodeAsc(String tenantId, OrgLevel level);
+
+    /**
+     * 按租户和专科标识读取挂载该专科的组织单元。
+     *
+     * @param tenantId 租户标识
+     * @param specialtyId 专科标识
+     * @return 按编码排序的组织单元列表
+     */
+    List<OrgUnit> findByTenantIdAndSpecialtyIdOrderByCodeAsc(String tenantId, String specialtyId);
 
     /**
      * 列出当前租户全部组织单元。
@@ -100,4 +110,42 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<OrgUnit> pageByTenantId(String tenantId, int offset, int limit);
+
+    @Query("""
+        SELECT COUNT(*) FROM org_unit
+        WHERE tenant_id = :tenantId
+          AND (:keyword IS NULL
+            OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(COALESCE(specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND (:level IS NULL OR level_code = :level)
+          AND (:status IS NULL OR status = :status)
+        """)
+    long countDirectory(
+        @Param("tenantId") String tenantId,
+        @Param("keyword") String keyword,
+        @Param("level") String level,
+        @Param("status") String status
+    );
+
+    @Query("""
+        SELECT * FROM org_unit
+        WHERE tenant_id = :tenantId
+          AND (:keyword IS NULL
+            OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(code) LIKE LOWER(CONCAT('%', :keyword, '%'))
+            OR LOWER(COALESCE(specialty_id, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND (:level IS NULL OR level_code = :level)
+          AND (:status IS NULL OR status = :status)
+        ORDER BY name, code
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<OrgUnit> pageDirectory(
+        @Param("tenantId") String tenantId,
+        @Param("keyword") String keyword,
+        @Param("level") String level,
+        @Param("status") String status,
+        @Param("offset") int offset,
+        @Param("limit") int limit
+    );
 }

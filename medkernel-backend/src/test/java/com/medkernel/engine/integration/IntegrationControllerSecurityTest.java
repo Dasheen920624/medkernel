@@ -73,6 +73,13 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
+    void anonymousCannotReadDataContract() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/data-contract")
+                .param("packageVersion", "pkg-2026.06"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void anonymousCannotGenerateDataQualityReport() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/data-quality/reports"))
             .andExpect(status().isUnauthorized());
@@ -110,6 +117,15 @@ class IntegrationControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_IT_OPS")
     void adapterHubStatusFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/adapter-hub/status"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_IT_OPS")
+    void dataContractFailsOnMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/data-contract")
+                .param("packageVersion", "pkg-2026.06"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

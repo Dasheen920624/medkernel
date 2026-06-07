@@ -7,11 +7,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TenantOnboarding from "./TenantOnboarding";
 import {
-  useActivateOnboardingReadiness,
   useBranding,
   useCreateOrgUnit,
   useOnboardingReadiness,
   useOrgUnits,
+  useProvisionTenant,
+  useSecurityProfile,
+  useTenants,
   useUpdateBranding,
   type ImplementationStep,
   type OnboardingReadiness,
@@ -23,7 +25,9 @@ vi.mock("@/shared/api/hooks", () => ({
   useBranding: vi.fn(),
   useUpdateBranding: vi.fn(),
   useOnboardingReadiness: vi.fn(),
-  useActivateOnboardingReadiness: vi.fn(),
+  useProvisionTenant: vi.fn(),
+  useSecurityProfile: vi.fn(),
+  useTenants: vi.fn(),
 }));
 
 function renderPage(page: ReactElement) {
@@ -99,8 +103,51 @@ function readySteps(): ImplementationStep[] {
 
 function mockHooks(overrides?: {
   readiness?: OnboardingReadiness;
-  activate?: () => Promise<unknown>;
+  tenantId?: string;
+  provision?: () => Promise<unknown>;
 }) {
+  vi.mocked(useSecurityProfile).mockReturnValue({
+    data: {
+      userId: "admin-1",
+      username: "admin",
+      roles: [{ code: "hospital-admin" }],
+      permissions: [],
+      menuKeys: [],
+      environmentKeys: [],
+      dataScope: {
+        tenantId: overrides?.tenantId ?? "tenant-A",
+        groupId: null,
+        hospitalId: null,
+        campusId: null,
+        siteId: null,
+        departmentId: null,
+        specialtyId: null,
+      },
+      mustChangePwd: false,
+      mfaRequired: false,
+      mfaBound: true,
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useTenants).mockReturnValue({
+    data: [
+      {
+        tenantId: "tenant-A",
+        name: "人民医院",
+        status: "ACTIVE",
+        createdAt: "2026-06-06T00:00:00Z",
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  } as never);
+  vi.mocked(useProvisionTenant).mockReturnValue({
+    mutateAsync: vi.fn(overrides?.provision ?? (() => Promise.resolve(undefined))),
+    isPending: false,
+  } as never);
   vi.mocked(useOrgUnits).mockReturnValue({
     data: baseOrgUnits,
     isLoading: false,
@@ -131,10 +178,6 @@ function mockHooks(overrides?: {
     isError: false,
     refetch: vi.fn(),
   } as never);
-  vi.mocked(useActivateOnboardingReadiness).mockReturnValue({
-    mutateAsync: vi.fn(overrides?.activate ?? (() => Promise.resolve(overrides?.readiness))),
-    isPending: false,
-  } as never);
 }
 
 describe("TenantOnboarding", () => {
@@ -146,25 +189,14 @@ describe("TenantOnboarding", () => {
   it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByRole("heading", { name: "租户开通" })).toBeInTheDocument();
-    expect(screen.getByText("开通就绪门未通过")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "租户实施配置" })).toBeInTheDocument();
+    expect(screen.getByText("实施就绪检查未通过")).toBeInTheDocument();
     expect(screen.getByText("组织树缺少租户根或医院节点")).toBeInTheDocument();
     expect(screen.getByText("尚未配置实施用户")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /开通租户/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
   });
 
-  it("activates only after the backend readiness gate is ready", async () => {
-    const activate = vi.fn().mockResolvedValue({
-      ...blockedReadiness,
-      ready: true,
-      blockers: [],
-      steps: blockedReadiness.steps.map((step) => ({
-        ...step,
-        status: "DONE",
-        blockers: [],
-        evidence: "已完成",
-      })),
-    });
+  it("renders the live readiness result without a duplicate activation action", () => {
     mockHooks({
       readiness: {
         ...blockedReadiness,
@@ -172,13 +204,12 @@ describe("TenantOnboarding", () => {
         blockers: [],
         steps: readySteps(),
       },
-      activate,
     });
 
     renderPage(<TenantOnboarding />);
-    await userEvent.click(screen.getByRole("button", { name: /开通租户/ }));
 
-    await waitFor(() => expect(activate).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("实施就绪检查已通过")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
   });
 
   it("renders an error state when organization or readiness APIs fail", () => {
@@ -191,7 +222,38 @@ describe("TenantOnboarding", () => {
 
     renderPage(<TenantOnboarding />);
 
-    expect(screen.getByText("租户开通状态读取失败")).toBeInTheDocument();
+    expect(screen.getByText("租户实施状态读取失败")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("uses the platform tenant only for provisioning customer tenants", async () => {
+    const provision = vi.fn().mockResolvedValue({
+      tenantId: "t-renmin",
+      adminUserId: "renmin-admin",
+      adminUsername: "renmin-admin",
+      tempPassword: "TenantPwd@9",
+    });
+    mockHooks({ tenantId: "t-1", provision });
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByRole("heading", { name: "客户租户开通" })).toBeInTheDocument();
+    expect(screen.queryByText("组织树")).not.toBeInTheDocument();
+    expect(screen.getByText("人民医院")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /开通客户租户/ }));
+    await userEvent.type(screen.getByLabelText("租户标识"), "t-renmin");
+    await userEvent.type(screen.getByLabelText("租户名称"), "人民医院");
+    await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
+    await userEvent.click(screen.getByRole("button", { name: "确认开通" }));
+
+    await waitFor(() =>
+      expect(provision).toHaveBeenCalledWith({
+        tenantId: "t-renmin",
+        tenantName: "人民医院",
+        adminUsername: "renmin-admin",
+      }),
+    );
+    expect(await screen.findByText("TenantPwd@9")).toBeInTheDocument();
   });
 });

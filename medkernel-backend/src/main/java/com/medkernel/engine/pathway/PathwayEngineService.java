@@ -4,10 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,14 +21,35 @@ import com.medkernel.engine.context.ClinicalEventContext;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
+import com.medkernel.engine.pkg.PackageItem;
+import com.medkernel.engine.pkg.PackageItemRepository;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.terminology.TerminologyCoverageGate;
+import com.medkernel.engine.terminology.TerminologyCoverageIssue;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.InheritanceResolveQuery;
+import com.medkernel.engine.versioning.InheritanceResolver;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.ResolvedAssetVersion;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleasePlan;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -75,12 +96,18 @@ public class PathwayEngineService {
     private final SpecialtyMetricBindingRepository metricBindings;
     private final ContextSnapshotService contextSnapshots;
     private final PathwayProgressor progressor;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final ObjectMapper json;
     private final PathwayFollowupHandoffPort followupHandoff;
     private final ClinicalSafetyGuard safetyGuard;
+    private final TerminologyCoverageGate terminologyCoverageGate;
+    private final PathwayVersionedAssetAdapter versionedAssets;
+    private final AssetVersionRepository assetVersions;
+    private final ReleasePort releasePort;
+    private final PackageItemRepository packageItems;
+    private final InheritanceResolver inheritanceResolver;
 
     /**
      * 注入路径引擎闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
@@ -97,16 +124,24 @@ public class PathwayEngineService {
                                 SpecialtyMetricBindingRepository metricBindings,
                                 ContextSnapshotService contextSnapshots,
                                 PathwayProgressor progressor,
-                                AuditEventPublisher auditPublisher,
+                                AuditRecorder auditRecorder,
                                 StateTransitionRecorder transitions,
                                 DiagnoseResponseAssembler diagnoseAssembler,
                                 ObjectMapper json,
                                 ClinicalSafetyGuard safetyGuard,
-                                ObjectProvider<PathwayFollowupHandoffPort> followupHandoffProvider) {
+                                ObjectProvider<PathwayFollowupHandoffPort> followupHandoffProvider,
+                                ObjectProvider<TerminologyCoverageGate> terminologyCoverageGateProvider,
+                                PathwayVersionedAssetAdapter versionedAssets,
+                                AssetVersionRepository assetVersions,
+                                ReleasePort releasePort,
+                                PackageItemRepository packageItems,
+                                InheritanceResolver inheritanceResolver) {
         this(packages, profiles, templates, nodes, edges, patientPathways, variances, clocks,
-            metricBindings, contextSnapshots, progressor, auditPublisher, transitions,
+            metricBindings, contextSnapshots, progressor, auditRecorder, transitions,
             diagnoseAssembler, json,
-            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop), safetyGuard);
+            followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop), safetyGuard,
+            terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
+            versionedAssets, assetVersions, releasePort, packageItems, inheritanceResolver);
     }
 
     PathwayEngineService(SpecialtyPackageRepository packages,
@@ -120,12 +155,18 @@ public class PathwayEngineService {
                          SpecialtyMetricBindingRepository metricBindings,
                          ContextSnapshotService contextSnapshots,
                          PathwayProgressor progressor,
-                         AuditEventPublisher auditPublisher,
+                         AuditRecorder auditRecorder,
                          StateTransitionRecorder transitions,
                          DiagnoseResponseAssembler diagnoseAssembler,
                          ObjectMapper json,
                          PathwayFollowupHandoffPort followupHandoff,
-                         ClinicalSafetyGuard safetyGuard) {
+                         ClinicalSafetyGuard safetyGuard,
+                         TerminologyCoverageGate terminologyCoverageGate,
+                         PathwayVersionedAssetAdapter versionedAssets,
+                         AssetVersionRepository assetVersions,
+                         ReleasePort releasePort,
+                         PackageItemRepository packageItems,
+                         InheritanceResolver inheritanceResolver) {
         this.packages = packages;
         this.profiles = profiles;
         this.templates = templates;
@@ -137,12 +178,20 @@ public class PathwayEngineService {
         this.metricBindings = metricBindings;
         this.contextSnapshots = contextSnapshots;
         this.progressor = progressor;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
         this.json = json;
         this.followupHandoff = followupHandoff == null ? PathwayFollowupHandoffPort.noop() : followupHandoff;
         this.safetyGuard = safetyGuard;
+        this.terminologyCoverageGate = terminologyCoverageGate == null
+            ? TerminologyCoverageGate.noop()
+            : terminologyCoverageGate;
+        this.versionedAssets = Objects.requireNonNull(versionedAssets, "路径统一版本适配器不能为空");
+        this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
+        this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
+        this.packageItems = Objects.requireNonNull(packageItems, "知识包条目仓库不能为空");
+        this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
     }
 
     /**
@@ -172,7 +221,7 @@ public class PathwayEngineService {
         }
         transitions.record(PACKAGE_ENTITY, packageId, null, SpecialtyPackageStatus.DRAFT.name(),
             "CREATE_SPECIALTY_PACKAGE", null);
-        auditPublisher.publish(AuditAction.CREATE, PACKAGE_ENTITY, packageId,
+        auditRecorder.record(AuditAction.CREATE, PACKAGE_ENTITY, packageId,
             "创建专病包 " + request.packageCode());
         return new SpecialtyPackageResponse(packageId, SpecialtyPackageStatus.DRAFT, traceId);
     }
@@ -220,11 +269,51 @@ public class PathwayEngineService {
                 Boolean.TRUE.equals(binding.required()), now, actor, now, actor, traceId)))
             .toList();
 
+        bridgePathwayTemplateToPackageItem(template, actor, now, traceId);
+        AssetVersion assetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            template.tenantId(),
+            VersionedAssetType.PATHWAY,
+            template.templateCode(),
+            String.valueOf(template.templateVersion()),
+            releaseOrgScope(template),
+            releaseApplicableScope(template),
+            pathwayContent(template, savedNodes, savedEdges, savedBindings),
+            null,
+            template.sourceRef(),
+            actor,
+            traceId,
+            AssetVersionSafetyPolicy.NORMAL,
+            null
+        ));
         transitions.record(TEMPLATE_ENTITY, templateId, null, PathwayTemplateStatus.DRAFT.name(),
             "CREATE_PATHWAY_TEMPLATE", null);
-        auditPublisher.publish(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
+        auditRecorder.record(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
             "创建路径模板 " + request.templateCode());
-        return new PathwayTemplateDetailResponse(template, savedNodes, savedEdges, savedBindings, traceId);
+        return new PathwayTemplateDetailResponse(
+            template, savedNodes, savedEdges, savedBindings, assetVersion.status(), traceId);
+    }
+
+    private void bridgePathwayTemplateToPackageItem(
+            PathwayTemplate template,
+            String actor,
+            Instant now,
+            String traceId) {
+        packageItems.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+                template.tenantId(), template.packageId(), VersionedAssetType.PATHWAY, template.templateId())
+            .orElseGet(() -> packageItems.save(new PackageItem(
+                null,
+                "pi-" + UUID.randomUUID(),
+                template.tenantId(),
+                template.packageId(),
+                VersionedAssetType.PATHWAY,
+                template.templateId(),
+                String.valueOf(template.templateVersion()),
+                now,
+                actor,
+                now,
+                actor,
+                traceId
+            )));
     }
 
     /**
@@ -256,20 +345,241 @@ public class PathwayEngineService {
             template, graphNodes, graphEdges, graphBindings,
             patientPathways.findByTemplateIdAndTenantIdOrderByEnteredAtDesc(templateId, tenantId));
         validateReleaseGate(request, impact);
+        ensureTerminologyCoverage(graphEdges);
 
         Instant now = Instant.now();
         String actor = currentActor();
         PathwayTemplate published = copyTemplate(
             template, PathwayTemplateStatus.PUBLISHED, now, actor, RequestContext.currentTraceId());
         templates.save(published);
+        List<String> releaseEvidence = mergedReleaseEvidence(
+            impact.releaseEvidence(),
+            coordinateCanaryRelease(template, impact, request, actor)
+        );
         transitions.record(TEMPLATE_ENTITY, templateId, template.status().name(),
             PathwayTemplateStatus.PUBLISHED.name(), "PUBLISH_PATHWAY_TEMPLATE", null);
-        auditPublisher.publish(AuditAction.PUBLISH, TEMPLATE_ENTITY, templateId,
+        auditRecorder.record(AuditAction.PUBLISH, TEMPLATE_ENTITY, templateId,
             "发布路径模板 " + template.templateCode());
         return new PathwayTemplatePublishResponse(
             templateId, PathwayTemplateStatus.PUBLISHED, RELEASE_STEP_CANARY, impact.canaryPercent(),
-            impact.impactDigest(), impact.analysisStatus(), impact.releaseEvidence(),
+            impact.impactDigest(), impact.analysisStatus(), releaseEvidence,
             RequestContext.currentTraceId());
+    }
+
+    private List<String> coordinateCanaryRelease(
+            PathwayTemplate template,
+            PathwayTemplateImpactResponse impact,
+            PathwayOperationRequest request,
+            String actor) {
+        AssetVersion assetVersion = requirePathwayAssetVersion(template);
+        VersionReleaseCommand command = new VersionReleaseCommand(
+            template.tenantId(),
+            VersionedAssetType.PATHWAY,
+            template.templateCode(),
+            assetVersion.versionId(),
+            releaseOrgScope(template),
+            releaseApplicableScope(template),
+            VersionReleaseScopeType.HOSPITAL,
+            null,
+            impact.impactDigest(),
+            releaseReason(request, "路径发布门禁通过"),
+            request == null ? List.of() : request.roleCodes(),
+            actor,
+            RequestContext.currentTraceId()
+        );
+        return advanceCanaryRelease(assetVersion, command);
+    }
+
+    private List<String> coordinateFullRelease(
+            PathwayTemplate template,
+            PathwayTemplateImpactResponse impact,
+            PathwayOperationRequest request,
+            String actor) {
+        AssetVersion assetVersion = requirePathwayAssetVersion(template);
+        VersionReleaseCommand command = new VersionReleaseCommand(
+            template.tenantId(),
+            VersionedAssetType.PATHWAY,
+            template.templateCode(),
+            assetVersion.versionId(),
+            releaseOrgScope(template),
+            releaseApplicableScope(template),
+            VersionReleaseScopeType.ALL,
+            null,
+            impact.impactDigest(),
+            releaseReason(request, "路径全量发布门禁通过"),
+            request == null ? List.of() : request.roleCodes(),
+            actor,
+            RequestContext.currentTraceId()
+        );
+        return advanceFullRelease(assetVersion, command);
+    }
+
+    private List<String> coordinateRollback(
+            PathwayTemplate current,
+            PathwayTemplate target,
+            PathwayOperationRequest request,
+            String actor) {
+        AssetVersion currentAsset = findPathwayAssetVersion(current)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_004,
+                "当前路径版本缺少统一资产映射，禁止回滚"
+            ));
+        AssetVersion targetAsset = findPathwayAssetVersion(target)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_004,
+                "目标路径版本缺少统一资产映射，禁止回滚"
+            ));
+        VersionRollbackCommand command = new VersionRollbackCommand(
+            current.tenantId(),
+            VersionedAssetType.PATHWAY,
+            current.templateCode(),
+            currentAsset.versionId(),
+            targetAsset.versionId(),
+            String.valueOf(current.templateVersion()),
+            String.valueOf(target.templateVersion()),
+            releaseReason(request, "路径回滚门禁通过"),
+            true,
+            actor,
+            RequestContext.currentTraceId()
+        );
+        List<String> evidence = new ArrayList<>();
+        appendEvidence(evidence, releasePort.rollback(command));
+        return evidence;
+    }
+
+    private AssetVersion requirePathwayAssetVersion(PathwayTemplate template) {
+        return findPathwayAssetVersion(template)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_004,
+                "路径缺少统一资产版本，禁止发布: "
+                    + template.templateCode() + "@" + template.templateVersion()
+            ));
+    }
+
+    private Optional<AssetVersion> findPathwayAssetVersion(PathwayTemplate template) {
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            template.tenantId(),
+            VersionedAssetType.PATHWAY,
+            template.templateCode(),
+            String.valueOf(template.templateVersion())
+        );
+    }
+
+    private AssetVersion requireActivePathwayAssetVersion(PathwayTemplate template) {
+        return findPathwayAssetVersion(template)
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_005,
+                "路径模板统一版本未全量激活，不能入径: "
+                    + template.templateCode() + "@" + template.templateVersion()
+            ));
+    }
+
+    private boolean hasActivePathwayAssetVersion(PathwayTemplate template) {
+        return findPathwayAssetVersion(template)
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .isPresent();
+    }
+
+    private List<String> advanceCanaryRelease(AssetVersion assetVersion, VersionReleaseCommand command) {
+        List<String> evidence = new ArrayList<>();
+        AssetVersionStatus status = assetVersion.status();
+        if (status == AssetVersionStatus.DRAFT) {
+            appendEvidence(evidence, releasePort.submitForReview(command));
+            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+            appendEvidence(evidence, releasePort.releaseGray(command));
+            return evidence;
+        }
+        if (status == AssetVersionStatus.PENDING_REVIEW) {
+            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+            appendEvidence(evidence, releasePort.releaseGray(command));
+            return evidence;
+        }
+        if (status == AssetVersionStatus.PUBLISHED || status == AssetVersionStatus.ACTIVE) {
+            appendEvidence(evidence, releasePort.releaseGray(command));
+        }
+        return evidence;
+    }
+
+    private List<String> advanceFullRelease(AssetVersion assetVersion, VersionReleaseCommand command) {
+        List<String> evidence = new ArrayList<>();
+        AssetVersionStatus status = assetVersion.status();
+        if (status == AssetVersionStatus.DRAFT) {
+            appendEvidence(evidence, releasePort.submitForReview(command));
+            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+            appendEvidence(evidence, releasePort.releaseFull(command));
+            return evidence;
+        }
+        if (status == AssetVersionStatus.PENDING_REVIEW) {
+            appendEvidence(evidence, releasePort.approveForSilentObservation(command));
+            appendEvidence(evidence, releasePort.releaseFull(command));
+            return evidence;
+        }
+        if (status == AssetVersionStatus.PUBLISHED || status == AssetVersionStatus.ACTIVE) {
+            appendEvidence(evidence, releasePort.releaseFull(command));
+        }
+        return evidence;
+    }
+
+    private static List<String> mergedReleaseEvidence(List<String> base, List<String> unified) {
+        List<String> evidence = new ArrayList<>();
+        if (base != null) {
+            evidence.addAll(base);
+        }
+        if (unified != null) {
+            evidence.addAll(unified);
+        }
+        return evidence;
+    }
+
+    private static void appendEvidence(List<String> evidence, VersionReleasePlan plan) {
+        if (plan != null && plan.evidenceSummary() != null && !plan.evidenceSummary().isBlank()) {
+            evidence.add(plan.evidenceSummary());
+        }
+    }
+
+    private static String releaseOrgScope(PathwayTemplate template) {
+        return notBlank(template.packageId(), "tenant:" + template.tenantId());
+    }
+
+    private static String releaseApplicableScope(PathwayTemplate template) {
+        return "disease:" + notBlank(template.diseaseCode(), "ALL");
+    }
+
+    private static String releaseReason(PathwayOperationRequest request, String fallback) {
+        return request == null ? fallback : notBlank(request.reason(), fallback);
+    }
+
+    private String pathwayContent(PathwayTemplate template) {
+        return pathwayContent(
+            template,
+            nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), template.tenantId()),
+            edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), template.tenantId()),
+            metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(
+                template.templateId(), template.tenantId())
+        );
+    }
+
+    private String pathwayContent(
+            PathwayTemplate template,
+            List<PathwayNode> graphNodes,
+            List<PathwayEdge> graphEdges,
+            List<SpecialtyMetricBinding> graphBindings) {
+        return writeObject(new PathwayAssetContent(
+            template.templateCode(),
+            template.name(),
+            template.diseaseCode(),
+            template.templateVersion(),
+            template.templateLevel(),
+            template.startNodeCode(),
+            template.sourceRef(),
+            template.description(),
+            template.entryCriteriaJson(),
+            template.exitCriteriaJson(),
+            nullToEmpty(graphNodes).stream().map(PathwayNodeAssetContent::from).toList(),
+            nullToEmpty(graphEdges).stream().map(PathwayEdgeAssetContent::from).toList(),
+            nullToEmpty(graphBindings).stream().map(PathwayMetricAssetContent::from).toList()
+        ));
     }
 
     /**
@@ -307,13 +617,17 @@ public class PathwayEngineService {
         String actor = currentActor();
         templates.save(copyTemplate(
             template, PathwayTemplateStatus.PUBLISHED, now, actor, RequestContext.currentTraceId()));
+        List<String> releaseEvidence = mergedReleaseEvidence(
+            impact.releaseEvidence(),
+            coordinateFullRelease(template, impact, request, actor)
+        );
         transitions.record(TEMPLATE_ENTITY, templateId, template.status().name(),
             PathwayTemplateStatus.PUBLISHED.name(), "FULL_ROLLOUT_PATHWAY_TEMPLATE", null);
-        auditPublisher.publish(AuditAction.PUBLISH, TEMPLATE_ENTITY, templateId,
+        auditRecorder.record(AuditAction.PUBLISH, TEMPLATE_ENTITY, templateId,
             "全量发布路径模板 " + template.templateCode());
         return new PathwayTemplatePublishResponse(
             templateId, PathwayTemplateStatus.PUBLISHED, RELEASE_STEP_FULL, 100,
-            impact.impactDigest(), impact.analysisStatus(), impact.releaseEvidence(),
+            impact.impactDigest(), impact.analysisStatus(), releaseEvidence,
             RequestContext.currentTraceId());
     }
 
@@ -344,19 +658,24 @@ public class PathwayEngineService {
 
         Instant now = Instant.now();
         String actor = currentActor();
+        List<String> unifiedReleaseEvidence = coordinateRollback(current, target, request, actor);
         templates.save(copyTemplate(
             current, PathwayTemplateStatus.OFFLINE, now, actor, RequestContext.currentTraceId()));
         templates.save(copyTemplate(
             target, PathwayTemplateStatus.PUBLISHED, now, actor, RequestContext.currentTraceId()));
+        List<String> releaseEvidence = mergedReleaseEvidence(
+            impact.releaseEvidence(),
+            unifiedReleaseEvidence
+        );
         transitions.record(TEMPLATE_ENTITY, current.templateId(), current.status().name(),
             PathwayTemplateStatus.OFFLINE.name(), "ROLLBACK_PATHWAY_TEMPLATE_CURRENT", null);
         transitions.record(TEMPLATE_ENTITY, target.templateId(), target.status().name(),
             PathwayTemplateStatus.PUBLISHED.name(), "ROLLBACK_PATHWAY_TEMPLATE_TARGET", null);
-        auditPublisher.publish(AuditAction.ROLLBACK, TEMPLATE_ENTITY, target.templateId(),
+        auditRecorder.record(AuditAction.ROLLBACK, TEMPLATE_ENTITY, target.templateId(),
             "回滚路径模板 " + target.templateCode());
         return new PathwayTemplatePublishResponse(
             target.templateId(), PathwayTemplateStatus.PUBLISHED, RELEASE_STEP_ROLLBACK, 0,
-            impact.impactDigest(), impact.analysisStatus(), impact.releaseEvidence(),
+            impact.impactDigest(), impact.analysisStatus(), releaseEvidence,
             RequestContext.currentTraceId());
     }
 
@@ -424,27 +743,42 @@ public class PathwayEngineService {
         String tenantId = requireCurrentTenant();
         EffectivePathwayTemplate effective = findEffectiveTemplate(templateId, tenantId);
         PathwayTemplate template = effective.template();
+        AssetVersion assetVersion = requirePathwayAssetVersion(template);
         return new PathwayTemplateDetailResponse(
             template,
             nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(template.templateId(), effective.sourceTenantId()),
             edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(template.templateId(), effective.sourceTenantId()),
             metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc(template.templateId(), effective.sourceTenantId()),
+            assetVersion.status(),
             RequestContext.currentTraceId());
     }
 
     /**
      * 为患者创建路径实例并进入模板起始节点或请求指定起点。
      *
-     * <p>仅允许基于 {@code PUBLISHED} 模板入径；成功后创建首个 {@link ClinicalClock} 关键时钟。
+     * <p>仅允许基于统一版本状态为 {@code ACTIVE} 的模板入径；成功后创建首个
+     * {@link ClinicalClock} 关键时钟。
      */
     @Transactional
     public PatientPathwayDetailResponse enterPatientPathway(PatientPathwayEnterRequest request) {
         String tenantId = requireCurrentTenant();
+        ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
+        if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null
+                || snapshot.resources().patient() == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者入径只能使用包含标准患者资源的 ACTIVE 上下文快照");
+        }
+        if (!Objects.equals(snapshot.packageVersion(), request.packageVersion())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_001,
+                "患者入径包版本必须与所选上下文快照一致");
+        }
+        String patientId = snapshot.resources().patient().mpi();
+        String encounterId = snapshot.resources().encounters().isEmpty()
+            ? null
+            : snapshot.resources().encounters().getFirst().encounterId();
         EffectivePathwayTemplate effective = findEffectiveTemplate(request.templateId(), tenantId);
         PathwayTemplate template = effective.template();
-        if (template.status() != PathwayTemplateStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_005, "路径模板未发布，不能入径");
-        }
+        requireActivePathwayAssetVersion(template);
         safetyGuard.assertPathwayTemplateAllowed(template);
         String startNodeCode = isBlank(request.startNodeCode()) ? template.startNodeCode() : request.startNodeCode();
         PathwayNode startNode = nodes.findByTemplateIdAndTenantIdAndNodeCode(
@@ -458,7 +792,7 @@ public class PathwayEngineService {
         Instant now = Instant.now();
         String patientPathwayId = "pp-" + UUID.randomUUID();
         PatientPathway runtime = patientPathways.save(new PatientPathway(
-            null, patientPathwayId, tenantId, request.patientId(), request.encounterId(),
+            null, patientPathwayId, tenantId, patientId, encounterId,
             template.templateId(), startNode.nodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             now, null, null, null, null, now, actor, now, actor, traceId));
         ClinicalClock startClock = clocks.save(newClock(
@@ -466,7 +800,7 @@ public class PathwayEngineService {
             now, actor, traceId));
         transitions.record(PATIENT_PATHWAY_ENTITY, patientPathwayId, null,
             PatientPathwayStatus.NODE_EXECUTING.name(), "ENTER_PATHWAY", null);
-        auditPublisher.publish(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
+        auditRecorder.record(AuditAction.CREATE, PATIENT_PATHWAY_ENTITY, patientPathwayId,
             "患者入径 " + template.templateCode());
         return new PatientPathwayDetailResponse(runtime, List.of(), List.of(startClock), traceId);
     }
@@ -590,7 +924,7 @@ public class PathwayEngineService {
         String currentNodeCode = isBlank(request.currentNodeCode())
             ? runtime.currentNodeCode() : request.currentNodeCode();
         validateVarianceRequest(request);
-        EffectivePathwayTemplate effective = findEffectiveTemplate(runtime.templateId(), tenantId);
+        EffectivePathwayTemplate effective = findPinnedRuntimeTemplate(runtime.templateId(), tenantId);
         List<PathwayNode> graphNodes = nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
             effective.template().templateId(), effective.sourceTenantId());
         List<PathwayEdge> graphEdges = edges.findByTemplateIdAndTenantIdOrderByPriorityAsc(
@@ -628,7 +962,7 @@ public class PathwayEngineService {
         patientPathways.save(updated);
         transitions.record(PATIENT_PATHWAY_ENTITY, runtime.patientPathwayId(), runtime.status().name(),
             updated.status().name(), "ADVANCE_PATHWAY", null);
-        auditPublisher.publish(AuditAction.EXECUTE, PATIENT_PATHWAY_ENTITY, runtime.patientPathwayId(),
+        auditRecorder.record(AuditAction.EXECUTE, PATIENT_PATHWAY_ENTITY, runtime.patientPathwayId(),
             "推进患者路径 " + runtime.patientPathwayId());
         PathwayFollowupHandoffResult followup = handoffFollowupIfCompleted(updated, effective.template());
         return new PathwayAdvanceResponse(
@@ -711,25 +1045,39 @@ public class PathwayEngineService {
         if (isBlank(request.reason())) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径发布前必须填写审核说明");
         }
-        if (Boolean.TRUE.equals(request.directFullRollout()) && !hasHospitalAdminRole(request.roleCodes())) {
+        if (Boolean.TRUE.equals(request.directFullRollout())
+                && !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径全量发布必须由院级管理员确认");
         }
     }
 
-    private void requireHospitalAdminRole(PathwayOperationRequest request) {
-        if (request == null || !hasHospitalAdminRole(request.roleCodes())) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径全量或回滚必须由院级管理员确认");
+    private void ensureTerminologyCoverage(List<PathwayEdge> graphEdges) {
+        List<TerminologyCoverageIssue> issues = new ArrayList<>();
+        for (PathwayEdge edge : nullToEmpty(graphEdges)) {
+            if (isBlank(edge.conditionJson())) {
+                continue;
+            }
+            issues.addAll(terminologyCoverageGate.checkConditionCoverage(readConditionJson(edge)));
+        }
+        if (!issues.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径发布存在未覆盖编码对照，禁止上线：" + TerminologyCoverageGate.describeIssues(issues));
         }
     }
 
-    private boolean hasHospitalAdminRole(List<String> roleCodes) {
-        return nullToEmpty(roleCodes).stream()
-            .map(role -> role == null ? "" : role.trim().toUpperCase(Locale.ROOT)
-                .replace('-', '_').replace('.', '_'))
-            .anyMatch(role -> role.equals("HOSPITAL_ADMIN")
-                || role.equals("ROLE_HOSPITAL_ADMIN")
-                || role.equals("TENANT_ADMIN")
-                || role.equals("ROLE_TENANT_ADMIN"));
+    private JsonNode readConditionJson(PathwayEdge edge) {
+        try {
+            return json.readTree(edge.conditionJson());
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "路径边条件 JSON 解析失败：" + edge.edgeCode(), exception);
+        }
+    }
+
+    private void requireHospitalAdminRole(PathwayOperationRequest request) {
+        if (request == null || !AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径全量或回滚必须由院级管理员确认");
+        }
     }
 
     private PathwayFollowupHandoffResult handoffFollowupIfCompleted(PatientPathway runtime,
@@ -943,6 +1291,17 @@ public class PathwayEngineService {
 
     private EffectivePathwayTemplate findEffectiveTemplate(String templateId, String tenantId) {
         Optional<PathwayTemplate> local = templates.findByTemplateIdAndTenantId(templateId, tenantId);
+        Optional<PathwayTemplate> candidate = local;
+        if (candidate.isEmpty() && !PlatformTenant.isPlatformTenant(tenantId)) {
+            candidate = templates.findByTemplateIdAndTenantId(templateId, PlatformTenant.ID);
+        }
+        if (candidate.isPresent()) {
+            Optional<EffectivePathwayTemplate> resolved =
+                resolveEffectiveTemplateForCurrentOrg(candidate.get(), tenantId);
+            if (resolved.isPresent()) {
+                return resolved.get();
+            }
+        }
         if (local.isPresent()) {
             return new EffectivePathwayTemplate(local.get(), tenantId);
         }
@@ -954,8 +1313,53 @@ public class PathwayEngineService {
                 "路径模板不存在: " + templateId));
         return templates.findByTenantIdAndTemplateCodeAndTemplateVersion(
                 tenantId, platform.templateCode(), platform.templateVersion())
+            .filter(this::hasActivePathwayAssetVersion)
             .map(override -> new EffectivePathwayTemplate(override, tenantId))
             .orElseGet(() -> new EffectivePathwayTemplate(platform, PlatformTenant.ID));
+    }
+
+    /**
+     * 按患者入径时保存的模板 ID 读取固定版本，禁止在运行中重新解析到后续激活版本。
+     */
+    private EffectivePathwayTemplate findPinnedRuntimeTemplate(String templateId, String tenantId) {
+        Optional<PathwayTemplate> local = templates.findByTemplateIdAndTenantId(templateId, tenantId);
+        if (local.isPresent()) {
+            return new EffectivePathwayTemplate(local.get(), tenantId);
+        }
+        if (!PlatformTenant.isPlatformTenant(tenantId)) {
+            Optional<PathwayTemplate> platform =
+                templates.findByTemplateIdAndTenantId(templateId, PlatformTenant.ID);
+            if (platform.isPresent()) {
+                return new EffectivePathwayTemplate(platform.get(), PlatformTenant.ID);
+            }
+        }
+        throw new ApiException(ErrorCode.ENG_PATHWAY_002, "患者路径绑定的模板版本不存在: " + templateId);
+    }
+
+    private Optional<EffectivePathwayTemplate> resolveEffectiveTemplateForCurrentOrg(
+            PathwayTemplate candidate, String tenantId) {
+        String targetOrgUnitId = targetOrgUnitId();
+        if (targetOrgUnitId == null) {
+            return Optional.empty();
+        }
+        ResolvedAssetVersion resolved = inheritanceResolver.resolve(new InheritanceResolveQuery(
+            tenantId,
+            VersionedAssetType.PATHWAY,
+            candidate.templateCode(),
+            releaseApplicableScope(candidate),
+            targetOrgUnitId
+        ));
+        if (resolved.disabled()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "路径模板已在当前组织停用");
+        }
+        if (resolved.version() == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "当前组织未解析到有效路径版本");
+        }
+        AssetVersion assetVersion = resolved.version();
+        int templateVersion = Integer.parseInt(assetVersion.versionNo());
+        return templates.findByTenantIdAndTemplateCodeAndTemplateVersion(
+                assetVersion.tenantId(), candidate.templateCode(), templateVersion)
+            .map(template -> new EffectivePathwayTemplate(template, assetVersion.tenantId()));
     }
 
     private List<PathwayTemplate> effectiveTemplatesByFilter(String tenantId, String status,
@@ -1037,6 +1441,32 @@ public class PathwayEngineService {
         return scope.tenantId();
     }
 
+    private static String targetOrgUnitId() {
+        var scope = RequestContext.currentOrgScope();
+        if (scope == null) {
+            return null;
+        }
+        if (scope.specialtyId() != null && !scope.specialtyId().isBlank()) {
+            return scope.specialtyId();
+        }
+        if (scope.departmentId() != null && !scope.departmentId().isBlank()) {
+            return scope.departmentId();
+        }
+        if (scope.siteId() != null && !scope.siteId().isBlank()) {
+            return scope.siteId();
+        }
+        if (scope.campusId() != null && !scope.campusId().isBlank()) {
+            return scope.campusId();
+        }
+        if (scope.hospitalId() != null && !scope.hospitalId().isBlank()) {
+            return scope.hospitalId();
+        }
+        if (scope.groupId() != null && !scope.groupId().isBlank()) {
+            return scope.groupId();
+        }
+        return null;
+    }
+
     private String currentActor() {
         return RequestContext.currentUserId().orElse("system");
     }
@@ -1053,8 +1483,12 @@ public class PathwayEngineService {
         if (node == null || node.isNull()) {
             return null;
         }
+        return writeObject(node);
+    }
+
+    private String writeObject(Object value) {
         try {
-            return json.writeValueAsString(node);
+            return json.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_001, "路径 JSON 字段无法序列化", exception);
         }
@@ -1070,8 +1504,85 @@ public class PathwayEngineService {
         }
     }
 
+    private static String notBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private record PathwayAssetContent(
+        String templateCode,
+        String name,
+        String diseaseCode,
+        Integer templateVersion,
+        PathwayTemplateLevel templateLevel,
+        String startNodeCode,
+        String sourceRef,
+        String description,
+        String entryCriteriaJson,
+        String exitCriteriaJson,
+        List<PathwayNodeAssetContent> nodes,
+        List<PathwayEdgeAssetContent> edges,
+        List<PathwayMetricAssetContent> metricBindings
+    ) {}
+
+    private record PathwayNodeAssetContent(
+        String nodeCode,
+        String name,
+        PathwayNodeType nodeType,
+        Integer sortOrder,
+        String responsibleRole,
+        String dependencyJson,
+        Integer timeWindowMinutes,
+        boolean terminal,
+        String configJson
+    ) {
+        private static PathwayNodeAssetContent from(PathwayNode node) {
+            return new PathwayNodeAssetContent(
+                node.nodeCode(),
+                node.name(),
+                node.nodeType(),
+                node.sortOrder(),
+                node.responsibleRole(),
+                node.dependencyJson(),
+                node.timeWindowMinutes(),
+                node.terminalFlag(),
+                node.configJson()
+            );
+        }
+    }
+
+    private record PathwayEdgeAssetContent(
+        String edgeCode,
+        String fromNodeCode,
+        String toNodeCode,
+        PathwayEdgeType edgeType,
+        String conditionJson,
+        Integer priority
+    ) {
+        private static PathwayEdgeAssetContent from(PathwayEdge edge) {
+            return new PathwayEdgeAssetContent(
+                edge.edgeCode(),
+                edge.fromNodeCode(),
+                edge.toNodeCode(),
+                edge.edgeType(),
+                edge.conditionJson(),
+                edge.priority()
+            );
+        }
+    }
+
+    private record PathwayMetricAssetContent(
+        String nodeCode,
+        String metricCode,
+        boolean required
+    ) {
+        private static PathwayMetricAssetContent from(SpecialtyMetricBinding binding) {
+            return new PathwayMetricAssetContent(
+                binding.nodeCode(), binding.metricCode(), binding.requiredFlag());
+        }
     }
 
     private record EffectivePathwayTemplate(PathwayTemplate template, String sourceTenantId) {

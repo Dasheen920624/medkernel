@@ -8,9 +8,7 @@ CREATE TABLE context_snapshot (
     org_unit_id                 VARCHAR2(64)  NOT NULL,
     patient_id                  VARCHAR2(64)  NOT NULL,
     encounter_id                VARCHAR2(64)  NULL,
-    knowledge_pkg_version       VARCHAR2(64)  NOT NULL,
-    rule_pkg_version            VARCHAR2(64)  NOT NULL,
-    pathway_pkg_version         VARCHAR2(64)  NOT NULL,
+    package_version             VARCHAR2(64)  NOT NULL,
     status                      VARCHAR2(32)  DEFAULT 'ACTIVE' NOT NULL,
     missing_fields              CLOB          NULL,
     mapping_status              CLOB          NULL,
@@ -55,6 +53,7 @@ CREATE TABLE canonical_resource (
 
 CREATE INDEX idx_canonical_resource_snapshot    ON canonical_resource (snapshot_id, resource_type, seq_no);
 CREATE INDEX idx_canonical_resource_tenant_type ON canonical_resource (tenant_id, resource_type);
+COMMENT ON TABLE canonical_resource IS '上下文快照内的标准临床资源单元';
 
 CREATE TABLE clinical_event (
     id                  NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -75,6 +74,7 @@ CREATE TABLE clinical_event (
 
 CREATE INDEX idx_clinical_event_tenant_received ON clinical_event (tenant_id, received_at);
 CREATE INDEX idx_clinical_event_snapshot        ON clinical_event (snapshot_id);
+COMMENT ON TABLE clinical_event IS '触发上下文快照创建的临床事件来源';
 
 CREATE TABLE context_idempotency_key (
     id              NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -88,3 +88,4 @@ CREATE TABLE context_idempotency_key (
 );
 
 CREATE INDEX idx_context_idempotency_expires ON context_idempotency_key (expires_at);
+COMMENT ON TABLE context_idempotency_key IS '上下文快照请求的幂等键存储';

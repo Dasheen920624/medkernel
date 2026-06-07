@@ -2,6 +2,7 @@ package com.medkernel.shared.context;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.medkernel.engine.versioning.PlatformAuthority;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -15,5 +16,10 @@ class PlatformTenantTest {
         assertThat(PlatformTenant.DISPLAY_NAME).isEqualTo("平台主租户（唯一内置）");
         assertThat(PlatformTenant.isPlatformTenant("t-1")).isTrue();
         assertThat(PlatformTenant.isPlatformTenant("t-hospital")).isFalse();
+    }
+
+    @Test
+    void versioningUsesTheSamePlatformTenantInsteadOfASecondTechnicalTenant() {
+        assertThat(PlatformAuthority.PLATFORM_TENANT_ID).isEqualTo(PlatformTenant.ID);
     }
 }

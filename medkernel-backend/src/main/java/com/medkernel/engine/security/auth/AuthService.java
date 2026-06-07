@@ -14,7 +14,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.SystemConfigService;
 
@@ -30,7 +30,7 @@ public class AuthService {
     private final CredentialPasswordService credentialPasswords;
     private final AuthSessionService sessionService;
     private final IsolatedAuditPublisher isolatedAudit;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final SystemConfigService configService;
     private final LoginAttemptService loginAttempts;
     private final PasswordPolicyService passwordPolicy;
@@ -41,7 +41,7 @@ public class AuthService {
                        CredentialPasswordService credentialPasswords,
                        AuthSessionService sessionService,
                        IsolatedAuditPublisher isolatedAudit,
-                       AuditEventPublisher auditPublisher,
+                       AuditRecorder auditRecorder,
                        SystemConfigService configService,
                        LoginAttemptService loginAttempts,
                        PasswordPolicyService passwordPolicy,
@@ -51,7 +51,7 @@ public class AuthService {
         this.credentialPasswords = credentialPasswords;
         this.sessionService = sessionService;
         this.isolatedAudit = isolatedAudit;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.configService = configService;
         this.loginAttempts = loginAttempts;
         this.passwordPolicy = passwordPolicy;
@@ -96,8 +96,8 @@ public class AuthService {
             .findActiveByTenantIdAndUserId(tenantId, cred.userId())
             .stream().map(UserRoleAssignment::roleCode).distinct().toList();
         JwtIssuer.IssuedJwt jwt = sessionService.issueInitialSession(cred.userId(), tenantId, roles);
-        // I3: 成功路径用 AuditEventPublisher.publish
-        auditPublisher.publish(AuditAction.LOGIN, "platform_credential", cred.userId(),
+        // I3: 成功路径用 AuditRecorder.publish
+        auditRecorder.record(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
             new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
@@ -105,8 +105,8 @@ public class AuthService {
     }
 
     public void logout(String userId) {
-        // I3: 登出也用 AuditEventPublisher.publish
-        auditPublisher.publish(AuditAction.LOGOUT, "platform_credential",
+        // I3: 登出也用 AuditRecorder.publish
+        auditRecorder.record(AuditAction.LOGOUT, "platform_credential",
             userId == null ? "anonymous" : userId, "登出");
     }
 
@@ -129,7 +129,7 @@ public class AuthService {
             cred.id(), cred.credentialId(), cred.tenantId(), cred.userId(), cred.username(),
             credentialPasswords.encode(newPassword), cred.status(), "N", cred.mfaSecret(),
             cred.createdAt(), cred.createdBy(), now, userId, cred.traceId()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId, "自助修改密码成功");
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", userId, "自助修改密码成功");
     }
 
     public record AuthResult(JwtIssuer.IssuedJwt issuedJwt, LoginResponse response) {

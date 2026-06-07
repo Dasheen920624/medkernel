@@ -21,7 +21,7 @@ class CanonicalDtoValidationTest {
 
     @Test
     void canonicalPatientRequiresMpiAndName() {
-        var invalid = new CanonicalPatient(null, null, null, null, List.of(), List.of(),
+        var invalid = new CanonicalPatient(null, null, null, null, List.of(),
             "HIS", "REC-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
         Set<ConstraintViolation<CanonicalPatient>> violations = validator.validate(invalid);
         assertThat(violations).extracting(v -> v.getPropertyPath().toString())

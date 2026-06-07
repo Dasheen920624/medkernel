@@ -13,7 +13,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -33,18 +33,18 @@ public class EmbedEngineService {
 
     private final EmbedLaunchTokenRepository tokenRepo;
     private final EmbedOriginWhitelistRepository originRepo;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
 
     private record LaunchContract(String triggerPoint, String hook, String hookInstance) {}
 
     public EmbedEngineService(EmbedLaunchTokenRepository tokenRepo,
                               EmbedOriginWhitelistRepository originRepo,
-                              AuditEventPublisher auditPublisher,
+                              AuditRecorder auditRecorder,
                               IsolatedAuditPublisher isolatedAudit) {
         this.tokenRepo = tokenRepo;
         this.originRepo = originRepo;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
     }
 
@@ -98,7 +98,7 @@ public class EmbedEngineService {
         // 拼接默认页面嵌入 URL，外部 HIS 可直接使用此 URL 嵌入
         String embedUrl = String.format("/embed/launch?token=%s", tokenValue);
 
-        auditPublisher.publish(AuditAction.CREATE, "embed_launch_token", tokenValue,
+        auditRecorder.record(AuditAction.CREATE, "embed_launch_token", tokenValue,
             "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
 
         return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl,
@@ -121,7 +121,7 @@ public class EmbedEngineService {
             });
 
         String tenantId = entity.tenantId();
-        requireAllowedOrigin(tenantId, originHeader, request.token());
+        String parentOrigin = requireAllowedOrigin(tenantId, originHeader, request.token());
         LaunchContract contract = validateLaunchContract(request, entity);
 
         // 2. 令牌状态与时效性校验
@@ -156,7 +156,7 @@ public class EmbedEngineService {
             throw classifyFailedAtomicConsume(request.token(), tenantId);
         }
 
-        auditPublisher.publish(AuditAction.EXECUTE, "embed_launch_token", request.token(),
+        auditRecorder.record(AuditAction.EXECUTE, "embed_launch_token", request.token(),
             "消费嵌入令牌成功 userId=" + entity.userId() + " triggerPoint=" + entity.triggerPoint());
 
         return new EmbedLaunchContextResponse(
@@ -173,7 +173,8 @@ public class EmbedEngineService {
             contract.hookInstance(),
             EmbedModelStatus.MODEL_DISABLED,
             EmbedConnectionStatus.CONNECTED,
-            CDS_HOOK_VERSION
+            CDS_HOOK_VERSION,
+            parentOrigin
         );
     }
 
@@ -196,7 +197,7 @@ public class EmbedEngineService {
         }
 
         // 记录闭环反馈审计事件
-        auditPublisher.publish(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
+        auditRecorder.record(AuditAction.FEEDBACK, "embed_launch_token", req.token(),
             String.format("医生提交交互反馈 actionType=%s reason=%s patientId=%s",
                 actionType.name(), req.reason() != null ? req.reason() : "", entity.patientId()));
         return new EmbedFeedbackResponse(req.token(), actionType.name(), EmbedConnectionStatus.NOT_CONNECTED,
@@ -230,7 +231,7 @@ public class EmbedEngineService {
         );
         originRepo.save(entity);
 
-        auditPublisher.publish(AuditAction.CREATE, "embed_origin_whitelist", req.origin(),
+        auditRecorder.record(AuditAction.CREATE, "embed_origin_whitelist", req.origin(),
             "添加Origin安全域名白名单 origin=" + req.origin());
     }
 
@@ -291,7 +292,7 @@ public class EmbedEngineService {
         return new LaunchContract(tokenTriggerPoint, tokenHook, hookInstance);
     }
 
-    private void requireAllowedOrigin(String tenantId, String originHeader, String token) {
+    private String requireAllowedOrigin(String tenantId, String originHeader, String token) {
         if (!hasText(originHeader)) {
             publishFailureAudit(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息 token=" + token);
             throw new ApiException(ErrorCode.ENG_EMBED_002, "缺少 Origin 白名单校验信息");
@@ -302,6 +303,7 @@ public class EmbedEngineService {
             publishFailureAudit(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名=" + origin);
             throw new ApiException(ErrorCode.ENG_EMBED_002, "非法的 Origin 域名: " + origin);
         }
+        return origin;
     }
 
     private ApiException classifyFailedAtomicConsume(String token, String tenantId) {

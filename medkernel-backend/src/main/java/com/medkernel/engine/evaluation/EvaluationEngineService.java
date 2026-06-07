@@ -23,14 +23,24 @@ import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceRepository;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotRepository;
+import com.medkernel.engine.org.OrgAssignmentValidator;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -66,13 +76,17 @@ public class EvaluationEngineService {
     private final RectificationTaskRepository tasks;
     private final RectificationReviewRepository reviews;
     private final EvaluationIdempotencyKeyRepository idempotencyKeys;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
     private final CanonicalResourceRepository canonicalResources;
     private final ContextSnapshotRepository snapshots;
     private final RuleDslEvaluator ruleEvaluator;
     private final ObjectMapper json;
+    private final EvaluationVersionedAssetAdapter versionedAssets;
+    private final AssetVersionRepository assetVersions;
+    private final ReleasePort releasePort;
+    private final OrgAssignmentValidator assignments;
 
     /**
      * 注入评估质控闭环所需仓库、审计发布器、状态记录器与诊断装配器。
@@ -85,13 +99,17 @@ public class EvaluationEngineService {
             RectificationTaskRepository tasks,
             RectificationReviewRepository reviews,
             EvaluationIdempotencyKeyRepository idempotencyKeys,
-            AuditEventPublisher auditPublisher,
+            AuditRecorder auditRecorder,
             StateTransitionRecorder transitions,
             DiagnoseResponseAssembler diagnoseAssembler,
             CanonicalResourceRepository canonicalResources,
             ContextSnapshotRepository snapshots,
             RuleDslEvaluator ruleEvaluator,
-            ObjectMapper json) {
+            ObjectMapper json,
+            EvaluationVersionedAssetAdapter versionedAssets,
+            AssetVersionRepository assetVersions,
+            ReleasePort releasePort,
+            OrgAssignmentValidator assignments) {
         this.indicators = indicators;
         this.runs = runs;
         this.results = results;
@@ -99,13 +117,17 @@ public class EvaluationEngineService {
         this.tasks = tasks;
         this.reviews = reviews;
         this.idempotencyKeys = idempotencyKeys;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
         this.canonicalResources = canonicalResources;
         this.snapshots = snapshots;
         this.ruleEvaluator = ruleEvaluator;
         this.json = json;
+        this.versionedAssets = versionedAssets;
+        this.assetVersions = assetVersions;
+        this.releasePort = releasePort;
+        this.assignments = assignments;
     }
 
     /**
@@ -117,6 +139,7 @@ public class EvaluationEngineService {
     @Transactional
     public EvaluationIndicator createIndicator(EvaluationIndicatorCreateRequest request) {
         validateIndicator(request);
+        assignments.requireActiveDepartment(request.responsibleDepartmentId());
         Instant now = Instant.now();
         String indicatorId = "ei-" + UUID.randomUUID();
         EvaluationIndicator indicator = indicators.save(new EvaluationIndicator(
@@ -126,9 +149,22 @@ public class EvaluationEngineService {
             request.organizationScope(), request.responsibleDepartmentId(), request.sourceRef(),
             request.packageVersion(), EvaluationIndicatorStatus.DRAFT, null, null, null,
             now, actor(), now, actor(), traceId()));
+        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            indicator.tenantId(),
+            VersionedAssetType.EVALUATION,
+            indicator.indicatorCode(),
+            String.valueOf(indicator.versionNo()),
+            indicator.organizationScope(),
+            evaluationApplicableScope(indicator),
+            indicatorContent(indicator),
+            null,
+            indicator.sourceRef(),
+            actor(),
+            traceId()
+        ));
         transitions.record(INDICATOR_ENTITY, indicatorId, null, EvaluationIndicatorStatus.DRAFT.name(),
             "创建评估指标草稿", null);
-        auditPublisher.publish(AuditAction.CREATE, INDICATOR_ENTITY, indicatorId,
+        auditRecorder.record(AuditAction.CREATE, INDICATOR_ENTITY, indicatorId,
             "创建评估指标 " + request.indicatorCode());
         return indicator;
     }
@@ -172,11 +208,16 @@ public class EvaluationEngineService {
     public EvaluationIndicator submitIndicator(String indicatorId) {
         EvaluationIndicator indicator = findIndicator(indicatorId);
         requireStatus(indicator, EvaluationIndicatorStatus.DRAFT);
+        releasePort.submitForReview(releaseCommand(
+            indicator,
+            requireAssetVersion(indicator),
+            "提交评估指标审核"
+        ));
         EvaluationIndicator saved = saveIndicatorStatus(
             indicator, EvaluationIndicatorStatus.PENDING_REVIEW, null, null);
         transitions.record(INDICATOR_ENTITY, indicatorId, indicator.status().name(), saved.status().name(),
             "提交评估指标审核", null);
-        auditPublisher.publish(AuditAction.REVIEW, INDICATOR_ENTITY, indicatorId,
+        auditRecorder.record(AuditAction.REVIEW, INDICATOR_ENTITY, indicatorId,
             "提交评估指标审核 " + indicator.indicatorCode());
         return saved;
     }
@@ -187,17 +228,48 @@ public class EvaluationEngineService {
      * <p>仅 {@code PENDING_REVIEW} 可发布；发布时写入发布时间和发布人。
      */
     @Transactional
-    public EvaluationIndicator publishIndicator(String indicatorId) {
+    public EvaluationIndicator publishIndicator(
+            String indicatorId,
+            EvaluationIndicatorReleaseRequest request) {
         EvaluationIndicator indicator = findIndicator(indicatorId);
         requireStatus(indicator, EvaluationIndicatorStatus.PENDING_REVIEW);
+        String reason = requireReleaseReason(request);
+        releasePort.approveForSilentObservation(releaseCommand(
+            indicator,
+            requireAssetVersion(indicator),
+            reason
+        ));
         Instant now = Instant.now();
         EvaluationIndicator saved = saveIndicatorStatus(
             indicator, EvaluationIndicatorStatus.PUBLISHED, now, null);
         transitions.record(INDICATOR_ENTITY, indicatorId, indicator.status().name(), saved.status().name(),
             "发布评估指标", null);
-        auditPublisher.publish(AuditAction.PUBLISH, INDICATOR_ENTITY, indicatorId,
+        auditRecorder.record(AuditAction.PUBLISH, INDICATOR_ENTITY, indicatorId,
             "发布评估指标 " + indicator.indicatorCode());
         return saved;
+    }
+
+    /**
+     * 将已发布指标进入默认 10% 床位灰度，指标口径仍保持不可变。
+     */
+    @Transactional
+    public EvaluationIndicator grayIndicator(
+            String indicatorId,
+            EvaluationIndicatorReleaseRequest request) {
+        EvaluationIndicator indicator = findIndicator(indicatorId);
+        requireStatus(indicator, EvaluationIndicatorStatus.PUBLISHED);
+        releasePort.releaseGray(releaseCommand(
+            indicator,
+            requireAssetVersion(indicator),
+            requireReleaseReason(request)
+        ));
+        EvaluationIndicator gray = saveIndicatorStatus(
+            indicator, EvaluationIndicatorStatus.GRAY, indicator.publishedAt(), null);
+        transitions.record(INDICATOR_ENTITY, indicatorId, indicator.status().name(), gray.status().name(),
+            "评估指标灰度发布", null);
+        auditRecorder.record(AuditAction.PUBLISH, INDICATOR_ENTITY, indicatorId,
+            "灰度发布评估指标 " + indicator.indicatorCode());
+        return gray;
     }
 
     /**
@@ -206,9 +278,22 @@ public class EvaluationEngineService {
      * <p>用于保证新评估运行只绑定当前生效指标版本，历史结果仍保留原版本快照。
      */
     @Transactional
-    public EvaluationIndicator activateIndicator(String indicatorId) {
+    public EvaluationIndicator activateIndicator(
+            String indicatorId,
+            EvaluationIndicatorReleaseRequest request) {
         EvaluationIndicator indicator = findIndicator(indicatorId);
-        requireStatus(indicator, EvaluationIndicatorStatus.PUBLISHED);
+        if (indicator.status() != EvaluationIndicatorStatus.PUBLISHED
+                && indicator.status() != EvaluationIndicatorStatus.GRAY) {
+            throw new ApiException(ErrorCode.ENG_EVAL_003);
+        }
+        if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活仅医院管理员可执行");
+        }
+        releasePort.releaseFull(releaseCommand(
+            indicator,
+            requireAssetVersion(indicator),
+            requireReleaseReason(request)
+        ));
         Instant now = Instant.now();
         for (EvaluationIndicator old : indicators.findByTenantIdAndIndicatorCodeAndStatus(
                 tenantId(), indicator.indicatorCode(), EvaluationIndicatorStatus.ACTIVE)) {
@@ -220,7 +305,7 @@ public class EvaluationEngineService {
             indicator, EvaluationIndicatorStatus.ACTIVE, indicator.publishedAt(), now);
         transitions.record(INDICATOR_ENTITY, indicatorId, indicator.status().name(), active.status().name(),
             "激活评估指标", null);
-        auditPublisher.publish(AuditAction.UPDATE, INDICATOR_ENTITY, indicatorId,
+        auditRecorder.record(AuditAction.UPDATE, INDICATOR_ENTITY, indicatorId,
             "激活评估指标 " + indicator.indicatorCode());
         return active;
     }
@@ -244,10 +329,11 @@ public class EvaluationEngineService {
         ContextSnapshot snapshot = snapshots.findBySnapshotIdAndTenantId(request.contextSnapshotId(), tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_001, "就诊上下文快照不存在"));
 
-        // 2. 抓取并组装 12 类临床资源为 ObjectNode contextJson
+        // 2. 抓取并组装 canonical 临床资源为 ObjectNode contextJson
         List<CanonicalResource> resourceList = canonicalResources.findBySnapshotIdOrderBySeqNoAsc(request.contextSnapshotId());
         ObjectNode contextJson = json.createObjectNode();
         
+        ArrayNode allergyIntolerances = json.createArrayNode();
         ArrayNode encounters = json.createArrayNode();
         ArrayNode conditions = json.createArrayNode();
         ArrayNode nursingAssessments = json.createArrayNode();
@@ -264,6 +350,7 @@ public class EvaluationEngineService {
             JsonNode dataNode = readResourcePayload(res);
             switch (res.resourceType()) {
                 case PATIENT -> contextJson.set("patient", dataNode);
+                case ALLERGY_INTOLERANCE -> allergyIntolerances.add(dataNode);
                 case ENCOUNTER -> encounters.add(dataNode);
                 case CONDITION -> conditions.add(dataNode);
                 case NURSING_ASSESSMENT -> nursingAssessments.add(dataNode);
@@ -277,6 +364,7 @@ public class EvaluationEngineService {
                 case CLAIM -> claims.add(dataNode);
             }
         }
+        contextJson.set("allergyIntolerances", allergyIntolerances);
         contextJson.set("encounters", encounters);
         contextJson.set("conditions", conditions);
         contextJson.set("nursingAssessments", nursingAssessments);
@@ -426,7 +514,7 @@ public class EvaluationEngineService {
             snapshot.patientId(),
             snapshot.encounterId(),
             request.scenarioCode(),
-            request.packageVersion() == null ? snapshot.knowledgePackageVersion() : request.packageVersion(),
+            request.packageVersion() == null ? snapshot.packageVersion() : request.packageVersion(),
             inputDigest,
             now,
             resultRequests
@@ -504,7 +592,7 @@ public class EvaluationEngineService {
             }
         }
         transitions.record(RUN_ENTITY, runId, null, savedRun.status().name(), "接收评估运行", null);
-        auditPublisher.publish(AuditAction.EXECUTE, RUN_ENTITY, runId, "接收评估运行 " + request.runCode());
+        auditRecorder.record(AuditAction.EXECUTE, RUN_ENTITY, runId, "接收评估运行 " + request.runCode());
         return new EvaluationRunResponse(
             runId, savedRun.status(), request.results().size(), findingCount, taskCount, traceId);
     }
@@ -567,6 +655,8 @@ public class EvaluationEngineService {
         if (hasText(idempotencyKey) && idempotencyKey.length() > 128) {
             throw new ApiException(ErrorCode.ENG_EVAL_001, "幂等键长度超过 128");
         }
+        assignments.requireActiveDepartment(request.responsibleDepartmentId());
+        assignments.requireActiveUserIfPresent(request.assigneeUserId());
 
         QualityFinding finding = findFinding(request.findingId());
         Optional<RectificationTask> existing =
@@ -598,7 +688,7 @@ public class EvaluationEngineService {
         transitions.record(FINDING_ENTITY, request.findingId(), finding.status().name(),
             assignedFinding.status().name(), "派发质控整改", null);
         transitions.record(TASK_ENTITY, task.taskId(), null, task.status().name(), "派发质控整改任务", null);
-        auditPublisher.publish(AuditAction.CREATE, TASK_ENTITY, task.taskId(),
+        auditRecorder.record(AuditAction.CREATE, TASK_ENTITY, task.taskId(),
             "派发质控整改 " + request.findingId());
         return new RectificationResponse(task.taskId(), assignedFinding.status(), task.status(), traceId());
     }
@@ -648,7 +738,7 @@ public class EvaluationEngineService {
             "提交质控整改", null);
         transitions.record(FINDING_ENTITY, findingId, finding.status().name(), remediating.status().name(),
             "责任科室提交整改", null);
-        auditPublisher.publish(AuditAction.UPDATE, FINDING_ENTITY, findingId, "提交质控整改 " + task.taskId());
+        auditRecorder.record(AuditAction.UPDATE, FINDING_ENTITY, findingId, "提交质控整改 " + task.taskId());
         String traceId = traceId();
         saveIdempotencyKey(
             idempotencyKey, EvaluationIdempotencyOperation.RECTIFICATION_SUBMIT, findingId,
@@ -738,7 +828,7 @@ public class EvaluationEngineService {
             "复核质控整改 " + request.decision(), null);
         transitions.record(TASK_ENTITY, task.taskId(), task.status().name(), reviewedTask.status().name(),
             "复核整改任务 " + request.decision(), null);
-        auditPublisher.publish(AuditAction.REVIEW, FINDING_ENTITY, findingId,
+        auditRecorder.record(AuditAction.REVIEW, FINDING_ENTITY, findingId,
             "复核质控整改 " + request.decision());
         String traceId = traceId();
         saveIdempotencyKey(
@@ -934,14 +1024,14 @@ public class EvaluationEngineService {
             List<EvaluationIndicator> activeIndicators) {
         List<String> values = new ArrayList<>();
         String packageVersion = request.packageVersion() == null
-            ? snapshot.knowledgePackageVersion()
+            ? snapshot.packageVersion()
             : request.packageVersion();
         values.add(request.contextSnapshotId());
         values.add(request.scenarioCode());
         values.add(packageVersion);
         values.add(snapshot.patientId());
         values.add(snapshot.encounterId());
-        values.add(snapshot.knowledgePackageVersion());
+        values.add(snapshot.packageVersion());
         for (CanonicalResource resource : resourceList) {
             values.add(resource.resourceId());
             values.add(resource.resourceType().name());
@@ -1119,6 +1209,67 @@ public class EvaluationEngineService {
         if (indicator.status() != required) {
             throw new ApiException(ErrorCode.ENG_EVAL_003);
         }
+    }
+
+    private AssetVersion requireAssetVersion(EvaluationIndicator indicator) {
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            indicator.tenantId(),
+            VersionedAssetType.EVALUATION,
+            indicator.indicatorCode(),
+            String.valueOf(indicator.versionNo())
+        ).orElseThrow(() -> new ApiException(
+            ErrorCode.ENG_EVAL_003,
+            "评估指标缺少统一资产版本，禁止推进发布状态"
+        ));
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            EvaluationIndicator indicator,
+            AssetVersion assetVersion,
+            String reason) {
+        return new VersionReleaseCommand(
+            indicator.tenantId(),
+            VersionedAssetType.EVALUATION,
+            indicator.indicatorCode(),
+            assetVersion.versionId(),
+            indicator.organizationScope(),
+            evaluationApplicableScope(indicator),
+            null,
+            null,
+            assetVersion.contentHash(),
+            reason,
+            List.of(),
+            actor(),
+            traceId()
+        );
+    }
+
+    private String evaluationApplicableScope(EvaluationIndicator indicator) {
+        return indicator.subjectType().name() + ":" + indicator.timeWindow();
+    }
+
+    private String indicatorContent(EvaluationIndicator indicator) {
+        ObjectNode content = json.createObjectNode();
+        content.put("indicatorCode", indicator.indicatorCode());
+        content.put("versionNo", indicator.versionNo());
+        content.put("name", indicator.name());
+        content.put("subjectType", indicator.subjectType().name());
+        content.put("denominatorDefinition", indicator.denominatorDefinition());
+        content.put("numeratorDefinition", indicator.numeratorDefinition());
+        content.put("exclusionDefinition", indicator.exclusionDefinition());
+        content.put("scoringDefinition", indicator.scoringDefinition());
+        content.put("timeWindow", indicator.timeWindow());
+        content.put("organizationScope", indicator.organizationScope());
+        content.put("responsibleDepartmentId", indicator.responsibleDepartmentId());
+        content.put("packageVersion", indicator.packageVersion());
+        return compactJson(content);
+    }
+
+    private String requireReleaseReason(EvaluationIndicatorReleaseRequest request) {
+        if (request == null || !hasText(request.reason())) {
+            throw new ApiException(ErrorCode.ENG_EVAL_003, "评估指标发布必须填写审核或灰度说明");
+        }
+        return request.reason().trim();
     }
 
     private EvaluationIndicator saveIndicatorStatus(

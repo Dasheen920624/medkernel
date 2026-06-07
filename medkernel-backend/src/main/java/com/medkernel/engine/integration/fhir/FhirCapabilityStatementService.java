@@ -45,6 +45,8 @@ public class FhirCapabilityStatementService {
         resources.add(resource("Patient", "BIDIRECTIONAL", "CanonicalPatient <-> FHIR Patient"));
         resources.add(resource("Encounter", "BIDIRECTIONAL", "CanonicalEncounter <-> FHIR Encounter"));
         resources.add(resource("Condition", "BIDIRECTIONAL", "CanonicalCondition <-> FHIR Condition"));
+        resources.add(resource("AllergyIntolerance", "BIDIRECTIONAL",
+            "CanonicalAllergyIntolerance <-> FHIR AllergyIntolerance"));
         resources.add(resource("Observation", "BIDIRECTIONAL", "CanonicalObservation <-> FHIR Observation"));
         resources.add(resource("Medication", "BIDIRECTIONAL", "CanonicalMedication <-> FHIR Medication"));
         resources.add(resource("Procedure", "BIDIRECTIONAL", "CanonicalProcedure <-> FHIR Procedure"));
@@ -59,7 +61,7 @@ public class FhirCapabilityStatementService {
     public JsonNode runtimeCapability(FhirVersion version) {
         ObjectNode statement = baseStatement(version, "OPT-01-PR4");
         ObjectNode implementation = statement.putObject("implementation");
-        implementation.put("description", "OPT-01 PR4 运行门面开放 10 类核心 FHIR 资源 read/search/create；"
+        implementation.put("description", "OPT-01 PR4 运行门面开放 11 类核心 FHIR 资源 read/search/create；"
             + "ServiceRequest create 只登记医师确认任务，不自动写申请单；"
             + "外部连接状态按 INTEG-01 诚实返回 NOT_CONNECTED。");
 
@@ -69,6 +71,9 @@ public class FhirCapabilityStatementService {
         resources.add(runtimeResource("Patient", "FHIR Patient read/search/create -> CanonicalPatient", "read", "search", "create"));
         resources.add(runtimeResource("Encounter", "FHIR Encounter read/search/create -> CanonicalEncounter", "read", "search", "create"));
         resources.add(runtimeResource("Condition", "FHIR Condition read/search/create -> CanonicalCondition + 临床事件 DIAGNOSIS", "read", "search", "create"));
+        resources.add(runtimeResource("AllergyIntolerance",
+            "FHIR AllergyIntolerance read/search/create -> CanonicalAllergyIntolerance + 临床事件 REPORT",
+            "read", "search", "create"));
         resources.add(runtimeResource("Observation", "FHIR Observation read/search/create -> CanonicalObservation + 临床事件 REPORT", "read", "search", "create"));
         resources.add(runtimeResource("Medication", "FHIR Medication read/search/create -> CanonicalMedication + 临床事件 ORDER", "read", "search", "create"));
         resources.add(runtimeResource("Procedure", "FHIR Procedure read/search/create -> CanonicalProcedure + 临床事件 ORDER", "read", "search", "create"));

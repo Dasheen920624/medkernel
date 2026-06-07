@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * 规则发布前影响分析响应。
  *
- * <p>{@code analysisStatus=COMPLETE} 表示路径、在径患者和同步目标索引均已查询；
+ * <p>{@code analysisStatus=COMPLETE} 表示路径、在径患者和集成适配器索引均已查询；
  * {@code PARTIAL} 表示当前运行时缺少某类索引，必须在 {@code unavailableScopes} 中明示。
  */
 public record RuleImpactResponse(
@@ -17,7 +17,7 @@ public record RuleImpactResponse(
     List<RuleImpactObject> affectedRules,
     List<RuleImpactObject> affectedPathways,
     List<RuleImpactObject> inPathPatients,
-    List<RuleImpactObject> syncTargets,
+    List<RuleImpactObject> integrationAdapters,
     List<String> unavailableScopes,
     String traceId
 ) {
@@ -25,7 +25,7 @@ public record RuleImpactResponse(
         affectedRules = affectedRules == null ? List.of() : List.copyOf(affectedRules);
         affectedPathways = affectedPathways == null ? List.of() : List.copyOf(affectedPathways);
         inPathPatients = inPathPatients == null ? List.of() : List.copyOf(inPathPatients);
-        syncTargets = syncTargets == null ? List.of() : List.copyOf(syncTargets);
+        integrationAdapters = integrationAdapters == null ? List.of() : List.copyOf(integrationAdapters);
         unavailableScopes = unavailableScopes == null ? List.of() : List.copyOf(unavailableScopes);
     }
 }

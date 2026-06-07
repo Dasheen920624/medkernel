@@ -24,7 +24,7 @@ import com.medkernel.engine.evaluation.EmrLevelRectificationBridge.EmrLevelRecti
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -42,15 +42,15 @@ public class EmrLevelService {
 
     private final JdbcTemplate jdbc;
     private final EmrLevelRectificationBridge rectifications;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
 
     public EmrLevelService(
             JdbcTemplate jdbc,
             EmrLevelRectificationBridge rectifications,
-            AuditEventPublisher auditPublisher) {
+            AuditRecorder auditRecorder) {
         this.jdbc = jdbc;
         this.rectifications = rectifications;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
     }
 
     /**
@@ -184,7 +184,7 @@ public class EmrLevelService {
             packageId, tenantId, row.targetId(), row.hospitalOrgId(), row.standardVersion(),
             request.idempotencyKey(), EVIDENCE_PACKAGE_STATUS, payload.evidenceLineCount(),
             payloadSha256, payload.payload(), actor(), ts(now), actor(), ts(now), actor(), ts(now), traceId);
-        auditPublisher.publish(
+        auditRecorder.record(
             AuditAction.EXPORT,
             "mk_emr_level_evidence_package",
             packageId,

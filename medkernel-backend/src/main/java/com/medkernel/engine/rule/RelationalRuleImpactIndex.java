@@ -16,6 +16,7 @@ import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.pkg.PackageItem;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.pkg.PackageItemRepository;
@@ -23,7 +24,6 @@ import com.medkernel.engine.pkg.ReleasePlan;
 import com.medkernel.engine.pkg.ReleasePlanRepository;
 import com.medkernel.engine.pkg.SyncLog;
 import com.medkernel.engine.pkg.SyncLogRepository;
-import com.medkernel.engine.pkg.SyncTargetRepository;
 import org.springframework.stereotype.Service;
 
 /**
@@ -39,7 +39,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
     private final PackageItemRepository packageItems;
     private final ReleasePlanRepository releasePlans;
     private final SyncLogRepository syncLogs;
-    private final SyncTargetRepository syncTargets;
+    private final IntegrationAdapterRepository integrationAdapters;
     private final ObjectMapper json;
 
     RelationalRuleImpactIndex(PathwayTemplateRepository templates,
@@ -49,7 +49,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
                               PackageItemRepository packageItems,
                               ReleasePlanRepository releasePlans,
                               SyncLogRepository syncLogs,
-                              SyncTargetRepository syncTargets,
+                              IntegrationAdapterRepository integrationAdapters,
                               ObjectMapper json) {
         this.templates = templates;
         this.nodes = nodes;
@@ -58,7 +58,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
         this.packageItems = packageItems;
         this.releasePlans = releasePlans;
         this.syncLogs = syncLogs;
-        this.syncTargets = syncTargets;
+        this.integrationAdapters = integrationAdapters;
         this.json = json;
     }
 
@@ -74,8 +74,8 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
                 .filter(this::isActiveRuntime)
                 .map(runtime -> patientImpact(template.template(), runtime)))
             .toList();
-        List<RuleImpactObject> targets = syncTargetImpacts(tenantId, rule);
-        return new RuleImpactIndexSnapshot(pathways, patients, targets, List.of());
+        List<RuleImpactObject> adapters = integrationAdapterImpacts(tenantId, rule);
+        return new RuleImpactIndexSnapshot(pathways, patients, adapters, List.of());
     }
 
     private LinkedHashMap<String, ImpactedTemplate> impactedTemplates(String tenantId,
@@ -99,7 +99,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
         return result;
     }
 
-    private List<RuleImpactObject> syncTargetImpacts(String tenantId, RuleDefinition rule) {
+    private List<RuleImpactObject> integrationAdapterImpacts(String tenantId, RuleDefinition rule) {
         List<PackageItem> items = packageItems.findByTenantIdAndAssetTypeAndAssetId(
             tenantId, VersionedAssetType.RULE, rule.ruleId());
         LinkedHashSet<String> packageIds = new LinkedHashSet<>(
@@ -108,11 +108,11 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
         for (String packageId : packageIds) {
             for (ReleasePlan plan : releasePlans.findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId)) {
                 for (SyncLog log : syncLogs.findByTenantIdAndPlanId(tenantId, plan.planId())) {
-                    syncTargets.findByTargetIdAndTenantId(log.targetId(), tenantId)
-                        .ifPresent(target -> result.putIfAbsent(target.targetId(), new RuleImpactObject(
-                            "SYNC_TARGET",
-                            target.targetId(),
-                            target.targetName(),
+                    integrationAdapters.findByAdapterIdAndTenantId(log.adapterId(), tenantId)
+                        .ifPresent(target -> result.putIfAbsent(target.adapterId(), new RuleImpactObject(
+                            "INTEGRATION_ADAPTER",
+                            target.adapterId(),
+                            target.name(),
                             "规则已纳入配置包 " + packageId + " 的发布计划 " + plan.planId()
                                 + "，同步状态 " + log.status())));
                 }

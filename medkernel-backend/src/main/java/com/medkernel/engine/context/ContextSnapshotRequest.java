@@ -2,7 +2,7 @@ package com.medkernel.engine.context;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -12,54 +12,27 @@ import jakarta.validation.constraints.NotNull;
  * POST /api/v1/engine/context/snapshots 请求体。
  */
 public record ContextSnapshotRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("patient_id")
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
     @NotBlank String patientId,
-    @JsonAlias("encounter_id")
     String encounterId,
-    @JsonAlias("org_unit_id")
     @NotBlank String orgUnitId,
-    @JsonAlias("package_version") String packageVersion,
-    @JsonAlias("knowledge_package_version") String knowledgePackageVersion,
-    @JsonAlias("rule_package_version") String rulePackageVersion,
-    @JsonAlias("pathway_package_version") String pathwayPackageVersion,
+    @NotBlank @JsonProperty("package_version") String packageVersion,
     @NotNull @Valid ContextSnapshotResources resources
 ) {
 
     public ContextSnapshotRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-        boolean unifiedPackageProvided = hasText(packageVersion);
-        packageVersion = firstNonBlank(packageVersion, knowledgePackageVersion, rulePackageVersion, pathwayPackageVersion);
-        if (unifiedPackageProvided) {
-            knowledgePackageVersion = firstNonBlank(knowledgePackageVersion, packageVersion);
-            rulePackageVersion = firstNonBlank(rulePackageVersion, packageVersion);
-            pathwayPackageVersion = firstNonBlank(pathwayPackageVersion, packageVersion);
-        }
-    }
-
-    public ContextSnapshotRequest(
-            String patientId,
-            String encounterId,
-            String orgUnitId,
-            String knowledgePackageVersion,
-            String rulePackageVersion,
-            String pathwayPackageVersion,
-            ContextSnapshotResources resources) {
-        this(
-            null, null, null, null, null, null, null, null, null, null, List.of(),
-            patientId, encounterId, orgUnitId, null,
-            knowledgePackageVersion, rulePackageVersion, pathwayPackageVersion, resources
-        );
+        packageVersion = packageVersion == null ? null : packageVersion.trim();
     }
 
     public String effectiveIdempotencyKey(String headerIdempotencyKey) {
@@ -68,10 +41,6 @@ public record ContextSnapshotRequest(
 
     public String effectiveTraceId(String currentTraceId) {
         return firstNonBlank(currentTraceId, traceId);
-    }
-
-    public String effectivePackageVersion() {
-        return packageVersion;
     }
 
     static String firstNonBlank(String... values) {

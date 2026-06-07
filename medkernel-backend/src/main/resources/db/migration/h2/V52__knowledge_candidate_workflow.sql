@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_review_assignment_candidate ON mk_knowledge_revie
 
 COMMENT ON TABLE mk_knowledge_candidate_classification IS '知识候选新旧识别结果：记录新建、同身份新版、重复、冲突及其判定依据';
 COMMENT ON COLUMN mk_knowledge_candidate_classification.tenant_id IS '租户 ID';
-COMMENT ON COLUMN mk_knowledge_candidate_classification.org_path IS '七层组织作用域路径快照，用于审核队列按集团、医院、科室或专病切分';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.org_path IS '组织树作用域路径快照，用于审核队列按集团、医院、科室切分；专病另作为横切适用域';
 COMMENT ON COLUMN mk_knowledge_candidate_classification.identity_id IS '知识身份 ID';
 COMMENT ON COLUMN mk_knowledge_candidate_classification.candidate_version_id IS '候选知识版本 ID；重复候选不落版本时为空';
 COMMENT ON COLUMN mk_knowledge_candidate_classification.active_version_id IS '对照的当前 ACTIVE 版本 ID';
@@ -71,7 +71,7 @@ COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary IS '候选�
 
 COMMENT ON TABLE mk_knowledge_review_assignment IS '知识候选审核分派与结论记录：仅待替换审核候选进入此表，重复候选不建待办';
 COMMENT ON COLUMN mk_knowledge_review_assignment.tenant_id IS '租户 ID';
-COMMENT ON COLUMN mk_knowledge_review_assignment.org_path IS '七层组织作用域路径快照，用于审核任务按集团、医院、科室或专病切分';
+COMMENT ON COLUMN mk_knowledge_review_assignment.org_path IS '组织树作用域路径快照，用于审核任务按集团、医院、科室切分；专病另作为横切适用域';
 COMMENT ON COLUMN mk_knowledge_review_assignment.candidate_classification_id IS '候选分类记录 ID';
 COMMENT ON COLUMN mk_knowledge_review_assignment.identity_id IS '知识身份 ID';
 COMMENT ON COLUMN mk_knowledge_review_assignment.candidate_version_id IS '候选知识版本 ID';

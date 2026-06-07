@@ -21,6 +21,23 @@ public interface RuleExecutionLogRepository extends ListCrudRepository<RuleExecu
     Optional<RuleExecutionLog> findByExecutionIdAndTenantId(String executionId, String tenantId);
 
     /**
+     * 统计当前租户的规则执行日志总数。
+     */
+    @Query("SELECT COUNT(*) FROM rule_execution_log WHERE tenant_id = :tenantId")
+    long countByTenantId(String tenantId);
+
+    /**
+     * 按执行时间倒序分页读取当前租户的规则执行日志。
+     */
+    @Query("""
+        SELECT * FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+        ORDER BY executed_at DESC
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+        """)
+    List<RuleExecutionLog> pageByTenantId(String tenantId, int offset, int limit);
+
+    /**
      * 按规则倒序分页查询执行日志，按 {@code executed_at} 倒序，配合命中统计与回放。
      */
     @Query("""

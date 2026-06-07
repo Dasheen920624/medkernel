@@ -13,14 +13,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.medkernel.engine.security.DataAccessLevel;
-import com.medkernel.engine.security.ResolvedDataScope;
+import com.medkernel.shared.security.DataAccessLevel;
+import com.medkernel.shared.security.ResolvedDataScope;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.engine.org.OrgAssignmentValidator;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -36,13 +37,16 @@ public class DataPermissionService {
     private final DataPermissionPolicyRepository repository;
     private final AuditRecorder auditRecorder;
     private final ObjectMapper objectMapper;
+    private final OrgAssignmentValidator orgAssignments;
 
     public DataPermissionService(DataPermissionPolicyRepository repository,
                                  AuditRecorder auditRecorder,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 OrgAssignmentValidator orgAssignments) {
         this.repository = repository;
         this.auditRecorder = auditRecorder;
         this.objectMapper = objectMapper;
+        this.orgAssignments = orgAssignments;
     }
 
     public List<DataPermissionPolicyResponse> listPolicies(
@@ -60,6 +64,17 @@ public class DataPermissionService {
     public DataPermissionPolicyResponse upsertPolicy(
             String tenantId, DataPermissionPolicyRequest request, String actor) {
         String safeTenant = requireTenant(tenantId);
+        if (request.minDataLevel() == DataAccessLevel.NONE) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "最小数据范围必须是科室、医院或集团");
+        }
+        orgAssignments.requireActiveScopeReferences(
+            safeTenant,
+            request.groupId(),
+            request.hospitalId(),
+            request.campusId(),
+            request.siteId(),
+            request.departmentId(),
+            request.specialtyId());
         String resourceType = normalizeResourceType(request.resourceType());
         String action = request.action().name();
         List<String> allowedColumns = normalizeColumns(request.allowedColumns());

@@ -76,6 +76,8 @@ class RuntimeConfigurationContractTest {
             .contains("MEDKERNEL_BACKUP_DRILL_DB")
             .contains("pg_restore")
             .contains("restore drill evidence")
+            .contains("completed_at=")
+            .contains("latest-restore-drill.properties")
             .contains("flyway_schema_history")
             .doesNotContain(" -d \"$MEDKERNEL_DB_NAME\"");
         assertThat(validator)

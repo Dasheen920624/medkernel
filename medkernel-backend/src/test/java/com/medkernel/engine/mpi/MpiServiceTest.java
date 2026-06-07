@@ -112,15 +112,14 @@ class MpiServiceTest {
     }
 
     @Test
-    void shouldCreateActivePatientWithTenantScopeAndAudit() {
-        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-new")).thenReturn(Optional.empty());
+    void shouldGenerateActivePatientIdWithTenantScopeAndAudit() {
         when(repository.save(any(MpiPatient.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MpiPatient patient = service.createPatient(new MpiPatientCreateRequest(
-            " mpi-new ", " 李*四 ", " f ", 41, "9876"
+            " 李*四 ", " f ", 41, "9876"
         ));
 
-        assertThat(patient.mpiId()).isEqualTo("mpi-new");
+        assertThat(patient.mpiId()).matches("mpi-[0-9A-HJKMNP-TV-Z]{26}");
         assertThat(patient.tenantId()).isEqualTo(TENANT_ID);
         assertThat(patient.maskedName()).isEqualTo("李*四");
         assertThat(patient.gender()).isEqualTo("F");
@@ -136,46 +135,12 @@ class MpiServiceTest {
         assertThat(patientCaptor.getValue().id()).isNull();
         verify(recorder).record(
             eq("mpi_patient"),
-            eq("mpi-new"),
+            eq(patient.mpiId()),
             eq("NONE"),
             eq("ACTIVE"),
             eq("创建患者主索引"),
             isNull()
         );
-    }
-
-    @Test
-    void shouldReturnExistingActivePatientForIdempotentCreate() {
-        MpiPatient existing = new MpiPatient(
-            1L, "mpi-existing", TENANT_ID, "王*五", "M", 52, "1357", 0, "ACTIVE",
-            null, Instant.now(), ACTOR, Instant.now(), ACTOR
-        );
-        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-existing")).thenReturn(Optional.of(existing));
-
-        MpiPatient patient = service.createPatient(new MpiPatientCreateRequest(
-            "mpi-existing", "王*五", "M", 52, "1357"
-        ));
-
-        assertThat(patient).isEqualTo(existing);
-        verify(repository, never()).save(any(MpiPatient.class));
-        verify(recorder, never()).record(anyString(), anyString(), anyString(), anyString(), anyString(), any());
-    }
-
-    @Test
-    void shouldRejectCreateWhenExistingPatientHasBeenMerged() {
-        MpiPatient merged = new MpiPatient(
-            1L, "mpi-merged", TENANT_ID, "王*五", "M", 52, "1357", 0, "MERGED_INTO",
-            "mpi-target", Instant.now(), ACTOR, Instant.now(), ACTOR
-        );
-        when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-merged")).thenReturn(Optional.of(merged));
-
-        assertThatThrownBy(() -> service.createPatient(new MpiPatientCreateRequest(
-            "mpi-merged", "王*五", "M", 52, "1357"
-        )))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("已归并");
-
-        verify(repository, never()).save(any(MpiPatient.class));
     }
 
     @Test
@@ -216,7 +181,7 @@ class MpiServiceTest {
             "ctx-1", "mpi-1", "enc-1", ContextSnapshotStatus.ACTIVE, QualityStatus.PARTIAL, Instant.now());
         ContextSnapshotResponse snapshot = new ContextSnapshotResponse(
             "ctx-1", ContextSnapshotStatus.ACTIVE, null,
-            "pkg-2026.06", "know-2026.06", "rule-2026.06", "path-2026.06",
+            "pkg-2026.06",
             QualityStatus.PARTIAL, List.of(), java.util.Map.of(), Instant.now(), "trace-context");
         PatientPathway activePathway = new PatientPathway(
             1L, "pp-1", TENANT_ID, "mpi-1", "enc-1", "pt-1", "ASSESS",

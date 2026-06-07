@@ -11,13 +11,16 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,7 @@ import com.medkernel.engine.terminology.StandardTerm;
 import com.medkernel.engine.terminology.StandardTermRepository;
 import com.medkernel.engine.terminology.TermMapping;
 import com.medkernel.engine.terminology.TermMappingRepository;
+import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.mpi.MpiPatientRepository;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.api.error.ApiException;
@@ -46,6 +50,7 @@ public class IntegrationService {
     private static final String STATUS_SUSPENDED = "SUSPENDED";
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_RETRYING = "RETRYING";
     private static final String STATUS_DEAD_LETTER = "DEAD_LETTER";
     private static final String STATUS_NOT_CONNECTED = "NOT_CONNECTED";
     private static final String ONBOARDING_REQUESTED = "REQUESTED";
@@ -78,6 +83,9 @@ public class IntegrationService {
     private final StandardTermRepository standardTermRepository;
     private final MpiPatientRepository mpiPatientRepository;
     private final ObjectMapper objectMapper;
+    private final WebhookSecretCodec webhookSecretCodec;
+    private final List<IntegrationConnector> connectors;
+    private final ApplicationEventPublisher applicationEvents;
 
     /**
      * 构造器注入适配器、Webhook 订阅及流日志的持久化存储库。
@@ -91,7 +99,10 @@ public class IntegrationService {
                               TermMappingRepository termMappingRepository,
                               StandardTermRepository standardTermRepository,
                               MpiPatientRepository mpiPatientRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              WebhookSecretCodec webhookSecretCodec,
+                              List<IntegrationConnector> connectors,
+                              ApplicationEventPublisher applicationEvents) {
         this.adapterRepository = adapterRepository;
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
@@ -102,6 +113,9 @@ public class IntegrationService {
         this.standardTermRepository = standardTermRepository;
         this.mpiPatientRepository = mpiPatientRepository;
         this.objectMapper = objectMapper;
+        this.webhookSecretCodec = webhookSecretCodec;
+        this.connectors = List.copyOf(connectors);
+        this.applicationEvents = applicationEvents;
     }
 
     // ==========================================
@@ -173,11 +187,10 @@ public class IntegrationService {
     }
 
     /**
-     * 对指定适配器执行健康检查：当前仅做本地配置预检，不连接外部系统。
+     * 对指定适配器执行真实健康检查。
      *
-     * <p>未接入真实外部连接器前，
-     * 无法判定外部可达性——据实返回：配置非法 → {@code MISCONFIGURED}；配置合法 → {@code NOT_CONNECTED}
-     * （外部可达性未知）。绝不伪造 {@code HEALTHY} 或网络 RTT。
+     * <p>存在匹配连接器时执行外部探活；配置非法返回 {@code MISCONFIGURED}，
+     * 外部不可达或协议没有连接器返回 {@code NOT_CONNECTED}，仅实际探活成功返回 {@code HEALTHY}。
      *
      * @param tenantId  租户标识
      * @param adapterId 当前租户内唯一的适配器业务 ID
@@ -195,8 +208,7 @@ public class IntegrationService {
     /**
      * 周期探测所有启用中的第三方适配器健康状态。
      *
-     * <p>当前未接入真实外部连接器，周期任务只做本地配置预检：
-     * 配置合法标 {@code NOT_CONNECTED}，配置非法标 {@code MISCONFIGURED}；暂停适配器不扫描，且绝不伪造 {@code HEALTHY}。
+     * <p>暂停适配器不扫描；状态只取自配置校验和真实连接结果。
      */
     @Transactional
     public IntegrationHealthProbeResultDto probeActiveAdapterHealth() {
@@ -478,8 +490,10 @@ public class IntegrationService {
      * @return Webhook 订阅配置列表
      */
     @Transactional(readOnly = true)
-    public List<IntegrationWebhookConfig> getWebhooks(String tenantId) {
-        return webhookRepository.findAllByTenantId(tenantId);
+    public List<WebhookConfigResponse> getWebhooks(String tenantId) {
+        return webhookRepository.findAllByTenantId(tenantId).stream()
+            .map(this::toWebhookConfigResponse)
+            .toList();
     }
 
     /**
@@ -493,14 +507,13 @@ public class IntegrationService {
      * @throws ApiException 若 Webhook ID 冲突，抛出 CONFLICT 异常
      */
     @Transactional
-    public IntegrationWebhookConfig createWebhook(String tenantId, WebhookCreateDto dto) {
+    public WebhookCreateResponse createWebhook(String tenantId, WebhookCreateDto dto) {
         Optional<IntegrationWebhookConfig> existing = webhookRepository.findByWebhookIdAndTenantId(dto.webhookId(), tenantId);
         if (existing.isPresent()) {
             throw new ApiException(ErrorCode.CONFLICT, "WebhookID已存在: " + dto.webhookId());
         }
 
-        // 强随机生成安全签名私钥 SecretKey。
-        String generatedSecret = "sec_key_" + UUID.randomUUID().toString().replace("-", "");
+        String generatedSecret = webhookSecretCodec.generateSecret();
 
         IntegrationWebhookConfig config = new IntegrationWebhookConfig(
             null,
@@ -508,7 +521,7 @@ public class IntegrationService {
             tenantId,
             dto.name(),
             dto.callbackUrl(),
-            generatedSecret,
+            webhookSecretCodec.encode(generatedSecret),
             dto.eventsSubscribed(),
             STATUS_ACTIVE,
             Instant.now(),
@@ -517,7 +530,18 @@ public class IntegrationService {
             "system"
         );
 
-        return webhookRepository.save(config);
+        IntegrationWebhookConfig saved = webhookRepository.save(config);
+        return new WebhookCreateResponse(
+            saved.id(),
+            saved.webhookId(),
+            saved.name(),
+            saved.callbackUrl(),
+            saved.eventsSubscribed(),
+            saved.status(),
+            saved.createdAt(),
+            saved.updatedAt(),
+            generatedSecret
+        );
     }
 
     /**
@@ -537,7 +561,7 @@ public class IntegrationService {
 
         long timestamp = Instant.now().getEpochSecond();
         String payload = dto.payload();
-        String secretKey = config.secretKey();
+        String secretKey = webhookSecretCodec.decode(config.secretCipher());
 
         // 串联规则: timestamp + "." + payload
         String dataToSign = timestamp + "." + payload;
@@ -551,11 +575,11 @@ public class IntegrationService {
         return new WebhookTestResultDto(
             dto.webhookId(),
             config.callbackUrl(),
-            secretKey,
             timestamp,
-            dataToSign,
             signature,
-            "SUCCESS"
+            "SIGNATURE_GENERATED",
+            "NOT_TESTED",
+            "已生成本地 HMAC-SHA256 签名预览，未发起外部网络请求"
         );
     }
 
@@ -575,7 +599,8 @@ public class IntegrationService {
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_003, "Webhook订阅不存在: " + webhookId));
 
         String canonicalPayload = canonicalInboundPayload(request);
-        if (!isWebhookSignatureValid(timestamp, signature, canonicalPayload, webhook.secretKey())) {
+        String secretKey = webhookSecretCodec.decode(webhook.secretCipher());
+        if (!isWebhookSignatureValid(timestamp, signature, canonicalPayload, secretKey)) {
             storeInboundFailure(tenantId, webhook, request, canonicalPayload, "Webhook 消息签名校验失败");
             throw new ApiException(ErrorCode.ENG_INTEG_004, "Webhook 消息签名校验失败");
         }
@@ -644,10 +669,10 @@ public class IntegrationService {
     // ==========================================
 
     /**
-     * 登记出站异步同步消息；外部系统未连接时只写补偿日志，不阻断医生主流程。
+     * 登记出站异步同步消息；连接配置有效时在事务提交后执行真实投递。
      *
-     * <p>当前总线尚未接入真实发送连接器，所有出站请求均按 {@code NOT_CONNECTED}
-     * 诚实落库，等待后续人工重试或死信重放，不伪造发送成功。
+     * <p>外部系统不可用、配置非法或协议无连接器时保留补偿日志，不阻断医生主流程，
+     * 且绝不伪造发送成功。
      */
     @Transactional
     public IntegrationOutboundResultDto enqueueOutboundMessage(String tenantId, IntegrationOutboundRequestDto request) {
@@ -656,14 +681,13 @@ public class IntegrationService {
             return outboundResultFromLog(request.adapterId(), existing.get());
         }
 
-        Optional<IntegrationAdapter> adapter = adapterRepository.findByAdapterIdAndTenantId(request.adapterId(), tenantId);
-        String systemName = adapter.map(IntegrationAdapter::name)
+        Optional<OutboundTarget> target = resolveOutboundTarget(tenantId, request.adapterId());
+        String systemName = target.map(item -> item.adapter().name())
             .orElseGet(() -> blankToDefault(request.targetSystem(), request.adapterId()));
-        String protocolType = adapter.map(IntegrationAdapter::protocolType)
+        String protocolType = target.map(item -> item.adapter().protocolType())
             .orElseGet(() -> blankToDefault(request.protocolType(), "REST"));
-        String reason = adapter.isPresent()
-            ? "未接入真实外部发送连接器，已登记异步补偿，不阻断主流程"
-            : "适配器不存在或未接入，已登记异步补偿，不阻断主流程";
+        DeliveryReadiness readiness = deliveryReadiness(target);
+        String reason = readiness.message();
 
         ObjectNode stored = objectMapper.createObjectNode();
         stored.put("adapterId", request.adapterId());
@@ -680,9 +704,9 @@ public class IntegrationService {
             DIRECTION_OUTBOUND,
             systemName,
             protocolType,
-            truncate(blankToDefault(request.payloadSummary(), "第三方出站同步已登记异步补偿"), 512),
+            truncate(blankToDefault(request.payloadSummary(), "第三方出站同步消息"), 512),
             stored.toString(),
-            STATUS_NOT_CONNECTED,
+            readiness.status(),
             0,
             sanitizedMaxRetries(request.maxRetries()),
             reason,
@@ -692,7 +716,25 @@ public class IntegrationService {
             "system"
         ));
 
+        if (STATUS_RETRYING.equals(saved.status())) {
+            applicationEvents.publishEvent(new IntegrationOutboundQueuedEvent(tenantId, saved.messageId()));
+        }
         return outboundResultFromLog(request.adapterId(), saved);
+    }
+
+    /**
+     * 执行已进入队列的真实外部投递。
+     *
+     * <p>该方法由事务提交后的异步监听器调用，也作为集成测试的确定性执行入口。
+     */
+    @Transactional
+    public IntegrationMessageLog dispatchQueuedMessage(String tenantId, String messageId) {
+        IntegrationMessageLog message = logRepository.findByMessageIdAndTenantId(messageId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_005, "接口流日志不存在: " + messageId));
+        if (!STATUS_RETRYING.equals(message.status())) {
+            return message;
+        }
+        return deliverMessage(message, false);
     }
 
     /**
@@ -736,13 +778,10 @@ public class IntegrationService {
     }
 
     /**
-     * 手动触发对指定已失败（FAILED）或死信（DEAD_LETTER）队列的消息投递重试补偿。
+     * 手动触发失败消息的真实重试投递。
      *
-     * <p>根据幂等规则校验，已成功的消息不再重投；每次重试累加 retry_count，达到 max_retries 后归档进 DEAD_LETTER。
-     *
-     * <p>当前未接入真实外部连接器，
-     * 无法真正重投递到 HIS/LIS——据实处理：绝不伪造 {@code SUCCESS}。空载荷或达到最大重试 → {@code DEAD_LETTER}；
-     * 否则保持 {@code FAILED} 并在 errorMessage 说明根因。
+     * <p>已成功的消息不再重投；每次人工重试累加 retry_count，失败且达到
+     * max_retries 后进入 {@code DEAD_LETTER}。
      *
      * @param tenantId  租户标识
      * @param messageId 集成日志的唯一主键 UUID
@@ -758,25 +797,7 @@ public class IntegrationService {
             throw new ApiException(ErrorCode.ENG_INTEG_006, "交易已成功，无需重复投递: " + messageId);
         }
 
-        int newRetryCount = msgLog.retryCount() + 1;
-        boolean payloadValid = msgLog.payload() != null && !msgLog.payload().isBlank();
-
-        // 根因：空载荷无法投递；载荷合法但无外部连接器同样无法真实重投递。两者均不得标 SUCCESS。
-        String cause = payloadValid
-            ? "未接入真实外部连接器，无法完成真实重投递"
-            : "原始载荷报文为空(Payload is empty)";
-
-        IntegrationMessageLog retried;
-        if (newRetryCount >= msgLog.maxRetries()) {
-            retried = msgLog.withRetry(STATUS_DEAD_LETTER, newRetryCount,
-                "投递重试超限，已进入死信等待人工重放；根因: " + cause);
-        } else {
-            String retryStatus = payloadValid ? STATUS_NOT_CONNECTED : STATUS_FAILED;
-            retried = msgLog.withRetry(retryStatus, newRetryCount,
-                "重新投递未完成，已保留异步补偿且不阻断主流程；根因: " + cause);
-        }
-
-        return logRepository.save(retried);
+        return deliverMessage(msgLog, true);
     }
 
     /**
@@ -791,6 +812,10 @@ public class IntegrationService {
         }
 
         String replayMessageId = "replay-" + UUID.randomUUID().toString().replace("-", "");
+        Optional<OutboundEnvelope> envelope = readOutboundEnvelope(deadLetter);
+        DeliveryReadiness readiness = envelope
+            .map(item -> deliveryReadiness(resolveOutboundTarget(tenantId, item.adapterId())))
+            .orElseGet(() -> DeliveryReadiness.failed("原始载荷不是可重放的标准出站消息"));
         IntegrationMessageLog replay = logRepository.save(new IntegrationMessageLog(
             null,
             replayMessageId,
@@ -801,22 +826,25 @@ public class IntegrationService {
             deadLetter.protocolType(),
             truncate("死信人工重放: " + blankToDefault(deadLetter.payloadSummary(), messageId), 512),
             deadLetter.payload(),
-            STATUS_NOT_CONNECTED,
+            readiness.status(),
             0,
             deadLetter.maxRetries(),
-            "死信已人工重放为新的异步补偿消息；原死信保留为审计证据，不阻断主流程",
+            readiness.message(),
             Instant.now(),
             "system",
             Instant.now(),
             "system"
         ));
+        if (STATUS_RETRYING.equals(replay.status())) {
+            applicationEvents.publishEvent(new IntegrationOutboundQueuedEvent(tenantId, replay.messageId()));
+        }
         return new IntegrationReplayResultDto(
             messageId,
             replay.messageId(),
             replay.traceId(),
             replay.status(),
             false,
-            "死信已创建重放补偿消息，原始证据已保留"
+            "死信已创建重放消息，原始证据已保留"
         );
     }
 
@@ -992,10 +1020,196 @@ public class IntegrationService {
     }
 
     private IntegrationAdapter checkedAdapterHealth(IntegrationAdapter adapter, Instant checkedAt) {
-        // 无真实外部连接器：配置合法只能标 NOT_CONNECTED（外部可达性未知），不得伪造 HEALTHY；
-        // 不记录伪造网络 RTT（0 表示未做真实探活）。
-        String healthStatus = isConfigJsonValid(adapter.configJson()) ? HEALTH_NOT_CONNECTED : HEALTH_MISCONFIGURED;
-        return adapter.withHealthCheck(healthStatus, 0L, checkedAt);
+        if (!isConfigJsonValid(adapter.configJson())) {
+            return adapter.withHealthCheck(HEALTH_MISCONFIGURED, 0L, checkedAt);
+        }
+        Optional<IntegrationConnector> connector = connectorFor(adapter);
+        if (connector.isEmpty()) {
+            return adapter.withHealthCheck(HEALTH_NOT_CONNECTED, 0L, checkedAt);
+        }
+        IntegrationConnectorHealth health = connector.get().checkHealth(adapter);
+        return adapter.withHealthCheck(health.status(), health.rttMs(), checkedAt);
+    }
+
+    private DeliveryReadiness deliveryReadiness(Optional<OutboundTarget> target) {
+        if (target.isEmpty()) {
+            return DeliveryReadiness.notConnected("目标适配器或 Webhook 不存在，已保留补偿消息且不阻断主流程");
+        }
+        Optional<IntegrationConnector> connector = connectorFor(target.get().adapter());
+        if (connector.isEmpty()) {
+            return DeliveryReadiness.notConnected("当前协议没有可用连接器，已保留补偿消息且不阻断主流程");
+        }
+        IntegrationConnectorValidation validation = connector.get().validate(target.get().adapter());
+        if (!validation.valid()) {
+            return DeliveryReadiness.failed("连接配置无效: " + validation.reason());
+        }
+        return DeliveryReadiness.ready("消息已进入真实异步投递队列");
+    }
+
+    private IntegrationMessageLog deliverMessage(IntegrationMessageLog message, boolean incrementRetry) {
+        int retryCount = message.retryCount() + (incrementRetry ? 1 : 0);
+        Optional<OutboundEnvelope> envelope = readOutboundEnvelope(message);
+        if (envelope.isEmpty()) {
+            return saveDeliveryFailure(
+                message,
+                retryCount,
+                STATUS_FAILED,
+                "原始载荷不是可投递的标准出站消息",
+                incrementRetry
+            );
+        }
+        Optional<OutboundTarget> target = resolveOutboundTarget(message.tenantId(), envelope.get().adapterId());
+        if (target.isEmpty()) {
+            return saveDeliveryFailure(
+                message,
+                retryCount,
+                STATUS_NOT_CONNECTED,
+                "目标适配器或 Webhook 不存在",
+                incrementRetry
+            );
+        }
+        Optional<IntegrationConnector> connector = connectorFor(target.get().adapter());
+        if (connector.isEmpty()) {
+            return saveDeliveryFailure(
+                message,
+                retryCount,
+                STATUS_NOT_CONNECTED,
+                "当前协议没有可用连接器",
+                incrementRetry
+            );
+        }
+        IntegrationConnectorValidation validation = connector.get().validate(target.get().adapter());
+        if (!validation.valid()) {
+            return saveDeliveryFailure(
+                message,
+                retryCount,
+                STATUS_FAILED,
+                "连接配置无效: " + validation.reason(),
+                incrementRetry
+            );
+        }
+
+        Map<String, String> runtimeHeaders;
+        try {
+            runtimeHeaders = runtimeHeaders(target.get(), envelope.get().payload());
+        } catch (JsonProcessingException | InvalidKeyException | NoSuchAlgorithmException | IllegalStateException exception) {
+            return saveDeliveryFailure(
+                message,
+                retryCount,
+                STATUS_FAILED,
+                "Webhook 签名生成失败: " + exception.getMessage(),
+                incrementRetry
+            );
+        }
+
+        IntegrationDeliveryResult result = connector.get().deliver(
+            target.get().adapter(),
+            envelope.get().payload(),
+            message.messageId(),
+            message.traceId(),
+            runtimeHeaders
+        );
+        if (result.delivered()) {
+            return logRepository.save(message.withRetry(STATUS_SUCCESS, retryCount, null));
+        }
+        return saveDeliveryFailure(
+            message,
+            retryCount,
+            result.connected() ? STATUS_FAILED : STATUS_NOT_CONNECTED,
+            result.errorMessage(),
+            incrementRetry
+        );
+    }
+
+    private IntegrationMessageLog saveDeliveryFailure(IntegrationMessageLog message,
+                                                      int retryCount,
+                                                      String status,
+                                                      String cause,
+                                                      boolean incrementRetry) {
+        String normalizedCause = blankToDefault(cause, "外部投递失败");
+        if (incrementRetry && retryCount >= message.maxRetries()) {
+            return logRepository.save(message.withRetry(
+                STATUS_DEAD_LETTER,
+                retryCount,
+                "投递重试超限，已进入死信等待人工重放；根因: " + normalizedCause
+            ));
+        }
+        return logRepository.save(message.withRetry(
+            status,
+            retryCount,
+            "真实投递未完成，已保留补偿且不阻断主流程；根因: " + normalizedCause
+        ));
+    }
+
+    private Optional<OutboundEnvelope> readOutboundEnvelope(IntegrationMessageLog message) {
+        if (message.payload() == null || message.payload().isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode stored = objectMapper.readTree(message.payload());
+            JsonNode payload = stored.path("payload");
+            String adapterId = stored.path("adapterId").asText("");
+            if (!stored.isObject() || adapterId.isBlank() || payload.isMissingNode() || payload.isNull()) {
+                return Optional.empty();
+            }
+            return Optional.of(new OutboundEnvelope(adapterId, payload));
+        } catch (JsonProcessingException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<OutboundTarget> resolveOutboundTarget(String tenantId, String targetId) {
+        Optional<IntegrationAdapter> adapter = adapterRepository.findByAdapterIdAndTenantId(targetId, tenantId);
+        if (adapter.isPresent()) {
+            return Optional.of(new OutboundTarget(adapter.get(), null));
+        }
+        return webhookRepository.findByWebhookIdAndTenantId(targetId, tenantId)
+            .filter(webhook -> STATUS_ACTIVE.equals(webhook.status()))
+            .map(webhook -> new OutboundTarget(webhookAdapter(webhook), webhook));
+    }
+
+    private IntegrationAdapter webhookAdapter(IntegrationWebhookConfig webhook) {
+        ObjectNode config = objectMapper.createObjectNode();
+        config.put("baseUrl", webhook.callbackUrl());
+        config.put("healthUrl", webhook.callbackUrl());
+        config.put("outboundUrl", webhook.callbackUrl());
+        Instant now = Instant.now();
+        return new IntegrationAdapter(
+            null,
+            webhook.webhookId(),
+            webhook.tenantId(),
+            webhook.name(),
+            PROTOCOL_WEBHOOK,
+            webhook.status(),
+            config.toString(),
+            HEALTH_NOT_CONNECTED,
+            0L,
+            null,
+            webhook.createdAt(),
+            webhook.createdBy(),
+            now,
+            webhook.updatedBy()
+        );
+    }
+
+    private Optional<IntegrationConnector> connectorFor(IntegrationAdapter adapter) {
+        return connectors.stream()
+            .filter(connector -> connector.supports(adapter))
+            .findFirst();
+    }
+
+    private Map<String, String> runtimeHeaders(OutboundTarget target, JsonNode payload)
+            throws JsonProcessingException, InvalidKeyException, NoSuchAlgorithmException {
+        if (target.webhook() == null) {
+            return Map.of();
+        }
+        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        String canonicalPayload = objectMapper.writeValueAsString(payload);
+        String secret = webhookSecretCodec.decode(target.webhook().secretCipher());
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("X-MedKernel-Timestamp", timestamp);
+        headers.put("X-MedKernel-Signature", "sha256=" + hmacSha256(timestamp + "." + canonicalPayload, secret));
+        return Map.copyOf(headers);
     }
 
     private AdapterHealthItemDto toHealthItem(IntegrationAdapter adapter) {
@@ -1219,7 +1433,8 @@ public class IntegrationService {
         if (!MAPPING_CONFIRMED.equals(mapping.statusName())) {
             throw new ApiException(ErrorCode.ENG_INTEG_001, "术语映射尚未确认，禁止入站归一: " + termMappingId);
         }
-        StandardTerm standard = standardTermRepository.findByTenantIdAndId(tenantId, mapping.standardTermId())
+        StandardTerm standard = standardTermRepository.findFirstByTenantIdsAndId(
+                standardTermSources(tenantId), tenantId, mapping.standardTermId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_001, "标准术语不存在: " + mapping.standardTermId()));
         if (!STANDARD_ACTIVE.equals(standard.statusName())) {
             throw new ApiException(ErrorCode.ENG_INTEG_001, "标准术语已禁用，禁止入站归一: " + standard.termCode());
@@ -1233,6 +1448,17 @@ public class IntegrationService {
         normalized.put("sourceValue", sourceValue.isValueNode() ? sourceValue.asText() : sourceValue.toString());
         normalized.put("termMappingId", termMappingId);
         return normalized;
+    }
+
+    private List<String> standardTermSources(String tenantId) {
+        String current = tenantId == null ? "" : tenantId.trim();
+        if (PlatformAuthority.PLATFORM_TENANT_ID.equals(current)) {
+            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        }
+        if (current.isBlank()) {
+            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
+        }
+        return List.of(PlatformAuthority.PLATFORM_TENANT_ID, current);
     }
 
     private void writeJsonPointer(ObjectNode root, String targetPath, JsonNode value) {
@@ -1327,14 +1553,30 @@ public class IntegrationService {
         return List.copyOf(warnings);
     }
 
+    private WebhookConfigResponse toWebhookConfigResponse(IntegrationWebhookConfig config) {
+        return new WebhookConfigResponse(
+            config.id(),
+            config.webhookId(),
+            config.name(),
+            config.callbackUrl(),
+            config.eventsSubscribed(),
+            config.status(),
+            config.createdAt(),
+            config.updatedAt()
+        );
+    }
+
     private IntegrationOutboundResultDto outboundResultFromLog(String adapterId, IntegrationMessageLog log) {
+        boolean compensationRequired = STATUS_FAILED.equals(log.status())
+            || STATUS_NOT_CONNECTED.equals(log.status())
+            || STATUS_DEAD_LETTER.equals(log.status());
         return new IntegrationOutboundResultDto(
             log.messageId(),
             log.traceId(),
             adapterId,
             log.status(),
             false,
-            !STATUS_SUCCESS.equals(log.status()),
+            compensationRequired,
             log.errorMessage() == null ? "出站消息已登记" : log.errorMessage()
         );
     }
@@ -1385,5 +1627,26 @@ public class IntegrationService {
     }
 
     private record MappingResult(JsonNode payload, int mappedFieldCount, int normalizedCodeCount, List<String> warnings) {
+    }
+
+    private record OutboundEnvelope(String adapterId, JsonNode payload) {
+    }
+
+    private record OutboundTarget(IntegrationAdapter adapter, IntegrationWebhookConfig webhook) {
+    }
+
+    private record DeliveryReadiness(String status, String message) {
+
+        private static DeliveryReadiness ready(String message) {
+            return new DeliveryReadiness(STATUS_RETRYING, message);
+        }
+
+        private static DeliveryReadiness notConnected(String message) {
+            return new DeliveryReadiness(STATUS_NOT_CONNECTED, message);
+        }
+
+        private static DeliveryReadiness failed(String message) {
+            return new DeliveryReadiness(STATUS_FAILED, message);
+        }
     }
 }

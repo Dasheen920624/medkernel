@@ -40,7 +40,7 @@ public @interface DataScope {
     boolean requireTenant() default true;
 
     /**
-     * 要求当前 {@link com.medkernel.shared.context.OrgScope} 至少携带某一层级的 ID。
+     * 要求当前 {@link com.medkernel.shared.context.OrgScope} 至少携带某一组织树层级的 ID。
      * 例如设为 {@link OrgLevel#HOSPITAL} 则必须带 hospitalId。
      * 默认 {@link OrgLevel#TENANT}（等价于只要求 tenantId）。
      */

@@ -62,38 +62,18 @@ CREATE TABLE release_plan (
     trace_id          VARCHAR2(128),
     CONSTRAINT uk_release_plan_id UNIQUE (tenant_id, plan_id),
     CONSTRAINT ck_release_plan_strategy CHECK (strategy IN ('GRAYSCALE','FULL')),
-    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
+    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_release_plan_status CHECK (status IN ('DRAFT','EXECUTING','SUCCESS','FAILED','ROLLBACKED'))
 );
 
 CREATE INDEX idx_release_plan_pkg ON release_plan (tenant_id, package_id, status);
-
-CREATE TABLE sync_target (
-    id                NUMBER(19) IDENTITY PRIMARY KEY,
-    target_id         VARCHAR2(64)   NOT NULL,
-    tenant_id         VARCHAR2(64)   NOT NULL,
-    target_name       VARCHAR2(128)  NOT NULL,
-    target_type       VARCHAR2(32)   NOT NULL,
-    connection_config CLOB,
-    status            VARCHAR2(32)   DEFAULT 'ACTIVE' NOT NULL,
-    created_at        TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by        VARCHAR2(64)   DEFAULT 'system' NOT NULL,
-    updated_at        TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_by        VARCHAR2(64)   DEFAULT 'system' NOT NULL,
-    trace_id          VARCHAR2(128),
-    CONSTRAINT uk_sync_target_id UNIQUE (tenant_id, target_id),
-    CONSTRAINT ck_sync_target_type CHECK (target_type IN ('CLINICAL_DB','DIFY','GRAPH_DB','REDIS')),
-    CONSTRAINT ck_sync_target_status CHECK (status IN ('ACTIVE','INACTIVE'))
-);
-
-CREATE INDEX idx_sync_target_tenant ON sync_target (tenant_id, status);
 
 CREATE TABLE sync_log (
     id                NUMBER(19) IDENTITY PRIMARY KEY,
     log_id            VARCHAR2(64)   NOT NULL,
     tenant_id         VARCHAR2(64)   NOT NULL,
     plan_id           VARCHAR2(64)   NOT NULL,
-    target_id         VARCHAR2(64)   NOT NULL,
+    adapter_id         VARCHAR2(64)   NOT NULL,
     status            VARCHAR2(32)   DEFAULT 'RUNNING' NOT NULL,
     error_code        VARCHAR2(64),
     error_message     CLOB,

@@ -20,7 +20,7 @@
 本卡＝**框架抽取/统一**，当前散落无统一框架：
 
 - 版本字段散落多引擎：`engine/context`（`PackageVersionPort`）、`engine/knowledge`（`KnowledgeAssetVersion` + 状态机 + `activate/withdraw`）、`engine/pathway`（`SpecialtyPackage`）、`engine/pkg`（`ReleasePlan/PackageSyncPort/KnowledgePackage`）、`engine/evaluation`（版本字段）。
-- `engine/pkg` 已有 `ReleasePlan(+Status)`、`PackageSyncPort`、`LenientPackageSyncAdapter`、`PackageEngineService` 雏形——属**包级**（[PKG-01](PKG-01.md)/[API-10](API-10.md)），非通用框架。
+- `engine/pkg` 的 `ReleasePlan` / `PackageSyncPort` / `PackageEngineService` 属包级投放；外部连接统一复用 `integration_adapter` 与 `IntegrationConnector`，不维护包域同步目标。
 - **缺口**：无统一的「不可变版本 + 七层继承解析 + 变更类发布流 + 灰度/回滚/历史重放」框架；各引擎各写版本与发布。本卡抽取为复用框架（Port/SPI），各引擎接入，**不推翻已有 `engine/knowledge` 的 `activate` 主干**（[SYS-08](SYS-08.md) 在其上专项化）。
 
 ## 功能要求（原子可测条目）
@@ -46,7 +46,7 @@
 N·A —— 本卡无页面。发布流走 [BASE-06](../D0/BASE-06.md) 的 7 步流组件，呈现在各配置页与 **D2 配置包中心页**；本卡只立框架。
 
 ## 数据与迁移
-- 表族（对齐详规 §7.6 发布同步族）：逻辑对象 `AssetVersion`、物理表 `mk_version_asset_version`（通用版本：身份/版本号/`content_hash`/`safety_policy`/状态/生效域/不可变；按 BASE-05 新增迁移命名规约不再使用旧裸表名 `asset_version`）· `mk_version_release_plan`（范围/灰度水位/回滚目标/状态）· `mk_version_activation_transaction`（激活/失效原子事务记录）· `mk_version_replay_binding`（历史运行结果绑定当时患者快照与版本）· `mk_version_inheritance_override`（局部替换覆盖 + 差异说明）· `sync_target`/`sync_log`（同步水位，[PKG-01](PKG-01.md) 共用）。
+- 表族（对齐详规 §7.6 发布同步族）：`mk_version_asset_version`、`mk_version_release_plan`、`mk_version_activation_transaction`、`mk_version_replay_binding`、`mk_version_inheritance_override`；包投递水位使用 `sync_log`，连接目录只使用集成域 `integration_adapter`。
 - 业务版本 ID：`version_id` 使用 `av-<ULID>`；物理 `id` 仅作 JDBC 持久化主键。唯一约束：**`(asset_identity, org_path, applicable, effective)` 上 `ACTIVE` 唯一**（框架级保证 FR-2）；索引：`org_path`、`status`、`effective_time`、`asset_identity`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段；继承解析依赖 [BASE-01](../D0/BASE-01.md) 的 `org_closure`。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释；`ACTIVE` 唯一约束按方言实现（部分唯一索引或发布事务校验）。

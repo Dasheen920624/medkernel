@@ -15,7 +15,7 @@ public record ModelCapabilityPolicy(
     @Id Long id,
     @Column("tenant_id") String tenantId,
     @Column("capability_code") String capabilityCode,
-    @Column("route_strategy") String routeStrategy, // DISABLED, BASEPLAY, LOCAL_MODEL, EXTERNAL_MODEL
+    @Column("route_strategy") String routeStrategy, // DISABLED, BASELINE, LOCAL_MODEL, EXTERNAL_MODEL
     @Column("desensitize_strategy") String desensitizeStrategy, // DEFAULT, MASK_ALL, NONE
     @Column("expected_schema") String expectedSchema,
     @Column("created_at") Instant createdAt,

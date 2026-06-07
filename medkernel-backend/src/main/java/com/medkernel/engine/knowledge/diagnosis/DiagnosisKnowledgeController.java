@@ -5,6 +5,7 @@ import java.util.List;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
+import com.medkernel.shared.context.RequestContext;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,6 +33,23 @@ public class DiagnosisKnowledgeController {
 
     public DiagnosisKnowledgeController(DiagnosisKnowledgeService service) {
         this.service = service;
+    }
+
+    @PostMapping("/assets")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<DiagnosisAssetDraftResponse> createAsset(
+            @RequestBody @Valid DiagnosisAssetCreateRequest req) {
+        req.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(service.createAsset(req));
+    }
+
+    @PostMapping("/identities/{identityId}/versions")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<DiagnosisAssetDraftResponse> createVersion(
+            @PathVariable Long identityId,
+            @RequestBody @Valid DiagnosisVersionCreateRequest req) {
+        req.context().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(service.createVersion(identityId, req));
     }
 
     // —— 诊断标准 ——

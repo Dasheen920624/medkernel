@@ -87,6 +87,8 @@ class AssetVersionRepositoryTest {
             "/GROUP/g-1/HOSPITAL/h-1",
             "adult|inpatient",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
             status,
             activeScopeKey,
             "rule/RULE.VTE.RISK",

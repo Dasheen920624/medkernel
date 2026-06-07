@@ -35,7 +35,10 @@ function renderBootstrap(state?: unknown) {
     <QueryClientProvider client={queryClient}>
       <ConfigProvider>
         <AntdApp>
-          <MemoryRouter initialEntries={[{ pathname: "/bootstrap", state }]}>
+          <MemoryRouter
+            initialEntries={[{ pathname: "/bootstrap", state }]}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
             <Routes>
               <Route path="/bootstrap" element={<Bootstrap />} />
               <Route path="/login" element={<div>登录页占位</div>} />
@@ -124,6 +127,29 @@ describe("Bootstrap", () => {
       username: "platform-owner",
       password: "Init@2026pw",
     });
+  });
+
+  it("客户租户首次登录只展示账号安全设置，不混入平台接管语义", () => {
+    const { container } = renderBootstrap({
+      phase: "change-password",
+      username: "hospital-admin",
+      login: {
+        userId: "hospital-admin",
+        tenantId: "t-hospital",
+        roles: ["tenant-admin"],
+        mustChangePwd: true,
+        mfaRequired: false,
+        mfaBound: false,
+      },
+    });
+
+    expect(screen.getByRole("region", { name: "账号安全设置工作区" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "完成账号安全设置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "完成首次改密" })).toBeInTheDocument();
+    expect(screen.getByText("改密")).toBeInTheDocument();
+    expect(screen.getByText("双因素")).toBeInTheDocument();
+    expect(screen.getByText("完成")).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|首发管理员/);
   });
 
   it("登录后强制流程先改密，再按密钥生成和验证码校验绑定 MFA", async () => {

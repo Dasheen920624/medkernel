@@ -31,7 +31,6 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
 
     public static final String XSRF_COOKIE = "XSRF-TOKEN";
     public static final String XSRF_HEADER = "X-XSRF-TOKEN";
-    private static final String XSRF_HEADER_COMPAT = "XSRF-TOKEN";
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
     private final AuthCookieProperties cookieProperties;
@@ -92,9 +91,6 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
 
     private static String headerToken(HttpServletRequest request) {
         String token = request.getHeader(XSRF_HEADER);
-        if (token == null || token.isBlank()) {
-            token = request.getHeader(XSRF_HEADER_COMPAT);
-        }
         return token == null || token.isBlank() ? null : token;
     }
 

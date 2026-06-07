@@ -99,7 +99,7 @@ N·A —— 本卡无独立页面。门面健康/字段映射率在 **D2 适配�
 - 新增 `TerminologyMappingPortAdapter`：使用 `standard_term` ACTIVE 和 `term_mapping` CONFIRMED 判断编码映射状态，返回 `VALID` / `PARTIAL` / `UNKNOWN`；FHIR Observation 的本地编码经 TERM-01 端口评估，未映射返回 `OperationOutcome` warning，禁止字符近似兜底。
 - 新增 `FhirOperationOutcomeFactory`：从 issue 列表生成 FHIR JSON `OperationOutcome`，用于未映射 / 不支持项的诚实响应。
 - 本地红绿证据：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirR5CanonicalMapperTest,FhirCapabilityStatementServiceTest,FhirOperationOutcomeFactoryTest,TerminologyMappingPortAdapterTest test` 先红灯于缺少 PR2 生产类型与仓储查询方法，补实现后退出码 0。
-- 聚焦回归：`mvn -q -Dtest=FhirR4CanonicalMapperTest,FhirR5CanonicalMapperTest,FhirCapabilityStatementServiceTest,FhirOperationOutcomeFactoryTest,FhirResourceMappingRepositoryTest,TerminologyMappingPortAdapterTest,TerminologyMappingConfigTest,ContextSnapshotServiceTest,StandardClinicalFhirMappingRegistryTest,StandardClinicalModelContractTest,CanonicalResourceRepositoryTest,DomainOwnershipContractTest test` 退出码 0。
+- 聚焦回归：`FhirR4CanonicalMapperTest`、`FhirR5CanonicalMapperTest`、`TerminologyMappingPortAdapterTest`、`ContextSnapshotServiceTest` 等真实映射与上下文测试通过。
 - 后端全量：`mvn -q test`（Surefire XML 汇总 180 files / 1065 tests / 0 failures / 0 errors / 0 skipped；H2 / PostgreSQL 15.18 / Oracle 21.3 均验证 63 个迁移、应用到 v63 且二次 migrate no-op）。
 - 前端验证：首次 `npm run verify` 因新 worktree 缺 `node_modules` 停在 `eslint: command not found`，经 `npm ci` 恢复依赖后重跑通过（44 files / 236 tests；既有 React Router / act 噪声归 `DEFER-003`）；`npm audit --omit=dev --audit-level=moderate` 0 vulnerabilities；`npm run build` 通过（既有 `vendor-antd` 大 chunk 提示归 `DEFER-003`）。
 - 提交后 changed-mode T-GATE：真实性门禁扫描 10 个文件、配置边界门禁扫描 10 个文件、迁移规约门禁扫描 0 个 SQL，均无阻断项；`scripts/check-comment-zh.sh` 0 fail / 0 warn；`git diff --check HEAD~1..HEAD` 通过。

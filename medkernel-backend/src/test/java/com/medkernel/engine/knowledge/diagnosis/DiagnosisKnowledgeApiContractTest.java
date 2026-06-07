@@ -44,6 +44,9 @@ class DiagnosisKnowledgeApiContractTest {
     DiagnosisKnowledgeService service;
 
     private static final String CRITERIA = "/api/v1/engine/knowledge/diagnosis/versions/10/criteria";
+    private static final String ASSETS = "/api/v1/engine/knowledge/diagnosis/assets";
+    private static final String NEW_VERSION =
+        "/api/v1/engine/knowledge/diagnosis/identities/1/versions";
     private static final String PUBLISH = "/api/v1/engine/knowledge/diagnosis/identities/1/versions/10/publish";
     private static final String CRITERION_JSON =
         "{\"findingTermCode\":\"FEVER\",\"direction\":\"REQUIRED\",\"weight\":\"MAJOR\"}";
@@ -115,6 +118,82 @@ class DiagnosisKnowledgeApiContractTest {
                 .contentType(MediaType.APPLICATION_JSON).content(CRITERION_JSON))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.findingTermCode").value("FEVER"));
+    }
+
+    @Test
+    void medicalAffairsWithTenantCanCreateEvidenceCompleteAsset() throws Exception {
+        mockMvc.perform(post(ASSETS).with(tenantJwt("ROLE_MEDICAL_AFFAIRS"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-dx-1",
+                      "trace_id": "trace-dx-1",
+                      "tenant_id": "t-1",
+                      "user_id": "u-1",
+                      "role_codes": ["medical-affairs"],
+                      "package_version": "pkg-2026.06",
+                      "identity": {
+                        "identityCode": "DX.CKD",
+                        "subject": "慢性肾脏病"
+                      },
+                      "source": {
+                        "sourceCode": "SRC.CKD.2026",
+                        "sourceType": "GUIDELINE",
+                        "authorityLevel": "B_GUIDELINE",
+                        "authorityBasis": "国家指南",
+                        "title": "慢性肾脏病诊疗指南",
+                        "versionNo": "2026",
+                        "fileUri": "repository://guideline/ckd-2026",
+                        "content": "真实指南原文"
+                      },
+                      "version": {
+                        "versionNo": "2026",
+                        "riskLevel": "HIGH"
+                      },
+                      "evidence": {
+                        "anchorPath": "section-1",
+                        "anchorLabel": "诊断标准",
+                        "textExcerpt": "真实诊断标准原文"
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void medicalAffairsWithTenantCanCreateEvidenceCompleteVersion() throws Exception {
+        mockMvc.perform(post(NEW_VERSION).with(tenantJwt("ROLE_MEDICAL_AFFAIRS"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-dx-v2",
+                      "trace_id": "trace-dx-v2",
+                      "tenant_id": "t-1",
+                      "user_id": "u-1",
+                      "role_codes": ["medical-affairs"],
+                      "package_version": "pkg-2026.06",
+                      "source": {
+                        "sourceCode": "SRC.CKD.2027",
+                        "sourceType": "GUIDELINE",
+                        "authorityLevel": "B_GUIDELINE",
+                        "authorityBasis": "国家指南",
+                        "title": "慢性肾脏病诊疗指南",
+                        "versionNo": "2027",
+                        "fileUri": "repository://guideline/ckd-2027",
+                        "content": "真实诊断标准原文"
+                      },
+                      "version": {
+                        "versionNo": "2027",
+                        "riskLevel": "HIGH"
+                      },
+                      "evidence": {
+                        "anchorPath": "section-1",
+                        "anchorLabel": "诊断标准",
+                        "textExcerpt": "真实诊断标准原文"
+                      }
+                    }
+                    """))
+            .andExpect(status().isOk());
     }
 
     @Test

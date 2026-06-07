@@ -17,6 +17,8 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_FILE="${1:-$RUNTIME_ROOT/backups/drills/medkernel-drill-$TIMESTAMP.dump}"
 DRILL_DB="${MEDKERNEL_BACKUP_DRILL_DB:-medkernel_restore_drill}"
 EVIDENCE_FILE="$RUNTIME_ROOT/backups/drills/restore-drill-$TIMESTAMP.txt"
+LATEST_EVIDENCE_FILE="$RUNTIME_ROOT/backups/drills/latest-restore-drill.properties"
+LATEST_EVIDENCE_TMP="$LATEST_EVIDENCE_FILE.tmp"
 
 require_safe_identifier "$DRILL_DB"
 case "$DRILL_DB" in
@@ -49,6 +51,7 @@ test "${MIGRATION_COUNT:-0}" -gt 0 || fail "restore drill did not recover flyway
 
 {
   printf 'status=SUCCESS\n'
+  printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'backup_file=%s\n' "$BACKUP_FILE"
   printf 'checksum_file=%s.sha256\n' "$BACKUP_FILE"
   printf 'drill_database=%s\n' "$DRILL_DB"
@@ -56,6 +59,9 @@ test "${MIGRATION_COUNT:-0}" -gt 0 || fail "restore drill did not recover flyway
   printf 'rpo=%s\n' "${MEDKERNEL_BACKUP_RPO:-未配置}"
   printf 'rto=%s\n' "${MEDKERNEL_BACKUP_RTO:-未配置}"
 } > "$EVIDENCE_FILE"
+cp "$EVIDENCE_FILE" "$LATEST_EVIDENCE_TMP"
+mv "$LATEST_EVIDENCE_TMP" "$LATEST_EVIDENCE_FILE"
 
 printf 'PostgreSQL restore drill completed with isolated database: %s\n' "$DRILL_DB"
 printf 'restore drill evidence: %s\n' "$EVIDENCE_FILE"
+printf 'latest restore drill evidence: %s\n' "$LATEST_EVIDENCE_FILE"

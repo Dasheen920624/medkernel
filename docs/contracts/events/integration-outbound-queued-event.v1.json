@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "integration-outbound-queued-event.v1",
+  "title": "集成出站消息待投递事件 v1",
+  "type": "object",
+  "x-medkernel-version": 1,
+  "required": [
+    "tenantId",
+    "messageId"
+  ],
+  "properties": {
+    "tenantId": { "type": ["string", "null"] },
+    "messageId": { "type": ["string", "null"] }
+  }
+}

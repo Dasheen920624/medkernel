@@ -41,7 +41,7 @@ import com.medkernel.engine.recommendation.RecommendationTriggerRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Service;
@@ -70,7 +70,7 @@ public class SafetyWithdrawalService {
     private final RecommendationTriggerRepository recommendationTriggers;
     private final PathwayTemplateRepository pathwayTemplates;
     private final PatientPathwayRepository patientPathways;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final ObjectMapper json;
 
     public SafetyWithdrawalService(KnowledgeVersionService knowledgeVersions,
@@ -81,7 +81,7 @@ public class SafetyWithdrawalService {
                                    RecommendationTriggerRepository recommendationTriggers,
                                    PathwayTemplateRepository pathwayTemplates,
                                    PatientPathwayRepository patientPathways,
-                                   AuditEventPublisher auditPublisher,
+                                   AuditRecorder auditRecorder,
                                    ObjectMapper json) {
         this.knowledgeVersions = knowledgeVersions;
         this.invalidations = invalidations;
@@ -91,7 +91,7 @@ public class SafetyWithdrawalService {
         this.recommendationTriggers = recommendationTriggers;
         this.pathwayTemplates = pathwayTemplates;
         this.patientPathways = patientPathways;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.json = json;
     }
 
@@ -107,7 +107,7 @@ public class SafetyWithdrawalService {
         createPatientPathwayTasks(tenantId, invalidation, withdrawn, request.reason());
 
         SafetyImpactResponse impact = impactFor(tenantId, invalidation);
-        auditPublisher.publish(AuditAction.PUBLISH, SAFETY_WITHDRAWAL_ENTITY, String.valueOf(invalidation.id()),
+        auditRecorder.record(AuditAction.PUBLISH, SAFETY_WITHDRAWAL_ENTITY, String.valueOf(invalidation.id()),
             "安全撤回已隔离 versionId=" + request.versionId() + " affectedTasks=" + impact.taskCount());
         return new SafetyWithdrawalResponse(
             invalidation.id(), request.identityId(), request.versionId(),
@@ -141,7 +141,7 @@ public class SafetyWithdrawalService {
         String taskLines = impact.tasks().stream()
             .map(this::taskEvidenceLine)
             .collect(Collectors.joining("\n"));
-        auditPublisher.publish(AuditAction.EXPORT, SAFETY_WITHDRAWAL_ENTITY, String.valueOf(withdrawalId),
+        auditRecorder.record(AuditAction.EXPORT, SAFETY_WITHDRAWAL_ENTITY, String.valueOf(withdrawalId),
             "导出安全撤回影响证据 taskCount=" + impact.taskCount());
         return taskLines.isBlank() ? summary + "\n" : summary + "\n" + taskLines + "\n";
     }

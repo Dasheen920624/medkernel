@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.medkernel.engine.integration.domain.*;
 import com.medkernel.engine.integration.dto.*;
+import com.medkernel.engine.integration.service.IntegrationDataContractService;
 import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.shared.api.*;
 import com.medkernel.shared.api.error.ApiException;
@@ -27,6 +28,7 @@ import com.medkernel.shared.datascope.DataScope;
 public class IntegrationController {
 
     private final IntegrationService integrationService;
+    private final IntegrationDataContractService dataContractService;
     private final AuditEventPublisher auditEventPublisher;
     private final IsolatedAuditPublisher isolatedAuditPublisher;
 
@@ -35,10 +37,22 @@ public class IntegrationController {
      */
     public IntegrationController(IntegrationService integrationService,
                                  AuditEventPublisher auditEventPublisher,
-                                 IsolatedAuditPublisher isolatedAuditPublisher) {
+                                 IsolatedAuditPublisher isolatedAuditPublisher,
+                                 IntegrationDataContractService dataContractService) {
         this.integrationService = integrationService;
+        this.dataContractService = dataContractService;
         this.auditEventPublisher = auditEventPublisher;
         this.isolatedAuditPublisher = isolatedAuditPublisher;
+    }
+
+    /**
+     * 读取当前 packageVersion 对应的第三方数据接入字段契约。
+     */
+    @GetMapping("/data-contract")
+    @PreAuthorize("@perm.has('integration.read')")
+    public ApiResult<IntegrationDataContractResponse> getDataContract(
+            @RequestParam String packageVersion) {
+        return ApiResult.ok(dataContractService.generate(packageVersion));
     }
 
     /**
@@ -301,7 +315,7 @@ public class IntegrationController {
      */
     @GetMapping("/webhooks")
     @PreAuthorize("@perm.has('integration.read')")
-    public ApiResult<List<IntegrationWebhookConfig>> getWebhooks() {
+    public ApiResult<List<WebhookConfigResponse>> getWebhooks() {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         return ApiResult.ok(integrationService.getWebhooks(tenantId));
     }
@@ -310,14 +324,14 @@ public class IntegrationController {
      * 创建一条外部 Webhook 订阅，动态绑定待回调的事件场景列表。
      *
      * @param dto 创建 Webhook 订阅 DTO，含 HMAC-SHA256 共享密钥自动生成
-     * @return 创建后的 Webhook 订阅实体
+     * @return 创建结果；共享密钥只在本次响应中返回一次
      */
     @PostMapping("/webhooks")
     @PreAuthorize("@perm.has('integration.write')")
-    public ApiResult<IntegrationWebhookConfig> createWebhook(@Validated @RequestBody WebhookCreateDto dto) {
+    public ApiResult<WebhookCreateResponse> createWebhook(@Validated @RequestBody WebhookCreateDto dto) {
         String tenantId = RequestContext.currentOrgScope().tenantId();
         try {
-            IntegrationWebhookConfig config = integrationService.createWebhook(tenantId, dto);
+            WebhookCreateResponse config = integrationService.createWebhook(tenantId, dto);
             auditEventPublisher.publish(AuditEvent.of(
                 AuditAction.CREATE,
                 "integration_webhook",
@@ -410,8 +424,8 @@ public class IntegrationController {
     /**
      * 登记第三方出站异步同步消息。
      *
-     * <p>外部系统断连或尚未接入真实连接器时，服务层只登记 {@code NOT_CONNECTED} 补偿日志，
-     * 不等待外部回执，也不伪造发送成功，从而避免阻断医生主流程。
+     * <p>连接配置有效时在事务提交后异步真实投递；断连、配置错误或协议无连接器时
+     * 保留补偿日志，不伪造发送成功，也不阻断医生主流程。
      *
      * @param dto 出站异步同步消息
      * @return 不阻断主流程的登记结果
@@ -427,7 +441,7 @@ public class IntegrationController {
                 AuditAction.EXECUTE,
                 "integration_message_log",
                 dto.messageId(),
-                "登记第三方出站异步补偿消息，状态: " + result.status()
+                "登记第三方出站异步消息，状态: " + result.status()
             ));
             return ApiResult.ok(result);
         } catch (ApiException e) {
@@ -436,7 +450,7 @@ public class IntegrationController {
                 "integration_message_log",
                 dto.messageId(),
                 e.errorCode().code(),
-                "登记第三方出站异步补偿失败: " + e.getMessage()
+                "登记第三方出站异步消息失败: " + e.getMessage()
             ));
             throw e;
         }

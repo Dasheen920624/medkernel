@@ -14,6 +14,7 @@ import com.medkernel.engine.clinical.model.StandardClinicalFhirResourceType;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceType;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
 import com.medkernel.engine.context.canonical.CanonicalDiagnosticReport;
@@ -45,6 +46,7 @@ final class FhirCanonicalMapperSupport {
         String requested = firstNonBlank(requestedResourceType);
         return switch (canonical.resourceType()) {
             case PATIENT -> mapPatient(canonical, patientProfile(version));
+            case ALLERGY_INTOLERANCE -> mapAllergyIntolerance(canonical);
             case ENCOUNTER -> mapEncounter(canonical);
             case CONDITION -> mapCondition(canonical);
             case OBSERVATION -> mapObservationOutbound(canonical);
@@ -82,11 +84,41 @@ final class FhirCanonicalMapperSupport {
         return mapped(patient);
     }
 
+    private FhirResourceMappingResult mapAllergyIntolerance(CanonicalResource canonical) {
+        CanonicalAllergyIntolerance model = readPayload(
+            canonical.resourcePayloadJson(), CanonicalAllergyIntolerance.class);
+        ObjectNode resource = baseResource("AllergyIntolerance", canonical, null);
+        resource.set("code", codeable(model.codeSystem(), model.code(), model.substance()));
+        if (model.clinicalStatus() != null && !model.clinicalStatus().isBlank()) {
+            resource.set("clinicalStatus", textCodeable(model.clinicalStatus()));
+        }
+        if (model.verificationStatus() != null && !model.verificationStatus().isBlank()) {
+            resource.set("verificationStatus", textCodeable(model.verificationStatus()));
+        }
+        if (model.category() != null && !model.category().isBlank()) {
+            resource.set("category", json.createArrayNode().add(model.category()));
+        }
+        putIfPresent(resource, "criticality", model.criticality());
+        putIfPresent(resource, "onsetDateTime", instant(model.onsetTime()));
+        if (model.reactions() != null && !model.reactions().isEmpty()) {
+            ObjectNode reaction = json.createObjectNode();
+            ArrayNode manifestations = reaction.putArray("manifestation");
+            model.reactions().stream()
+                .filter(value -> value != null && !value.isBlank())
+                .forEach(value -> manifestations.add(textCodeable(value)));
+            if (!manifestations.isEmpty()) {
+                resource.set("reaction", json.createArrayNode().add(reaction));
+            }
+        }
+        return mapped(resource);
+    }
+
     CanonicalResourceMappingResult mapInbound(FhirCanonicalMappingRequest request, FhirVersion version) {
         JsonNode resource = request.resource();
         String resourceType = text(resource.path("resourceType"));
         return switch (resourceType) {
             case "Patient" -> mapPatientInbound(request, version);
+            case "AllergyIntolerance" -> mapAllergyIntoleranceInbound(request, version);
             case "Encounter" -> mapEncounterInbound(request, version);
             case "Condition" -> mapConditionInbound(request, version);
             case "Observation" -> mapObservation(request, version);
@@ -289,10 +321,42 @@ final class FhirCanonicalMapperSupport {
         String mappedVersion = mappedVersion(version, "Patient");
         CanonicalPatient payload = new CanonicalPatient(
             mpi, name, null, firstNonBlank(text(resource.path("gender"))),
-            List.of(), List.of(), sourceSystem(version), sourceRecordId, mappedVersion,
+            List.of(), sourceSystem(version), sourceRecordId, mappedVersion,
             null, request.receivedAt(), QualityStatus.VALID);
         return result(request, CanonicalResourceType.PATIENT, id, payload, null,
             List.of(), FULL_RATE, QualityStatus.VALID, sourceRecordId, mappedVersion);
+    }
+
+    private CanonicalResourceMappingResult mapAllergyIntoleranceInbound(
+            FhirCanonicalMappingRequest request, FhirVersion version) {
+        JsonNode resource = request.resource();
+        String id = requiredId(resource, "AllergyIntolerance");
+        CodingValue coding = codingValue(resource.path("code"), "AllergyIntolerance.code");
+        String sourceRecordId = "AllergyIntolerance/" + id;
+        String mappedVersion = mappedVersion(version, "AllergyIntolerance");
+        FhirCodingMappingResult codingMapping = terminology.mapCode(
+            request.tenantId(), CanonicalResourceType.ALLERGY_INTOLERANCE, id, "code",
+            coding.system(), coding.code(), coding.display(), "DRUG", sourceRecordId, mappedVersion);
+        QualityStatus qualityStatus = quality(codingMapping);
+        Instant onset = parseInstantOrNull(text(resource.path("onsetDateTime")));
+        CanonicalAllergyIntolerance payload = new CanonicalAllergyIntolerance(
+            id,
+            coding.code(),
+            coding.system(),
+            coding.display(),
+            firstArrayText(resource.path("category")),
+            text(resource.path("criticality")),
+            allergyReactions(resource.path("reaction")),
+            codeableStatus(resource.path("clinicalStatus")),
+            codeableStatus(resource.path("verificationStatus")),
+            sourceSystem(version),
+            sourceRecordId,
+            mappedVersion,
+            onset,
+            request.receivedAt(),
+            qualityStatus);
+        return result(request, CanonicalResourceType.ALLERGY_INTOLERANCE, id, payload, onset,
+            codingMapping.issues(), codingMapping.mappingRate(), qualityStatus, sourceRecordId, mappedVersion);
     }
 
     private CanonicalResourceMappingResult mapEncounterInbound(FhirCanonicalMappingRequest request, FhirVersion version) {
@@ -667,6 +731,46 @@ final class FhirCanonicalMapperSupport {
             }
         });
         return List.copyOf(values);
+    }
+
+    private static String codeableStatus(JsonNode codeable) {
+        String text = text(codeable.path("text"));
+        if (!text.isBlank()) {
+            return text;
+        }
+        JsonNode codings = codeable.path("coding");
+        if (codings instanceof ArrayNode array && !array.isEmpty()) {
+            return text(array.get(0).path("code"));
+        }
+        return "";
+    }
+
+    private static List<String> allergyReactions(JsonNode reactions) {
+        if (!(reactions instanceof ArrayNode array) || array.isEmpty()) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        array.forEach(reaction -> {
+            JsonNode manifestations = reaction.path("manifestation");
+            if (manifestations instanceof ArrayNode manifestationArray) {
+                manifestationArray.forEach(item -> {
+                    String value = firstNonBlank(text(item.path("text")),
+                        text(firstCodingOrMissing(item.path("coding")).path("display")),
+                        text(firstCodingOrMissing(item.path("coding")).path("code")));
+                    if (!value.isBlank()) {
+                        values.add(value);
+                    }
+                });
+            }
+        });
+        return List.copyOf(values);
+    }
+
+    private static JsonNode firstCodingOrMissing(JsonNode codings) {
+        if (codings instanceof ArrayNode array && !array.isEmpty()) {
+            return array.get(0);
+        }
+        return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
     }
 
     private record CodingValue(String system, String code, String display) {}

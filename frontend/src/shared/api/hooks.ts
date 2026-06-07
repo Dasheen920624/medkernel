@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "./client";
 import { isThemeMode, type ThemeMode } from "@/shared/config/theme";
+import type { RuleType } from "@/shared/config/ruleTypes";
 import type {
   AsyncExportJob,
   AsyncExportRequest,
@@ -133,14 +134,23 @@ export type AuditEventRow = {
   id: string;
   eventId: string;
   occurredAt: string;
-  user: string | null;
-  action: string;
+  actorUserId: string | null;
+  summary: string;
   actionCode: string;
   resourceType: string;
   resourceId: string;
   traceId: string | null;
   signature: string | null;
   status: string;
+  actorRoles?: string | null;
+  orgPath?: string | null;
+  environmentKey?: string | null;
+  outcome?: string | null;
+  errorCode?: string | null;
+  payloadDigest?: string | null;
+  beforeSnapshot?: string | null;
+  afterSnapshot?: string | null;
+  superAdminAction?: boolean;
 };
 
 type AuditEventsEnvelope = {
@@ -148,10 +158,58 @@ type AuditEventsEnvelope = {
   data: { items: AuditEventRow[]; nextCursor: string | null; hasNext: boolean };
 };
 
+export interface AuditEventListQuery {
+  cursor?: string;
+  size?: number;
+  sort?: string;
+  action?: string;
+  outcome?: string;
+  actorUserId?: string;
+  resourceType?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface AuditEventPage {
+  items: AuditEventRow[];
+  nextCursor: string | null;
+  totalEstimate: number;
+  totalEstimated: boolean;
+  hasMore: boolean;
+}
+
+type LargeAuditEventsEnvelope = {
+  code: string;
+  data: AuditEventPage;
+};
+
 type AuditSnapshotEnvelope = {
   code: string;
   data: AuditEventRow;
 };
+
+export function useLargeAuditEvents(query: AuditEventListQuery) {
+  const params = {
+    ...(query.cursor ? { cursor: query.cursor } : {}),
+    size: query.size ?? 20,
+    sort: query.sort ?? "id,desc",
+    ...(query.action ? { action: query.action } : {}),
+    ...(query.outcome ? { outcome: query.outcome } : {}),
+    ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
+    ...(query.resourceType ? { resourceType: query.resourceType } : {}),
+    ...(query.from ? { from: query.from } : {}),
+    ...(query.to ? { to: query.to } : {}),
+  };
+  return useQuery({
+    queryKey: ["audit", "large-events", params],
+    queryFn: async () => {
+      const resp = await apiClient.get<LargeAuditEventsEnvelope>("/large-lists/audit-events/list", {
+        params,
+      });
+      return resp.data.data;
+    },
+  });
+}
 
 export function useAuditEvents(enabled = true) {
   return useQuery({
@@ -203,6 +261,13 @@ export interface RuntimeBackupReadiness {
   backupScript: string;
   restoreScript: string;
   checksumPolicy: string;
+  drillEvidence: {
+    status: "SUCCESS" | "NOT_AVAILABLE" | "INVALID" | string;
+    completedAt?: string | null;
+    migrationCount?: number | null;
+    evidenceReference?: string | null;
+    detail: string;
+  };
   source?: string | null;
   warning?: string | null;
 }
@@ -251,6 +316,170 @@ export function useSystemRuntime() {
     queryKey: ["system", "runtime"],
     queryFn: async () => (await apiClient.get("/system/runtime")).data as Record<string, unknown>,
     refetchInterval: 30_000,
+  });
+}
+
+// ──────────────────────────────────────────
+// 高级工具 · 关系库权威源投影查询
+// ──────────────────────────────────────────
+export type ProjectionTargetType = "CLINICAL_GRAPH" | "KNOWLEDGE_GRAPH" | "KNOWLEDGE_SEARCH";
+
+export type ProjectionSyncStatus = "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
+
+export interface ProjectionRuntimeStatusResponse {
+  targetType: ProjectionTargetType;
+  tenantId: string;
+  graphProjectionEnabled: boolean;
+  difyWorkflowEnabled: boolean;
+  clinicalProjectionStatus: string;
+  difyExecutionStatus: ProjectionSyncStatus;
+  snapshotCount: number;
+  message: string;
+}
+
+export interface ProjectionDiffItem {
+  factKey: string;
+  sourceHash?: string | null;
+  projectionHash?: string | null;
+}
+
+export interface ProjectionConsistencyReport {
+  targetType: ProjectionTargetType;
+  tenantId: string;
+  status: ProjectionSyncStatus;
+  message: string;
+  consistent: boolean;
+  sourceCount: number;
+  projectionCount: number;
+  sourceHash?: string | null;
+  projectionHash?: string | null;
+  missing: ProjectionDiffItem[];
+  extra: ProjectionDiffItem[];
+  changed: ProjectionDiffItem[];
+}
+
+export interface ProjectionFactItem {
+  factKey: string;
+  factKind: "NODE" | "EDGE" | string;
+  objectType: string;
+  objectId: string;
+  subjectKey?: string | null;
+  predicate?: string | null;
+  objectKey?: string | null;
+  contentHash?: string | null;
+  sourceUpdatedAt?: string | null;
+  syncedAt?: string | null;
+  traceId?: string | null;
+}
+
+export interface ProjectionRebuildResponse {
+  syncId: string;
+  targetType: ProjectionTargetType;
+  status: ProjectionSyncStatus;
+  sourceCount: number;
+  projectionCount: number;
+  sourceHash?: string | null;
+  projectionHash?: string | null;
+  traceId?: string | null;
+  difyExecutionStatus: ProjectionSyncStatus;
+  message: string;
+}
+
+export interface ProjectionFactsQuery {
+  targetType: ProjectionTargetType;
+  keyword?: string;
+  page?: number;
+  size?: number;
+}
+
+type ProjectionEnvelope<T> = {
+  data: T;
+};
+
+type ProjectionPageEnvelope = {
+  data: PageResponse<ProjectionFactItem>;
+};
+
+function projectionPath(targetType: ProjectionTargetType) {
+  switch (targetType) {
+    case "KNOWLEDGE_GRAPH":
+      return "knowledge-graph";
+    case "KNOWLEDGE_SEARCH":
+      return "knowledge-search";
+    default:
+      return "clinical-graph";
+  }
+}
+
+export function useProjectionRuntimeStatus(targetType: ProjectionTargetType = "CLINICAL_GRAPH") {
+  return useQuery({
+    queryKey: ["projections", targetType, "status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ProjectionEnvelope<ProjectionRuntimeStatusResponse>>(
+        `/projections/${projectionPath(targetType)}/status`,
+      );
+      return data.data;
+    },
+    enabled: targetType === "CLINICAL_GRAPH",
+    refetchInterval: 30_000,
+  });
+}
+
+export function useProjectionConsistency(targetType: ProjectionTargetType) {
+  return useQuery({
+    queryKey: ["projections", targetType, "consistency"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ProjectionEnvelope<ProjectionConsistencyReport>>(
+        `/projections/${projectionPath(targetType)}/consistency`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useProjectionFacts(query: ProjectionFactsQuery) {
+  return useQuery({
+    queryKey: [
+      "projections",
+      query.targetType,
+      "facts",
+      query.keyword ?? "",
+      query.page ?? 1,
+      query.size ?? 20,
+    ],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ProjectionPageEnvelope>(
+        `/projections/${projectionPath(query.targetType)}/facts`,
+        {
+          params: {
+            keyword: query.keyword || undefined,
+            page: query.page ?? 1,
+            size: query.size ?? 20,
+          },
+        },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRebuildProjection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetType: ProjectionTargetType) => {
+      const { data } = await apiClient.post<ProjectionEnvelope<ProjectionRebuildResponse>>(
+        `/projections/${projectionPath(targetType)}/rebuild`,
+      );
+      return data.data;
+    },
+    onSuccess: (_data, targetType) => {
+      void queryClient.invalidateQueries({ queryKey: ["projections", targetType] });
+      if (targetType === "CLINICAL_GRAPH") {
+        void queryClient.invalidateQueries({
+          queryKey: ["projections", "CLINICAL_GRAPH", "status"],
+        });
+      }
+    },
   });
 }
 
@@ -647,6 +876,261 @@ export function useReviewKnowledgeCandidate() {
       void queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] });
       void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidates"] });
       void queryClient.invalidateQueries({ queryKey: ["knowledge", "candidate-diff"] });
+    },
+  });
+}
+
+// ──────────────────────────────────────────
+// 诊断知识治理 · 线3 Spec 1/2/3
+// ──────────────────────────────────────────
+
+const DIAGNOSIS_API_ROOT = `${KNOWLEDGE_API_ROOT}/diagnosis`;
+
+export type DiagnosisDirection = "SUPPORTING" | "REFUTING" | "REQUIRED" | "EXCLUSION";
+export type DiagnosisWeight = "MAJOR" | "MINOR";
+export type DiagnosisConfidence = "STRONG" | "MODERATE" | "WEAK" | "EXCLUDE";
+export type DiagnosisCarePointerType = "TREATMENT" | "WORKUP" | "PATHWAY";
+export type DiagnosisCareTargetType = "RULE" | "KNOWLEDGE" | "PATHWAY";
+
+export interface DiagnosisCriterion {
+  id: number;
+  diagnosisVersionId: number;
+  findingTermCode: string;
+  direction: DiagnosisDirection;
+  weight: DiagnosisWeight;
+  valueConstraint?: string | null;
+  temporalConstraint?: string | null;
+  citationId?: number | null;
+}
+
+export interface DiagnosisDifferential {
+  id: number;
+  diagnosisVersionId: number;
+  differentialIdentityId: number;
+  keyPoint?: string | null;
+  suggestedWorkup?: string | null;
+}
+
+export interface DiagnosisCarePointer {
+  id: number;
+  diagnosisVersionId: number;
+  pointerType: DiagnosisCarePointerType;
+  targetType: DiagnosisCareTargetType;
+  targetRef: string;
+  isSoft: boolean;
+  description?: string | null;
+}
+
+export interface DiagnosisTestCase {
+  id: number;
+  diagnosisVersionId: number;
+  caseCode: string;
+  findings: string;
+  expectedIdentityId: number;
+  expectedConfidence: DiagnosisConfidence;
+}
+
+export interface DiagnosisAssetCreatePayload {
+  identity: {
+    identityCode: string;
+    subject: string;
+    assetSpecialtyId?: string;
+    description?: string;
+  };
+  source: {
+    sourceCode: string;
+    sourceType: string;
+    authorityLevel: string;
+    authorityBasis: string;
+    title: string;
+    publisher?: string;
+    license?: string;
+    language?: string;
+    versionNo: string;
+    publishedAt?: string;
+    fileUri: string;
+    content: string;
+  };
+  version: {
+    versionNo: string;
+    versionLabel?: string;
+    riskLevel: string;
+    gradeQuality?: string;
+    gradeStrength?: string;
+  };
+  evidence: {
+    anchorPath: string;
+    anchorLabel: string;
+    textExcerpt: string;
+  };
+}
+
+export type DiagnosisVersionCreatePayload = Omit<DiagnosisAssetCreatePayload, "identity">;
+
+export interface DiagnosisAssetDraftResponse {
+  identity: KnowledgeIdentity;
+  version: KnowledgeAssetVersion;
+}
+
+export function useKnowledgeVersions(identityId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "versions", identityId],
+    enabled: Boolean(identityId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: KnowledgeAssetVersion[] }>(
+        `${KNOWLEDGE_API_ROOT}/identities/${identityId}/versions`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCreateDiagnosisAsset() {
+  const profile = useSecurityProfile().data;
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: DiagnosisAssetCreatePayload) => {
+      const { data } = await apiClient.post<{ data: DiagnosisAssetDraftResponse }>(
+        `${DIAGNOSIS_API_ROOT}/assets`,
+        withStandardApiContext(payload, profile, "AUTHORING"),
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] });
+    },
+  });
+}
+
+export function useCreateDiagnosisVersion() {
+  const profile = useSecurityProfile().data;
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      identityId,
+      payload,
+    }: {
+      identityId: number;
+      payload: DiagnosisVersionCreatePayload;
+    }) => {
+      const { data } = await apiClient.post<{ data: DiagnosisAssetDraftResponse }>(
+        `${DIAGNOSIS_API_ROOT}/identities/${identityId}/versions`,
+        withStandardApiContext(payload, profile, "AUTHORING"),
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge", "versions", variables.identityId],
+        }),
+      ]);
+    },
+  });
+}
+
+function useDiagnosisList<T>(versionId: number | undefined, resource: string) {
+  return useQuery({
+    queryKey: ["diagnosis", resource, versionId],
+    enabled: Boolean(versionId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: T[] }>(
+        `${DIAGNOSIS_API_ROOT}/versions/${versionId}/${resource}`,
+      );
+      return data.data;
+    },
+  });
+}
+
+function useDiagnosisCreate<TPayload extends object, TResult>(resource: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ versionId, payload }: { versionId: number; payload: TPayload }) => {
+      const { data } = await apiClient.post<{ data: TResult }>(
+        `${DIAGNOSIS_API_ROOT}/versions/${versionId}/${resource}`,
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["diagnosis", resource, variables.versionId],
+      });
+    },
+  });
+}
+
+export function useDiagnosisCriteria(versionId?: number) {
+  return useDiagnosisList<DiagnosisCriterion>(versionId, "criteria");
+}
+
+export function useDiagnosisDifferentials(versionId?: number) {
+  return useDiagnosisList<DiagnosisDifferential>(versionId, "differentials");
+}
+
+export function useDiagnosisCarePointers(versionId?: number) {
+  return useDiagnosisList<DiagnosisCarePointer>(versionId, "care-pointers");
+}
+
+export function useDiagnosisTestCases(versionId?: number) {
+  return useDiagnosisList<DiagnosisTestCase>(versionId, "test-cases");
+}
+
+export function useAddDiagnosisCriterion() {
+  return useDiagnosisCreate<
+    Omit<DiagnosisCriterion, "id" | "diagnosisVersionId">,
+    DiagnosisCriterion
+  >("criteria");
+}
+
+export function useAddDiagnosisDifferential() {
+  return useDiagnosisCreate<
+    Omit<DiagnosisDifferential, "id" | "diagnosisVersionId">,
+    DiagnosisDifferential
+  >("differentials");
+}
+
+export function useAddDiagnosisCarePointer() {
+  return useDiagnosisCreate<
+    Omit<DiagnosisCarePointer, "id" | "diagnosisVersionId" | "isSoft">,
+    DiagnosisCarePointer
+  >("care-pointers");
+}
+
+export function useAddDiagnosisTestCase() {
+  return useDiagnosisCreate<
+    Omit<DiagnosisTestCase, "id" | "diagnosisVersionId">,
+    DiagnosisTestCase
+  >("test-cases");
+}
+
+export function usePublishDiagnosis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      identityId,
+      versionId,
+      reason,
+    }: {
+      identityId: number;
+      versionId: number;
+      reason: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: KnowledgeAssetVersion }>(
+        `${DIAGNOSIS_API_ROOT}/identities/${identityId}/versions/${versionId}/publish`,
+        null,
+        { params: { reason } },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge", "versions", variables.identityId],
+        }),
+      ]);
     },
   });
 }
@@ -1146,6 +1630,384 @@ export function useLargeListExportJob() {
   return useMutation({ mutationFn: fetchLargeListExportJob });
 }
 
+// ──────────────────────────────────────────
+// 合规配置与审批中心（CONFIG-01 / SYS-06 / OPT-05）
+// ──────────────────────────────────────────
+
+export interface SystemConfigItem {
+  key: string;
+  value: string;
+  valueType: string;
+  displayName: string;
+  risk: "LOW" | "MEDIUM" | "HIGH" | string;
+  owner: string;
+  description: string;
+  source: string;
+  protectedConfig: boolean;
+  version: number;
+  updatedAt: string;
+}
+
+export interface SystemConfigUpdatePayload {
+  value: string;
+  reason: string;
+  expectedVersion: number;
+  confirmedHighRisk: boolean;
+}
+
+export type DataPermissionAction = "READ" | "EXPORT";
+export type DataPermissionStatus = "ACTIVE" | "INACTIVE";
+
+export interface DataPermissionPolicy {
+  policyId: string;
+  tenantId: string;
+  resourceType: string;
+  action: DataPermissionAction;
+  minDataLevel: string;
+  allowedColumns: string[];
+  groupId?: string | null;
+  hospitalId?: string | null;
+  campusId?: string | null;
+  siteId?: string | null;
+  departmentId?: string | null;
+  specialtyId?: string | null;
+  status: DataPermissionStatus;
+  version: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  traceId?: string | null;
+}
+
+export interface DataPermissionPolicyPayload {
+  resourceType: string;
+  action: DataPermissionAction;
+  minDataLevel: string;
+  allowedColumns: string[];
+  groupId?: string;
+  hospitalId?: string;
+  campusId?: string;
+  siteId?: string;
+  departmentId?: string;
+  specialtyId?: string;
+  status: DataPermissionStatus;
+  reason: string;
+  expectedVersion?: number;
+}
+
+export type MaskingStrategy = "REDACT" | "KEEP_LAST" | "KEEP_FIRST_LAST" | "EMAIL" | "FIXED";
+export type MaskingRuleStatus = "ACTIVE" | "INACTIVE";
+
+export interface MaskingRule {
+  ruleId: string;
+  tenantId: string;
+  resourceType: string;
+  fieldName: string;
+  scenarioCode?: string | null;
+  strategy: MaskingStrategy;
+  maskChar: string;
+  prefixKeep: number;
+  suffixKeep: number;
+  status: MaskingRuleStatus;
+  version: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  traceId?: string | null;
+}
+
+export interface MaskingRulePayload {
+  resourceType: string;
+  fieldName: string;
+  scenarioCode?: string;
+  strategy: MaskingStrategy;
+  maskChar: string;
+  prefixKeep: number;
+  suffixKeep: number;
+  status: MaskingRuleStatus;
+  reason: string;
+  expectedVersion?: number;
+}
+
+export interface InteropEvidence {
+  mapId: string;
+  sourceType: "EVIDENCE_SNAPSHOT" | "EMR_LEVEL_EVIDENCE_PACKAGE";
+  sourceId: string;
+  evidenceRef: string;
+  evidenceSummary: string;
+  fileUri?: string | null;
+  payloadDigest?: string | null;
+  sharedWithEmrLevel: boolean;
+  traceId?: string | null;
+}
+
+export interface InteropAssessmentItem {
+  itemId: string;
+  standardVersion: string;
+  dimension: "DATA_RESOURCE" | "STANDARDIZATION" | "INFRASTRUCTURE" | "APPLICATION_EFFECT";
+  itemCode: string;
+  itemName: string;
+  requirementSummary: string;
+  status: "SATISFIED" | "GAP" | "MISSING_EVIDENCE";
+  evidenceCount: number;
+  sharedWithEmrLevel: boolean;
+  gapReason?: string | null;
+  evidences: InteropEvidence[];
+  traceId?: string | null;
+}
+
+export interface InteropAssessment {
+  standardVersion: string;
+  totalItems: number;
+  satisfiedItems: number;
+  gapItems: number;
+  missingEvidenceItems: number;
+  satisfactionRate: number;
+  items: InteropAssessmentItem[];
+  traceId?: string | null;
+}
+
+export type ExportApprovalStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "EXPORTED";
+
+export interface ExportApproval {
+  approvalId: string;
+  resourceType: string;
+  exportScopeSnapshot: string;
+  idempotencyKey: string;
+  requestReason: string;
+  status: ExportApprovalStatus;
+  requestedBy: string;
+  reviewerId?: string | null;
+  reviewDecision?: "APPROVE" | "REJECT" | null;
+  reviewComment?: string | null;
+  approvalEvidenceId?: string | null;
+  approvalEvidenceFileUri?: string | null;
+  exportUri?: string | null;
+  exportDigest?: string | null;
+  exportEvidenceId?: string | null;
+  exportEvidenceFileUri?: string | null;
+  version: number;
+  requestedAt: string;
+  reviewedAt?: string | null;
+}
+
+export interface ExportApprovalRequestPayload {
+  resourceType: string;
+  exportScope: Record<string, unknown>;
+  reason: string;
+  idempotencyKey: string;
+}
+
+export interface ExportApprovalReviewPayload {
+  approvalId: string;
+  decision: "APPROVE" | "REJECT";
+  comment: string;
+  expectedVersion: number;
+}
+
+export interface ExportApprovalCompletionPayload {
+  approvalId: string;
+  jobId: string;
+  reason: string;
+  expectedVersion: number;
+}
+
+export async function fetchSystemConfigs(prefix?: string): Promise<SystemConfigItem[]> {
+  const { data } = await apiClient.get<{ data: SystemConfigItem[] }>("/system/configs", {
+    params: prefix ? { prefix } : {},
+  });
+  return data.data ?? [];
+}
+
+export async function updateSystemConfig(
+  key: string,
+  payload: SystemConfigUpdatePayload,
+): Promise<SystemConfigItem> {
+  const { data } = await apiClient.patch<{ data: SystemConfigItem }>(
+    `/system/configs/${encodeURIComponent(key)}`,
+    payload,
+  );
+  return data.data;
+}
+
+export async function fetchDataPermissionPolicies(
+  params: { resourceType?: string; action?: DataPermissionAction } = {},
+): Promise<DataPermissionPolicy[]> {
+  const { data } = await apiClient.get<{ data: DataPermissionPolicy[] }>(
+    "/compliance/data-permissions",
+    { params },
+  );
+  return data.data ?? [];
+}
+
+export async function upsertDataPermissionPolicy(
+  payload: DataPermissionPolicyPayload,
+): Promise<DataPermissionPolicy> {
+  const { data } = await apiClient.put<{ data: DataPermissionPolicy }>(
+    "/compliance/data-permissions",
+    payload,
+  );
+  return data.data;
+}
+
+export async function fetchMaskingRules(
+  params: { resourceType?: string; fieldName?: string } = {},
+): Promise<MaskingRule[]> {
+  const { data } = await apiClient.get<{ data: MaskingRule[] }>("/compliance/masking-rules", {
+    params,
+  });
+  return data.data ?? [];
+}
+
+export async function upsertMaskingRule(payload: MaskingRulePayload): Promise<MaskingRule> {
+  const { data } = await apiClient.put<{ data: MaskingRule }>("/compliance/masking-rules", payload);
+  return data.data;
+}
+
+export async function fetchInteropAssessment(standardVersion: string): Promise<InteropAssessment> {
+  const { data } = await apiClient.get<{ data: InteropAssessment }>(
+    "/compliance/interop-assessment",
+    { params: { standardVersion } },
+  );
+  return data.data;
+}
+
+export async function fetchExportApprovals(
+  params: { resourceType?: string; status?: ExportApprovalStatus } = {},
+): Promise<ExportApproval[]> {
+  const { data } = await apiClient.get<{ data: ExportApproval[] }>("/compliance/exports", {
+    params,
+  });
+  return data.data ?? [];
+}
+
+export async function requestExportApproval(
+  payload: ExportApprovalRequestPayload,
+): Promise<ExportApproval> {
+  const { data } = await apiClient.post<{ data: ExportApproval }>(
+    "/compliance/exports:request",
+    payload,
+  );
+  return data.data;
+}
+
+export async function reviewExportApproval(
+  payload: ExportApprovalReviewPayload,
+): Promise<ExportApproval> {
+  const { approvalId, ...request } = payload;
+  const { data } = await apiClient.post<{ data: ExportApproval }>(
+    `/compliance/exports/${encodeURIComponent(approvalId)}:approve`,
+    request,
+  );
+  return data.data;
+}
+
+export async function completeApprovedExportJob(
+  payload: ExportApprovalCompletionPayload,
+): Promise<ExportApproval> {
+  const { approvalId, ...request } = payload;
+  const { data } = await apiClient.post<{ data: ExportApproval }>(
+    `/compliance/exports/${encodeURIComponent(approvalId)}:complete-from-job`,
+    request,
+  );
+  return data.data;
+}
+
+export function useSystemConfigs(prefix?: string) {
+  return useQuery({
+    queryKey: ["system", "configs", prefix ?? ""],
+    queryFn: () => fetchSystemConfigs(prefix),
+  });
+}
+
+export function useUpdateSystemConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, payload }: { key: string; payload: SystemConfigUpdatePayload }) =>
+      updateSystemConfig(key, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["system", "configs"] }),
+  });
+}
+
+export function useDataPermissionPolicies(
+  params: { resourceType?: string; action?: DataPermissionAction } = {},
+) {
+  return useQuery({
+    queryKey: ["compliance", "data-permissions", params],
+    queryFn: () => fetchDataPermissionPolicies(params),
+  });
+}
+
+export function useUpsertDataPermissionPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: upsertDataPermissionPolicy,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "data-permissions"] }),
+  });
+}
+
+export function useMaskingRules(params: { resourceType?: string; fieldName?: string } = {}) {
+  return useQuery({
+    queryKey: ["compliance", "masking-rules", params],
+    queryFn: () => fetchMaskingRules(params),
+  });
+}
+
+export function useUpsertMaskingRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: upsertMaskingRule,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["compliance", "masking-rules"] }),
+  });
+}
+
+export function useInteropAssessment(standardVersion: string) {
+  return useQuery({
+    queryKey: ["compliance", "interop-assessment", standardVersion],
+    queryFn: () => fetchInteropAssessment(standardVersion),
+    enabled: Boolean(standardVersion.trim()),
+  });
+}
+
+export function useExportApprovals(
+  params: { resourceType?: string; status?: ExportApprovalStatus } = {},
+) {
+  return useQuery({
+    queryKey: ["compliance", "export-approvals", params],
+    queryFn: () => fetchExportApprovals(params),
+  });
+}
+
+export function useRequestExportApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: requestExportApproval,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
+  });
+}
+
+export function useReviewExportApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: reviewExportApproval,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
+  });
+}
+
+export function useCompleteApprovedExportJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: completeApprovedExportJob,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
+  });
+}
+
 function exportFilters(request: AsyncExportRequest): Record<string, string> {
   const fromRequest = Object.entries(request.requestSnapshot.pageRequest.filters ?? {})
     .filter(([, value]) => typeof value === "string" && value.length > 0)
@@ -1186,7 +2048,7 @@ export interface RuleDefinition {
   tenantId: string;
   ruleCode: string;
   name: string;
-  ruleType: "DRUG_SAFETY" | "INSURANCE_AUDIT" | "CLINICAL_QUALITY" | string;
+  ruleType: RuleType;
   authoringMode: "DSL" | "VISUAL" | string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
@@ -1219,12 +2081,13 @@ export interface RuleTestCase {
   ruleId: string;
   versionId: string;
   caseType: "POSITIVE" | "NEGATIVE" | "BOUNDARY" | "CONFLICT" | string;
+  contextSnapshotId: string;
   inputPayload: string;
   expectedHit: boolean;
-  expectedSeverity: "LOW" | "MEDIUM" | "HIGH" | string;
-  expectedActionCode: string;
+  expectedSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  expectedActionCode?: string | null;
   lastHit?: boolean | null;
-  lastStatus?: "PASS" | "FAIL" | "PENDING" | string;
+  lastStatus?: "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | string;
   lastMessage?: string | null;
   lastRunAt?: string | null;
   createdAt: string;
@@ -1234,6 +2097,14 @@ export interface RuleDetailResponse {
   definition: RuleDefinition;
   version: RuleVersion;
   testCases: RuleTestCase[];
+  deploymentStatus:
+    | "DRAFT"
+    | "PENDING_REVIEW"
+    | "PUBLISHED"
+    | "ACTIVE"
+    | "OFFLINE"
+    | "WITHDRAWN"
+    | "ARCHIVED";
 }
 
 export interface RuleEvaluationItem {
@@ -1260,10 +2131,20 @@ export interface RuleActionResult {
 export interface RuleTestCaseResult {
   caseId: string;
   caseType: string;
-  status: "PASS" | "FAIL" | "PENDING" | string;
-  hit?: boolean | null;
-  message?: string | null;
-  runAt?: string | null;
+  expectedHit: boolean;
+  actualHit: boolean;
+  expectedSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  actualSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  status: "PASS" | "FAIL" | "ERROR" | string;
+  message: string;
+}
+
+export interface RuleTestRunResponse {
+  ruleId: string;
+  versionId: string;
+  allPassed: boolean;
+  results: RuleTestCaseResult[];
+  traceId: string;
 }
 
 export interface RuleImpactObject {
@@ -1282,7 +2163,7 @@ export interface RuleImpactResponse {
   affectedRules: RuleImpactObject[];
   affectedPathways: RuleImpactObject[];
   inPathPatients: RuleImpactObject[];
-  syncTargets: RuleImpactObject[];
+  integrationAdapters: RuleImpactObject[];
   unavailableScopes: string[];
   traceId: string;
 }
@@ -1295,6 +2176,7 @@ export interface RulePublishResponse {
   results: RuleTestCaseResult[];
   impactDigest?: string | null;
   impactStatus?: string | null;
+  releaseEvidence: string[];
 }
 
 export interface RuleEvaluateResponse {
@@ -1316,6 +2198,18 @@ export interface RuleExplanationResponse {
   actions?: unknown;
   explanation?: unknown;
   status: "SUCCESS" | "FAILED" | string;
+  traceId: string;
+}
+
+export interface RuleExecutionSummary {
+  executionId: string;
+  ruleId: string;
+  versionId: string;
+  triggerPoint: string;
+  hit: boolean;
+  severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  status: "SUCCESS" | "MISS" | "FAILED" | string;
+  executedAt: string;
   traceId: string;
 }
 
@@ -1344,9 +2238,15 @@ export interface RuleFilterParams {
   sort?: string;
 }
 
-export function useRuleDefinitions(params?: RuleFilterParams) {
+export function useRuleDefinitions(
+  params?: RuleFilterParams,
+  options?: {
+    enabled?: boolean;
+  },
+) {
   return useQuery({
     queryKey: ["rules", "definitions", params ?? {}],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<RuleDefinition> }>(
         "/engine/rule/rules",
@@ -1377,7 +2277,7 @@ export function useCreateRule() {
     mutationFn: async (payload: {
       ruleCode: string;
       name: string;
-      ruleType: string;
+      ruleType: RuleType;
       authoringMode: string;
       riskLevel: string;
       packageVersion: string;
@@ -1406,15 +2306,28 @@ export function useAddTestCase(ruleId: string) {
     mutationFn: async (payload: {
       packageVersion: string;
       caseType: string;
-      inputPayload: unknown;
+      contextSnapshotId: string;
       expectedHit: boolean;
-      expectedSeverity: string;
-      expectedActionCode: string;
+      expectedSeverity?: string;
+      expectedActionCode?: string;
     }) => {
       const { packageVersion, ...casePayload } = payload;
       const { data } = await apiClient.post<{ data: RuleTestCase }>(
         `/engine/rule/rules/${ruleId}/test-cases`,
         withStandardApiContext(casePayload, security.data, packageVersion),
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRunRuleTests(ruleId: string) {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: { packageVersion: string }) => {
+      const { data } = await apiClient.post<{ data: RuleTestRunResponse }>(
+        `/engine/rule/rules/${ruleId}/test`,
+        withStandardApiContext({}, security.data, payload.packageVersion),
       );
       return data.data;
     },
@@ -1478,22 +2391,45 @@ export function usePublishRule() {
   });
 }
 
+export function useFullRolloutRule() {
+  const security = useSecurityProfile();
+  return useMutation({
+    mutationFn: async (payload: {
+      ruleId: string;
+      packageVersion: string;
+      impactDigest?: string;
+      reason?: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: RulePublishResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/rollout/full`,
+        withStandardApiContext(
+          {
+            impactDigest: payload.impactDigest,
+            reason: payload.reason,
+          },
+          security.data,
+          payload.packageVersion,
+        ),
+      );
+      return data.data;
+    },
+  });
+}
+
 export function useEvaluateRules() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       triggerPoint: string;
-      patientId?: string;
       packageVersion: string;
-      payloadJson: string;
+      contextSnapshotId: string;
     }) => {
-      const context = JSON.parse(payload.payloadJson) as unknown;
       const { data } = await apiClient.post<{ data: RuleEvaluateResponse }>(
         "/engine/rule/rules/evaluate",
         withStandardApiContext(
           {
             triggerPoint: payload.triggerPoint,
-            context,
+            contextSnapshotId: payload.contextSnapshotId,
             eventId: crypto.randomUUID(),
           },
           security.data,
@@ -1516,6 +2452,19 @@ export function useRuleExecutionExplain(executionId: string) {
       return data.data;
     },
     enabled: !!executionId,
+  });
+}
+
+export function useRuleExecutions(params?: { page?: number; size?: number }) {
+  return useQuery({
+    queryKey: ["rules", "executions", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<RuleExecutionSummary> }>(
+        "/engine/rule/rules/executions",
+        { params },
+      );
+      return data.data;
+    },
   });
 }
 
@@ -1656,6 +2605,14 @@ export interface PathwayTemplateDetailResponse {
   nodes: PathwayNode[];
   edges: PathwayEdge[];
   metricBindings: SpecialtyMetricBinding[];
+  deploymentStatus:
+    | "DRAFT"
+    | "PENDING_REVIEW"
+    | "PUBLISHED"
+    | "ACTIVE"
+    | "OFFLINE"
+    | "WITHDRAWN"
+    | "ARCHIVED";
   traceId: string;
 }
 
@@ -2038,8 +2995,7 @@ export function useEnterPatientPathway() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
-      patientId: string;
-      encounterId?: string;
+      contextSnapshotId: string;
       templateId: string;
       startNodeCode?: string;
       packageVersion: string;
@@ -2259,9 +3215,14 @@ export interface RecommendationStats {
   traceId?: string;
 }
 
-export interface RecommendationTriggerResponse {
+export interface RecommendationEvaluationResponse {
   triggerId: string;
-  cardCount: number;
+  status: string;
+  totalCardCount: number;
+  visibleCardCount: number;
+  suppressedCardCount: number;
+  modelStatus: string;
+  cards: RecommendationCard[];
   traceId: string;
 }
 
@@ -2271,27 +3232,24 @@ export interface RecommendationFeedbackResponse {
   traceId: string;
 }
 
-// 1. Trigger Hooks
-// 契约对齐后端 RecommendationTriggerRequest：triggerCode/triggerType/scenarioCode/inputDigest 必填，
-// 可选携带候选卡（首版允许上游直接提交）。后端不会凭患者+病种"生成"卡，故沙箱不提交候选卡时 cardCount=0。
-export function useCreateRecommendationTrigger() {
+// 标准上下文快照驱动的客户面推荐评估。
+export function useEvaluateRecommendations() {
   return useMutation({
     mutationFn: async (payload: {
       triggerCode: string;
       triggerType: string;
       scenarioCode: string;
-      inputDigest: string;
-      patientId?: string;
+      contextSnapshotId: string;
+      patientId: string;
       encounterId?: string;
+      packageVersion: string;
       sourceEventId?: string;
-      contextSnapshotId?: string;
       patientPathwayId?: string;
-      packageVersion?: string;
       occurredAt?: string;
       candidateCards?: unknown[];
     }) => {
-      const { data } = await apiClient.post<{ data: RecommendationTriggerResponse }>(
-        "/engine/recommendations/triggers",
+      const { data } = await apiClient.post<{ data: RecommendationEvaluationResponse }>(
+        "/engine/recommendations:evaluate",
         payload,
       );
       return data.data;
@@ -2470,6 +3428,7 @@ export type EvaluationIndicatorStatus =
   | "DRAFT"
   | "PENDING_REVIEW"
   | "PUBLISHED"
+  | "GRAY"
   | "ACTIVE"
   | "OFFLINE"
   | "ARCHIVED";
@@ -2877,16 +3836,22 @@ export interface RectificationDispatchRequest {
 }
 
 // 1. Indicator Lifecycle Hooks
-export function useEvaluationIndicators(params?: {
-  status?: EvaluationIndicatorStatus;
-  subjectType?: EvaluationSubjectType;
-  indicatorCode?: string;
-  page?: number;
-  size?: number;
-  sort?: string;
-}) {
+export function useEvaluationIndicators(
+  params?: {
+    status?: EvaluationIndicatorStatus;
+    subjectType?: EvaluationSubjectType;
+    indicatorCode?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  },
+  options?: {
+    enabled?: boolean;
+  },
+) {
   return useQuery({
     queryKey: ["evaluations", "indicators", params ?? {}],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<EvaluationIndicator> }>(
         "/engine/evaluation/indicators",
@@ -2936,9 +3901,22 @@ export function useSubmitEvaluationIndicator() {
 
 export function usePublishEvaluationIndicator() {
   return useMutation({
-    mutationFn: async (indicatorId: string) => {
+    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        `/engine/evaluation/indicators/${indicatorId}/publish`,
+        `/engine/evaluation/indicators/${payload.indicatorId}/publish`,
+        { reason: payload.reason },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useGrayEvaluationIndicator() {
+  return useMutation({
+    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
+      const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
+        `/engine/evaluation/indicators/${payload.indicatorId}/gray`,
+        { reason: payload.reason },
       );
       return data.data;
     },
@@ -2947,9 +3925,10 @@ export function usePublishEvaluationIndicator() {
 
 export function useActivateEvaluationIndicator() {
   return useMutation({
-    mutationFn: async (indicatorId: string) => {
+    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
-        `/engine/evaluation/indicators/${indicatorId}/activate`,
+        `/engine/evaluation/indicators/${payload.indicatorId}/activate`,
+        { reason: payload.reason },
       );
       return data.data;
     },
@@ -3199,7 +4178,7 @@ export function useEvaluationRunDiagnose(runId: string) {
   });
 }
 
-export type ContextSnapshotStatus = "ACTIVE" | "SUPERSEDED" | "REVOKED" | string;
+export type ContextSnapshotStatus = "DRAFT" | "ACTIVE" | "SUPERSEDED" | "REJECTED";
 
 export interface ContextSnapshotSummary {
   snapshotId: string;
@@ -3215,9 +4194,6 @@ export interface ContextSnapshotResponse {
   status: ContextSnapshotStatus;
   resources?: Record<string, unknown> | null;
   packageVersion?: string | null;
-  knowledgePackageVersion?: string | null;
-  rulePackageVersion?: string | null;
-  pathwayPackageVersion?: string | null;
   qualityStatus: string;
   missingFields: Array<Record<string, unknown>>;
   mappingStatus: Record<string, string>;
@@ -3269,7 +4245,7 @@ export interface ContextFieldDescriptor {
 
 /** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
 export function useContextFieldCatalog(
-  params?: { resourceType?: string; keyword?: string },
+  params?: { resourceType?: string; keyword?: string; packageVersion?: string },
   options?: { enabled?: boolean },
 ) {
   return useQuery({
@@ -3297,7 +4273,7 @@ export interface ContextFieldUpsertPayload {
   description?: string;
 }
 
-/** 新增租户自定义上下文字段（P2/P5 前台维护）。 */
+/** 保存租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
 export function useCreateContextField() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -3314,7 +4290,30 @@ export function useCreateContextField() {
   });
 }
 
-/** 删除租户自定义上下文字段（P2/P5 前台维护）。 */
+/** 更新租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
+export function useUpdateContextField() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      fieldId,
+      payload,
+    }: {
+      fieldId: string;
+      payload: ContextFieldUpsertPayload;
+    }) => {
+      const { data } = await apiClient.put<{ data: ContextFieldDescriptor }>(
+        `/engine/context/field-catalog/${fieldId}`,
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] });
+    },
+  });
+}
+
+/** 删除租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
 export function useDeleteContextField() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -3349,7 +4348,7 @@ export function useContextSnapshotDetail(
 // ==================== 智能随访引擎相关的实体及 DTO 契约 ====================
 
 export type FollowupPlanStatus = "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
-export type FollowupTaskType = "QUESTIONNAIRE" | "EXAM" | "LAB" | "OUTPATIENT";
+export type FollowupTaskType = "QUESTIONNAIRE" | "EXAM" | "LAB" | "OUTPATIENT" | "RETURN_VISIT";
 export type FollowupTaskStatus = "PENDING" | "COMPLETED" | "OVERDUE" | "CANCELLED";
 export type FollowupEventType = "ABNORMAL_RETURN" | "RESULT_INFLOW";
 
@@ -3358,6 +4357,7 @@ export interface FollowupTaskDetailResponse {
   taskType: FollowupTaskType;
   dueDate: string;
   status: FollowupTaskStatus;
+  questionnaireTemplateId?: string | null;
 }
 
 export interface FollowupPlanDetailResponse {
@@ -3371,19 +4371,29 @@ export interface FollowupPlanDetailResponse {
 }
 
 export interface FollowupPlanGenerateRequest {
-  patientId: string;
-  encounterId: string;
-  pathwayId?: string;
-  diseaseCode?: string;
+  contextSnapshotId: string;
   riskLevel?: string;
   taskTypes: string[];
+  idempotencyKey?: string;
 }
 
-export interface FollowupQuestionnaireSubmitRequest {
+export interface FollowupQuestionnaireRequest {
   taskId: string;
-  formData: string; // JSON string
+  questionnaireTemplateId: string;
+  formData: string;
+  answerData?: string;
+  score?: number;
+  idempotencyKey: string;
   executorId?: string;
   executorType?: string;
+}
+
+export interface FollowupQuestionnaireResponse {
+  questionnaireId: string;
+  taskId: string;
+  questionnaireTemplateId: string;
+  status: string;
+  traceId?: string | null;
 }
 
 export interface FollowupAbnormalReportRequest {
@@ -3481,15 +4491,12 @@ export function useFollowupPlanDetail(planId: string) {
 // 5. 提交问卷并完成任务
 export function useSubmitFollowupQuestionnaire() {
   return useMutation({
-    mutationFn: async (payload: {
-      taskId: string;
-      request: FollowupQuestionnaireSubmitRequest;
-    }) => {
-      const { data } = await apiClient.post<void>(
-        `/engine/followup/tasks/${payload.taskId}/questionnaires`,
-        payload.request,
+    mutationFn: async (payload: FollowupQuestionnaireRequest) => {
+      const { data } = await apiClient.post<{ data: FollowupQuestionnaireResponse }>(
+        "/engine/followup/questionnaires",
+        payload,
       );
-      return data;
+      return data.data;
     },
   });
 }
@@ -3531,6 +4538,8 @@ export type WorkflowNotificationSourceType =
   | "WORKFLOW_TODO"
   | "SYNC_EVENT";
 export type WorkflowNotificationLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
+export type WorkflowNotificationType = "SAFETY" | "FOLLOWUP" | "WORKFLOW" | "SYNC";
+export type WorkflowNotificationSettingsSource = "PERSONAL" | "SYSTEM_DEFAULT";
 export type WorkflowNotificationStatus = "UNREAD" | "READ";
 
 export interface WorkflowNotificationDelivery {
@@ -3555,8 +4564,12 @@ export interface WorkflowNotificationSettings {
   quietStart: string;
   quietEnd: string;
   quietBypassLevels: WorkflowNotificationLevel[];
+  subscribedTypes: WorkflowNotificationType[];
+  mandatoryTypes: WorkflowNotificationType[];
+  source: WorkflowNotificationSettingsSource;
   quietActiveNow: boolean;
   version: number;
+  systemVersion: number;
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -3572,6 +4585,13 @@ export interface WorkflowNotificationSettingsPayload {
   quietStart: string;
   quietEnd: string;
   quietBypassLevels: WorkflowNotificationLevel[];
+  subscribedTypes: WorkflowNotificationType[];
+}
+
+export interface WorkflowNotificationSystemSettingsPayload {
+  settings: WorkflowNotificationSettingsPayload;
+  reason: string;
+  expectedVersion: number;
 }
 
 export interface WorkflowTodo {
@@ -3754,22 +4774,52 @@ export function useSaveWorkflowNotificationSettings() {
   });
 }
 
+export function useWorkflowSystemNotificationSettings(enabled: boolean) {
+  return useQuery({
+    queryKey: ["workflow", "notification-settings", "system"],
+    enabled,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: WorkflowNotificationSettings }>(
+        "/engine/notifications/settings/system",
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useSaveWorkflowSystemNotificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: WorkflowNotificationSystemSettingsPayload) => {
+      const { data } = await apiClient.put<{ data: WorkflowNotificationSettings }>(
+        "/engine/notifications/settings/system",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["workflow", "notification-settings"],
+      });
+    },
+  });
+}
+
 // ──────────────────────────────────────────
 // 智能包发布与同步引擎 (GA-ENG-PKG-01)
 // ──────────────────────────────────────────
 
 const PACKAGE_API_ROOT = "/engine/pkg/packages";
 
-export interface SyncTarget {
-  id: number;
-  targetId: string;
-  tenantId: string;
-  targetName: string;
-  targetType: "DIFY" | "NEO4J" | "BUSINESS_DB" | string;
-  connectionConfig: string;
-  status: "ACTIVE" | "DISABLED" | string;
-  createdAt: string;
-  createdBy: string;
+export interface PackageReleaseAdapter {
+  adapterId: string;
+  adapterName: string;
+  protocolType: string;
+  status: "ACTIVE" | string;
+  healthStatus: "HEALTHY" | "NOT_CONNECTED" | "MISCONFIGURED" | string;
+  rttMs: number;
+  lastHeartbeatAt: string | null;
+  connectorAvailable: boolean;
 }
 
 export interface PackageCreateRequest {
@@ -3872,11 +4922,12 @@ export interface PackageOfflineImportResponse {
 
 export interface PackageSyncRequest {
   packageVersion: string;
+  reason: string;
   targetOrgUnitId: string;
   strategy: "GRAYSCALE" | "FULL" | string;
-  scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "SPECIALTY" | string;
+  scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | string;
   scopeValue: string;
-  targetIds: string[];
+  adapterIds: string[];
 }
 
 export interface PackageRollbackRequest {
@@ -3906,7 +4957,7 @@ export interface PackageValidateResponse {
 export interface SyncLogResponse {
   logId: string;
   planId?: string;
-  targetId: string;
+  adapterId: string;
   status: "RUNNING" | "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
   errorCode: string | null;
   errorMessage: string | null;
@@ -3968,13 +5019,13 @@ export interface PilotPackageInstantiation {
   items: PackageItemResponse[];
 }
 
-// 1. 动态获取激活同步通道目标列表
-export function useSyncTargets() {
+// 1. 获取配置包发布可用的统一集成适配器
+export function usePackageReleaseAdapters() {
   return useQuery({
-    queryKey: ["packages", "sync-targets"],
+    queryKey: ["packages", "release-adapters"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: SyncTarget[] }>(
-        `${PACKAGE_API_ROOT}/sync-targets`,
+      const { data } = await apiClient.get<{ data: PackageReleaseAdapter[] }>(
+        `${PACKAGE_API_ROOT}/release-adapters`,
       );
       return data.data ?? [];
     },
@@ -4135,8 +5186,9 @@ export async function downloadPackageDiffExport(packageId: string, basePackageId
   return data;
 }
 
-export async function downloadPackageOfflineExport(packageId: string) {
+export async function downloadPackageOfflineExport(packageId: string, targetOrgUnitId: string) {
   const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/offline/export`, {
+    params: { targetOrgUnitId },
     responseType: "blob",
   });
   return data;
@@ -4274,6 +5326,7 @@ export interface EmbedLaunchContextResponse {
   modelStatus: "MODEL_DISABLED";
   connectionStatus: "CONNECTED" | "NOT_CONNECTED";
   cdsHookVersion: string;
+  parentOrigin: string;
 }
 
 export interface EmbedFeedbackRequest {
@@ -4361,8 +5414,13 @@ export function useAddEmbedOrigin() {
 // ─── 大模型能力网关相关的接口定义 (GA-ENG-API-12) ───
 export interface ModelCapabilityStatusResponse {
   capabilityCode: string;
-  routeStrategy: "DISABLED" | "BASEPLAY" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
+  displayName: string;
+  description: string;
+  category: string;
+  routeStrategy: "DISABLED" | "BASELINE" | "LOCAL_MODEL" | "EXTERNAL_MODEL" | string;
   desensitizeStrategy: "DEFAULT" | "MASK_ALL" | "NONE" | string;
+  expectedSchema: string | null;
+  configured: boolean;
   fallbackAvailable: boolean;
   fallbackReason: string;
 }
@@ -4370,8 +5428,6 @@ export interface ModelCapabilityStatusResponse {
 export interface ModelTaskRequest {
   capabilityCode: string;
   inputData: string;
-  desensitizeStrategy?: string;
-  expectedSchema?: string;
   timeoutSeconds?: number;
 }
 
@@ -4383,7 +5439,7 @@ export interface ModelTaskResponse {
   modelVersion: string;
   promptVersion: string;
   sourceCitations: string;
-  confidence: number;
+  confidence: number | null;
   riskLevel: string;
   fallbackUsed: boolean;
   fallbackReason: string;
@@ -4404,6 +5460,29 @@ export interface ModelPolicyValidateResponse {
   fallbackAvailable: boolean;
 }
 
+export interface ModelPolicyUpsertRequest {
+  routeStrategy: string;
+  desensitizeStrategy: string;
+  expectedSchema?: string;
+}
+
+export interface ModelCapabilityDefinition {
+  capabilityCode: string;
+  displayName: string;
+  description: string;
+  category: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export interface ModelCapabilityDefinitionUpsertRequest {
+  displayName: string;
+  description: string;
+  category: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
 // 6. 扫描获取当前租户全部可用模型能力状态与降级指标
 export function useModelCapabilitiesStatus() {
   return useQuery({
@@ -4417,7 +5496,47 @@ export function useModelCapabilitiesStatus() {
   });
 }
 
-// 7. 提交推理或抽取任务，由网关执行路由、数据脱敏与Schema检验
+// 7. 读取平台模型能力目录，包括停用项
+export function useModelCapabilityCatalog(enabled = true) {
+  return useQuery({
+    queryKey: ["model", "capability-catalog"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ModelCapabilityDefinition[] }>(
+        "/model-capabilities/catalog",
+      );
+      return data.data ?? [];
+    },
+    enabled,
+  });
+}
+
+// 8. 新增或更新平台模型能力目录
+export function useSaveModelCapabilityDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      capabilityCode,
+      definition,
+    }: {
+      capabilityCode: string;
+      definition: ModelCapabilityDefinitionUpsertRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: ModelCapabilityDefinition }>(
+        `/model-capabilities/catalog/${encodeURIComponent(capabilityCode)}`,
+        definition,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["model", "capability-catalog"] }),
+        queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] }),
+      ]);
+    },
+  });
+}
+
+// 9. 提交推理或抽取任务，由网关执行路由、数据脱敏与Schema检验
 export function useSubmitModelTask() {
   return useMutation({
     mutationFn: async (payload: ModelTaskRequest) => {
@@ -4430,7 +5549,7 @@ export function useSubmitModelTask() {
   });
 }
 
-// 8. 根据任务ID追溯大模型推理或降级回退任务的详情与审计凭证
+// 10. 根据任务ID追溯大模型推理或降级回退任务的详情与审计凭证
 export function useModelTask(taskId: string) {
   return useQuery({
     queryKey: ["model", "task", taskId],
@@ -4445,7 +5564,7 @@ export function useModelTask(taskId: string) {
   });
 }
 
-// 9. 重试失败的任务或改为 B0 基线回退
+// 11. 重试失败的任务或改为 B0 基线回退
 export function useRetryModelTask() {
   return useMutation({
     mutationFn: async (taskId: string) => {
@@ -4457,7 +5576,7 @@ export function useRetryModelTask() {
   });
 }
 
-// 10. 发布前校验策略的合法性与可用降级判定
+// 12. 发布前校验策略的合法性与可用降级判定
 export function useValidateModelPolicy() {
   return useMutation({
     mutationFn: async (payload: ModelPolicyValidateRequest) => {
@@ -4466,6 +5585,29 @@ export function useValidateModelPolicy() {
         payload,
       );
       return data.data;
+    },
+  });
+}
+
+// 13. 保存当前租户指定能力的真实路由、脱敏与结构化输出策略
+export function useSaveModelPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      capabilityCode,
+      policy,
+    }: {
+      capabilityCode: string;
+      policy: ModelPolicyUpsertRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: ModelCapabilityStatusResponse }>(
+        `/model-capabilities/policies/${encodeURIComponent(capabilityCode)}`,
+        policy,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] });
     },
   });
 }
@@ -4557,12 +5699,29 @@ export interface DataQualityReport {
 export interface IntegrationWebhookConfig {
   id: number;
   webhookId: string;
-  tenantId: string;
   name: string;
   callbackUrl: string;
-  secretKey: string;
   eventsSubscribed: string;
   status: "ACTIVE" | "SUSPENDED" | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebhookCreateResult extends IntegrationWebhookConfig {
+  sharedSecret: string;
+}
+
+export interface RegionalSource {
+  sourceId: string;
+  regionalNetworkName: string;
+  sourceOrganizationId: string;
+  sourceOrganizationName: string;
+  trustLevel: string;
+  evidenceText: string;
+  adapterId: string | null;
+  onboardingId: string | null;
+  orgPath: string;
+  status: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -4637,6 +5796,18 @@ export interface WebhookTestPayload {
   payload: string;
 }
 
+export interface RegionalSourceRegisterPayload {
+  sourceId: string;
+  regionalNetworkName: string;
+  sourceOrganizationId: string;
+  sourceOrganizationName: string;
+  trustLevel: "HIGH" | "MEDIUM" | "LOW";
+  evidenceText: string;
+  adapterId?: string;
+  onboardingId?: string;
+  orgPath: string;
+}
+
 export interface IntegrationOnboardingCreatePayload {
   onboardingId: string;
   name: string;
@@ -4658,11 +5829,11 @@ export interface IntegrationOnboardingAdvancePayload {
 export interface WebhookSignatureTestResult {
   webhookId: string;
   callbackUrl: string;
-  secretKey: string;
   timestamp: number;
-  payloadSigned: string;
   signature: string;
   status: string;
+  connectionStatus: "NOT_TESTED";
+  message: string;
 }
 
 interface IntegrationEnvelope<T> {
@@ -4677,7 +5848,7 @@ export function useIntegrationAdapters() {
     queryKey: ["integration", "adapters"],
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<IntegrationAdapter[]>>(
-        "/api/v1/engine/integration/adapters",
+        "/engine/integration/adapters",
       );
       return data.data ?? [];
     },
@@ -4689,7 +5860,7 @@ export function useCreateAdapter() {
   return useMutation({
     mutationFn: async (payload: AdapterCreatePayload) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationAdapter>>(
-        "/api/v1/engine/integration/adapters",
+        "/engine/integration/adapters",
         payload,
       );
       return data.data;
@@ -4708,7 +5879,7 @@ export function useUpdateAdapter() {
       payload: AdapterUpdatePayload;
     }) => {
       const { data } = await apiClient.put<IntegrationEnvelope<IntegrationAdapter>>(
-        `/api/v1/engine/integration/adapters/${adapterId}`,
+        `/engine/integration/adapters/${adapterId}`,
         payload,
       );
       return data.data;
@@ -4721,7 +5892,7 @@ export function useIntegrationHealthSummary() {
     queryKey: ["integration", "health"],
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<AdapterHealthSummary>>(
-        "/api/v1/engine/integration/health",
+        "/engine/integration/health",
       );
       return data.data;
     },
@@ -4733,7 +5904,7 @@ export function useAdapterHubStatus() {
     queryKey: ["integration", "adapter-hub", "status"],
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<AdapterHubStatus>>(
-        "/api/v1/engine/integration/adapter-hub/status",
+        "/engine/integration/adapter-hub/status",
       );
       return data.data;
     },
@@ -4744,7 +5915,7 @@ export function useGenerateDataQualityReport() {
   return useMutation({
     mutationFn: async () => {
       const { data } = await apiClient.post<IntegrationEnvelope<DataQualityReport>>(
-        "/api/v1/engine/integration/data-quality/reports",
+        "/engine/integration/data-quality/reports",
       );
       return data.data;
     },
@@ -4756,7 +5927,7 @@ export function useIntegrationOnboardings() {
     queryKey: ["integration", "onboardings"],
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<IntegrationOnboarding[]>>(
-        "/api/v1/engine/integration/onboardings",
+        "/engine/integration/onboardings",
       );
       return data.data ?? [];
     },
@@ -4767,7 +5938,7 @@ export function useCreateIntegrationOnboarding() {
   return useMutation({
     mutationFn: async (payload: IntegrationOnboardingCreatePayload) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationOnboarding>>(
-        "/api/v1/engine/integration/onboardings",
+        "/engine/integration/onboardings",
         payload,
       );
       return data.data;
@@ -4783,7 +5954,7 @@ export function useAdvanceIntegrationOnboarding() {
       evidenceText,
     }: IntegrationOnboardingAdvancePayload) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationOnboarding>>(
-        `/api/v1/engine/integration/onboardings/${onboardingId}/advance`,
+        `/engine/integration/onboardings/${onboardingId}/advance`,
         { targetStatus, evidenceText },
       );
       return data.data;
@@ -4796,7 +5967,7 @@ export function useCheckAdapterHealth() {
   return useMutation({
     mutationFn: async (adapterId: string) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationAdapter>>(
-        `/api/v1/engine/integration/adapters/${adapterId}/health-check`,
+        `/engine/integration/adapters/${adapterId}/health-check`,
       );
       return data.data;
     },
@@ -4809,7 +5980,7 @@ export function useWebhooks() {
     queryKey: ["integration", "webhooks"],
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<IntegrationWebhookConfig[]>>(
-        "/api/v1/engine/integration/webhooks",
+        "/engine/integration/webhooks",
       );
       return data.data ?? [];
     },
@@ -4820,8 +5991,8 @@ export function useWebhooks() {
 export function useCreateWebhook() {
   return useMutation({
     mutationFn: async (payload: WebhookCreatePayload) => {
-      const { data } = await apiClient.post<IntegrationEnvelope<IntegrationWebhookConfig>>(
-        "/api/v1/engine/integration/webhooks",
+      const { data } = await apiClient.post<IntegrationEnvelope<WebhookCreateResult>>(
+        "/engine/integration/webhooks",
         payload,
       );
       return data.data;
@@ -4834,7 +6005,31 @@ export function useTestWebhookSignature() {
   return useMutation({
     mutationFn: async (payload: WebhookTestPayload) => {
       const { data } = await apiClient.post<IntegrationEnvelope<WebhookSignatureTestResult>>(
-        "/api/v1/engine/integration/webhooks/test",
+        "/engine/integration/webhooks/test",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRegionalSources() {
+  return useQuery({
+    queryKey: ["integration", "regional-sources"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IntegrationEnvelope<RegionalSource[]>>(
+        "/engine/integration/regional-sources",
+      );
+      return data.data ?? [];
+    },
+  });
+}
+
+export function useRegisterRegionalSource() {
+  return useMutation({
+    mutationFn: async (payload: RegionalSourceRegisterPayload) => {
+      const { data } = await apiClient.post<IntegrationEnvelope<RegionalSource>>(
+        "/engine/integration/regional-sources",
         payload,
       );
       return data.data;
@@ -4849,7 +6044,7 @@ export function useIntegrationLogs(page: number, size: number) {
     queryFn: async () => {
       const { data } = await apiClient.get<
         IntegrationEnvelope<{ items: IntegrationMessageLog[]; total: number }>
-      >("/api/v1/engine/integration/logs", {
+      >("/engine/integration/logs", {
         params: { page, size },
       });
       return data.data ?? { items: [], total: 0 };
@@ -4862,7 +6057,7 @@ export function useRetryMessage() {
   return useMutation({
     mutationFn: async (messageId: string) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationMessageLog>>(
-        `/api/v1/engine/integration/logs/${messageId}/retry`,
+        `/engine/integration/logs/${messageId}/retry`,
       );
       return data.data;
     },
@@ -4874,7 +6069,7 @@ export function useReplayDeadLetter() {
   return useMutation({
     mutationFn: async (messageId: string) => {
       const { data } = await apiClient.post<IntegrationEnvelope<IntegrationReplayResult>>(
-        `/api/v1/engine/integration/dead-letter/${messageId}/replay`,
+        `/engine/integration/dead-letter/${messageId}/replay`,
       );
       return data.data;
     },
@@ -5112,17 +6307,6 @@ export function useOnboardingReadiness(enabled = true) {
   });
 }
 
-export function useActivateOnboardingReadiness() {
-  return useMutation({
-    mutationFn: async () => {
-      const { data } = await apiClient.post<{ data: OnboardingReadiness }>(
-        "/engine/tenant/onboarding-readiness/activate",
-      );
-      return data.data;
-    },
-  });
-}
-
 export function useTransitionSuccessStage() {
   return useMutation({
     mutationFn: async (nextStage: string) => {
@@ -5143,7 +6327,7 @@ export interface OrgUnit {
   parentId?: string | null;
   tenantId?: string;
   orgPath?: string | null;
-  level: "TENANT" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | "SPECIALTY";
+  level: "TENANT" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT";
   code: string;
   name: string;
   namePinyin?: string | null;
@@ -5153,7 +6337,19 @@ export interface OrgUnit {
   createdBy?: string;
 }
 
-export function useOrgUnits(params?: { page?: number; size?: number; sort?: string }) {
+export interface OrgUserDirectoryItem {
+  userId: string;
+  displayName: string;
+}
+
+export function useOrgUnits(params?: {
+  page?: number;
+  size?: number;
+  sort?: string;
+  keyword?: string;
+  level?: OrgUnit["level"];
+  status?: OrgUnit["status"];
+}) {
   return useQuery({
     queryKey: ["engine", "org", "org-units", params ?? {}],
     queryFn: async () => {
@@ -5162,6 +6358,19 @@ export function useOrgUnits(params?: { page?: number; size?: number; sort?: stri
         {
           params,
         },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useOrgUsers(params?: { page?: number; size?: number; keyword?: string }) {
+  return useQuery({
+    queryKey: ["engine", "org", "org-units", "users", params ?? {}],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<OrgUserDirectoryItem> }>(
+        "/engine/org/org-units/users",
+        { params },
       );
       return data.data;
     },
@@ -5228,11 +6437,11 @@ export interface MpiPatientDetailResponse {
 }
 
 export interface MpiPatientCreatePayload {
-  mpiId: string;
   maskedName: string;
   gender: "M" | "F" | "UNKNOWN";
   age: number;
   idLast4: string;
+  idempotencyKey: string;
 }
 
 export interface MpiMergeResult {
@@ -5247,6 +6456,7 @@ export interface MpiMergeResult {
 export interface MpiSplitPayload {
   sourceMpiId: string;
   reviewReason: string;
+  idempotencyKey: string;
 }
 
 export interface MpiSplitResult {
@@ -5263,7 +6473,7 @@ export function useMpiPatients(
     queryKey: ["engine", "mpi", "patients", params],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: { items: MpiPatient[]; total: number } }>(
-        "/api/v1/engine/mpi/patients",
+        "/engine/mpi/patients",
         { params },
       );
       return data.data;
@@ -5274,10 +6484,10 @@ export function useMpiPatients(
 export function useCreateMpiPatient() {
   return useMutation({
     mutationFn: async (payload: MpiPatientCreatePayload) => {
-      const { data } = await apiClient.post<{ data: MpiPatient }>(
-        "/api/v1/engine/mpi/patients",
-        payload,
-      );
+      const { idempotencyKey, ...body } = payload;
+      const { data } = await apiClient.post<{ data: MpiPatient }>("/engine/mpi/patients", body, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
       return data.data;
     },
   });
@@ -5287,7 +6497,7 @@ export function useMpiStats() {
   return useQuery({
     queryKey: ["engine", "mpi", "stats"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/api/v1/engine/mpi/stats");
+      const { data } = await apiClient.get<{ data: MpiStatsResponse }>("/engine/mpi/stats");
       return data.data;
     },
   });
@@ -5299,7 +6509,7 @@ export function useMpiPatientDetail(mpiId?: string) {
     queryFn: async () => {
       if (!mpiId) return null;
       const { data } = await apiClient.get<{ data: MpiPatientDetailResponse }>(
-        `/api/v1/engine/mpi/patients/${mpiId}`,
+        `/engine/mpi/patients/${mpiId}`,
       );
       return data.data;
     },
@@ -5310,14 +6520,17 @@ export function useMpiPatientDetail(mpiId?: string) {
 export interface MergeMpiPayload {
   sourceMpiId: string;
   targetMpiId: string;
+  idempotencyKey: string;
 }
 
 export function useMergeMpiPatients() {
   return useMutation({
     mutationFn: async (payload: MergeMpiPayload) => {
+      const { idempotencyKey, ...body } = payload;
       const { data } = await apiClient.post<{ data: MpiMergeResult }>(
-        "/api/v1/engine/mpi/patients:merge",
-        payload,
+        "/engine/mpi/patients:merge",
+        body,
+        { headers: { "Idempotency-Key": idempotencyKey } },
       );
       return data.data;
     },
@@ -5327,9 +6540,11 @@ export function useMergeMpiPatients() {
 export function useSplitMpiPatient() {
   return useMutation({
     mutationFn: async (payload: MpiSplitPayload) => {
+      const { idempotencyKey, sourceMpiId, ...body } = payload;
       const { data } = await apiClient.post<{ data: MpiSplitResult }>(
-        `/api/v1/engine/mpi/patients/${encodeURIComponent(payload.sourceMpiId)}:split`,
-        { reviewReason: payload.reviewReason },
+        `/engine/mpi/patients/${encodeURIComponent(sourceMpiId)}:split`,
+        body,
+        { headers: { "Idempotency-Key": idempotencyKey } },
       );
       return data.data;
     },
@@ -5337,57 +6552,236 @@ export function useSplitMpiPatient() {
 }
 
 // ──────────────────────────────────────────
-// 身份安全服务包 · 用户角色分配（GA-SVC-COMPLIANCE-01）
+// 身份安全服务包 · 统一用户管理（SVC-COMPLIANCE-01）
 // ──────────────────────────────────────────
-export interface UserRoleAssignment {
-  id?: number;
-  tenantId?: string;
+export interface ComplianceUserRole {
+  code: string;
+  displayName: string;
+  scopeLevel: string;
+  scopeCode: string;
+}
+
+export interface ComplianceUserSummary {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  credentialManaged: boolean;
+  status: "ACTIVE" | "DISABLED" | "LOCKED" | string;
+  mustChangePwd: boolean;
+  roles: ComplianceUserRole[];
+  createdAt: string;
+}
+
+export interface ComplianceUserDetail extends ComplianceUserSummary {
+  effectivePermissions: SecurityProfile["permissions"];
+  updatedAt: string;
+}
+
+export interface CreateComplianceUserPayload {
+  credentialManaged: boolean;
+  userId?: string;
+  displayName?: string;
+  username?: string;
+  roleCode?: string;
+  initialPassword?: string;
+}
+
+export interface CreateComplianceUserResult {
+  user: ComplianceUserDetail;
+  tempPassword: string | null;
+}
+
+export interface AssignComplianceUserRolePayload {
   userId: string;
   roleCode: string;
-  scopeLevel?: string;
-  scopeCode?: string;
-  activeFlag?: string;
-  createdAt?: string;
-  createdBy?: string;
-  updatedAt?: string;
-  updatedBy?: string;
+  scopeLevel: string;
+  scopeCode: string;
 }
 
-export function useUserRoleAssignments() {
+export function useComplianceUsers(params: { page: number; size: number }) {
   return useQuery({
-    queryKey: ["compliance", "user-roles"],
+    queryKey: ["compliance", "users", params],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: UserRoleAssignment[] }>(
-        "/compliance/user-roles",
+      const response = await apiClient.get<{ data: PageResponse<ComplianceUserSummary> }>(
+        "/compliance/users",
+        { params },
       );
-      return data.data;
+      return response.data.data;
     },
   });
 }
 
-export function useCreateUserRoleAssignment() {
+export function useComplianceUserDetail(userId: string | null) {
+  return useQuery({
+    queryKey: ["compliance", "users", userId],
+    queryFn: async () => {
+      const response = await apiClient.get<{ data: ComplianceUserDetail }>(
+        `/compliance/users/${encodeURIComponent(userId ?? "")}`,
+      );
+      return response.data.data;
+    },
+    enabled: Boolean(userId),
+  });
+}
+
+function useInvalidateComplianceUsers() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ["compliance", "users"] });
+}
+
+export function useCreateComplianceUser() {
+  const invalidate = useInvalidateComplianceUsers();
   return useMutation({
-    mutationFn: async (payload: {
-      userId: string;
-      roleCode: string;
-      scopeLevel: string;
-      scopeCode: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: UserRoleAssignment }>(
-        "/compliance/user-roles",
+    mutationFn: async (payload: CreateComplianceUserPayload) => {
+      const response = await apiClient.post<{ data: CreateComplianceUserResult }>(
+        "/compliance/users",
         payload,
       );
-      return data.data;
+      return response.data.data;
     },
+    onSuccess: invalidate,
   });
 }
 
-export function useDeleteUserRoleAssignment() {
+export function useAssignComplianceUserRole() {
+  const invalidate = useInvalidateComplianceUsers();
   return useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await apiClient.delete<{ data: void }>(`/compliance/user-roles/${id}`);
-      return data.data;
+    mutationFn: async ({ userId, ...payload }: AssignComplianceUserRolePayload) => {
+      const response = await apiClient.post<{ data: ComplianceUserDetail }>(
+        `/compliance/users/${encodeURIComponent(userId)}/roles`,
+        payload,
+      );
+      return response.data.data;
     },
+    onSuccess: invalidate,
+  });
+}
+
+export function useRemoveComplianceUserRole() {
+  const invalidate = useInvalidateComplianceUsers();
+  return useMutation({
+    mutationFn: async (payload: AssignComplianceUserRolePayload) => {
+      const params = new URLSearchParams({
+        scopeLevel: payload.scopeLevel,
+        scopeCode: payload.scopeCode,
+      });
+      const response = await apiClient.delete<{ data: ComplianceUserDetail }>(
+        `/compliance/users/${encodeURIComponent(payload.userId)}/roles/${encodeURIComponent(payload.roleCode)}?${params.toString()}`,
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useResetComplianceUserPassword() {
+  const invalidate = useInvalidateComplianceUsers();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiClient.post<{ data: { tempPassword: string } }>(
+        `/compliance/users/${encodeURIComponent(userId)}:reset-password`,
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useSetComplianceUserStatus() {
+  const invalidate = useInvalidateComplianceUsers();
+  return useMutation({
+    mutationFn: async (payload: { userId: string; status: "ACTIVE" | "DISABLED" }) => {
+      const response = await apiClient.patch<{ data: ComplianceUserDetail }>(
+        `/compliance/users/${encodeURIComponent(payload.userId)}/status`,
+        { status: payload.status },
+      );
+      return response.data.data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+// ──────────────────────────────────────────
+// 身份安全服务包 · 外部身份绑定（SVC-COMPLIANCE-01）
+// ──────────────────────────────────────────
+export type IdentityProviderType = "OIDC" | "CAS" | "SAML" | "EMPLOYEE_NO" | "SM_CA";
+
+export interface IdentityBinding {
+  bindingId: string;
+  userId: string;
+  providerType: IdentityProviderType;
+  subjectHint: string;
+  status: "ACTIVE" | "UNBOUND";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIdentityBindingPayload {
+  userId: string;
+  providerType: IdentityProviderType;
+  externalSubject: string;
+  reason: string;
+}
+
+export interface UnbindIdentityBindingPayload {
+  bindingId: string;
+  reason: string;
+  expectedVersion: number;
+}
+
+export async function fetchIdentityBindings(): Promise<IdentityBinding[]> {
+  const response = await apiClient.get<{ data: IdentityBinding[] }>(
+    "/compliance/identity-bindings",
+  );
+  return response.data.data;
+}
+
+export async function createIdentityBinding(
+  payload: CreateIdentityBindingPayload,
+): Promise<IdentityBinding> {
+  const response = await apiClient.post<{ data: IdentityBinding }>(
+    "/compliance/identity-bindings",
+    payload,
+  );
+  return response.data.data;
+}
+
+export async function unbindIdentityBinding(
+  payload: UnbindIdentityBindingPayload,
+): Promise<IdentityBinding> {
+  const response = await apiClient.post<{ data: IdentityBinding }>(
+    `/compliance/identity-bindings/${encodeURIComponent(payload.bindingId)}:unbind`,
+    {
+      reason: payload.reason,
+      expectedVersion: payload.expectedVersion,
+    },
+  );
+  return response.data.data;
+}
+
+export function useIdentityBindings() {
+  return useQuery({
+    queryKey: ["compliance", "identity-bindings"],
+    queryFn: fetchIdentityBindings,
+  });
+}
+
+export function useCreateIdentityBinding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createIdentityBinding,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "identity-bindings"] }),
+  });
+}
+
+export function useUnbindIdentityBinding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: unbindIdentityBinding,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["compliance", "identity-bindings"] }),
   });
 }
 
@@ -5597,71 +6991,6 @@ export function useRenewSession() {
 }
 
 // ──────────────────────────────────────────
-// 鉴权 · 成员账号（凭证）管理
-// ──────────────────────────────────────────
-export interface CredentialSummary {
-  userId: string;
-  username: string;
-  status: string;
-  mustChangePwd: boolean;
-  createdAt: string;
-}
-
-export interface CreateMemberPayload {
-  username: string;
-  userId?: string;
-  roleCode?: string;
-  initialPassword?: string;
-}
-
-export interface CreateMemberResult {
-  userId: string;
-  username: string;
-  tempPassword: string | null;
-}
-
-export function usePlatformCredentials() {
-  return useQuery({
-    queryKey: ["platform-credentials"],
-    queryFn: async () => {
-      const resp = await apiClient.get<{ data: CredentialSummary[] }>("/admin/credentials");
-      return resp.data.data;
-    },
-  });
-}
-
-export function useCreateMember() {
-  return useMutation({
-    mutationFn: async (payload: CreateMemberPayload) => {
-      const resp = await apiClient.post<{ data: CreateMemberResult }>(
-        "/admin/credentials",
-        payload,
-      );
-      return resp.data.data;
-    },
-  });
-}
-
-export function useResetMemberPassword() {
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      const resp = await apiClient.post<{ data: { tempPassword: string } }>(
-        `/admin/credentials/${userId}/reset-password`,
-      );
-      return resp.data.data;
-    },
-  });
-}
-
-export function useSetCredentialStatus() {
-  return useMutation({
-    mutationFn: async (vars: { userId: string; status: string }) => {
-      await apiClient.patch(`/admin/credentials/${vars.userId}/status`, { status: vars.status });
-    },
-  });
-}
-
-// ──────────────────────────────────────────
 // 鉴权 · 平台租户开通（平台管理员）
 // ──────────────────────────────────────────
 export interface TenantSummary {
@@ -5696,10 +7025,17 @@ export function useTenants() {
 }
 
 export function useProvisionTenant() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ProvisionTenantPayload) => {
       const resp = await apiClient.post<{ data: ProvisionTenantResult }>("/admin/tenants", payload);
       return resp.data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["platform-tenants"] }),
+        queryClient.invalidateQueries({ queryKey: ["auth", "login-tenants"] }),
+      ]);
     },
   });
 }

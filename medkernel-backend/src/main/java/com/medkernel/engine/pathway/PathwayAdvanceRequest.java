@@ -2,7 +2,7 @@ package com.medkernel.engine.pathway;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotNull;
 
@@ -12,19 +12,19 @@ import jakarta.validation.constraints.NotNull;
  * <p>携带患者路径实例、事件类型、当前节点、目标节点、变异说明或退出原因等流程事实。
  */
 public record PathwayAdvanceRequest(
-    @JsonAlias("request_id") String requestId,
-    @JsonAlias("trace_id") String traceId,
-    @JsonAlias("tenant_id") String tenantId,
-    @JsonAlias("group_id") String groupId,
-    @JsonAlias("hospital_id") String hospitalId,
-    @JsonAlias("campus_id") String campusId,
-    @JsonAlias("site_id") String siteId,
-    @JsonAlias("department_id") String departmentId,
-    @JsonAlias("specialty_id") String specialtyId,
-    @JsonAlias("user_id") String userId,
-    @JsonAlias("role_codes") List<String> roleCodes,
-    @JsonAlias("package_version") String packageVersion,
-    @JsonAlias("snapshot_id") String snapshotId,
+    @JsonProperty("request_id") String requestId,
+    @JsonProperty("trace_id") String traceId,
+    @JsonProperty("tenant_id") String tenantId,
+    @JsonProperty("group_id") String groupId,
+    @JsonProperty("hospital_id") String hospitalId,
+    @JsonProperty("campus_id") String campusId,
+    @JsonProperty("site_id") String siteId,
+    @JsonProperty("department_id") String departmentId,
+    @JsonProperty("specialty_id") String specialtyId,
+    @JsonProperty("user_id") String userId,
+    @JsonProperty("role_codes") List<String> roleCodes,
+    @JsonProperty("package_version") String packageVersion,
+    String snapshotId,
     String patientPathwayId,
     @NotNull PathwayAdvanceEventType eventType,
     String currentNodeCode,

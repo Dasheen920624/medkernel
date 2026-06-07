@@ -1,18 +1,30 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useEvaluateRules, useRuleExecutionExplain } from "@/shared/api/hooks";
+import {
+  useContextSnapshotDetail,
+  useContextSnapshots,
+  useEvaluateRules,
+  useRuleExecutions,
+  useRuleExecutionExplain,
+} from "@/shared/api/hooks";
 
 import RuleValidate from "./RuleValidate";
 
 vi.mock("@/shared/api/hooks", () => ({
+  useContextSnapshotDetail: vi.fn(),
+  useContextSnapshots: vi.fn(),
   useEvaluateRules: vi.fn(),
+  useRuleExecutions: vi.fn(),
   useRuleExecutionExplain: vi.fn(),
 }));
 
+const mockUseContextSnapshotDetail = vi.mocked(useContextSnapshotDetail);
+const mockUseContextSnapshots = vi.mocked(useContextSnapshots);
 const mockUseEvaluateRules = vi.mocked(useEvaluateRules);
+const mockUseRuleExecutions = vi.mocked(useRuleExecutions);
 const mockUseRuleExecutionExplain = vi.mocked(useRuleExecutionExplain);
 
 function renderRuleValidate() {
@@ -56,10 +68,75 @@ describe("RuleValidate", () => {
       mutateAsync: evaluate,
       isPending: false,
     } as unknown as ReturnType<typeof useEvaluateRules>);
+    mockUseContextSnapshots.mockReturnValue({
+      data: {
+        items: [
+          {
+            snapshotId: "snapshot-real-1",
+            patientId: "patient-real-1",
+            encounterId: "encounter-real-1",
+            status: "ACTIVE",
+            qualityStatus: "VALID",
+          },
+        ],
+        total: 1,
+        page: 1,
+        size: 20,
+        totalPages: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useContextSnapshots>);
+    mockUseContextSnapshotDetail.mockImplementation(
+      (snapshotId: string) =>
+        ({
+          data:
+            snapshotId === "snapshot-real-1"
+              ? {
+                  snapshotId,
+                  status: "ACTIVE",
+                  resources: { patient: { patientId: "patient-real-1" } },
+                  packageVersion: "pkg-2026.1",
+                  qualityStatus: "VALID",
+                  missingFields: [],
+                  mappingStatus: {},
+                  traceId: "trace-snapshot",
+                }
+              : undefined,
+          isLoading: false,
+          isError: false,
+        }) as unknown as ReturnType<typeof useContextSnapshotDetail>,
+    );
     mockUseRuleExecutionExplain.mockReturnValue({
       data: null,
       isLoading: false,
     } as unknown as ReturnType<typeof useRuleExecutionExplain>);
+    mockUseRuleExecutions.mockReturnValue({
+      data: {
+        items: [
+          {
+            executionId: "exec-history-1",
+            ruleId: "rule-history-1",
+            versionId: "rv-history-1",
+            triggerPoint: "order-sign",
+            hit: true,
+            severity: "HIGH",
+            status: "SUCCESS",
+            executedAt: "2026-06-07T08:00:00Z",
+            traceId: "trace-history",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useRuleExecutions>);
   });
 
   it("evaluates rules with CDS Hooks trigger point and renders backend rule DTO fields", async () => {
@@ -68,18 +145,16 @@ describe("RuleValidate", () => {
 
     expect(screen.getByPlaceholderText("输入触发时点编码")).toHaveValue("order-sign");
 
-    await user.type(screen.getByPlaceholderText("输入本次规则求值绑定的配置包版本"), "pkg-2026.1");
-    fireEvent.change(screen.getByPlaceholderText(/粘贴由上下文快照接口返回的脱敏 JSON/), {
-      target: { value: '{"patientId":"patient-real-1","orders":["warfarin"]}' },
-    });
+    expect(screen.queryByLabelText(/Payload JSON/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
 
     await waitFor(() => {
       expect(evaluate).toHaveBeenCalledWith({
         triggerPoint: "order-sign",
-        patientId: undefined,
         packageVersion: "pkg-2026.1",
-        payloadJson: '{"patientId":"patient-real-1","orders":["warfarin"]}',
+        contextSnapshotId: "snapshot-real-1",
       });
     });
     expect(await screen.findByText("rule-real-1")).toBeInTheDocument();
@@ -116,9 +191,8 @@ describe("RuleValidate", () => {
 
     renderRuleValidate();
 
-    fireEvent.change(screen.getByPlaceholderText(/粘贴由上下文快照接口返回的脱敏 JSON/), {
-      target: { value: '{"patientId":"patient-redline","orders":["warfarin","nsaid"]}' },
-    });
+    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
 
     expect(await screen.findByText("安全红线不可忽略")).toBeInTheDocument();
@@ -127,7 +201,7 @@ describe("RuleValidate", () => {
     expect(screen.getByText(/该校验只提示和阻断，不自动改写医嘱/)).toBeInTheDocument();
   });
 
-  it("replays a historical rule execution explanation by execution id", async () => {
+  it("replays a historical rule execution explanation from the tenant execution directory", async () => {
     const user = userEvent.setup();
     mockUseRuleExecutionExplain.mockImplementation(
       (executionId: string) =>
@@ -155,12 +229,15 @@ describe("RuleValidate", () => {
 
     renderRuleValidate();
 
-    await user.type(screen.getByPlaceholderText("输入历史执行 ExecutionId"), "exec-history-1");
+    expect(screen.queryByPlaceholderText("输入历史执行 ExecutionId")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "历史执行记录" }));
+    await user.click(await screen.findByText(/rule-history-1 · order-sign · 成功/));
     await user.click(screen.getByRole("button", { name: /回放执行解释/ }));
 
-    expect(await screen.findByText("exec-history-1")).toBeInTheDocument();
+    expect((await screen.findAllByText("exec-history-1")).length).toBeGreaterThan(0);
     expect(screen.getByText("trace-history")).toBeInTheDocument();
     expect(screen.getByText(/历史红线回放解释/)).toBeInTheDocument();
     expect(mockUseRuleExecutionExplain).toHaveBeenLastCalledWith("exec-history-1");
+    expect(mockUseRuleExecutions).toHaveBeenCalledWith({ page: 1, size: 20 });
   });
 });

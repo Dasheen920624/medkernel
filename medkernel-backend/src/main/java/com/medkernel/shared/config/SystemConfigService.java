@@ -20,6 +20,7 @@ import com.medkernel.shared.audit.AuditSafetyGuard;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
+import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupDrillEvidence;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
@@ -80,9 +81,55 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigItemResponse update(String key, SystemConfigUpdateRequest request, String actor) {
+        return updateTenant(SYSTEM_TENANT, key, request, actor);
+    }
+
+    /**
+     * 读取租户级配置；缺失时只插入调用方给出的安全默认值，不覆盖已有真实配置。
+     */
+    @Transactional
+    public SystemConfigItemResponse getOrSeedTenantConfig(
+            String tenantId,
+            String key,
+            SystemConfigSeed seed,
+            String actor) {
+        String normalizedTenantId = normalizeTenantId(tenantId);
+        String normalizedKey = normalizeKey(key);
+        SystemConfigItem current = repository.findActive(normalizedTenantId, normalizedKey).orElse(null);
+        if (current != null) {
+            return SystemConfigItemResponse.from(current);
+        }
+        SystemConfigSeed normalizedSeed = new SystemConfigSeed(
+            normalizedTenantId,
+            normalizedKey,
+            seed.value(),
+            seed.valueType(),
+            seed.displayName(),
+            seed.risk(),
+            seed.owner(),
+            seed.description(),
+            seed.source(),
+            seed.protectedConfig(),
+            seed.seededAt());
+        repository.insertSeedIfAbsent(normalizedSeed, currentActor(actor));
+        return repository.findActive(normalizedTenantId, normalizedKey)
+            .map(SystemConfigItemResponse::from)
+            .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
+    }
+
+    /**
+     * 更新租户级配置，复用配置中心的版本、历史、审计和高风险护栏。
+     */
+    @Transactional
+    public SystemConfigItemResponse updateTenant(
+            String tenantId,
+            String key,
+            SystemConfigUpdateRequest request,
+            String actor) {
+        String normalizedTenantId = normalizeTenantId(tenantId);
         String normalizedKey = normalizeKey(key);
         String value = normalizeValue(request.value());
-        SystemConfigItem before = repository.findActive(SYSTEM_TENANT, normalizedKey)
+        SystemConfigItem before = repository.findActive(normalizedTenantId, normalizedKey)
             .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
         validateValue(before, value);
         auditSafetyGuard.assertChangeAllowed(
@@ -91,12 +138,20 @@ public class SystemConfigService {
         assertHighRiskChangeConfirmed(before, request.reason(), request.confirmedHighRisk());
         assertHighRiskMfaBound(before);
         SystemConfigItem after = repository.updateValue(
-            SYSTEM_TENANT, normalizedKey, value, actor, request.reason(), request.expectedVersion());
+            normalizedTenantId,
+            normalizedKey,
+            value,
+            currentActor(actor),
+            request.reason(),
+            request.expectedVersion());
+        String targetId = SYSTEM_TENANT.equals(normalizedTenantId)
+            ? normalizedKey
+            : normalizedTenantId + "/" + normalizedKey;
         auditRecorder.record(new AuditRecordCommand(
             AuditAction.UPDATE,
             "system_config",
-            normalizedKey,
-            "更新配置项：" + normalizedKey,
+            targetId,
+            "更新配置项：" + targetId,
             snapshot(before, request.reason()),
             snapshot(after, request.reason()),
             null));
@@ -170,6 +225,7 @@ public class SystemConfigService {
             backupScript.value(),
             restoreScript.value(),
             checksumPolicy.value(),
+            RuntimeBackupDrillEvidence.notAvailable(),
             aggregateSource(enabled.source(), rpo.source(), rto.source(), backupScript.source(),
                 restoreScript.source(), checksumPolicy.source()),
             aggregateWarning(enabled.warning(), rpo.warning(), rto.warning(), backupScript.warning(),
@@ -430,6 +486,13 @@ public class SystemConfigService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "配置键不能为空");
         }
         return key.trim();
+    }
+
+    private static String normalizeTenantId(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw ApiException.tenantMissing();
+        }
+        return tenantId.trim();
     }
 
     private static String normalizeValue(String value) {

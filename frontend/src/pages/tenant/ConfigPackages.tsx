@@ -49,6 +49,7 @@ import {
   useInstantiatePilotTemplate,
   usePackageAssetReadiness,
   usePackageDetail,
+  useOrgUnits,
   usePackages,
   usePackageSyncLogs,
   usePathwayTemplates,
@@ -57,7 +58,7 @@ import {
   useRollbackPackage,
   useRuleDefinitions,
   useSecurityProfile,
-  useSyncTargets,
+  usePackageReleaseAdapters,
   useTerminologyPackages,
 } from "@/shared/api/hooks";
 import type {
@@ -80,6 +81,12 @@ const { Text } = Typography;
 
 type PackageStatusFilter = "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE";
 type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
+type OfflineImportSummary = {
+  filename: string;
+  packageCode: string;
+  packageVersion: string;
+  itemCount: number;
+};
 
 const statusText: Record<string, string> = {
   DRAFT: "草案",
@@ -114,6 +121,10 @@ function hasHospitalAdminRole(roles: Array<{ code?: string }> | undefined) {
   });
 }
 
+function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -144,6 +155,47 @@ function defaultPilotPackageCode(template: PilotPackageTemplate) {
 
 function safeFilename(value: string) {
   return value.replace(/[^\w.-]/g, "_");
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error("文件内容不是文本"));
+    reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
+    reader.readAsText(file, "UTF-8");
+  });
+}
+
+function parseOfflineImportSummary(filename: string, content: string): OfflineImportSummary {
+  const root = JSON.parse(content) as {
+    format?: unknown;
+    manifest?: {
+      packageCode?: unknown;
+      packageVersion?: unknown;
+      itemCount?: unknown;
+    };
+  };
+  const packageCode = root.manifest?.packageCode;
+  const packageVersion = root.manifest?.packageVersion;
+  const itemCount = root.manifest?.itemCount;
+  if (root.format !== "MEDKERNEL_PACKAGE_OFFLINE_V2") {
+    throw new Error("离线包格式不受支持");
+  }
+  if (
+    typeof packageCode !== "string" ||
+    !packageCode.trim() ||
+    typeof packageVersion !== "string" ||
+    !packageVersion.trim() ||
+    typeof itemCount !== "number" ||
+    !Number.isInteger(itemCount) ||
+    itemCount < 0
+  ) {
+    throw new Error("离线包摘要字段不完整");
+  }
+  return { filename, packageCode, packageVersion, itemCount };
 }
 
 function currentStepFor(
@@ -194,7 +246,7 @@ export default function ConfigPackages() {
     keyword: filters.keyword,
     status: filters.status,
   });
-  const { data: apiSyncTargets } = useSyncTargets();
+  const { data: releaseAdapters } = usePackageReleaseAdapters();
   const { data: pilotTemplates = [], isLoading: pilotTemplatesLoading = false } =
     usePilotPackageTemplates();
   const {
@@ -207,8 +259,17 @@ export default function ConfigPackages() {
   const apiPackagesData = packageQuery.data;
   const apiPackages = apiPackagesData?.items ?? [];
   const totalPackagesCount = apiPackagesData?.total ?? 0;
-  const displayTargets = apiSyncTargets ?? [];
+  const displayAdapters = releaseAdapters ?? [];
+  const usableReleaseAdapters = displayAdapters.filter(
+    (adapter) =>
+      adapter.status === "ACTIVE" &&
+      adapter.healthStatus === "HEALTHY" &&
+      adapter.connectorAvailable,
+  );
   const canDirectFullRelease = hasHospitalAdminRole(securityProfile?.roles);
+  const canReadRules = hasPermission(securityProfile, "rule.read");
+  const canReadPathways = hasPermission(securityProfile, "pathway.read");
+  const canReadEvaluations = hasPermission(securityProfile, "evaluation.read");
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
@@ -218,9 +279,14 @@ export default function ConfigPackages() {
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [rollbackModalVisible, setRollbackModalVisible] = useState(false);
   const [offlineImportModalVisible, setOfflineImportModalVisible] = useState(false);
+  const [offlineExportModalVisible, setOfflineExportModalVisible] = useState(false);
+  const [offlineExportPackage, setOfflineExportPackage] = useState<KnowledgePackage | null>(null);
   const [pilotTemplateModalVisible, setPilotTemplateModalVisible] = useState(false);
   const [selectedPilotTemplateCode, setSelectedPilotTemplateCode] = useState<string | undefined>();
   const [offlineImportContent, setOfflineImportContent] = useState("");
+  const [offlineImportSummary, setOfflineImportSummary] = useState<OfflineImportSummary | null>(
+    null,
+  );
   const [rollbackReason, setRollbackReason] = useState("");
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
   const [selectedAssetType, setSelectedAssetType] = useState<string>("RULE");
@@ -234,6 +300,7 @@ export default function ConfigPackages() {
   const [createForm] = Form.useForm();
   const [itemForm] = Form.useForm();
   const [syncForm] = Form.useForm();
+  const [offlineExportForm] = Form.useForm<{ targetOrgUnitId: string }>();
   const [pilotTemplateForm] = Form.useForm();
 
   const effectivePackageId = selectedPackageId ?? apiPackages[0]?.packageId ?? null;
@@ -249,10 +316,24 @@ export default function ConfigPackages() {
   const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
   const { data: apiDiffData } = useCalculateDiff(effectivePackageId || "", basePackageIdForDiff);
 
-  const { data: activeRules } = useRuleDefinitions({ size: 100 });
-  const { data: activePathways } = usePathwayTemplates({ size: 100 });
-  const { data: activeEvaluations } = useEvaluationIndicators({ size: 100 });
+  const { data: activeRules } = useRuleDefinitions({ size: 100 }, { enabled: canReadRules });
+  const { data: activePathways } = usePathwayTemplates({ size: 100 }, { enabled: canReadPathways });
+  const { data: activeEvaluations } = useEvaluationIndicators(
+    { size: 100 },
+    { enabled: canReadEvaluations },
+  );
   const { data: activeTerminologyPackages } = useTerminologyPackages({ size: 100 });
+  const { data: orgUnitsData, isLoading: orgUnitsLoading } = useOrgUnits({
+    page: 1,
+    size: 100,
+    sort: "level,asc",
+  });
+  const orgUnitOptions = (orgUnitsData?.items ?? [])
+    .filter((unit) => unit.status === "ACTIVE" && Boolean(unit.id))
+    .map((unit) => ({
+      value: unit.id as string,
+      label: `${unit.name} · ${unit.level} · ${unit.code}`,
+    }));
 
   const createPackageMutation = useCreatePackage();
   const addPackageItemMutation = useAddPackageItem();
@@ -287,8 +368,8 @@ export default function ConfigPackages() {
   );
   const terminologyAssetId = (item: TermMappingPackage) =>
     `${item.packageCode}|${item.scopeLevel}|${item.scopeCode}`;
-  const syncTargetName = (targetId: string) =>
-    displayTargets.find((target) => target.targetId === targetId)?.targetName || targetId;
+  const releaseAdapterName = (adapterId: string) =>
+    displayAdapters.find((adapter) => adapter.adapterId === adapterId)?.adapterName || adapterId;
 
   const applyFilters = () => {
     setCurrentPage(1);
@@ -445,10 +526,11 @@ export default function ConfigPackages() {
         packageId: effectivePackageId,
         request: {
           targetOrgUnitId: values.targetOrgUnitId,
+          reason: values.reason,
           strategy,
           scopeType: strategy === "GRAYSCALE" ? values.scopeType || "ALL" : "ALL",
           scopeValue: strategy === "GRAYSCALE" ? values.scopeValue || "" : "",
-          targetIds: values.targetIds,
+          adapterIds: values.adapterIds,
           packageVersion: selectedPackage?.packageVersion || "",
         },
       });
@@ -459,7 +541,7 @@ export default function ConfigPackages() {
         res?.status === "NOT_SYNCED" ||
         (res?.logs || []).some((log) => log.status === "NOT_SYNCED");
       message[hasNotSynced ? "warning" : "success"](
-        hasNotSynced ? "发布计划已记录，存在未接入同步目标。" : "院内同步发布完成。",
+        hasNotSynced ? "发布计划已记录，存在未连通适配器。" : "院内同步发布完成。",
       );
       void packageQuery.refetch();
     } catch (err: unknown) {
@@ -489,13 +571,37 @@ export default function ConfigPackages() {
     }
   };
 
-  const handleExportOfflinePackage = async (record: KnowledgePackage) => {
-    setOfflineExportingId(record.packageId);
+  const openOfflineExportModal = (record: KnowledgePackage) => {
+    setOfflineExportPackage(record);
+    offlineExportForm.resetFields();
+    setOfflineExportModalVisible(true);
+  };
+
+  const closeOfflineExportModal = () => {
+    setOfflineExportModalVisible(false);
+    setOfflineExportPackage(null);
+    offlineExportForm.resetFields();
+  };
+
+  const handleExportOfflinePackage = async () => {
+    if (!offlineExportPackage) return;
     try {
-      const blob = await downloadPackageOfflineExport(record.packageId);
-      triggerBlobDownload(blob, `package-offline-${safeFilename(record.packageCode)}.json`);
-      message.success("离线包已开始下载，文件内包含完整性摘要。");
+      const values = await offlineExportForm.validateFields();
+      const targetOrgUnitId = values.targetOrgUnitId.trim();
+      setOfflineExportingId(offlineExportPackage.packageId);
+      const blob = await downloadPackageOfflineExport(
+        offlineExportPackage.packageId,
+        targetOrgUnitId,
+      );
+      triggerBlobDownload(
+        blob,
+        `package-offline-${safeFilename(offlineExportPackage.packageCode)}-${safeFilename(targetOrgUnitId)}.json`,
+      );
+      message.success("离线包有效快照已开始下载。");
+      closeOfflineExportModal();
     } catch (err: unknown) {
+      if (Array.isArray((err as { errorFields?: unknown[] }).errorFields)) return;
+      if (applyApiFieldErrors(offlineExportForm, err)) return;
       message.error(getApiErrorMessage(err, "离线包导出失败"));
     } finally {
       setOfflineExportingId(null);
@@ -522,20 +628,31 @@ export default function ConfigPackages() {
   const closeOfflineImportModal = () => {
     setOfflineImportModalVisible(false);
     setOfflineImportContent("");
+    setOfflineImportSummary(null);
   };
 
   const handleOfflineImportFile = (file: File) => {
-    file
-      .text()
-      .then((content) => setOfflineImportContent(content))
-      .catch(() => message.error("离线包 JSON 文件读取失败，请重新选择文件。"));
+    if (file.size > 10 * 1024 * 1024) {
+      message.error("离线包文件不能超过 10 MB。");
+      return false;
+    }
+    readFileAsText(file)
+      .then((content) => {
+        setOfflineImportContent(content);
+        setOfflineImportSummary(parseOfflineImportSummary(file.name, content));
+      })
+      .catch(() => {
+        setOfflineImportContent("");
+        setOfflineImportSummary(null);
+        message.error("离线包 JSON 文件无法识别，请重新选择有效文件。");
+      });
     return false;
   };
 
   const handleImportOfflinePackage = async () => {
     const offlinePackageJson = offlineImportContent.trim();
     if (!offlinePackageJson) {
-      message.error("请先选择或粘贴离线包 JSON。");
+      message.error("请先选择离线包 JSON 文件。");
       return;
     }
     try {
@@ -664,7 +781,7 @@ export default function ConfigPackages() {
           <Button
             type="link"
             loading={offlineExportingId === record.packageId}
-            onClick={() => handleExportOfflinePackage(record)}
+            onClick={() => openOfflineExportModal(record)}
           >
             导出离线包
           </Button>
@@ -747,12 +864,189 @@ export default function ConfigPackages() {
           <Alert
             type="warning"
             showIcon
-            message={`失败 / 未接入站点 ${attentionSyncLogs.length} 个`}
+            message={`失败 / 未连通适配器 ${attentionSyncLogs.length} 个`}
           />
         )}
       </Space>
     ),
   };
+
+  const createPackageModal = (
+    <Modal
+      title="新建配置包草案"
+      open={createModalVisible}
+      onOk={handleCreatePackage}
+      onCancel={() => setCreateModalVisible(false)}
+      confirmLoading={createPackageMutation.isPending}
+      destroyOnClose
+      okText="提交创建草案"
+      cancelText="取消"
+    >
+      <Form form={createForm} name="package-create" layout="vertical">
+        <Form.Item
+          name="packageCode"
+          label="配置包编码"
+          rules={[{ required: true, message: "请输入配置包编码" }]}
+        >
+          <Input placeholder="输入租户内唯一配置包编码" />
+        </Form.Item>
+        <Form.Item
+          name="packageVersion"
+          label="配置包版本"
+          rules={[{ required: true, message: "请输入配置包版本" }]}
+        >
+          <Input placeholder="输入版本号" />
+        </Form.Item>
+        <Form.Item
+          name="name"
+          label="配置包名称"
+          rules={[{ required: true, message: "请输入配置包名称" }]}
+        >
+          <Input placeholder="输入配置包名称" />
+        </Form.Item>
+        <Form.Item name="description" label="发布范围说明">
+          <TextArea rows={3} placeholder="填写资产范围、适用组织和发布计划摘要" />
+        </Form.Item>
+        <Alert
+          type="info"
+          showIcon
+          message="新包默认保持草案状态"
+          description="只有通过资产依赖校验、影响分析和发布门禁后，才可进入灰度或全量。"
+        />
+      </Form>
+    </Modal>
+  );
+
+  const pilotTemplateModal = (
+    <Modal
+      title="从首发模板创建配置包草案"
+      open={pilotTemplateModalVisible}
+      onOk={handleInstantiatePilotTemplate}
+      onCancel={closePilotTemplateModal}
+      confirmLoading={instantiatePilotTemplateMutation.isPending}
+      destroyOnClose
+      forceRender
+      okText="生成配置包草案"
+      cancelText="取消"
+      width={760}
+    >
+      <Form form={pilotTemplateForm} name="pilot-template-create" layout="vertical">
+        <Form.Item
+          name="templateCode"
+          label="首发模板"
+          rules={[{ required: true, message: "请选择首发模板" }]}
+        >
+          <Select placeholder="请选择首发模板" onChange={handlePilotTemplateChange}>
+            {pilotTemplates.map((template) => (
+              <Option key={template.templateCode} value={template.templateCode}>
+                {template.name}
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
+        {selectedPilotTemplate && (
+          <Card size="small" className={styles.templatePreview}>
+            <Space direction="vertical" className="mk-full-width">
+              <Space className="mk-flex-between" wrap>
+                <Space direction="vertical" size={0}>
+                  <Text strong>当前模板：{selectedPilotTemplate.name}</Text>
+                  <Text type="secondary">
+                    {selectedPilotTemplate.description || "该模板未填写说明"}
+                  </Text>
+                </Space>
+                <Space wrap>
+                  <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
+                  <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
+                </Space>
+              </Space>
+              <Space wrap>
+                {selectedPilotTemplate.items.map((item) => (
+                  <Tag
+                    key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
+                    color={assetTypeColor(item.assetType)}
+                  >
+                    {item.assetType} · {item.assetId} · {item.assetVersion}
+                  </Tag>
+                ))}
+              </Space>
+            </Space>
+          </Card>
+        )}
+        <Form.Item
+          name="packageCode"
+          label="配置包编码"
+          rules={[{ required: true, message: "请输入配置包编码" }]}
+        >
+          <Input placeholder="输入配置包编码" />
+        </Form.Item>
+        <Form.Item
+          name="packageVersion"
+          label="配置包版本"
+          rules={[{ required: true, message: "请输入配置包版本" }]}
+        >
+          <Input placeholder="输入配置包版本" />
+        </Form.Item>
+        <Form.Item
+          name="name"
+          label="配置包名称"
+          rules={[{ required: true, message: "请输入配置包名称" }]}
+        >
+          <Input placeholder="输入配置包名称" />
+        </Form.Item>
+        <Form.Item name="description" label="说明">
+          <TextArea rows={3} placeholder="输入本次首发准备说明" />
+        </Form.Item>
+        <Alert
+          type="info"
+          showIcon
+          message="只生成草案，不绕过发布门禁"
+          description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
+        />
+      </Form>
+    </Modal>
+  );
+
+  const offlineImportModal = (
+    <Modal
+      title="导入离线包"
+      open={offlineImportModalVisible}
+      onOk={handleImportOfflinePackage}
+      onCancel={closeOfflineImportModal}
+      confirmLoading={importOfflinePackageMutation.isPending}
+      destroyOnClose
+      okText="导入并校验"
+      cancelText="取消"
+      width={680}
+      okButtonProps={{ disabled: !offlineImportContent }}
+    >
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Alert
+          type="info"
+          showIcon
+          message="导入后保持草案状态"
+          description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
+        />
+        <Upload
+          accept=".json,application/json"
+          showUploadList={false}
+          beforeUpload={handleOfflineImportFile}
+        >
+          <Button icon={<UploadOutlined aria-hidden="true" />}>选择 JSON 文件</Button>
+        </Upload>
+        {offlineImportSummary && (
+          <Descriptions bordered column={2} size="small">
+            <Descriptions.Item label="文件" span={2}>
+              {offlineImportSummary.filename}
+            </Descriptions.Item>
+            <Descriptions.Item label="配置包">
+              {offlineImportSummary.packageCode} / {offlineImportSummary.packageVersion}
+            </Descriptions.Item>
+            <Descriptions.Item label="资产条目">{offlineImportSummary.itemCount}</Descriptions.Item>
+          </Descriptions>
+        )}
+      </Space>
+    </Modal>
+  );
 
   const pageStateLoading = packageQuery.isLoading || pilotTemplatesLoading || readinessLoading;
   const pageStateError = packageQuery.isError || readinessError;
@@ -796,31 +1090,58 @@ export default function ConfigPackages() {
 
   if (apiPackages.length === 0 && !hasActiveFilters) {
     return (
-      <PageShell
-        title="配置包中心"
-        description="等待首个配置包草案"
-        state="empty"
-        stateProps={{
-          title: "暂无配置包",
-          description: "当前租户尚未生成配置包；可从首发模板或离线包创建草案。",
-          onRetry: () => {
-            void packageQuery.refetch();
-            void refetchAssetReadiness();
-          },
-        }}
-        primary={
-          <Button
-            type="primary"
-            icon={<PlusOutlined aria-hidden="true" />}
-            disabled={!canInstantiatePilotTemplate}
-            onClick={openPilotTemplateModal}
-          >
-            从首发模板创建
-          </Button>
-        }
-      >
-        <></>
-      </PageShell>
+      <>
+        <PageShell
+          title="配置包中心"
+          description="等待首个配置包草案"
+          state="empty"
+          stateProps={{
+            title: "暂无配置包",
+            description:
+              readinessBlockers.length > 0 ? (
+                <Space direction="vertical" size={4}>
+                  <Text>首发模板暂不可用，可先创建空白草案或导入离线包。</Text>
+                  {readinessBlockers.map((blocker) => (
+                    <Text key={blocker} type="warning">
+                      {blocker}
+                    </Text>
+                  ))}
+                </Space>
+              ) : (
+                "当前租户尚未生成配置包；可从首发模板或离线包创建草案。"
+              ),
+            action: <Button onClick={() => setOfflineImportModalVisible(true)}>导入离线包</Button>,
+            onRetry: () => {
+              void packageQuery.refetch();
+              void refetchAssetReadiness();
+            },
+          }}
+          primary={
+            canInstantiatePilotTemplate ? (
+              <Button
+                type="primary"
+                icon={<PlusOutlined aria-hidden="true" />}
+                onClick={openPilotTemplateModal}
+              >
+                从首发模板创建
+              </Button>
+            ) : (
+              <Button
+                type="primary"
+                icon={<PlusOutlined aria-hidden="true" />}
+                onClick={() => setCreateModalVisible(true)}
+              >
+                新建配置包草案
+              </Button>
+            )
+          }
+        >
+          <></>
+        </PageShell>
+        {createPackageModal}
+        {pilotTemplateModal}
+        {offlineImportModal}
+      </>
     );
   }
 
@@ -989,13 +1310,13 @@ export default function ConfigPackages() {
           <Alert
             type="warning"
             showIcon
-            message="失败 / 未接入站点"
+            message="失败 / 未连通适配器"
             description={
               <Space direction="vertical" className="mk-full-width">
                 {attentionSyncLogs.map((log) => (
                   <div key={log.logId} className={styles.syncIssue}>
                     <Space className="mk-flex-between">
-                      <Text strong>{syncTargetName(log.targetId)}</Text>
+                      <Text strong>{releaseAdapterName(log.adapterId)}</Text>
                       <Tag color={syncLogStatusColor(log.status)}>
                         {syncLogStatusText(log.status)}
                       </Tag>
@@ -1017,175 +1338,46 @@ export default function ConfigPackages() {
         )}
       </Space>
 
-      <Modal
-        title="新建配置包草案"
-        open={createModalVisible}
-        onOk={handleCreatePackage}
-        onCancel={() => setCreateModalVisible(false)}
-        confirmLoading={createPackageMutation.isPending}
-        destroyOnClose
-        okText="提交创建草案"
-        cancelText="取消"
-      >
-        <Form form={createForm} layout="vertical">
-          <Form.Item
-            name="packageCode"
-            label="配置包编码"
-            rules={[{ required: true, message: "请输入配置包编码" }]}
-          >
-            <Input placeholder="输入租户内唯一配置包编码" />
-          </Form.Item>
-          <Form.Item
-            name="packageVersion"
-            label="配置包版本"
-            rules={[{ required: true, message: "请输入配置包版本" }]}
-          >
-            <Input placeholder="输入版本号" />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            label="配置包名称"
-            rules={[{ required: true, message: "请输入配置包名称" }]}
-          >
-            <Input placeholder="输入配置包名称" />
-          </Form.Item>
-          <Form.Item name="description" label="发布范围说明">
-            <TextArea rows={3} placeholder="填写资产范围、适用组织和发布计划摘要" />
-          </Form.Item>
-          <Alert
-            type="info"
-            showIcon
-            message="新包默认保持草案状态"
-            description="只有通过资产依赖校验、影响分析和发布门禁后，才可进入灰度或全量。"
-          />
-        </Form>
-      </Modal>
+      {createPackageModal}
+      {pilotTemplateModal}
 
       <Modal
-        title="从首发模板创建配置包草案"
-        open={pilotTemplateModalVisible}
-        onOk={handleInstantiatePilotTemplate}
-        onCancel={closePilotTemplateModal}
-        confirmLoading={instantiatePilotTemplateMutation.isPending}
+        title="导出离线包"
+        open={offlineExportModalVisible}
+        onOk={handleExportOfflinePackage}
+        onCancel={closeOfflineExportModal}
+        confirmLoading={offlineExportingId === offlineExportPackage?.packageId}
         destroyOnClose
-        forceRender
-        okText="生成配置包草案"
+        okText="导出有效快照"
         cancelText="取消"
-        width={760}
-      >
-        <Form form={pilotTemplateForm} layout="vertical">
-          <Form.Item
-            name="templateCode"
-            label="首发模板"
-            rules={[{ required: true, message: "请选择首发模板" }]}
-          >
-            <Select placeholder="请选择首发模板" onChange={handlePilotTemplateChange}>
-              {pilotTemplates.map((template) => (
-                <Option key={template.templateCode} value={template.templateCode}>
-                  {template.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          {selectedPilotTemplate && (
-            <Card size="small" className={styles.templatePreview}>
-              <Space direction="vertical" className="mk-full-width">
-                <Space className="mk-flex-between" wrap>
-                  <Space direction="vertical" size={0}>
-                    <Text strong>当前模板：{selectedPilotTemplate.name}</Text>
-                    <Text type="secondary">
-                      {selectedPilotTemplate.description || "该模板未填写说明"}
-                    </Text>
-                  </Space>
-                  <Space wrap>
-                    <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
-                    <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
-                  </Space>
-                </Space>
-                <Space wrap>
-                  {selectedPilotTemplate.items.map((item) => (
-                    <Tag
-                      key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
-                      color={assetTypeColor(item.assetType)}
-                    >
-                      {item.assetType} · {item.assetId} · {item.assetVersion}
-                    </Tag>
-                  ))}
-                </Space>
-              </Space>
-            </Card>
-          )}
-          <Form.Item
-            name="packageCode"
-            label="配置包编码"
-            rules={[{ required: true, message: "请输入配置包编码" }]}
-          >
-            <Input placeholder="输入配置包编码" />
-          </Form.Item>
-          <Form.Item
-            name="packageVersion"
-            label="配置包版本"
-            rules={[{ required: true, message: "请输入配置包版本" }]}
-          >
-            <Input placeholder="输入配置包版本" />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            label="配置包名称"
-            rules={[{ required: true, message: "请输入配置包名称" }]}
-          >
-            <Input placeholder="输入配置包名称" />
-          </Form.Item>
-          <Form.Item name="description" label="说明">
-            <TextArea rows={3} placeholder="输入本次首发准备说明" />
-          </Form.Item>
-          <Alert
-            type="info"
-            showIcon
-            message="只生成草案，不绕过发布门禁"
-            description="系统会校验模板中的必需资产是否真实存在且已发布；生成后仍需走灰度、全量与回滚审计链路。"
-          />
-        </Form>
-      </Modal>
-
-      <Modal
-        title="导入离线包"
-        open={offlineImportModalVisible}
-        onOk={handleImportOfflinePackage}
-        onCancel={closeOfflineImportModal}
-        confirmLoading={importOfflinePackageMutation.isPending}
-        destroyOnClose
-        okText="导入并校验"
-        cancelText="取消"
-        width={680}
       >
         <Space direction="vertical" size="middle" className="mk-full-width">
           <Alert
             type="info"
             showIcon
-            message="导入后保持草案状态"
-            description="系统会先校验格式、租户和 payload 摘要，通过后生成本地草案；仍需按本院流程发布后才会生效。"
+            message="按接收组织生成有效包"
+            description="离线包会先解析平台基线与本地覆盖，只导出该组织最终生效的资产版本和来源指针。"
           />
-          <Upload
-            accept=".json,application/json"
-            showUploadList={false}
-            beforeUpload={handleOfflineImportFile}
-          >
-            <Button icon={<UploadOutlined aria-hidden="true" />}>选择 JSON 文件</Button>
-          </Upload>
-          <Form layout="vertical">
-            <Form.Item label="离线包 JSON" htmlFor="offline-package-json" required>
-              <TextArea
-                id="offline-package-json"
-                rows={10}
-                value={offlineImportContent}
-                onChange={(event) => setOfflineImportContent(event.target.value)}
-                placeholder="粘贴离线包 JSON 内容"
+          <Form form={offlineExportForm} layout="vertical">
+            <Form.Item
+              name="targetOrgUnitId"
+              label="接收组织单元"
+              rules={[{ required: true, message: "请选择接收组织单元" }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="选择接收组织"
+                options={orgUnitOptions}
+                loading={orgUnitsLoading}
+                notFoundContent="暂无可用组织单元"
               />
             </Form.Item>
           </Form>
         </Space>
       </Modal>
+
+      {offlineImportModal}
 
       <Drawer
         title="办理包内资产细项"
@@ -1468,24 +1660,63 @@ export default function ConfigPackages() {
             }
           </Form.Item>
           <Form.Item
-            name="targetIds"
-            label="选择同步通道目标"
-            rules={[{ required: true, message: "请至少选择一个同步目标" }]}
+            name="reason"
+            label="发布说明"
+            rules={[{ required: true, message: "请填写审核结论或投放依据" }]}
           >
-            <Select mode="multiple" placeholder="请选择同步目标通道">
-              {displayTargets.map((target) => (
-                <Option key={target.targetId} value={target.targetId}>
-                  {target.targetName}
+            <Input.TextArea
+              rows={3}
+              maxLength={500}
+              placeholder="填写审核结论、灰度依据或全量批准说明"
+            />
+          </Form.Item>
+          <Form.Item
+            name="adapterIds"
+            label="选择发布适配器"
+            rules={[{ required: true, message: "请至少选择一个发布适配器" }]}
+          >
+            <Select mode="multiple" placeholder="请选择已健康的发布适配器">
+              {displayAdapters.map((adapter) => (
+                <Option
+                  key={adapter.adapterId}
+                  value={adapter.adapterId}
+                  disabled={
+                    adapter.status !== "ACTIVE" ||
+                    adapter.healthStatus !== "HEALTHY" ||
+                    !adapter.connectorAvailable
+                  }
+                >
+                  {adapter.adapterName} · {adapter.protocolType} ·{" "}
+                  {adapter.healthStatus === "HEALTHY" && adapter.connectorAvailable
+                    ? "健康"
+                    : "未就绪"}
                 </Option>
               ))}
             </Select>
           </Form.Item>
+          {usableReleaseAdapters.length === 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              className={styles.formAlert}
+              message="暂无可用同步适配器"
+              description="请先完成适配器配置与健康检查。"
+              action={<Button href="/adapter/hub">前往适配器中心</Button>}
+            />
+          )}
           <Form.Item
             name="targetOrgUnitId"
             label="接收组织单元"
-            rules={[{ required: true, message: "请输入接收组织单元 ID" }]}
+            rules={[{ required: true, message: "请选择接收组织单元" }]}
           >
-            <Input placeholder="请输入真实组织单元 ID" />
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="选择接收组织"
+              options={orgUnitOptions}
+              loading={orgUnitsLoading}
+              notFoundContent="暂无可用组织单元"
+            />
           </Form.Item>
 
           {(syncExecuting || syncProgress > 0 || visibleSyncLogs.length > 0) && (
@@ -1500,13 +1731,13 @@ export default function ConfigPackages() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="失败 / 未接入站点"
+                    message="失败 / 未连通适配器"
                     description={
                       <Space direction="vertical" className="mk-full-width">
                         {attentionSyncLogs.map((log) => (
                           <div key={log.logId} className={styles.syncIssue}>
                             <Space className="mk-flex-between">
-                              <Text strong>{syncTargetName(log.targetId)}</Text>
+                              <Text strong>{releaseAdapterName(log.adapterId)}</Text>
                               <Tag color={syncLogStatusColor(log.status)}>
                                 {syncLogStatusText(log.status)}
                               </Tag>
@@ -1535,7 +1766,7 @@ export default function ConfigPackages() {
                       color: syncLogStatusColor(log.status),
                       children: (
                         <Space direction="vertical" size={0}>
-                          <Text>通道: {syncTargetName(log.targetId)}</Text>
+                          <Text>通道: {releaseAdapterName(log.adapterId)}</Text>
                           <Tag color={syncLogStatusColor(log.status)}>
                             {syncLogStatusText(log.status)}
                           </Tag>
@@ -1553,6 +1784,7 @@ export default function ConfigPackages() {
           <Button
             htmlType="submit"
             loading={syncExecuting}
+            disabled={usableReleaseAdapters.length === 0}
             icon={<CloudSyncOutlined aria-hidden="true" />}
             block
           >

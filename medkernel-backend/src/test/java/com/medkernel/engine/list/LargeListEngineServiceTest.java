@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.relational.core.mapping.Table;
@@ -32,8 +35,12 @@ import com.medkernel.shared.audit.persistence.AuditEventRecord;
 import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.crypto.SmCryptoService;
 
 class LargeListEngineServiceTest {
+
+    @TempDir
+    Path tempDir;
 
     private LargeListExportJobRepository jobRepo;
     private AuditEventRepository auditRepo;
@@ -60,7 +67,8 @@ class LargeListEngineServiceTest {
             auditPublisher,
             isolatedAudit,
             jdbc,
-            asyncExecutor
+            asyncExecutor,
+            new SmCryptoService()
         );
 
         RequestContext.restore(new RequestContext.Snapshot("trace-123", OrgScope.tenant("tenant-1"), "IT-OPS-001"));
@@ -193,6 +201,23 @@ class LargeListEngineServiceTest {
     }
 
     @Test
+    void queryAuditEvents_TotalEstimateFailureReturnsKnownLowerBound() {
+        when(auditRepo.findPage(eq("tenant-1"), any(AuditEventQuery.class))).thenReturn(List.of(
+            mockAuditEvent(100L),
+            mockAuditEvent(99L),
+            mockAuditEvent(98L)
+        ));
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
+            .thenThrow(new IllegalStateException("count unavailable"));
+
+        var response = service.queryAuditEvents(new PageQuery(null, 2, 10L, "id,desc", Map.of()));
+
+        assertEquals(13L, response.totalEstimate());
+        assertTrue(response.totalEstimated());
+        assertTrue(response.hasMore());
+    }
+
+    @Test
     void queryAuditEvents_InvalidCursorFormat_ThrowsBadRequest() {
         PageQuery req = new PageQuery("invalid-base64", 10, null, "id,desc", Map.of());
         ApiException ex = assertThrows(ApiException.class, () -> service.queryAuditEvents(req));
@@ -294,10 +319,42 @@ class LargeListEngineServiceTest {
     }
 
     @Test
+    void submitExportTask_RejectsUnknownAuditFilter() {
+        ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
+            new ExportSubmitRequest("AUDIT_EVENT", Map.of("payloadDigest", "secret"))
+        ));
+
+        assertEquals("ENG-LIST-007", ex.errorCode().code());
+        verify(jobRepo, never()).save(any(LargeListExportJob.class));
+    }
+
+    @Test
+    void submitExportTask_RejectsUnknownTerminologyFilter() {
+        ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
+            new ExportSubmitRequest("TERMINOLOGY_MAPPING", Map.of("tenantId", "tenant-2"))
+        ));
+
+        assertEquals("ENG-LIST-007", ex.errorCode().code());
+        verify(jobRepo, never()).save(any(LargeListExportJob.class));
+    }
+
+    @Test
     void executeExport_UsesPersistedSnapshotFilters() throws Exception {
         LargeListExportJob pendingJob = new LargeListExportJob(
             "job-1", "tenant-1", "AUDIT_EVENT",
-            "{\"filters\":{\"action\":\"LOGIN\",\"resourceType\":\"USER\",\"actorUserId\":\"doctor-1\"}}",
+            """
+            {"filters":{
+              "action":"LOGIN",
+              "resourceType":"USER",
+              "actorUserId":"doctor-1",
+              "outcome":"SUCCESS",
+              "environmentKey":"prod",
+              "orgPathPrefix":"tenant-1/hospital-1",
+              "from":"2026-01-01T00:00:00Z",
+              "to":"2026-01-02T00:00:00Z",
+              "superAdminOnly":"true"
+            }}
+            """,
             "FILTERED_RESULT", "PENDING", null, null, 0L, null, 0L, "trace-123", null, null,
             Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
         );
@@ -311,6 +368,12 @@ class LargeListEngineServiceTest {
         assertEquals("LOGIN", query.getValue().action());
         assertEquals("USER", query.getValue().resourceType());
         assertEquals("doctor-1", query.getValue().actorUserId());
+        assertEquals("SUCCESS", query.getValue().outcome());
+        assertEquals("prod", query.getValue().environmentKey());
+        assertEquals("tenant-1/hospital-1", query.getValue().orgPathPrefix());
+        assertEquals(Instant.parse("2026-01-01T00:00:00Z"), query.getValue().from());
+        assertEquals(Instant.parse("2026-01-02T00:00:00Z"), query.getValue().to());
+        assertTrue(query.getValue().superAdminOnly());
     }
 
     @Test
@@ -338,6 +401,30 @@ class LargeListEngineServiceTest {
         ApiException ex = assertThrows(ApiException.class, () -> service.downloadFile("job-1"));
         assertEquals("ENG-LIST-004", ex.errorCode().code());
         assertTrue(ex.getMessage().contains("导出任务执行失败"));
+    }
+
+    @Test
+    void completedExportArtifactUsesServerFileAndPreservesRequestIdentity() throws Exception {
+        Path file = Files.writeString(tempDir.resolve("audit.csv"), "abc");
+        LargeListExportJob completedJob = new LargeListExportJob(
+            "job-1", "tenant-1", "AUDIT_EVENT",
+            "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"EXPORT\"},\"selectedScope\":\"FILTERED_RESULT\"}",
+            "FILTERED_RESULT", "SUCCESS", "audit.csv", file.toString(), Files.size(file), null, 12L,
+            "trace-123", "audit-1", "approval-idem-1",
+            Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
+        );
+        when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(completedJob));
+
+        LargeListExportArtifact artifact = service.completedExportArtifact("job-1");
+
+        assertEquals("AUDIT_EVENT", artifact.resourceType());
+        assertEquals(completedJob.requestSnapshot(), artifact.requestSnapshot());
+        assertEquals("approval-idem-1", artifact.idempotencyKey());
+        assertEquals("/medkernel/api/v1/large-lists/exports/job-1/download", artifact.downloadUri());
+        assertEquals(
+            "sm3:66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0",
+            artifact.exportDigest()
+        );
     }
 
     private AuditEventRecord mockAuditEvent(Long id) {

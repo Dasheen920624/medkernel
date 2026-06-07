@@ -13,7 +13,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.crypto.SmCryptoService;
@@ -33,7 +33,7 @@ public class PasswordResetService {
     private final LoginAttemptService loginAttempts;
     private final SystemConfigService configService;
     private final SmCryptoService crypto;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
 
     public PasswordResetService(PasswordResetTokenRepository resetTokens,
@@ -43,7 +43,7 @@ public class PasswordResetService {
                                 LoginAttemptService loginAttempts,
                                 SystemConfigService configService,
                                 SmCryptoService crypto,
-                                AuditEventPublisher auditPublisher,
+                                AuditRecorder auditRecorder,
                                 IsolatedAuditPublisher isolatedAudit) {
         this.resetTokens = resetTokens;
         this.credentials = credentials;
@@ -52,7 +52,7 @@ public class PasswordResetService {
         this.loginAttempts = loginAttempts;
         this.configService = configService;
         this.crypto = crypto;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
     }
 
@@ -75,7 +75,7 @@ public class PasswordResetService {
             now,
             actor,
             traceId));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", credential.userId(),
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", credential.userId(),
             "发放受控密码重置 token username=" + credential.username());
         return new PasswordResetTokenResponse(token, expiresAt);
     }
@@ -110,7 +110,7 @@ public class PasswordResetService {
             credential.id(), credential.credentialId(), credential.tenantId(), credential.userId(),
             credential.username(), credentialPasswords.encode(request.newPassword()), credential.status(), "Y",
             credential.mfaSecret(), credential.createdAt(), credential.createdBy(), now, actor, credential.traceId()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", credential.userId(),
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", credential.userId(),
             "受控密码重置成功 username=" + credential.username());
     }
 

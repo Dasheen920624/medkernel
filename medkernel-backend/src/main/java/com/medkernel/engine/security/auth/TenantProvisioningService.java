@@ -14,6 +14,8 @@ import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.TenantUser;
+import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.security.bootstrap.MfaPolicyService;
@@ -21,7 +23,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.PlatformTenant;
@@ -40,9 +42,10 @@ public class TenantProvisioningService {
     private final OrgUnitRepository orgUnits;
     private final OrgHierarchyRepository orgHierarchy;
     private final PlatformCredentialRepository credentials;
+    private final TenantUserRepository users;
     private final UserRoleAssignmentRepository roleAssignments;
     private final CredentialPasswordService credentialPasswords;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
     private final MfaPolicyService mfaPolicyService;
     private final PasswordPolicyService passwordPolicy;
@@ -50,27 +53,30 @@ public class TenantProvisioningService {
     public TenantProvisioningService(OrgUnitRepository orgUnits,
                                      OrgHierarchyRepository orgHierarchy,
                                      PlatformCredentialRepository credentials,
+                                     TenantUserRepository users,
                                      UserRoleAssignmentRepository roleAssignments,
                                      CredentialPasswordService credentialPasswords,
-                                     AuditEventPublisher auditPublisher,
+                                     AuditRecorder auditRecorder,
                                      IsolatedAuditPublisher isolatedAudit,
                                      MfaPolicyService mfaPolicyService,
                                      PasswordPolicyService passwordPolicy) {
         this.orgUnits = orgUnits;
         this.orgHierarchy = orgHierarchy;
         this.credentials = credentials;
+        this.users = users;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
         this.mfaPolicyService = mfaPolicyService;
         this.passwordPolicy = passwordPolicy;
     }
 
-    /** 列出所有租户（根组织），平台视角。 */
+    /** 列出客户租户根组织，不暴露唯一平台主租户。 */
     @Transactional(readOnly = true)
     public List<TenantSummary> listTenants() {
         return orgUnits.findAllTenantRoots().stream()
+            .filter(unit -> !PlatformTenant.isPlatformTenant(unit.tenantId()))
             .map(o -> new TenantSummary(o.tenantId(), o.name(), o.status().name(), o.createdAt()))
             .toList();
     }
@@ -100,6 +106,9 @@ public class TenantProvisioningService {
         boolean generated = req.adminInitialPassword() == null || req.adminInitialPassword().isBlank();
         String rawPassword = generated ? passwordPolicy.generateTemporaryPassword() : req.adminInitialPassword();
         passwordPolicy.assertCompliant(rawPassword);
+        users.save(new TenantUser(
+            null, tenantId, adminUserId, req.adminUsername(), "ACTIVE", 1L,
+            now, actor, now, actor, traceId()));
         credentials.save(new PlatformCredential(
             null, "cred-" + tenantId + "-" + adminUserId, tenantId, adminUserId, req.adminUsername(),
             credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
@@ -108,7 +117,7 @@ public class TenantProvisioningService {
             null, tenantId, adminUserId, RoleCode.HOSPITAL_ADMIN.code(), "TENANT", tenantId, "Y",
             now, actor, now, actor));
 
-        auditPublisher.publish(AuditAction.CREATE, "platform_tenant", tenantId,
+        auditRecorder.record(AuditAction.CREATE, "platform_tenant", tenantId,
             "开通租户 " + tenantId + " 首个管理员 " + req.adminUsername());
         return new ProvisionTenantResponse(
             tenantId, adminUserId, req.adminUsername(), generated ? rawPassword : null);

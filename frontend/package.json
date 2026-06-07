@@ -18,7 +18,7 @@
     "test:lint-rules": "node --test eslint-rules/*.test.js stylelint.config.test.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "gen:types": "openapi-typescript http://localhost:18080/medkernel/v3/api-docs -o src/shared/api/generated-types.ts",
+    "gen:types": "node -e \"const {spawnSync}=require('node:child_process'); const url=process.env.MEDKERNEL_OPENAPI_URL; if(!url){console.error('缺少 MEDKERNEL_OPENAPI_URL'); process.exit(1);} const result=spawnSync('openapi-typescript',[url,'-o','src/shared/api/generated-types.ts'],{stdio:'inherit',shell:true}); process.exit(result.status ?? 1);\"",
     "verify": "npm run lint && npm run stylelint && npm run test:lint-rules && npm run format:check && npm run typecheck && npm test",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",

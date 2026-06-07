@@ -150,11 +150,20 @@ CREATE TABLE term_mapping_package_item (
     tenant_id         VARCHAR2(64)  NOT NULL,
     package_id        NUMBER(19)    NULL,
     mapping_id        NUMBER(19)    NOT NULL,
-    mapping_snapshot  VARCHAR2(2048) NOT NULL,
+    local_term_id     NUMBER(19)    NOT NULL,
+    standard_term_id  NUMBER(19)    NOT NULL,
+    source_system     VARCHAR2(64)  NOT NULL,
+    local_code        VARCHAR2(128) NOT NULL,
+    target_dictionary_key VARCHAR2(128) NOT NULL,
+    standard_code     VARCHAR2(128) NOT NULL,
+    category          VARCHAR2(32)  NULL,
+    mapping_snapshot  VARCHAR2(4000) NOT NULL,
     created_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL
 );
 CREATE INDEX idx_term_pkg_item_package ON term_mapping_package_item (tenant_id, package_id);
+CREATE INDEX idx_term_pkg_item_anchor
+    ON term_mapping_package_item (tenant_id, source_system, local_code, target_dictionary_key, category);
 
 CREATE TABLE term_mapping_package_release (
     id                NUMBER(19)    IDENTITY PRIMARY KEY,

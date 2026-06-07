@@ -2,6 +2,7 @@ package com.medkernel.engine.llm;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,9 +41,26 @@ class ModelGatewayControllerSecurityTest {
         {
           "capabilityCode": "knowledge.extract",
           "inputData": "提取高血压病历信息",
-          "desensitizeStrategy": "DEFAULT",
-          "expectedSchema": "required: [entity]",
           "timeoutSeconds": 60
+        }
+        """;
+
+    private static final String POLICY_BODY = """
+        {
+          "routeStrategy": "BASELINE",
+          "desensitizeStrategy": "MASK_ALL",
+          "expectedSchema": "{\\"type\\":\\"object\\",\\"required\\":[\\"status\\"]}",
+          "enabled": true
+        }
+        """;
+
+    private static final String CATALOG_BODY = """
+        {
+          "displayName": "病历摘要",
+          "description": "生成待人工审核的结构化病历摘要。",
+          "category": "语义抽取",
+          "enabled": true,
+          "sortOrder": 25
         }
         """;
 
@@ -91,5 +109,57 @@ class ModelGatewayControllerSecurityTest {
                 .content(TASK_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    void doctorCannotManageTenantModelPolicy() throws Exception {
+        mockMvc.perform(put("/api/v1/model-capabilities/policies/knowledge.extract")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(POLICY_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void itOpsCanManageTenantModelPolicy() throws Exception {
+        mockMvc.perform(put("/api/v1/model-capabilities/policies/knowledge.extract")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("it-ops")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(POLICY_BODY))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void doctorCannotManageGlobalModelCapabilityCatalog() throws Exception {
+        mockMvc.perform(put("/api/v1/model-capabilities/catalog/custom.summary")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("doctor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DOCTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(CATALOG_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void itOpsCanManageGlobalModelCapabilityCatalog() throws Exception {
+        mockMvc.perform(put("/api/v1/model-capabilities/catalog/custom.summary")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("it-ops")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(CATALOG_BODY))
+                .andExpect(status().isOk());
     }
 }

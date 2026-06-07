@@ -14,7 +14,7 @@ D2 **天然 B0**（铁律 #4 B0 先于模型）：所有引擎先交付"确定�
 
 D2 引擎**多有实质基础**，本域多数卡是"真实化/契约化/补全/框架化"而非从零：
 
-- **标准上下文引擎**＝`engine/context/`：`ContextSnapshot{Controller/Service/Request/Filter/Response/Status/Summary/Resources/Repository}` + `CanonicalResource(+Type/Repository)` 与 `canonical/` 下 12 子类型（Patient/Encounter/Condition/NursingAssessment/Observation/Medication/Procedure/DiagnosticReport/Document/CarePlan/FollowUp/Claim）+ `ClinicalEventContext` + `ClinicalCodeMappingAnchor` + `PackageVersionPort`(+Lenient 适配) + `ContextValidator` + `MissingFieldEntry` + `ContextIdempotencyKey` + `TerminologyMappingPort`；端点 `POST /api/v1/engine/context/snapshots`、安全/trace/契约测试齐（[API-01](API-01.md) 承接）。
+- **标准上下文引擎**＝`engine/context/`：统一 `ContextSnapshot` 契约引用 13 类 canonical 资源（含结构化 `AllergyIntolerance`）；`PackageVersionPort` 只接受关系库中唯一且已发布/激活的真实配置包版本；缺失、映射和质量状态诚实返回（[API-01](API-01.md) 承接）。
 - **知识引擎**＝`engine/knowledge/`：`KnowledgeIdentity/KnowledgeAssetVersion/KnowledgeSupersession(+Type)/KnowledgeLineage/SourceVersion` + 版本状态机 `DRAFT→CANDIDATE→PENDING_REPLACEMENT_REVIEW/UNDER_REVIEW→ACTIVE→SUPERSEDED/WITHDRAWN/REJECTED` + `KnowledgeVersionService.activate/withdraw`（**已是悲观锁 identity + 替代旧 ACTIVE 的原子事务**）+ `V3__knowledge_asset_baseline` 至 `V52__knowledge_candidate_workflow` 五方言（[KNOW-01](KNOW-01.md)/[KNOW-02](KNOW-02.md) + [SYS-08](SYS-08.md) 承接）。
 - **包/发布**＝`engine/pkg/`：`ReleasePlan(+Repository/Status)`、`PackageSyncPort`、`KnowledgePackage`、`PackageEngineService` 雏形（[PKG-01](PKG-01.md)/[API-10](API-10.md) 承接）。
 - **第三方对接**＝`engine/integration/`：`integration_adapter` 表 + AdapterDto（`protocol_type` 枚举含 `FHIR` 字样，但**无任何 FHIR 资源门面实现**）（[INTEG-01](INTEG-01.md)/[INTEG-02](INTEG-02.md) + [OPT-01](OPT-01.md) 承接）。
@@ -37,7 +37,7 @@ D2 是**实施与配置域**，主用角色集中在"把医院准备好"的人�
 
 ## 共享数据模型 / 实体（D2 卡共用，单一归属在此声明、卡内只引用）
 
-- **标准临床模型**：12 类标准对象 + `ClinicalEventContext` 的**类型骨架单一源在 [SYS-01](../D0/SYS-01.md)（D0）**；D2 只**消费/读取/映射**，不重定义。[API-01](API-01.md) = 读这些对象组装上下文快照；[OPT-01](OPT-01.md) = FHIR 资源门面映射这些对象。
+- **标准临床模型**：13 类标准对象 + `ClinicalEventContext` 的**类型骨架单一源在 [SYS-01](../D0/SYS-01.md)（D0）**；D2 只**消费/读取/映射**，不重定义。
 - **版本与发布框架**：资产不可变 + 组织继承 + 灰度/全量/回滚 + 历史重放的**通用框架单一归属在 [SYS-04](SYS-04.md)**；所有配置类资产（知识/字典/规则/路径/包）的版本与发布**复用 SYS-04**，不各造一套。
 - **权威知识唯一性**：同一适用域唯一 `ACTIVE` 权威版本 + 替代链 + 原子替换 + 紧急失效 + 影响病例任务的**框架单一归属在 [SYS-08](SYS-08.md)**（建在 SYS-04 之上、专管"权威知识"这一类）；知识域的新旧识别/去重/冲突/待审/旧版隔离**工作流**归 [KNOW-02](KNOW-02.md)（用 SYS-08 框架，不重造约束与事务）。
 - **配置类四状态机 + 7 步流**：核心 §3 配置类（草稿→待审核→已发布→生效中→已下线）+ §3 变更类（待发布→灰度→全量→回滚）+ §4 七步流是**全域统一一套**，每张配置卡/页面卡引用不自创。

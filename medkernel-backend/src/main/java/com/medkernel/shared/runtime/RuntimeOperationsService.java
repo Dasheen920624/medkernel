@@ -35,6 +35,7 @@ public class RuntimeOperationsService {
     private final MeterRegistry meterRegistry;
     private final RuntimeProperties properties;
     private final SystemConfigService configService;
+    private final RuntimeBackupDrillEvidenceReader backupDrillEvidenceReader;
 
     /**
      * 构造函数。
@@ -44,17 +45,20 @@ public class RuntimeOperationsService {
      * @param meterRegistry Micrometer 业务指标注册中心
      * @param properties 运维配置属性
      * @param configService 配置中心服务
+     * @param backupDrillEvidenceReader 部署侧恢复演练证据读取器
      */
     public RuntimeOperationsService(Environment environment,
                                     HealthEndpoint healthEndpoint,
                                     MeterRegistry meterRegistry,
                                     RuntimeProperties properties,
-                                    SystemConfigService configService) {
+                                    SystemConfigService configService,
+                                    RuntimeBackupDrillEvidenceReader backupDrillEvidenceReader) {
         this.environment = environment;
         this.healthEndpoint = healthEndpoint;
         this.meterRegistry = meterRegistry;
         this.properties = properties;
         this.configService = configService;
+        this.backupDrillEvidenceReader = backupDrillEvidenceReader;
     }
 
     /**
@@ -64,6 +68,7 @@ public class RuntimeOperationsService {
      */
     public RuntimeOperationsSnapshot snapshot() {
         String healthStatus = healthEndpoint.health().getStatus().getCode();
+        RuntimeBackupReadiness backup = backupReadiness();
         return new RuntimeOperationsSnapshot(
             environment.getProperty("spring.application.name", "medkernel"),
             properties.getEnvironment(),
@@ -75,8 +80,8 @@ public class RuntimeOperationsService {
             jvmMetadata(),
             osMetadata(),
             featureFlags(),
-            dependencies(healthStatus),
-            backupReadiness(),
+            dependencies(healthStatus, backup),
+            backup,
             domesticProfile(),
             Instant.now()
         );
@@ -112,13 +117,12 @@ public class RuntimeOperationsService {
         return configService.runtimeFeatureFlags(properties);
     }
 
-    private List<RuntimeDependencyStatus> dependencies(String healthStatus) {
+    private List<RuntimeDependencyStatus> dependencies(String healthStatus, RuntimeBackupReadiness backup) {
         boolean prometheusReady = meterRegistry.find("medkernel_tenant_onboarding_total").counter() != null;
         boolean graphEnabled = flagEnabled("graph-projection");
         boolean searchEnabled = flagEnabled("search-projection");
         boolean difyEnabled = flagEnabled("dify-workflow");
         boolean externalProviderEnabled = flagEnabled("external-provider");
-        RuntimeBackupReadiness backup = backupReadiness();
         return List.of(
             new RuntimeDependencyStatus(
                 "database",
@@ -135,10 +139,8 @@ public class RuntimeOperationsService {
             new RuntimeDependencyStatus(
                 "backup-restore",
                 "备份恢复",
-                backup.enabled() ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                backup.enabled()
-                    ? backup.checksumPolicy() + "；尚未附带本次恢复演练结果，不标记 UP"
-                    : "备份策略未启用；" + backup.checksumPolicy()
+                backupStatus(backup),
+                backupDetail(backup)
             ),
             new RuntimeDependencyStatus(
                 "graph-projection",
@@ -181,8 +183,36 @@ public class RuntimeOperationsService {
         return configService.runtimeFeatureFlagEnabled(properties, key);
     }
 
+    private String backupStatus(RuntimeBackupReadiness backup) {
+        if (!backup.enabled()) {
+            return STATUS_NOT_CONNECTED;
+        }
+        return "SUCCESS".equals(backup.drillEvidence().status()) ? STATUS_UP : STATUS_DEGRADED;
+    }
+
+    private String backupDetail(RuntimeBackupReadiness backup) {
+        if (!backup.enabled()) {
+            return "备份策略未启用；" + backup.checksumPolicy();
+        }
+        if ("SUCCESS".equals(backup.drillEvidence().status())) {
+            return backup.drillEvidence().detail();
+        }
+        return backup.checksumPolicy() + "；" + backup.drillEvidence().detail() + "，不标记 UP";
+    }
+
     private RuntimeBackupReadiness backupReadiness() {
-        return configService.runtimeBackupReadiness(properties);
+        RuntimeBackupReadiness configured = configService.runtimeBackupReadiness(properties);
+        return new RuntimeBackupReadiness(
+            configured.enabled(),
+            configured.rpo(),
+            configured.rto(),
+            configured.backupScript(),
+            configured.restoreScript(),
+            configured.checksumPolicy(),
+            backupDrillEvidenceReader.read(properties.getBackup().getDrillEvidenceFile()),
+            configured.source(),
+            configured.warning()
+        );
     }
 
     private RuntimeDomesticProfile domesticProfile() {

@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
@@ -31,10 +33,6 @@ import com.medkernel.engine.pkg.ReleaseStrategy;
 import com.medkernel.engine.pkg.SyncLog;
 import com.medkernel.engine.pkg.SyncLogRepository;
 import com.medkernel.engine.pkg.SyncLogStatus;
-import com.medkernel.engine.pkg.SyncTarget;
-import com.medkernel.engine.pkg.SyncTargetRepository;
-import com.medkernel.engine.pkg.SyncTargetStatus;
-import com.medkernel.engine.pkg.SyncTargetType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,12 +64,12 @@ class RelationalRuleImpactIndexRepositoryTest {
     @Autowired PackageItemRepository packageItems;
     @Autowired ReleasePlanRepository releasePlans;
     @Autowired SyncLogRepository syncLogs;
-    @Autowired SyncTargetRepository syncTargets;
+    @Autowired IntegrationAdapterRepository integrationAdapters;
 
     @AfterEach
     void wipe() {
         syncLogs.deleteAll();
-        syncTargets.deleteAll();
+        integrationAdapters.deleteAll();
         releasePlans.deleteAll();
         packageItems.deleteAll();
         packages.deleteAll();
@@ -89,7 +87,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         String templateId = "pt-" + suffix;
         String packageId = "pkg-" + suffix;
         String planId = "plan-" + suffix;
-        String targetId = "target-" + suffix;
+        String adapterId = "target-" + suffix;
         RuleDefinition rule = rule(ruleId, versionId);
         RuleVersion version = version(ruleId, versionId);
 
@@ -100,12 +98,12 @@ class RelationalRuleImpactIndexRepositoryTest {
         packages.save(knowledgePackage(packageId));
         packageItems.save(packageItem(packageId, ruleId));
         releasePlans.save(releasePlan(packageId, planId));
-        syncTargets.save(syncTarget(targetId));
-        syncLogs.save(syncLog(planId, targetId));
+        integrationAdapters.save(integrationAdapter(adapterId));
+        syncLogs.save(syncLog(planId, adapterId));
 
         RelationalRuleImpactIndex index = new RelationalRuleImpactIndex(
             templates, nodes, edges, patientPathways, packageItems,
-            releasePlans, syncLogs, syncTargets, new ObjectMapper());
+            releasePlans, syncLogs, integrationAdapters, new ObjectMapper());
 
         RuleImpactIndexSnapshot snapshot = index.analyze("tenant-A", rule, version);
 
@@ -114,8 +112,8 @@ class RelationalRuleImpactIndexRepositoryTest {
             .containsExactly(templateId);
         assertThat(snapshot.inPathPatients()).extracting(RuleImpactObject::objectId)
             .containsExactly("ppath-active-" + suffix);
-        assertThat(snapshot.syncTargets()).extracting(RuleImpactObject::objectId)
-            .containsExactly(targetId);
+        assertThat(snapshot.integrationAdapters()).extracting(RuleImpactObject::objectId)
+            .containsExactly(adapterId);
     }
 
     private RuleDefinition rule(String ruleId, String versionId) {
@@ -186,18 +184,18 @@ class RelationalRuleImpactIndexRepositoryTest {
             now, "tester", now, "tester", "trace-plan");
     }
 
-    private SyncTarget syncTarget(String targetId) {
+    private IntegrationAdapter integrationAdapter(String adapterId) {
         Instant now = Instant.now();
-        return new SyncTarget(
-            null, targetId, "tenant-A", "院内规则库",
-            SyncTargetType.CLINICAL_DB, "config-ref", SyncTargetStatus.ACTIVE,
-            now, "tester", now, "tester", "trace-target");
+        return new IntegrationAdapter(
+            null, adapterId, "tenant-A", "院内规则库",
+            "REST", "ACTIVE", "config-ref", "HEALTHY", 5L, now,
+            now, "tester", now, "tester");
     }
 
-    private SyncLog syncLog(String planId, String targetId) {
+    private SyncLog syncLog(String planId, String adapterId) {
         Instant now = Instant.now();
         return new SyncLog(
-            null, "log-" + planId, "tenant-A", planId, targetId,
+            null, "log-" + planId, "tenant-A", planId, adapterId,
             SyncLogStatus.SUCCESS, null, null, 0, "sha256:sync",
             now, "tester", now, "tester", "trace-sync");
     }

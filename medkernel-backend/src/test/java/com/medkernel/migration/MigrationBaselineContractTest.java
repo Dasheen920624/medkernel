@@ -73,7 +73,7 @@ class MigrationBaselineContractTest {
         "V44__system_superadmin_seed.sql",
         "V45__credential_login_attempt.sql",
         "V46__auth_mfa_sm3_reset.sql",
-        "V47__workbench_demo_validation_permission.sql",
+        "V47__workbench_readiness_validation_permission.sql",
         "V48__context_snapshot_standard_contract.sql",
         "V49__knowledge_citation_anchor_offsets.sql",
         "V50__knowledge_trust_grading.sql",
@@ -119,7 +119,10 @@ class MigrationBaselineContractTest {
         "V90__compliance_data_permission_policy.sql",
         "V91__compliance_masking_rule.sql",
         "V92__compliance_export_approval.sql",
-        "V93__interop_assessment_mapping.sql"
+        "V93__interop_assessment_mapping.sql",
+        "V94__structured_allergy_intolerance_resource.sql",
+        "V95__compliance_identity_binding.sql",
+        "V96__tenant_user_directory.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -129,7 +132,7 @@ class MigrationBaselineContractTest {
         "standard_term", "local_term", "mk_term_high_risk_rule",
         "term_mapping", "mapping_candidate", "mapping_conflict", "term_mapping_package",
         "term_mapping_package_item", "term_mapping_package_release", "audit_chain_head",
-        "sys_role", "sys_permission", "role_permission", "user_role_assignment",
+        "sys_role", "sys_permission", "role_permission", "user_role_assignment", "tenant_user",
         "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_test_case", "rule_execution_log",
@@ -143,18 +146,18 @@ class MigrationBaselineContractTest {
         "mk_quality_insurance_issue",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
+        "knowledge_package", "package_item", "release_plan", "sync_log",
         "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
-        "model_capability_task", "model_capability_policy",
+        "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",
         "evidence_snapshot", "mk_compliance_data_permission", "mk_compliance_masking_rule",
         "mk_compliance_export_approval", "mk_compliance_interop_assessment_item",
-        "mk_compliance_interop_evidence_map",
+        "mk_compliance_interop_evidence_map", "mk_compliance_identity_binding",
         "tenant_branding", "tenant_success_plan",
         "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
         "platform_credential", "sys_login_attempt", "sys_password_reset_token",
@@ -203,6 +206,7 @@ class MigrationBaselineContractTest {
         "idx_term_mapping_tenant_status", "idx_term_mapping_local_standard",
         "idx_mapping_candidate_tenant_status", "idx_mapping_conflict_tenant_status",
         "idx_term_pkg_tenant_status", "idx_term_pkg_scope", "idx_term_pkg_item_package",
+        "idx_term_pkg_item_anchor",
         "idx_term_pkg_release_package", "idx_sys_role_tenant_active", "idx_sys_permission_dimension",
         "idx_role_permission_tenant_role",
         "idx_user_role_assignment_user",
@@ -254,7 +258,7 @@ class MigrationBaselineContractTest {
         "idx_rect_task_finding", "idx_rect_task_department_status",
         "idx_rect_review_finding", "idx_eval_idempotency_resource",
         "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
-        "idx_release_plan_pkg", "idx_sync_target_tenant", "idx_sync_log_plan",
+        "idx_release_plan_pkg", "idx_sync_log_plan",
         "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
         "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
         "uk_followup_plan_idempotency",
@@ -282,6 +286,8 @@ class MigrationBaselineContractTest {
         "idx_compliance_interop_item_status", "idx_compliance_interop_item_dimension",
         "idx_compliance_interop_evidence_item", "idx_compliance_interop_evidence_source",
         "idx_compliance_interop_evidence_status",
+        "idx_compliance_identity_binding_user", "idx_compliance_identity_binding_status",
+        "idx_tenant_user_directory",
         "idx_mpi_patient_tenant_status",
         "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
         "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
@@ -354,6 +360,7 @@ class MigrationBaselineContractTest {
         "ck_sys_role_builtin", "ck_sys_role_active", "ck_sys_permission_dimension", "ck_sys_permission_risk",
         "ck_sys_permission_active", "uk_role_permission", "ck_role_permission_effect",
         "uk_user_role_assignment", "ck_user_role_assignment_active",
+        "uk_tenant_user_identity", "ck_tenant_user_status", "ck_tenant_user_version",
         "uk_context_snapshot_id", "ck_context_snapshot_status", "ck_context_snapshot_quality",
         "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
         "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
@@ -406,7 +413,6 @@ class MigrationBaselineContractTest {
         "uk_knowledge_package_id", "uk_knowledge_package_tenant_version", "ck_knowledge_package_status",
         "uk_package_item_id", "uk_package_item_tenant_asset", "ck_package_item_asset_type",
         "uk_release_plan_id", "ck_release_plan_strategy", "ck_release_plan_scope_type", "ck_release_plan_status",
-        "uk_sync_target_id", "ck_sync_target_type", "ck_sync_target_status",
         "uk_sync_log_id", "ck_sync_log_status",
         "uk_pkg_tpl_tenant_code", "ck_pkg_tpl_status",
         "fk_pkg_tpli_template", "uk_pkg_tpli_asset", "ck_pkg_tpli_type",
@@ -435,7 +441,7 @@ class MigrationBaselineContractTest {
         "uk_notification_id", "uk_notification_dedupe",
         "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
         "uk_embed_launch_token", "uk_embed_origin_tenant",
-        "uk_model_task_id", "uk_model_policy_tenant",
+        "ck_model_capability_definition_enabled", "uk_model_task_id", "uk_model_policy_tenant",
         "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
         "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
         "pk_export_task", "uk_export_task_idempotency", "ck_export_task_scope", "ck_export_task_status",
@@ -460,6 +466,9 @@ class MigrationBaselineContractTest {
         "ck_compliance_interop_item_version", "uk_compliance_interop_evidence_map",
         "uk_compliance_interop_evidence_source", "ck_compliance_interop_evidence_source",
         "ck_compliance_interop_evidence_status",
+        "uk_compliance_identity_binding_id", "uk_compliance_identity_subject",
+        "ck_compliance_identity_provider", "ck_compliance_identity_status",
+        "ck_compliance_identity_version",
         "uk_tenant_branding", "uk_tenant_success_plan",
         "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
         "ck_mpi_merge_review_status", "ck_dqr_required_nonneg", "ck_dqr_adapter_nonneg",
@@ -507,7 +516,9 @@ class MigrationBaselineContractTest {
         "uk_mk_ctx_field_catalog_tenant_path", "ck_mk_ctx_field_catalog_data_type",
         "ck_mk_ctx_field_catalog_status",
         "ck_mk_diagnosis_criterion_dir", "ck_mk_diagnosis_criterion_weight",
-        "ck_mk_diagnosis_pointer_type", "ck_mk_diagnosis_testcase_conf",
+        "uk_mk_dx_diff_version_target",
+        "ck_mk_diagnosis_pointer_type", "ck_mk_diagnosis_pointer_target",
+        "ck_mk_diagnosis_testcase_conf",
         "uk_mk_diagnosis_testcase", "uk_mk_diagnosis_confpolicy"
     );
     private static final Set<String> TENANT_TABLES = Set.of(
@@ -529,9 +540,10 @@ class MigrationBaselineContractTest {
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
         "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
+        "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
+        "knowledge_package", "package_item", "release_plan", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "model_capability_task", "model_capability_policy",
@@ -571,13 +583,14 @@ class MigrationBaselineContractTest {
         "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
         "mk_quality_insurance_issue",
         "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
+        "mk_compliance_identity_binding",
         "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
         "rectification_task", "rectification_review",
-        "knowledge_package", "package_item", "release_plan", "sync_target", "sync_log",
+        "knowledge_package", "package_item", "release_plan", "sync_log",
         "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
         "mk_engine_workflow_todo", "mk_engine_notification",
         "embed_launch_token", "embed_origin_whitelist",
-        "model_capability_task", "model_capability_policy",
+        "model_capability_definition", "model_capability_task", "model_capability_policy",
         "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
         "integration_adapter", "integration_webhook_config", "integration_message_log",
         "mk_integration_onboarding", "mk_integration_regional_source",
@@ -617,7 +630,9 @@ class MigrationBaselineContractTest {
         Map.entry("mk_mpi_merge_review", Set.of("requested_at", "requested_by", "reviewed_at", "reviewed_by", "trace_id", "created_at", "updated_at")),
         Map.entry("mk_integration_data_quality_report", Set.of("generated_at", "created_at", "created_by", "trace_id")),
         Map.entry("mk_integration_onboarding", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
-        Map.entry("mk_integration_regional_source", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id"))
+        Map.entry("mk_integration_regional_source", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
+        Map.entry("mk_compliance_identity_binding",
+            Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id"))
     );
     private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.<String, Set<String>>ofEntries(
         Map.entry("org_unit", Set.of("status")),
@@ -678,7 +693,6 @@ class MigrationBaselineContractTest {
         Map.entry("knowledge_package", Set.of("package_version", "status")),
         Map.entry("package_item", Set.of("asset_type")),
         Map.entry("release_plan", Set.of("strategy", "scope_type", "status")),
-        Map.entry("sync_target", Set.of("target_type", "status")),
         Map.entry("sync_log", Set.of("status")),
         Map.entry("followup_plan", Set.of("status")),
         Map.entry("followup_task", Set.of("status", "task_type")),
@@ -687,6 +701,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_engine_workflow_todo", Set.of("source_type", "priority", "status")),
         Map.entry("mk_engine_notification", Set.of("source_type", "notification_level", "status")),
         Map.entry("embed_launch_token", Set.of("status")),
+        Map.entry("model_capability_definition", Set.of("enabled_flag")),
         Map.entry("model_capability_task", Set.of("model_mode", "status")),
         Map.entry("model_capability_policy", Set.of("route_strategy")),
         Map.entry("mk_experience_saved_view", Set.of("version", "status")),
@@ -715,7 +730,8 @@ class MigrationBaselineContractTest {
         Map.entry("mk_fhir_resource_mapping", Set.of("fhir_version", "mapping_status")),
         Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status")),
         Map.entry("mk_compliance_interop_assessment_item", Set.of("dimension", "status", "version")),
-        Map.entry("mk_compliance_interop_evidence_map", Set.of("evidence_source_type", "status"))
+        Map.entry("mk_compliance_interop_evidence_map", Set.of("evidence_source_type", "status")),
+        Map.entry("mk_compliance_identity_binding", Set.of("status", "version"))
     );
 
     private static final Pattern TABLE_PATTERN =
@@ -1201,6 +1217,56 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void v94ShouldExtendCanonicalResourceTypeForStructuredAllergyIntoleranceInAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V94__structured_allergy_intolerance_resource.sql");
+            assertThat(sql).as("%s V94 结构化过敏资源类型", dialect)
+                .contains("ck_canonical_resource_type", "ALLERGY_INTOLERANCE");
+        }
+    }
+
+    @Test
+    void v95ShouldDefineTenantScopedAuditedIdentityBindingInAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V95__compliance_identity_binding.sql");
+            assertThat(sql).as("%s V95 外部身份绑定合同", dialect)
+                .contains(
+                    "mk_compliance_identity_binding",
+                    "tenant_id",
+                    "external_subject_digest",
+                    "uk_compliance_identity_subject",
+                    "ck_compliance_identity_provider",
+                    "ck_compliance_identity_status",
+                    "ck_compliance_identity_version",
+                    "created_at",
+                    "created_by",
+                    "updated_at",
+                    "updated_by",
+                    "trace_id",
+                    "COMMENT ON TABLE mk_compliance_identity_binding");
+        }
+    }
+
+    @Test
+    void v96ShouldDefineCanonicalTenantUserDirectoryInAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V96__tenant_user_directory.sql");
+            assertThat(sql).as("%s V96 统一租户用户目录合同", dialect)
+                .contains(
+                    "tenant_user",
+                    "tenant_id",
+                    "user_id",
+                    "display_name",
+                    "uk_tenant_user_identity",
+                    "ck_tenant_user_status",
+                    "ck_tenant_user_version",
+                    "platform_credential",
+                    "user_role_assignment",
+                    "COMMENT ON TABLE tenant_user");
+        }
+    }
+
+    @Test
     void v49ShouldAddCitationAnchorOffsetsForAllDialects() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V49__knowledge_citation_anchor_offsets.sql");
@@ -1369,7 +1435,7 @@ class MigrationBaselineContractTest {
                 .contains("mk_version_release_plan")
                 .contains("mk_version_activation_transaction")
                 .contains("mk_version_replay_binding")
-                .contains("BED_PERCENT")
+                .doesNotContain("BED_PERCENT", "SPECIALTY")
                 .contains("ROLLBACKED")
                 .contains("FULL_ACTIVATE")
                 .contains("ck_mk_version_release_plan_scope")
@@ -1384,6 +1450,22 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_version_activation_transaction")
                 .contains("COMMENT ON TABLE mk_version_replay_binding")
                 .contains("COMMENT ON COLUMN mk_version_asset_version.status");
+        }
+    }
+
+    @Test
+    void contextSnapshotUsesOnlyUnifiedPackageVersionForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V7__clinical_context_baseline.sql")
+                + readMigration(dialect, "V48__context_snapshot_standard_contract.sql");
+            assertThat(ddl)
+                .as("%s 标准上下文包版本契约", dialect)
+                .contains("package_version")
+                .doesNotContain(
+                    "knowledge_pkg_version",
+                    "rule_pkg_version",
+                    "pathway_pkg_version",
+                    "兼容旧三类包版本字段");
         }
     }
 
@@ -1515,13 +1597,14 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void v2ShouldDeclareSevenLayerOrgHierarchyAndClosure() {
+    void v2ShouldDeclareOrganizationTreeAndSpecialtyDimensionSeparately() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V2__org_audit_baseline.sql");
             assertThat(ddl).as("%s 组织表必须带组织路径", dialect)
                 .contains("org_path");
-            assertThat(ddl).as("%s 组织层级必须包含专病层", dialect)
-                .contains("SPECIALTY")
+            assertThat(ddl).as("%s 组织层级不得把专病作为树节点", dialect)
+                .contains("specialty_id")
+                .doesNotContain("SPECIALTY")
                 .doesNotContain("WARD");
             assertThat(ddl).as("%s 组织闭包表", dialect)
                 .contains("org_closure")
@@ -1795,6 +1878,8 @@ class MigrationBaselineContractTest {
                 .contains("ck_mk_diagnosis_criterion_dir")
                 .contains("ck_mk_diagnosis_criterion_weight")
                 .contains("ck_mk_diagnosis_pointer_type")
+                .contains("ck_mk_diagnosis_pointer_target")
+                .contains("target_type")
                 .contains("ck_mk_diagnosis_testcase_conf")
                 .contains("uk_mk_diagnosis_testcase")
                 .contains("uk_mk_diagnosis_confpolicy")
@@ -2024,14 +2109,29 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void v15ReleaseScopeMustFollowSevenLayerOrgScope() {
+    void v15ReleaseScopeMustContainOnlyOrganizationScopeValues() {
         for (String dialect : DIALECTS) {
             String ddl = readMigration(dialect, "V15__package_release_baseline.sql");
             assertThat(ddl)
-                .as("%s 包发布作用域必须跟随七层组织口径", dialect)
-                .contains("SPECIALTY")
-                .doesNotContain("WARD")
-                .doesNotContain("DOCTOR_TEAM");
+                .as("%s 包发布作用域必须只保留组织层级", dialect)
+                .contains("('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')")
+                .doesNotContain("SPECIALTY", "WARD", "DOCTOR_TEAM", "sync_target");
+        }
+    }
+
+    @Test
+    void menuPermissionMigrationsMustNotSeedLegacySectionPermissions() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V6__security_permission_baseline.sql")
+                + readMigration(dialect, "V43__menu_permission_granularity.sql");
+            assertThat(ddl)
+                .as("%s 菜单权限迁移不得保留旧一级 section 权限", dialect)
+                .doesNotContain(
+                    "menu.pilot-setup",
+                    "menu.clinical-run",
+                    "menu.quality-improve",
+                    "menu.compliance-ops",
+                    "menu.advanced-tools");
         }
     }
 

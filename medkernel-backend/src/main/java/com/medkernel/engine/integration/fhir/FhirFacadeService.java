@@ -38,6 +38,7 @@ import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.integration.repository.IntegrationWebhookConfigRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.integration.service.WebhookSecretCodec;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.task.RuntimeTaskMode;
@@ -73,6 +74,7 @@ public class FhirFacadeService {
     private final IntegrationService integration;
     private final RuntimeTaskService tasks;
     private final ObjectMapper json;
+    private final WebhookSecretCodec webhookSecretCodec;
 
     public FhirFacadeService(FhirR4CanonicalMapper r4Mapper,
                              FhirR5CanonicalMapper r5Mapper,
@@ -85,7 +87,8 @@ public class FhirFacadeService {
                              ClinicalEventService events,
                              IntegrationService integration,
                              RuntimeTaskService tasks,
-                             ObjectMapper json) {
+                             ObjectMapper json,
+                             WebhookSecretCodec webhookSecretCodec) {
         this.r4Mapper = r4Mapper;
         this.r5Mapper = r5Mapper;
         this.capabilities = capabilities;
@@ -98,6 +101,7 @@ public class FhirFacadeService {
         this.integration = integration;
         this.tasks = tasks;
         this.json = json;
+        this.webhookSecretCodec = webhookSecretCodec;
     }
 
     public JsonNode metadata(FhirVersion version) {
@@ -453,7 +457,7 @@ public class FhirFacadeService {
     private String signatureSecretKey(String tenantId, FhirAdapterConfig config) {
         return webhookSecrets.findByWebhookIdAndTenantId(config.signatureWebhookId(), tenantId)
             .filter(webhook -> ACTIVE.equals(webhook.status()))
-            .map(webhook -> firstNonBlank(webhook.secretKey()))
+            .map(webhook -> firstNonBlank(webhookSecretCodec.decode(webhook.secretCipher())))
             .orElse("");
     }
 
@@ -628,7 +632,7 @@ public class FhirFacadeService {
         return switch (resourceType) {
             case PATIENT, ENCOUNTER -> ClinicalEventType.ADMISSION;
             case CONDITION -> ClinicalEventType.DIAGNOSIS;
-            case OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT -> ClinicalEventType.REPORT;
+            case ALLERGY_INTOLERANCE, OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT -> ClinicalEventType.REPORT;
             case MEDICATION, PROCEDURE, CARE_PLAN -> ClinicalEventType.ORDER;
             case FOLLOW_UP -> ClinicalEventType.FOLLOWUP;
             case NURSING_ASSESSMENT, CLAIM -> ClinicalEventType.REPORT;
@@ -638,7 +642,8 @@ public class FhirFacadeService {
     private ClinicalEventTriggerPoint triggerPointFor(CanonicalResourceType resourceType) {
         return switch (resourceType) {
             case PATIENT, ENCOUNTER, CONDITION, CLAIM -> ClinicalEventTriggerPoint.PATIENT_VIEW;
-            case OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT, NURSING_ASSESSMENT -> ClinicalEventTriggerPoint.RESULT_REVIEW;
+            case ALLERGY_INTOLERANCE, OBSERVATION, DIAGNOSTIC_REPORT, DOCUMENT, NURSING_ASSESSMENT ->
+                ClinicalEventTriggerPoint.RESULT_REVIEW;
             case MEDICATION -> ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE;
             case PROCEDURE, CARE_PLAN -> ClinicalEventTriggerPoint.ORDER_SIGN;
             case FOLLOW_UP -> ClinicalEventTriggerPoint.FOLLOWUP_ALERT;
@@ -651,6 +656,7 @@ public class FhirFacadeService {
             case "Patient",
                  "Encounter",
                  "Condition",
+                 "AllergyIntolerance",
                  "Observation",
                  "Medication",
                  "Procedure",

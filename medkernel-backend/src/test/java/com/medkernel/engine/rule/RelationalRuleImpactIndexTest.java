@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.integration.domain.IntegrationAdapter;
+import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
@@ -31,10 +33,6 @@ import com.medkernel.engine.pkg.ReleaseStrategy;
 import com.medkernel.engine.pkg.SyncLog;
 import com.medkernel.engine.pkg.SyncLogRepository;
 import com.medkernel.engine.pkg.SyncLogStatus;
-import com.medkernel.engine.pkg.SyncTarget;
-import com.medkernel.engine.pkg.SyncTargetRepository;
-import com.medkernel.engine.pkg.SyncTargetStatus;
-import com.medkernel.engine.pkg.SyncTargetType;
 import org.junit.jupiter.api.Test;
 
 class RelationalRuleImpactIndexTest {
@@ -46,15 +44,15 @@ class RelationalRuleImpactIndexTest {
     private final PackageItemRepository packageItems = mock(PackageItemRepository.class);
     private final ReleasePlanRepository releasePlans = mock(ReleasePlanRepository.class);
     private final SyncLogRepository syncLogs = mock(SyncLogRepository.class);
-    private final SyncTargetRepository syncTargets = mock(SyncTargetRepository.class);
+    private final IntegrationAdapterRepository integrationAdapters = mock(IntegrationAdapterRepository.class);
 
     @Test
-    void analyzesRealPathwayRuntimeAndSyncTargetReferencesForRule() {
+    void analyzesRealPathwayRuntimeAndIntegrationAdapterReferencesForRule() {
         RuleDefinition rule = rule();
         RuleVersion version = version();
         RelationalRuleImpactIndex index = new RelationalRuleImpactIndex(
             templates, nodes, edges, patientPathways,
-            packageItems, releasePlans, syncLogs, syncTargets,
+            packageItems, releasePlans, syncLogs, integrationAdapters,
             new ObjectMapper());
 
         when(nodes.findByTenantIdAndRuleReference("tenant-A", "rule-1", "RULE.ANTICOAG", "version-1"))
@@ -74,8 +72,8 @@ class RelationalRuleImpactIndexTest {
             .thenReturn(List.of(releasePlan()));
         when(syncLogs.findByTenantIdAndPlanId("tenant-A", "plan-1"))
             .thenReturn(List.of(syncLog()));
-        when(syncTargets.findByTargetIdAndTenantId("target-clinical", "tenant-A"))
-            .thenReturn(Optional.of(syncTarget()));
+        when(integrationAdapters.findByAdapterIdAndTenantId("target-clinical", "tenant-A"))
+            .thenReturn(Optional.of(integrationAdapter()));
 
         RuleImpactIndexSnapshot snapshot = index.analyze("tenant-A", rule, version);
 
@@ -92,11 +90,11 @@ class RelationalRuleImpactIndexTest {
             assertThat(patient.displayName()).isEqualTo("患者 patient-1 / 就诊 enc-1");
             assertThat(patient.impactReason()).contains("当前节点 ASSESS");
         });
-        assertThat(snapshot.syncTargets()).singleElement().satisfies(target -> {
-            assertThat(target.objectType()).isEqualTo("SYNC_TARGET");
-            assertThat(target.objectId()).isEqualTo("target-clinical");
-            assertThat(target.displayName()).isEqualTo("院内规则库");
-            assertThat(target.impactReason()).contains("配置包 pkg-1", "同步状态 SUCCESS");
+        assertThat(snapshot.integrationAdapters()).singleElement().satisfies(adapter -> {
+            assertThat(adapter.objectType()).isEqualTo("INTEGRATION_ADAPTER");
+            assertThat(adapter.objectId()).isEqualTo("target-clinical");
+            assertThat(adapter.displayName()).isEqualTo("院内规则库");
+            assertThat(adapter.impactReason()).contains("配置包 pkg-1", "同步状态 SUCCESS");
         });
     }
 
@@ -168,11 +166,11 @@ class RelationalRuleImpactIndexTest {
             now, "tester", now, "tester", "trace-sync");
     }
 
-    private SyncTarget syncTarget() {
+    private IntegrationAdapter integrationAdapter() {
         Instant now = Instant.now();
-        return new SyncTarget(
+        return new IntegrationAdapter(
             1L, "target-clinical", "tenant-A", "院内规则库",
-            SyncTargetType.CLINICAL_DB, "config-ref", SyncTargetStatus.ACTIVE,
-            now, "tester", now, "tester", "trace-target");
+            "REST", "ACTIVE", "config-ref", "HEALTHY", 5L, now,
+            now, "tester", now, "tester");
     }
 }

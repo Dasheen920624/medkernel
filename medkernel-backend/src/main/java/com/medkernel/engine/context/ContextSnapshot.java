@@ -22,9 +22,6 @@ public record ContextSnapshot(
     @Column("package_version") String packageVersion,
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
-    @Column("knowledge_pkg_version") String knowledgePackageVersion,
-    @Column("rule_pkg_version") String rulePackageVersion,
-    @Column("pathway_pkg_version") String pathwayPackageVersion,
     @Column("status") ContextSnapshotStatus status,
     @Column("missing_fields") String missingFieldsJson,
     @Column("mapping_status") String mappingStatusJson,
@@ -33,35 +30,4 @@ public record ContextSnapshot(
     @Column("signature") String signature,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy
-) {
-
-    public ContextSnapshot(
-            Long id,
-            String snapshotId,
-            String tenantId,
-            String orgUnitId,
-            String patientId,
-            String encounterId,
-            String knowledgePackageVersion,
-            String rulePackageVersion,
-            String pathwayPackageVersion,
-            ContextSnapshotStatus status,
-            String missingFieldsJson,
-            String mappingStatusJson,
-            QualityStatus qualityStatus,
-            String traceId,
-            String signature,
-            Instant createdAt,
-            String createdBy) {
-        this(
-            id, snapshotId, tenantId, orgUnitId,
-            null, null,
-            ContextSnapshotRequest.firstNonBlank(
-                knowledgePackageVersion, rulePackageVersion, pathwayPackageVersion),
-            patientId, encounterId,
-            knowledgePackageVersion, rulePackageVersion, pathwayPackageVersion,
-            status, missingFieldsJson, mappingStatusJson,
-            qualityStatus, traceId, signature, createdAt, createdBy
-        );
-    }
-}
+) {}

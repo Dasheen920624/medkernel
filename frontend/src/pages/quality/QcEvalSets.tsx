@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
   Card,
   Descriptions,
@@ -9,14 +10,12 @@ import {
   Form,
   Input,
   InputNumber,
-  List,
   Modal,
   Select,
   Space,
   Table,
   Tag,
   Typography,
-  message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -34,9 +33,10 @@ import {
   useCreateEvaluationIndicator,
   useEvaluateSnapshot,
   useEvaluationIndicators,
+  useGrayEvaluationIndicator,
+  useOrgUnits,
   usePublishEvaluationIndicator,
   useSubmitEvaluationIndicator,
-  type ContextSnapshotSummary,
   type EvaluationIndicator,
   type EvaluationIndicatorStatus,
   type EvaluationRunResponse,
@@ -50,9 +50,12 @@ import {
   type RuleGroup,
 } from "@/shared/config/conditionModel";
 import { PageShell } from "@/shared/ui/PageShell";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import type { StepKey } from "@/shared/ui/StepFlow.contract";
 import ConditionTreeEditor from "@/shared/ui/condition/ConditionTreeEditor";
+
+import styles from "./Quality.module.css";
 
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -70,6 +73,26 @@ interface IndicatorFormValues {
   scoringDefinition?: string;
 }
 
+type IndicatorReleaseAction = "PUBLISH" | "GRAY" | "ACTIVATE";
+
+const RELEASE_ACTION_TITLE: Record<IndicatorReleaseAction, string> = {
+  PUBLISH: "审核通过",
+  GRAY: "开始 10% 床位灰度",
+  ACTIVATE: "全量激活",
+};
+
+const RELEASE_ACTION_OK_TEXT: Record<IndicatorReleaseAction, string> = {
+  PUBLISH: "确认发布",
+  GRAY: "确认灰度",
+  ACTIVATE: "确认全量",
+};
+
+const RELEASE_ACTION_SUCCESS: Record<IndicatorReleaseAction, string> = {
+  PUBLISH: "指标审核发布完成",
+  GRAY: "指标已进入 10% 床位灰度",
+  ACTIVATE: "指标已全量激活",
+};
+
 const SUBJECT_LABELS: Record<EvaluationSubjectType, string> = {
   PATIENT: "患者主体",
   MEDICAL_RECORD: "临床病历",
@@ -85,6 +108,7 @@ const STATUS_LABELS: Record<EvaluationIndicatorStatus, string> = {
   DRAFT: "草稿",
   PENDING_REVIEW: "待审核",
   PUBLISHED: "已发布",
+  GRAY: "灰度中",
   ACTIVE: "生效中",
   OFFLINE: "已下线",
   ARCHIVED: "已归档",
@@ -94,6 +118,7 @@ const STATUS_COLORS: Record<EvaluationIndicatorStatus, string> = {
   DRAFT: "default",
   PENDING_REVIEW: "warning",
   PUBLISHED: "processing",
+  GRAY: "cyan",
   ACTIVE: "success",
   OFFLINE: "error",
   ARCHIVED: "default",
@@ -125,6 +150,7 @@ function stepForIndicator(indicator?: EvaluationIndicator | null): StepKey {
   if (indicator.status === "DRAFT") return "auto_validate";
   if (indicator.status === "PENDING_REVIEW") return "submit_review";
   if (indicator.status === "PUBLISHED") return "canary_release";
+  if (indicator.status === "GRAY") return "full_rollout";
   if (indicator.status === "ACTIVE") return "full_rollout";
   return "evidence_rollback";
 }
@@ -144,12 +170,22 @@ function formatVersion(indicator: EvaluationIndicator) {
 }
 
 export default function QcEvalSets() {
+  const { message } = App.useApp();
   const [form] = Form.useForm<IndicatorFormValues>();
+  const departmentsQuery = useOrgUnits({ page: 1, size: 100, sort: "name,asc" });
+  const departmentOptions = (departmentsQuery.data?.items ?? [])
+    .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
+    .map((unit) => ({
+      value: unit.id as string,
+      label: `${unit.name} · ${unit.code}`,
+    }));
   const [status, setStatus] = useState<EvaluationIndicatorStatus | undefined>();
   const [subjectType, setSubjectType] = useState<EvaluationSubjectType | undefined>();
   const [indicatorCode, setIndicatorCode] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [releaseAction, setReleaseAction] = useState<IndicatorReleaseAction | null>(null);
+  const [releaseReason, setReleaseReason] = useState("");
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [selectedIndicator, setSelectedIndicator] = useState<EvaluationIndicator | null>(null);
   const [denominatorTree, setDenominatorTree] = useState<RuleGroup>(() => createDefaultTree());
@@ -176,6 +212,7 @@ export default function QcEvalSets() {
   const createMutation = useCreateEvaluationIndicator();
   const submitMutation = useSubmitEvaluationIndicator();
   const publishMutation = usePublishEvaluationIndicator();
+  const grayMutation = useGrayEvaluationIndicator();
   const activateMutation = useActivateEvaluationIndicator();
   const evaluateSnapshotMutation = useEvaluateSnapshot();
 
@@ -306,7 +343,8 @@ export default function QcEvalSets() {
 
   async function submitIndicator(indicatorId: string) {
     try {
-      await submitMutation.mutateAsync(indicatorId);
+      const updated = await submitMutation.mutateAsync(indicatorId);
+      setSelectedIndicator(updated);
       message.success("指标已提交审核");
       indicatorsQuery.refetch();
     } catch (error: unknown) {
@@ -314,23 +352,35 @@ export default function QcEvalSets() {
     }
   }
 
-  async function publishIndicator(indicatorId: string) {
-    try {
-      await publishMutation.mutateAsync(indicatorId);
-      message.success("指标已发布");
-      indicatorsQuery.refetch();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "指标发布失败"));
-    }
+  function openRelease(action: IndicatorReleaseAction) {
+    setReleaseAction(action);
+    setReleaseReason("");
   }
 
-  async function activateIndicator(indicatorId: string) {
+  async function confirmRelease() {
+    if (!selectedIndicator || !releaseAction) return;
+    const reason = releaseReason.trim();
+    if (!reason) {
+      message.warning("请填写发布说明");
+      return;
+    }
     try {
-      await activateMutation.mutateAsync(indicatorId);
-      message.success("指标已激活，同编码旧版本由后端下线");
+      const payload = { indicatorId: selectedIndicator.indicatorId, reason };
+      let updated: EvaluationIndicator;
+      if (releaseAction === "PUBLISH") {
+        updated = await publishMutation.mutateAsync(payload);
+      } else if (releaseAction === "GRAY") {
+        updated = await grayMutation.mutateAsync(payload);
+      } else {
+        updated = await activateMutation.mutateAsync(payload);
+      }
+      setSelectedIndicator(updated);
+      setReleaseAction(null);
+      setReleaseReason("");
+      message.success(RELEASE_ACTION_SUCCESS[releaseAction]);
       indicatorsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "指标激活失败"));
+      message.error(getApiErrorMessage(error, "指标发布动作失败"));
     }
   }
 
@@ -447,7 +497,7 @@ export default function QcEvalSets() {
           onRetry: () => indicatorsQuery.refetch(),
         }}
       >
-        <Space direction="vertical" size="large" className="mk-full-width">
+        <Space direction="vertical" size="large" className={styles.fullWidth}>
           <Space wrap>
             <Card size="small">
               <Text type="secondary">真实评估指标总数</Text>
@@ -482,7 +532,7 @@ export default function QcEvalSets() {
               placeholder="指标状态"
               value={status}
               onChange={setStatus}
-              className="mk-select-compact"
+              className={styles.controlSm}
             >
               {(Object.keys(STATUS_LABELS) as EvaluationIndicatorStatus[]).map((item) => (
                 <Option key={item} value={item}>
@@ -496,7 +546,7 @@ export default function QcEvalSets() {
               placeholder="评估主体"
               value={subjectType}
               onChange={setSubjectType}
-              className="mk-select-compact"
+              className={styles.controlSm}
             >
               {(Object.keys(SUBJECT_LABELS) as EvaluationSubjectType[]).map((item) => (
                 <Option key={item} value={item}>
@@ -542,8 +592,8 @@ export default function QcEvalSets() {
             organizationScope: "全院",
           }}
         >
-          <Space direction="vertical" size="large" className="mk-full-width">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Space direction="vertical" size="large" className={styles.fullWidth}>
+            <div className={styles.formGrid}>
               <Form.Item
                 name="indicatorCode"
                 label="指标编码"
@@ -556,7 +606,7 @@ export default function QcEvalSets() {
                 label="版本号"
                 rules={[{ required: true, message: "请输入版本号" }]}
               >
-                <InputNumber min={1} className="mk-full-width" />
+                <InputNumber min={1} className={styles.fullWidth} />
               </Form.Item>
               <Form.Item
                 name="name"
@@ -577,9 +627,16 @@ export default function QcEvalSets() {
               <Form.Item
                 name="responsibleDepartmentId"
                 label="责任科室"
-                rules={[{ required: true, message: "请输入责任科室" }]}
+                rules={[{ required: true, message: "请选择责任科室" }]}
               >
-                <Input />
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="选择责任科室"
+                  options={departmentOptions}
+                  loading={departmentsQuery.isLoading}
+                  notFoundContent="暂无可选科室"
+                />
               </Form.Item>
               <Form.Item
                 name="timeWindow"
@@ -627,8 +684,8 @@ export default function QcEvalSets() {
         onClose={() => setDetailOpen(false)}
       >
         {selectedIndicator ? (
-          <Space direction="vertical" size="large" className="mk-full-width">
-            <Space wrap className="mk-full-width mk-flex-between">
+          <Space direction="vertical" size="large" className={styles.fullWidth}>
+            <Space wrap className={styles.rowBetween}>
               <Space>
                 <BranchesOutlined />
                 {statusTag(selectedIndicator.status)}
@@ -647,22 +704,32 @@ export default function QcEvalSets() {
                 )}
                 {selectedIndicator.status === "PENDING_REVIEW" && (
                   <Button
-                    aria-label="发布指标"
+                    aria-label="审核通过"
                     type="primary"
                     loading={publishMutation.isPending}
-                    onClick={() => publishIndicator(selectedIndicator.indicatorId)}
+                    onClick={() => openRelease("PUBLISH")}
                   >
-                    发布指标
+                    审核通过
                   </Button>
                 )}
                 {selectedIndicator.status === "PUBLISHED" && (
                   <Button
-                    aria-label="激活指标"
+                    aria-label="开始灰度"
+                    type="primary"
+                    loading={grayMutation.isPending}
+                    onClick={() => openRelease("GRAY")}
+                  >
+                    开始灰度
+                  </Button>
+                )}
+                {selectedIndicator.status === "GRAY" && (
+                  <Button
+                    aria-label="全量激活"
                     type="primary"
                     loading={activateMutation.isPending}
-                    onClick={() => activateIndicator(selectedIndicator.indicatorId)}
+                    onClick={() => openRelease("ACTIVATE")}
                   >
-                    激活指标
+                    全量激活
                   </Button>
                 )}
               </Space>
@@ -699,6 +766,30 @@ export default function QcEvalSets() {
         )}
       </Drawer>
 
+      <Modal
+        title={releaseAction ? RELEASE_ACTION_TITLE[releaseAction] : "发布动作"}
+        open={releaseAction !== null}
+        okText={releaseAction ? RELEASE_ACTION_OK_TEXT[releaseAction] : "确认"}
+        cancelText="取消"
+        confirmLoading={
+          publishMutation.isPending || grayMutation.isPending || activateMutation.isPending
+        }
+        onOk={confirmRelease}
+        onCancel={() => {
+          setReleaseAction(null);
+          setReleaseReason("");
+        }}
+      >
+        <Input.TextArea
+          aria-label="发布说明"
+          value={releaseReason}
+          onChange={(event) => setReleaseReason(event.target.value)}
+          maxLength={500}
+          rows={4}
+          placeholder="填写审核结论、灰度依据或全量批准说明"
+        />
+      </Modal>
+
       <Drawer
         title="仿真评估"
         placement="right"
@@ -706,27 +797,26 @@ export default function QcEvalSets() {
         open={simulationOpen}
         onClose={() => setSimulationOpen(false)}
       >
-        <Space direction="vertical" size="large" className="mk-full-width">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Space direction="vertical" size="large" className={styles.fullWidth}>
+          <div className={styles.formGrid}>
             <Form.Item label="患者 ID" htmlFor="eval-snapshot-patient">
               <Input
                 id="eval-snapshot-patient"
                 value={snapshotPatientId}
-                onChange={(event) => setSnapshotPatientId(event.target.value)}
+                onChange={(event) => {
+                  setSnapshotPatientId(event.target.value);
+                  setSimulationSnapshotId("");
+                }}
               />
             </Form.Item>
             <Form.Item label="就诊 ID" htmlFor="eval-snapshot-encounter">
               <Input
                 id="eval-snapshot-encounter"
                 value={snapshotEncounterId}
-                onChange={(event) => setSnapshotEncounterId(event.target.value)}
-              />
-            </Form.Item>
-            <Form.Item label="临床快照 ID" htmlFor="eval-snapshot-id">
-              <Input
-                id="eval-snapshot-id"
-                value={simulationSnapshotId}
-                onChange={(event) => setSimulationSnapshotId(event.target.value)}
+                onChange={(event) => {
+                  setSnapshotEncounterId(event.target.value);
+                  setSimulationSnapshotId("");
+                }}
               />
             </Form.Item>
             <Form.Item label="触发场景" htmlFor="eval-scenario-code">
@@ -745,14 +835,14 @@ export default function QcEvalSets() {
             </Form.Item>
           </div>
 
-          {renderSnapshotList(
-            hasSnapshotFilter,
-            snapshotsQuery.isLoading,
-            snapshotsQuery.isError,
-            snapshotsQuery.data?.items ?? [],
-            simulationSnapshotId,
-            setSimulationSnapshotId,
-          )}
+          <ContextSnapshotSelector
+            enabled={hasSnapshotFilter}
+            loading={snapshotsQuery.isLoading}
+            error={snapshotsQuery.isError}
+            snapshots={snapshotsQuery.data?.items ?? []}
+            selectedSnapshotId={simulationSnapshotId}
+            onSelect={setSimulationSnapshotId}
+          />
 
           <Button
             aria-label="执行仿真评估"
@@ -793,52 +883,5 @@ function renderDefinitionCard(title: string, definition?: string) {
     <Card title={title}>
       <ConditionTreeEditor value={tree} onChange={() => undefined} readOnly />
     </Card>
-  );
-}
-
-function renderSnapshotList(
-  enabled: boolean,
-  loading: boolean,
-  error: boolean,
-  snapshots: ContextSnapshotSummary[],
-  selectedSnapshotId: string,
-  onSelect: (snapshotId: string) => void,
-) {
-  if (!enabled) {
-    return <Empty description="输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照" />;
-  }
-  if (loading) {
-    return <Alert type="info" message="正在读取临床快照" showIcon />;
-  }
-  if (error) {
-    return <Alert type="error" message="临床快照读取失败" showIcon />;
-  }
-  if (snapshots.length === 0) {
-    return <Empty description="当前患者或就诊下暂无 ACTIVE 临床快照" />;
-  }
-  return (
-    <List
-      bordered
-      dataSource={snapshots}
-      renderItem={(snapshot) => (
-        <List.Item
-          actions={[
-            <Button
-              key="select"
-              aria-label={`选择 ${snapshot.snapshotId}`}
-              type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
-              onClick={() => onSelect(snapshot.snapshotId)}
-            >
-              选择
-            </Button>,
-          ]}
-        >
-          <List.Item.Meta
-            title={snapshot.snapshotId}
-            description={`患者 ${snapshot.patientId} · 就诊 ${snapshot.encounterId} · ${snapshot.qualityStatus}`}
-          />
-        </List.Item>
-      )}
-    />
   );
 }

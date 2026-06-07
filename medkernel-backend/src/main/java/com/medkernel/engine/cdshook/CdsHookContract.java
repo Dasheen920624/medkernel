@@ -1,7 +1,6 @@
 package com.medkernel.engine.cdshook;
 
 import java.util.List;
-import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
@@ -14,8 +13,6 @@ import com.medkernel.shared.api.error.ErrorCode;
 public final class CdsHookContract {
     public static final String CURRENT_VERSION = "1.0";
 
-    private static final Set<String> COMPATIBLE_VERSIONS = Set.of("1", CURRENT_VERSION);
-
     private CdsHookContract() {
     }
 
@@ -24,10 +21,7 @@ public final class CdsHookContract {
             return CURRENT_VERSION;
         }
         String normalized = version.trim();
-        if ("1".equals(normalized)) {
-            return CURRENT_VERSION;
-        }
-        if (!COMPATIBLE_VERSIONS.contains(normalized)) {
+        if (!CURRENT_VERSION.equals(normalized)) {
             throw new ApiException(ErrorCode.ENG_EVENT_001, "CDS Hooks 契约版本不受支持: " + version);
         }
         return normalized;

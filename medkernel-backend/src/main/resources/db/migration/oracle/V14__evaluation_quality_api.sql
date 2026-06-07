@@ -27,7 +27,7 @@ CREATE TABLE evaluation_indicator (
     CONSTRAINT uk_eval_indicator_id UNIQUE (tenant_id, indicator_id),
     CONSTRAINT uk_eval_indicator_tenant_version UNIQUE (tenant_id, indicator_code, version_no),
     CONSTRAINT ck_eval_indicator_subject CHECK (subject_type IN ('PATIENT', 'MEDICAL_RECORD', 'DEPARTMENT', 'DOCTOR', 'DISEASE', 'PATHWAY', 'CLAIM', 'FOLLOWUP')),
-    CONSTRAINT ck_eval_indicator_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ACTIVE', 'OFFLINE', 'ARCHIVED'))
+    CONSTRAINT ck_eval_indicator_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'GRAY', 'ACTIVE', 'OFFLINE', 'ARCHIVED'))
 );
 
 CREATE INDEX idx_eval_indicator_tenant_status ON evaluation_indicator (tenant_id, status, updated_at);
@@ -204,7 +204,7 @@ COMMENT ON COLUMN evaluation_indicator.subject_type              IS '评估对�
 COMMENT ON COLUMN evaluation_indicator.responsible_department_id IS '责任科室 ID';
 COMMENT ON COLUMN evaluation_indicator.source_ref                IS '指标来源引用（指南、制度、评级标准或院内规范）';
 COMMENT ON COLUMN evaluation_indicator.package_version           IS '指标包版本';
-COMMENT ON COLUMN evaluation_indicator.status                    IS '指标状态机：DRAFT 草稿 / PENDING_REVIEW 待审核 / PUBLISHED 已发布 / ACTIVE 生效 / OFFLINE 下线 / ARCHIVED 归档';
+COMMENT ON COLUMN evaluation_indicator.status                    IS '指标状态机：DRAFT 草稿 / PENDING_REVIEW 待审核 / PUBLISHED 已发布 / GRAY 灰度 / ACTIVE 生效 / OFFLINE 下线 / ARCHIVED 归档';
 COMMENT ON COLUMN evaluation_indicator.published_at              IS '发布时间';
 COMMENT ON COLUMN evaluation_indicator.published_by              IS '发布人 user_id';
 COMMENT ON COLUMN evaluation_indicator.activated_at              IS '激活时间';

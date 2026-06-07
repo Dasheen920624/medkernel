@@ -106,22 +106,6 @@ public class FollowupEngineController {
     }
 
     /**
-     * 提交患者出院随访问卷数据，并自动标记对应随访任务为已完成。
-     *
-     * @param taskId  随访任务业务唯一 ID
-     * @param request 问卷提交请求，包含表单 JSON 数据与执行人信息
-     * @return 空响应
-     */
-    @PostMapping("/tasks/{taskId}/questionnaires")
-    @PreAuthorize("@perm.has('followup.write')")
-    public ApiResult<Void> submitQuestionnaire(
-            @PathVariable String taskId,
-            @Valid @RequestBody FollowupQuestionnaireSubmitRequest request) {
-        service.submitQuestionnaire(taskId, request);
-        return ApiResult.empty();
-    }
-
-    /**
      * 上报临床异常事件或异常回流入院监控。
      *
      * @param request 异常上报请求，包含计划 ID、事件类型、事件详细载荷等

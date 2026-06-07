@@ -105,15 +105,18 @@ function matchesMediaQuery(query: string, width: number) {
   return Boolean(minWidth || maxWidth);
 }
 
-function renderLayout(initialPath = "/terminology/mapping") {
+async function renderLayout(initialPath = "/terminology/mapping") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const createUi = () => (
-    <ConfigProvider>
+    <ConfigProvider theme={{ token: { motion: false } }}>
       <AntdApp>
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={[initialPath]}>
+          <MemoryRouter
+            initialEntries={[initialPath]}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
             <Routes>
               <Route path="/login" element={<div>登录页入口</div>} />
               <Route element={<AppLayout />}>
@@ -128,7 +131,19 @@ function renderLayout(initialPath = "/terminology/mapping") {
     </ConfigProvider>
   );
   const view = render(createUi());
-  return { ...view, queryClient, rerenderLayout: () => view.rerender(createUi()) };
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return {
+    ...view,
+    queryClient,
+    rerenderLayout: async () => {
+      view.rerender(createUi());
+      await act(async () => {
+        await Promise.resolve();
+      });
+    },
+  };
 }
 
 function menuPermission(code: string) {
@@ -186,10 +201,10 @@ function superAdminProfile() {
     permissions: [
       ...allMenuKeys.map(menuPermission),
       {
-        code: "workbench:demo:view",
+        code: "workbench:readiness:view",
         dimension: "ACTION",
-        target: "workbench:demo:view",
-        displayName: "查看演示与校验",
+        target: "workbench:readiness:view",
+        displayName: "查看验收自检",
         risk: "LOW",
       },
     ],
@@ -218,7 +233,7 @@ const allMenuKeys = [
   "insurance-audit",
   "qc-eval-sets",
   "qc-eval-results",
-  "aik-review",
+  "knowledge-governance",
   "admin-users",
   "identity-bindings",
   "admin-audit",
@@ -269,18 +284,18 @@ afterEach(() => {
 });
 
 describe("AppLayout", () => {
-  it("renders route title and metadata-backed side menu", () => {
+  it("renders route title and metadata-backed side menu", async () => {
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     expect(screen.getAllByText("字典映射").length).toBeGreaterThan(0);
     expect(screen.getAllByText("试点准备").length).toBeGreaterThan(0);
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
   });
 
-  it("renders nested routes as one breadcrumb line in the header", () => {
+  it("renders nested routes as one breadcrumb line in the header", async () => {
     mockViewport(1280);
-    const { container } = renderLayout();
+    const { container } = await renderLayout();
 
     const header = container.querySelector(".mk-app-header");
 
@@ -290,41 +305,44 @@ describe("AppLayout", () => {
     expect(header?.querySelector(".mk-route-title")).toBeNull();
   });
 
-  it("uses drawer navigation on mobile width", () => {
+  it("uses drawer navigation on mobile width", async () => {
     mockViewport(390);
-    renderLayout();
+    await renderLayout();
 
     expect(document.querySelector(".ant-layout-sider")).toBeNull();
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button")[0]);
+      await Promise.resolve();
+    });
 
     expect(screen.getAllByText("试点准备").length).toBeGreaterThan(0);
   });
 
-  it("filters primary menus by granted menu permission codes", () => {
+  it("filters primary menus by granted menu permission codes", async () => {
     securityProfileState.value = {
       data: permissionProfile(["qc-dashboard"]),
     };
     mockViewport(1280);
-    renderLayout("/qc/dashboard");
+    await renderLayout("/qc/dashboard");
 
     expect(screen.queryByText("试点准备")).toBeNull();
     expect(screen.getAllByText("质控改进").length).toBeGreaterThan(0);
     expect(screen.getByText("质控驾驶舱内容")).toBeInTheDocument();
   });
 
-  it("does not display a hard-coded identity beside the effective permission profile", () => {
+  it("does not display a hard-coded identity beside the effective permission profile", async () => {
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     expect(screen.queryByText("医务处 · 张三")).toBeNull();
   });
 
-  it("keeps protected menus hidden while the security profile is unavailable", () => {
+  it("keeps protected menus hidden while the security profile is unavailable", async () => {
     securityProfileState.value = { data: undefined };
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     const navigation = document.querySelector(".ant-menu");
     expect(navigation).not.toBeNull();
@@ -335,16 +353,14 @@ describe("AppLayout", () => {
   it("expands second-level menus after the security profile arrives asynchronously", async () => {
     securityProfileState.value = { data: undefined };
     mockViewport(1280);
-    const { rerenderLayout } = renderLayout("/dashboard");
+    const { rerenderLayout } = await renderLayout("/dashboard");
 
     expect(screen.queryByText("字典映射")).toBeNull();
 
     securityProfileState.value = {
       data: permissionProfile(["workbench", "terminology-mapping"]),
     };
-    act(() => {
-      rerenderLayout();
-    });
+    await rerenderLayout();
 
     const navigation = document.querySelector(".ant-layout-sider .ant-menu");
     expect(navigation).not.toBeNull();
@@ -354,16 +370,16 @@ describe("AppLayout", () => {
     expect(within(navigation as HTMLElement).getByText("字典映射")).toBeInTheDocument();
   });
 
-  it("does not render the workbench before an effective permission profile is available", () => {
+  it("does not render the workbench before an effective permission profile is available", async () => {
     securityProfileState.value = { data: undefined };
     mockViewport(1280);
-    renderLayout("/dashboard");
+    await renderLayout("/dashboard");
 
     expect(screen.queryByText("工作台内容")).toBeNull();
     expect(screen.getByText("正在核验权限")).toBeInTheDocument();
   });
 
-  it("blocks direct business route entry until first password and MFA setup are complete", () => {
+  it("blocks direct business route entry until first password and MFA setup are complete", async () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["workbench"]),
@@ -373,25 +389,25 @@ describe("AppLayout", () => {
       },
     };
     mockViewport(1280);
-    renderLayout("/dashboard");
+    await renderLayout("/dashboard");
 
     expect(screen.queryByText("工作台内容")).toBeNull();
     expect(screen.getByText("需要完成首次安全设置")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续设置" })).toBeInTheDocument();
   });
 
-  it("blocks direct entry to a page outside the granted menu scope", () => {
+  it("blocks direct entry to a page outside the granted menu scope", async () => {
     securityProfileState.value = {
       data: permissionProfile(["workbench", "mpi", "patient-pathways"]),
     };
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     expect(screen.queryByText("字典映射内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("requires terminology action permissions beyond the backend menu key", () => {
+  it("requires terminology action permissions beyond the backend menu key", async () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["terminology-mapping"]),
@@ -399,25 +415,25 @@ describe("AppLayout", () => {
       },
     };
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     expect(screen.queryByText("字典映射内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("lets the built-in superadmin open the dashboard through RBAC permissions", () => {
+  it("lets the built-in superadmin open the dashboard through RBAC permissions", async () => {
     securityProfileState.value = { data: superAdminProfile() };
     mockViewport(1280);
 
-    renderLayout("/dashboard");
+    await renderLayout("/dashboard");
 
     expect(screen.getByText("工作台内容")).toBeInTheDocument();
     expect(screen.queryByText("当前权限不足")).toBeNull();
   });
 
-  it("opens the command palette from the global keyboard shortcut", () => {
+  it("opens the command palette from the global keyboard shortcut", async () => {
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
@@ -426,7 +442,7 @@ describe("AppLayout", () => {
 
   it("shows the authenticated user, role and organization in a header menu", async () => {
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
 
@@ -440,7 +456,7 @@ describe("AppLayout", () => {
 
   it("changes password from the user menu through the authenticated self-service endpoint", async () => {
     mockViewport(1280);
-    renderLayout();
+    await renderLayout();
 
     fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /修改密码/ }));
@@ -465,7 +481,7 @@ describe("AppLayout", () => {
 
   it("confirms logout, calls the backend logout endpoint, clears cached state and returns to login", async () => {
     mockViewport(1280);
-    const { queryClient } = renderLayout("/dashboard");
+    const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
 
     fireEvent.click(screen.getByRole("button", { name: "当前用户菜单" }));
@@ -479,7 +495,7 @@ describe("AppLayout", () => {
 
   it("redirects to login and clears cached state when any API request reports 401", async () => {
     mockViewport(1280);
-    const { queryClient } = renderLayout("/dashboard");
+    const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
 
     act(() => {
@@ -492,7 +508,7 @@ describe("AppLayout", () => {
 
   it("synchronizes logout from another tab through the approved storage event", async () => {
     mockViewport(1280);
-    const { queryClient } = renderLayout("/dashboard");
+    const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
 
     act(() => {
@@ -511,7 +527,7 @@ describe("AppLayout", () => {
   it("shows an idle warning before timeout and renews the backend session", async () => {
     vi.useFakeTimers();
     mockViewport(1280);
-    renderLayout("/dashboard");
+    await renderLayout("/dashboard");
 
     await act(async () => {
       vi.advanceTimersByTime(50_000);
@@ -530,7 +546,7 @@ describe("AppLayout", () => {
   it("lets the user actively exit from the idle warning", async () => {
     vi.useFakeTimers();
     mockViewport(1280);
-    const { queryClient } = renderLayout("/dashboard");
+    const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
 
     await act(async () => {
@@ -552,7 +568,7 @@ describe("AppLayout", () => {
   it("automatically logs out when the configured idle timeout is reached", async () => {
     vi.useFakeTimers();
     mockViewport(1280);
-    const { queryClient } = renderLayout("/dashboard");
+    const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
 
     await act(async () => {

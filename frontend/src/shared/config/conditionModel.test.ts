@@ -6,7 +6,6 @@ import {
   createGroup,
   createLeaf,
   dslToRootGroup,
-  fromLegacyWhen,
   hasUnresolvedFact,
   nodeToDsl,
   removeNodeById,
@@ -90,7 +89,7 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
     expect(restored.logic).toBe("any");
   });
 
-  it("向后兼容旧扁平 when（单层 all）还原为单层组", () => {
+  it("拒绝旧 when 包裹结构", () => {
     const legacy = {
       when: {
         all: [
@@ -103,18 +102,7 @@ describe("RULE-01 递归条件模型（P1-1）", () => {
         ],
       },
     };
-    const root = fromLegacyWhen(legacy);
-    expect(root.kind).toBe("group");
-    expect(root.logic).toBe("all");
-    expect(countLeaves(root)).toBe(1);
-    expect(treeDepth(root)).toBe(1);
-    const leaf = root.children[0];
-    expect(leaf.kind).toBe("leaf");
-    if (leaf.kind === "leaf") {
-      expect(leaf.fact).toBe("context.scr");
-      expect(leaf.operator).toBe("gte");
-      expect(leaf.label).toBe("肌酐");
-    }
+    expect(() => dslToRootGroup(legacy)).toThrow("规则算子不在受控目录内");
   });
 
   it("顶层为叶子时用单叶 all 组包裹", () => {

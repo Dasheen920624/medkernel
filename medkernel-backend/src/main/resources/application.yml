@@ -62,6 +62,7 @@ medkernel:
       ttl: ${MEDKERNEL_API_IDEMPOTENCY_TTL:24h}
   integration:
     health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
+    secret-key: ${MEDKERNEL_INTEGRATION_SECRET_KEY:}
   auth:
     jwt:
       ttl-seconds: 28800
@@ -125,6 +126,7 @@ medkernel:
       backup-script: ./deploy/docker/scripts/backup.sh
       restore-script: ./deploy/docker/scripts/restore.sh
       checksum-policy: SHA-256 摘要随备份文件生成，恢复前自动校验
+      drill-evidence-file: ${MEDKERNEL_BACKUP_DRILL_EVIDENCE_FILE:}
     domestic-profile:
       target-os: 麒麟 / 统信 / openEuler
       target-jdk: KAE-JDK 21 / BiSheng JDK 21

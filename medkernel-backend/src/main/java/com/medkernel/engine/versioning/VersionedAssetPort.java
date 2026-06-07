@@ -14,15 +14,9 @@ public interface VersionedAssetPort {
     AssetVersion registerDraft(AssetVersionRegisterCommand command);
 
     /**
-     * 更新草稿或待审核版本内容；已发布及后续状态必须拒绝原地修改。
+     * 更新草稿或待审核版本的完整登记；已发布及后续状态必须拒绝原地修改。
      */
-    AssetVersion updateDraftContent(
-        String tenantId,
-        String versionId,
-        String content,
-        String contentHash,
-        String actor
-    );
+    AssetVersion updateDraft(AssetVersionDraftUpdateCommand command);
 
     /**
      * 将草稿或待审核版本置为已发布，只读但尚未成为运行生效版本。

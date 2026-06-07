@@ -160,7 +160,19 @@ public class RuleEngineController {
     }
 
     /**
-     * 按触发点和上下文执行所有匹配的已发布规则。
+     * 由医院管理员确认当前影响摘要后，将已灰度规则全量激活。
+     */
+    @PostMapping("/rules/{ruleId}/rollout/full")
+    @PreAuthorize("@perm.has('rule.publish')")
+    public ApiResult<RulePublishResponse> fullRollout(
+            @PathVariable String ruleId,
+            @RequestBody @Valid RulePublishRequest request) {
+        validateContext(request);
+        return ApiResult.ok(service.fullRollout(ruleId, request));
+    }
+
+    /**
+     * 按触发点和上下文执行所有匹配且统一版本已激活的规则。
      *
      * <p>权限：{@code rule.read}；返回命中明细、最高严重度与 traceId，供临床嵌入提示消费。
      */
@@ -169,6 +181,17 @@ public class RuleEngineController {
     public ApiResult<RuleEvaluateResponse> evaluate(@RequestBody @Valid RuleEvaluateRequest request) {
         validateContext(request);
         return ApiResult.ok(service.evaluate(request));
+    }
+
+    /**
+     * 分页读取当前租户的规则执行目录，供解释回放选择。
+     */
+    @GetMapping("/rules/executions")
+    @PreAuthorize("@perm.has('rule.read')")
+    public ApiResult<PageResponse<RuleExecutionSummaryResponse>> listExecutions(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResult.ok(service.listExecutions(new PageRequest(page, size, "executedAt,desc")));
     }
 
     /**

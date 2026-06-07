@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * （一级业务域 → 二级分组 → 字段）组织，供规则 / 路径创作时的字段选择器消费，解决
  * 「上下文没有字典 / 数据源可选」并贴合临床认知。
  *
- * <p>当前为代码内派生的权威清单（与 {@code engine.context.canonical.*} 记录字段一一对应），
+ * <p>当前为平台派生的权威清单（与 {@code engine.context.canonical.*} 记录字段一一对应），
  * 不内置任何业务数据；租户自定义扩展字段后续以持久化表叠加（见 OpenSpec 设计附录 B）。
  */
 @Component
@@ -39,9 +39,23 @@ public class ContextFieldCatalog {
         f.add(derivedField(CAT_BASIC, "患者基本信息", "Patient", "patient.age", "年龄", "number", "岁",
             "求值期由出生日期与事件时间计算的整岁（派生字段，不可前台维护）"));
         f.add(field(CAT_BASIC, "患者基本信息", "Patient", "patient.gender", "性别", "string", null, null));
-        // 基本信息 · 过敏与特殊人群
-        f.add(field(CAT_BASIC, "过敏与特殊人群", "Patient", "patient.allergies", "过敏列表（粗粒度）", "list",
-            null, "院内粗粒度过敏编码列表；结构化过敏待后续资源补齐"));
+        // 基本信息 · 结构化过敏与特殊人群
+        f.add(codeField(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].code",
+            "过敏物质编码", "ATC", "药物过敏场景优先绑定药品标准字典"));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].codeSystem",
+            "过敏物质编码系统", "string", null, null));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].substance",
+            "过敏物质名称", "string", null, null));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].category",
+            "过敏类别", "string", null, "如 medication / food / environment"));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].criticality",
+            "严重等级", "string", null, "用于高危用药拦截"));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].reactions",
+            "反应表现", "list", null, "如皮疹 / 喉头水肿"));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].onsetTime",
+            "发生时间", "date", null, null));
+        f.add(field(CAT_BASIC, "结构化过敏", "AllergyIntolerance", "allergyIntolerances[].qualityStatus",
+            "数据质量", "string", null, "用于规则证据展示与人工复核"));
         f.add(field(CAT_BASIC, "过敏与特殊人群", "Patient", "patient.specialPopulations", "特殊人群标记",
             "list", null, "如妊娠 / 儿童 / 老年，用于规则适用域"));
 
@@ -166,7 +180,7 @@ public class ContextFieldCatalog {
         String dataType, String unit, String description) {
         return new ContextFieldDescriptor(
             category, group, resourceType, fieldPath, displayName, dataType, unit, null, description,
-            "SYSTEM", null, false);
+            "PLATFORM", null, false);
     }
 
     private static ContextFieldDescriptor codeField(
@@ -174,7 +188,7 @@ public class ContextFieldCatalog {
         String codeSystem, String description) {
         return new ContextFieldDescriptor(
             category, group, resourceType, fieldPath, displayName, "code", null, codeSystem, description,
-            "SYSTEM", null, false);
+            "PLATFORM", null, false);
     }
 
     /** 求值期计算的派生字段（如 {@code patient.age}），{@code derived=true}，不可前台维护。 */
@@ -183,7 +197,7 @@ public class ContextFieldCatalog {
         String dataType, String unit, String description) {
         return new ContextFieldDescriptor(
             category, group, resourceType, fieldPath, displayName, dataType, unit, null, description,
-            "SYSTEM", null, true);
+            "PLATFORM", null, true);
     }
 
     /**

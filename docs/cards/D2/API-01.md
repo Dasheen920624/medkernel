@@ -7,7 +7,7 @@
 - 卡 ID：API-01（= backlog 任务 ID）
 - 域：D2 试点准备
 - 关联场景：横切（S2 院内系统接入 / S8 临床嵌入运行的上下文输入底座；所有引擎的统一只读入参）
-- 依赖卡：[SYS-01](../D0/SYS-01.md)（12 标准对象 + `ClinicalEventContext`）· [BASE-03](../D0/BASE-03.md)（ApiResult/ProblemDetail/Record DTO）· [BASE-01](../D0/BASE-01.md)（OrgContext/包版本快照）· [OBS-01](../D0/OBS-01.md)（traceId/diagnose）
+- 依赖卡：[SYS-01](../D0/SYS-01.md)（13 标准对象 + `ClinicalEventContext`）· [BASE-03](../D0/BASE-03.md)（ApiResult/ProblemDetail/Record DTO）· [BASE-01](../D0/BASE-01.md)（OrgContext/包版本快照）· [OBS-01](../D0/OBS-01.md)（traceId/diagnose）
 - 工作量：3d
 - owner / reviewer：Codex / 待 PR 指派 reviewer（owner ≠ reviewer）
 
@@ -20,13 +20,13 @@
 实质基础已齐，本卡＝**契约化 / 真实化 / 补全**而非从零：
 
 - 已有 `engine/context/`：`ContextSnapshot{Controller/Service/Request/Filter/Response/Status/Summary/Resources/Repository}`，端点 `POST /api/v1/engine/context/snapshots` + `GET /{id}` + `GET /{id}/diagnose` + `GET`（分页）；`ContextSnapshotControllerSecurityTest`/`ContextSnapshotTraceEndToEndTest` 在。
-- 已有 `CanonicalResource(+Type/Repository)` 与 `canonical/` 12 子类型、`PackageVersionPort`(+Lenient 适配)、`ContextValidator`、`MissingFieldEntry`、`ContextIdempotencyKey`、`TerminologyMappingPort`、`QualityStatus`。
+- 已有 `CanonicalResource(+Type/Repository)` 与 13 类 canonical 资源；过敏信息只使用结构化 `AllergyIntolerance`。`PackageVersionPort` 由关系库配置包适配器实现，不接受未登记版本。
 - **补全点**：对齐详规 §1.4 的 12 字段统一入参与 §1.5.2 的"标准上下文 ID + 缺失字段 + 映射状态"输出口径；包版本快照一致性、幂等、组织作用域、缺字段诚实暴露的契约固化与测试补全。
 
 ## 功能要求（原子可测条目）
 
 - [x] **FR-1 快照组装**：`POST /api/v1/engine/context/snapshots` 接收详规 §1.4 统一入参（`request_id`/`trace_id`/租户六层/`user_id`/`role_codes`/`patient_id`/`encounter_id`/`package_version`）+ 临床切片（诊断/医嘱/检验/检查/组织），组装为标准上下文快照，返回 `{snapshotId, 缺失字段, 映射状态}`。
-- [x] **FR-2 只读消费 12 标准对象**：快照内容**引用** [SYS-01](../D0/SYS-01.md) 的 12 类 `CanonicalResource`，**不重定义模型**；快照是只读组合，非新权威实体。
+- [x] **FR-2 只读消费 13 标准对象**：快照内容**引用** [SYS-01](../D0/SYS-01.md) 的 13 类 `CanonicalResource`，**不重定义模型**；快照是只读组合，非新权威实体。
 - [x] **FR-3 包版本快照绑定**：每个快照绑定生效 `packageVersion`（经 `PackageVersionPort`）；同一快照内多次解析配置/知识返回**同一版本**（呼应核心 §7 唯一权威知识、[BASE-01](../D0/BASE-01.md) 请求快照）。
 - [x] **FR-4 缺失/映射诚实暴露**：缺必填字段 → `MissingFieldEntry` 逐条列出；编码未映射 → 映射状态标记（指向 [TERM-01](TERM-01.md) 字典卡），**不静默填默认、不伪造映射**。
 - [x] **FR-5 幂等**：`(tenant_id, request_id)` 幂等键（`ContextIdempotencyKey`），重复请求返回**同一** `snapshotId`，不重复落库。
@@ -37,7 +37,7 @@
 
 ### 接口契约（引擎/API 卡）
 - 端点：`POST /api/v1/engine/context/snapshots`（创建）· `GET /api/v1/engine/context/snapshots/{snapshotId}` · `GET .../{snapshotId}/diagnose`（专家模式解释）· `GET .../snapshots`（分页列表，复用 [API-13](../D0/API-13.md)）。
-- DTO：`ContextSnapshotRequest`（Record + Bean Validation，§1.4 统一入参）→ `ContextSnapshotResponse {snapshotId, resources(12 类引用), missingFields[], mappingStatus, packageVersion, qualityStatus, traceId}`（核心 #7）。
+- DTO：`ContextSnapshotRequest`（Record + Bean Validation，§1.4 统一入参）→ `ContextSnapshotResponse {snapshotId, resources(13 类引用), missingFields[], mappingStatus, packageVersion, qualityStatus, traceId}`（核心 #7）。
 - 响应信封：`ApiResult`；缺上下文/越权/校验失败用 `ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 - 状态机：N·A —— 上下文快照是**临床事实只读投影**（带 `QualityStatus` 质量状态，非"配置/变更/待办/告警"四类资产业务状态机）；快照不可变，无状态流转。
 - 幂等 / 错误码 / traceId：`(tenant_id, request_id)` 幂等；越权 `ORG_SCOPE_DENIED / ENG-BASE-004`；缺上下文当前沿用平台脊柱 `ENG-BASE-001 / TENANT_CONTEXT_MISSING`（`CONTEXT_MISSING` 命名别名治理登记 [DEFER-008](../../audit/deferred-issues.md)）；校验失败沿用 `ENG-CONTEXT-001/003`；全链路带 traceId（[OBS-01](../D0/OBS-01.md) 同源）。
@@ -46,7 +46,7 @@
 N·A —— 本卡无页面。快照被 D3 患者主索引/临床提醒页消费；`diagnose` 仅专家模式抽屉。
 
 ## 数据与迁移
-- 表族：`context_snapshot`（快照头：患者/就诊/组织/包版本/质量/trace）· `context_idempotency_key`（幂等）· `canonical_resource`（快照内 12 类标准资源引用，[SYS-01](../D0/SYS-01.md) 立，本卡读；不再另造 `context_snapshot_resource` 影子表）。
+- 表族：`context_snapshot`（快照头：患者/就诊/组织/包版本/质量/trace）· `context_idempotency_key`（幂等）· `canonical_resource`（快照内 13 类标准资源引用）· `mk_clinical_allergy_intolerance`（结构化过敏权威资源）。
 - 主键：现有关系库自增主键 + `snapshot_id` 业务唯一；`(tenant_id, request_id)` 由 `context_idempotency_key` 保证幂等；索引：`patient_id`、`encounter_id`、`org_path`、`package_version`、资源 `event_time`。
 - 组织字段：`tenant_id` + `org_path` + 审计字段（[BASE-01](../D0/BASE-01.md) 规约、[BASE-04](../D0/BASE-04.md) 留痕）。
 - 5 方言迁移：h2/postgres/oracle/dm/kingbase 一致 + 中文注释 + 高基数索引（核心 §12；现状已有 context 迁移，本卡补齐快照引用/幂等约束）。
@@ -69,7 +69,7 @@ N·A —— 本卡无页面。快照被 D3 患者主索引/临床提醒页消费
 - 本卡落点：以一个**不可变上下文快照 + 包版本绑定 + 缺失/映射诚实暴露**，把"任意引擎要消费的患者上下文"在入口一次性钉死，下游引擎零散组装、零版本漂移。
 
 ## 验收 + 验证
-- [x] **AC-1（FR-1/2）**：构造一次含患者/就诊/诊断/医嘱/报告/组织的请求 → 返回 `snapshotId`，快照内 12 标准对象引用正确、可往返读出。
+- [x] **AC-1（FR-1/2）**：构造一次含患者/结构化过敏/就诊/诊断/医嘱/报告/组织的请求 → 返回 `snapshotId`，快照内 13 标准对象引用正确、可往返读出。
 - [x] **AC-2（FR-3）**：同一快照内两次解析同一配置/知识键 → 返回**同一** `packageVersion`（即使期间有新版本激活）。
 - [x] **AC-3（FR-4）**：构造缺"诊断"且含未映射本地检验码的请求 → 响应 `missingFields` 列出诊断、`mappingStatus` 标未映射，**未填任何默认值**。
 - [x] **AC-4（FR-5）**：同 `(tenant, request_id)` 重复 POST → 返回同一 `snapshotId`，库中不新增第二条。

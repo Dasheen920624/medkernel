@@ -36,14 +36,16 @@ import jakarta.validation.constraints.NotNull;
  * <p>客户端永远不允许传 tenantId 参数（防越权伪造），均由 RequestContext 隐式注入。
  */
 @RestController
-@RequestMapping({"/api/v1/engine/org/org-units", "/api/v1/tenant/org-units"})
+@RequestMapping("/api/v1/engine/org/org-units")
 @DataScope(requireTenant = true)
 public class OrgUnitController {
 
     private final OrgUnitService service;
+    private final OrgUserDirectoryService userDirectory;
 
-    public OrgUnitController(OrgUnitService service) {
+    public OrgUnitController(OrgUnitService service, OrgUserDirectoryService userDirectory) {
         this.service = service;
+        this.userDirectory = userDirectory;
     }
 
     @GetMapping
@@ -51,8 +53,14 @@ public class OrgUnitController {
     public ApiResult<PageResponse<OrgUnit>> list(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrgLevel level,
+            @RequestParam(required = false) OrgUnitStatus status) {
         PageRequest req = new PageRequest(page, size, sort);
+        if (keyword != null || level != null || status != null) {
+            return ApiResult.ok(service.searchByCurrentTenant(req, keyword, level, status));
+        }
         return ApiResult.ok(service.listByCurrentTenant(req));
     }
 
@@ -75,7 +83,23 @@ public class OrgUnitController {
     }
 
     /**
-     * 在当前租户下原子创建组织单元节点（集团/医院/院区/服务点/科室/专病等）。
+     * 分页读取当前租户的启用用户，供责任人等业务字段选择。
+     */
+    @GetMapping("/users")
+    @PreAuthorize("@perm.has('org.read')")
+    public ApiResult<PageResponse<OrgUserDirectoryItem>> users(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
+        if (keyword != null) {
+            return ApiResult.ok(userDirectory.search(
+                new PageRequest(page, size, "displayName,asc"), keyword));
+        }
+        return ApiResult.ok(userDirectory.list(new PageRequest(page, size, "displayName,asc")));
+    }
+
+    /**
+     * 在当前租户下原子创建组织单元节点（集团/医院/院区/服务点/科室等）。
      *
      * @param dto 组织单元创建请求负载
      * @return 统一返回格式包，包含已落库的实体

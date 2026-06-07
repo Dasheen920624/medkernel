@@ -8,7 +8,7 @@
 - 卡 ID：DOMCHK-01（页面卡；= backlog `D6-PAGE-国产化自检` 实化）
 - 域：D6 高级工具
 - 关联场景：运维 / 国产化交付
-- 依赖卡：[CONFIG-01](../D0/CONFIG-01.md)（配置）· [SVC-COMPLIANCE-02](../D5/SVC-COMPLIANCE-02.md)（Provider/许可）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
+- 依赖卡：[CONFIG-01](../D0/CONFIG-01.md)（配置）· [SVC-COMPLIANCE-02](../D5/SVC-COMPLIANCE-02.md)（运行状态）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [INFRA-09](../D1/INFRA-09.md)
 - 工作量：2d
 - owner / reviewer：待派单（owner ≠ reviewer）
 
@@ -27,7 +27,7 @@
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费国产化自检 API（[SVC-COMPLIANCE-02](../D5/SVC-COMPLIANCE-02.md) Provider/许可相邻）。
+N·A —— 消费国产化自检 API（[SVC-COMPLIANCE-02](../D5/SVC-COMPLIANCE-02.md) 运行状态相邻）。
 ### 页面契约（页面卡）
 - 路由元数据：sectionKey `advanced` / menuKey `domestic-check` / menuLabel `国产化自检` / path `/advanced/domestic` / requiredPermissions 国产化自检 / requiredRoles 信息科·运维。
 - 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 自检项列表（状态色阶 token）+ 不兼容详情 + 报告导出 + 六态。

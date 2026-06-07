@@ -11,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
+import com.medkernel.engine.security.TenantUser;
+import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 
 /**
  * 首发身份应急命令：只在显式启动参数下执行 MFA 重置或账号解锁，必须本机 + 二次确认。
@@ -26,20 +28,24 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
     private static final String LOCAL_CONFIRM = "MEDKERNEL_LOCAL_CONSOLE";
 
     private final PlatformCredentialRepository credentials;
-    private final AuditEventPublisher auditPublisher;
+    private final TenantUserRepository users;
+    private final AuditRecorder auditRecorder;
     private final PrintStream output;
 
     @Autowired
     public BootstrapEmergencyCommand(PlatformCredentialRepository credentials,
-                                     AuditEventPublisher auditPublisher) {
-        this(credentials, auditPublisher, System.out);
+                                     TenantUserRepository users,
+                                     AuditRecorder auditRecorder) {
+        this(credentials, users, auditRecorder, System.out);
     }
 
     BootstrapEmergencyCommand(PlatformCredentialRepository credentials,
-                              AuditEventPublisher auditPublisher,
+                              TenantUserRepository users,
+                              AuditRecorder auditRecorder,
                               PrintStream output) {
         this.credentials = credentials;
-        this.auditPublisher = auditPublisher;
+        this.users = users;
+        this.auditRecorder = auditRecorder;
         this.output = output;
     }
 
@@ -72,7 +78,7 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
             credential.username(), credential.passwordHash(), credential.status(), credential.mustChangePwd(),
             null, credential.createdAt(), credential.createdBy(),
             now, actor, credential.traceId()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId,
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", userId,
             "应急重置 MFA actor=" + actor + " reason=" + reason);
         output.println("bootstrap-emergency=mfa-reset userId=" + userId + " mfaStatus=RESET_REQUIRED");
     }
@@ -86,7 +92,12 @@ public class BootstrapEmergencyCommand implements ApplicationRunner {
             credential.username(), credential.passwordHash(), "ACTIVE", credential.mustChangePwd(),
             credential.mfaSecret(), credential.createdAt(), credential.createdBy(),
             now, actor, credential.traceId()));
-        auditPublisher.publish(AuditAction.EXECUTE, "platform_credential", userId,
+        users.findByTenantIdAndUserId(tenantId, userId).ifPresent(user ->
+            users.save(new TenantUser(
+                user.id(), user.tenantId(), user.userId(), user.displayName(),
+                "ACTIVE", user.version() + 1L, user.createdAt(), user.createdBy(),
+                now, actor, credential.traceId())));
+        auditRecorder.record(AuditAction.EXECUTE, "platform_credential", userId,
             "应急解锁账号 actor=" + actor + " reason=" + reason);
         output.println("bootstrap-emergency=unlock userId=" + userId + " status=ACTIVE");
     }

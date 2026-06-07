@@ -1,7 +1,9 @@
 package com.medkernel.engine.pkg;
 
 /**
- * 灰度发布作用范围类型。
+ * 发布组织作用范围类型。
+ *
+ * <p>专病等横切维度由请求上下文的 specialtyId 表达，不混入组织层级。
  */
 public enum ReleaseScopeType {
     /** 全体 */
@@ -15,7 +17,5 @@ public enum ReleaseScopeType {
     /** 指定社区服务点 */
     SITE,
     /** 指定科室 */
-    DEPARTMENT,
-    /** 指定专病 / 专科维度 */
-    SPECIALTY
+    DEPARTMENT
 }

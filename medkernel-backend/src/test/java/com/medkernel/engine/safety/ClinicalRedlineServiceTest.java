@@ -15,7 +15,7 @@ import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -27,15 +27,15 @@ class ClinicalRedlineServiceTest {
 
     private ClinicalRedlineRepository repository;
     private ClinicalRedlineTrialRepository trialRepository;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private ClinicalRedlineService service;
 
     @BeforeEach
     void setUp() {
         repository = Mockito.mock(ClinicalRedlineRepository.class);
         trialRepository = Mockito.mock(ClinicalRedlineTrialRepository.class);
-        auditPublisher = Mockito.mock(AuditEventPublisher.class);
-        service = new ClinicalRedlineService(repository, trialRepository, auditPublisher);
+        auditRecorder = Mockito.mock(AuditRecorder.class);
+        service = new ClinicalRedlineService(repository, trialRepository, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline", OrgScope.tenant("tenant-A"), "medical-admin-1"));
     }
@@ -153,7 +153,7 @@ class ClinicalRedlineServiceTest {
         assertThat(response.traceId()).isEqualTo("trace-redline");
         verify(repository).save(any(ClinicalRedlineRule.class));
         verify(trialRepository).save(any(ClinicalRedlineTrial.class));
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             AuditAction.EXECUTE,
             "mk_engine_clinical_redline_trial",
             response.trialId(),
@@ -295,7 +295,7 @@ class ClinicalRedlineServiceTest {
         assertThat(response.status()).isEqualTo(ClinicalRedlineStatus.ACTIVE);
         assertThat(response.redlineVersion()).isEqualTo("2026.2");
         verify(repository).save(any(ClinicalRedlineRule.class));
-        verify(auditPublisher).publish(
+        verify(auditRecorder).record(
             AuditAction.PUBLISH,
             "mk_engine_clinical_redline",
             "redline-ddi-warfarin-nsaid",

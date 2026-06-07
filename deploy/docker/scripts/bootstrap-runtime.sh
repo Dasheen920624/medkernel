@@ -22,6 +22,7 @@ mkdir -p \
   "$RUNTIME_ROOT/data/prometheus" \
   "$RUNTIME_ROOT/data/grafana" \
   "$RUNTIME_ROOT/backups" \
+  "$RUNTIME_ROOT/backups/drills" \
   "$RUNTIME_ROOT/dify"
 
 generate_if_placeholder() {
@@ -59,6 +60,7 @@ ensure_setting "MEDKERNEL_NEO4J_HEALTH_ENABLED" "${MEDKERNEL_NEO4J_HEALTH_ENABLE
 ensure_setting "DIFY_GIT_REF" "$DIFY_GIT_REF"
 ensure_setting "DIFY_HTTPS_PORT" "${DIFY_HTTPS_PORT:-8443}"
 generate_if_placeholder "MEDKERNEL_DB_PASSWORD"
+generate_if_placeholder "MEDKERNEL_INTEGRATION_SECRET_KEY"
 generate_if_placeholder "MEDKERNEL_NEO4J_PASSWORD"
 generate_if_placeholder "MEDKERNEL_GRAFANA_ADMIN_PASSWORD"
 chmod 600 "$ENV_FILE"

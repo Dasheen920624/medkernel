@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class H2BaselineMigrationTest {
 
-    private static final int LATEST_MIGRATION_VERSION = 93;
+    private static final int LATEST_MIGRATION_VERSION = 96;
 
     @Test
     void h2AppliesCompleteAuthoritativeBaselineMigrations() {
@@ -61,6 +61,11 @@ class H2BaselineMigrationTest {
             .contains("admin-1", "doctor-1", "implementation-1", "it-ops-1", "qa-manager-1",
                 "system-superadmin-1");
 
+        Integer tenantUserCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM tenant_user WHERE tenant_id = 't-1'",
+            Integer.class);
+        assertThat(tenantUserCount).as("角色种子已收敛为统一租户用户目录").isEqualTo(14);
+
         Integer roleCount = jdbc.queryForObject(
             "SELECT COUNT(*) FROM sys_role WHERE tenant_id = 'SYSTEM' AND built_in_flag = 'Y'",
             Integer.class);
@@ -73,10 +78,15 @@ class H2BaselineMigrationTest {
         assertThat(dimensions).as("五维权限点目录")
             .containsExactly("ACTION", "ASSET", "DATA", "ENVIRONMENT", "MENU");
 
-        Integer demoPermissionCount = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM sys_permission WHERE permission_code = 'workbench:demo:view'",
+        Integer readinessPermissionCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM sys_permission WHERE permission_code = 'workbench:readiness:view'",
             Integer.class);
-        assertThat(demoPermissionCount).as("WORKBENCH-02 动作权限目录").isEqualTo(1);
+        assertThat(readinessPermissionCount).as("WORKBENCH-02 动作权限目录").isEqualTo(1);
+
+        Integer modelCapabilityCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM model_capability_definition WHERE enabled_flag = 'Y'",
+            Integer.class);
+        assertThat(modelCapabilityCount).as("模型能力关系库目录种子").isEqualTo(8);
     }
 
     private HikariConfig hikari() {

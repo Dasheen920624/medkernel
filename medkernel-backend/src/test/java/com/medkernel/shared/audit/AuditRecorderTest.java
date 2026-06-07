@@ -74,4 +74,28 @@ class AuditRecorderTest {
         assertThat(event.payloadDigest()).startsWith("sm3:");
         assertThat(event.payloadDigest()).doesNotContain(event.id());
     }
+
+    @Test
+    void recordConvenienceOverloadUsesTheSameCanonicalPipeline() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-convenience",
+            OrgScope.tenant("t-1"),
+            "u-1"));
+        List<AuditEvent> captured = new ArrayList<>();
+        AuditRecorder recorder = new AuditRecorder(
+            event -> captured.add((AuditEvent) event),
+            new ObjectMapper(),
+            new SmCryptoService());
+
+        AuditEvent event = recorder.record(
+            AuditAction.CREATE,
+            "knowledge_package",
+            "pkg-1",
+            "创建配置包");
+
+        assertThat(captured).containsExactly(event);
+        assertThat(event.traceId()).isEqualTo("trace-convenience");
+        assertThat(event.resourceType()).isEqualTo("knowledge_package");
+        assertThat(event.payloadDigest()).startsWith("sm3:");
+    }
 }

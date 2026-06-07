@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
  * 全线经过 @DataScope(requireTenant = true) 隔离校验，防止垂直越权。
  */
 @RestController
-@RequestMapping({"/api/v1/engine/mpi", "/api/v1/clinical/mpi"})
+@RequestMapping("/api/v1/engine/mpi")
 @DataScope(requireTenant = true)
 public class MpiController {
 
@@ -92,7 +92,7 @@ public class MpiController {
      * @param request 患者合并请求负载，包含源 MPI ID 与目标 MPI ID
      * @return 合并结果
      */
-    @PostMapping({"/patients:merge", "/patients/merge"})
+    @PostMapping("/patients:merge")
     @PreAuthorize("@perm.has('mpi.write')")
     public ApiResult<MpiMergeResult> mergePatients(@Valid @RequestBody MpiMergeRequest request) {
         return ApiResult.ok(service.mergePatients(request.sourceMpiId(), request.targetMpiId()));
@@ -101,7 +101,7 @@ public class MpiController {
     /**
      * 拆分已归并的患者主索引。
      */
-    @PostMapping({"/patients/{sourceMpiId}:split", "/patients/{sourceMpiId}/split"})
+    @PostMapping("/patients/{sourceMpiId}:split")
     @PreAuthorize("@perm.has('mpi.write')")
     public ApiResult<MpiSplitResult> splitMergedPatient(@PathVariable String sourceMpiId,
                                                         @Valid @RequestBody MpiSplitRequest request) {

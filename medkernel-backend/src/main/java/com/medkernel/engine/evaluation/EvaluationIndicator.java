@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * 评估指标版本实体。
  *
  * <p>一个记录表示同租户、同指标编码下的一个不可变口径版本；状态按
- * {@code DRAFT -> PENDING_REVIEW -> PUBLISHED -> ACTIVE -> OFFLINE -> ARCHIVED} 流转。
+ * {@code DRAFT -> PENDING_REVIEW -> PUBLISHED -> GRAY -> ACTIVE -> OFFLINE -> ARCHIVED} 流转。
  */
 @Table("evaluation_indicator")
 public record EvaluationIndicator(

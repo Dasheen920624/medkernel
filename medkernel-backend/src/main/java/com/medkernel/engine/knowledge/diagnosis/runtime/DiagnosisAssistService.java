@@ -18,6 +18,7 @@ import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidence;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidencePolicy;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidencePolicyRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatchResult;
@@ -32,6 +33,7 @@ import com.medkernel.engine.recommendation.RecommendationSourceType;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.BusinessMetrics;
 
@@ -58,6 +60,7 @@ public class DiagnosisAssistService {
     private final KnowledgeAssetVersionRepository versions;
     private final KnowledgeIdentityRepository identities;
     private final DiagnosisCriterionRepository criteria;
+    private final DiagnosisCarePointerRepository carePointers;
     private final DiagnosisConfidencePolicyRepository policies;
     private final DiagnosisMatcher matcher;
     private final DiagnosisFindingExtractor extractor;
@@ -68,7 +71,8 @@ public class DiagnosisAssistService {
 
     public DiagnosisAssistService(ContextSnapshotService snapshots, KnowledgeAssetVersionRepository versions,
             KnowledgeIdentityRepository identities, DiagnosisCriterionRepository criteria,
-            DiagnosisConfidencePolicyRepository policies, DiagnosisMatcher matcher,
+            DiagnosisCarePointerRepository carePointers, DiagnosisConfidencePolicyRepository policies,
+            DiagnosisMatcher matcher,
             DiagnosisFindingExtractor extractor, DiagnosisRedlinePort redlinePort,
             RecommendationEngineService recommendationEngine, ObjectMapper objectMapper,
             BusinessMetrics businessMetrics) {
@@ -76,6 +80,7 @@ public class DiagnosisAssistService {
         this.versions = versions;
         this.identities = identities;
         this.criteria = criteria;
+        this.carePointers = carePointers;
         this.policies = policies;
         this.matcher = matcher;
         this.extractor = extractor;
@@ -104,12 +109,19 @@ public class DiagnosisAssistService {
             }
             KnowledgeIdentity identity = identities.findByTenantIdAndId(tenant, v.identityId()).orElse(null);
             boolean redline = identity != null && redlinePinned.contains(identity.identityCode());
+            List<DiagnosisCareSuggestion> careSuggestions = carePointers
+                .findByTenantIdAndDiagnosisVersionId(tenant, v.id()).stream()
+                .map(pointer -> new DiagnosisCareSuggestion(
+                    pointer.pointerType(), pointer.targetType(), pointer.targetRef(),
+                    pointer.description(), true))
+                .toList();
             candidates.add(new DiagnosisCandidate(
                 v.identityId(),
                 identity == null ? null : identity.subject(),
                 identity == null ? null : identity.identityCode(),
                 result.confidence(),
                 result.supporting(), result.refuting(), result.missingRequired(),
+                careSuggestions,
                 v.authorityLevel() == null ? null : v.authorityLevel().name(), redline, v.id()));
         }
         candidates.sort(rankComparator());
@@ -129,17 +141,20 @@ public class DiagnosisAssistService {
         List<RecommendationCardRequest> cards = candidates.stream().map(this::toCard).toList();
         recommendationEngine.trigger(new RecommendationTriggerRequest(
             "DX-" + snapshotId, TRIGGER_HOOK, null, snapshotId, null, null, null,
-            SCENARIO_CODE, null, inputDigest(findingCodes), null, cards, null, null, null));
+            SCENARIO_CODE, null, inputDigest(findingCodes), null, cards, Boolean.FALSE));
     }
 
     private RecommendationCardRequest toCard(DiagnosisCandidate c) {
         String name = c.diagnosisName() == null ? String.valueOf(c.identityId()) : c.diagnosisName();
+        String suggestedAction = c.careSuggestions().isEmpty()
+            ? "辅助建议，请医师确认（非自动诊断）"
+            : "医师确认诊断后查看 " + c.careSuggestions().size() + " 项诊疗建议";
         return new RecommendationCardRequest(
             "dx-" + c.identityId(),
             RecommendationCardType.DIAGNOSIS,
             name,
             "支持 " + c.supporting().size() + " 项 / 缺失必需 " + c.missingRequired().size() + " 项",
-            "辅助建议，请医师确认（非自动诊断）",
+            suggestedAction,
             c.redline() ? RecommendationRiskLevel.HIGH : RecommendationRiskLevel.LOW,
             RecommendationInterruptLevel.INFO,
             true,
@@ -160,6 +175,7 @@ public class DiagnosisAssistService {
                 "supporting", c.supporting(),
                 "refuting", c.refuting(),
                 "missingRequired", c.missingRequired(),
+                "careSuggestions", c.careSuggestions(),
                 "confidence", c.confidence().name()));
         } catch (JsonProcessingException e) {
             throw new ApiException(ErrorCode.INTERNAL_ERROR, "诊断解释序列化失败", e);
@@ -173,7 +189,7 @@ public class DiagnosisAssistService {
 
     private DiagnosisConfidencePolicy resolvePolicy(String tenant) {
         return policies.findByTenantIdAndScopeKey(tenant, "DEFAULT")
-            .or(() -> policies.findByTenantIdAndScopeKey("t-1", "DEFAULT"))
+            .or(() -> policies.findByTenantIdAndScopeKey(PlatformTenant.ID, "DEFAULT"))
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_DX_005, "缺少默认置信策略 DEFAULT"));
     }
 

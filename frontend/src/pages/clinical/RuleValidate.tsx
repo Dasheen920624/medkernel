@@ -4,6 +4,8 @@ import {
   Col,
   Card,
   Input,
+  Pagination,
+  Select,
   Button,
   Table,
   Tag,
@@ -20,11 +22,17 @@ import {
   FileTextOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
-import { useEvaluateRules, useRuleExecutionExplain } from "@/shared/api/hooks";
+import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import {
+  useContextSnapshotDetail,
+  useContextSnapshots,
+  useEvaluateRules,
+  useRuleExecutions,
+  useRuleExecutionExplain,
+} from "@/shared/api/hooks";
 import type { RuleEvaluationItem, RuleEvaluateResponse } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
-
-const { TextArea } = Input;
+import styles from "./Clinical.module.css";
 
 function isCriticalSeverity(severity?: string | null) {
   return severity === "CRITICAL";
@@ -54,39 +62,57 @@ function severityColor(severity?: string | null) {
 }
 
 export default function RuleValidate() {
-  const [contextJson, setContextJson] = useState<string>("");
   const [triggerPoint, setTriggerPoint] = useState<string>("order-sign");
-  const [patientId, setPatientId] = useState<string>("");
-  const [packageVersion, setPackageVersion] = useState<string>("");
+  const [snapshotPatientId, setSnapshotPatientId] = useState<string>("");
+  const [snapshotEncounterId, setSnapshotEncounterId] = useState<string>("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [replayExecutionId, setReplayExecutionId] = useState<string>("");
+  const [executionPage, setExecutionPage] = useState(1);
 
   const [evaluateResponse, setEvaluateResponse] = useState<RuleEvaluateResponse | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   const evaluateMutation = useEvaluateRules();
+  const hasSnapshotFilter = Boolean(snapshotPatientId.trim() || snapshotEncounterId.trim());
+  const snapshotsQuery = useContextSnapshots(
+    {
+      patientId: snapshotPatientId.trim() || undefined,
+      encounterId: snapshotEncounterId.trim() || undefined,
+      status: "ACTIVE",
+      page: 1,
+      size: 20,
+      sort: "createdAt,desc",
+    },
+    { enabled: hasSnapshotFilter },
+  );
+  const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
+    enabled: Boolean(selectedSnapshotId),
+  });
+  const executionsQuery = useRuleExecutions({ page: executionPage, size: 20 });
   const { data: explainData, isLoading: explainLoading } = useRuleExecutionExplain(
     selectedExecutionId || "",
   );
+  const executionOptions = (executionsQuery.data?.items ?? []).map((execution) => ({
+    value: execution.executionId,
+    label: `${execution.ruleId} · ${execution.triggerPoint} · ${executionStatusLabel(execution.status)} · ${formatTime(execution.executedAt)}`,
+  }));
 
   const handleEvaluate = async () => {
     try {
-      const payloadJson = contextJson.trim();
-      if (!payloadJson) {
-        message.error("请先粘贴真实脱敏上下文 JSON");
+      if (!selectedSnapshotId) {
+        message.error("请先选择 ACTIVE 临床快照");
         return;
       }
-      try {
-        JSON.parse(payloadJson);
-      } catch {
-        message.error("临床上下文的 JSON 格式不合法，请检查！");
+      const packageVersion = snapshotDetailQuery.data?.packageVersion?.trim();
+      if (!packageVersion) {
+        message.error("所选临床快照缺少配置包版本，不能执行规则");
         return;
       }
 
       const res = await evaluateMutation.mutateAsync({
         triggerPoint,
-        patientId: patientId.trim() || undefined,
         packageVersion,
-        payloadJson,
+        contextSnapshotId: selectedSnapshotId,
       });
 
       setEvaluateResponse(res);
@@ -99,7 +125,7 @@ export default function RuleValidate() {
   const handleReplayExecution = () => {
     const executionId = replayExecutionId.trim();
     if (!executionId) {
-      message.error("请输入历史执行 ExecutionId");
+      message.error("请选择历史执行记录");
       return;
     }
     setSelectedExecutionId(executionId);
@@ -122,7 +148,7 @@ export default function RuleValidate() {
       title: "版本 ID",
       dataIndex: "versionId",
       key: "versionId",
-      className: "font-semibold text-gray-800",
+      className: styles.textStrong,
       render: (text: string | undefined, record: RuleEvaluationItem) => (
         <span>{text || record.ruleCode || "未返回版本"}</span>
       ),
@@ -143,7 +169,7 @@ export default function RuleValidate() {
           record.actions?.map((action) => action.actionCode).filter(Boolean) ??
           (record.actionCode ? [record.actionCode] : []);
         return actionCodes.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
+          <div className={styles.tagRow}>
             {actionCodes.map((code) => (
               <Tag color={isRedlineActionCode(code) ? "red" : "blue"} key={code}>
                 {code}
@@ -159,9 +185,7 @@ export default function RuleValidate() {
       title: "命中解释",
       key: "explanation",
       render: (_value: unknown, record: RuleEvaluationItem) => (
-        <span className="text-xs text-gray-700 whitespace-pre-wrap">
-          {renderJson(record.explanation)}
-        </span>
+        <span className={styles.preWrap}>{renderJson(record.explanation)}</span>
       ),
     },
     {
@@ -174,13 +198,13 @@ export default function RuleValidate() {
               type="link"
               icon={<BugOutlined />}
               onClick={() => setSelectedExecutionId(evaluateResponse.executionId)}
-              className="text-indigo-600 hover:text-indigo-900 font-medium"
+              className={styles.linkButton}
             >
               查看执行解释
             </Button>
           );
         }
-        return <span className="text-gray-400">无可追溯快照</span>;
+        return <span className={styles.textMuted}>无可追溯快照</span>;
       },
     },
   ];
@@ -190,115 +214,151 @@ export default function RuleValidate() {
       title="规则试运行"
       description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
     >
-      <Row gutter={24}>
-        {/* 左栏：输入上下文 */}
-        <Col span={10}>
+      <Row gutter={[24, 24]}>
+        <Col xs={24} xl={10}>
           <Card
             title={
-              <div className="flex items-center gap-2 text-indigo-600">
-                <CompassOutlined />
+              <div className={styles.sectionTitle}>
+                <CompassOutlined className={styles.iconInfo} />
                 <span>临床输入上下文</span>
               </div>
             }
-            className="shadow-sm rounded-2xl border-gray-100"
+            className={styles.panelCard}
           >
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 mb-1">
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="rule-trigger-point">
                 触发时点 (Trigger Point)
-              </div>
+              </label>
               <Input
+                id="rule-trigger-point"
                 placeholder="输入触发时点编码"
                 value={triggerPoint}
                 onChange={(e) => setTriggerPoint(e.target.value)}
-                className="font-normal text-sm"
               />
             </div>
 
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 mb-1">患者 ID（可选）</div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="rule-patient-id">
+                患者 ID
+              </label>
               <Input
-                placeholder="输入真实患者 ID；无患者上下文时可留空"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                className="font-normal text-sm"
+                id="rule-patient-id"
+                placeholder="输入患者 ID 检索 ACTIVE 快照"
+                value={snapshotPatientId}
+                onChange={(e) => {
+                  setSnapshotPatientId(e.target.value);
+                  setSelectedSnapshotId("");
+                }}
               />
             </div>
 
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 mb-1">标准上下文包版本</div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="rule-encounter-id">
+                就诊 ID
+              </label>
               <Input
-                placeholder="输入本次规则求值绑定的配置包版本"
-                value={packageVersion}
-                onChange={(e) => setPackageVersion(e.target.value)}
-                className="font-normal text-sm"
+                id="rule-encounter-id"
+                placeholder="可单独按就诊 ID 检索"
+                value={snapshotEncounterId}
+                onChange={(e) => {
+                  setSnapshotEncounterId(e.target.value);
+                  setSelectedSnapshotId("");
+                }}
               />
             </div>
 
-            <div>
-              <div className="text-xs font-semibold text-gray-700 mb-1">
-                真实脱敏 Payload JSON 快照
-              </div>
-              <TextArea
-                rows={16}
-                value={contextJson}
-                onChange={(e) => setContextJson(e.target.value)}
-                placeholder="粘贴由上下文快照接口返回的脱敏 JSON，不在页面内预置患者、病种或药品。"
-                className="font-normal text-xs p-3 bg-gray-50 rounded-lg"
-              />
-            </div>
+            <ContextSnapshotSelector
+              enabled={hasSnapshotFilter}
+              loading={snapshotsQuery.isLoading}
+              error={snapshotsQuery.isError}
+              snapshots={snapshotsQuery.data?.items ?? []}
+              selectedSnapshotId={selectedSnapshotId}
+              onSelect={setSelectedSnapshotId}
+            />
+
+            {snapshotDetailQuery.data && (
+              <Descriptions bordered size="small" column={1} className={styles.sectionGap}>
+                <Descriptions.Item label="配置包版本">
+                  {snapshotDetailQuery.data.packageVersion || "缺失"}
+                </Descriptions.Item>
+                <Descriptions.Item label="质量状态">
+                  {snapshotDetailQuery.data.qualityStatus}
+                </Descriptions.Item>
+                <Descriptions.Item label="链路 TraceId">
+                  {snapshotDetailQuery.data.traceId || "未返回"}
+                </Descriptions.Item>
+              </Descriptions>
+            )}
 
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
               onClick={handleEvaluate}
               loading={evaluateMutation.isPending}
-              className="w-full mt-6 h-10 font-semibold"
+              disabled={!selectedSnapshotId || snapshotDetailQuery.isLoading}
+              className={styles.primaryFull}
             >
-              一键执行匹配校验
+              执行匹配校验
             </Button>
 
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <div className="text-xs font-semibold text-gray-700 mb-2">历史执行解释回放</div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="输入历史执行 ExecutionId"
+            <div className={styles.replayPanel}>
+              <label className={styles.fieldLabel} htmlFor="rule-replay-execution">
+                历史执行解释回放
+              </label>
+              <div className={styles.replayRow}>
+                <Select
+                  id="rule-replay-execution"
+                  aria-label="历史执行记录"
+                  placeholder="选择真实历史执行"
+                  showSearch
+                  optionFilterProp="label"
+                  options={executionOptions}
+                  loading={executionsQuery.isLoading}
+                  disabled={executionsQuery.isError}
                   value={replayExecutionId}
-                  onChange={(e) => setReplayExecutionId(e.target.value)}
-                  onPressEnter={handleReplayExecution}
-                  className="font-normal text-sm"
+                  onChange={setReplayExecutionId}
+                  notFoundContent={executionsQuery.isError ? "执行目录读取失败" : "暂无执行记录"}
                 />
                 <Button icon={<FileTextOutlined />} onClick={handleReplayExecution}>
                   回放执行解释
                 </Button>
               </div>
+              {(executionsQuery.data?.total ?? 0) > 20 && (
+                <Pagination
+                  current={executionPage}
+                  pageSize={20}
+                  total={executionsQuery.data?.total ?? 0}
+                  showSizeChanger={false}
+                  size="small"
+                  onChange={(page) => {
+                    setExecutionPage(page);
+                    setReplayExecutionId("");
+                  }}
+                />
+              )}
             </div>
           </Card>
         </Col>
 
-        {/* 右栏：评估看板 */}
-        <Col span={14}>
+        <Col xs={24} xl={14}>
           <Card
             title={
-              <div className="flex items-center gap-2 text-emerald-600">
-                <PlayCircleOutlined />
+              <div className={styles.sectionTitle}>
+                <PlayCircleOutlined className={styles.iconSuccess} />
                 <span>规则评估看板</span>
               </div>
             }
-            className="shadow-sm rounded-2xl border-gray-100 h-full min-h-[580px]"
+            className={`${styles.panelCard} ${styles.panelCardTall}`}
           >
             {evaluateResponse ? (
               <div>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6 flex flex-wrap gap-6 items-center">
-                  <Descriptions size="small" column={2} className="flex-1">
+                <div className={styles.resultSummary}>
+                  <Descriptions size="small" column={2} className={styles.flexGrow}>
                     <Descriptions.Item label="链路 TraceId">
-                      <span className="font-normal text-xs text-gray-500">
-                        {evaluateResponse.traceId}
-                      </span>
+                      <span className={styles.codeText}>{evaluateResponse.traceId}</span>
                     </Descriptions.Item>
                     <Descriptions.Item label="求值 ExecutionId">
-                      <span className="font-normal text-xs text-indigo-500">
-                        {evaluateResponse.executionId}
-                      </span>
+                      <span className={styles.codeText}>{evaluateResponse.executionId}</span>
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
                       <Tag color={severityColor(evaluateResponse.highestSeverity)}>
@@ -306,7 +366,7 @@ export default function RuleValidate() {
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="命中规则总数">
-                      <span className="font-semibold text-lg text-indigo-600">
+                      <span className={styles.metricValue}>
                         {evaluateResponse.items?.filter((i: RuleEvaluationItem) => i.hit).length ||
                           0}{" "}
                         条
@@ -323,11 +383,11 @@ export default function RuleValidate() {
                     description="该校验只提示和阻断，不自动改写医嘱；命中后必须按院内流程进行医师确认与复核。"
                     type="error"
                     showIcon
-                    className="mb-4 rounded-lg"
+                    className={styles.sectionGap}
                   />
                 )}
 
-                <div className="text-sm font-semibold text-gray-800 mb-3">
+                <div className={`${styles.textStrong} ${styles.sectionGap}`}>
                   命中规则及合理性建议列表
                 </div>
                 <Table
@@ -342,22 +402,19 @@ export default function RuleValidate() {
                 />
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-400">
-                <PlayCircleOutlined className="text-[64px] mb-4" />
-                <span className="text-gray-500 font-medium">
-                  请在左侧输入临床快照后，点击校验开始沙箱匹配
-                </span>
+              <div className={styles.emptyState}>
+                <PlayCircleOutlined className={styles.emptyIcon} />
+                <span className={styles.textMuted}>请在左侧输入临床快照后执行规则匹配</span>
               </div>
             )}
           </Card>
         </Col>
       </Row>
 
-      {/* 可解释归因追溯抽屉 */}
       <Drawer
         title={
-          <div className="flex items-center gap-2">
-            <BugOutlined className="text-indigo-600" />
+          <div className={styles.drawerTitle}>
+            <BugOutlined className={styles.iconInfo} />
             <span>临床可信解释与归因追溯</span>
           </div>
         }
@@ -373,21 +430,27 @@ export default function RuleValidate() {
               message="本解释视图读取规则执行日志中的真实输入摘要、命中结果、动作与解释快照；页面不补写归因。"
               type="info"
               showIcon
-              className="mb-6 rounded-lg"
+              className={styles.sectionGapLg}
             />
 
-            <Descriptions title="求值快照元数据" bordered column={1} size="small" className="mb-6">
+            <Descriptions
+              title="求值快照元数据"
+              bordered
+              column={1}
+              size="small"
+              className={styles.sectionGapLg}
+            >
               <Descriptions.Item label="求值 Execution ID">
-                <span className="font-normal text-xs">{explainData.executionId}</span>
+                <span className={styles.codeText}>{explainData.executionId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="链路 Trace ID">
-                <span className="font-normal text-xs">{explainData.traceId}</span>
+                <span className={styles.codeText}>{explainData.traceId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="触发点">
-                <span className="font-normal text-xs">{explainData.triggerPoint}</span>
+                <span className={styles.codeText}>{explainData.triggerPoint}</span>
               </Descriptions.Item>
               <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
-                <span className="font-normal text-xs">{explainData.inputDigest}</span>
+                <span className={styles.codeText}>{explainData.inputDigest}</span>
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">
                 <Tag color={explainData.severity === "HIGH" ? "red" : "orange"}>
@@ -403,34 +466,49 @@ export default function RuleValidate() {
 
             <Card
               title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <FileTextOutlined />
+                <div className={styles.sectionTitle}>
+                  <FileTextOutlined className={styles.iconInfo} />
                   <span>规则求值可信解释文本</span>
                 </div>
               }
-              className="mb-6 rounded-xl border-gray-200"
+              className={`${styles.detailCard} ${styles.sectionGapLg}`}
             >
-              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100 whitespace-pre-wrap">
-                {renderJson(explainData.explanation)}
-              </div>
+              <div className={styles.detailBody}>{renderJson(explainData.explanation)}</div>
             </Card>
 
             <Card
               title={
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-                  <FileTextOutlined />
+                <div className={styles.sectionTitle}>
+                  <FileTextOutlined className={styles.iconInfo} />
                   <span>执行动作快照</span>
                 </div>
               }
-              className="rounded-xl border-gray-200"
+              className={styles.detailCard}
             >
-              <div className="text-sm text-gray-800 bg-gray-50 p-4 rounded-lg font-normal border border-gray-100 whitespace-pre-wrap">
-                {renderJson(explainData.actions)}
-              </div>
+              <div className={styles.detailBody}>{renderJson(explainData.actions)}</div>
             </Card>
           </div>
         )}
       </Drawer>
     </PageShell>
   );
+}
+
+function executionStatusLabel(status: string) {
+  if (status === "SUCCESS") return "成功";
+  if (status === "MISS") return "未命中";
+  if (status === "FAILED") return "失败";
+  return status;
+}
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }

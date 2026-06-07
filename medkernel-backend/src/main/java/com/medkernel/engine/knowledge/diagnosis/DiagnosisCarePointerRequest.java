@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotNull;
  */
 public record DiagnosisCarePointerRequest(
     @NotNull DiagnosisCarePointerType pointerType,
+    @NotNull DiagnosisCareTargetType targetType,
     @NotBlank String targetRef,
-    boolean isSoft,
     String description
 ) {}

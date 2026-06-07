@@ -43,7 +43,7 @@ class RuleEngineControllerSecurityTest {
     private static final String TEST_CASE_BODY = """
         {
           "caseType": "POSITIVE",
-          "inputPayload": {"patient": {"age": 72}},
+          "contextSnapshotId": "snapshot-1",
           "expectedHit": true,
           "expectedSeverity": "HIGH",
           "expectedActionCode": "STRONG_REMINDER"
@@ -53,7 +53,7 @@ class RuleEngineControllerSecurityTest {
     private static final String EVALUATE_BODY = """
         {
           "triggerPoint": "ORDER_SIGN",
-          "context": {"patient": {"age": 72}},
+          "contextSnapshotId": "snapshot-1",
           "eventId": "evt-1",
           "ruleIds": ["rule-1"]
         }
@@ -99,6 +99,14 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void doctorCanListExecutionsButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/rule/rules/executions"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_SPECIALIST")
     void specialistCanReachCreateButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules")
@@ -132,12 +140,23 @@ class RuleEngineControllerSecurityTest {
                 .content(PUBLISH_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/rollout/full")
+                .contentType("application/json")
+                .content(PUBLISH_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotPublishRules() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/publish")
+                .contentType("application/json")
+                .content(PUBLISH_BODY))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/rollout/full")
                 .contentType("application/json")
                 .content(PUBLISH_BODY))
             .andExpect(status().isForbidden());

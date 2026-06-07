@@ -61,11 +61,11 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE,
+            LLM_READ, LLM_EXECUTE, LLM_MANAGE,
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
-            WORKBENCH_DEMO_VIEW,
+            WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_IMPLEMENTATION_GUIDE,
@@ -75,7 +75,6 @@ public final class DefaultPermissionPolicy {
             MENU_ADAPTER_HUB,
             MENU_QC_DASHBOARD,
             MENU_QC_EVAL_RESULTS,
-            MENU_ADMIN_USERS,
             MENU_IDENTITY_BINDINGS,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,
@@ -83,6 +82,7 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATION_SETTINGS,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
+            MENU_AI_WORKFLOWS,
             MENU_DOMESTIC_CHECK,
             MENU_DEV_CONSOLE));
 
@@ -106,7 +106,7 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE,
+            LLM_READ, LLM_EXECUTE,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_PATHWAY_TEMPLATES,
@@ -121,7 +121,7 @@ public final class DefaultPermissionPolicy {
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
             MENU_QC_EVAL_RESULTS,
-            MENU_AIK_REVIEW,
+            MENU_KNOWLEDGE_GOVERNANCE,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
             MENU_AI_WORKFLOWS));
@@ -149,7 +149,7 @@ public final class DefaultPermissionPolicy {
             MENU_QC_ALERTS,
             MENU_QC_EVAL_SETS,
             MENU_QC_EVAL_RESULTS,
-            MENU_AIK_REVIEW,
+            MENU_KNOWLEDGE_GOVERNANCE,
             MENU_ADMIN_AUDIT,
             MENU_PROVENANCE));
 
@@ -196,7 +196,8 @@ public final class DefaultPermissionPolicy {
             MENU_CLINICAL_FOLLOWUP,
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,
-            MENU_QC_EVAL_RESULTS));
+            MENU_QC_EVAL_RESULTS,
+            MENU_KNOWLEDGE_GOVERNANCE));
 
         // 专科专家：知识/路径审核 + 上下文只读
         map.put(RoleCode.SPECIALIST, withMenus(EnumSet.of(
@@ -222,7 +223,8 @@ public final class DefaultPermissionPolicy {
             MENU_PATIENT_PATHWAYS,
             MENU_RULE_VALIDATE,
             MENU_NOTIFICATIONS,
-            MENU_CLINICAL_FOLLOWUP));
+            MENU_CLINICAL_FOLLOWUP,
+            MENU_KNOWLEDGE_GOVERNANCE));
 
         // 临床医生：看提醒、采纳/拒绝、查看路径与规则 + 临床上下文只读
         map.put(RoleCode.DOCTOR, withMenus(EnumSet.of(
@@ -240,7 +242,7 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE),
+            LLM_READ, LLM_EXECUTE),
             MENU_WORKBENCH,
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
@@ -265,7 +267,7 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE),
+            LLM_READ, LLM_EXECUTE),
             MENU_WORKBENCH,
             MENU_MPI,
             MENU_PATIENT_PATHWAYS,
@@ -288,11 +290,9 @@ public final class DefaultPermissionPolicy {
             PROJECTION_READ,
             FOLLOWUP_READ, WORKFLOW_READ, NOTIFICATION_READ, INTEGRATION_READ, MPI_READ, LIST_EXPORT),
             MENU_WORKBENCH,
-            MENU_ADMIN_USERS,
             MENU_IDENTITY_BINDINGS,
             MENU_ADMIN_AUDIT,
             MENU_SECURITY_BASELINE,
-            MENU_SYSTEM_PROVIDERS,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE));
 
@@ -313,11 +313,11 @@ public final class DefaultPermissionPolicy {
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
-            LLM_READ, LLM_WRITE,
+            LLM_READ, LLM_EXECUTE, LLM_MANAGE,
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
             PROJECTION_READ, PROJECTION_REBUILD,
             MPI_READ,
-            WORKBENCH_DEMO_VIEW,
+            WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
             MENU_WORKBENCH,
             MENU_IMPLEMENTATION_GUIDE,
@@ -332,6 +332,7 @@ public final class DefaultPermissionPolicy {
             MENU_NOTIFICATION_SETTINGS,
             MENU_PROVENANCE,
             MENU_GRAPH_EXPLORE,
+            MENU_AI_WORKFLOWS,
             MENU_DOMESTIC_CHECK,
             MENU_DEV_CONSOLE));
 
@@ -348,9 +349,7 @@ public final class DefaultPermissionPolicy {
     }
 
     private static EnumSet<PermissionCode> allRuntimePermissions() {
-        EnumSet<PermissionCode> permissions = EnumSet.allOf(PermissionCode.class);
-        permissions.removeAll(MenuPermissionCatalog.legacySectionPermissions());
-        return permissions;
+        return EnumSet.allOf(PermissionCode.class);
     }
 
     private static EnumSet<PermissionCode> withMenus(

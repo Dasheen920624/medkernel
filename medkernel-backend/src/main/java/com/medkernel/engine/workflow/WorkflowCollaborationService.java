@@ -806,6 +806,7 @@ public class WorkflowCollaborationService {
         WorkflowNotificationSettingsResponse settings =
             notificationSettings.getSettingsForUser(notification.tenantId(), recipientId);
         if (settings == null
+            || !notificationSettings.isSubscribed(notification.sourceType(), notification.level(), settings)
             || notificationSettings.isMutedByQuietHours(notification.level(), settings, LocalTime.now())) {
             return;
         }

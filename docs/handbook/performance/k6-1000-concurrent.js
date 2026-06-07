@@ -83,7 +83,7 @@ function track(res, customMetric) {
 }
 
 function mpiSearch() {
-  const res = http.get(`${BASE_URL}/api/v1/clinical/mpi/patients?q=12`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/mpi/patients?keyword=12`);
   track(res, mpiLatency);
 }
 function cdssAlerts() {
@@ -111,7 +111,7 @@ function configPackages() {
   track(res);
 }
 function qcDashboard() {
-  const res = http.get(`${BASE_URL}/api/v1/clinical/mpi/stats`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/mpi/stats`);
   track(res);
 }
 function insuranceAudit() {

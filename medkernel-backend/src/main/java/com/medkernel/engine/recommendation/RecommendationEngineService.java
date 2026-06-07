@@ -8,10 +8,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.cdss.risk.CdssRiskAssessment;
 import com.medkernel.engine.cdss.risk.CdssRiskMatrixService;
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.cdshook.CdsHookContract;
+import com.medkernel.engine.context.ContextSnapshotResponse;
+import com.medkernel.engine.context.ContextSnapshotService;
+import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -19,9 +24,10 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.hash.Sha256ContentHash;
 import com.medkernel.shared.observability.BusinessMetrics;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -46,7 +52,7 @@ public class RecommendationEngineService {
     private final RecommendationSourceRepository sources;
     private final RecommendationFeedbackRepository feedback;
     private final RecommendationFatigueSignalRepository fatigueSignals;
-    private final AuditEventPublisher auditPublisher;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
@@ -55,6 +61,8 @@ public class RecommendationEngineService {
     private final RecommendationFatiguePolicyResolver fatiguePolicyResolver;
     private final ClinicalSafetyGuard safetyGuard;
     private final CdssRiskMatrixService riskMatrixService;
+    private final ContextSnapshotService contextSnapshots;
+    private final ObjectMapper json;
 
     public RecommendationEngineService(
             RecommendationTriggerRepository triggers,
@@ -62,7 +70,7 @@ public class RecommendationEngineService {
             RecommendationSourceRepository sources,
             RecommendationFeedbackRepository feedback,
             RecommendationFatigueSignalRepository fatigueSignals,
-            AuditEventPublisher auditPublisher,
+            AuditRecorder auditRecorder,
             StateTransitionRecorder transitions,
             DiagnoseResponseAssembler diagnoseAssembler,
             IsolatedAuditPublisher isolatedAudit,
@@ -70,13 +78,15 @@ public class RecommendationEngineService {
             RecommendationDeterministicMatcher deterministicMatcher,
             RecommendationFatiguePolicyResolver fatiguePolicyResolver,
             ClinicalSafetyGuard safetyGuard,
-            CdssRiskMatrixService riskMatrixService) {
+            CdssRiskMatrixService riskMatrixService,
+            ContextSnapshotService contextSnapshots,
+            ObjectMapper json) {
         this.triggers = triggers;
         this.cards = cards;
         this.sources = sources;
         this.feedback = feedback;
         this.fatigueSignals = fatigueSignals;
-        this.auditPublisher = auditPublisher;
+        this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
         this.isolatedAudit = isolatedAudit;
@@ -85,6 +95,8 @@ public class RecommendationEngineService {
         this.fatiguePolicyResolver = fatiguePolicyResolver;
         this.safetyGuard = safetyGuard;
         this.riskMatrixService = riskMatrixService;
+        this.contextSnapshots = contextSnapshots;
+        this.json = json;
     }
 
     /**
@@ -98,6 +110,7 @@ public class RecommendationEngineService {
      */
     @Transactional
     public RecommendationTriggerResponse trigger(RecommendationTriggerRequest request) {
+        request = resolveSnapshotContext(request);
         List<AssessedCard> assessedCards;
         try {
             CdsHookContract.requireSupportedHook(request.triggerType());
@@ -138,7 +151,7 @@ public class RecommendationEngineService {
         }
 
         transitions.record("recommendation_trigger", triggerId, null, status.name(), "接收推荐触发", null);
-        auditPublisher.publish(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
+        auditRecorder.record(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
             "接收推荐触发 " + request.triggerCode());
         return new RecommendationTriggerResponse(triggerId, status, assessedCards.size(), traceId);
     }
@@ -147,11 +160,12 @@ public class RecommendationEngineService {
      * 客户面推荐评估接口：关模型时用标准上下文 + 已发布资产生成确定性候选，
      * 合并调用方传入的非 AI 候选卡后持久化并返回 {@code MODEL_DISABLED}。
      *
-     * <p>低/中风险卡按配置中心疲劳策略或旧请求兼容阈值做历史低价值信号抑制；
+     * <p>低/中风险卡按配置中心疲劳策略做历史低价值信号抑制；
      * 高风险/红线卡永不因疲劳阈值抑制。被抑制卡以 SUPPRESSED 状态留库并写疲劳信号，保证可解释、可审计。
      */
     @Transactional
     public RecommendationEvaluationResponse evaluate(RecommendationTriggerRequest request) {
+        request = resolveSnapshotContext(request);
         try {
             CdsHookContract.requireSupportedHook(request.triggerType());
         } catch (ApiException e) {
@@ -209,7 +223,7 @@ public class RecommendationEngineService {
         }
 
         transitions.record("recommendation_trigger", triggerId, null, status.name(), "评估推荐触发", null);
-        auditPublisher.publish(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
+        auditRecorder.record(AuditAction.EXECUTE, "recommendation_trigger", triggerId,
             "评估推荐触发 " + request.triggerCode());
         return new RecommendationEvaluationResponse(
             triggerId, status, totalCardCount, visibleCards.size(), suppressedCount,
@@ -225,6 +239,39 @@ public class RecommendationEngineService {
             .filter(card -> !card.aiGenerated())
             .forEach(card -> byCode.putIfAbsent(card.cardCode(), card));
         return List.copyOf(byCode.values());
+    }
+
+    private RecommendationTriggerRequest resolveSnapshotContext(RecommendationTriggerRequest request) {
+        ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
+        if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null
+                || snapshot.resources().patient() == null) {
+            throw new ApiException(ErrorCode.ENG_REC_001, "推荐评估只能使用 ACTIVE 标准上下文快照");
+        }
+        String encounterId = snapshot.resources().encounters().isEmpty()
+            ? null
+            : snapshot.resources().encounters().getFirst().encounterId();
+        try {
+            String inputDigest = "sha256:" + Sha256ContentHash.sha256(
+                json.writeValueAsString(snapshot.resources()),
+                "标准上下文快照内容不能为空");
+            return new RecommendationTriggerRequest(
+                request.triggerCode(),
+                request.triggerType(),
+                request.sourceEventId(),
+                snapshot.snapshotId(),
+                snapshot.resources().patient().mpi(),
+                encounterId,
+                request.patientPathwayId(),
+                request.scenarioCode(),
+                snapshot.packageVersion(),
+                inputDigest,
+                request.occurredAt(),
+                request.candidateCards(),
+                request.modelEnhancementEnabled()
+            );
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ErrorCode.ENG_REC_001, "标准上下文快照无法生成推荐评估摘要", e);
+        }
     }
 
     /**
@@ -353,7 +400,7 @@ public class RecommendationEngineService {
         saveFatigueSignal(trigger, savedCard, feedbackSignal(request.feedbackType()), actor, now, actor, traceId);
         transitions.record("recommendation_card", cardId, card.status().name(), nextStatus.name(),
             "推荐反馈 " + request.feedbackType(), null);
-        auditPublisher.publish(AuditAction.FEEDBACK, "recommendation_card", cardId,
+        auditRecorder.record(AuditAction.FEEDBACK, "recommendation_card", cardId,
             "推荐卡反馈 " + request.feedbackType());
         return new RecommendationFeedbackResponse(feedbackId, cardId, nextStatus, traceId);
     }

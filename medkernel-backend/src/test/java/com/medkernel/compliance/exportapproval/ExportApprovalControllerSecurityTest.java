@@ -21,6 +21,7 @@ import com.medkernel.shared.context.RequestContext;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -88,6 +89,27 @@ class ExportApprovalControllerSecurityTest {
     }
 
     @Test
+    @DisplayName("审计合规角色带租户上下文可查询本租户导出审批")
+    void listExports_auditRoleWithTenant_returns200() throws Exception {
+        when(service.listApprovals("t-1", "AUDIT_EVENT", ExportApprovalStatus.REQUESTED))
+            .thenReturn(List.of(response(ExportApprovalStatus.REQUESTED)));
+
+        mvc.perform(get("/api/v1/compliance/exports")
+                .param("resourceType", "AUDIT_EVENT")
+                .param("status", "REQUESTED")
+                .with(jwt().jwt(token -> token
+                    .subject("auditor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("group_id", "g-1")
+                    .claim("hospital_id", "h-1")
+                    .claim("department_id", "compliance")
+                    .claim("roles", List.of("audit_compliance")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDIT_COMPLIANCE"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].status").value("REQUESTED"));
+    }
+
+    @Test
     @DisplayName("审计合规角色带租户上下文可审批导出申请")
     void approveExport_auditRoleWithTenant_returns200() throws Exception {
         when(service.reviewExport(eq("t-1"), eq("exp-clinical-case-idem-001"),
@@ -120,13 +142,13 @@ class ExportApprovalControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("审计合规角色带租户上下文可登记真实导出完成")
-    void completeExport_auditRoleWithTenant_returns200() throws Exception {
-        when(service.completeExport(eq("t-1"), eq("exp-clinical-case-idem-001"),
-            any(ExportCompletionRequest.class), eq("auditor-1")))
+    @DisplayName("审计合规角色带租户上下文可从后端任务登记真实导出完成")
+    void completeExportFromJob_auditRoleWithTenant_returns200() throws Exception {
+        when(service.completeExportFromJob(eq("t-1"), eq("exp-clinical-case-idem-001"),
+            any(ExportJobCompletionRequest.class), eq("auditor-1")))
             .thenReturn(response(ExportApprovalStatus.EXPORTED));
 
-        mvc.perform(post("/api/v1/compliance/exports/exp-clinical-case-idem-001:complete")
+        mvc.perform(post("/api/v1/compliance/exports/exp-clinical-case-idem-001:complete-from-job")
                 .with(jwt().jwt(token -> token
                     .subject("auditor-1")
                     .claim("tenant_id", "t-1")
@@ -168,8 +190,7 @@ class ExportApprovalControllerSecurityTest {
     private String completeBody() {
         return """
             {
-              "exportUri": "s3://tenant-t-1/exports/clinical-case.ndjson",
-              "exportDigest": "sm3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "jobId": "job-audit-1",
               "reason": "真实导出文件已生成并完成摘要登记",
               "expectedVersion": 2
             }
@@ -183,10 +204,12 @@ class ExportApprovalControllerSecurityTest {
             "clinical_case",
             "{\"patientId\":\"p-1\"}",
             "idem-001",
+            "合规审计需要导出当前患者证据包",
             status,
             "auditor-1",
             "auditor-2",
             "APPROVE",
+            "审批通过，允许生成真实导出文件",
             "evd-exp-clinical-case-idem-001-approval",
             "/api/v1/compliance/evidence/snapshots/evd-exp-clinical-case-idem-001-approval/file",
             "s3://tenant-t-1/exports/clinical-case.ndjson",

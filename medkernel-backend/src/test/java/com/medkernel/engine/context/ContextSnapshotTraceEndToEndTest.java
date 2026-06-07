@@ -2,6 +2,8 @@ package com.medkernel.engine.context;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -37,12 +42,19 @@ class ContextSnapshotTraceEndToEndTest {
 
     @Autowired ContextSnapshotService service;
     @Autowired JdbcTemplate jdbc;
+    @Autowired KnowledgePackageRepository packages;
 
     @BeforeEach
     void cleanDb() {
         jdbc.update("DELETE FROM mk_obs_state_transition");
         jdbc.update("DELETE FROM canonical_resource");
         jdbc.update("DELETE FROM context_snapshot");
+        packages.deleteAll();
+        Instant now = Instant.parse("2026-06-06T08:00:00Z");
+        packages.save(new KnowledgePackage(
+            null, "pkg-e2e", "tenant-e2e", "MEDKERNEL.DEFAULT", "pkg-1",
+            "上下文端到端配置包", null, KnowledgePackageStatus.ACTIVE,
+            now, "e2e-user", now, "e2e-user", "trace-package-e2e"));
         RequestContext.clear();
     }
 

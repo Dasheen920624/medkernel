@@ -2,17 +2,28 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import InsuranceAudit from "./InsuranceAudit";
 
 const mockUseInsuranceIssues = vi.fn();
+const mockUseContextSnapshotDetail = vi.fn();
+const mockUseContextSnapshots = vi.fn();
 const mockUseRunQualityCaseReview = vi.fn();
 const mockUseRunDrgGrouping = vi.fn();
 const mockUseRunInsuranceAudit = vi.fn();
+const mockUseEvaluationIndicators = vi.fn();
+const mockUseOrgUnits = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
+  useContextSnapshotDetail: (snapshotId: string, options: unknown) =>
+    mockUseContextSnapshotDetail(snapshotId, options),
+  useContextSnapshots: (params: unknown, options: unknown) =>
+    mockUseContextSnapshots(params, options),
   useInsuranceIssues: (params: unknown) => mockUseInsuranceIssues(params),
+  useEvaluationIndicators: (params: unknown, options: unknown) =>
+    mockUseEvaluationIndicators(params, options),
+  useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
   useRunQualityCaseReview: () => mockUseRunQualityCaseReview(),
   useRunDrgGrouping: () => mockUseRunDrgGrouping(),
   useRunInsuranceAudit: () => mockUseRunInsuranceAudit(),
@@ -60,6 +71,75 @@ const insuranceIssuesPage = {
 };
 
 describe("InsuranceAudit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseOrgUnits.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "dept-insurance",
+            level: "DEPARTMENT",
+            code: "DEPT-INS",
+            name: "医保管理科",
+            status: "ACTIVE",
+          },
+        ],
+      },
+      isLoading: false,
+    });
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: {
+        items: [
+          {
+            indicatorId: "indicator-insurance",
+            indicatorCode: "INS.FEE",
+            versionNo: 2,
+            name: "医保违规费用率",
+            status: "ACTIVE",
+          },
+        ],
+      },
+      isLoading: false,
+    });
+    mockUseContextSnapshots.mockReturnValue({
+      data: {
+        items: [
+          {
+            snapshotId: "snapshot-ins",
+            patientId: "patient-ins",
+            encounterId: "encounter-ins",
+            status: "ACTIVE",
+            qualityStatus: "VALID",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseContextSnapshotDetail.mockImplementation((snapshotId: string) => ({
+      data:
+        snapshotId === "snapshot-ins"
+          ? {
+              snapshotId,
+              status: "ACTIVE",
+              resources: {},
+              packageVersion: "2026.1",
+              qualityStatus: "VALID",
+              missingFields: [],
+              mappingStatus: {},
+              traceId: "trace-snapshot-ins",
+            }
+          : undefined,
+      isLoading: false,
+      isError: false,
+    }));
+  });
+
   it("renders real insurance issues from SVC-QUALITY-02 instead of the disconnected placeholder", () => {
     mockUseInsuranceIssues.mockReturnValue({
       data: insuranceIssuesPage,
@@ -130,11 +210,13 @@ describe("InsuranceAudit", () => {
 
     renderPage();
 
-    fireEvent.change(screen.getByLabelText("病案快照 ID"), { target: { value: "snapshot-ins" } });
-    fireEvent.change(screen.getByLabelText("责任科室"), { target: { value: "dept-insurance" } });
-    fireEvent.change(screen.getByLabelText("质控指标 ID"), {
-      target: { value: "indicator-insurance" },
-    });
+    expect(screen.queryByLabelText("病案快照 ID")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("患者 ID"), { target: { value: "patient-ins" } });
+    await userEvent.click(await screen.findByRole("button", { name: "选择 snapshot-ins" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
+    await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
+    await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await userEvent.click(await screen.findByText("医保违规费用率 · INS.FEE · v2"));
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
       target: { value: "GROUPER-2026" },
     });
@@ -160,6 +242,7 @@ describe("InsuranceAudit", () => {
         expect.objectContaining({
           contextSnapshotId: "snapshot-ins",
           scenarioCode: "A9",
+          packageVersion: "2026.1",
           responsibleDepartmentId: "dept-insurance",
         }),
       );

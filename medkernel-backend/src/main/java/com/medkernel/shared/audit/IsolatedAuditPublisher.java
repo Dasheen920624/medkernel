@@ -13,7 +13,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 本组件用 {@code PROPAGATION_REQUIRES_NEW} 让 audit 走独立子事务，保证 outcome=FAILED
  * 的审计事件不被主事务回滚带走。
  *
- * <p>使用场景仅限于业务失败留痕；成功路径继续走 {@link AuditEventPublisher#publish}
+ * <p>使用场景仅限于业务失败留痕；成功路径使用 {@link AuditRecorder#record}
  * 由 AFTER_COMMIT 同事务保证一致性。
  */
 @Component

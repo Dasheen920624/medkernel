@@ -66,7 +66,6 @@ class ContextSnapshotRepositoryTest {
             null, snapshotId, "tenant-A", "ORG-1",
             "req-ctx-1", "group-1/hospital-1/campus-1/site-1/DEPT-A/stroke", "pkg-2026.06",
             "MPI-100", "ENC-1",
-            "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
             ContextSnapshotStatus.ACTIVE, "[]", "{}",
             QualityStatus.VALID, "trace", null, Instant.now(), "tester"
         ));
@@ -183,8 +182,7 @@ class ContextSnapshotRepositoryTest {
                                           String encounterId, ContextSnapshotStatus status,
                                           QualityStatus quality, Instant createdAt) {
         return new ContextSnapshot(
-            null, snapshotId, tenantId, "ORG-1", patientId, encounterId,
-            "kpv-1", "rpv-1", "ppv-1",
+            null, snapshotId, tenantId, "ORG-1", null, null, "pkg-1", patientId, encounterId,
             status, "[]", "{}",
             quality, "trace", null, createdAt, "tester"
         );

@@ -33,6 +33,7 @@ class FhirCapabilityStatementServiceTest {
             "Patient",
             "Encounter",
             "Condition",
+            "AllergyIntolerance",
             "Observation",
             "Medication",
             "Procedure",
@@ -41,6 +42,7 @@ class FhirCapabilityStatementServiceTest {
             "DocumentReference"
         );
         assertThat(mappingDirection(resources, "Patient")).isEqualTo("BIDIRECTIONAL");
+        assertThat(mappingDirection(resources, "AllergyIntolerance")).isEqualTo("BIDIRECTIONAL");
         assertThat(mappingDirection(resources, "Observation")).isEqualTo("BIDIRECTIONAL");
         assertThat(interactions(resources)).doesNotContain("create");
     }
@@ -51,12 +53,13 @@ class FhirCapabilityStatementServiceTest {
 
         assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01-PR4");
         assertThat(statement.path("implementation").path("description").asText())
-            .contains("10 类核心 FHIR 资源", "read", "search", "create", "医师确认", "NOT_CONNECTED");
+            .contains("11 类核心 FHIR 资源", "read", "search", "create", "医师确认", "NOT_CONNECTED");
         JsonNode resources = statement.path("rest").get(0).path("resource");
         assertThat(resourceTypes(resources)).contains(
             "Patient",
             "Encounter",
             "Condition",
+            "AllergyIntolerance",
             "Observation",
             "Medication",
             "Procedure",
@@ -67,6 +70,7 @@ class FhirCapabilityStatementServiceTest {
         );
         assertThat(interactionsFor(resources, "Patient")).containsExactly("read", "search", "create");
         assertThat(interactionsFor(resources, "Condition")).containsExactly("read", "search", "create");
+        assertThat(interactionsFor(resources, "AllergyIntolerance")).containsExactly("read", "search", "create");
         assertThat(interactionsFor(resources, "Observation")).containsExactly("read", "search", "create");
         assertThat(interactionsFor(resources, "DiagnosticReport")).containsExactly("read", "search", "create");
         assertThat(interactionsFor(resources, "DocumentReference")).containsExactly("read", "search", "create");

@@ -51,10 +51,7 @@ class FollowupEngineControllerSecurityTest {
 
     private static final String GENERATE_BODY = """
         {
-          "patientId": "P1001",
-          "encounterId": "E2001",
-          "pathwayId": "PATH01",
-          "diseaseCode": "I21.900",
+          "contextSnapshotId": "ctx-active-1",
           "riskLevel": "HIGH",
           "taskTypes": ["QUESTIONNAIRE", "OUTPATIENT"]
         }

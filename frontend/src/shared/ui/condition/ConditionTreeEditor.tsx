@@ -3,13 +3,32 @@
  *
  * <p>受控组件：`value` 为顶层 {@link RuleGroup}，`onChange` 回传新根。规则 `when` 与
  * 路径边 `guard` 共用本组件，支持任意深度「条件组(all/any/可取反)+叶子」嵌套，
- * 直接解决「条件树只有一层」。字段路径目前为文本输入，后续接入字段目录选择器（P2）。
+ * 直接解决「条件树只有一层」。字段路径接入 canonical 字段目录，选择后自动带出值类型与字典。
  */
-import { Button, Card, Input, Select, Space, Switch, Tag, Tooltip } from "antd";
+import { useMemo } from "react";
+import {
+  Alert,
+  AutoComplete,
+  Button,
+  Card,
+  Input,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Tooltip,
+} from "antd";
 import { DeleteOutlined, PlusOutlined, BranchesOutlined } from "@ant-design/icons";
 
 import styles from "./ConditionTreeEditor.module.css";
 
+import { buildFieldCatalogOptions } from "@/shared/config/contextFieldOptions";
+import {
+  RULE_OPERATOR_LABELS as OPERATOR_LABELS,
+  RULE_VALUE_KIND_LABELS as VALUE_KIND_LABELS,
+  defaultValueKindForOperator,
+  isClinicalRuleOperator,
+} from "@/shared/config/ruleOperatorCatalog";
 import {
   MAX_TREE_DEPTH,
   addChildToGroup,
@@ -25,33 +44,35 @@ import {
   type RuleOperator,
   type RuleValueKind,
 } from "@/shared/config/conditionModel";
+import type { ContextFieldDescriptor } from "@/shared/api/hooks";
+import StandardTermValueAutoComplete from "./StandardTermValueAutoComplete";
 
 const { Option } = Select;
 
-const OPERATOR_LABELS: Record<RuleOperator, string> = {
-  exists: "存在",
-  equals: "等于",
-  not_equals: "不等于",
-  contains: "包含",
-  gt: "大于",
-  gte: "大于等于",
-  lt: "小于",
-  lte: "小于等于",
-  in: "属于集合",
-  not_in: "不属于集合",
-};
+const EDITABLE_OPERATOR_KEYS = (Object.keys(OPERATOR_LABELS) as RuleOperator[]).filter(
+  (operator) => !isClinicalRuleOperator(operator),
+);
 
-const VALUE_KIND_LABELS: Record<RuleValueKind, string> = {
-  empty: "无比较值",
-  string: "文本",
-  number: "数值",
-  boolean: "布尔",
-  list: "集合",
-};
+const EDITABLE_VALUE_KIND_KEYS = (Object.keys(VALUE_KIND_LABELS) as RuleValueKind[]).filter(
+  (kind) =>
+    !["range", "measurement", "temporal", "derived", "critical_flag", "staleness"].includes(kind),
+);
 
 function valueKindForOperator(operator: RuleOperator, current: RuleValueKind): RuleValueKind {
-  if (!operatorNeedsValue(operator)) return "empty";
-  return current === "empty" ? "string" : current;
+  return defaultValueKindForOperator(operator, current);
+}
+
+function valueKindForDataType(dataType?: string | null): RuleValueKind {
+  switch (dataType) {
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "list":
+      return "list";
+    default:
+      return "string";
+  }
 }
 
 export interface ConditionTreeEditorProps {
@@ -59,6 +80,8 @@ export interface ConditionTreeEditorProps {
   onChange: (next: RuleGroup) => void;
   maxDepth?: number;
   readOnly?: boolean;
+  fieldCatalog?: ContextFieldDescriptor[];
+  fieldCatalogError?: boolean;
 }
 
 export function ConditionTreeEditor({
@@ -66,7 +89,15 @@ export function ConditionTreeEditor({
   onChange,
   maxDepth = MAX_TREE_DEPTH,
   readOnly = false,
+  fieldCatalog = [],
+  fieldCatalogError = false,
 }: ConditionTreeEditorProps) {
+  const fieldOptions = useMemo(() => buildFieldCatalogOptions(fieldCatalog), [fieldCatalog]);
+  const fieldByPath = useMemo(
+    () => new Map(fieldCatalog.map((field) => [field.fieldPath, field])),
+    [fieldCatalog],
+  );
+
   const patchLeaf = (id: string, patch: Partial<RuleLeaf>) => {
     onChange(
       updateNodeById(value, id, (node) =>
@@ -93,6 +124,8 @@ export function ConditionTreeEditor({
 
   const renderLeaf = (leaf: RuleLeaf) => {
     const needsValue = operatorNeedsValue(leaf.operator);
+    const selectedField = fieldByPath.get(leaf.fact);
+    const codeSystem = selectedField?.codeSystem;
     return (
       <div
         key={leaf.id}
@@ -108,13 +141,27 @@ export function ConditionTreeEditor({
             className={styles.label}
             onChange={(e) => patchLeaf(leaf.id, { label: e.target.value })}
           />
-          <Input
+          <AutoComplete
             aria-label="上下文字段路径"
             placeholder="如 observations[].valueNumeric"
             value={leaf.fact}
+            options={fieldOptions}
             disabled={readOnly}
             className={styles.fact}
-            onChange={(e) => patchLeaf(leaf.id, { fact: e.target.value })}
+            filterOption={(input, option) => {
+              const leafOption = option as { value?: string; label?: string } | undefined;
+              const haystack =
+                `${leafOption?.value ?? ""} ${leafOption?.label ?? ""}`.toLowerCase();
+              return haystack.includes(input.toLowerCase());
+            }}
+            onSelect={(fieldPath) => {
+              const descriptor = fieldByPath.get(fieldPath);
+              patchLeaf(leaf.id, {
+                fact: fieldPath,
+                valueKind: valueKindForDataType(descriptor?.dataType),
+              });
+            }}
+            onChange={(next) => patchLeaf(leaf.id, { fact: next })}
           />
           <Select
             aria-label="算子"
@@ -129,7 +176,7 @@ export function ConditionTreeEditor({
               })
             }
           >
-            {(Object.keys(OPERATOR_LABELS) as RuleOperator[]).map((op) => (
+            {EDITABLE_OPERATOR_KEYS.map((op) => (
               <Option key={op} value={op}>
                 {OPERATOR_LABELS[op]}
               </Option>
@@ -142,20 +189,31 @@ export function ConditionTreeEditor({
             className={styles.kind}
             onChange={(valueKind: RuleValueKind) => patchLeaf(leaf.id, { valueKind })}
           >
-            {(Object.keys(VALUE_KIND_LABELS) as RuleValueKind[]).map((kind) => (
+            {EDITABLE_VALUE_KIND_KEYS.map((kind) => (
               <Option key={kind} value={kind}>
                 {VALUE_KIND_LABELS[kind]}
               </Option>
             ))}
           </Select>
-          <Input
-            aria-label="比较值"
-            placeholder={leaf.valueKind === "list" ? "多个值用英文逗号分隔" : "比较值"}
-            value={leaf.value === undefined ? "" : String(leaf.value)}
-            disabled={readOnly || !needsValue}
-            className={styles.value}
-            onChange={(e) => patchLeaf(leaf.id, { value: e.target.value })}
-          />
+          {codeSystem && leaf.valueKind !== "list" ? (
+            <StandardTermValueAutoComplete
+              ariaLabel="比较值"
+              codeSystem={codeSystem}
+              value={leaf.value === undefined ? "" : String(leaf.value)}
+              disabled={readOnly || !needsValue}
+              className={styles.value}
+              onChange={(next) => patchLeaf(leaf.id, { value: next })}
+            />
+          ) : (
+            <Input
+              aria-label="比较值"
+              placeholder={leaf.valueKind === "list" ? "多个值用英文逗号分隔" : "比较值"}
+              value={leaf.value === undefined ? "" : String(leaf.value)}
+              disabled={readOnly || !needsValue}
+              className={styles.value}
+              onChange={(e) => patchLeaf(leaf.id, { value: e.target.value })}
+            />
+          )}
           {!readOnly && (
             <Button
               aria-label="删除条件"
@@ -246,7 +304,19 @@ export function ConditionTreeEditor({
     </Card>
   );
 
-  return renderGroup(value, true);
+  return (
+    <Space direction="vertical" size="small" className="mk-full-width">
+      {fieldCatalogError ? (
+        <Alert
+          showIcon
+          type="warning"
+          message="字段目录暂不可用"
+          description="当前只能保留已有字段路径，恢复字段目录后再新增或调整条件字段。"
+        />
+      ) : null}
+      {renderGroup(value, true)}
+    </Space>
+  );
 }
 
 export default ConditionTreeEditor;

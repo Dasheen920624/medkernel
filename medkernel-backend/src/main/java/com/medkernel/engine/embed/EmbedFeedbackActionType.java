@@ -14,9 +14,6 @@ public enum EmbedFeedbackActionType {
             throw new IllegalArgumentException("嵌入反馈动作缺失");
         }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
-        if ("ACCEPT".equals(normalized)) {
-            return ADOPT;
-        }
         return EmbedFeedbackActionType.valueOf(normalized);
     }
 }

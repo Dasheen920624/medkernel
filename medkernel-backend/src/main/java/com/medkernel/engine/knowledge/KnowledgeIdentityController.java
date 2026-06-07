@@ -135,4 +135,13 @@ public class KnowledgeIdentityController {
     public ApiResult<SourceFragment> createFragment(@Valid @RequestBody FragmentCreateRequest request) {
         return ApiResult.ok(service.createFragment(request));
     }
+
+    /**
+     * 将知识资产版本绑定到真实来源片段，供发布门禁和床旁溯源共同使用。
+     */
+    @PostMapping("/citations")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<Citation> createCitation(@Valid @RequestBody CitationCreateRequest request) {
+        return ApiResult.ok(service.createCitation(request));
+    }
 }

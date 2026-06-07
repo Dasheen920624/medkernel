@@ -240,10 +240,10 @@ class InsuranceQualityServiceTest {
         jdbc.update("""
             INSERT INTO context_snapshot (
                 snapshot_id, tenant_id, org_unit_id, request_id, org_path, package_version,
-                patient_id, encounter_id, knowledge_pkg_version, rule_pkg_version, pathway_pkg_version,
+                patient_id, encounter_id,
                 status, quality_status, trace_id, signature, created_at, created_by
             ) VALUES (?, ?, 'dept-records', ?, '/platform/group/hospital/dept-records', 'pkg-quality-v1',
-                ?, ?, 'know-v1', 'rule-v1', 'path-v1', 'ACTIVE', 'VALID', 'trace-quality', 'sig', ?, 'tester')
+                ?, ?, 'ACTIVE', 'VALID', 'trace-quality', 'sig', ?, 'tester')
             """, snapshotId, tenantId, "req-" + snapshotId, patientId, encounterId, java.sql.Timestamp.from(createdAt));
     }
 

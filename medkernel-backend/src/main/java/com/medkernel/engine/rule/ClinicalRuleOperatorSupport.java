@@ -226,7 +226,8 @@ final class ClinicalRuleOperatorSupport {
         BigDecimal threshold = requiredDecimal(expected, "value");
         String targetUnit = requiredText(expected, "unit");
         String analyte = requiredText(expected, "analyte");
-        ConvertedMeasurement converted = convertMeasurement(fact, measurement, targetUnit, analyte);
+        ClinicalUnitConversionRegistry.ConversionResult converted =
+            convertMeasurement(fact, measurement, targetUnit, analyte);
         boolean matched = compareNumbers(converted.value(), threshold, comparison);
         BigDecimal displayValue = round2(converted.value());
         String thresholdText = expected.get("value").asText();
@@ -251,7 +252,8 @@ final class ClinicalRuleOperatorSupport {
         List<Measurement> measurements = measurementsInWindow(fact, actual, referenceTime.minus(window), referenceTime);
 
         return switch (mode) {
-            case "consecutive" -> consecutiveTemporal(fact, expected, measurements, window, referenceTime, count);
+            case "sustained" -> consecutiveTemporal(fact, expected, measurements, window, referenceTime, count, "sustained");
+            case "consecutive" -> consecutiveTemporal(fact, expected, measurements, window, referenceTime, count, "consecutive");
             case "trend" -> trendTemporal(fact, expected, measurements, window, referenceTime, count);
             case "frequency" -> frequencyTemporal(fact, expected, measurements, window, referenceTime, count);
             case "delta" -> deltaTemporal(fact, expected, measurements, window, referenceTime);
@@ -264,10 +266,14 @@ final class ClinicalRuleOperatorSupport {
         String formulaName = requiredText(expected, "formula").toUpperCase(Locale.ROOT);
         JsonNode parameters = expected.path("parameters");
         requireObject(parameters, "derived.value.parameters");
+        if (!ClinicalFunctionRegistry.isSupported(formulaName)) {
+            throw operatorInvalid("derived 公式不在白名单: " + formulaName);
+        }
         DerivedResult result = switch (formulaName) {
-            case "CKD_EPI_2021_EGFR" -> calculateEgfr(context, parameters);
-            case "COCKCROFT_GAULT_CRCL" -> calculateCrcl(context, parameters);
-            case "MOSTELLER_BSA" -> calculateBsa(context, parameters);
+            case ClinicalFunctionRegistry.CKD_EPI_2021_EGFR -> calculateEgfr(context, parameters);
+            case ClinicalFunctionRegistry.COCKCROFT_GAULT_CRCL -> calculateCrcl(context, parameters);
+            case ClinicalFunctionRegistry.MOSTELLER_BSA -> calculateBsa(context, parameters);
+            case ClinicalFunctionRegistry.BMI -> calculateBmi(context, parameters);
             default -> throw operatorInvalid("derived 公式不在白名单: " + formulaName);
         };
 
@@ -382,7 +388,8 @@ final class ClinicalRuleOperatorSupport {
         List<Measurement> measurements,
         Duration window,
         Instant referenceTime,
-        int count
+        int count,
+        String modeLabel
     ) {
         JsonNode condition = expected.path("condition");
         requireObject(condition, "temporal.value.condition");
@@ -410,7 +417,7 @@ final class ClinicalRuleOperatorSupport {
         boolean matched = !matchedRun.isEmpty();
         String source = matched ? joinSources(matchedRun) : joinSources(run);
         String formula = window + " window ending " + referenceTime
-            + " consecutive " + count + " where value "
+            + " " + modeLabel + " " + count + " where value "
             + comparison.toLowerCase(Locale.ROOT) + " " + condition.get("value").asText()
             + unitSuffix(unit);
         return clinicalOutcome(matched, null, expected, BigDecimal.valueOf(matched ? matchedRun.size() : 0),
@@ -545,7 +552,8 @@ final class ClinicalRuleOperatorSupport {
 
     private DerivedResult calculateEgfr(JsonNode context, JsonNode parameters) {
         Measurement creatinine = requiredPositiveMeasurementParameter(context, parameters, "creatinine");
-        ConvertedMeasurement scr = convertMeasurement("derived.egfr.creatinine", creatinine, "mg/dL", "creatinine");
+        ClinicalUnitConversionRegistry.ConversionResult scr =
+            convertMeasurement("derived.egfr.creatinine", creatinine, "mg/dL", "creatinine");
         BigDecimal age = requiredPositiveNumericParameter(context, parameters, "age");
         SexProfile sex = requiredSexParameter(context, parameters, "sex");
         double ratio = scr.value().doubleValue() / (sex.female() ? 0.7d : 0.9d);
@@ -565,7 +573,8 @@ final class ClinicalRuleOperatorSupport {
 
     private DerivedResult calculateCrcl(JsonNode context, JsonNode parameters) {
         Measurement creatinine = requiredPositiveMeasurementParameter(context, parameters, "creatinine");
-        ConvertedMeasurement scr = convertMeasurement("derived.crcl.creatinine", creatinine, "mg/dL", "creatinine");
+        ClinicalUnitConversionRegistry.ConversionResult scr =
+            convertMeasurement("derived.crcl.creatinine", creatinine, "mg/dL", "creatinine");
         BigDecimal age = requiredPositiveNumericParameter(context, parameters, "age");
         BigDecimal weightKg = requiredPositiveNumericParameter(context, parameters, "weightKg");
         SexProfile sex = requiredSexParameter(context, parameters, "sex");
@@ -587,6 +596,16 @@ final class ClinicalRuleOperatorSupport {
         String formula = "MOSTELLER_BSA: sqrt(HeightCm * WeightKg / 3600); HeightCm="
             + formatNumber(heightCm) + ", WeightKg=" + formatNumber(weightKg);
         return new DerivedResult(value, "m2", null, formula);
+    }
+
+    private DerivedResult calculateBmi(JsonNode context, JsonNode parameters) {
+        BigDecimal heightCm = requiredPositiveNumericParameter(context, parameters, "heightCm");
+        BigDecimal weightKg = requiredPositiveNumericParameter(context, parameters, "weightKg");
+        double heightM = heightCm.doubleValue() / 100d;
+        BigDecimal value = round2(BigDecimal.valueOf(weightKg.doubleValue() / (heightM * heightM)));
+        String formula = "BMI: WeightKg / (HeightM^2); HeightCm="
+            + formatNumber(heightCm) + ", WeightKg=" + formatNumber(weightKg);
+        return new DerivedResult(value, "kg/m2", null, formula);
     }
 
     private BigDecimal requiredNumericParameter(JsonNode context, JsonNode parameters, String name) {
@@ -685,48 +704,14 @@ final class ClinicalRuleOperatorSupport {
             optionalInstant(node, "observedAt", "time", "effectiveTime", "recordedAt"));
     }
 
-    private ConvertedMeasurement convertMeasurement(
+    private ClinicalUnitConversionRegistry.ConversionResult convertMeasurement(
         String fact,
         Measurement measurement,
         String targetUnit,
         String analyte
     ) {
-        if (measurement.unit() == null) {
-            throw unitIncompatible("字段 " + fact + " 缺少单位，不能换算到 " + targetUnit);
-        }
-        if (sameUnit(measurement.unit(), targetUnit)) {
-            return new ConvertedMeasurement(measurement.value(),
-                formatNumber(measurement.value()) + " " + measurement.unit());
-        }
-        String normalizedAnalyte = analyte.trim().toLowerCase(Locale.ROOT);
-        String from = normalizeUnit(measurement.unit());
-        String to = normalizeUnit(targetUnit);
-        if ("glucose".equals(normalizedAnalyte) && "mg/dl".equals(from) && "mmol/l".equals(to)) {
-            BigDecimal converted = measurement.value().divide(new BigDecimal("18.0182"), 8, RoundingMode.HALF_UP);
-            return new ConvertedMeasurement(converted,
-                formatNumber(measurement.value()) + " " + measurement.unit()
-                    + " / 18.0182 = " + formatNumber(round2(converted)) + " " + targetUnit);
-        }
-        if ("glucose".equals(normalizedAnalyte) && "mmol/l".equals(from) && "mg/dl".equals(to)) {
-            BigDecimal converted = measurement.value().multiply(new BigDecimal("18.0182"));
-            return new ConvertedMeasurement(converted,
-                formatNumber(measurement.value()) + " " + measurement.unit()
-                    + " * 18.0182 = " + formatNumber(round2(converted)) + " " + targetUnit);
-        }
-        if ("creatinine".equals(normalizedAnalyte) && "mg/dl".equals(from) && "umol/l".equals(to)) {
-            BigDecimal converted = measurement.value().multiply(new BigDecimal("88.4"));
-            return new ConvertedMeasurement(converted,
-                formatNumber(measurement.value()) + " " + measurement.unit()
-                    + " * 88.4 = " + formatNumber(round2(converted)) + " " + targetUnit);
-        }
-        if ("creatinine".equals(normalizedAnalyte) && "umol/l".equals(from) && "mg/dl".equals(to)) {
-            BigDecimal converted = measurement.value().divide(new BigDecimal("88.4"), 8, RoundingMode.HALF_UP);
-            return new ConvertedMeasurement(converted,
-                formatNumber(measurement.value()) + " " + measurement.unit()
-                    + " / 88.4 = " + formatNumber(round2(converted)) + " " + targetUnit);
-        }
-        throw unitIncompatible("字段 " + fact + " 不存在 " + analyte + " 的 "
-            + measurement.unit() + " 到 " + targetUnit + " 安全换算关系");
+        return ClinicalUnitConversionRegistry.convert(
+            fact, measurement.value(), measurement.unit(), targetUnit, analyte);
     }
 
     private boolean compareNumbers(BigDecimal left, BigDecimal right, String operator) {
@@ -863,18 +848,7 @@ final class ClinicalRuleOperatorSupport {
     }
 
     private boolean sameUnit(String left, String right) {
-        if (left == null || right == null) {
-            return left == null && right == null;
-        }
-        return normalizeUnit(left).equals(normalizeUnit(right));
-    }
-
-    private String normalizeUnit(String unit) {
-        return unit.trim()
-            .replace("μ", "u")
-            .replace("µ", "u")
-            .replace(" ", "")
-            .toLowerCase(Locale.ROOT);
+        return ClinicalUnitConversionRegistry.sameUnit(left, right);
     }
 
     private String unitSuffix(String unit) {
@@ -915,7 +889,7 @@ final class ClinicalRuleOperatorSupport {
     }
 
     private ApiException invalid(String message) {
-        return new ApiException(ErrorCode.RULE_DSL_INVALID, message);
+        return new ApiException(ErrorCode.ENG_RULE_001, message);
     }
 
     private ApiException operatorInvalid(String message) {
@@ -946,9 +920,6 @@ final class ClinicalRuleOperatorSupport {
         String unit,
         String source,
         Instant observedAt) {
-    }
-
-    private record ConvertedMeasurement(BigDecimal value, String formula) {
     }
 
     private record DerivedResult(

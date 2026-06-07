@@ -62,38 +62,18 @@ CREATE TABLE IF NOT EXISTS release_plan (
     trace_id          VARCHAR(128)  NULL,
     CONSTRAINT uk_release_plan_id UNIQUE (plan_id),
     CONSTRAINT ck_release_plan_strategy CHECK (strategy IN ('GRAYSCALE','FULL')),
-    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT','SPECIALTY')),
+    CONSTRAINT ck_release_plan_scope_type CHECK (scope_type IN ('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')),
     CONSTRAINT ck_release_plan_status CHECK (status IN ('DRAFT','EXECUTING','SUCCESS','FAILED','ROLLBACKED'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_release_plan_pkg ON release_plan (tenant_id, package_id, status);
-
-CREATE TABLE IF NOT EXISTS sync_target (
-    id                BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    target_id         VARCHAR(64)   NOT NULL,
-    tenant_id         VARCHAR(64)   NOT NULL,
-    target_name       VARCHAR(128)  NOT NULL,
-    target_type       VARCHAR(32)   NOT NULL,
-    connection_config CLOB          NULL,
-    status            VARCHAR(32)   NOT NULL DEFAULT 'ACTIVE',
-    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
-    updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by        VARCHAR(64)   NOT NULL DEFAULT 'system',
-    trace_id          VARCHAR(128)  NULL,
-    CONSTRAINT uk_sync_target_id UNIQUE (target_id),
-    CONSTRAINT ck_sync_target_type CHECK (target_type IN ('CLINICAL_DB','DIFY','GRAPH_DB','REDIS')),
-    CONSTRAINT ck_sync_target_status CHECK (status IN ('ACTIVE','INACTIVE'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_sync_target_tenant ON sync_target (tenant_id, status);
 
 CREATE TABLE IF NOT EXISTS sync_log (
     id                BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     log_id            VARCHAR(64)   NOT NULL,
     tenant_id         VARCHAR(64)   NOT NULL,
     plan_id           VARCHAR(64)   NOT NULL,
-    target_id         VARCHAR(64)   NOT NULL,
+    adapter_id         VARCHAR(64)   NOT NULL,
     status            VARCHAR(32)   NOT NULL DEFAULT 'RUNNING',
     error_code        VARCHAR(64)   NULL,
     error_message     CLOB          NULL,

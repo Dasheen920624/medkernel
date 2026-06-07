@@ -5,10 +5,10 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -22,7 +22,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -39,27 +39,29 @@ public class ModelGatewayService {
 
     private static final Logger log = LoggerFactory.getLogger(ModelGatewayService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    /** required 字段名回退解析（兼容 "required: [entity]" 这类非标准 JSON Schema 写法）。 */
-    private static final Pattern REQUIRED_LOOSE = Pattern.compile("required\"?\\s*:?\\s*\\[([^\\]]*)\\]");
 
-    private static final List<String> STABLE_CAPABILITIES = List.of(
-        "knowledge.discovery", "knowledge.extract", "terminology.map",
-        "rule.draft", "pathway.draft", "cdss.explain",
-        "quality.semantic-check", "followup.draft"
-    );
+    private static final Pattern CAPABILITY_CODE_PATTERN =
+        Pattern.compile("[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+");
+    private static final Set<String> ROUTE_STRATEGIES =
+        Set.of("DISABLED", "BASELINE", "LOCAL_MODEL", "EXTERNAL_MODEL");
+    private static final Set<String> DESENSITIZE_STRATEGIES =
+        Set.of("DEFAULT", "MASK_ALL", "NONE");
 
     private final ModelCapabilityTaskRepository taskRepo;
     private final ModelCapabilityPolicyRepository policyRepo;
-    private final AuditEventPublisher auditPublisher;
+    private final ModelCapabilityDefinitionRepository definitionRepo;
+    private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
 
     public ModelGatewayService(ModelCapabilityTaskRepository taskRepo,
                                ModelCapabilityPolicyRepository policyRepo,
-                               AuditEventPublisher auditPublisher,
+                               ModelCapabilityDefinitionRepository definitionRepo,
+                               AuditRecorder auditRecorder,
                                IsolatedAuditPublisher isolatedAudit) {
         this.taskRepo = taskRepo;
         this.policyRepo = policyRepo;
-        this.auditPublisher = auditPublisher;
+        this.definitionRepo = definitionRepo;
+        this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
     }
 
@@ -71,25 +73,129 @@ public class ModelGatewayService {
     @Transactional(readOnly = true)
     public List<ModelCapabilityStatusResponse> getStatus() {
         String tenantId = requireCurrentTenant();
-        return STABLE_CAPABILITIES.stream()
-            .map(code -> {
+        return definitionRepo.findAllByOrderBySortOrderAscCapabilityCodeAsc().stream()
+            .filter(ModelCapabilityDefinition::enabled)
+            .map(definition -> {
+                String code = definition.capabilityCode();
                 Optional<ModelCapabilityPolicy> policyOpt = policyRepo.findByTenantIdAndCapabilityCode(tenantId, code);
                 if (policyOpt.isPresent()) {
                     ModelCapabilityPolicy policy = policyOpt.get();
-                    boolean fallbackAvail = !"DISABLED".equalsIgnoreCase(policy.routeStrategy());
-                    return new ModelCapabilityStatusResponse(
-                        code,
-                        policy.routeStrategy(),
-                        policy.desensitizeStrategy(),
-                        fallbackAvail,
-                        fallbackAvail ? "正常可用" : "已被路由策略禁用"
-                    );
-                } else {
-                    // 默认降级为B0确定性基线
-                    return new ModelCapabilityStatusResponse(code, "BASEPLAY", "DEFAULT", true, "无策略配置，默认使用B0基线路径");
+                    return statusOf(definition, policy, true);
                 }
+                return new ModelCapabilityStatusResponse(
+                        code,
+                        definition.displayName(),
+                        definition.description(),
+                        definition.category(),
+                        "BASELINE",
+                        "DEFAULT",
+                        null,
+                        false,
+                        true,
+                        "未配置专属策略，使用系统 B0 基线"
+                    );
             })
             .toList();
+    }
+
+    /**
+     * 查询平台模型能力目录，包括已停用项。
+     */
+    @Transactional(readOnly = true)
+    public List<ModelCapabilityDefinitionResponse> listDefinitions() {
+        requireCurrentTenant();
+        return definitionRepo.findAllByOrderBySortOrderAscCapabilityCodeAsc().stream()
+            .map(ModelCapabilityDefinitionResponse::from)
+            .toList();
+    }
+
+    /**
+     * 新增或更新平台模型能力目录项。
+     */
+    @Transactional
+    public ModelCapabilityDefinitionResponse saveDefinition(
+            String capabilityCode,
+            ModelCapabilityDefinitionUpsertRequest request) {
+        requireCurrentTenant();
+        String normalizedCode = normalizeCapabilityCode(capabilityCode);
+        if (!CAPABILITY_CODE_PATTERN.matcher(normalizedCode).matches()) {
+            throw new ApiException(
+                ErrorCode.ENG_LLM_002,
+                "能力代码必须使用小写点号分段格式，例如 knowledge.extract"
+            );
+        }
+
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        Optional<ModelCapabilityDefinition> existing = definitionRepo.findById(normalizedCode);
+        ModelCapabilityDefinition saved = definitionRepo.save(new ModelCapabilityDefinition(
+            normalizedCode,
+            request.displayName().trim(),
+            request.description().trim(),
+            request.category().trim(),
+            Boolean.TRUE.equals(request.enabled()) ? "Y" : "N",
+            request.sortOrder(),
+            existing.map(ModelCapabilityDefinition::createdAt).orElse(now),
+            existing.map(ModelCapabilityDefinition::createdBy).orElse(actor),
+            now,
+            actor
+        ));
+        auditRecorder.record(
+            AuditAction.UPDATE,
+            "model_capability_definition",
+            normalizedCode,
+            "保存模型能力目录 " + normalizedCode
+        );
+        return ModelCapabilityDefinitionResponse.from(saved);
+    }
+
+    /**
+     * 保存当前租户指定能力的路由策略。
+     */
+    @Transactional
+    public ModelCapabilityStatusResponse savePolicy(
+            String capabilityCode,
+            ModelPolicyUpsertRequest request) {
+        String tenantId = requireCurrentTenant();
+        String normalizedCapability = normalizeCapabilityCode(capabilityCode);
+        ModelCapabilityDefinition definition = requireEnabledDefinition(normalizedCapability);
+        String routeStrategy = normalizeCode(request.routeStrategy());
+        String desensitizeStrategy = normalizeCode(request.desensitizeStrategy());
+        String expectedSchema = normalizeOptional(request.expectedSchema());
+
+        ModelPolicyValidateResponse validation = validatePolicy(new ModelPolicyValidateRequest(
+            normalizedCapability,
+            routeStrategy,
+            desensitizeStrategy,
+            expectedSchema
+        ));
+        if (!validation.valid()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, validation.message());
+        }
+
+        Instant now = Instant.now();
+        String actor = RequestContext.currentUserId().orElse("system");
+        Optional<ModelCapabilityPolicy> existing =
+            policyRepo.findByTenantIdAndCapabilityCode(tenantId, normalizedCapability);
+        ModelCapabilityPolicy saved = policyRepo.save(new ModelCapabilityPolicy(
+            existing.map(ModelCapabilityPolicy::id).orElse(null),
+            tenantId,
+            normalizedCapability,
+            routeStrategy,
+            desensitizeStrategy,
+            expectedSchema,
+            existing.map(ModelCapabilityPolicy::createdAt).orElse(now),
+            existing.map(ModelCapabilityPolicy::createdBy).orElse(actor),
+            now,
+            actor
+        ));
+        auditRecorder.record(
+            AuditAction.UPDATE,
+            "model_capability_policy",
+            normalizedCapability,
+            "保存模型能力策略 " + normalizedCapability
+        );
+        return statusOf(definition, saved, true);
     }
 
     /**
@@ -103,26 +209,27 @@ public class ModelGatewayService {
         String tenantId = requireCurrentTenant();
         String createdBy = RequestContext.currentUserId().orElse("system");
         String traceId = RequestContext.currentTraceId();
+        String capabilityCode = normalizeCapabilityCode(req.capabilityCode());
+        requireEnabledDefinition(capabilityCode);
 
         long startTime = System.currentTimeMillis();
         String taskId = "task-" + UUID.randomUUID().toString().replace("-", "");
 
         // 1. 获取或创建策略配置
-        ModelCapabilityPolicy policy = policyRepo.findByTenantIdAndCapabilityCode(tenantId, req.capabilityCode())
+        ModelCapabilityPolicy policy = policyRepo.findByTenantIdAndCapabilityCode(tenantId, capabilityCode)
             .orElseGet(() -> new ModelCapabilityPolicy(
-                null, tenantId, req.capabilityCode(), "BASEPLAY", "DEFAULT", req.expectedSchema(),
+                null, tenantId, capabilityCode, "BASELINE", "DEFAULT", null,
                 Instant.now(), createdBy, Instant.now(), createdBy
             ));
 
         // 2. 校验策略禁用阻断
         if ("DISABLED".equalsIgnoreCase(policy.routeStrategy())) {
-            publishFailureAudit(ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + req.capabilityCode());
-            throw new ApiException(ErrorCode.ENG_LLM_001, "模型能力 " + req.capabilityCode() + " 已经被组织禁用");
+            publishFailureAudit(ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
+            throw new ApiException(ErrorCode.ENG_LLM_001, "模型能力 " + capabilityCode + " 已经被组织禁用");
         }
 
         // 3. 敏感数据脱敏过滤与Hash计算
-        String desensStrategy = req.desensitizeStrategy() != null ? req.desensitizeStrategy() : policy.desensitizeStrategy();
-        String desensitizedInput = desensitize(req.inputData(), desensStrategy);
+        String desensitizedInput = desensitize(req.inputData(), policy.desensitizeStrategy());
         String inputHash = computeSha256(req.inputData());
         String inputSummary = desensitizedInput.length() > 500 ? desensitizedInput.substring(0, 500) : desensitizedInput;
 
@@ -130,7 +237,7 @@ public class ModelGatewayService {
         //    据宪法 #9/#13，provider 缺位时一律诚实降级到 B0 确定性基线，
         //    禁止伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         String strategy = policy.routeStrategy();
-        String outputContent = executeB0Fallback(req.capabilityCode());
+        String outputContent = executeB0Fallback(capabilityCode);
         String modelMode = "B0";
         String modelVersion = "B0-Deterministic-Baseline";
         String promptVersion = "baseline";
@@ -143,15 +250,15 @@ public class ModelGatewayService {
 
         // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出（当前恒为 B0 基线），未来接入 provider 后对模型输出复用同一校验。
-        String schemaConstraint = req.expectedSchema() != null ? req.expectedSchema() : policy.expectedSchema();
+        String schemaConstraint = policy.expectedSchema();
         if (schemaConstraint != null && !schemaConstraint.isBlank()) {
             try {
                 validateSchema(outputContent, schemaConstraint);
             } catch (ApiException schemaError) {
                 log.warn("结构化输出 Schema 校验失败 capabilityCode={}：{}",
-                    req.capabilityCode(), schemaError.getMessage());
+                    capabilityCode, schemaError.getMessage());
                 publishFailureAudit(schemaError.errorCode(),
-                    "结构化输出 Schema 校验失败 capabilityCode=" + req.capabilityCode() + "：" + schemaError.getMessage());
+                    "结构化输出 Schema 校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
                 throw schemaError;
             }
         }
@@ -163,7 +270,7 @@ public class ModelGatewayService {
             null,
             taskId,
             tenantId,
-            req.capabilityCode(),
+            capabilityCode,
             inputHash,
             inputSummary,
             outputContent,
@@ -185,14 +292,14 @@ public class ModelGatewayService {
         );
         taskRepo.save(task);
 
-        // 6. 成功留痕：成功路径走 AuditEventPublisher（AFTER_COMMIT 同事务一致性，符合 IsolatedAuditPublisher
-        //    契约——isolated 仅用于失败留痕）；retryTask 亦走 AuditEventPublisher，模块内统一（LLM-M-04）。
-        auditPublisher.publish(
+        // 6. 成功留痕：成功路径走 AuditRecorder（AFTER_COMMIT 同事务一致性，符合 IsolatedAuditPublisher
+        //    契约——isolated 仅用于失败留痕）；retryTask 亦走 AuditRecorder，模块内统一（LLM-M-04）。
+        auditRecorder.record(
             AuditAction.EXECUTE,
             "model_capability_task",
             taskId,
             String.format("推理任务完成 capabilityCode=%s mode=%s fallback=%b cost=%dms",
-                req.capabilityCode(), modelMode, fallbackUsed, timeCost)
+                capabilityCode, modelMode, fallbackUsed, timeCost)
         );
 
         return new ModelTaskResponse(
@@ -265,12 +372,10 @@ public class ModelGatewayService {
         ModelTaskRequest retryReq = new ModelTaskRequest(
             task.capabilityCode(),
             task.inputSummary(),
-            "DEFAULT",
-            null,
             60
         );
 
-        auditPublisher.publish(AuditAction.EXECUTE, "model_capability_task", taskId, "触发失败任务重试");
+        auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", taskId, "触发失败任务重试");
         return submitTask(retryReq);
     }
 
@@ -282,22 +387,44 @@ public class ModelGatewayService {
      */
     @Transactional(readOnly = true)
     public ModelPolicyValidateResponse validatePolicy(ModelPolicyValidateRequest req) {
-        if (!STABLE_CAPABILITIES.contains(req.capabilityCode())) {
+        String capabilityCode = normalizeCapabilityCode(req.capabilityCode());
+        Optional<ModelCapabilityDefinition> definition = definitionRepo.findById(capabilityCode);
+        if (definition.isEmpty()) {
             return new ModelPolicyValidateResponse(false, "非法的能力标识代码: " + req.capabilityCode(), false);
         }
-
-        if ("DISABLED".equalsIgnoreCase(req.routeStrategy())) {
-            return new ModelPolicyValidateResponse(true, "能力停用策略校验通过（已配兜底人工流程）", true);
+        if (!definition.get().enabled()) {
+            return new ModelPolicyValidateResponse(false, "模型能力目录已停用: " + capabilityCode, false);
         }
 
-        // 校验期待 Schema 是否为合法的 JSON 或文本结构
+        String routeStrategy = normalizeCode(req.routeStrategy());
+        if (!ROUTE_STRATEGIES.contains(routeStrategy)) {
+            return new ModelPolicyValidateResponse(false, "不支持的模型路由策略: " + req.routeStrategy(), false);
+        }
+
+        String desensitizeStrategy = normalizeCode(req.desensitizeStrategy());
+        if (!DESENSITIZE_STRATEGIES.contains(desensitizeStrategy)) {
+            return new ModelPolicyValidateResponse(
+                false,
+                "不支持的数据脱敏策略: " + req.desensitizeStrategy(),
+                !"DISABLED".equals(routeStrategy)
+            );
+        }
+
+        // 运行前与发布前共用同一严格 Schema 契约。
         if (req.expectedSchema() != null && !req.expectedSchema().isBlank()) {
-            if (!req.expectedSchema().trim().startsWith("{") && !req.expectedSchema().trim().startsWith("[")) {
-                return new ModelPolicyValidateResponse(false, "期待 Schema 约束定义不符合标准 JSON 物理对象格式", true);
+            try {
+                extractRequiredFields(req.expectedSchema());
+            } catch (ApiException invalidSchema) {
+                return new ModelPolicyValidateResponse(false, invalidSchema.getMessage(), true);
             }
         }
 
-        return new ModelPolicyValidateResponse(true, "模型路由及降级路由生存策略检测通过", true);
+        boolean fallbackAvailable = !"DISABLED".equals(routeStrategy);
+        return new ModelPolicyValidateResponse(
+            true,
+            fallbackAvailable ? "模型路由与 B0 降级策略校验通过" : "能力停用策略校验通过",
+            fallbackAvailable
+        );
     }
 
     // ─── 私有安全与脱敏控制逻辑 ────────────────────────────────────────────────────────
@@ -313,6 +440,53 @@ public class ModelGatewayService {
     private void publishFailureAudit(ErrorCode code, String summary) {
         isolatedAudit.publishInNewTx(AuditEvent.failure(
             AuditAction.EXECUTE, "model_capability_task", null, code.code(), summary));
+    }
+
+    private ModelCapabilityStatusResponse statusOf(
+            ModelCapabilityDefinition definition,
+            ModelCapabilityPolicy policy,
+            boolean configured) {
+        boolean fallbackAvailable = !"DISABLED".equalsIgnoreCase(policy.routeStrategy());
+        return new ModelCapabilityStatusResponse(
+            policy.capabilityCode(),
+            definition.displayName(),
+            definition.description(),
+            definition.category(),
+            policy.routeStrategy(),
+            policy.desensitizeStrategy(),
+            policy.expectedSchema(),
+            configured,
+            fallbackAvailable,
+            fallbackAvailable ? "正常可用" : "已被路由策略禁用"
+        );
+    }
+
+    private ModelCapabilityDefinition requireEnabledDefinition(String capabilityCode) {
+        String normalizedCode = normalizeCapabilityCode(capabilityCode);
+        ModelCapabilityDefinition definition = definitionRepo.findById(normalizedCode)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_LLM_001,
+                "模型能力未登记: " + normalizedCode
+            ));
+        if (!definition.enabled()) {
+            throw new ApiException(
+                ErrorCode.ENG_LLM_001,
+                "模型能力目录已停用: " + normalizedCode
+            );
+        }
+        return definition;
+    }
+
+    private static String normalizeCapabilityCode(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String normalizeOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
@@ -387,34 +561,31 @@ public class ModelGatewayService {
     }
 
     /**
-     * 从 expectedSchema 提取 required 字段名：优先按标准 JSON Schema 的 {@code required} 数组解析，
-     * 失败再回退到 {@code required: [a, b]} 宽松写法的正则解析。
+     * 从标准 JSON Schema 对象提取 {@code required} 字段名。
      */
     private Set<String> extractRequiredFields(String schema) {
         Set<String> fields = new LinkedHashSet<>();
+        JsonNode schemaNode;
         try {
-            JsonNode schemaNode = OBJECT_MAPPER.readTree(schema);
-            JsonNode requiredNode = schemaNode == null ? null : schemaNode.get("required");
-            if (requiredNode != null && requiredNode.isArray()) {
-                requiredNode.forEach(node -> {
-                    String name = node.asText().trim();
-                    if (!name.isBlank()) {
-                        fields.add(name);
-                    }
-                });
-                return fields;
-            }
-        } catch (Exception ignored) {
-            // 非标准 JSON Schema（如 "required: [entity]"），走下方正则回退。
+            schemaNode = OBJECT_MAPPER.readTree(schema);
+        } catch (Exception parseError) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须是合法 JSON 对象");
         }
-        Matcher matcher = REQUIRED_LOOSE.matcher(schema);
-        if (matcher.find()) {
-            for (String token : matcher.group(1).split(",")) {
-                String name = token.replaceAll("[\"'\\[\\]\\s]", "").trim();
-                if (!name.isBlank()) {
-                    fields.add(name);
-                }
+        if (schemaNode == null || !schemaNode.isObject()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须是合法 JSON 对象");
+        }
+        JsonNode requiredNode = schemaNode.get("required");
+        if (requiredNode == null || !requiredNode.isArray()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须声明 required 字符串数组");
+        }
+        for (JsonNode node : requiredNode) {
+            if (!node.isTextual() || node.asText().isBlank()) {
+                throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 的 required 只能包含非空字段名");
             }
+            fields.add(node.asText().trim());
+        }
+        if (fields.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 的 required 不能为空");
         }
         return fields;
     }
@@ -440,7 +611,7 @@ public class ModelGatewayService {
 
     /** 根据路由策略给出诚实的 B0 基线归因说明（绝不伪造模型推理）。 */
     private String baselineReason(String strategy) {
-        if ("BASEPLAY".equalsIgnoreCase(strategy)) {
+        if ("BASELINE".equalsIgnoreCase(strategy)) {
             return "组织安全策略显式指定 B0 确定性基线路径";
         }
         if ("LOCAL_MODEL".equalsIgnoreCase(strategy)) {
@@ -455,15 +626,14 @@ public class ModelGatewayService {
     /**
      * B0 级确定性基线回退处理器（B0 Fallback Processor）。
      *
-     * <p>根据能力标识提供 100% 格式合法且中文化的物理候选数据。
+     * <p>无模型 provider 时只返回统一空候选信封，不生成任何医学事实或业务草案。
      */
     private String executeB0Fallback(String capabilityCode) {
-        return switch (capabilityCode) {
-            case "knowledge.extract" -> "{\"entity\": \"临床概念A\", \"degree\": \"分级A\", \"risk\": \"风险级别A\"}";
-            case "terminology.map" -> "{\"standard_code\": \"STANDARD-CODE\", \"standard_name\": \"标准术语A\"}";
-            case "rule.draft" -> "{\"rule_name\": \"用药安全规则草案\", \"trigger\": \"结构化条件A\", \"action\": \"推荐卡片\"}";
-            case "pathway.draft" -> "{\"pathway_name\": \"专科路径草案\", \"steps\": [\"入径评估\", \"执行节点\", \"出径评估\"]}";
-            default -> "{\"result\": \"确定性基线回退数据\", \"capability\": \"" + capabilityCode + "\"}";
-        };
+        var output = OBJECT_MAPPER.createObjectNode();
+        output.put("status", "NO_MODEL_PROVIDER");
+        output.put("capability", capabilityCode);
+        output.putArray("candidates");
+        output.put("message", "当前未接入可用模型 provider，未生成候选内容");
+        return output.toString();
     }
 }

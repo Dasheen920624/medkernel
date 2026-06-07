@@ -29,8 +29,10 @@ import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
 import com.medkernel.engine.rule.RuleVersionRepository;
-import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.engine.safety.ClinicalRedlineMatcher;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -39,7 +41,7 @@ import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Component;
 
 /**
- * CDSS B0 确定性命中器：读取标准上下文与已发布规则，生成可追溯推荐候选。
+ * CDSS B0 确定性命中器：读取标准上下文与统一版本已激活规则，生成可追溯推荐候选。
  *
  * <p>本组件只产出候选，不落库、不审计；事务、状态推进和疲劳治理由
  * {@link RecommendationEngineService} 统一处理。模型关闭时也依赖此组件保持主链路可用。
@@ -52,6 +54,7 @@ public class RecommendationDeterministicMatcher {
     private final ContextSnapshotService snapshots;
     private final RuleDefinitionRepository ruleDefinitions;
     private final RuleVersionRepository ruleVersions;
+    private final AssetVersionRepository assetVersions;
     private final RuleDslEvaluator ruleEvaluator;
     private final PatientPathwayRepository patientPathways;
     private final PathwayTemplateRepository pathwayTemplates;
@@ -64,6 +67,7 @@ public class RecommendationDeterministicMatcher {
             ContextSnapshotService snapshots,
             RuleDefinitionRepository ruleDefinitions,
             RuleVersionRepository ruleVersions,
+            AssetVersionRepository assetVersions,
             RuleDslEvaluator ruleEvaluator,
             PatientPathwayRepository patientPathways,
             PathwayTemplateRepository pathwayTemplates,
@@ -74,6 +78,7 @@ public class RecommendationDeterministicMatcher {
         this.snapshots = snapshots;
         this.ruleDefinitions = ruleDefinitions;
         this.ruleVersions = ruleVersions;
+        this.assetVersions = assetVersions;
         this.ruleEvaluator = ruleEvaluator;
         this.patientPathways = patientPathways;
         this.pathwayTemplates = pathwayTemplates;
@@ -91,8 +96,12 @@ public class RecommendationDeterministicMatcher {
         ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
         JsonNode context = json.valueToTree(snapshot.resources());
         List<RecommendationCardRequest> matched = new ArrayList<>();
-        for (RuleDefinition rule : effectivePublishedRules(tenantId)) {
-            RuleVersion version = activePublishedVersion(rule);
+        for (RuleDefinition rule : effectiveActiveRules(tenantId)) {
+            Optional<RuleVersion> activeVersion = activeUnifiedVersion(rule);
+            if (activeVersion.isEmpty()) {
+                continue;
+            }
+            RuleVersion version = activeVersion.get();
             RuleDslEvaluation evaluation = ruleEvaluator.evaluate(parseDsl(version), context);
             if (evaluation.hit()) {
                 matched.add(toCard(request, snapshot, rule, version, evaluation, tenantId));
@@ -102,28 +111,35 @@ public class RecommendationDeterministicMatcher {
         return List.copyOf(matched);
     }
 
-    private List<RuleDefinition> effectivePublishedRules(String tenantId) {
+    private List<RuleDefinition> effectiveActiveRules(String tenantId) {
         LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
-        ruleDefinitions.findPublishedByTenantId(tenantId).forEach(rule -> byCode.put(rule.ruleCode(), rule));
+        ruleDefinitions.findPublishedByTenantId(tenantId).stream()
+            .filter(rule -> activeUnifiedVersion(rule).isPresent())
+            .forEach(rule -> byCode.put(rule.ruleCode(), rule));
         if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)
-                .forEach(rule -> byCode.putIfAbsent(rule.ruleCode(), rule));
+            for (RuleDefinition rule : ruleDefinitions.findPublishedByTenantId(PlatformTenant.ID)) {
+                if (!byCode.containsKey(rule.ruleCode()) && activeUnifiedVersion(rule).isPresent()) {
+                    byCode.put(rule.ruleCode(), rule);
+                }
+            }
         }
         return List.copyOf(byCode.values());
     }
 
-    private RuleVersion activePublishedVersion(RuleDefinition rule) {
+    private Optional<RuleVersion> activeUnifiedVersion(RuleDefinition rule) {
         if (!hasText(rule.activeVersionId())) {
             throw new ApiException(ErrorCode.ENG_RULE_003, "已发布规则缺少 activeVersionId: " + rule.ruleId());
         }
         RuleVersion version = ruleVersions.findByVersionIdAndTenantId(rule.activeVersionId(), rule.tenantId())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_003,
                 "规则 active 版本不存在: " + rule.activeVersionId()));
-        if (version.status() != RuleVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_RULE_003,
-                "规则 active 版本未发布: " + rule.activeVersionId());
-        }
-        return version;
+        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                rule.tenantId(),
+                VersionedAssetType.RULE,
+                rule.ruleCode(),
+                String.valueOf(version.versionNo()))
+            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
+            .map(assetVersion -> version);
     }
 
     private JsonNode parseDsl(RuleVersion version) {
@@ -248,11 +264,10 @@ public class RecommendationDeterministicMatcher {
 
     private Optional<KnowledgeAssetVersion> activeKnowledgeVersion(EffectiveKnowledgeIdentity effective) {
         KnowledgeIdentity identity = effective.identity();
-        if (identity.currentVersionId() != null) {
-            return knowledgeVersions.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
-                .filter(KnowledgeAssetVersion::isAuthoritative);
+        if (identity.currentVersionId() == null) {
+            return Optional.empty();
         }
-        return knowledgeVersions.findActiveByIdentity(effective.sourceTenantId(), identity.id())
+        return knowledgeVersions.findByTenantIdAndId(effective.sourceTenantId(), identity.currentVersionId())
             .filter(KnowledgeAssetVersion::isAuthoritative);
     }
 

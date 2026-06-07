@@ -1,149 +1,263 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { App as AntdApp } from "antd";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createMemberMock = vi.fn();
-const refetchCredentials = vi.fn();
-const provisionTenantMock = vi.fn();
-let roleAssignmentsMock: Array<{
-  id: number;
-  tenantId: string;
-  userId: string;
-  roleCode: string;
-  scopeLevel: string;
-  scopeCode: string;
-  activeFlag: string;
-  createdBy: string;
-}> = [];
-let credentialsMock: Array<{
-  userId: string;
-  username: string;
-  status: string;
-  mustChangePwd: boolean;
-  createdAt: string;
-}> = [];
+const createUserMock = vi.fn();
+const assignRoleMock = vi.fn();
+const resetPasswordMock = vi.fn();
+const setStatusMock = vi.fn();
+const refetchUsersMock = vi.fn();
+const refetchDetailMock = vi.fn();
+
+let usersQuery = {
+  data: {
+    items: [
+      {
+        userId: "doctor-1",
+        displayName: "王医生",
+        username: "dr.wang",
+        credentialManaged: true,
+        status: "ACTIVE",
+        mustChangePwd: false,
+        roles: [
+          {
+            code: "doctor",
+            displayName: "临床医生",
+            scopeLevel: "TENANT",
+            scopeCode: "tenant-test",
+          },
+        ],
+        createdAt: "2026-06-06T00:00:00Z",
+      },
+    ],
+    page: 1,
+    size: 20,
+    total: 1,
+    hasNext: false,
+    totalEstimated: false,
+  },
+  isLoading: false,
+  isError: false,
+  error: null as Error | null,
+  refetch: refetchUsersMock,
+};
+
+const detailQuery = {
+  data: {
+    userId: "doctor-1",
+    displayName: "王医生",
+    username: "dr.wang",
+    credentialManaged: true,
+    status: "ACTIVE",
+    mustChangePwd: false,
+    roles: [
+      {
+        code: "doctor",
+        displayName: "临床医生",
+        scopeLevel: "TENANT",
+        scopeCode: "tenant-test",
+      },
+    ],
+    effectivePermissions: [
+      {
+        code: "context.read",
+        dimension: "ACTION",
+        target: "context",
+        displayName: "查看标准上下文",
+        risk: "LOW",
+      },
+    ],
+    createdAt: "2026-06-06T00:00:00Z",
+    updatedAt: "2026-06-06T00:00:00Z",
+  },
+  isLoading: false,
+  isError: false,
+  refetch: refetchDetailMock,
+};
 
 vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({
     data: {
-      dataScope: {
-        tenantId: "tenant-test",
-      },
+      permissions: [{ code: "org.read" }, { code: "org.write" }],
+      roles: [{ code: "hospital-admin" }],
     },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
   }),
-  useUserRoleAssignments: () => ({ data: roleAssignmentsMock, isLoading: false, refetch: vi.fn() }),
-  useCreateUserRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteUserRoleAssignment: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  usePlatformCredentials: () => ({ data: credentialsMock, refetch: refetchCredentials }),
-  useCreateMember: () => ({ mutateAsync: createMemberMock, isPending: false }),
-  useResetMemberPassword: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSetCredentialStatus: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useTenants: () => ({ data: [], refetch: vi.fn() }),
-  useProvisionTenant: () => ({ mutateAsync: provisionTenantMock, isPending: false }),
+  useComplianceUsers: () => usersQuery,
+  useComplianceUserDetail: (userId: string | null) => ({
+    ...detailQuery,
+    data: userId ? detailQuery.data : undefined,
+  }),
+  useCreateComplianceUser: () => ({ mutateAsync: createUserMock, isPending: false }),
+  useAssignComplianceUserRole: () => ({ mutateAsync: assignRoleMock, isPending: false }),
+  useRemoveComplianceUserRole: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useResetComplianceUserPassword: () => ({
+    mutateAsync: resetPasswordMock,
+    isPending: false,
+  }),
+  useSetComplianceUserStatus: () => ({ mutateAsync: setStatusMock, isPending: false }),
 }));
 
 import AdminUsers from "./AdminUsers";
 
-describe("AdminUsers · 成员账号管理", () => {
+function renderPage() {
+  return render(
+    <AntdApp>
+      <AdminUsers />
+    </AntdApp>,
+  );
+}
+
+describe("AdminUsers · 统一用户管理", () => {
   beforeEach(() => {
-    createMemberMock.mockReset();
-    refetchCredentials.mockReset();
-    provisionTenantMock.mockReset();
-    roleAssignmentsMock = [];
-    credentialsMock = [];
+    createUserMock.mockReset();
+    assignRoleMock.mockReset();
+    resetPasswordMock.mockReset();
+    setStatusMock.mockReset();
+    refetchUsersMock.mockReset();
+    refetchDetailMock.mockReset();
+    usersQuery = {
+      ...usersQuery,
+      data: {
+        ...usersQuery.data,
+        items: [
+          {
+            userId: "doctor-1",
+            displayName: "王医生",
+            username: "dr.wang",
+            credentialManaged: true,
+            status: "ACTIVE",
+            mustChangePwd: false,
+            roles: [
+              {
+                code: "doctor",
+                displayName: "临床医生",
+                scopeLevel: "TENANT",
+                scopeCode: "tenant-test",
+              },
+            ],
+            createdAt: "2026-06-06T00:00:00Z",
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
   });
 
-  it("开通租户后展示管理员临时密码与登录租户提示", async () => {
-    provisionTenantMock.mockResolvedValue({
-      tenantId: "t-renmin",
-      adminUserId: "renmin-admin",
-      adminUsername: "renmin-admin",
-      tempPassword: "TenantPwd@9",
-    });
-    render(<AdminUsers />);
+  it("用一个服务端分页主表呈现账号、状态和真实角色", () => {
+    renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "开通新租户" }));
-    fireEvent.change(screen.getByPlaceholderText("如 t-renmin"), {
-      target: { value: "t-renmin" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("如 人民医院"), {
-      target: { value: "人民医院" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("如 renmin-admin"), {
-      target: { value: "renmin-admin" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "确认开通租户" }));
-
-    await waitFor(() =>
-      expect(provisionTenantMock).toHaveBeenCalledWith({
-        tenantId: "t-renmin",
-        tenantName: "人民医院",
-        adminUsername: "renmin-admin",
-      }),
-    );
-    expect(await screen.findByText(/临时密码：TenantPwd@9/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "用户管理" })).toBeInTheDocument();
+    expect(screen.getByText("dr.wang")).toBeInTheDocument();
+    expect(screen.getByText("临床医生")).toBeInTheDocument();
+    expect(screen.getByText("正常")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建用户" })).toBeInTheDocument();
+    expect(screen.queryByText(/物理入库|角色分配台账|GA-SVC/)).not.toBeInTheDocument();
   });
 
-  it("开通成员后展示一次性临时密码", async () => {
-    createMemberMock.mockResolvedValue({
-      userId: "drwang",
-      username: "drwang",
-      tempPassword: "TmpPwd@123",
+  it("创建用户后一次性展示临时密码并刷新主表", async () => {
+    createUserMock.mockResolvedValue({
+      user: {
+        ...detailQuery.data,
+        userId: "nurse-1",
+        displayName: "护士一",
+        username: "nurse.one",
+        credentialManaged: true,
+      },
+      tempPassword: "TmpPwd@2026!",
     });
-    render(<AdminUsers />);
+    renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "开通新成员" }));
-    fireEvent.change(screen.getByPlaceholderText("如 drwang"), { target: { value: "drwang" } });
-    fireEvent.click(screen.getByRole("button", { name: "确认开通成员" }));
+    fireEvent.click(screen.getByRole("button", { name: "新建用户" }));
+    fireEvent.change(screen.getByLabelText("登录名"), { target: { value: "nurse.one" } });
+    fireEvent.change(screen.getByLabelText("用户标识"), { target: { value: "nurse-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "创建" }));
 
     await waitFor(() =>
-      expect(createMemberMock).toHaveBeenCalledWith({
-        username: "drwang",
+      expect(createUserMock).toHaveBeenCalledWith({
+        credentialManaged: true,
+        username: "nurse.one",
+        userId: "nurse-1",
+        displayName: undefined,
         roleCode: "doctor",
         initialPassword: undefined,
       }),
     );
-    expect(await screen.findByText(/临时密码：TmpPwd@123/)).toBeInTheDocument();
+    expect(await screen.findByText("TmpPwd@2026!")).toBeInTheDocument();
+    expect(refetchUsersMock).toHaveBeenCalled();
   });
 
-  it("登录名为空时拦截提交且不调用接口", async () => {
-    render(<AdminUsers />);
-    fireEvent.click(screen.getByRole("button", { name: "开通新成员" }));
-    fireEvent.click(screen.getByRole("button", { name: "确认开通成员" }));
-    await waitFor(() => expect(screen.getByText("登录名不能为空")).toBeInTheDocument());
-    expect(createMemberMock).not.toHaveBeenCalled();
-  });
-
-  it("内置超级管理员在账号和角色台账中展示为系统内置不可编辑", () => {
-    roleAssignmentsMock = [
-      {
-        id: 44,
-        tenantId: "t-1",
-        userId: "system-superadmin-1",
-        roleCode: "system-superadmin",
-        scopeLevel: "TENANT",
-        scopeCode: "t-1",
-        activeFlag: "Y",
-        createdBy: "migration-v44",
+  it("创建外部身份用户时不要求登录名且不展示密码操作", async () => {
+    createUserMock.mockResolvedValue({
+      user: {
+        ...detailQuery.data,
+        userId: "external-1",
+        displayName: "外部医生",
+        username: null,
+        credentialManaged: false,
       },
-    ];
-    credentialsMock = [
-      {
-        userId: "system-superadmin-1",
-        username: "system-superadmin",
-        status: "ACTIVE",
-        mustChangePwd: true,
-        createdAt: "2026-06-02T00:00:00Z",
-      },
-    ];
-
-    render(<AdminUsers />);
-
-    expect(screen.getByText("内置超级管理员")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "系统内置" })).toHaveLength(2);
-    screen.getAllByRole("button", { name: "系统内置" }).forEach((button) => {
-      expect(button).toBeDisabled();
+      tempPassword: null,
     });
-    expect(screen.queryByRole("button", { name: "解除绑定" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "停用" })).not.toBeInTheDocument();
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建用户" }));
+    fireEvent.click(screen.getByText("外部身份"));
+    fireEvent.change(screen.getByLabelText("显示名称"), { target: { value: "外部医生" } });
+    fireEvent.change(screen.getByLabelText("用户标识"), { target: { value: "external-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "创建" }));
+
+    await waitFor(() =>
+      expect(createUserMock).toHaveBeenCalledWith({
+        credentialManaged: false,
+        username: undefined,
+        userId: "external-1",
+        displayName: "外部医生",
+        roleCode: "doctor",
+        initialPassword: undefined,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "新建用户" })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("临时密码仅显示一次")).not.toBeInTheDocument();
+  });
+
+  it("在详情抽屉查看角色范围和后端计算的有效权限", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 doctor-1" }));
+
+    expect(await screen.findByText("查看标准上下文")).toBeInTheDocument();
+    expect(screen.getByText("tenant-test")).toBeInTheDocument();
+    expect(screen.getByText("context.read")).toBeInTheDocument();
+  });
+
+  it("无用户时展示可操作的真实空状态", () => {
+    usersQuery = {
+      ...usersQuery,
+      data: { ...usersQuery.data, items: [], total: 0 },
+    };
+    renderPage();
+
+    expect(screen.getByText("暂无用户")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建用户" })).toBeInTheDocument();
+  });
+
+  it("读取失败时展示错误状态与重试动作", () => {
+    usersQuery = {
+      ...usersQuery,
+      isError: true,
+      error: new Error("service unavailable"),
+    };
+    renderPage();
+
+    expect(screen.getByText("用户列表读取失败")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(refetchUsersMock).toHaveBeenCalled();
   });
 });

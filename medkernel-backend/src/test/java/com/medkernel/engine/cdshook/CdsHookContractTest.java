@@ -50,7 +50,7 @@ class CdsHookContractTest {
             "HIS",
             context,
             null,
-            "1");
+            "1.0");
 
         assertThat(request.cdsHookVersion()).isEqualTo(CdsHookContract.CURRENT_VERSION);
         assertThat(CdsHookContract.missingRequiredContextFields(request)).isEmpty();
@@ -71,6 +71,9 @@ class CdsHookContractTest {
 
     @Test
     void unsupportedContractVersionIsRejected() {
+        assertThatThrownBy(() -> CdsHookContract.normalizeVersion("1"))
+            .isInstanceOf(ApiException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EVENT_001);
         assertThatThrownBy(() -> CdsHookContract.normalizeVersion("2.0"))
             .isInstanceOf(ApiException.class)
             .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ENG_EVENT_001);

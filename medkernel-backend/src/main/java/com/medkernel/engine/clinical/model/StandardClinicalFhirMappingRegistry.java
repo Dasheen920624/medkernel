@@ -20,6 +20,7 @@ public class StandardClinicalFhirMappingRegistry {
 
     private static final List<StandardClinicalFhirMapping> MAPPINGS = List.of(
         mapping(CanonicalResourceType.PATIENT, StandardClinicalFhirResourceType.PATIENT),
+        mapping(CanonicalResourceType.ALLERGY_INTOLERANCE, StandardClinicalFhirResourceType.ALLERGY_INTOLERANCE),
         mapping(CanonicalResourceType.ENCOUNTER, StandardClinicalFhirResourceType.ENCOUNTER),
         mapping(CanonicalResourceType.CONDITION, StandardClinicalFhirResourceType.CONDITION),
         mapping(CanonicalResourceType.NURSING_ASSESSMENT, StandardClinicalFhirResourceType.OBSERVATION),

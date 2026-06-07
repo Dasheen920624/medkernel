@@ -155,6 +155,8 @@ class AuditControllerTest {
             .andExpect(jsonPath("$.data.items[0].outcome").value("FAILED"))
             .andExpect(jsonPath("$.data.items[0].errorCode").value("ENG-AUDIT-001"))
             .andExpect(jsonPath("$.data.items[0].payloadDigest").value("sm3:abc"))
+            .andExpect(jsonPath("$.data.items[0].beforeSnapshot").value("{\"enabled\":true}"))
+            .andExpect(jsonPath("$.data.items[0].afterSnapshot").value("{\"enabled\":false}"))
             .andExpect(jsonPath("$.data.items[0].superAdminAction").value(true));
     }
 

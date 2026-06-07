@@ -26,6 +26,7 @@ class FhirCanonicalMapperPr4Test {
             Map.entry(CanonicalResourceType.PATIENT, "Patient"),
             Map.entry(CanonicalResourceType.ENCOUNTER, "Encounter"),
             Map.entry(CanonicalResourceType.CONDITION, "Condition"),
+            Map.entry(CanonicalResourceType.ALLERGY_INTOLERANCE, "AllergyIntolerance"),
             Map.entry(CanonicalResourceType.OBSERVATION, "Observation"),
             Map.entry(CanonicalResourceType.MEDICATION, "Medication"),
             Map.entry(CanonicalResourceType.PROCEDURE, "Procedure"),
@@ -140,6 +141,25 @@ class FhirCanonicalMapperPr4Test {
                   "displayName": "诊断显示",
                   "sourceSystem": "HIS",
                   "sourceRecordId": "COND-001",
+                  "mappedVersion": "canonical-v1",
+                  "onsetTime": "2026-06-03T00:00:00Z",
+                  "receivedTime": "2026-06-03T00:00:01Z",
+                  "qualityStatus": "VALID"
+                }
+                """;
+            case ALLERGY_INTOLERANCE -> """
+                {
+                  "allergyIntoleranceId": "alg-1",
+                  "code": "PEN",
+                  "codeSystem": "urn:local:drug",
+                  "substance": "青霉素",
+                  "category": "medication",
+                  "criticality": "high",
+                  "reactions": ["皮疹"],
+                  "clinicalStatus": "active",
+                  "verificationStatus": "confirmed",
+                  "sourceSystem": "HIS",
+                  "sourceRecordId": "ALG-001",
                   "mappedVersion": "canonical-v1",
                   "onsetTime": "2026-06-03T00:00:00Z",
                   "receivedTime": "2026-06-03T00:00:01Z",

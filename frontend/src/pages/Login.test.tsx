@@ -164,6 +164,20 @@ describe("Login", () => {
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
+  it("后端未返回租户目录时不使用本地租户兜底", () => {
+    loginTenantDirectoryState = {
+      isLoading: false,
+      isError: false,
+    };
+    render(<Login />);
+
+    expect(screen.getByText("没有可登录租户")).toBeInTheDocument();
+    expect(screen.getByText("租户目录未就绪")).toBeInTheDocument();
+    expect(screen.getByText("无可登录租户")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /进入工作台/ })).toBeDisabled();
+    expect(screen.queryByText("平台主租户（唯一内置）")).not.toBeInTheDocument();
+  });
+
   it("已有客户租户时优先显示客户或集团租户，平台主租户退居第二层", async () => {
     loginTenantDirectoryState = {
       data: {
@@ -348,5 +362,37 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: "CAS（NOT_CONNECTED）" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "SAML（NOT_CONNECTED）" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "国密CA（NOT_CONNECTED）" })).toBeDisabled();
+  });
+
+  it("统一身份状态不返回提供方时不展示本地伪造方式", async () => {
+    loginTenantDirectoryState = {
+      data: {
+        primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
+        platformTenant: { tenantId: "t-1", name: "平台主租户（唯一内置）", kind: "PLATFORM" },
+        hasCustomerTenants: true,
+      },
+      isLoading: false,
+      isError: false,
+    };
+    delegatedAuthStatusState = {
+      data: {
+        mode: "BOTH",
+        enabled: true,
+        status: "NOT_CONNECTED",
+        providers: [],
+        message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+      },
+      isLoading: false,
+      isError: false,
+    };
+    render(<Login />);
+
+    fireEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
+
+    expect(
+      await screen.findByText("后端未返回统一身份方式，暂不展示登录跳转入口。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "OIDC（NOT_CONNECTED）" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CAS（NOT_CONNECTED）" })).not.toBeInTheDocument();
   });
 });

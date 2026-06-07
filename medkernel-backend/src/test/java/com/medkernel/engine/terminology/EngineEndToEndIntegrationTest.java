@@ -22,7 +22,6 @@ import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.followup.FollowupEngineService;
-import com.medkernel.engine.followup.FollowupPlanGenerateRequest;
 import com.medkernel.engine.followup.FollowupPlanDetailResponse;
 import com.medkernel.engine.knowledge.KnowledgeIdentityService;
 import com.medkernel.engine.knowledge.FragmentCreateRequest;
@@ -30,6 +29,9 @@ import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
+import com.medkernel.engine.pkg.KnowledgePackage;
+import com.medkernel.engine.pkg.KnowledgePackageRepository;
+import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.engine.recommendation.*;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
@@ -79,6 +81,9 @@ class EngineEndToEndIntegrationTest {
     @Autowired
     private LocalTermRepository localTermRepo;
 
+    @Autowired
+    private KnowledgePackageRepository packageRepo;
+
     private final String tenantId = "tenant-hospital-01";
     private final String doctorId = "DOC-STROKE-101";
     private final String traceId = "tr-e2e-stroke-999";
@@ -87,6 +92,11 @@ class EngineEndToEndIntegrationTest {
     void setUp() {
         // 初始化当前线程的强多租户及角色动作授权上下文 (GA-ENG-BASE-01/02)
         RequestContext.restore(new RequestContext.Snapshot(traceId, OrgScope.tenant(tenantId), doctorId));
+        Instant now = Instant.now();
+        packageRepo.save(new KnowledgePackage(
+            null, "pkg-stroke", tenantId, "STROKE.DEFAULT", "pkg-stroke-2026",
+            "卒中端到端配置包", null, KnowledgePackageStatus.ACTIVE,
+            now, doctorId, now, doctorId, traceId));
     }
 
     @Test
@@ -169,13 +179,14 @@ class EngineEndToEndIntegrationTest {
         // 同步接收急诊疑似脑梗患者李建国（血压 185/105 mmHg）的主诉与检验快照
         String patientPayload = "{\"patientName\":\"李建国\",\"systolicBP\":185,\"diastolicBP\":105,\"diagnosis\":\"脑卒中\"}";
         ContextSnapshotRequest contextReq = new ContextSnapshotRequest(
-            "PAT-777", "enc-stroke-888", "ORG-1",
-            "kpv-1", "rpv-1", "ppv-1",
+            null, null, null, null, null, null, null, null, null, null, List.of(),
+            "PAT-777", "enc-stroke-888", "ORG-1", "pkg-stroke-2026",
             new ContextSnapshotResources(
                 new com.medkernel.engine.context.canonical.CanonicalPatient(
                     "PAT-777", "李建国", java.time.LocalDate.of(1958, 5, 12), "M",
-                    List.of(), List.of(), "HIS", "pat-rec-id", "v1.0", Instant.now(), Instant.now(), QualityStatus.VALID
+                    List.of(), "HIS", "pat-rec-id", "v1.0", Instant.now(), Instant.now(), QualityStatus.VALID
                 ),
+                List.of(),
                 List.of(
                     new com.medkernel.engine.context.canonical.CanonicalEncounter(
                         "enc-stroke-888", "EMERGENCY", Instant.now(), null,
@@ -247,10 +258,13 @@ class EngineEndToEndIntegrationTest {
 
         System.out.println("====== [5. 出院事件触发时序随访问卷计划生成] ======");
         // 出院事件，系统自动根据模板，为脑卒中患者分发 30 天时序随访任务
-        FollowupPlanGenerateRequest followupReq = new FollowupPlanGenerateRequest(
-            "PAT-777", "enc-stroke-888", "pathway-99", "I63.900", "HIGH", List.of("QUESTIONNAIRE", "EXAM")
-        );
-        FollowupPlanDetailResponse followupResp = followupService.generatePlan(followupReq);
+        FollowupPlanDetailResponse followupResp = followupService.generatePlanFromPathway(
+            "PAT-777",
+            "enc-stroke-888",
+            "pathway-99",
+            "I63.900",
+            "HIGH",
+            List.of("QUESTIONNAIRE", "EXAM"));
         assertNotNull(followupResp.planId());
         assertEquals("ACTIVE", followupResp.status().name());
         assertFalse(followupResp.tasks().isEmpty(), "时序随访第一期任务与问卷分发就绪");
@@ -261,7 +275,7 @@ class EngineEndToEndIntegrationTest {
         // 且绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据（宪法 #9/#13）。
         ModelTaskRequest gateReq = new ModelTaskRequest(
             "knowledge.extract", "急性卒中用药指征结构化抽取",
-            "DEFAULT", "required: [entity]", 60
+            60
         );
 
         ModelTaskResponse gateResp = modelGatewayService.submitTask(gateReq);

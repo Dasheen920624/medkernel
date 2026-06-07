@@ -22,6 +22,8 @@ public record WorkflowNotificationSettingsRequest(
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "免打扰结束时间格式必须为 HH:mm")
     String quietEnd,
 
-    Set<WorkflowNotificationLevel> quietBypassLevels
+    Set<WorkflowNotificationLevel> quietBypassLevels,
+
+    Set<WorkflowNotificationType> subscribedTypes
 ) {
 }

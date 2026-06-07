@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -34,7 +35,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
-import com.medkernel.shared.audit.AuditEventPublisher;
+import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -49,7 +50,7 @@ class ContextSnapshotServiceTest {
     private ContextValidator validator;
     private PackageVersionPort versions;
     private TerminologyMappingPort mapping;
-    private AuditEventPublisher auditPublisher;
+    private AuditRecorder auditRecorder;
     private IsolatedAuditPublisher isolatedAudit;
     private StateTransitionRecorder recorder;
     private DiagnoseResponseAssembler diagnoseAssembler;
@@ -61,17 +62,19 @@ class ContextSnapshotServiceTest {
         resources = mock(CanonicalResourceRepository.class);
         idemRepo = mock(ContextIdempotencyKeyRepository.class);
         validator = new ContextValidator();
-        versions = new LenientPackageVersionAdapter();
+        versions = mock(PackageVersionPort.class);
         mapping = mock(TerminologyMappingPort.class);
-        auditPublisher = mock(AuditEventPublisher.class);
+        auditRecorder = mock(AuditRecorder.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         recorder = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         when(mapping.evaluate(anyString(), anyList())).thenReturn(Map.of());
+        when(versions.exists(anyString(), anyString()))
+            .thenAnswer(invocation -> !invocation.<String>getArgument(1).isBlank());
         ObjectMapper json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new ContextSnapshotService(snapshots, resources, idemRepo,
-            validator, versions, mapping, auditPublisher, isolatedAudit, recorder,
+            validator, versions, mapping, auditRecorder, isolatedAudit, recorder,
             diagnoseAssembler, json);
 
         when(snapshots.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -98,7 +101,7 @@ class ContextSnapshotServiceTest {
         // 1 patient + 1 encounter
         verify(resources, times(2)).save(any());
         verify(idemRepo, never()).save(any());
-        verify(auditPublisher, times(1)).publish(
+        verify(auditRecorder, times(1)).record(
             eq(AuditAction.CREATE), eq("context_snapshot"), anyString(), anyString());
     }
 
@@ -116,9 +119,6 @@ class ContextSnapshotServiceTest {
         ContextSnapshotResponse resp = service.create(request, "legacy-header-key");
 
         assertThat(resp.packageVersion()).isEqualTo("pkg-2026.06");
-        assertThat(resp.knowledgePackageVersion()).isEqualTo("pkg-2026.06");
-        assertThat(resp.rulePackageVersion()).isEqualTo("pkg-2026.06");
-        assertThat(resp.pathwayPackageVersion()).isEqualTo("pkg-2026.06");
         assertThat(resp.resources().patient().mpi()).isEqualTo("MPI-1");
         assertThat(resp.resources().observations()).extracting(CanonicalObservation::code)
             .containsExactly("HB");
@@ -136,7 +136,7 @@ class ContextSnapshotServiceTest {
     }
 
     @Test
-    void shouldBindSnakeCaseStandardRequestJson() throws Exception {
+    void shouldBindStandardContextAndCamelBusinessRequestJson() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         mapper.findAndRegisterModules();
 
@@ -147,9 +147,9 @@ class ContextSnapshotServiceTest {
               "tenant_id": "tenant-A",
               "department_id": "DEPT-A",
               "role_codes": ["DOCTOR"],
-              "patient_id": "MPI-JSON",
-              "encounter_id": "ENC-JSON",
-              "org_unit_id": "ORG-JSON",
+              "patientId": "MPI-JSON",
+              "encounterId": "ENC-JSON",
+              "orgUnitId": "ORG-JSON",
               "package_version": "pkg-json",
               "resources": {}
             }
@@ -164,9 +164,6 @@ class ContextSnapshotServiceTest {
         assertThat(request.encounterId()).isEqualTo("ENC-JSON");
         assertThat(request.orgUnitId()).isEqualTo("ORG-JSON");
         assertThat(request.packageVersion()).isEqualTo("pkg-json");
-        assertThat(request.knowledgePackageVersion()).isEqualTo("pkg-json");
-        assertThat(request.rulePackageVersion()).isEqualTo("pkg-json");
-        assertThat(request.pathwayPackageVersion()).isEqualTo("pkg-json");
         assertThat(request.resources().observations()).isEmpty();
     }
 
@@ -192,15 +189,39 @@ class ContextSnapshotServiceTest {
     }
 
     @Test
+    void shouldPersistStructuredAllergyIntoleranceAndExposeTerminologyAnchor() {
+        when(mapping.evaluate(eq("tenant-A"), anyList()))
+            .thenReturn(Map.of("ALLERGY_INTOLERANCE:alg-1:code:ATC-J01C", "UNKNOWN"));
+
+        ContextSnapshotResponse resp = service.create(requestWithAllergyIntolerance(), null);
+
+        assertThat(resp.resources().allergyIntolerances()).singleElement().satisfies(allergy -> {
+            assertThat(allergy.allergyIntoleranceId()).isEqualTo("alg-1");
+            assertThat(allergy.code()).isEqualTo("ATC-J01C");
+            assertThat(allergy.criticality()).isEqualTo("HIGH");
+        });
+        assertThat(resp.mappingStatus())
+            .containsEntry("ALLERGY_INTOLERANCE:alg-1:code:ATC-J01C", "UNKNOWN");
+
+        ArgumentCaptor<CanonicalResource> resourceCap = ArgumentCaptor.forClass(CanonicalResource.class);
+        verify(resources, times(3)).save(resourceCap.capture());
+        assertThat(resourceCap.getAllValues()).anySatisfy(resource -> {
+            assertThat(resource.resourceType()).isEqualTo(CanonicalResourceType.ALLERGY_INTOLERANCE);
+            assertThat(resource.qualityStatus()).isEqualTo(QualityStatus.VALID);
+            assertThat(resource.seqNo()).isEqualTo(1);
+            assertThat(resource.resourcePayloadJson()).contains("ATC-J01C", "青霉素类");
+        });
+    }
+
+    @Test
     void shouldEmitFailureAuditOnInvalidQualityWithoutCreateAudit() {
         var resourcesDto = new ContextSnapshotResources(null,
             List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        var req = new ContextSnapshotRequest("MPI-1", null, "ORG-1",
-            "kpv-1", "rpv-1", "ppv-1", resourcesDto);
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var req = request("MPI-1", null, "ORG-1", "pkg-1", resourcesDto);
         assertThatThrownBy(() -> service.create(req, null)).isInstanceOf(ApiException.class);
         // 成功审计：从未被发布
-        verify(auditPublisher, never()).publish(any(AuditAction.class), anyString(), anyString(), anyString());
+        verify(auditRecorder, never()).record(any(AuditAction.class), anyString(), anyString(), anyString());
         // 失败审计：恰好一次，含 outcome=FAILED 与 errorCode
         ArgumentCaptor<AuditEvent> evCap = ArgumentCaptor.forClass(AuditEvent.class);
         verify(isolatedAudit, times(1)).publishInNewTx(evCap.capture());
@@ -212,9 +233,8 @@ class ContextSnapshotServiceTest {
     void shouldRejectWhenPatientMissing() {
         var resourcesDto = new ContextSnapshotResources(null,
             List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        var req = new ContextSnapshotRequest("MPI-1", null, "ORG-1",
-            "kpv-1", "rpv-1", "ppv-1", resourcesDto);
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var req = request("MPI-1", null, "ORG-1", "pkg-1", resourcesDto);
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -224,8 +244,7 @@ class ContextSnapshotServiceTest {
 
     @Test
     void shouldRejectWhenPackageVersionBlank() {
-        var req = new ContextSnapshotRequest("MPI-1", null, "ORG-1",
-            "kpv-1", "", "ppv-1", validResources());
+        var req = request("MPI-1", null, "ORG-1", "", validResources());
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -241,8 +260,7 @@ class ContextSnapshotServiceTest {
                 Instant.now().plusSeconds(60), Instant.now())));
         when(snapshots.findBySnapshotIdAndTenantId("ctx-cached", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
-                1L, "ctx-cached", "tenant-A", "ORG-1", "MPI-1", null,
-                "kpv-1", "rpv-1", "ppv-1",
+                1L, "ctx-cached", "tenant-A", "ORG-1", null, null, "pkg-1", "MPI-1", null,
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
@@ -263,7 +281,6 @@ class ContextSnapshotServiceTest {
                 1L, "ctx-cached", "tenant-A", "ORG-1",
                 "req-retry-1", "tenant-A/ORG-1", "pkg-2026.06",
                 "MPI-1", "ENC-1",
-                "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
@@ -303,8 +320,7 @@ class ContextSnapshotServiceTest {
     void shouldFindByIdWithinCurrentTenant() {
         when(snapshots.findBySnapshotIdAndTenantId("ctx-1", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
-                1L, "ctx-1", "tenant-A", "ORG-1", "MPI-1", "ENC-1",
-                "kpv-1", "rpv-1", "ppv-1",
+                1L, "ctx-1", "tenant-A", "ORG-1", null, null, "pkg-1", "MPI-1", "ENC-1",
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
@@ -323,7 +339,6 @@ class ContextSnapshotServiceTest {
                 1L, "ctx-1", "tenant-A", "ORG-1",
                 "req-ctx-1", "tenant-A/ORG-1", "pkg-2026.06",
                 "MPI-1", "ENC-1",
-                "pkg-2026.06", "pkg-2026.06", "pkg-2026.06",
                 ContextSnapshotStatus.ACTIVE, missingJson, mappingJson,
                 QualityStatus.PARTIAL, "trace", null, Instant.now(), "tester")));
         when(resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc("ctx-1", "tenant-A"))
@@ -331,9 +346,12 @@ class ContextSnapshotServiceTest {
                 new CanonicalResource(null, "res-p", "ctx-1", "tenant-A",
                     CanonicalResourceType.PATIENT, json(validResources().patient()),
                     "HIS", "rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID, 0, "trace"),
+                new CanonicalResource(null, "res-a", "ctx-1", "tenant-A",
+                    CanonicalResourceType.ALLERGY_INTOLERANCE, json(sampleAllergyIntolerance()),
+                    "HIS", "alg-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID, 1, "trace"),
                 new CanonicalResource(null, "res-o", "ctx-1", "tenant-A",
                     CanonicalResourceType.OBSERVATION, json(sampleObservation()),
-                    "LIS", "obs-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.PARTIAL, 1, "trace")
+                    "LIS", "obs-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.PARTIAL, 2, "trace")
             ));
 
         ContextSnapshotResponse resp = service.findById("ctx-1");
@@ -345,6 +363,9 @@ class ContextSnapshotServiceTest {
         });
         assertThat(resp.mappingStatus()).containsEntry("OBSERVATION:obs-1:code:HB", "UNKNOWN");
         assertThat(resp.resources().patient().mpi()).isEqualTo("MPI-1");
+        assertThat(resp.resources().allergyIntolerances())
+            .extracting(CanonicalAllergyIntolerance::allergyIntoleranceId)
+            .containsExactly("alg-1");
         assertThat(resp.resources().observations()).extracting(CanonicalObservation::observationId)
             .containsExactly("obs-1");
     }
@@ -398,12 +419,12 @@ class ContextSnapshotServiceTest {
         when(snapshots.pageByTenantIdAndPatientIdOrderByCreatedAtDesc(
                 "tenant-A", "MPI-1", 0, 20))
             .thenReturn(List.of(
-                new ContextSnapshot(1L, "ctx-1", "tenant-A", "ORG-1", "MPI-1", "ENC-1",
-                    "kpv-1", "rpv-1", "ppv-1",
+                new ContextSnapshot(1L, "ctx-1", "tenant-A", "ORG-1", null, null, "pkg-1",
+                    "MPI-1", "ENC-1",
                     ContextSnapshotStatus.ACTIVE, "[]", "{}",
                     QualityStatus.VALID, "t", null, now, "tester"),
-                new ContextSnapshot(2L, "ctx-2", "tenant-A", "ORG-1", "MPI-1", null,
-                    "kpv-1", "rpv-1", "ppv-1",
+                new ContextSnapshot(2L, "ctx-2", "tenant-A", "ORG-1", null, null, "pkg-1",
+                    "MPI-1", null,
                     ContextSnapshotStatus.SUPERSEDED, "[]", "{}",
                     QualityStatus.PARTIAL, "t", null, now, "tester")
             ));
@@ -422,8 +443,8 @@ class ContextSnapshotServiceTest {
         when(snapshots.pageByTenantIdAndEncounterIdOrderByCreatedAtDesc(
                 "tenant-A", "ENC-X", 0, 20))
             .thenReturn(List.of(
-                new ContextSnapshot(1L, "ctx-e", "tenant-A", "ORG-1", "MPI-9", "ENC-X",
-                    "kpv-1", "rpv-1", "ppv-1",
+                new ContextSnapshot(1L, "ctx-e", "tenant-A", "ORG-1", null, null, "pkg-1",
+                    "MPI-9", "ENC-X",
                     ContextSnapshotStatus.ACTIVE, "[]", "{}",
                     QualityStatus.VALID, "t", null, Instant.now(), "tester")));
 
@@ -444,8 +465,7 @@ class ContextSnapshotServiceTest {
 
     @Test
     void packageVersionMissingTriggersFailureAudit() {
-        var req = new ContextSnapshotRequest("MPI-1", null, "ORG-1",
-            "kpv-1", "", "ppv-1", validResources());  // rule 包版本空 → ENG-CONTEXT-002
+        var req = request("MPI-1", null, "ORG-1", "", validResources());
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -483,13 +503,32 @@ class ContextSnapshotServiceTest {
         var now = Instant.parse("2026-06-01T01:00:00Z");
         var resources = new ContextSnapshotResources(
             ContextSnapshotServiceFixtures.validResources().patient(),
+            ContextSnapshotServiceFixtures.validResources().allergyIntolerances(),
             ContextSnapshotServiceFixtures.validResources().encounters(),
             List.of(new com.medkernel.engine.context.canonical.CanonicalCondition(
                 "cond-1", "I10", "ICD-10", "原发性高血压",
                 "ACTIVE", "HIGH", "HIS", "cond-rec-1", "v1", now, now, QualityStatus.VALID)),
             List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        return new ContextSnapshotRequest("MPI-1", "ENC-1", "ORG-1",
-            "kpv-1", "rpv-1", "ppv-1", resources);
+        return request("MPI-1", "ENC-1", "ORG-1", "pkg-1", resources);
+    }
+
+    private ContextSnapshotRequest requestWithAllergyIntolerance() {
+        ContextSnapshotResources base = validResources();
+        var resources = new ContextSnapshotResources(
+            base.patient(),
+            List.of(sampleAllergyIntolerance()),
+            base.encounters(),
+            base.conditions(),
+            base.nursingAssessments(),
+            base.observations(),
+            base.diagnosticReports(),
+            base.medications(),
+            base.procedures(),
+            base.documents(),
+            base.carePlans(),
+            base.followUps(),
+            base.claims());
+        return request("MPI-1", "ENC-1", "ORG-1", "pkg-1", resources);
     }
 
     private ContextSnapshotResources validResources() {
@@ -513,9 +552,6 @@ class ContextSnapshotServiceTest {
             "ENC-1",
             "ORG-1",
             packageVersion,
-            null,
-            null,
-            null,
             resourcesWithObservation()
         );
     }
@@ -537,9 +573,6 @@ class ContextSnapshotServiceTest {
             "ENC-1",
             "ORG-1",
             "pkg-2026.06",
-            null,
-            null,
-            null,
             validResources()
         );
     }
@@ -561,17 +594,26 @@ class ContextSnapshotServiceTest {
             "ENC-1",
             "ORG-1",
             "pkg-2026.06",
-            null,
-            null,
-            null,
             validResources()
         );
+    }
+
+    private ContextSnapshotRequest request(
+            String patientId,
+            String encounterId,
+            String orgUnitId,
+            String packageVersion,
+            ContextSnapshotResources resources) {
+        return new ContextSnapshotRequest(
+            null, null, null, null, null, null, null, null, null, null, List.of(),
+            patientId, encounterId, orgUnitId, packageVersion, resources);
     }
 
     private ContextSnapshotResources resourcesWithObservation() {
         ContextSnapshotResources base = validResources();
         return new ContextSnapshotResources(
             base.patient(),
+            base.allergyIntolerances(),
             base.encounters(),
             base.conditions(),
             base.nursingAssessments(),
@@ -592,6 +634,15 @@ class ContextSnapshotServiceTest {
             new BigDecimal("132.5"), null, "g/L", "120-160", null,
             "LIS", "obs-rec-1", "v1", Instant.now(), Instant.now(), QualityStatus.PARTIAL
         );
+    }
+
+    private CanonicalAllergyIntolerance sampleAllergyIntolerance() {
+        Instant now = Instant.parse("2026-06-01T01:00:00Z");
+        return new CanonicalAllergyIntolerance(
+            "alg-1", "ATC-J01C", "ATC", "青霉素类",
+            "MEDICATION", "HIGH", List.of("皮疹", "喉头水肿"),
+            "ACTIVE", "CONFIRMED", "HIS", "alg-rec-1", "v1",
+            now, now, QualityStatus.VALID);
     }
 
     private String json(Object value) {

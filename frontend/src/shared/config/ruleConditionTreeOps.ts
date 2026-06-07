@@ -109,7 +109,7 @@ export function rootDepth(node: RuleConditionNode): number {
 /** 是否存在未解析字段（空或仍含模板占位符）。 */
 export function rootHasUnresolvedFact(node: RuleConditionNode): boolean {
   if (!isConditionGroup(node)) {
-    const fact = node.fact.trim();
+    const fact = (node.expr?.field ?? node.fact).trim();
     return fact.length === 0 || fact.includes("<字段路径>");
   }
   return node.children.some(rootHasUnresolvedFact);

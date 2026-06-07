@@ -44,7 +44,7 @@ COMMENT ON COLUMN mk_version_asset_version.tenant_id IS '租户 ID';
 COMMENT ON COLUMN mk_version_asset_version.asset_type IS '资产类型：知识、术语、规则、路径、包或评估指标';
 COMMENT ON COLUMN mk_version_asset_version.asset_identity IS '资产身份编码，同一身份下版本号单调演进';
 COMMENT ON COLUMN mk_version_asset_version.version_no IS '资产版本号，租户与资产身份内唯一';
-COMMENT ON COLUMN mk_version_asset_version.org_path IS '组织生效域，记录七层组织继承中的发布范围';
+COMMENT ON COLUMN mk_version_asset_version.org_path IS '组织树生效域，记录组织继承中的发布范围';
 COMMENT ON COLUMN mk_version_asset_version.applicable_scope IS '适用人群或上下文范围，参与唯一生效域判定';
 COMMENT ON COLUMN mk_version_asset_version.content_hash IS '资产内容 SHA-256 十六进制指纹，禁止版本号或时间戳伪造';
 COMMENT ON COLUMN mk_version_asset_version.status IS '版本状态：DRAFT 草稿 / PENDING_REVIEW 待审核 / PUBLISHED 已发布 / ACTIVE 生效中 / OFFLINE 已下线 / ARCHIVED 已归档';

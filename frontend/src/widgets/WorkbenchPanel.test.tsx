@@ -52,7 +52,7 @@ vi.mock("react-router-dom", async () => {
 
 function renderWorkbench() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ConfigProvider>
         <WorkbenchPanel />
       </ConfigProvider>
@@ -81,6 +81,13 @@ function profile(roleCode: string, displayName: string): SecurityProfile {
         displayName: "查看工作台",
         risk: "LOW",
       },
+      ...sourcePermissionCodesFor(roleCode).map((code) => ({
+        code,
+        dimension: "ACTION",
+        target: code,
+        displayName: code,
+        risk: "LOW" as const,
+      })),
     ],
     menuKeys: ["workbench"],
     environmentKeys: ["production"],
@@ -97,6 +104,30 @@ function profile(roleCode: string, displayName: string): SecurityProfile {
     mfaRequired: false,
     mfaBound: true,
   };
+}
+
+function sourcePermissionCodesFor(roleCode: string): string[] {
+  if (
+    [
+      "platform-admin",
+      "group-admin",
+      "hospital-admin",
+      "it-ops",
+      "implementation-engineer",
+    ].includes(roleCode)
+  ) {
+    return ["system.read", "audit.read", "tenant.read"];
+  }
+  if (
+    ["medical-affairs", "qa-manager", "insurance-manager", "audit-compliance"].includes(roleCode)
+  ) {
+    return ["audit.read"];
+  }
+  return [];
+}
+
+function hasSourcePermission(roleCode: string, code: string): boolean {
+  return sourcePermissionCodesFor(roleCode).includes(code);
 }
 
 const runtimeSnapshot: RuntimeOperationsSnapshot = {
@@ -140,6 +171,13 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     backupScript: "./deploy/docker/scripts/backup.sh",
     restoreScript: "./deploy/docker/scripts/restore.sh",
     checksumPolicy: "SHA-256 摘要随备份文件生成，恢复前自动校验",
+    drillEvidence: {
+      status: "NOT_AVAILABLE",
+      completedAt: null,
+      migrationCount: null,
+      evidenceReference: null,
+      detail: "尚未提供隔离恢复演练证据",
+    },
     source: "CONFIG_CENTER",
     warning: null,
   },
@@ -168,8 +206,8 @@ const auditEvents: AuditEventRow[] = [
     id: "audit-1",
     eventId: "evt-1",
     occurredAt: "2026-06-01T00:00:00Z",
-    user: "doctor-1",
-    action: "配置包发布申请",
+    actorUserId: "doctor-1",
+    summary: "配置包发布申请",
     actionCode: "PACKAGE_SUBMIT",
     resourceType: "package",
     resourceId: "pkg-1",
@@ -256,8 +294,8 @@ describe("WorkbenchPanel", () => {
       expect(screen.getByRole("heading", { name: expected.heading })).toBeInTheDocument();
       expect(screen.getAllByText(expected.marker).length).toBeGreaterThan(0);
       expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-      expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
-      expect(hookState.auditEnabledCalls.at(-1)).toBe(true);
+      expect(hookState.runtimeEnabledCalls.at(-1)).toBe(hasSourcePermission(code, "system.read"));
+      expect(hookState.auditEnabledCalls.at(-1)).toBe(hasSourcePermission(code, "audit.read"));
 
       unmount();
     });
@@ -272,6 +310,25 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText("我的待办")).toBeInTheDocument();
     expect(screen.getAllByText(/当前组织暂无待办/).length).toBeGreaterThan(0);
     expect(screen.queryByText("Provider 连通")).not.toBeInTheDocument();
+    expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
+    expect(screen.queryByText(/D3 临床运行域完成后/)).not.toBeInTheDocument();
+    expect(screen.getByText("临床运行入口")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "患者路径" }));
+    expect(navigateSpy).toHaveBeenCalledWith("/pathway/patients");
+  });
+
+  it("does not query system or audit sources for clinical users without source permissions", () => {
+    setLoadedState("doctor", "临床医生");
+
+    renderWorkbench();
+
+    expect(screen.getByRole("heading", { name: "临床医生工作台" })).toBeInTheDocument();
+    expect(screen.getByText("我的待办")).toBeInTheDocument();
+    expect(screen.getByText("临床运行入口")).toBeInTheDocument();
+    expect(screen.queryByText("工作台暂时不可用")).not.toBeInTheDocument();
+    expect(hookState.runtimeEnabledCalls.at(-1)).toBe(false);
+    expect(hookState.auditEnabledCalls.at(-1)).toBe(false);
   });
 
   it("keeps the medical-affairs view free from technical source wording", () => {
@@ -284,6 +341,16 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText("质控整改")).toBeInTheDocument();
     expect(screen.queryByText("Provider 连通")).not.toBeInTheDocument();
     expect(screen.queryByText(/traceId/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
+    expect(screen.queryByText(/D4 质控改进域完成后/)).not.toBeInTheDocument();
+    expect(screen.getByText("质控整改入口")).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByTestId("workbench-card-quality")).getByRole("button", {
+        name: "院级质控驾驶舱",
+      }),
+    );
+    expect(navigateSpy).toHaveBeenCalledWith("/qc/dashboard");
   });
 
   it("shows partial success when one source fails while keeping other source cards visible", () => {
@@ -346,13 +413,15 @@ describe("WorkbenchPanel", () => {
     expect(hookState.successPlanEnabledCalls.at(-1)).toBe(false);
   });
 
-  it("keeps unavailable future domains honest instead of linking to fake workbench endpoints", () => {
+  it("keeps domain entry cards on real product pages instead of fake workbench endpoints", () => {
     setLoadedState("medical-affairs", "医务处");
 
     renderWorkbench();
 
     const qualityCard = screen.getByTestId("workbench-card-quality");
-    expect(within(qualityCard).getAllByText("该域未启用").length).toBeGreaterThan(0);
+    expect(within(qualityCard).getByText("质控整改入口")).toBeInTheDocument();
+    expect(within(qualityCard).getByRole("button", { name: "评估结果" })).toBeInTheDocument();
+    expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
     expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
   });
 
@@ -375,13 +444,13 @@ describe("WorkbenchPanel", () => {
         {
           ...auditEvents[0],
           id: "audit-today",
-          action: "今日权限复核",
+          summary: "今日权限复核",
           occurredAt: "2026-06-02T08:00:00Z",
         },
         {
           ...auditEvents[0],
           id: "audit-yesterday",
-          action: "昨日配置核验",
+          summary: "昨日配置核验",
           occurredAt: "2026-06-01T08:00:00Z",
         },
       ],
@@ -400,7 +469,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.queryByText("昨日配置核验")).not.toBeInTheDocument();
   });
 
-  it("offers drilldowns for built source cards and an honest detail panel for unavailable domains", () => {
+  it("offers drilldowns for built source cards and domain entry cards", () => {
     setLoadedState("medical-affairs", "医务处");
 
     renderWorkbench();
@@ -408,9 +477,12 @@ describe("WorkbenchPanel", () => {
     fireEvent.click(within(screen.getByTestId("workbench-card-audit")).getByText("查看最近变化"));
     expect(navigateSpy).toHaveBeenCalledWith("/admin/audit");
 
-    fireEvent.click(within(screen.getByTestId("workbench-card-quality")).getByText("查看接入状态"));
-    expect(screen.getByText("质控整改接入状态")).toBeInTheDocument();
-    expect(screen.getAllByText("该域未启用").length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(screen.getByTestId("workbench-card-quality")).getByRole("button", {
+        name: "评估结果",
+      }),
+    );
+    expect(navigateSpy).toHaveBeenCalledWith("/qc/eval/results");
     expect(screen.queryByText(/\/api\/v1\/workbench/)).not.toBeInTheDocument();
   });
 

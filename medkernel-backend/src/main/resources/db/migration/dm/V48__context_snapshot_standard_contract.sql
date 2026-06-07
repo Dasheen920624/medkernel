@@ -1,9 +1,8 @@
 -- MedKernel v1.0 GA · API-01 标准上下文契约补强（达梦）
--- 为快照头补齐 request_id / org_path / package_version，支撑幂等、组织审计与包版本快照读回。
+-- 为快照头补齐 request_id / org_path，支撑幂等与组织审计；统一 package_version 已由基线定义。
 
 ALTER TABLE context_snapshot ADD request_id VARCHAR2(128) NULL;
 ALTER TABLE context_snapshot ADD org_path VARCHAR2(512) NULL;
-ALTER TABLE context_snapshot ADD package_version VARCHAR2(64) NULL;
 
 CREATE INDEX idx_context_snapshot_tenant_request
     ON context_snapshot (tenant_id, request_id);

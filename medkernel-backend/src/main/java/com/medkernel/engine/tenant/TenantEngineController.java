@@ -16,11 +16,11 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.datascope.DataScope;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * SVC-PILOT-01 租户开通与实施服务包 API。
- *
- * <p>该控制器暴露 engine 路由，旧 {@code /platform} 路由保留给存量页面兼容。
  */
 @RestController
 @RequestMapping("/api/v1/engine/tenant")
@@ -52,7 +52,7 @@ public class TenantEngineController {
      */
     @PostMapping("/branding")
     @PreAuthorize("@perm.has('tenant.write')")
-    public ApiResult<Branding> saveBranding(@Valid @RequestBody BrandingController.BrandingUpdateDto dto) {
+    public ApiResult<Branding> saveBranding(@Valid @RequestBody BrandingUpdateDto dto) {
         String tenantId = requireTenantId();
         Branding input = new Branding(
             null,
@@ -87,7 +87,7 @@ public class TenantEngineController {
     @PostMapping("/success-plan/transition")
     @PreAuthorize("@perm.has('tenant.write')")
     public ApiResult<SuccessPlan> transitionSuccessPlan(
-            @Valid @RequestBody SuccessController.TransitionRequest request) {
+            @Valid @RequestBody TransitionRequest request) {
         return ApiResult.ok(service.transitionStage(requireTenantId(), request.nextStage()));
     }
 
@@ -113,19 +113,6 @@ public class TenantEngineController {
         return ApiResult.ok(service.getOnboardingReadiness(requireTenantId()));
     }
 
-    /**
-     * 执行开通门禁，未就绪时返回 {@code TENANT_ONBOARD_NOT_READY}。
-     *
-     * @return 就绪结果
-     */
-    @PostMapping("/onboarding-readiness/activate")
-    @PreAuthorize("@perm.has('tenant.write')")
-    public ApiResult<OnboardingReadiness> activateReadiness() {
-        String tenantId = requireTenantId();
-        service.assertOnboardingReady(tenantId);
-        return ApiResult.ok(service.getOnboardingReadiness(tenantId));
-    }
-
     private String requireTenantId() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
@@ -133,4 +120,32 @@ public class TenantEngineController {
         }
         return scope.tenantId();
     }
+
+    /**
+     * 品牌更新输入传输对象。
+     */
+    public record BrandingUpdateDto(
+        @NotBlank(message = "医院物理名称不能为空")
+        @Size(max = 128, message = "医院名称长度超限")
+        String hospitalName,
+
+        @Size(max = 512, message = "Logo图片URL过长")
+        String logoUrl,
+
+        @Size(max = 32, message = "主题色值不合法")
+        String themeColor,
+
+        Boolean expertMode,
+
+        @Size(max = 4000, message = "品牌扩展配置JSON超出最大限制")
+        String customBrandingJson
+    ) {}
+
+    /**
+     * 演进目标状态阶段请求对象。
+     */
+    public record TransitionRequest(
+        @NotBlank(message = "目标演进阶段不能为空")
+        String nextStage
+    ) {}
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -31,6 +32,10 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidence;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidenceEvaluator;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidencePolicy;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidencePolicyRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointer;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerType;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCareTargetType;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisDirection;
@@ -56,6 +61,7 @@ class DiagnosisAssistServiceTest {
     private KnowledgeAssetVersionRepository versions;
     private KnowledgeIdentityRepository identities;
     private DiagnosisCriterionRepository criteria;
+    private DiagnosisCarePointerRepository carePointers;
     private DiagnosisConfidencePolicyRepository policies;
     private DiagnosisFindingExtractor extractor;
     private DiagnosisRedlinePort redlinePort;
@@ -72,17 +78,18 @@ class DiagnosisAssistServiceTest {
         versions = mock(KnowledgeAssetVersionRepository.class);
         identities = mock(KnowledgeIdentityRepository.class);
         criteria = mock(DiagnosisCriterionRepository.class);
+        carePointers = mock(DiagnosisCarePointerRepository.class);
         policies = mock(DiagnosisConfidencePolicyRepository.class);
         extractor = mock(DiagnosisFindingExtractor.class);
         redlinePort = mock(DiagnosisRedlinePort.class);
         recommendationEngine = mock(RecommendationEngineService.class);
         businessMetrics = mock(BusinessMetrics.class);
         DiagnosisMatcher matcher = new DiagnosisMatcher(new DiagnosisConfidenceEvaluator());
-        service = new DiagnosisAssistService(snapshots, versions, identities, criteria, policies,
+        service = new DiagnosisAssistService(snapshots, versions, identities, criteria, carePointers, policies,
             matcher, extractor, redlinePort, recommendationEngine, new ObjectMapper(), businessMetrics);
 
         when(snapshots.findById(any())).thenReturn(new ContextSnapshotResponse(
-            "snap-1", null, null, null, null, Instant.now(), "trace-dx"));
+            "snap-1", null, null, null, null, List.of(), Map.of(), Instant.now(), "trace-dx"));
         when(policies.findByTenantIdAndScopeKey("t-1", "DEFAULT")).thenReturn(Optional.of(policy));
         when(redlinePort.pinnedDiagnosisCodes(any(), any())).thenReturn(Set.of());
 
@@ -115,9 +122,17 @@ class DiagnosisAssistServiceTest {
     @Test
     void persistsDiagnosisCardsViaRecommendationTrigger() {
         stubStrongHit();
+        when(carePointers.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
+            carePointer(DiagnosisCarePointerType.WORKUP, DiagnosisCareTargetType.RULE, "RULE.LAB.REVIEW"),
+            carePointer(DiagnosisCarePointerType.PATHWAY, DiagnosisCareTargetType.PATHWAY, "PATH.RESP")
+        ));
 
-        service.assist(new DiagnosisAssistRequest("snap-1"));
+        DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
 
+        assertThat(response.candidates()).singleElement().satisfies(candidate ->
+            assertThat(candidate.careSuggestions())
+                .extracting(DiagnosisCareSuggestion::targetRef)
+                .containsExactly("RULE.LAB.REVIEW", "PATH.RESP"));
         ArgumentCaptor<RecommendationTriggerRequest> cap = ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
         verify(recommendationEngine).trigger(cap.capture());
         RecommendationTriggerRequest req = cap.getValue();
@@ -128,6 +143,8 @@ class DiagnosisAssistServiceTest {
             assertThat(card.requiresPhysicianConfirmation()).isTrue();
             assertThat(card.aiGenerated()).isFalse();
             assertThat(card.sources()).hasSize(1);
+            assertThat(card.suggestedAction()).contains("2 项诊疗建议");
+            assertThat(card.explanationJson()).contains("RULE.LAB.REVIEW", "PATH.RESP");
         });
     }
 
@@ -229,6 +246,15 @@ class DiagnosisAssistServiceTest {
         Instant now = Instant.now();
         return new DiagnosisCriterion(null, "t-1", versionId, code, dir, w, null, null, null,
             now, "u", now, "u", "tr");
+    }
+
+    private DiagnosisCarePointer carePointer(
+            DiagnosisCarePointerType pointerType,
+            DiagnosisCareTargetType targetType,
+            String targetRef) {
+        Instant now = Instant.now();
+        return new DiagnosisCarePointer(null, "t-1", 10L, pointerType, targetType, targetRef, true,
+            "医师确认诊断后评估", now, "u", now, "u", "tr");
     }
 
     private KnowledgeIdentity identity(Long id, String code, String subject) {

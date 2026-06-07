@@ -81,11 +81,54 @@ class WorkflowNotificationSettingsControllerTest {
                       "quietHoursEnabled": true,
                       "quietStart": "22:00",
                       "quietEnd": "07:00",
-                      "quietBypassLevels": ["CRITICAL", "HIGH"]
+                      "quietBypassLevels": ["CRITICAL", "HIGH"],
+                      "subscribedTypes": ["SAFETY", "WORKFLOW"]
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.quietHoursEnabled").value(true));
+    }
+
+    @Test
+    void systemAdministratorCanReadAndUpdateTenantNotificationDefaults() throws Exception {
+        when(settingsService.getSystemSettings()).thenReturn(response());
+        when(settingsService.saveSystemSettings(org.mockito.ArgumentMatchers.any())).thenReturn(response());
+
+        var systemAdmin = jwt().jwt(token -> token
+                .subject("system-admin-1")
+                .claim("tenant_id", "tenant-A")
+                .claim("roles", List.of("system-superadmin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
+
+        mockMvc.perform(get("/api/v1/engine/notifications/settings/system").with(systemAdmin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.source").value("SYSTEM_DEFAULT"))
+            .andExpect(jsonPath("$.data.systemVersion").value(7));
+
+        mockMvc.perform(put("/api/v1/engine/notifications/settings/system")
+                .with(systemAdmin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "settings": {
+                        "inAppEnabled": true,
+                        "smsEnabled": false,
+                        "emailEnabled": false,
+                        "pushEnabled": false,
+                        "webhookEnabled": false,
+                        "inHospitalMessageEnabled": true,
+                        "quietHoursEnabled": true,
+                        "quietStart": "22:00",
+                        "quietEnd": "07:00",
+                        "quietBypassLevels": ["CRITICAL", "HIGH"],
+                        "subscribedTypes": ["SAFETY", "WORKFLOW"]
+                      },
+                      "reason": "统一医院通知默认策略",
+                      "expectedVersion": 7
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mandatoryTypes[0]").value("SAFETY"));
     }
 
     private static WorkflowNotificationSettingsResponse response() {
@@ -100,8 +143,12 @@ class WorkflowNotificationSettingsControllerTest {
             "22:00",
             "07:00",
             new LinkedHashSet<>(List.of(WorkflowNotificationLevel.CRITICAL, WorkflowNotificationLevel.HIGH)),
+            new LinkedHashSet<>(List.of(WorkflowNotificationType.SAFETY, WorkflowNotificationType.WORKFLOW)),
+            new LinkedHashSet<>(List.of(WorkflowNotificationType.SAFETY)),
+            WorkflowNotificationSettingsSource.SYSTEM_DEFAULT,
             true,
             3,
+            7,
             Instant.parse("2026-06-04T08:00:00Z"),
             "doctor-1");
     }

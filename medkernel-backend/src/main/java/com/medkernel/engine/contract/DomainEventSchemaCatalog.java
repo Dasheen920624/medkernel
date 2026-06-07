@@ -24,6 +24,9 @@ public final class DomainEventSchemaCatalog {
         schema("followup-event.v1", 1,
             "com.medkernel.engine.followup.FollowupEvent",
             "docs/contracts/events/followup-event.v1.json"),
+        schema("integration-outbound-queued-event.v1", 1,
+            "com.medkernel.engine.integration.service.IntegrationOutboundQueuedEvent",
+            "docs/contracts/events/integration-outbound-queued-event.v1.json"),
         schema("shared-audit-event.v1", 1,
             "com.medkernel.shared.audit.AuditEvent",
             "docs/contracts/events/shared-audit-event.v1.json")

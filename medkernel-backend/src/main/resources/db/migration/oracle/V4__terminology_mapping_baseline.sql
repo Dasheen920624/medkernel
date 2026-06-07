@@ -150,11 +150,20 @@ CREATE TABLE term_mapping_package_item (
     tenant_id         VARCHAR2(64)  NOT NULL,
     package_id        NUMBER(19)    NULL,
     mapping_id        NUMBER(19)    NOT NULL,
-    mapping_snapshot  VARCHAR2(2048) NOT NULL,
+    local_term_id     NUMBER(19)    NOT NULL,
+    standard_term_id  NUMBER(19)    NOT NULL,
+    source_system     VARCHAR2(64)  NOT NULL,
+    local_code        VARCHAR2(128) NOT NULL,
+    target_dictionary_key VARCHAR2(128) NOT NULL,
+    standard_code     VARCHAR2(128) NOT NULL,
+    category          VARCHAR2(32)  NULL,
+    mapping_snapshot  VARCHAR2(4000) NOT NULL,
     created_at        TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
     created_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL
 );
 CREATE INDEX idx_term_pkg_item_package ON term_mapping_package_item (tenant_id, package_id);
+CREATE INDEX idx_term_pkg_item_anchor
+    ON term_mapping_package_item (tenant_id, source_system, local_code, target_dictionary_key, category);
 
 CREATE TABLE term_mapping_package_release (
     id                NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -257,6 +266,13 @@ COMMENT ON TABLE term_mapping_package_item IS '术语映射包内单条映射快
 COMMENT ON COLUMN term_mapping_package_item.tenant_id        IS '租户 ID';
 COMMENT ON COLUMN term_mapping_package_item.package_id       IS '所属术语映射包 → term_mapping_package.id';
 COMMENT ON COLUMN term_mapping_package_item.mapping_id       IS '关联正式映射 → term_mapping.id';
+COMMENT ON COLUMN term_mapping_package_item.local_term_id    IS '构包时冻结的院内术语 ID';
+COMMENT ON COLUMN term_mapping_package_item.standard_term_id IS '构包时冻结的标准术语 ID';
+COMMENT ON COLUMN term_mapping_package_item.source_system    IS '构包时冻结的院内来源系统';
+COMMENT ON COLUMN term_mapping_package_item.local_code       IS '构包时冻结的院内编码';
+COMMENT ON COLUMN term_mapping_package_item.target_dictionary_key IS '构包时冻结的目标标准字典';
+COMMENT ON COLUMN term_mapping_package_item.standard_code    IS '构包时冻结的标准编码';
+COMMENT ON COLUMN term_mapping_package_item.category         IS '构包时冻结的术语分类';
 COMMENT ON COLUMN term_mapping_package_item.mapping_snapshot IS '映射 JSON 快照（构包时不可变）';
 
 COMMENT ON TABLE term_mapping_package_release IS '术语映射包发布事件流水：PUBLISH / ROLLBACK 仅追加写入，用于审计与发布链路重建';

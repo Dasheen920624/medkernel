@@ -134,6 +134,7 @@ class VersionReplayServiceTest {
             "adult|inpatient",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
             status,
             status == AssetVersionStatus.ACTIVE
                 ? "RULE.VTE.RISK|/TENANT-A/GROUP-A/HOSP-A|adult|inpatient"

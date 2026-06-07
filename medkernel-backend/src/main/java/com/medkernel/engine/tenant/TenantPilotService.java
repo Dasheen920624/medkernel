@@ -299,9 +299,9 @@ public class TenantPilotService {
             .stream()
             .anyMatch(credential -> credential.active());
         if (hasActiveUser) {
-            return done("USERS", "用户", "/admin/credentials", "已存在启用的平台成员账号");
+            return done("USERS", "用户", "/admin/users", "已存在启用的租户用户");
         }
-        return blocked("USERS", "用户", "/admin/credentials", "用户未配置启用账号");
+        return blocked("USERS", "用户", "/admin/users", "用户未配置启用账号");
     }
 
     private ImplementationStep permissionsStep(String tenantId) {
@@ -309,9 +309,9 @@ public class TenantPilotService {
             .stream()
             .anyMatch(assignment -> assignment.active());
         if (hasActiveAssignment) {
-            return done("PERMISSIONS", "权限", "/compliance/user-roles", "已存在启用的角色分配");
+            return done("PERMISSIONS", "权限", "/admin/users", "已存在启用的角色分配");
         }
-        return blocked("PERMISSIONS", "权限", "/compliance/user-roles", "权限未配置启用角色分配");
+        return blocked("PERMISSIONS", "权限", "/admin/users", "权限未配置启用角色分配");
     }
 
     private ImplementationStep adaptersStep(String tenantId) {
