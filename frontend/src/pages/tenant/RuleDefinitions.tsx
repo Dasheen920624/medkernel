@@ -489,6 +489,9 @@ export default function RuleDefinitions() {
       ruleType: template.ruleType,
       triggerPoint: nextTree.triggerPoint,
       riskLevel: template.riskLevel,
+      priority: 100,
+      suppressedBy: undefined,
+      dedupeWindowMinutes: 0,
       changeSummary: "初始化创建草稿版本",
     });
   };
@@ -1642,6 +1645,9 @@ export default function RuleDefinitions() {
         ruleType: values.ruleType,
         authoringMode: "VISUAL",
         riskLevel: values.riskLevel,
+        priority: values.priority ?? 100,
+        suppressedBy: values.suppressedBy || undefined,
+        dedupeWindowSeconds: Math.round((values.dedupeWindowMinutes ?? 0) * 60),
         packageVersion: values.packageVersion,
         sourceRef: values.sourceRef,
         changeSummary: values.changeSummary,
@@ -3060,6 +3066,17 @@ export default function RuleDefinitions() {
               <Descriptions.Item label="部署状态">
                 {renderDeploymentStatus(detailData.deploymentStatus)}
               </Descriptions.Item>
+              <Descriptions.Item label="执行优先级">
+                {detailData.definition.priority}
+              </Descriptions.Item>
+              <Descriptions.Item label="显式抑制来源">
+                {detailData.definition.suppressedBy || "未配置"}
+              </Descriptions.Item>
+              <Descriptions.Item label="同患者去重窗口">
+                {detailData.definition.dedupeWindowSeconds > 0
+                  ? `${Math.round(detailData.definition.dedupeWindowSeconds / 60)} 分钟`
+                  : "不去重"}
+              </Descriptions.Item>
               <Descriptions.Item label="当前版本">
                 {detailData.version?.versionNo || 0} 版
               </Descriptions.Item>
@@ -3187,6 +3204,50 @@ export default function RuleDefinitions() {
           <Form.Item name="changeSummary" label="初始化变更内容说明" rules={[{ required: true }]}>
             <Input placeholder="本次创建版本的修改概述" />
           </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="priority"
+                label="执行优先级"
+                tooltip="数值越大越先执行，用于确定显式抑制的先后关系。"
+                rules={[{ required: true, message: "请输入执行优先级" }]}
+              >
+                <InputNumber min={0} max={1000} precision={0} className="mk-full-width" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="suppressedBy"
+                label="命中后由以下规则抑制"
+                tooltip="仅当所选规则先成功命中时，本规则才不再产生临床动作。"
+              >
+                <AutoComplete
+                  allowClear
+                  filterOption={(input, option) =>
+                    String(option?.label ?? option?.value ?? "")
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                  placeholder="输入或选择高优先级规则编码"
+                  options={(listData?.items ?? []).map((rule) => ({
+                    value: rule.ruleCode,
+                    label: `${rule.ruleCode} · P${rule.priority} · ${rule.name}`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="dedupeWindowMinutes"
+                label="同患者去重窗口（分钟）"
+                tooltip="窗口内相同规则与动作只保留首次成功命中，0 表示不去重。"
+                rules={[{ required: true, message: "请输入去重窗口" }]}
+              >
+                <InputNumber min={0} max={1440} precision={0} className="mk-full-width" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入专家模式。</Text>

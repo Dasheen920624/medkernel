@@ -177,7 +177,7 @@ class RuleDslEvaluatorTest {
     void allConditionsHitAndReturnHighestSeverityAction() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {"fact": "patient.age", "operator": "gte", "value": 18},
@@ -276,7 +276,7 @@ class RuleDslEvaluatorTest {
     void notConditionNegatesNestedGroupWithEvidence() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {"fact": "order.drugClass", "operator": "equals", "value": "ANTIBIOTIC"},
@@ -307,7 +307,7 @@ class RuleDslEvaluatorTest {
     void structuredAllergyArrayFieldPathCanDriveMedicationAllergyRule() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {"fact": "allergyIntolerances[].code", "operator": "contains", "value": "PEN"},
@@ -345,7 +345,7 @@ class RuleDslEvaluatorTest {
     void nestedAllAnyConditionKeepsDeterministicEvidenceChain() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {"fact": "patient.age", "operator": "gte", "value": 65},
@@ -405,7 +405,7 @@ class RuleDslEvaluatorTest {
     void missingNumericFieldDoesNotMatchLessThanComparison() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "patient.age", "operator": "lt", "value": 18}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "年龄提醒", "detail": "年龄提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "年龄提醒", "reason": "年龄低于阈值"}
@@ -422,7 +422,7 @@ class RuleDslEvaluatorTest {
     void unknownAsBlockProducesManualReviewActionWhenCriticalFactMissing() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "missingPolicy": "UNKNOWN_AS_BLOCK",
               "when": {
                 "all": [
@@ -452,7 +452,7 @@ class RuleDslEvaluatorTest {
     void invalidMissingPolicyIsRejectedWithoutSilentFallback() throws Exception {
         JsonNode dsl = read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "missingPolicy": "ALLOW_UNKNOWN",
               "when": {"all": [{"fact": "lab.potassium", "operator": "gte", "value": 6.0}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
@@ -531,7 +531,7 @@ class RuleDslEvaluatorTest {
     void unsupportedOperatorIsRuleDslValidationError() throws Exception {
         JsonNode dsl = read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "order.name", "operator": "regex", "value": ".*"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "提醒", "reason": "测试"}
@@ -1214,7 +1214,7 @@ class RuleDslEvaluatorTest {
     void derivedFormulaRejectsNonPositiveClinicalParametersWithoutInternalError() throws Exception {
         JsonNode dsl = read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1255,7 +1255,7 @@ class RuleDslEvaluatorTest {
     void derivedEgfrRejectsMissingCreatinineWithoutDefaultValue() throws Exception {
         JsonNode dsl = read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1293,7 +1293,7 @@ class RuleDslEvaluatorTest {
     void derivedEgfrCalculatesWhitelistedFormulaAndExplainsResult() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1337,7 +1337,7 @@ class RuleDslEvaluatorTest {
     void derivedCrclAndBsaUseWhitelistedDeterministicFormulas() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1438,7 +1438,7 @@ class RuleDslEvaluatorTest {
     void derivesPatientAgeFromBirthDateAtEventTime() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
@@ -1458,7 +1458,7 @@ class RuleDslEvaluatorTest {
     void derivedAgeMissingWhenBirthDateAbsentDoesNotMatchOrThrow() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
@@ -1476,7 +1476,7 @@ class RuleDslEvaluatorTest {
     void explicitPatientAgeIsNotOverriddenByDerivation() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
@@ -1495,7 +1495,7 @@ class RuleDslEvaluatorTest {
         // birthDate 1966-06-05 至 eventTime 2026-06-05 恰 60 岁，eGFR 应与字面 age=60 用例一致(≈84.35)
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1534,7 +1534,7 @@ class RuleDslEvaluatorTest {
     void isMissingMatchesWhenFactAbsent() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
@@ -1553,7 +1553,7 @@ class RuleDslEvaluatorTest {
     void isMissingMatchesWhenObjectHasNoClinicalValue() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
@@ -1569,7 +1569,7 @@ class RuleDslEvaluatorTest {
     void isMissingDoesNotMatchWhenValuePresent() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
@@ -1799,7 +1799,7 @@ class RuleDslEvaluatorTest {
     void isStaleMatchesWhenEventTimeOlderThanMaxAgeBeforeReferenceTime() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1826,7 +1826,7 @@ class RuleDslEvaluatorTest {
     void isStaleDoesNotMatchRecentEventTime() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1850,7 +1850,7 @@ class RuleDslEvaluatorTest {
     void isStaleRejectsMissingTimestampWithoutGuessing() throws Exception {
         JsonNode dsl = read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {
@@ -1878,7 +1878,7 @@ class RuleDslEvaluatorTest {
     void isStaleProducesMissWhenFactAbsent() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
-              "trigger": "ORDER_SIGN",
+              "trigger": "order-sign",
               "when": {
                 "all": [
                   {

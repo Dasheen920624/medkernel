@@ -22,6 +22,9 @@ public record RuleExecutionLog(
     @Column("trigger_point") String triggerPoint,
     @Column("event_id") String eventId,
     @Column("actor_user_id") String actorUserId,
+    @Column("patient_id") String patientId,
+    @Column("encounter_id") String encounterId,
+    @Column("semantic_key") String semanticKey,
     @Column("input_digest") String inputDigest,
     Boolean hit,
     RuleRiskLevel severity,
@@ -30,6 +33,7 @@ public record RuleExecutionLog(
     RuleExecutionStatus status,
     @Column("error_code") String errorCode,
     @Column("error_class") String errorClass,
+    @Column("deduplicated_from_execution_id") String deduplicatedFromExecutionId,
     @Column("executed_at") Instant executedAt,
     @Column("created_at") Instant createdAt,
     @Column("trace_id") String traceId

@@ -44,6 +44,7 @@ import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.SourceTier;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionReleaseStatus;
@@ -387,7 +388,11 @@ class PathwayEngineServiceTest {
         verify(versionedAssets, never()).registerDraft(any());
         verify(releasePort).submitForReview(any());
         verify(releasePort).approveForSilentObservation(any());
-        verify(releasePort).releaseGray(any());
+        ArgumentCaptor<VersionReleaseCommand> releaseCommand =
+            ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).releaseGray(releaseCommand.capture());
+        assertThat(releaseCommand.getValue().scopeType()).isNull();
+        assertThat(releaseCommand.getValue().scopeValue()).isNull();
     }
 
     @Test

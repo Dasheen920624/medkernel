@@ -2,8 +2,10 @@ import { useState } from "react";
 import {
   Row,
   Col,
+  AutoComplete,
   Card,
   Input,
+  Modal,
   Pagination,
   Select,
   Button,
@@ -26,12 +28,17 @@ import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import {
   useContextSnapshotDetail,
   useContextSnapshots,
+  useCaptureRuleOverride,
   useEvaluateRules,
   useRuleExecutions,
   useRuleExecutionExplain,
 } from "@/shared/api/hooks";
 import type { RuleEvaluationItem, RuleEvaluateResponse } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import {
+  CLINICAL_TRIGGER_POINT_OPTIONS,
+  type ClinicalTriggerPoint,
+} from "@/shared/config/clinicalTriggerPoints";
 import styles from "./Clinical.module.css";
 
 function isCriticalSeverity(severity?: string | null) {
@@ -60,8 +67,31 @@ function severityColor(severity?: string | null) {
   return colors[severity ?? ""] ?? "default";
 }
 
+function executionStatusColor(status: string) {
+  if (status === "SUCCESS") return "green";
+  if (status === "SUPPRESSED") return "orange";
+  if (status === "DEDUPLICATED") return "blue";
+  if (status === "FAILED") return "red";
+  return "default";
+}
+
+function explanationSummary(value: unknown) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "暂无解释";
+  const explanation = value as Record<string, unknown>;
+  const title = typeof explanation.title === "string" ? explanation.title.trim() : "";
+  const reason = typeof explanation.reason === "string" ? explanation.reason.trim() : "";
+  return [title, reason].filter(Boolean).join("：") || "查看执行解释获取完整证据";
+}
+
+type OverrideTarget = {
+  executionId: string;
+  actionCode: "BLOCK" | "STRONG_REMINDER";
+  suggestions: string[];
+};
+
 export default function RuleValidate() {
-  const [triggerPoint, setTriggerPoint] = useState<string>("order-sign");
+  const [triggerPoint, setTriggerPoint] = useState<ClinicalTriggerPoint>("order-sign");
   const [snapshotPatientId, setSnapshotPatientId] = useState<string>("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState<string>("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
@@ -70,8 +100,11 @@ export default function RuleValidate() {
 
   const [evaluateResponse, setEvaluateResponse] = useState<RuleEvaluateResponse | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const evaluateMutation = useEvaluateRules();
+  const captureOverrideMutation = useCaptureRuleOverride();
   const hasSnapshotFilter = Boolean(snapshotPatientId.trim() || snapshotEncounterId.trim());
   const snapshotsQuery = useContextSnapshots(
     {
@@ -130,6 +163,26 @@ export default function RuleValidate() {
     setSelectedExecutionId(executionId);
   };
 
+  const handleCaptureOverride = async () => {
+    const reason = overrideReason.trim();
+    if (!overrideTarget || !reason) {
+      message.error("请填写临床人工继续理由");
+      return;
+    }
+    try {
+      await captureOverrideMutation.mutateAsync({
+        executionId: overrideTarget.executionId,
+        actionCode: overrideTarget.actionCode,
+        reason,
+      });
+      message.success("人工继续理由已留痕");
+      setOverrideTarget(null);
+      setOverrideReason("");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "人工继续理由留痕失败"));
+    }
+  };
+
   const renderJson = (value: unknown) => {
     if (typeof value === "string") return value;
     if (value === null || value === undefined) return "暂无解释。";
@@ -141,26 +194,47 @@ export default function RuleValidate() {
       title: "规则 ID",
       dataIndex: "ruleId",
       key: "ruleId",
-      render: (text: string) => <Tag color="cyan">{text}</Tag>,
+      width: 190,
+      render: (text: string) => <span className={styles.tableCode}>{text}</span>,
     },
     {
       title: "版本 ID",
       dataIndex: "versionId",
       key: "versionId",
       className: styles.textStrong,
+      width: 180,
       render: (text: string) => <span>{text || "未返回版本"}</span>,
+    },
+    {
+      title: "执行状态",
+      dataIndex: "status",
+      key: "status",
+      width: 170,
+      render: (status: string, record: RuleEvaluationItem) => (
+        <div>
+          <Tag color={executionStatusColor(status)}>{executionStatusLabel(status)}</Tag>
+          {status === "SUPPRESSED" && record.suppressedBy && (
+            <div className={styles.textMuted}>由 {record.suppressedBy} 抑制</div>
+          )}
+          {status === "DEDUPLICATED" && record.deduplicatedFromExecutionId && (
+            <div className={styles.textMuted}>首次执行 {record.deduplicatedFromExecutionId}</div>
+          )}
+        </div>
+      ),
     },
     {
       title: "警示严重度",
       dataIndex: "severity",
       key: "severity",
+      width: 110,
       render: (level: string) => {
-        return <Tag color={severityColor(level)}>{level}</Tag>;
+        return <Tag color={severityColor(level)}>{level || "无"}</Tag>;
       },
     },
     {
       title: "处置动作",
       key: "actions",
+      width: 125,
       render: (_value: unknown, record: RuleEvaluationItem) => {
         const actionCodes = record.actions.map((action) => action.actionCode).filter(Boolean);
         return actionCodes.length > 0 ? (
@@ -179,26 +253,40 @@ export default function RuleValidate() {
     {
       title: "确认要求",
       key: "confirmation",
-      render: (_value: unknown, record: RuleEvaluationItem) =>
-        record.actions.some((action) => action.requiresPhysicianConfirmation) ? (
+      width: 130,
+      render: (_value: unknown, record: RuleEvaluationItem) => {
+        if (record.status !== "SUCCESS") {
+          return <Tag>不适用</Tag>;
+        }
+        return record.actions.some((action) => action.requiresPhysicianConfirmation) ? (
           <Tag color="red">必须医师确认</Tag>
         ) : (
           <Tag>无需额外确认</Tag>
-        ),
+        );
+      },
     },
     {
       title: "命中解释",
       key: "explanation",
+      width: 250,
       render: (_value: unknown, record: RuleEvaluationItem) => (
-        <span className={styles.preWrap}>{renderJson(record.explanation)}</span>
+        <span className={styles.explanationCell}>{explanationSummary(record.explanation)}</span>
       ),
     },
     {
-      title: "解释追溯",
+      title: "追溯与处置",
       key: "action",
+      width: 145,
       render: (_value: unknown, record: RuleEvaluationItem) => {
-        if (record.executionId) {
-          return (
+        const overrideAction = record.actions.find(
+          (action) => action.actionCode === "BLOCK" || action.actionCode === "STRONG_REMINDER",
+        );
+        const overrideActionCode =
+          overrideAction?.actionCode === "BLOCK" || overrideAction?.actionCode === "STRONG_REMINDER"
+            ? overrideAction.actionCode
+            : null;
+        return record.executionId ? (
+          <div>
             <Button
               type="link"
               icon={<BugOutlined />}
@@ -207,9 +295,26 @@ export default function RuleValidate() {
             >
               查看执行解释
             </Button>
-          );
-        }
-        return <span className={styles.textMuted}>无可追溯快照</span>;
+            {record.status === "SUCCESS" && record.hit && overrideActionCode && (
+              <Button
+                type="link"
+                danger={overrideActionCode === "BLOCK"}
+                onClick={() => {
+                  setOverrideTarget({
+                    executionId: record.executionId,
+                    actionCode: overrideActionCode,
+                    suggestions: overrideAction?.overrideReasons ?? [],
+                  });
+                  setOverrideReason("");
+                }}
+              >
+                记录人工继续
+              </Button>
+            )}
+          </div>
+        ) : (
+          <span className={styles.textMuted}>无可追溯快照</span>
+        );
       },
     },
   ];
@@ -219,7 +324,7 @@ export default function RuleValidate() {
       title="规则试运行"
       description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
     >
-      <Row gutter={[24, 24]}>
+      <Row gutter={[24, 24]} className={styles.ruleWorkspace}>
         <Col xs={24} xl={10}>
           <Card
             title={
@@ -234,11 +339,13 @@ export default function RuleValidate() {
               <label className={styles.fieldLabel} htmlFor="rule-trigger-point">
                 触发时点 (Trigger Point)
               </label>
-              <Input
+              <Select
                 id="rule-trigger-point"
-                placeholder="输入触发时点编码"
+                aria-label="触发时点"
                 value={triggerPoint}
-                onChange={(e) => setTriggerPoint(e.target.value)}
+                options={[...CLINICAL_TRIGGER_POINT_OPTIONS]}
+                onChange={setTriggerPoint}
+                className={styles.fullWidth}
               />
             </div>
 
@@ -356,7 +463,7 @@ export default function RuleValidate() {
             className={`${styles.panelCard} ${styles.panelCardTall}`}
           >
             {evaluateResponse ? (
-              <div>
+              <div className={styles.resultPanel}>
                 <div className={styles.resultSummary}>
                   <Descriptions size="small" column={2} className={styles.flexGrow}>
                     <Descriptions.Item label="链路 TraceId">
@@ -370,10 +477,11 @@ export default function RuleValidate() {
                         {evaluateResponse.highestSeverity || "NONE"}
                       </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item label="命中规则总数">
+                    <Descriptions.Item label="有效命中规则数">
                       <span className={styles.metricValue}>
-                        {evaluateResponse.items?.filter((i: RuleEvaluationItem) => i.hit).length ||
-                          0}{" "}
+                        {evaluateResponse.items?.filter(
+                          (i: RuleEvaluationItem) => i.status === "SUCCESS" && i.hit,
+                        ).length || 0}{" "}
                         条
                       </span>
                     </Descriptions.Item>
@@ -381,7 +489,7 @@ export default function RuleValidate() {
                 </div>
 
                 {evaluateResponse.items?.some(
-                  (item) => item.hit && isRedlineEvaluationItem(item),
+                  (item) => item.status === "SUCCESS" && item.hit && isRedlineEvaluationItem(item),
                 ) && (
                   <Alert
                     message="安全红线不可忽略"
@@ -393,17 +501,17 @@ export default function RuleValidate() {
                 )}
 
                 <div className={`${styles.textStrong} ${styles.sectionGap}`}>
-                  命中规则及合理性建议列表
+                  规则执行、抑制与去重证据
                 </div>
                 <Table
-                  dataSource={
-                    evaluateResponse.items?.filter((i: RuleEvaluationItem) => i.hit) || []
-                  }
+                  dataSource={evaluateResponse.items || []}
                   columns={columns}
-                  rowKey="ruleId"
+                  rowKey="executionId"
                   pagination={false}
-                  locale={{ emptyText: "该临床快照未触发任何高风险或规则拦截，通过。" }}
+                  locale={{ emptyText: "该临床快照没有可执行规则。" }}
                   className="medkernel-table"
+                  tableLayout="fixed"
+                  scroll={{ x: 1300 }}
                 />
               </div>
             ) : (
@@ -415,6 +523,41 @@ export default function RuleValidate() {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title="记录人工继续"
+        open={Boolean(overrideTarget)}
+        onOk={handleCaptureOverride}
+        onCancel={() => {
+          setOverrideTarget(null);
+          setOverrideReason("");
+        }}
+        okText="确认留痕"
+        cancelText="取消"
+        confirmLoading={captureOverrideMutation.isPending}
+        okButtonProps={{ disabled: !overrideReason.trim() }}
+        destroyOnClose
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="该操作不会修改规则结论，只记录临床人员在完成复核后的继续理由。"
+          className={styles.sectionGap}
+        />
+        <label className={styles.fieldLabel} htmlFor="rule-override-reason">
+          越权理由
+        </label>
+        <AutoComplete
+          id="rule-override-reason"
+          value={overrideReason}
+          options={(overrideTarget?.suggestions ?? []).map((reason) => ({
+            value: reason,
+          }))}
+          onChange={setOverrideReason}
+          placeholder="选择建议理由或填写真实临床复核结论"
+          className="mk-full-width"
+        />
+      </Modal>
 
       <Drawer
         title={
@@ -502,6 +645,8 @@ export default function RuleValidate() {
 function executionStatusLabel(status: string) {
   if (status === "SUCCESS") return "成功";
   if (status === "MISS") return "未命中";
+  if (status === "SUPPRESSED") return "已抑制";
+  if (status === "DEDUPLICATED") return "已去重";
   if (status === "FAILED") return "失败";
   return status;
 }

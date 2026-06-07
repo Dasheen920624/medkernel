@@ -182,6 +182,23 @@ class DefaultPermissionPolicyTest {
     }
 
     @Test
+    void onlyResponsibleClinicalRolesCanRecordRuleOverride() {
+        for (RoleCode role : new RoleCode[]{
+            RoleCode.DOCTOR, RoleCode.DEPT_HEAD, RoleCode.SPECIALIST}) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                .as("%s 应能记录规则人工继续理由", role)
+                .contains(PermissionCode.RULE_OVERRIDE);
+        }
+        for (RoleCode role : new RoleCode[]{
+            RoleCode.NURSE, RoleCode.INSURANCE_MANAGER, RoleCode.QA_MANAGER,
+            RoleCode.MEDICAL_AFFAIRS, RoleCode.AUDIT_COMPLIANCE}) {
+            assertThat(DefaultPermissionPolicy.permissionsOf(role))
+                .as("%s 不应记录规则人工继续理由", role)
+                .doesNotContain(PermissionCode.RULE_OVERRIDE);
+        }
+    }
+
+    @Test
     void roleCodeRoundtripsThroughAuthority() {
         for (RoleCode role : RoleCode.values()) {
             assertThat(RoleCode.fromAuthority(role.authority())).contains(role);

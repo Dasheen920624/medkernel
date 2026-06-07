@@ -456,8 +456,15 @@
 }
 
 .panelCard {
+  min-width: 0;
   height: 100%;
   border-color: var(--ant-color-border-secondary);
+}
+
+.panelCard :global(.ant-card-body),
+.ruleWorkspace > :global(.ant-col),
+.resultPanel {
+  min-width: 0;
 }
 
 .panelCardTall {
@@ -498,6 +505,28 @@
   font-family: var(--ant-font-family-code);
   font-size: var(--ant-font-size-sm);
   font-weight: 400;
+}
+
+.tableCode,
+.explanationCell {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tableCode {
+  color: var(--ant-color-info-text);
+  font-family: var(--ant-font-family-code);
+  font-size: var(--ant-font-size-sm);
+}
+
+.explanationCell {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
+  line-height: 1.6;
+}
+
+.fullWidth {
+  width: 100%;
 }
 
 .codeBlock {

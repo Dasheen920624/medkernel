@@ -205,6 +205,17 @@ public class RuleEngineController {
         return ApiResult.ok(service.explain(executionId));
     }
 
+    /**
+     * 为真实命中的阻断或强提醒动作记录人工越权理由。
+     */
+    @PostMapping("/rules/executions/{executionId}/override")
+    @PreAuthorize("@perm.has('rule.override')")
+    public ApiResult<RuleOverrideResponse> captureOverride(
+            @PathVariable String executionId,
+            @RequestBody @Valid RuleOverrideRequest request) {
+        return ApiResult.ok(service.captureOverride(executionId, request));
+    }
+
     private void validateContext(RuleContextRequest request) {
         request.apiContext().validateTenant(RequestContext.currentOrgScope().tenantId());
     }

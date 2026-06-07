@@ -6,7 +6,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 更新草稿规则的入参。
@@ -31,6 +34,9 @@ public record RuleUpdateRequest(
     @NotNull RuleType ruleType,
     RuleAuthoringMode authoringMode,
     RuleRiskLevel riskLevel,
+    @Min(0) @Max(1000) Integer priority,
+    @Size(max = 128) String suppressedBy,
+    @Min(0) @Max(86400) Integer dedupeWindowSeconds,
     String applicableOrgUnitId,
     @NotBlank String sourceRef,
     String changeSummary,
