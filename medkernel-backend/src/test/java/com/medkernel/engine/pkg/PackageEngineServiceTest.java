@@ -53,6 +53,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.pathway.PathwayEdge;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
 import com.medkernel.engine.pathway.PathwayEdgeType;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayNodeType;
@@ -1169,7 +1170,8 @@ class PackageEngineServiceTest {
         assertThat(response.itemCount()).isEqualTo(1);
         verify(pathwayRepository).save(argThat(template ->
             template.templateId().equals("pathway-stable")
-                && template.status() == PathwayTemplateStatus.PUBLISHED));
+                && template.status() == PathwayTemplateStatus.PUBLISHED
+                && template.entryMode() == PathwayEntryMode.AUTO_SUGGEST));
         verify(pathwayNodeRepository).save(argThat(node ->
             node.templateId().equals("pathway-stable") && node.nodeCode().equals("start")));
         verify(pathwayEdgeRepository).save(argThat(edge ->
@@ -2528,6 +2530,7 @@ class PackageEngineServiceTest {
         template.put("templateVersion", 1);
         template.put("templateLevel", "DEPARTMENT");
         template.put("status", "PUBLISHED");
+        template.put("entryMode", "AUTO_SUGGEST");
         template.put("startNodeCode", "start");
         template.put("sourceRef", "source-ref");
         template.put("description", "路径说明");
@@ -2899,7 +2902,7 @@ class PackageEngineServiceTest {
         return new PathwayTemplate(
             1L, templateId, "tenant-A", "pathway-package", "PATH.TEST", "测试路径",
             "DISEASE.TEST", 1, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
-            "start", "source-ref", "路径说明", "{}", "{}",
+            PathwayEntryMode.AUTO_SUGGEST, "start", "source-ref", "路径说明", "{}", "{}",
             Instant.now(), "tester", Instant.now(), "tester", "trace"
         );
     }

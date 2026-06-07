@@ -12,6 +12,7 @@ import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayNodeType;
@@ -139,7 +140,7 @@ class RelationalRuleImpactIndexRepositoryTest {
         return new PathwayTemplate(
             null, templateId, "tenant-A", "spkg-test", "TPL.IMPACT.TEST", "影响索引路径",
             "D-SCOPE", 1, PathwayTemplateLevel.HOSPITAL, PathwayTemplateStatus.PUBLISHED,
-            "ASSESS", "测试路径来源", "用于规则影响索引验证", "{}", "{}",
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "测试路径来源", "用于规则影响索引验证", "{}", "{}",
             now, "tester", now, "tester", "trace-path");
     }
 

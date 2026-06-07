@@ -77,6 +77,7 @@ describe("PatientPathways", () => {
             templateVersion: 1,
             templateLevel: "STANDARD",
             status: "PUBLISHED",
+            entryMode: "MANUAL_CONFIRM",
             startNodeCode: "ASSESS",
             sourceRef: "卒中路径指南 2026",
             description: "卒中急诊路径",
@@ -211,6 +212,7 @@ describe("PatientPathways", () => {
           templateVersion: 1,
           templateLevel: "STANDARD",
           status: "PUBLISHED",
+          entryMode: "MANUAL_CONFIRM",
           startNodeCode: "ASSESS",
           sourceRef: "卒中路径指南 2026",
           description: "卒中急诊路径",
@@ -323,7 +325,8 @@ describe("PatientPathways", () => {
     await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
     await user.click(screen.getByRole("combobox", { name: "选择受控专病路径模板" }));
-    await user.click(await screen.findByText("卒中急诊路径 (v1.0)"));
+    await user.click(await screen.findByText("卒中急诊路径 (v1.0) · 人工确认入径"));
+    expect(screen.getByText("入径模式：人工确认入径")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
 
     await waitFor(() => {

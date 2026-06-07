@@ -47,6 +47,7 @@ class PathwayEngineControllerSecurityTest {
           "diseaseCode": "COPD",
           "templateVersion": 1,
           "templateLevel": "STANDARD",
+          "entryMode": "AUTO_SUGGEST",
           "startNodeCode": "ASSESS",
           "sourceRef": "专病路径专家共识 2026",
           "nodes": [

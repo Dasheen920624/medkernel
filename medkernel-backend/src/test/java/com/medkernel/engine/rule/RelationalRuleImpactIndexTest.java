@@ -15,6 +15,7 @@ import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
+import com.medkernel.engine.pathway.PathwayEntryMode;
 import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayNodeType;
@@ -131,7 +132,7 @@ class RelationalRuleImpactIndexTest {
         return new PathwayTemplate(
             1L, "pt-1", "tenant-A", "spkg-1", "TPL.COPD", "慢阻肺抗凝路径",
             "J44", 2, PathwayTemplateLevel.HOSPITAL, PathwayTemplateStatus.PUBLISHED,
-            "ASSESS", "院内路径 2026", "含抗凝风险评估", "{}", "{}",
+            PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "院内路径 2026", "含抗凝风险评估", "{}", "{}",
             now, "tester", now, "tester", "trace-path");
     }
 

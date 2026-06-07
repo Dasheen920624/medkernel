@@ -23,6 +23,7 @@ public record PathwayTemplate(
     @Column("template_version") Integer templateVersion,
     @Column("template_level") PathwayTemplateLevel templateLevel,
     PathwayTemplateStatus status,
+    @Column("entry_mode") PathwayEntryMode entryMode,
     @Column("start_node_code") String startNodeCode,
     @Column("source_ref") String sourceRef,
     String description,

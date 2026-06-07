@@ -16,6 +16,7 @@ import {
   InputNumber,
   Modal,
   Row,
+  Segmented,
   Select,
   Space,
   Switch,
@@ -50,6 +51,7 @@ import {
   hasUnresolvedFact,
   nodeToDsl,
   type RuleGroup,
+  type RuleNode,
 } from "@/shared/config/conditionModel";
 import {
   useContextFieldCatalog,
@@ -70,6 +72,7 @@ import type {
   ContextSnapshotSummary,
   PathwayEdge,
   PathwayEdgeType,
+  PathwayEntryMode,
   PathwayNode,
   PathwayNodeType,
   PathwaySimulationResponse,
@@ -131,6 +134,11 @@ function pathwayDeploymentStatus(status: string) {
   return <Badge status={config.status} text={config.text} />;
 }
 
+function pathwayEntryModeText(mode: PathwayEntryMode | string | undefined) {
+  if (mode === "MANUAL_CONFIRM") return "人工确认入径";
+  return "自动建议入径";
+}
+
 type PathwayNodeDraft = {
   nodeCode: string;
   name: string;
@@ -189,6 +197,11 @@ type PathwayEdgeFormValue = {
   priority?: number;
 };
 
+type PathwayCriteriaFormValue = {
+  includeTree?: RuleGroup;
+  excludeTree?: RuleGroup;
+};
+
 type PathwayTemplateFormValue = {
   packageId: string;
   templateCode: string;
@@ -196,9 +209,12 @@ type PathwayTemplateFormValue = {
   diseaseCode: string;
   templateLevel: PathwayTemplateLevel;
   templateVersion: number;
+  entryMode: PathwayEntryMode;
   startNodeCode: string;
   sourceRef: string;
   description?: string;
+  entryCriteria?: PathwayCriteriaFormValue;
+  exitCriteria?: PathwayCriteriaFormValue;
   nodes?: PathwayNodeFormValue[];
   edges?: PathwayEdgeFormValue[];
 };
@@ -216,6 +232,11 @@ const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }
   { value: "HOSPITAL", label: "HOSPITAL 医院模板" },
   { value: "DEPARTMENT", label: "DEPARTMENT 科室模板" },
   { value: "SPECIALTY", label: "SPECIALTY 专科模板" },
+];
+
+const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }> = [
+  { value: "AUTO_SUGGEST", label: "自动建议入径" },
+  { value: "MANUAL_CONFIRM", label: "人工确认入径" },
 ];
 
 const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
@@ -334,6 +355,55 @@ function createDefaultEdgeConditionTree(): RuleGroup {
   });
 }
 
+function createDefaultPathwayCriteriaTree(label: string): RuleGroup {
+  return createGroup({
+    logic: "all",
+    children: [
+      createLeaf({
+        label,
+        fact: "",
+        operator: "equals",
+        value: "",
+        valueKind: "string",
+      }),
+    ],
+  });
+}
+
+function hasConfiguredValue(value: unknown) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return cleanText(value) !== undefined;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+function hasCriteriaInput(node: RuleNode): boolean {
+  if (node.kind === "leaf") {
+    return cleanText(node.fact) !== undefined || hasConfiguredValue(node.value);
+  }
+  return node.children.some(hasCriteriaInput);
+}
+
+function normalizeCriteriaTree(tree: RuleGroup | undefined, label: string) {
+  if (!tree || !hasCriteriaInput(tree)) {
+    return undefined;
+  }
+  if (countLeaves(tree) === 0 || hasUnresolvedFact(tree)) {
+    throw new Error(`${label}存在未填写的上下文字段，请补全后再提交。`);
+  }
+  return nodeToDsl(tree);
+}
+
+function normalizePathwayCriteria(criteria: PathwayCriteriaFormValue | undefined, label: string) {
+  const include = normalizeCriteriaTree(criteria?.includeTree, `${label}纳入条件`);
+  const exclude = normalizeCriteriaTree(criteria?.excludeTree, `${label}排除条件`);
+  return {
+    ...(include ? { include } : {}),
+    ...(exclude ? { exclude } : {}),
+  };
+}
+
 function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
   return (nodes ?? [])
     .filter((node) => cleanText(node.nodeCode) || cleanText(node.name))
@@ -411,8 +481,11 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       diseaseCode: detail.template.diseaseCode,
       templateLevel: detail.template.templateLevel,
       templateVersion: detail.template.templateVersion,
+      entryMode: detail.template.entryMode,
       startNodeCode: detail.template.startNodeCode,
       sourceRef: detail.template.sourceRef,
+      entryCriteria: parseLooseJson(detail.template.entryCriteriaJson),
+      exitCriteria: parseLooseJson(detail.template.exitCriteriaJson),
     },
     nodes: detail.nodes.map((node) => ({
       nodeCode: node.nodeCode,
@@ -807,6 +880,29 @@ export default function PathwayTemplates() {
     return `${prefix}${index}`;
   };
 
+  const renderPathwayCriteriaEditor = (fieldPath: string[], label: string) => (
+    <div className={styles.editorList}>
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Tag color={label.includes("排除") ? "red" : "blue"}>{label}</Tag>
+        <Form.Item noStyle shouldUpdate>
+          {({ getFieldValue, setFieldValue }) => {
+            const tree =
+              (getFieldValue(fieldPath) as RuleGroup | undefined) ??
+              createDefaultPathwayCriteriaTree(label);
+            return (
+              <ConditionTreeEditor
+                value={tree}
+                fieldCatalog={fieldCatalogList}
+                fieldCatalogError={fieldCatalogQuery.isError}
+                onChange={(next) => setFieldValue(fieldPath, next)}
+              />
+            );
+          }}
+        </Form.Item>
+      </Space>
+    </div>
+  );
+
   const packageVersionFor = (packageId?: string | null) =>
     packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion;
 
@@ -872,6 +968,8 @@ export default function PathwayTemplates() {
         messageApi.error(topologyIssuesForSubmit[0]);
         return;
       }
+      const entryCriteria = normalizePathwayCriteria(values.entryCriteria, "入径");
+      const exitCriteria = normalizePathwayCriteria(values.exitCriteria, "出径");
 
       await createTemplateMutation.mutateAsync({
         packageId: values.packageId,
@@ -881,11 +979,12 @@ export default function PathwayTemplates() {
         packageVersion: packageVersionFor(values.packageId) ?? String(values.templateVersion),
         templateLevel: values.templateLevel,
         templateVersion: Number(values.templateVersion),
+        entryMode: values.entryMode,
         startNodeCode: values.startNodeCode,
         sourceRef: values.sourceRef,
         description: values.description ?? "",
-        entryCriteria: {},
-        exitCriteria: {},
+        entryCriteria,
+        exitCriteria,
         nodes,
         edges,
         metricBindings,
@@ -897,7 +996,7 @@ export default function PathwayTemplates() {
       setPathwayDslJson(buildDraftDslPreview([], []));
       refetchList();
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.includes("条件 DSL JSON")) {
+      if (error instanceof Error && error.message.includes("条件")) {
         messageApi.error(error.message);
         return;
       }
@@ -1106,6 +1205,12 @@ export default function PathwayTemplates() {
       key: "templateLevel",
     },
     {
+      title: "入径",
+      dataIndex: "entryMode",
+      key: "entryMode",
+      render: pathwayEntryModeText,
+    },
+    {
       title: "版本",
       dataIndex: "templateVersion",
       key: "templateVersion",
@@ -1250,7 +1355,7 @@ export default function PathwayTemplates() {
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
               <Form.Item
                 name="templateVersion"
                 label="模板版本号"
@@ -1265,7 +1370,16 @@ export default function PathwayTemplates() {
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="entryMode"
+                label="入径模式"
+                rules={[{ required: true, message: "请选择入径模式" }]}
+              >
+                <Segmented block options={pathwayEntryModeOptions} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
               <Form.Item
                 name="startNodeCode"
                 label="起始节点"
@@ -1318,6 +1432,20 @@ export default function PathwayTemplates() {
                 </Button>
               </div>
             </div>
+            <Row gutter={[16, 16]} className="mk-full-width">
+              <Col xs={24} lg={12}>
+                {renderPathwayCriteriaEditor(["entryCriteria", "includeTree"], "入径纳入条件")}
+              </Col>
+              <Col xs={24} lg={12}>
+                {renderPathwayCriteriaEditor(["entryCriteria", "excludeTree"], "入径排除条件")}
+              </Col>
+              <Col xs={24} lg={12}>
+                {renderPathwayCriteriaEditor(["exitCriteria", "includeTree"], "出径纳入条件")}
+              </Col>
+              <Col xs={24} lg={12}>
+                {renderPathwayCriteriaEditor(["exitCriteria", "excludeTree"], "出径排除条件")}
+              </Col>
+            </Row>
             {canvasNodes.length === 0 ? (
               <div className={styles.canvasEmpty}>
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="添加节点后形成路径画布" />
@@ -1937,8 +2065,21 @@ export default function PathwayTemplates() {
               <Descriptions.Item label="部署状态">
                 {pathwayDeploymentStatus(detailData.deploymentStatus)}
               </Descriptions.Item>
-              <Descriptions.Item label="起始节点">
+              <Descriptions.Item label="入径模式">
+                {pathwayEntryModeText(detailData.template.entryMode)}
+              </Descriptions.Item>
+              <Descriptions.Item label="起始节点" span={2}>
                 {detailData.template.startNodeCode ?? "未设置"}
+              </Descriptions.Item>
+              <Descriptions.Item label="入径条件" span={2}>
+                <span className={styles.codeText}>
+                  {cleanText(detailData.template.entryCriteriaJson) ?? "未配置"}
+                </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="出径条件" span={2}>
+                <span className={styles.codeText}>
+                  {cleanText(detailData.template.exitCriteriaJson) ?? "未配置"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="知识来源" span={2}>
                 {detailData.template.sourceRef}
@@ -2265,6 +2406,7 @@ export default function PathwayTemplates() {
                 templateForm.setFieldsValue({
                   templateLevel: "STANDARD",
                   templateVersion: 1,
+                  entryMode: "AUTO_SUGGEST",
                   nodes: [],
                   edges: [],
                 });

@@ -3106,6 +3106,7 @@ export function useCaptureRuleDriftSnapshot() {
 
 export type SpecialtyPackageStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
 export type PathwayTemplateStatus = "DRAFT" | "PUBLISHED" | "OFFLINE";
+export type PathwayEntryMode = "AUTO_SUGGEST" | "MANUAL_CONFIRM";
 export type PathwayTemplateLevel =
   | "STANDARD"
   | "GROUP"
@@ -3178,6 +3179,7 @@ export interface PathwayTemplate {
   templateVersion: number;
   templateLevel: PathwayTemplateLevel;
   status: PathwayTemplateStatus;
+  entryMode: PathwayEntryMode;
   startNodeCode?: string;
   sourceRef: string;
   description: string;
@@ -3463,6 +3465,7 @@ export function useCreatePathwayTemplate() {
       packageVersion: string;
       templateLevel: PathwayTemplateLevel;
       templateVersion: number;
+      entryMode: PathwayEntryMode;
       startNodeCode: string;
       sourceRef: string;
       description: string;
