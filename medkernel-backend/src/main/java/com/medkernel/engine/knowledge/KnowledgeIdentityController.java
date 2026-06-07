@@ -85,6 +85,18 @@ public class KnowledgeIdentityController {
         return ApiResult.ok(service.getLineage(id));
     }
 
+    /**
+     * 获取知识身份的完整来源追溯视图。
+     *
+     * @param id 知识身份 ID
+     * @return 来源、版本和替代历史
+     */
+    @GetMapping("/identities/{id}/provenance")
+    @PreAuthorize("@perm.has('knowledge.read')")
+    public ApiResult<KnowledgeProvenanceResponse> getProvenance(@PathVariable Long id) {
+        return ApiResult.ok(service.getProvenance(id));
+    }
+
     @GetMapping("/identities/{id}/citations")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<java.util.List<Citation>> getCitations(@PathVariable Long id) {

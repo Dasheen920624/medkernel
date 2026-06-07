@@ -1024,6 +1024,63 @@ export interface KnowledgeAssetVersion {
   updatedBy?: string;
 }
 
+export interface KnowledgeSupersession {
+  id: number;
+  tenantId: string;
+  identityId: number;
+  oldVersionId?: number | null;
+  newVersionId?: number | null;
+  transitionType: string;
+  transitionReason?: string | null;
+  transitionedAt?: string | null;
+  transitionedBy?: string | null;
+}
+
+export interface KnowledgeSourceEvidence {
+  assetVersionId: number;
+  citationId: number;
+  sourceFragmentId: number;
+  sourceDocumentId: number;
+  sourceVersionId: number;
+  sourceCode: string;
+  sourceTitle: string;
+  sourceType: string;
+  authorityLevel?: string | null;
+  authorityLabel: string;
+  authorityBasis?: string | null;
+  sourceVersionNo?: string | null;
+  sourceVersionHash?: string | null;
+  anchorPath?: string | null;
+  anchorLabel?: string | null;
+  textExcerpt?: string | null;
+  fragmentHash?: string | null;
+  startOffset?: number | null;
+  endOffset?: number | null;
+  gradeQuality?: string | null;
+  gradeStrength?: string | null;
+  publishedAt?: string | null;
+  relation?: string | null;
+  weight?: number | null;
+  organizationScope?: string | null;
+  applicableScope?: string | null;
+  displayRole: string;
+  recommendedByDefault: boolean;
+  supplementary: boolean;
+  displayLabel: string;
+  rankingReason: string;
+  conflictArbitration?: string | null;
+}
+
+export interface KnowledgeProvenanceResponse {
+  identity: KnowledgeIdentity;
+  currentVersionId?: number | null;
+  versions: KnowledgeAssetVersion[];
+  supersessions: KnowledgeSupersession[];
+  sourceEvidence: KnowledgeSourceEvidence[];
+  unresolvedCitationCount: number;
+  partial: boolean;
+}
+
 export interface CandidateClassification {
   id: number;
   tenantId: string;
@@ -1086,6 +1143,22 @@ export function useKnowledgeIdentities(params: KnowledgeIdentityQueryParams = {}
       const { data } = await apiClient.get<{ data: PageResponse<KnowledgeIdentity> }>(
         `${KNOWLEDGE_API_ROOT}/identities`,
         { params: requestParams },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useKnowledgeProvenance(identityId?: number) {
+  return useQuery({
+    queryKey: ["knowledge", "provenance", identityId],
+    enabled: Boolean(identityId),
+    queryFn: async () => {
+      if (!identityId) {
+        throw new Error("未选择知识身份");
+      }
+      const { data } = await apiClient.get<{ data: KnowledgeProvenanceResponse }>(
+        `${KNOWLEDGE_API_ROOT}/identities/${identityId}/provenance`,
       );
       return data.data;
     },

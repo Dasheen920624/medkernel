@@ -713,6 +713,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "advanced-tools",
     menuKey: "provenance",
     menuLabel: "来源追溯",
+    requiredPermissions: ["menu.provenance", "knowledge.read"],
     experience: readonlyExperience("高级实施人员", "追溯来源与运行证据", "最近来源", "large"),
     hidden: false,
     pageType: "advanced",

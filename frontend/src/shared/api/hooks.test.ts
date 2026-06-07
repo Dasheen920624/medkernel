@@ -66,6 +66,7 @@ import {
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
   useKnowledgeIdentities,
+  useKnowledgeProvenance,
   useLargeAuditEvents,
   useLocalTerms,
   useCreateMpiPatient,
@@ -2170,6 +2171,31 @@ describe("knowledge review api helpers", () => {
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/knowledge/identities/42/candidates");
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/knowledge/candidates/2002/diff");
+  });
+
+  it("loads the exact provenance chain for one knowledge identity", async () => {
+    const provenance = {
+      identity: {
+        id: 42,
+        tenantId: "tenant-A",
+        identityCode: "KNOW.VTE.GUIDE",
+        domain: "GUIDELINE",
+        subject: "VTE 防治指南",
+        status: "ACTIVE",
+      },
+      currentVersionId: 2001,
+      versions: [{ id: 2001, versionNo: "2026.1", status: "ACTIVE" }],
+      supersessions: [],
+      sourceEvidence: [{ citationId: 9, anchorPath: "section-2.1" }],
+      unresolvedCitationCount: 0,
+      partial: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: provenance } });
+
+    const hook = renderApiHook(() => useKnowledgeProvenance(42));
+
+    await waitFor(() => expect(hook.result.current.data).toBe(provenance));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/knowledge/identities/42/provenance");
   });
 
   it("reviews a candidate with standard context and an idempotency key", async () => {

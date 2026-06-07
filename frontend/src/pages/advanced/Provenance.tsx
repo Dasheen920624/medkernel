@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Alert,
   Button,
@@ -6,382 +7,422 @@ import {
   Descriptions,
   Empty,
   Input,
-  Modal,
+  List,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
-  message,
 } from "antd";
 import type { TableProps } from "antd";
 import {
-  AuditOutlined,
-  CheckCircleOutlined,
-  ExportOutlined,
-  FileProtectOutlined,
+  FileSearchOutlined,
+  HistoryOutlined,
+  LinkOutlined,
   ReloadOutlined,
-  SafetyCertificateOutlined,
   SearchOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
-import {
-  useAuditEvents,
-  useEvidences,
-  useExportEvidences,
-  useVerifyEvidence,
-} from "@/shared/api/hooks";
+
+import { useKnowledgeIdentities, useKnowledgeProvenance } from "@/shared/api/hooks";
 import type {
-  AuditEventRow,
-  EvidenceExportResult,
-  EvidenceSnapshot,
-  EvidenceVerifyResult,
+  KnowledgeAssetVersion,
+  KnowledgeDomain,
+  KnowledgeIdentity,
+  KnowledgeIdentityStatus,
+  KnowledgeSourceEvidence,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./Advanced.module.css";
 
-const { Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
-const evidenceTypeOptions = [
-  { value: "KNOWLEDGE_SOURCE", label: "指南文献" },
-  { value: "RULE_DEFINITION", label: "规则与路径" },
-  { value: "RELEASE", label: "配置包发布" },
-  { value: "CLINICAL_CLOCK", label: "就诊事实" },
-  { value: "FEEDBACK", label: "医师交互" },
-  { value: "RECTIFICATION", label: "质控整改" },
+const domainOptions: Array<{ value: KnowledgeDomain; label: string }> = [
+  { value: "GUIDELINE", label: "指南" },
+  { value: "DRUG", label: "药品说明书" },
+  { value: "PATHWAY_KNOWLEDGE", label: "路径知识" },
+  { value: "NURSING", label: "护理" },
+  { value: "REPORT", label: "检查检验报告" },
+  { value: "TCM", label: "中医药知识" },
+  { value: "PROTOCOL", label: "诊疗方案" },
+  { value: "POLICY", label: "政策法规" },
+  { value: "LITERATURE", label: "文献" },
+  { value: "DIAGNOSIS", label: "诊断知识" },
+  { value: "OTHER", label: "其他" },
 ];
 
-function formatDateTime(value?: string) {
-  if (!value) return "未返回";
+const domainLabels = new Map(domainOptions.map((option) => [option.value, option.label]));
+const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
+  ["ACTIVE", "有效身份"],
+  ["WITHDRAWN", "已撤回"],
+  ["ARCHIVED", "已归档"],
+]);
+
+function domainLabel(value: KnowledgeDomain) {
+  return domainLabels.get(value) ?? value;
+}
+
+function identityStatusLabel(value: KnowledgeIdentityStatus) {
+  return identityStatusLabels.get(value) ?? value;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "未记录";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
 }
 
-function shortHash(value?: string) {
-  if (!value) return "未返回";
-  if (value.length <= 24) return value;
-  return `${value.slice(0, 16)}...${value.slice(-8)}`;
+function versionLabel(version: KnowledgeAssetVersion) {
+  return version.versionLabel || version.versionNo;
 }
 
-function AuditEventList({ events }: { events: AuditEventRow[] }) {
-  if (events.length === 0) {
-    return <Empty description="暂无真实审计事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+function versionStatus(version: KnowledgeAssetVersion, currentVersionId?: number | null) {
+  if (version.id === currentVersionId) return <Tag color="success">当前权威版本</Tag>;
+  if (version.status === "WITHDRAWN") return <Tag color="error">已撤回</Tag>;
+  return <Tag>历史版本</Tag>;
+}
+
+function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
+  if (items.length === 0) {
+    return <Empty description="当前权威版本暂无来源引用" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
 
   return (
-    <Space direction="vertical" size="small" className={styles.fullWidth}>
-      {events.slice(0, 8).map((event) => (
-        <Card key={event.eventId} size="small">
-          <Space direction="vertical" size={4} className={styles.fullWidth}>
-            <Space className={styles.auditHeader}>
-              <Text strong>{event.summary}</Text>
-              <Tag color={event.status === "FAILED" ? "red" : "blue"}>{event.status}</Tag>
-            </Space>
-            <Text type="secondary" className={styles.smallText}>
-              {event.resourceType} / {event.resourceId}
-            </Text>
-            <Text type="secondary" className={styles.smallText}>
-              {formatDateTime(event.occurredAt)}
-            </Text>
+    <List
+      dataSource={items}
+      split
+      renderItem={(item) => (
+        <List.Item>
+          <Space direction="vertical" size="small" className={styles.fullWidth}>
+            <div className={styles.detailHeader}>
+              <Space wrap>
+                <LinkOutlined />
+                <Text strong>{item.sourceTitle}</Text>
+                <Tag color={item.recommendedByDefault ? "blue" : "default"}>
+                  {item.displayLabel}
+                </Tag>
+              </Space>
+              <Text type="secondary">{item.sourceCode}</Text>
+            </div>
+
+            <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 2 }}>
+              <Descriptions.Item label="来源版本">
+                {item.sourceVersionNo || "未记录"}
+              </Descriptions.Item>
+              <Descriptions.Item label="发布日期">
+                {formatDateTime(item.publishedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="锚点路径">
+                <Text code>{item.anchorPath || "未记录"}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="锚点名称">{item.anchorLabel || "未记录"}</Descriptions.Item>
+              <Descriptions.Item label="片段偏移">
+                {item.startOffset ?? "?"} - {item.endOffset ?? "?"}
+              </Descriptions.Item>
+              <Descriptions.Item label="引用关系">
+                {item.relation || "未记录"} / 权重 {item.weight ?? "未记录"}
+              </Descriptions.Item>
+            </Descriptions>
+
+            {item.textExcerpt && (
+              <Paragraph className={styles.evidenceExcerpt}>{item.textExcerpt}</Paragraph>
+            )}
+
+            {item.authorityBasis && <Text type="secondary">权威依据：{item.authorityBasis}</Text>}
+            <Text type="secondary">{item.rankingReason}</Text>
+            <div className={styles.hashGrid}>
+              <Text copyable={Boolean(item.sourceVersionHash)} className={styles.hashText}>
+                来源版本指纹：{item.sourceVersionHash || "未记录"}
+              </Text>
+              <Text copyable={Boolean(item.fragmentHash)} className={styles.hashText}>
+                来源片段指纹：{item.fragmentHash || "未记录"}
+              </Text>
+            </div>
           </Space>
-        </Card>
-      ))}
-    </Space>
+        </List.Item>
+      )}
+    />
   );
 }
 
 export default function Provenance() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedIdentityId = useMemo(() => {
+    const value = Number(searchParams.get("identityId"));
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }, [searchParams]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [evidenceType, setEvidenceType] = useState<string | undefined>();
-  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceSnapshot | null>(null);
-  const [verifyResult, setVerifyResult] = useState<EvidenceVerifyResult | null>(null);
-  const [exportResult, setExportResult] = useState<EvidenceExportResult | null>(null);
+  const [domain, setDomain] = useState<string>();
+  const [page, setPage] = useState(1);
+  const [selectedIdentityId, setSelectedIdentityId] = useState<number | undefined>(
+    linkedIdentityId,
+  );
 
-  const evidencesQuery = useEvidences({
+  const identitiesQuery = useKnowledgeIdentities({
     keyword: keyword || undefined,
-    evidenceType,
-    page: 1,
+    domain,
+    page,
     size: 20,
   });
-  const auditQuery = useAuditEvents();
-  const verifyMutation = useVerifyEvidence();
-  const exportMutation = useExportEvidences();
+  const identities = useMemo(
+    () => identitiesQuery.data?.items ?? [],
+    [identitiesQuery.data?.items],
+  );
+  const provenanceQuery = useKnowledgeProvenance(selectedIdentityId);
 
-  const evidences = useMemo(() => evidencesQuery.data?.items ?? [], [evidencesQuery.data?.items]);
-  const metrics = useMemo(() => {
-    const total = evidencesQuery.data?.total ?? evidences.length;
-    const valid = evidences.filter((item) => item.isValid).length;
-    const invalid = evidences.filter((item) => !item.isValid).length;
-    return {
-      total,
-      valid,
-      invalid,
-      auditEvents: auditQuery.data?.length ?? 0,
-    };
-  }, [auditQuery.data?.length, evidences, evidencesQuery.data?.total]);
-
-  const handleSearch = (value?: string) => {
-    const nextKeyword = (value ?? keywordInput).trim();
-    setKeyword(nextKeyword);
-  };
-
-  const handleVerify = async (record: EvidenceSnapshot) => {
-    try {
-      const result = await verifyMutation.mutateAsync(record.evidenceId);
-      setSelectedEvidence(record);
-      setVerifyResult(result);
-      if (result.isValid) {
-        message.success("证据快照验签通过");
-      } else {
-        message.error("证据快照验签失败，请立即核查原始数据");
-      }
-      await auditQuery.refetch();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "证据快照验签失败"));
-    }
-  };
-
-  const handleExport = async () => {
-    if (metrics.total === 0) {
-      message.warning("当前筛选范围无真实证据快照，不生成导出指纹");
+  useEffect(() => {
+    if (linkedIdentityId) {
+      setSelectedIdentityId(linkedIdentityId);
       return;
     }
-
-    try {
-      const result = await exportMutation.mutateAsync(evidenceType);
-      setExportResult(result);
-      message.success("证据归档指纹已由后端生成");
-      await auditQuery.refetch();
-    } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "证据导出失败"));
+    if (identities.length === 0) {
+      setSelectedIdentityId(undefined);
+      return;
     }
-  };
+    if (!identities.some((identity) => identity.id === selectedIdentityId)) {
+      setSelectedIdentityId(identities[0].id);
+    }
+  }, [identities, linkedIdentityId, selectedIdentityId]);
 
-  const columns: TableProps<EvidenceSnapshot>["columns"] = [
+  const identityColumns: TableProps<KnowledgeIdentity>["columns"] = [
     {
-      title: "证据 ID",
-      dataIndex: "evidenceId",
-      key: "evidenceId",
-      render: (value: string) => <Text strong>{value}</Text>,
-    },
-    {
-      title: "traceId",
-      dataIndex: "traceId",
-      key: "traceId",
-      render: (value: string) => value || "未指定",
-    },
-    {
-      title: "类型",
-      dataIndex: "evidenceType",
-      key: "evidenceType",
-      render: (value: string) => <Tag color="blue">{value}</Tag>,
-    },
-    {
-      title: "摘要",
-      dataIndex: "evidenceSummary",
-      key: "evidenceSummary",
-      ellipsis: true,
-    },
-    {
-      title: "指纹",
-      dataIndex: "payloadHash",
-      key: "payloadHash",
-      render: (value: string) => <Text code>{shortHash(value)}</Text>,
-    },
-    {
-      title: "状态",
-      dataIndex: "isValid",
-      key: "isValid",
-      render: (value: boolean) =>
-        value ? <Tag color="success">验签有效</Tag> : <Tag color="error">验签异常</Tag>,
-    },
-    {
-      title: "创建时间",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      render: (value: string) => <Text type="secondary">{formatDateTime(value)}</Text>,
-    },
-    {
-      title: "操作",
-      key: "action",
-      render: (_value: unknown, record) => (
-        <Button
-          size="small"
-          icon={<SafetyCertificateOutlined />}
-          loading={verifyMutation.isPending && selectedEvidence?.evidenceId === record.evidenceId}
-          onClick={() => handleVerify(record)}
-        >
-          后端验签
-        </Button>
+      title: "知识主题",
+      dataIndex: "subject",
+      key: "subject",
+      render: (value: string, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value}</Text>
+          <Text type="secondary" className={styles.smallText}>
+            {record.identityCode}
+          </Text>
+        </Space>
       ),
+    },
+    {
+      title: "领域",
+      dataIndex: "domain",
+      key: "domain",
+      width: 112,
+      render: (value: KnowledgeDomain) => <Tag>{domainLabel(value)}</Tag>,
     },
   ];
 
-  return (
-    <PageShell
-      title="来源与临床证据追溯"
-      description="按 traceId、证据类型或摘要检索真实证据快照；无后端证据时只显示空态，不构造本地证据链。"
-    >
+  const versionColumns: TableProps<KnowledgeAssetVersion>["columns"] = [
+    {
+      title: "版本",
+      key: "version",
+      render: (_value: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{versionLabel(record)}</Text>
+          <Text type="secondary" className={styles.smallText}>
+            {record.versionNo}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "状态",
+      key: "status",
+      width: 132,
+      render: (_value: unknown, record) =>
+        versionStatus(record, provenanceQuery.data?.currentVersionId),
+    },
+    {
+      title: "生效时间",
+      dataIndex: "effectiveFrom",
+      key: "effectiveFrom",
+      width: 176,
+      render: (value?: string) => formatDateTime(value),
+    },
+  ];
+
+  const submitSearch = (value: string) => {
+    setKeyword(value.trim());
+    setPage(1);
+    setSelectedIdentityId(undefined);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("identityId");
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const selectIdentity = (identityId: number) => {
+    setSelectedIdentityId(identityId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("identityId", String(identityId));
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const refresh = () => {
+    void identitiesQuery.refetch();
+    if (selectedIdentityId) {
+      void provenanceQuery.refetch();
+    }
+  };
+
+  let detailContent = <Empty description="请选择知识身份" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+  if (selectedIdentityId && provenanceQuery.isLoading) {
+    detailContent = <Alert type="info" showIcon message="正在读取知识来源链" />;
+  } else if (selectedIdentityId && provenanceQuery.isError) {
+    detailContent = (
+      <Alert
+        type="error"
+        showIcon
+        message="知识来源链读取失败"
+        description={getApiErrorMessage(provenanceQuery.error, "请检查权限或知识服务状态。")}
+      />
+    );
+  } else if (provenanceQuery.data) {
+    const provenance = provenanceQuery.data;
+    const activeVersion = provenance.versions.find(
+      (version) => version.id === provenance.currentVersionId,
+    );
+    detailContent = (
       <Space direction="vertical" size="large" className={styles.fullWidth}>
-        <div className={styles.statsGrid}>
-          <Card>
-            <Statistic
-              title="真实证据快照"
-              value={metrics.total}
-              prefix={<FileProtectOutlined />}
-            />
-          </Card>
-          <Card>
-            <Statistic title="当前页有效" value={metrics.valid} prefix={<CheckCircleOutlined />} />
-          </Card>
-          <Card>
-            <Statistic title="当前页异常" value={metrics.invalid} prefix={<WarningOutlined />} />
-          </Card>
-          <Card>
-            <Statistic title="审计事件" value={metrics.auditEvents} prefix={<AuditOutlined />} />
-          </Card>
+        <div className={styles.detailHeader}>
+          <div>
+            <Title level={4} className={styles.compactTitle}>
+              {provenance.identity.subject}
+            </Title>
+            <Text type="secondary">{provenance.identity.identityCode}</Text>
+          </div>
+          <Space wrap>
+            <Tag>{domainLabel(provenance.identity.domain)}</Tag>
+            <Tag color="success">{identityStatusLabel(provenance.identity.status)}</Tag>
+          </Space>
         </div>
 
+        {provenance.partial && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`${provenance.unresolvedCitationCount} 条引用未能解析，当前结果为部分成功。`}
+            description="已解析内容保持可读；未解析引用不会被静默忽略，请由知识治理人员补齐来源链。"
+          />
+        )}
+
+        {activeVersion?.conflictArbitration && (
+          <Alert
+            type="info"
+            showIcon
+            message="当前版本存在冲突裁决记录"
+            description={activeVersion.conflictArbitration}
+          />
+        )}
+
+        <section>
+          <Space className={styles.sectionTitle}>
+            <HistoryOutlined />
+            <Text strong>版本沿革</Text>
+          </Space>
+          <Table
+            columns={versionColumns}
+            dataSource={provenance.versions}
+            rowKey="id"
+            size="small"
+            pagination={false}
+            locale={{ emptyText: <Empty description="暂无版本记录" /> }}
+            scroll={{ x: 520 }}
+          />
+        </section>
+
+        <section>
+          <Space className={styles.sectionTitle}>
+            <FileSearchOutlined />
+            <Text strong>精确来源锚点</Text>
+          </Space>
+          <EvidenceList items={provenance.sourceEvidence} />
+        </section>
+      </Space>
+    );
+  }
+
+  return (
+    <PageShell
+      title="知识来源追溯"
+      description="按知识身份查看当前权威版本、历史沿革和精确来源锚点。"
+    >
+      <Space direction="vertical" size="large" className={styles.fullWidth}>
         <Card>
-          <Space wrap className={styles.toolbar}>
+          <div className={styles.toolbar}>
             <Space wrap>
               <Input.Search
                 allowClear
                 enterButton="检索"
                 prefix={<SearchOutlined />}
-                placeholder="输入 traceId、证据 ID 或摘要关键词"
+                placeholder="输入知识主题或身份编码"
                 value={keywordInput}
                 onChange={(event) => setKeywordInput(event.target.value)}
-                onSearch={handleSearch}
+                onSearch={submitSearch}
                 className={styles.searchWide}
               />
               <Select
                 allowClear
-                placeholder="证据类型"
-                value={evidenceType}
-                onChange={setEvidenceType}
-                options={evidenceTypeOptions}
+                placeholder="知识领域"
+                value={domain}
+                onChange={(value) => {
+                  setDomain(value);
+                  setPage(1);
+                  setSelectedIdentityId(undefined);
+                  const nextParams = new URLSearchParams(searchParams);
+                  nextParams.delete("identityId");
+                  setSearchParams(nextParams, { replace: true });
+                }}
+                options={domainOptions}
                 className={styles.selectWide}
               />
             </Space>
-            <Space>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => {
-                  evidencesQuery.refetch();
-                  auditQuery.refetch();
-                }}
-              >
-                刷新
-              </Button>
-              <Button
-                type="primary"
-                icon={<ExportOutlined />}
-                loading={exportMutation.isPending}
-                disabled={metrics.total === 0}
-                onClick={handleExport}
-              >
-                生成归档指纹
-              </Button>
-            </Space>
-          </Space>
+            <Button icon={<ReloadOutlined />} onClick={refresh}>
+              刷新
+            </Button>
+          </div>
         </Card>
 
-        {evidencesQuery.isError && (
+        {identitiesQuery.isError && (
           <Alert
             type="error"
             showIcon
-            message="证据快照接口读取失败"
-            description="请检查登录权限、租户上下文或证据服务状态。"
+            message="知识身份读取失败"
+            description={getApiErrorMessage(
+              identitiesQuery.error,
+              "请检查登录权限、租户上下文或知识服务状态。",
+            )}
           />
         )}
 
-        <div className={styles.contentGrid}>
-          <Card title="真实证据快照">
+        <div className={styles.provenanceGrid}>
+          <Card title="知识身份">
             <Table
-              columns={columns}
-              dataSource={evidences}
-              rowKey="evidenceId"
-              loading={evidencesQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无真实证据快照" /> }}
+              columns={identityColumns}
+              dataSource={identities}
+              rowKey="id"
+              loading={identitiesQuery.isLoading}
+              size="small"
+              rowClassName={(record) =>
+                record.id === selectedIdentityId
+                  ? styles.selectedTableRow
+                  : styles.interactiveTableRow
+              }
+              onRow={(record) => ({
+                onClick: () => selectIdentity(record.id),
+              })}
+              locale={{ emptyText: <Empty description="暂无知识身份" /> }}
               pagination={{
-                total: metrics.total,
+                current: page,
                 pageSize: 20,
+                total: identitiesQuery.data?.total ?? 0,
                 showSizeChanger: false,
+                onChange: setPage,
               }}
+              scroll={{ x: 420 }}
             />
           </Card>
 
-          <Card title="真实审计事件">
-            {auditQuery.isLoading ? (
-              <Alert type="info" showIcon message="正在读取审计事件" />
-            ) : (
-              <AuditEventList events={auditQuery.data ?? []} />
-            )}
-          </Card>
+          <Card title="来源详情">{detailContent}</Card>
         </div>
       </Space>
-
-      <Modal
-        title="后端证据验签结果"
-        open={!!verifyResult}
-        onCancel={() => setVerifyResult(null)}
-        footer={[
-          <Button key="close" type="primary" onClick={() => setVerifyResult(null)}>
-            关闭
-          </Button>,
-        ]}
-      >
-        {verifyResult && (
-          <Space direction="vertical" size="middle" className={styles.fullWidth}>
-            <Alert
-              type={verifyResult.isValid ? "success" : "error"}
-              showIcon
-              message={verifyResult.isValid ? "证据快照验签通过" : "证据快照验签失败"}
-            />
-            <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="证据 ID">{verifyResult.evidenceId}</Descriptions.Item>
-              <Descriptions.Item label="存储指纹">
-                <Text code copyable>
-                  {verifyResult.storedHash}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="计算指纹">
-                <Text code copyable>
-                  {verifyResult.calculatedHash}
-                </Text>
-              </Descriptions.Item>
-            </Descriptions>
-          </Space>
-        )}
-      </Modal>
-
-      <Modal
-        title="证据归档指纹"
-        open={!!exportResult}
-        onCancel={() => setExportResult(null)}
-        footer={[
-          <Button key="close" type="primary" onClick={() => setExportResult(null)}>
-            关闭
-          </Button>,
-        ]}
-      >
-        {exportResult && (
-          <Descriptions bordered size="small" column={1}>
-            <Descriptions.Item label="导出状态">{exportResult.status}</Descriptions.Item>
-            <Descriptions.Item label="归档指纹">
-              <Text code copyable>
-                {exportResult.archiveHash}
-              </Text>
-            </Descriptions.Item>
-          </Descriptions>
-        )}
-      </Modal>
     </PageShell>
   );
 }

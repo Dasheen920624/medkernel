@@ -320,10 +320,30 @@ describe("route metadata", () => {
     expect(
       canAccessRoute(findRouteByPath("/advanced/provenance"), {
         roles: [{ code: "audit-compliance" }],
-        permissions: [],
+        permissions: [{ code: "knowledge.read" }],
         menuKeys: ["provenance"],
       }),
     ).toBe(true);
+  });
+
+  it("requires both the provenance menu and knowledge read permission", () => {
+    const route = findRouteByPath("/advanced/provenance");
+
+    expect(route?.requiredPermissions).toEqual(["menu.provenance", "knowledge.read"]);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "specialist" }],
+        permissions: [{ code: "knowledge.read" }],
+        menuKeys: ["provenance"],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "implementation-engineer" }],
+        permissions: [],
+        menuKeys: ["provenance"],
+      }),
+    ).toBe(false);
   });
 
   it("requires the WORKBENCH-02 readiness action permission in addition to the workbench menu", () => {

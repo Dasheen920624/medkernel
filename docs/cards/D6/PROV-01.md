@@ -10,29 +10,30 @@
 - 关联场景：S7 图谱与来源追溯
 - 依赖卡：[KNOW-01](../D2/KNOW-01.md)/[OPT-07](../D2/OPT-07.md)（来源链/分级）· [SYS-08](../D2/SYS-08.md)（版本）· [BASE-08](../D0/BASE-08.md)/[BASE-10](../D0/BASE-10.md) · [API-13](../D0/API-13.md) · [INFRA-09](../D1/INFRA-09.md)
 - 工作量：3d
-- owner / reviewer：待派单（owner ≠ reviewer）
+- owner：Codex；reviewer：PR reviewer（owner ≠ reviewer）
 
 ## 目标
 把来源追溯页**真实化**：对一条结论/推荐/知识/规则命中，**追溯到来源条目与版本**（来源链 `KnowledgeLineage`），全部真实，**不前端编造来源**。
 
-## 现状（搬迁时核查 2026-05-30，以 `frontend/src` 为准）
-页面**已存在待真实化**：`pages/advanced/Provenance.tsx`（路由 `/advanced/provenance` 已注册 `app/router.tsx`）。本卡＝去占位/mock + 接来源链 API（`engine/knowledge` `KnowledgeLineage` + [OPT-07](../D2/OPT-07.md)）+ 六态/RBAC 齐全。
+## 实现状态（2026-06-07）
+已将旧审计快照页替换为唯一知识来源追溯主流程：按知识身份查询关系库权威版本、替代历史、来源文献、精确锚点与内容指纹；`?identityId=`支持从结论或命中记录直达。未新增表、迁移、兼容层或第二套来源模型。
 
 ## 功能要求（原子可测条目）
-- [ ] FR-1 追溯入口：从结论/推荐/规则命中追溯来源（[API-13](../D0/API-13.md) 分页）。
-- [ ] FR-2 来源链：展示来源条目 + 版本 + 分级（[OPT-07](../D2/OPT-07.md)）+ 冲突仲裁，到条。
-- [ ] FR-3 版本一致：追溯到的版本与命中所用版本一致（[SYS-08](../D2/SYS-08.md)），旧版标"历史"。
-- [ ] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全（[BASE-08](../D0/BASE-08.md)）。
-- [ ] FR-5 RBAC：专家/架构师可见；数据按 `OrgContext`；技术对象不入客户主菜单。
+- [x] FR-1 追溯入口：`identityId`直达 + 服务端分页检索。
+- [x] FR-2 来源链：展示来源条目、版本、分级、冲突仲裁、锚点和指纹。
+- [x] FR-3 版本一致：当前权威版本与命中版本一致，非当前版本明确标“历史版本”。
+- [x] FR-4 六态：加载/空/错误/无权限/部分成功/正常齐全。
+- [x] FR-5 RBAC：`menu.provenance`与`knowledge.read`联合门禁，数据受`OrgContext`租户门约束。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-N·A —— 消费 `engine/knowledge` 来源链 + [OPT-07](../D2/OPT-07.md) API。
+- `GET /api/v1/engine/knowledge/identities`：服务端分页检索知识身份。
+- `GET /api/v1/engine/knowledge/identities/{id}/provenance`：只读聚合身份、当前版本、版本沿革、替代记录、来源锚点与部分成功状态。
 ### 页面契约（页面卡）
-- 路由元数据：sectionKey `advanced` / menuKey `provenance` / menuLabel `来源追溯` / path `/advanced/provenance` / requiredPermissions 来源追溯 / requiredRoles 专科专家·架构师。
-- 结构：PageShell（[BASE-08](../D0/BASE-08.md)）+ 追溯入口 + 来源链时间轴/树 + 版本标识 + 六态。
-- 主按钮 ≤1（导出来源）/ 默认筛选 ≤3 / 默认角色视图（专家）。
-- 五维 RBAC：菜单 / 动作（导出）/ 数据（org）/ 资产（知识版本）/ 环境。
+- 路由元数据：sectionKey `advanced-tools` / menuKey `provenance` / path `/advanced/provenance` / requiredPermissions `menu.provenance` + `knowledge.read`。
+- 结构：PageShell + 身份列表 + 版本沿革 + 精确来源锚点 + 六态。
+- 只读页无主操作；默认筛选2项，避免重复承担审计导出职责。
+- 五维 RBAC：菜单 / 读取动作 / 数据（org）/ 资产（知识版本）/ 环境。
 - 样式：仅引用 [BASE-10](../D0/BASE-10.md) token + [体验契约](../../EXPERIENCE_CONTRACT.md)；禁硬编码 hex/px。
 
 ## 数据与迁移
@@ -56,14 +57,16 @@ N·A —— 页面卡不落库；消费 `engine/knowledge` 后端。
 - 本卡落点：把来源追溯页变为接真实来源链、到条到版本、不编造的可解释工具。
 
 ## 验收 + 验证
-- [ ] AC-1（FR-1/2）：追溯到来源条目 + 版本 + 分级。
-- [ ] AC-2（FR-3）：版本与命中一致、旧版标历史。
-- [ ] AC-3（FR-4/5）：六态齐全；专家可见、不入客户主菜单。
+- [x] AC-1（FR-1/2）：追溯到来源条目、来源版本、分级、锚点和指纹。
+- [x] AC-2（FR-3）：当前版本一致，旧版标历史。
+- [x] AC-3（FR-4/5）：六态、路由权限与租户门齐全；高级工具不进入客户主菜单。
 - 关联 A1–A9 剧本：A9 来源追溯。
 - T-GATE：前端真实性门禁全绿（no-page-mock、无编造来源）。
 - B0 验收：N·A（确定性页面）。
 
 ## 完工证据
-- 代码 permalink：`pages/advanced/Provenance` 真实化 + 接来源链 API + 六态。
-- 测试：追溯/来源链/版本一致 + 六态 + RBAC + no-page-mock 门禁。
-- 审计员签字：@<reviewer>（owner ≠ reviewer）。
+- 代码：`KnowledgeProvenanceResponse`聚合接口；`pages/advanced/Provenance`唯一真实页面。
+- 测试：前端76个测试文件、511项测试，ESLint、Stylelint、规则测试、格式、类型检查和生产构建通过；后端1786项测试全量通过，H2、PostgreSQL、Oracle均完成V1–V97迁移与幂等验证。
+- T-GATE：38项门禁自测、真实性1284文件、配置边界1214文件、迁移规约485文件通过；中文注释0 fail / 0 warn。
+- 浏览器：正式API创建并激活真实来源链；1440px与390px验证直达、版本、锚点、指纹及无页面级横向溢出。
+- 数据/迁移：复用现有权威表，无新增迁移；存储URI不返回前端。
