@@ -193,6 +193,15 @@ public class RuleEngineController {
     }
 
     /**
+     * 查看单条规则的影子运行命中、未命中与误报统计。
+     */
+    @GetMapping("/rules/{ruleId}/shadow-stats")
+    @PreAuthorize("@perm.has('rule.read')")
+    public ApiResult<RuleShadowStatsResponse> shadowStats(@PathVariable String ruleId) {
+        return ApiResult.ok(service.shadowStats(ruleId));
+    }
+
+    /**
      * 查看一次规则执行的客户面解释响应（命中链、动作、解释快照等）。
      *
      * <p>权限：{@code rule.read}；执行记录不存在抛错误码 {@code ENG-RULE-002}。
@@ -212,6 +221,17 @@ public class RuleEngineController {
             @PathVariable String executionId,
             @RequestBody @Valid RuleOverrideRequest request) {
         return ApiResult.ok(service.captureOverride(executionId, request));
+    }
+
+    /**
+     * 为影子运行命中记录人工复核结论，作为误报统计来源。
+     */
+    @PostMapping("/rules/executions/{executionId}/shadow-feedback")
+    @PreAuthorize("@perm.has('rule.write')")
+    public ApiResult<RuleShadowFeedbackResponse> captureShadowFeedback(
+            @PathVariable String executionId,
+            @RequestBody @Valid RuleShadowFeedbackRequest request) {
+        return ApiResult.ok(service.captureShadowFeedback(executionId, request));
     }
 
     private void validateContext(RuleContextRequest request) {

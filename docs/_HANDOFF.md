@@ -2,32 +2,30 @@
 
 ## 唯一执行组织
 
-- 当前分支：`codex/line2-rule-lifecycle`
-- 基线：`origin/main` = `1f9e2b6e`
+- 当前分支：`codex/line2-rule-shadow`
+- 基线：`origin/main` = `1b1e5903`
 - 线1统一承接全部任务；线2 / 线3 / 线4不再独立开发、抢合并或维护重复实现。
 - 项目未上线：只保留唯一模型、唯一接口、唯一主流程，不新增兼容层。
 
 ## 当前状态
 
-- PR #462–#466已合入主线；P7-3规则适用域由 PR #466 合入，提交 `1f9e2b6e`。
-- P8-1 已完成实施与本地自动化验收：规则治理统一为 `DRAFT → PEER_REVIEW → COMMITTEE → SHADOW → CANARY → FULL → MONITOR → RETIRED` 八阶段闭集。
-- 高危/极高危规则需要同轮两名不同人员委员会会签；作者不得自审，已签署人员不得执行影子、灰度或全量发布，全量激活仅医院管理员可执行。
-- 旧 `/publish`、`/rollout/full` 和自动推进接口已删除；统一使用治理签署与状态推进接口。拒绝会签退回草稿并开启新评审轮，旧轮签署不再计数。
-- 规则进入影子后内容冻结；退役仅封存规则、版本和资产证据，不删除治理记录或签署记录。
+- PR #467 已合入主线，提交 `1b1e5903`，P8-1 八阶段规则治理为当前基线。
+- 当前收口 P8-2：`SHADOW` 阶段规则在真实求值流量中只写 `SHADOW_RECORDED` 执行日志，不返回临床动作、不参与主动规则抑制；规则详情页展示影子执行总数、命中、未命中、命中率、误报和误报率。
+- 影子误报来自人工复核反馈：仅影子命中记录可写 `TRUE_POSITIVE / FALSE_POSITIVE`，误报必须填写原因，重复反馈拒绝并留审计。
+- 五方言 V11 已加入 `rule_shadow_feedback` 与 `SHADOW_RECORDED`；H2 空库启动可跑到 V97。
 - 线2 / 线3 / 线4尚未全部完成；历史 `done` 仍按真实使用链路逐项复验，不把文档状态当作可用证据。
 
 ## 当前证据
 
-- 后端：全量 `mvn -q test` 为 `1846` 项通过、`3` 项按本机无 Docker 环境跳过；H2 空库 `97` 个迁移执行成功，五方言表/列/索引/约束静态合同通过。
-- 前端：规则页面 `16` 项、共享 API hooks `71` 项通过；完整 `verify` 为 `78` 文件 / `531` 项通过；生产构建 `3397` 模块成功。
-- T-GATE：真实性全仓 `1319` 文件、配置边界 `1239` 文件、迁移规约 `485` 文件均无阻断；中文注释 `0 fail / 0 warn`；`git diff --check` 通过。
-- 浏览器：当前分支后端 `18180` 健康为 `UP`、前端 `5174` 可响应；in-app browser 无可用实例，项目 Playwright 的 headless shell 与完整 Chrome 均在页面启动前被本机 Mach 端口环境终止，未形成产品页面失败或通过证据，已更新 `DEFER-004`。
-- 当前分支尚未提交、创建 PR 或合入远程 `main`。
+- 后端：`RuleEngineControllerSecurityTest`、P8-2 `RuleEngineServiceTest` 聚焦用例、`MigrationBaselineContractTest#v11...` 均通过；全量 `mvn -q test` 为 `1852` 项、`0` failure、`0` error、`3` 项按本机无 Docker 环境跳过。
+- 前端：P8-2 聚焦 `hooks.test.ts` + `RuleDefinitions.test.tsx` 为 `90` 项通过；完整 `npm run verify` 为 `78` 文件 / `534` 项通过；`npm run build` 成功，`3397` 模块构建。
+- 浏览器：后端 `18180` 健康 `UP`，`/api/v1/auth/login-tenants` 200；前端 `5174` 真实登录页 → 首次改密 → MFA → `/dashboard` → `/rule/definitions` 均可渲染，控制台 error 为 `0`。
+- T-GATE 尚待本分支收尾运行；当前分支尚未提交、创建 PR 或合入远程 `main`。
 
 ## 下一步
 
-1. 提交 P8-1 PR，等待 CI 全绿并确认远程 `main` 含合并提交。
-2. 从最新 `origin/main` 继续 P8-2 影子 / 静默运行及后续线2、线3、线4任务。
-3. 在具备可启动浏览器的环境补 P8-1 桌面与 `390px` 真实页面证据，不阻塞主线继续。
+1. 运行 changed-mode T-GATE、`git diff --check` 和中文注释门禁。
+2. 提交 P8-2 PR，等待 CI 全绿并确认远程 `main` 含合并提交。
+3. 从最新 `origin/main` 继续 P8-3 历史回测 / 灵敏度特异度 / 漂移监测，再顺序承接 P9+ 线2/3/4未完成项。
 
 文档只维护本文件、backlog、域简报和对应卡片，不新增施工说明。

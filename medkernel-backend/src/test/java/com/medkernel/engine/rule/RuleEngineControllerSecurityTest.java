@@ -65,6 +65,8 @@ class RuleEngineControllerSecurityTest {
         "{\"targetState\":\"SHADOW\",\"impactDigest\":\"sha256:impact\",\"reason\":\"会签完成\"}";
     private static final String OVERRIDE_BODY =
         "{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}";
+    private static final String SHADOW_FEEDBACK_BODY =
+        "{\"decision\":\"FALSE_POSITIVE\",\"reason\":\"影子提示与当前处置不匹配\"}";
 
     @Autowired
     MockMvc mvc;
@@ -107,6 +109,14 @@ class RuleEngineControllerSecurityTest {
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCanListExecutionsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_DOCTOR")
+    void doctorCanReadShadowStatsButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(get("/api/v1/engine/rule/rules/rule-1/shadow-stats"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
@@ -189,6 +199,16 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
+    @WithMockUser(authorities = "ROLE_SPECIALIST")
+    void specialistCanReachShadowFeedbackButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/shadow-feedback")
+                .contentType("application/json")
+                .content(SHADOW_FEEDBACK_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
     @WithMockUser(authorities = "ROLE_DOCTOR")
     void doctorCannotGovernRules() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
@@ -211,6 +231,11 @@ class RuleEngineControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
                 .contentType("application/json")
                 .content(OVERRIDE_BODY))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/shadow-feedback")
+                .contentType("application/json")
+                .content(SHADOW_FEEDBACK_BODY))
             .andExpect(status().isForbidden());
     }
 }

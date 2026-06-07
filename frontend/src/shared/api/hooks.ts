@@ -2560,6 +2560,7 @@ export type RuleGovernanceState =
 
 export type RuleSignoffStage = "PEER_REVIEW" | "COMMITTEE";
 export type RuleSignoffDecision = "APPROVED" | "REJECTED";
+export type RuleShadowFeedbackDecision = "TRUE_POSITIVE" | "FALSE_POSITIVE";
 
 export interface RuleSignoff {
   signoffId: string;
@@ -2590,6 +2591,28 @@ export interface RuleGovernanceResponse {
   traceId: string;
 }
 
+export interface RuleShadowStatsResponse {
+  ruleId: string;
+  totalExecutions: number;
+  hitCount: number;
+  missCount: number;
+  falsePositiveCount: number;
+  hitRate: number;
+  falsePositiveRate: number;
+  traceId: string;
+}
+
+export interface RuleShadowFeedbackResponse {
+  feedbackId: string;
+  executionId: string;
+  ruleId: string;
+  decision: RuleShadowFeedbackDecision;
+  reason: string | null;
+  assessedBy: string;
+  assessedAt: string;
+  traceId: string;
+}
+
 export interface RuleEvaluateResponse {
   requestId: string;
   traceId: string;
@@ -2609,7 +2632,15 @@ export interface RuleExplanationResponse {
   severity: RuleRiskLevel | string | null;
   actions?: unknown;
   explanation?: unknown;
-  status: "SUCCESS" | "MISS" | "NOT_APPLICABLE" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  status:
+    | "SUCCESS"
+    | "SHADOW_RECORDED"
+    | "MISS"
+    | "NOT_APPLICABLE"
+    | "SUPPRESSED"
+    | "DEDUPLICATED"
+    | "FAILED"
+    | string;
   traceId: string;
 }
 
@@ -2620,7 +2651,15 @@ export interface RuleExecutionSummary {
   triggerPoint: string;
   hit: boolean;
   severity: RuleRiskLevel | string | null;
-  status: "SUCCESS" | "MISS" | "NOT_APPLICABLE" | "SUPPRESSED" | "DEDUPLICATED" | "FAILED" | string;
+  status:
+    | "SUCCESS"
+    | "SHADOW_RECORDED"
+    | "MISS"
+    | "NOT_APPLICABLE"
+    | "SUPPRESSED"
+    | "DEDUPLICATED"
+    | "FAILED"
+    | string;
   executedAt: string;
   traceId: string;
 }
@@ -2909,6 +2948,39 @@ export function useRuleExecutions(params?: { page?: number; size?: number }) {
       const { data } = await apiClient.get<{ data: PageResponse<RuleExecutionSummary> }>(
         "/engine/rule/rules/executions",
         { params },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRuleShadowStats(ruleId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["rules", "shadow-stats", ruleId],
+    queryFn: async () => {
+      if (!ruleId) return null;
+      const { data } = await apiClient.get<{ data: RuleShadowStatsResponse }>(
+        `/engine/rule/rules/${ruleId}/shadow-stats`,
+      );
+      return data.data;
+    },
+    enabled: Boolean(ruleId) && (options?.enabled ?? true),
+  });
+}
+
+export function useCaptureRuleShadowFeedback() {
+  return useMutation({
+    mutationFn: async (payload: {
+      executionId: string;
+      decision: RuleShadowFeedbackDecision;
+      reason?: string;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuleShadowFeedbackResponse }>(
+        `/engine/rule/rules/executions/${payload.executionId}/shadow-feedback`,
+        {
+          decision: payload.decision,
+          reason: payload.reason,
+        },
       );
       return data.data;
     },

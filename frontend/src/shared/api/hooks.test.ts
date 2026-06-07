@@ -95,6 +95,8 @@ import {
   useRegisterRegionalSource,
   useRuleDefinitions,
   useRuleExecutions,
+  useRuleShadowStats,
+  useCaptureRuleShadowFeedback,
   useReviewRectification,
   useReviewKnowledgeCandidate,
   useRollbackTerminologyPackage,
@@ -846,6 +848,57 @@ describe("package export api helpers", () => {
         reason: "同意进入影子验证",
         package_version: "1.0.0",
       }),
+    );
+  });
+
+  it("loads rule shadow stats from the governance stats endpoint", async () => {
+    const stats = {
+      ruleId: "rule-real-1",
+      totalExecutions: 5,
+      hitCount: 3,
+      missCount: 2,
+      falsePositiveCount: 1,
+      hitRate: 0.6,
+      falsePositiveRate: 1 / 3,
+      traceId: "trace-shadow-stats",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: stats } });
+
+    const { result } = renderApiHook(() => useRuleShadowStats("rule-real-1"));
+
+    await waitFor(() => expect(result.current.data).toEqual(stats));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rule/rules/rule-real-1/shadow-stats");
+  });
+
+  it("records false-positive feedback for a shadow rule execution", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          feedbackId: "rsf-1",
+          executionId: "rex-shadow",
+          ruleId: "rule-real-1",
+          decision: "FALSE_POSITIVE",
+          reason: "影子提示与当前处置不匹配",
+          assessedBy: "doctor-1",
+          assessedAt: "2026-06-07T08:00:00Z",
+          traceId: "trace-shadow-feedback",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useCaptureRuleShadowFeedback());
+    await result.current.mutateAsync({
+      executionId: "rex-shadow",
+      decision: "FALSE_POSITIVE",
+      reason: "影子提示与当前处置不匹配",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/executions/rex-shadow/shadow-feedback",
+      {
+        decision: "FALSE_POSITIVE",
+        reason: "影子提示与当前处置不匹配",
+      },
     );
   });
 

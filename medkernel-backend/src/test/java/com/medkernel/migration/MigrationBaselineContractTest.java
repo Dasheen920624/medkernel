@@ -139,7 +139,7 @@ class MigrationBaselineContractTest {
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
         "rule_test_case",
-        "rule_execution_log", "rule_override_log",
+        "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
@@ -234,6 +234,7 @@ class MigrationBaselineContractTest {
         "idx_rule_execution_tenant_time", "idx_rule_execution_rule_time",
         "idx_rule_execution_trigger", "idx_rule_execution_dedupe",
         "idx_rule_override_rule_time", "idx_rule_override_execution",
+        "idx_rule_shadow_feedback_rule_time", "idx_rule_shadow_feedback_decision",
         "idx_specialty_package_tenant_status", "idx_specialty_package_disease",
         "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
         "idx_pathway_template_package", "idx_pathway_template_disease",
@@ -397,6 +398,8 @@ class MigrationBaselineContractTest {
         "uk_rule_test_case_id", "ck_rule_test_case_type", "ck_rule_test_case_status",
         "uk_rule_execution_id", "ck_rule_execution_status", "ck_rule_execution_severity",
         "uk_rule_override_id", "uk_rule_override_execution_action", "ck_rule_override_action",
+        "uk_rule_shadow_feedback_id", "uk_rule_shadow_feedback_execution",
+        "ck_rule_shadow_feedback_decision",
         "uk_specialty_package_tenant_code", "ck_specialty_package_status",
         "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
         "ck_pathway_template_level", "ck_pathway_template_status",
@@ -553,7 +556,7 @@ class MigrationBaselineContractTest {
         "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
         "rule_test_case",
-        "rule_execution_log", "rule_override_log",
+        "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_node",
         "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
         "specialty_metric_binding", "recommendation_trigger", "recommendation_card",
@@ -647,6 +650,7 @@ class MigrationBaselineContractTest {
         Map.entry("rule_governance", Set.of("trace_id", "lock_version")),
         Map.entry("rule_signoff", Set.of("signed_at", "trace_id")),
         Map.entry("rule_override_log", Set.of("overridden_by", "overridden_at", "created_at")),
+        Map.entry("rule_shadow_feedback", Set.of("assessed_by", "assessed_at", "created_at")),
         Map.entry("specialty_package", Set.of("published_at", "published_by")),
         Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
         Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
@@ -692,6 +696,7 @@ class MigrationBaselineContractTest {
         Map.entry("rule_test_case", Set.of("case_type", "last_status")),
         Map.entry("rule_execution_log", Set.of("status", "severity")),
         Map.entry("rule_override_log", Set.of("action_code")),
+        Map.entry("rule_shadow_feedback", Set.of("decision")),
         Map.entry("specialty_package", Set.of("package_version", "status")),
         Map.entry("pathway_template", Set.of("template_version", "status")),
         Map.entry("pathway_node", Set.of("node_type")),
@@ -2065,7 +2070,9 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("settings_json");
         assertThat(h2).contains("lock_version");
         assertThat(h2).contains("NOT_APPLICABLE");
+        assertThat(h2).contains("SHADOW_RECORDED");
         assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_override_log");
+        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_shadow_feedback");
         assertThat(h2).contains("uk_rule_definition_tenant_code");
         assertThat(h2).contains("ck_rule_definition_status");
         assertThat(h2).contains("ck_rule_governance_state");
@@ -2074,6 +2081,8 @@ class MigrationBaselineContractTest {
         assertThat(h2).contains("idx_rule_execution_trigger");
         assertThat(h2).contains("idx_rule_execution_dedupe");
         assertThat(h2).contains("ck_rule_override_action");
+        assertThat(h2).contains("idx_rule_shadow_feedback_decision");
+        assertThat(h2).contains("ck_rule_shadow_feedback_decision");
     }
 
     @Test

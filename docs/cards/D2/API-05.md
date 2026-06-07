@@ -17,7 +17,7 @@
 ## 现状（搬迁时核查 2026-05-30，以 `medkernel-backend/src` 为准；API-05 收口 2026-06-02）
 `engine/rule` **控制器已建**，本卡＝**契约化 + 影响分析/解释/统一入参补全**：
 - 已有：`RuleEngineController`(+ 安全测试)、`RuleEngineService`、`RuleEvaluateRequest`/`Response`、`RuleSimulateRequest`、`RuleTestCase`、`RuleGovernanceResponse`、`RuleCreateRequest`/`Response`/`RuleDetailResponse`/`RuleFilter`。
-- 已补：① 客户面入口统一为 `/api/v1/engine/rule/**`；② 规则定义、测试、仿真、影响分析、治理签署、状态推进、执行和解释端点；③ 写接口统一校验租户与权限；④ 八阶段治理强制测试全绿、影响摘要、高危多签、职责分离和影子先行；⑤ DSL 错误返回 `ENG-RULE-001`，治理门禁返回 `ENG-RULE-004`；⑥ 规则影响分析通过关系库只读索引定位真实影响对象，无对象时返回空列表；⑦ 删除旧单步发布与自动推进兼容接口。
+- 已补：① 客户面入口统一为 `/api/v1/engine/rule/**`；② 规则定义、测试、仿真、影响分析、治理签署、状态推进、执行、解释、影子统计和影子复核端点；③ 写接口统一校验租户与权限；④ 八阶段治理强制测试全绿、影响摘要、高危多签、职责分离和影子先行；⑤ DSL 错误返回 `ENG-RULE-001`，治理门禁返回 `ENG-RULE-004`；⑥ 规则影响分析通过关系库只读索引定位真实影响对象，无对象时返回空列表；⑦ 删除旧单步发布与自动推进兼容接口。
 - 未在本卡伪造：真实 10 万级规则列表压测归 [API-13](../D0/API-13.md) / [SYS-07](../ga/SYS-07.md) / GA 总验收关闭。
 
 ## 功能要求（原子可测条目）
@@ -26,12 +26,13 @@
 - [x] **FR-3 影响分析**：`GET /rules/{id}/impact`（受影响规则/路径/在径患者/同步目标）。
 - [x] **FR-4 治理发布**：`POST /rules/{id}/governance/signoffs` 签署，`POST /rules/{id}/governance/transitions` 推进八阶段闭集；高危无双人会签、无用例或无影响分析 → 拒。
 - [x] **FR-5 执行 + 解释**：`POST /rules/evaluate`（对标准上下文求值）、返回 `RuleActionResult` + 命中解释。
-- [x] **FR-6 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
+- [x] **FR-6 影子统计与反馈**：影子运行真实流量只记录不动作，提供命中/未命中/误报统计与人工复核反馈。
+- [x] **FR-7 统一入参/信封**：12 字段入参 + `ApiResult`/`ProblemDetail`（[BASE-03](../D0/BASE-03.md)）。
 
 ## 接口契约 / 页面契约
 ### 接口契约（引擎/API 卡）
-- 端点：`/api/v1/engine/rule/**`（rules、test、simulate、impact、governance/signoffs、governance/transitions、evaluate、explain）。
-- DTO：复用 `RuleCreateRequest`/`RuleDetailResponse`/`RuleEvaluateRequest`/`Response`/`RuleGovernanceResponse`/`RuleSignoffRequest`/`RuleGovernanceTransitionRequest`/`RuleFilter`。
+- 端点：`/api/v1/engine/rule/**`（rules、test、simulate、impact、governance/signoffs、governance/transitions、evaluate、explain、shadow-stats、shadow-feedback）。
+- DTO：复用 `RuleCreateRequest`/`RuleDetailResponse`/`RuleEvaluateRequest`/`Response`/`RuleGovernanceResponse`/`RuleSignoffRequest`/`RuleGovernanceTransitionRequest`/`RuleFilter`/`RuleShadowStatsResponse`/`RuleShadowFeedbackRequest`/`RuleShadowFeedbackResponse`。
 - 响应信封：`ApiResult` / `ProblemDetail`；大列表 `PageResult`（[API-13](../D0/API-13.md)）。
 - 状态机：`DRAFT → PEER_REVIEW → COMMITTEE → SHADOW → CANARY → FULL → MONITOR → RETIRED`；拒绝退回草稿并开启新评审轮。
 - 幂等 / 错误码 / traceId：同轮同阶段签署人唯一；治理门禁 → `ENG-RULE-004`；DSL 错 → `ENG-RULE-001`；traceId（[OBS-01](../D0/OBS-01.md)）。
@@ -62,12 +63,13 @@ N·A —— 本卡无页面。被 [RULE-01](RULE-01.md) 规则库页消费。
 - [x] **AC-1（FR-1/2）**：规则 CRUD + 用例测试，统一信封；用例不全绿不可发布。
 - [x] **AC-2（FR-3/4）**：影响分析返回真实受影响对象；高危无当前影响摘要、无同轮双人委员会会签或作者自审 → `ENG-RULE-004`；规则必须先影子再灰度，全量仅医院管理员，退役保留全部证据。
 - [x] **AC-3（FR-5）**：对标准上下文求值返回结果 + 解释。
-- [x] **AC-4（FR-6）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
+- [x] **AC-4（FR-6）**：影子规则只记录潜在命中与候选动作，不返回临床动作；人工复核可登记误报并进入统计。
+- [x] **AC-5（FR-7）**：缺统一入参 → `ProblemDetail`；越权 → 0 + 审计。
 - 关联 A1–A9 剧本：A3 规则配置、A4 发布回滚。
 - T-GATE：本分支脚本门禁与提交后 changed-mode 扫描作为 PR 合入门禁，证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)。
 - B0 验收：确定性求值，**天然 B0**。
 
 ## 完工证据
 - 代码 permalink：`/api/v1/engine/rule/**` 端点 + 影响分析 + 解释 + 八阶段治理接 [SYS-04](SYS-04.md)。
-- 本地验证：`RuleEngineApiContractTest`、`RuleEngineServiceTest`、`RuleEngineControllerSecurityTest`、`RuleDslEvaluatorTest`、`RuleRepositoryTest`、`RelationalRuleImpactIndexTest`、`RelationalRuleImpactIndexRepositoryTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`、`GlobalExceptionHandlerTest`、`ErrorCodeTest` 聚焦通过；后端全量 `mvn -q test` 为 `1846` 项通过、`3` 项因本机无 Docker 的五方言 smoke 按环境跳过；H2 迁移与五方言静态合同覆盖当前版本；T-GATE 脚本测试、中文注释 changed 扫描、diff 检查与前端全量证据见 [D2 域级验收报告](../../audit/D2-domain-acceptance.md)。历史迁移中文 COMMENT full gap 仍归 `DEFER-006`，不得写成已清零。
+- 本地验证：`RuleEngineApiContractTest`、`RuleEngineServiceTest`、`RuleEngineControllerSecurityTest`、`RuleDslEvaluatorTest`、`RuleRepositoryTest`、`RelationalRuleImpactIndexTest`、`RelationalRuleImpactIndexRepositoryTest`、`ServiceContractGovernanceTest`、`OpenApiContractConfigurationTest`、`GlobalExceptionHandlerTest`、`ErrorCodeTest` 聚焦通过；P8-2 追加影子记录、影子不抑制低优先级活动规则、影子反馈、影子统计与接口安全测试；后端全量 `mvn -q test` 为 `1852` 项通过、`3` 项因本机无 Docker 的五方言 smoke 按环境跳过；H2 迁移与五方言静态合同覆盖当前版本；T-GATE 脚本测试、中文注释 changed 扫描、diff 检查与前端全量证据以本分支收口记录为准。历史迁移中文 COMMENT full gap 仍归 `DEFER-006`，不得写成已清零。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。

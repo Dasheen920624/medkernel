@@ -28,6 +28,29 @@ public interface RuleExecutionLogRepository extends ListCrudRepository<RuleExecu
     long countByTenantId(String tenantId);
 
     /**
+     * 统计某规则影子运行执行总数。
+     */
+    @Query("""
+        SELECT COUNT(*) FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+          AND rule_id = :ruleId
+          AND status = 'SHADOW_RECORDED'
+        """)
+    long countShadowByRule(String tenantId, String ruleId);
+
+    /**
+     * 按命中结果统计某规则影子运行执行数。
+     */
+    @Query("""
+        SELECT COUNT(*) FROM rule_execution_log
+        WHERE tenant_id = :tenantId
+          AND rule_id = :ruleId
+          AND status = 'SHADOW_RECORDED'
+          AND hit = :hit
+        """)
+    long countShadowByRuleAndHit(String tenantId, String ruleId, boolean hit);
+
+    /**
      * 按执行时间倒序分页读取当前租户的规则执行日志。
      */
     @Query("""

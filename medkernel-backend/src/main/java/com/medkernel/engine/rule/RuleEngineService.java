@@ -88,6 +88,7 @@ public class RuleEngineService {
     private final RuleTestCaseRepository testCases;
     private final RuleExecutionLogRepository executions;
     private final RuleOverrideLogRepository overrides;
+    private final RuleShadowFeedbackRepository shadowFeedback;
     private final RuleDslEvaluator evaluator;
     private final RuleApplicabilityService applicabilityService;
     private final AuditRecorder auditRecorder;
@@ -103,6 +104,18 @@ public class RuleEngineService {
     private final InheritanceResolver inheritanceResolver;
     private final ContextSnapshotService contextSnapshots;
     private final RuleConflictDetector conflictDetector = new RuleConflictDetector();
+
+    private enum RuleRuntimeMode {
+        ACTIVE,
+        SHADOW,
+        INACTIVE
+    }
+
+    private record RuleRuntimeCandidate(
+        RuleDefinition rule,
+        RuleVersion version,
+        RuleRuntimeMode mode
+    ) {}
 
     /**
      * 注入规则引擎所需仓库、DSL 执行器、审计发布器、状态记录器与 JSON 处理器。
@@ -125,6 +138,7 @@ public class RuleEngineService {
                              AssetVersionRepository assetVersions,
                              ReleasePort releasePort,
                              RuleGovernanceService governanceService,
+                             RuleShadowFeedbackRepository shadowFeedback,
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots) {
         this(definitions, versions, testCases, executions, overrides,
@@ -132,7 +146,7 @@ public class RuleEngineService {
             auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
-            versionedAssets, assetVersions, releasePort, governanceService,
+            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
             inheritanceResolver, contextSnapshots);
     }
 
@@ -153,6 +167,7 @@ public class RuleEngineService {
                       AssetVersionRepository assetVersions,
                       ReleasePort releasePort,
                       RuleGovernanceService governanceService,
+                      RuleShadowFeedbackRepository shadowFeedback,
                       InheritanceResolver inheritanceResolver,
                       ContextSnapshotService contextSnapshots) {
         this.definitions = definitions;
@@ -160,6 +175,8 @@ public class RuleEngineService {
         this.testCases = testCases;
         this.executions = executions;
         this.overrides = overrides;
+        this.shadowFeedback = Objects.requireNonNull(
+            shadowFeedback, "规则影子运行反馈仓库不能为空");
         this.evaluator = evaluator;
         this.applicabilityService = Objects.requireNonNull(
             applicabilityService, "规则适用域服务不能为空");
@@ -818,37 +835,39 @@ public class RuleEngineService {
             ? effectiveActiveRules(tenantId)
             : selectedRuleIds.stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
-        List<Map.Entry<RuleDefinition, RuleVersion>> executable = candidates.stream()
-            .map(rule -> Map.entry(rule, findVersion(rule.activeVersionId(), rule.tenantId())))
-            .filter(this::isActiveUnifiedVersion)
-            .filter(entry -> triggerMatches(entry.getValue(), triggerPoint))
+        List<RuleRuntimeCandidate> executable = candidates.stream()
+            .map(rule -> runtimeCandidate(rule, findVersion(rule.activeVersionId(), rule.tenantId())))
+            .filter(candidate -> candidate.mode() != RuleRuntimeMode.INACTIVE)
+            .filter(candidate -> triggerMatches(candidate.version(), triggerPoint))
             .toList();
         executable = executable.stream()
             .sorted(Comparator
-                .<Map.Entry<RuleDefinition, RuleVersion>>comparingInt(entry -> entry.getKey().priority())
+                .<RuleRuntimeCandidate>comparingInt(candidate -> candidate.rule().priority())
                 .reversed()
-                .thenComparing(entry -> entry.getKey().ruleCode()))
+                .thenComparing(candidate -> candidate.rule().ruleCode()))
             .toList();
 
         Set<String> matchedRuleCodes = new HashSet<>();
         List<RuleEvaluationItem> items = new ArrayList<>();
-        for (Map.Entry<RuleDefinition, RuleVersion> entry : executable) {
-            RuleDefinition rule = entry.getKey();
+        for (RuleRuntimeCandidate entry : executable) {
+            RuleDefinition rule = entry.rule();
+            RuleVersion version = entry.version();
             RuleApplicabilityDecision applicability =
-                evaluateApplicability(entry.getValue(), context);
+                evaluateApplicability(version, context);
             RuleEvaluationItem item;
             if (!applicability.applicable()) {
                 item = recordNotApplicable(
-                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId, applicability);
+                    rule, version, tenantId, context, triggerPoint, eventId, applicability);
             } else if (isSuppressed(rule, matchedRuleCodes)) {
                 item = recordSuppressed(
-                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+                    rule, version, tenantId, context, triggerPoint, eventId);
             } else {
                 item = evaluateApplicableAndLog(
-                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+                    rule, version, tenantId, context, triggerPoint, eventId,
+                    entry.mode() == RuleRuntimeMode.SHADOW);
             }
             items.add(item);
-            if (item.hit()) {
+            if (item.hit() && entry.mode() == RuleRuntimeMode.ACTIVE) {
                 matchedRuleCodes.add(rule.ruleCode());
             }
         }
@@ -872,16 +891,25 @@ public class RuleEngineService {
             RequestContext.currentTraceId());
     }
 
-    private boolean isActiveUnifiedVersion(Map.Entry<RuleDefinition, RuleVersion> candidate) {
-        RuleDefinition rule = candidate.getKey();
-        RuleVersion version = candidate.getValue();
-        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+    private RuleRuntimeCandidate runtimeCandidate(RuleDefinition rule, RuleVersion version) {
+        RuleRuntimeMode mode = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 rule.tenantId(),
                 VersionedAssetType.RULE,
                 rule.ruleCode(),
                 String.valueOf(version.versionNo()))
-            .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.ACTIVE)
-            .isPresent();
+            .map(assetVersion -> {
+                if (assetVersion.status() == AssetVersionStatus.ACTIVE) {
+                    return RuleRuntimeMode.ACTIVE;
+                }
+                if (assetVersion.status() == AssetVersionStatus.PUBLISHED
+                        && governanceService.requireGovernance(
+                            rule.tenantId(), version.versionId()).state() == RuleGovernanceState.SHADOW) {
+                    return RuleRuntimeMode.SHADOW;
+                }
+                return RuleRuntimeMode.INACTIVE;
+            })
+            .orElse(RuleRuntimeMode.INACTIVE);
+        return new RuleRuntimeCandidate(rule, version, mode);
     }
 
     /**
@@ -940,6 +968,32 @@ public class RuleEngineService {
         return PageResponse.of(rows, page, total);
     }
 
+    /**
+     * 统计某规则影子运行命中、未命中与误报复核结果。
+     */
+    @Transactional(readOnly = true)
+    public RuleShadowStatsResponse shadowStats(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        long total = executions.countShadowByRule(tenantId, rule.ruleId());
+        long hitCount = executions.countShadowByRuleAndHit(tenantId, rule.ruleId(), true);
+        long missCount = executions.countShadowByRuleAndHit(tenantId, rule.ruleId(), false);
+        long falsePositiveCount = shadowFeedback.countByTenantIdAndRuleIdAndDecision(
+            tenantId, rule.ruleId(), RuleShadowFeedbackDecision.FALSE_POSITIVE);
+        double hitRate = total == 0 ? 0.0 : (double) hitCount / total;
+        double falsePositiveRate = hitCount == 0 ? 0.0 : (double) falsePositiveCount / hitCount;
+        return new RuleShadowStatsResponse(
+            rule.ruleId(),
+            total,
+            hitCount,
+            missCount,
+            falsePositiveCount,
+            hitRate,
+            falsePositiveRate,
+            RequestContext.currentTraceId()
+        );
+    }
+
     private List<RuleTestCaseResult> runTestCases(RuleVersion version, String tenantId) {
         return testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId).stream()
             .map(testCase -> runTestCase(version, testCase))
@@ -977,7 +1031,7 @@ public class RuleEngineService {
                 rule, version, executionTenantId, context, triggerPoint, eventId, applicability);
         }
         return evaluateApplicableAndLog(
-            rule, version, executionTenantId, context, triggerPoint, eventId);
+            rule, version, executionTenantId, context, triggerPoint, eventId, false);
     }
 
     private RuleEvaluationItem evaluateApplicableAndLog(
@@ -986,32 +1040,56 @@ public class RuleEngineService {
             String executionTenantId,
             JsonNode context,
             String triggerPoint,
-            String eventId) {
+            String eventId,
+            boolean shadowMode) {
         RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), context);
         String executionId = "rex-" + UUID.randomUUID();
         Instant now = Instant.now();
         String patientId = patientId(context);
         String semanticKey = evaluation.hit() ? semanticKey(rule, evaluation.actions()) : null;
-        Optional<RuleExecutionLog> duplicate = recentDuplicate(
-            rule, executionTenantId, patientId, semanticKey, now);
-        RuleExecutionStatus status = duplicate.isPresent()
-            ? RuleExecutionStatus.DEDUPLICATED
-            : evaluation.hit() ? RuleExecutionStatus.SUCCESS : RuleExecutionStatus.MISS;
+        Optional<RuleExecutionLog> duplicate = shadowMode
+            ? Optional.empty()
+            : recentDuplicate(rule, executionTenantId, patientId, semanticKey, now);
+        RuleExecutionStatus status = shadowMode
+            ? RuleExecutionStatus.SHADOW_RECORDED
+            : duplicate.isPresent()
+                ? RuleExecutionStatus.DEDUPLICATED
+                : evaluation.hit() ? RuleExecutionStatus.SUCCESS : RuleExecutionStatus.MISS;
         String deduplicatedFromExecutionId = duplicate.map(RuleExecutionLog::executionId).orElse(null);
+        JsonNode explanation = shadowMode
+            ? shadowExplanation(evaluation.explanation())
+            : evaluation.explanation();
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
             null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
             triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
             patientId, encounterId(context), semanticKey,
             digest(context), evaluation.hit(), evaluation.severity(), writeObject(evaluation.actions()),
-            writeJson(evaluation.explanation()), status, null, null,
+            writeJson(explanation), status, null, null,
             deduplicatedFromExecutionId, now, now, RequestContext.currentTraceId()));
-        transitions.record(EXECUTION_ENTITY, log.executionId(), null, status.name(), "EXECUTE_RULE", null);
+        transitions.record(
+            EXECUTION_ENTITY, log.executionId(), null, status.name(),
+            shadowMode ? "RECORD_SHADOW_RULE" : "EXECUTE_RULE", null);
         auditRecorder.record(AuditAction.EXECUTE, EXECUTION_ENTITY, log.executionId(), "执行规则 " + rule.ruleId());
         return new RuleEvaluationItem(
             log.executionId(), rule.ruleId(), version.versionId(), evaluation.hit(),
             evaluation.severity(),
             status == RuleExecutionStatus.SUCCESS ? evaluation.actions() : List.of(),
-            evaluation.explanation(), status, null, deduplicatedFromExecutionId);
+            explanation, status, null, deduplicatedFromExecutionId);
+    }
+
+    private JsonNode shadowExplanation(JsonNode original) {
+        var copy = original == null || original.isMissingNode()
+            ? json.createObjectNode()
+            : original.deepCopy();
+        if (copy instanceof com.fasterxml.jackson.databind.node.ObjectNode object) {
+            object.put("shadowMode", true);
+            object.put("shadowReason", "影子运行只记录潜在命中，不产生临床动作");
+            return object;
+        }
+        return json.createObjectNode()
+            .put("shadowMode", true)
+            .put("shadowReason", "影子运行只记录潜在命中，不产生临床动作")
+            .set("original", copy);
     }
 
     private RuleEvaluationItem recordNotApplicable(
@@ -1190,6 +1268,67 @@ public class RuleEngineService {
         return new RuleOverrideResponse(
             saved.overrideId(), saved.executionId(), saved.ruleId(), saved.actionCode(),
             saved.overrideReason(), saved.overriddenBy(), saved.overriddenAt(), saved.traceId());
+    }
+
+    /**
+     * 捕获影子命中的人工复核结论，作为误报统计的唯一事实来源。
+     */
+    @Transactional
+    public RuleShadowFeedbackResponse captureShadowFeedback(
+            String executionId,
+            RuleShadowFeedbackRequest request) {
+        String tenantId = requireCurrentTenant();
+        RuleExecutionLog execution = executions.findByExecutionIdAndTenantId(executionId, tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_RULE_002, "规则执行记录不存在: " + executionId));
+        if (execution.status() != RuleExecutionStatus.SHADOW_RECORDED
+                || !Boolean.TRUE.equals(execution.hit())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "仅影子运行命中记录允许复核反馈");
+        }
+        if (request == null || request.decision() == null) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "影子复核结论不能为空");
+        }
+        String reason = trimToNull(request.reason());
+        if (request.decision() == RuleShadowFeedbackDecision.FALSE_POSITIVE && reason == null) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "影子误报必须填写复核说明");
+        }
+        if (shadowFeedback.findByTenantIdAndExecutionId(tenantId, executionId).isPresent()) {
+            throw new ApiException(ErrorCode.CONFLICT, "该影子执行已记录复核结论");
+        }
+        Instant now = Instant.now();
+        String feedbackId = "rsf-" + UUID.randomUUID();
+        String actor = RequestContext.currentUserId().orElse("system");
+        RuleShadowFeedback saved = shadowFeedback.save(new RuleShadowFeedback(
+            null,
+            feedbackId,
+            tenantId,
+            execution.executionId(),
+            execution.ruleId(),
+            execution.versionId(),
+            execution.patientId(),
+            execution.encounterId(),
+            request.decision(),
+            reason,
+            actor,
+            now,
+            now,
+            RequestContext.currentTraceId()
+        ));
+        auditRecorder.record(
+            AuditAction.FEEDBACK,
+            "rule_shadow_feedback",
+            saved.feedbackId(),
+            "记录规则影子反馈 " + executionId + "/" + saved.decision().name()
+        );
+        return new RuleShadowFeedbackResponse(
+            saved.feedbackId(),
+            saved.executionId(),
+            saved.ruleId(),
+            saved.decision(),
+            saved.reason(),
+            saved.assessedBy(),
+            saved.assessedAt(),
+            saved.traceId()
+        );
     }
 
     private static boolean supportsOverride(RuleActionCode actionCode) {
@@ -1474,7 +1613,7 @@ public class RuleEngineService {
 
     private boolean hasActiveUnifiedVersion(RuleDefinition rule) {
         RuleVersion version = findVersion(rule.activeVersionId(), rule.tenantId());
-        return isActiveUnifiedVersion(Map.entry(rule, version));
+        return runtimeCandidate(rule, version).mode() != RuleRuntimeMode.INACTIVE;
     }
 
     private List<RuleDefinition> effectiveRulesByFilter(String tenantId, String status, String ruleType, String riskLevel) {
