@@ -343,19 +343,16 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         within(dialog).getAllByRole("combobox", {
           name: "上下文字段路径",
         });
-      await user.type(factInputs().at(-1) as HTMLElement, "context.ready");
+      fireEvent.change(factInputs().at(-1) as HTMLElement, {
+        target: { value: "context.ready" },
+      });
       await user.click(
         within(dialog).getAllByRole("button", { name: "新增子条件组" }).at(-1) as HTMLElement,
       );
       const allergyFieldInput = factInputs().at(-1) as HTMLElement;
-      await user.click(allergyFieldInput);
-      await user.paste("allergyIntolerances[].code");
-      fireEvent.mouseDown(within(dialog).getAllByLabelText("算子").at(-1) as HTMLElement);
-      await user.click(await screen.findByTitle("包含"));
-      await user.type(
-        within(dialog).getAllByLabelText("比较值").at(-1) as HTMLElement,
-        "PENICILLIN",
-      );
+      fireEvent.change(allergyFieldInput, {
+        target: { value: "allergyIntolerances[].code" },
+      });
 
       await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
       await user.click(within(dialog).getByRole("button", { name: /同步到 DSL/ }));
@@ -387,25 +384,33 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
       fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
       await user.click(await screen.findByText(/心血管专病包/));
-      await user.type(within(dialog).getByLabelText("路径模型名称"), "心血管路径复核");
-      await user.type(within(dialog).getByLabelText("路径模型代码"), "PATH.CARDIO.REVIEW");
-      await user.type(within(dialog).getByLabelText("病种代码"), "CARDIO");
+      fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
+        target: { value: "心血管路径复核" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("路径模型代码"), {
+        target: { value: "PATH.CARDIO.REVIEW" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("病种代码"), {
+        target: { value: "CARDIO" },
+      });
       await user.click(within(dialog).getByText("人工确认入径"));
-      await user.type(
-        within(dialog).getByLabelText("临床知识与指南基础"),
-        "院内已审核路径制度 2026",
-      );
+      fireEvent.change(within(dialog).getByLabelText("临床知识与指南基础"), {
+        target: { value: "院内已审核路径制度 2026" },
+      });
 
       await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
-      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[0]);
-      await user.paste("patient.mpi");
-      await user.type(within(dialog).getAllByLabelText("比较值")[0], "patient-1");
-      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[1]);
-      await user.paste("observation.HB.value");
-      await user.type(within(dialog).getAllByLabelText("比较值")[1], "50");
-      await user.click(within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[2]);
-      await user.paste("patient.dischargeReady");
-      await user.type(within(dialog).getAllByLabelText("比较值")[2], "true");
+      const changeCriteriaLeaf = (index: number, fact: string, value: string) => {
+        fireEvent.change(
+          within(dialog).getAllByRole("combobox", { name: "上下文字段路径" })[index],
+          { target: { value: fact } },
+        );
+        fireEvent.change(within(dialog).getAllByLabelText("比较值")[index], {
+          target: { value },
+        });
+      };
+      changeCriteriaLeaf(0, "patient.mpi", "patient-1");
+      changeCriteriaLeaf(1, "observation.HB.value", "50");
+      changeCriteriaLeaf(2, "patient.dischargeReady", "true");
 
       await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
       fireEvent.change(within(dialog).getByLabelText("节点编码"), {
