@@ -57,6 +57,7 @@ import {
   useContextSnapshots,
   useContextSnapshotDetail,
   useRuleImpact,
+  useRuleShadowStats,
   useOrgUnits,
 } from "@/shared/api/hooks";
 import type {
@@ -433,6 +434,11 @@ function releaseImpactStatus(impact?: RuleImpactResponse | null) {
   return impact.analysisStatus;
 }
 
+function formatShadowRate(rate?: number | null) {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) return "0.0%";
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
 export default function RuleDefinitions() {
   const { message, modal } = AntdApp.useApp();
   const securityQuery = useSecurityProfile();
@@ -582,6 +588,9 @@ export default function RuleDefinitions() {
         detailData?.governance.state &&
         ["DRAFT", "COMMITTEE", "SHADOW", "CANARY"].includes(detailData.governance.state),
     ),
+  });
+  const shadowStatsQuery = useRuleShadowStats(selectedRuleId || "", {
+    enabled: Boolean(selectedRuleId && detailData?.governance.state === "SHADOW"),
   });
   const snapshots = snapshotsQuery.data?.items ?? [];
   const releaseGate = useMemo(
@@ -2513,6 +2522,26 @@ export default function RuleDefinitions() {
           />
         )}
       {governanceNeedsImpact && impactSummaryPanel}
+      {governanceState === "SHADOW" && (
+        <Descriptions bordered size="small" column={{ xs: 1, md: 3 }} title="影子运行统计">
+          <Descriptions.Item label="执行总数">
+            {shadowStatsQuery.data?.totalExecutions ?? 0}
+          </Descriptions.Item>
+          <Descriptions.Item label="命中">{shadowStatsQuery.data?.hitCount ?? 0}</Descriptions.Item>
+          <Descriptions.Item label="未命中">
+            {shadowStatsQuery.data?.missCount ?? 0}
+          </Descriptions.Item>
+          <Descriptions.Item label="命中率">
+            {formatShadowRate(shadowStatsQuery.data?.hitRate)}
+          </Descriptions.Item>
+          <Descriptions.Item label="误报">
+            {shadowStatsQuery.data?.falsePositiveCount ?? 0}
+          </Descriptions.Item>
+          <Descriptions.Item label="误报率">
+            {formatShadowRate(shadowStatsQuery.data?.falsePositiveRate)}
+          </Descriptions.Item>
+        </Descriptions>
+      )}
       {(governance?.signoffs.length ?? 0) > 0 && (
         <Descriptions bordered size="small" column={1} title="签署证据">
           {governance?.signoffs.map((signoff) => (

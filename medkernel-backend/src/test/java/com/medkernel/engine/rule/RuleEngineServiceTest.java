@@ -66,6 +66,7 @@ class RuleEngineServiceTest {
     private RuleTestCaseRepository testCases;
     private RuleExecutionLogRepository executions;
     private RuleOverrideLogRepository overrides;
+    private RuleShadowFeedbackRepository shadowFeedback;
     private RuleApplicabilityRepository applicabilities;
     private RuleApplicabilityService applicabilityService;
     private AuditRecorder auditRecorder;
@@ -87,6 +88,7 @@ class RuleEngineServiceTest {
         testCases = mock(RuleTestCaseRepository.class);
         executions = mock(RuleExecutionLogRepository.class);
         overrides = mock(RuleOverrideLogRepository.class);
+        shadowFeedback = mock(RuleShadowFeedbackRepository.class);
         applicabilities = mock(RuleApplicabilityRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
@@ -106,7 +108,7 @@ class RuleEngineServiceTest {
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
-            versionedAssets, assetVersions, releasePort, governanceService,
+            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
             inheritanceResolver, contextSnapshots);
 
         when(definitions.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -114,6 +116,7 @@ class RuleEngineServiceTest {
         when(testCases.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(executions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(overrides.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(shadowFeedback.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(applicabilities.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
             "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1", AssetVersionStatus.DRAFT));
@@ -842,7 +845,7 @@ class RuleEngineServiceTest {
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
-            versionedAssets, assetVersions, releasePort, governanceService,
+            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
             inheritanceResolver, contextSnapshots);
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
             .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.DRAFT)));
@@ -935,6 +938,67 @@ class RuleEngineServiceTest {
     }
 
     @Test
+    void evaluateShadowRuleRecordsPotentialHitWithoutClinicalAction() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-1", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.ANTICOAG", "1", AssetVersionStatus.PUBLISHED);
+        when(governanceService.requireGovernance("tenant-A", "version-1"))
+            .thenReturn(governance(RuleGovernanceState.SHADOW));
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContext(), "evt-shadow", List.of("rule-1"));
+
+        assertThat(response.highestSeverity()).isNull();
+        assertThat(response.cards()).isEmpty();
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.hit()).isTrue();
+            assertThat(item.status()).isEqualTo(RuleExecutionStatus.SHADOW_RECORDED);
+            assertThat(item.actions()).isEmpty();
+            assertThat(item.severity()).isEqualTo(RuleRiskLevel.HIGH);
+            assertThat(item.explanation().path("shadowMode").asBoolean()).isTrue();
+        });
+        ArgumentCaptor<RuleExecutionLog> executionCap = ArgumentCaptor.forClass(RuleExecutionLog.class);
+        verify(executions).save(executionCap.capture());
+        assertThat(executionCap.getValue().status()).isEqualTo(RuleExecutionStatus.SHADOW_RECORDED);
+        assertThat(executionCap.getValue().hit()).isTrue();
+        assertThat(executionCap.getValue().actionsJson()).contains("STRONG_REMINDER");
+        assertThat(executionCap.getValue().explanationJson()).contains("\"shadowMode\":true");
+        verify(executions, org.mockito.Mockito.never()).findRecentSuccessful(any(), any(), any(), any());
+    }
+
+    @Test
+    void evaluateShadowRuleDoesNotSuppressActiveLowerPriorityRule() {
+        RuleDefinition shadowHigh = governedRule(
+            "rule-shadow", "RULE.HIGH", "version-shadow", 900, null, 0);
+        RuleDefinition activeLow = governedRule(
+            "rule-low", "RULE.LOW", "version-low", 100, "RULE.HIGH", 0);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(activeLow, shadowHigh));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-shadow", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-shadow", "tenant-A", "rule-shadow", RuleVersionStatus.PUBLISHED)));
+        when(versions.findByVersionIdAndTenantId("version-low", "tenant-A"))
+            .thenReturn(Optional.of(existingVersion(
+                "version-low", "tenant-A", "rule-low", RuleVersionStatus.PUBLISHED)));
+        stubRuleAssetStatus("tenant-A", "RULE.HIGH", "1", AssetVersionStatus.PUBLISHED);
+        stubRuleAssetStatus("tenant-A", "RULE.LOW", "1", AssetVersionStatus.ACTIVE);
+        when(governanceService.requireGovernance("tenant-A", "version-shadow"))
+            .thenReturn(governance("version-shadow", RuleGovernanceState.SHADOW));
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContextWithPatient(), "evt-shadow-suppression", List.of());
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::ruleId)
+            .containsExactly("rule-shadow", "rule-low");
+        assertThat(response.items()).extracting(RuleEvaluationItem::status)
+            .containsExactly(RuleExecutionStatus.SHADOW_RECORDED, RuleExecutionStatus.SUCCESS);
+        assertThat(response.cards()).hasSize(1);
+        assertThat(response.highestSeverity()).isEqualTo(RuleRiskLevel.HIGH);
+    }
+
+    @Test
     void evaluateLoadsActiveContextSnapshotInsteadOfAcceptingCallerPayload() {
         when(contextSnapshots.findById("snapshot-1")).thenReturn(new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE, validResources(), "pkg-1",
@@ -976,7 +1040,7 @@ class RuleEngineServiceTest {
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
-            versionedAssets, assetVersions, releasePort, governanceService,
+            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
             resolver, contextSnapshots);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
@@ -1355,6 +1419,55 @@ class RuleEngineServiceTest {
             "记录规则越权 rex-1/BLOCK");
     }
 
+    @Test
+    void captureShadowFeedbackPersistsFalsePositiveAssessment() {
+        RuleExecutionLog execution = executionLog(
+            "rex-shadow", "rule-1", "version-1", RuleExecutionStatus.SHADOW_RECORDED,
+            "MPI-1", "RULE.ANTICOAG:STRONG_REMINDER", null, Instant.now());
+        when(executions.findByExecutionIdAndTenantId("rex-shadow", "tenant-A"))
+            .thenReturn(Optional.of(execution));
+        when(shadowFeedback.findByTenantIdAndExecutionId("tenant-A", "rex-shadow"))
+            .thenReturn(Optional.empty());
+
+        RuleShadowFeedbackResponse response = service.captureShadowFeedback(
+            "rex-shadow",
+            new RuleShadowFeedbackRequest(
+                RuleShadowFeedbackDecision.FALSE_POSITIVE,
+                "影子提示与当前临床处置不匹配"
+            ));
+
+        assertThat(response.executionId()).isEqualTo("rex-shadow");
+        assertThat(response.decision()).isEqualTo(RuleShadowFeedbackDecision.FALSE_POSITIVE);
+        ArgumentCaptor<RuleShadowFeedback> saved = ArgumentCaptor.forClass(RuleShadowFeedback.class);
+        verify(shadowFeedback).save(saved.capture());
+        assertThat(saved.getValue().ruleId()).isEqualTo("rule-1");
+        assertThat(saved.getValue().patientId()).isEqualTo("MPI-1");
+        assertThat(saved.getValue().reason()).isEqualTo("影子提示与当前临床处置不匹配");
+        verify(auditRecorder).record(
+            AuditAction.FEEDBACK, "rule_shadow_feedback", saved.getValue().feedbackId(),
+            "记录规则影子反馈 rex-shadow/FALSE_POSITIVE");
+    }
+
+    @Test
+    void shadowStatsCountsHitMissAndFalsePositiveFeedback() {
+        when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
+            .thenReturn(Optional.of(existingRule(RuleDefinitionStatus.PUBLISHED)));
+        when(executions.countShadowByRule("tenant-A", "rule-1")).thenReturn(5L);
+        when(executions.countShadowByRuleAndHit("tenant-A", "rule-1", true)).thenReturn(3L);
+        when(executions.countShadowByRuleAndHit("tenant-A", "rule-1", false)).thenReturn(2L);
+        when(shadowFeedback.countByTenantIdAndRuleIdAndDecision(
+            "tenant-A", "rule-1", RuleShadowFeedbackDecision.FALSE_POSITIVE)).thenReturn(1L);
+
+        RuleShadowStatsResponse response = service.shadowStats("rule-1");
+
+        assertThat(response.totalExecutions()).isEqualTo(5);
+        assertThat(response.hitCount()).isEqualTo(3);
+        assertThat(response.missCount()).isEqualTo(2);
+        assertThat(response.falsePositiveCount()).isEqualTo(1);
+        assertThat(response.hitRate()).isEqualTo(0.6);
+        assertThat(response.falsePositiveRate()).isEqualTo(1.0 / 3.0);
+    }
+
     private RuleDefinition existingRule(RuleDefinitionStatus status) {
         return existingRule("rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示", "version-1", status);
     }
@@ -1404,12 +1517,16 @@ class RuleEngineServiceTest {
     }
 
     private RuleGovernance governance(RuleGovernanceState state) {
+        return governance("version-1", state);
+    }
+
+    private RuleGovernance governance(String versionId, RuleGovernanceState state) {
         Instant now = Instant.parse("2026-06-07T13:30:00Z");
         return new RuleGovernance(
             1L,
             "rg-1",
             "tenant-A",
-            "version-1",
+            versionId,
             state,
             2,
             1,

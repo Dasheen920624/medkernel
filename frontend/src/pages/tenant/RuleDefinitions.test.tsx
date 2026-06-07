@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
   impactData: null as unknown,
+  shadowStatsData: null as unknown,
   orgUnitRequests: [] as Array<Record<string, unknown> | undefined>,
   orgUnitsData: {
     items: [
@@ -157,6 +158,12 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useRuleImpact: () => ({
     data: apiMocks.impactData,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useRuleShadowStats: () => ({
+    data: apiMocks.shadowStatsData,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -348,6 +355,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
+    apiMocks.shadowStatsData = null;
     apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
     apiMocks.refetchList.mockReset();
@@ -960,6 +968,62 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       expect(screen.getByText("当前账号仅可查看本阶段证据")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "提交同行评审" })).not.toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "影子阶段展示真实运行命中与误报统计",
+    async () => {
+      const publishedRule = {
+        ...draftRule,
+        status: "PUBLISHED" as const,
+      };
+      apiMocks.ruleListData = { items: [publishedRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        definition: publishedRule,
+        deploymentStatus: "PUBLISHED",
+        governance: {
+          ...createRuleDetail().governance,
+          state: "SHADOW",
+          committeeApprovalCount: 2,
+          lastReason: "进入影子运行",
+        },
+      };
+      apiMocks.impactData = {
+        ruleId: "rule-1",
+        versionId: "ver-1",
+        riskLevel: "HIGH",
+        analysisStatus: "COMPLETE",
+        impactDigest: "sha256:impact-shadow",
+        affectedRules: [],
+        affectedPathways: [],
+        inPathPatients: [],
+        integrationAdapters: [],
+        unavailableScopes: [],
+        traceId: "trace-impact",
+      };
+      apiMocks.shadowStatsData = {
+        ruleId: "rule-1",
+        totalExecutions: 5,
+        hitCount: 3,
+        missCount: 2,
+        falsePositiveCount: 1,
+        hitRate: 0.6,
+        falsePositiveRate: 1 / 3,
+        traceId: "trace-shadow-stats",
+      };
+
+      const user = await openDraftRuleDrawer();
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
+
+      expect(screen.getByText("影子运行统计")).toBeInTheDocument();
+      expect(screen.getByText("执行总数")).toBeInTheDocument();
+      expect(screen.getByText("命中率")).toBeInTheDocument();
+      expect(screen.getByText("60.0%")).toBeInTheDocument();
+      expect(screen.getByText("误报率")).toBeInTheDocument();
+      expect(screen.getByText("33.3%")).toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

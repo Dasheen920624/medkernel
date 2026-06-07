@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS rule_execution_log (
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     trace_id         VARCHAR(128) NULL,
     CONSTRAINT uk_rule_execution_id UNIQUE (execution_id),
-    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','NOT_APPLICABLE','SUPPRESSED','DEDUPLICATED','FAILED')),
+    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','SHADOW_RECORDED','MISS','NOT_APPLICABLE','SUPPRESSED','DEDUPLICATED','FAILED')),
     CONSTRAINT ck_rule_execution_severity CHECK (severity IS NULL OR severity IN ('LOW','MEDIUM','HIGH','CRITICAL'))
 );
 
@@ -223,6 +223,31 @@ CREATE TABLE IF NOT EXISTS rule_override_log (
 
 CREATE INDEX IF NOT EXISTS idx_rule_override_rule_time ON rule_override_log (tenant_id, rule_id, overridden_at);
 CREATE INDEX IF NOT EXISTS idx_rule_override_execution ON rule_override_log (tenant_id, execution_id);
+
+CREATE TABLE IF NOT EXISTS rule_shadow_feedback (
+    id               BIGSERIAL PRIMARY KEY,
+    feedback_id      VARCHAR(64)  NOT NULL,
+    tenant_id        VARCHAR(64)  NOT NULL,
+    execution_id     VARCHAR(64)  NOT NULL,
+    rule_id          VARCHAR(64)  NOT NULL,
+    version_id       VARCHAR(64)  NOT NULL,
+    patient_id       VARCHAR(64)  NULL,
+    encounter_id     VARCHAR(64)  NULL,
+    decision         VARCHAR(32)  NOT NULL,
+    reason           VARCHAR(500) NULL,
+    assessed_by      VARCHAR(64)  NOT NULL,
+    assessed_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    trace_id         VARCHAR(128) NULL,
+    CONSTRAINT uk_rule_shadow_feedback_id UNIQUE (feedback_id),
+    CONSTRAINT uk_rule_shadow_feedback_execution UNIQUE (tenant_id, execution_id),
+    CONSTRAINT ck_rule_shadow_feedback_decision CHECK (decision IN ('TRUE_POSITIVE','FALSE_POSITIVE'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_shadow_feedback_rule_time
+    ON rule_shadow_feedback (tenant_id, rule_id, assessed_at);
+CREATE INDEX IF NOT EXISTS idx_rule_shadow_feedback_decision
+    ON rule_shadow_feedback (tenant_id, rule_id, decision);
 
 -- ===== 表与列中文注释（GA-ENG-API-05）=====
 
@@ -313,3 +338,7 @@ COMMENT ON COLUMN rule_execution_log.executed_at      IS '规则执行时间';
 
 COMMENT ON TABLE rule_override_log IS '规则越权日志：记录阻断或强提醒动作的人工越权理由';
 COMMENT ON COLUMN rule_override_log.override_reason IS '医师选择或填写的越权理由';
+COMMENT ON TABLE rule_shadow_feedback IS '规则影子运行复核事实，用于统计真实命中与误报';
+COMMENT ON COLUMN rule_shadow_feedback.decision IS '影子复核结论：TRUE_POSITIVE 真实命中 / FALSE_POSITIVE 误报';
+COMMENT ON COLUMN rule_shadow_feedback.reason IS '影子复核说明，误报时必填';
+COMMENT ON COLUMN rule_shadow_feedback.assessed_by IS '执行影子复核的用户 ID';
