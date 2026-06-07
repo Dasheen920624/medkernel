@@ -1,6 +1,6 @@
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
@@ -21,7 +21,7 @@ function renderPage() {
       mutations: { retry: false },
     },
   });
-  const view = render(
+  return render(
     <QueryClientProvider client={queryClient}>
       <ConfigProvider>
         <AntdApp>
@@ -30,7 +30,6 @@ function renderPage() {
       </ConfigProvider>
     </QueryClientProvider>,
   );
-  return { ...view, queryClient };
 }
 
 function response(config: InternalAxiosRequestConfig, data: unknown) {
@@ -48,20 +47,20 @@ function securityProfile(permissionCodes: string[]) {
     data: {
       userId: "user-1",
       username: "测试用户",
-      roles: [],
+      roles: [{ code: "implementation-engineer", displayName: "实施工程师" }],
       permissions: permissionCodes.map((code) => ({
         code,
-        dimension: "ACTION",
+        dimension: code.startsWith("menu.") ? "MENU" : "ACTION",
         target: code,
         displayName: code,
         risk: "LOW",
       })),
-      menuKeys: ["ai-workflows"],
-      environmentKeys: [],
+      menuKeys: permissionCodes.includes("menu.ai-workflows") ? ["ai-workflows"] : [],
+      environmentKeys: ["test"],
       dataScope: {
         tenantId: "tenant-1",
         groupId: null,
-        hospitalId: null,
+        hospitalId: "hospital-1",
         campusId: null,
         siteId: null,
         departmentId: null,
@@ -74,26 +73,93 @@ function securityProfile(permissionCodes: string[]) {
   };
 }
 
+const statusItems = [
+  {
+    capabilityCode: "knowledge.discovery",
+    displayName: "临床知识关联发现",
+    description: "从临床事实中检索并关联可信知识依据。",
+    category: "知识资产",
+    routeStrategy: "BASELINE",
+    desensitizeStrategy: "DEFAULT",
+    expectedSchema: null,
+    configured: false,
+    fallbackAvailable: true,
+    fallbackReason: "未配置专属策略，使用系统 B0 基线",
+  },
+  {
+    capabilityCode: "rule.draft",
+    displayName: "临床规则草案拟定",
+    description: "基于可信依据生成待人工审核的规则草案。",
+    category: "规则引擎",
+    routeStrategy: "DISABLED",
+    desensitizeStrategy: "MASK_ALL",
+    expectedSchema: '{"required":["status"]}',
+    configured: true,
+    fallbackAvailable: false,
+    fallbackReason: "已被路由策略禁用",
+  },
+];
+
 describe("AiWorkflows", () => {
-  it("只展示后端返回的真实能力，不用本地默认项补齐", async () => {
+  it("能力状态读取期间显示加载态而不是误报空态", async () => {
     apiClient.defaults.adapter = (async (config) => {
       if (config.url === "/security/me") {
-        return response(config, securityProfile(["llm.read", "llm.execute"]));
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
+      }
+      if (config.url === "/model-capabilities/status") {
+        return new Promise(() => undefined);
+      }
+      throw new Error(`未预期接口: ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByLabelText("正在读取 AI 能力状态")).toBeInTheDocument();
+    expect(screen.queryByText("当前组织没有已启用的 AI 能力")).not.toBeInTheDocument();
+  });
+
+  it("只读取真实能力状态，不暴露执行和管理入口", async () => {
+    const requests: string[] = [];
+    apiClient.defaults.adapter = (async (config) => {
+      requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
+      if (config.url === "/security/me") {
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, { data: statusItems });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
+    expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
+    expect(screen.getAllByText("B0 基线")).toHaveLength(2);
+    expect(screen.getByText("MODEL_DISABLED")).toBeInTheDocument();
+    expect(screen.getByText("默认脱敏")).toBeInTheDocument();
+    expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.getByText("未配置专属策略，使用系统 B0 基线")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
+    expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
+  });
+
+  it("部分能力不可用时显示诚实的部分成功状态", async () => {
+    apiClient.defaults.adapter = (async (config) => {
+      if (config.url === "/security/me") {
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
       }
       if (config.url === "/model-capabilities/status") {
         return response(config, {
           data: [
+            statusItems[0],
             {
-              capabilityCode: "knowledge.discovery",
-              displayName: "后端目录中的知识发现",
-              description: "后端返回的能力说明",
-              category: "知识资产",
-              routeStrategy: "BASELINE",
-              desensitizeStrategy: "DEFAULT",
-              expectedSchema: null,
-              configured: false,
-              fallbackAvailable: true,
-              fallbackReason: "未配置专属策略，使用系统 B0 基线",
+              ...statusItems[1],
+              capabilityCode: "quality.semantic-check",
+              displayName: "病历内涵质控",
+              routeStrategy: "EXTERNAL_MODEL",
+              fallbackReason: "外部模型未连接且没有可用基线",
             },
           ],
         });
@@ -103,116 +169,54 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("后端目录中的知识发现")).toBeInTheDocument();
-    expect(screen.getByText("后端返回的能力说明")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /配置策略/ })).toBeNull();
-    expect(screen.getByText("1/1")).toBeInTheDocument();
-    expect(screen.getByText("系统默认")).toBeInTheDocument();
+    expect(await screen.findByText("部分 AI 能力当前不可用")).toBeInTheDocument();
+    expect(screen.getByText("1 项能力没有可用路由或基线，其他能力仍可查看。")).toBeInTheDocument();
+    expect(screen.getByText("NOT_AVAILABLE")).toBeInTheDocument();
   });
 
-  it("不在浏览器伪造脱敏结果，只展示后端已执行的策略证据", async () => {
+  it("无读取权限时显示拒绝态且不请求能力数据", async () => {
     apiClient.defaults.adapter = (async (config) => {
       if (config.url === "/security/me") {
-        return response(config, securityProfile(["llm.read", "llm.execute"]));
+        return response(config, securityProfile(["menu.ai-workflows"]));
       }
-      if (config.url === "/model-capabilities/status") {
-        return response(config, {
-          data: [
-            {
-              capabilityCode: "knowledge.extract",
-              displayName: "电子病历语义实体提取",
-              description: "提取病历中的结构化临床事实",
-              category: "语义抽取",
-              routeStrategy: "BASELINE",
-              desensitizeStrategy: "DEFAULT",
-              expectedSchema: null,
-              configured: false,
-              fallbackAvailable: true,
-              fallbackReason: "使用系统 B0 基线",
-            },
-          ],
-        });
-      }
-      if (config.url === "/model-capabilities/tasks" && config.method === "post") {
-        return response(config, {
-          data: {
-            taskId: "task-privacy",
-            status: "DEGRADED",
-            outputContent: '{"status":"DEGRADED"}',
-            modelMode: "B0",
-            modelVersion: "B0-Deterministic-Baseline",
-            promptVersion: "baseline",
-            sourceCitations: "[]",
-            confidence: null,
-            riskLevel: "LOW",
-            fallbackUsed: true,
-            fallbackReason: "当前未接入真实模型 provider",
-            timeCostMs: 8,
-            traceId: "trace-privacy",
-          },
-        });
-      }
-      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+      throw new Error(`无权限时不应请求: ${config.url ?? ""}`);
     }) as AxiosAdapter;
 
-    const user = userEvent.setup();
     renderPage();
 
-    await user.type(
-      await screen.findByLabelText("运行输入（请使用已脱敏文本）"),
-      "手机号13800138000",
-    );
-    await user.click(screen.getByRole("button", { name: /提交网关任务/ }));
-
-    expect(await screen.findByText("后端已执行 DEFAULT 脱敏策略")).toBeInTheDocument();
-    expect(screen.queryByText(/138\*{4}8000/)).toBeNull();
+    expect(await screen.findByText("无权查看 AI 工作流")).toBeInTheDocument();
+    expect(screen.getByText("需要 AI 能力读取权限。")).toBeInTheDocument();
   });
 
-  it("保存策略调用后端持久化端点", async () => {
-    let saved = false;
-    let putBody: unknown;
+  it("真实能力为空时显示诚实空态", async () => {
     apiClient.defaults.adapter = (async (config) => {
       if (config.url === "/security/me") {
-        return response(config, securityProfile(["llm.read", "llm.execute", "llm.manage"]));
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
       }
       if (config.url === "/model-capabilities/status") {
-        return response(config, {
-          data: [
-            {
-              capabilityCode: "knowledge.extract",
-              displayName: "电子病历语义实体提取",
-              description: "提取病历中的结构化临床事实",
-              category: "语义抽取",
-              routeStrategy: "BASELINE",
-              desensitizeStrategy: "DEFAULT",
-              expectedSchema: '{"required":["status","candidates"]}',
-              configured: saved,
-              fallbackAvailable: true,
-              fallbackReason: "正常可用",
-            },
-          ],
-        });
+        return response(config, { data: [] });
       }
-      if (
-        config.method === "put" &&
-        config.url === "/model-capabilities/policies/knowledge.extract"
-      ) {
-        saved = true;
-        putBody = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
-        return response(config, {
-          data: {
-            capabilityCode: "knowledge.extract",
-            displayName: "电子病历语义实体提取",
-            description: "提取病历中的结构化临床事实",
-            category: "语义抽取",
-            routeStrategy: "BASELINE",
-            desensitizeStrategy: "DEFAULT",
-            expectedSchema: '{"required":["status","candidates"]}',
-            configured: true,
-            fallbackAvailable: true,
-            fallbackReason: "正常可用",
-          },
-        });
+      throw new Error(`未预期接口: ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("当前组织没有已启用的 AI 能力")).toBeInTheDocument();
+    expect(screen.getByText("未使用本地默认项补齐真实结果。")).toBeInTheDocument();
+  });
+
+  it("状态读取失败时显示错误并可重新读取", async () => {
+    let attempts = 0;
+    apiClient.defaults.adapter = (async (config) => {
+      if (config.url === "/security/me") {
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
+      }
+      if (config.url === "/model-capabilities/status") {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error("状态服务暂不可用");
+        }
+        return response(config, { data: statusItems.slice(0, 1) });
       }
       throw new Error(`未预期接口: ${config.url ?? ""}`);
     }) as AxiosAdapter;
@@ -220,130 +224,10 @@ describe("AiWorkflows", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: /配置策略/ }));
-    await user.click(screen.getByRole("button", { name: "校验并保存策略" }));
+    expect(await screen.findByText("AI 能力状态读取失败")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重新读取" }));
 
-    await waitFor(() => expect(saved).toBe(true));
-    expect(putBody).toEqual({
-      routeStrategy: "BASELINE",
-      desensitizeStrategy: "DEFAULT",
-      expectedSchema: '{"required":["status","candidates"]}',
-    });
-  });
-
-  it("系统治理角色可以新增模型能力目录", async () => {
-    let savedDefinition: unknown;
-    apiClient.defaults.adapter = (async (config) => {
-      if (config.url === "/security/me") {
-        return response(
-          config,
-          securityProfile(["llm.read", "llm.execute", "llm.manage", "system.manage"]),
-        );
-      }
-      if (config.url === "/model-capabilities/status") {
-        return response(config, { data: [] });
-      }
-      if (config.url === "/model-capabilities/catalog" && config.method === "get") {
-        return response(config, { data: [] });
-      }
-      if (config.method === "put" && config.url === "/model-capabilities/catalog/custom.summary") {
-        savedDefinition = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
-        return response(config, {
-          data: {
-            capabilityCode: "custom.summary",
-            ...(savedDefinition as object),
-          },
-        });
-      }
-      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
-    }) as AxiosAdapter;
-
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.click(await screen.findByRole("button", { name: /能力目录/ }));
-    fireEvent.change(screen.getByLabelText("能力代码"), {
-      target: { value: "custom.summary" },
-    });
-    fireEvent.change(screen.getByLabelText("中文名称"), {
-      target: { value: "病历摘要" },
-    });
-    fireEvent.change(screen.getByLabelText("业务分类"), {
-      target: { value: "语义抽取" },
-    });
-    fireEvent.change(screen.getByLabelText("能力说明"), {
-      target: { value: "生成待人工审核的结构化病历摘要。" },
-    });
-    await user.click(screen.getByRole("button", { name: "保存目录项" }));
-
-    await waitFor(() => expect(savedDefinition).toBeDefined());
-    expect(savedDefinition).toEqual({
-      displayName: "病历摘要",
-      description: "生成待人工审核的结构化病历摘要。",
-      category: "语义抽取",
-      enabled: true,
-      sortOrder: 100,
-    });
-  });
-
-  it("执行权限被收回后不再显示降级任务重试入口", async () => {
-    apiClient.defaults.adapter = (async (config) => {
-      if (config.url === "/security/me") {
-        return response(config, securityProfile(["llm.read", "llm.execute"]));
-      }
-      if (config.url === "/model-capabilities/status") {
-        return response(config, {
-          data: [
-            {
-              capabilityCode: "knowledge.extract",
-              displayName: "电子病历语义实体提取",
-              description: "提取病历中的结构化临床事实",
-              category: "语义抽取",
-              routeStrategy: "BASELINE",
-              desensitizeStrategy: "DEFAULT",
-              expectedSchema: null,
-              configured: false,
-              fallbackAvailable: true,
-              fallbackReason: "使用系统 B0 基线",
-            },
-          ],
-        });
-      }
-      if (config.url === "/model-capabilities/tasks" && config.method === "post") {
-        return response(config, {
-          data: {
-            taskId: "task-1",
-            status: "DEGRADED",
-            outputContent: '{"status":"DEGRADED"}',
-            modelMode: "BASELINE",
-            modelVersion: "B0",
-            promptVersion: "none",
-            sourceCitations: "[]",
-            confidence: null,
-            riskLevel: "LOW",
-            fallbackUsed: true,
-            fallbackReason: "外部模型未连接",
-            timeCostMs: 12,
-            traceId: "trace-1",
-          },
-        });
-      }
-      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
-    }) as AxiosAdapter;
-
-    const user = userEvent.setup();
-    const { queryClient } = renderPage();
-
-    await user.type(await screen.findByPlaceholderText(/粘贴已脱敏的运行文本/), "已脱敏病历");
-    await user.click(screen.getByRole("button", { name: /提交网关任务/ }));
-    expect(await screen.findByRole("button", { name: /按基线重试/ })).toBeInTheDocument();
-
-    act(() => {
-      queryClient.setQueryData(["security", "me"], securityProfile(["llm.read"]).data);
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /按基线重试/ })).toBeNull();
-    });
+    expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    await waitFor(() => expect(attempts).toBe(2));
   });
 });

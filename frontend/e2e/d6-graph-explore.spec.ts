@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { ensureReadySession, expectOk, postApi, stablePassword } from "./support/auth";
+import {
+  apiBase,
+  ensureReadySession,
+  expectOk,
+  patchApi,
+  postApi,
+  stablePassword,
+} from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
@@ -8,6 +15,7 @@ test.describe("D6 图谱查询真实验收", () => {
   test("实施工程师重建后，专科专家可从登录页探索真实投影且不能重建", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
 
+    await enableGraphProjection(page);
     await seedActiveKnowledge(page);
     await ensureReadySession(page, "implementation-engineer");
     const rebuild = await postApi(page, "/projections/knowledge-graph/rebuild", {});
@@ -71,6 +79,31 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(browserErrors).toEqual([]);
   });
 });
+
+async function enableGraphProjection(page: Page) {
+  await ensureReadySession(page, "it-ops");
+  const key = "medkernel.runtime.feature-flags.graph-projection.enabled";
+  const response = await page.request.get(
+    `${apiBase}/system/configs?prefix=${encodeURIComponent("medkernel.runtime.feature-flags")}`,
+  );
+  await expectOk(response, "读取图谱投影配置");
+  const configs = (await response.json()).data as Array<{
+    key: string;
+    value: string;
+    version: number;
+  }>;
+  const config = configs.find((item) => item.key === key);
+  expect(config, "图谱投影配置必须由配置中心登记").toBeDefined();
+  if (config?.value === "true") return;
+
+  const update = await patchApi(page, `/system/configs/${encodeURIComponent(key)}`, {
+    value: "true",
+    reason: "D6 图谱真实链路验收启用投影",
+    expectedVersion: config?.version,
+    confirmedHighRisk: false,
+  });
+  await expectOk(update, "启用图谱投影");
+}
 
 async function seedActiveKnowledge(page: Page) {
   await ensureReadySession(page, "medical-affairs");
