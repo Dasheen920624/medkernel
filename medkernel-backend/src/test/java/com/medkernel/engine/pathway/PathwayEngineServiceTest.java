@@ -85,6 +85,7 @@ class PathwayEngineServiceTest {
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private PathwayFollowupHandoffPort followupHandoff;
+    private PathwayWorklistPort worklist;
     private ClinicalSafetyGuard safetyGuard;
     private PathwayVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
@@ -111,6 +112,7 @@ class PathwayEngineServiceTest {
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         followupHandoff = mock(PathwayFollowupHandoffPort.class);
+        worklist = mock(PathwayWorklistPort.class);
         safetyGuard = mock(ClinicalSafetyGuard.class);
         versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         assetVersions = mock(AssetVersionRepository.class);
@@ -122,7 +124,7 @@ class PathwayEngineServiceTest {
         service = new PathwayEngineService(
             packages, profiles, templates, nodes, milestones, edges, patientPathways, variances,
             clocks, metricBindings, contextSnapshots, new PathwayProgressor(), auditRecorder,
-            transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
+            transitions, diagnoseAssembler, json, followupHandoff, worklist, safetyGuard,
             TerminologyCoverageGate.noop(), versionedAssets, assetVersions, releasePort,
             packageItems, inheritanceResolver);
 
@@ -873,6 +875,50 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void enterPatientPathwayCreatesStartNodeWorklistFromRaciRoles() {
+        PathwayNode startNode = nodeWithRaci(
+            "ASSESS",
+            PathwayNodeType.ASSESSMENT,
+            10,
+            false,
+            "doctor",
+            "dept-head",
+            List.of("nurse"),
+            List.of("medical-affairs"),
+            clockSlaConfig("ADMISSION", 0, 120, 180),
+            120);
+        when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
+            .thenReturn(Optional.of(startNode));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+
+        service.enterPatientPathway(new PatientPathwayEnterRequest(
+            "ctx-active-1", "pt-1", null, "pkg-2026.06"));
+
+        ArgumentCaptor<PathwayNodeWorklistCommand> commandCap =
+            ArgumentCaptor.forClass(PathwayNodeWorklistCommand.class);
+        verify(worklist).openNodeTodo(commandCap.capture());
+        PathwayNodeWorklistCommand command = commandCap.getValue();
+        assertThat(command.tenantId()).isEqualTo("tenant-A");
+        assertThat(command.patientPathwayId()).startsWith("pp-");
+        assertThat(command.patientId()).isEqualTo("patient-1");
+        assertThat(command.encounterId()).isEqualTo("enc-1");
+        assertThat(command.nodeCode()).isEqualTo("ASSESS");
+        assertThat(command.nodeName()).isEqualTo("ASSESS");
+        assertThat(command.responsibleRole()).isEqualTo("doctor");
+        assertThat(command.accountableRole()).isEqualTo("dept-head");
+        assertThat(command.consultedRoles()).containsExactly("nurse");
+        assertThat(command.informedRoles()).containsExactly("medical-affairs");
+        assertThat(command.dueAt()).isNotNull();
+        assertThat(command.deepLink()).startsWith("/clinical/pathways?patientPathwayId=pp-");
+        assertThat(command.traceId()).isEqualTo("trace-pathway");
+    }
+
+    @Test
     void clocksProjectTimeoutEscalationFromClockSlaPolicy() {
         PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ABX");
         Instant baselineAt = Instant.now().minusSeconds(2 * 60L * 60L);
@@ -1227,6 +1273,52 @@ class PathwayEngineServiceTest {
         assertThat(response.nextNodeCode()).isEqualTo("FOLLOWUP");
         verify(nodes).findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-v1", "tenant-A");
         verify(nodes, never()).findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-v2", "tenant-A");
+    }
+
+    @Test
+    void advanceClosesPreviousNodeTodoAndCreatesNextNodeWorklist() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ASSESS");
+        PathwayNode assess = nodeWithRaci(
+            "ASSESS", PathwayNodeType.ASSESSMENT, 10, false,
+            "doctor", "dept-head", List.of("nurse"), List.of("medical-affairs"),
+            clockSlaConfig("NODE_START", 0, 60, 90), 60);
+        PathwayNode followup = nodeWithRaci(
+            "FOLLOWUP", PathwayNodeType.FOLLOWUP, 20, true,
+            "nurse", "doctor", List.of("doctor"), List.of("dept-head"),
+            clockSlaConfig("NODE_START", 0, 120, 180), 120);
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(assess, followup));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(clock("clock-assess", "ASSESS", ClinicalClockStatus.RUNNING)));
+
+        PathwayAdvanceResponse response = service.advance(new PathwayAdvanceRequest(
+            "pp-1", PathwayAdvanceEventType.COMPLETE, null, null, null, null, null, null, "evt-next"));
+
+        assertThat(response.nextNodeCode()).isEqualTo("FOLLOWUP");
+        ArgumentCaptor<PathwayNodeWorklistCompletionCommand> closeCap =
+            ArgumentCaptor.forClass(PathwayNodeWorklistCompletionCommand.class);
+        verify(worklist).completeNodeTodo(closeCap.capture());
+        assertThat(closeCap.getValue().patientPathwayId()).isEqualTo("pp-1");
+        assertThat(closeCap.getValue().nodeCode()).isEqualTo("ASSESS");
+        assertThat(closeCap.getValue().completionReason()).contains("路径已推进");
+
+        ArgumentCaptor<PathwayNodeWorklistCommand> openCap =
+            ArgumentCaptor.forClass(PathwayNodeWorklistCommand.class);
+        verify(worklist).openNodeTodo(openCap.capture());
+        assertThat(openCap.getValue().nodeCode()).isEqualTo("FOLLOWUP");
+        assertThat(openCap.getValue().responsibleRole()).isEqualTo("nurse");
+        assertThat(openCap.getValue().accountableRole()).isEqualTo("doctor");
+        assertThat(openCap.getValue().consultedRoles()).containsExactly("doctor");
+        assertThat(openCap.getValue().informedRoles()).containsExactly("dept-head");
+        assertThat(openCap.getValue().dueAt()).isNotNull();
     }
 
     @Test
@@ -1675,6 +1767,33 @@ class PathwayEngineServiceTest {
             null, "pn-" + code, tenantId, templateId, code, code,
             nodeType, milestoneCode, sortOrder, responsibleRole, null, timeWindowMinutes, terminal, effectiveConfigJson,
             now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private PathwayNode nodeWithRaci(String code,
+                                     PathwayNodeType nodeType,
+                                     int sortOrder,
+                                     boolean terminal,
+                                     String responsibleRole,
+                                     String accountableRole,
+                                     List<String> consultedRoles,
+                                     List<String> informedRoles,
+                                     String configJson,
+                                     Integer timeWindowMinutes) {
+        Instant now = Instant.now();
+        return new PathwayNode(
+            null, "pn-" + code, "tenant-A", "pt-1", code, code,
+            nodeType, null, sortOrder,
+            responsibleRole, accountableRole, writeJson(consultedRoles), writeJson(informedRoles),
+            null, timeWindowMinutes, terminal, configJson,
+            now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new IllegalStateException("测试 JSON 序列化失败", exception);
+        }
     }
 
     private String clockSlaConfig(String baselineEvent, int minMinutes, int targetMinutes, int maxMinutes) {

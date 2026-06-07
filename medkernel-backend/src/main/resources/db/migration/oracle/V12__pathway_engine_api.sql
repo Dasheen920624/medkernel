@@ -119,6 +119,9 @@ CREATE TABLE pathway_node (
     milestone_code      VARCHAR2(128) NULL,
     sort_order          NUMBER(10)    DEFAULT 0 NOT NULL,
     responsible_role    VARCHAR2(128) NULL,
+    accountable_role    VARCHAR2(128) NULL,
+    consulted_roles_json CLOB         NULL,
+    informed_roles_json CLOB          NULL,
     dependency_json     CLOB          NULL,
     time_window_minutes NUMBER(10)    NULL,
     terminal_flag       NUMBER(1)     DEFAULT 0 NOT NULL,
@@ -357,7 +360,7 @@ COMMENT ON COLUMN pathway_milestone.updated_at IS '更新时间';
 COMMENT ON COLUMN pathway_milestone.updated_by IS '更新人';
 COMMENT ON COLUMN pathway_milestone.trace_id IS '请求链路追踪 ID';
 
-COMMENT ON TABLE pathway_node IS '路径节点表，保存模板中的临床步骤、所属里程碑、责任角色、依赖条件、时间窗和终止标记';
+COMMENT ON TABLE pathway_node IS '路径节点表，保存模板中的临床步骤、所属里程碑、RACI 角色、依赖条件、时间窗和终止标记';
 COMMENT ON COLUMN pathway_node.id IS '数据库自增主键';
 COMMENT ON COLUMN pathway_node.node_id IS '路径节点业务 ID';
 COMMENT ON COLUMN pathway_node.tenant_id IS '租户 ID，用于多租户数据隔离';
@@ -368,6 +371,9 @@ COMMENT ON COLUMN pathway_node.node_type IS '节点类型：SCREENING 筛查、A
 COMMENT ON COLUMN pathway_node.milestone_code IS '节点所属里程碑编码，用于阶段天序视图和达成判定';
 COMMENT ON COLUMN pathway_node.sort_order IS '节点展示或执行排序';
 COMMENT ON COLUMN pathway_node.responsible_role IS '节点责任角色';
+COMMENT ON COLUMN pathway_node.accountable_role IS '节点签责角色';
+COMMENT ON COLUMN pathway_node.consulted_roles_json IS '节点会诊角色列表 JSON';
+COMMENT ON COLUMN pathway_node.informed_roles_json IS '节点知会角色列表 JSON';
 COMMENT ON COLUMN pathway_node.dependency_json IS '节点依赖条件摘要 JSON';
 COMMENT ON COLUMN pathway_node.time_window_minutes IS '节点建议完成时间窗，单位分钟';
 COMMENT ON COLUMN pathway_node.terminal_flag IS '是否终止节点';

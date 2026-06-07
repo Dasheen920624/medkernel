@@ -200,10 +200,20 @@ describe("WorkflowTodos", () => {
             status: "PENDING",
             patientId: "patient-real-1",
           },
+          {
+            todoId: "todo-pathway-1",
+            sourceType: "PATHWAY_NODE",
+            sourceId: "pp-1:ASSESS:clock-1",
+            title: "路径节点待处理：入径评估",
+            summary: "责任：专科医生；签责：科主任",
+            priority: "MEDIUM",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
         ],
         page: 0,
         size: 10,
-        total: 4,
+        total: 5,
         hasNext: false,
       },
       isError: false,
@@ -217,10 +227,12 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("报告解读")).toBeInTheDocument();
     expect(screen.getByText("床旁知识")).toBeInTheDocument();
     expect(screen.getByText("临床提醒")).toBeInTheDocument();
+    expect(screen.getByText("路径节点")).toBeInTheDocument();
     expect(screen.queryByText("NURSING_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("REPORT_INTERPRETATION")).not.toBeInTheDocument();
     expect(screen.queryByText("BEDSIDE_KNOWLEDGE")).not.toBeInTheDocument();
     expect(screen.queryByText("RECOMMENDATION_CARD")).not.toBeInTheDocument();
+    expect(screen.queryByText("PATHWAY_NODE")).not.toBeInTheDocument();
   });
 
   it("keeps safety review todos ahead of lower-risk follow-up rows", () => {

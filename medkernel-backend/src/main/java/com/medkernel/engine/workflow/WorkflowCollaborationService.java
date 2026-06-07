@@ -1,5 +1,8 @@
 package com.medkernel.engine.workflow;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.util.LinkedHashMap;
@@ -22,6 +25,9 @@ import com.medkernel.engine.followup.FollowupTaskType;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
 import com.medkernel.engine.integration.repository.IntegrationMessageLogRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.pathway.PathwayNodeType;
+import com.medkernel.engine.pathway.PathwayNodeWorklistCommand;
+import com.medkernel.engine.pathway.PathwayNodeWorklistCompletionCommand;
 import com.medkernel.engine.knowledge.AffectedCaseTargetType;
 import com.medkernel.engine.knowledge.AffectedCaseTask;
 import com.medkernel.engine.knowledge.AffectedCaseTaskRepository;
@@ -171,6 +177,99 @@ public class WorkflowCollaborationService {
             .map(WorkflowTodoResponse::from)
             .toList();
         return PageResponse.of(rows, req, total);
+    }
+
+    /**
+     * 将路径节点进入事件投影到统一待办中心。
+     */
+    @Transactional
+    public void openPathwayNodeTodo(PathwayNodeWorklistCommand command) {
+        PathwayNodeWorklistCommand safeCommand = requirePathwayNodeCommand(command);
+        String sourceId = pathwayNodeSourceId(
+            safeCommand.patientPathwayId(), safeCommand.nodeCode(), safeCommand.clockId());
+        Optional<WorkflowTodo> existing = todos.findByTenantIdAndSourceTypeAndSourceId(
+            safeCommand.tenantId(), WorkflowTodoSourceType.PATHWAY_NODE, sourceId);
+        if (existing.map(WorkflowCollaborationService::isOpenWorkflowTodo).orElse(false)) {
+            return;
+        }
+        Instant now = Instant.now();
+        String actor = defaultText(safeCommand.actor(), SYSTEM_ACTOR);
+        WorkflowTodo saved = todos.save(new WorkflowTodo(
+            null,
+            "todo-" + UUID.randomUUID(),
+            safeCommand.tenantId(),
+            blankToNull(safeCommand.orgUnitId()),
+            WorkflowTodoSourceType.PATHWAY_NODE,
+            sourceId,
+            truncate("路径节点待处理：" + defaultText(safeCommand.nodeName(), safeCommand.nodeCode()), 256),
+            truncate(pathwayNodeSummary(safeCommand), 512),
+            pathwayNodePriority(safeCommand.nodeType()),
+            WorkflowTodoStatus.PENDING,
+            null,
+            requireText(safeCommand.responsibleRole(), "路径节点责任角色"),
+            safeCommand.patientId(),
+            safeCommand.encounterId(),
+            safeCommand.dueAt(),
+            safeCommand.deepLink(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            safeCommand.traceId(),
+            now,
+            actor,
+            now,
+            actor));
+        createPendingTodoNotificationIfAbsent(RequestContext.snapshot(), saved);
+    }
+
+    /**
+     * 路径节点推进或结束时自动闭环对应待办。
+     */
+    @Transactional
+    public void completePathwayNodeTodo(PathwayNodeWorklistCompletionCommand command) {
+        PathwayNodeWorklistCompletionCommand safeCommand = requirePathwayNodeCompletionCommand(command);
+        String sourceId = pathwayNodeSourceId(
+            safeCommand.patientPathwayId(), safeCommand.nodeCode(), safeCommand.clockId());
+        Optional<WorkflowTodo> existing = todos.findByTenantIdAndSourceTypeAndSourceId(
+            safeCommand.tenantId(), WorkflowTodoSourceType.PATHWAY_NODE, sourceId);
+        if (existing.isEmpty() || !isOpenWorkflowTodo(existing.get())) {
+            return;
+        }
+        WorkflowTodo todo = existing.get();
+        Instant completedAt = safeCommand.completedAt() == null ? Instant.now() : safeCommand.completedAt();
+        String actor = defaultText(safeCommand.actor(), SYSTEM_ACTOR);
+        String reason = requireText(safeCommand.completionReason(), "路径节点闭环说明");
+        WorkflowTodo completed = new WorkflowTodo(
+            todo.id(),
+            todo.todoId(),
+            todo.tenantId(),
+            todo.orgUnitId(),
+            todo.sourceType(),
+            todo.sourceId(),
+            todo.title(),
+            todo.summary(),
+            todo.priority(),
+            WorkflowTodoStatus.COMPLETED,
+            todo.assigneeId(),
+            todo.assigneeRole(),
+            todo.patientId(),
+            todo.encounterId(),
+            todo.dueAt(),
+            todo.deepLink(),
+            reason,
+            completedAt,
+            actor,
+            todo.transferredTo(),
+            todo.transferReason(),
+            defaultText(safeCommand.traceId(), todo.traceId()),
+            todo.createdAt(),
+            todo.createdBy(),
+            completedAt,
+            actor);
+        WorkflowTodo saved = todos.save(completed);
+        recordTodoAudit("路径节点待办自动闭环 " + saved.todoId(), todo, saved);
     }
 
     /**
@@ -956,6 +1055,7 @@ public class WorkflowCollaborationService {
             case NURSING_TASK -> "护理协同任务";
             case REPORT_INTERPRETATION -> "报告解读复核";
             case BEDSIDE_KNOWLEDGE -> "床旁知识卡复核";
+            case PATHWAY_NODE -> "路径节点待处理";
             case FOLLOWUP_TASK, SAFETY_REVIEW, RECOMMENDATION_CARD -> "临床提醒复核";
         };
     }
@@ -1007,6 +1107,79 @@ public class WorkflowCollaborationService {
             return summary;
         }
         return summary + "；触发点：" + row.triggerType().trim();
+    }
+
+    private static PathwayNodeWorklistCommand requirePathwayNodeCommand(PathwayNodeWorklistCommand command) {
+        if (command == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "路径节点待办命令不能为空");
+        }
+        requireText(command.tenantId(), "租户");
+        requireText(command.patientPathwayId(), "患者路径");
+        requireText(command.nodeCode(), "路径节点编码");
+        requireText(command.responsibleRole(), "路径节点责任角色");
+        return command;
+    }
+
+    private static PathwayNodeWorklistCompletionCommand requirePathwayNodeCompletionCommand(
+            PathwayNodeWorklistCompletionCommand command) {
+        if (command == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "路径节点闭环命令不能为空");
+        }
+        requireText(command.tenantId(), "租户");
+        requireText(command.patientPathwayId(), "患者路径");
+        requireText(command.nodeCode(), "路径节点编码");
+        return command;
+    }
+
+    private static String pathwayNodeSummary(PathwayNodeWorklistCommand command) {
+        return "责任：" + command.responsibleRole()
+            + "；签责：" + defaultText(command.accountableRole(), command.responsibleRole())
+            + "；会诊：" + roleListText(command.consultedRoles())
+            + "；知会：" + roleListText(command.informedRoles());
+    }
+
+    private static String roleListText(List<String> roles) {
+        List<String> normalized = nullToEmpty(roles).stream()
+            .map(WorkflowCollaborationService::blankToNull)
+            .filter(role -> role != null)
+            .distinct()
+            .toList();
+        return normalized.isEmpty() ? "无" : String.join("、", normalized);
+    }
+
+    private static WorkflowPriority pathwayNodePriority(PathwayNodeType nodeType) {
+        if (nodeType == PathwayNodeType.MANUAL_GATE || nodeType == PathwayNodeType.ORDER_SET) {
+            return WorkflowPriority.HIGH;
+        }
+        return WorkflowPriority.MEDIUM;
+    }
+
+    private static String pathwayNodeSourceId(String patientPathwayId, String nodeCode, String clockId) {
+        String source = requireText(patientPathwayId, "患者路径") + ":"
+            + requireText(nodeCode, "路径节点编码") + ":"
+            + defaultText(clockId, "active");
+        if (source.length() <= 128) {
+            return source;
+        }
+        return truncate(requireText(patientPathwayId, "患者路径"), 96) + ":" + shortDigest(source);
+    }
+
+    private static String shortDigest(String source) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(source.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(24);
+            for (int i = 0; i < 12; i++) {
+                String value = Integer.toHexString(digest[i] & 0xff);
+                if (value.length() == 1) {
+                    hex.append('0');
+                }
+                hex.append(value);
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 摘要算法不可用", exception);
+        }
     }
 
     private static String actor(RequestContext.Snapshot ctx) {

@@ -78,11 +78,12 @@ const priorityRank: Record<WorkflowPriority, number> = {
 
 const sourceRank: Record<WorkflowTodoSourceType, number> = {
   SAFETY_REVIEW: 0,
-  RECOMMENDATION_CARD: 1,
-  FOLLOWUP_TASK: 2,
-  NURSING_TASK: 3,
-  REPORT_INTERPRETATION: 4,
-  BEDSIDE_KNOWLEDGE: 5,
+  PATHWAY_NODE: 1,
+  RECOMMENDATION_CARD: 2,
+  FOLLOWUP_TASK: 3,
+  NURSING_TASK: 4,
+  REPORT_INTERPRETATION: 5,
+  BEDSIDE_KNOWLEDGE: 6,
 };
 
 const sourceText: Record<WorkflowTodoSourceType, string> = {
@@ -92,6 +93,7 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
   NURSING_TASK: "护理任务",
   REPORT_INTERPRETATION: "报告解读",
   BEDSIDE_KNOWLEDGE: "床旁知识",
+  PATHWAY_NODE: "路径节点",
 };
 
 function formatDateTime(value?: string | null) {
@@ -356,6 +358,7 @@ export default function WorkflowTodos() {
             options={[
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
+              { value: "PATHWAY_NODE", label: "路径节点" },
               { value: "RECOMMENDATION_CARD", label: "临床提醒" },
               { value: "NURSING_TASK", label: "护理任务" },
               { value: "REPORT_INTERPRETATION", label: "报告解读" },

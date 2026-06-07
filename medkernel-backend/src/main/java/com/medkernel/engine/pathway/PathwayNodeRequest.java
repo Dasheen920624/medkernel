@@ -1,5 +1,7 @@
 package com.medkernel.engine.pathway;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.constraints.Min;
@@ -18,11 +20,36 @@ public record PathwayNodeRequest(
     String milestoneCode,
     @Min(0) Integer sortOrder,
     String responsibleRole,
+    String accountableRole,
+    List<String> consultedRoles,
+    List<String> informedRoles,
     JsonNode dependency,
     @Min(0) Integer timeWindowMinutes,
     Boolean terminal,
     JsonNode config
 ) {
+    public PathwayNodeRequest {
+        if (accountableRole == null || accountableRole.isBlank()) {
+            accountableRole = responsibleRole;
+        }
+        consultedRoles = consultedRoles == null ? List.of() : List.copyOf(consultedRoles);
+        informedRoles = informedRoles == null ? List.of() : List.copyOf(informedRoles);
+    }
+
+    public PathwayNodeRequest(String nodeCode,
+                              String name,
+                              PathwayNodeType nodeType,
+                              String milestoneCode,
+                              Integer sortOrder,
+                              String responsibleRole,
+                              JsonNode dependency,
+                              Integer timeWindowMinutes,
+                              Boolean terminal,
+                              JsonNode config) {
+        this(nodeCode, name, nodeType, milestoneCode, sortOrder, responsibleRole, responsibleRole,
+            List.of(), List.of(), dependency, timeWindowMinutes, terminal, config);
+    }
+
     public PathwayNodeRequest(String nodeCode,
                               String name,
                               PathwayNodeType nodeType,
@@ -32,7 +59,7 @@ public record PathwayNodeRequest(
                               Integer timeWindowMinutes,
                               Boolean terminal,
                               JsonNode config) {
-        this(nodeCode, name, nodeType, null, sortOrder, responsibleRole, dependency,
-            timeWindowMinutes, terminal, config);
+        this(nodeCode, name, nodeType, null, sortOrder, responsibleRole, responsibleRole,
+            List.of(), List.of(), dependency, timeWindowMinutes, terminal, config);
     }
 }

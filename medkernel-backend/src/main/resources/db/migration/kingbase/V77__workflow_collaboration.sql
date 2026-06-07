@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS mk_engine_workflow_todo (
     CONSTRAINT uk_workflow_todo_id UNIQUE (todo_id),
     CONSTRAINT uk_workflow_todo_source UNIQUE (tenant_id, source_type, source_id),
     CONSTRAINT ck_workflow_todo_source_type CHECK (source_type IN (
-        'FOLLOWUP_TASK','SAFETY_REVIEW','RECOMMENDATION_CARD','NURSING_TASK','REPORT_INTERPRETATION','BEDSIDE_KNOWLEDGE'
+        'FOLLOWUP_TASK','SAFETY_REVIEW','RECOMMENDATION_CARD','NURSING_TASK','REPORT_INTERPRETATION','BEDSIDE_KNOWLEDGE','PATHWAY_NODE'
     )),
     CONSTRAINT ck_workflow_todo_priority CHECK (priority IN ('CRITICAL','HIGH','MEDIUM','LOW')),
     CONSTRAINT ck_workflow_todo_status CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED','TRANSFERRED','CANCELLED'))
@@ -75,7 +75,7 @@ CREATE INDEX IF NOT EXISTS idx_notification_tenant_status_created
 CREATE INDEX IF NOT EXISTS idx_notification_recipient_status
     ON mk_engine_notification (tenant_id, recipient_id, status);
 
-COMMENT ON TABLE mk_engine_workflow_todo IS 'SVC-CLINICAL-03 临床协同待办表，统一承接随访、安全撤回和后续护理/床旁知识等真实来源任务';
+COMMENT ON TABLE mk_engine_workflow_todo IS 'SVC-CLINICAL-03 临床协同待办表，统一承接随访、安全撤回、路径节点和后续护理/床旁知识等真实来源任务';
 COMMENT ON COLUMN mk_engine_workflow_todo.tenant_id IS '租户 ID';
 COMMENT ON COLUMN mk_engine_workflow_todo.source_type IS '待办来源类型';
 COMMENT ON COLUMN mk_engine_workflow_todo.source_id IS '来源业务 ID';

@@ -54,6 +54,7 @@ class WorkflowTodoRepositoryTest {
         followupEvents.deleteAll();
         followupTasks.deleteAll();
         followupPlans.deleteAll();
+        jdbc.update("DELETE FROM user_role_assignment WHERE tenant_id = 'tenant-A'");
         jdbc.update("DELETE FROM org_closure");
         jdbc.update("DELETE FROM org_unit");
     }
@@ -122,6 +123,7 @@ class WorkflowTodoRepositoryTest {
 
     @Test
     void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
+        seedRoleAssignment("doctor-1", "doctor");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -177,6 +179,7 @@ class WorkflowTodoRepositoryTest {
     @Test
     void visibleAssigneeScopeUsesOrgClosureForUnassignedRows() {
         seedOrgTree();
+        seedRoleAssignment("doctor-1", "doctor");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -251,8 +254,56 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void visibleAssigneeScopeHonorsRoleScopedPathwayNodeTodos() {
+        seedOrgTree();
+        seedRoleAssignment("doctor-1", "doctor");
+        seedRoleAssignment("doctor-1", "dept-head");
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        repository.save(sampleWithRole(
+            "todo-pathway-doctor",
+            WorkflowTodoSourceType.PATHWAY_NODE,
+            "pp-1:ASSESS",
+            "doctor",
+            "dept-a",
+            now.plusSeconds(300)));
+        repository.save(sampleWithRole(
+            "todo-pathway-nurse",
+            WorkflowTodoSourceType.PATHWAY_NODE,
+            "pp-1:NURSING",
+            "nurse",
+            "dept-a",
+            now.plusSeconds(200)));
+
+        long total = repository.countByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null);
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            0,
+            10);
+
+        assertThat(total).isEqualTo(1);
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .containsExactly("todo-pathway-doctor");
+    }
+
+    @Test
     void selectedOrganizationFilterNarrowsVisibleTodosToSelectedSubtree() {
         seedOrgTree();
+        seedRoleAssignment("doctor-1", "doctor");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own-selected",
@@ -568,6 +619,51 @@ class WorkflowTodoRepositoryTest {
             "tester",
             now,
             "tester");
+    }
+
+    private WorkflowTodo sampleWithRole(
+            String todoId,
+            WorkflowTodoSourceType sourceType,
+            String sourceId,
+            String assigneeRole,
+            String orgUnitId,
+            Instant dueAt) {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        return new WorkflowTodo(
+            null,
+            todoId,
+            "tenant-A",
+            orgUnitId,
+            sourceType,
+            sourceId,
+            "路径节点待处理",
+            "真实路径节点角色待办",
+            WorkflowPriority.MEDIUM,
+            WorkflowTodoStatus.PENDING,
+            null,
+            assigneeRole,
+            "patient-1",
+            "enc-1",
+            dueAt,
+            "/clinical/pathways?patientPathwayId=pp-1&nodeCode=ASSESS",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-workflow",
+            now,
+            "tester",
+            now,
+            "tester");
+    }
+
+    private void seedRoleAssignment(String userId, String roleCode) {
+        jdbc.update("""
+            INSERT INTO user_role_assignment
+                (tenant_id, user_id, role_code, scope_level, scope_code, active_flag, created_by, updated_by)
+            VALUES (?, ?, ?, 'TENANT', 'tenant-A', 'Y', 'test', 'test')
+            """, "tenant-A", userId, roleCode);
     }
 
     private void seedOrgTree() {

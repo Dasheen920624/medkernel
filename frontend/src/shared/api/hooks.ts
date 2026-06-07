@@ -3203,6 +3203,9 @@ export interface PathwayNode {
   milestoneCode?: string;
   sortOrder: number;
   responsibleRole?: string;
+  accountableRole?: string;
+  consultedRolesJson?: string;
+  informedRolesJson?: string;
   dependencyJson?: string;
   timeWindowMinutes?: number;
   terminalFlag: boolean;
@@ -3534,6 +3537,9 @@ export function useCreatePathwayTemplate() {
         milestoneCode?: string;
         sortOrder: number;
         responsibleRole?: string;
+        accountableRole?: string;
+        consultedRoles?: string[];
+        informedRoles?: string[];
         timeWindowMinutes?: number;
         terminal: boolean;
         config?: unknown;
@@ -5220,7 +5226,8 @@ export type WorkflowTodoSourceType =
   | "RECOMMENDATION_CARD"
   | "NURSING_TASK"
   | "REPORT_INTERPRETATION"
-  | "BEDSIDE_KNOWLEDGE";
+  | "BEDSIDE_KNOWLEDGE"
+  | "PATHWAY_NODE";
 
 export type WorkflowPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type WorkflowTodoStatus =

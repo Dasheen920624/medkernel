@@ -186,6 +186,9 @@ function createTemplateDetail(): PathwayTemplateDetailResponse {
         milestoneCode: "M-PREOP-ASSESS",
         sortOrder: 1,
         responsibleRole: "专科医生",
+        accountableRole: "科主任",
+        consultedRolesJson: '["护理组"]',
+        informedRolesJson: '["质控办"]',
         timeWindowMinutes: 60,
         terminalFlag: false,
       },
@@ -198,6 +201,9 @@ function createTemplateDetail(): PathwayTemplateDetailResponse {
         nodeType: "FOLLOWUP",
         sortOrder: 2,
         responsibleRole: "随访护士",
+        accountableRole: "护理组长",
+        consultedRolesJson: "[]",
+        informedRolesJson: '["专科医生"]',
         timeWindowMinutes: 120,
         terminalFlag: true,
       },
@@ -544,6 +550,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
         nodes: Array<{
           nodeCode: string;
           milestoneCode?: string;
+          responsibleRole?: string;
+          accountableRole?: string;
           config?: {
             clockSla?: {
               baselineEvent?: string;
@@ -569,6 +577,8 @@ describe("PathwayTemplates 三层路径配置体验", () => {
           expect.objectContaining({
             nodeCode: "ASSESS",
             milestoneCode: "M-PREOP-ASSESS",
+            responsibleRole: "专科医生",
+            accountableRole: "专科医生",
             config: expect.objectContaining({
               clockSla: expect.objectContaining({
                 baselineEvent: "ADMISSION",
@@ -842,6 +852,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(screen.getByText("术前 / 第 0 天")).toBeInTheDocument();
       expect(screen.getByText("入径评估（M-PREOP-ASSESS）")).toBeInTheDocument();
       expect(screen.getAllByText("M-PREOP-ASSESS").length).toBeGreaterThan(0);
+      expect(screen.getByText("R 专科医生 / A 科主任 / C 护理组 / I 质控办")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
