@@ -69,6 +69,7 @@ function severityColor(severity?: string | null) {
 
 function executionStatusColor(status: string) {
   if (status === "SUCCESS") return "green";
+  if (status === "NOT_APPLICABLE") return "default";
   if (status === "SUPPRESSED") return "orange";
   if (status === "DEDUPLICATED") return "blue";
   if (status === "FAILED") return "red";
@@ -645,6 +646,7 @@ export default function RuleValidate() {
 function executionStatusLabel(status: string) {
   if (status === "SUCCESS") return "成功";
   if (status === "MISS") return "未命中";
+  if (status === "NOT_APPLICABLE") return "不适用";
   if (status === "SUPPRESSED") return "已抑制";
   if (status === "DEDUPLICATED") return "已去重";
   if (status === "FAILED") return "失败";

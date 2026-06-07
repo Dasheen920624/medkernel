@@ -67,6 +67,8 @@ class RuleEngineServiceTest {
     private RuleTestCaseRepository testCases;
     private RuleExecutionLogRepository executions;
     private RuleOverrideLogRepository overrides;
+    private RuleApplicabilityRepository applicabilities;
+    private RuleApplicabilityService applicabilityService;
     private AuditRecorder auditRecorder;
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
@@ -85,6 +87,7 @@ class RuleEngineServiceTest {
         testCases = mock(RuleTestCaseRepository.class);
         executions = mock(RuleExecutionLogRepository.class);
         overrides = mock(RuleOverrideLogRepository.class);
+        applicabilities = mock(RuleApplicabilityRepository.class);
         auditRecorder = mock(AuditRecorder.class);
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
@@ -95,9 +98,12 @@ class RuleEngineServiceTest {
         contextSnapshots = mock(ContextSnapshotService.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
+        applicabilityService = new RuleApplicabilityService(
+            applicabilities, new RuleApplicabilityEvaluator(json), json);
         service = new RuleEngineService(
             definitions, versions, testCases, executions, overrides,
-            new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
+            new RuleDslEvaluator(json), applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
 
@@ -106,6 +112,7 @@ class RuleEngineServiceTest {
         when(testCases.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(executions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(overrides.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(applicabilities.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
             "av-rule-default", VersionedAssetType.RULE, "RULE.ANTICOAG", "1", AssetVersionStatus.DRAFT));
         when(versionedAssets.updateDraft(any())).thenReturn(assetVersion(
@@ -146,6 +153,13 @@ class RuleEngineServiceTest {
         assertThat(ruleCap.getValue().activeVersionId()).isEqualTo(response.versionId());
         assertThat(versionCap.getValue().versionNo()).isEqualTo(1);
         assertThat(versionCap.getValue().sourceRef()).isEqualTo("院内抗凝用药管理规范 2026");
+        ArgumentCaptor<RuleApplicability> applicabilityCap =
+            ArgumentCaptor.forClass(RuleApplicability.class);
+        verify(applicabilities).save(applicabilityCap.capture());
+        assertThat(applicabilityCap.getValue().ruleVersionId()).isEqualTo(response.versionId());
+        assertThat(applicabilityCap.getValue().settingsJson())
+            .isEqualTo("[\"INPATIENT\",\"OUTPATIENT\",\"ED\",\"FOLLOWUP\"]");
+        assertThat(applicabilityCap.getValue().rolloutPercent()).isEqualTo(100);
         verify(versionedAssets).registerDraft(org.mockito.Mockito.argThat(command ->
             command.assetType() == VersionedAssetType.RULE
                 && command.tenantId().equals("tenant-A")
@@ -169,6 +183,21 @@ class RuleEngineServiceTest {
             "拒绝旧枚举名", legacyDsl, legacyDsl.path("explain"))))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("触发点必须使用客户面编码")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_RULE_001);
+    }
+
+    @Test
+    void createRuleRejectsDslWithoutApplicability() {
+        JsonNode invalidDsl = dsl().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) invalidDsl).remove("applicability");
+
+        assertThatThrownBy(() -> service.createRule(new RuleCreateRequest(
+            "RULE.NO.APPLICABILITY", "缺少适用域", RuleType.ORDER, RuleAuthoringMode.DSL,
+            RuleRiskLevel.MEDIUM, "rpv-1", "dept-1", "规则适用域契约",
+            "拒绝不完整 DSL", invalidDsl, invalidDsl.path("explain"))))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("applicability")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_RULE_001);
     }
@@ -446,7 +475,8 @@ class RuleEngineServiceTest {
         ReleasePort releasePort = mock(ReleasePort.class);
         RuleEngineService unifiedService = new RuleEngineService(
             definitions, versions, testCases, executions, overrides,
-            new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
+            new RuleDslEvaluator(json), applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
@@ -566,7 +596,8 @@ class RuleEngineServiceTest {
         TerminologyCoverageGate coverageGate = mock(TerminologyCoverageGate.class);
         RuleEngineService gatedService = new RuleEngineService(
             definitions, versions, testCases, executions, overrides,
-            new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
+            new RuleDslEvaluator(json), applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
         when(definitions.findByRuleIdAndTenantId("rule-1", "tenant-A"))
@@ -693,7 +724,8 @@ class RuleEngineServiceTest {
         InheritanceResolver resolver = mock(InheritanceResolver.class);
         RuleEngineService inheritedService = new RuleEngineService(
             definitions, versions, testCases, executions, overrides,
-            new RuleDslEvaluator(json), auditRecorder, transitions, diagnoseAssembler, json,
+            new RuleDslEvaluator(json), applicabilityService,
+            auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
             versionedAssets, assetVersions, releasePort, resolver, contextSnapshots);
         RequestContext.restore(new RequestContext.Snapshot(
@@ -902,6 +934,34 @@ class RuleEngineServiceTest {
             .containsExactly(RuleExecutionStatus.DEDUPLICATED, RuleExecutionStatus.SUPPRESSED);
         assertThat(response.items().get(1).suppressedBy()).isEqualTo("RULE.HIGH");
         assertThat(response.cards()).isEmpty();
+    }
+
+    @Test
+    void evaluateDoesNotLetInapplicableHighPriorityRuleSuppressApplicableLowerRule() {
+        RuleDefinition high = governedRule(
+            "rule-high", "RULE.HIGH", "version-high", 900, null, 0);
+        RuleDefinition low = governedRule(
+            "rule-low", "RULE.LOW", "version-low", 100, "RULE.HIGH", 0);
+        when(definitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(low, high));
+        when(definitions.findPublishedByTenantId("t-1")).thenReturn(List.of());
+        when(versions.findByVersionIdAndTenantId("version-high", "tenant-A"))
+            .thenReturn(Optional.of(existingVersionWithSettings(
+                "version-high", "rule-high", RuleVersionStatus.PUBLISHED, "OUTPATIENT")));
+        when(versions.findByVersionIdAndTenantId("version-low", "tenant-A"))
+            .thenReturn(Optional.of(existingVersionWithSettings(
+                "version-low", "rule-low", RuleVersionStatus.PUBLISHED, "INPATIENT")));
+        stubRuleAssetStatus("tenant-A", "RULE.HIGH", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAssetStatus("tenant-A", "RULE.LOW", "1", AssetVersionStatus.ACTIVE);
+
+        RuleEvaluateResponse response = service.evaluateContext(
+            "order-sign", hitContextWithPatient(), "evt-applicability", List.of());
+
+        assertThat(response.items()).extracting(RuleEvaluationItem::status)
+            .containsExactly(RuleExecutionStatus.NOT_APPLICABLE, RuleExecutionStatus.SUCCESS);
+        assertThat(response.items().get(0).hit()).isFalse();
+        assertThat(response.items().get(0).actions()).isEmpty();
+        assertThat(response.items().get(1).hit()).isTrue();
+        assertThat(response.cards()).hasSize(1);
     }
 
     @Test
@@ -1122,6 +1182,25 @@ class RuleEngineServiceTest {
             null, null, null, now, "tester", now, "tester", "trace-rule");
     }
 
+    private RuleVersion existingVersionWithSettings(
+            String versionId,
+            String ruleId,
+            RuleVersionStatus status,
+            String... settings) {
+        Instant now = Instant.now();
+        JsonNode scopedDsl = dsl().deepCopy();
+        var settingArray = json.createArrayNode();
+        for (String setting : settings) {
+            settingArray.add(setting);
+        }
+        ((com.fasterxml.jackson.databind.node.ObjectNode) scopedDsl.path("applicability"))
+            .set("settings", settingArray);
+        return new RuleVersion(
+            1L, versionId, "tenant-A", ruleId, 1, "院内规则适用域规范 2026",
+            "适用域测试", scopedDsl.toString(), scopedDsl.path("explain").toString(), status,
+            null, null, null, now, "tester", now, "tester", "trace-rule");
+    }
+
     private RuleTestCase testCase(RuleTestCaseType type, boolean expectedHit, JsonNode input) {
         Instant now = Instant.now();
         return new RuleTestCase(
@@ -1135,6 +1214,12 @@ class RuleEngineServiceTest {
         return read("""
             {
               "trigger": "order-sign",
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"],
+                "effective": {"rolloutPercent": 100}
+              },
               "when": {
                 "all": [
                   {"fact": "patient.age", "operator": "gte", "value": 18},
@@ -1155,7 +1240,11 @@ class RuleEngineServiceTest {
 
     private JsonNode hitContext() {
         return read("""
-            {"patient": {"age": 72}, "order": {"drugClass": "ANTICOAGULANT"}}
+            {
+              "patient": {"age": 72},
+              "encounters": [{"encounterId": "ENC-1", "encounterType": "INPATIENT"}],
+              "order": {"drugClass": "ANTICOAGULANT"}
+            }
             """);
     }
 
@@ -1163,7 +1252,7 @@ class RuleEngineServiceTest {
         return read("""
             {
               "patient": {"mpi": "MPI-1", "age": 72},
-              "encounters": [{"encounterId": "ENC-1"}],
+              "encounters": [{"encounterId": "ENC-1", "encounterType": "INPATIENT"}],
               "order": {"drugClass": "ANTICOAGULANT"}
             }
             """);
@@ -1171,13 +1260,21 @@ class RuleEngineServiceTest {
 
     private JsonNode boundaryContext() {
         return read("""
-            {"patient": {"age": 18}, "order": {"drugClass": "ANTICOAGULANT"}}
+            {
+              "patient": {"age": 18},
+              "encounters": [{"encounterId": "ENC-1", "encounterType": "INPATIENT"}],
+              "order": {"drugClass": "ANTICOAGULANT"}
+            }
             """);
     }
 
     private JsonNode missContext() {
         return read("""
-            {"patient": {"age": 12}, "order": {"drugClass": "ANTICOAGULANT"}}
+            {
+              "patient": {"age": 12},
+              "encounters": [{"encounterId": "ENC-1", "encounterType": "INPATIENT"}],
+              "order": {"drugClass": "ANTICOAGULANT"}
+            }
             """);
     }
 

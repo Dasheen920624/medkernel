@@ -3,7 +3,7 @@
 > 关联：`design.md`、`design-dsl-grammar.md`。
 > 列约定对齐既有实体（如 `rule_definition`）：业务主键用字符串 `*_id`，统一携带 `tenant_id`、`package_version`、`created_at/by`、`updated_at/by`、`trace_id`；持久层为 Spring Data JDBC（`@Table`/`@Column`）。所有新表 SHALL 带 `tenant_id` 并纳入租户隔离；退役/下线用状态位封存，不物理删除。
 >
-> **多方言迁移（重要落地约束）**：迁移目录为 `medkernel-backend/src/main/resources/db/migration/{dm,h2,kingbase,oracle,postgres}`，当前最新为 `V58`。本变更新增 DDL SHALL 从 **`V59` 起为五种方言各提供一份**（达梦 DM、人大金仓 KingBase、Oracle、Postgres、H2），类型按方言适配（如 `CLOB`/`TEXT`/`NCLOB`、`TIMESTAMP`、`NUMBER`/`NUMERIC`/`BOOLEAN`）。下方 DDL 为方言中立示意，落地需逐方言落版本号一致的脚本。
+> **多方言迁移（重要落地约束）**：迁移目录为 `medkernel-backend/src/main/resources/db/migration/{dm,h2,kingbase,oracle,postgres}`，当前基线为 `V97`。项目尚未上线，基础模型直接收敛到对应基线迁移，不增设兼容迁移；五种方言的表、约束、索引和中文注释必须一致。
 >
 > **错误码约定**：沿用 `ENG-<域>-NNN`（如 `ENG-RULE-001`/`ENG-PATHWAY-006`/`ENG-CONTEXT-003`）。本变更新增建议：`ENG-RULE-007` 临床算子/公式入参非法、`ENG-RULE-008` 单位不可换算、`ENG-CONTEXT-005` 字段目录字段不存在于 canonical、`ENG-CONTEXT-006` 值集展开失败/版本缺失、`ENG-TERM-003` 对照覆盖率不达标（发布门禁）。新增码 SHALL 登记到 `ErrorCode` 枚举单一真相。
 >
@@ -99,7 +99,7 @@ CREATE TABLE unit_conversion (
 
 ---
 
-## B2. 规则治理扩展（加法式，不改既有 rule_definition/rule_version）
+## B2. 规则治理模型
 
 ```sql
 -- 受控临床公式注册表（白名单，禁止运行期任意表达式）
@@ -117,9 +117,19 @@ CREATE TABLE clinical_function (
 CREATE TABLE rule_applicability (
   id BIGINT PRIMARY KEY,
   rule_version_id VARCHAR(64) NOT NULL, tenant_id VARCHAR(64) NOT NULL,
-  settings VARCHAR(120),                 -- INPATIENT,ED,...
-  effective_from DATE, effective_to DATE, rollout_percent INT,
-  population_json CLOB                    -- include/exclude 条件
+  population_json CLOB NOT NULL,          -- include/exclude 条件
+  org_scope_json CLOB NOT NULL,           -- group/hospital/department
+  settings_json CLOB NOT NULL,            -- INPATIENT/OUTPATIENT/ED/FOLLOWUP
+  effective_from DATE, effective_to DATE,
+  rollout_percent INT NOT NULL,
+  created_at TIMESTAMP NOT NULL, created_by VARCHAR(64) NOT NULL,
+  updated_at TIMESTAMP NOT NULL, updated_by VARCHAR(64) NOT NULL,
+  trace_id VARCHAR(128),
+  CONSTRAINT uk_rule_applicability_version UNIQUE (tenant_id, rule_version_id),
+  CONSTRAINT ck_rule_applicability_rollout CHECK (rollout_percent BETWEEN 0 AND 100),
+  CONSTRAINT ck_rule_applicability_dates CHECK (
+    effective_from IS NULL OR effective_to IS NULL OR effective_from <= effective_to
+  )
 );
 
 -- 知识治理状态与会签
@@ -154,11 +164,11 @@ CREATE TABLE rule_override_log (
 );
 ```
 
-> 分级动作卡片随 `rule_version.dsl_json` 的 `then[]` 存储（DSL 内表达），无需独立动作表。规则交互（优先级/抑制）以 `rule_definition` 新增 `priority`、`suppressed_by` 列承载。
+> 分级动作卡片随 `rule_version.dsl_json` 的 `then[]` 存储，无独立动作表。`dsl_json.applicability` 是适用域唯一权威，`rule_applicability` 只作检索镜像；规则交互以 `rule_definition.priority/suppressed_by/dedupe_window_seconds` 承载。
 
 ---
 
-## B3. 路径领域模型扩展（加法式扩展既有 pathway 表）
+## B3. 路径领域模型
 
 ```sql
 CREATE TABLE pathway_phase (
@@ -174,7 +184,7 @@ CREATE TABLE pathway_milestone (
   package_version VARCHAR(40) NOT NULL
 );
 -- pathway_node 扩展列：node_type 扩充枚举；新增 phase_code/roles_json/order_set_ref/sub_pathway_ref/clock_json
--- pathway_edge 扩展列：guard_json（替代/兼容既有 condition_json，向后兼容见附录 A1）
+-- pathway_edge.condition_json 是唯一边守卫字段，保存统一 Group 条件 JSON
 CREATE TABLE pathway_variance (
   id BIGINT PRIMARY KEY, variance_id VARCHAR(64) NOT NULL, tenant_id VARCHAR(64) NOT NULL,
   patient_pathway_id VARCHAR(64) NOT NULL, at_node_code VARCHAR(64),
@@ -215,4 +225,4 @@ CREATE TABLE pathway_outcome_binding (
 | POST | `/pathways/{id}/simulate` | 单快照/队列/时光机仿真（扩展既有 simulate） |
 | GET | `/integration/data-contract?packageVersion=` | 对外数据接入契约（字段+值集，JSON Schema 风格） |
 
-> 既有规则/路径创建、发布、回滚、影响摘要、求值接口保持兼容；新增能力以加法式端点暴露，旧客户端不受影响。
+> 项目尚未上线，接口只保留当前标准契约；被统一实现取代的旧路径、旧字段和旧客户端口径直接清除，不维护兼容分支。

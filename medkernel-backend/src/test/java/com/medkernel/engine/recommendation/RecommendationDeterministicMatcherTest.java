@@ -16,6 +16,7 @@ import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.context.canonical.CanonicalEncounter;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.knowledge.GradeEvidenceQuality;
 import com.medkernel.engine.knowledge.GradeRecommendationStrength;
@@ -36,6 +37,9 @@ import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
 import com.medkernel.engine.rule.RuleAuthoringMode;
+import com.medkernel.engine.rule.RuleApplicabilityEvaluator;
+import com.medkernel.engine.rule.RuleApplicabilityRepository;
+import com.medkernel.engine.rule.RuleApplicabilityService;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
@@ -63,6 +67,8 @@ class RecommendationDeterministicMatcherTest {
     private final ContextSnapshotService snapshots = mock(ContextSnapshotService.class);
     private final RuleDefinitionRepository ruleDefinitions = mock(RuleDefinitionRepository.class);
     private final RuleVersionRepository ruleVersions = mock(RuleVersionRepository.class);
+    private final RuleApplicabilityRepository ruleApplicabilities =
+        mock(RuleApplicabilityRepository.class);
     private final AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
     private final PatientPathwayRepository patientPathways = mock(PatientPathwayRepository.class);
     private final PathwayTemplateRepository pathwayTemplates = mock(PathwayTemplateRepository.class);
@@ -76,6 +82,8 @@ class RecommendationDeterministicMatcherTest {
         ruleVersions,
         assetVersions,
         new RuleDslEvaluator(json),
+        new RuleApplicabilityService(
+            ruleApplicabilities, new RuleApplicabilityEvaluator(json), json),
         patientPathways,
         pathwayTemplates,
         knowledgeIdentities,
@@ -157,6 +165,19 @@ class RecommendationDeterministicMatcherTest {
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
         assertThat(matches).isEmpty();
+    }
+
+    @Test
+    void doesNotProduceRecommendationWhenRuleIsOutsideClinicalSetting() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
+        when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
+        when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
+            .thenReturn(Optional.of(ruleVersionForSetting("OUTPATIENT")));
+        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.ACTIVE);
+
+        assertThat(matcher.match(triggerRequestWithoutPathway())).isEmpty();
     }
 
     @Test
@@ -259,9 +280,12 @@ class RecommendationDeterministicMatcherTest {
         CanonicalPatient patient = new CanonicalPatient(
             "mpi-1", "测试患者", null, "FEMALE", List.of(),
             "HIS", "patient-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
+        CanonicalEncounter encounter = new CanonicalEncounter(
+            "enc-1", "INPATIENT", Instant.now(), null, "dept-1", "doctor-1", "bed-1",
+            "HIS", "enc-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
         return new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE,
-            new ContextSnapshotResources(patient, List.of(), List.of(), List.of(), List.of(), List.of(),
+            new ContextSnapshotResources(patient, List.of(), List.of(encounter), List.of(), List.of(), List.of(),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
             "1.0.0",
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-cdss");
@@ -342,9 +366,20 @@ class RecommendationDeterministicMatcherTest {
     }
 
     private RuleVersion ruleVersion() {
+        return ruleVersionForSetting("INPATIENT");
+    }
+
+    private RuleVersion ruleVersionForSetting(String setting) {
         Instant now = Instant.now();
         String dsl = """
             {
+              "trigger": "order-sign",
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["%s"],
+                "effective": {"rolloutPercent": 100}
+              },
               "when": {
                 "fact": "patient.gender",
                 "operator": "equals",
@@ -357,7 +392,7 @@ class RecommendationDeterministicMatcherTest {
                 "summary": "规则命中性别相关风险"
               }
             }
-            """;
+            """.formatted(setting);
         return new RuleVersion(
             10L, "rv-risk-v1", "tenant-A", "rule-risk", 1,
             "knowledge:RISK_GENDER", "发布性别风险评估", dsl, "{\"summary\":\"规则解释\"}",

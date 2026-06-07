@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.integration.domain.IntegrationWebhookConfig;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
 import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
@@ -87,7 +88,7 @@ class ClinicalEventCallbackNotifierTest {
             1L, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, "idem-1", callbackWebhookId,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
-            "MPI-1", "ENC-1", "HIS", "kpv-1", "digest",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, ClinicalEventStatus.PROCESSED, null, null, 0, null, "trace-1");
     }
@@ -103,7 +104,8 @@ class ClinicalEventCallbackNotifierTest {
         return new ClinicalEventContext(
             "evt-1", "tenant-A", new OrgScope(
                 "tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
-            ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW, "MPI-1", "ENC-1", null, "HIS",
+            ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW,
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, null, "HIS",
             "kpv-1", "digest", Instant.parse("2026-05-27T01:00:00Z"),
             "HIS:patient-view", "trace-1", null, List.of());
     }

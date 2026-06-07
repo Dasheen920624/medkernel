@@ -90,6 +90,7 @@ public class RuleEngineService {
     private final RuleExecutionLogRepository executions;
     private final RuleOverrideLogRepository overrides;
     private final RuleDslEvaluator evaluator;
+    private final RuleApplicabilityService applicabilityService;
     private final AuditRecorder auditRecorder;
     private final StateTransitionRecorder transitions;
     private final DiagnoseResponseAssembler diagnoseAssembler;
@@ -113,6 +114,7 @@ public class RuleEngineService {
                              RuleExecutionLogRepository executions,
                              RuleOverrideLogRepository overrides,
                              RuleDslEvaluator evaluator,
+                             RuleApplicabilityService applicabilityService,
                              AuditRecorder auditRecorder,
                              StateTransitionRecorder transitions,
                              DiagnoseResponseAssembler diagnoseAssembler,
@@ -124,7 +126,9 @@ public class RuleEngineService {
                              ReleasePort releasePort,
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots) {
-        this(definitions, versions, testCases, executions, overrides, evaluator, auditRecorder, transitions,
+        this(definitions, versions, testCases, executions, overrides,
+            evaluator, applicabilityService,
+            auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
             versionedAssets, assetVersions, releasePort, inheritanceResolver, contextSnapshots);
@@ -136,6 +140,7 @@ public class RuleEngineService {
                       RuleExecutionLogRepository executions,
                       RuleOverrideLogRepository overrides,
                       RuleDslEvaluator evaluator,
+                      RuleApplicabilityService applicabilityService,
                       AuditRecorder auditRecorder,
                       StateTransitionRecorder transitions,
                       DiagnoseResponseAssembler diagnoseAssembler,
@@ -153,6 +158,8 @@ public class RuleEngineService {
         this.executions = executions;
         this.overrides = overrides;
         this.evaluator = evaluator;
+        this.applicabilityService = Objects.requireNonNull(
+            applicabilityService, "规则适用域服务不能为空");
         this.auditRecorder = auditRecorder;
         this.transitions = transitions;
         this.diagnoseAssembler = diagnoseAssembler;
@@ -201,6 +208,7 @@ public class RuleEngineService {
 
         definitions.save(definition);
         versions.save(version);
+        applicabilityService.saveMirror(version, request.dsl(), now, actor, traceId);
         versionedAssets.registerDraft(new AssetVersionRegisterCommand(
             tenantId,
             VersionedAssetType.RULE,
@@ -256,6 +264,8 @@ public class RuleEngineService {
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
         definitions.save(updatedRule);
         versions.save(updatedVersion);
+        applicabilityService.saveMirror(
+            updatedVersion, request.dsl(), now, actor, RequestContext.currentTraceId());
         AssetVersion updatedAssetVersion = versionedAssets.updateDraft(new AssetVersionDraftUpdateCommand(
             tenantId,
             assetVersion.versionId(),
@@ -662,9 +672,19 @@ public class RuleEngineService {
         List<RuleEvaluationItem> items = new ArrayList<>();
         for (Map.Entry<RuleDefinition, RuleVersion> entry : executable) {
             RuleDefinition rule = entry.getKey();
-            RuleEvaluationItem item = isSuppressed(rule, matchedRuleCodes)
-                ? recordSuppressed(rule, entry.getValue(), tenantId, context, triggerPoint, eventId)
-                : evaluateAndLog(rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+            RuleApplicabilityDecision applicability =
+                evaluateApplicability(entry.getValue(), context);
+            RuleEvaluationItem item;
+            if (!applicability.applicable()) {
+                item = recordNotApplicable(
+                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId, applicability);
+            } else if (isSuppressed(rule, matchedRuleCodes)) {
+                item = recordSuppressed(
+                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+            } else {
+                item = evaluateApplicableAndLog(
+                    rule, entry.getValue(), tenantId, context, triggerPoint, eventId);
+            }
             items.add(item);
             if (item.hit()) {
                 matchedRuleCodes.add(rule.ruleCode());
@@ -766,7 +786,12 @@ public class RuleEngineService {
 
     private RuleTestCaseResult runTestCase(RuleVersion version, RuleTestCase testCase) {
         try {
-            RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), readJson(testCase.inputPayload()));
+            JsonNode dsl = readJson(version.dslJson());
+            JsonNode input = readJson(testCase.inputPayload());
+            RuleApplicabilityDecision applicability = evaluateApplicability(version, input);
+            RuleDslEvaluation evaluation = applicability.applicable()
+                ? evaluator.evaluate(dsl, input)
+                : notApplicableEvaluation(applicability);
             boolean pass = matchesExpectation(testCase, evaluation);
             RuleTestCaseStatus status = pass ? RuleTestCaseStatus.PASS : RuleTestCaseStatus.FAIL;
             String message = pass ? "测试通过" : "实际结果与期望不一致";
@@ -784,6 +809,22 @@ public class RuleEngineService {
 
     private RuleEvaluationItem evaluateAndLog(RuleDefinition rule, RuleVersion version, String executionTenantId,
                                               JsonNode context, String triggerPoint, String eventId) {
+        RuleApplicabilityDecision applicability = evaluateApplicability(version, context);
+        if (!applicability.applicable()) {
+            return recordNotApplicable(
+                rule, version, executionTenantId, context, triggerPoint, eventId, applicability);
+        }
+        return evaluateApplicableAndLog(
+            rule, version, executionTenantId, context, triggerPoint, eventId);
+    }
+
+    private RuleEvaluationItem evaluateApplicableAndLog(
+            RuleDefinition rule,
+            RuleVersion version,
+            String executionTenantId,
+            JsonNode context,
+            String triggerPoint,
+            String eventId) {
         RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), context);
         String executionId = "rex-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -809,6 +850,57 @@ public class RuleEngineService {
             evaluation.severity(),
             status == RuleExecutionStatus.SUCCESS ? evaluation.actions() : List.of(),
             evaluation.explanation(), status, null, deduplicatedFromExecutionId);
+    }
+
+    private RuleEvaluationItem recordNotApplicable(
+            RuleDefinition rule,
+            RuleVersion version,
+            String executionTenantId,
+            JsonNode context,
+            String triggerPoint,
+            String eventId,
+            RuleApplicabilityDecision applicability) {
+        String executionId = "rex-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        JsonNode explanation = applicabilityExplanation(applicability);
+        RuleExecutionLog log = executions.save(new RuleExecutionLog(
+            null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
+            triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            patientId(context), encounterId(context), null, digest(context), false, null, "[]",
+            writeJson(explanation), RuleExecutionStatus.NOT_APPLICABLE, null, null,
+            null, now, now, RequestContext.currentTraceId()));
+        transitions.record(
+            EXECUTION_ENTITY, log.executionId(), null, RuleExecutionStatus.NOT_APPLICABLE.name(),
+            "SKIP_RULE_" + applicability.reasonCode(), null);
+        auditRecorder.record(
+            AuditAction.EXECUTE, EXECUTION_ENTITY, log.executionId(),
+            "跳过不适用规则 " + rule.ruleId());
+        return new RuleEvaluationItem(
+            log.executionId(), rule.ruleId(), version.versionId(), false, null,
+            List.of(), explanation, RuleExecutionStatus.NOT_APPLICABLE, null, null);
+    }
+
+    private RuleApplicabilityDecision evaluateApplicability(RuleVersion version, JsonNode context) {
+        JsonNode dsl = readJson(version.dslJson());
+        return applicabilityService.evaluate(
+            dsl,
+            context,
+            RequestContext.currentOrgScope(),
+            version.versionId());
+    }
+
+    private RuleDslEvaluation notApplicableEvaluation(RuleApplicabilityDecision applicability) {
+        return new RuleDslEvaluation(
+            false, null, List.of(), applicabilityExplanation(applicability));
+    }
+
+    private JsonNode applicabilityExplanation(RuleApplicabilityDecision applicability) {
+        var explanation = json.createObjectNode();
+        explanation.put("title", "规则不适用于当前上下文");
+        explanation.put("reasonCode", applicability.reasonCode());
+        explanation.put("reason", applicability.reason());
+        explanation.set("applicability", applicability.details());
+        return explanation;
     }
 
     private RuleEvaluationItem recordSuppressed(
@@ -1108,6 +1200,7 @@ public class RuleEngineService {
 
     private void validateDsl(JsonNode dsl) {
         evaluator.evaluate(dsl, json.createObjectNode());
+        applicabilityService.validateDsl(dsl);
         String trigger = dsl.path("trigger").asText(null);
         if (trigger == null || trigger.isBlank()) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 trigger");

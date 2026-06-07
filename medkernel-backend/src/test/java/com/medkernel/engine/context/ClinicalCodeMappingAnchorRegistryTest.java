@@ -81,7 +81,7 @@ class ClinicalCodeMappingAnchorRegistryTest {
             List.of(new CanonicalAllergyIntolerance("alg-1", "ATC-J01C", "ATC", "青霉素类",
                 "MEDICATION", "HIGH", List.of("皮疹", "喉头水肿"), "ACTIVE", "CONFIRMED",
                 "HIS", "alg-rec-1", "v1", now, now, QualityStatus.VALID)),
-            List.of(new CanonicalEncounter("ENC-1", "IP", now, null,
+            List.of(new CanonicalEncounter("ENC-1", "INPATIENT", now, null,
                 "DEPT-A", "DOC-A", null, "HIS", "enc-rec-1", "v1", now, now, QualityStatus.VALID)),
             List.of(new CanonicalCondition("cond-1", "I10", "ICD-10", "原发性高血压",
                 "ACTIVE", "HIGH", "HIS", "cond-rec-1", "v1", now, now, QualityStatus.VALID)),

@@ -20,6 +20,7 @@ import com.medkernel.engine.context.canonical.CanonicalCondition;
 import com.medkernel.engine.context.canonical.CanonicalDiagnosticReport;
 import com.medkernel.engine.context.canonical.CanonicalDocument;
 import com.medkernel.engine.context.canonical.CanonicalEncounter;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.context.canonical.CanonicalMedication;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
@@ -173,8 +174,14 @@ final class FhirCanonicalMapperSupport {
         ObjectNode resource = baseResource("Encounter", canonical, null);
         putIfPresent(resource, "status", model.dischargeTime() == null ? "in-progress" : "finished");
         if (model.encounterType() != null && !model.encounterType().isBlank()) {
+            ClinicalSetting setting = ClinicalSetting.valueOf(model.encounterType());
             ObjectNode clazz = resource.putObject("class");
-            clazz.put("code", model.encounterType());
+            clazz.put("code", setting.fhirClassCode());
+            if (setting == ClinicalSetting.FOLLOWUP) {
+                ObjectNode type = json.createObjectNode();
+                type.put("text", setting.name());
+                resource.set("type", json.createArrayNode().add(type));
+            }
         }
         ObjectNode period = json.createObjectNode();
         putIfPresent(period, "start", instant(model.admissionTime()));
@@ -362,12 +369,12 @@ final class FhirCanonicalMapperSupport {
     private CanonicalResourceMappingResult mapEncounterInbound(FhirCanonicalMappingRequest request, FhirVersion version) {
         JsonNode resource = request.resource();
         String id = requiredId(resource, "Encounter");
-        String encounterType = firstNonBlank(
-            text(resource.path("class").path("code")),
-            text(resource.path("type").path("text")));
-        if (encounterType.isBlank()) {
+        String classCode = text(resource.path("class").path("code"));
+        if (classCode.isBlank()) {
             throw new IllegalArgumentException("FHIR Encounter.class.code 不能为空");
         }
+        String encounterType = ClinicalSetting.fromFhir(
+            classCode, text(resource.path("type").path(0).path("text"))).name();
         Instant admittedAt = parseInstantOrNull(text(resource.path("period").path("start")));
         if (admittedAt == null) {
             throw new IllegalArgumentException("FHIR Encounter.period.start 不能为空");

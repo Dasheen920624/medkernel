@@ -28,6 +28,7 @@ import com.medkernel.engine.context.ClinicalEventStatus;
 import com.medkernel.engine.context.ClinicalEventType;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.TerminologyMappingPort;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.domain.IntegrationWebhookConfig;
 import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
@@ -117,7 +118,8 @@ class FhirFacadeServiceTest {
             sign(signedAt, observation),
             "10.0.0.8",
             null,
-            null));
+            null,
+            ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.body().path("resourceType").asText()).isEqualTo("OperationOutcome");
@@ -144,6 +146,7 @@ class FhirFacadeServiceTest {
         verify(events).receiveAsync(eventCaptor.capture());
         assertThat(eventCaptor.getValue().eventType()).isEqualTo(ClinicalEventType.REPORT);
         assertThat(eventCaptor.getValue().patientId()).isEqualTo("MPI-001");
+        assertThat(eventCaptor.getValue().clinicalSetting()).isEqualTo(ClinicalSetting.INPATIENT);
         assertThat(eventCaptor.getValue().sourceSystem()).isEqualTo("FHIR_R4");
         assertThat(eventCaptor.getValue().packageVersion()).isEqualTo("pkg-fhir-1");
         assertThat(eventCaptor.getValue().payload().path("canonicalResourceId").asText()).isEqualTo("101");
@@ -161,7 +164,8 @@ class FhirFacadeServiceTest {
 
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
             FhirVersion.R4, "Observation", observation("obs-bad", "Patient/MPI-001"),
-            "fhir-hub", timestamp(), "bad-signature", "10.0.0.8", null, null));
+            "fhir-hub", timestamp(), "bad-signature", "10.0.0.8",
+            null, null, ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(response.body().toString()).contains("签名校验失败");
@@ -191,7 +195,8 @@ class FhirFacadeServiceTest {
 
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
             FhirVersion.R4, "MedicationRequest", medicationRequest, "fhir-hub",
-            signedAt, sign(signedAt, medicationRequest), "10.0.0.8", null, "pkg-explicit"));
+            signedAt, sign(signedAt, medicationRequest), "10.0.0.8",
+            null, "pkg-explicit", ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(response.body().toString()).contains("task-confirm-1", "医师确认", "不自动写医嘱");
@@ -208,7 +213,8 @@ class FhirFacadeServiceTest {
 
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
             FhirVersion.R4, "Observation", observation("obs-missing", "Patient/MPI-001"),
-            "missing", timestamp(), "anything", "10.0.0.8", null, null));
+            "missing", timestamp(), "anything", "10.0.0.8",
+            null, null, ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.body().toString()).contains("NOT_CONNECTED", "适配器不存在");
@@ -223,7 +229,8 @@ class FhirFacadeServiceTest {
 
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
             FhirVersion.R4, "Observation", observation("obs-no-secret", "Patient/MPI-001"),
-            "fhir-hub", timestamp(), "anything", "10.0.0.8", null, null));
+            "fhir-hub", timestamp(), "anything", "10.0.0.8",
+            null, null, ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.body().toString()).contains("签名密钥引用不存在", "NOT_CONNECTED");
@@ -329,7 +336,8 @@ class FhirFacadeServiceTest {
 
         FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
             FhirVersion.R4, "Condition", condition, "fhir-hub",
-            signedAt, sign(signedAt, condition), "10.0.0.8", null, null));
+            signedAt, sign(signedAt, condition), "10.0.0.8",
+            null, null, ClinicalSetting.INPATIENT));
 
         assertThat(response.status()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.body().path("resourceType").asText()).isEqualTo("OperationOutcome");
@@ -346,11 +354,40 @@ class FhirFacadeServiceTest {
         assertThat(eventCaptor.getValue().eventType()).isEqualTo(ClinicalEventType.DIAGNOSIS);
         assertThat(eventCaptor.getValue().patientId()).isEqualTo("MPI-001");
         assertThat(eventCaptor.getValue().encounterId()).isEqualTo("enc-1");
+        assertThat(eventCaptor.getValue().clinicalSetting()).isEqualTo(ClinicalSetting.INPATIENT);
 
         ArgumentCaptor<IntegrationOutboundRequestDto> outboundCaptor =
             ArgumentCaptor.forClass(IntegrationOutboundRequestDto.class);
         verify(integration).enqueueOutboundMessage(org.mockito.Mockito.eq("tenant-A"), outboundCaptor.capture());
         assertThat(outboundCaptor.getValue().payload().path("fhirResourceType").asText()).isEqualTo("Condition");
+    }
+
+    @Test
+    void rejectsEncounterWhenMappedSettingConflictsWithRequestHeader() throws Exception {
+        JsonNode encounter = json.readTree("""
+            {
+              "resourceType": "Encounter",
+              "id": "enc-setting-conflict",
+              "subject": {"reference": "Patient/MPI-001"},
+              "class": {"code": "IMP"},
+              "period": {"start": "2026-06-03T00:00:00Z"}
+            }
+            """);
+        String signedAt = timestamp();
+        when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
+
+        FhirFacadeResponse response = service.create(new FhirFacadeCreateCommand(
+            FhirVersion.R4, "Encounter", encounter, "fhir-hub",
+            signedAt, sign(signedAt, encounter), "10.0.0.8",
+            null, null, ClinicalSetting.OUTPATIENT));
+
+        assertThat(response.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.body().toString())
+            .contains("Encounter", "X-MedKernel-Clinical-Setting", "不一致");
+        verify(resources, never()).save(any());
+        verify(mappings, never()).save(any());
+        verify(events, never()).receiveAsync(any());
+        verify(integration, never()).enqueueOutboundMessage(any(), any());
     }
 
     @Test
@@ -373,7 +410,8 @@ class FhirFacadeServiceTest {
                 sign(signedAt, current.resource()),
                 "10.0.0.8",
                 null,
-                null));
+                null,
+                ClinicalSetting.INPATIENT));
 
             assertThat(response.status()).as(current.resourceType()).isEqualTo(HttpStatus.CREATED);
             assertThat(response.body().toString()).as(current.resourceType()).doesNotContain("MPI-001");
@@ -568,7 +606,7 @@ class FhirFacadeServiceTest {
                   "resourceType": "Encounter",
                   "id": "enc-1",
                   "subject": {"reference": "Patient/MPI-001"},
-                  "class": {"code": "inpatient"},
+                  "class": {"code": "IMP"},
                   "period": {"start": "2026-06-03T00:00:00Z"}
                 }
                 """),

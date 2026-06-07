@@ -15,6 +15,7 @@ import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.context.ClinicalEventRequest;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.recommendation.RecommendationCard;
 import com.medkernel.engine.recommendation.RecommendationCardStatus;
 import com.medkernel.engine.recommendation.RecommendationCardType;
@@ -86,6 +87,7 @@ class CdsHookContractTest {
             ClinicalEventType.ORDER,
             "MPI-1",
             "ENC-1",
+            ClinicalSetting.INPATIENT,
             "HIS",
             "pkg-2026.06",
             ClinicalEventTriggerPoint.ORDER_SIGN,

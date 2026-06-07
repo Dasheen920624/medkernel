@@ -62,6 +62,31 @@ CREATE TABLE rule_version (
 
 CREATE INDEX idx_rule_version_rule_status ON rule_version (tenant_id, rule_id, status);
 
+CREATE TABLE rule_applicability (
+    id                NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    rule_version_id   VARCHAR2(64)  NOT NULL,
+    tenant_id         VARCHAR2(64)  NOT NULL,
+    population_json   CLOB          NOT NULL,
+    org_scope_json    CLOB          NOT NULL,
+    settings_json     CLOB          NOT NULL,
+    effective_from    DATE          NULL,
+    effective_to      DATE          NULL,
+    rollout_percent   NUMBER(3)     NOT NULL,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    created_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+    updated_by        VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    trace_id          VARCHAR2(128) NULL,
+    CONSTRAINT uk_rule_applicability_version UNIQUE (tenant_id, rule_version_id),
+    CONSTRAINT ck_rule_applicability_rollout CHECK (rollout_percent BETWEEN 0 AND 100),
+    CONSTRAINT ck_rule_applicability_dates CHECK (
+        effective_from IS NULL OR effective_to IS NULL OR effective_from <= effective_to
+    )
+);
+
+CREATE INDEX idx_rule_applicability_effective
+    ON rule_applicability (tenant_id, effective_from, effective_to);
+
 CREATE TABLE rule_test_case (
     id                   NUMBER(19)    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     case_id              VARCHAR2(64)  NOT NULL,
@@ -115,7 +140,7 @@ CREATE TABLE rule_execution_log (
     created_at       TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
     trace_id         VARCHAR2(128) NULL,
     CONSTRAINT uk_rule_execution_id UNIQUE (execution_id),
-    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','SUPPRESSED','DEDUPLICATED','FAILED')),
+    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','NOT_APPLICABLE','SUPPRESSED','DEDUPLICATED','FAILED')),
     CONSTRAINT ck_rule_execution_severity CHECK (severity IS NULL OR severity IN ('LOW','MEDIUM','HIGH','CRITICAL'))
 );
 
@@ -179,6 +204,14 @@ COMMENT ON COLUMN rule_version.published_at        IS '发布时间';
 COMMENT ON COLUMN rule_version.published_by        IS '发布人 user_id';
 COMMENT ON COLUMN rule_version.rollback_version_id IS '回滚指向版本 ID（GA-ENG-RULE-01 预留）';
 
+COMMENT ON TABLE rule_applicability IS '规则版本适用域检索镜像，权威内容为规则 DSL 的 applicability';
+COMMENT ON COLUMN rule_applicability.population_json IS '人群纳入与排除条件 JSON';
+COMMENT ON COLUMN rule_applicability.org_scope_json IS '集团、医院、科室组织范围 JSON';
+COMMENT ON COLUMN rule_applicability.settings_json IS '住院、门诊、急诊、随访场景 JSON';
+COMMENT ON COLUMN rule_applicability.effective_from IS '适用域生效起始日期，包含边界';
+COMMENT ON COLUMN rule_applicability.effective_to IS '适用域生效截止日期，包含边界';
+COMMENT ON COLUMN rule_applicability.rollout_percent IS '稳定灰度比例，取值 0 到 100';
+
 COMMENT ON TABLE rule_test_case IS '规则发布门禁测试用例：保存输入快照、期望命中/严重度/动作及最近一次执行结果；case_id 全局唯一';
 COMMENT ON COLUMN rule_test_case.case_id              IS '用例 ID（业务键，全局唯一）';
 COMMENT ON COLUMN rule_test_case.tenant_id            IS '租户 ID';
@@ -211,7 +244,7 @@ COMMENT ON COLUMN rule_execution_log.hit              IS '是否命中规则条�
 COMMENT ON COLUMN rule_execution_log.severity         IS '本次命中最高严重度：LOW 低 / MEDIUM 中 / HIGH 高 / CRITICAL 红线（未命中可空）';
 COMMENT ON COLUMN rule_execution_log.actions_json     IS '命中动作清单 JSON 快照';
 COMMENT ON COLUMN rule_execution_log.explanation_json IS '可解释性 JSON 快照（含来源引用、推理依据）';
-COMMENT ON COLUMN rule_execution_log.status           IS '执行终态：SUCCESS 命中 / MISS 未命中 / SUPPRESSED 被高阶规则抑制 / DEDUPLICATED 窗口去重 / FAILED 异常';
+COMMENT ON COLUMN rule_execution_log.status           IS '执行终态：SUCCESS 命中 / MISS 未命中 / NOT_APPLICABLE 不适用 / SUPPRESSED 被高阶规则抑制 / DEDUPLICATED 窗口去重 / FAILED 异常';
 COMMENT ON COLUMN rule_execution_log.error_code       IS '失败错误码（仅 FAILED 写入）';
 COMMENT ON COLUMN rule_execution_log.error_class      IS '失败错误分类（仅 FAILED 写入）';
 COMMENT ON COLUMN rule_execution_log.deduplicated_from_execution_id IS '命中窗口去重时指向首次执行 ID';

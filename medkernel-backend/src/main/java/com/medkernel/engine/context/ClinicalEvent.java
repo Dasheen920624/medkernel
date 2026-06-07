@@ -6,6 +6,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import com.medkernel.engine.context.canonical.ClinicalSetting;
+
 /**
  * 临床事件流水。snapshot 上游入口或下游触发记录。
  */
@@ -21,6 +23,7 @@ public record ClinicalEvent(
     @Column("org_scope_json") String orgScopeJson,
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
+    @Column("clinical_setting") ClinicalSetting clinicalSetting,
     @Column("source_system") String sourceSystem,
     @Column("package_version") String packageVersion,
     @Column("payload_digest") String payloadDigest,

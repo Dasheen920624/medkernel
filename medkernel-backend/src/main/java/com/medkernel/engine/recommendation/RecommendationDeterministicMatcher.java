@@ -21,6 +21,7 @@ import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.rule.RuleActionResult;
+import com.medkernel.engine.rule.RuleApplicabilityService;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDslEvaluation;
@@ -56,6 +57,7 @@ public class RecommendationDeterministicMatcher {
     private final RuleVersionRepository ruleVersions;
     private final AssetVersionRepository assetVersions;
     private final RuleDslEvaluator ruleEvaluator;
+    private final RuleApplicabilityService applicabilityService;
     private final PatientPathwayRepository patientPathways;
     private final PathwayTemplateRepository pathwayTemplates;
     private final KnowledgeIdentityRepository knowledgeIdentities;
@@ -69,6 +71,7 @@ public class RecommendationDeterministicMatcher {
             RuleVersionRepository ruleVersions,
             AssetVersionRepository assetVersions,
             RuleDslEvaluator ruleEvaluator,
+            RuleApplicabilityService applicabilityService,
             PatientPathwayRepository patientPathways,
             PathwayTemplateRepository pathwayTemplates,
             KnowledgeIdentityRepository knowledgeIdentities,
@@ -80,6 +83,7 @@ public class RecommendationDeterministicMatcher {
         this.ruleVersions = ruleVersions;
         this.assetVersions = assetVersions;
         this.ruleEvaluator = ruleEvaluator;
+        this.applicabilityService = applicabilityService;
         this.patientPathways = patientPathways;
         this.pathwayTemplates = pathwayTemplates;
         this.knowledgeIdentities = knowledgeIdentities;
@@ -102,7 +106,15 @@ public class RecommendationDeterministicMatcher {
                 continue;
             }
             RuleVersion version = activeVersion.get();
-            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(parseDsl(version), context);
+            JsonNode dsl = parseDsl(version);
+            if (!request.triggerType().equals(dsl.path("trigger").asText())) {
+                continue;
+            }
+            if (!applicabilityService.evaluate(
+                    dsl, context, RequestContext.currentOrgScope(), version.versionId()).applicable()) {
+                continue;
+            }
+            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(dsl, context);
             if (evaluation.hit()) {
                 matched.add(toCard(request, snapshot, rule, version, evaluation, tenantId));
             }

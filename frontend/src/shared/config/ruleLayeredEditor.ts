@@ -29,6 +29,7 @@ export type RuleActionCode =
   | "SUGGEST_ORDER"
   | "AUTO_DOCUMENT";
 export type RuleIndicator = "info" | "warning" | "critical";
+export type RuleClinicalSetting = "INPATIENT" | "OUTPATIENT" | "ED" | "FOLLOWUP";
 export type RuleConditionValue =
   | string
   | number
@@ -76,6 +77,7 @@ export interface RuleActionDraft {
 
 export interface RuleConditionTree {
   triggerPoint: ClinicalTriggerPoint;
+  applicability: RuleApplicability;
   logic: RuleLogic;
   /** L2 叶子索引，供列表、统计与默认模板使用；DSL 权威结构始终由 root 归一化得到。 */
   conditions: RuleCondition[];
@@ -86,6 +88,24 @@ export interface RuleConditionTree {
   root?: RuleConditionGroup;
   actions: RuleActionDraft[];
   explanationSummary: string;
+}
+
+export interface RuleApplicability {
+  population: {
+    include?: Record<string, unknown>;
+    exclude?: Record<string, unknown>;
+  };
+  orgScope: {
+    groupIds?: string[];
+    hospitalIds?: string[];
+    deptIds?: string[];
+  };
+  settings: RuleClinicalSetting[];
+  effective: {
+    from?: string;
+    to?: string;
+    rolloutPercent: number;
+  };
 }
 
 /** 递归条件组：可嵌套的逻辑容器（与后端 RuleDslEvaluator 递归 all/any 对齐）。 */
@@ -128,6 +148,7 @@ type RuleDslCondition = {
 
 export type RuleDsl = {
   trigger: ClinicalTriggerPoint;
+  applicability: RuleApplicability;
   when: Partial<Record<RuleLogic, RuleDslNode[]>> & { not?: RuleDslNode };
   then: RuleActionDraft[];
   explain: {
@@ -138,6 +159,17 @@ export type RuleDsl = {
     };
   };
 };
+
+export function createDefaultRuleApplicability(): RuleApplicability {
+  return {
+    population: {},
+    orgScope: {},
+    settings: ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"],
+    effective: {
+      rolloutPercent: 100,
+    },
+  };
+}
 
 const DEFAULT_ACTION: RuleActionDraft = {
   actionCode: "REMIND",
@@ -166,6 +198,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     riskLevel: "MEDIUM",
     tree: {
       triggerPoint: "result-review",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [
         {
@@ -189,6 +222,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     riskLevel: "LOW",
     tree: {
       triggerPoint: "medication-prescribe",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [
         {
@@ -211,6 +245,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     riskLevel: "MEDIUM",
     tree: {
       triggerPoint: "order-sign",
+      applicability: createDefaultRuleApplicability(),
       logic: "any",
       conditions: [
         {
@@ -234,6 +269,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
     riskLevel: "HIGH",
     tree: {
       triggerPoint: "result-review",
+      applicability: createDefaultRuleApplicability(),
       logic: "all",
       conditions: [
         {
@@ -273,6 +309,7 @@ export function conditionTreeToDsl(tree: RuleConditionTree): RuleDsl {
   const root = tree.root ?? flatToRootGroup(tree);
   return {
     trigger: tree.triggerPoint,
+    applicability: cloneApplicability(tree.applicability),
     when: conditionNodeToDsl(root) as RuleDsl["when"],
     then: tree.actions.map(cloneAction),
     explain: {
@@ -305,9 +342,11 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
     throw new Error("规则 DSL 至少需要一个 then 动作");
   }
   const explain = isRecord(dsl.explain) ? dsl.explain : undefined;
+  const applicability = parseRuleApplicability(dsl.applicability);
 
   return {
     triggerPoint: dsl.trigger,
+    applicability,
     logic,
     conditions: collectConditionLeaves(root),
     root,
@@ -522,6 +561,7 @@ function dslConditionToTree(condition: unknown, index: number): RuleCondition {
 function cloneTree(tree: RuleConditionTree): RuleConditionTree {
   return {
     triggerPoint: tree.triggerPoint,
+    applicability: cloneApplicability(tree.applicability),
     logic: tree.logic,
     conditions: tree.conditions.map((condition) => ({
       ...condition,
@@ -532,6 +572,113 @@ function cloneTree(tree: RuleConditionTree): RuleConditionTree {
     actions: tree.actions.map(cloneAction),
     explanationSummary: tree.explanationSummary,
   };
+}
+
+export function parseRuleApplicability(value: unknown): RuleApplicability {
+  if (!isRecord(value)) {
+    throw new Error("规则 DSL 缺少 applicability 适用域");
+  }
+  if (!isRecord(value.population)) {
+    throw new Error("规则 applicability.population 必须为对象");
+  }
+  const population: RuleApplicability["population"] = {};
+  if (value.population.include !== undefined) {
+    if (!isRecord(value.population.include)) {
+      throw new Error("规则 applicability.population.include 必须为条件对象");
+    }
+    population.include = cloneJsonRecord(value.population.include);
+  }
+  if (value.population.exclude !== undefined) {
+    if (!isRecord(value.population.exclude)) {
+      throw new Error("规则 applicability.population.exclude 必须为条件对象");
+    }
+    population.exclude = cloneJsonRecord(value.population.exclude);
+  }
+
+  if (!isRecord(value.orgScope)) {
+    throw new Error("规则 applicability.orgScope 必须为对象");
+  }
+  const orgScope = {
+    groupIds: readStringArray(value.orgScope.groupIds, "groupIds"),
+    hospitalIds: readStringArray(value.orgScope.hospitalIds, "hospitalIds"),
+    deptIds: readStringArray(value.orgScope.deptIds, "deptIds"),
+  };
+
+  if (!Array.isArray(value.settings) || value.settings.length === 0) {
+    throw new Error("规则 applicability.settings 至少选择一个临床场景");
+  }
+  const allowedSettings = ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"] as const;
+  const settings = value.settings.map((setting) => {
+    if (typeof setting !== "string" || !allowedSettings.includes(setting as RuleClinicalSetting)) {
+      throw new Error("规则 applicability.settings 包含不支持的临床场景");
+    }
+    return setting as RuleClinicalSetting;
+  });
+  if (new Set(settings).size !== settings.length) {
+    throw new Error("规则 applicability.settings 不允许重复值");
+  }
+
+  if (!isRecord(value.effective)) {
+    throw new Error("规则 applicability.effective 必须为对象");
+  }
+  const rolloutPercent = value.effective.rolloutPercent;
+  if (
+    typeof rolloutPercent !== "number" ||
+    !Number.isInteger(rolloutPercent) ||
+    rolloutPercent < 0 ||
+    rolloutPercent > 100
+  ) {
+    throw new Error("规则 applicability.effective.rolloutPercent 必须是 0 到 100 的整数");
+  }
+  const from = readIsoDate(value.effective.from, "from");
+  const to = readIsoDate(value.effective.to, "to");
+  if (from && to && from > to) {
+    throw new Error("规则 applicability.effective.from 不能晚于 to");
+  }
+
+  return {
+    population,
+    orgScope: {
+      ...(orgScope.groupIds.length > 0 ? { groupIds: orgScope.groupIds } : {}),
+      ...(orgScope.hospitalIds.length > 0 ? { hospitalIds: orgScope.hospitalIds } : {}),
+      ...(orgScope.deptIds.length > 0 ? { deptIds: orgScope.deptIds } : {}),
+    },
+    settings,
+    effective: {
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      rolloutPercent,
+    },
+  };
+}
+
+function cloneApplicability(value: RuleApplicability): RuleApplicability {
+  return parseRuleApplicability(value);
+}
+
+function readStringArray(value: unknown, field: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`规则 applicability.orgScope.${field} 必须是字符串数组`);
+  }
+  const items = value.map((item) => {
+    if (typeof item !== "string" || !item.trim()) {
+      throw new Error(`规则 applicability.orgScope.${field} 仅允许非空字符串`);
+    }
+    return item.trim();
+  });
+  if (new Set(items).size !== items.length) {
+    throw new Error(`规则 applicability.orgScope.${field} 不允许重复值`);
+  }
+  return items;
+}
+
+function readIsoDate(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`规则 applicability.effective.${field} 必须是 ISO 日期`);
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

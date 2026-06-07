@@ -12,6 +12,40 @@ const apiMocks = vi.hoisted(() => ({
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
   impactData: null as unknown,
+  orgUnitRequests: [] as Array<Record<string, unknown> | undefined>,
+  orgUnitsData: {
+    items: [
+      {
+        id: "group-1",
+        level: "GROUP",
+        code: "GROUP-A",
+        name: "华东集团",
+        status: "ACTIVE",
+      },
+      {
+        id: "group-2",
+        level: "GROUP",
+        code: "GROUP-B",
+        name: "华南集团",
+        status: "ACTIVE",
+      },
+      {
+        id: "hospital-1",
+        level: "HOSPITAL",
+        code: "HOSP-A",
+        name: "第一医院",
+        status: "ACTIVE",
+      },
+      {
+        id: "dept-1",
+        level: "DEPARTMENT",
+        code: "DEPT-A",
+        name: "质量管理科",
+        status: "ACTIVE",
+      },
+    ],
+    total: 4,
+  } as unknown,
   refetchList: vi.fn(),
   refetchDetail: vi.fn(),
   createRule: vi.fn(),
@@ -23,6 +57,7 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 const RULE_DEFINITION_INTERACTION_TIMEOUT_MS = 15_000;
+const RULE_DEFINITION_SUBMISSION_TIMEOUT_MS = 30_000;
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuleDefinitions: () => ({
@@ -43,6 +78,10 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
+  useOrgUnits: (params?: Record<string, unknown>) => {
+    apiMocks.orgUnitRequests.push(params);
+    return { data: apiMocks.orgUnitsData, isLoading: false, isError: false };
+  },
   useStandardTerms: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }),
   useMappingCoverage: () => ({ data: [], isLoading: false, isError: false }),
   useCreateContextField: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -128,6 +167,12 @@ function createRuleDetail(): RuleDetailResponse {
       changeSummary: "补齐门禁",
       dslJson: JSON.stringify({
         trigger: "result-review",
+        applicability: {
+          population: {},
+          orgScope: {},
+          settings: ["INPATIENT"],
+          effective: { rolloutPercent: 100 },
+        },
         when: {
           all: [{ fact: "observations.0.value", operator: "gte", value: 6 }],
         },
@@ -193,7 +238,7 @@ function setActiveSnapshotFixture() {
     mappingStatus: {},
     resources: {
       patient: { patientId: "P-001" },
-      encounters: [{ encounterId: "E-001" }],
+      encounters: [{ encounterId: "E-001", encounterType: "INPATIENT" }],
       observations: [{ code: "OBS.TEST", value: 6 }],
       conditions: [],
       nursingAssessments: [],
@@ -226,6 +271,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
+    apiMocks.orgUnitRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
     apiMocks.createRule.mockReset();
@@ -236,14 +282,61 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.fullRolloutRule.mockReset();
   });
 
+  it("创建规则弹窗宽度受窄屏视口约束", async () => {
+    renderRuleDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+    expect(dialog.closest(".ant-modal")).toHaveStyle({
+      width: "min(920px, calc(100vw - 32px))",
+    });
+  });
+
   it(
     "创建规则时提供 L1 模板、L2 条件树与 L3 DSL，并能从 L2 同步到 L3",
     async () => {
-      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("switch", { name: "专家模式" }));
+      expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
+      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
+        target: { value: "observations.0.value" },
+      });
+      fireEvent.change(dialog.querySelector("#rule-condition-value") as HTMLInputElement, {
+        target: { value: "6" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "添加动作" }));
+      const summaries = within(dialog).getAllByLabelText("卡片摘要");
+      fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
+
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
+      const dslEditor = within(dialog).getByLabelText("规则 DSL JSON");
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "创建规则草稿时提交完整适用域",
+    async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-new" });
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
@@ -258,31 +351,48 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
         target: { value: "1.0.0" },
       });
-      expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
-      expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
-      expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
-      await user.click(within(dialog).getByRole("switch", { name: "专家模式" }));
-      expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
-
-      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("上下文字段路径"), {
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.click(within(dialog).getByText("适用域与生效"));
+      fireEvent.change(within(dialog).getByLabelText("生效日期"), {
+        target: { value: "2026-07-01" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("失效日期"), {
+        target: { value: "2026-12-31" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("灰度比例"), {
+        target: { value: "25" },
+      });
+      fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "集团范围" }));
+      fireEvent.click(
+        await screen.findByText("华东集团 · 集团 · GROUP-A", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+      expect(within(dialog).queryByLabelText("纳入条件 JSON")).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("switch", { name: "启用纳入条件" }));
+      const inclusionEditor = within(dialog).getByRole("region", { name: "纳入人群条件" });
+      fireEvent.change(
+        await within(inclusionEditor).findByRole("combobox", { name: "上下文字段路径" }),
+        {
+          target: { value: "patient.specialPopulations" },
+        },
+      );
+      fireEvent.mouseDown(within(inclusionEditor).getByRole("combobox", { name: "算子" }));
+      fireEvent.click(
+        await screen.findByText("包含", { selector: ".ant-select-item-option-content" }),
+      );
+      fireEvent.change(within(inclusionEditor).getByLabelText("比较值"), {
+        target: { value: "ELDERLY" },
+      });
+      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
         target: { value: "observations.0.value" },
       });
-      fireEvent.change(within(dialog).getByLabelText("比较值"), { target: { value: "6" } });
-      await user.click(within(dialog).getByRole("button", { name: "添加动作" }));
-      const summaries = within(dialog).getAllByLabelText("卡片摘要");
-      fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
-      await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
+      fireEvent.change(dialog.querySelector("#rule-condition-value") as HTMLInputElement, {
+        target: { value: "6" },
+      });
 
-      await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
-      const dslEditor = within(dialog).getByLabelText("规则 DSL JSON");
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
-
-      await user.click(within(dialog).getByRole("button", { name: "创建草稿" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
       await waitFor(() =>
         expect(apiMocks.createRule).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -294,12 +404,91 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             packageVersion: "1.0.0",
             dslJson: expect.objectContaining({
               trigger: "result-review",
-              then: expect.arrayContaining([
-                expect.objectContaining({ summary: "同步记录规则命中" }),
-              ]),
+              applicability: {
+                population: {
+                  include: {
+                    all: [
+                      expect.objectContaining({
+                        fact: "patient.specialPopulations",
+                        operator: "contains",
+                        value: "ELDERLY",
+                      }),
+                    ],
+                  },
+                },
+                orgScope: {
+                  groupIds: ["group-1"],
+                },
+                settings: ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"],
+                effective: {
+                  from: "2026-07-01",
+                  to: "2026-12-31",
+                  rolloutPercent: 25,
+                },
+              },
+              then: expect.arrayContaining([expect.objectContaining({ actionCode: "REMIND" })]),
             }),
           }),
         ),
+      );
+    },
+    RULE_DEFINITION_SUBMISSION_TIMEOUT_MS,
+  );
+
+  it(
+    "组织范围多选始终保留首个可读名称，并汇总其余选择",
+    async () => {
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.click(within(dialog).getByText("适用域与生效"));
+
+      const groupCombobox = within(dialog).getByRole("combobox", { name: "集团范围" });
+      fireEvent.mouseDown(groupCombobox);
+      await user.click(
+        await screen.findByText("华东集团 · 集团 · GROUP-A", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+      await user.click(
+        await screen.findByText("华南集团 · 集团 · GROUP-B", {
+          selector: ".ant-select-item-option-content",
+        }),
+      );
+
+      const groupSelect = groupCombobox.closest(".ant-select");
+      expect(groupSelect).toHaveTextContent("华东集团 · 集团 · GROUP-A");
+      expect(groupSelect).toHaveTextContent("+ 1 ...");
+      expect(groupSelect).not.toHaveTextContent("+ 2 ...");
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "组织范围按层级和关键词从服务端检索",
+    async () => {
+      renderRuleDefinitions();
+
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.click(within(dialog).getByText("适用域与生效"));
+
+      const groupCombobox = within(dialog).getByRole("combobox", { name: "集团范围" });
+      fireEvent.change(groupCombobox, { target: { value: "华北" } });
+
+      await waitFor(() =>
+        expect(apiMocks.orgUnitRequests).toContainEqual({
+          page: 1,
+          size: 50,
+          sort: "name,asc",
+          keyword: "华北",
+          level: "GROUP",
+          status: "ACTIVE",
+        }),
       );
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,

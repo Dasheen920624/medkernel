@@ -62,6 +62,31 @@ CREATE TABLE IF NOT EXISTS rule_version (
 
 CREATE INDEX IF NOT EXISTS idx_rule_version_rule_status ON rule_version (tenant_id, rule_id, status);
 
+CREATE TABLE IF NOT EXISTS rule_applicability (
+    id                BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    rule_version_id   VARCHAR(64)  NOT NULL,
+    tenant_id         VARCHAR(64)  NOT NULL,
+    population_json   CLOB         NOT NULL,
+    org_scope_json    CLOB         NOT NULL,
+    settings_json     CLOB         NOT NULL,
+    effective_from    DATE         NULL,
+    effective_to      DATE         NULL,
+    rollout_percent   INT          NOT NULL,
+    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
+    updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by        VARCHAR(64)  NOT NULL DEFAULT 'system',
+    trace_id          VARCHAR(128) NULL,
+    CONSTRAINT uk_rule_applicability_version UNIQUE (tenant_id, rule_version_id),
+    CONSTRAINT ck_rule_applicability_rollout CHECK (rollout_percent BETWEEN 0 AND 100),
+    CONSTRAINT ck_rule_applicability_dates CHECK (
+        effective_from IS NULL OR effective_to IS NULL OR effective_from <= effective_to
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_applicability_effective
+    ON rule_applicability (tenant_id, effective_from, effective_to);
+
 CREATE TABLE IF NOT EXISTS rule_test_case (
     id                   BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     case_id              VARCHAR(64)  NOT NULL,
@@ -115,7 +140,7 @@ CREATE TABLE IF NOT EXISTS rule_execution_log (
     created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     trace_id         VARCHAR(128) NULL,
     CONSTRAINT uk_rule_execution_id UNIQUE (execution_id),
-    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','SUPPRESSED','DEDUPLICATED','FAILED')),
+    CONSTRAINT ck_rule_execution_status CHECK (status IN ('SUCCESS','MISS','NOT_APPLICABLE','SUPPRESSED','DEDUPLICATED','FAILED')),
     CONSTRAINT ck_rule_execution_severity CHECK (severity IS NULL OR severity IN ('LOW','MEDIUM','HIGH','CRITICAL'))
 );
 
@@ -154,5 +179,10 @@ COMMENT ON COLUMN rule_execution_log.patient_id IS '用于交互治理的患者�
 COMMENT ON COLUMN rule_execution_log.encounter_id IS '用于交互治理的就诊业务 ID，不保存就诊详情';
 COMMENT ON COLUMN rule_execution_log.semantic_key IS '规则动作语义键，用于同患者窗口去重';
 COMMENT ON COLUMN rule_execution_log.deduplicated_from_execution_id IS '命中窗口去重时指向首次执行 ID';
+COMMENT ON TABLE rule_applicability IS '规则版本适用域检索镜像，权威内容为规则 DSL 的 applicability';
+COMMENT ON COLUMN rule_applicability.population_json IS '人群纳入与排除条件 JSON';
+COMMENT ON COLUMN rule_applicability.org_scope_json IS '集团、医院、科室组织范围 JSON';
+COMMENT ON COLUMN rule_applicability.settings_json IS '住院、门诊、急诊、随访场景 JSON';
+COMMENT ON COLUMN rule_applicability.rollout_percent IS '稳定灰度比例，取值 0 到 100';
 COMMENT ON TABLE rule_override_log IS '规则越权日志：记录阻断或强提醒动作的人工越权理由';
 COMMENT ON COLUMN rule_override_log.override_reason IS '医师选择或填写的越权理由';

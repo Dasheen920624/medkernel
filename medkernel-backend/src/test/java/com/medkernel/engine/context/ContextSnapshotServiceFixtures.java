@@ -25,7 +25,7 @@ public final class ContextSnapshotServiceFixtures {
             LocalDate.of(1980, 1, 1), "M",
             List.of(), "HIS", "rec-1", "v1",
             Instant.now(), Instant.now(), QualityStatus.VALID);
-        var enc = new CanonicalEncounter("ENC-1", "IP", Instant.now(), null,
+        var enc = new CanonicalEncounter("ENC-1", "INPATIENT", Instant.now(), null,
             "DEPT-A", "DOC-A", null, "HIS", "rec-2", "v1",
             Instant.now(), Instant.now(), QualityStatus.VALID);
         return new ContextSnapshotResources(patient,

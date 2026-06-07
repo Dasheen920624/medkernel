@@ -63,6 +63,10 @@ import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
 import com.medkernel.engine.rule.RuleAuthoringMode;
+import com.medkernel.engine.rule.RuleApplicability;
+import com.medkernel.engine.rule.RuleApplicabilityEvaluator;
+import com.medkernel.engine.rule.RuleApplicabilityRepository;
+import com.medkernel.engine.rule.RuleApplicabilityService;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
@@ -112,6 +116,7 @@ class PackageEngineServiceTest {
 
     private RuleDefinitionRepository ruleRepository;
     private RuleVersionRepository ruleVersionRepository;
+    private RuleApplicabilityRepository ruleApplicabilityRepository;
     private PathwayTemplateRepository pathwayRepository;
     private PathwayNodeRepository pathwayNodeRepository;
     private PathwayEdgeRepository pathwayEdgeRepository;
@@ -144,6 +149,7 @@ class PackageEngineServiceTest {
 
         ruleRepository = mock(RuleDefinitionRepository.class);
         ruleVersionRepository = mock(RuleVersionRepository.class);
+        ruleApplicabilityRepository = mock(RuleApplicabilityRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
         pathwayNodeRepository = mock(PathwayNodeRepository.class);
         pathwayEdgeRepository = mock(PathwayEdgeRepository.class);
@@ -178,7 +184,12 @@ class PackageEngineServiceTest {
 
         service = new PackageEngineService(
             packageRepository, itemRepository, planRepository, adapterRepository, logRepository,
-            ruleRepository, ruleVersionRepository, pathwayRepository,
+            ruleRepository, ruleVersionRepository,
+            new RuleApplicabilityService(
+                ruleApplicabilityRepository,
+                new RuleApplicabilityEvaluator(TEST_MAPPER),
+                TEST_MAPPER),
+            pathwayRepository,
             pathwayNodeRepository, pathwayEdgeRepository, pathwayMetricBindingRepository,
             evaluationRepository,
             knowledgeIdentityRepository, knowledgeVersionRepository,
@@ -193,6 +204,8 @@ class PackageEngineServiceTest {
         when(planRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(adapterRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(logRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(ruleVersionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(ruleApplicabilityRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayNodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayEdgeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -1073,6 +1086,11 @@ class PackageEngineServiceTest {
         assertThat(versionCap.getValue().ruleId()).isEqualTo("rule-stable");
         assertThat(versionCap.getValue().versionNo()).isEqualTo(2);
         assertThat(versionCap.getValue().dslJson()).contains("rule-stable");
+        ArgumentCaptor<RuleApplicability> applicabilityCap =
+            ArgumentCaptor.forClass(RuleApplicability.class);
+        verify(ruleApplicabilityRepository).save(applicabilityCap.capture());
+        assertThat(applicabilityCap.getValue().ruleVersionId()).isEqualTo("rule-version-2");
+        assertThat(applicabilityCap.getValue().settingsJson()).isEqualTo("[\"INPATIENT\"]");
 
         ArgumentCaptor<EvaluationIndicator> indicatorCap = ArgumentCaptor.forClass(EvaluationIndicator.class);
         verify(evaluationRepository).save(indicatorCap.capture());
@@ -2432,7 +2450,37 @@ class PackageEngineServiceTest {
         version.put("versionNo", versionNo);
         version.put("sourceRef", "source-ref");
         version.put("changeSummary", "离线迁移规则版本");
-        version.put("dslJson", "{\"ruleId\":\"" + ruleId + "\",\"condition\":\"age >= 18\"}");
+        version.put("dslJson", """
+            {
+              "ruleId": "%s",
+              "trigger": "order-sign",
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["INPATIENT"],
+                "effective": {"rolloutPercent": 100}
+              },
+              "when": {
+                "all": [
+                  {"fact": "patient.gender", "operator": "equals", "value": "FEMALE"}
+                ]
+              },
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "MEDIUM",
+                  "indicator": "warning",
+                  "summary": "离线导入规则命中",
+                  "detail": "请人工复核",
+                  "source": {"label": "离线规则来源"},
+                  "suggestions": [],
+                  "overrideReasons": [],
+                  "requiresPhysicianConfirmation": true
+                }
+              ],
+              "explain": {"summary": "离线导入规则"}
+            }
+            """.formatted(ruleId));
         version.put("explanationJson", "{\"message\":\"成人规则\"}");
         version.put("status", "PUBLISHED");
         version.put("publishedAt", "2026-06-01T00:00:00Z");
