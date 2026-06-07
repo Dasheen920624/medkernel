@@ -82,6 +82,13 @@ import type {
   SpecialtyPackage,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
+import PathwayGraphEditor from "./PathwayGraphEditor";
+import {
+  createConnectedEdge,
+  removeNodeAtIndexWithEdges,
+  writeNodePosition,
+  type PathwayGraphPosition,
+} from "./pathwayGraphModel";
 import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
@@ -156,16 +163,6 @@ type PathwayDslPayload = {
   metricBindings?: PathwayMetricBindingDraft[];
 };
 
-type PathwayCanvasNode = Pick<
-  PathwayNodeDraft,
-  "nodeCode" | "name" | "nodeType" | "sortOrder" | "terminal"
->;
-
-type PathwayCanvasEdge = Pick<
-  PathwayEdgeDraft,
-  "edgeCode" | "fromNodeCode" | "toNodeCode" | "edgeType" | "priority"
->;
-
 type PathwayNodeFormValue = {
   nodeCode?: string;
   name?: string;
@@ -175,6 +172,7 @@ type PathwayNodeFormValue = {
   timeWindowMinutes?: number;
   terminal?: boolean;
   metricCode?: string;
+  config?: object;
 };
 
 type PathwayEdgeFormValue = {
@@ -350,7 +348,12 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
           ? node.timeWindowMinutes
           : undefined,
       terminal: Boolean(node.terminal),
+      config: normalizeNodeConfig(node.config),
     }));
+}
+
+function normalizeNodeConfig(value: unknown): object | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : undefined;
 }
 
 function normalizeEdges(edges?: PathwayEdgeFormValue[]) {
@@ -525,6 +528,7 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
           : undefined,
       terminal: Boolean(node.terminal),
       metricCode: metricByNode.get(node.nodeCode),
+      config: normalizeNodeConfig(node.config),
     })),
     edges: edgeValues,
   };
@@ -594,80 +598,6 @@ function findPathwayTopologyIssues(
   }
 
   return issues;
-}
-
-function PathwayCanvasPreview({
-  nodes,
-  edges,
-  emptyText,
-}: {
-  nodes: PathwayCanvasNode[];
-  edges: PathwayCanvasEdge[];
-  emptyText: string;
-}) {
-  const orderedNodes = [...nodes].sort((left, right) => left.sortOrder - right.sortOrder);
-  if (orderedNodes.length === 0) {
-    return (
-      <div className={styles.canvasEmpty}>
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.canvas}>
-      <div className={styles.canvasTrack}>
-        {orderedNodes.map((node, index) => {
-          const nextNode = orderedNodes[index + 1];
-          const directEdge = edges.find(
-            (edge) => edge.fromNodeCode === node.nodeCode && edge.toNodeCode === nextNode?.nodeCode,
-          );
-          return (
-            <div
-              key={`${node.nodeCode || node.name || "node"}-${index}`}
-              className={styles.canvasNodeRow}
-            >
-              <div className={styles.canvasNode}>
-                <Space direction="vertical" size={4} className="mk-full-width">
-                  <Space className="mk-flex-between mk-full-width">
-                    <Tag color="blue">{node.nodeCode || "未编码"}</Tag>
-                    {node.terminal && <Tag color="green">终止</Tag>}
-                  </Space>
-                  <div className={styles.textStrong}>{node.name || "未命名节点"}</div>
-                  <div className={`${styles.textSmall} ${styles.textSecondary}`}>
-                    {node.nodeType}
-                  </div>
-                </Space>
-              </div>
-              {nextNode && (
-                <div className={styles.canvasEdge}>
-                  <div className={styles.canvasEdgeLine} />
-                  {directEdge?.edgeCode ?? "顺序流转"}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {edges.length > 0 && (
-        <div className={styles.edgeGrid}>
-          {edges.map((edge, index) => (
-            <div
-              key={edge.edgeCode || `${edge.fromNodeCode}-${edge.toNodeCode}-${index}`}
-              className={styles.edgeSummary}
-            >
-              <span className={styles.textStrong}>{edge.fromNodeCode || "未设置源节点"}</span>
-              <span className={styles.inlineGap}>→</span>
-              <span className={styles.textStrong}>{edge.toNodeCode || "未设置目标节点"}</span>
-              <Tag color="cyan" className={styles.tagGap}>
-                {edge.edgeType}
-              </Tag>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function PathwayTemplates() {
@@ -788,6 +718,67 @@ export default function PathwayTemplates() {
     [canvasEdges, canvasNodes, watchedStartNodeCode],
   );
 
+  const handleGraphNodePositionChange = (
+    nodeIndex: number,
+    _nodeCode: string,
+    position: PathwayGraphPosition,
+  ) => {
+    const nodes = (templateForm.getFieldValue("nodes") as PathwayNodeFormValue[] | undefined) ?? [];
+    templateForm.setFieldValue(
+      "nodes",
+      nodes.map((node, index) =>
+        index === nodeIndex
+          ? {
+              ...node,
+              config: writeNodePosition(node.config, position),
+            }
+          : node,
+      ),
+    );
+  };
+
+  const handleGraphConnect = (sourceNodeCode: string, targetNodeCode: string) => {
+    const edges = (templateForm.getFieldValue("edges") as PathwayEdgeFormValue[] | undefined) ?? [];
+    const duplicated = edges.some(
+      (edge) => edge.fromNodeCode === sourceNodeCode && edge.toNodeCode === targetNodeCode,
+    );
+    if (duplicated) {
+      messageApi.warning("该节点流转已存在");
+      return;
+    }
+    templateForm.setFieldValue("edges", [
+      ...edges,
+      {
+        ...createConnectedEdge(edges, sourceNodeCode, targetNodeCode),
+        conditionTree: createDefaultEdgeConditionTree(),
+        conditionOperator: "equals",
+        conditionValueKind: "string",
+      },
+    ]);
+  };
+
+  const handleGraphDeleteNode = (nodeIndex: number, nodeCode: string) => {
+    const nodes = (templateForm.getFieldValue("nodes") as PathwayNodeFormValue[] | undefined) ?? [];
+    const edges = (templateForm.getFieldValue("edges") as PathwayEdgeFormValue[] | undefined) ?? [];
+    const next = removeNodeAtIndexWithEdges(nodes, edges, nodeIndex);
+    templateForm.setFieldsValue({
+      nodes: next.nodes,
+      edges: next.edges,
+      startNodeCode:
+        templateForm.getFieldValue("startNodeCode") === nodeCode
+          ? undefined
+          : templateForm.getFieldValue("startNodeCode"),
+    });
+  };
+
+  const handleGraphDeleteEdge = (edgeCode: string) => {
+    const edges = (templateForm.getFieldValue("edges") as PathwayEdgeFormValue[] | undefined) ?? [];
+    templateForm.setFieldValue(
+      "edges",
+      edges.filter((edge) => edge.edgeCode !== edgeCode),
+    );
+  };
+
   // 已建节点下拉选项：边的源/目标与起始节点从此选择，杜绝手敲断链。
   const nodeSelectOptions = useMemo(
     () =>
@@ -853,7 +844,8 @@ export default function PathwayTemplates() {
 
   const handleCreateTemplate = async () => {
     try {
-      const values = await templateForm.validateFields();
+      await templateForm.validateFields();
+      const values = templateForm.getFieldsValue(true);
       const nodes = normalizeNodes(values.nodes);
       const edges = normalizeEdges(values.edges);
       const metricBindings = normalizeMetricBindings(values.nodes);
@@ -916,7 +908,7 @@ export default function PathwayTemplates() {
 
   const syncCanvasToDsl = () => {
     try {
-      const values = templateForm.getFieldsValue();
+      const values = templateForm.getFieldsValue(true);
       setPathwayDslJson(formatJson(buildDraftDsl(values.nodes, values.edges)));
       setCreateExpertMode(true);
       messageApi.success("已从 L2 节点画布同步到 L3 DSL");
@@ -1213,7 +1205,7 @@ export default function PathwayTemplates() {
       children: (
         <div className={styles.editorSection}>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item name="packageId" label="归属专病包" rules={[{ required: true }]}>
                 <Select placeholder="选择专病包">
                   {packagesData?.items?.map((pkg: SpecialtyPackage) => (
@@ -1224,14 +1216,14 @@ export default function PathwayTemplates() {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
                 <Input placeholder="如 心血管路径复核" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col span={8}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="templateCode"
                 label="路径模型代码"
@@ -1241,7 +1233,7 @@ export default function PathwayTemplates() {
                 <Input placeholder="如 PATH.CARDIO.REVIEW" />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="diseaseCode"
                 label="病种代码"
@@ -1251,14 +1243,14 @@ export default function PathwayTemplates() {
                 <Input placeholder="如 CARDIO 或 ICD10-I63" />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item name="templateLevel" label="路径层级" rules={[{ required: true }]}>
                 <Select options={templateLevelOptions} />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item
                 name="templateVersion"
                 label="模板版本号"
@@ -1273,7 +1265,7 @@ export default function PathwayTemplates() {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item
                 name="startNodeCode"
                 label="起始节点"
@@ -1309,9 +1301,11 @@ export default function PathwayTemplates() {
             size="middle"
             className={`mk-full-width ${styles.marginBottomMd}`}
           >
-            <Space className="mk-flex-between mk-full-width">
-              <div className={styles.textStrong}>结构化节点画布</div>
-              <Space>
+            <div className={styles.graphToolbar}>
+              <div className={`${styles.textStrong} ${styles.graphToolbarTitle}`}>
+                结构化节点画布
+              </div>
+              <div className={styles.graphToolbarActions}>
                 <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
                   同步到 DSL
                 </Button>
@@ -1322,13 +1316,23 @@ export default function PathwayTemplates() {
                 >
                   管理字段目录
                 </Button>
-              </Space>
-            </Space>
-            <PathwayCanvasPreview
-              nodes={canvasNodes}
-              edges={canvasEdges}
-              emptyText="添加节点后形成路径画布"
-            />
+              </div>
+            </div>
+            {canvasNodes.length === 0 ? (
+              <div className={styles.canvasEmpty}>
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="添加节点后形成路径画布" />
+              </div>
+            ) : (
+              <PathwayGraphEditor
+                nodes={canvasNodes}
+                edges={canvasEdges}
+                editable
+                onNodePositionChange={handleGraphNodePositionChange}
+                onConnectNodes={handleGraphConnect}
+                onDeleteNode={handleGraphDeleteNode}
+                onDeleteEdge={handleGraphDeleteEdge}
+              />
+            )}
             {topologyIssues.length > 0 && (
               <Alert
                 type="warning"
@@ -1358,11 +1362,18 @@ export default function PathwayTemplates() {
                         <Button
                           aria-label={`删除节点 ${field.name + 1}`}
                           icon={<DeleteOutlined />}
-                          onClick={() => remove(field.name)}
+                          onClick={() => {
+                            const nodeCode = watchedNodes?.[field.name]?.nodeCode;
+                            if (nodeCode) {
+                              handleGraphDeleteNode(field.name, nodeCode);
+                              return;
+                            }
+                            remove(field.name);
+                          }}
                         />
                       </Space>
                       <Row gutter={12} className={styles.marginTopMd}>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "nodeCode"]}
@@ -1373,7 +1384,7 @@ export default function PathwayTemplates() {
                             <Input placeholder="如 N1，可改为 ASSESS" />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "name"]}
@@ -1383,7 +1394,7 @@ export default function PathwayTemplates() {
                             <Input placeholder="如 入径评估" />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "nodeType"]}
@@ -1393,7 +1404,7 @@ export default function PathwayTemplates() {
                             <Select placeholder="选择节点类型" options={nodeTypeOptions} />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "sortOrder"]}
@@ -1410,7 +1421,7 @@ export default function PathwayTemplates() {
                         </Col>
                       </Row>
                       <Row gutter={12}>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "responsibleRole"]}
@@ -1419,7 +1430,7 @@ export default function PathwayTemplates() {
                             <Input placeholder="如 专科医生" />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "timeWindowMinutes"]}
@@ -1434,7 +1445,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col xs={24} sm={12} lg={8}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
@@ -1461,7 +1472,7 @@ export default function PathwayTemplates() {
                             <Input placeholder="如 PATH.TIME.ASSESS" />
                           </Form.Item>
                         </Col>
-                        <Col span={4}>
+                        <Col xs={24} sm={12} lg={4}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "terminal"]}
@@ -1511,7 +1522,7 @@ export default function PathwayTemplates() {
                         />
                       </Space>
                       <Row gutter={12} className={styles.marginTopMd}>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "edgeCode"]}
@@ -1522,7 +1533,7 @@ export default function PathwayTemplates() {
                             <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "fromNodeCode"]}
@@ -1538,7 +1549,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "toNodeCode"]}
@@ -1554,7 +1565,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "edgeType"]}
@@ -1566,7 +1577,7 @@ export default function PathwayTemplates() {
                         </Col>
                       </Row>
                       <Row gutter={12}>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "priority"]}
@@ -1581,7 +1592,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "conditionFact"]}
@@ -1603,7 +1614,7 @@ export default function PathwayTemplates() {
                             </AutoComplete>
                           </Form.Item>
                         </Col>
-                        <Col span={5}>
+                        <Col xs={24} sm={12} lg={5}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "conditionOperator"]}
@@ -1615,7 +1626,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={4}>
+                        <Col xs={24} sm={12} lg={4}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "conditionValueKind"]}
@@ -1627,7 +1638,7 @@ export default function PathwayTemplates() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={3}>
+                        <Col xs={24} sm={12} lg={3}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "conditionValue"]}
@@ -1947,13 +1958,14 @@ export default function PathwayTemplates() {
               size="large"
               className={`mk-full-width ${styles.marginTopMd}`}
             >
-              <PathwayCanvasPreview
+              <PathwayGraphEditor
                 nodes={detailData.nodes.map((node) => ({
                   nodeCode: node.nodeCode,
                   name: node.name,
                   nodeType: node.nodeType,
                   sortOrder: node.sortOrder,
                   terminal: node.terminalFlag,
+                  config: normalizeNodeConfig(parseLooseJson(node.configJson)),
                 }))}
                 edges={detailData.edges.map((edge) => ({
                   edgeCode: edge.edgeCode,
@@ -1962,7 +1974,6 @@ export default function PathwayTemplates() {
                   edgeType: edge.edgeType,
                   priority: edge.priority,
                 }))}
-                emptyText="该模板尚未返回路径节点"
               />
               <Table
                 dataSource={detailData.nodes}
@@ -2017,7 +2028,7 @@ export default function PathwayTemplates() {
           ),
           children: (
             <Row gutter={16} className={styles.marginTopMd}>
-              <Col span={9}>
+              <Col xs={24} lg={9}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <div className={styles.formSection}>
                     <Form layout="vertical">
@@ -2079,11 +2090,11 @@ export default function PathwayTemplates() {
                   </div>
                 </Space>
               </Col>
-              <Col span={15}>
+              <Col xs={24} lg={15}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <div className={styles.simulationPanel}>
                     <Row gutter={12}>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form layout="vertical">
                           <Form.Item label="试运行起点节点">
                             <Select value={selectedStartNode} onChange={setSimulateStartNode}>
@@ -2096,7 +2107,7 @@ export default function PathwayTemplates() {
                           </Form.Item>
                         </Form>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Button
                           type="primary"
                           icon={<PlayCircleOutlined />}
@@ -2302,12 +2313,12 @@ export default function PathwayTemplates() {
         <Card title="新建专病包草稿" className={styles.marginBottomLg}>
           <Form form={packageForm} layout="vertical" onFinish={handleCreatePackage}>
             <Row gutter={12}>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item name="packageCode" label="专病包编码" rules={[{ required: true }]}>
                   <Input placeholder="输入专病包编码" />
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item name="diseaseCode" label="病种代码 (ICD)" rules={[{ required: true }]}>
                   <Input placeholder="输入真实病种代码" />
                 </Form.Item>
@@ -2317,12 +2328,12 @@ export default function PathwayTemplates() {
               <Input placeholder="输入专病包名称" />
             </Form.Item>
             <Row gutter={12}>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item name="packageVersion" label="版本" rules={[{ required: true }]}>
                   <Input placeholder="输入版本号" />
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item name="sourceRef" label="知识来源" rules={[{ required: true }]}>
                   <Input placeholder="输入已审核指南、院内制度或配置包来源" />
                 </Form.Item>

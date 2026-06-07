@@ -174,10 +174,8 @@
   margin-inline-end: calc(var(--mk-unit) * 4);
 }
 
-.canvasEmpty,
-.canvas {
+.canvasEmpty {
   padding: calc(var(--mk-unit) * 16);
-  overflow-x: auto;
   background: var(--ant-color-bg-layout);
   border: var(--mk-line-width) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);
@@ -187,53 +185,120 @@
   padding: calc(var(--mk-unit) * 24);
 }
 
-.canvasTrack {
-  display: flex;
-  align-items: stretch;
-  gap: calc(var(--mk-unit) * 12);
-  min-width: max-content;
+.graphCanvas {
+  width: 100%;
+  height: clamp(calc(var(--mk-unit) * 360), 48vh, calc(var(--mk-unit) * 560));
+  overflow: hidden;
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
 }
 
-.canvasNodeRow {
+.graphToolbar,
+.graphToolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--mk-unit) * 8);
+  width: 100%;
+}
+
+.graphToolbar {
+  justify-content: space-between;
+}
+
+.graphToolbarTitle {
+  flex: 1 1 calc(var(--mk-unit) * 160);
+}
+
+.graphToolbarActions {
+  justify-content: flex-end;
+  width: auto;
+  margin-inline-start: auto;
+}
+
+@media (max-width: 48rem) {
+  .graphToolbarTitle {
+    flex-basis: 100%;
+  }
+
+  .graphToolbarActions {
+    justify-content: stretch;
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  .graphToolbarActions > button {
+    flex: 1 1 calc(var(--mk-unit) * 132);
+  }
+}
+
+.graphCanvas :global(.react-flow__controls) {
+  overflow: hidden;
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+  box-shadow: var(--ant-box-shadow-tertiary);
+}
+
+.graphCanvas :global(.react-flow__controls-button) {
+  color: var(--ant-color-text);
+  background: var(--ant-color-bg-container);
+  border-color: var(--ant-color-border-secondary);
+}
+
+.graphCanvas :global(.react-flow__handle) {
+  width: calc(var(--mk-unit) * 10);
+  height: calc(var(--mk-unit) * 10);
+  background: var(--ant-color-primary);
+  border-color: var(--ant-color-bg-container);
+}
+
+.graphNode {
+  width: calc(var(--mk-unit) * 196);
+  min-height: calc(var(--mk-unit) * 108);
+  padding: calc(var(--mk-unit) * 12);
+  color: var(--ant-color-text);
+  background: var(--ant-color-bg-container);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius-lg);
+  box-shadow: var(--ant-box-shadow-tertiary);
+}
+
+.graphNode:focus-visible,
+.graphNodeSelected {
+  border-color: var(--ant-color-primary);
+  outline: calc(var(--mk-line-width) * 2) solid var(--ant-color-primary-border);
+  outline-offset: calc(var(--mk-unit) * 2);
+}
+
+.graphNodeHeader,
+.graphNodeActions {
   display: flex;
   align-items: center;
-  gap: calc(var(--mk-unit) * 12);
+  justify-content: space-between;
+  gap: calc(var(--mk-unit) * 4);
 }
 
-.canvasNode {
-  width: calc(var(--mk-unit) * 180);
-  min-height: calc(var(--mk-unit) * 104);
-  padding: calc(var(--mk-unit) * 12);
-  background: var(--ant-color-bg-container);
-  border: var(--mk-line-width) solid var(--ant-color-success-border);
-  border-radius: var(--ant-border-radius-lg);
-  box-shadow: 0 calc(var(--mk-unit) * 1) calc(var(--mk-unit) * 3) var(--ant-color-fill-tertiary);
+.graphNodeName {
+  margin-top: calc(var(--mk-unit) * 12);
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.canvasEdge {
-  width: calc(var(--mk-unit) * 88);
+.graphNodeType {
+  margin-top: calc(var(--mk-unit) * 4);
   color: var(--ant-color-text-secondary);
   font-size: var(--ant-font-size-sm);
-  text-align: center;
 }
 
-.canvasEdgeLine {
-  height: var(--mk-line-width);
-  margin-bottom: calc(var(--mk-unit) * 8);
-  background: var(--ant-color-success);
+.graphEdge :global(.react-flow__edge-path) {
+  stroke: var(--ant-color-primary);
+  stroke-width: calc(var(--mk-line-width) * 2);
 }
 
-.edgeGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: calc(var(--mk-unit) * 8);
-  margin-top: calc(var(--mk-unit) * 16);
-}
-
-.edgeSummary {
-  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 12);
-  color: var(--ant-color-text-secondary);
-  font-size: var(--ant-font-size-sm);
+.graphMiniMap {
   background: var(--ant-color-bg-container);
   border: var(--mk-line-width) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius);
@@ -342,10 +407,6 @@
 }
 
 @media (max-width: 48em) {
-  .edgeGrid {
-    grid-template-columns: 1fr;
-  }
-
   .filterSurface {
     padding: calc(var(--mk-unit) * 16);
   }
