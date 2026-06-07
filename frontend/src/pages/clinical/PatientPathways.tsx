@@ -46,6 +46,7 @@ import type {
   PathwayTemplate,
   PatientPathway,
   PatientPathwayStatus,
+  PathwayMilestoneRuntimeStatus,
   PathwayVariance,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
@@ -72,6 +73,27 @@ function isForbiddenApiError(code?: string) {
 function pathwayEntryModeText(mode?: string) {
   if (mode === "MANUAL_CONFIRM") return "人工确认入径";
   return "自动建议入径";
+}
+
+function milestoneStatusColor(status?: string) {
+  if (status === "ACHIEVED") return "green";
+  if (status === "CURRENT") return "blue";
+  if (status === "OVERDUE") return "red";
+  return "gray";
+}
+
+function milestoneStatusText(status?: string) {
+  const text: Record<string, string> = {
+    ACHIEVED: "已达成",
+    CURRENT: "当前里程碑",
+    PENDING: "待执行",
+    OVERDUE: "已超期",
+  };
+  return status ? (text[status] ?? status) : "待执行";
+}
+
+function formatDateTime(value?: string) {
+  return value ? new Date(value).toLocaleString() : "未记录";
 }
 
 export default function PatientPathways() {
@@ -182,6 +204,62 @@ export default function PatientPathways() {
   const currentTemplateSortOrder =
     templateNodes.find((node) => node.nodeCode === detailData?.patientPathway.currentNodeCode)
       ?.sortOrder ?? 0;
+  const milestoneTimelineItems = (detailData?.milestoneStatuses ?? []).map(
+    (milestone: PathwayMilestoneRuntimeStatus) => {
+      const nodeCodes = milestone.nodeCodes ?? [];
+      const clocksForMilestone = (clocksData ?? detailData?.clocks ?? []).filter((clock) =>
+        nodeCodes.includes(clock.nodeCode),
+      );
+
+      return {
+        key: milestone.milestoneId,
+        color: milestoneStatusColor(milestone.status),
+        children: (
+          <>
+            <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
+              <span>{milestone.name}</span>
+              <Tag color={milestoneStatusColor(milestone.status)}>
+                {milestoneStatusText(milestone.status)}
+              </Tag>
+            </div>
+            <div className={`${styles.codeText} ${styles.timelineMuted}`}>
+              {milestone.phaseName} / 第 {milestone.dayOffset ?? "-"} 天 / {milestone.milestoneCode}
+            </div>
+            <div className={styles.evidenceBox}>
+              <div className={styles.timelineMeta}>
+                节点: {nodeCodes.length > 0 ? nodeCodes.join("、") : "未绑定"}
+              </div>
+              <div className={styles.timelineMeta}>
+                预期: {formatDateTime(milestone.expectedAt)}
+              </div>
+              <div className={styles.timelineMeta}>
+                达成: {formatDateTime(milestone.achievedAt)}
+              </div>
+              {clocksForMilestone.map((clock) => (
+                <div key={clock.clockId} className={styles.timelineMeta}>
+                  <span>时钟: </span>
+                  <Tag color="purple" className={styles.tagCompact}>
+                    {clock.clockId}
+                  </Tag>
+                  <span>状态: </span>
+                  <Tag
+                    color={clock.status === "OVERDUE" ? "red" : "green"}
+                    className={styles.tagCompact}
+                  >
+                    {clock.status}
+                  </Tag>
+                  {clock.metricCode && <span>指标: {clock.metricCode}</span>}
+                  <span>
+                    起止: {formatDateTime(clock.startedAt)} - {formatDateTime(clock.dueAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        ),
+      };
+    },
+  );
 
   const patientPathwaysParsedError = patientPathwaysIsError
     ? parseApiError(patientPathwaysError, "患者路径读取失败")
@@ -608,66 +686,75 @@ export default function PatientPathways() {
                   <div className={styles.scrollPanel}>
                     <Timeline
                       className={styles.marginTopMd}
-                      items={templateNodes.map((node) => {
-                        const isCurrent =
-                          node.nodeCode === detailData.patientPathway.currentNodeCode;
-                        const activeClock = clocksData?.find((c) => c.nodeCode === node.nodeCode);
+                      items={
+                        milestoneTimelineItems.length > 0
+                          ? milestoneTimelineItems
+                          : templateNodes.map((node) => {
+                              const isCurrent =
+                                node.nodeCode === detailData.patientPathway.currentNodeCode;
+                              const activeClock = clocksData?.find(
+                                (c) => c.nodeCode === node.nodeCode,
+                              );
 
-                        let color = "gray";
-                        if (isCurrent) color = "blue";
-                        else if (node.sortOrder < currentTemplateSortOrder) {
-                          color = "green";
-                        }
+                              let color = "gray";
+                              if (isCurrent) color = "blue";
+                              else if (node.sortOrder < currentTemplateSortOrder) {
+                                color = "green";
+                              }
 
-                        return {
-                          key: node.nodeId,
-                          color,
-                          children: (
-                            <>
-                              <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
-                                <span>{node.name}</span>
-                                {isCurrent && <Tag color="blue">当前活动</Tag>}
-                              </div>
-                              <div className={`${styles.codeText} ${styles.timelineMuted}`}>
-                                {node.nodeCode}
-                              </div>
-
-                              {activeClock && (
-                                <div className={styles.evidenceBox}>
-                                  <div className={styles.rowBetween}>
-                                    <span>
-                                      时钟:{" "}
-                                      <Tag color="purple" className={styles.tagCompact}>
-                                        {activeClock.clockId}
-                                      </Tag>
-                                    </span>
-                                    <span>
-                                      状态:{" "}
-                                      <Tag
-                                        color={activeClock.status === "OVERDUE" ? "red" : "green"}
-                                        className={styles.tagCompact}
-                                      >
-                                        {activeClock.status}
-                                      </Tag>
-                                    </span>
-                                  </div>
-                                  <div className={styles.timelineMeta}>
-                                    开始: {new Date(activeClock.startedAt).toLocaleTimeString()}
-                                  </div>
-                                  <div className={styles.timelineMeta}>
-                                    截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
-                                  </div>
-                                  {activeClock.metricCode && (
-                                    <div className={styles.timelineMeta}>
-                                      关联质控指标: {activeClock.metricCode}
+                              return {
+                                key: node.nodeId,
+                                color,
+                                children: (
+                                  <>
+                                    <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
+                                      <span>{node.name}</span>
+                                      {isCurrent && <Tag color="blue">当前活动</Tag>}
                                     </div>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          ),
-                        };
-                      })}
+                                    <div className={`${styles.codeText} ${styles.timelineMuted}`}>
+                                      {node.nodeCode}
+                                    </div>
+
+                                    {activeClock && (
+                                      <div className={styles.evidenceBox}>
+                                        <div className={styles.rowBetween}>
+                                          <span>
+                                            时钟:{" "}
+                                            <Tag color="purple" className={styles.tagCompact}>
+                                              {activeClock.clockId}
+                                            </Tag>
+                                          </span>
+                                          <span>
+                                            状态:{" "}
+                                            <Tag
+                                              color={
+                                                activeClock.status === "OVERDUE" ? "red" : "green"
+                                              }
+                                              className={styles.tagCompact}
+                                            >
+                                              {activeClock.status}
+                                            </Tag>
+                                          </span>
+                                        </div>
+                                        <div className={styles.timelineMeta}>
+                                          开始:{" "}
+                                          {new Date(activeClock.startedAt).toLocaleTimeString()}
+                                        </div>
+                                        <div className={styles.timelineMeta}>
+                                          截止: {new Date(activeClock.dueAt).toLocaleTimeString()}
+                                        </div>
+                                        {activeClock.metricCode && (
+                                          <div className={styles.timelineMeta}>
+                                            关联质控指标: {activeClock.metricCode}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </>
+                                ),
+                              };
+                            })
+                      }
                     />
                   </div>
                 </Card>

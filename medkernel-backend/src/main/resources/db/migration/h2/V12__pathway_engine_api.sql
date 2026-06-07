@@ -80,6 +80,34 @@ CREATE INDEX IF NOT EXISTS idx_pathway_template_tenant_status ON pathway_templat
 CREATE INDEX IF NOT EXISTS idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX IF NOT EXISTS idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
 
+CREATE TABLE IF NOT EXISTS pathway_milestone (
+    id                         BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    milestone_id               VARCHAR(64)  NOT NULL,
+    tenant_id                  VARCHAR(64)  NOT NULL,
+    template_id                VARCHAR(64)  NOT NULL,
+    phase_code                 VARCHAR(128) NOT NULL,
+    phase_name                 VARCHAR(256) NOT NULL,
+    milestone_code             VARCHAR(128) NOT NULL,
+    name                       VARCHAR(256) NOT NULL,
+    day_offset                 INT          NULL,
+    expected_offset_minutes    INT          NULL,
+    achievement_criteria_json  CLOB         NULL,
+    sort_order                 INT          NOT NULL DEFAULT 0,
+    created_at                 TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by                 VARCHAR(64)  NOT NULL DEFAULT 'system',
+    updated_at                 TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by                 VARCHAR(64)  NOT NULL DEFAULT 'system',
+    trace_id                   VARCHAR(128) NULL,
+    CONSTRAINT uk_pathway_milestone_template_code UNIQUE (tenant_id, template_id, milestone_code),
+    CONSTRAINT ck_pathway_milestone_day CHECK (day_offset IS NULL OR day_offset >= 0),
+    CONSTRAINT ck_pathway_milestone_expected CHECK (expected_offset_minutes IS NULL OR expected_offset_minutes >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pathway_milestone_template_order
+    ON pathway_milestone (tenant_id, template_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_pathway_milestone_phase_day
+    ON pathway_milestone (tenant_id, template_id, phase_code, day_offset);
+
 CREATE TABLE IF NOT EXISTS pathway_node (
     id                  BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     node_id             VARCHAR(64)  NOT NULL,
@@ -88,6 +116,7 @@ CREATE TABLE IF NOT EXISTS pathway_node (
     node_code           VARCHAR(128) NOT NULL,
     name                VARCHAR(256) NOT NULL,
     node_type           VARCHAR(32)  NOT NULL,
+    milestone_code      VARCHAR(128) NULL,
     sort_order          INT          NOT NULL DEFAULT 0,
     responsible_role    VARCHAR(128) NULL,
     dependency_json     CLOB         NULL,

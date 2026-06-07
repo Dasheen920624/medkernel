@@ -172,6 +172,20 @@ describe("PatientPathways", () => {
           enteredAt: "2026-06-04T00:00:00Z",
           traceId: "trace-pathway",
         },
+        milestoneStatuses: [
+          {
+            milestoneId: "milestone-assess",
+            phaseCode: "EMERGENCY",
+            phaseName: "急诊",
+            milestoneCode: "M-ASSESS",
+            name: "入径评估",
+            dayOffset: 0,
+            expectedOffsetMinutes: 30,
+            nodeCodes: ["ASSESS"],
+            status: "CURRENT",
+            expectedAt: "2026-06-04T00:30:00Z",
+          },
+        ],
         variances: [
           {
             varianceId: "var-1",
@@ -217,6 +231,19 @@ describe("PatientPathways", () => {
           sourceRef: "卒中路径指南 2026",
           description: "卒中急诊路径",
         },
+        milestones: [
+          {
+            milestoneId: "milestone-assess",
+            templateId: "pt-1",
+            phaseCode: "EMERGENCY",
+            phaseName: "急诊",
+            milestoneCode: "M-ASSESS",
+            name: "入径评估",
+            dayOffset: 0,
+            expectedOffsetMinutes: 30,
+            sortOrder: 1,
+          },
+        ],
         nodes: [
           {
             nodeId: "node-assess",
@@ -224,6 +251,7 @@ describe("PatientPathways", () => {
             nodeCode: "ASSESS",
             name: "入径评估",
             nodeType: "ASSESSMENT",
+            milestoneCode: "M-ASSESS",
             sortOrder: 10,
             terminalFlag: false,
           },
@@ -349,6 +377,9 @@ describe("PatientPathways", () => {
     expect(screen.getByText("患者临床路径推进与解释追溯控制台")).toBeInTheDocument();
     expect(screen.getByText("clock-1")).toBeInTheDocument();
     expect(screen.getByText(/STROKE.TIME_TO_CT/)).toBeInTheDocument();
+    expect(screen.getByText("急诊 / 第 0 天 / M-ASSESS")).toBeInTheDocument();
+    expect(screen.getByText("当前里程碑")).toBeInTheDocument();
+    expect(screen.getByText("节点: ASSESS")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 

@@ -161,6 +161,20 @@ function createTemplateDetail(): PathwayTemplateDetailResponse {
   return {
     template: draftTemplate,
     deploymentStatus: "DRAFT",
+    milestones: [
+      {
+        id: 1,
+        milestoneId: "milestone-preop",
+        templateId: "pt-path-1",
+        phaseCode: "PREOP",
+        phaseName: "术前",
+        milestoneCode: "M-PREOP-ASSESS",
+        name: "入径评估",
+        dayOffset: 0,
+        expectedOffsetMinutes: 60,
+        sortOrder: 1,
+      },
+    ],
     nodes: [
       {
         id: 1,
@@ -169,6 +183,7 @@ function createTemplateDetail(): PathwayTemplateDetailResponse {
         nodeCode: "ASSESS",
         name: "入径评估",
         nodeType: "ASSESSMENT",
+        milestoneCode: "M-PREOP-ASSESS",
         sortOrder: 1,
         responsibleRole: "专科医生",
         timeWindowMinutes: 60,
@@ -441,6 +456,126 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       expect(payload.exitCriteria.include?.all).toEqual(
         expect.arrayContaining([expect.objectContaining({ fact: "patient.dischargeReady" })]),
       );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "新建路径模板提交阶段里程碑、天序与节点里程碑绑定",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      fireEvent.mouseDown(within(dialog).getByLabelText("归属专病包"));
+      await user.click(await screen.findByText(/心血管专病包/));
+      fireEvent.change(within(dialog).getByLabelText("路径模型名称"), {
+        target: { value: "围手术期路径" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("路径模型代码"), {
+        target: { value: "PATH.SURGERY" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("病种代码"), {
+        target: { value: "SURGERY" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("临床知识与指南基础"), {
+        target: { value: "围手术期路径制度 2026" },
+      });
+
+      await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
+      await user.click(within(dialog).getByRole("button", { name: /添加里程碑/ }));
+      fireEvent.change(within(dialog).getByLabelText("阶段编码"), {
+        target: { value: "PREOP" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("阶段名称"), {
+        target: { value: "术前" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("里程碑编码"), {
+        target: { value: "M-PREOP-ASSESS" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("里程碑名称"), {
+        target: { value: "入径评估" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("天序"), {
+        target: { value: "0" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("预期分钟"), {
+        target: { value: "60" },
+      });
+
+      await user.click(within(dialog).getByRole("button", { name: /添加节点/ }));
+      fireEvent.change(within(dialog).getByLabelText("节点编码"), {
+        target: { value: "ASSESS" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("节点名称"), {
+        target: { value: "入径评估" },
+      });
+      fireEvent.mouseDown(within(dialog).getByLabelText("所属里程碑"));
+      await user.click(await screen.findByText("术前 / 第 0 天 / 入径评估（M-PREOP-ASSESS）"));
+      await user.click(within(dialog).getByRole("switch", { name: "终止节点" }));
+      fireEvent.mouseDown(within(dialog).getByLabelText("起始节点"));
+      await user.click(await screen.findByText("入径评估（ASSESS）"));
+
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
+      const payload = apiMocks.createTemplate.mock.calls[0][0] as {
+        milestones: Array<{ phaseCode: string; milestoneCode: string; dayOffset: number }>;
+        nodes: Array<{ nodeCode: string; milestoneCode?: string }>;
+      };
+      expect(payload.milestones).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            phaseCode: "PREOP",
+            milestoneCode: "M-PREOP-ASSESS",
+            dayOffset: 0,
+          }),
+        ]),
+      );
+      expect(payload.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            nodeCode: "ASSESS",
+            milestoneCode: "M-PREOP-ASSESS",
+          }),
+        ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径详情展示阶段里程碑天序视图和节点归属",
+    async () => {
+      apiMocks.templateListData = { items: [draftTemplate], total: 1 };
+      apiMocks.templateDetailData = {
+        ...createTemplateDetail(),
+        milestones: [
+          {
+            milestoneId: "milestone-preop",
+            templateId: "pt-path-1",
+            phaseCode: "PREOP",
+            phaseName: "术前",
+            milestoneCode: "M-PREOP-ASSESS",
+            name: "入径评估",
+            dayOffset: 0,
+            expectedOffsetMinutes: 60,
+            sortOrder: 1,
+          },
+        ],
+      } as PathwayTemplateDetailResponse;
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+
+      const user = await openPathwayDrawer();
+      await user.click(screen.getByRole("tab", { name: /L2 节点画布/ }));
+
+      expect(screen.getByText("阶段与天序里程碑")).toBeInTheDocument();
+      expect(screen.getByText("术前 / 第 0 天")).toBeInTheDocument();
+      expect(screen.getByText("入径评估（M-PREOP-ASSESS）")).toBeInTheDocument();
+      expect(screen.getAllByText("M-PREOP-ASSESS").length).toBeGreaterThan(0);
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

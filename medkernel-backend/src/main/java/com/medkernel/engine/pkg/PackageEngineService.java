@@ -53,6 +53,8 @@ import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayEdge;
 import com.medkernel.engine.pathway.PathwayEdgeRepository;
+import com.medkernel.engine.pathway.PathwayMilestone;
+import com.medkernel.engine.pathway.PathwayMilestoneRepository;
 import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.SpecialtyMetricBinding;
@@ -114,6 +116,7 @@ public class PackageEngineService {
     private final EvaluationIndicatorRepository evaluationRepository;
     private final RuleVersionRepository ruleVersionRepository;
     private final KnowledgeIdentityRepository knowledgeIdentityRepository;
+    private final PathwayMilestoneRepository pathwayMilestoneRepository;
     private final PathwayNodeRepository pathwayNodeRepository;
     private final PathwayEdgeRepository pathwayEdgeRepository;
     private final SpecialtyMetricBindingRepository pathwayMetricBindingRepository;
@@ -142,6 +145,7 @@ public class PackageEngineService {
             RuleVersionRepository ruleVersionRepository,
             RuleApplicabilityService ruleApplicabilityService,
             PathwayTemplateRepository pathwayRepository,
+            PathwayMilestoneRepository pathwayMilestoneRepository,
             PathwayNodeRepository pathwayNodeRepository,
             PathwayEdgeRepository pathwayEdgeRepository,
             SpecialtyMetricBindingRepository pathwayMetricBindingRepository,
@@ -174,6 +178,7 @@ public class PackageEngineService {
         this.pathwayMetricBindingRepository = pathwayMetricBindingRepository;
         this.evaluationRepository = evaluationRepository;
         this.knowledgeIdentityRepository = knowledgeIdentityRepository;
+        this.pathwayMilestoneRepository = pathwayMilestoneRepository;
         this.knowledgeVersionRepository = knowledgeVersionRepository;
         this.terminologyPackageRepository = terminologyPackageRepository;
         this.terminologyPackageItemRepository = terminologyPackageItemRepository;
@@ -1121,6 +1126,8 @@ public class PackageEngineService {
                 }
                 yield buildPathwayAssetContent(
                     template,
+                    pathwayMilestoneRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                        item.assetId(), sourceTenantId),
                     pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
                         item.assetId(), sourceTenantId),
                     pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
@@ -1231,6 +1238,7 @@ public class PackageEngineService {
 
     private JsonNode buildPathwayAssetContent(
             PathwayTemplate template,
+            List<PathwayMilestone> milestones,
             List<PathwayNode> nodes,
             List<PathwayEdge> edges,
             List<SpecialtyMetricBinding> metricBindings) {
@@ -1251,11 +1259,23 @@ public class PackageEngineService {
                 template.entryCriteriaJson(),
                 template.exitCriteriaJson()
             ),
+            milestones.stream().map(milestone -> new PackageOfflinePathwayMilestone(
+                milestone.milestoneId(),
+                milestone.phaseCode(),
+                milestone.phaseName(),
+                milestone.milestoneCode(),
+                milestone.name(),
+                milestone.dayOffset(),
+                milestone.expectedOffsetMinutes(),
+                milestone.achievementCriteriaJson(),
+                milestone.sortOrder()
+            )).toList(),
             nodes.stream().map(node -> new PackageOfflinePathwayNode(
                 node.nodeId(),
                 node.nodeCode(),
                 node.name(),
                 enumName(node.nodeType()),
+                node.milestoneCode(),
                 node.sortOrder(),
                 node.responsibleRole(),
                 node.dependencyJson(),
@@ -1594,6 +1614,25 @@ public class PackageEngineService {
             template.templateLevel(), "路径模板层级");
         parseEnum(com.medkernel.engine.pathway.PathwayTemplateStatus.class,
             template.status(), "路径模板状态");
+        Set<String> milestoneCodes = new HashSet<>();
+        for (PackageOfflinePathwayMilestone milestone : pathway.milestones()) {
+            if (normalizedText(milestone.milestoneId()) == null
+                    || normalizedText(milestone.phaseCode()) == null
+                    || normalizedText(milestone.phaseName()) == null
+                    || normalizedText(milestone.milestoneCode()) == null
+                    || normalizedText(milestone.name()) == null) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径里程碑缺少阶段、编码或名称");
+            }
+            if (!milestoneCodes.add(milestone.milestoneCode())) {
+                throw new ApiException(ErrorCode.CONFLICT,
+                    "离线包路径里程碑编码重复: " + milestone.milestoneCode());
+            }
+            if ((milestone.dayOffset() != null && milestone.dayOffset() < 0)
+                    || (milestone.expectedOffsetMinutes() != null
+                        && milestone.expectedOffsetMinutes() < 0)) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径里程碑天序或预期完成点不能为负数");
+            }
+        }
         if (pathway.nodes().isEmpty()) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径快照至少需要一个节点");
         }
@@ -1607,6 +1646,10 @@ public class PackageEngineService {
                 throw new ApiException(ErrorCode.CONFLICT, "离线包路径节点编码重复: " + node.nodeCode());
             }
             parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class, node.nodeType(), "路径节点类型");
+            if (normalizedText(node.milestoneCode()) != null && !milestoneCodes.contains(node.milestoneCode())) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径节点引用不存在的里程碑: " + node.nodeCode());
+            }
             hasTerminalNode = hasTerminalNode || Boolean.TRUE.equals(node.terminalFlag());
         }
         if (!nodeCodes.contains(template.startNodeCode())) {
@@ -1841,6 +1884,8 @@ public class PackageEngineService {
                 content,
                 buildPathwayAssetContent(
                     existingTemplate.get(),
+                    pathwayMilestoneRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
+                        assetId, tenantId),
                     pathwayNodeRepository.findByTemplateIdAndTenantIdOrderBySortOrderAsc(
                         assetId, tenantId),
                     pathwayEdgeRepository.findByTemplateIdAndTenantIdOrderByPriorityAsc(
@@ -1879,6 +1924,25 @@ public class PackageEngineService {
             actor,
             traceId
         ));
+        pathway.milestones().forEach(milestone -> pathwayMilestoneRepository.save(new PathwayMilestone(
+            null,
+            milestone.milestoneId(),
+            tenantId,
+            assetId,
+            milestone.phaseCode(),
+            milestone.phaseName(),
+            milestone.milestoneCode(),
+            milestone.name(),
+            milestone.dayOffset(),
+            milestone.expectedOffsetMinutes(),
+            milestone.achievementCriteriaJson(),
+            milestone.sortOrder(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        )));
         pathway.nodes().forEach(node -> pathwayNodeRepository.save(new PathwayNode(
             null,
             node.nodeId(),
@@ -1888,6 +1952,7 @@ public class PackageEngineService {
             node.name(),
             parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class,
                 node.nodeType(), "路径节点类型"),
+            node.milestoneCode(),
             node.sortOrder(),
             node.responsibleRole(),
             node.dependencyJson(),
@@ -2613,11 +2678,13 @@ public class PackageEngineService {
 
     private record PackageOfflinePathwayContent(
         PackageOfflinePathwayTemplate template,
+        List<PackageOfflinePathwayMilestone> milestones,
         List<PackageOfflinePathwayNode> nodes,
         List<PackageOfflinePathwayEdge> edges,
         List<PackageOfflinePathwayMetricBinding> metricBindings
     ) {
         PackageOfflinePathwayContent {
+            milestones = milestones == null ? List.of() : List.copyOf(milestones);
             nodes = nodes == null ? List.of() : List.copyOf(nodes);
             edges = edges == null ? List.of() : List.copyOf(edges);
             metricBindings = metricBindings == null ? List.of() : List.copyOf(metricBindings);
@@ -2641,11 +2708,24 @@ public class PackageEngineService {
         String exitCriteriaJson
     ) {}
 
+    private record PackageOfflinePathwayMilestone(
+        String milestoneId,
+        String phaseCode,
+        String phaseName,
+        String milestoneCode,
+        String name,
+        Integer dayOffset,
+        Integer expectedOffsetMinutes,
+        String achievementCriteriaJson,
+        Integer sortOrder
+    ) {}
+
     private record PackageOfflinePathwayNode(
         String nodeId,
         String nodeCode,
         String name,
         String nodeType,
+        String milestoneCode,
         Integer sortOrder,
         String responsibleRole,
         String dependencyJson,

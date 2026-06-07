@@ -80,6 +80,34 @@ CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, 
 CREATE INDEX idx_pathway_template_package       ON pathway_template (tenant_id, package_id);
 CREATE INDEX idx_pathway_template_disease       ON pathway_template (tenant_id, disease_code);
 
+CREATE TABLE pathway_milestone (
+    id                         NUMBER(19)    IDENTITY PRIMARY KEY,
+    milestone_id               VARCHAR2(64)  NOT NULL,
+    tenant_id                  VARCHAR2(64)  NOT NULL,
+    template_id                VARCHAR2(64)  NOT NULL,
+    phase_code                 VARCHAR2(128) NOT NULL,
+    phase_name                 VARCHAR2(256) NOT NULL,
+    milestone_code             VARCHAR2(128) NOT NULL,
+    name                       VARCHAR2(256) NOT NULL,
+    day_offset                 NUMBER(10)    NULL,
+    expected_offset_minutes    NUMBER(10)    NULL,
+    achievement_criteria_json  CLOB          NULL,
+    sort_order                 NUMBER(10)    DEFAULT 0 NOT NULL,
+    created_at                 TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by                 VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    updated_at                 TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by                 VARCHAR2(64)  DEFAULT 'system' NOT NULL,
+    trace_id                   VARCHAR2(128) NULL,
+    CONSTRAINT uk_pathway_milestone_template_code UNIQUE (tenant_id, template_id, milestone_code),
+    CONSTRAINT ck_pathway_milestone_day CHECK (day_offset IS NULL OR day_offset >= 0),
+    CONSTRAINT ck_pathway_milestone_expected CHECK (expected_offset_minutes IS NULL OR expected_offset_minutes >= 0)
+);
+
+CREATE INDEX idx_pathway_milestone_template_order
+    ON pathway_milestone (tenant_id, template_id, sort_order);
+CREATE INDEX idx_pathway_milestone_phase_day
+    ON pathway_milestone (tenant_id, template_id, phase_code, day_offset);
+
 CREATE TABLE pathway_node (
     id                  NUMBER(19)    IDENTITY PRIMARY KEY,
     node_id             VARCHAR2(64)  NOT NULL,
@@ -88,6 +116,7 @@ CREATE TABLE pathway_node (
     node_code           VARCHAR2(128) NOT NULL,
     name                VARCHAR2(256) NOT NULL,
     node_type           VARCHAR2(32)  NOT NULL,
+    milestone_code      VARCHAR2(128) NULL,
     sort_order          NUMBER(10)    DEFAULT 0 NOT NULL,
     responsible_role    VARCHAR2(128) NULL,
     dependency_json     CLOB          NULL,
