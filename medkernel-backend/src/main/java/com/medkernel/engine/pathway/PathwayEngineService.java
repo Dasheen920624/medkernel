@@ -1477,10 +1477,22 @@ public class PathwayEngineService {
     }
 
     private void validateDecisionNode(PathwayNode node, List<PathwayEdge> outgoing) {
-        boolean hasGuardedEdge = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.CONDITION);
-        if (outgoing.size() < 2 || !hasGuardedEdge) {
+        List<PathwayEdge> guardedEdges = outgoing.stream()
+            .filter(edge -> edge.edgeType() == PathwayEdgeType.CONDITION)
+            .toList();
+        if (outgoing.size() < 2 || guardedEdges.isEmpty()) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
                 "决策节点 " + node.nodeCode() + " 至少需要一个条件分支和一个兜底分支");
+        }
+        boolean hasDefaultFallback = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.DEFAULT);
+        if (!hasDefaultFallback) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "决策节点 " + node.nodeCode() + " 必须配置默认兜底分支");
+        }
+        boolean hasBlankGuard = guardedEdges.stream().anyMatch(edge -> isBlank(edge.conditionJson()));
+        if (hasBlankGuard) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004,
+                "决策节点 " + node.nodeCode() + " 的条件分支必须配置守卫条件");
         }
     }
 

@@ -80,8 +80,9 @@ public class PathwayProgressor {
         LinkedHashMap<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("pathway.currentNodeType", current.nodeType().name());
         validateRichNode(current, command, evidence);
-        PathwayEdge selected = isBlank(command.requestedNextNodeCode())
-            ? selectNextEdge(outgoing, command.facts(), evidence, canUseDefaultFallback(current), isWaitTimer(current))
+        boolean requestedTarget = !isBlank(command.requestedNextNodeCode());
+        PathwayEdge selected = !requestedTarget
+            ? selectNextEdge(outgoing, command.facts(), evidence, canUseDefaultFallback(current), isWaitTimer(current), current)
             : outgoing.stream()
                 .filter(edge -> Objects.equals(edge.toNodeCode(), command.requestedNextNodeCode()))
                 .findFirst()
@@ -89,7 +90,10 @@ public class PathwayProgressor {
                     ErrorCode.ENG_PATHWAY_006,
                     "目标节点不属于当前节点的可达出边: " + command.requestedNextNodeCode()));
         ensureTargetNodeExists(command.graph(), selected.toNodeCode());
-        validateSelectedEdge(command.graph(), current, selected, command.facts(), evidence);
+        validateSelectedEdge(command.graph(), current, selected, command.facts(), evidence, requestedTarget);
+        if (!evidence.containsKey("pathway.selectedEdgeCode")) {
+            recordSelectedEdge(selected, evidence, null);
+        }
         return new PathwayProgressDecision(
             current.nodeCode(), selected.toNodeCode(), PatientPathwayStatus.NODE_EXECUTING,
             selected.edgeType(), selected.edgeCode(), evidence);
@@ -99,24 +103,32 @@ public class PathwayProgressor {
                                        Map<String, Object> facts,
                                        LinkedHashMap<String, Object> evidence,
                                        boolean allowDefaultFallback,
-                                       boolean waitTimerNode) {
+                                       boolean waitTimerNode,
+                                       PathwayNode current) {
         PathwayEdge fallback = null;
         for (PathwayEdge edge : outgoing) {
             if (!hasCondition(edge)) {
-                if (fallback == null) {
+                if (edge.edgeType() != PathwayEdgeType.CONDITION && fallback == null) {
                     fallback = edge;
                 }
                 continue;
             }
             if (matchesCondition(edge.conditionJson(), facts, evidence)) {
+                recordSelectedEdge(edge, evidence, true);
                 return edge;
             }
         }
         if (fallback != null && allowDefaultFallback) {
+            recordSelectedEdge(fallback, evidence, false);
             return fallback;
         }
         if (waitTimerNode) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_006, "等待计时节点尚未满足推进条件");
+        }
+        if (current.nodeType() == PathwayNodeType.DECISION) {
+            throw new ApiException(
+                ErrorCode.ENG_PATHWAY_006,
+                "决策节点 " + current.nodeCode() + " 没有命中守卫分支，路径停留当前节点");
         }
         throw new ApiException(ErrorCode.ENG_PATHWAY_006, "没有满足条件的路径边");
     }
@@ -173,9 +185,29 @@ public class PathwayProgressor {
                                       PathwayNode current,
                                       PathwayEdge selected,
                                       Map<String, Object> facts,
-                                      LinkedHashMap<String, Object> evidence) {
+                                      LinkedHashMap<String, Object> evidence,
+                                      boolean requestedTarget) {
+        if (requestedTarget && current.nodeType() == PathwayNodeType.DECISION
+                && selected.edgeType() == PathwayEdgeType.CONDITION) {
+            if (!hasCondition(selected)) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_006, "目标决策分支缺少守卫条件: " + selected.edgeCode());
+            }
+            if (!matchesCondition(selected.conditionJson(), facts, evidence)) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_006, "目标决策分支守卫未命中: " + selected.edgeCode());
+            }
+            recordSelectedEdge(selected, evidence, true);
+        }
         if (selected.edgeType() == PathwayEdgeType.JOIN) {
             validateJoinEdge(graph, current, facts, evidence);
+        }
+    }
+
+    private void recordSelectedEdge(PathwayEdge edge, LinkedHashMap<String, Object> evidence,
+                                    Boolean guardMatched) {
+        evidence.put("pathway.selectedEdgeCode", edge.edgeCode());
+        evidence.put("pathway.selectedEdgePriority", edge.priority());
+        if (guardMatched != null) {
+            evidence.put("pathway.decisionGuardMatched", guardMatched);
         }
     }
 

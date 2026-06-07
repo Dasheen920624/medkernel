@@ -179,6 +179,7 @@ type PathwayMetricBindingDraft = {
 };
 
 type PathwayDslPayload = {
+  startNodeCode?: string;
   milestones?: PathwayMilestoneDraft[];
   nodes?: PathwayNodeDraft[];
   edges?: PathwayEdgeDraft[];
@@ -611,9 +612,15 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
   for (const node of nodes) {
     const outgoing = outgoingByNode.get(node.nodeCode) ?? [];
     if (node.nodeType === "DECISION") {
-      const hasConditionEdge = outgoing.some((edge) => edge.edgeType === "CONDITION");
-      if (outgoing.length < 2 || !hasConditionEdge) {
+      const conditionEdges = outgoing.filter((edge) => edge.edgeType === "CONDITION");
+      if (outgoing.length < 2 || conditionEdges.length === 0) {
         return `决策节点 ${node.nodeCode} 至少需要一个条件分支和一个兜底分支`;
+      }
+      if (!outgoing.some((edge) => edge.edgeType === "DEFAULT")) {
+        return `决策节点 ${node.nodeCode} 必须配置默认兜底分支`;
+      }
+      if (conditionEdges.some((edge) => edge.condition === undefined)) {
+        return `决策节点 ${node.nodeCode} 的条件分支必须配置守卫条件`;
       }
     }
     if (node.nodeType === "PARALLEL") {
@@ -863,7 +870,9 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
     };
   });
 
+  const firstNodeCode = cleanText(payload.nodes?.[0]?.nodeCode);
   return {
+    startNodeCode: cleanText(payload.startNodeCode) ?? firstNodeCode,
     milestones: (payload.milestones ?? []).map<PathwayMilestoneFormValue>((milestone, index) => ({
       phaseCode: cleanText(milestone.phaseCode),
       phaseName: cleanText(milestone.phaseName),

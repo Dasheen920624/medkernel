@@ -56,7 +56,7 @@ public class JwtIssuer {
 
     public IssuedJwt issueSession(String userId, String tenantId, List<String> roles) {
         Instant now = Instant.now();
-        return issueSession(userId, tenantId, roles, now, now.plusSeconds(ttlSeconds()));
+        return issueSession(userId, tenantId, roles, now, now, now.plusSeconds(ttlSeconds()));
     }
 
     public IssuedJwt issueSession(

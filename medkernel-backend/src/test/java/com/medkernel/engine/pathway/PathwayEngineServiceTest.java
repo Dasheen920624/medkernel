@@ -438,6 +438,33 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenDecisionNodeHasNoDefaultFallbackBranch() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT, "DECIDE")));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("DECIDE", PathwayNodeType.DECISION, 10, false, null, "医生", null),
+                node("ICU", PathwayNodeType.NURSING, 20, true, null, "护士", null),
+                node("WARD", PathwayNodeType.NURSING, 30, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("DECIDE", "ICU", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"HIGH\"}", 1),
+                edge("DECIDE", "WARD", PathwayEdgeType.CONDITION,
+                    "{\"fact\":\"risk.level\",\"operator\":\"equals\",\"value\":\"LOW\"}", 2)
+            ));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.templateImpact("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("决策节点 DECIDE 必须配置默认兜底分支")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
     void publishTemplateUsesPreRegisteredUnifiedVersionReleasePlan() {
         PathwayVersionedAssetAdapter versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         AssetVersionRepository assetVersions = mock(AssetVersionRepository.class);
@@ -1481,6 +1508,17 @@ class PathwayEngineServiceTest {
 
     private PathwayTemplate template(PathwayTemplateStatus status) {
         return template("pt-1", "tenant-A", "TPL.COPD", 1, status);
+    }
+
+    private PathwayTemplate template(PathwayTemplateStatus status, String startNodeCode) {
+        Instant now = Instant.now();
+        return new PathwayTemplate(
+            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
+            "COPD", 1, PathwayTemplateLevel.STANDARD, status,
+            PathwayEntryMode.AUTO_SUGGEST, startNodeCode,
+            "专病路径专家共识 2026", "用于路径 API 测试",
+            "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
+            now, "tester", now, "tester", "trace-pathway");
     }
 
     private PathwayTemplate templateWithSourceRef(PathwayTemplateStatus status, String sourceRef) {
