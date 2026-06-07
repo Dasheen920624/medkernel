@@ -95,7 +95,7 @@ class PathwayRepositoryTest {
         assertThat(patientPathways.findByPatientPathwayIdAndTenantId(patientPathwayId, "tenant-A")).isPresent();
         assertThat(variances.findByPatientPathwayIdAndTenantIdOrderByCreatedAtAsc(patientPathwayId, "tenant-A"))
             .extracting(PathwayVariance::varianceType)
-            .containsExactly(VarianceType.DOCTOR_CHOICE);
+            .containsExactly(VarianceType.CLINICAL);
         assertThat(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc(patientPathwayId, "tenant-A"))
             .extracting(ClinicalClock::status)
             .containsExactly(ClinicalClockStatus.RUNNING);
@@ -220,8 +220,9 @@ class PathwayRepositoryTest {
     private PathwayVariance sampleVariance(String varianceId, String tenantId, String patientPathwayId) {
         Instant now = Instant.now();
         return new PathwayVariance(
-            null, varianceId, tenantId, patientPathwayId, "ASSESS", VarianceType.DOCTOR_CHOICE,
-            "医生根据患者情况调整节点", "继续随访", "FOLLOWUP",
+            null, varianceId, tenantId, patientPathwayId, "ASSESS", VarianceType.CLINICAL,
+            "CLINICAL_ESCALATION", "医生根据患者情况调整节点", "主管医师",
+            VarianceResolutionDecision.REENTER, "继续随访", "FOLLOWUP",
             now, "tester", now, "tester", "trace-pathway");
     }
 

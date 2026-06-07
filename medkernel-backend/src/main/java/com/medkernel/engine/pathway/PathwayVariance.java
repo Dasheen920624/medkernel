@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 患者路径变异记录。
  *
- * <p>记录执行偏离的节点、类型、原因、处置动作和可选继续节点，作为人工确认和审计事实。
+ * <p>记录执行偏离的节点、分类、原因码、责任角色、处置决策和可选继续节点，作为人工确认和审计事实。
  */
 @Table("pathway_variance")
 public record PathwayVariance(
@@ -19,7 +19,10 @@ public record PathwayVariance(
     @Column("patient_pathway_id") String patientPathwayId,
     @Column("node_code") String nodeCode,
     @Column("variance_type") VarianceType varianceType,
+    @Column("reason_code") String reasonCode,
     String reason,
+    @Column("responsible_role") String responsibleRole,
+    @Column("resolution_decision") VarianceResolutionDecision resolutionDecision,
     @Column("resolution_action") String resolutionAction,
     @Column("continue_node_code") String continueNodeCode,
     @Column("created_at") Instant createdAt,

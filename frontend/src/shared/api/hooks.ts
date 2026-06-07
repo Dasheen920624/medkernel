@@ -3151,12 +3151,8 @@ export type PatientPathwayStatus =
 export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "TIMEOUT" | "MISSING_DATA" | "VARIANCE";
 export type ClinicalClockEscalationLevel = "NONE" | "REMINDER" | "REPORT" | "QUALITY_RECORD";
 export type PathwayMilestoneStatus = "ACHIEVED" | "CURRENT" | "PENDING" | "OVERDUE" | string;
-export type VarianceType =
-  | "MEDICAL"
-  | "PATIENT_REASON"
-  | "RESOURCE_REASON"
-  | "DOCTOR_CHOICE"
-  | "SYSTEM_REASON";
+export type VarianceType = "CLINICAL" | "SYSTEM" | "PATIENT" | "FAMILY";
+export type VarianceResolutionDecision = "HOLD" | "REENTER" | "TERMINATE";
 export type PathwayAdvanceEventType = "COMPLETE" | "VARIANCE" | "EXIT";
 
 export interface SpecialtyPackage {
@@ -3337,7 +3333,10 @@ export interface PathwayVariance {
   patientPathwayId: string;
   nodeCode: string;
   varianceType: VarianceType;
+  reasonCode: string;
   reason: string;
+  responsibleRole: string;
+  resolutionDecision: VarianceResolutionDecision;
   resolutionAction: string;
   continueNodeCode?: string;
   createdAt?: string;
@@ -3730,7 +3729,10 @@ export function useAdvancePatientPathway() {
       requestedNextNodeCode?: string;
       snapshotId?: string;
       varianceType?: VarianceType;
+      varianceReasonCode?: string;
       varianceReason?: string;
+      responsibleRole?: string;
+      resolutionDecision?: VarianceResolutionDecision;
       resolutionAction?: string;
       exitReason?: string;
       eventId?: string;

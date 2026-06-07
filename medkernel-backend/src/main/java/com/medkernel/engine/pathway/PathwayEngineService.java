@@ -1092,9 +1092,14 @@ public class PathwayEngineService {
             validateExitCriteria(effective.template(), snapshot == null ? null : snapshot.resources());
         }
         Map<String, Object> facts = snapshot == null ? Map.of() : contextFacts(snapshot.resources());
+        PathwayAdvanceEventType progressEventType = request.eventType() == PathwayAdvanceEventType.VARIANCE
+            && request.resolutionDecision() == VarianceResolutionDecision.TERMINATE
+            ? PathwayAdvanceEventType.EXIT : request.eventType();
+        String requestedNextNodeCode = progressEventType == PathwayAdvanceEventType.EXIT
+            ? null : request.requestedNextNodeCode();
         PathwayProgressDecision decision = progressor.advance(new PathwayProgressCommand(
             new PathwayGraph(graphNodes, graphEdges), currentNodeCode,
-            request.eventType(), request.requestedNextNodeCode(), facts));
+            progressEventType, requestedNextNodeCode, facts));
 
         String traceId = RequestContext.currentTraceId();
         String actor = currentActor();
@@ -1104,7 +1109,8 @@ public class PathwayEngineService {
             varianceId = "pv-" + UUID.randomUUID();
             variances.save(new PathwayVariance(
                 null, varianceId, tenantId, runtime.patientPathwayId(), currentNodeCode,
-                request.varianceType(), request.varianceReason(), request.resolutionAction(),
+                request.varianceType(), request.varianceReasonCode(), request.varianceReason(),
+                request.responsibleRole(), request.resolutionDecision(), request.resolutionAction(),
                 request.requestedNextNodeCode(), now, actor, now, actor, traceId));
         }
         closeCurrentClocks(runtime.patientPathwayId(), tenantId, currentNodeCode, request.eventType(), now, actor, traceId);
@@ -1784,7 +1790,7 @@ public class PathwayEngineService {
             runtime.encounterId(), runtime.templateId(), currentNode, decision.status(),
             runtime.enteredAt(), decision.status() == PatientPathwayStatus.COMPLETED ? now : runtime.completedAt(),
             decision.status() == PatientPathwayStatus.EXITED ? now : runtime.exitedAt(),
-            decision.status() == PatientPathwayStatus.EXITED ? request.exitReason() : runtime.exitReason(),
+            decision.status() == PatientPathwayStatus.EXITED ? exitReason(request) : runtime.exitReason(),
             request.eventId(), runtime.createdAt(), runtime.createdBy(), now, actor, traceId);
     }
 
@@ -2036,9 +2042,33 @@ public class PathwayEngineService {
         if (request.eventType() != PathwayAdvanceEventType.VARIANCE) {
             return;
         }
-        if (request.varianceType() == null || isBlank(request.varianceReason())) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "变异事件必须包含变异类型和原因");
+        if (request.varianceType() == null || isBlank(request.varianceReasonCode())
+                || isBlank(request.varianceReason()) || isBlank(request.responsibleRole())
+                || request.resolutionDecision() == null) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "变异事件必须包含分类、原因码、原因说明、责任角色和处置决策");
         }
+        if (request.resolutionDecision() == VarianceResolutionDecision.REENTER
+                && isBlank(request.requestedNextNodeCode())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "变异再入径必须选择继续节点");
+        }
+        if (request.resolutionDecision() == VarianceResolutionDecision.HOLD
+                && !isBlank(request.requestedNextNodeCode())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "变异暂停观察不能同时指定继续节点");
+        }
+        if (request.resolutionDecision() == VarianceResolutionDecision.TERMINATE
+                && !isBlank(request.requestedNextNodeCode())) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "变异终止路径不能指定继续节点");
+        }
+    }
+
+    private String exitReason(PathwayAdvanceRequest request) {
+        if (!isBlank(request.exitReason())) {
+            return request.exitReason();
+        }
+        if (request.eventType() == PathwayAdvanceEventType.VARIANCE) {
+            return request.varianceReason();
+        }
+        return null;
     }
 
     private String requireCurrentTenant() {

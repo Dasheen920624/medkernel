@@ -415,7 +415,7 @@ class MigrationBaselineContractTest {
         "uk_pathway_node_template_code", "ck_pathway_node_type", "ck_pathway_node_terminal",
         "uk_pathway_edge_template_code", "ck_pathway_edge_type",
         "uk_patient_pathway_id", "ck_patient_pathway_status",
-        "uk_pathway_variance_id", "ck_pathway_variance_type",
+        "uk_pathway_variance_id", "ck_pathway_variance_type", "ck_pathway_variance_resolution",
         "uk_clinical_clock_id", "ck_clinical_clock_status", "ck_clinical_clock_escalation",
         "uk_specialty_metric_binding", "ck_specialty_metric_required",
         "uk_rec_trigger_id", "uk_rec_trigger_tenant_code", "ck_rec_trigger_status",

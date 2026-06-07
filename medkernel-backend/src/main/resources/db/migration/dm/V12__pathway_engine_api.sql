@@ -200,7 +200,10 @@ CREATE TABLE pathway_variance (
     patient_pathway_id VARCHAR2(64)  NOT NULL,
     node_code          VARCHAR2(128) NOT NULL,
     variance_type      VARCHAR2(32)  NOT NULL,
+    reason_code        VARCHAR2(128) NOT NULL,
     reason             VARCHAR2(1024) NOT NULL,
+    responsible_role   VARCHAR2(128) NOT NULL,
+    resolution_decision VARCHAR2(32) NOT NULL,
     resolution_action  VARCHAR2(512) NULL,
     continue_node_code VARCHAR2(128) NULL,
     created_at         TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -210,7 +213,10 @@ CREATE TABLE pathway_variance (
     trace_id           VARCHAR2(128) NULL,
     CONSTRAINT uk_pathway_variance_id UNIQUE (variance_id),
     CONSTRAINT ck_pathway_variance_type CHECK (variance_type IN (
-        'MEDICAL','PATIENT_REASON','RESOURCE_REASON','DOCTOR_CHOICE','SYSTEM_REASON'
+        'CLINICAL','SYSTEM','PATIENT','FAMILY'
+    )),
+    CONSTRAINT ck_pathway_variance_resolution CHECK (resolution_decision IN (
+        'HOLD','REENTER','TERMINATE'
     ))
 );
 
