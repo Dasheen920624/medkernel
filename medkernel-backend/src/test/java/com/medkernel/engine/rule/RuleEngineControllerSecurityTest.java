@@ -33,7 +33,7 @@ class RuleEngineControllerSecurityTest {
           "dsl": {
             "trigger": "ORDER_SIGN",
             "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 18}]},
-            "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "提醒"}],
+            "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
             "explain": {"title": "抗凝风险提示", "reason": "测试"}
           },
           "explanation": {"title": "抗凝风险提示"}

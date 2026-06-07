@@ -12,6 +12,9 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.cdshook.CdsHookCard;
+import com.medkernel.engine.cdshook.CdsHookSource;
+import com.medkernel.engine.cdshook.CdsHookSuggestion;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -149,8 +152,20 @@ class RuleEngineApiContractTest {
     void evaluateEndpointReturnsConditionEvidenceInExplanation() throws Exception {
         RuleEvaluationItem item = new RuleEvaluationItem(
             "rex-1", "rule-1", "version-1", true, RuleRiskLevel.HIGH, List.of(), evidenceExplanation());
+        CdsHookCard card = new CdsHookCard(
+            "rex-1-action-1",
+            "高风险规则命中",
+            "确认依据后方可继续。",
+            "critical",
+            new CdsHookSource("院内高风险规则", null, "A"),
+            List.of(new CdsHookSuggestion(
+                "补充专科复核",
+                "REMIND",
+                json.createObjectNode().put("department", "CARDIOLOGY"))),
+            List.of("紧急处置"),
+            true);
         when(service.evaluate(any(RuleEvaluateRequest.class))).thenReturn(new RuleEvaluateResponse(
-            "req-1", List.of(item), RuleRiskLevel.HIGH, "trace-rule"));
+            "req-1", List.of(item), RuleRiskLevel.HIGH, List.of(card), "trace-rule"));
 
         mvc.perform(post("/api/v1/engine/rule/rules/evaluate")
                 .with(readJwt())
@@ -172,7 +187,12 @@ class RuleEngineApiContractTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].explanation.conditionEvidence[0].sourcePath")
-                .value("$.patient.age"));
+                .value("$.patient.age"))
+            .andExpect(jsonPath("$.data.cards[0].summary").value("高风险规则命中"))
+            .andExpect(jsonPath("$.data.cards[0].source.label").value("院内高风险规则"))
+            .andExpect(jsonPath("$.data.cards[0].suggestions[0].payload.department")
+                .value("CARDIOLOGY"))
+            .andExpect(jsonPath("$.data.cards[0].requiresPhysicianConfirmation").value(true));
     }
 
     private static RequestPostProcessor readJwt() {

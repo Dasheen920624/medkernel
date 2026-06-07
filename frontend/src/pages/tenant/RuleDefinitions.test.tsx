@@ -125,13 +125,23 @@ function createRuleDetail(): RuleDetailResponse {
       changeSummary: "补齐门禁",
       dslJson: JSON.stringify({
         trigger: "result-review",
-        logic: "all",
-        conditions: [{ fact: "observations.0.value", operator: "gte", value: 6 }],
-        action: {
-          actionCode: "REVIEW_REQUIRED",
-          severity: "HIGH",
-          message: "需人工复核",
+        when: {
+          all: [{ fact: "observations.0.value", operator: "gte", value: 6 }],
         },
+        then: [
+          {
+            actionCode: "STRONG_REMINDER",
+            atSeverity: "HIGH",
+            indicator: "critical",
+            summary: "需人工复核",
+            detail: "命中后提交人工复核。",
+            source: { label: "院内已审核制度" },
+            suggestions: [],
+            overrideReasons: [],
+            requiresPhysicianConfirmation: true,
+          },
+        ],
+        explain: { summary: "命中已审核字段" },
       }),
       explanationJson: JSON.stringify({ summary: "命中已审核字段" }),
       status: "DRAFT",
@@ -147,7 +157,7 @@ function createRuleDetail(): RuleDetailResponse {
       inputPayload: "{}",
       expectedHit: caseType !== "NEGATIVE",
       expectedSeverity: "HIGH",
-      expectedActionCode: "REVIEW_REQUIRED",
+      expectedActionCode: "STRONG_REMINDER",
       lastHit: caseType !== "NEGATIVE",
       lastStatus: "PASS",
       lastMessage: "通过",
@@ -257,6 +267,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         target: { value: "observations.0.value" },
       });
       fireEvent.change(within(dialog).getByLabelText("比较值"), { target: { value: "6" } });
+      await user.click(within(dialog).getByRole("button", { name: "添加动作" }));
+      const summaries = within(dialog).getAllByLabelText("卡片摘要");
+      fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
       await user.click(within(dialog).getByRole("button", { name: "同步到 DSL" }));
 
       await user.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
@@ -264,6 +277,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
+      expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
 
       await user.click(within(dialog).getByRole("button", { name: "创建草稿" }));
       await waitFor(() =>
@@ -272,7 +286,12 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             ruleCode: "RULE.CARDIOLOGY.HR",
             ruleType: "QUALITY",
             packageVersion: "1.0.0",
-            dslJson: expect.objectContaining({ trigger: "result-review" }),
+            dslJson: expect.objectContaining({
+              trigger: "result-review",
+              then: expect.arrayContaining([
+                expect.objectContaining({ summary: "同步记录规则命中" }),
+              ]),
+            }),
           }),
         ),
       );
@@ -287,12 +306,24 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.ruleDetailData = createRuleDetail();
       setActiveSnapshotFixture();
       apiMocks.simulateRule.mockResolvedValue({
+        executionId: "exec-simulate-1",
         ruleId: "rule-1",
-        ruleCode: "RULE.QC.REVIEW",
-        ruleName: "规则发布门禁核查",
+        versionId: "ver-1",
         hit: true,
         severity: "HIGH",
-        actionCode: "REVIEW_REQUIRED",
+        actions: [
+          {
+            actionCode: "STRONG_REMINDER",
+            severity: "HIGH",
+            indicator: "critical",
+            summary: "规则发布门禁核查",
+            detail: "命中真实快照字段",
+            source: { label: "院内已审核制度" },
+            suggestions: [],
+            overrideReasons: [],
+            requiresPhysicianConfirmation: true,
+          },
+        ],
         explanation: { summary: "命中真实快照字段", evidence: ["OBS.TEST"] },
       });
 
@@ -320,6 +351,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         }),
       );
       expect(await screen.findByText(/命中真实快照字段/)).toBeInTheDocument();
+      expect(screen.getByText("必须医师确认")).toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );

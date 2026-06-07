@@ -25,7 +25,7 @@ function expectFlatTreeRoundTrip(restored: RuleConditionTree, tree: RuleConditio
   expect(restored.root).toBeDefined();
   expect(restored.root?.logic).toBe(tree.logic);
   expect(restored.root?.children).toEqual(tree.conditions);
-  expect(restored.action).toEqual(tree.action);
+  expect(restored.actions).toEqual(tree.actions);
   expect(restored.explanationSummary).toBe(tree.explanationSummary);
 }
 
@@ -69,12 +69,40 @@ describe("RULE-01 三层规则编辑模型", () => {
           valueKind: "string",
         },
       ],
-      action: {
-        actionCode: "REVIEW_REQUIRED",
-        severity: "HIGH",
-        message: "命中后提交人工审核，不自动写入医嘱",
-        requiresPhysicianConfirmation: true,
-      },
+      actions: [
+        {
+          actionCode: "BLOCK",
+          atSeverity: "HIGH",
+          indicator: "critical",
+          summary: "高风险结果需要人工复核",
+          detail: "命中后提交人工审核，不自动写入医嘱",
+          source: {
+            label: "院内高风险结果管理规范",
+            evidenceLevel: "A",
+          },
+          suggestions: [
+            {
+              label: "补充专科复核",
+              actionType: "REMIND",
+            },
+          ],
+          overrideReasons: ["紧急处置", "已完成专科会诊"],
+          requiresPhysicianConfirmation: true,
+        },
+        {
+          actionCode: "AUTO_DOCUMENT",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "记录规则命中",
+          detail: "仅记录命中事实。",
+          source: {
+            label: "规则运行记录",
+          },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: false,
+        },
+      ],
       explanationSummary: "依据真实上下文快照中的两个字段进行确定性判断",
     };
 
@@ -108,10 +136,36 @@ describe("RULE-01 三层规则编辑模型", () => {
       },
       then: [
         {
-          actionCode: "REVIEW_REQUIRED",
-          severity: "HIGH",
-          message: "命中后提交人工审核，不自动写入医嘱",
+          actionCode: "BLOCK",
+          atSeverity: "HIGH",
+          indicator: "critical",
+          summary: "高风险结果需要人工复核",
+          detail: "命中后提交人工审核，不自动写入医嘱",
+          source: {
+            label: "院内高风险结果管理规范",
+            evidenceLevel: "A",
+          },
+          suggestions: [
+            {
+              label: "补充专科复核",
+              actionType: "REMIND",
+            },
+          ],
+          overrideReasons: ["紧急处置", "已完成专科会诊"],
           requiresPhysicianConfirmation: true,
+        },
+        {
+          actionCode: "AUTO_DOCUMENT",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "记录规则命中",
+          detail: "仅记录命中事实。",
+          source: {
+            label: "规则运行记录",
+          },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: false,
         },
       ],
       explain: {
@@ -167,12 +221,19 @@ describe("RULE-01 三层规则编辑模型", () => {
           },
         ],
       },
-      action: {
-        actionCode: "REVIEW_REQUIRED",
-        severity: "MEDIUM",
-        message: "命中后提交人工审核，不自动写入医嘱",
-        requiresPhysicianConfirmation: true,
-      },
+      actions: [
+        {
+          actionCode: "REMIND",
+          atSeverity: "MEDIUM",
+          indicator: "warning",
+          summary: "抗菌药使用复核",
+          detail: "命中后提交人工审核，不自动写入医嘱",
+          source: { label: "院内抗菌药管理规范" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      ],
       explanationSummary: "递归条件应无损保存",
     };
 
@@ -269,12 +330,19 @@ describe("RULE-01 三层规则编辑模型", () => {
           valueKind: "derived",
         },
       ],
-      action: {
-        actionCode: "REVIEW_REQUIRED",
-        severity: "HIGH",
-        message: "命中后提交人工审核，不自动写入医嘱",
-        requiresPhysicianConfirmation: true,
-      },
+      actions: [
+        {
+          actionCode: "STRONG_REMINDER",
+          atSeverity: "HIGH",
+          indicator: "critical",
+          summary: "临床算子命中",
+          detail: "命中后提交人工审核，不自动写入医嘱。",
+          source: { label: "临床算子规则依据" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      ],
       explanationSummary: "依据 MED-C2 临床算子进行确定性判断",
     };
 
@@ -329,12 +397,19 @@ describe("RULE-01 三层规则编辑模型", () => {
           valueKind: "number",
         },
       ],
-      action: {
-        actionCode: "REVIEW_REQUIRED",
-        severity: "HIGH",
-        message: "命中后提交人工审核，不自动写入医嘱",
-        requiresPhysicianConfirmation: true,
-      },
+      actions: [
+        {
+          actionCode: "STRONG_REMINDER",
+          atSeverity: "HIGH",
+          indicator: "critical",
+          summary: "表达式聚合命中",
+          detail: "命中后提交人工审核，不自动写入医嘱。",
+          source: { label: "表达式聚合规则依据" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      ],
       explanationSummary: "依据表达式聚合进行确定性判断",
     };
 
@@ -381,7 +456,19 @@ describe("RULE-01 三层规则编辑模型", () => {
           },
         ],
       },
-      then: [],
+      then: [
+        {
+          actionCode: "REMIND",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "临床算子提醒",
+          detail: "保留临床算子配置。",
+          source: { label: "临床算子规则依据" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: false,
+        },
+      ],
       explain: { summary: "保留临床算子" },
     };
 
@@ -417,6 +504,36 @@ describe("RULE-01 三层规则编辑模型", () => {
         explain: { summary: "未知算子" },
       }),
     ).toThrow("不支持的规则算子");
+  });
+
+  it("L3 DSL 动作缺少后端必填数组时直接报错，避免提交后才失败", () => {
+    const action = {
+      actionCode: "REMIND",
+      atSeverity: "LOW",
+      indicator: "info",
+      summary: "低风险提醒",
+      detail: "提交人工复核。",
+      source: { label: "院内规则依据" },
+      requiresPhysicianConfirmation: false,
+    };
+    const baseDsl = {
+      trigger: "result-review",
+      when: { all: [{ fact: "lab.potassium", operator: "exists" }] },
+      explain: { summary: "校验动作契约" },
+    };
+
+    expect(() =>
+      dslToConditionTree({
+        ...baseDsl,
+        then: [{ ...action, overrideReasons: [] }],
+      }),
+    ).toThrow("suggestions 必须是数组");
+    expect(() =>
+      dslToConditionTree({
+        ...baseDsl,
+        then: [{ ...action, suggestions: [] }],
+      }),
+    ).toThrow("overrideReasons 必须是数组");
   });
 
   it("解释模板由同一棵条件树生成，供 API explanation 字段留证", () => {

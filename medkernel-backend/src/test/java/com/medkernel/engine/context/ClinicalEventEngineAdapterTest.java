@@ -33,7 +33,7 @@ class ClinicalEventEngineAdapterTest {
     void ruleAdapterCallsRuleEngineWithSameEventContext() {
         RuleEngineService service = mock(RuleEngineService.class);
         when(service.evaluateContext(any(String.class), any(JsonNode.class), any(String.class), any(List.class)))
-            .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, "trace-1"));
+            .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, List.of(), "trace-1"));
         var adapter = new ClinicalEventRuleEngineAdapter(service, json);
 
         ClinicalEventEngineDispatchResult result = adapter.dispatch(context());

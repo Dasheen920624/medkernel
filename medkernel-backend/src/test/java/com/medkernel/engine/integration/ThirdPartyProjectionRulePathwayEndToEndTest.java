@@ -48,6 +48,7 @@ import com.medkernel.engine.pathway.PathwayProgressor;
 import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.rule.RuleActionCode;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
@@ -164,14 +165,14 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
                 ]
               },
               "then": [
-                {"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血红蛋白结果达标"}
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "血红蛋白结果达标", "detail": "血红蛋白结果达标", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "第三方检验规则样例"}
             }
             """), json.valueToTree(canonicalFacts));
 
         assertThat(rule.hit()).isTrue();
-        assertThat(rule.actions()).extracting("actionCode").containsExactly("PROMPT");
+        assertThat(rule.actions()).extracting("actionCode").containsExactly(RuleActionCode.REMIND);
 
         var decision = new PathwayProgressor(json, new ConditionEvaluator(json)).advance(new PathwayProgressCommand(
             pathwayGraph(),

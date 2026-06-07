@@ -16,6 +16,164 @@ class RuleDslEvaluatorTest {
     private final RuleDslEvaluator evaluator = new RuleDslEvaluator(json);
 
     @Test
+    void gradedActionCardsExposeCompleteCdsHookFieldsAndEnforceHighRiskConfirmation() throws Exception {
+        RuleDslEvaluation result = evaluator.evaluate(read("""
+            {
+              "trigger": "order-sign",
+              "when": {
+                "all": [
+                  {"fact": "order.riskLevel", "operator": "equals", "value": "HIGH"}
+                ]
+              },
+              "then": [
+                {
+                  "atSeverity": "HIGH",
+                  "actionCode": "BLOCK",
+                  "indicator": "critical",
+                  "summary": "高风险医嘱需要复核",
+                  "detail": "当前医嘱命中高风险规则，确认依据后方可继续。",
+                  "source": {
+                    "label": "院内高风险医嘱管理规范",
+                    "url": "https://example.invalid/rules/high-risk",
+                    "evidenceLevel": "A"
+                  },
+                  "suggestions": [
+                    {
+                      "label": "选择替代医嘱",
+                      "actionType": "SUGGEST_ORDER",
+                      "payload": {"catalogCode": "ORDER_SET.SAFE"}
+                    }
+                  ],
+                  "overrideReasons": ["紧急抢救", "已完成专科会诊"],
+                  "requiresPhysicianConfirmation": false
+                },
+                {
+                  "atSeverity": "LOW",
+                  "actionCode": "INFO",
+                  "indicator": "info",
+                  "summary": "已记录规则命中",
+                  "detail": "本动作仅留痕，不自动修改医嘱。",
+                  "source": {"label": "院内规则运行记录"},
+                  "suggestions": [],
+                  "overrideReasons": [],
+                  "requiresPhysicianConfirmation": false
+                }
+              ],
+              "explain": {"summary": "按风险级别输出动作卡"}
+            }
+            """), read("""
+            {"order": {"riskLevel": "HIGH"}}
+            """));
+
+        assertThat(result.actions()).hasSize(2);
+        RuleActionResult blocking = result.actions().getFirst();
+        assertThat(blocking.actionCode()).isEqualTo(RuleActionCode.BLOCK);
+        assertThat(blocking.severity()).isEqualTo(RuleRiskLevel.HIGH);
+        assertThat(blocking.indicator()).isEqualTo("critical");
+        assertThat(blocking.summary()).isEqualTo("高风险医嘱需要复核");
+        assertThat(blocking.detail()).contains("确认依据后方可继续");
+        assertThat(blocking.source().label()).isEqualTo("院内高风险医嘱管理规范");
+        assertThat(blocking.source().evidenceLevel()).isEqualTo("A");
+        assertThat(blocking.suggestions()).singleElement()
+            .satisfies(suggestion -> {
+                assertThat(suggestion.label()).isEqualTo("选择替代医嘱");
+                assertThat(suggestion.actionType()).isEqualTo("SUGGEST_ORDER");
+                assertThat(suggestion.payload().path("catalogCode").asText())
+                    .isEqualTo("ORDER_SET.SAFE");
+            });
+        assertThat(blocking.overrideReasons()).containsExactly("紧急抢救", "已完成专科会诊");
+        assertThat(blocking.requiresPhysicianConfirmation()).isTrue();
+        assertThat(result.actions().get(1).requiresPhysicianConfirmation()).isFalse();
+    }
+
+    @Test
+    void legacySingleMessageActionShapeIsRejected() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "patient-view",
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "PROMPT",
+                  "severity": "LOW",
+                  "message": "旧动作形态"
+                }
+              ],
+              "explain": {"summary": "旧动作不得继续流入"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"patient": {"present": true}}
+            """)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("atSeverity");
+    }
+
+    @Test
+    void invalidActionIsRejectedEvenWhenConditionDoesNotMatch() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "patient-view",
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [
+                {
+                  "actionCode": "REMIND",
+                  "atSeverity": "LOW",
+                  "summary": "缺少 indicator 的坏动作",
+                  "detail": "即使条件未命中也必须在创建期拒绝。",
+                  "source": {"label": "规则测试来源"},
+                  "suggestions": [],
+                  "overrideReasons": []
+                }
+              ],
+              "explain": {"summary": "动作结构创建期校验"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"patient": {"present": false}}
+            """)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("indicator");
+    }
+
+    @Test
+    void ruleRequiresAtLeastOneActionCard() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "patient-view",
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "then": [],
+              "explain": {"summary": "空动作规则"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"patient": {"present": true}}
+            """)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("至少包含一个动作");
+    }
+
+    @Test
+    void missingActionSectionIsRejectedEvenWhenConditionDoesNotMatch() throws Exception {
+        JsonNode dsl = read("""
+            {
+              "trigger": "patient-view",
+              "when": {"all": [{"fact": "patient.present", "operator": "equals", "value": true}]},
+              "explain": {"summary": "缺少动作段"}
+            }
+            """);
+
+        assertThatThrownBy(() -> evaluator.evaluate(dsl, read("""
+            {"patient": {"present": false}}
+            """)))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("then 必须是数组");
+    }
+
+    @Test
     void allConditionsHitAndReturnHighestSeverityAction() throws Exception {
         RuleDslEvaluation result = evaluator.evaluate(read("""
             {
@@ -28,12 +186,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {
-                  "actionCode": "STRONG_REMINDER",
-                  "severity": "HIGH",
-                  "message": "抗凝用药需确认出血风险",
-                  "requiresPhysicianConfirmation": true
-                }
+                {"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "抗凝用药需确认出血风险", "detail": "抗凝用药需确认出血风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": true}
               ],
               "explain": {
                 "title": "抗凝风险提示",
@@ -51,7 +204,7 @@ class RuleDslEvaluatorTest {
         assertThat(result.hit()).isTrue();
         assertThat(result.severity()).isEqualTo(RuleRiskLevel.HIGH);
         assertThat(result.actions()).hasSize(1);
-        assertThat(result.actions().getFirst().actionCode()).isEqualTo("STRONG_REMINDER");
+        assertThat(result.actions().getFirst().actionCode()).isEqualTo(RuleActionCode.STRONG_REMINDER);
         assertThat(result.actions().getFirst().requiresPhysicianConfirmation()).isTrue();
         assertThat(result.explanation().get("title").asText()).isEqualTo("抗凝风险提示");
         JsonNode evidence = result.explanation().path("conditionEvidence");
@@ -80,7 +233,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {"actionCode": "REVIEW_REQUIRED", "severity": "MEDIUM", "message": "需要人工复核"}
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "需要人工复核", "detail": "需要人工复核", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "心率质控复核"}
             }
@@ -90,7 +243,7 @@ class RuleDslEvaluatorTest {
 
         assertThat(result.hit()).isTrue();
         assertThat(result.severity()).isEqualTo(RuleRiskLevel.MEDIUM);
-        assertThat(result.actions().getFirst().actionCode()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(result.actions().getFirst().actionCode()).isEqualTo(RuleActionCode.REMIND);
         assertThat(result.explanation().path("conditionEvidence").get(0).path("actual").asInt())
             .isEqualTo(120);
     }
@@ -107,7 +260,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {"actionCode": "PROMPT", "severity": "MEDIUM", "message": "检验结果需关注"}
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "检验结果需关注", "detail": "检验结果需关注", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "检验关注", "reason": "命中检验条件"}
             }
@@ -131,7 +284,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {"actionCode": "PROMPT", "severity": "MEDIUM", "message": "抗菌药使用提醒"}
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "抗菌药使用提醒", "detail": "抗菌药使用提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "抗菌药提醒"}
             }
@@ -162,11 +315,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {
-                  "actionCode": "BLOCK_ORDER",
-                  "severity": "HIGH",
-                  "message": "患者存在青霉素过敏，需阻断用药"
-                }
+                {"actionCode": "BLOCK", "atSeverity": "HIGH", "indicator": "critical", "summary": "患者存在青霉素过敏，需阻断用药", "detail": "患者存在青霉素过敏，需阻断用药", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "药物过敏阻断"}
             }
@@ -209,7 +358,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {"actionCode": "REVIEW_REQUIRED", "severity": "HIGH", "message": "抗凝风险复核"}
+                {"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "抗凝风险复核", "detail": "抗凝风险复核", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "嵌套条件复核"}
             }
@@ -233,7 +382,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "REPORT_SUBMIT",
               "when": {"all": [{"fact": "report.criticalFlag", "operator": "exists"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "报告提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "报告提醒", "detail": "报告提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "报告提醒", "reason": "存在危急值标记"}
             }
             """), read("""
@@ -258,7 +407,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "patient.age", "operator": "lt", "value": 18}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "年龄提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "年龄提醒", "detail": "年龄提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "年龄提醒", "reason": "年龄低于阈值"}
             }
             """), read("""
@@ -281,12 +430,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {
-                  "actionCode": "REVIEW_REQUIRED",
-                  "severity": "HIGH",
-                  "message": "缺少关键检验，需人工核查后继续",
-                  "requiresPhysicianConfirmation": true
-                }
+                {"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "缺少关键检验，需人工核查后继续", "detail": "缺少关键检验，需人工核查后继续", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": true}
               ],
               "explain": {"title": "高钾风险核查", "reason": "缺失时 fail-safe"}
             }
@@ -311,7 +455,7 @@ class RuleDslEvaluatorTest {
               "trigger": "ORDER_SIGN",
               "missingPolicy": "ALLOW_UNKNOWN",
               "when": {"all": [{"fact": "lab.potassium", "operator": "gte", "value": 6.0}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺失策略"}
             }
             """);
@@ -339,7 +483,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [
-                {"actionCode": "REVIEW_REQUIRED", "severity": "HIGH", "message": "质量无效需人工核查"}
+                {"actionCode": "REMIND", "atSeverity": "HIGH", "indicator": "critical", "summary": "质量无效需人工核查", "detail": "质量无效需人工核查", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {"title": "质量无效"}
             }
@@ -369,7 +513,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血钾复核"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "血钾复核", "detail": "血钾复核", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "部分质量"}
             }
             """), read("""
@@ -389,7 +533,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "order.name", "operator": "regex", "value": ".*"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "提醒", "reason": "测试"}
             }
             """);
@@ -420,7 +564,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾区间提醒", "detail": "血钾区间提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血钾区间", "reason": "校验血钾是否位于目标区间"}
             }
             """), read("""
@@ -459,7 +603,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾区间提醒", "detail": "血钾区间提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血钾区间", "reason": "校验血钾是否位于目标区间"}
             }
             """);
@@ -487,7 +631,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾区间提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾区间提醒", "detail": "血钾区间提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血钾区间", "reason": "拒绝反向区间"}
             }
             """);
@@ -520,7 +664,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血糖偏高"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "血糖偏高", "detail": "血糖偏高", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血糖换算", "reason": "跨单位比较血糖阈值"}
             }
             """), read("""
@@ -563,7 +707,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "钠离子提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "钠离子提醒", "detail": "钠离子提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "钠离子换算", "reason": "未知换算拒绝"}
             }
             """);
@@ -691,7 +835,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "肌酐聚合提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "肌酐聚合提醒", "detail": "肌酐聚合提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "表达式聚合", "reason": "过滤窗口内肌酐"}
             }
             """), read("""
@@ -741,7 +885,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血钾提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "血钾提醒", "detail": "血钾提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "空窗口", "reason": "无血钾结果"}
             }
             """), read("""
@@ -772,7 +916,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "肌酐提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "肌酐提醒", "detail": "肌酐提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "表达式排序", "reason": "缺少时间戳"}
             }
             """);
@@ -806,7 +950,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "高钾血症风险"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "高钾血症风险", "detail": "高钾血症风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "连续高钾", "reason": "48h 内连续两次血钾超过阈值"}
             }
             """), read("""
@@ -850,7 +994,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "持续高钾风险"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "持续高钾风险", "detail": "持续高钾风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "持续高钾", "reason": "72h 内持续两次血钾超过阈值"}
             }
             """), read("""
@@ -895,7 +1039,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "肌酐上升趋势"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "肌酐上升趋势", "detail": "肌酐上升趋势", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "肌酐趋势", "reason": "校验窗口内肌酐趋势"}
             }
             """), read("""
@@ -937,7 +1081,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "连续高钾"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "连续高钾", "detail": "连续高钾", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "连续高钾", "reason": "拒绝非数值 count"}
             }
             """);
@@ -976,7 +1120,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "连续高钾"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "连续高钾", "detail": "连续高钾", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "连续高钾", "reason": "拒绝非正时间窗"}
             }
             """);
@@ -1009,7 +1153,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "趋势提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "趋势提醒", "detail": "趋势提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "趋势", "reason": "拒绝单点趋势"}
             }
             """);
@@ -1048,7 +1192,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "趋势提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "趋势提醒", "detail": "趋势提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "趋势", "reason": "非法趋势方向"}
             }
             """);
@@ -1090,7 +1234,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "拒绝不合法入参"}
             }
             """);
@@ -1131,7 +1275,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "校验肾功能"}
             }
             """);
@@ -1169,7 +1313,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "校验肾功能"}
             }
             """), read("""
@@ -1229,7 +1373,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "体表面积与肌酐清除率提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "体表面积与肌酐清除率提醒", "detail": "体表面积与肌酐清除率提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "受控公式", "reason": "校验白名单公式"}
             }
             """), read("""
@@ -1271,7 +1415,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "BMI 在目标范围"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "BMI 在目标范围", "detail": "BMI 在目标范围", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "BMI", "reason": "受控 BMI 公式"}
             }
             """), read("""
@@ -1296,7 +1440,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
             }
             """), read("""
@@ -1316,7 +1460,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
             }
             """), read("""
@@ -1334,7 +1478,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "老年用药提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "老年用药提醒", "detail": "老年用药提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "老年", "reason": "年龄阈值"}
             }
             """), read("""
@@ -1371,7 +1515,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "肾功能提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "肾功能提醒", "detail": "肾功能提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "eGFR", "reason": "派生年龄喂公式"}
             }
             """), read("""
@@ -1392,7 +1536,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
             }
             """), read("""
@@ -1411,7 +1555,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
             }
             """), read("""
@@ -1427,7 +1571,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "ORDER_SIGN",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_missing"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "缺少血钾结果，建议补检"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "缺少血钾结果，建议补检", "detail": "缺少血钾结果，建议补检", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "缺值", "reason": "血钾结果缺失"}
             }
             """), read("""
@@ -1451,7 +1595,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血钾偏离目标区间"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "血钾偏离目标区间", "detail": "血钾偏离目标区间", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "区间取反", "reason": "血钾不在目标区间内"}
             }
             """), read("""
@@ -1479,7 +1623,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "区间取反", "reason": "血钾在目标区间内"}
             }
             """), read("""
@@ -1503,7 +1647,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "区间取反", "reason": "缺值不臆测为越界"}
             }
             """), read("""
@@ -1523,7 +1667,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾在参考范围内"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾在参考范围内", "detail": "血钾在参考范围内", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "校验血钾是否在参考范围内"}
             }
             """), read("""
@@ -1545,7 +1689,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血钾高于参考上限"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "血钾高于参考上限", "detail": "血钾高于参考上限", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "校验血钾是否高于参考上限"}
             }
             """), read("""
@@ -1564,7 +1708,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "below_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "MEDIUM", "message": "血钾低于参考下限"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "血钾低于参考下限", "detail": "血钾低于参考下限", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "校验血钾是否低于参考下限"}
             }
             """), read("""
@@ -1582,7 +1726,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾在参考范围内"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾在参考范围内", "detail": "血钾在参考范围内", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "校验血钾是否在参考范围内"}
             }
             """), read("""
@@ -1601,7 +1745,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "within_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "参考范围提醒", "detail": "参考范围提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "拒绝不可解析的参考范围"}
             }
             """);
@@ -1621,7 +1765,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "参考范围提醒", "detail": "参考范围提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "缺值不臆测"}
             }
             """), read("""
@@ -1639,7 +1783,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "above_ref"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "参考范围提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "参考范围提醒", "detail": "参考范围提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "参考范围", "reason": "无上界不能判断 above_ref"}
             }
             """);
@@ -1665,7 +1809,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "血钾结果偏旧，建议复查"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "血钾结果偏旧，建议复查", "detail": "血钾结果偏旧，建议复查", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "结果陈旧", "reason": "血钾结果早于参考时刻减时效"}
             }
             """), read("""
@@ -1692,7 +1836,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "结果陈旧", "reason": "结果较新不算陈旧"}
             }
             """), read("""
@@ -1716,7 +1860,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "结果陈旧", "reason": "无时间戳不臆测陈旧"}
             }
             """);
@@ -1744,7 +1888,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "结果陈旧", "reason": "缺值不臆测"}
             }
             """), read("""
@@ -1762,7 +1906,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_critical"}]},
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "危急值需回报"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "危急值需回报", "detail": "危急值需回报", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "危急值", "reason": "检验项被标记危急值"}
             }
             """), read("""
@@ -1789,7 +1933,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "危急值需回报"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "危急值需回报", "detail": "危急值需回报", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "危急值", "reason": "命中作者声明的危急标记"}
             }
             """), read("""
@@ -1813,7 +1957,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "危急值", "reason": "未命中声明集"}
             }
             """), read("""
@@ -1829,7 +1973,7 @@ class RuleDslEvaluatorTest {
             {
               "trigger": "LAB_RESULT",
               "when": {"all": [{"fact": "lab.potassium", "operator": "is_critical"}]},
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "危急值", "reason": "无危急标记即非危急"}
             }
             """), read("""
@@ -1862,7 +2006,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "窗内多次高钾"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "窗内多次高钾", "detail": "窗内多次高钾", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "高钾频次", "reason": "72h 内高钾次数达阈值"}
             }
             """), read("""
@@ -1904,7 +2048,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "高钾频次", "reason": "未达阈值"}
             }
             """), read("""
@@ -1942,7 +2086,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "肌酐显著上升"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "肌酐显著上升", "detail": "肌酐显著上升", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "肌酐 delta", "reason": "窗内肌酐升幅达阈值"}
             }
             """), read("""
@@ -1982,7 +2126,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "STRONG_REMINDER", "severity": "HIGH", "message": "血红蛋白显著下降"}],
+              "then": [{"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "血红蛋白显著下降", "detail": "血红蛋白显著下降", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "血红蛋白 delta", "reason": "窗内降幅达阈值"}
             }
             """), read("""
@@ -2020,7 +2164,7 @@ class RuleDslEvaluatorTest {
                   }
                 ]
               },
-              "then": [{"actionCode": "PROMPT", "severity": "LOW", "message": "提醒"}],
+              "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "提醒", "detail": "提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
               "explain": {"title": "肌酐 delta", "reason": "单点无法算升幅"}
             }
             """), read("""

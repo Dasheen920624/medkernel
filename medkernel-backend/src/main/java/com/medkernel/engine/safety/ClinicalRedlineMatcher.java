@@ -212,7 +212,7 @@ public class ClinicalRedlineMatcher {
 
     private String firstActionMessage(ClinicalRedlineRule redline, RuleDslEvaluation evaluation) {
         return evaluation.actions().stream()
-            .map(RuleActionResult::message)
+            .map(RuleActionResult::detail)
             .filter(ClinicalRedlineMatcher::hasText)
             .findFirst()
             .orElse("命中临床安全红线：" + redline.title());

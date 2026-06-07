@@ -20,7 +20,15 @@ export type RuleTemplateKey =
 
 export type RuleLogic = "all" | "any";
 export type { RuleOperator, RuleValueKind };
-export type RuleSeverity = "LOW" | "MEDIUM" | "HIGH";
+export type RuleSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type RuleActionCode =
+  | "INFO"
+  | "REMIND"
+  | "STRONG_REMINDER"
+  | "BLOCK"
+  | "SUGGEST_ORDER"
+  | "AUTO_DOCUMENT";
+export type RuleIndicator = "info" | "warning" | "critical";
 export type RuleConditionValue =
   | string
   | number
@@ -47,9 +55,22 @@ export interface RuleExpressionDraft {
 }
 
 export interface RuleActionDraft {
-  actionCode: string;
-  severity: RuleSeverity;
-  message: string;
+  actionCode: RuleActionCode;
+  atSeverity: RuleSeverity;
+  indicator: RuleIndicator;
+  summary: string;
+  detail: string;
+  source: {
+    label: string;
+    url?: string;
+    evidenceLevel?: string;
+  };
+  suggestions: Array<{
+    label: string;
+    actionType: string;
+    payload?: Record<string, unknown>;
+  }>;
+  overrideReasons: string[];
   requiresPhysicianConfirmation: boolean;
 }
 
@@ -63,7 +84,7 @@ export interface RuleConditionTree {
    * 「条件组(all/any/可取反)+叶子」；缺失时由 conditions 显式归一化生成。
    */
   root?: RuleConditionGroup;
-  action: RuleActionDraft;
+  actions: RuleActionDraft[];
   explanationSummary: string;
 }
 
@@ -119,11 +140,22 @@ export type RuleDsl = {
 };
 
 const DEFAULT_ACTION: RuleActionDraft = {
-  actionCode: "REVIEW_REQUIRED",
-  severity: "LOW",
-  message: "命中后提交人工审核，不自动写入医嘱",
+  actionCode: "REMIND",
+  atSeverity: "LOW",
+  indicator: "info",
+  summary: "规则命中，需人工复核",
+  detail: "命中后提交人工审核，不自动写入医嘱。",
+  source: {
+    label: "规则版本来源",
+  },
+  suggestions: [],
+  overrideReasons: [],
   requiresPhysicianConfirmation: true,
 };
+
+export function createRuleActionDraft(): RuleActionDraft {
+  return cloneAction(DEFAULT_ACTION);
+}
 
 export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
   {
@@ -145,10 +177,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
           valueKind: "number",
         },
       ],
-      action: {
-        ...DEFAULT_ACTION,
-        severity: "MEDIUM",
-      },
+      actions: [{ ...cloneAction(DEFAULT_ACTION), atSeverity: "MEDIUM", indicator: "warning" }],
       explanationSummary: "依据真实上下文快照中的数值字段进行确定性判断",
     },
   },
@@ -170,7 +199,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
           valueKind: "empty",
         },
       ],
-      action: DEFAULT_ACTION,
+      actions: [cloneAction(DEFAULT_ACTION)],
       explanationSummary: "依据真实上下文快照中的受控字段进行确定性判断",
     },
   },
@@ -193,10 +222,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
           valueKind: "list",
         },
       ],
-      action: {
-        ...DEFAULT_ACTION,
-        severity: "MEDIUM",
-      },
+      actions: [{ ...cloneAction(DEFAULT_ACTION), atSeverity: "MEDIUM", indicator: "warning" }],
       explanationSummary: "依据真实上下文快照中的编码或状态集合进行确定性判断",
     },
   },
@@ -225,10 +251,14 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
           valueKind: "range",
         },
       ],
-      action: {
-        ...DEFAULT_ACTION,
-        severity: "HIGH",
-      },
+      actions: [
+        {
+          ...cloneAction(DEFAULT_ACTION),
+          actionCode: "STRONG_REMINDER",
+          atSeverity: "HIGH",
+          indicator: "critical",
+        },
+      ],
       explanationSummary: "依据 MED-C2 临床算子对真实上下文快照进行确定性判断",
     },
   },
@@ -244,7 +274,7 @@ export function conditionTreeToDsl(tree: RuleConditionTree): RuleDsl {
   return {
     trigger: tree.triggerPoint,
     when: conditionNodeToDsl(root) as RuleDsl["when"],
-    then: [{ ...tree.action }],
+    then: tree.actions.map(cloneAction),
     explain: {
       summary: tree.explanationSummary,
       authoring: {
@@ -270,7 +300,10 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
     throw new Error("规则 DSL 至少需要一个条件");
   }
 
-  const then = Array.isArray(dsl.then) ? dsl.then[0] : undefined;
+  const then = Array.isArray(dsl.then) ? dsl.then : [];
+  if (then.length === 0) {
+    throw new Error("规则 DSL 至少需要一个 then 动作");
+  }
   const explain = isRecord(dsl.explain) ? dsl.explain : undefined;
 
   return {
@@ -278,14 +311,7 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
     logic,
     conditions: collectConditionLeaves(root),
     root,
-    action: {
-      actionCode: readString(then, "actionCode", DEFAULT_ACTION.actionCode),
-      severity: readSeverity(then, "severity", DEFAULT_ACTION.severity),
-      message: readString(then, "message", DEFAULT_ACTION.message),
-      requiresPhysicianConfirmation:
-        readBoolean(then, "requiresPhysicianConfirmation") ??
-        DEFAULT_ACTION.requiresPhysicianConfirmation,
-    },
+    actions: then.map(parseAction),
     explanationSummary:
       typeof explain?.summary === "string" && explain.summary.trim()
         ? explain.summary
@@ -301,7 +327,9 @@ export function createExplanationTemplate(tree: RuleConditionTree) {
   }
 
   return {
-    template: `${tree.explanationSummary}。命中后处置动作：${tree.action.message}`,
+    template: `${tree.explanationSummary}。命中后处置动作：${tree.actions
+      .map((action) => action.summary)
+      .join("；")}`,
     variables,
     authoring: {
       layer: "L1/L2/L3",
@@ -500,7 +528,8 @@ function cloneTree(tree: RuleConditionTree): RuleConditionTree {
       value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
       expr: condition.expr ? normalizeConditionExpression(condition.expr) : undefined,
     })),
-    action: { ...tree.action },
+    root: tree.root ? cloneConditionGroup(tree.root) : undefined,
+    actions: tree.actions.map(cloneAction),
     explanationSummary: tree.explanationSummary,
   };
 }
@@ -519,7 +548,137 @@ function readBoolean(source: unknown, key: string): boolean | undefined {
 
 function readSeverity(source: unknown, key: string, fallback: RuleSeverity): RuleSeverity {
   const value = readString(source, key, fallback);
-  return value === "LOW" || value === "MEDIUM" || value === "HIGH" ? value : fallback;
+  return value === "LOW" || value === "MEDIUM" || value === "HIGH" || value === "CRITICAL"
+    ? value
+    : fallback;
+}
+
+function parseAction(source: unknown): RuleActionDraft {
+  if (!isRecord(source)) {
+    throw new Error("规则 DSL then 动作必须为对象");
+  }
+  const actionCode = readString(source, "actionCode", "");
+  const actionCodes: RuleActionCode[] = [
+    "INFO",
+    "REMIND",
+    "STRONG_REMINDER",
+    "BLOCK",
+    "SUGGEST_ORDER",
+    "AUTO_DOCUMENT",
+  ];
+  if (!actionCodes.includes(actionCode as RuleActionCode)) {
+    throw new Error(`不支持的规则动作码: ${actionCode || "未填写"}`);
+  }
+  const atSeverity = readSeverity(source, "atSeverity", "" as RuleSeverity);
+  if (!atSeverity) {
+    throw new Error("规则 DSL 动作缺少 atSeverity");
+  }
+  const indicator = readString(source, "indicator", "");
+  if (indicator !== "info" && indicator !== "warning" && indicator !== "critical") {
+    throw new Error(`不支持的卡片指示级别: ${indicator || "未填写"}`);
+  }
+  const summary = readString(source, "summary", "").trim();
+  const detail = readString(source, "detail", "").trim();
+  const rawSource = isRecord(source.source) ? source.source : undefined;
+  const sourceLabel = readString(rawSource, "label", "").trim();
+  if (!summary || !detail || !sourceLabel) {
+    throw new Error("规则 DSL 动作必须填写 summary、detail 与 source.label");
+  }
+  if (!Array.isArray(source.suggestions)) {
+    throw new Error("规则 DSL 字段 suggestions 必须是数组");
+  }
+  if (!Array.isArray(source.overrideReasons)) {
+    throw new Error("规则 DSL 字段 overrideReasons 必须是数组");
+  }
+  const rawSuggestions = source.suggestions;
+  const rawReasons = source.overrideReasons;
+  return {
+    actionCode: actionCode as RuleActionCode,
+    atSeverity,
+    indicator,
+    summary,
+    detail,
+    source: {
+      label: sourceLabel,
+      url: optionalString(rawSource, "url"),
+      evidenceLevel: optionalString(rawSource, "evidenceLevel"),
+    },
+    suggestions: rawSuggestions.map((suggestion) => {
+      if (!isRecord(suggestion)) {
+        throw new Error("规则 DSL 建议项必须为对象");
+      }
+      const label = readString(suggestion, "label", "").trim();
+      const actionType = readString(suggestion, "actionType", "").trim();
+      if (!label || !actionType) {
+        throw new Error("规则 DSL 建议项必须填写 label 与 actionType");
+      }
+      return {
+        label,
+        actionType,
+        payload: isRecord(suggestion.payload) ? cloneJsonRecord(suggestion.payload) : undefined,
+      };
+    }),
+    overrideReasons: rawReasons.map((reason) => {
+      if (typeof reason !== "string" || !reason.trim()) {
+        throw new Error("规则 DSL overrideReasons 仅允许非空文本");
+      }
+      return reason.trim();
+    }),
+    requiresPhysicianConfirmation:
+      readBoolean(source, "requiresPhysicianConfirmation") ??
+      requiresPhysicianConfirmation(actionCode as RuleActionCode, atSeverity),
+  };
+}
+
+function optionalString(source: unknown, key: string): string | undefined {
+  const value = readString(source, key, "").trim();
+  return value || undefined;
+}
+
+export function requiresPhysicianConfirmation(
+  actionCode: RuleActionCode,
+  severity: RuleSeverity,
+): boolean {
+  return (
+    severity === "HIGH" ||
+    severity === "CRITICAL" ||
+    actionCode === "BLOCK" ||
+    actionCode === "STRONG_REMINDER" ||
+    actionCode === "SUGGEST_ORDER"
+  );
+}
+
+function cloneAction(action: RuleActionDraft): RuleActionDraft {
+  return {
+    ...action,
+    source: { ...action.source },
+    suggestions: action.suggestions.map((suggestion) => ({
+      ...suggestion,
+      payload: suggestion.payload ? cloneJsonRecord(suggestion.payload) : undefined,
+    })),
+    overrideReasons: [...action.overrideReasons],
+  };
+}
+
+function cloneConditionValue(value: RuleCondition["value"]): RuleCondition["value"] {
+  if (Array.isArray(value)) return [...value];
+  if (isRecord(value)) return cloneJsonRecord(value);
+  return value;
+}
+
+function cloneConditionGroup(group: RuleConditionGroup): RuleConditionGroup {
+  return {
+    ...group,
+    children: group.children.map((child) =>
+      isConditionGroup(child)
+        ? cloneConditionGroup(child)
+        : {
+            ...child,
+            value: cloneConditionValue(child.value),
+            expr: child.expr ? normalizeConditionExpression(child.expr) : undefined,
+          },
+    ),
+  };
 }
 
 function readOperator(source: unknown, key: string): RuleOperator {

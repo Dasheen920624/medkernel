@@ -1,14 +1,45 @@
 package com.medkernel.engine.rule;
 
+import java.util.List;
+
+import com.medkernel.engine.cdshook.CdsHookCard;
+import com.medkernel.engine.cdshook.CdsHookSource;
+import com.medkernel.engine.cdshook.CdsHookSuggestion;
+
 /**
  * 规则 DSL {@code then} 段动作产出值对象（GA-ENG-API-05）。
  *
- * <p>承载动作码、严重度、提示文本以及是否要求医师确认；高严重度动作以及
- * {@code BLOCK}/{@code STRONG_REMINDER}/{@code RECOMMEND_NEXT} 一律强制确认。
+ * <p>动作结构与 CDS Hooks 卡片字段保持一致；高严重度、阻断、强提醒和建议医嘱动作一律强制医师确认。
  */
 public record RuleActionResult(
-    String actionCode,
+    RuleActionCode actionCode,
     RuleRiskLevel severity,
-    String message,
+    String indicator,
+    String summary,
+    String detail,
+    CdsHookSource source,
+    List<CdsHookSuggestion> suggestions,
+    List<String> overrideReasons,
     boolean requiresPhysicianConfirmation
-) {}
+) {
+    public RuleActionResult {
+        suggestions = suggestions == null ? List.of() : List.copyOf(suggestions);
+        overrideReasons = overrideReasons == null ? List.of() : List.copyOf(overrideReasons);
+    }
+
+    /**
+     * 转换为客户面 CDS Hooks 卡片，不生成可自动执行的 system-action。
+     */
+    public CdsHookCard toCdsHookCard(String uuid) {
+        return new CdsHookCard(
+            uuid,
+            summary,
+            detail,
+            indicator,
+            source,
+            suggestions,
+            overrideReasons,
+            requiresPhysicianConfirmation
+        );
+    }
+}
