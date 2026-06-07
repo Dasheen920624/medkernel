@@ -1658,6 +1658,12 @@ public class PackageEngineService {
         if (!hasTerminalNode) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包路径缺少终止节点");
         }
+        Set<String> timedNodeCodes = new HashSet<>();
+        for (PackageOfflinePathwayNode node : pathway.nodes()) {
+            if (node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0) {
+                timedNodeCodes.add(node.nodeCode());
+            }
+        }
         Set<String> edgeCodes = new HashSet<>();
         for (PackageOfflinePathwayEdge edge : pathway.edges()) {
             if (normalizedText(edge.edgeId()) == null || normalizedText(edge.edgeCode()) == null) {
@@ -1672,11 +1678,21 @@ public class PackageEngineService {
             parseEnum(com.medkernel.engine.pathway.PathwayEdgeType.class, edge.edgeType(), "路径边类型");
         }
         validateOfflineRichPathwayNodeContracts(pathway);
+        Set<String> clockMetricBoundNodes = new HashSet<>();
         for (PackageOfflinePathwayMetricBinding binding : pathway.metricBindings()) {
             if (!nodeCodes.contains(binding.nodeCode())) {
                 throw new ApiException(
                     ErrorCode.ENG_PACKAGE_002,
                     "离线包路径指标绑定引用不存在的节点: " + binding.nodeCode()
+                );
+            }
+            clockMetricBoundNodes.add(binding.nodeCode());
+        }
+        for (String nodeCode : timedNodeCodes) {
+            if (!clockMetricBoundNodes.contains(nodeCode)) {
+                throw new ApiException(
+                    ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径节点 " + nodeCode + " 设置时窗后必须绑定时钟指标编码"
                 );
             }
         }
@@ -1690,6 +1706,7 @@ public class PackageEngineService {
         for (PackageOfflinePathwayNode node : pathway.nodes()) {
             com.medkernel.engine.pathway.PathwayNodeType nodeType =
                 parseEnum(com.medkernel.engine.pathway.PathwayNodeType.class, node.nodeType(), "路径节点类型");
+            validateOfflineClockSla(node);
             List<PackageOfflinePathwayEdge> outgoing = outgoingByNode.getOrDefault(node.nodeCode(), List.of());
             switch (nodeType) {
                 case DECISION -> validateOfflineDecisionNode(node, outgoing);
@@ -1708,6 +1725,76 @@ public class PackageEngineService {
                 default -> {
                     // 普通活动节点只需要基础拓扑与枚举校验。
                 }
+            }
+        }
+    }
+
+    private void validateOfflineClockSla(PackageOfflinePathwayNode node) {
+        if (node.timeWindowMinutes() == null) {
+            return;
+        }
+        if (node.timeWindowMinutes() < 0) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 的 timeWindowMinutes 不能为负数");
+        }
+        if (node.timeWindowMinutes() == 0) {
+            return;
+        }
+
+        JsonNode clockSla = offlineNodeConfigNode(node, "clockSla");
+        if (clockSla == null || clockSla.isNull() || clockSla.isMissingNode()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 缺少 clockSla");
+        }
+        if (!clockSla.isObject()) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 的 clockSla 必须是结构化对象");
+        }
+
+        String baselineEvent = requiredOfflineClockText(node, clockSla, "baselineEvent", "SLA 基准事件");
+        if (!Set.of("NODE_START", "PATHWAY_ENTRY", "ADMISSION").contains(baselineEvent)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 不支持 SLA 基准事件: " + baselineEvent);
+        }
+
+        int minMinutes = requiredOfflineClockNonNegativeInt(node, clockSla, "minMinutes");
+        int targetMinutes = requiredOfflineClockNonNegativeInt(node, clockSla, "targetMinutes");
+        int maxMinutes = requiredOfflineClockNonNegativeInt(node, clockSla, "maxMinutes");
+        if (targetMinutes <= 0) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 的 targetMinutes 必须大于 0");
+        }
+        if (minMinutes > targetMinutes || targetMinutes > maxMinutes) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 的 SLA 时限必须满足 min <= target <= max");
+        }
+        validateOfflineClockEscalations(node, clockSla.path("escalations"));
+    }
+
+    private void validateOfflineClockEscalations(PackageOfflinePathwayNode node, JsonNode source) {
+        if (source == null || !source.isArray() || source.size() == 0) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 缺少超时升级策略");
+        }
+        Set<String> levels = new HashSet<>();
+        Set<String> allowedLevels = Set.of("REMINDER", "REPORT", "QUALITY_RECORD");
+        for (JsonNode item : source) {
+            if (!item.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径时钟节点 " + node.nodeCode() + " 的超时升级策略必须是对象数组");
+            }
+            String level = requiredOfflineClockText(node, item, "level", "超时升级级别");
+            if (!allowedLevels.contains(level)) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径时钟节点 " + node.nodeCode() + " 不支持超时升级级别: " + level);
+            }
+            requiredOfflineClockNonNegativeInt(node, item, "afterMinutes");
+            levels.add(level);
+        }
+        for (String required : allowedLevels) {
+            if (!levels.contains(required)) {
+                throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                    "离线包路径时钟节点 " + node.nodeCode() + " 缺少 " + required + " 超时升级级别");
             }
         }
     }
@@ -1756,16 +1843,45 @@ public class PackageEngineService {
     }
 
     private String offlineNodeConfigText(PackageOfflinePathwayNode node, String field) {
+        JsonNode value = offlineNodeConfigNode(node, field);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private JsonNode offlineNodeConfigNode(PackageOfflinePathwayNode node, String field) {
         if (normalizedText(node.configJson()) == null) {
             return null;
         }
         try {
-            JsonNode value = OFFLINE_EXPORT_MAPPER.readTree(node.configJson()).get(field);
-            return value == null || value.isNull() ? null : value.asText();
+            return OFFLINE_EXPORT_MAPPER.readTree(node.configJson()).get(field);
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包路径节点配置 JSON 解析失败: " + node.nodeCode(), exception);
         }
+    }
+
+    private String requiredOfflineClockText(
+            PackageOfflinePathwayNode node,
+            JsonNode source,
+            String field,
+            String label) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull() || normalizedText(value.asText()) == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 缺少 " + label);
+        }
+        return value.asText().trim();
+    }
+
+    private int requiredOfflineClockNonNegativeInt(
+            PackageOfflinePathwayNode node,
+            JsonNode source,
+            String field) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull() || !value.canConvertToInt() || value.asInt() < 0) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包路径时钟节点 " + node.nodeCode() + " 的 " + field + " 必须是非负整数");
+        }
+        return value.asInt();
     }
 
     private void validateOfflineTerminologyMappings(List<PackageOfflineTermMapping> mappings) {

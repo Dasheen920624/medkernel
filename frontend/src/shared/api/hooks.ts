@@ -3148,7 +3148,8 @@ export type PatientPathwayStatus =
   | "COMPLETED"
   | "EXITED"
   | string;
-export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "VARIANCE" | string;
+export type ClinicalClockStatus = "RUNNING" | "COMPLETED" | "TIMEOUT" | "MISSING_DATA" | "VARIANCE";
+export type ClinicalClockEscalationLevel = "NONE" | "REMINDER" | "REPORT" | "QUALITY_RECORD";
 export type PathwayMilestoneStatus = "ACHIEVED" | "CURRENT" | "PENDING" | "OVERDUE" | string;
 export type VarianceType =
   | "MEDICAL"
@@ -3350,9 +3351,16 @@ export interface ClinicalClock {
   nodeCode: string;
   metricCode?: string;
   startedAt: string;
-  dueAt: string;
+  dueAt?: string;
   completedAt?: string;
   status: ClinicalClockStatus;
+  baselineEvent?: string;
+  baselineAt?: string;
+  minDueAt?: string;
+  targetDueAt?: string;
+  maxDueAt?: string;
+  escalationLevel?: ClinicalClockEscalationLevel;
+  escalationPolicyJson?: string;
   createdAt?: string;
   traceId?: string;
 }

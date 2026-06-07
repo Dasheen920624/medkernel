@@ -406,7 +406,7 @@ class PathwayEngineServiceTest {
                 node("SUB", PathwayNodeType.SUBPATHWAY, 40, false,
                     "{\"subPathwayRef\":\"icu-transfer\"}", "医生", null),
                 node("WAIT24H", PathwayNodeType.WAIT_TIMER, 50, false,
-                    "{\"clock\":\"AFTER_24H\"}", "护士", 1440),
+                    clockSlaConfig("NODE_START", 0, 1440, 1560), "护士", 1440),
                 node("GATE", PathwayNodeType.MANUAL_GATE, 60, false, null, "临床负责人", null),
                 node("JOIN", PathwayNodeType.PARALLEL, 70, false, null, "医生", null),
                 node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 80, true, null, "护士", null)
@@ -789,12 +789,35 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenTimedNodeHasNoClinicalClockSla() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, "{}", "医生", 60),
+                node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                binding("ASSESS", "STEMI.DOOR_TO_BALLOON", true),
+                binding("FOLLOWUP", "COPD.TIME_TO_FOLLOWUP", true)));
+
+        assertThatThrownBy(() -> service.publishTemplate("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
     void enterPatientPathwayCreatesRuntimeAndStartClock() {
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
-            .thenReturn(Optional.of(node("ASSESS", 10, false)));
+            .thenReturn(Optional.of(node(
+                "ASSESS", PathwayNodeType.ASSESSMENT, 10, false,
+                clockSlaConfig("ADMISSION", 0, 120, 180), "医生", 120)));
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
         stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
@@ -812,6 +835,33 @@ class PathwayEngineServiceTest {
         assertThat(clockCap.getValue().nodeCode()).isEqualTo("ASSESS");
         assertThat(clockCap.getValue().metricCode()).isEqualTo("COPD.TIME_TO_ASSESS");
         assertThat(clockCap.getValue().dueAt()).isNotNull();
+        assertThat(clockCap.getValue().baselineEvent()).isEqualTo("ADMISSION");
+        assertThat(clockCap.getValue().baselineAt()).isNotNull();
+        assertThat(clockCap.getValue().minDueAt()).isEqualTo(clockCap.getValue().baselineAt());
+        assertThat(clockCap.getValue().targetDueAt()).isEqualTo(clockCap.getValue().dueAt());
+        assertThat(clockCap.getValue().maxDueAt())
+            .isEqualTo(clockCap.getValue().baselineAt().plusSeconds(180L * 60L));
+        assertThat(clockCap.getValue().escalationLevel()).isEqualTo(ClinicalClockEscalationLevel.NONE);
+        assertThat(clockCap.getValue().escalationPolicyJson()).contains("QUALITY_RECORD");
+    }
+
+    @Test
+    void clocksProjectTimeoutEscalationFromClockSlaPolicy() {
+        PatientPathway runtime = patientPathway(PatientPathwayStatus.NODE_EXECUTING, "ABX");
+        Instant baselineAt = Instant.now().minusSeconds(2 * 60L * 60L);
+        ClinicalClock overdueClock = clockWithSla(
+            "clock-abx", "ABX", baselineAt, 0, 60, 90, ClinicalClockStatus.RUNNING);
+        when(patientPathways.findByPatientPathwayIdAndTenantId("pp-1", "tenant-A"))
+            .thenReturn(Optional.of(runtime));
+        when(clocks.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-A"))
+            .thenReturn(List.of(overdueClock));
+
+        List<ClinicalClock> response = service.clocks("pp-1");
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().status()).isEqualTo(ClinicalClockStatus.TIMEOUT);
+        assertThat(response.getFirst().escalationLevel()).isEqualTo(ClinicalClockEscalationLevel.QUALITY_RECORD);
+        assertThat(response.getFirst().metricCode()).isEqualTo("COPD.TIME_TO_FOLLOWUP");
     }
 
     @Test
@@ -1510,10 +1560,34 @@ class PathwayEngineServiceTest {
                              PathwayNodeType nodeType, String milestoneCode, int sortOrder, boolean terminal,
                              String configJson, String responsibleRole, Integer timeWindowMinutes) {
         Instant now = Instant.now();
+        String effectiveConfigJson = configJson;
+        if (effectiveConfigJson == null && timeWindowMinutes != null && timeWindowMinutes > 0) {
+            effectiveConfigJson = clockSlaConfig("NODE_START", 0, 60, 90);
+        }
         return new PathwayNode(
             null, "pn-" + code, tenantId, templateId, code, code,
-            nodeType, milestoneCode, sortOrder, responsibleRole, null, timeWindowMinutes, terminal, configJson,
+            nodeType, milestoneCode, sortOrder, responsibleRole, null, timeWindowMinutes, terminal, effectiveConfigJson,
             now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private String clockSlaConfig(String baselineEvent, int minMinutes, int targetMinutes, int maxMinutes) {
+        return """
+            {
+              "clockSla": {
+                "baselineEvent": "%s",
+                "minMinutes": %d,
+                "targetMinutes": %d,
+                "maxMinutes": %d,
+                "escalations": [
+                  { "level": "REMINDER", "afterMinutes": %d },
+                  { "level": "REPORT", "afterMinutes": %d },
+                  { "level": "QUALITY_RECORD", "afterMinutes": %d }
+                ]
+              }
+            }
+            """.formatted(
+                baselineEvent, minMinutes, targetMinutes, maxMinutes, targetMinutes,
+                targetMinutes + ((maxMinutes - targetMinutes) / 2), maxMinutes);
     }
 
     private PathwayMilestone milestone(String milestoneCode, String phaseCode, String phaseName,
@@ -1593,6 +1667,7 @@ class PathwayEngineServiceTest {
         return new ClinicalClock(
             1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
             now.minusSeconds(60), now.plusSeconds(3600), null, status,
+            null, null, null, null, null, ClinicalClockEscalationLevel.NONE, null,
             now.minusSeconds(60), "tester", now.minusSeconds(60), "tester", "trace-pathway");
     }
 
@@ -1601,7 +1676,27 @@ class PathwayEngineServiceTest {
             1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
             completedAt.minusSeconds(1800), completedAt.plusSeconds(3600), completedAt,
             ClinicalClockStatus.COMPLETED,
+            null, null, null, null, null, ClinicalClockEscalationLevel.NONE, null,
             completedAt.minusSeconds(1800), "tester", completedAt, "tester", "trace-pathway");
+    }
+
+    private ClinicalClock clockWithSla(String clockId, String nodeCode, Instant baselineAt,
+                                       int minMinutes, int targetMinutes, int maxMinutes,
+                                       ClinicalClockStatus status) {
+        return new ClinicalClock(
+            1L, clockId, "tenant-A", "pp-1", nodeCode, "COPD.TIME_TO_FOLLOWUP",
+            baselineAt, baselineAt.plusSeconds(targetMinutes * 60L), null, status,
+            "ADMISSION", baselineAt, baselineAt.plusSeconds(minMinutes * 60L),
+            baselineAt.plusSeconds(targetMinutes * 60L), baselineAt.plusSeconds(maxMinutes * 60L),
+            ClinicalClockEscalationLevel.NONE,
+            """
+                [
+                  { "level": "REMINDER", "afterMinutes": 60 },
+                  { "level": "REPORT", "afterMinutes": 75 },
+                  { "level": "QUALITY_RECORD", "afterMinutes": 90 }
+                ]
+                """,
+            baselineAt, "tester", baselineAt, "tester", "trace-pathway");
     }
 
     private PathwayVariance variance(String varianceId, VarianceType type) {

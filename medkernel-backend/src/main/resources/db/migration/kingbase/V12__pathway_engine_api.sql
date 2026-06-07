@@ -227,6 +227,13 @@ CREATE TABLE IF NOT EXISTS clinical_clock (
     due_at             TIMESTAMPTZ  NULL,
     completed_at       TIMESTAMPTZ  NULL,
     status             VARCHAR(32)  NOT NULL DEFAULT 'RUNNING',
+    baseline_event     VARCHAR(64)  NULL,
+    baseline_at        TIMESTAMPTZ  NULL,
+    min_due_at         TIMESTAMPTZ  NULL,
+    target_due_at      TIMESTAMPTZ  NULL,
+    max_due_at         TIMESTAMPTZ  NULL,
+    escalation_level   VARCHAR(32)  NOT NULL DEFAULT 'NONE',
+    escalation_policy_json TEXT     NULL,
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     created_by         VARCHAR(64)  NOT NULL DEFAULT 'system',
     updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -235,6 +242,9 @@ CREATE TABLE IF NOT EXISTS clinical_clock (
     CONSTRAINT uk_clinical_clock_id UNIQUE (clock_id),
     CONSTRAINT ck_clinical_clock_status CHECK (status IN (
         'RUNNING','COMPLETED','TIMEOUT','MISSING_DATA','VARIANCE'
+    )),
+    CONSTRAINT ck_clinical_clock_escalation CHECK (escalation_level IN (
+        'NONE','REMINDER','REPORT','QUALITY_RECORD'
     ))
 );
 
@@ -415,7 +425,7 @@ COMMENT ON COLUMN pathway_variance.updated_at IS '更新时间';
 COMMENT ON COLUMN pathway_variance.updated_by IS '更新人';
 COMMENT ON COLUMN pathway_variance.trace_id IS '请求链路追踪 ID';
 
-COMMENT ON TABLE clinical_clock IS '关键时钟表，保存患者路径节点的开始、到期、完成和质控指标关联事实';
+COMMENT ON TABLE clinical_clock IS '关键时钟表，保存患者路径节点的开始、SLA时限、完成和质控指标关联事实';
 COMMENT ON COLUMN clinical_clock.id IS '数据库自增主键';
 COMMENT ON COLUMN clinical_clock.clock_id IS '关键时钟业务 ID';
 COMMENT ON COLUMN clinical_clock.tenant_id IS '租户 ID，用于多租户数据隔离';
@@ -426,6 +436,13 @@ COMMENT ON COLUMN clinical_clock.started_at IS '关键时钟开始时间';
 COMMENT ON COLUMN clinical_clock.due_at IS '关键时钟到期时间';
 COMMENT ON COLUMN clinical_clock.completed_at IS '关键时钟完成时间';
 COMMENT ON COLUMN clinical_clock.status IS '关键时钟状态：RUNNING 运行中、COMPLETED 已完成、TIMEOUT 已超时、MISSING_DATA 缺少数据、VARIANCE 变异暂停';
+COMMENT ON COLUMN clinical_clock.baseline_event IS '临床时钟SLA基准事件：NODE_START 节点开始、PATHWAY_ENTRY 入径、ADMISSION 入院';
+COMMENT ON COLUMN clinical_clock.baseline_at IS '临床时钟SLA基准时间';
+COMMENT ON COLUMN clinical_clock.min_due_at IS '临床时钟SLA最早允许时间';
+COMMENT ON COLUMN clinical_clock.target_due_at IS '临床时钟SLA目标时间';
+COMMENT ON COLUMN clinical_clock.max_due_at IS '临床时钟SLA最晚时间';
+COMMENT ON COLUMN clinical_clock.escalation_level IS '临床时钟超时升级级别：NONE 无、REMINDER 提醒、REPORT 上报、QUALITY_RECORD 质控记录';
+COMMENT ON COLUMN clinical_clock.escalation_policy_json IS '临床时钟超时升级策略JSON';
 COMMENT ON COLUMN clinical_clock.created_at IS '创建时间';
 COMMENT ON COLUMN clinical_clock.created_by IS '创建人';
 COMMENT ON COLUMN clinical_clock.updated_at IS '更新时间';

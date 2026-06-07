@@ -28,6 +28,7 @@ import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalCondition;
 import com.medkernel.engine.pathway.ClinicalClock;
+import com.medkernel.engine.pathway.ClinicalClockEscalationLevel;
 import com.medkernel.engine.pathway.ClinicalClockRepository;
 import com.medkernel.engine.pathway.ClinicalClockStatus;
 import com.medkernel.shared.api.PageRequest;
@@ -245,6 +246,7 @@ class FollowupEngineServiceTest {
         ClinicalClock clock = new ClinicalClock(
             1L, "clock-followup-1", "tenant-1", "pp-1", "FOLLOWUP", "FOLLOWUP_7D",
             startedAt, dueAt, null, ClinicalClockStatus.RUNNING,
+            null, null, null, null, null, ClinicalClockEscalationLevel.NONE, null,
             startedAt, "pathway", startedAt, "pathway", "trace-pathway"
         );
         when(clinicalClockRepository.findByPatientPathwayIdAndTenantIdOrderByStartedAtAsc("pp-1", "tenant-1"))
