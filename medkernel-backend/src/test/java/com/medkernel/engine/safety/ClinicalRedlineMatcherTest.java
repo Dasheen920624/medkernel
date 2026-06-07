@@ -177,11 +177,7 @@ class ClinicalRedlineMatcherTest {
                 "value": "%s"
               },
               "then": [
-                {
-                  "actionCode": "CLINICAL_REDLINE",
-                  "severity": "CRITICAL",
-                  "message": "命中临床安全红线：需立即复核"
-                }
+                {"actionCode": "BLOCK", "atSeverity": "CRITICAL", "indicator": "critical", "summary": "命中临床安全红线：需立即复核", "detail": "命中临床安全红线：需立即复核", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {
                 "summary": "红线命中"

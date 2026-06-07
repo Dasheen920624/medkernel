@@ -633,7 +633,18 @@ public class RuleEngineService {
         RuleRiskLevel highest = items.stream()
             .map(RuleEvaluationItem::severity)
             .reduce(null, RuleRiskLevel::max);
-        return new RuleEvaluateResponse("eval-" + UUID.randomUUID(), items, highest, RequestContext.currentTraceId());
+        List<com.medkernel.engine.cdshook.CdsHookCard> cards = items.stream()
+            .filter(RuleEvaluationItem::hit)
+            .flatMap(item -> java.util.stream.IntStream.range(0, item.actions().size())
+                .mapToObj(index -> item.actions().get(index).toCdsHookCard(
+                    item.executionId() + "-action-" + (index + 1))))
+            .toList();
+        return new RuleEvaluateResponse(
+            "eval-" + UUID.randomUUID(),
+            items,
+            highest,
+            cards,
+            RequestContext.currentTraceId());
     }
 
     private boolean isActiveUnifiedVersion(Map.Entry<RuleDefinition, RuleVersion> candidate) {
@@ -761,7 +772,7 @@ public class RuleEngineService {
             return true;
         }
         return evaluation.actions().stream()
-            .anyMatch(action -> testCase.expectedActionCode().equals(action.actionCode()));
+            .anyMatch(action -> testCase.expectedActionCode().equals(action.actionCode().name()));
     }
 
     private void ensureCoverage(List<RuleTestCase> cases) {

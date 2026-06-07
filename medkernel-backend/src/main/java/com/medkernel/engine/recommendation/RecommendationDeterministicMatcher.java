@@ -335,7 +335,7 @@ public class RecommendationDeterministicMatcher {
 
     private String firstActionMessage(RuleDslEvaluation evaluation) {
         return evaluation.actions().stream()
-            .map(RuleActionResult::message)
+            .map(RuleActionResult::detail)
             .filter(RecommendationDeterministicMatcher::hasText)
             .findFirst()
             .orElse("规则命中，请结合上下文复核");

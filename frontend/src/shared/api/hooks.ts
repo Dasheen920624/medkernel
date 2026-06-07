@@ -2389,6 +2389,8 @@ function toExportJobStatus(status: string): AsyncExportJob["status"] {
 // ──────────────────────────────────────────
 // 规则引擎 · GA-ENG-API-05 & GA-ENG-RULE-01
 // ──────────────────────────────────────────
+export type RuleRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
 export interface RuleDefinition {
   id: number;
   ruleId: string;
@@ -2397,7 +2399,7 @@ export interface RuleDefinition {
   name: string;
   ruleType: RuleType;
   authoringMode: "DSL" | "VISUAL" | string;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  riskLevel: RuleRiskLevel;
   status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
   activeVersionId: string | null;
   packageVersion?: string | null;
@@ -2431,7 +2433,7 @@ export interface RuleTestCase {
   contextSnapshotId: string;
   inputPayload: string;
   expectedHit: boolean;
-  expectedSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  expectedSeverity?: RuleRiskLevel | string | null;
   expectedActionCode?: string | null;
   lastHit?: boolean | null;
   lastStatus?: "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | string;
@@ -2455,24 +2457,48 @@ export interface RuleDetailResponse {
 }
 
 export interface RuleEvaluationItem {
-  executionId?: string;
+  executionId: string;
   ruleId: string;
-  versionId?: string;
-  ruleCode?: string;
-  ruleName?: string;
+  versionId: string;
   hit: boolean;
-  severity: "LOW" | "MEDIUM" | "HIGH" | string;
-  actionCode?: string;
-  actions?: RuleActionResult[];
-  explanation?: unknown;
+  severity: RuleRiskLevel | null;
+  actions: RuleActionResult[];
+  explanation: unknown;
 }
 
 export interface RuleActionResult {
-  actionCode: string;
-  actionType?: string;
-  severity?: "LOW" | "MEDIUM" | "HIGH" | string;
-  message?: string;
-  explanation?: unknown;
+  actionCode: "INFO" | "REMIND" | "STRONG_REMINDER" | "BLOCK" | "SUGGEST_ORDER" | "AUTO_DOCUMENT";
+  severity: RuleRiskLevel;
+  indicator: "info" | "warning" | "critical";
+  summary: string;
+  detail: string;
+  source: CdsHookSource;
+  suggestions: CdsHookSuggestion[];
+  overrideReasons: string[];
+  requiresPhysicianConfirmation: boolean;
+}
+
+export interface CdsHookSource {
+  label: string;
+  url?: string | null;
+  evidenceLevel?: string | null;
+}
+
+export interface CdsHookSuggestion {
+  label: string;
+  actionType: string;
+  payload: unknown;
+}
+
+export interface CdsHookCard {
+  uuid: string;
+  summary: string;
+  detail: string;
+  indicator: "info" | "warning" | "critical";
+  source: CdsHookSource;
+  suggestions: CdsHookSuggestion[];
+  overrideReasons: string[];
+  requiresPhysicianConfirmation: boolean;
 }
 
 export interface RuleTestCaseResult {
@@ -2480,8 +2506,8 @@ export interface RuleTestCaseResult {
   caseType: string;
   expectedHit: boolean;
   actualHit: boolean;
-  expectedSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
-  actualSeverity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  expectedSeverity?: RuleRiskLevel | string | null;
+  actualSeverity?: RuleRiskLevel | string | null;
   status: "PASS" | "FAIL" | "ERROR" | string;
   message: string;
 }
@@ -2504,7 +2530,7 @@ export interface RuleImpactObject {
 export interface RuleImpactResponse {
   ruleId: string;
   versionId: string;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH" | string;
+  riskLevel: RuleRiskLevel | string;
   analysisStatus: "COMPLETE" | "PARTIAL" | string;
   impactDigest: string;
   affectedRules: RuleImpactObject[];
@@ -2527,10 +2553,11 @@ export interface RulePublishResponse {
 }
 
 export interface RuleEvaluateResponse {
+  requestId: string;
   traceId: string;
-  executionId: string;
-  highestSeverity: "LOW" | "MEDIUM" | "HIGH" | string;
+  highestSeverity: RuleRiskLevel | string | null;
   items: RuleEvaluationItem[];
+  cards: CdsHookCard[];
 }
 
 export interface RuleExplanationResponse {
@@ -2541,7 +2568,7 @@ export interface RuleExplanationResponse {
   eventId: string;
   inputDigest: string;
   hit: boolean;
-  severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  severity: RuleRiskLevel | string | null;
   actions?: unknown;
   explanation?: unknown;
   status: "SUCCESS" | "FAILED" | string;
@@ -2554,7 +2581,7 @@ export interface RuleExecutionSummary {
   versionId: string;
   triggerPoint: string;
   hit: boolean;
-  severity: "LOW" | "MEDIUM" | "HIGH" | string;
+  severity: RuleRiskLevel | string | null;
   status: "SUCCESS" | "MISS" | "FAILED" | string;
   executedAt: string;
   traceId: string;
@@ -2567,7 +2594,7 @@ export interface DiagnoseResponse {
   inputPayloadSummary: string;
   explanationSnapshot: string;
   confidenceScore?: number;
-  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  riskLevel?: RuleRiskLevel;
   statusHistory: Array<{
     status: string;
     changedAt: string;

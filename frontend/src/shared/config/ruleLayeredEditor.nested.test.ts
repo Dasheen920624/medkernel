@@ -82,12 +82,19 @@ describe("ruleLayeredEditor 嵌套条件（P1-2 原地扩展）", () => {
       triggerPoint: "patient-view",
       logic: "any",
       conditions: [leaf("a"), leaf("b")],
-      action: {
-        actionCode: "REVIEW_REQUIRED",
-        severity: "LOW",
-        message: "复核",
-        requiresPhysicianConfirmation: true,
-      },
+      actions: [
+        {
+          actionCode: "REMIND",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "复核",
+          detail: "复核",
+          source: { label: "规则依据" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      ],
       explanationSummary: "摘要",
     };
     const root = flatToRootGroup(tree);

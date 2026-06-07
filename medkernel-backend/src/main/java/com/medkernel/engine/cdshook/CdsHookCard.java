@@ -1,5 +1,7 @@
 package com.medkernel.engine.cdshook;
 
+import java.util.List;
+
 import com.medkernel.engine.recommendation.RecommendationCard;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 
@@ -11,15 +13,26 @@ public record CdsHookCard(
     String summary,
     String detail,
     String indicator,
-    String sourceLabel
+    CdsHookSource source,
+    List<CdsHookSuggestion> suggestions,
+    List<String> overrideReasons,
+    boolean requiresPhysicianConfirmation
 ) {
+    public CdsHookCard {
+        suggestions = suggestions == null ? List.of() : List.copyOf(suggestions);
+        overrideReasons = overrideReasons == null ? List.of() : List.copyOf(overrideReasons);
+    }
+
     public static CdsHookCard fromRecommendationCard(RecommendationCard card) {
         return new CdsHookCard(
             card.cardId(),
             card.title(),
             card.summary(),
             indicator(card.riskLevel()),
-            card.sourceSummary()
+            new CdsHookSource(card.sourceSummary(), null, null),
+            List.of(),
+            List.of(),
+            card.requiresPhysicianConfirmation()
         );
     }
 

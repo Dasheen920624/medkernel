@@ -151,7 +151,7 @@ class DefaultDiagnosisRedlinePortTest {
             """
             {
               "when": { "fact": "patient.gender", "operator": "equals", "value": "%s" },
-              "then": [ { "actionCode": "CLINICAL_REDLINE", "severity": "CRITICAL", "message": "红线命中" } ]
+              "then": [ {"actionCode": "BLOCK", "atSeverity": "CRITICAL", "indicator": "critical", "summary": "红线命中", "detail": "红线命中", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []} ]
             }
             """.formatted(gender),
             "诊断知识与指南证据", "source-version#sec-1", sourceVersionId,

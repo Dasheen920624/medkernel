@@ -101,7 +101,7 @@
 
 ## 阶段 P7：规则动作模型、交互治理与适用域
 
-- [ ] P7-1 分级动作与 CDS Hooks 卡片输出（indicator/source/suggestions/overrideReasons）。
+- [x] P7-1 分级动作与 CDS Hooks 卡片输出（indicator/source/suggestions/overrideReasons）。
   - ✅ 测试：按严重度产出不同动作；高危需医师确认。
 - [ ] P7-2 规则交互治理：优先级、抑制（suppressedBy）、窗口去重、静态冲突检测、越权理由捕获。
   - ✅ 测试：互斥规则发布前检出；越权强制理由；去重生效。

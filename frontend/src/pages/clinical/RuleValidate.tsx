@@ -39,15 +39,14 @@ function isCriticalSeverity(severity?: string | null) {
 }
 
 function isRedlineActionCode(actionCode?: string | null) {
-  return actionCode === "CLINICAL_REDLINE" || actionCode?.startsWith("REDLINE") === true;
+  return actionCode === "BLOCK";
 }
 
 function isRedlineEvaluationItem(item: RuleEvaluationItem) {
   return (
     isCriticalSeverity(item.severity) ||
     item.ruleId.startsWith("RDL-") ||
-    item.actions?.some((action) => isRedlineActionCode(action.actionCode)) === true ||
-    isRedlineActionCode(item.actionCode)
+    item.actions.some((action) => isRedlineActionCode(action.actionCode))
   );
 }
 
@@ -149,9 +148,7 @@ export default function RuleValidate() {
       dataIndex: "versionId",
       key: "versionId",
       className: styles.textStrong,
-      render: (text: string | undefined, record: RuleEvaluationItem) => (
-        <span>{text || record.ruleCode || "未返回版本"}</span>
-      ),
+      render: (text: string) => <span>{text || "未返回版本"}</span>,
     },
     {
       title: "警示严重度",
@@ -165,9 +162,7 @@ export default function RuleValidate() {
       title: "处置动作",
       key: "actions",
       render: (_value: unknown, record: RuleEvaluationItem) => {
-        const actionCodes =
-          record.actions?.map((action) => action.actionCode).filter(Boolean) ??
-          (record.actionCode ? [record.actionCode] : []);
+        const actionCodes = record.actions.map((action) => action.actionCode).filter(Boolean);
         return actionCodes.length > 0 ? (
           <div className={styles.tagRow}>
             {actionCodes.map((code) => (
@@ -182,6 +177,16 @@ export default function RuleValidate() {
       },
     },
     {
+      title: "确认要求",
+      key: "confirmation",
+      render: (_value: unknown, record: RuleEvaluationItem) =>
+        record.actions.some((action) => action.requiresPhysicianConfirmation) ? (
+          <Tag color="red">必须医师确认</Tag>
+        ) : (
+          <Tag>无需额外确认</Tag>
+        ),
+    },
+    {
       title: "命中解释",
       key: "explanation",
       render: (_value: unknown, record: RuleEvaluationItem) => (
@@ -191,13 +196,13 @@ export default function RuleValidate() {
     {
       title: "解释追溯",
       key: "action",
-      render: (_record: RuleEvaluationItem) => {
-        if (evaluateResponse?.executionId) {
+      render: (_value: unknown, record: RuleEvaluationItem) => {
+        if (record.executionId) {
           return (
             <Button
               type="link"
               icon={<BugOutlined />}
-              onClick={() => setSelectedExecutionId(evaluateResponse.executionId)}
+              onClick={() => setSelectedExecutionId(record.executionId ?? null)}
               className={styles.linkButton}
             >
               查看执行解释
@@ -357,8 +362,8 @@ export default function RuleValidate() {
                     <Descriptions.Item label="链路 TraceId">
                       <span className={styles.codeText}>{evaluateResponse.traceId}</span>
                     </Descriptions.Item>
-                    <Descriptions.Item label="求值 ExecutionId">
-                      <span className={styles.codeText}>{evaluateResponse.executionId}</span>
+                    <Descriptions.Item label="求值 RequestId">
+                      <span className={styles.codeText}>{evaluateResponse.requestId}</span>
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
                       <Tag color={severityColor(evaluateResponse.highestSeverity)}>

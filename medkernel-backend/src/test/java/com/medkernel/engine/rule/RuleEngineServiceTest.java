@@ -504,6 +504,12 @@ class RuleEngineServiceTest {
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.highestSeverity()).isEqualTo(RuleRiskLevel.HIGH);
+        assertThat(response.cards()).singleElement().satisfies(card -> {
+            assertThat(card.summary()).isEqualTo("抗凝用药需确认出血风险");
+            assertThat(card.indicator()).isEqualTo("critical");
+            assertThat(card.source().label()).isEqualTo("规则测试来源");
+            assertThat(card.requiresPhysicianConfirmation()).isTrue();
+        });
         RuleEvaluationItem item = response.items().getFirst();
         assertThat(item.hit()).isTrue();
         assertThat(item.explanation().get("title").asText()).isEqualTo("抗凝风险提示");
@@ -827,12 +833,7 @@ class RuleEngineServiceTest {
                 ]
               },
               "then": [
-                {
-                  "actionCode": "STRONG_REMINDER",
-                  "severity": "HIGH",
-                  "message": "抗凝用药需确认出血风险",
-                  "requiresPhysicianConfirmation": true
-                }
+                {"actionCode": "STRONG_REMINDER", "atSeverity": "HIGH", "indicator": "critical", "summary": "抗凝用药需确认出血风险", "detail": "抗凝用药需确认出血风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": true}
               ],
               "explain": {
                 "title": "抗凝风险提示",

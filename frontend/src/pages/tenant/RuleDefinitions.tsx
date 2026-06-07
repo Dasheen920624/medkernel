@@ -85,6 +85,7 @@ import {
   conditionNeedsValue,
   conditionNodeToDsl,
   conditionTreeToDsl,
+  createRuleActionDraft,
   createExplanationTemplate,
   dslToConditionTree,
   dslWhenToRootGroup,
@@ -93,11 +94,15 @@ import {
   instantiateRuleTemplate,
   isConditionGroup,
   parseRuleJson,
+  requiresPhysicianConfirmation,
+  type RuleActionCode,
+  type RuleActionDraft,
   type RuleCondition,
   type RuleConditionGroup,
   type RuleConditionNode,
   type RuleConditionTree,
   type RuleLogic,
+  type RuleIndicator,
   type RuleOperator,
   type RuleSeverity,
   type RuleTemplateKey,
@@ -138,6 +143,7 @@ const RISK_LABELS: Record<RuleSeverity, string> = {
   LOW: "低风险",
   MEDIUM: "中风险",
   HIGH: "高风险",
+  CRITICAL: "红线",
 };
 
 const numericComparisonChoices = [
@@ -291,6 +297,7 @@ function renderRiskTag(level: string) {
     LOW: "green",
     MEDIUM: "orange",
     HIGH: "red",
+    CRITICAL: "magenta",
   };
   return (
     <Tag color={colors[level] ?? "default"}>{RISK_LABELS[level as RuleSeverity] ?? level}</Tag>
@@ -524,12 +531,12 @@ export default function RuleDefinitions() {
   const buildRuleDslFromRoot = (
     root: RuleConditionGroup,
     triggerPoint: ClinicalTriggerPoint,
-    action: RuleConditionTree["action"],
+    actions: RuleConditionTree["actions"],
     explanationSummary: string,
   ) => ({
     trigger: triggerPoint,
     when: conditionNodeToDsl(root),
-    then: [{ ...action }],
+    then: actions,
     explain: {
       summary: explanationSummary,
       authoring: {
@@ -545,7 +552,7 @@ export default function RuleDefinitions() {
         buildRuleDslFromRoot(
           conditionRoot,
           conditionTree.triggerPoint,
-          conditionTree.action,
+          conditionTree.actions,
           conditionTree.explanationSummary,
         ),
       ),
@@ -639,6 +646,125 @@ export default function RuleDefinitions() {
         [key]: value,
       },
     });
+  };
+
+  const updateAction = (index: number, patch: Partial<RuleActionDraft>) => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: current.actions.map((action, actionIndex) => {
+        if (actionIndex !== index) return action;
+        const next = { ...action, ...patch };
+        return {
+          ...next,
+          requiresPhysicianConfirmation:
+            next.requiresPhysicianConfirmation ||
+            requiresPhysicianConfirmation(next.actionCode, next.atSeverity),
+        };
+      }),
+    }));
+  };
+
+  const addAction = () => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: [...current.actions, createRuleActionDraft()],
+    }));
+  };
+
+  const removeAction = (index: number) => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: current.actions.filter((_, actionIndex) => actionIndex !== index),
+    }));
+  };
+
+  const updateSuggestion = (
+    actionIndex: number,
+    suggestionIndex: number,
+    patch: Partial<RuleActionDraft["suggestions"][number]>,
+  ) => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: current.actions.map((action, currentActionIndex) =>
+        currentActionIndex === actionIndex
+          ? {
+              ...action,
+              suggestions: action.suggestions.map((suggestion, currentSuggestionIndex) =>
+                currentSuggestionIndex === suggestionIndex
+                  ? { ...suggestion, ...patch }
+                  : suggestion,
+              ),
+            }
+          : action,
+      ),
+    }));
+  };
+
+  const addSuggestion = (actionIndex: number) => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: current.actions.map((action, currentActionIndex) =>
+        currentActionIndex === actionIndex
+          ? {
+              ...action,
+              suggestions: [
+                ...action.suggestions,
+                { label: "", actionType: "REMIND", payload: {} },
+              ],
+            }
+          : action,
+      ),
+    }));
+  };
+
+  const removeSuggestion = (actionIndex: number, suggestionIndex: number) => {
+    setConditionTree((current) => ({
+      ...current,
+      actions: current.actions.map((action, currentActionIndex) =>
+        currentActionIndex === actionIndex
+          ? {
+              ...action,
+              suggestions: action.suggestions.filter(
+                (_, currentSuggestionIndex) => currentSuggestionIndex !== suggestionIndex,
+              ),
+            }
+          : action,
+      ),
+    }));
+  };
+
+  const updateSuggestionPayload = (
+    actionIndex: number,
+    suggestionIndex: number,
+    oldKey: string,
+    nextKey: string,
+    nextValue: string,
+  ) => {
+    const action = conditionTree.actions[actionIndex];
+    const suggestion = action?.suggestions[suggestionIndex];
+    if (!suggestion) return;
+    const payload = { ...(suggestion.payload ?? {}) };
+    if (oldKey && oldKey !== nextKey) delete payload[oldKey];
+    if (nextKey.trim()) payload[nextKey.trim()] = nextValue;
+    updateSuggestion(actionIndex, suggestionIndex, { payload });
+  };
+
+  const addSuggestionPayload = (actionIndex: number, suggestionIndex: number) => {
+    const suggestion = conditionTree.actions[actionIndex]?.suggestions[suggestionIndex];
+    if (!suggestion) return;
+    const payload = { ...(suggestion.payload ?? {}) };
+    let sequence = Object.keys(payload).length + 1;
+    while (`参数${sequence}` in payload) sequence += 1;
+    payload[`参数${sequence}`] = "";
+    updateSuggestion(actionIndex, suggestionIndex, { payload });
+  };
+
+  const removeSuggestionPayload = (actionIndex: number, suggestionIndex: number, key: string) => {
+    const suggestion = conditionTree.actions[actionIndex]?.suggestions[suggestionIndex];
+    if (!suggestion) return;
+    const payload = { ...(suggestion.payload ?? {}) };
+    delete payload[key];
+    updateSuggestion(actionIndex, suggestionIndex, { payload });
   };
 
   const updateConditionExpression = (
@@ -1463,14 +1589,25 @@ export default function RuleDefinitions() {
       const values = await createForm.validateFields();
       let parsedDsl: unknown;
       let submitRoot: RuleConditionGroup;
+      let submitTree: RuleConditionTree;
       try {
+        const actions = conditionTree.actions.map((action) => ({
+          ...action,
+          source: {
+            ...action.source,
+            label:
+              action.source.label === "规则版本来源" || !action.source.label.trim()
+                ? values.sourceRef
+                : action.source.label,
+          },
+        }));
         // 专家模式以 L3 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
         parsedDsl = createExpertMode
           ? parseRuleJson(dslEditorValue)
           : buildRuleDslFromRoot(
               conditionRoot,
               conditionTree.triggerPoint,
-              conditionTree.action,
+              actions,
               conditionTree.explanationSummary,
             );
         if (
@@ -1480,7 +1617,8 @@ export default function RuleDefinitions() {
         ) {
           throw new Error("缺少 trigger 或 when");
         }
-        submitRoot = dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
+        submitTree = dslToConditionTree(parsedDsl);
+        submitRoot = submitTree.root ?? dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
         message.error("L3 DSL JSON 不合法，请先从 L2 同步或修正后再提交。");
         setCreateExpertMode(true);
@@ -1509,7 +1647,7 @@ export default function RuleDefinitions() {
         changeSummary: values.changeSummary,
         dslJson: parsedDsl,
         explanationJson: createExplanationTemplate({
-          ...conditionTree,
+          ...submitTree,
           root: submitRoot,
         }),
       });
@@ -2073,7 +2211,13 @@ export default function RuleDefinitions() {
               )}
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="命中动作">
-                  {detailTree.action.actionCode} · {RISK_LABELS[detailTree.action.severity]}
+                  <Space wrap>
+                    {detailTree.actions.map((action, index) => (
+                      <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
+                        {action.summary} · {RISK_LABELS[action.atSeverity]}
+                      </Tag>
+                    ))}
+                  </Space>
                 </Descriptions.Item>
                 <Descriptions.Item label="解释摘要">
                   {detailTree.explanationSummary}
@@ -2146,7 +2290,7 @@ export default function RuleDefinitions() {
                         caseForm.setFieldsValue({
                           expectedHit: true,
                           expectedSeverity: "LOW",
-                          expectedActionCode: "REVIEW_REQUIRED",
+                          expectedActionCode: "REMIND",
                           caseType: "POSITIVE",
                         });
                         setCaseModalVisible(true);
@@ -2282,11 +2426,26 @@ export default function RuleDefinitions() {
                     </Descriptions.Item>
                     {simulateResult.hit && (
                       <>
-                        <Descriptions.Item label="动作代码">
-                          {simulateResult.actionCode}
+                        <Descriptions.Item label="动作卡">
+                          <Space wrap>
+                            {simulateResult.actions.map((action, index) => (
+                              <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
+                                {action.summary} · {action.actionCode}
+                              </Tag>
+                            ))}
+                          </Space>
                         </Descriptions.Item>
                         <Descriptions.Item label="最高严重等级">
                           {simulateResult.severity}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="确认要求">
+                          {simulateResult.actions.some(
+                            (action) => action.requiresPhysicianConfirmation,
+                          ) ? (
+                            <Tag color="red">必须医师确认</Tag>
+                          ) : (
+                            <Tag>无需额外确认</Tag>
+                          )}
                         </Descriptions.Item>
                       </>
                     )}
@@ -2389,46 +2548,317 @@ export default function RuleDefinitions() {
 
           {renderConditionGroup(conditionRoot, 0)}
 
-          <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="动作代码">
-              <Input
-                value={conditionTree.action.actionCode}
-                onChange={(event) =>
-                  setConditionTree((current) => ({
-                    ...current,
-                    action: { ...current.action, actionCode: event.target.value },
-                  }))
-                }
-              />
-            </Descriptions.Item>
-            <Descriptions.Item label="动作风险">
-              <Select
-                value={conditionTree.action.severity}
-                onChange={(value: RuleSeverity) =>
-                  setConditionTree((current) => ({
-                    ...current,
-                    action: { ...current.action, severity: value },
-                  }))
-                }
-                className="mk-full-width"
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <div className={styles.conditionHeader}>
+              <Space direction="vertical" size={0}>
+                <Text strong>命中动作卡</Text>
+                <Text type="secondary">按风险级别输出可审阅卡片，不直接执行医嘱。</Text>
+              </Space>
+              <Button icon={<PlusOutlined />} aria-label="添加动作" onClick={addAction}>
+                添加动作
+              </Button>
+            </div>
+
+            {conditionTree.actions.map((action, actionIndex) => (
+              <div
+                key={`action-${actionIndex}`}
+                className={styles.formSection}
+                data-testid={`rule-action-${actionIndex}`}
               >
-                <Option value="LOW">低风险</Option>
-                <Option value="MEDIUM">中风险</Option>
-                <Option value="HIGH">高风险</Option>
-              </Select>
-            </Descriptions.Item>
-            <Descriptions.Item label="动作说明" span={2}>
-              <Input
-                value={conditionTree.action.message}
-                onChange={(event) =>
-                  setConditionTree((current) => ({
-                    ...current,
-                    action: { ...current.action, message: event.target.value },
-                  }))
-                }
-              />
-            </Descriptions.Item>
-          </Descriptions>
+                <div className={styles.conditionHeader}>
+                  <Space>
+                    <Tag color={action.indicator}>动作 {actionIndex + 1}</Tag>
+                    <Text strong>{action.summary || "待填写动作摘要"}</Text>
+                  </Space>
+                  <Tooltip
+                    title={conditionTree.actions.length === 1 ? "至少保留一个动作" : "删除动作"}
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      aria-label={`删除动作 ${actionIndex + 1}`}
+                      disabled={conditionTree.actions.length === 1}
+                      onClick={() => removeAction(actionIndex)}
+                    />
+                  </Tooltip>
+                </div>
+
+                <Row gutter={12}>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="动作类型" htmlFor={`action-code-${actionIndex}`}>
+                      <Select
+                        id={`action-code-${actionIndex}`}
+                        value={action.actionCode}
+                        onChange={(value: RuleActionCode) =>
+                          updateAction(actionIndex, { actionCode: value })
+                        }
+                        className="mk-full-width"
+                      >
+                        <Option value="INFO">信息提示</Option>
+                        <Option value="REMIND">一般提醒</Option>
+                        <Option value="STRONG_REMINDER">强提醒</Option>
+                        <Option value="BLOCK">阻断确认</Option>
+                        <Option value="SUGGEST_ORDER">建议医嘱</Option>
+                        <Option value="AUTO_DOCUMENT">自动留痕</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="风险级别" htmlFor={`action-severity-${actionIndex}`}>
+                      <Select
+                        id={`action-severity-${actionIndex}`}
+                        value={action.atSeverity}
+                        onChange={(value: RuleSeverity) =>
+                          updateAction(actionIndex, { atSeverity: value })
+                        }
+                        className="mk-full-width"
+                      >
+                        <Option value="LOW">低风险</Option>
+                        <Option value="MEDIUM">中风险</Option>
+                        <Option value="HIGH">高风险</Option>
+                        <Option value="CRITICAL">红线</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="卡片指示" htmlFor={`action-indicator-${actionIndex}`}>
+                      <Select
+                        id={`action-indicator-${actionIndex}`}
+                        value={action.indicator}
+                        onChange={(value: RuleIndicator) =>
+                          updateAction(actionIndex, { indicator: value })
+                        }
+                        className="mk-full-width"
+                      >
+                        <Option value="info">信息</Option>
+                        <Option value="warning">警示</Option>
+                        <Option value="critical">严重</Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={12}>
+                  <Col xs={24} md={10}>
+                    <Form.Item label="卡片摘要" htmlFor={`action-summary-${actionIndex}`}>
+                      <Input
+                        id={`action-summary-${actionIndex}`}
+                        value={action.summary}
+                        onChange={(event) =>
+                          updateAction(actionIndex, { summary: event.target.value })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={14}>
+                    <Form.Item label="详细说明" htmlFor={`action-detail-${actionIndex}`}>
+                      <Input
+                        id={`action-detail-${actionIndex}`}
+                        value={action.detail}
+                        onChange={(event) =>
+                          updateAction(actionIndex, { detail: event.target.value })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={12}>
+                  <Col xs={24} md={10}>
+                    <Form.Item label="依据名称" htmlFor={`action-source-${actionIndex}`}>
+                      <Input
+                        id={`action-source-${actionIndex}`}
+                        value={action.source.label}
+                        onChange={(event) =>
+                          updateAction(actionIndex, {
+                            source: { ...action.source, label: event.target.value },
+                          })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={8}>
+                    <Form.Item label="依据链接" htmlFor={`action-source-url-${actionIndex}`}>
+                      <Input
+                        id={`action-source-url-${actionIndex}`}
+                        value={action.source.url}
+                        onChange={(event) =>
+                          updateAction(actionIndex, {
+                            source: { ...action.source, url: event.target.value || undefined },
+                          })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={6}>
+                    <Form.Item label="证据等级" htmlFor={`action-evidence-${actionIndex}`}>
+                      <Input
+                        id={`action-evidence-${actionIndex}`}
+                        value={action.source.evidenceLevel}
+                        onChange={(event) =>
+                          updateAction(actionIndex, {
+                            source: {
+                              ...action.source,
+                              evidenceLevel: event.target.value || undefined,
+                            },
+                          })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={12} align="middle">
+                  <Col xs={24} md={18}>
+                    <Form.Item label="可覆盖理由" htmlFor={`action-reasons-${actionIndex}`}>
+                      <Select
+                        id={`action-reasons-${actionIndex}`}
+                        mode="tags"
+                        value={action.overrideReasons}
+                        onChange={(value: string[]) =>
+                          updateAction(actionIndex, { overrideReasons: value })
+                        }
+                        tokenSeparators={[",", "，"]}
+                        className="mk-full-width"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={6}>
+                    <Form.Item label="要求医师确认">
+                      <Switch
+                        checked={action.requiresPhysicianConfirmation}
+                        disabled={requiresPhysicianConfirmation(
+                          action.actionCode,
+                          action.atSeverity,
+                        )}
+                        onChange={(checked) =>
+                          updateAction(actionIndex, {
+                            requiresPhysicianConfirmation: checked,
+                          })
+                        }
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <div className={styles.conditionHeader}>
+                  <Text strong>建议项</Text>
+                  <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    aria-label={`为动作 ${actionIndex + 1} 添加建议`}
+                    onClick={() => addSuggestion(actionIndex)}
+                  >
+                    添加建议
+                  </Button>
+                </div>
+                {action.suggestions.length === 0 ? (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无建议项" />
+                ) : (
+                  <Space direction="vertical" size="small" className="mk-full-width">
+                    {action.suggestions.map((suggestion, suggestionIndex) => (
+                      <div
+                        key={`suggestion-${suggestionIndex}`}
+                        className={styles.suggestionSection}
+                      >
+                        <div className={styles.conditionHeader}>
+                          <Text strong>建议 {suggestionIndex + 1}</Text>
+                          <Tooltip title="删除建议">
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              aria-label={`删除建议 ${suggestionIndex + 1}`}
+                              onClick={() => removeSuggestion(actionIndex, suggestionIndex)}
+                            />
+                          </Tooltip>
+                        </div>
+                        <Row gutter={12}>
+                          <Col xs={24} md={12}>
+                            <Form.Item label="建议名称">
+                              <Input
+                                value={suggestion.label}
+                                onChange={(event) =>
+                                  updateSuggestion(actionIndex, suggestionIndex, {
+                                    label: event.target.value,
+                                  })
+                                }
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <Form.Item label="建议类型">
+                              <Input
+                                value={suggestion.actionType}
+                                onChange={(event) =>
+                                  updateSuggestion(actionIndex, suggestionIndex, {
+                                    actionType: event.target.value,
+                                  })
+                                }
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                        <div className={styles.conditionHeader}>
+                          <Text type="secondary">建议参数</Text>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<PlusOutlined />}
+                            onClick={() => addSuggestionPayload(actionIndex, suggestionIndex)}
+                          >
+                            添加参数
+                          </Button>
+                        </div>
+                        <Space direction="vertical" size="small" className="mk-full-width">
+                          {Object.entries(suggestion.payload ?? {}).map(([key, value]) => (
+                            <Space key={key} className="mk-full-width" align="start">
+                              <Input
+                                aria-label="参数键"
+                                value={key}
+                                onChange={(event) =>
+                                  updateSuggestionPayload(
+                                    actionIndex,
+                                    suggestionIndex,
+                                    key,
+                                    event.target.value,
+                                    String(value ?? ""),
+                                  )
+                                }
+                              />
+                              <Input
+                                aria-label="参数值"
+                                value={String(value ?? "")}
+                                onChange={(event) =>
+                                  updateSuggestionPayload(
+                                    actionIndex,
+                                    suggestionIndex,
+                                    key,
+                                    key,
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                aria-label={`删除参数 ${key}`}
+                                onClick={() =>
+                                  removeSuggestionPayload(actionIndex, suggestionIndex, key)
+                                }
+                              />
+                            </Space>
+                          ))}
+                        </Space>
+                      </div>
+                    ))}
+                  </Space>
+                )}
+              </div>
+            ))}
+          </Space>
 
           <Space>
             <Button
@@ -2728,7 +3158,20 @@ export default function RuleDefinitions() {
                 label="医学依据/来源"
                 rules={[{ required: true, message: "请输入依据来源" }]}
               >
-                <Input placeholder="输入已审核医学依据、院内制度或配置包来源" />
+                <Input
+                  placeholder="输入已审核医学依据、院内制度或配置包来源"
+                  onChange={(event) => {
+                    const label = event.target.value;
+                    setConditionTree((current) => ({
+                      ...current,
+                      actions: current.actions.map((action) =>
+                        action.source.label === "规则版本来源" || !action.source.label.trim()
+                          ? { ...action, source: { ...action.source, label } }
+                          : action,
+                      ),
+                    }));
+                  }}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -2854,6 +3297,7 @@ export default function RuleDefinitions() {
                     <Option value="LOW">低风险</Option>
                     <Option value="MEDIUM">中风险</Option>
                     <Option value="HIGH">高风险</Option>
+                    <Option value="CRITICAL">红线</Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -2863,7 +3307,14 @@ export default function RuleDefinitions() {
                   label="期望动作代码"
                   rules={[{ required: true }]}
                 >
-                  <Input placeholder="如 REVIEW_REQUIRED / BLOCK" />
+                  <Select>
+                    <Option value="INFO">信息提示</Option>
+                    <Option value="REMIND">一般提醒</Option>
+                    <Option value="STRONG_REMINDER">强提醒</Option>
+                    <Option value="BLOCK">阻断确认</Option>
+                    <Option value="SUGGEST_ORDER">建议医嘱</Option>
+                    <Option value="AUTO_DOCUMENT">自动留痕</Option>
+                  </Select>
                 </Form.Item>
               </Col>
             </Row>

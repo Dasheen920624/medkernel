@@ -44,8 +44,9 @@ describe("RuleValidate", () => {
     vi.clearAllMocks();
     evaluate.mockResolvedValue({
       traceId: "trace-rule",
-      executionId: "exec-real-1",
+      requestId: "eval-real-1",
       highestSeverity: "HIGH",
+      cards: [],
       items: [
         {
           executionId: "exec-item-1",
@@ -55,9 +56,15 @@ describe("RuleValidate", () => {
           severity: "HIGH",
           actions: [
             {
-              actionCode: "HARD_STOP",
-              actionType: "BLOCK",
-              message: "必须阻断高危用药",
+              actionCode: "BLOCK",
+              severity: "HIGH",
+              indicator: "critical",
+              summary: "必须阻断高危用药",
+              detail: "必须阻断高危用药",
+              source: { label: "高危用药规则" },
+              suggestions: [],
+              overrideReasons: [],
+              requiresPhysicianConfirmation: true,
             },
           ],
           explanation: { reason: "抗凝规则命中" },
@@ -159,7 +166,7 @@ describe("RuleValidate", () => {
     });
     expect(await screen.findByText("rule-real-1")).toBeInTheDocument();
     expect(screen.getByText("rv-real-1")).toBeInTheDocument();
-    expect(screen.getByText("HARD_STOP")).toBeInTheDocument();
+    expect(screen.getByText("BLOCK")).toBeInTheDocument();
     expect(screen.getByText(/抗凝规则命中/)).toBeInTheDocument();
   });
 
@@ -167,8 +174,9 @@ describe("RuleValidate", () => {
     const user = userEvent.setup();
     evaluate.mockResolvedValue({
       traceId: "trace-redline-rule",
-      executionId: "exec-redline-1",
+      requestId: "eval-redline-1",
       highestSeverity: "CRITICAL",
+      cards: [],
       items: [
         {
           executionId: "exec-redline-item-1",
@@ -178,10 +186,15 @@ describe("RuleValidate", () => {
           severity: "CRITICAL",
           actions: [
             {
-              actionCode: "CLINICAL_REDLINE",
-              actionType: "BLOCK",
+              actionCode: "BLOCK",
               severity: "CRITICAL",
-              message: "安全红线禁止忽略",
+              indicator: "critical",
+              summary: "安全红线禁止忽略",
+              detail: "安全红线禁止忽略",
+              source: { label: "临床安全红线" },
+              suggestions: [],
+              overrideReasons: [],
+              requiresPhysicianConfirmation: true,
             },
           ],
           explanation: { reason: "华法林与 NSAID 联用触发红线" },
@@ -197,7 +210,7 @@ describe("RuleValidate", () => {
 
     expect(await screen.findByText("安全红线不可忽略")).toBeInTheDocument();
     expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
-    expect(screen.getByText("CLINICAL_REDLINE")).toBeInTheDocument();
+    expect(screen.getByText("BLOCK")).toBeInTheDocument();
     expect(screen.getByText(/该校验只提示和阻断，不自动改写医嘱/)).toBeInTheDocument();
   });
 
@@ -217,7 +230,19 @@ describe("RuleValidate", () => {
                   inputDigest: "sha256:history",
                   hit: true,
                   severity: "HIGH",
-                  actions: [{ actionCode: "STRONG_REMINDER", message: "历史执行动作" }],
+                  actions: [
+                    {
+                      actionCode: "STRONG_REMINDER",
+                      severity: "HIGH",
+                      indicator: "critical",
+                      summary: "历史执行动作",
+                      detail: "历史执行动作",
+                      source: { label: "历史规则来源" },
+                      suggestions: [],
+                      overrideReasons: [],
+                      requiresPhysicianConfirmation: true,
+                    },
+                  ],
                   explanation: { summary: "历史红线回放解释" },
                   status: "SUCCESS",
                   traceId: "trace-history",

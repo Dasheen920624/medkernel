@@ -351,11 +351,7 @@ class RecommendationDeterministicMatcherTest {
                 "value": "FEMALE"
               },
               "then": [
-                {
-                  "actionCode": "REMIND_REVIEW",
-                  "severity": "MEDIUM",
-                  "message": "请结合上下文复核性别相关风险"
-                }
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "请结合上下文复核性别相关风险", "detail": "请结合上下文复核性别相关风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
               ],
               "explain": {
                 "summary": "规则命中性别相关风险"
