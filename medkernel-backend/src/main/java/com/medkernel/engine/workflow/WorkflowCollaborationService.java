@@ -15,6 +15,8 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.context.ClinicalEvent;
+import com.medkernel.engine.context.ClinicalEventContext;
+import com.medkernel.engine.context.ClinicalEventProcessedEvent;
 import com.medkernel.engine.context.ClinicalEventRepository;
 import com.medkernel.engine.context.ClinicalEventStatus;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
@@ -481,6 +483,27 @@ public class WorkflowCollaborationService {
         return notificationResponse(saved);
     }
 
+    /**
+     * 将临床事件 outbox 完成后的真实产出立即投影到协同中心。
+     *
+     * <p>同步事件通知与 CDSS 推荐派生待办均使用既有去重键；重放同一事件不会生成重复待办或通知。
+     */
+    @Transactional
+    public void projectProcessedClinicalEvent(ClinicalEventProcessedEvent processed) {
+        if (processed == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "临床事件处理结果不能为空");
+        }
+        String tenantId = requireText(processed.tenantId(), "租户");
+        String eventId = requireText(processed.eventId(), "临床事件");
+        ClinicalEvent event = clinicalEvents.findByEventIdAndTenantId(eventId, tenantId)
+            .filter(row -> row.processingStatus() == ClinicalEventStatus.PROCESSED)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_EVENT_003, "临床事件未完成或不存在: " + eventId));
+        RequestContext.Snapshot ctx = projectionContext(processed, tenantId);
+        projectClinicalEventNotification(ctx, event);
+        syncRecommendationTodosForClinicalEvent(ctx, event.eventId());
+    }
+
     private WorkflowNotificationResponse notificationResponse(WorkflowNotification notification) {
         return WorkflowNotificationResponse.from(notification, externalDeliveryStatuses(notification));
     }
@@ -589,15 +612,31 @@ public class WorkflowCollaborationService {
         List<RecommendationWorkflowTodoRow> rows = nullToEmpty(
             recommendationCards.pageOpenWorkflowRows(tenantId, 0, SYNC_BATCH_SIZE));
         for (RecommendationWorkflowTodoRow row : rows) {
-            WorkflowTodoSourceType sourceType = recommendationSourceType(row);
-            var existing = todos.findByTenantIdAndSourceTypeAndSourceId(tenantId, sourceType, row.cardId());
-            if (existing.isEmpty() && sourceType != WorkflowTodoSourceType.RECOMMENDATION_CARD) {
-                existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
-            }
-            WorkflowTodo todo = existing.orElseGet(
-                () -> todos.save(fromRecommendationCardTodo(ctx, row, sourceType)));
-            createPendingTodoNotificationIfAbsent(ctx, todo);
+            projectRecommendationTodo(ctx, tenantId, row);
         }
+    }
+
+    private void syncRecommendationTodosForClinicalEvent(RequestContext.Snapshot ctx, String eventId) {
+        String tenantId = ctx.orgScope().tenantId();
+        List<RecommendationWorkflowTodoRow> rows = nullToEmpty(
+            recommendationCards.pageOpenWorkflowRowsBySourceEventId(tenantId, eventId, 0, SYNC_BATCH_SIZE));
+        for (RecommendationWorkflowTodoRow row : rows) {
+            projectRecommendationTodo(ctx, tenantId, row);
+        }
+    }
+
+    private void projectRecommendationTodo(
+            RequestContext.Snapshot ctx,
+            String tenantId,
+            RecommendationWorkflowTodoRow row) {
+        WorkflowTodoSourceType sourceType = recommendationSourceType(row);
+        var existing = todos.findByTenantIdAndSourceTypeAndSourceId(tenantId, sourceType, row.cardId());
+        if (existing.isEmpty() && sourceType != WorkflowTodoSourceType.RECOMMENDATION_CARD) {
+            existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
+        }
+        WorkflowTodo todo = existing.orElseGet(
+            () -> todos.save(fromRecommendationCardTodo(ctx, row, sourceType)));
+        createPendingTodoNotificationIfAbsent(ctx, todo);
     }
 
     private void syncFollowupNotifications(RequestContext.Snapshot ctx) {
@@ -618,10 +657,14 @@ public class WorkflowCollaborationService {
         List<ClinicalEvent> rows = nullToEmpty(clinicalEvents.pageByFilter(
             tenantId, null, null, ClinicalEventStatus.PROCESSED.name(), null, 0, SYNC_BATCH_SIZE));
         for (ClinicalEvent event : rows) {
-            String dedupeKey = "clinical-event:" + event.eventId();
-            notifications.findByTenantIdAndDedupeKey(tenantId, dedupeKey)
-                .orElseGet(() -> notifications.save(fromClinicalEventNotification(ctx, event, dedupeKey)));
+            projectClinicalEventNotification(ctx, event);
         }
+    }
+
+    private WorkflowNotification projectClinicalEventNotification(RequestContext.Snapshot ctx, ClinicalEvent event) {
+        String dedupeKey = "clinical-event:" + event.eventId();
+        return notifications.findByTenantIdAndDedupeKey(event.tenantId(), dedupeKey)
+            .orElseGet(() -> notifications.save(fromClinicalEventNotification(ctx, event, dedupeKey)));
     }
 
     private WorkflowTodo fromFollowupTodo(RequestContext.Snapshot ctx, FollowupWorkflowTodoRow row) {
@@ -1215,6 +1258,18 @@ public class WorkflowCollaborationService {
             return orgUnitId;
         }
         return blankToNull(scope.groupId());
+    }
+
+    private static RequestContext.Snapshot projectionContext(ClinicalEventProcessedEvent processed, String tenantId) {
+        ClinicalEventContext context = processed.context();
+        OrgScope scope = context == null ? null : context.orgScope();
+        if (scope == null || !scope.hasTenant() || !tenantId.equals(scope.tenantId())) {
+            scope = OrgScope.tenant(tenantId);
+        }
+        String traceId = defaultText(processed.traceId(), context == null
+            ? RequestContext.currentTraceId()
+            : context.traceId());
+        return new RequestContext.Snapshot(traceId, scope, RequestContext.currentUserId().orElse(null));
     }
 
     private static String requireText(String value, String label) {

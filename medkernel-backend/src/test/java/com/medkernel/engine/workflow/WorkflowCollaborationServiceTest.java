@@ -23,11 +23,14 @@ import com.medkernel.engine.integration.dto.IntegrationOutboundRequestDto;
 import com.medkernel.engine.integration.dto.IntegrationOutboundResultDto;
 import com.medkernel.engine.integration.repository.IntegrationMessageLogRepository;
 import com.medkernel.engine.integration.service.IntegrationService;
+import com.medkernel.engine.context.ClinicalEventContext;
+import com.medkernel.engine.context.ClinicalEventProcessedEvent;
 import com.medkernel.engine.context.ClinicalEvent;
 import com.medkernel.engine.context.ClinicalEventRepository;
 import com.medkernel.engine.context.ClinicalEventStatus;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
+import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.followup.FollowupEventRepository;
 import com.medkernel.engine.followup.FollowupTaskRepository;
@@ -1757,6 +1760,85 @@ class WorkflowCollaborationServiceTest {
         assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
     }
 
+    @Test
+    void projectProcessedClinicalEventImmediatelyFansOutSyncNotificationAndReminderTodo() {
+        Instant now = Instant.parse("2026-06-08T08:00:00Z");
+        ClinicalEvent event = new ClinicalEvent(
+            1L,
+            "evt-order-1",
+            "tenant-A",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            "idem-order-1",
+            null,
+            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
+            "patient-1",
+            "enc-1",
+            ClinicalSetting.INPATIENT,
+            "HIS",
+            "pkg-2026.06",
+            "digest-order-1",
+            now.minusSeconds(30),
+            now.minusSeconds(20),
+            "snap-order-1",
+            ClinicalEventStatus.PROCESSED,
+            null,
+            null,
+            0,
+            null,
+            "trace-order");
+        RecommendationWorkflowTodoRow reminder = new RecommendationWorkflowTodoRow(
+            "card-order-1",
+            RecommendationCardType.MEDICATION,
+            "肾毒性用药复核",
+            "开医嘱后需要医师确认剂量与禁忌",
+            RecommendationRiskLevel.HIGH,
+            RecommendationCardStatus.PENDING,
+            now.plusSeconds(3600),
+            "trace-order",
+            now,
+            "patient-1",
+            "enc-1",
+            "ORDER_SIGN",
+            "CLINICAL_EVENT_ORDER");
+        when(clinicalEvents.findByEventIdAndTenantId("evt-order-1", "tenant-A")).thenReturn(Optional.of(event));
+        when(recommendationCards.pageOpenWorkflowRowsBySourceEventId("tenant-A", "evt-order-1", 0, 200))
+            .thenReturn(List.of(reminder));
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+            "tenant-A", WorkflowTodoSourceType.RECOMMENDATION_CARD, "card-order-1"))
+            .thenReturn(Optional.empty());
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.projectProcessedClinicalEvent(new ClinicalEventProcessedEvent(
+            "evt-order-1",
+            "tenant-A",
+            "trace-order",
+            clinicalEventContext("evt-order-1", now)));
+
+        ArgumentCaptor<WorkflowTodo> todoCaptor = ArgumentCaptor.forClass(WorkflowTodo.class);
+        verify(todos).save(todoCaptor.capture());
+        assertThat(todoCaptor.getValue().sourceType()).isEqualTo(WorkflowTodoSourceType.RECOMMENDATION_CARD);
+        assertThat(todoCaptor.getValue().sourceId()).isEqualTo("card-order-1");
+        assertThat(todoCaptor.getValue().deepLink()).isEqualTo("/cdss/fatigue?cardId=card-order-1");
+        assertThat(todoCaptor.getValue().traceId()).isEqualTo("trace-order");
+
+        ArgumentCaptor<WorkflowNotification> notificationCaptor =
+            ArgumentCaptor.forClass(WorkflowNotification.class);
+        verify(notifications, times(2)).save(notificationCaptor.capture());
+        assertThat(notificationCaptor.getAllValues())
+            .anySatisfy(notification -> {
+                assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
+                assertThat(notification.sourceId()).isEqualTo("evt-order-1");
+                assertThat(notification.dedupeKey()).isEqualTo("clinical-event:evt-order-1");
+                assertThat(notification.deepLink()).isEqualTo("/rule/validate?eventId=evt-order-1");
+            })
+            .anySatisfy(notification -> {
+                assertThat(notification.sourceType()).isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
+                assertThat(notification.sourceId()).startsWith("todo-");
+                assertThat(notification.message()).contains("肾毒性用药复核");
+            });
+    }
+
     private WorkflowTodo workflowTodo(
             String todoId,
             WorkflowTodoSourceType sourceType,
@@ -1793,6 +1875,41 @@ class WorkflowCollaborationServiceTest {
             "system",
             now,
             "system");
+    }
+
+    private ClinicalEventContext clinicalEventContext(String eventId, Instant occurredAt) {
+        return new ClinicalEventContext(
+            eventId,
+            "tenant-A",
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            "patient-1",
+            "enc-1",
+            ClinicalSetting.INPATIENT,
+            "snap-order-1",
+            "HIS",
+            "pkg-2026.06",
+            "digest-order-1",
+            occurredAt,
+            "HIS:order-sign",
+            "trace-order",
+            new ContextSnapshotResources(
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()),
+            null,
+            List.of());
     }
 
     private static WorkflowNotificationSettingsResponse externalSettings(
