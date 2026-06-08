@@ -86,6 +86,8 @@ class ClinicalEventEngineDispatcherTest {
             Instant.parse("2026-06-01T01:00:00Z"),
             "HIS:patient-view",
             "trace-1",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "pkg-2026.06",
+                Instant.parse("2026-06-01T01:00:00Z")),
             json.createObjectNode(),
             List.of());
     }

@@ -2,33 +2,32 @@
 
 ## 唯一执行组织
 
-- 当前分支：`codex/integration-health-contract`
-- 基线：`origin/main` = `2d459d5a`（P12-7 批量创作已合入）
+- 当前分支：`codex/clinical-event-trigger-mapping`
+- 基线：`origin/main` = `4ce9db26`（P13-1 适配器接入清单已合入）
 - 执行原则：线1统一承接全部任务；线2 / 线3 / 线4不再独立开发、抢合并或维护重复实现。
 - 项目未上线：只保留唯一模型、唯一接口、唯一主流程，不做旧方案兼容层。
 
 ## 当前状态
 
-- OpenSpec `pathway-rule-authoring-overhaul` 完成 P13-1。
-- AdapterHub 后端状态新增 `requiredSources`，稳定列出 HIS / EMR / LIS 必接系统；缺失适配器显示 `MISSING` + `NOT_CONNECTED`，已绑定但未真实连通仍显示 `BOUND` + 真实健康状态。
-- 必接系统优先按接入申请 `sourceSystem` 绑定真实适配器，未登记时才按适配器标识/名称兜底识别；不创建虚假适配器记录。
-- 前端「适配器中心」首屏新增「必接系统清单」和「数据接入契约」，用户显式输入 packageVersion 后读取 `/engine/integration/data-contract`。
+- OpenSpec `pathway-rule-authoring-overhaul` 完成 P13-2。
+- 临床事件处理在派发规则 / 路径 / CDSS 前统一投影为 `ContextSnapshotResources`，并保留 `eventPayload` 原始证据。
+- ORDER / ADMISSION / DIAGNOSIS / REPORT / FOLLOWUP / DISCHARGE 均已覆盖标准资源投影；ORDER 支持本地药品码归一到标准 ATC 后再求值。
+- `ClinicalEventProcessor` 在无 `snapshotId` 时先创建 ACTIVE 标准上下文快照，再把同一个带 `snapshotId` 的上下文派发到三引擎；CDSS 不再拿空 snapshot 求值。
+- 规则适配器将标准资源展开到顶层，规则 DSL 可直接读取 `medications[]` / `conditions[]` / `observations[]` 等字段，同时保留原始 payload。
+- `ClinicalEventContext` 已收敛为唯一标准资源构造契约，不保留 payload-only 兼容构造。
 - 只同步本文件与 OpenSpec 任务清单，不新增施工文档。
 
 ## 当前证据
 
-- 后端红绿：`mvn -q -Dtest=IntegrationServiceTest#adapterHubStatusIncludesRequiredHisEmrLisChecklistWithoutFakingMissingConnections test`。
-- 后端边界红绿：`mvn -q -Dtest=IntegrationServiceTest#requiredSourceFallbackDoesNotMatchUnrelatedSubstringInsideAdapterIdentifier test`。
-- 后端聚焦：`mvn -q -Dtest=IntegrationServiceTest,IntegrationDataContractServiceTest,IntegrationDataContractControllerTest,IntegrationControllerSecurityTest test`。
-- 前端聚焦：`npm test -- --run src/pages/tenant/AdapterHub.test.tsx src/shared/api/hooks.test.ts`（97 tests）。
-- 前端全量：`npm run verify`（81 files / 578 tests / lint / stylelint / lint-rules / format / typecheck 全绿）。
-- 前端构建：`npm run build`（Vite 3403 modules transformed）。
-- 浏览器烟测：本地 dev 后端 `:18080` + Vite `:5173`，`/adapter/hub` 空库首屏显示 HIS / EMR / LIS `MISSING` + `NOT_CONNECTED` 与数据接入契约入口；390px 视口无横向溢出。
-- 后端全量：`mvn test`（1967 tests / 0 failures / 0 errors / 3 skipped；3 skipped 为本机无 Docker 的 Testcontainers 多方言 smoke）。
-- T-GATE：`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs`（38 pass）；`authenticity-guard --mode=all`（1440 files）；`config-boundary-guard --mode=all`（1355 files）；`migration-convention-guard --mode=changed --base=origin/main`（0 files）；`check-comment-zh.sh`（0 fail / 0 warn）。
-- 规范检查：`openspec validate pathway-rule-authoring-overhaul --strict`；`git diff --check`。
+- 红绿：`mvn -q -Dtest=ClinicalEventContextContractTest,ClinicalEventProcessorTest test`（先红：6 类事件无标准资源数组，ORDER 未产出药品映射锚点；实现后绿）。
+- 规则适配器红绿：`mvn -q -Dtest=ClinicalEventEngineAdapterTest#ruleAdapterExposesCanonicalProjectionAtRootBeforeEvaluation test`（先红：顶层无 `medications[]`；实现后绿）。
+- ORDER 端到端：`mvn -q -Dtest=ThirdPartyProjectionRulePathwayEndToEndTest#orderClinicalEventNormalizesLocalMedicationCodeBeforeRuleAndPathwayEvaluation test`。
+- 纯净化复核：`mvn -q -Dtest=ClinicalEventContextContractTest,ClinicalEventProcessorTest,ClinicalEventEngineAdapterTest,ClinicalEventEngineDispatcherTest,ClinicalEventCallbackNotifierTest,ThirdPartyProjectionRulePathwayEndToEndTest test`。
+- 后端聚焦：`mvn -q -Dtest=ClinicalEventContextContractTest,ClinicalEventProcessorTest,ClinicalEventEngineAdapterTest,ClinicalEventEngineDispatcherTest,ClinicalEventServiceTest,ClinicalEventOutboxWorkerTest,ThirdPartyProjectionRulePathwayEndToEndTest,RecommendationEngineServiceTest,RecommendationDeterministicMatcherTest test`。
+- 后端全量：`mvn test`（1976 run, 0 failures, 0 errors, 3 skipped；3 个 Flyway 多方言 smoke 因本机无 Docker socket 跳过）。
 
 ## 下一步
 
-1. 提交并推送 `codex/integration-health-contract`，创建 PR，等待 CI 绿后 squash 合入 `main`。
-2. 合入后继续 P13-2，不恢复并行线。
+1. 跑后端全量、T-GATE 与 OpenSpec 校验。
+2. 提交并推送 `codex/clinical-event-trigger-mapping`，创建 PR，等待 CI 绿后 squash 合入 `main`。
+3. 合入后继续 P13-3，不恢复并行线。

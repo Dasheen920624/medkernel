@@ -1,6 +1,7 @@
 package com.medkernel.engine.context;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,8 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditEventPublisher;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.shared.observability.TransitionError;
 
@@ -31,6 +34,7 @@ public class ClinicalEventProcessor {
     private final ApplicationEventPublisher applicationEvents;
     private final ClinicalEventContextFactory contextFactory;
     private final ClinicalEventEngineDispatcher engineDispatcher;
+    private final ContextSnapshotService contextSnapshots;
 
     public ClinicalEventProcessor(ClinicalEventRepository events,
                                   ClinicalEventPayloadRepository payloads,
@@ -39,7 +43,8 @@ public class ClinicalEventProcessor {
                                   StateTransitionRecorder transitions,
                                   ApplicationEventPublisher applicationEvents,
                                   ClinicalEventContextFactory contextFactory,
-                                  ClinicalEventEngineDispatcher engineDispatcher) {
+                                  ClinicalEventEngineDispatcher engineDispatcher,
+                                  ContextSnapshotService contextSnapshots) {
         this.events = events;
         this.payloads = payloads;
         this.auditRecorder = auditRecorder;
@@ -48,6 +53,7 @@ public class ClinicalEventProcessor {
         this.applicationEvents = applicationEvents;
         this.contextFactory = contextFactory;
         this.engineDispatcher = engineDispatcher;
+        this.contextSnapshots = contextSnapshots;
     }
 
     @Transactional
@@ -63,14 +69,16 @@ public class ClinicalEventProcessor {
             return ClinicalEventStatus.PROCESSED;
         }
 
-        ClinicalEvent mapped = withStatus(event, ClinicalEventStatus.MAPPED);
+        ClinicalEventContext context = contextFactory.from(event, payload);
+        String snapshotId = ensureContextSnapshot(context);
+        context = context.withContextSnapshotId(snapshotId);
+        ClinicalEvent mapped = withStatusAndSnapshot(event, ClinicalEventStatus.MAPPED, snapshotId);
         events.save(mapped);
         transitions.record(ENTITY_TYPE, eventId,
             event.processingStatus().name(), ClinicalEventStatus.MAPPED.name(),
             "TERMINOLOGY_OK", null);
 
-        ClinicalEventContext context = contextFactory.from(mapped, payload);
-        java.util.List<ClinicalEventEngineDispatchResult> dispatchResults = engineDispatcher.dispatch(context);
+        List<ClinicalEventEngineDispatchResult> dispatchResults = engineDispatcher.dispatch(context);
         java.util.Optional<ClinicalEventEngineDispatchResult> unavailable = dispatchResults.stream()
             .filter(result -> result.status() == ClinicalEventEngineDispatchStatus.UNAVAILABLE)
             .findFirst();
@@ -116,14 +124,78 @@ public class ClinicalEventProcessor {
     }
 
     private ClinicalEvent withStatus(ClinicalEvent source, ClinicalEventStatus status) {
+        return withStatusAndSnapshot(source, status, source.snapshotId());
+    }
+
+    private ClinicalEvent withStatusAndSnapshot(ClinicalEvent source, ClinicalEventStatus status, String snapshotId) {
         return new ClinicalEvent(
             source.id(), source.eventId(), source.tenantId(), source.eventType(),
             source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.clinicalSetting(),
             source.sourceSystem(), source.packageVersion(),
-            source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
+            source.payloadDigest(), source.occurredAt(), source.receivedAt(), snapshotId,
             status, null, null, source.retryCount(), source.rootEventId(), source.traceId());
+    }
+
+    private String ensureContextSnapshot(ClinicalEventContext context) {
+        if (hasText(context.contextSnapshotId())) {
+            return context.contextSnapshotId();
+        }
+        ContextSnapshotResponse snapshot = contextSnapshots.create(snapshotRequest(context),
+            "clinical-event:" + context.eventId());
+        return snapshot.snapshotId();
+    }
+
+    private ContextSnapshotRequest snapshotRequest(ClinicalEventContext context) {
+        OrgScope scope = context.orgScope();
+        return new ContextSnapshotRequest(
+            "clinical-event:" + context.eventId(),
+            context.traceId(),
+            context.tenantId(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            RequestContext.currentUserId().orElse(null),
+            List.of(),
+            context.patientId(),
+            context.encounterId(),
+            orgUnitId(scope, context.tenantId()),
+            context.packageVersion(),
+            context.resources()
+        );
+    }
+
+    private String orgUnitId(OrgScope scope, String tenantId) {
+        if (scope == null) {
+            return tenantId;
+        }
+        if (hasText(scope.specialtyId())) {
+            return scope.specialtyId();
+        }
+        if (hasText(scope.departmentId())) {
+            return scope.departmentId();
+        }
+        if (hasText(scope.siteId())) {
+            return scope.siteId();
+        }
+        if (hasText(scope.campusId())) {
+            return scope.campusId();
+        }
+        if (hasText(scope.hospitalId())) {
+            return scope.hospitalId();
+        }
+        if (hasText(scope.groupId())) {
+            return scope.groupId();
+        }
+        return tenantId;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private ClinicalEventStatus markEnginesUnavailable(

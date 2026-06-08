@@ -21,6 +21,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceRepository;
+import com.medkernel.engine.context.ClinicalEvent;
+import com.medkernel.engine.context.ClinicalEventContext;
+import com.medkernel.engine.context.ClinicalEventContextFactory;
+import com.medkernel.engine.context.ClinicalEventPayload;
+import com.medkernel.engine.context.ClinicalEventStatus;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+import com.medkernel.engine.context.ClinicalEventType;
 import com.medkernel.engine.context.ContextIdempotencyKeyRepository;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotRepository;
@@ -187,6 +194,47 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
         assertThat(decision.evidence()).containsKey("observations[].valueNumeric");
     }
 
+    @Test
+    void orderClinicalEventNormalizesLocalMedicationCodeBeforeRuleAndPathwayEvaluation() throws Exception {
+        ClinicalEventContext context = new ClinicalEventContextFactory(json).from(orderEvent(), orderPayload());
+
+        assertThat(context.payload().path("medications").path(0).path("code").asText())
+            .isEqualTo("ATC-J01CA04");
+        assertThat(context.codeMappingAnchors()).anySatisfy(anchor -> {
+            assertThat(anchor.localCode()).isEqualTo("HIS-AMOX");
+            assertThat(anchor.mappedVersion()).isEqualTo("TERM-2026.06");
+        });
+
+        RuleDslEvaluation rule = new RuleDslEvaluator(json).evaluate(json.readTree("""
+            {
+              "trigger": "order-sign",
+              "when": {
+                "expr": {"field": "medications[].code"},
+                "operator": "equals",
+                "value": "ATC-J01CA04"
+              },
+              "then": [
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "抗菌药医嘱复核", "detail": "抗菌药医嘱复核", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
+              ],
+              "explain": {"title": "开医嘱触发规则样例"}
+            }
+            """), context.payload());
+
+        assertThat(rule.hit()).isTrue();
+        assertThat(rule.actions()).extracting("actionCode").containsExactly(RuleActionCode.REMIND);
+
+        var decision = new PathwayProgressor(json, new ConditionEvaluator(json)).advance(new PathwayProgressCommand(
+            orderPathwayGraph(),
+            "ORDER_REVIEW",
+            PathwayAdvanceEventType.COMPLETE,
+            null,
+            json.convertValue(context.payload(), new TypeReference<Map<String, Object>>() {})));
+
+        assertThat(decision.status()).isEqualTo(PatientPathwayStatus.NODE_EXECUTING);
+        assertThat(decision.nextNodeCode()).isEqualTo("PHARMACY_REVIEW");
+        assertThat(decision.evidence()).containsKey("medications[].code");
+    }
+
     private ContextSnapshotService snapshotServiceWithConfirmedTerminology() {
         ContextSnapshotRepository snapshots = mock(ContextSnapshotRepository.class);
         CanonicalResourceRepository resources = mock(CanonicalResourceRepository.class);
@@ -260,6 +308,113 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
                     "tester",
                     "trace-pathway")
             ));
+    }
+
+    private PathwayGraph orderPathwayGraph() {
+        String tenantId = "tenant-A";
+        String templateId = "pt-order";
+        Instant now = Instant.parse("2026-06-03T00:00:00Z");
+        return new PathwayGraph(
+            List.of(
+                node("ORDER_REVIEW", templateId, now, false),
+                node("PHARMACY_REVIEW", templateId, now, true),
+                node("MANUAL_REVIEW", templateId, now, false)
+            ),
+            List.of(
+                new PathwayEdge(
+                    null,
+                    "edge-order-medication",
+                    tenantId,
+                    templateId,
+                    "EDGE.ORDER.PHARMACY",
+                    "ORDER_REVIEW",
+                    "PHARMACY_REVIEW",
+                    PathwayEdgeType.CONDITION,
+                    "{\"expr\":{\"field\":\"medications[].code\"},\"operator\":\"equals\",\"value\":\"ATC-J01CA04\"}",
+                    1,
+                    now,
+                    "tester",
+                    now,
+                    "tester",
+                    "trace-pathway"),
+                new PathwayEdge(
+                    null,
+                    "edge-order-default",
+                    tenantId,
+                    templateId,
+                    "EDGE.ORDER.MANUAL",
+                    "ORDER_REVIEW",
+                    "MANUAL_REVIEW",
+                    PathwayEdgeType.DEFAULT,
+                    null,
+                    2,
+                    now,
+                    "tester",
+                    now,
+                    "tester",
+                    "trace-pathway")
+            ));
+    }
+
+    private ClinicalEvent orderEvent() {
+        return new ClinicalEvent(
+            1L,
+            "evt-order-e2e",
+            "tenant-A",
+            ClinicalEventType.ORDER,
+            ClinicalEventTriggerPoint.ORDER_SIGN,
+            null,
+            null,
+            "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
+            "MPI-ORDER",
+            "ENC-ORDER",
+            com.medkernel.engine.context.canonical.ClinicalSetting.INPATIENT,
+            "HIS",
+            "pkg-2026.06",
+            "sha256:order",
+            Instant.parse("2026-06-03T00:00:00Z"),
+            Instant.parse("2026-06-03T00:00:01Z"),
+            null,
+            ClinicalEventStatus.MAPPED,
+            null,
+            null,
+            0,
+            null,
+            "trace-order");
+    }
+
+    private ClinicalEventPayload orderPayload() {
+        String payload = """
+            {
+              "orders": [
+                {
+                  "orderId": "ord-1",
+                  "localCode": "HIS-AMOX",
+                  "standardCode": "ATC-J01CA04",
+                  "displayName": "阿莫西林",
+                  "dose": 0.5,
+                  "doseUnit": "g",
+                  "route": "PO",
+                  "frequency": "TID",
+                  "status": "ACTIVE",
+                  "sourceRecordId": "his-order-1",
+                  "mappedVersion": "TERM-2026.06"
+                }
+              ]
+            }
+            """;
+        return new ClinicalEventPayload(
+            1L,
+            "evt-order-e2e",
+            "tenant-A",
+            payload,
+            null,
+            "INLINE",
+            "application/json",
+            "sha256:order",
+            (long) payload.length(),
+            Instant.parse("2026-06-03T00:00:01Z"),
+            null);
     }
 
     private static PathwayNode node(String code, String templateId, Instant now, boolean terminal) {

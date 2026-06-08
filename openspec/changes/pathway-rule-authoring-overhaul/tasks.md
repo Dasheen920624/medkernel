@@ -183,7 +183,7 @@
 
 - [x] P13-1 适配器接入清单 + 健康自检诚实状态走查（HIS/EMR/LIS 至少各一）；对外契约 `/integration/data-contract` 产出。
   - ✅ 测试：未接连接器显示 NOT_CONNECTED；契约随 packageVersion。
-- [ ] P13-2 临床事件→引擎触发映射核验：ORDER/ADMISSION/DIAGNOSIS/REPORT/FOLLOWUP/DISCHARGE 各触发规则/路径/推荐求值，投影归一在求值前完成。
+- [x] P13-2 临床事件→引擎触发映射核验：ORDER/ADMISSION/DIAGNOSIS/REPORT/FOLLOWUP/DISCHARGE 各触发规则/路径/推荐求值，投影归一在求值前完成。
   - ✅ 端到端测：开医嘱(ORDER)触发规则求值，院内编码已归一。
 - [ ] P13-3 Outbox 产出分发到待办/通知/临床提醒治理/质控驾驶舱 + 回写诚实降级。
   - ✅ 测试：分发可重放、无重复副作用、不可达诚实降级。

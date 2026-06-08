@@ -2,6 +2,7 @@ package com.medkernel.engine.context;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -30,6 +31,7 @@ public record ClinicalEventContext(
     @NotNull Instant occurredAt,
     @NotBlank String triggerSource,
     @NotBlank String traceId,
+    @NotNull ContextSnapshotResources resources,
     @NotNull JsonNode payload,
     @NotNull List<ClinicalCodeMappingAnchor> codeMappingAnchors
 ) {
@@ -44,12 +46,20 @@ public record ClinicalEventContext(
             String source = sourceSystem == null || sourceSystem.isBlank() ? "UNKNOWN" : sourceSystem;
             triggerSource = source + ":" + clinicalTriggerPoint.wireValue();
         }
+        resources = Objects.requireNonNull(resources, "resources");
         payload = payload == null ? NullNode.getInstance() : payload.deepCopy();
         codeMappingAnchors = codeMappingAnchors == null ? List.of() : List.copyOf(codeMappingAnchors);
     }
 
     public String triggerPoint() {
         return clinicalTriggerPoint.wireValue();
+    }
+
+    public ClinicalEventContext withContextSnapshotId(String snapshotId) {
+        return new ClinicalEventContext(
+            eventId, tenantId, orgScope, eventType, clinicalTriggerPoint, patientId,
+            encounterId, clinicalSetting, snapshotId, sourceSystem, packageVersion, payloadDigest,
+            occurredAt, triggerSource, traceId, resources, payload, codeMappingAnchors);
     }
 
     private static ClinicalEventTriggerPoint fallbackTriggerPoint(ClinicalEventType eventType) {
