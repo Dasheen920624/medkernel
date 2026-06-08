@@ -150,7 +150,7 @@ medkernel:
         description: 控制条件片段库的复用入口；未启用时不得按片段引用求值。
       authoring-batch-authoring:
         display-name: 批量创作
-        enabled: ${MEDKERNEL_AUTHORING_BATCH_AUTHORING_ENABLED:false}
+        enabled: ${MEDKERNEL_AUTHORING_BATCH_AUTHORING_ENABLED:true}
         risk: HIGH
         owner: 医务处 / 信息科
         description: 控制规则、路径和值集等资产的批量生成、导入、发布和分发入口。

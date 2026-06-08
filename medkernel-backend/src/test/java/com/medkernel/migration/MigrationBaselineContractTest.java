@@ -127,7 +127,8 @@ class MigrationBaselineContractTest {
         "V98__engine_domain_event_sources.sql",
         "V99__mk_engine_rule_parameter_binding.sql",
         "V100__mk_engine_condition_fragment.sql",
-        "V101__authoring_asset_library.sql"
+        "V101__authoring_asset_library.sql",
+        "V102__authoring_batch_job.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
@@ -144,6 +145,7 @@ class MigrationBaselineContractTest {
         "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
         "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
         "mk_engine_authoring_asset_profile", "mk_engine_authoring_asset_favorite",
+        "mk_engine_authoring_batch_job", "mk_engine_authoring_batch_item",
         "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
         "rule_backtest_run", "rule_drift_snapshot",
         "specialty_package", "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
@@ -242,6 +244,8 @@ class MigrationBaselineContractTest {
         "idx_mk_engine_condition_fragment_status",
         "idx_mk_engine_authoring_asset_profile_category",
         "idx_mk_engine_authoring_asset_favorite_user", "idx_mk_engine_authoring_asset_favorite_asset",
+        "idx_mk_engine_authoring_batch_job_status", "idx_mk_engine_authoring_batch_item_job",
+        "idx_mk_engine_authoring_batch_item_status",
         "idx_rule_execution_tenant_time", "idx_rule_execution_rule_time",
         "idx_rule_execution_trigger", "idx_rule_execution_dedupe",
         "idx_rule_override_rule_time", "idx_rule_override_execution",
@@ -416,6 +420,9 @@ class MigrationBaselineContractTest {
         "uk_mk_engine_condition_fragment_id", "uk_mk_engine_condition_fragment_version",
         "uk_mk_engine_authoring_asset_profile_asset",
         "uk_mk_engine_authoring_asset_favorite_user_asset",
+        "uk_mk_engine_authoring_batch_job", "ck_mk_engine_authoring_batch_job_type",
+        "ck_mk_engine_authoring_batch_job_status", "uk_mk_engine_authoring_batch_item",
+        "ck_mk_engine_authoring_batch_item_status",
         "uk_rule_execution_id", "ck_rule_execution_status", "ck_rule_execution_severity",
         "uk_rule_override_id", "uk_rule_override_execution_action", "ck_rule_override_action",
         "uk_rule_shadow_feedback_id", "uk_rule_shadow_feedback_execution",
@@ -1078,6 +1085,28 @@ class MigrationBaselineContractTest {
                 .contains("ck_mk_version_asset_version_type")
                 .contains("comment on table mk_engine_authoring_asset_profile")
                 .contains("comment on table mk_engine_authoring_asset_favorite");
+        }
+    }
+
+    @Test
+    void v102ShouldAddAuthoringBatchJobsForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V102__authoring_batch_job.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s P12-7 创作批量任务迁移", dialect)
+                .contains("mk_engine_authoring_batch_job")
+                .contains("mk_engine_authoring_batch_item")
+                .contains("rule_generate")
+                .contains("rule_publish")
+                .contains("package_distribute")
+                .contains("not_connected")
+                .contains("idx_mk_engine_authoring_batch_job_status")
+                .contains("idx_mk_engine_authoring_batch_item_job")
+                .contains("comment on table mk_engine_authoring_batch_job")
+                .contains("comment on table mk_engine_authoring_batch_item");
         }
     }
 

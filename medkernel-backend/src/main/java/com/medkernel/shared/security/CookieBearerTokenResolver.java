@@ -33,6 +33,9 @@ public class CookieBearerTokenResolver implements BearerTokenResolver {
 
     @Override
     public String resolve(HttpServletRequest request) {
+        if (AuthenticationOptionalEndpoints.shouldIgnoreBearer(request)) {
+            return null;
+        }
         if (request.getCookies() != null) {
             String cookieName = configService == null
                 ? cookieProps.name()

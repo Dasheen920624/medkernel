@@ -3002,6 +3002,107 @@ export interface AuthoringAssetCloneResponse {
 }
 
 const AUTHORING_ASSET_API_ROOT = "/engine/authoring/assets";
+const AUTHORING_BATCH_API_ROOT = "/engine/authoring/batch";
+
+export type AuthoringBatchJobType =
+  | "RULE_GENERATE"
+  | "RULE_PUBLISH"
+  | "PACKAGE_IMPORT"
+  | "PACKAGE_EXPORT"
+  | "PACKAGE_DISTRIBUTE";
+
+export type AuthoringBatchJobStatus =
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "PARTIAL_SUCCESS"
+  | "FAILED"
+  | "NOT_CONNECTED";
+
+export type AuthoringBatchItemStatus = "SUCCEEDED" | "FAILED" | "NOT_CONNECTED";
+
+export interface AuthoringBatchItemResponse {
+  itemId: string;
+  status: AuthoringBatchItemStatus;
+  targetType?: string | null;
+  targetId?: string | null;
+  resultJson?: string | null;
+  rollbackRef?: string | null;
+  errorCode?: string | null;
+  message: string;
+  createdAt: string;
+}
+
+export interface AuthoringBatchJobResponse {
+  jobId: string;
+  jobType: AuthoringBatchJobType;
+  status: AuthoringBatchJobStatus;
+  totalCount: number;
+  successCount: number;
+  failureCount: number;
+  retryableCount: number;
+  resultSummaryJson?: string | null;
+  items: AuthoringBatchItemResponse[];
+  traceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthoringBatchRuleGenerateRow {
+  rowId: string;
+  ruleCode: string;
+  name: string;
+  parameterBindings: Record<string, unknown>;
+  packageVersion?: string;
+  applicableOrgUnitId?: string;
+  changeSummary?: string;
+}
+
+export interface AuthoringBatchRuleGenerateRequest {
+  templateRuleId: string;
+  rows: AuthoringBatchRuleGenerateRow[];
+}
+
+export interface AuthoringBatchRuleImpactItem {
+  ruleId: string;
+  versionId: string;
+  riskLevel: RuleRiskLevel;
+  analysisStatus: "COMPLETE" | "PARTIAL" | string;
+  impactDigest: string;
+  affectedCount: number;
+  unavailableScopes: string[];
+}
+
+export interface AuthoringBatchRuleImpactResponse {
+  totalCount: number;
+  highRiskCount: number;
+  criticalRiskCount: number;
+  items: AuthoringBatchRuleImpactItem[];
+  traceId: string;
+}
+
+export interface AuthoringBatchRulePublishRequest {
+  targetState: RuleGovernanceState;
+  reason: string;
+  items: Array<{
+    itemId: string;
+    ruleId: string;
+    impactDigest: string;
+    highRiskConfirmed: boolean;
+  }>;
+}
+
+export interface AuthoringBatchPackageDistributeRequest {
+  items: Array<{
+    itemId: string;
+    packageId: string;
+    targetOrgUnitId: string;
+    strategy: "GRAYSCALE" | "FULL";
+    scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT";
+    scopeValue?: string;
+    adapterIds: string[];
+    reason: string;
+  }>;
+}
 
 export function useAuthoringAssets(
   params: AuthoringAssetQueryParams = {},
@@ -3111,6 +3212,74 @@ export function useCloneAuthoringAsset() {
       queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] });
     },
   });
+}
+
+export function useAuthoringBatchJobs(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["authoring", "batch-jobs"],
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: AuthoringBatchJobResponse[] }>(
+        AUTHORING_BATCH_API_ROOT,
+      );
+      return data.data ?? [];
+    },
+  });
+}
+
+function useAuthoringBatchMutation<TRequest>(path: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: TRequest) => {
+      const { data } = await apiClient.post<{ data: AuthoringBatchJobResponse }>(
+        `${AUTHORING_BATCH_API_ROOT}${path}`,
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["authoring", "batch-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
+      queryClient.invalidateQueries({ queryKey: ["packages"] });
+    },
+  });
+}
+
+export function useGenerateAuthoringBatchRules() {
+  return useAuthoringBatchMutation<AuthoringBatchRuleGenerateRequest>("/rules/generate");
+}
+
+export function useAnalyzeAuthoringBatchRuleImpacts() {
+  return useMutation({
+    mutationFn: async (ruleIds: string[]) => {
+      const { data } = await apiClient.post<{ data: AuthoringBatchRuleImpactResponse }>(
+        `${AUTHORING_BATCH_API_ROOT}/rules/impact`,
+        { ruleIds },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function usePublishAuthoringBatchRules() {
+  return useAuthoringBatchMutation<AuthoringBatchRulePublishRequest>("/rules/publish");
+}
+
+export function useImportAuthoringBatchPackages() {
+  return useAuthoringBatchMutation<{
+    items: Array<{ itemId: string; offlinePackageJson: string }>;
+  }>("/packages/import");
+}
+
+export function useExportAuthoringBatchPackages() {
+  return useAuthoringBatchMutation<{
+    items: Array<{ itemId: string; packageId: string; targetOrgUnitId: string }>;
+  }>("/packages/export");
+}
+
+export function useDistributeAuthoringBatchPackages() {
+  return useAuthoringBatchMutation<AuthoringBatchPackageDistributeRequest>("/packages/distribute");
 }
 
 export type ConditionFragmentStatus = "DRAFT" | "ACTIVE" | "RETIRED";

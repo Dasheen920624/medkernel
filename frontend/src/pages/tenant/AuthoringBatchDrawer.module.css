@@ -1,0 +1,24 @@
+.fullWidth,
+.form {
+  width: 100%;
+}
+
+.twoColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--mk-unit) * 16);
+}
+
+.resultSection {
+  display: grid;
+  gap: calc(var(--mk-unit) * 12);
+  padding-top: calc(var(--mk-unit) * 16);
+  border-top: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+}
+
+@media (max-width: 45rem) {
+  .twoColumns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

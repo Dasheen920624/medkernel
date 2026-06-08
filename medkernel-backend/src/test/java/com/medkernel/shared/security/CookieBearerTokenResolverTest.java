@@ -41,4 +41,24 @@ class CookieBearerTokenResolverTest {
         req.setCookies(new Cookie("mk_access", ""));
         assertThat(resolver.resolve(req)).isNull();
     }
+
+    @Test
+    void ignoresStaleCookieOnPreAuthenticationEndpoint() {
+        MockHttpServletRequest req = new MockHttpServletRequest(
+            "GET", "/medkernel/api/v1/auth/login-tenants");
+        req.setContextPath("/medkernel");
+        req.setCookies(new Cookie("mk_access", "stale-jwt"));
+
+        assertThat(resolver.resolve(req)).isNull();
+    }
+
+    @Test
+    void protectedEndpointStillResolvesCookie() {
+        MockHttpServletRequest req = new MockHttpServletRequest(
+            "GET", "/medkernel/api/v1/system/runtime");
+        req.setContextPath("/medkernel");
+        req.setCookies(new Cookie("mk_access", "jwt-from-cookie"));
+
+        assertThat(resolver.resolve(req)).isEqualTo("jwt-from-cookie");
+    }
 }
