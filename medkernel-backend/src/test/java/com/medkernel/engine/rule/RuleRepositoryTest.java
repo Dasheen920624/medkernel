@@ -39,6 +39,7 @@ class RuleRepositoryTest {
     @Autowired RuleTestCaseRepository testCases;
     @Autowired RuleExecutionLogRepository executions;
     @Autowired RuleOverrideLogRepository overrides;
+    @Autowired RuleParameterBindingRepository parameterBindings;
     @Autowired RuleBacktestRunRepository backtests;
     @Autowired RuleDriftSnapshotRepository driftSnapshots;
     @Autowired RuleApplicabilityRepository applicabilities;
@@ -55,6 +56,7 @@ class RuleRepositoryTest {
         executions.deleteAll();
         testCases.deleteAll();
         applicabilities.deleteAll();
+        parameterBindings.deleteAll();
         versions.deleteAll();
         definitions.deleteAll();
     }
@@ -83,12 +85,16 @@ class RuleRepositoryTest {
             Instant.now(), "tester", "trace-rule"));
         RuleTestCase savedCase = testCases.save(sampleCase(caseId, "tenant-A", ruleId, versionId));
         RuleExecutionLog savedExecution = executions.save(sampleExecution(executionId, "tenant-A", ruleId, versionId));
+        RuleParameterBinding savedBinding = parameterBindings.save(new RuleParameterBinding(
+            null, versionId, "tenant-A", "criticalThreshold", "6.5",
+            Instant.now(), "tester", "trace-rule"));
 
         assertThat(savedRule.id()).isNotNull();
         assertThat(savedVersion.id()).isNotNull();
         assertThat(savedApplicability.id()).isNotNull();
         assertThat(savedCase.id()).isNotNull();
         assertThat(savedExecution.id()).isNotNull();
+        assertThat(savedBinding.id()).isNotNull();
 
         assertThat(definitions.findByRuleIdAndTenantId(ruleId, "tenant-A")).isPresent();
         assertThat(versions.findByVersionIdAndTenantId(versionId, "tenant-A")).isPresent();
@@ -100,6 +106,10 @@ class RuleRepositoryTest {
             .extracting(RuleTestCase::caseId)
             .containsExactly(caseId);
         assertThat(executions.findByExecutionIdAndTenantId(executionId, "tenant-A")).isPresent();
+        assertThat(parameterBindings.findByRuleVersionIdAndTenantIdOrderByParamKeyAsc(
+                versionId, "tenant-A"))
+            .extracting(RuleParameterBinding::paramKey)
+            .containsExactly("criticalThreshold");
     }
 
     @Test

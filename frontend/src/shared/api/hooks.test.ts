@@ -47,6 +47,7 @@ import {
   useContextFieldCatalog,
   useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
+  useCreateRule,
   useCreateWebhook,
   useDispatchRectification,
   useEvaluationIndicators,
@@ -818,6 +819,58 @@ describe("package export api helpers", () => {
         package_version: "pkg-2026.06",
         request_id: expect.any(String),
         trace_id: expect.any(String),
+      }),
+    );
+  });
+
+  it("creates parameterized rules with standard context and parameter bindings", async () => {
+    const response = { ruleId: "rule-param-1" };
+    const dsl = {
+      trigger: "result-review",
+      meta: {
+        parameters: [
+          { key: "criticalThreshold", label: "危急阈值", valueType: "DECIMAL", required: true },
+        ],
+      },
+      when: { all: [] },
+      then: [],
+      explain: { summary: "参数化规则" },
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useCreateRule());
+
+    await expect(
+      result.current.mutateAsync({
+        ruleCode: "RULE.LAB.CRITICAL.K",
+        name: "血钾危急值回报",
+        ruleType: "LAB",
+        authoringMode: "VISUAL",
+        riskLevel: "CRITICAL",
+        priority: 100,
+        dedupeWindowSeconds: 900,
+        packageVersion: "pkg-2026.06",
+        sourceRef: "检验危急值管理制度 2026",
+        changeSummary: "按参数生成草稿",
+        dslJson: dsl,
+        explanationJson: { summary: "参数化规则" },
+        parameterBindings: {
+          criticalThreshold: 6.5,
+        },
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules",
+      expect.objectContaining({
+        ruleCode: "RULE.LAB.CRITICAL.K",
+        dsl,
+        parameterBindings: {
+          criticalThreshold: 6.5,
+        },
+        tenant_id: "tenant-A",
+        role_codes: ["it-ops"],
+        package_version: "pkg-2026.06",
       }),
     );
   });

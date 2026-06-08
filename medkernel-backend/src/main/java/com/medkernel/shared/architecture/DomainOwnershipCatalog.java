@@ -27,7 +27,7 @@ public final class DomainOwnershipCatalog {
             prefixes("context_", "clinical_event", "mk_context_"),
             tables("canonical_resource")),
         module("engine-clinical", packages("com.medkernel.engine.clinical"), prefixes("mk_clinical_"), tables()),
-        module("engine-rule", packages("com.medkernel.engine.rule"), prefixes("rule_"), tables()),
+        module("engine-rule", packages("com.medkernel.engine.rule"), prefixes("rule_", "mk_engine_rule_"), tables()),
         module("engine-pathway", packages("com.medkernel.engine.pathway"), prefixes("pathway_", "specialty_"),
             tables("patient_pathway", "clinical_clock")),
         module("engine-knowledge", packages("com.medkernel.engine.knowledge"),

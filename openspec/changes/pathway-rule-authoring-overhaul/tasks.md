@@ -168,7 +168,7 @@
   - ✅ 测试：原型向导生成结构正确草稿；默认可提交。
 - [x] P12-3 即配即试：草稿 + 真实快照就地试运行与证据（`preview-run`），不绕门禁、不造数。
   - ✅ 测试：就地命中/证据；缺失/单位/公式可见。
-- [ ] P12-4 参数化规则：DSL `meta.parameters` + `rule_parameter_binding`；仅填参数生成规则。
+- [x] P12-4 参数化规则：DSL `meta.parameters` + `mk_engine_rule_parameter_binding`；仅填参数生成规则。
   - ✅ 测试：参数表单生成完整草稿。
 - [ ] P12-5 条件片段库：`condition_fragment` + 引用/拷贝两模式 + 求值期内联 + 变更影响分析。
   - ✅ 测试：规则与路径守卫复用同一片段；片段更新提示受影响资产。

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,6 +68,7 @@ class RuleEngineServiceTest {
 
     private RuleDefinitionRepository definitions;
     private RuleVersionRepository versions;
+    private RuleParameterBindingRepository parameterBindings;
     private RuleTestCaseRepository testCases;
     private RuleExecutionLogRepository executions;
     private RuleOverrideLogRepository overrides;
@@ -92,6 +94,7 @@ class RuleEngineServiceTest {
     void setUp() {
         definitions = mock(RuleDefinitionRepository.class);
         versions = mock(RuleVersionRepository.class);
+        parameterBindings = mock(RuleParameterBindingRepository.class);
         testCases = mock(RuleTestCaseRepository.class);
         executions = mock(RuleExecutionLogRepository.class);
         overrides = mock(RuleOverrideLogRepository.class);
@@ -114,7 +117,7 @@ class RuleEngineServiceTest {
         applicabilityService = new RuleApplicabilityService(
             applicabilities, new RuleApplicabilityEvaluator(json), json);
         service = new RuleEngineService(
-            definitions, versions, testCases, executions, overrides,
+            definitions, versions, parameterBindings, testCases, executions, overrides,
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
@@ -123,6 +126,7 @@ class RuleEngineServiceTest {
 
         when(definitions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(versions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(parameterBindings.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(testCases.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(executions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(overrides.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -193,6 +197,62 @@ class RuleEngineServiceTest {
             "tenant-A", response.versionId(), RuleRiskLevel.HIGH, "tester", "trace-rule");
         verify(auditRecorder).record(AuditAction.CREATE, "rule_definition", response.ruleId(), "创建规则 RULE.ANTICOAG");
         verify(transitions).record("rule_definition", response.ruleId(), null, "DRAFT", "CREATE_RULE", null);
+    }
+
+    @Test
+    void createRulePersistsParameterBindingsDeclaredByDslMeta() {
+        JsonNode dsl = parameterizedCriticalValueDsl();
+
+        RuleCreateResponse response = service.createRule(new RuleCreateRequest(
+            "RULE.LAB.CRITICAL.K", "血钾危急值回报", RuleType.LAB, RuleAuthoringMode.VISUAL,
+            RuleRiskLevel.CRITICAL, "pkg-2026.06", "dept-icu", "检验危急值管理制度 2026",
+            "按参数生成危急值规则", dsl, dsl.path("explain"), read("""
+                {
+                  "observationCode": "K",
+                  "criticalThreshold": 6.5,
+                  "returnMinutes": 15
+                }
+                """)));
+
+        ArgumentCaptor<RuleParameterBinding> bindingCap =
+            ArgumentCaptor.forClass(RuleParameterBinding.class);
+        verify(parameterBindings, times(3)).save(bindingCap.capture());
+        assertThat(bindingCap.getAllValues())
+            .extracting(RuleParameterBinding::paramKey)
+            .containsExactlyInAnyOrder("observationCode", "criticalThreshold", "returnMinutes");
+        assertThat(bindingCap.getAllValues())
+            .allSatisfy(binding -> {
+                assertThat(binding.tenantId()).isEqualTo("tenant-A");
+                assertThat(binding.ruleVersionId()).isEqualTo(response.versionId());
+                assertThat(binding.createdBy()).isEqualTo("tester");
+                assertThat(binding.traceId()).isEqualTo("trace-rule");
+            });
+        assertThat(bindingCap.getAllValues())
+            .filteredOn(binding -> binding.paramKey().equals("criticalThreshold"))
+            .singleElement()
+            .extracting(RuleParameterBinding::paramValueJson)
+            .isEqualTo("6.5");
+        verify(auditRecorder).record(
+            AuditAction.CREATE, "mk_engine_rule_parameter_binding", response.versionId(), "保存规则参数绑定 3 项");
+    }
+
+    @Test
+    void createRuleRejectsMissingRequiredParameterBinding() {
+        JsonNode dsl = parameterizedCriticalValueDsl();
+
+        assertThatThrownBy(() -> service.createRule(new RuleCreateRequest(
+            "RULE.LAB.CRITICAL.K", "血钾危急值回报", RuleType.LAB, RuleAuthoringMode.VISUAL,
+            RuleRiskLevel.CRITICAL, "pkg-2026.06", "dept-icu", "检验危急值管理制度 2026",
+            "缺少回报时限", dsl, dsl.path("explain"), read("""
+                {
+                  "observationCode": "K",
+                  "criticalThreshold": 6.5
+                }
+                """))))
+            .isInstanceOf(ApiException.class)
+            .extracting(error -> ((ApiException) error).errorCode())
+            .isEqualTo(ErrorCode.ENG_RULE_001);
+        verify(parameterBindings, never()).save(any());
     }
 
     @Test
@@ -908,7 +968,7 @@ class RuleEngineServiceTest {
     void peerReviewFailsWhenTerminologyCoverageHasUnmappedCode() {
         TerminologyCoverageGate coverageGate = mock(TerminologyCoverageGate.class);
         RuleEngineService gatedService = new RuleEngineService(
-            definitions, versions, testCases, executions, overrides,
+            definitions, versions, parameterBindings, testCases, executions, overrides,
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), coverageGate,
@@ -1134,7 +1194,7 @@ class RuleEngineServiceTest {
     void evaluateSpecifiedRuleUsesInheritanceResolvedVersionForCurrentDepartment() {
         InheritanceResolver resolver = mock(InheritanceResolver.class);
         RuleEngineService inheritedService = new RuleEngineService(
-            definitions, versions, testCases, executions, overrides,
+            definitions, versions, parameterBindings, testCases, executions, overrides,
             new RuleDslEvaluator(json), applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json,
             RuleImpactIndex.empty(), TerminologyCoverageGate.noop(),
@@ -1836,6 +1896,55 @@ class RuleEngineServiceTest {
                 "title": "抗凝风险提示",
                 "reason": "患者年龄和医嘱类别满足规则条件",
                 "sourceRef": "院内抗凝用药管理规范 2026"
+              }
+            }
+            """);
+    }
+
+    private JsonNode parameterizedCriticalValueDsl() {
+        return read("""
+            {
+              "trigger": "result-review",
+              "meta": {
+                "parameters": [
+                  {"key": "observationCode", "label": "检验项", "valueType": "CODE", "required": true},
+                  {"key": "criticalThreshold", "label": "危急阈值", "valueType": "DECIMAL", "required": true},
+                  {"key": "returnMinutes", "label": "回报时限分钟", "valueType": "INTEGER", "required": true}
+                ]
+              },
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"],
+                "effective": {"rolloutPercent": 100}
+              },
+              "when": {
+                "all": [
+                  {
+                    "expr": {
+                      "field": "observations[].valueNumeric",
+                      "select": "latest",
+                      "where": {
+                        "all": [
+                          {
+                            "expr": {"field": "observations[].code"},
+                            "operator": "equals",
+                            "value": {"const": "K"}
+                          }
+                        ]
+                      }
+                    },
+                    "operator": "gte",
+                    "value": 6.5
+                  }
+                ]
+              },
+              "then": [
+                {"actionCode": "STRONG_REMINDER", "atSeverity": "CRITICAL", "indicator": "critical", "summary": "血钾危急值回报", "detail": "15 分钟内完成危急值回报、确认与记录", "source": {"label": "检验危急值管理制度 2026"}, "suggestions": [], "overrideReasons": [], "requiresPhysicianConfirmation": true}
+              ],
+              "explain": {
+                "title": "血钾危急值回报",
+                "summary": "参数化危急值规则"
               }
             }
             """);

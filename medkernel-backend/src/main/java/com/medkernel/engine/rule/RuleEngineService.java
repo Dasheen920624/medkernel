@@ -89,6 +89,7 @@ public class RuleEngineService {
 
     private final RuleDefinitionRepository definitions;
     private final RuleVersionRepository versions;
+    private final RuleParameterBindingRepository parameterBindings;
     private final RuleTestCaseRepository testCases;
     private final RuleExecutionLogRepository executions;
     private final RuleOverrideLogRepository overrides;
@@ -124,12 +125,19 @@ public class RuleEngineService {
         RuleRuntimeMode mode
     ) {}
 
+    private record RuleParameterSpec(
+        String key,
+        String valueType,
+        boolean required
+    ) {}
+
     /**
      * 注入规则引擎所需仓库、DSL 执行器、审计发布器、状态记录器与 JSON 处理器。
      */
     @Autowired
     public RuleEngineService(RuleDefinitionRepository definitions,
                              RuleVersionRepository versions,
+                             RuleParameterBindingRepository parameterBindings,
                              RuleTestCaseRepository testCases,
                              RuleExecutionLogRepository executions,
                              RuleOverrideLogRepository overrides,
@@ -151,7 +159,7 @@ public class RuleEngineService {
                              InheritanceResolver inheritanceResolver,
                              ContextSnapshotService contextSnapshots,
                              ObjectProvider<EngineDomainEventPort> domainEventProvider) {
-        this(definitions, versions, testCases, executions, overrides,
+        this(definitions, versions, parameterBindings, testCases, executions, overrides,
             evaluator, applicabilityService,
             auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
@@ -163,6 +171,7 @@ public class RuleEngineService {
 
     RuleEngineService(RuleDefinitionRepository definitions,
                       RuleVersionRepository versions,
+                      RuleParameterBindingRepository parameterBindings,
                       RuleTestCaseRepository testCases,
                       RuleExecutionLogRepository executions,
                       RuleOverrideLogRepository overrides,
@@ -183,7 +192,7 @@ public class RuleEngineService {
                       RuleDriftSnapshotRepository driftSnapshots,
                       InheritanceResolver inheritanceResolver,
                       ContextSnapshotService contextSnapshots) {
-        this(definitions, versions, testCases, executions, overrides, evaluator, applicabilityService,
+        this(definitions, versions, parameterBindings, testCases, executions, overrides, evaluator, applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json, impactIndex, terminologyCoverageGate,
             versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback, backtests,
             driftSnapshots, inheritanceResolver, contextSnapshots, EngineDomainEventPort.noop());
@@ -191,6 +200,7 @@ public class RuleEngineService {
 
     RuleEngineService(RuleDefinitionRepository definitions,
                       RuleVersionRepository versions,
+                      RuleParameterBindingRepository parameterBindings,
                       RuleTestCaseRepository testCases,
                       RuleExecutionLogRepository executions,
                       RuleOverrideLogRepository overrides,
@@ -214,6 +224,8 @@ public class RuleEngineService {
                       EngineDomainEventPort domainEvents) {
         this.definitions = definitions;
         this.versions = versions;
+        this.parameterBindings = Objects.requireNonNull(
+            parameterBindings, "规则参数绑定仓库不能为空");
         this.testCases = testCases;
         this.executions = executions;
         this.overrides = overrides;
@@ -258,6 +270,8 @@ public class RuleEngineService {
 
         String ruleId = "rule-" + UUID.randomUUID();
         String versionId = "rv-" + UUID.randomUUID();
+        List<RuleParameterBinding> bindings = parameterBindingRecords(
+            request.dsl(), request.parameterBindings(), tenantId, versionId, now, actor, traceId);
         RuleDefinition definition = new RuleDefinition(
             null, ruleId, tenantId, request.ruleCode(), request.name(), request.ruleType(),
             request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode(),
@@ -274,6 +288,7 @@ public class RuleEngineService {
 
         definitions.save(definition);
         versions.save(version);
+        bindings.forEach(parameterBindings::save);
         governanceService.initialize(
             tenantId, versionId, definition.riskLevel(), actor, traceId);
         applicabilityService.saveMirror(version, request.dsl(), now, actor, traceId);
@@ -294,6 +309,14 @@ public class RuleEngineService {
         ));
         transitions.record(RULE_ENTITY, ruleId, null, RuleDefinitionStatus.DRAFT.name(), "CREATE_RULE", null);
         auditRecorder.record(AuditAction.CREATE, RULE_ENTITY, ruleId, "创建规则 " + request.ruleCode());
+        if (!bindings.isEmpty()) {
+            auditRecorder.record(
+                AuditAction.CREATE,
+                "mk_engine_rule_parameter_binding",
+                versionId,
+                "保存规则参数绑定 " + bindings.size() + " 项"
+            );
+        }
         return new RuleCreateResponse(ruleId, versionId, RuleDefinitionStatus.DRAFT, traceId);
     }
 
@@ -1929,6 +1952,159 @@ public class RuleEngineService {
                     + "result-review/discharge-sign/followup-alert"
             );
         }
+    }
+
+    private List<RuleParameterBinding> parameterBindingRecords(
+        JsonNode dsl,
+        JsonNode bindingValues,
+        String tenantId,
+        String versionId,
+        Instant now,
+        String actor,
+        String traceId
+    ) {
+        List<RuleParameterSpec> specs = readParameterSpecs(dsl);
+        JsonNode values = normalizeParameterBindingValues(bindingValues);
+        if (specs.isEmpty()) {
+            if (values.size() > 0) {
+                throw new ApiException(
+                    ErrorCode.ENG_RULE_001,
+                    "规则 DSL 未声明 meta.parameters，不能保存参数绑定"
+                );
+            }
+            return List.of();
+        }
+
+        LinkedHashMap<String, RuleParameterSpec> byKey = new LinkedHashMap<>();
+        for (RuleParameterSpec spec : specs) {
+            byKey.put(spec.key(), spec);
+        }
+        values.fieldNames().forEachRemaining(key -> {
+            if (!byKey.containsKey(key)) {
+                throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数未在 schema 中声明: " + key);
+            }
+        });
+
+        List<RuleParameterBinding> records = new ArrayList<>();
+        for (RuleParameterSpec spec : specs) {
+            JsonNode value = values.path(spec.key());
+            if (isMissingParameterValue(value)) {
+                if (spec.required()) {
+                    throw new ApiException(ErrorCode.ENG_RULE_001, "缺少必填规则参数: " + spec.key());
+                }
+                continue;
+            }
+            validateParameterValue(spec, value);
+            records.add(new RuleParameterBinding(
+                null,
+                versionId,
+                tenantId,
+                spec.key(),
+                writeJson(value),
+                now,
+                actor,
+                traceId
+            ));
+        }
+        return records;
+    }
+
+    private List<RuleParameterSpec> readParameterSpecs(JsonNode dsl) {
+        JsonNode parameters = dsl.path("meta").path("parameters");
+        if (parameters.isMissingNode() || parameters.isNull()) {
+            return List.of();
+        }
+        if (!parameters.isArray()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL meta.parameters 必须是数组");
+        }
+
+        LinkedHashMap<String, RuleParameterSpec> specs = new LinkedHashMap<>();
+        for (JsonNode parameter : parameters) {
+            if (!parameter.isObject()) {
+                throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数 schema 项必须是对象");
+            }
+            String key = parameter.path("key").asText("").trim();
+            String valueType = parameter.path("valueType").asText("").trim();
+            if (key.isBlank()) {
+                throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数 schema 缺少 key");
+            }
+            if (specs.containsKey(key)) {
+                throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数 schema key 重复: " + key);
+            }
+            if (!isAllowedParameterValueType(valueType)) {
+                throw new ApiException(ErrorCode.ENG_RULE_001, "不支持的规则参数类型: " + valueType);
+            }
+            specs.put(key, new RuleParameterSpec(key, valueType, parameter.path("required").asBoolean(false)));
+        }
+        return List.copyOf(specs.values());
+    }
+
+    private JsonNode normalizeParameterBindingValues(JsonNode bindingValues) {
+        if (bindingValues == null || bindingValues.isMissingNode() || bindingValues.isNull()) {
+            return json.createObjectNode();
+        }
+        if (!bindingValues.isObject()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数绑定必须是 JSON 对象");
+        }
+        return bindingValues;
+    }
+
+    private static boolean isAllowedParameterValueType(String valueType) {
+        return Set.of("CODE", "TEXT", "DECIMAL", "INTEGER", "BOOLEAN", "VALUE_SET", "ORG_SCOPE")
+            .contains(valueType);
+    }
+
+    private static boolean isMissingParameterValue(JsonNode value) {
+        return value == null
+            || value.isMissingNode()
+            || value.isNull()
+            || (value.isTextual() && value.asText().trim().isBlank());
+    }
+
+    private static void validateParameterValue(RuleParameterSpec spec, JsonNode value) {
+        switch (spec.valueType()) {
+            case "CODE", "TEXT" -> requireTextParameter(spec, value);
+            case "DECIMAL" -> requireNumberParameter(spec, value);
+            case "INTEGER" -> requireIntegerParameter(spec, value);
+            case "BOOLEAN" -> requireBooleanParameter(spec, value);
+            case "VALUE_SET", "ORG_SCOPE" -> requireStructuredOrTextParameter(spec, value);
+            default -> throw new ApiException(ErrorCode.ENG_RULE_001, "不支持的规则参数类型: " + spec.valueType());
+        }
+    }
+
+    private static void requireTextParameter(RuleParameterSpec spec, JsonNode value) {
+        if (!value.isTextual() || value.asText().trim().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数必须是非空文本: " + spec.key());
+        }
+    }
+
+    private static void requireNumberParameter(RuleParameterSpec spec, JsonNode value) {
+        if (!value.isNumber()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数必须是数字: " + spec.key());
+        }
+    }
+
+    private static void requireIntegerParameter(RuleParameterSpec spec, JsonNode value) {
+        if (!value.isIntegralNumber()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数必须是整数: " + spec.key());
+        }
+    }
+
+    private static void requireBooleanParameter(RuleParameterSpec spec, JsonNode value) {
+        if (!value.isBoolean()) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数必须是布尔值: " + spec.key());
+        }
+    }
+
+    private static void requireStructuredOrTextParameter(RuleParameterSpec spec, JsonNode value) {
+        if (value.isTextual()) {
+            requireTextParameter(spec, value);
+            return;
+        }
+        if ((value.isObject() || value.isArray()) && value.size() > 0) {
+            return;
+        }
+        throw new ApiException(ErrorCode.ENG_RULE_001, "规则参数必须是非空文本、对象或数组: " + spec.key());
     }
 
     private void ensureRuleCodeAvailable(String tenantId, String ruleCode, String currentRuleId) {

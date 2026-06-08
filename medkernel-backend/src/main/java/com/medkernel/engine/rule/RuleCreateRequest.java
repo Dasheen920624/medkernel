@@ -42,7 +42,8 @@ public record RuleCreateRequest(
     @NotBlank String sourceRef,
     String changeSummary,
     @NotNull JsonNode dsl,
-    JsonNode explanation
+    JsonNode explanation,
+    JsonNode parameterBindings
 ) implements RuleContextRequest {
     public RuleCreateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -61,7 +62,24 @@ public record RuleCreateRequest(
                              JsonNode explanation) {
         this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
             ruleCode, name, ruleType, authoringMode, riskLevel, 100, null, 0, applicableOrgUnitId,
-            sourceRef, changeSummary, dsl, explanation);
+            sourceRef, changeSummary, dsl, explanation, null);
+    }
+
+    public RuleCreateRequest(String ruleCode,
+                             String name,
+                             RuleType ruleType,
+                             RuleAuthoringMode authoringMode,
+                             RuleRiskLevel riskLevel,
+                             String packageVersion,
+                             String applicableOrgUnitId,
+                             String sourceRef,
+                             String changeSummary,
+                             JsonNode dsl,
+                             JsonNode explanation,
+                             JsonNode parameterBindings) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
+            ruleCode, name, ruleType, authoringMode, riskLevel, 100, null, 0, applicableOrgUnitId,
+            sourceRef, changeSummary, dsl, explanation, parameterBindings);
     }
 
     public RuleApiContext apiContext() {
