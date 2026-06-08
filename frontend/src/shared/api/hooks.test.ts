@@ -43,6 +43,7 @@ import {
   useBatchConfirmTerminologyCandidates,
   useBuildTerminologyPackage,
   useActivateEvaluationIndicator,
+  useAuthoringAssets,
   useConfirmTerminologyCandidate,
   useContextFieldCatalog,
   useCreateEvaluationIndicator,
@@ -102,6 +103,8 @@ import {
   useCaptureRuleShadowFeedback,
   useAuthoringPreview,
   useAuthoringPreviewRun,
+  useCloneAuthoringAsset,
+  useFavoriteAuthoringAsset,
   useRuleBacktestLatest,
   useRunRuleBacktest,
   useRuleDriftLatest,
@@ -129,6 +132,8 @@ import {
   useSaveWorkflowSystemNotificationSettings,
   useSplitMpiPatient,
   useTransferWorkflowTodo,
+  useUnfavoriteAuthoringAsset,
+  useUpdateAuthoringAssetProfile,
   useWorkflowNotificationSettings,
   useWorkflowNotifications,
   useWorkflowSystemNotificationSettings,
@@ -141,6 +146,7 @@ vi.mock("./client", () => ({
     post: vi.fn(),
     put: vi.fn(),
     patch: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -192,6 +198,9 @@ describe("developer console api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.put).mockReset();
+    vi.mocked(apiClient.patch).mockReset();
+    vi.mocked(apiClient.delete).mockReset();
   });
 
   it("loads the governed API directory, trace summary and tenant plugin list", async () => {
@@ -820,6 +829,134 @@ describe("package export api helpers", () => {
         request_id: expect.any(String),
         trace_id: expect.any(String),
       }),
+    );
+  });
+
+  it("loads reusable authoring assets from the unified asset library", async () => {
+    const page = {
+      items: [
+        {
+          assetType: "CONDITION_FRAGMENT",
+          assetId: "frag-ckd",
+          assetCode: "FRAG.CKD",
+          name: "CKD 条件片段",
+          category: "慢病",
+          tags: ["复用"],
+          version: "1",
+          status: "ACTIVE",
+          packageVersion: "pkg-2026.06",
+          favorite: true,
+          cloneable: true,
+          updatedAt: "2026-06-08T00:00:00Z",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+
+    const { result } = renderApiHook(() =>
+      useAuthoringAssets({
+        assetType: "CONDITION_FRAGMENT",
+        keyword: "CKD",
+        tag: "复用",
+        favoriteOnly: true,
+        page: 0,
+        size: 20,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data).toBe(page));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/assets", {
+      params: {
+        assetType: "CONDITION_FRAGMENT",
+        keyword: "CKD",
+        tag: "复用",
+        favoriteOnly: true,
+        page: 0,
+        size: 20,
+      },
+    });
+  });
+
+  it("updates profile, favorite state and clone draft through unified asset endpoints", async () => {
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", tags: ["CKD"] } },
+    });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", favorite: true } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            sourceAssetType: "CONDITION_FRAGMENT",
+            sourceAssetId: "frag-ckd",
+            clonedAssetType: "CONDITION_FRAGMENT",
+            clonedAssetId: "frag-copy",
+            clonedAssetCode: "FRAG.CKD.COPY",
+            status: "DRAFT",
+          },
+        },
+      });
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({
+      data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", favorite: false } },
+    });
+
+    const profile = renderApiHook(() => useUpdateAuthoringAssetProfile());
+    await profile.result.current.mutateAsync({
+      assetType: "CONDITION_FRAGMENT",
+      assetId: "frag-ckd",
+      request: { category: "慢病", tags: ["CKD"] },
+    });
+
+    const favorite = renderApiHook(() => useFavoriteAuthoringAsset());
+    await favorite.result.current.mutateAsync({
+      assetType: "CONDITION_FRAGMENT",
+      assetId: "frag-ckd",
+    });
+
+    const unfavorite = renderApiHook(() => useUnfavoriteAuthoringAsset());
+    await unfavorite.result.current.mutateAsync({
+      assetType: "CONDITION_FRAGMENT",
+      assetId: "frag-ckd",
+    });
+
+    const clone = renderApiHook(() => useCloneAuthoringAsset());
+    await clone.result.current.mutateAsync({
+      assetType: "CONDITION_FRAGMENT",
+      assetId: "frag-ckd",
+      request: {
+        newCode: "FRAG.CKD.COPY",
+        newName: "CKD 条件片段副本",
+        newVersion: 1,
+        packageVersion: "pkg-2026.06",
+      },
+    });
+
+    expect(apiClient.put).toHaveBeenCalledWith(
+      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/profile",
+      { category: "慢病", tags: ["CKD"] },
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite",
+    );
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/clone",
+      {
+        newCode: "FRAG.CKD.COPY",
+        newName: "CKD 条件片段副本",
+        newVersion: 1,
+        packageVersion: "pkg-2026.06",
+      },
     );
   });
 

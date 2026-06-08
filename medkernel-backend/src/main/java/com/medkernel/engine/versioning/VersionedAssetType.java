@@ -30,5 +30,15 @@ public enum VersionedAssetType {
     /** 安全（红线 / 高危拦截） */
     SAFETY,
     /** CDSS 风险分级矩阵 */
-    CDSS_RISK
+    CDSS_RISK,
+    /** 条件片段 */
+    CONDITION_FRAGMENT,
+    /** 值集 */
+    VALUE_SET,
+    /** 医嘱套餐 */
+    ORDER_SET,
+    /** 动作卡片 */
+    ACTION_CARD,
+    /** 子路径 */
+    SUBPATHWAY
 }

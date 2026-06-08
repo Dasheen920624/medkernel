@@ -1,0 +1,26 @@
+.filterBar {
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.assetTypeSelect {
+  min-width: calc(var(--mk-unit) * 180);
+}
+
+.keywordInput {
+  width: min(calc(var(--mk-unit) * 280), 100%);
+}
+
+.tagInput {
+  width: min(calc(var(--mk-unit) * 180), 100%);
+}
+
+.assetName {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+}
+
+.codeText {
+  font-family: monospace;
+  font-weight: 600;
+}

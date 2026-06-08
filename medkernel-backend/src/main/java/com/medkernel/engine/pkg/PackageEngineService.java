@@ -34,6 +34,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.ConditionFragment;
+import com.medkernel.engine.authoring.ConditionFragmentRepository;
+import com.medkernel.engine.authoring.ConditionFragmentStatus;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
@@ -112,6 +115,7 @@ public class PackageEngineService {
 
     private final RuleDefinitionRepository ruleRepository;
     private final RuleApplicabilityService ruleApplicabilityService;
+    private final ConditionFragmentRepository conditionFragmentRepository;
     private final PathwayTemplateRepository pathwayRepository;
     private final EvaluationIndicatorRepository evaluationRepository;
     private final RuleVersionRepository ruleVersionRepository;
@@ -143,6 +147,7 @@ public class PackageEngineService {
             SyncLogRepository logRepository,
             RuleDefinitionRepository ruleRepository,
             RuleVersionRepository ruleVersionRepository,
+            ConditionFragmentRepository conditionFragmentRepository,
             RuleApplicabilityService ruleApplicabilityService,
             PathwayTemplateRepository pathwayRepository,
             PathwayMilestoneRepository pathwayMilestoneRepository,
@@ -172,6 +177,7 @@ public class PackageEngineService {
         this.ruleRepository = ruleRepository;
         this.ruleVersionRepository = ruleVersionRepository;
         this.ruleApplicabilityService = ruleApplicabilityService;
+        this.conditionFragmentRepository = conditionFragmentRepository;
         this.pathwayRepository = pathwayRepository;
         this.pathwayNodeRepository = pathwayNodeRepository;
         this.pathwayEdgeRepository = pathwayEdgeRepository;
@@ -1162,6 +1168,13 @@ public class PackageEngineService {
                     ));
                 yield buildTerminologyAssetContent(terminologyPackage);
             }
+            case CONDITION_FRAGMENT -> buildConditionFragmentAssetContent(
+                conditionFragmentRepository.findByFragmentIdAndTenantId(item.assetId(), sourceTenantId)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "离线导出条件片段不存在: " + item.assetId()
+                    ))
+            );
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "配置包包含不允许迁移的资产类型: " + item.assetType());
@@ -1232,6 +1245,26 @@ public class PackageEngineService {
                 instantText(indicator.publishedAt()),
                 indicator.publishedBy(),
                 instantText(indicator.activatedAt())
+            )
+        ));
+    }
+
+    private JsonNode buildConditionFragmentAssetContent(ConditionFragment fragment) {
+        return OFFLINE_EXPORT_MAPPER.valueToTree(new PackageOfflineConditionFragmentContent(
+            new PackageOfflineConditionFragment(
+                fragment.fragmentId(),
+                fragment.fragmentCode(),
+                fragment.name(),
+                fragment.category(),
+                fragment.bodyJson(),
+                fragment.versionNo(),
+                enumName(fragment.status()),
+                fragment.packageVersion(),
+                instantText(fragment.createdAt()),
+                fragment.createdBy(),
+                instantText(fragment.updatedAt()),
+                fragment.updatedBy(),
+                fragment.traceId()
             )
         ));
     }
@@ -1502,6 +1535,8 @@ public class PackageEngineService {
             case EVALUATION -> importOfflineEvaluationSnapshot(assetId, assetVersion, content, tenantId, actor, traceId, now);
             case KNOWLEDGE -> importOfflineKnowledgeSnapshot(assetId, assetVersion, content, tenantId, actor, now);
             case TERMINOLOGY -> importOfflineTerminologySnapshot(assetId, assetVersion, content, tenantId, actor, now);
+            case CONDITION_FRAGMENT -> importOfflineConditionFragmentSnapshot(
+                assetId, assetVersion, content, tenantId, actor, traceId, now);
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "配置包包含不允许迁移的资产类型: " + assetType);
@@ -1574,6 +1609,7 @@ public class PackageEngineService {
                 validateOfflineTerminologyMappings(terminologyContent.mappings());
                 validateOfflineTerminologySnapshots(terminologyContent);
             }
+            case CONDITION_FRAGMENT -> validateOfflineConditionFragmentContent(assetId, assetVersion, content);
             default -> throw new ApiException(
                 ErrorCode.ENG_PACKAGE_002,
                 "配置包包含不允许迁移的资产类型: " + assetType);
@@ -1584,6 +1620,39 @@ public class PackageEngineService {
         if (!"PUBLISHED".equalsIgnoreCase(status) && !"ACTIVE".equalsIgnoreCase(status)) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002,
                 "离线包" + assetName + "必须为 PUBLISHED 或 ACTIVE 状态, 当前: " + status);
+        }
+    }
+
+    private void validateOfflineConditionFragmentContent(
+            String assetId,
+            String assetVersion,
+            JsonNode content) {
+        PackageOfflineConditionFragmentContent fragmentContent =
+            readOfflineContent(content, PackageOfflineConditionFragmentContent.class);
+        PackageOfflineConditionFragment fragment = fragmentContent.fragment();
+        if (fragment == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包条件片段快照缺少 fragment");
+        }
+        if (!assetId.equals(fragment.fragmentId())) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包条件片段 fragmentId 与资产条目不一致");
+        }
+        if (!Integer.toString(fragment.versionNo()).equals(assetVersion)) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包条件片段 versionNo 与资产条目不一致");
+        }
+        if (normalizedText(fragment.fragmentCode()) == null
+                || normalizedText(fragment.name()) == null
+                || normalizedText(fragment.bodyJson()) == null
+                || normalizedText(fragment.packageVersion()) == null) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "离线包条件片段缺少编码、名称、正文或包版本");
+        }
+        ConditionFragmentStatus status = parseEnum(
+            ConditionFragmentStatus.class,
+            fragment.status(),
+            "条件片段状态"
+        );
+        if (status != ConditionFragmentStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ENG_PACKAGE_002,
+                "离线包条件片段必须为 ACTIVE 状态, 当前: " + fragment.status());
         }
     }
 
@@ -2400,6 +2469,56 @@ public class PackageEngineService {
         }
     }
 
+    private void importOfflineConditionFragmentSnapshot(
+            String assetId,
+            String assetVersion,
+            JsonNode content,
+            String tenantId,
+            String actor,
+            String traceId,
+            Instant now) {
+        PackageOfflineConditionFragmentContent fragmentContent =
+            readOfflineContent(content, PackageOfflineConditionFragmentContent.class);
+        validateOfflineAssetSnapshotContent(VersionedAssetType.CONDITION_FRAGMENT, assetId, assetVersion, content);
+
+        PackageOfflineConditionFragment fragment = fragmentContent.fragment();
+        Optional<ConditionFragment> existing =
+            conditionFragmentRepository.findByFragmentIdAndTenantId(assetId, tenantId);
+        if (existing.isPresent()) {
+            ensureLocalSnapshotMatches("条件片段", assetId, content, buildConditionFragmentAssetContent(existing.get()));
+            return;
+        }
+        conditionFragmentRepository.findByTenantIdAndFragmentCodeAndVersionNo(
+                tenantId,
+                fragment.fragmentCode(),
+                fragment.versionNo())
+            .ifPresent(conflicting -> {
+                throw new ApiException(
+                    ErrorCode.CONFLICT,
+                    "条件片段编码版本已被其他业务 ID 占用: "
+                        + fragment.fragmentCode() + "@" + fragment.versionNo()
+                );
+            });
+
+        conditionFragmentRepository.save(new ConditionFragment(
+            null,
+            fragment.fragmentId(),
+            tenantId,
+            fragment.fragmentCode(),
+            fragment.name(),
+            fragment.category(),
+            fragment.bodyJson(),
+            fragment.versionNo(),
+            parseEnum(ConditionFragmentStatus.class, fragment.status(), "条件片段状态"),
+            fragment.packageVersion(),
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        ));
+    }
+
     private <T> T readOfflineContent(JsonNode content, Class<T> type) {
         try {
             return OFFLINE_EXPORT_MAPPER.treeToValue(content, type);
@@ -2989,6 +3108,26 @@ public class PackageEngineService {
         String publishedAt,
         String publishedBy,
         String activatedAt
+    ) {}
+
+    private record PackageOfflineConditionFragmentContent(
+        PackageOfflineConditionFragment fragment
+    ) {}
+
+    private record PackageOfflineConditionFragment(
+        String fragmentId,
+        String fragmentCode,
+        String name,
+        String category,
+        String bodyJson,
+        int versionNo,
+        String status,
+        String packageVersion,
+        String createdAt,
+        String createdBy,
+        String updatedAt,
+        String updatedBy,
+        String traceId
     ) {}
 
     private record PackageOfflineKnowledgeContent(
@@ -3919,6 +4058,25 @@ public class PackageEngineService {
                     throw new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
                         "只允许 PUBLISHED 或 GRAY 状态的术语映射包入包, 当前: " + terminologyPackage.statusName()
+                    );
+                }
+            }
+            case CONDITION_FRAGMENT -> {
+                ConditionFragment fragment = conditionFragmentRepository.findByFragmentIdAndTenantId(assetId, tenantId)
+                    .orElseThrow(() -> new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包条件片段不存在: " + assetId
+                    ));
+                if (!Integer.toString(fragment.versionNo()).equals(assetVersion)) {
+                    throw new ApiException(
+                        ErrorCode.PACKAGE_DEPENDENCY_MISSING,
+                        "入包条件片段版本不存在: " + assetId + "@" + assetVersion
+                    );
+                }
+                if (fragment.status() != ConditionFragmentStatus.ACTIVE) {
+                    throw new ApiException(
+                        ErrorCode.ENG_PACKAGE_002,
+                        "只允许 ACTIVE 状态的条件片段入包, 当前: " + fragment.status()
                     );
                 }
             }

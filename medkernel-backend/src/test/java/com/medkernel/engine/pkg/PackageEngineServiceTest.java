@@ -35,6 +35,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.ConditionFragment;
+import com.medkernel.engine.authoring.ConditionFragmentRepository;
+import com.medkernel.engine.authoring.ConditionFragmentStatus;
 import com.medkernel.engine.evaluation.EvaluationIndicator;
 import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
@@ -120,6 +123,7 @@ class PackageEngineServiceTest {
     private RuleDefinitionRepository ruleRepository;
     private RuleVersionRepository ruleVersionRepository;
     private RuleApplicabilityRepository ruleApplicabilityRepository;
+    private ConditionFragmentRepository conditionFragmentRepository;
     private PathwayTemplateRepository pathwayRepository;
     private PathwayMilestoneRepository pathwayMilestoneRepository;
     private PathwayNodeRepository pathwayNodeRepository;
@@ -154,6 +158,7 @@ class PackageEngineServiceTest {
         ruleRepository = mock(RuleDefinitionRepository.class);
         ruleVersionRepository = mock(RuleVersionRepository.class);
         ruleApplicabilityRepository = mock(RuleApplicabilityRepository.class);
+        conditionFragmentRepository = mock(ConditionFragmentRepository.class);
         pathwayRepository = mock(PathwayTemplateRepository.class);
         pathwayMilestoneRepository = mock(PathwayMilestoneRepository.class);
         pathwayNodeRepository = mock(PathwayNodeRepository.class);
@@ -189,7 +194,7 @@ class PackageEngineServiceTest {
 
         service = new PackageEngineService(
             packageRepository, itemRepository, planRepository, adapterRepository, logRepository,
-            ruleRepository, ruleVersionRepository,
+            ruleRepository, ruleVersionRepository, conditionFragmentRepository,
             new RuleApplicabilityService(
                 ruleApplicabilityRepository,
                 new RuleApplicabilityEvaluator(TEST_MAPPER),
@@ -212,6 +217,7 @@ class PackageEngineServiceTest {
         when(logRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(ruleVersionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(ruleApplicabilityRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(conditionFragmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayNodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pathwayMilestoneRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -474,6 +480,27 @@ class PackageEngineServiceTest {
     }
 
     @Test
+    void validatePackageAcceptsActiveConditionFragmentAssets() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-fragment", "tenant-A", "PKG.FRAGMENT", "1.0.0", "条件片段配置包", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-fragment", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-fragment"))
+            .thenReturn(List.of(
+                packageItem(12L, "pkg-fragment", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1")
+            ));
+        when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
+            .thenReturn(Optional.of(activeConditionFragment("frag-ckd", "FRAG.CKD", 1)));
+
+        PackageValidateResponse response = service.validatePackage("pkg-fragment");
+
+        assertThat(response.valid()).isTrue();
+        assertThat(response.issues()).isEmpty();
+    }
+
+    @Test
     void validatePackageBlocksFollowupRuntimePlansUntilTemplateAssetExists() {
         KnowledgePackage pack = new KnowledgePackage(
             1L, "pkg-followup", "tenant-A", "PKG.FOLLOWUP", "1.0.0", "随访配置包", null,
@@ -556,6 +583,39 @@ class PackageEngineServiceTest {
                     && command.contentHash().matches("[a-f0-9]{64}")
         ));
         verify(auditRecorder).record(eq(AuditAction.UPDATE), eq("knowledge_package"), eq("pkg-1"), any());
+    }
+
+    @Test
+    void addPackageItemSucceedsWhenConditionFragmentActive() {
+        KnowledgePackage pack = new KnowledgePackage(
+            1L, "pkg-fragment", "tenant-A", "PKG.FRAGMENT", "1.0.0", "包草稿", null,
+            KnowledgePackageStatus.DRAFT, Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+        when(packageRepository.findByPackageIdAndTenantId("pkg-fragment", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
+            .thenReturn(Optional.of(activeConditionFragment("frag-ckd", "FRAG.CKD", 1)));
+        when(itemRepository.findByTenantIdAndPackageIdAndAssetTypeAndAssetId(
+            "tenant-A", "pkg-fragment", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd"))
+            .thenReturn(Optional.empty());
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-fragment"))
+            .thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "tenant-A", VersionedAssetType.PACKAGE, "PKG.FRAGMENT", "1.0.0"))
+            .thenReturn(Optional.of(packageAssetVersion(
+                "av-package-fragment", "PKG.FRAGMENT", "1.0.0", "tenant:tenant-A", AssetVersionStatus.DRAFT)));
+
+        PackageItemResponse response = service.addPackageItem("pkg-fragment", new PackageItemRequest(
+            VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1"));
+
+        assertThat(response.assetType()).isEqualTo(VersionedAssetType.CONDITION_FRAGMENT);
+        assertThat(response.assetId()).isEqualTo("frag-ckd");
+        verify(versionedAssets).updateDraft(argThat(
+            (AssetVersionDraftUpdateCommand command) ->
+                command.versionId().equals("av-package-fragment")
+                    && command.contentHash() != null
+                    && command.contentHash().matches("[a-f0-9]{64}")
+        ));
     }
 
     @Test
@@ -1046,6 +1106,39 @@ class PackageEngineServiceTest {
             .isEqualTo("M-START");
         assertThat(snapshot.path("content").path("edges")).hasSize(1);
         assertThat(snapshot.path("content").path("metricBindings")).hasSize(1);
+    }
+
+    @Test
+    void exportOfflinePackageIncludesConditionFragmentSnapshot() throws Exception {
+        KnowledgePackage pack = packageVersion("pkg-fragment", "3.3.0", KnowledgePackageStatus.PUBLISHED);
+        ConditionFragment fragment = activeConditionFragment("frag-ckd", "FRAG.CKD", 1);
+        when(packageRepository.findByPackageIdAndTenantId("pkg-fragment", "tenant-A"))
+            .thenReturn(Optional.of(pack));
+        when(itemRepository.findByTenantIdAndPackageId("tenant-A", "pkg-fragment"))
+            .thenReturn(List.of(
+                packageItem(1L, "pkg-fragment", VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1")
+            ));
+        when(conditionFragmentRepository.findByFragmentIdAndTenantId("frag-ckd", "tenant-A"))
+            .thenReturn(Optional.of(fragment));
+        when(effectivePackageResolver.resolve("tenant-A", "PKG.TEST", "3.3.0", "hospital-1"))
+            .thenReturn(effectiveResponse("pkg-fragment", "PKG.TEST", "3.3.0", "hospital-1", List.of(
+                effectiveItem(VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd", "1",
+                    "fragment-source-version-1", "a".repeat(64))
+            )));
+
+        JsonNode snapshot = TEST_MAPPER.readTree(
+            service.exportOfflinePackage("pkg-fragment", "hospital-1"))
+            .path("payload").path("assetSnapshots").get(0);
+
+        assertThat(snapshot.path("assetType").asText()).isEqualTo("CONDITION_FRAGMENT");
+        assertThat(snapshot.path("assetId").asText()).isEqualTo("frag-ckd");
+        assertThat(snapshot.path("content").path("fragment").path("fragmentId").asText())
+            .isEqualTo("frag-ckd");
+        assertThat(snapshot.path("content").path("fragment").path("fragmentCode").asText())
+            .isEqualTo("FRAG.CKD");
+        assertThat(snapshot.path("content").path("fragment").path("bodyJson").asText())
+            .contains("observation.egfr");
+        assertThat(snapshot.path("contentSha256").asText()).isEqualTo(sha256Node(snapshot.path("content")));
     }
 
     @Test
@@ -2974,6 +3067,28 @@ class PackageEngineServiceTest {
             RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, 100, null, 0, RuleDefinitionStatus.PUBLISHED,
             "rule-version-1", "1.0.0", applicableOrgUnitId,
             Instant.now(), "tester", Instant.now(), "tester", "trace"
+        );
+    }
+
+    private ConditionFragment activeConditionFragment(String fragmentId, String fragmentCode, int versionNo) {
+        return new ConditionFragment(
+            1L,
+            fragmentId,
+            "tenant-A",
+            fragmentCode,
+            "CKD 条件片段",
+            "慢病",
+            """
+                {"all":[{"fact":"observation.egfr","operator":"less_than","value":60}]}
+                """,
+            versionNo,
+            ConditionFragmentStatus.ACTIVE,
+            "PKG.FRAGMENT",
+            Instant.parse("2026-06-01T00:00:00Z"),
+            "tester",
+            Instant.parse("2026-06-02T00:00:00Z"),
+            "tester",
+            "trace-fragment"
         );
     }
 
