@@ -170,7 +170,7 @@ public class RuleEngineController {
     }
 
     /**
-     * 按触发点和上下文执行所有匹配且统一版本已激活的规则。
+     * 按触发点和上下文执行所有匹配且统一版本已发布的规则。
      *
      * <p>权限：{@code rule.read}；返回命中明细、最高严重度与 traceId，供临床嵌入提示消费。
      */

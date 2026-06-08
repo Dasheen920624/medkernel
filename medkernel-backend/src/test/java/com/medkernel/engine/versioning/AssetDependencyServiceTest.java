@@ -91,7 +91,7 @@ class AssetDependencyServiceTest {
             PlatformAuthority.PLATFORM_TENANT_ID,
             VersionedAssetType.TERMINOLOGY,
             "TERMINOLOGY.LOINC.718-7|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(platformTerm));
 
         assertThatCode(() -> service.assertDependenciesResolvable(owner)).doesNotThrowAnyException();
@@ -119,7 +119,7 @@ class AssetDependencyServiceTest {
 
     @Test
     void ignoresRetiredDependentWhenCheckingDisableDanglingReferences() {
-        AssetVersion retiredRule = ruleVersion("av-rule-retired", "RULE.ANEMIA", AssetVersionStatus.ARCHIVED);
+        AssetVersion retiredRule = ruleVersion("av-rule-retired", "RULE.ANEMIA", AssetVersionStatus.RETIRED);
         AssetDependency edge = dependency(
             retiredRule, VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", null, null);
         when(dependencies.findByTenantIdAndDependsOnAssetTypeAndDependsOnIdentity(
@@ -171,7 +171,7 @@ class AssetDependencyServiceTest {
             String identity,
             String versionNo) {
         return version(versionId, tenantId, VersionedAssetType.TERMINOLOGY, identity, versionNo, orgPath,
-            AssetVersionStatus.ACTIVE);
+            AssetVersionStatus.PUBLISHED);
     }
 
     private AssetVersion version(
@@ -195,7 +195,7 @@ class AssetDependencyServiceTest {
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             status,
-            status == AssetVersionStatus.ACTIVE ? identity + "|" + orgPath + "|adult|inpatient" : "version:" + versionId,
+            status == AssetVersionStatus.PUBLISHED ? identity + "|" + orgPath + "|adult|inpatient" : "version:" + versionId,
             assetType.name().toLowerCase() + "/" + identity,
             null,
             null,

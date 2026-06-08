@@ -119,7 +119,7 @@ class RecommendationDeterministicMatcherTest {
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
             .thenReturn(Optional.of(ruleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
         when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
             .thenReturn(Optional.of(knowledgeIdentity()));
         when(knowledgeVersions.findByTenantIdAndId("tenant-A", 100L))
@@ -169,7 +169,7 @@ class RecommendationDeterministicMatcherTest {
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
             .thenReturn(Optional.of(ruleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
+        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.APPROVED);
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
@@ -184,7 +184,7 @@ class RecommendationDeterministicMatcherTest {
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(ruleVersions.findByVersionIdAndTenantId("rv-risk-v1", "tenant-A"))
             .thenReturn(Optional.of(ruleVersionForSetting("OUTPATIENT")));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
 
         assertThat(matcher.match(triggerRequestWithoutPathway())).isEmpty();
     }
@@ -199,7 +199,7 @@ class RecommendationDeterministicMatcherTest {
         when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
         when(ruleVersions.findByVersionIdAndTenantId("rv-platform-risk-v1", "t-1"))
             .thenReturn(Optional.of(platformRuleVersion()));
-        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
         when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
             .thenReturn(Optional.empty());
         when(knowledgeIdentities.findByTenantIdAndIdentityCode("t-1", "RISK_GENDER"))
@@ -235,8 +235,8 @@ class RecommendationDeterministicMatcherTest {
             .thenReturn(Optional.of(ruleVersion()));
         when(ruleVersions.findByVersionIdAndTenantId("rv-platform-risk-v1", "t-1"))
             .thenReturn(Optional.of(platformRuleVersion()));
-        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
-        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.ACTIVE);
+        stubRuleAsset("tenant-A", "RISK_GENDER", "1", AssetVersionStatus.APPROVED);
+        stubRuleAsset("t-1", "RISK_GENDER", "1", AssetVersionStatus.PUBLISHED);
         when(knowledgeIdentities.findByTenantIdAndIdentityCode("tenant-A", "RISK_GENDER"))
             .thenReturn(Optional.empty());
         when(knowledgeIdentities.findByTenantIdAndIdentityCode("t-1", "RISK_GENDER"))
@@ -394,7 +394,7 @@ class RecommendationDeterministicMatcherTest {
             "sha256:tenant-rule-v2",
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             "version:RISK_GENDER-2",
             "测试规则覆盖版本",
             null,

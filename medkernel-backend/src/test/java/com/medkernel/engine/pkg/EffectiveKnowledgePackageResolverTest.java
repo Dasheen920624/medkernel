@@ -243,7 +243,7 @@ class EffectiveKnowledgePackageResolverTest {
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             assetIdentity + "|/TENANT-A/HOSP-A|2026.06",
             "test/" + assetIdentity,
             null,

@@ -1260,6 +1260,24 @@ describe("package export api helpers", () => {
     });
 
     const { result } = renderApiHook(() => useTransitionRuleGovernance());
+    const publishEvidence = {
+      electronicSignature: {
+        signatureId: "sig-rule-full",
+        signerId: "user-1",
+        signerName: "测试审核人",
+        signedAt: "2026-06-08T08:00:00Z",
+        signatureHash: "a".repeat(64),
+      },
+      qualityGate: {
+        schemaValid: true,
+        terminologyBindingComplete: true,
+        dependencyIntegrityVerified: true,
+        safetyMonotonicityVerified: true,
+        impactSimulationPassed: true,
+        peerReviewSigned: true,
+        summary: "规则发布质量门全部通过",
+      },
+    };
 
     await result.current.mutateAsync({
       ruleId: "rule-real-1",
@@ -1267,6 +1285,7 @@ describe("package export api helpers", () => {
       targetState: "FULL",
       impactDigest: "sha256:impact",
       reason: "院级管理员确认全量激活",
+      publishEvidence,
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -1275,6 +1294,7 @@ describe("package export api helpers", () => {
         targetState: "FULL",
         impactDigest: "sha256:impact",
         reason: "院级管理员确认全量激活",
+        publishEvidence,
         package_version: "1.0.0",
       }),
     );

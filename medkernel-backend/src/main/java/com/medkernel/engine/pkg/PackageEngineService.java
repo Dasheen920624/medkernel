@@ -3251,7 +3251,7 @@ public class PackageEngineService {
                 sourceVersionId,
                 contentHash,
                 migrationContract,
-                AssetVersionStatus.ACTIVE.name(),
+                AssetVersionStatus.PUBLISHED.name(),
                 "declarative:" + assetType
             );
         }
@@ -3492,7 +3492,7 @@ public class PackageEngineService {
 
             if (finalAllSuccess) {
                 if (releaseRequest.strategy() == ReleaseStrategy.FULL) {
-                    releasePort.releaseFull(unifiedRelease);
+                    releasePort.publish(unifiedRelease);
                 } else {
                     releasePort.releaseGray(unifiedRelease);
                 }
@@ -3566,11 +3566,11 @@ public class PackageEngineService {
             VersionReleaseCommand command) {
         if (assetVersion.status() == AssetVersionStatus.DRAFT) {
             releasePort.submitForReview(command);
-            releasePort.approveForSilentObservation(command);
-        } else if (assetVersion.status() == AssetVersionStatus.PENDING_REVIEW) {
-            releasePort.approveForSilentObservation(command);
-        } else if (assetVersion.status() != AssetVersionStatus.PUBLISHED
-                && assetVersion.status() != AssetVersionStatus.ACTIVE) {
+            releasePort.approveReview(command);
+        } else if (assetVersion.status() == AssetVersionStatus.IN_REVIEW) {
+            releasePort.approveReview(command);
+        } else if (assetVersion.status() != AssetVersionStatus.APPROVED
+                && assetVersion.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(ErrorCode.ENG_PACKAGE_002, "统一配置包版本状态不允许发布");
         }
     }
@@ -3598,7 +3598,9 @@ public class PackageEngineService {
             request.reason().trim(),
             List.of(),
             actor,
-            traceId
+            traceId,
+            request.publishEvidence().electronicSignature(),
+            request.publishEvidence().qualityGate()
         );
     }
 
@@ -4311,7 +4313,7 @@ public class PackageEngineService {
                         "入包声明型配置资产版本不存在: " + type + ":" + assetId + "@" + assetVersion
                     ));
                 if (version.status() != AssetVersionStatus.PUBLISHED
-                        && version.status() != AssetVersionStatus.ACTIVE) {
+                        && version.status() != AssetVersionStatus.PUBLISHED) {
                     throw new ApiException(
                         ErrorCode.ENG_PACKAGE_002,
                         "只允许 PUBLISHED 或 ACTIVE 状态的声明型配置资产入包, 当前: " + version.status()

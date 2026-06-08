@@ -80,7 +80,7 @@ public class DiagnosisReferenceValidator {
             return false;
         }
         List<AssetVersion> active = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
-            tenantId, assetType, targetRef, AssetVersionStatus.ACTIVE);
+            tenantId, assetType, targetRef, AssetVersionStatus.PUBLISHED);
         return active != null && !active.isEmpty();
     }
 

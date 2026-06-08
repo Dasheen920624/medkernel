@@ -9,11 +9,11 @@ public interface ReleasePort {
 
     VersionReleasePlan rejectReview(VersionReleaseCommand command);
 
-    VersionReleasePlan approveForSilentObservation(VersionReleaseCommand command);
+    VersionReleasePlan approveReview(VersionReleaseCommand command);
 
     VersionReleasePlan releaseGray(VersionReleaseCommand command);
 
-    VersionReleasePlan releaseFull(VersionReleaseCommand command);
+    VersionReleasePlan publish(VersionReleaseCommand command);
 
     VersionReleasePlan rollback(VersionRollbackCommand command);
 }

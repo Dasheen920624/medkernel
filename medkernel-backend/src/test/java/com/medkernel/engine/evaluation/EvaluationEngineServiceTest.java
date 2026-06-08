@@ -133,7 +133,7 @@ class EvaluationEngineServiceTest {
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
-        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PENDING_REVIEW)));
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.IN_REVIEW)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(pending));
         EvaluationIndicator published = service.publishIndicator(
@@ -141,7 +141,7 @@ class EvaluationEngineServiceTest {
             new EvaluationIndicatorReleaseRequest("质控办已复核指标口径")
         );
         assertThat(published.status()).isEqualTo(EvaluationIndicatorStatus.PUBLISHED);
-        verify(releasePort).approveForSilentObservation(any());
+        verify(releasePort).approveReview(any());
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
@@ -167,7 +167,7 @@ class EvaluationEngineServiceTest {
         );
 
         assertThat(active.status()).isEqualTo(EvaluationIndicatorStatus.ACTIVE);
-        verify(releasePort).releaseFull(any());
+        verify(releasePort).publish(any());
         ArgumentCaptor<EvaluationIndicator> saved = ArgumentCaptor.forClass(EvaluationIndicator.class);
         verify(indicators, org.mockito.Mockito.atLeast(5)).save(saved.capture());
         assertThat(saved.getAllValues())

@@ -129,12 +129,11 @@ const PATHWAY_CONTENT_STATUS: Record<
 
 const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; text: string }> = {
   DRAFT: { status: "warning", text: "待提交" },
-  PENDING_REVIEW: { status: "processing", text: "审核中" },
-  PUBLISHED: { status: "processing", text: "待全量激活" },
-  ACTIVE: { status: "success", text: "运行中" },
-  OFFLINE: { status: "default", text: "已下线" },
-  WITHDRAWN: { status: "error", text: "已撤回" },
-  ARCHIVED: { status: "default", text: "已归档" },
+  IN_REVIEW: { status: "processing", text: "审核中" },
+  APPROVED: { status: "processing", text: "已批准待发布" },
+  PUBLISHED: { status: "success", text: "运行中" },
+  DEPRECATED: { status: "default", text: "已弃用" },
+  RETIRED: { status: "default", text: "已退役" },
 };
 
 function pathwayContentStatus(status: PathwayTemplateStatus) {
@@ -3582,7 +3581,7 @@ export default function PathwayTemplates() {
         item.templateCode === detailData?.template.templateCode &&
         item.status === "OFFLINE",
     ) ?? [];
-  const activeDeployment = detailData?.deploymentStatus === "ACTIVE";
+  const activeDeployment = detailData?.deploymentStatus === "PUBLISHED";
   const reviewedContent = detailData?.template.status === "PUBLISHED";
   const releaseCurrentStep = activeDeployment || reviewedContent ? "full_rollout" : "submit_review";
   let releaseFlowStatus: "process" | "finish" | "error" = "error";
@@ -4416,7 +4415,7 @@ export default function PathwayTemplates() {
           <div className={styles.drawerTitle}>
             <span>路径配置与真实快照试运行控制台</span>
             {detailData &&
-              detailData.deploymentStatus !== "ACTIVE" &&
+              detailData.deploymentStatus !== "PUBLISHED" &&
               (detailData.template.status === "DRAFT" ||
                 detailData.template.status === "PUBLISHED") && (
                 <Button

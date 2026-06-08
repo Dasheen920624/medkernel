@@ -133,7 +133,8 @@ class MigrationBaselineContractTest {
         "V104__org_scope_second_phase.sql",
         "V105__tenant_package_reference.sql",
         "V106__platform_tenant_governance_permissions.sql",
-        "V107__asset_dependency_integrity.sql"
+        "V107__asset_dependency_integrity.sql",
+        "V108__asset_lifecycle_quality_gate.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -1743,6 +1744,28 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON COLUMN mk_version_asset_dependency.depends_on_identity")
                 .contains("COMMENT ON COLUMN mk_version_asset_dependency.min_version_no")
                 .contains("COMMENT ON COLUMN mk_version_asset_dependency.max_version_no");
+        }
+    }
+
+    @Test
+    void v108ShouldDeclareUnifiedLifecycleAndQualityGateForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V108__asset_lifecycle_quality_gate.sql");
+            assertThat(ddl).as("%s 资产生命周期与发布质量门迁移", dialect)
+                .contains("IN_REVIEW")
+                .contains("APPROVED")
+                .contains("DEPRECATED")
+                .contains("RETIRED")
+                .doesNotContain("PENDING_REVIEW", "ACTIVE','OFFLINE", "SILENT_OBSERVATION", "FULL'")
+                .contains("electronic_signature_id")
+                .contains("electronic_signature_hash")
+                .contains("electronic_signature_signed_at")
+                .contains("quality_gate_summary")
+                .contains("ck_mk_version_asset_version_status")
+                .contains("ck_mk_version_release_plan_status")
+                .contains("COMMENT ON COLUMN mk_version_release_plan.electronic_signature_id")
+                .contains("COMMENT ON COLUMN mk_version_release_plan.electronic_signature_signed_at")
+                .contains("COMMENT ON COLUMN mk_version_release_plan.quality_gate_summary");
         }
     }
 

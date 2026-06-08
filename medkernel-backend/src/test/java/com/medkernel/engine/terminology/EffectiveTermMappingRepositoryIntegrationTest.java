@@ -50,18 +50,18 @@ class EffectiveTermMappingRepositoryIntegrationTest {
     }
 
     @Test
-    void resolvesOnlyActivePackageAndPrefersMostSpecificOrganizationScope() {
+    void resolvesOnlyPublishedPackageAndPrefersMostSpecificOrganizationScope() {
         EffectiveTermMappingResolver resolver = new EffectiveTermMappingResolver(items);
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
         savePackage("TERM.LAB.HOSPITAL", "1", "HOSPITAL", "hospital-1", "718-7", 201L, now);
         versions.save(version(
             "av-hospital", "TERM.LAB.HOSPITAL", "1", "HOSPITAL:hospital-1",
-            AssetVersionStatus.ACTIVE, now
+            AssetVersionStatus.PUBLISHED, now
         ));
         savePackage("TERM.LAB.DEPARTMENT", "1", "DEPARTMENT", "department-1", "4548-4", 202L, now);
         AssetVersion departmentVersion = versions.save(version(
             "av-department", "TERM.LAB.DEPARTMENT", "1", "DEPARTMENT:department-1",
-            AssetVersionStatus.PUBLISHED, now
+            AssetVersionStatus.APPROVED, now
         ));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
@@ -74,7 +74,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             .containsExactly("718-7");
 
         versions.save(departmentVersion.withStatus(
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             "TERM.LAB.DEPARTMENT|DEPARTMENT:department-1|ALL",
             now.plusSeconds(60),
             "admin-1"
@@ -147,7 +147,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             String orgScope,
             AssetVersionStatus status,
             Instant now) {
-        String activeScopeKey = status == AssetVersionStatus.ACTIVE
+        String activeScopeKey = status == AssetVersionStatus.PUBLISHED
             ? assetIdentity + "|" + orgScope + "|ALL"
             : "version:" + versionId;
         return new AssetVersion(
@@ -165,7 +165,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             status,
             activeScopeKey,
             "term-mapping-package:" + assetIdentity + ":" + versionNo,
-            status == AssetVersionStatus.ACTIVE ? now : null,
+            status == AssetVersionStatus.PUBLISHED ? now : null,
             null,
             now,
             "admin-1",

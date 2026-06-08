@@ -1750,6 +1750,7 @@ export function usePublishTerminologyPackage() {
         releaseMode: "GRAY" | "FULL";
         reason: string;
         grayScopeJson?: string;
+        publishEvidence?: VersionPublishEvidence;
       };
     }) => {
       const { packageVersion, ...requestPayload } = payload.request;
@@ -2440,6 +2441,37 @@ function toExportJobStatus(status: string): AsyncExportJob["status"] {
 // ──────────────────────────────────────────
 export type RuleRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type VersionedAssetStatus =
+  | "DRAFT"
+  | "IN_REVIEW"
+  | "APPROVED"
+  | "PUBLISHED"
+  | "DEPRECATED"
+  | "RETIRED";
+
+export interface VersionElectronicSignature {
+  signatureId: string;
+  signerId: string;
+  signerName: string;
+  signedAt: string;
+  signatureHash: string;
+}
+
+export interface VersionPublishQualityGate {
+  schemaValid: boolean;
+  terminologyBindingComplete: boolean;
+  dependencyIntegrityVerified: boolean;
+  safetyMonotonicityVerified: boolean;
+  impactSimulationPassed: boolean;
+  peerReviewSigned: boolean;
+  summary?: string;
+}
+
+export interface VersionPublishEvidence {
+  electronicSignature?: VersionElectronicSignature;
+  qualityGate?: VersionPublishQualityGate;
+}
+
 export interface RuleDefinition {
   id: number;
   ruleId: string;
@@ -2498,14 +2530,7 @@ export interface RuleDetailResponse {
   definition: RuleDefinition;
   version: RuleVersion;
   testCases: RuleTestCase[];
-  deploymentStatus:
-    | "DRAFT"
-    | "PENDING_REVIEW"
-    | "PUBLISHED"
-    | "ACTIVE"
-    | "OFFLINE"
-    | "WITHDRAWN"
-    | "ARCHIVED";
+  deploymentStatus: VersionedAssetStatus;
   governance: RuleGovernanceResponse;
 }
 
@@ -3580,6 +3605,7 @@ export function useTransitionRuleGovernance() {
       targetState: RuleGovernanceState;
       impactDigest?: string;
       reason: string;
+      publishEvidence?: VersionPublishEvidence;
     }) => {
       const { data } = await apiClient.post<{ data: RuleGovernanceResponse }>(
         `/engine/rule/rules/${payload.ruleId}/governance/transitions`,
@@ -3588,6 +3614,7 @@ export function useTransitionRuleGovernance() {
             targetState: payload.targetState,
             impactDigest: payload.impactDigest,
             reason: payload.reason,
+            ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
           },
           security.data,
           payload.packageVersion,
@@ -3938,14 +3965,7 @@ export interface PathwayTemplateDetailResponse {
   edges: PathwayEdge[];
   metricBindings: SpecialtyMetricBinding[];
   outcomeBindings?: PathwayOutcomeBinding[];
-  deploymentStatus:
-    | "DRAFT"
-    | "PENDING_REVIEW"
-    | "PUBLISHED"
-    | "ACTIVE"
-    | "OFFLINE"
-    | "WITHDRAWN"
-    | "ARCHIVED";
+  deploymentStatus: VersionedAssetStatus;
   traceId: string;
 }
 
@@ -4344,6 +4364,7 @@ export function usePublishPathwayTemplate() {
       packageVersion: string;
       impactDigest?: string;
       reason?: string;
+      publishEvidence?: VersionPublishEvidence;
     }) => {
       const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
         `/engine/pathway/pathway-templates/${payload.templateId}/publish`,
@@ -4353,6 +4374,7 @@ export function usePublishPathwayTemplate() {
             reason: payload.reason,
             releaseStep: "submit_review",
             directFullRollout: false,
+            ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
           },
           security.data,
           payload.packageVersion,
@@ -4371,6 +4393,7 @@ export function useFullRolloutPathwayTemplate() {
       packageVersion: string;
       impactDigest?: string;
       reason?: string;
+      publishEvidence?: VersionPublishEvidence;
     }) => {
       const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
         `/engine/pathway/pathway-templates/${payload.templateId}/rollout/full`,
@@ -4380,6 +4403,7 @@ export function useFullRolloutPathwayTemplate() {
             reason: payload.reason,
             releaseStep: "full_rollout",
             directFullRollout: true,
+            ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
           },
           security.data,
           payload.packageVersion,
@@ -5375,10 +5399,17 @@ export function useSubmitEvaluationIndicator() {
 
 export function usePublishEvaluationIndicator() {
   return useMutation({
-    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
+    mutationFn: async (payload: {
+      indicatorId: string;
+      reason: string;
+      publishEvidence?: VersionPublishEvidence;
+    }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
         `/engine/evaluation/indicators/${payload.indicatorId}/publish`,
-        { reason: payload.reason },
+        {
+          reason: payload.reason,
+          ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
+        },
       );
       return data.data;
     },
@@ -5387,10 +5418,17 @@ export function usePublishEvaluationIndicator() {
 
 export function useGrayEvaluationIndicator() {
   return useMutation({
-    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
+    mutationFn: async (payload: {
+      indicatorId: string;
+      reason: string;
+      publishEvidence?: VersionPublishEvidence;
+    }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
         `/engine/evaluation/indicators/${payload.indicatorId}/gray`,
-        { reason: payload.reason },
+        {
+          reason: payload.reason,
+          ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
+        },
       );
       return data.data;
     },
@@ -5399,10 +5437,17 @@ export function useGrayEvaluationIndicator() {
 
 export function useActivateEvaluationIndicator() {
   return useMutation({
-    mutationFn: async (payload: { indicatorId: string; reason: string }) => {
+    mutationFn: async (payload: {
+      indicatorId: string;
+      reason: string;
+      publishEvidence?: VersionPublishEvidence;
+    }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
         `/engine/evaluation/indicators/${payload.indicatorId}/activate`,
-        { reason: payload.reason },
+        {
+          reason: payload.reason,
+          ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
+        },
       );
       return data.data;
     },
@@ -6403,6 +6448,7 @@ export interface PackageSyncRequest {
   scopeType: "ALL" | "GROUP" | "HOSPITAL" | "CAMPUS" | "SITE" | "DEPARTMENT" | string;
   scopeValue: string;
   adapterIds: string[];
+  publishEvidence?: VersionPublishEvidence;
 }
 
 export interface PackageRollbackRequest {

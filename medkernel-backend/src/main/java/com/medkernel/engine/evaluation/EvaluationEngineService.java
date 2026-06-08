@@ -32,6 +32,7 @@ import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleaseScopeType;
 import com.medkernel.engine.versioning.VersionedAssetType;
@@ -233,11 +234,10 @@ public class EvaluationEngineService {
             EvaluationIndicatorReleaseRequest request) {
         EvaluationIndicator indicator = findIndicator(indicatorId);
         requireStatus(indicator, EvaluationIndicatorStatus.PENDING_REVIEW);
-        String reason = requireReleaseReason(request);
-        releasePort.approveForSilentObservation(releaseCommand(
+        releasePort.approveReview(releaseCommand(
             indicator,
             requireAssetVersion(indicator),
-            reason
+            request
         ));
         Instant now = Instant.now();
         EvaluationIndicator saved = saveIndicatorStatus(
@@ -261,7 +261,7 @@ public class EvaluationEngineService {
         releasePort.releaseGray(releaseCommand(
             indicator,
             requireAssetVersion(indicator),
-            requireReleaseReason(request)
+            request
         ));
         EvaluationIndicator gray = saveIndicatorStatus(
             indicator, EvaluationIndicatorStatus.GRAY, indicator.publishedAt(), null);
@@ -289,10 +289,10 @@ public class EvaluationEngineService {
         if (!AuthenticatedRoleGuard.has(RoleCode.HOSPITAL_ADMIN)) {
             throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活仅医院管理员可执行");
         }
-        releasePort.releaseFull(releaseCommand(
+        releasePort.publish(releaseCommand(
             indicator,
             requireAssetVersion(indicator),
-            requireReleaseReason(request)
+            request
         ));
         Instant now = Instant.now();
         for (EvaluationIndicator old : indicators.findByTenantIdAndIndicatorCodeAndStatus(
@@ -1227,6 +1227,26 @@ public class EvaluationEngineService {
             EvaluationIndicator indicator,
             AssetVersion assetVersion,
             String reason) {
+        return releaseCommand(indicator, assetVersion, reason, null);
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            EvaluationIndicator indicator,
+            AssetVersion assetVersion,
+            EvaluationIndicatorReleaseRequest request) {
+        return releaseCommand(
+            indicator,
+            assetVersion,
+            requireReleaseReason(request),
+            request.publishEvidence()
+        );
+    }
+
+    private VersionReleaseCommand releaseCommand(
+            EvaluationIndicator indicator,
+            AssetVersion assetVersion,
+            String reason,
+            VersionPublishEvidence publishEvidence) {
         return new VersionReleaseCommand(
             indicator.tenantId(),
             VersionedAssetType.EVALUATION,
@@ -1240,7 +1260,9 @@ public class EvaluationEngineService {
             reason,
             List.of(),
             actor(),
-            traceId()
+            traceId(),
+            publishEvidence == null ? null : publishEvidence.electronicSignature(),
+            publishEvidence == null ? null : publishEvidence.qualityGate()
         );
     }
 

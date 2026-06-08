@@ -1493,7 +1493,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       apiMocks.templateDetailData = {
         ...createTemplateDetail(),
         template: publishedTemplate,
-        deploymentStatus: "PUBLISHED",
+        deploymentStatus: "APPROVED",
       };
       apiMocks.templateImpactData = {
         templateId: "pt-path-published",
@@ -1522,7 +1522,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
 
       const user = await openPathwayDrawer();
       expect(screen.getAllByText("内容已审核")).not.toHaveLength(0);
-      expect(screen.getByText("待全量激活")).toBeInTheDocument();
+      expect(screen.getByText("已批准待发布")).toBeInTheDocument();
       await user.click(screen.getByRole("tab", { name: /7 步流发布/ }));
       await user.type(screen.getByLabelText("发布审核说明"), "院级管理员确认全量激活");
       await user.click(screen.getByRole("button", { name: /院级确认全量激活/ }));
@@ -1546,7 +1546,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       apiMocks.templateDetailData = {
         ...createTemplateDetail(),
         template: publishedTemplate,
-        deploymentStatus: "ACTIVE",
+        deploymentStatus: "PUBLISHED",
       };
 
       const user = await openPathwayDrawer();

@@ -1,16 +1,16 @@
 package com.medkernel.engine.versioning;
 
 /**
- * 配置类资产版本状态机。
+ * 配置类资产统一生命周期状态机。
  *
- * <p>对齐核心约束：草稿、待审核、已发布、生效中、已下线、已撤回、已归档。
+ * <p>平台版本与租户覆盖共用同一状态机；只有 {@link #PUBLISHED} 参与新请求解析，
+ * {@link #RETIRED} 保留历史重放但不再参与解析。
  */
 public enum AssetVersionStatus {
     DRAFT,
-    PENDING_REVIEW,
+    IN_REVIEW,
+    APPROVED,
     PUBLISHED,
-    ACTIVE,
-    OFFLINE,
-    WITHDRAWN,
-    ARCHIVED
+    DEPRECATED,
+    RETIRED
 }

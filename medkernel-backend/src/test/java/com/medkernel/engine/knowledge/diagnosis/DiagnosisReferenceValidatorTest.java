@@ -70,13 +70,13 @@ class DiagnosisReferenceValidatorTest {
     }
 
     @Test
-    void careRuleAndPathwayTargetsRequireAnActiveUnifiedVersion() {
+    void careRuleAndPathwayTargetsRequireAPublishedUnifiedVersion() {
         AssetVersion active = mock(AssetVersion.class);
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
-            "t-dept", VersionedAssetType.RULE, "RULE.CKD", AssetVersionStatus.ACTIVE))
+            "t-dept", VersionedAssetType.RULE, "RULE.CKD", AssetVersionStatus.PUBLISHED))
             .thenReturn(List.of(active));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
-            "t-dept", VersionedAssetType.PATHWAY, "PATH.CKD", AssetVersionStatus.ACTIVE))
+            "t-dept", VersionedAssetType.PATHWAY, "PATH.CKD", AssetVersionStatus.PUBLISHED))
             .thenReturn(List.of(active));
 
         assertThatCode(() -> validator.validateCareTarget(

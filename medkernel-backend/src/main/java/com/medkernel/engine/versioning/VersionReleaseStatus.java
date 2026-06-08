@@ -4,11 +4,11 @@ package com.medkernel.engine.versioning;
  * 版本发布计划状态。
  */
 public enum VersionReleaseStatus {
-    PENDING_REVIEW,
-    REVIEW_REJECTED,
-    SILENT_OBSERVATION,
+    IN_REVIEW,
+    REJECTED,
+    APPROVED,
+    PUBLISHED,
     GRAY,
-    FULL,
-    ROLLBACKED,
+    ROLLED_BACK,
     FAILED
 }

@@ -44,7 +44,7 @@ class AssetVersionRepositoryTest {
         AssetVersion saved = repository.save(sample(
             newVersionId(),
             "1.0.0",
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient"
         ));
 
@@ -55,17 +55,17 @@ class AssetVersionRepositoryTest {
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).containsExactly(saved);
     }
 
     @Test
     void databaseRejectsSecondActiveVersionInSameEffectiveDomain() {
         String activeScopeKey = "RULE.VTE.RISK|/GROUP/g-1/HOSPITAL/h-1|adult|inpatient";
-        repository.save(sample(newVersionId(), "1.0.0", AssetVersionStatus.ACTIVE, activeScopeKey));
+        repository.save(sample(newVersionId(), "1.0.0", AssetVersionStatus.PUBLISHED, activeScopeKey));
 
         assertThatThrownBy(() ->
-            repository.save(sample(newVersionId(), "1.0.1", AssetVersionStatus.ACTIVE, activeScopeKey))
+            repository.save(sample(newVersionId(), "1.0.1", AssetVersionStatus.PUBLISHED, activeScopeKey))
         )
             .isInstanceOf(DbActionExecutionException.class)
             .hasRootCauseInstanceOf(JdbcSQLIntegrityConstraintViolationException.class);

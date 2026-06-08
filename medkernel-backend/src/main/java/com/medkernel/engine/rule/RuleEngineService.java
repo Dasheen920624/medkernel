@@ -49,6 +49,7 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionReleasePlan;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
 import com.medkernel.engine.security.RoleCode;
@@ -73,7 +74,7 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
  *   <li>新增测试用例并校验状态（仅 {@code DRAFT} 可加）；</li>
  *   <li>试运行执行：复用 {@link RuleDslEvaluator}，同步写 {@code rule_execution_log} 与状态历史；</li>
  *   <li>发布门禁：要求阳性/阴性/边界/冲突四类用例齐备且全部 PASS，否则抛 {@code ENG-RULE-004}；</li>
- *   <li>真实执行：按触发点匹配统一版本已激活规则集合，返回命中明细 + 最高严重度；</li>
+ *   <li>真实执行：按触发点匹配统一版本已发布规则集合，返回命中明细 + 最高严重度；</li>
  *   <li>诊断：基于 {@code execution_id} 装配 {@link DiagnoseResponse}。</li>
  * </ul>
  * 所有写操作触发审计事件 {@link AuditRecorder} 与状态迁移记录 {@link StateTransitionRecorder}。
@@ -587,14 +588,14 @@ public class RuleEngineService {
             appendEvidence(
                 releaseEvidence,
                 releasePort.submitForReview(
-                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                    governanceReleaseCommand(rule, version, impact, request, actor)
                 )
             );
         } else if (target == RuleGovernanceState.SHADOW) {
             appendEvidence(
                 releaseEvidence,
-                releasePort.approveForSilentObservation(
-                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                releasePort.approveReview(
+                    governanceReleaseCommand(rule, version, impact, request, actor)
                 )
             );
             Instant now = Instant.now();
@@ -606,15 +607,15 @@ public class RuleEngineService {
             appendEvidence(
                 releaseEvidence,
                 releasePort.releaseGray(
-                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                    governanceReleaseCommand(rule, version, impact, request, actor)
                 )
             );
         } else if (target == RuleGovernanceState.FULL) {
             ensureSuppressionContract(rule, version, true);
             appendEvidence(
                 releaseEvidence,
-                releasePort.releaseFull(
-                    governanceReleaseCommand(rule, version, impact, request.reason(), actor)
+                releasePort.publish(
+                    governanceReleaseCommand(rule, version, impact, request, actor)
                 )
             );
         } else if (target == RuleGovernanceState.RETIRED) {
@@ -666,7 +667,28 @@ public class RuleEngineService {
             RuleDefinition rule,
             RuleVersion version,
             RuleImpactResponse impact,
+            RuleGovernanceTransitionRequest request,
+            String actor) {
+        return governanceReleaseCommand(
+            rule, version, impact, request.reason(), request.publishEvidence(), actor);
+    }
+
+    private VersionReleaseCommand governanceReleaseCommand(
+            RuleDefinition rule,
+            RuleVersion version,
+            RuleImpactResponse impact,
             String reason,
+            String actor) {
+        return governanceReleaseCommand(
+            rule, version, impact, reason, VersionPublishEvidence.empty(), actor);
+    }
+
+    private VersionReleaseCommand governanceReleaseCommand(
+            RuleDefinition rule,
+            RuleVersion version,
+            RuleImpactResponse impact,
+            String reason,
+            VersionPublishEvidence publishEvidence,
             String actor) {
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
         return new VersionReleaseCommand(
@@ -682,7 +704,9 @@ public class RuleEngineService {
             reason.trim(),
             authenticatedRoleCodes(),
             actor,
-            RequestContext.currentTraceId()
+            RequestContext.currentTraceId(),
+            publishEvidence.electronicSignature(),
+            publishEvidence.qualityGate()
         );
     }
 
@@ -737,7 +761,7 @@ public class RuleEngineService {
         ));
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
         assetVersions.save(assetVersion.withStatusAndWindow(
-            AssetVersionStatus.ARCHIVED,
+            AssetVersionStatus.RETIRED,
             "version:" + assetVersion.versionId(),
             assetVersion.effectiveFrom(),
             now,
@@ -872,9 +896,9 @@ public class RuleEngineService {
     }
 
     /**
-     * 按触发点和上下文执行统一版本已激活规则集合。
+     * 按触发点和上下文执行统一版本已发布规则集合。
      *
-     * <p>候选范围：请求未指定 {@code ruleIds} 时取本地和平台统一版本已激活规则，否则取指定规则；
+     * <p>候选范围：请求未指定 {@code ruleIds} 时取本地和平台统一版本已发布规则，否则取指定规则；
      * 仅 DSL 的 {@code trigger} 与请求 {@code triggerPoint} 匹配的版本参与评估。
      */
     @Transactional
@@ -981,10 +1005,10 @@ public class RuleEngineService {
                 rule.ruleCode(),
                 String.valueOf(version.versionNo()))
             .map(assetVersion -> {
-                if (assetVersion.status() == AssetVersionStatus.ACTIVE) {
+                if (assetVersion.status() == AssetVersionStatus.PUBLISHED) {
                     return RuleRuntimeMode.ACTIVE;
                 }
-                if (assetVersion.status() == AssetVersionStatus.PUBLISHED
+                if (assetVersion.status() == AssetVersionStatus.APPROVED
                         && governanceService.requireGovernance(
                             rule.tenantId(), version.versionId()).state() == RuleGovernanceState.SHADOW) {
                     return RuleRuntimeMode.SHADOW;
@@ -1835,7 +1859,7 @@ public class RuleEngineService {
     private void ensureSuppressionContract(
             RuleDefinition candidate,
             RuleVersion candidateVersion,
-            boolean requireActiveSource) {
+            boolean requirePublishedSource) {
         String sourceCode = trimToNull(candidate.suppressedBy());
         if (sourceCode == null) {
             return;
@@ -1859,10 +1883,10 @@ public class RuleEngineService {
                 ErrorCode.ENG_RULE_004,
                 "抑制来源规则 " + sourceCode + " 必须与当前规则使用相同触发点");
         }
-        if (requireActiveSource && !hasActiveUnifiedVersion(source)) {
+        if (requirePublishedSource && !hasPublishedUnifiedVersion(source)) {
             throw new ApiException(
                 ErrorCode.ENG_RULE_004,
-                "抑制来源规则 " + sourceCode + " 尚未全量激活");
+                "抑制来源规则 " + sourceCode + " 尚未发布");
         }
     }
 
@@ -2181,7 +2205,7 @@ public class RuleEngineService {
         }
         return definitions.findByRuleIdAndTenantId(ruleId, PlatformTenant.ID)
             .map(platformRule -> definitions.findByTenantIdAndRuleCode(tenantId, platformRule.ruleCode())
-                .filter(this::hasActiveUnifiedVersion)
+                .filter(this::hasPublishedUnifiedVersion)
                 .orElse(platformRule));
     }
 
@@ -2207,16 +2231,16 @@ public class RuleEngineService {
                     }
                 })
                 .flatMap(Optional::stream)
-                .filter(this::hasActiveUnifiedVersion)
+                .filter(this::hasPublishedUnifiedVersion)
                 .toList();
         }
         LinkedHashMap<String, RuleDefinition> byCode = new LinkedHashMap<>();
         definitions.findPublishedByTenantId(tenantId).stream()
-            .filter(this::hasActiveUnifiedVersion)
+            .filter(this::hasPublishedUnifiedVersion)
             .forEach(rule -> byCode.put(rule.ruleCode(), rule));
         if (!PlatformTenant.isPlatformTenant(tenantId)) {
             for (RuleDefinition rule : definitions.findPublishedByTenantId(PlatformTenant.ID)) {
-                if (!byCode.containsKey(rule.ruleCode()) && hasActiveUnifiedVersion(rule)) {
+                if (!byCode.containsKey(rule.ruleCode()) && hasPublishedUnifiedVersion(rule)) {
                     byCode.put(rule.ruleCode(), rule);
                 }
             }
@@ -2224,7 +2248,7 @@ public class RuleEngineService {
         return List.copyOf(byCode.values());
     }
 
-    private boolean hasActiveUnifiedVersion(RuleDefinition rule) {
+    private boolean hasPublishedUnifiedVersion(RuleDefinition rule) {
         RuleVersion version = findVersion(rule.activeVersionId(), rule.tenantId());
         return runtimeCandidate(rule, version).mode() != RuleRuntimeMode.INACTIVE;
     }

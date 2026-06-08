@@ -35,7 +35,7 @@ class VersionReplayServiceTest {
 
     @Test
     void bindsRuntimeResultToHistoricalVersionForReplay() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.OFFLINE);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(historical));
         when(bindings.save(org.mockito.ArgumentMatchers.any(VersionReplayBinding.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -85,7 +85,7 @@ class VersionReplayServiceTest {
 
     @Test
     void rejectsNonSha256ResultHashForReplayBinding() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.OFFLINE);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(historical));
 
         assertThatThrownBy(() -> service.bindRuntimeResult(new VersionReplayBindingCommand(
@@ -109,7 +109,7 @@ class VersionReplayServiceTest {
 
     @Test
     void replaysBoundHistoricalVersionWithoutChangingCurrentResolution() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.OFFLINE);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
         VersionReplayBinding binding = binding("vrb-1", historical.versionId());
         when(bindings.findByTenantIdAndBindingId("tenant-A", binding.bindingId())).thenReturn(Optional.of(binding));
         when(assetVersions.findByVersionIdAndTenantId(historical.versionId(), "tenant-A")).thenReturn(Optional.of(historical));
@@ -136,7 +136,7 @@ class VersionReplayServiceTest {
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             status,
-            status == AssetVersionStatus.ACTIVE
+            status == AssetVersionStatus.PUBLISHED
                 ? "RULE.VTE.RISK|/TENANT-A/GROUP-A/HOSP-A|adult|inpatient"
                 : "version:" + versionId,
             "rule/RULE.VTE.RISK",

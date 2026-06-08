@@ -307,11 +307,11 @@ class PathwayEngineServiceTest {
     void templateDetailProjectsUnifiedDeploymentStatus() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PathwayTemplateDetailResponse response = service.templateDetail("pt-1");
 
-        assertThat(response.deploymentStatus()).isEqualTo(AssetVersionStatus.ACTIVE);
+        assertThat(response.deploymentStatus()).isEqualTo(AssetVersionStatus.PUBLISHED);
     }
 
     @Test
@@ -422,7 +422,7 @@ class PathwayEngineServiceTest {
                 AssetVersionStatus.DRAFT)))
             .thenReturn(Optional.of(assetVersion(
                 "av-pathway-child", VersionedAssetType.PATHWAY, "TPL.COPD.DEPT", "1",
-                AssetVersionStatus.ACTIVE)));
+                AssetVersionStatus.PUBLISHED)));
 
         PathwayTemplateImpactResponse impact = service.templateImpact("pt-child");
         PathwayTemplatePublishResponse publishResponse = service.publishTemplate(
@@ -761,10 +761,10 @@ class PathwayEngineServiceTest {
                 "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.DRAFT)));
         when(releasePort.submitForReview(any())).thenReturn(releasePlan(
             "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD",
-            VersionReleaseStatus.PENDING_REVIEW, "PENDING_REVIEW 提交审核：路径影响摘要"));
-        when(releasePort.approveForSilentObservation(any())).thenReturn(releasePlan(
+            VersionReleaseStatus.IN_REVIEW, "IN_REVIEW 提交评审：路径影响摘要"));
+        when(releasePort.approveReview(any())).thenReturn(releasePlan(
             "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD",
-            VersionReleaseStatus.SILENT_OBSERVATION, "SILENT_OBSERVATION 静默观察：路径影响摘要"));
+            VersionReleaseStatus.APPROVED, "APPROVED 评审通过：路径影响摘要"));
         when(releasePort.releaseGray(any())).thenReturn(releasePlan(
             "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD",
             VersionReleaseStatus.GRAY, "GRAY 灰度发布：路径影响摘要"));
@@ -775,12 +775,12 @@ class PathwayEngineServiceTest {
             new PathwayOperationRequest(impact.impactDigest(), "已核查影响摘要与灰度发布安排"));
 
         assertThat(response.releaseEvidence())
-            .contains("PENDING_REVIEW 提交审核：路径影响摘要",
-                "SILENT_OBSERVATION 静默观察：路径影响摘要",
+            .contains("IN_REVIEW 提交评审：路径影响摘要",
+                "APPROVED 评审通过：路径影响摘要",
                 "GRAY 灰度发布：路径影响摘要");
         verify(versionedAssets, never()).registerDraft(any());
         verify(releasePort).submitForReview(any());
-        verify(releasePort).approveForSilentObservation(any());
+        verify(releasePort).approveReview(any());
         ArgumentCaptor<VersionReleaseCommand> releaseCommand =
             ArgumentCaptor.forClass(VersionReleaseCommand.class);
         verify(releasePort).releaseGray(releaseCommand.capture());
@@ -962,16 +962,16 @@ class PathwayEngineServiceTest {
             "tenant-A", VersionedAssetType.PATHWAY, "TPL.COPD", "1"))
             .thenReturn(Optional.of(assetVersion(
                 "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.PUBLISHED)));
-        when(releasePort.releaseFull(any())).thenReturn(releasePlan(
+        when(releasePort.publish(any())).thenReturn(releasePlan(
             "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD",
-            VersionReleaseStatus.FULL, "FULL 全量激活：路径影响摘要"));
+            VersionReleaseStatus.PUBLISHED, "FULL 全量激活：路径影响摘要"));
         PathwayTemplateImpactResponse impact = unifiedService.templateImpact("pt-1");
 
         PathwayTemplatePublishResponse response = unifiedService.fullRolloutTemplate(
             "pt-1", operationRequest(impact.impactDigest(), "院级管理员确认全量", List.of("hospital-admin"), null));
 
         assertThat(response.releaseEvidence()).contains("FULL 全量激活：路径影响摘要");
-        verify(releasePort).releaseFull(any());
+        verify(releasePort).publish(any());
     }
 
     @Test
@@ -1052,14 +1052,14 @@ class PathwayEngineServiceTest {
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.PATHWAY, "TPL.COPD", "2"))
             .thenReturn(Optional.of(assetVersion(
-                "av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.ACTIVE)));
+                "av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.PUBLISHED)));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             "tenant-A", VersionedAssetType.PATHWAY, "TPL.COPD", "1"))
             .thenReturn(Optional.of(assetVersion(
-                "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.OFFLINE)));
+                "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.DEPRECATED)));
         when(releasePort.rollback(any())).thenReturn(releasePlan(
             "av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD",
-            VersionReleaseStatus.ROLLBACKED, "ROLLBACK 回滚：路径影响摘要"));
+            VersionReleaseStatus.ROLLED_BACK, "ROLLBACK 回滚：路径影响摘要"));
         PathwayTemplateImpactResponse impact = unifiedService.templateImpact("pt-current");
 
         PathwayTemplatePublishResponse response = unifiedService.rollbackTemplate(
@@ -1119,7 +1119,7 @@ class PathwayEngineServiceTest {
                 clockSlaConfig("ADMISSION", 0, 120, 180), "医生", 120)));
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-1", null, "pkg-2026.06"));
@@ -1168,9 +1168,9 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.of(startNode));
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-1", "tenant-A"))
             .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
         when(inheritanceResolver.resolve(any())).thenReturn(new ResolvedAssetVersion(
-            assetVersion("av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.ACTIVE),
+            assetVersion("av-pathway-1", VersionedAssetType.PATHWAY, "TPL.COPD", "1", AssetVersionStatus.PUBLISHED),
             "dept-A", false, false, false, null, SourceTier.ORG));
 
         service.enterPatientPathway(new PatientPathwayEnterRequest(
@@ -1270,7 +1270,7 @@ class PathwayEngineServiceTest {
             )));
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
             .thenReturn(Optional.of(node("ASSESS", 10, false)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "pt-1", null, "pkg-2026.06")))
@@ -1293,7 +1293,7 @@ class PathwayEngineServiceTest {
             )));
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-1", "tenant-A", "ASSESS"))
             .thenReturn(Optional.of(node("ASSESS", 10, false)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-1", null, "pkg-2026.06"));
@@ -1341,12 +1341,12 @@ class PathwayEngineServiceTest {
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.APPROVED);
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "pt-1", null, "pkg-2026.06")))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("未全量激活")
+            .hasMessageContaining("尚未发布")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_005);
 
@@ -1369,7 +1369,7 @@ class PathwayEngineServiceTest {
         when(templates.findByTemplateIdAndTenantId("pt-v1", "tenant-A"))
             .thenReturn(Optional.of(template("pt-v1", "tenant-A", "TPL.COPD", 1, PathwayTemplateStatus.PUBLISHED)));
         when(resolver.resolve(any())).thenReturn(new ResolvedAssetVersion(
-            assetVersion("av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.ACTIVE),
+            assetVersion("av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.PUBLISHED),
             "dept-1", false, true, false, null, SourceTier.ORG));
         when(templates.findByTenantIdAndTemplateCodeAndTemplateVersion("tenant-A", "TPL.COPD", 2))
             .thenReturn(Optional.of(template("pt-v2", "tenant-A", "TPL.COPD", 2, PathwayTemplateStatus.PUBLISHED)));
@@ -1377,7 +1377,7 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.of(node("pt-v2", "tenant-A", "ASSESS", 10, false)));
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-v2", "tenant-A"))
             .thenReturn(List.of(binding("ASSESS", "COPD.TIME_TO_ASSESS", true)));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "2", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "2", AssetVersionStatus.PUBLISHED);
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
 
         PatientPathwayDetailResponse response = inheritedService.enterPatientPathway(new PatientPathwayEnterRequest(
@@ -1394,7 +1394,7 @@ class PathwayEngineServiceTest {
             PathwayTemplateStatus.PUBLISHED, "knowledge-version:5");
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(withdrawnTemplate));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
         doThrow(new ApiException(ErrorCode.CONFLICT, "路径模板引用已撤回知识版本"))
             .when(safetyGuard).assertPathwayTemplateAllowed(withdrawnTemplate);
 
@@ -1419,7 +1419,7 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.empty());
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-platform", "t-1", "ASSESS"))
             .thenReturn(Optional.of(platformStart));
-        stubPathwayAssetStatus("t-1", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("t-1", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-platform", null, "pkg-2026.06"));
@@ -1446,7 +1446,7 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.of(localOverride));
         when(nodes.findByTemplateIdAndTenantIdAndNodeCode("pt-local", "tenant-A", "ASSESS"))
             .thenReturn(Optional.of(localStart));
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-platform", null, "pkg-2026.06"));
@@ -1471,8 +1471,8 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.of(node("pt-platform", "t-1", "ASSESS", 10, false)));
         when(metricBindings.findByTemplateIdAndTenantIdOrderByNodeCodeAsc("pt-platform", "t-1"))
             .thenReturn(List.of());
-        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
-        stubPathwayAssetStatus("t-1", "TPL.COPD", "1", AssetVersionStatus.ACTIVE);
+        stubPathwayAssetStatus("tenant-A", "TPL.COPD", "1", AssetVersionStatus.APPROVED);
+        stubPathwayAssetStatus("t-1", "TPL.COPD", "1", AssetVersionStatus.PUBLISHED);
 
         PatientPathwayDetailResponse response = service.enterPatientPathway(new PatientPathwayEnterRequest(
             "ctx-active-1", "pt-platform", null, "pkg-2026.06"));
@@ -1531,7 +1531,7 @@ class PathwayEngineServiceTest {
         when(templates.findByTemplateIdAndTenantId("pt-v1", "tenant-A"))
             .thenReturn(Optional.of(entryTemplate));
         when(inheritanceResolver.resolve(any())).thenReturn(new ResolvedAssetVersion(
-            assetVersion("av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.ACTIVE),
+            assetVersion("av-pathway-2", VersionedAssetType.PATHWAY, "TPL.COPD", "2", AssetVersionStatus.PUBLISHED),
             "dept-1", false, true, false, null, SourceTier.ORG));
         when(templates.findByTenantIdAndTemplateCodeAndTemplateVersion("tenant-A", "TPL.COPD", 2))
             .thenReturn(Optional.of(newlyActiveTemplate));
@@ -1985,7 +1985,7 @@ class PathwayEngineServiceTest {
             "tenant-A", VersionedAssetType.PATHWAY, "TPL.COPD", "1"))
             .thenReturn(Optional.of(assetVersion(
                 "av-pathway-new", VersionedAssetType.PATHWAY, "TPL.COPD", "1",
-                AssetVersionStatus.ACTIVE)));
+                AssetVersionStatus.PUBLISHED)));
         when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-new", "tenant-A"))
             .thenReturn(List.of(
                 node("pt-new", "tenant-A", "ASSESS", PathwayNodeType.ASSESSMENT, null, 10, false,

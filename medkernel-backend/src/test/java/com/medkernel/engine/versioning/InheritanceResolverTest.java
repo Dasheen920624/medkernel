@@ -76,13 +76,13 @@ class InheritanceResolverTest {
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + hospitalA.orgPath() + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(hospitalOverride));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + group.orgPath() + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(groupV1));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOverride.versionId()))
             .thenReturn(Optional.of(explanation));
@@ -189,15 +189,15 @@ class InheritanceResolverTest {
             .thenReturn(List.of(group, hospital, department));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + department.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + department.orgPath() + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of());
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + hospital.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + hospital.orgPath() + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(hospitalExclusive));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + group.orgPath() + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + group.orgPath() + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(groupV1));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalExclusive.versionId()))
             .thenReturn(Optional.of(exclusiveOverride));
@@ -258,7 +258,7 @@ class InheritanceResolverTest {
         assertThatThrownBy(() -> resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", department.id())))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("未找到可继承的 ACTIVE 资产版本");
+            .hasMessageContaining("未找到可继承的 PUBLISHED 资产版本");
     }
 
     @Test
@@ -452,7 +452,7 @@ class InheritanceResolverTest {
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(groupV1));
         stubDisableAt(HOSP_PATH, disable);
         when(assetVersions.findByVersionIdAndTenantId(groupV1.versionId(), "tenant-A"))
@@ -483,7 +483,7 @@ class InheritanceResolverTest {
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(groupLocked));
         stubDisableAt(HOSP_PATH, disable);
         when(assetVersions.findByVersionIdAndTenantId(groupLocked.versionId(), "tenant-A"))
@@ -589,7 +589,7 @@ class InheritanceResolverTest {
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(hospitalOwn));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOwn.versionId()))
             .thenReturn(Optional.empty());
@@ -886,7 +886,7 @@ class InheritanceResolverTest {
             tenantId,
             VersionedAssetType.TERMINOLOGY,
             assetIdentity + "|" + orgPath + "|" + applicableScope,
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(activeVersions));
     }
 
@@ -910,7 +910,7 @@ class InheritanceResolverTest {
             versionId + "-content-hash",
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             assetIdentity + "|" + orgPath + "|" + applicableScope,
             "terminology/" + assetIdentity,
             null,
@@ -962,7 +962,7 @@ class InheritanceResolverTest {
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(activeVersion));
     }
 
@@ -971,7 +971,7 @@ class InheritanceResolverTest {
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of());
     }
 
@@ -985,7 +985,7 @@ class InheritanceResolverTest {
             PlatformAuthority.PLATFORM_TENANT_ID,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(platformVersion));
     }
 
@@ -994,7 +994,7 @@ class InheritanceResolverTest {
             PlatformAuthority.PLATFORM_TENANT_ID,
             VersionedAssetType.RULE,
             "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
-            AssetVersionStatus.ACTIVE
+            AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of());
     }
 
@@ -1024,7 +1024,7 @@ class InheritanceResolverTest {
             contentHash,
             safetyPolicy,
             overridePolicy,
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
             "rule/RULE.VTE.RISK",
             null,
@@ -1084,11 +1084,11 @@ class InheritanceResolverTest {
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + HOSP_PATH + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(hospitalOverrideVersion));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
-            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.ACTIVE
+            "RULE.VTE.RISK|" + GROUP_PATH + "|adult|inpatient", AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(groupBaseline));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", hospitalOverrideVersion.versionId()))
             .thenReturn(Optional.of(overrideRecord));
@@ -1147,7 +1147,7 @@ class InheritanceResolverTest {
             contentHash,
             safetyPolicy,
             overridePolicy,
-            AssetVersionStatus.ACTIVE,
+            AssetVersionStatus.PUBLISHED,
             "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
             "rule/RULE.VTE.RISK",
             null,

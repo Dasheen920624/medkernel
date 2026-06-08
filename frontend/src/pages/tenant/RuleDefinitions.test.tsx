@@ -1247,7 +1247,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         lastReason: "提交同行评审",
         signoffs: [],
         testResults: [],
-        releaseEvidence: ["PENDING_REVIEW 提交审核"],
+        releaseEvidence: ["IN_REVIEW 提交评审"],
         traceId: "trace-governance",
         impactDigest: "sha256:impact-abc",
         impactStatus: "COMPLETE",
@@ -1293,7 +1293,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.ruleDetailData = {
         ...createRuleDetail(),
         definition: publishedRule,
-        deploymentStatus: "PUBLISHED",
+        deploymentStatus: "APPROVED",
         governance: {
           ...createRuleDetail().governance,
           state: "CANARY",
@@ -1331,7 +1331,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       const user = await openDraftRuleDrawer();
       expect(screen.getAllByText("内容已审核").length).toBeGreaterThan(0);
-      expect(screen.getByText("待全量激活")).toBeInTheDocument();
+      expect(screen.getByText("已批准待发布")).toBeInTheDocument();
       await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
       await user.type(screen.getByLabelText("治理说明"), "院级管理员确认全量激活");
       await user.click(screen.getByRole("button", { name: /院级全量激活/ }));
@@ -1360,7 +1360,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.ruleDetailData = {
         ...createRuleDetail(),
         definition: publishedRule,
-        deploymentStatus: "ACTIVE",
+        deploymentStatus: "PUBLISHED",
         governance: {
           ...createRuleDetail().governance,
           state: "MONITOR",
@@ -1483,7 +1483,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.ruleDetailData = {
         ...createRuleDetail(),
         definition: publishedRule,
-        deploymentStatus: "ACTIVE",
+        deploymentStatus: "PUBLISHED",
         governance: {
           ...createRuleDetail().governance,
           state: "MONITOR",
