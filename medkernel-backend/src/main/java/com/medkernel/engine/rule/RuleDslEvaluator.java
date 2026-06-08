@@ -197,6 +197,12 @@ public class RuleDslEvaluator {
             if (item.formula() != null && !item.formula().isBlank()) {
                 entry.put("formula", item.formula());
             }
+            if (item.errorCode() != null && !item.errorCode().isBlank()) {
+                entry.put("errorCode", item.errorCode());
+            }
+            if (item.errorMessage() != null && !item.errorMessage().isBlank()) {
+                entry.put("errorMessage", item.errorMessage());
+            }
             conditionEvidence.add(entry);
         }
         explanation.set("conditionEvidence", conditionEvidence);
