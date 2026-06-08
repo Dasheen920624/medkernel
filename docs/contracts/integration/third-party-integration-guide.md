@@ -50,6 +50,13 @@
 - MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写申请单、不直写病历、不绕引擎。
 - 未连接适配器、签名错误、白名单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
 
+## 标准互操作映射
+
+- `POST /api/v1/engine/interoperability/rules/cds-hooks:export` 将规则草稿 DSL 导出为 CDS Hooks 服务声明、Card、CQL 与 Arden 概念映射。
+- `POST /api/v1/engine/interoperability/rules/cds-hooks:import` 从映射回导规则草稿，完整语义以 MedKernel DSL 扩展为准。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:export` 将路径模板草稿导出为 FHIR PlanDefinition 与 GLIF 概念映射。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:import` 从映射回导路径模板草稿；回导后仍走既有路径创建、校验和发布流程。
+
 ## OpenAPI
 
 - 统一服务契约组：`/v3/api-docs/medkernel-service-contracts`

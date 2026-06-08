@@ -59,6 +59,7 @@ public final class DomainOwnershipCatalog {
         module("engine-followup", packages("com.medkernel.engine.followup"), prefixes("followup_"), tables()),
         module("engine-integration", packages("com.medkernel.engine.integration"),
             prefixes("integration_", "mk_fhir_", "mk_integration_"), tables()),
+        module("engine-interoperability", packages("com.medkernel.engine.interop"), prefixes(), tables()),
         module("engine-mpi", packages("com.medkernel.engine.mpi"), prefixes("mpi_"),
             tables("mk_mpi_merge_review")),
         module("engine-safety", packages("com.medkernel.engine.safety"), prefixes(),

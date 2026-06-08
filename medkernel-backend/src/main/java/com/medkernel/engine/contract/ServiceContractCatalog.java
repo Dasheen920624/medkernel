@@ -80,6 +80,13 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.EXECUTE, "mk_engine_authoring_batch_job", "执行规则生成、规则发布和配置包分发批量任务"),
                 audit(AuditAction.IMPORT, "mk_engine_authoring_batch_item", "记录配置包批量离线导入逐项结果"),
                 audit(AuditAction.EXPORT, "mk_engine_authoring_batch_item", "记录配置包批量离线导出逐项结果"))),
+        contract("interoperability-mapping", "标准互操作映射服务",
+            "com.medkernel.engine.interop.InteroperabilityController",
+            "/api/v1/engine/interoperability",
+            permissions("rule.read", "rule.write", "pathway.read", "pathway.write"),
+            audits(
+                audit(AuditAction.EXPORT, "interop_mapping", "导出规则或路径标准互操作映射"),
+                audit(AuditAction.IMPORT, "interop_mapping", "从标准互操作映射回导规则或路径草稿"))),
         contract("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/clinical-events",
             permissions("event.write", "event.read"),
