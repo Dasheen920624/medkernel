@@ -11,6 +11,28 @@ import {
 
 const PAGE_INTERACTION_TIMEOUT_MS = 15_000;
 
+const openSelectByLabel = (label: string, root: HTMLElement = document.body) => {
+  const labelElement = within(root).getByText(label, { selector: "label" });
+  const selector = labelElement
+    .closest(".ant-form-item")
+    ?.querySelector<HTMLElement>(".ant-select-selector");
+  if (!selector) {
+    throw new Error(`未找到 ${label} 下拉选择器`);
+  }
+  fireEvent.mouseDown(selector);
+};
+
+const chooseVisibleSelectOption = async (label: string | RegExp) => {
+  const dropdown = Array.from(document.querySelectorAll<HTMLElement>(".ant-select-dropdown"))
+    .filter((element) => !element.className.includes("ant-select-dropdown-hidden"))
+    .filter((element) => within(element).queryByText(label))
+    .at(-1);
+  if (!dropdown) {
+    throw new Error("未找到展开的下拉列表");
+  }
+  await userEvent.click(within(dropdown).getByText(label));
+};
+
 const apiMocks = vi.hoisted(() => ({
   downloadPackageOfflineExport: vi.fn(),
   downloadPackageSyncEvidenceExport: vi.fn(),
@@ -33,6 +55,8 @@ const apiMocks = vi.hoisted(() => ({
   assetReadiness: null as Record<string, unknown> | null,
   assetReadinessLoading: false,
   assetReadinessError: false,
+  inheritanceImpact: null as Record<string, unknown> | null,
+  inheritanceImpactLoading: false,
   releaseAdapters: [] as Array<Record<string, unknown>>,
 }));
 
@@ -126,6 +150,10 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useAddPackageItem: () => ({ mutateAsync: apiMocks.addPackageItem, isPending: false }),
   useCalculateDiff: () => ({ data: null }),
+  usePackageInheritanceImpact: () => ({
+    data: apiMocks.inheritanceImpact,
+    isFetching: apiMocks.inheritanceImpactLoading,
+  }),
   useSyncPackage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReleasePackage: () => ({ mutateAsync: apiMocks.releasePackage, isPending: false }),
   usePackageSyncLogs: () => ({ data: [] }),
@@ -196,6 +224,59 @@ describe("ConfigPackages offline package export", () => {
     apiMocks.pilotTemplatesLoading = false;
     apiMocks.assetReadinessLoading = false;
     apiMocks.assetReadinessError = false;
+    apiMocks.inheritanceImpactLoading = false;
+    apiMocks.inheritanceImpact = {
+      tenantId: "tenant-A",
+      assetType: "RULE",
+      assetIdentity: "RULE.COPD",
+      applicableScope: "adult|inpatient",
+      upstreamBaseVersion: "2026.05",
+      upstreamTargetVersion: "2026.06",
+      autoInheritedCount: 1,
+      rebaseRequiredCount: 1,
+      upstreamDiff: {
+        packageId: "RULE.COPD",
+        baseVersion: "2026.05",
+        targetVersion: "2026.06",
+        addedCount: 0,
+        updatedCount: 1,
+        removedCount: 0,
+        affectedDepartments: ["呼吸科"],
+        changes: [],
+      },
+      targets: [
+        {
+          orgUnitId: "hospital-1",
+          orgPath: "/TENANT-A/HOSPITAL-1",
+          impactType: "AUTO_INHERITS_UPSTREAM",
+          effectiveVersionId: "av-platform-copd-v1",
+          effectiveVersionNo: "2026.05",
+          sourceTier: "PLATFORM",
+          diffSummary: null,
+          rebasePrompt: "平台新版本激活后自动继承",
+        },
+        {
+          orgUnitId: "dept-resp",
+          orgPath: "/TENANT-A/HOSPITAL-1/RESP",
+          impactType: "REBASE_RECOMMENDED",
+          effectiveVersionId: "av-local-copd-v1",
+          effectiveVersionNo: "2026.05-local",
+          sourceTier: "ORG",
+          diffSummary: "本级阈值调整",
+          rebasePrompt: "已定制版本建议 rebase",
+        },
+        {
+          orgUnitId: "tenant-root",
+          orgPath: "/TENANT-A",
+          impactType: "DISABLE_REVIEW_RECOMMENDED",
+          effectiveVersionId: null,
+          effectiveVersionNo: null,
+          sourceTier: "TENANT",
+          diffSummary: "租户层停用旧版流程",
+          rebasePrompt: "租户覆盖需复核停用理由",
+        },
+      ],
+    };
     apiMocks.releaseAdapters = [
       {
         adapterId: "target-his",
@@ -495,6 +576,113 @@ describe("ConfigPackages offline package export", () => {
     },
     PAGE_INTERACTION_TIMEOUT_MS,
   );
+
+  it(
+    "submits curated inheritance overrides with the first-run template instead of an empty override list",
+    async () => {
+      render(
+        <ConfigProvider>
+          <AntdApp>
+            <ConfigPackages />
+          </AntdApp>
+        </ConfigProvider>,
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "应用首发引用" }));
+
+      const dialog = screen
+        .getByRole("button", { name: "应用平台引用" })
+        .closest('[role="dialog"]') as HTMLElement | null;
+      expect(dialog).not.toBeNull();
+      if (!dialog) {
+        throw new Error("未找到首发引用对话框");
+      }
+
+      fireEvent.mouseDown(within(dialog).getByLabelText("覆盖方式"));
+      await userEvent.click(await screen.findByText("新增本院专有 (ADD)"));
+      fireEvent.change(within(dialog).getByLabelText("覆盖资产身份"), {
+        target: { value: "RULE.COPD.LOCAL" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("覆盖版本 ID"), {
+        target: { value: "av-local-copd-add-v1" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("覆盖适用范围"), {
+        target: { value: "adult|inpatient" },
+      });
+      fireEvent.mouseDown(within(dialog).getByLabelText("传播范围"));
+      await userEvent.click(await screen.findByText("独有，仅本组织 (EXCLUSIVE)"));
+      fireEvent.change(within(dialog).getByLabelText("差异说明"), {
+        target: { value: "本院新增 COPD 宣教规则" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("覆盖原因"), {
+        target: { value: "呼吸科首发需本地宣教规则" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("影响范围"), {
+        target: { value: "总院成人住院" },
+      });
+
+      await userEvent.click(within(dialog).getByRole("button", { name: "加入覆盖清单" }));
+      expect(within(dialog).getByText("RULE.COPD.LOCAL")).toBeInTheDocument();
+
+      await userEvent.click(within(dialog).getByRole("button", { name: "应用平台引用" }));
+
+      await waitFor(() => {
+        expect(apiMocks.applyPilotTemplateReferences).toHaveBeenCalledWith({
+          templateCode: "TPL.FIRST_RUN",
+          packageVersion: "2026.06.01",
+          request: {
+            target_org_unit_id: "hospital-1",
+            initial_overrides: [
+              {
+                asset_type: "RULE",
+                asset_identity: "RULE.COPD.LOCAL",
+                inherited_version_id: undefined,
+                override_version_id: "av-local-copd-add-v1",
+                target_org_unit_id: "hospital-1",
+                applicable_scope: "adult|inpatient",
+                override_mode: "ADD",
+                propagation: "EXCLUSIVE",
+                diff_summary: "本院新增 COPD 宣教规则",
+                override_reason: "呼吸科首发需本地宣教规则",
+                impact_scope: "总院成人住院",
+              },
+            ],
+          },
+        });
+      });
+    },
+    PAGE_INTERACTION_TIMEOUT_MS,
+  );
+
+  it("shows platform tenant organization perspectives and upstream inheritance impact", async () => {
+    render(
+      <ConfigProvider>
+        <AntdApp>
+          <ConfigPackages />
+        </AntdApp>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("继承治理")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "平台视角" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "租户视角" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "当前机构" })).toBeChecked();
+    expect(screen.getByText("本级定制")).toBeInTheDocument();
+    expect(screen.getAllByText("建议 rebase").length).toBeGreaterThan(0);
+    expect(screen.queryByText("平台新版本激活后自动继承")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("平台视角"));
+    expect(screen.getByRole("radio", { name: "平台视角" })).toBeChecked();
+    expect(screen.getByText("平台基线")).toBeInTheDocument();
+    expect(screen.getByText("自动继承上游")).toBeInTheDocument();
+    expect(screen.getByText("平台新版本激活后自动继承")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("租户视角"));
+    expect(screen.getByRole("radio", { name: "租户视角" })).toBeChecked();
+    expect(screen.getByText("租户定制")).toBeInTheDocument();
+    expect(screen.getByText("租户覆盖需复核停用理由")).toBeInTheDocument();
+    expect(screen.queryByText("平台新版本激活后自动继承")).not.toBeInTheDocument();
+  });
 
   it("在没有首发模板时仍允许从空白草案启动配置包主流程", async () => {
     apiMocks.packagesData = {
@@ -815,12 +1003,13 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+      const drawer = screen.getByRole("dialog", { name: "办理包内资产细项" });
 
-      fireEvent.mouseDown(screen.getByLabelText("资产类型"));
-      await userEvent.click(await screen.findByText("条件片段 (CONDITION_FRAGMENT)"));
+      openSelectByLabel("资产类型", drawer);
+      await chooseVisibleSelectOption("条件片段 (CONDITION_FRAGMENT)");
 
-      fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
-      await userEvent.click(await screen.findByText(/CKD 条件片段/));
+      openSelectByLabel("选择已发布的临床资产", drawer);
+      await chooseVisibleSelectOption(/CKD 条件片段/);
       expect(screen.getByLabelText("资产快照版本")).toHaveValue("1");
       await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
 
@@ -851,12 +1040,13 @@ describe("ConfigPackages offline package export", () => {
       );
 
       await userEvent.click(screen.getByRole("button", { name: "办理细项" }));
+      const drawer = screen.getByRole("dialog", { name: "办理包内资产细项" });
 
-      fireEvent.mouseDown(screen.getByLabelText("资产类型"));
-      await userEvent.click(await screen.findByText("术语字典映射 (TERMINOLOGY)"));
+      openSelectByLabel("资产类型", drawer);
+      await chooseVisibleSelectOption("术语字典映射 (TERMINOLOGY)");
 
-      fireEvent.mouseDown(screen.getByLabelText("选择已发布的临床资产"));
-      await userEvent.click(await screen.findByText(/检验术语映射包/));
+      openSelectByLabel("选择已发布的临床资产", drawer);
+      await chooseVisibleSelectOption(/检验术语映射包/);
       expect(screen.getByLabelText("资产快照版本")).toHaveValue("2026.06");
       await userEvent.click(screen.getByRole("button", { name: "确认将此资产关联加入当前包草稿" }));
 

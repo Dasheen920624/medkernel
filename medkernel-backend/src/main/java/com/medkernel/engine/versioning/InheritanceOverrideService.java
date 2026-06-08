@@ -59,7 +59,6 @@ public class InheritanceOverrideService {
         String tenantId = required(command.tenantId(), "租户 ID");
         VersionedAssetType assetType = required(command.assetType(), "资产类型");
         String assetIdentity = required(command.assetIdentity(), "资产身份");
-        String inheritedVersionId = required(command.inheritedVersionId(), "被继承版本 ID");
         String targetOrgUnitId = required(command.targetOrgUnitId(), "目标组织 ID");
         String applicableScope = required(command.applicableScope(), "适用人群或上下文");
         InheritanceOverrideMode mode = required(command.overrideMode(), "覆盖方式");
@@ -69,24 +68,35 @@ public class InheritanceOverrideService {
         String actor = required(command.createdBy(), "创建人");
         requireTenantOverridePermission(tenantId);
 
-        AssetVersion inherited = findInheritedVersion(tenantId, inheritedVersionId);
-        assertVersionDomain(inherited, assetType, assetIdentity, applicableScope, "被继承版本");
-
         List<OrgUnit> path = hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId);
         if (path.isEmpty()) {
             throw new ApiException(ErrorCode.NOT_FOUND, "组织不存在: " + targetOrgUnitId);
         }
         OrgUnit target = path.get(path.size() - 1);
         requireWithinActorOrgClosure(tenantId, targetOrgUnitId);
-        if (!isSameOrDescendant(target.orgPath(), inherited.organizationScope())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "覆盖组织必须位于被继承版本生效域下");
+
+        AssetVersion inherited = null;
+        String inheritedVersionId = blankToNull(command.inheritedVersionId());
+        if (mode == InheritanceOverrideMode.ADD) {
+            if (inheritedVersionId != null) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "ADD 独有资产不绑定被继承版本");
+            }
+            denyAddWhenPlatformBaselineExists(assetType, assetIdentity, applicableScope);
+        } else {
+            inheritedVersionId = required(inheritedVersionId, "被继承版本 ID");
+            inherited = findInheritedVersion(tenantId, inheritedVersionId);
+            assertVersionDomain(inherited, assetType, assetIdentity, applicableScope, "被继承版本");
+            if (!isSameOrDescendant(target.orgPath(), inherited.organizationScope())) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "覆盖组织必须位于被继承版本生效域下");
+            }
         }
 
-        // 替换覆盖须绑定本地 ACTIVE 版本；停用(DISABLE)无替换版本，overrideVersion 留空，
+        // REPLACE/ADD 须绑定本地 ACTIVE 版本；DISABLE 无替换版本，overrideVersion 留空，
         // 仅凭已校验必填的原因/影响/差异/操作者/trace 留作发布证据链（解析期由 InheritanceResolver 消费）
         AssetVersion overrideVersion = null;
-        if (mode == InheritanceOverrideMode.REPLACE) {
-            overrideVersion = findOwnedVersion(tenantId, required(command.overrideVersionId(), "覆盖版本 ID"));
+        if (mode == InheritanceOverrideMode.REPLACE || mode == InheritanceOverrideMode.ADD) {
+            String label = mode == InheritanceOverrideMode.ADD ? "独有版本 ID" : "覆盖版本 ID";
+            overrideVersion = findOwnedVersion(tenantId, required(command.overrideVersionId(), label));
             assertVersionDomain(overrideVersion, assetType, assetIdentity, applicableScope, "覆盖版本");
             if (overrideVersion.status() != AssetVersionStatus.ACTIVE) {
                 throw new ApiException(ErrorCode.CONFLICT, "覆盖版本必须为 ACTIVE");
@@ -101,7 +111,7 @@ public class InheritanceOverrideService {
         InheritancePropagation propagation = command.propagation() == null
             ? InheritancePropagation.INHERITABLE
             : command.propagation();
-        InheritanceOverrideStatus lifecycleStatus = requiresReview(inherited)
+        InheritanceOverrideStatus lifecycleStatus = requiresReview(inherited, overrideVersion)
             ? InheritanceOverrideStatus.IN_REVIEW
             : InheritanceOverrideStatus.PUBLISHED;
         Instant now = Instant.now(clock);
@@ -111,7 +121,7 @@ public class InheritanceOverrideService {
             tenantId,
             assetType,
             assetIdentity,
-            inherited.versionId(),
+            inheritedVersionId,
             overrideVersion == null ? null : overrideVersion.versionId(),
             mode,
             propagation,
@@ -150,9 +160,15 @@ public class InheritanceOverrideService {
     }
 
     private boolean requiresReview(AssetVersion inherited) {
-        return inherited.overridePolicy() == AssetVersionOverridePolicy.REVIEW
-            || inherited.overridePolicy() == AssetVersionOverridePolicy.LOCKED
-            || inherited.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE;
+        return requiresReview(inherited, null);
+    }
+
+    private boolean requiresReview(AssetVersion inherited, AssetVersion overrideVersion) {
+        AssetVersion policySource = inherited == null ? overrideVersion : inherited;
+        return policySource != null
+            && (policySource.overridePolicy() == AssetVersionOverridePolicy.REVIEW
+                || policySource.overridePolicy() == AssetVersionOverridePolicy.LOCKED
+                || policySource.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE);
     }
 
     private void denyUnsafeLowerOverride(
@@ -160,6 +176,9 @@ public class InheritanceOverrideService {
             AssetVersion overrideVersion,
             InheritanceOverrideMode mode,
             String targetOrgPath) {
+        if (inherited == null) {
+            return;
+        }
         boolean disabling = mode == InheritanceOverrideMode.DISABLE;
         // 锁定基线禁止被关闭（附录 S1）：编辑期前置禁用，与解析期 permitsDisable 护栏形成纵深防御
         if (disabling && inherited.overridePolicy() == AssetVersionOverridePolicy.LOCKED) {
@@ -200,6 +219,21 @@ public class InheritanceOverrideService {
                 required(tenantId, "租户 ID")
             )
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "资产版本不存在: " + versionId));
+    }
+
+    private void denyAddWhenPlatformBaselineExists(
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String applicableScope) {
+        List<AssetVersion> platformActive = assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            assetType,
+            InheritanceResolver.activeScopeKey(assetIdentity, PlatformAuthority.PLATFORM_ORG_PATH, applicableScope),
+            AssetVersionStatus.ACTIVE
+        );
+        if (platformActive != null && !platformActive.isEmpty()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台已有该身份基线，请使用 REPLACE 或 DISABLE");
+        }
     }
 
     private void assertVersionDomain(

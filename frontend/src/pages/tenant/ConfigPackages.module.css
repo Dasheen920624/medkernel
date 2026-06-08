@@ -45,6 +45,32 @@
   min-width: calc(var(--mk-unit) * 260);
 }
 
+.inheritanceQuery {
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.impactStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 150), 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
+.impactStat {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+  background: var(--ant-color-fill-quaternary);
+}
+
+.overrideGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mk-unit) * 190), 1fr));
+  gap: calc(var(--mk-unit) * 12);
+}
+
 .formAlert {
   margin-bottom: calc(var(--mk-unit) * 16);
 }

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS mk_version_inheritance_override (
     tenant_id            VARCHAR(64)   NOT NULL,
     asset_type           VARCHAR(32)   NOT NULL,
     asset_identity       VARCHAR(128)  NOT NULL,
-    inherited_version_id VARCHAR(64)   NOT NULL,
+    inherited_version_id VARCHAR(64)   NULL,
     override_version_id  VARCHAR(64)   NULL,
     override_mode        VARCHAR(32)   NOT NULL,
     org_path             VARCHAR(256)  NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS mk_version_inheritance_override (
         UNIQUE (tenant_id, asset_type, asset_identity, org_path, applicable_scope),
     CONSTRAINT ck_mk_version_inheritance_override_type CHECK (asset_type IN
         ('KNOWLEDGE','TERMINOLOGY','RULE','PATHWAY','PACKAGE','EVALUATION')),
-    CONSTRAINT ck_mk_version_inheritance_override_mode CHECK (override_mode IN ('REPLACE','DISABLE'))
+    CONSTRAINT ck_mk_version_inheritance_override_mode CHECK (override_mode IN ('REPLACE','DISABLE','ADD'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_mk_version_inheritance_override_scope
@@ -46,9 +46,9 @@ COMMENT ON COLUMN mk_version_inheritance_override.override_id IS '覆盖解释�
 COMMENT ON COLUMN mk_version_inheritance_override.tenant_id IS '租户 ID';
 COMMENT ON COLUMN mk_version_inheritance_override.asset_type IS '资产类型：知识、术语、规则、路径、包或评估指标';
 COMMENT ON COLUMN mk_version_inheritance_override.asset_identity IS '资产身份编码';
-COMMENT ON COLUMN mk_version_inheritance_override.inherited_version_id IS '被继承的上级资产版本 ID';
-COMMENT ON COLUMN mk_version_inheritance_override.override_version_id IS '本地覆盖版本 ID；关闭继承时为空';
-COMMENT ON COLUMN mk_version_inheritance_override.override_mode IS '覆盖方式：REPLACE 本地版本替换 / DISABLE 关闭继承';
+COMMENT ON COLUMN mk_version_inheritance_override.inherited_version_id IS '被继承的上级资产版本 ID；ADD 独有资产为空';
+COMMENT ON COLUMN mk_version_inheritance_override.override_version_id IS '本地覆盖或独有版本 ID；关闭继承时为空';
+COMMENT ON COLUMN mk_version_inheritance_override.override_mode IS '覆盖方式：REPLACE 本地版本替换 / DISABLE 关闭继承 / ADD 新增独有资产';
 COMMENT ON COLUMN mk_version_inheritance_override.org_path IS '覆盖生效组织路径';
 COMMENT ON COLUMN mk_version_inheritance_override.applicable_scope IS '适用人群或上下文范围';
 COMMENT ON COLUMN mk_version_inheritance_override.diff_summary IS '本地覆盖与继承版本的差异说明';

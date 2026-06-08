@@ -219,6 +219,47 @@ class InheritanceResolverTest {
     }
 
     @Test
+    void exclusiveAddAssetDoesNotPropagateToDescendantsWithoutPlatformBaseline() {
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
+        OrgUnit department = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
+        AssetVersion hospitalAdd =
+            version("av-hosp-add", "1.0.0-hosp-add", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride addRecord = override(
+            "io-hosp-add",
+            null,
+            hospitalAdd.versionId(),
+            HOSP_PATH,
+            "本院新增专有规则",
+            "本院首发需要本地宣教提醒",
+            "仅 HOSP-A 本级",
+            InheritancePropagation.EXCLUSIVE,
+            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideMode.ADD
+        );
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", department.id()))
+            .thenReturn(List.of(group, hospital, department));
+        stubNoActiveAt(GROUP_PATH);
+        stubActiveAt(HOSP_PATH, hospitalAdd);
+        stubNoActiveAt(DEPT_PATH);
+        stubNoPlatformBaseline();
+        stubOverride(hospitalAdd, addRecord);
+
+        ResolvedAssetVersion atHospital = resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+        assertThat(atHospital.version()).isEqualTo(hospitalAdd);
+        assertThat(atHospital.overridden()).isTrue();
+        assertThat(atHospital.inherited()).isFalse();
+
+        assertThatThrownBy(() -> resolver.resolve(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", department.id())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("未找到可继承的 ACTIVE 资产版本");
+    }
+
+    @Test
     void lockedBaselineIgnoresContentChangingReplaceAndInheritsLockedVersion() {
         AssetVersion groupLocked = version(
             "av-group-locked", "1.0.0", GROUP_PATH,
@@ -863,6 +904,15 @@ class InheritanceResolverTest {
         )).thenReturn(List.of(activeVersion));
     }
 
+    private void stubNoActiveAt(String orgPath) {
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + orgPath + "|adult|inpatient",
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of());
+    }
+
     private void stubOverride(AssetVersion overrideVersion, InheritanceOverride record) {
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", overrideVersion.versionId()))
             .thenReturn(Optional.of(record));
@@ -875,6 +925,15 @@ class InheritanceResolverTest {
             "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
             AssetVersionStatus.ACTIVE
         )).thenReturn(List.of(platformVersion));
+    }
+
+    private void stubNoPlatformBaseline() {
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
+            AssetVersionStatus.ACTIVE
+        )).thenReturn(List.of());
     }
 
     private AssetVersion platformVersion(String versionId, String versionNo) {
@@ -1083,6 +1142,31 @@ class InheritanceResolverTest {
             String impactScope,
             InheritancePropagation propagation,
             InheritanceOverrideStatus lifecycleStatus) {
+        return override(
+            overrideId,
+            inheritedVersionId,
+            overrideVersionId,
+            orgPath,
+            diffSummary,
+            overrideReason,
+            impactScope,
+            propagation,
+            lifecycleStatus,
+            InheritanceOverrideMode.REPLACE
+        );
+    }
+
+    private InheritanceOverride override(
+            String overrideId,
+            String inheritedVersionId,
+            String overrideVersionId,
+            String orgPath,
+            String diffSummary,
+            String overrideReason,
+            String impactScope,
+            InheritancePropagation propagation,
+            InheritanceOverrideStatus lifecycleStatus,
+            InheritanceOverrideMode mode) {
         Instant now = Instant.parse("2026-06-03T08:00:00Z");
         return new InheritanceOverride(
             1L,
@@ -1092,7 +1176,7 @@ class InheritanceResolverTest {
             "RULE.VTE.RISK",
             inheritedVersionId,
             overrideVersionId,
-            InheritanceOverrideMode.REPLACE,
+            mode,
             propagation,
             lifecycleStatus,
             orgPath,

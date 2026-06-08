@@ -6485,8 +6485,8 @@ export interface PackageAssetReadiness {
 export interface PilotPackageInitialOverrideRequest {
   asset_type: PackageItem["assetType"];
   asset_identity: string;
-  inherited_version_id: string;
-  override_version_id: string;
+  inherited_version_id?: string;
+  override_version_id?: string;
   target_org_unit_id: string;
   applicable_scope?: string;
   override_mode: "REPLACE" | "ADD" | "DISABLE" | string;
@@ -6517,6 +6517,44 @@ export interface PilotPackageTemplateApplyResult {
   templateCode: string;
   references: TenantPackageReference[];
   initialOverrides: Array<Record<string, unknown>>;
+}
+
+export type PackageInheritanceImpactType =
+  | "AUTO_INHERITS_UPSTREAM"
+  | "REBASE_RECOMMENDED"
+  | "DISABLE_REVIEW_RECOMMENDED"
+  | "UNAFFECTED"
+  | string;
+
+export interface PackageInheritanceImpactTarget {
+  orgUnitId: string;
+  orgPath: string;
+  impactType: PackageInheritanceImpactType;
+  effectiveVersionId: string | null;
+  effectiveVersionNo: string | null;
+  sourceTier: string | null;
+  diffSummary: string | null;
+  rebasePrompt: string | null;
+}
+
+export interface PackageInheritanceImpactResponse {
+  tenantId: string;
+  assetType: PackageItem["assetType"];
+  assetIdentity: string;
+  applicableScope: string;
+  upstreamBaseVersion: string;
+  upstreamTargetVersion: string;
+  autoInheritedCount: number;
+  rebaseRequiredCount: number;
+  upstreamDiff: PackageDiffResponse;
+  targets: PackageInheritanceImpactTarget[];
+}
+
+export interface PackageInheritanceImpactQuery {
+  assetType?: PackageItem["assetType"] | string;
+  assetIdentity?: string;
+  applicableScope?: string;
+  upstreamVersionId?: string;
 }
 
 // 1. 获取配置包发布可用的统一集成适配器
@@ -6603,6 +6641,35 @@ export function usePackageAssetReadiness() {
       );
       return data.data;
     },
+  });
+}
+
+export function usePackageInheritanceImpact(
+  query: PackageInheritanceImpactQuery,
+  options?: { enabled?: boolean },
+) {
+  const params = {
+    assetType: query.assetType?.trim(),
+    assetIdentity: query.assetIdentity?.trim(),
+    applicableScope: query.applicableScope?.trim(),
+    upstreamVersionId: query.upstreamVersionId?.trim(),
+  };
+  const enabled =
+    (options?.enabled ?? true) &&
+    Boolean(params.assetType) &&
+    Boolean(params.assetIdentity) &&
+    Boolean(params.applicableScope) &&
+    Boolean(params.upstreamVersionId);
+  return useQuery({
+    queryKey: ["packages", "inheritance-impact", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PackageInheritanceImpactResponse }>(
+        `${PACKAGE_API_ROOT}/inheritance-impact`,
+        { params },
+      );
+      return data.data;
+    },
+    enabled,
   });
 }
 

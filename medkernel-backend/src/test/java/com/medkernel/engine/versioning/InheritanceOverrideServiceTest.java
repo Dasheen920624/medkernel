@@ -352,6 +352,45 @@ class InheritanceOverrideServiceTest {
     }
 
     @Test
+    void registersAddOverrideWithoutInheritedBaselineAndKeepsPropagation() {
+        OrgUnit hospital = org("hospital-a", null, "/TENANT-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion localAdded = version(
+            "av-hospital-add-v1",
+            "1.0.0-hosp-add",
+            hospital.orgPath(),
+            AssetVersionSafetyPolicy.NORMAL);
+
+        when(assetVersions.findByVersionIdAndTenantId(localAdded.versionId(), "tenant-A"))
+            .thenReturn(Optional.of(localAdded));
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(hospital));
+        when(overrides.save(any(InheritanceOverride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InheritanceOverride saved = service.registerOverride(new InheritanceOverrideRegisterCommand(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            null,
+            localAdded.versionId(),
+            hospital.id(),
+            "adult|inpatient",
+            InheritanceOverrideMode.ADD,
+            "本院新增专有规则",
+            "首发需要本地宣教提醒",
+            "仅 HOSP-A 成人住院",
+            "publisher-1",
+            "trace-sys04",
+            InheritancePropagation.EXCLUSIVE
+        ));
+
+        assertThat(saved.overrideMode()).isEqualTo(InheritanceOverrideMode.ADD);
+        assertThat(saved.inheritedVersionId()).isNull();
+        assertThat(saved.overrideVersionId()).isEqualTo(localAdded.versionId());
+        assertThat(saved.orgPath()).isEqualTo(hospital.orgPath());
+        assertThat(saved.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+    }
+
+    @Test
     void deniesDisableOfLockedBaseline() {
         OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");

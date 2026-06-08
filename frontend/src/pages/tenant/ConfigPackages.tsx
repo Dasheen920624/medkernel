@@ -27,6 +27,7 @@ import type { ColumnsType } from "antd/es/table";
 import {
   CheckCircleOutlined,
   CloudSyncOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   FileProtectOutlined,
   HistoryOutlined,
@@ -50,6 +51,7 @@ import {
   useImportOfflinePackage,
   usePackageAssetReadiness,
   usePackageDetail,
+  usePackageInheritanceImpact,
   useOrgUnits,
   usePackages,
   usePackageSyncLogs,
@@ -66,6 +68,9 @@ import type {
   EvaluationIndicator,
   KnowledgePackage,
   PackageItem,
+  PackageInheritanceImpactQuery,
+  PackageInheritanceImpactTarget,
+  PilotPackageInitialOverrideRequest,
   SyncLogResponse,
   TermMappingPackage,
 } from "@/shared/api/hooks";
@@ -79,6 +84,7 @@ const { Option } = Select;
 const { Text } = Typography;
 
 type PackageStatusFilter = "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE";
+type InheritancePerspective = "PLATFORM" | "TENANT" | "ORG";
 type BadgeStatus = "success" | "processing" | "default" | "error" | "warning";
 type OfflineImportSummary = {
   filename: string;
@@ -106,6 +112,21 @@ const packageStatusOptions: Array<{ value: PackageStatusFilter; label: string }>
   { value: "PUBLISHED", label: "已发布" },
   { value: "ACTIVE", label: "生效中" },
   { value: "OFFLINE", label: "已下线" },
+];
+
+const inheritancePerspectiveOptions: Array<{ value: InheritancePerspective; label: string }> = [
+  { value: "PLATFORM", label: "平台视角" },
+  { value: "TENANT", label: "租户视角" },
+  { value: "ORG", label: "当前机构" },
+];
+
+const inheritanceAssetTypeOptions: Array<{ value: EngineAssetType; label: string }> = [
+  { value: "RULE", label: "规则引擎 (RULE)" },
+  { value: "PATHWAY", label: "临床路径 (PATHWAY)" },
+  { value: "CONDITION_FRAGMENT", label: "条件片段 (CONDITION_FRAGMENT)" },
+  { value: "EVALUATION", label: "质控评估指标 (EVALUATION)" },
+  { value: "TERMINOLOGY", label: "术语字典映射 (TERMINOLOGY)" },
+  { value: "KNOWLEDGE", label: "知识资产 (KNOWLEDGE)" },
 ];
 
 const authoringAssetTypes = ["RULE", "PATHWAY", "CONDITION_FRAGMENT"] as const;
@@ -235,6 +256,72 @@ function syncLogStatusText(status: string) {
   return status;
 }
 
+function sourceTierText(sourceTier: string | null | undefined) {
+  if (sourceTier === "PLATFORM") return "平台基线";
+  if (sourceTier === "TENANT") return "租户定制";
+  if (sourceTier === "ORG") return "本级定制";
+  if (sourceTier === "PARENT_ORG") return "继承上级定制";
+  if (sourceTier === "DISABLED") return "已停用";
+  return "未解析";
+}
+
+function sourceTierColor(sourceTier: string | null | undefined) {
+  if (sourceTier === "PLATFORM") return "green";
+  if (sourceTier === "TENANT") return "cyan";
+  if (sourceTier === "ORG") return "blue";
+  if (sourceTier === "PARENT_ORG") return "geekblue";
+  if (sourceTier === "DISABLED") return "red";
+  return "default";
+}
+
+function impactTypeText(impactType: string) {
+  if (impactType === "AUTO_INHERITS_UPSTREAM") return "自动继承上游";
+  if (impactType === "REBASE_RECOMMENDED") return "建议 rebase";
+  if (impactType === "DISABLE_REVIEW_RECOMMENDED") return "建议停用复核";
+  if (impactType === "UNAFFECTED") return "不受影响";
+  return impactType;
+}
+
+function impactTypeColor(impactType: string) {
+  if (impactType === "AUTO_INHERITS_UPSTREAM") return "green";
+  if (impactType === "REBASE_RECOMMENDED") return "orange";
+  if (impactType === "DISABLE_REVIEW_RECOMMENDED") return "red";
+  if (impactType === "UNAFFECTED") return "default";
+  return "blue";
+}
+
+function overrideModeText(mode: string) {
+  if (mode === "REPLACE") return "替换继承 (REPLACE)";
+  if (mode === "DISABLE") return "本院不用 (DISABLE)";
+  if (mode === "ADD") return "新增本院专有 (ADD)";
+  return mode;
+}
+
+function propagationText(propagation: string) {
+  if (propagation === "INHERITABLE") return "复用，下级继承 (INHERITABLE)";
+  if (propagation === "EXCLUSIVE") return "独有，仅本组织 (EXCLUSIVE)";
+  return propagation;
+}
+
+function targetMatchesPerspective(
+  target: PackageInheritanceImpactTarget,
+  perspective: InheritancePerspective,
+) {
+  if (perspective === "PLATFORM") {
+    return target.sourceTier === "PLATFORM";
+  }
+  if (perspective === "TENANT") {
+    return target.sourceTier === "TENANT" || target.sourceTier === "PARENT_ORG";
+  }
+  return target.sourceTier === "ORG" || target.impactType === "REBASE_RECOMMENDED";
+}
+
+function blankToUndefined(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export default function ConfigPackages() {
   const { message } = AntdApp.useApp();
   const [currentPage, setCurrentPage] = useState(1);
@@ -293,9 +380,17 @@ export default function ConfigPackages() {
   const [offlineImportSummary, setOfflineImportSummary] = useState<OfflineImportSummary | null>(
     null,
   );
+  const [inheritancePerspective, setInheritancePerspective] =
+    useState<InheritancePerspective>("ORG");
+  const [inheritanceImpactQuery, setInheritanceImpactQuery] =
+    useState<PackageInheritanceImpactQuery | null>(null);
+  const [initialOverrides, setInitialOverrides] = useState<PilotPackageInitialOverrideRequest[]>(
+    [],
+  );
+  const [overrideModeInput, setOverrideModeInput] = useState<string>("REPLACE");
+  const [selectedAssetType, setSelectedAssetType] = useState<EngineAssetType>("RULE");
   const [rollbackReason, setRollbackReason] = useState("");
   const [rollbackConfirmed, setRollbackConfirmed] = useState(false);
-  const [selectedAssetType, setSelectedAssetType] = useState<string>("RULE");
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncLogs, setSyncLogs] = useState<SyncLogResponse[]>([]);
   const [syncExecuting, setSyncExecuting] = useState(false);
@@ -308,6 +403,8 @@ export default function ConfigPackages() {
   const [syncForm] = Form.useForm();
   const [offlineExportForm] = Form.useForm<{ targetOrgUnitId: string }>();
   const [pilotTemplateForm] = Form.useForm();
+  const [inheritanceImpactForm] = Form.useForm<PackageInheritanceImpactQuery>();
+  const [initialOverrideForm] = Form.useForm<PilotPackageInitialOverrideRequest>();
 
   const effectivePackageId = selectedPackageId ?? apiPackages[0]?.packageId ?? null;
   const selectedPackage = apiPackages.find((p) => p.packageId === effectivePackageId);
@@ -321,6 +418,10 @@ export default function ConfigPackages() {
   const currentItems = apiDetail?.items ?? [];
   const { data: persistedSyncLogs } = usePackageSyncLogs(effectivePackageId || "");
   const { data: apiDiffData } = useCalculateDiff(effectivePackageId || "", basePackageIdForDiff);
+  const { data: inheritanceImpact, isFetching: inheritanceImpactFetching } =
+    usePackageInheritanceImpact(inheritanceImpactQuery ?? {}, {
+      enabled: Boolean(inheritanceImpactQuery),
+    });
 
   const selectedAssetIsAuthoring = isAuthoringPackageAssetType(selectedAssetType);
   const { data: authoringAssets } = useAuthoringAssets(
@@ -444,9 +545,18 @@ export default function ConfigPackages() {
     const template = selectedPilotTemplate ?? pilotTemplates[0];
     if (!template) return;
     setSelectedPilotTemplateCode(template.templateCode);
+    setInitialOverrides([]);
+    setOverrideModeInput("REPLACE");
     pilotTemplateForm.setFieldsValue({
       templateCode: template.templateCode,
       targetOrgUnitId: defaultTargetOrgUnitId,
+    });
+    initialOverrideForm.setFieldsValue({
+      asset_type: "RULE",
+      target_org_unit_id: defaultTargetOrgUnitId,
+      applicable_scope: "adult|inpatient",
+      override_mode: "REPLACE",
+      propagation: "INHERITABLE",
     });
     setPilotTemplateModalVisible(true);
   };
@@ -463,7 +573,63 @@ export default function ConfigPackages() {
   const closePilotTemplateModal = () => {
     setPilotTemplateModalVisible(false);
     setSelectedPilotTemplateCode(undefined);
+    setInitialOverrides([]);
+    setOverrideModeInput("REPLACE");
     pilotTemplateForm.resetFields();
+    initialOverrideForm.resetFields();
+  };
+
+  const handleQueryInheritanceImpact = async () => {
+    const values = await inheritanceImpactForm.validateFields();
+    setInheritanceImpactQuery({
+      assetType: values.assetType,
+      assetIdentity: values.assetIdentity,
+      applicableScope: values.applicableScope,
+      upstreamVersionId: values.upstreamVersionId,
+    });
+  };
+
+  const handleAddInitialOverride = async () => {
+    const values = await initialOverrideForm.validateFields();
+    const mode = values.override_mode;
+    const targetOrgUnitId =
+      values.target_org_unit_id ?? pilotTemplateForm.getFieldValue("targetOrgUnitId");
+    const nextOverride: PilotPackageInitialOverrideRequest = {
+      asset_type: values.asset_type,
+      asset_identity: String(blankToUndefined(values.asset_identity)),
+      inherited_version_id:
+        mode === "ADD" ? undefined : (blankToUndefined(values.inherited_version_id) as string),
+      override_version_id:
+        mode === "DISABLE" ? undefined : (blankToUndefined(values.override_version_id) as string),
+      target_org_unit_id: targetOrgUnitId,
+      applicable_scope: blankToUndefined(values.applicable_scope) as string | undefined,
+      override_mode: mode,
+      propagation: values.propagation,
+      diff_summary: blankToUndefined(values.diff_summary) as string | undefined,
+      override_reason: blankToUndefined(values.override_reason) as string | undefined,
+      impact_scope: blankToUndefined(values.impact_scope) as string | undefined,
+    };
+    setInitialOverrides((current) => [...current, nextOverride]);
+    initialOverrideForm.resetFields([
+      "asset_identity",
+      "inherited_version_id",
+      "override_version_id",
+      "diff_summary",
+      "override_reason",
+      "impact_scope",
+    ]);
+    initialOverrideForm.setFieldsValue({
+      asset_type: "RULE",
+      target_org_unit_id: targetOrgUnitId,
+      applicable_scope: "adult|inpatient",
+      override_mode: "REPLACE",
+      propagation: "INHERITABLE",
+    });
+    setOverrideModeInput("REPLACE");
+  };
+
+  const removeInitialOverride = (index: number) => {
+    setInitialOverrides((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const openSyncModal = (packageId?: string) => {
@@ -521,7 +687,7 @@ export default function ConfigPackages() {
         packageVersion: template?.defaultPackageVersion ?? "ONBOARDING",
         request: {
           target_org_unit_id: values.targetOrgUnitId,
-          initial_overrides: [],
+          initial_overrides: initialOverrides,
         },
       });
       message.success(`首发平台包引用已应用：${applied.references.length} 个`);
@@ -537,10 +703,11 @@ export default function ConfigPackages() {
     if (!effectivePackageId) return;
     try {
       const values = await itemForm.validateFields();
+      const assetType = values.assetType as EngineAssetType;
       await addPackageItemMutation.mutateAsync({
         packageId: effectivePackageId,
         request: {
-          assetType: values.assetType as EngineAssetType,
+          assetType,
           assetId: values.assetId,
           assetVersion: values.assetVersion,
           packageVersion: selectedPackage?.packageVersion || values.assetVersion,
@@ -740,6 +907,126 @@ export default function ConfigPackages() {
       message.error(getApiErrorMessage(err, "版本回滚失败，状态未在前端伪造切换"));
     }
   };
+
+  const inheritanceImpactTargets = inheritanceImpact?.targets ?? [];
+  const visibleInheritanceImpactTargets = inheritanceImpactTargets.filter((target) =>
+    targetMatchesPerspective(target, inheritancePerspective),
+  );
+  const visibleAutoInheritedCount = visibleInheritanceImpactTargets.filter(
+    (target) => target.impactType === "AUTO_INHERITS_UPSTREAM",
+  ).length;
+  const visibleRebaseRequiredCount = visibleInheritanceImpactTargets.filter(
+    (target) => target.impactType === "REBASE_RECOMMENDED",
+  ).length;
+  const inheritanceImpactColumns: ColumnsType<PackageInheritanceImpactTarget> = [
+    {
+      title: "组织",
+      key: "org",
+      width: 180,
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.orgUnitId}</Text>
+          <Text type="secondary" className={styles.nowrap}>
+            {record.orgPath}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "来源",
+      dataIndex: "sourceTier",
+      key: "sourceTier",
+      width: 120,
+      render: (sourceTier: string | null) => (
+        <Tag color={sourceTierColor(sourceTier)}>{sourceTierText(sourceTier)}</Tag>
+      ),
+    },
+    {
+      title: "影响",
+      dataIndex: "impactType",
+      key: "impactType",
+      width: 140,
+      render: (impactType: string) => (
+        <Tag color={impactTypeColor(impactType)}>{impactTypeText(impactType)}</Tag>
+      ),
+    },
+    {
+      title: "生效版本",
+      key: "effectiveVersion",
+      width: 160,
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.effectiveVersionNo ?? "已停用"}</Text>
+          {record.effectiveVersionId && (
+            <Text type="secondary" className={styles.codeText}>
+              {record.effectiveVersionId}
+            </Text>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: "提示",
+      key: "prompt",
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.rebasePrompt ?? "无额外动作"}</Text>
+          {record.diffSummary && <Text type="secondary">{record.diffSummary}</Text>}
+        </Space>
+      ),
+    },
+  ];
+
+  const initialOverrideColumns: ColumnsType<PilotPackageInitialOverrideRequest> = [
+    {
+      title: "资产",
+      key: "asset",
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.asset_identity}</Text>
+          <Tag color={assetTypeColor(record.asset_type)}>{record.asset_type}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "方式",
+      dataIndex: "override_mode",
+      key: "override_mode",
+      width: 150,
+      render: (mode: string) => <Tag color={mode === "DISABLE" ? "red" : "blue"}>{mode}</Tag>,
+    },
+    {
+      title: "传播",
+      dataIndex: "propagation",
+      key: "propagation",
+      width: 160,
+      render: (propagation: string) => (
+        <Tag color={propagation === "EXCLUSIVE" ? "orange" : "green"}>{propagation}</Tag>
+      ),
+    },
+    {
+      title: "版本",
+      key: "versions",
+      render: (_: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          {record.inherited_version_id && <Text>继承 {record.inherited_version_id}</Text>}
+          {record.override_version_id && <Text>本地 {record.override_version_id}</Text>}
+        </Space>
+      ),
+    },
+    {
+      title: "操作",
+      key: "action",
+      width: 80,
+      render: (_: unknown, __: PilotPackageInitialOverrideRequest, index: number) => (
+        <Button
+          aria-label="移除覆盖"
+          icon={<DeleteOutlined aria-hidden="true" />}
+          onClick={() => removeInitialOverride(index)}
+        />
+      ),
+    },
+  ];
 
   const columns: ColumnsType<KnowledgePackage> = [
     {
@@ -975,71 +1262,205 @@ export default function ConfigPackages() {
       forceRender
       okText="应用平台引用"
       cancelText="取消"
-      width={760}
+      width={880}
     >
-      <Form form={pilotTemplateForm} name="pilot-template-reference" layout="vertical">
-        <Form.Item
-          name="templateCode"
-          label="首发模板"
-          rules={[{ required: true, message: "请选择首发模板" }]}
-        >
-          <Select placeholder="请选择首发模板" onChange={handlePilotTemplateChange}>
-            {pilotTemplates.map((template) => (
-              <Option key={template.templateCode} value={template.templateCode}>
-                {template.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-        {selectedPilotTemplate && (
-          <Card size="small" className={styles.templatePreview}>
-            <Space direction="vertical" className="mk-full-width">
-              <Space className="mk-flex-between" wrap>
-                <Space direction="vertical" size={0}>
-                  <Text strong>当前模板：{selectedPilotTemplate.name}</Text>
-                  <Text type="secondary">
-                    {selectedPilotTemplate.description || "该模板未填写说明"}
-                  </Text>
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Form form={pilotTemplateForm} name="pilot-template-reference" layout="vertical">
+          <Form.Item
+            name="templateCode"
+            label="首发模板"
+            rules={[{ required: true, message: "请选择首发模板" }]}
+          >
+            <Select placeholder="请选择首发模板" onChange={handlePilotTemplateChange}>
+              {pilotTemplates.map((template) => (
+                <Option key={template.templateCode} value={template.templateCode}>
+                  {template.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          {selectedPilotTemplate && (
+            <Card size="small" className={styles.templatePreview}>
+              <Space direction="vertical" className="mk-full-width">
+                <Space className="mk-flex-between" wrap>
+                  <Space direction="vertical" size={0}>
+                    <Text strong>当前模板：{selectedPilotTemplate.name}</Text>
+                    <Text type="secondary">
+                      {selectedPilotTemplate.description || "该模板未填写说明"}
+                    </Text>
+                  </Space>
+                  <Space wrap>
+                    <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
+                    <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
+                  </Space>
                 </Space>
                 <Space wrap>
-                  <Tag color="green">资产 {selectedPilotTemplate.itemCount} 个</Tag>
-                  <Tag color="cyan">{selectedPilotTemplate.templateCode}</Tag>
+                  {selectedPilotTemplate.items.map((item) => (
+                    <Tag
+                      key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
+                      color={assetTypeColor(item.assetType)}
+                    >
+                      {item.assetType} · {item.assetId} · {item.assetVersion}
+                    </Tag>
+                  ))}
                 </Space>
               </Space>
-              <Space wrap>
-                {selectedPilotTemplate.items.map((item) => (
-                  <Tag
-                    key={`${item.assetType}-${item.assetId}-${item.assetVersion}`}
-                    color={assetTypeColor(item.assetType)}
-                  >
-                    {item.assetType} · {item.assetId} · {item.assetVersion}
-                  </Tag>
-                ))}
-              </Space>
-            </Space>
-          </Card>
-        )}
-        <Form.Item
-          name="targetOrgUnitId"
-          label="目标组织"
-          rules={[{ required: true, message: "请选择目标组织" }]}
-        >
-          <Select
-            showSearch
-            optionFilterProp="label"
-            placeholder="选择引用生效组织"
-            options={orgUnitOptions}
-            loading={orgUnitsLoading}
-            notFoundContent="暂无可用组织单元"
-          />
-        </Form.Item>
+            </Card>
+          )}
+          <Form.Item
+            name="targetOrgUnitId"
+            label="目标组织"
+            rules={[{ required: true, message: "请选择目标组织" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="选择引用生效组织"
+              options={orgUnitOptions}
+              loading={orgUnitsLoading}
+              notFoundContent="暂无可用组织单元"
+              onChange={(value) => {
+                if (!initialOverrideForm.getFieldValue("target_org_unit_id")) {
+                  initialOverrideForm.setFieldsValue({ target_org_unit_id: value });
+                }
+              }}
+            />
+          </Form.Item>
+        </Form>
+
+        <Card size="small" title="初始覆盖例外" className={styles.templatePreview}>
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Form form={initialOverrideForm} name="pilot-initial-override" layout="vertical">
+              <div className={styles.overrideGrid}>
+                <Form.Item
+                  name="override_mode"
+                  label="覆盖方式"
+                  rules={[{ required: true, message: "请选择覆盖方式" }]}
+                >
+                  <Select onChange={(value) => setOverrideModeInput(value)}>
+                    <Option value="REPLACE">{overrideModeText("REPLACE")}</Option>
+                    <Option value="DISABLE">{overrideModeText("DISABLE")}</Option>
+                    <Option value="ADD">{overrideModeText("ADD")}</Option>
+                  </Select>
+                </Form.Item>
+                <Form.Item
+                  name="asset_type"
+                  label="覆盖资产类型"
+                  rules={[{ required: true, message: "请选择资产类型" }]}
+                >
+                  <Select options={inheritanceAssetTypeOptions} />
+                </Form.Item>
+                <Form.Item
+                  name="asset_identity"
+                  label="覆盖资产身份"
+                  rules={[{ required: true, message: "请输入资产身份" }]}
+                >
+                  <Input placeholder="如 RULE.COPD.LOCAL" />
+                </Form.Item>
+                <Form.Item
+                  name="target_org_unit_id"
+                  label="覆盖目标组织"
+                  rules={[{ required: true, message: "请选择覆盖目标组织" }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    options={orgUnitOptions}
+                    loading={orgUnitsLoading}
+                    notFoundContent="暂无可用组织单元"
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="inherited_version_id"
+                  label="继承版本 ID"
+                  rules={
+                    overrideModeInput === "ADD"
+                      ? []
+                      : [{ required: true, message: "请输入被继承版本 ID" }]
+                  }
+                >
+                  <Input disabled={overrideModeInput === "ADD"} placeholder="ADD 时留空" />
+                </Form.Item>
+                <Form.Item
+                  name="override_version_id"
+                  label="覆盖版本 ID"
+                  rules={
+                    overrideModeInput === "DISABLE"
+                      ? []
+                      : [{ required: true, message: "请输入覆盖版本 ID" }]
+                  }
+                >
+                  <Input
+                    disabled={overrideModeInput === "DISABLE"}
+                    placeholder="本地 ACTIVE 版本 ID"
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="applicable_scope"
+                  label="覆盖适用范围"
+                  rules={[{ required: true, message: "请输入适用范围" }]}
+                >
+                  <Input placeholder="如 adult|inpatient" />
+                </Form.Item>
+                <Form.Item
+                  name="propagation"
+                  label="传播范围"
+                  rules={[{ required: true, message: "请选择传播范围" }]}
+                >
+                  <Select>
+                    <Option value="INHERITABLE">{propagationText("INHERITABLE")}</Option>
+                    <Option value="EXCLUSIVE">{propagationText("EXCLUSIVE")}</Option>
+                  </Select>
+                </Form.Item>
+              </div>
+              <Form.Item
+                name="diff_summary"
+                label="差异说明"
+                rules={[{ required: true, message: "请填写差异说明" }]}
+              >
+                <TextArea rows={2} maxLength={200} />
+              </Form.Item>
+              <Form.Item
+                name="override_reason"
+                label="覆盖原因"
+                rules={[{ required: true, message: "请填写覆盖原因" }]}
+              >
+                <TextArea rows={2} maxLength={200} />
+              </Form.Item>
+              <Form.Item
+                name="impact_scope"
+                label="影响范围"
+                rules={[{ required: true, message: "请填写影响范围" }]}
+              >
+                <TextArea rows={2} maxLength={200} />
+              </Form.Item>
+              <Button onClick={handleAddInitialOverride}>加入覆盖清单</Button>
+            </Form>
+            <Table
+              dataSource={initialOverrides}
+              columns={initialOverrideColumns}
+              rowKey={(record) =>
+                `${record.asset_identity}-${record.override_mode}-${
+                  record.override_version_id ??
+                  record.inherited_version_id ??
+                  record.target_org_unit_id
+                }`
+              }
+              size="small"
+              pagination={false}
+              locale={{ emptyText: "暂无覆盖例外" }}
+              scroll={{ x: 720 }}
+            />
+          </Space>
+        </Card>
+
         <Alert
           type="info"
           showIcon
           message="引用平台包，不复制资产"
           description="系统会校验模板推荐的平台包是否真实存在且已发布，并把引用绑定到目标组织。"
         />
-      </Form>
+      </Space>
     </Modal>
   );
 
@@ -1289,6 +1710,110 @@ export default function ConfigPackages() {
 
         <StepFlow currentStep={currentStep} panelByStep={stepPanels} />
 
+        <Card
+          title="继承治理"
+          className={styles.sectionCard}
+          extra={
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              value={inheritancePerspective}
+              onChange={(event) => setInheritancePerspective(event.target.value)}
+              options={inheritancePerspectiveOptions}
+            />
+          }
+        >
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Form
+              form={inheritanceImpactForm}
+              layout="inline"
+              className={styles.inheritanceQuery}
+              initialValues={{ applicableScope: "adult|inpatient" }}
+            >
+              <Form.Item
+                name="assetType"
+                label="影响资产类型"
+                rules={[{ required: true, message: "请选择资产类型" }]}
+              >
+                <Select className={styles.statusSelect} options={inheritanceAssetTypeOptions} />
+              </Form.Item>
+              <Form.Item
+                name="assetIdentity"
+                label="影响资产身份"
+                rules={[{ required: true, message: "请输入资产身份" }]}
+              >
+                <Input placeholder="如 RULE.VTE.RISK" />
+              </Form.Item>
+              <Form.Item
+                name="applicableScope"
+                label="适用范围"
+                rules={[{ required: true, message: "请输入适用范围" }]}
+              >
+                <Input placeholder="如 adult|inpatient" />
+              </Form.Item>
+              <Form.Item
+                name="upstreamVersionId"
+                label="上游版本 ID"
+                rules={[{ required: true, message: "请输入上游版本 ID" }]}
+              >
+                <Input placeholder="平台新版本 ID" />
+              </Form.Item>
+              <Button loading={inheritanceImpactFetching} onClick={handleQueryInheritanceImpact}>
+                查询继承影响
+              </Button>
+            </Form>
+
+            {inheritanceImpact ? (
+              <>
+                <section className={styles.impactStats}>
+                  <div className={styles.impactStat}>
+                    <Text type="secondary">上游版本</Text>
+                    <Text strong>
+                      {inheritanceImpact.upstreamBaseVersion} →{" "}
+                      {inheritanceImpact.upstreamTargetVersion}
+                    </Text>
+                  </div>
+                  <div className={styles.impactStat}>
+                    <Text type="secondary">自动继承</Text>
+                    <Text strong>{visibleAutoInheritedCount}</Text>
+                  </div>
+                  <div className={styles.impactStat}>
+                    <Text type="secondary">建议 rebase</Text>
+                    <Text strong>{visibleRebaseRequiredCount}</Text>
+                  </div>
+                  <div className={styles.impactStat}>
+                    <Text type="secondary">视角内条目</Text>
+                    <Text strong>{visibleInheritanceImpactTargets.length}</Text>
+                    <Text type="secondary">
+                      {
+                        inheritancePerspectiveOptions.find(
+                          (option) => option.value === inheritancePerspective,
+                        )?.label
+                      }
+                    </Text>
+                  </div>
+                </section>
+                <Table
+                  dataSource={visibleInheritanceImpactTargets}
+                  columns={inheritanceImpactColumns}
+                  rowKey={(record) => `${record.orgUnitId}-${record.orgPath}`}
+                  size="small"
+                  pagination={false}
+                  locale={{ emptyText: "当前视角暂无继承影响" }}
+                  scroll={{ x: 820 }}
+                />
+              </>
+            ) : (
+              <Alert
+                type="info"
+                showIcon
+                message="输入资产身份和平台上游版本后查看继承差异"
+                description="结果由后端按平台基线、租户覆盖和组织闭包计算，页面只展示真实返回。"
+              />
+            )}
+          </Space>
+        </Card>
+
         <Card title="配置包台账" className={styles.sectionCard}>
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Form layout="inline" className={styles.filterBar}>
@@ -1419,10 +1944,13 @@ export default function ConfigPackages() {
 
       <Drawer
         title="办理包内资产细项"
+        aria-label="办理包内资产细项"
         width={920}
         onClose={() => {
           setDetailDrawerVisible(false);
           setSelectedPackageId(null);
+          setSelectedAssetType("RULE");
+          itemForm.resetFields(["assetType", "assetId", "assetVersion"]);
         }}
         open={detailDrawerVisible}
         destroyOnClose
@@ -1467,7 +1995,8 @@ export default function ConfigPackages() {
                   >
                     <Select
                       onChange={(value) => {
-                        setSelectedAssetType(value);
+                        setSelectedAssetType(value as EngineAssetType);
+                        itemForm.setFieldsValue({ assetType: value });
                         itemForm.resetFields(["assetId", "assetVersion"]);
                       }}
                     >
