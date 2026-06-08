@@ -156,6 +156,10 @@ class PathwayEngineServiceTest {
             .thenReturn(Optional.of(assetVersion(
                 "av-pathway-default", VersionedAssetType.PATHWAY, "TPL.COPD", "1",
                 AssetVersionStatus.DRAFT)));
+        when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
+            .thenReturn(Optional.of(specialtyPackage("pkg-2026.06")));
+        when(packages.findByPackageIdAndTenantId("sp-1", "t-1"))
+            .thenReturn(Optional.of(specialtyPackage("t-1", "pkg-2026.06")));
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway", OrgScope.tenant("tenant-A"), "tester"));
@@ -668,6 +672,32 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void publishFailsWhenNodeReferenceUsesDifferentPackageVersion() {
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                node("ASSESS", PathwayNodeType.ASSESSMENT, 10, false, null, "医生", null),
+                node("ORDER", PathwayNodeType.ORDER_SET, 20, false,
+                    "{\"orderSetRef\":\"OS.COPD\",\"packageVersion\":\"pkg-2026.07\"}", "医生", null),
+                node("FOLLOWUP", PathwayNodeType.FOLLOWUP, 30, true, null, "护士", null)
+            ));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(
+                edge("ASSESS", "ORDER", PathwayEdgeType.DEFAULT),
+                edge("ORDER", "FOLLOWUP", PathwayEdgeType.DEFAULT)
+            ));
+
+        assertThatThrownBy(() -> service.templateImpact("pt-1"))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("引用资产包版本不一致")
+            .hasMessageContaining("pkg-2026.06")
+            .hasMessageContaining("pkg-2026.07")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_004);
+    }
+
+    @Test
     void publishFailsWhenDecisionNodeHasNoDefaultFallbackBranch() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.DRAFT, "DECIDE")));
@@ -818,6 +848,8 @@ class PathwayEngineServiceTest {
         assertThat(response.impactDigest()).startsWith("sha256:");
         assertThat(response.releaseEvidence()).anySatisfy(evidence ->
             assertThat(evidence).contains("灰度发布默认 10%"));
+        assertThat(response.releaseEvidence()).anySatisfy(evidence ->
+            assertThat(evidence).contains("引用资产"));
     }
 
     @Test
@@ -1795,6 +1827,31 @@ class PathwayEngineServiceTest {
     }
 
     @Test
+    void simulateRejectsSnapshotWithDifferentPackageVersionFromTemplatePackage() {
+        when(packages.findByPackageIdAndTenantId("sp-1", "tenant-A"))
+            .thenReturn(Optional.of(specialtyPackage("pkg-2026.07")));
+        when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
+            .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
+        when(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(node("ASSESS", 10, false), node("FOLLOWUP", 20, true)));
+        when(edges.findByTemplateIdAndTenantIdOrderByPriorityAsc("pt-1", "tenant-A"))
+            .thenReturn(List.of(edge("ASSESS", "FOLLOWUP", PathwayEdgeType.DEFAULT)));
+        when(contextSnapshots.findById("ctx-real-1")).thenReturn(contextSnapshot("ctx-real-1"));
+
+        assertThatThrownBy(() -> service.simulate(
+                "pt-1",
+                new PathwaySimulateRequest("ctx-real-1", "ASSESS", List.of())))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("路径仿真包版本必须与上下文快照一致")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_PATHWAY_001);
+
+        verify(patientPathways, never()).save(any());
+        verify(variances, never()).save(any());
+        verify(clocks, never()).save(any());
+    }
+
+    @Test
     void simulateUsesSnapshotObservationFactsToChooseConditionEdge() {
         when(templates.findByTemplateIdAndTenantId("pt-1", "tenant-A"))
             .thenReturn(Optional.of(template(PathwayTemplateStatus.PUBLISHED)));
@@ -2144,6 +2201,32 @@ class PathwayEngineServiceTest {
             "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
             now, "tester", now, "tester", "trace-pathway");
+    }
+
+    private SpecialtyPackage specialtyPackage(String packageVersion) {
+        return specialtyPackage("tenant-A", packageVersion);
+    }
+
+    private SpecialtyPackage specialtyPackage(String tenantId, String packageVersion) {
+        Instant now = Instant.now();
+        return new SpecialtyPackage(
+            1L,
+            "sp-1",
+            tenantId,
+            "PKG.COPD",
+            "COPD",
+            "慢阻肺专病包",
+            packageVersion,
+            SpecialtyPackageStatus.PUBLISHED,
+            "专病路径专家共识 2026",
+            "用于路径 API 测试",
+            now,
+            "tester",
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-pathway");
     }
 
     private PathwayOperationRequest operationRequest(String impactDigest, String reason,

@@ -34,7 +34,8 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
             context.triggerPoint(),
             toRuleContext(context),
             context.eventId(),
-            List.of()
+            List.of(),
+            context.packageVersion()
         );
         return ClinicalEventEngineDispatchResult.dispatched(
             engine(), response.requestId(), "规则引擎已接收临床事件上下文");

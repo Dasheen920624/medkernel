@@ -30,6 +30,7 @@
 - 2026-06-08 H-1 进展：路径富节点纳入统一 authoring 能力开关，支持系统默认与租户覆盖；关闭时模板发布门禁和患者路径推进均拒绝富节点，不继续解释高级节点语义；配置中心页面可配置租户覆盖。
 - 2026-06-08 H-2 进展：临床事件触发路径推进与规则、CDSS 共用 `medkernel.events.sync-timeout-ms` 同步求值预算；预算耗尽或下游不可用时事件进入 `FAILED/ENG-SYS-002` 人工核查，不继续误推进路径。
 - 2026-06-08 H-4 进展：路径发布门禁拒绝可达有向环；`SUBPATHWAY` 不能引用当前路径模板；仿真超过节点数最大步数即拒绝，避免旧图无限推进。条件片段库当前尚无运行模型，片段环检测随 P12-5 接入，不伪造实现。
+- 2026-06-08 H-5 进展：路径发布门禁统一校验模板入 / 出径条件、节点配置、边条件和结局指标绑定的显式包版本；入径、推进、单快照仿真和队列回放按模板所属专病包版本校验上下文快照；引用字段、子路径、医嘱集和结局指标摘要进入影响 `digest`。
 
 ## 功能要求（原子可测条目）
 
@@ -44,6 +45,7 @@
 - [x] **FR-9 能力开关灰度**：路径富节点按系统默认 / 租户覆盖灰度；开关关闭时发布与推进均诚实拒绝富节点，不误算高级语义。
 - [x] **FR-10 事件触发硬超时**：临床事件触发路径推进必须在配置预算内完成；超时或下游不可用时不推进节点，事件转人工核查。
 - [x] **FR-11 环与步数护栏**：路径模板发布拒绝可达有向环和当前模板自引用子路径；仿真运行期有最大步数护栏，旧坏图不能无限推进。
+- [x] **FR-12 引用包版本一致性**：路径模板引用的字段、条件、子路径、医嘱集和结局指标必须与模板所属专病包版本一致；发布门禁与运行期同时拒绝跨包版本引用；引用资产变更进入影响分析。
 
 ## 接口契约 / 页面契约
 
@@ -96,6 +98,7 @@
 - [x] **AC-5（FR-7）**：下级模板覆盖/新增/禁用父级节点后，diff 与合并后的有效节点/边一致；被禁用节点不进入画布、发布拓扑、指标绑定校验、仿真、患者入径和推进主链路。
 - [x] **AC-6（FR-8）**：创建模板可绑定结局指标并写入资产内容；患者路径详情/推进返回结局绑定与多路径协调提示；队列回放/时光机不写运行实例。
 - [x] **AC-7（FR-11）**：发布含 `A -> B -> A` 有向环的模板被拒；`SUBPATHWAY` 自引用当前模板被拒；旧图仿真超过最大推进步数返回 `ENG_PATHWAY_004`。
+- [x] **AC-8（FR-12）**：模板节点、边、入 / 出径条件或结局绑定显式引用其他 `packageVersion` 时发布被拒；患者入径、推进和仿真快照包版本与模板所属专病包不一致时不继续执行；引用资产集合变化会改变影响摘要。
 - 关联 A1–A9 剧本：A3 路径配置、A4 发布回滚、A7 随访接续。
 - T-GATE：前后端真实性门禁全绿（仿真/时钟真实、无写死流程）。
 - B0 验收：三层配置 + 确定性推进，**天然 B0**；关模型行为不变。
@@ -109,6 +112,7 @@
 - 当前 PR3 本地证据：红灯测试先失败于缺 `PathwayTemplateImpactResponse` / `templateImpact` / 发布 digest 合同、缺结径随访交接口、缺前端“7 步流发布”页签，随后补真实影响摘要、`impactDigest + reason` 门禁、`canary_release` 10% 灰度、`full_rollout` 院级确认、`evidence_rollback` 回滚到同编码已下线版本、路径结径随访交接端口和前端发布页签。新增红灯再暴露全量 / 回滚缺服务合同后已补齐；提交前评审又补 `templateImpactDigestIgnoresLifecycleStatusChanges` 红绿回归，防止生命周期状态改变导致灰度后全量确认 digest 失配；本轮审查发现回滚候选依赖当前分页的体验缺口，已补 `templateCode` 列表过滤和前端同编码历史版本查询。验证：聚焦后端 `mvn -q -Dtest=PathwayEngineServiceTest,PathwayRepositoryTest,PathwayEngineApiContractTest,FollowupEngineServiceTest test` 通过；后端全量 `mvn -q test` 通过，含 PostgreSQL 15.18 与 Oracle 21.3 迁移至 V53；前端目标测试 `npm test -- src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RulePathwayCleanliness.test.ts` 通过 2 文件 / 8 测试；`npm run typecheck`、`npm run verify`（44 文件 / 231 测试）、`npm run build` 通过；T-GATE `node --test scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/authenticity-guard.test.mjs` 34/34 通过，`node scripts/authenticity-guard.mjs --mode=all` 扫描 791 文件通过，配置边界 inventory 扫描 733 文件通过，`scripts/check-comment-zh.sh` 0 fail / 0 warn，`git diff --check` 通过。生产依赖 `npm audit --omit=dev` 为 0 漏洞，开发工具链 Vite / Vitest 审计项继续归 `DEFER-002`，不冒领清零。Browser 插件仍无可用 `iab`，按 `DEFER-004` 改用项目 Playwright 访问 `http://127.0.0.1:5175/pathway/templates` 验证发布页签展示 `impactDigest`、灰度发布 / 全量确认 / 回滚三类请求体均携带 `impactDigest`、审核说明、`releaseStep` 与标准上下文，同编码历史查询 `status=OFFLINE&templateCode=PATH.CARDIO.REVIEW&page=1&size=100`，非预期控制台错误 0，截图 `/tmp/medkernel-pathway-pr3-release-rerun.png`。
 - 当前 P10-4 本地证据：新增红灯覆盖结局绑定、无效/非 ACTIVE 指标拒绝、队列回放只读、多路径 `ORDER_SET` 冲突仅提示协调；后端 `mvn -q test` 通过，Surefire 汇总 281 文件 / 1889 测试 / 0 failures / 0 errors / 3 skipped；前端 `npm run verify` 通过，78 文件 / 549 测试，并新增结局指标创建 payload 与队列回放 payload/轨迹展示用例；项目 Playwright `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 VITE_API_PROXY_TARGET=http://localhost:18080 npx playwright test e2e/pathway-graph-editor.spec.ts --project=chromium` 3/3 通过。首次 Playwright 未配置代理目标被 Vite 配置边界拒绝，补真实后端代理环境后通过。OpenSpec strict 通过；T-GATE 三 guard 38/38 通过；changed-mode 真实性 / 配置边界 / 迁移规约分别扫描 19 / 16 / 5 个文件且 0 阻断；中文注释 0 fail / 0 warn；`git diff --check` 通过。
 - 当前 H-4 本地证据：路径边界红灯先失败于发布未拒绝有向环 / 当前模板自引用子路径、旧图仿真未触发最大步数护栏；`PathwayEngineServiceTest` 聚焦与后端全量 `1911` tests / 0 failures / 0 errors / 3 skipped 通过；OpenSpec strict、T-GATE 38/38、changed-mode 真实性 / 配置边界 / 迁移规约分别扫描 4 / 4 / 0 个文件且 0 阻断，中文注释与空白检查均通过。
+- 当前 H-5 本地证据：红灯先失败于路径仿真未按模板包版本校验快照、发布门禁未拒绝跨包节点引用；随后 `PathwayEngineServiceTest` 聚焦通过，后端全量 `mvn -q test` 汇总 `1916` tests / 0 failures / 0 errors / 3 skipped。
 - 审计员签字：@<reviewer>（owner ≠ reviewer）。
 
 ## 大卡工序（16d，后端 + 三层前端；按 PR 拆分）

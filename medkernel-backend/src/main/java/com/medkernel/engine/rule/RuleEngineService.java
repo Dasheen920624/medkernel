@@ -29,6 +29,7 @@ import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
+import com.medkernel.engine.pkg.PackageReferenceConsistency;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -496,6 +497,7 @@ public class RuleEngineService {
         if (current.state() == RuleGovernanceState.DRAFT
                 && target == RuleGovernanceState.PEER_REVIEW) {
             ensureDraft(rule);
+            ensureRuleReferencePackageConsistency(rule, version);
             validateGovernanceImpact(rule, request, impact);
             List<RuleTestCase> cases =
                 testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
@@ -826,7 +828,8 @@ public class RuleEngineService {
             request.triggerPoint(),
             json.valueToTree(snapshot.resources()),
             request.eventId(),
-            request.ruleIds()
+            request.ruleIds(),
+            snapshot.packageVersion()
         );
     }
 
@@ -836,6 +839,16 @@ public class RuleEngineService {
     @Transactional
     public RuleEvaluateResponse evaluateContext(String triggerPoint, JsonNode context,
                                                 String eventId, List<String> ruleIds) {
+        return evaluateContext(triggerPoint, context, eventId, ruleIds, null);
+    }
+
+    /**
+     * 执行服务内已经完成真实性校验的上下文，可选校验上下文包版本。
+     */
+    @Transactional
+    public RuleEvaluateResponse evaluateContext(String triggerPoint, JsonNode context,
+                                                String eventId, List<String> ruleIds,
+                                                String contextPackageVersion) {
         requireCanonicalTrigger(triggerPoint);
         String tenantId = requireCurrentTenant();
         List<String> selectedRuleIds = ruleIds == null ? List.of() : ruleIds;
@@ -844,7 +857,10 @@ public class RuleEngineService {
             : selectedRuleIds.stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
         List<RuleRuntimeCandidate> executable = candidates.stream()
-            .map(rule -> runtimeCandidate(rule, findVersion(rule.activeVersionId(), rule.tenantId())))
+            .map(rule -> {
+                ensureRuleRuntimePackageConsistency(rule, contextPackageVersion);
+                return runtimeCandidate(rule, findVersion(rule.activeVersionId(), rule.tenantId()));
+            })
             .filter(candidate -> candidate.mode() != RuleRuntimeMode.INACTIVE)
             .filter(candidate -> triggerMatches(candidate.version(), triggerPoint))
             .toList();
@@ -1651,10 +1667,13 @@ public class RuleEngineService {
         List<String> unavailable = indexSnapshot.unavailableScopes();
         List<RuleImpactObject> affectedRules = List.of(new RuleImpactObject(
             "RULE_DEFINITION", rule.ruleId(), rule.name(), "当前规则版本将被发布或替换"));
+        List<String> referencedAssets =
+            PackageReferenceConsistency.referenceSummaries(readJson(version.dslJson()));
         String status = unavailable.isEmpty() ? "COMPLETE" : "PARTIAL";
         String digest = impactDigest(
             rule, version, status, unavailable, affectedRules,
-            indexSnapshot.affectedPathways(), indexSnapshot.inPathPatients(), indexSnapshot.integrationAdapters());
+            indexSnapshot.affectedPathways(), indexSnapshot.inPathPatients(),
+            indexSnapshot.integrationAdapters(), referencedAssets);
         return new RuleImpactResponse(
             rule.ruleId(), version.versionId(), rule.riskLevel(), status, digest,
             affectedRules, indexSnapshot.affectedPathways(), indexSnapshot.inPathPatients(),
@@ -1669,6 +1688,22 @@ public class RuleEngineService {
             throw new ApiException(ErrorCode.ENG_RULE_004,
                 "规则发布存在未覆盖编码对照，禁止上线：" + TerminologyCoverageGate.describeIssues(issues));
         }
+    }
+
+    private void ensureRuleReferencePackageConsistency(RuleDefinition rule, RuleVersion version) {
+        PackageReferenceConsistency.requireReferencesSamePackage(
+            rule.packageVersion(),
+            readJson(version.dslJson()),
+            ErrorCode.ENG_RULE_004,
+            "规则 " + rule.ruleCode());
+    }
+
+    private void ensureRuleRuntimePackageConsistency(RuleDefinition rule, String contextPackageVersion) {
+        PackageReferenceConsistency.requireRuntimePackage(
+            rule.packageVersion(),
+            contextPackageVersion,
+            ErrorCode.ENG_RULE_006,
+            "规则运行包版本必须与上下文快照一致");
     }
 
     private void ensureNoStaticConflicts(RuleDefinition candidate, RuleVersion candidateVersion) {
@@ -1749,13 +1784,15 @@ public class RuleEngineService {
                                 List<RuleImpactObject> affectedRules,
                                 List<RuleImpactObject> affectedPathways,
                                 List<RuleImpactObject> inPathPatients,
-                                List<RuleImpactObject> integrationAdapters) {
+                                List<RuleImpactObject> integrationAdapters,
+                                List<String> referencedAssets) {
         return digestText(String.join("|",
             rule.tenantId(), rule.ruleId(), version.versionId(), rule.riskLevel().name(), status,
             impactObjectSignature(affectedRules),
             impactObjectSignature(affectedPathways),
             impactObjectSignature(inPathPatients),
             impactObjectSignature(integrationAdapters),
+            referencedAssets.toString(),
             String.join(";", unavailable)));
     }
 
