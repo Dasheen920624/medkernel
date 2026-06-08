@@ -30,6 +30,7 @@ const apiMocks = vi.hoisted(() => ({
   fullRolloutTemplate: vi.fn(),
   rollbackTemplate: vi.fn(),
   simulatePathway: vi.fn(),
+  previewRun: vi.fn(),
   templateListParams: [] as unknown[],
   authoringPreviewData: {
     previewText: "路径守卫 E1（从 ASSESS 到 FOLLOWUP）：风险等级 等于 HIGH。",
@@ -57,6 +58,10 @@ vi.mock("@/shared/api/hooks", () => ({
     isFetching: false,
     isError: false,
     error: null,
+  }),
+  useAuthoringPreviewRun: () => ({
+    mutateAsync: apiMocks.previewRun,
+    isPending: false,
   }),
   usePathwayTemplateDetail: () => ({
     data: apiMocks.templateDetailData,
@@ -309,6 +314,7 @@ describe("PathwayTemplates 三层路径配置体验", () => {
     apiMocks.fullRolloutTemplate.mockReset();
     apiMocks.rollbackTemplate.mockReset();
     apiMocks.simulatePathway.mockReset();
+    apiMocks.previewRun.mockReset();
     apiMocks.templateListParams = [];
   });
 
@@ -392,6 +398,98 @@ describe("PathwayTemplates 三层路径配置体验", () => {
       await user.click(within(dialog).getByRole("tab", { name: /L2 节点画布/ }));
       expect(within(dialog).getByDisplayValue("FOLLOWUP")).toBeInTheDocument();
       expect(within(dialog).getByDisplayValue("随访确认")).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "创建路径草稿时可选择真实快照就地试运行并定位路径边证据",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.snapshotsData = {
+        items: [
+          {
+            snapshotId: "ctx-path-draft-001",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "PARTIAL",
+            createdAt: "2026-06-02T08:00:00Z",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.snapshotDetailData = {
+        snapshotId: "ctx-path-draft-001",
+        status: "ACTIVE",
+        packageVersion: "pkg-2026.06",
+        qualityStatus: "PARTIAL",
+        missingFields: [{ resourceType: "OBSERVATION", field: "code", level: "WARN" }],
+        mappingStatus: {},
+        resources: {
+          patient: { patientId: "P-001" },
+          observations: [{ code: "OBS.TEST", valueNumeric: 7.1 }],
+        },
+        createdAt: "2026-06-02T08:00:00Z",
+        traceId: "trace-path-draft",
+      };
+      apiMocks.previewRun.mockResolvedValue({
+        subject: "PATHWAY_GUARD",
+        snapshotId: "ctx-path-draft-001",
+        packageVersion: "pkg-2026.06",
+        matched: true,
+        outcomeText: "草稿路径推进到 DISPOSITION",
+        nodeTrajectory: ["ASSESS", "DISPOSITION"],
+        finalStatus: "NODE_EXECUTING",
+        selectedEdgeCode: "E-ASSESS-DISPOSITION",
+        conditionEvidence: [
+          {
+            fact: "observations[].valueNumeric",
+            operator: "gte",
+            matched: true,
+            missing: false,
+            formula: "路径边条件命中",
+          },
+        ],
+        contextQualityStatus: "PARTIAL",
+        missingFields: [{ resourceType: "OBSERVATION", field: "code", level: "WARN" }],
+        mappingStatus: {},
+        contextResourceCounts: { observations: 1 },
+        traceId: "trace-path-preview-run",
+      });
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+
+      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
+      await user.type(within(dialog).getByLabelText("患者 ID"), "P-001");
+      await user.type(within(dialog).getByLabelText("就诊 ID"), "E-001");
+      await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
+      await user.click(await within(dialog).findByRole("button", { name: /ctx-path-draft-001/ }));
+      await user.click(within(dialog).getByRole("button", { name: "运行草稿试运行" }));
+
+      await waitFor(() =>
+        expect(apiMocks.previewRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: "PATHWAY_GUARD",
+            packageVersion: "pkg-2026.06",
+            snapshotId: "ctx-path-draft-001",
+            startNodeCode: "ASSESS",
+            dsl: expect.objectContaining({
+              edges: expect.arrayContaining([
+                expect.objectContaining({ edgeCode: "E-ASSESS-DISPOSITION" }),
+              ]),
+            }),
+          }),
+        ),
+      );
+      expect(apiMocks.simulatePathway).not.toHaveBeenCalled();
+      expect(await within(dialog).findByText("草稿路径推进到 DISPOSITION")).toBeInTheDocument();
+      expect(within(dialog).getByText("E-ASSESS-DISPOSITION")).toBeInTheDocument();
+      expect(within(dialog).getByText("路径边条件命中")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

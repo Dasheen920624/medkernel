@@ -68,6 +68,7 @@ const apiMocks = vi.hoisted(() => ({
   transitionRuleGovernance: vi.fn(),
   runRuleBacktest: vi.fn(),
   captureRuleDriftSnapshot: vi.fn(),
+  previewRun: vi.fn(),
   securityData: {
     userId: "u-admin",
     username: "admin",
@@ -150,6 +151,10 @@ vi.mock("@/shared/api/hooks", () => ({
     isFetching: false,
     isError: false,
     error: null,
+  }),
+  useAuthoringPreviewRun: () => ({
+    mutateAsync: apiMocks.previewRun,
+    isPending: false,
   }),
   useRuleDetail: () => ({
     data: apiMocks.ruleDetailData,
@@ -412,6 +417,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.transitionRuleGovernance.mockReset();
     apiMocks.runRuleBacktest.mockReset();
     apiMocks.captureRuleDriftSnapshot.mockReset();
+    apiMocks.previewRun.mockReset();
   });
 
   it("创建规则弹窗宽度受窄屏视口约束", async () => {
@@ -468,6 +474,100 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
+    "创建规则草稿时可选择真实快照就地试运行并返回证据",
+    async () => {
+      setActiveSnapshotFixture();
+      apiMocks.previewRun.mockResolvedValue({
+        subject: "RULE_CONDITION",
+        snapshotId: "ctx-001",
+        packageVersion: "pkg-2026.06",
+        matched: true,
+        hit: true,
+        outcomeText: "草稿规则命中真实快照",
+        severity: "CRITICAL",
+        actions: [],
+        explanation: {
+          conditionEvidence: [
+            {
+              fact: "observations[].valueNumeric",
+              operator: "gte",
+              matched: true,
+              missing: false,
+              formula: "6 mmol/L >= 6.5",
+            },
+          ],
+        },
+        conditionEvidence: [
+          {
+            fact: "observations[].valueNumeric",
+            operator: "gte",
+            matched: true,
+            missing: false,
+            formula: "6 mmol/L >= 6.5",
+          },
+        ],
+        contextQualityStatus: "COMPLETE",
+        missingFields: [],
+        mappingStatus: {},
+        contextResourceCounts: { observations: 1 },
+        traceId: "trace-preview-run",
+      });
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
+
+      await user.click(within(dialog).getByLabelText("危急值回报"));
+      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
+        target: { value: "pkg-2026.06" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("检验结果字段"), {
+        target: { value: "observations[].valueNumeric" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("危急阈值"), {
+        target: { value: "6.5" },
+      });
+
+      await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
+      await user.type(within(dialog).getByLabelText("患者 ID"), "P-001");
+      await user.type(within(dialog).getByLabelText("就诊 ID"), "E-001");
+      await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
+      await user.click(await within(dialog).findByText("ctx-001"));
+      await user.click(within(dialog).getByRole("button", { name: "运行草稿试运行" }));
+
+      await waitFor(() =>
+        expect(apiMocks.previewRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: "RULE_CONDITION",
+            packageVersion: "pkg-2026.06",
+            snapshotId: "ctx-001",
+            dsl: expect.objectContaining({
+              when: expect.objectContaining({
+                all: expect.arrayContaining([
+                  expect.objectContaining({
+                    expr: expect.objectContaining({
+                      field: "observations[].valueNumeric",
+                      select: "latest",
+                    }),
+                    operator: "gte",
+                    value: 6.5,
+                  }),
+                ]),
+              }),
+            }),
+          }),
+        ),
+      );
+      expect(apiMocks.simulateRule).not.toHaveBeenCalled();
+      expect(await within(dialog).findByText("草稿规则命中真实快照")).toBeInTheDocument();
+      expect(within(dialog).getByText("observations[].valueNumeric")).toBeInTheDocument();
+      expect(within(dialog).getByText("6 mmol/L >= 6.5")).toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "危急值原型向导带出默认动作和高级折叠，未展开高级项也可创建草稿",
     async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-critical" });
@@ -509,7 +609,13 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         riskLevel: string;
         dslJson: {
           trigger: string;
-          when: { all?: Array<{ fact?: string; operator?: string; value?: unknown }> };
+          when: {
+            all?: Array<{
+              expr?: { field?: string; select?: string };
+              operator?: string;
+              value?: unknown;
+            }>;
+          };
           then: Array<{ actionCode: string; atSeverity: string; detail: string }>;
         };
       };
@@ -518,7 +624,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(payload.dslJson.when.all).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            fact: "observations[].valueNumeric",
+            expr: expect.objectContaining({
+              field: "observations[].valueNumeric",
+              select: "latest",
+            }),
             operator: "gte",
             value: 6.5,
           }),

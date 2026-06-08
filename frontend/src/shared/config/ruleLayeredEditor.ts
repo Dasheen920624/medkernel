@@ -236,6 +236,10 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
           id: "condition-1",
           label: "危急检验结果",
           fact: "observations[].valueNumeric",
+          expr: {
+            field: "observations[].valueNumeric",
+            select: "latest",
+          },
           operator: "gte",
           value: "",
           valueKind: "number",

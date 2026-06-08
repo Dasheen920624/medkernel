@@ -19,9 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthoringPreviewController {
 
     private final AuthoringPreviewService service;
+    private final AuthoringPreviewRunService previewRunService;
 
-    public AuthoringPreviewController(AuthoringPreviewService service) {
+    public AuthoringPreviewController(
+            AuthoringPreviewService service,
+            AuthoringPreviewRunService previewRunService) {
         this.service = service;
+        this.previewRunService = previewRunService;
     }
 
     /**
@@ -32,5 +36,16 @@ public class AuthoringPreviewController {
     public ApiResult<AuthoringPreviewResponse> preview(@RequestBody @Valid AuthoringPreviewRequest request) {
         request.apiContext().validateTenant(RequestContext.currentOrgScope().tenantId());
         return ApiResult.ok(service.preview(request));
+    }
+
+    /**
+     * 用真实 ACTIVE 上下文快照执行草稿规则或路径守卫，返回就地证据。
+     */
+    @PostMapping("/preview-run")
+    @PreAuthorize("@perm.hasAny('rule.read','pathway.read')")
+    public ApiResult<AuthoringPreviewRunResponse> previewRun(
+            @RequestBody @Valid AuthoringPreviewRunRequest request) {
+        request.apiContext().validateTenant(RequestContext.currentOrgScope().tenantId());
+        return ApiResult.ok(previewRunService.run(request));
     }
 }

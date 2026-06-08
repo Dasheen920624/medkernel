@@ -56,6 +56,7 @@ import {
   useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
+  useAuthoringPreviewRun,
   useRuleImpact,
   useRuleShadowStats,
   useRuleBacktestLatest,
@@ -74,6 +75,8 @@ import type {
   RuleSignoffStage,
   RuleTestCase,
   ContextSnapshotSummary,
+  AuthoringPreviewRunEvidence,
+  AuthoringPreviewRunResponse,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ConditionTreeEditor } from "@/shared/ui/condition/ConditionTreeEditor";
@@ -156,7 +159,7 @@ const { Option } = Select;
 const { Text } = Typography;
 
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
-type CreateLayerKey = "l1" | "l2" | "l3";
+type CreateLayerKey = "l1" | "l2" | "preview" | "l3";
 type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
@@ -523,6 +526,8 @@ export default function RuleDefinitions() {
   const [caseForm] = Form.useForm();
   const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
   const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
+  const [createPreviewRunResult, setCreatePreviewRunResult] =
+    useState<AuthoringPreviewRunResponse | null>(null);
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
   const [snapshotSearchParams, setSnapshotSearchParams] = useState<{
@@ -606,6 +611,7 @@ export default function RuleDefinitions() {
   const simulateMutation = useSimulateRule(selectedRuleId || "");
   const signoffMutation = useSignoffRule();
   const governanceTransitionMutation = useTransitionRuleGovernance();
+  const previewRunMutation = useAuthoringPreviewRun();
   const runBacktestMutation = useRunRuleBacktest();
   const captureDriftMutation = useCaptureRuleDriftSnapshot();
   const snapshotsQuery = useContextSnapshots(
@@ -616,10 +622,16 @@ export default function RuleDefinitions() {
       page: 1,
       size: 20,
     },
-    { enabled: Boolean(selectedRuleId && snapshotSearchParams) },
+    {
+      enabled: Boolean(
+        (selectedRuleId || createModalVisible || caseModalVisible) && snapshotSearchParams,
+      ),
+    },
   );
   const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
-    enabled: Boolean(selectedRuleId && selectedSnapshotId),
+    enabled: Boolean(
+      (selectedRuleId || createModalVisible || caseModalVisible) && selectedSnapshotId,
+    ),
   });
   const impactQuery = useRuleImpact(selectedRuleId || "", {
     enabled: Boolean(
@@ -669,6 +681,11 @@ export default function RuleDefinitions() {
     setCreateExpertMode(false);
     setOrgSearch(EMPTY_ORG_SEARCH);
     setSelectedOrgOptions(EMPTY_ORG_OPTION_CACHE);
+    setSnapshotPatientId("");
+    setSnapshotEncounterId("");
+    setSnapshotSearchParams(null);
+    setSelectedSnapshotId("");
+    setCreatePreviewRunResult(null);
     resetLayeredAuthoring();
     setCreateModalVisible(true);
   };
@@ -720,6 +737,27 @@ export default function RuleDefinitions() {
       actions,
       explanationSummary,
     });
+
+  const createActionsWithSource = (sourceRef?: string) =>
+    conditionTree.actions.map((action) => ({
+      ...action,
+      source: {
+        ...action.source,
+        label:
+          action.source.label === "规则版本来源" || !action.source.label.trim()
+            ? sourceRef?.trim() || action.source.label
+            : action.source.label,
+      },
+    }));
+
+  const buildCurrentCreateRuleDsl = (sourceRef?: string) =>
+    buildRuleDslFromRoot(
+      conditionRoot,
+      conditionTree.triggerPoint,
+      conditionTree.applicability,
+      createActionsWithSource(sourceRef),
+      conditionTree.explanationSummary,
+    );
 
   const syncTreeToDsl = () => {
     setDslEditorValue(
@@ -1629,9 +1667,16 @@ export default function RuleDefinitions() {
 
   const updateCriticalValueField = (fieldPath: string) => {
     if (!firstLeafId) return;
+    const trimmed = fieldPath.trim();
     updateCondition(firstLeafId, {
       label: "危急检验结果",
       fact: fieldPath,
+      expr: trimmed.includes("[]")
+        ? {
+            field: trimmed,
+            select: "latest",
+          }
+        : undefined,
       operator: "gte",
       valueKind: "number",
     });
@@ -1936,26 +1981,10 @@ export default function RuleDefinitions() {
       let submitRoot: RuleConditionGroup;
       let submitTree: RuleConditionTree;
       try {
-        const actions = conditionTree.actions.map((action) => ({
-          ...action,
-          source: {
-            ...action.source,
-            label:
-              action.source.label === "规则版本来源" || !action.source.label.trim()
-                ? values.sourceRef
-                : action.source.label,
-          },
-        }));
         // 专家模式以 L3 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
         parsedDsl = createExpertMode
           ? parseRuleJson(dslEditorValue)
-          : buildRuleDslFromRoot(
-              conditionRoot,
-              conditionTree.triggerPoint,
-              conditionTree.applicability,
-              actions,
-              conditionTree.explanationSummary,
-            );
+          : buildCurrentCreateRuleDsl(values.sourceRef);
         if (
           !isRecord(parsedDsl) ||
           !("when" in parsedDsl) ||
@@ -2016,6 +2045,7 @@ export default function RuleDefinitions() {
       message.success("新规则创建成功，状态为草稿");
       setCreateModalVisible(false);
       createForm.resetFields();
+      setCreatePreviewRunResult(null);
       resetLayeredAuthoring();
       refetchList();
     } catch (error: unknown) {
@@ -2099,6 +2129,60 @@ export default function RuleDefinitions() {
     });
     setSelectedSnapshotId("");
     setSimulateResult(null);
+    setCreatePreviewRunResult(null);
+  };
+
+  const handleRunCreatePreview = async () => {
+    const packageVersion = String(createForm.getFieldValue("packageVersion") ?? "").trim();
+    if (!packageVersion) {
+      message.warning("请先填写标准上下文包版本。");
+      return;
+    }
+    if (!selectedSnapshotId) {
+      message.warning("请先选择一个 ACTIVE 快照。");
+      return;
+    }
+    const snapshot = snapshotDetailQuery.data;
+    if (!snapshot || snapshot.status !== "ACTIVE" || !snapshot.resources) {
+      message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+      return;
+    }
+    let draftDsl: unknown;
+    try {
+      draftDsl = createExpertMode ? parseRuleJson(dslEditorValue) : buildCurrentCreateRuleDsl();
+      if (!isRecord(draftDsl) || !("when" in draftDsl)) {
+        throw new Error("缺少 when");
+      }
+      const root = createExpertMode
+        ? dslWhenToRootGroup((draftDsl as { when: unknown }).when)
+        : conditionRoot;
+      if (rootDepth(root) > MAX_TREE_DEPTH) {
+        message.error(`条件嵌套深度超过上限 ${MAX_TREE_DEPTH}，请拆分规则。`);
+        setActiveCreateLayer("l2");
+        return;
+      }
+      if (rootHasUnresolvedFact(root)) {
+        message.error("请先补全真实上下文字段路径，再运行草稿试运行。");
+        setActiveCreateLayer("l2");
+        return;
+      }
+    } catch {
+      message.error("草稿 DSL 不合法，请先修正 L2 条件树或 L3 JSON。");
+      return;
+    }
+
+    try {
+      const result = await previewRunMutation.mutateAsync({
+        subject: "RULE_CONDITION",
+        packageVersion,
+        snapshotId: selectedSnapshotId,
+        dsl: draftDsl,
+      });
+      setCreatePreviewRunResult(result);
+      message.success("草稿试运行完成，已返回真实快照证据");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "草稿规则试运行失败"));
+    }
   };
 
   const handleSimulateSelectedSnapshot = async () => {
@@ -2304,6 +2388,7 @@ export default function RuleDefinitions() {
         onClick={() => {
           setSelectedSnapshotId(snapshot.snapshotId);
           setSimulateResult(null);
+          setCreatePreviewRunResult(null);
         }}
       >
         <Space direction="vertical" size={2} className="mk-full-width">
@@ -2399,6 +2484,113 @@ export default function RuleDefinitions() {
           block
         >
           使用该快照试运行
+        </Button>
+      </Space>
+    );
+  };
+
+  const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
+    <Table
+      dataSource={evidence}
+      rowKey={(item) =>
+        `${item.fact}-${item.operator}-${item.sourcePath ?? item.formula ?? item.errorCode ?? item.matched}`
+      }
+      pagination={false}
+      size="small"
+      columns={[
+        {
+          title: "字段",
+          dataIndex: "fact",
+          render: (fact: string) => <Text code>{fact}</Text>,
+        },
+        {
+          title: "算子",
+          dataIndex: "operator",
+        },
+        {
+          title: "证据",
+          key: "formula",
+          render: (_value, item) => item.formula || item.errorMessage || "-",
+        },
+        {
+          title: "结果",
+          dataIndex: "matched",
+          render: (matched: boolean, item) => {
+            if (matched) return <Tag color="green">命中</Tag>;
+            if (item.missing) return <Tag color="orange">缺失</Tag>;
+            return <Tag>未命中</Tag>;
+          },
+        },
+      ]}
+      className="medkernel-table"
+    />
+  );
+
+  const renderPreviewRunResult = (result: AuthoringPreviewRunResponse | null) => {
+    if (!result) {
+      return <Empty description="选择真实快照后运行草稿，结果会在这里返回" />;
+    }
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Space wrap>
+          <Tag color={result.matched ? "green" : "default"}>
+            {result.matched ? "命中" : "未命中"}
+          </Tag>
+          {result.severity && renderRiskTag(result.severity)}
+          {result.contextQualityStatus && (
+            <Tag color={result.contextQualityStatus === "COMPLETE" ? "green" : "orange"}>
+              快照质量：{result.contextQualityStatus}
+            </Tag>
+          )}
+        </Space>
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
+          <Descriptions.Item label="快照 ID">{result.snapshotId}</Descriptions.Item>
+          <Descriptions.Item label="包版本">{result.packageVersion}</Descriptions.Item>
+          <Descriptions.Item label="Trace">{result.traceId || "-"}</Descriptions.Item>
+        </Descriptions>
+        {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
+      </Space>
+    );
+  };
+
+  const renderSelectedCreateSnapshot = () => {
+    if (!selectedSnapshotId) {
+      return <Empty description="请选择一个快照用于草稿试运行" />;
+    }
+    if (snapshotDetailQuery.isLoading) {
+      return <Alert type="info" showIcon message="正在读取快照详情..." />;
+    }
+    if (snapshotDetailQuery.isError || !snapshotDetailQuery.data?.resources) {
+      return <Alert type="error" showIcon message="所选快照详情不可用，请重新选择。" />;
+    }
+    return (
+      <Space direction="vertical" size="middle" className="mk-full-width">
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="已选快照">
+            {snapshotDetailQuery.data.snapshotId}
+          </Descriptions.Item>
+          <Descriptions.Item label="质量状态">
+            {snapshotDetailQuery.data.qualityStatus}
+          </Descriptions.Item>
+          <Descriptions.Item label="绑定包版本">
+            {snapshotDetailQuery.data.packageVersion || createPackageVersion || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="缺失字段">
+            {snapshotDetailQuery.data.missingFields?.length
+              ? `${snapshotDetailQuery.data.missingFields.length} 项`
+              : "无"}
+          </Descriptions.Item>
+        </Descriptions>
+        <Button
+          type="primary"
+          icon={<PlayCircleOutlined />}
+          aria-label="运行草稿试运行"
+          onClick={handleRunCreatePreview}
+          loading={previewRunMutation.isPending || snapshotDetailQuery.isLoading}
+          block
+        >
+          运行草稿试运行
         </Button>
       </Space>
     );
@@ -3842,6 +4034,62 @@ export default function RuleDefinitions() {
         </Space>
       ),
     },
+    {
+      key: "preview",
+      label: (
+        <span>
+          <PlayCircleOutlined /> 即配即试
+        </span>
+      ),
+      children: (
+        <Row gutter={16}>
+          <Col xs={24} lg={10}>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <div className={styles.formSection}>
+                <Row gutter={12}>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="患者 ID" htmlFor="rule-create-snapshot-patient-id">
+                      <Input
+                        id="rule-create-snapshot-patient-id"
+                        value={snapshotPatientId}
+                        onChange={(event) => setSnapshotPatientId(event.target.value)}
+                        placeholder="输入患者主索引"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item label="就诊 ID" htmlFor="rule-create-snapshot-encounter-id">
+                      <Input
+                        id="rule-create-snapshot-encounter-id"
+                        value={snapshotEncounterId}
+                        onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                        placeholder="输入就诊号"
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Button
+                  icon={<FileSearchOutlined />}
+                  aria-label="读取真实快照"
+                  onClick={handleSnapshotSearch}
+                  loading={snapshotsQuery.isLoading}
+                  block
+                >
+                  读取真实快照
+                </Button>
+              </div>
+              {renderSnapshotChoices()}
+            </Space>
+          </Col>
+          <Col xs={24} lg={14}>
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              {renderSelectedCreateSnapshot()}
+              {renderPreviewRunResult(createPreviewRunResult)}
+            </Space>
+          </Col>
+        </Row>
+      ),
+    },
     ...(createExpertMode
       ? [
           {
@@ -4066,7 +4314,10 @@ export default function RuleDefinitions() {
         title="创建新临床规则"
         open={createModalVisible}
         onOk={handleCreateRule}
-        onCancel={() => setCreateModalVisible(false)}
+        onCancel={() => {
+          setCreateModalVisible(false);
+          setCreatePreviewRunResult(null);
+        }}
         width="min(920px, calc(100vw - 32px))"
         okText="创建草稿"
         cancelText="取消"

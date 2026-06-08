@@ -53,7 +53,9 @@ public final class ServiceContractCatalog {
             "com.medkernel.engine.authoring.AuthoringPreviewController",
             "/api/v1/engine/authoring",
             permissions("rule.read", "pathway.read"),
-            audits(audit(AuditAction.EXECUTE, "authoring_preview", "生成规则和路径编排的自然语言预览"))),
+            audits(
+                audit(AuditAction.EXECUTE, "authoring_preview", "生成规则和路径编排的自然语言预览"),
+                audit(AuditAction.EXECUTE, "authoring_preview_run", "基于真实上下文快照试运行草稿规则和路径"))),
         contract("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/clinical-events",
             permissions("event.write", "event.read"),
