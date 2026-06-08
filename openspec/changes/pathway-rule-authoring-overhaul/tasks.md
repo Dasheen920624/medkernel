@@ -194,9 +194,9 @@
 
 ## 阶段 P11：标准互操作映射
 
-- [ ] P11-1 规则 DSL ↔ CDS Hooks（触发点 + Card）映射器；可选 CQL/Arden 导出。
+- [x] P11-1 规则 DSL ↔ CDS Hooks（触发点 + Card）映射器；可选 CQL/Arden 导出。
   - ✅ 测试：往返映射语义一致。
-- [ ] P11-2 路径 ↔ FHIR PlanDefinition / GLIF 概念映射器。
+- [x] P11-2 路径 ↔ FHIR PlanDefinition / GLIF 概念映射器。
   - ✅ 测试：阶段/动作/决策/守卫映射正确。
 
 ---
