@@ -2075,7 +2075,7 @@ class RuleEngineServiceTest {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         return new VersionReleasePlan(
             1L, "vrl-" + status, "tenant-A", type, identity, versionId, null,
-            "dept-1", "rpv-1", VersionReleaseScopeType.HOSPITAL, null,
+            "dept-1", "rpv-1", VersionReleaseScopeType.FACILITY, null,
             status, "sha256:impact", "已审核", evidence,
             now, "tester", now, "tester", "trace-rule");
     }

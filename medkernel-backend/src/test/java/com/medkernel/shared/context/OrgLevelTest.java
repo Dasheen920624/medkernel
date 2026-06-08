@@ -13,7 +13,7 @@ class OrgLevelTest {
     void platformIsTheHighestAuthorityTier() {
         // 平台层高于租户：任意租户树层级都可挂在平台层之下
         assertThat(OrgLevel.TENANT.canHaveParent(OrgLevel.PLATFORM)).isTrue();
-        assertThat(OrgLevel.GROUP.canHaveParent(OrgLevel.PLATFORM)).isTrue();
+        assertThat(OrgLevel.REGION.canHaveParent(OrgLevel.PLATFORM)).isTrue();
         // 平台层是顶层，本身不能再有父级
         assertThat(OrgLevel.PLATFORM.canHaveParent(OrgLevel.TENANT)).isFalse();
         assertThat(OrgLevel.PLATFORM.canHaveParent(null)).isFalse();
@@ -22,9 +22,10 @@ class OrgLevelTest {
     @Test
     void allowsAdjacentAndSkippedHigherParent() {
         // 紧邻上一层仍然允许
-        assertThat(OrgLevel.CAMPUS.canHaveParent(OrgLevel.HOSPITAL)).isTrue();
-        // 跳过可选层允许：科室直挂医院
-        assertThat(OrgLevel.DEPARTMENT.canHaveParent(OrgLevel.HOSPITAL)).isTrue();
+        assertThat(OrgLevel.CAMPUS.canHaveParent(OrgLevel.FACILITY)).isTrue();
+        assertThat(OrgLevel.WARD.canHaveParent(OrgLevel.DEPARTMENT)).isTrue();
+        // 跳过可选层允许：科室直挂机构
+        assertThat(OrgLevel.DEPARTMENT.canHaveParent(OrgLevel.FACILITY)).isTrue();
     }
 
     @Test
@@ -33,14 +34,15 @@ class OrgLevelTest {
             .containsExactly(
                 OrgLevel.PLATFORM,
                 OrgLevel.TENANT,
-                OrgLevel.GROUP,
-                OrgLevel.HOSPITAL,
+                OrgLevel.REGION,
+                OrgLevel.FACILITY,
                 OrgLevel.CAMPUS,
-                OrgLevel.SITE,
-                OrgLevel.DEPARTMENT
+                OrgLevel.DEPARTMENT,
+                OrgLevel.WARD
             );
         assertThat(OrgLevel.PLATFORM.isOrganizationTreeLevel()).isFalse();
         assertThat(OrgLevel.DEPARTMENT.isOrganizationTreeLevel()).isTrue();
+        assertThat(OrgLevel.WARD.isOrganizationTreeLevel()).isTrue();
     }
 
     @Test
@@ -48,8 +50,8 @@ class OrgLevelTest {
         // 同级不允许
         assertThat(OrgLevel.DEPARTMENT.canHaveParent(OrgLevel.DEPARTMENT)).isFalse();
         // 父级层级更低（倒挂）不允许
-        assertThat(OrgLevel.GROUP.canHaveParent(OrgLevel.DEPARTMENT)).isFalse();
-        assertThat(OrgLevel.HOSPITAL.canHaveParent(OrgLevel.CAMPUS)).isFalse();
+        assertThat(OrgLevel.REGION.canHaveParent(OrgLevel.DEPARTMENT)).isFalse();
+        assertThat(OrgLevel.FACILITY.canHaveParent(OrgLevel.CAMPUS)).isFalse();
         // 空父级不允许
         assertThat(OrgLevel.DEPARTMENT.canHaveParent(null)).isFalse();
     }

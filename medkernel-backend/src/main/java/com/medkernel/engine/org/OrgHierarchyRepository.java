@@ -4,7 +4,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -110,6 +115,90 @@ public class OrgHierarchyRepository {
     }
 
     /**
+     * 查询解析用组织路径：主父链保持权威，同时把次级归属分支按优先级插入到共同祖先之后。
+     *
+     * <p>该结果供继承解析使用；主链节点始终排在其下级之前，因此主链更具体覆盖会压过次级归属覆盖。
+     *
+     * @param tenantId 当前租户标识
+     * @param descendantId 目标后代组织节点标识
+     * @return 解析顺序中的组织节点列表
+     */
+    public List<OrgUnit> findResolutionAncestorsAndSelf(String tenantId, String descendantId) {
+        List<OrgUnit> primary = findAncestorsAndSelf(tenantId, descendantId);
+        if (primary.isEmpty()) {
+            return primary;
+        }
+        Set<String> primaryIds = primary.stream()
+            .map(OrgUnit::id)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        Map<Integer, List<OrgUnit>> secondaryByPrimaryIndex = new TreeMap<>();
+        for (OrgSecondaryMembership membership : findSecondaryMemberships(tenantId, descendantId)) {
+            List<OrgUnit> secondaryPath = findAncestorsAndSelf(tenantId, membership.secondaryParentId());
+            if (secondaryPath.isEmpty()) {
+                continue;
+            }
+            int insertAfter = deepestCommonPrimaryIndex(primary, secondaryPath);
+            List<OrgUnit> secondaryOnly = secondaryPath.stream()
+                .filter(unit -> !primaryIds.contains(unit.id()))
+                .toList();
+            if (!secondaryOnly.isEmpty()) {
+                secondaryByPrimaryIndex
+                    .computeIfAbsent(insertAfter, ignored -> new ArrayList<>())
+                    .addAll(secondaryOnly);
+            }
+        }
+        List<OrgUnit> ordered = new ArrayList<>();
+        appendDistinct(ordered, secondaryByPrimaryIndex.getOrDefault(-1, List.of()));
+        for (int i = 0; i < primary.size(); i++) {
+            appendDistinct(ordered, List.of(primary.get(i)));
+            appendDistinct(ordered, secondaryByPrimaryIndex.getOrDefault(i, List.of()));
+        }
+        return ordered;
+    }
+
+    /**
+     * 新增次级归属边，不改主父链与 org_path。
+     */
+    public void insertSecondaryMembership(
+            String tenantId,
+            String childId,
+            String secondaryParentId,
+            String relationCode,
+            int priority,
+            String createdBy) {
+        jdbc.sql("""
+            INSERT INTO mk_org_secondary_membership
+                (tenant_id, child_id, secondary_parent_id, relation_code, priority, created_at, created_by)
+            VALUES
+                (:tenantId, :childId, :secondaryParentId, :relationCode, :priority, CURRENT_TIMESTAMP, :createdBy)
+            """)
+            .param("tenantId", tenantId)
+            .param("childId", childId)
+            .param("secondaryParentId", secondaryParentId)
+            .param("relationCode", relationCode)
+            .param("priority", priority)
+            .param("createdBy", createdBy)
+            .update();
+    }
+
+    /**
+     * 查询某组织节点的次级归属边。
+     */
+    public List<OrgSecondaryMembership> findSecondaryMemberships(String tenantId, String childId) {
+        return jdbc.sql("""
+            SELECT tenant_id, child_id, secondary_parent_id, relation_code, priority, created_at, created_by
+              FROM mk_org_secondary_membership
+             WHERE tenant_id = :tenantId
+               AND child_id = :childId
+             ORDER BY priority ASC, secondary_parent_id ASC
+            """)
+            .param("tenantId", tenantId)
+            .param("childId", childId)
+            .query(this::mapSecondaryMembership)
+            .list();
+    }
+
+    /**
      * 查询指定节点及其整棵子树。
      *
      * @param tenantId 当前租户标识
@@ -189,6 +278,7 @@ public class OrgHierarchyRepository {
             rs.getString("code"),
             rs.getString("name"),
             rs.getString("name_pinyin"),
+            enumOrNull(OrgFacilityType.class, rs.getString("facility_type")),
             rs.getString("specialty_id"),
             OrgUnitStatus.valueOf(rs.getString("status")),
             instant(rs, "created_at"),
@@ -196,6 +286,44 @@ public class OrgHierarchyRepository {
             instant(rs, "updated_at"),
             rs.getString("updated_by")
         );
+    }
+
+    private OrgSecondaryMembership mapSecondaryMembership(ResultSet rs, int rowNum) throws SQLException {
+        return new OrgSecondaryMembership(
+            rs.getString("tenant_id"),
+            rs.getString("child_id"),
+            rs.getString("secondary_parent_id"),
+            rs.getString("relation_code"),
+            rs.getInt("priority"),
+            instant(rs, "created_at"),
+            rs.getString("created_by")
+        );
+    }
+
+    private int deepestCommonPrimaryIndex(List<OrgUnit> primary, List<OrgUnit> secondaryPath) {
+        Set<String> secondaryIds = secondaryPath.stream()
+            .map(OrgUnit::id)
+            .collect(java.util.stream.Collectors.toSet());
+        int index = -1;
+        for (int i = 0; i < primary.size(); i++) {
+            if (secondaryIds.contains(primary.get(i).id())) {
+                index = i;
+            }
+        }
+        return index;
+    }
+
+    private void appendDistinct(List<OrgUnit> target, List<OrgUnit> units) {
+        for (OrgUnit unit : units) {
+            boolean exists = target.stream().anyMatch(existing -> existing.id().equals(unit.id()));
+            if (!exists) {
+                target.add(unit);
+            }
+        }
+    }
+
+    private <E extends Enum<E>> E enumOrNull(Class<E> type, String value) {
+        return value == null || value.isBlank() ? null : Enum.valueOf(type, value);
     }
 
     private Instant instant(ResultSet rs, String column) throws SQLException {

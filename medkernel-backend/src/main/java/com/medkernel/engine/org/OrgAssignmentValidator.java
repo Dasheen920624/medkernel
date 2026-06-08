@@ -62,11 +62,11 @@ public class OrgAssignmentValidator {
             String siteId,
             String departmentId,
             String specialtyId) {
+        String facilityId = StringUtils.hasText(hospitalId) ? hospitalId : siteId;
         List<ScopeReference> references = List.of(
-            new ScopeReference(groupId, OrgLevel.GROUP, "集团"),
-            new ScopeReference(hospitalId, OrgLevel.HOSPITAL, "医院"),
+            new ScopeReference(groupId, OrgLevel.REGION, "区域"),
+            new ScopeReference(facilityId, OrgLevel.FACILITY, "机构"),
             new ScopeReference(campusId, OrgLevel.CAMPUS, "院区"),
-            new ScopeReference(siteId, OrgLevel.SITE, "服务点"),
             new ScopeReference(departmentId, OrgLevel.DEPARTMENT, "科室")
         );
         OrgUnit ancestor = null;

@@ -35,6 +35,7 @@ public class OrgUnitIdGenerator implements BeforeConvertCallback<OrgUnit> {
             unit.code(),
             unit.name(),
             unit.namePinyin(),
+            unit.facilityType(),
             unit.specialtyId(),
             unit.status(),
             unit.createdAt(),

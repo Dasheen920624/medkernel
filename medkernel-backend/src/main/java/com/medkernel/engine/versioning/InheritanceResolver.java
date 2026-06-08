@@ -41,7 +41,10 @@ public class InheritanceResolver {
         String applicableScope = required(query.applicableScope(), "适用人群或上下文");
         String targetOrgUnitId = required(query.targetOrgUnitId(), "目标组织 ID");
 
-        List<OrgUnit> path = hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId);
+        List<OrgUnit> path = hierarchy.findResolutionAncestorsAndSelf(tenantId, targetOrgUnitId);
+        if (path == null || path.isEmpty()) {
+            path = hierarchy.findAncestorsAndSelf(tenantId, targetOrgUnitId);
+        }
         if (path.isEmpty()) {
             throw new ApiException(ErrorCode.NOT_FOUND, "组织不存在: " + targetOrgUnitId);
         }

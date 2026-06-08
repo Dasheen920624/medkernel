@@ -55,7 +55,7 @@ class OrgUnitRepositoryTest {
 
         assertThat(saved.id()).isNotNull();
         assertThat(saved.tenantId()).isEqualTo("t-1");
-        assertThat(saved.level()).isEqualTo(OrgLevel.HOSPITAL);
+        assertThat(saved.level()).isEqualTo(OrgLevel.FACILITY);
         assertThat(saved.status()).isEqualTo(OrgUnitStatus.ACTIVE);
 
         Optional<OrgUnit> reloaded = repository.findByTenantIdAndCode("t-1", "HOSP-001");
@@ -69,7 +69,7 @@ class OrgUnitRepositoryTest {
         repository.save(newHospital("t-1", "HOSP-002", "东区分院"));
         repository.save(newDepartment("t-1", "DEPT-CARDIO", "心内科"));
 
-        List<OrgUnit> hospitals = repository.findByTenantIdAndLevelOrderByCodeAsc("t-1", OrgLevel.HOSPITAL);
+        List<OrgUnit> hospitals = repository.findByTenantIdAndLevelOrderByCodeAsc("t-1", OrgLevel.FACILITY);
         assertThat(hospitals).hasSize(2);
         assertThat(hospitals).extracting(OrgUnit::code).containsExactly("HOSP-001", "HOSP-002");
 
@@ -114,7 +114,7 @@ class OrgUnitRepositoryTest {
         repository.save(newDepartment("t-1", "DEPT-CARDIO", "心内科"));
         repository.save(new OrgUnit(
             null, null, "t-1", "/DEPT-OLD", OrgLevel.DEPARTMENT, "DEPT-OLD", "旧科室",
-            null, "cardiology", OrgUnitStatus.SUSPENDED, Instant.now(), "system", Instant.now(), "system"
+            null, null, "cardiology", OrgUnitStatus.SUSPENDED, Instant.now(), "system", Instant.now(), "system"
         ));
         repository.save(newDepartment("t-2", "DEPT-CARDIO", "另一租户心内科"));
 
@@ -132,13 +132,13 @@ class OrgUnitRepositoryTest {
 
     private OrgUnit newHospital(String tenantId, String code, String name) {
         Instant now = Instant.now();
-        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.HOSPITAL, code, name, null, null,
+        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.FACILITY, code, name, null, OrgFacilityType.HOSPITAL, null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
     }
 
     private OrgUnit newDepartment(String tenantId, String code, String name) {
         Instant now = Instant.now();
-        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.DEPARTMENT, code, name, null, null,
+        return new OrgUnit(null, null, tenantId, "/" + code, OrgLevel.DEPARTMENT, code, name, null, null, null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
     }
 }

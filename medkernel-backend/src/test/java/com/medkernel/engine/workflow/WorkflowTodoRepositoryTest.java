@@ -188,7 +188,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.MEDIUM,
             "patient-1",
             "doctor-1",
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(100)));
         repository.save(sample(
             "todo-hospital",
@@ -197,7 +197,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.MEDIUM,
             "patient-2",
             null,
-            "hospital-a",
+            "facility-a",
             now.plusSeconds(200)));
         repository.save(sample(
             "todo-department",
@@ -224,7 +224,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.MEDIUM,
             "patient-5",
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(50)));
 
         long total = repository.countByVisibleAssigneeScope(
@@ -234,7 +234,7 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null);
         List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
             "tenant-A",
@@ -243,7 +243,7 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null,
             0,
             10);
@@ -330,7 +330,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.MEDIUM,
             "patient-3",
             null,
-            "hospital-a",
+            "facility-a",
             now.plusSeconds(300)));
         repository.save(sample(
             "todo-tenant",
@@ -348,7 +348,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.MEDIUM,
             "patient-5",
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(50)));
 
         long total = repository.countByVisibleAssigneeScopeAndOrgUnitFilter(
@@ -358,7 +358,7 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null,
             "dept-a");
         List<WorkflowTodo> page = repository.pageByVisibleAssigneeScopeAndOrgUnitFilter(
@@ -368,7 +368,7 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null,
             "dept-a",
             0,
@@ -390,7 +390,7 @@ class WorkflowTodoRepositoryTest {
             WorkflowPriority.HIGH,
             "patient-1",
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(100)));
 
         long total = repository.countByVisibleAssigneeScopeAndOrgUnitFilter(
@@ -400,9 +400,9 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null,
-            "hospital-b");
+            "facility-b");
         List<WorkflowTodo> page = repository.pageByVisibleAssigneeScopeAndOrgUnitFilter(
             "tenant-A",
             "PENDING",
@@ -410,9 +410,9 @@ class WorkflowTodoRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             null,
-            "hospital-b",
+            "facility-b",
             0,
             10);
 
@@ -668,32 +668,32 @@ class WorkflowTodoRepositoryTest {
 
     private void seedOrgTree() {
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户", null);
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "hospital-a", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-A", "HOSPITAL", "HOSPITAL-A", "A 医院");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "facility-a", "tenant-root", "tenant-A", "/TENANT-A/FACILITY-A", "FACILITY", "FACILITY-A", "A 机构", "HOSPITAL");
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "dept-a", "hospital-a", "tenant-A", "/TENANT-A/HOSPITAL-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-a", "facility-a", "tenant-A", "/TENANT-A/FACILITY-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室", null);
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "hospital-b", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-B", "HOSPITAL", "HOSPITAL-B", "B 医院");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "facility-b", "tenant-root", "tenant-A", "/TENANT-A/FACILITY-B", "FACILITY", "FACILITY-B", "B 机构", "HOSPITAL");
         jdbc.update("""
             INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
             VALUES
               ('tenant-A', 'tenant-root', 'tenant-root', 0),
-              ('tenant-A', 'tenant-root', 'hospital-a', 1),
+              ('tenant-A', 'tenant-root', 'facility-a', 1),
               ('tenant-A', 'tenant-root', 'dept-a', 2),
-              ('tenant-A', 'tenant-root', 'hospital-b', 1),
-              ('tenant-A', 'hospital-a', 'hospital-a', 0),
-              ('tenant-A', 'hospital-a', 'dept-a', 1),
+              ('tenant-A', 'tenant-root', 'facility-b', 1),
+              ('tenant-A', 'facility-a', 'facility-a', 0),
+              ('tenant-A', 'facility-a', 'dept-a', 1),
               ('tenant-A', 'dept-a', 'dept-a', 0),
-              ('tenant-A', 'hospital-b', 'hospital-b', 0)
+              ('tenant-A', 'facility-b', 'facility-b', 0)
             """);
     }
 }

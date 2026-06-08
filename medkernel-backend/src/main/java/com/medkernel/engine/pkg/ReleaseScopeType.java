@@ -8,14 +8,14 @@ package com.medkernel.engine.pkg;
 public enum ReleaseScopeType {
     /** 全体 */
     ALL,
-    /** 指定集团 */
-    GROUP,
-    /** 指定医院 */
-    HOSPITAL,
+    /** 指定区域 / 联合体 */
+    REGION,
+    /** 指定机构 */
+    FACILITY,
     /** 指定院区 */
     CAMPUS,
-    /** 指定社区服务点 */
-    SITE,
     /** 指定科室 */
-    DEPARTMENT
+    DEPARTMENT,
+    /** 指定病区 */
+    WARD
 }

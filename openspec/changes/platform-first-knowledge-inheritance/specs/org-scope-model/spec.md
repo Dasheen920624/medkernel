@@ -16,16 +16,16 @@
 - **WHEN** 某医院无独立院区，科室直接挂在 FACILITY 之下
 - **THEN** 组织校验通过（跳过 CAMPUS）
 
-#### Scenario: 独立卫生院直挂租户
-- **WHEN** 一个独立社区卫生服务中心无集团，直接挂在 TENANT 之下
+#### Scenario: 独立基层机构直挂租户
+- **WHEN** 一个独立社区卫生服务中心无 REGION，直接挂在 TENANT 之下
 - **THEN** 组织校验通过
 
 ### Requirement: 专病为横切维度而非组织节点
 专病（SPECIALTY，如房颤/脓毒症）SHALL 建模为横切作用域维度（applicableScope），可与任意组织节点组合，SHALL NOT 作为组织树叶子强绑单一科室。
 
 #### Scenario: 跨科室专病覆盖
-- **WHEN** 平台发布"房颤抗凝"包（specialty=AF 维度），分院在 specialty=AF 维度做覆盖
-- **THEN** 该覆盖对分院内所有涉及房颤的科室（心内、急诊…）生效，不受单一科室树位限制
+- **WHEN** 平台发布"房颤抗凝"包（specialty=AF 维度），FACILITY 在 specialty=AF 维度做覆盖
+- **THEN** 该覆盖对该机构内所有涉及房颤的科室（心内、急诊…）生效，不受单一科室树位限制
 
 ### Requirement: 平台层高于租户
 组织根 SHALL 为 TENANT；PLATFORM SHALL 为高于所有租户的独立权威层，不再由 TENANT 兼任"平台根"。

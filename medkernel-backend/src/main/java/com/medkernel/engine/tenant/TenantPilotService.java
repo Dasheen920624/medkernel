@@ -285,13 +285,13 @@ public class TenantPilotService {
             .filter(root -> root.level() == OrgLevel.TENANT)
             .filter(OrgUnit::isActive)
             .isPresent();
-        boolean hasHospital = orgUnitRepository.findByTenantIdAndLevelOrderByCodeAsc(tenantId, OrgLevel.HOSPITAL)
+        boolean hasFacility = orgUnitRepository.findByTenantIdAndLevelOrderByCodeAsc(tenantId, OrgLevel.FACILITY)
             .stream()
             .anyMatch(OrgUnit::isActive);
-        if (hasTenantRoot && hasHospital) {
-            return done("ORGANIZATION", "组织树", "/tenant/onboarding", "已建立租户根与医院节点");
+        if (hasTenantRoot && hasFacility) {
+            return done("ORGANIZATION", "组织树", "/tenant/onboarding", "已建立租户根与机构节点");
         }
-        return blocked("ORGANIZATION", "组织树", "/tenant/onboarding", "组织树缺少租户根或医院节点");
+        return blocked("ORGANIZATION", "组织树", "/tenant/onboarding", "组织树缺少租户根或机构节点");
     }
 
     private ImplementationStep usersStep(String tenantId) {

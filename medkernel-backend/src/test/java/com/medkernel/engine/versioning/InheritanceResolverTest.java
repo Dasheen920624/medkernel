@@ -13,6 +13,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
@@ -42,9 +43,9 @@ class InheritanceResolverTest {
 
     @Test
     void resolvesNearestLocalOverrideAndExplainsDiffReason() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospitalA = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
-        OrgUnit hospitalB = org("hospital-b", "group-1", "/TENANT-A/GROUP-A/HOSP-B", OrgLevel.HOSPITAL, "HOSP-B");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospitalA = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
+        OrgUnit hospitalB = org("hospital-b", "group-1", "/TENANT-A/GROUP-A/HOSP-B", OrgLevel.FACILITY, "HOSP-B");
         AssetVersion groupV1 = version(
             "av-group-v1",
             "1.0.0",
@@ -123,8 +124,8 @@ class InheritanceResolverTest {
 
     @Test
     void exclusiveOverrideDoesNotPropagateToDescendants() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         OrgUnit department = org("dept-x", "hospital-a", "/TENANT-A/GROUP-A/HOSP-A/DEPT-X", OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion groupV1 = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
         AssetVersion hospitalExclusive = version(
@@ -309,8 +310,8 @@ class InheritanceResolverTest {
 
     @Test
     void disableOverrideAtTargetResolvesToDisabled() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
         InheritanceOverride disable = disableOverride(
             "io-disable-hosp", groupV1.versionId(), HOSP_PATH, InheritancePropagation.INHERITABLE);
@@ -332,8 +333,8 @@ class InheritanceResolverTest {
 
     @Test
     void inheritableDisablePropagatesToDescendant() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
         InheritanceOverride disable = disableOverride(
@@ -355,8 +356,8 @@ class InheritanceResolverTest {
 
     @Test
     void exclusiveDisableDoesNotPropagateButAppliesAtOwnNode() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
         InheritanceOverride disable = disableOverride(
@@ -387,8 +388,8 @@ class InheritanceResolverTest {
 
     @Test
     void disableOfLockedBaselineIsRefusedAndInheritsLockedVersion() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion groupLocked = version(
             "av-group-locked", "1.0.0", GROUP_PATH,
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
@@ -416,8 +417,8 @@ class InheritanceResolverTest {
 
     @Test
     void disableOfPlatformLockedBaselineIsRefusedAndFallsBackToPlatform() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion platformLocked = platformVersion(
             "av-platform-locked", "1.0.0",
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
@@ -442,8 +443,8 @@ class InheritanceResolverTest {
 
     @Test
     void replaceOfPlatformLockedBaselineWithoutDomainCheckFallsBackToPlatform() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion platformLocked = platformVersion(
             "av-platform-locked", "1.0.0",
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED, HASH_BASELINE);
@@ -473,8 +474,8 @@ class InheritanceResolverTest {
 
     @Test
     void unmatchedTenantInheritsPlatformBaselineWithPlatformTier() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
 
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
@@ -496,8 +497,8 @@ class InheritanceResolverTest {
 
     @Test
     void tenantOwnVersionShadowsPlatformBaselineWithOrgTier() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion hospitalOwn = version("av-hosp-own", "1.0.0-hosp-a", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
         AssetVersion platformV0 = platformVersion("av-platform-v0", "9.9.9");
 
@@ -522,8 +523,8 @@ class InheritanceResolverTest {
 
     @Test
     void missingPlatformBaselineResolvesNotFoundHonestly() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         // 组织闭包与平台均无 ACTIVE 基线（默认空）：诚实降级 NOT_FOUND，不伪造
 
@@ -538,8 +539,8 @@ class InheritanceResolverTest {
 
     @Test
     void exclusiveReplaceSkippedFallsThroughToPlatformBaseline() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion hospitalExclusive =
             version("av-hosp-excl", "1.0.0-hosp-a", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
@@ -566,8 +567,8 @@ class InheritanceResolverTest {
 
     @Test
     void exclusiveDisableSkippedFallsThroughToPlatformBaseline() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
         InheritanceOverride disable = disableOverride(
@@ -588,8 +589,8 @@ class InheritanceResolverTest {
 
     @Test
     void inheritableReplaceShadowsPlatformBaselineForDescendant() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion groupOverride =
             version("av-group-ovr", "1.0.0-grp", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
         AssetVersion platformV0 = platformVersion("av-platform-v0", "9.9.9");
@@ -614,8 +615,8 @@ class InheritanceResolverTest {
 
     @Test
     void inheritableDisableShadowsPlatformBaselineForDescendant() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion platformV0 = platformVersion("av-platform-v0", "1.0.0");
         InheritanceOverride disable = disableOverride(
             "io-group-disable", platformV0.versionId(), GROUP_PATH, InheritancePropagation.INHERITABLE);
@@ -636,8 +637,8 @@ class InheritanceResolverTest {
 
     @Test
     void deepestOrgReplaceWinsOverGroupAndPlatform() {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         OrgUnit dept = org("dept-x", "hospital-a", DEPT_PATH, OrgLevel.DEPARTMENT, "DEPT-X");
         AssetVersion groupOverride =
             version("av-group-ovr", "1.0.0-grp", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
@@ -673,9 +674,9 @@ class InheritanceResolverTest {
         String assetIdentity = "TERMINOLOGY.LOINC.718-7";
         String applicableScope = "ALL";
         String sitePath = HOSP_PATH + "/SITE-1";
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
-        OrgUnit site = org("site-1", "hospital-a", sitePath, OrgLevel.SITE, "SITE-1");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
+        OrgUnit site = org("site-1", "hospital-a", sitePath, OrgLevel.FACILITY, "SITE-1");
         AssetVersion platform = terminologyVersion(
             "av-term-platform", "LOINC-2026", PlatformAuthority.PLATFORM_TENANT_ID,
             PlatformAuthority.PLATFORM_ORG_PATH, assetIdentity, applicableScope);
@@ -912,8 +913,8 @@ class InheritanceResolverTest {
             AssetVersion groupBaseline,
             AssetVersion hospitalOverrideVersion,
             InheritanceOverride overrideRecord) {
-        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A", VersionedAssetType.RULE,
@@ -943,6 +944,7 @@ class InheritanceResolverTest {
             code,
             code,
             null,
+            level == OrgLevel.FACILITY ? OrgFacilityType.HOSPITAL : null,
             null,
             OrgUnitStatus.ACTIVE,
             Instant.parse("2026-06-03T08:00:00Z"),

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
+import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.org.OrgUnitRepository;
@@ -217,8 +218,8 @@ class TenantPilotServiceTest {
     private void seedAllReadinessPrerequisites() {
         Instant now = Instant.now();
         OrgUnit tenant = orgUnitRepo.save(org(null, OrgLevel.TENANT, "TENANT-PILOT", "/TENANT-PILOT"));
-        OrgUnit group = orgUnitRepo.save(org(tenant.id(), OrgLevel.GROUP, "GROUP-PILOT", "/TENANT-PILOT/GROUP-PILOT"));
-        OrgUnit hospital = orgUnitRepo.save(org(group.id(), OrgLevel.HOSPITAL, "HOSP-PILOT", "/TENANT-PILOT/GROUP-PILOT/HOSP-PILOT"));
+        OrgUnit group = orgUnitRepo.save(org(tenant.id(), OrgLevel.REGION, "GROUP-PILOT", "/TENANT-PILOT/GROUP-PILOT"));
+        OrgUnit hospital = orgUnitRepo.save(org(group.id(), OrgLevel.FACILITY, "HOSP-PILOT", "/TENANT-PILOT/GROUP-PILOT/HOSP-PILOT"));
 
         credentialRepo.save(new PlatformCredential(
             null, "cred-pilot-01", tenantId, "doctor-1", "doctor-1",
@@ -226,7 +227,7 @@ class TenantPilotServiceTest {
             now, actor, now, actor, traceId
         ));
         roleAssignmentRepo.save(new UserRoleAssignment(
-            null, tenantId, "doctor-1", RoleCode.DOCTOR.code(), OrgLevel.HOSPITAL.name(), hospital.id(),
+            null, tenantId, "doctor-1", RoleCode.DOCTOR.code(), OrgLevel.FACILITY.name(), hospital.id(),
             "Y", now, actor, now, actor
         ));
         adapterRepo.save(new IntegrationAdapter(
@@ -241,7 +242,7 @@ class TenantPilotServiceTest {
         ));
         releasePlanRepo.save(new ReleasePlan(
             null, "plan-gray-01", tenantId, "pkg-readiness-01", hospital.id(),
-            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL, hospital.id(), ReleasePlanStatus.SUCCESS,
+            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
             now, actor, now, actor, traceId
         ));
     }
@@ -257,6 +258,7 @@ class TenantPilotServiceTest {
             code,
             code,
             null,
+            level == OrgLevel.FACILITY ? OrgFacilityType.HOSPITAL : null,
             null,
             OrgUnitStatus.ACTIVE,
             now,

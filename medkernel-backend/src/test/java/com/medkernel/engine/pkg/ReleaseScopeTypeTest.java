@@ -11,6 +11,6 @@ class ReleaseScopeTypeTest {
     @Test
     void containsOnlyOrganizationScopeValues() {
         assertThat(Arrays.stream(ReleaseScopeType.values()).map(Enum::name))
-            .containsExactly("ALL", "GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT");
+            .containsExactly("ALL", "REGION", "FACILITY", "CAMPUS", "DEPARTMENT", "WARD");
     }
 }

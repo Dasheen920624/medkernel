@@ -83,7 +83,7 @@ class AuthoringBatchJobControllerTest {
                           "packageId": "package-1",
                           "targetOrgUnitId": "hospital-offline",
                           "strategy": "FULL",
-                          "scopeType": "HOSPITAL",
+                          "scopeType": "FACILITY",
                           "scopeValue": "hospital-offline",
                           "adapterIds": ["fhir"],
                           "reason": "批量分发"

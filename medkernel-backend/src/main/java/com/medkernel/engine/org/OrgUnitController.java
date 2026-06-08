@@ -116,11 +116,27 @@ public class OrgUnitController {
             dto.code(),
             dto.name(),
             dto.namePinyin(),
+            dto.facilityType(),
             dto.specialtyId(),
             dto.status(),
             null, null, null, null
         );
         return ApiResult.ok(service.createOrgUnit(input));
+    }
+
+    @GetMapping("/{code}/resolution-path")
+    @PreAuthorize("@perm.has('org.read')")
+    public ApiResult<List<OrgUnit>> resolutionPath(@PathVariable String code) {
+        return ApiResult.ok(service.resolutionPathByCurrentTenant(code));
+    }
+
+    @PostMapping("/{id}/secondary-parents")
+    @PreAuthorize("@perm.has('org.write')")
+    public ApiResult<Void> addSecondaryParent(
+            @PathVariable String id,
+            @Valid @RequestBody OrgSecondaryParentDto dto) {
+        service.addSecondaryParent(id, dto.secondaryParentId(), dto.relationCode(), dto.priority() == null ? 0 : dto.priority());
+        return ApiResult.ok(null);
     }
 
     /**
@@ -139,7 +155,18 @@ public class OrgUnitController {
         String name,
 
         String namePinyin,
+        OrgFacilityType facilityType,
         String specialtyId,
         OrgUnitStatus status
+    ) {}
+
+    /**
+     * 组织次级归属创建传输对象。
+     */
+    public record OrgSecondaryParentDto(
+        @NotBlank(message = "次级父节点不能为空")
+        String secondaryParentId,
+        String relationCode,
+        Integer priority
     ) {}
 }

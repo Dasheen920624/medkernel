@@ -22,7 +22,7 @@ public final class DomainOwnershipCatalog {
             tables("sys_role", "sys_permission", "role_permission", "user_role_assignment",
                 "platform_credential", "emergency_permission_grant", "sys_login_attempt",
                 "sys_password_reset_token", "tenant_user")),
-        module("engine-org", packages("com.medkernel.engine.org"), prefixes("org_"), tables()),
+        module("engine-org", packages("com.medkernel.engine.org"), prefixes("org_", "mk_org_"), tables()),
         module("engine-context", packages("com.medkernel.engine.context"),
             prefixes("context_", "clinical_event", "mk_context_"),
             tables("canonical_resource")),

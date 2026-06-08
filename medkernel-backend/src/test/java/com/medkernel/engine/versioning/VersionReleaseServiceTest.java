@@ -38,7 +38,7 @@ class VersionReleaseServiceTest {
     @Test
     void releaseScopeTypeContainsOnlyOrganizationScopeValues() {
         assertThat(Arrays.stream(VersionReleaseScopeType.values()).map(Enum::name))
-            .containsExactly("ALL", "GROUP", "HOSPITAL", "CAMPUS", "SITE", "DEPARTMENT");
+            .containsExactly("ALL", "REGION", "FACILITY", "CAMPUS", "DEPARTMENT", "WARD");
     }
 
     @BeforeEach
@@ -118,7 +118,7 @@ class VersionReleaseServiceTest {
         assertThat(review.status()).isEqualTo(VersionReleaseStatus.PENDING_REVIEW);
         assertThat(observation.status()).isEqualTo(VersionReleaseStatus.SILENT_OBSERVATION);
         assertThat(gray.status()).isEqualTo(VersionReleaseStatus.GRAY);
-        assertThat(gray.scopeType()).isEqualTo(VersionReleaseScopeType.HOSPITAL);
+        assertThat(gray.scopeType()).isEqualTo(VersionReleaseScopeType.FACILITY);
         assertThat(gray.scopeValue()).contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"");
         assertThat(gray.scopeValue()).contains("\"percentage\":10");
         assertThat(full.status()).isEqualTo(VersionReleaseStatus.FULL);

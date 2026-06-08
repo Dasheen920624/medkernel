@@ -4,7 +4,7 @@
 
 ## P0 底座补齐（解析可用，不接业务）
 - [x] 1.0 **组织/作用域模型修正（附录 O，最小集先行）**：加 PLATFORM 层（与 TENANT 分离）；放宽 `OrgLevel.canHaveParent` 允许跳级；SPECIALTY 专病从树迁为横切维度（applicableScope）；BED_PERCENT 从作用域迁为 `RolloutStrategy`；发布作用域枚举只保留组织层级
-- [ ] 1.0b（二期）组织树补全：GROUP→REGION 泛化、HOSPITAL/SITE→FACILITY+facilityType 归一、WARD 病区层、可选 DAG 次级归属
+- [x] 1.0b（二期）组织树补全：GROUP→REGION 泛化、HOSPITAL/SITE→FACILITY+facilityType 归一、WARD 病区层、可选 DAG 次级归属
 - [x] 1.1 `InheritanceOverride` 增 `propagation`（INHERITABLE/EXCLUSIVE，默认 INHERITABLE）+ `override_policy`（FREE/REVIEW/LOCKED）+ 多方言迁移
 - [x] 1.2 升级 `InheritanceResolver.resolve()`：平台基线 → org 闭包覆盖链（最具体优先、尊重传播、维度 applicableScope 命中、tie-break 确定性、LOCKED 护栏），返回 `ResolvedAsset{effective, sourceTier, overrideId, contentHash}`
 - [x] 1.3 平台空间约定（D1=a）：`__platform__` 租户 + 顶层 org_path；AssetVersion 平台 ACTIVE 读取
@@ -17,7 +17,7 @@
 - [x] 2.2 平台标准字典 = PLATFORM 归属；院内 `LocalTerm`/`TermMapping` 表达为租户覆盖
 - [x] 2.3 读路径（标准字典/对照覆盖）改走 `InheritanceResolver`，旧路径诚实降级桥
 - [x] 2.4 `TermMappingPackage(+Release)` 视图桥接到 `PackageItem`（assetType=TERMINOLOGY）
-- [x] 2.5 端到端验证：平台标准下发→集团 INHERITABLE 定制→分院 REPLACE→卫生院 DISABLE
+- [x] 2.5 端到端验证：平台标准下发→REGION INHERITABLE 定制→FACILITY REPLACE→基层 FACILITY DISABLE
 
 ## P2 rule + pathway
 - [x] 3.1 `RuleVersionedAssetAdapter` / `PathwayVersionedAssetAdapter`

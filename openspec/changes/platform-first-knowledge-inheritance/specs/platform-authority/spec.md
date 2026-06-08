@@ -16,9 +16,9 @@
 ### Requirement: 平台版本更新自动惠及未覆盖方
 平台发布并激活某身份的新版本后，系统 SHALL 使所有引用该身份且未对其 REPLACE 的租户/机构在下次解析时自动获得新版本，无需任何租户级复制或同步动作。
 
-#### Scenario: 平台升级规则后未定制分院自动跟随
-- **WHEN** 平台将身份 A 激活到 v2，分院 B 未对 A 做 REPLACE
-- **THEN** 分院 B 下次 `resolve(A, B)` 返回 v2
+#### Scenario: 平台升级规则后未定制机构自动跟随
+- **WHEN** 平台将身份 A 激活到 v2，机构 B 未对 A 做 REPLACE
+- **THEN** 机构 B 下次 `resolve(A, B)` 返回 v2
 
 ### Requirement: 引用而非复制
 租户开通与日常使用 SHALL NOT 为租户预先复制平台资产副本；租户对平台资产 SHALL 以 `asset_identity` 引用持有。
