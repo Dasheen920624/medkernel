@@ -397,6 +397,56 @@ describe("PathwayTemplates 三层路径配置体验", () => {
   );
 
   it(
+    "路径原型向导生成可提交的默认拓扑草稿",
+    async () => {
+      apiMocks.packagesData = { items: [specialtyPackage], total: 1 };
+      apiMocks.createTemplate.mockResolvedValue(createTemplateDetail());
+      const user = userEvent.setup();
+      renderPathwayTemplates();
+
+      await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
+      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+
+      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
+
+      await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
+      const payload = apiMocks.createTemplate.mock.calls[0][0] as {
+        packageId: string;
+        templateCode: string;
+        diseaseCode: string;
+        startNodeCode: string;
+        milestones: Array<{ milestoneCode: string; dayOffset?: number }>;
+        nodes: Array<{ nodeCode: string; terminal?: boolean }>;
+        edges: Array<{ edgeCode: string; fromNodeCode: string; toNodeCode: string }>;
+      };
+      expect(payload.packageId).toBe(specialtyPackage.packageId);
+      expect(payload.templateCode).toBe("PATH.ED.DISPOSITION");
+      expect(payload.diseaseCode).toBe("ED");
+      expect(payload.startNodeCode).toBe("ASSESS");
+      expect(payload.milestones).toEqual(
+        expect.arrayContaining([expect.objectContaining({ milestoneCode: "M-ED-ASSESS" })]),
+      );
+      expect(payload.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ nodeCode: "ASSESS" }),
+          expect.objectContaining({ nodeCode: "DISPOSITION", terminal: true }),
+        ]),
+      );
+      expect(payload.edges).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            edgeCode: "E-ASSESS-DISPOSITION",
+            fromNodeCode: "ASSESS",
+            toNodeCode: "DISPOSITION",
+          }),
+        ]),
+      );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "路径边条件复用递归条件树构建器并同步为嵌套 guard",
     async () => {
       apiMocks.packagesData = { items: [specialtyPackage], total: 1 };

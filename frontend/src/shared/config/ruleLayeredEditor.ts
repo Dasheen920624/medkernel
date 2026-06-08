@@ -14,6 +14,7 @@ import { isClinicalTriggerPoint, type ClinicalTriggerPoint } from "./clinicalTri
 
 export type RuleTemplateKey =
   | "clinical_quality_monitor"
+  | "critical_value_report"
   | "drug_safety_review"
   | "insurance_policy_review"
   | "clinical_operator_review";
@@ -134,6 +135,12 @@ export interface RuleLayerTemplate {
   tree: RuleConditionTree;
 }
 
+export const DEFAULT_CRITICAL_RETURN_MINUTES = 15;
+
+export function criticalValueReportDetail(minutes = DEFAULT_CRITICAL_RETURN_MINUTES) {
+  return `命中后须在 ${minutes} 分钟内完成危急值回报、确认与记录，不自动开立或修改医嘱。`;
+}
+
 type RuleDslCondition = {
   fact?: string;
   expr?: RuleExpressionDraft;
@@ -212,6 +219,40 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
       ],
       actions: [{ ...cloneAction(DEFAULT_ACTION), atSeverity: "MEDIUM", indicator: "warning" }],
       explanationSummary: "依据真实上下文快照中的数值字段进行确定性判断",
+    },
+  },
+  {
+    key: "critical_value_report",
+    title: "危急值回报",
+    description: "按检验结果字段、危急阈值和回报时限生成红线提醒草稿。",
+    ruleType: "QUALITY",
+    riskLevel: "CRITICAL",
+    tree: {
+      triggerPoint: "result-review",
+      applicability: createDefaultRuleApplicability(),
+      logic: "all",
+      conditions: [
+        {
+          id: "condition-1",
+          label: "危急检验结果",
+          fact: "observations[].valueNumeric",
+          operator: "gte",
+          value: "",
+          valueKind: "number",
+        },
+      ],
+      actions: [
+        {
+          ...cloneAction(DEFAULT_ACTION),
+          actionCode: "STRONG_REMINDER",
+          atSeverity: "CRITICAL",
+          indicator: "critical",
+          summary: "检验结果达到危急值，需立即回报并人工确认",
+          detail: criticalValueReportDetail(),
+          source: { label: "检验危急值管理制度" },
+        },
+      ],
+      explanationSummary: "依据真实检验结果字段判断是否达到危急值",
     },
   },
   {

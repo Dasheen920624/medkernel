@@ -102,8 +102,10 @@ import {
 } from "@/shared/config/ruleOperatorCatalog";
 import {
   RULE_LAYER_TEMPLATES,
+  DEFAULT_CRITICAL_RETURN_MINUTES,
   conditionNeedsValue,
   conditionTreeToDsl,
+  criticalValueReportDetail,
   createRuleActionDraft,
   createExplanationTemplate,
   dslToConditionTree,
@@ -503,6 +505,9 @@ export default function RuleDefinitions() {
   const [detailExpertMode, setDetailExpertMode] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] =
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
+  const [criticalReturnMinutes, setCriticalReturnMinutes] = useState<number>(
+    DEFAULT_CRITICAL_RETURN_MINUTES,
+  );
   const [conditionTree, setConditionTree] = useState<RuleConditionTree>(createDefaultTree);
   const [populationIncludeTree, setPopulationIncludeTree] =
     useState<PopulationConditionTree | null>(null);
@@ -646,6 +651,7 @@ export default function RuleDefinitions() {
     setPopulationIncludeTree(toPopulationConditionTree(nextTree.applicability.population.include));
     setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
+    setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
       ruleType: template.ruleType,
@@ -689,12 +695,13 @@ export default function RuleDefinitions() {
     setPopulationIncludeTree(toPopulationConditionTree(nextTree.applicability.population.include));
     setPopulationExcludeTree(toPopulationConditionTree(nextTree.applicability.population.exclude));
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
+    setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     createForm.setFieldsValue({
       ruleType: template.ruleType,
       triggerPoint: nextTree.triggerPoint,
       riskLevel: template.riskLevel,
     });
-    setActiveCreateLayer("l2");
+    setActiveCreateLayer(templateKey === "critical_value_report" ? "l1" : "l2");
   };
 
   const buildRuleDslFromRoot = (
@@ -1607,6 +1614,49 @@ export default function RuleDefinitions() {
       return undefined;
     };
     return find(conditionRoot);
+  })();
+  const firstCondition = ((): RuleCondition | undefined => {
+    const find = (node: RuleConditionNode): RuleCondition | undefined => {
+      if (!isConditionGroup(node)) return node;
+      for (const child of node.children) {
+        const found = find(child);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    return find(conditionRoot);
+  })();
+
+  const updateCriticalValueField = (fieldPath: string) => {
+    if (!firstLeafId) return;
+    updateCondition(firstLeafId, {
+      label: "危急检验结果",
+      fact: fieldPath,
+      operator: "gte",
+      valueKind: "number",
+    });
+  };
+
+  const updateCriticalThreshold = (value: number | null) => {
+    if (!firstLeafId) return;
+    updateCondition(firstLeafId, {
+      operator: "gte",
+      value: value ?? "",
+      valueKind: "number",
+    });
+  };
+
+  const updateCriticalReturnMinutes = (value: number | null) => {
+    const minutes = Math.max(1, Math.round(value ?? DEFAULT_CRITICAL_RETURN_MINUTES));
+    setCriticalReturnMinutes(minutes);
+    updateAction(0, {
+      detail: criticalValueReportDetail(minutes),
+    });
+  };
+  const criticalThresholdValue = (() => {
+    if (typeof firstCondition?.value === "number") return firstCondition.value;
+    const numeric = Number(firstCondition?.value);
+    return Number.isFinite(numeric) ? numeric : undefined;
   })();
 
   const renderConditionLeaf = (condition: RuleCondition) => {
@@ -3171,7 +3221,7 @@ export default function RuleDefinitions() {
           >
             <Space direction="vertical" className="mk-full-width">
               {RULE_LAYER_TEMPLATES.map((template) => (
-                <Radio key={template.key} value={template.key}>
+                <Radio key={template.key} value={template.key} aria-label={template.title}>
                   <Space direction="vertical" size={0}>
                     <Text strong>{template.title}</Text>
                     <Text type="secondary">{template.description}</Text>
@@ -3180,6 +3230,52 @@ export default function RuleDefinitions() {
               ))}
             </Space>
           </Radio.Group>
+          {selectedTemplateKey === "critical_value_report" && (
+            <div className={styles.editorSection}>
+              <Row gutter={16}>
+                <Col xs={24} md={10}>
+                  <Form.Item label="检验结果字段" htmlFor="critical-value-field">
+                    <AutoComplete
+                      id="critical-value-field"
+                      value={firstCondition?.fact ?? ""}
+                      options={fieldCatalogOptions}
+                      filterOption={(input, option) => {
+                        const leaf = option as { value?: string; label?: string } | undefined;
+                        const haystack = `${leaf?.value ?? ""} ${leaf?.label ?? ""}`.toLowerCase();
+                        return haystack.includes(input.toLowerCase());
+                      }}
+                      onSelect={updateCriticalValueField}
+                      onChange={updateCriticalValueField}
+                      placeholder="如 observations[].valueNumeric"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={7}>
+                  <Form.Item label="危急阈值" htmlFor="critical-threshold">
+                    <InputNumber
+                      id="critical-threshold"
+                      value={criticalThresholdValue}
+                      onChange={updateCriticalThreshold}
+                      className="mk-full-width"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={7}>
+                  <Form.Item label="回报时限分钟" htmlFor="critical-return-minutes">
+                    <InputNumber
+                      id="critical-return-minutes"
+                      min={1}
+                      max={1440}
+                      precision={0}
+                      value={criticalReturnMinutes}
+                      onChange={updateCriticalReturnMinutes}
+                      className="mk-full-width"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </div>
+          )}
         </>
       ),
     },
