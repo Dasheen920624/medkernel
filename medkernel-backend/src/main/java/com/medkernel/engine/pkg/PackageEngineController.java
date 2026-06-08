@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -34,9 +35,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class PackageEngineController {
 
     private final PackageEngineService service;
+    private final PackageInheritanceImpactService inheritanceImpactService;
 
-    public PackageEngineController(PackageEngineService service) {
+    public PackageEngineController(
+            PackageEngineService service,
+            PackageInheritanceImpactService inheritanceImpactService) {
         this.service = service;
+        this.inheritanceImpactService = inheritanceImpactService;
     }
 
     /**
@@ -102,6 +107,27 @@ public class PackageEngineController {
     @PreAuthorize("@perm.has('package.read')")
     public ApiResult<PackageAssetReadinessResponse> assetReadiness() {
         return ApiResult.ok(service.getAssetReadiness());
+    }
+
+    /**
+     * 查询平台上游版本变更对当前租户继承链的影响与 rebase 提示。
+     *
+     * <p>权限：{@code package.read}。
+     */
+    @GetMapping("/inheritance-impact")
+    @PreAuthorize("@perm.has('package.read')")
+    public ApiResult<PackageInheritanceImpactResponse> inheritanceImpact(
+            @RequestParam VersionedAssetType assetType,
+            @RequestParam String assetIdentity,
+            @RequestParam String applicableScope,
+            @RequestParam String upstreamVersionId) {
+        return ApiResult.ok(inheritanceImpactService.analyze(
+            RequestContext.currentOrgScope().tenantId(),
+            assetType,
+            assetIdentity,
+            applicableScope,
+            upstreamVersionId
+        ));
     }
 
     /**

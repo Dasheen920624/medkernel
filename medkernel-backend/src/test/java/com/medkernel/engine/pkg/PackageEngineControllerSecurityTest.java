@@ -147,6 +147,9 @@ class PackageEngineControllerSecurityTest {
     @MockBean
     PackageEngineService service;
 
+    @MockBean
+    PackageInheritanceImpactService inheritanceImpactService;
+
     @AfterEach
     void clearAll() {
         RequestContext.clear();
@@ -439,6 +442,66 @@ class PackageEngineControllerSecurityTest {
             .andExpect(jsonPath("$.data.templateCode").value("TPL.FIRST_RUN"))
             .andExpect(jsonPath("$.data.references[0].referenceId").value("ref-first-run"))
             .andExpect(jsonPath("$.data.references[0].packageCode").value("PKG.FIRST.RUN"));
+    }
+
+    @Test
+    void authorizedUserCanReadInheritanceImpactView() throws Exception {
+        when(inheritanceImpactService.analyze(
+            eq("tenant-A"),
+            eq(VersionedAssetType.RULE),
+            eq("RULE.VTE.RISK"),
+            eq("adult|inpatient"),
+            eq("av-platform-v2")
+        )).thenReturn(new PackageInheritanceImpactResponse(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            "adult|inpatient",
+            "1.0.0",
+            "2.0.0",
+            1,
+            1,
+            new PackageDiffResponse(
+                "RULE.VTE.RISK",
+                "1.0.0",
+                "2.0.0",
+                0,
+                1,
+                0,
+                List.of("org-hosp"),
+                List.of(new PackageDiffChange(
+                    PackageDiffChangeType.UPDATED,
+                    VersionedAssetType.RULE,
+                    "RULE.VTE.RISK",
+                    "1.0.0",
+                    "2.0.0"
+                ))
+            ),
+            List.of(new PackageInheritanceImpactTarget(
+                "org-hosp",
+                "/TENANT-A/FACILITY-HOSP",
+                PackageInheritanceImpactType.AUTO_INHERITS_UPSTREAM,
+                "av-platform-v1",
+                "1.0.0",
+                "PLATFORM",
+                null,
+                "平台新版本激活后自动继承"
+            ))
+        ));
+
+        mvc.perform(get(PKG_ROOT + "/inheritance-impact")
+                .param("assetType", "RULE")
+                .param("assetIdentity", "RULE.VTE.RISK")
+                .param("applicableScope", "adult|inpatient")
+                .param("upstreamVersionId", "av-platform-v2")
+                .with(jwt()
+                    .jwt(token -> token.subject("tester").claim("tenant_id", "tenant-A"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_IT_OPS"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.upstreamTargetVersion").value("2.0.0"))
+            .andExpect(jsonPath("$.data.autoInheritedCount").value(1))
+            .andExpect(jsonPath("$.data.rebaseRequiredCount").value(1))
+            .andExpect(jsonPath("$.data.targets[0].impactType").value("AUTO_INHERITS_UPSTREAM"));
     }
 
     @Test
