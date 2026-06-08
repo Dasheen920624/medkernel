@@ -41,7 +41,7 @@ public class DataScopeAspect {
             throw ApiException.tenantMissing();
         }
         // requireAtLeast=TENANT 是默认值，等价于"只要求租户"，由上面的 requireTenant 校验覆盖；
-        // 仅当要求严于 TENANT（即 GROUP/HOSPITAL/CAMPUS/SITE/DEPARTMENT）时才追加组织树校验。
+        // 仅当要求严于 TENANT（即 REGION/FACILITY/CAMPUS/DEPARTMENT/WARD）时才追加组织树校验。
         if (annotation.requireAtLeast() != OrgLevel.TENANT
                 && !satisfiesAtLeast(scope, annotation.requireAtLeast())) {
             throw new ApiException(ErrorCode.DATA_SCOPE_DENIED,
@@ -70,11 +70,11 @@ public class DataScopeAspect {
             // 平台权威层尚未接入请求作用域（属 P0-1.3 平台空间约定）；普通租户作用域不具备平台权威，按 fail-closed 拒绝
             case PLATFORM -> false;
             case TENANT -> scope.tenantId() != null && !scope.tenantId().isBlank();
-            case GROUP -> notBlank(scope.groupId());
-            case HOSPITAL -> notBlank(scope.hospitalId());
+            case REGION -> notBlank(scope.groupId());
+            case FACILITY -> notBlank(scope.hospitalId()) || notBlank(scope.siteId());
             case CAMPUS -> notBlank(scope.campusId());
-            case SITE -> notBlank(scope.siteId());
             case DEPARTMENT -> notBlank(scope.departmentId());
+            case WARD -> notBlank(scope.departmentId());
         };
     }
 

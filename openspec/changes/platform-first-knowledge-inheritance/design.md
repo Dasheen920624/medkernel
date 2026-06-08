@@ -23,7 +23,7 @@
    覆盖 Override   InheritanceOverride（REPLACE/DISABLE/ADD + propagation + org_path）
 ```
 
-- **身份**：一条规则"成人房颤 CHA₂DS₂-VASc 抗凝建议"在平台、集团、分院看到的都是同一 `asset_identity`；分院的定制是同身份的 override，而非新对象。
+- **身份**：一条规则"成人房颤 CHA₂DS₂-VASc 抗凝建议"在平台、REGION、FACILITY 看到的都是同一 `asset_identity`；机构定制是同身份的 override，而非新对象。
 - **版本**：内容不可变快照，`content_hash` 保证可重放（复用现有 `VersionContentHash`/`VersionReplayService`）。
 - **归属**：版本挂在平台权威层或某 `org_path`（组织树，层级可变可跳级，见附录 O）；横切维度（专病等）经 `applicable_scope` 表达，与组织正交。
 - **包**：平台以知识包发布一束资产版本，作为下发与回滚的原子单位。
@@ -59,8 +59,8 @@
 - **EXCLUSIVE（独有）**：覆盖 **仅本节点** 生效；下级回退到上一层适用版本（通常平台基线）。
 
 这正是"租户维护的版本可设定下级复用还是独有"。示例：
-- 集团总院发"全集团抗凝标准" → GROUP 作用域、INHERITABLE → 各分院、卫生院默认复用。
-- 某分院"仅本院的镇痛路径" → HOSPITAL 作用域、EXCLUSIVE → 其下科室不继承。
+- 区域/医联体发"区域抗凝标准" → REGION 作用域、INHERITABLE → 各机构默认复用。
+- 某机构"仅本机构的镇痛路径" → FACILITY 作用域、EXCLUSIVE → 其下科室/病区不继承。
 
 ### 4.3 最小化原则
 覆盖只存"差异"，不复制整包；未覆盖部分恒指向平台。这保证平台权威统一、租户数据极简、治理清晰。
@@ -151,13 +151,13 @@ effectivePackage(tenant, orgPath, packageIdentity):
 ```
 
 ### 7.3 分发与离线
-- `SyncTarget`/`PackageOfflineImport` 下发的是 **解析后的有效包快照**（供断网卫生院/院内运行时本地执行），但 **权威源永远是平台 + 覆盖增量**；下发快照带 `content_hash` 与来源版本指针，可追溯、可回滚（复用现有 `PackageRollbackRequest`）。
+- `SyncTarget`/`PackageOfflineImport` 下发的是 **解析后的有效包快照**（供断网机构本地执行），但 **权威源永远是平台 + 覆盖增量**；下发快照带 `content_hash` 与来源版本指针，可追溯、可回滚（复用现有 `PackageRollbackRequest`）。
 - `ReleasePlan`/`ReleaseStrategy`/`ReleaseScopeType`/`VersionReleaseScopeType` 收敛到附录 O 的统一模型：组织层级 `OrgLevel` + 横切维度 `ScopeDimension` + 发布策略 `RolloutStrategy`（不再混用单一枚举）。
 
 ## 8. 运行期解析（ClinicalEvent）
 
 - ClinicalEvent 分发时，按就诊 `encounter.orgPath` 解析 **有效规则集/路径集/字典/字段目录**：对相关 `asset_identity` 批量 `resolve`，得到该机构当前权威+定制的有效资产，再执行评估。
-- `cdss`/`cdshook`/`recommendation` 读取统一走解析结果，确保"平台标准 + 本院定制"在床旁一致生效。
+- `cdss`/`cdshook`/`recommendation` 读取统一走解析结果，确保"平台标准 + 本机构定制"在床旁一致生效。
 - 解析结果随 `traceId` 落审计：本次用了平台版本还是某机构覆盖版本、content_hash 多少，保证可解释、可重放。
 - **决策固化**：对一次具体临床决策，解析出的有效资产集 SHALL 以 `VersionReplayBinding` 钉定（asset_identity→content_hash 快照），供事后法律级重放，即使其后平台/覆盖再变也能还原当时依据。
 
@@ -177,7 +177,7 @@ effectivePackage(tenant, orgPath, packageIdentity):
 
 - 开通租户：仅创建租户 org 根 + 授予对平台包的 **引用**与 **覆盖能力**，**不实例化任何副本**。
 - `PilotPackageTemplate` 改义为"开通向导推荐勾选哪些平台包/作用域"，落库的是引用+（可选）初始覆盖，而非整包复制。
-- 集团多院开通：建集团 GROUP 节点 + 各分院 HOSPITAL/CAMPUS、卫生院 SITE、科室 DEPARTMENT/SPECIALTY，全部引用平台；定制按 §4 覆盖。
+- 多机构开通：建 REGION 节点 + 各机构 FACILITY（以 facilityType 区分医院/卫生院/服务站等）、可选 CAMPUS、DEPARTMENT、WARD；专病通过 applicableScope 横切表达，全部引用平台，定制按 §4 覆盖。
 
 ## 10. 治理 / 权限 / 审计
 
@@ -223,13 +223,13 @@ effectivePackage(tenant, orgPath, packageIdentity):
 
 | 场景 | 建模 |
 |---|---|
-| 集团总院统一标准 | 平台包基线 + 集团 GROUP 作用域 INHERITABLE 覆盖（集团级统一项） |
-| 分院在总院基础上定制 | HOSPITAL/CAMPUS REPLACE 覆盖（基于集团/平台版本），propagation 按需 |
-| 分院某项不适用 | HOSPITAL DISABLE 覆盖 |
-| 独立卫生院（自成一套） | SITE 节点：对不需要项 DISABLE + ADD 本院独有，或整体引用平台另配 |
-| 科室/专科细化 | DEPARTMENT/SPECIALTY 覆盖，EXCLUSIVE（仅本科室） |
-| **房颤抗凝** | 平台发"CHA₂DS₂-VASc + HAS-BLED 抗凝建议"规则+路径包；集团统一首选药 INHERITABLE；某分院因肾功能人群调整剂量阈值 REPLACE | 
-| **脓毒症** | 平台发"qSOFA/SOFA + 1h bundle"路径+规则；分院按本院抗菌谱 REPLACE 经验性用药节点，propagation=INHERITABLE 下沉到其急诊科 |
+| 区域/医联体统一标准 | 平台包基线 + REGION 作用域 INHERITABLE 覆盖（区域统一项） |
+| 机构在区域基础上定制 | FACILITY/CAMPUS REPLACE 覆盖（基于区域/平台版本），propagation 按需 |
+| 机构某项不适用 | FACILITY DISABLE 覆盖 |
+| 独立卫生院（自成一套） | FACILITY 节点（facilityType=TOWNSHIP_CLINIC）：对不需要项 DISABLE + ADD 本机构独有，或整体引用平台另配 |
+| 科室/病区/专病细化 | DEPARTMENT/WARD 覆盖；专病经 applicableScope 叠加，EXCLUSIVE 表达仅本节点 |
+| **房颤抗凝** | 平台发"CHA₂DS₂-VASc + HAS-BLED 抗凝建议"规则+路径包；区域统一首选药 INHERITABLE；某机构因肾功能人群调整剂量阈值 REPLACE |
+| **脓毒症** | 平台发"qSOFA/SOFA + 1h bundle"路径+规则；机构按本机构抗菌谱 REPLACE 经验性用药节点，propagation=INHERITABLE 下沉到其急诊科 |
 
 ## 16. 与现有代码精确对接表
 
@@ -240,7 +240,7 @@ effectivePackage(tenant, orgPath, packageIdentity):
 | 版本/激活/回放/回滚 | `VersionReleaseService`/`VersionActivationTransaction`/`VersionReplayService`/`VersionRollbackCommand`/`VersionContentHash` |
 | 端口 | `VersionedAssetPort`（各域实现）/`ReleasePort` |
 | 作用域 | `OrgLevel`(组织树)+`applicable_scope`(横切维度)+`RolloutStrategy`(策略)，收敛 `VersionReleaseScopeType`/`ReleaseScopeType`（附录 O） |
-| 组织层级 | `shared/context/OrgLevel`（放宽 `canHaveParent`，加 PLATFORM/WARD，附录 O） |
+| 组织层级 | `shared/context/OrgLevel`（PLATFORM/TENANT/REGION/FACILITY/CAMPUS/DEPARTMENT/WARD，FACILITY 以 facilityType 区分机构类型，附录 O） |
 | 弃用后继 | `engine/knowledge/KnowledgeSupersession`/`SupersessionType`（附录 L4） |
 | 分发容器 | `engine/pkg/KnowledgePackage`/`PackageItem`/`SyncTarget`/`ReleasePlan`/`PackageDiff*`/`PackageRollbackRequest` |
 | 字典收敛 | `engine/terminology/TermMappingPackage(+Release)` → PackageItem 视图 |

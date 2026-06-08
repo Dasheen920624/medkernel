@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgHierarchyRepository;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
@@ -43,8 +44,8 @@ class InheritanceOverrideServiceTest {
 
     @Test
     void registersLocalOverrideWithRequiredExplanation() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
         AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
 
@@ -81,8 +82,8 @@ class InheritanceOverrideServiceTest {
 
     @Test
     void registersExclusivePropagationWhenRequested() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
         AssetVersion local = version("av-hospital-v1p", "1.0.0-hosp-a", hospital.orgPath(), AssetVersionSafetyPolicy.NORMAL);
 
@@ -113,8 +114,8 @@ class InheritanceOverrideServiceTest {
 
     @Test
     void deniesLowerOrgDisablingInheritedSafetyRedline() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion redline = version("av-redline-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.SAFETY_REDLINE);
 
         when(assetVersions.findByVersionIdAndTenantId(redline.versionId(), "tenant-A")).thenReturn(Optional.of(redline));
@@ -146,8 +147,8 @@ class InheritanceOverrideServiceTest {
 
     @Test
     void registersDisableOverrideWithEvidenceForFreeBaseline() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion inherited = version("av-group-v1", "1.0.0", group.orgPath(), AssetVersionSafetyPolicy.NORMAL);
 
         when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
@@ -184,8 +185,8 @@ class InheritanceOverrideServiceTest {
 
     @Test
     void deniesDisableOfLockedBaseline() {
-        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.GROUP, "GROUP-A");
-        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.HOSPITAL, "HOSP-A");
+        OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion locked = version(
             "av-locked-v1", "1.0.0", group.orgPath(),
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.LOCKED);
@@ -228,6 +229,7 @@ class InheritanceOverrideServiceTest {
             code,
             code,
             null,
+            level == OrgLevel.FACILITY ? OrgFacilityType.HOSPITAL : null,
             null,
             OrgUnitStatus.ACTIVE,
             CLOCK.instant(),

@@ -79,7 +79,7 @@ class DataScopeAspectTest {
     }
 
     static class HospitalScopedService {
-        @DataScope(requireTenant = true, requireAtLeast = OrgLevel.HOSPITAL)
+        @DataScope(requireTenant = true, requireAtLeast = OrgLevel.FACILITY)
         public String run() {
             return "hospital-ok";
         }

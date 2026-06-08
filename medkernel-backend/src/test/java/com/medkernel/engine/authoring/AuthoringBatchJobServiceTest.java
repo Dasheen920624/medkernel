@@ -150,7 +150,7 @@ class AuthoringBatchJobServiceTest {
                     "package-1",
                     "hospital-offline",
                     com.medkernel.engine.pkg.ReleaseStrategy.FULL,
-                    com.medkernel.engine.pkg.ReleaseScopeType.HOSPITAL,
+                    com.medkernel.engine.pkg.ReleaseScopeType.FACILITY,
                     "hospital-offline",
                     List.of("fhir"),
                     "批量分发"))));

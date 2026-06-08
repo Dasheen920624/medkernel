@@ -2437,7 +2437,7 @@ class PathwayEngineServiceTest {
         Instant now = Instant.parse("2026-06-06T04:00:00Z");
         return new VersionReleasePlan(
             1L, "vrl-" + status, "tenant-A", type, identity, versionId, null,
-            "/TENANT-A/HOSP-A", "specialty:cardiology", VersionReleaseScopeType.HOSPITAL, null,
+            "/TENANT-A/HOSP-A", "specialty:cardiology", VersionReleaseScopeType.FACILITY, null,
             status, "sha256:impact", "已审核", evidence,
             now, "tester", now, "tester", "trace-pathway");
     }

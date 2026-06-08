@@ -161,6 +161,7 @@ public class OrgUnitService {
             input.code(),
             input.name(),
             input.namePinyin(),
+            input.facilityType(),
             input.specialtyId(),
             input.status() == null ? OrgUnitStatus.ACTIVE : input.status(),
             now,
@@ -198,6 +199,56 @@ public class OrgUnitService {
         OrgUnit unit = repository.findByTenantIdAndCode(tenantId, code)
             .orElseThrow(() -> ApiException.notFound("组织单元 code=" + code));
         return hierarchyRepository.findDescendantsAndSelf(tenantId, unit.id());
+    }
+
+    /**
+     * 查询当前租户下指定组织的继承解析路径：主父链 + 可选次级归属。
+     *
+     * @param code 目标组织编码
+     * @return 解析顺序中的组织列表
+     */
+    public List<OrgUnit> resolutionPathByCurrentTenant(String code) {
+        String tenantId = requireCurrentTenant();
+        OrgUnit unit = repository.findByTenantIdAndCode(tenantId, code)
+            .orElseThrow(() -> ApiException.notFound("组织单元 code=" + code));
+        return hierarchyRepository.findResolutionAncestorsAndSelf(tenantId, unit.id());
+    }
+
+    /**
+     * 为当前租户组织节点新增次级归属，不改变主父链。
+     *
+     * @param childId 子组织节点
+     * @param secondaryParentId 次级父组织节点
+     * @param relationCode 关系编码
+     * @param priority 同子节点多条次级边的稳定排序优先级
+     */
+    @Transactional
+    public void addSecondaryParent(String childId, String secondaryParentId, String relationCode, int priority) {
+        String tenantId = requireCurrentTenant();
+        if (!hasText(childId) || !hasText(secondaryParentId)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "次级归属必须指定子节点与次级父节点");
+        }
+        if (childId.equals(secondaryParentId)) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "组织次级归属不能指向自身");
+        }
+        OrgUnit child = repository.findByTenantIdAndId(tenantId, childId)
+            .orElseThrow(() -> ApiException.notFound("组织单元 id=" + childId));
+        OrgUnit secondaryParent = repository.findByTenantIdAndId(tenantId, secondaryParentId)
+            .orElseThrow(() -> ApiException.notFound("次级父节点 id=" + secondaryParentId));
+        if (!child.level().canHaveParent(secondaryParent.level())) {
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "次级父级层级必须严格高于子级");
+        }
+        if (hierarchyRepository.isDescendant(tenantId, child.id(), secondaryParent.id())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "组织次级归属不能形成环路");
+        }
+        boolean exists = hierarchyRepository.findSecondaryMemberships(tenantId, child.id()).stream()
+            .anyMatch(edge -> edge.secondaryParentId().equals(secondaryParent.id()));
+        if (exists) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "组织次级归属已存在");
+        }
+        String normalizedRelation = hasText(relationCode) ? relationCode.trim() : "MATRIX";
+        hierarchyRepository.insertSecondaryMembership(
+            tenantId, child.id(), secondaryParent.id(), normalizedRelation, Math.max(0, priority), currentActor());
     }
 
     /**
@@ -250,6 +301,7 @@ public class OrgUnitService {
                 node.code(),
                 node.name(),
                 node.namePinyin(),
+                node.facilityType(),
                 node.specialtyId(),
                 node.status(),
                 node.createdAt(),
@@ -311,6 +363,12 @@ public class OrgUnitService {
         }
         if (!input.level().isOrganizationTreeLevel()) {
             throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "专病/平台不是组织树节点，请使用 specialtyId 或 applicableScope 表达横切维度");
+        }
+        if (input.level() == OrgLevel.FACILITY && input.facilityType() == null) {
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "机构节点必须指定 facilityType");
+        }
+        if (input.level() != OrgLevel.FACILITY && input.facilityType() != null) {
+            throw new ApiException(ErrorCode.ORG_LEVEL_INVALID, "仅机构节点允许指定 facilityType");
         }
         if (parent == null) {
             if (input.level() != OrgLevel.TENANT) {

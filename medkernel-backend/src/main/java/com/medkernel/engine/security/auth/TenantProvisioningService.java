@@ -98,7 +98,7 @@ public class TenantProvisioningService {
         }
         Instant now = Instant.now();
         OrgUnit tenantRoot = orgUnits.save(new OrgUnit(
-            null, null, tenantId, "/" + tenantId, OrgLevel.TENANT, tenantId, req.tenantName(), null, null,
+            null, null, tenantId, "/" + tenantId, OrgLevel.TENANT, tenantId, req.tenantName(), null, null, null,
             OrgUnitStatus.ACTIVE, now, actor, now, actor));
         orgHierarchy.insertClosureForNewNode(tenantId, tenantRoot.id(), null);
 

@@ -94,7 +94,7 @@ class OrgUnitServiceTest {
     @Test
     void childrenMapGroupsByParent() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u"));
-        OrgUnit root = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "1");
+        OrgUnit root = sample("t-1", null, OrgLevel.FACILITY, "HOSP-001", "1");
         OrgUnit dept1 = sample("t-1", "1", OrgLevel.DEPARTMENT, "DEPT-A", "2");
         OrgUnit dept2 = sample("t-1", "1", OrgLevel.DEPARTMENT, "DEPT-B", "3");
         Mockito.when(repository.findByTenantIdOrderByLevelAscCodeAsc("t-1"))
@@ -119,7 +119,7 @@ class OrgUnitServiceTest {
     @Test
     void createOrgUnitSuccessfully() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
-        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
+        OrgUnit parent = sample("t-1", null, OrgLevel.FACILITY, "HOSP-001", "parent-1");
         OrgUnit input = sample("t-1", "parent-1", OrgLevel.CAMPUS, "CAMP-002", null);
         OrgUnit expected = sample("t-1", "parent-1", OrgLevel.CAMPUS, "CAMP-002", "20");
 
@@ -139,7 +139,7 @@ class OrgUnitServiceTest {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
         // 父级层级更低（科室）而子级更高（集团）——倒挂，应拒绝
         OrgUnit parent = sample("t-1", null, OrgLevel.DEPARTMENT, "DEPT-001", "parent-1");
-        OrgUnit input = sample("t-1", "parent-1", OrgLevel.GROUP, "GROUP-001", null);
+        OrgUnit input = sample("t-1", "parent-1", OrgLevel.REGION, "GROUP-001", null);
 
         Mockito.when(repository.findByTenantIdAndCode("t-1", "GROUP-001")).thenReturn(Optional.empty());
         Mockito.when(repository.findByTenantIdAndId("t-1", "parent-1")).thenReturn(Optional.of(parent));
@@ -154,7 +154,7 @@ class OrgUnitServiceTest {
     void allowsSkipLevelCreate() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
         // 科室直挂医院（跳过院区 / 服务点）在放宽后应允许
-        OrgUnit parent = sample("t-1", null, OrgLevel.HOSPITAL, "HOSP-001", "parent-1");
+        OrgUnit parent = sample("t-1", null, OrgLevel.FACILITY, "HOSP-001", "parent-1");
         OrgUnit input = sample("t-1", "parent-1", OrgLevel.DEPARTMENT, "DEPT-009", null);
         OrgUnit expected = sample("t-1", "parent-1", OrgLevel.DEPARTMENT, "DEPT-009", "30");
 
@@ -171,7 +171,7 @@ class OrgUnitServiceTest {
     void rejectsInvertedParentLevelOnReparent() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-1"));
         // 把集团迁到科室之下——父级层级更低，倒挂，应拒绝
-        OrgUnit unit = sample("t-1", "tenant-1", OrgLevel.GROUP, "GROUP-001", "group-1");
+        OrgUnit unit = sample("t-1", "tenant-1", OrgLevel.REGION, "GROUP-001", "group-1");
         OrgUnit parent = sample("t-1", "site-1", OrgLevel.DEPARTMENT, "DEPT-001", "dept-1");
 
         Mockito.when(repository.findByTenantIdAndId("t-1", "group-1")).thenReturn(Optional.of(unit));
@@ -210,12 +210,16 @@ class OrgUnitServiceTest {
     }
 
     private OrgUnit sampleHospital(String tenantId) {
-        return sample(tenantId, null, OrgLevel.HOSPITAL, "HOSP-001", "10");
+        return sample(tenantId, null, OrgLevel.FACILITY, "HOSP-001", "10");
     }
 
     private OrgUnit sample(String tenantId, String parentId, OrgLevel level, String code, String id) {
         Instant now = Instant.now();
-        return new OrgUnit(id, parentId, tenantId, "/" + code, level, code, code, null, null,
+        return new OrgUnit(id, parentId, tenantId, "/" + code, level, code, code, null, facilityType(level), null,
             OrgUnitStatus.ACTIVE, now, "system", now, "system");
+    }
+
+    private OrgFacilityType facilityType(OrgLevel level) {
+        return level == OrgLevel.FACILITY ? OrgFacilityType.HOSPITAL : null;
     }
 }

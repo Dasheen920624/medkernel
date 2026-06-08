@@ -362,7 +362,7 @@ public class VersionReleaseService implements ReleasePort {
 
     private ReleaseScope defaultCanaryBedPercentScope(String targetOrgPath) {
         return new ReleaseScope(
-            VersionReleaseScopeType.HOSPITAL,
+            VersionReleaseScopeType.FACILITY,
             "{\"rolloutStrategy\":\"" + RolloutStrategy.CANARY_BED_PERCENT
                 + "\",\"percentage\":10,\"scopeCode\":\"" + required(targetOrgPath, "目标组织路径") + "\"}"
         );

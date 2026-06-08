@@ -7,9 +7,9 @@ package com.medkernel.engine.versioning;
  */
 public enum VersionReleaseScopeType {
     ALL,
-    GROUP,
-    HOSPITAL,
+    REGION,
+    FACILITY,
     CAMPUS,
-    SITE,
-    DEPARTMENT
+    DEPARTMENT,
+    WARD
 }

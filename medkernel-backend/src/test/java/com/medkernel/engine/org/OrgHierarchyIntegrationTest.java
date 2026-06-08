@@ -55,19 +55,21 @@ class OrgHierarchyIntegrationTest {
         RequestContext.restore(new RequestContext.Snapshot("trace-org", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
-        OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
-        OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
-        OrgUnit campus = service.createOrgUnit(input(hospital.id(), OrgLevel.CAMPUS, "CAMP-B", "院区B"));
-        OrgUnit site = service.createOrgUnit(input(campus.id(), OrgLevel.SITE, "SITE-B", "服务点B"));
-        OrgUnit department = service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        OrgUnit region = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-A", "医共体A"));
+        OrgUnit facility = service.createOrgUnit(input(
+            region.id(), OrgLevel.FACILITY, "FAC-B", "医院B", OrgFacilityType.HOSPITAL));
+        OrgUnit campus = service.createOrgUnit(input(facility.id(), OrgLevel.CAMPUS, "CAMP-B", "院区B"));
+        OrgUnit department = service.createOrgUnit(input(campus.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        OrgUnit ward = service.createOrgUnit(input(department.id(), OrgLevel.WARD, "WARD-C", "病区C"));
 
-        assertThat(department.orgPath()).isEqualTo("/TENANT-A/GROUP-A/HOSP-B/CAMP-B/SITE-B/DEPT-C");
-        assertThat(service.orgPathByCurrentTenant("DEPT-C"))
+        assertThat(facility.facilityType()).isEqualTo(OrgFacilityType.HOSPITAL);
+        assertThat(ward.orgPath()).isEqualTo("/TENANT-A/REGION-A/FAC-B/CAMP-B/DEPT-C/WARD-C");
+        assertThat(service.orgPathByCurrentTenant("WARD-C"))
             .extracting(OrgUnit::code)
-            .containsExactly("TENANT-A", "GROUP-A", "HOSP-B", "CAMP-B", "SITE-B", "DEPT-C");
-        assertThat(service.descendantsByCurrentTenant("GROUP-A"))
+            .containsExactly("TENANT-A", "REGION-A", "FAC-B", "CAMP-B", "DEPT-C", "WARD-C");
+        assertThat(service.descendantsByCurrentTenant("REGION-A"))
             .extracting(OrgUnit::code)
-            .containsExactly("GROUP-A", "HOSP-B", "CAMP-B", "SITE-B", "DEPT-C");
+            .containsExactly("REGION-A", "FAC-B", "CAMP-B", "DEPT-C", "WARD-C");
     }
 
     @Test
@@ -75,11 +77,12 @@ class OrgHierarchyIntegrationTest {
         RequestContext.restore(new RequestContext.Snapshot("trace-inverted-layer", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
-        OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
-        OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
+        OrgUnit region = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-A", "医共体A"));
+        OrgUnit facility = service.createOrgUnit(input(
+            region.id(), OrgLevel.FACILITY, "FAC-B", "医院B", OrgFacilityType.HOSPITAL));
 
-        // 把集团挂在医院之下——父级层级更低，倒挂，应拒绝
-        assertThatThrownBy(() -> service.createOrgUnit(input(hospital.id(), OrgLevel.GROUP, "GROUP-X", "集团X")))
+        // 把区域挂在机构之下——父级层级更低，倒挂，应拒绝
+        assertThatThrownBy(() -> service.createOrgUnit(input(facility.id(), OrgLevel.REGION, "REGION-X", "医共体X")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ORG_LEVEL_INVALID);
@@ -90,16 +93,17 @@ class OrgHierarchyIntegrationTest {
         RequestContext.restore(new RequestContext.Snapshot("trace-skip-layer", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
-        OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
-        OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
+        OrgUnit region = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-A", "医共体A"));
+        OrgUnit facility = service.createOrgUnit(input(
+            region.id(), OrgLevel.FACILITY, "FAC-B", "医院B", OrgFacilityType.HOSPITAL));
 
-        // 科室直挂医院（跳过院区 / 服务点）应成功，组织路径不含被跳过的中间层
-        OrgUnit department = service.createOrgUnit(input(hospital.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        // 科室直挂机构（跳过院区）应成功，组织路径不含被跳过的中间层
+        OrgUnit department = service.createOrgUnit(input(facility.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
 
-        assertThat(department.orgPath()).isEqualTo("/TENANT-A/GROUP-A/HOSP-B/DEPT-C");
+        assertThat(department.orgPath()).isEqualTo("/TENANT-A/REGION-A/FAC-B/DEPT-C");
         assertThat(service.orgPathByCurrentTenant("DEPT-C"))
             .extracting(OrgUnit::code)
-            .containsExactly("TENANT-A", "GROUP-A", "HOSP-B", "DEPT-C");
+            .containsExactly("TENANT-A", "REGION-A", "FAC-B", "DEPT-C");
     }
 
     @Test
@@ -119,13 +123,14 @@ class OrgHierarchyIntegrationTest {
         RequestContext.restore(new RequestContext.Snapshot("trace-cycle", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
-        OrgUnit group = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
-        OrgUnit hospital = service.createOrgUnit(input(group.id(), OrgLevel.HOSPITAL, "HOSP-B", "医院B"));
-        OrgUnit campus = service.createOrgUnit(input(hospital.id(), OrgLevel.CAMPUS, "CAMP-B", "院区B"));
-        OrgUnit site = service.createOrgUnit(input(campus.id(), OrgLevel.SITE, "SITE-B", "服务点B"));
-        OrgUnit department = service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        OrgUnit region = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-A", "医共体A"));
+        OrgUnit facility = service.createOrgUnit(input(
+            region.id(), OrgLevel.FACILITY, "FAC-B", "医院B", OrgFacilityType.HOSPITAL));
+        OrgUnit campus = service.createOrgUnit(input(facility.id(), OrgLevel.CAMPUS, "CAMP-B", "院区B"));
+        OrgUnit department = service.createOrgUnit(input(campus.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        OrgUnit ward = service.createOrgUnit(input(department.id(), OrgLevel.WARD, "WARD-C", "病区C"));
 
-        assertThatThrownBy(() -> service.reparentOrgUnit(group.id(), department.id()))
+        assertThatThrownBy(() -> service.reparentOrgUnit(region.id(), ward.id()))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.BAD_REQUEST);
@@ -136,30 +141,58 @@ class OrgHierarchyIntegrationTest {
         RequestContext.restore(new RequestContext.Snapshot("trace-move", OrgScope.tenant("tenant-A"), "admin-1"));
 
         OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
-        OrgUnit groupA = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-A", "集团A"));
-        OrgUnit groupB = service.createOrgUnit(input(tenant.id(), OrgLevel.GROUP, "GROUP-B", "集团B"));
-        OrgUnit hospital = service.createOrgUnit(input(groupA.id(), OrgLevel.HOSPITAL, "HOSP-A", "医院A"));
-        OrgUnit campus = service.createOrgUnit(input(hospital.id(), OrgLevel.CAMPUS, "CAMP-A", "院区A"));
-        OrgUnit site = service.createOrgUnit(input(campus.id(), OrgLevel.SITE, "SITE-A", "服务点A"));
-        service.createOrgUnit(input(site.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        OrgUnit regionA = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-A", "医共体A"));
+        OrgUnit regionB = service.createOrgUnit(input(tenant.id(), OrgLevel.REGION, "REGION-B", "医共体B"));
+        OrgUnit facility = service.createOrgUnit(input(
+            regionA.id(), OrgLevel.FACILITY, "FAC-A", "医院A", OrgFacilityType.HOSPITAL));
+        OrgUnit campus = service.createOrgUnit(input(facility.id(), OrgLevel.CAMPUS, "CAMP-A", "院区A"));
+        OrgUnit department = service.createOrgUnit(input(campus.id(), OrgLevel.DEPARTMENT, "DEPT-C", "科室C"));
+        service.createOrgUnit(input(department.id(), OrgLevel.WARD, "WARD-C", "病区C"));
 
-        OrgUnit moved = service.reparentOrgUnit(hospital.id(), groupB.id());
+        OrgUnit moved = service.reparentOrgUnit(facility.id(), regionB.id());
 
-        assertThat(moved.parentId()).isEqualTo(groupB.id());
-        assertThat(moved.orgPath()).isEqualTo("/TENANT-A/GROUP-B/HOSP-A");
-        assertThat(service.orgPathByCurrentTenant("DEPT-C"))
+        assertThat(moved.parentId()).isEqualTo(regionB.id());
+        assertThat(moved.orgPath()).isEqualTo("/TENANT-A/REGION-B/FAC-A");
+        assertThat(service.orgPathByCurrentTenant("WARD-C"))
             .extracting(OrgUnit::code)
-            .containsExactly("TENANT-A", "GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C");
-        assertThat(service.descendantsByCurrentTenant("GROUP-A"))
+            .containsExactly("TENANT-A", "REGION-B", "FAC-A", "CAMP-A", "DEPT-C", "WARD-C");
+        assertThat(service.descendantsByCurrentTenant("REGION-A"))
             .extracting(OrgUnit::code)
-            .containsExactly("GROUP-A");
-        assertThat(service.descendantsByCurrentTenant("GROUP-B"))
+            .containsExactly("REGION-A");
+        assertThat(service.descendantsByCurrentTenant("REGION-B"))
             .extracting(OrgUnit::code)
-            .containsExactly("GROUP-B", "HOSP-A", "CAMP-A", "SITE-A", "DEPT-C");
+            .containsExactly("REGION-B", "FAC-A", "CAMP-A", "DEPT-C", "WARD-C");
+    }
+
+    @Test
+    void secondaryMembershipParticipatesInResolutionPathWithoutChangingPrimaryParent() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-dag", OrgScope.tenant("tenant-A"), "admin-1"));
+
+        OrgUnit tenant = service.createOrgUnit(input(null, OrgLevel.TENANT, "TENANT-A", "租户A"));
+        OrgUnit facility = service.createOrgUnit(input(
+            tenant.id(), OrgLevel.FACILITY, "FAC-A", "医院A", OrgFacilityType.HOSPITAL));
+        OrgUnit deptA = service.createOrgUnit(input(facility.id(), OrgLevel.DEPARTMENT, "DEPT-A", "科室A"));
+        OrgUnit deptB = service.createOrgUnit(input(facility.id(), OrgLevel.DEPARTMENT, "DEPT-B", "专科中心B"));
+        OrgUnit ward = service.createOrgUnit(input(deptA.id(), OrgLevel.WARD, "WARD-A", "病区A"));
+
+        service.addSecondaryParent(ward.id(), deptB.id(), "SPECIALTY_CENTER", 10);
+
+        assertThat(repository.findByTenantIdAndId("tenant-A", ward.id()).orElseThrow().parentId())
+            .isEqualTo(deptA.id());
+        assertThat(service.orgPathByCurrentTenant("WARD-A"))
+            .extracting(OrgUnit::code)
+            .containsExactly("TENANT-A", "FAC-A", "DEPT-A", "WARD-A");
+        assertThat(service.resolutionPathByCurrentTenant("WARD-A"))
+            .extracting(OrgUnit::code)
+            .containsExactly("TENANT-A", "FAC-A", "DEPT-B", "DEPT-A", "WARD-A");
     }
 
     private OrgUnit input(String parentId, OrgLevel level, String code, String name) {
-        return new OrgUnit(null, parentId, null, null, level, code, name, null, null,
+        return input(parentId, level, code, name, null);
+    }
+
+    private OrgUnit input(String parentId, OrgLevel level, String code, String name, OrgFacilityType facilityType) {
+        return new OrgUnit(null, parentId, null, null, level, code, name, null, facilityType, null,
             OrgUnitStatus.ACTIVE, null, null, null, null);
     }
 }

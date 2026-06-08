@@ -99,7 +99,7 @@ class WorkflowNotificationRepositoryTest {
             "todo:todo-own:created",
             WorkflowNotificationLevel.HIGH,
             "doctor-1",
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(400)));
         repository.save(sample(
             "notify-hospital",
@@ -107,7 +107,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-hospital",
             WorkflowNotificationLevel.INFO,
             null,
-            "hospital-a",
+            "facility-a",
             now.plusSeconds(300)));
         repository.save(sample(
             "notify-department",
@@ -131,7 +131,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.INFO,
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(500)));
 
         long total = repository.countByVisibleRecipientScope(
@@ -140,14 +140,14 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a");
+            "facility-a");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScope(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             0,
             10);
 
@@ -182,7 +182,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-selected-parent",
             WorkflowNotificationLevel.INFO,
             null,
-            "hospital-a",
+            "facility-a",
             now.plusSeconds(300)));
         repository.save(sample(
             "notify-tenant",
@@ -198,7 +198,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.INFO,
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(500)));
 
         long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
@@ -207,7 +207,7 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             "dept-a");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
             "tenant-A",
@@ -215,7 +215,7 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
+            "facility-a",
             "dept-a",
             0,
             10);
@@ -235,7 +235,7 @@ class WorkflowNotificationRepositoryTest {
             "clinical-event:event-sibling",
             WorkflowNotificationLevel.HIGH,
             null,
-            "hospital-b",
+            "facility-b",
             now.plusSeconds(100)));
 
         long total = repository.countByVisibleRecipientScopeAndOrgUnitFilter(
@@ -244,16 +244,16 @@ class WorkflowNotificationRepositoryTest {
             null,
             null,
             "doctor-1",
-            "hospital-a",
-            "hospital-b");
+            "facility-a",
+            "facility-b");
         List<WorkflowNotification> page = repository.pageByVisibleRecipientScopeAndOrgUnitFilter(
             "tenant-A",
             "UNREAD",
             null,
             null,
             "doctor-1",
-            "hospital-a",
-            "hospital-b",
+            "facility-a",
+            "facility-b",
             0,
             10);
 
@@ -339,32 +339,32 @@ class WorkflowNotificationRepositoryTest {
 
     private void seedOrgTree() {
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "tenant-root", null, "tenant-A", "/TENANT-A", "TENANT", "TENANT-A", "租户", null);
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "hospital-a", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-A", "HOSPITAL", "HOSPITAL-A", "A 医院");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "facility-a", "tenant-root", "tenant-A", "/TENANT-A/FACILITY-A", "FACILITY", "FACILITY-A", "A 机构", "HOSPITAL");
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "dept-a", "hospital-a", "tenant-A", "/TENANT-A/HOSPITAL-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "dept-a", "facility-a", "tenant-A", "/TENANT-A/FACILITY-A/DEPT-A", "DEPARTMENT", "DEPT-A", "A 科室", null);
         jdbc.update("""
-            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, "hospital-b", "tenant-root", "tenant-A", "/TENANT-A/HOSPITAL-B", "HOSPITAL", "HOSPITAL-B", "B 医院");
+            INSERT INTO org_unit (id, parent_id, tenant_id, org_path, level_code, code, name, facility_type, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            """, "facility-b", "tenant-root", "tenant-A", "/TENANT-A/FACILITY-B", "FACILITY", "FACILITY-B", "B 机构", "HOSPITAL");
         jdbc.update("""
             INSERT INTO org_closure (tenant_id, ancestor_id, descendant_id, depth)
             VALUES
               ('tenant-A', 'tenant-root', 'tenant-root', 0),
-              ('tenant-A', 'tenant-root', 'hospital-a', 1),
+              ('tenant-A', 'tenant-root', 'facility-a', 1),
               ('tenant-A', 'tenant-root', 'dept-a', 2),
-              ('tenant-A', 'tenant-root', 'hospital-b', 1),
-              ('tenant-A', 'hospital-a', 'hospital-a', 0),
-              ('tenant-A', 'hospital-a', 'dept-a', 1),
+              ('tenant-A', 'tenant-root', 'facility-b', 1),
+              ('tenant-A', 'facility-a', 'facility-a', 0),
+              ('tenant-A', 'facility-a', 'dept-a', 1),
               ('tenant-A', 'dept-a', 'dept-a', 0),
-              ('tenant-A', 'hospital-b', 'hospital-b', 0)
+              ('tenant-A', 'facility-b', 'facility-b', 0)
             """);
     }
 }

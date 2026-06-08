@@ -64,6 +64,6 @@ class LoginTenantDirectoryServiceTest {
         Instant now = Instant.now();
         return new OrgUnit(
             tenantId, null, tenantId, "/" + tenantId, OrgLevel.TENANT, tenantId, name,
-            null, null, status, now, "test", now, "test");
+            null, null, null, status, now, "test", now, "test");
     }
 }

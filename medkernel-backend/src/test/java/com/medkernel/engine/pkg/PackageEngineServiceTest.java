@@ -794,7 +794,7 @@ class PackageEngineServiceTest {
         when(planRepository.findByTenantIdOrderByCreatedAtDesc("tenant-A"))
             .thenReturn(List.of(new ReleasePlan(
                 1L, "plan-gray", "tenant-A", "pkg-published", "hospital-1",
-                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
+                ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
                 "{\"rolloutStrategy\":\"CANARY_BED_PERCENT\",\"percentage\":10}",
                 ReleasePlanStatus.SUCCESS,
                 Instant.now(), "tester", Instant.now(), "tester", "trace"
@@ -1938,7 +1938,7 @@ class PackageEngineServiceTest {
         ArgumentCaptor<ReleasePlan> planCap = ArgumentCaptor.forClass(ReleasePlan.class);
         verify(planRepository, org.mockito.Mockito.times(2)).save(planCap.capture());
         ReleasePlan executingPlan = planCap.getAllValues().get(0);
-        assertThat(executingPlan.scopeType()).isEqualTo(ReleaseScopeType.HOSPITAL);
+        assertThat(executingPlan.scopeType()).isEqualTo(ReleaseScopeType.FACILITY);
         assertThat(executingPlan.scopeValue())
             .contains("\"rolloutStrategy\":\"CANARY_BED_PERCENT\"")
             .contains("\"percentage\":10")
@@ -2016,7 +2016,7 @@ class PackageEngineServiceTest {
         );
         ReleasePlan plan = new ReleasePlan(
             10L, "plan-1", "tenant-A", "pkg-1", "hospital-1",
-            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.HOSPITAL,
+            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY,
             "{\"rolloutStrategy\":\"CANARY_BED_PERCENT\",\"percentage\":10,\"scopeCode\":\"hospital-1\"}",
             ReleasePlanStatus.FAILED, Instant.now(), "tester", Instant.now(), "tester", "trace-plan"
         );

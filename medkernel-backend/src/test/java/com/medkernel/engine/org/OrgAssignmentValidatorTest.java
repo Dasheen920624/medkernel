@@ -55,7 +55,7 @@ class OrgAssignmentValidatorTest {
     @Test
     void rejectsNonDepartmentOrSuspendedOrganization() {
         Mockito.when(orgUnits.findByTenantIdAndId("tenant-A", "hospital-1"))
-            .thenReturn(Optional.of(orgUnit("hospital-1", OrgLevel.HOSPITAL, OrgUnitStatus.ACTIVE)));
+            .thenReturn(Optional.of(orgUnit("hospital-1", OrgLevel.FACILITY, OrgUnitStatus.ACTIVE)));
         Mockito.when(orgUnits.findByTenantIdAndId("tenant-A", "dept-2"))
             .thenReturn(Optional.of(orgUnit("dept-2", OrgLevel.DEPARTMENT, OrgUnitStatus.SUSPENDED)));
 
@@ -82,8 +82,8 @@ class OrgAssignmentValidatorTest {
 
     @Test
     void acceptsCoherentActiveScopeHierarchyAndSpecialty() {
-        OrgUnit group = orgUnit("group-1", null, OrgLevel.GROUP, OrgUnitStatus.ACTIVE, null);
-        OrgUnit hospital = orgUnit("hospital-1", "group-1", OrgLevel.HOSPITAL, OrgUnitStatus.ACTIVE, null);
+        OrgUnit group = orgUnit("group-1", null, OrgLevel.REGION, OrgUnitStatus.ACTIVE, null);
+        OrgUnit hospital = orgUnit("hospital-1", "group-1", OrgLevel.FACILITY, OrgUnitStatus.ACTIVE, null);
         OrgUnit department = orgUnit(
             "dept-1",
             "hospital-1",
@@ -103,9 +103,9 @@ class OrgAssignmentValidatorTest {
 
     @Test
     void rejectsWrongLevelSuspendedOrCrossBranchScopeReferences() {
-        OrgUnit group = orgUnit("group-1", null, OrgLevel.GROUP, OrgUnitStatus.ACTIVE, null);
-        OrgUnit wrongHospital = orgUnit("hospital-1", null, OrgLevel.GROUP, OrgUnitStatus.ACTIVE, null);
-        OrgUnit otherHospital = orgUnit("hospital-2", null, OrgLevel.HOSPITAL, OrgUnitStatus.ACTIVE, null);
+        OrgUnit group = orgUnit("group-1", null, OrgLevel.REGION, OrgUnitStatus.ACTIVE, null);
+        OrgUnit wrongHospital = orgUnit("hospital-1", null, OrgLevel.REGION, OrgUnitStatus.ACTIVE, null);
+        OrgUnit otherHospital = orgUnit("hospital-2", null, OrgLevel.FACILITY, OrgUnitStatus.ACTIVE, null);
         OrgUnit department = orgUnit(
             "dept-1",
             "hospital-2",
@@ -121,12 +121,12 @@ class OrgAssignmentValidatorTest {
         assertThatThrownBy(() -> validator.requireActiveScopeReferences(
             "tenant-A", "group-1", "hospital-1", null, null, null, null))
             .isInstanceOf(ApiException.class)
-            .hasMessage("医院组织层级不正确");
+            .hasMessage("机构组织层级不正确");
 
         assertThatThrownBy(() -> validator.requireActiveScopeReferences(
             "tenant-A", "group-1", "hospital-2", null, null, "dept-1", null))
             .isInstanceOf(ApiException.class)
-            .hasMessage("医院不属于已选集团");
+            .hasMessage("机构不属于已选区域");
     }
 
     @Test
@@ -165,13 +165,18 @@ class OrgAssignmentValidatorTest {
             level,
             id,
             id,
-            specialtyId,
             null,
+            facilityType(level),
+            specialtyId,
             status,
             Instant.now(),
             "system",
             Instant.now(),
             "system");
+    }
+
+    private OrgFacilityType facilityType(OrgLevel level) {
+        return level == OrgLevel.FACILITY ? OrgFacilityType.HOSPITAL : null;
     }
 
     private TenantUser user(String userId, String status) {

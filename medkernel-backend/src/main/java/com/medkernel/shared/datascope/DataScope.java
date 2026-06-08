@@ -23,8 +23,8 @@ import com.medkernel.shared.context.OrgLevel;
  * public class OrgUnitController { ... }
  *
  * @Service
- * @DataScope(requireTenant = true, requireAtLeast = OrgLevel.HOSPITAL)
- * public class HospitalScopedService { ... }
+ * @DataScope(requireTenant = true, requireAtLeast = OrgLevel.FACILITY)
+ * public class FacilityScopedService { ... }
  * }</pre>
  *
  * <p>类级标注会被方法级标注覆盖（方法上的注解优先）。
@@ -41,7 +41,7 @@ public @interface DataScope {
 
     /**
      * 要求当前 {@link com.medkernel.shared.context.OrgScope} 至少携带某一组织树层级的 ID。
-     * 例如设为 {@link OrgLevel#HOSPITAL} 则必须带 hospitalId。
+     * 例如设为 {@link OrgLevel#FACILITY} 则必须带机构节点 ID。
      * 默认 {@link OrgLevel#TENANT}（等价于只要求 tenantId）。
      */
     OrgLevel requireAtLeast() default OrgLevel.TENANT;

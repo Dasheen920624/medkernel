@@ -3680,7 +3680,7 @@ public class PackageEngineService {
         scope.put("rolloutStrategy", DEFAULT_GRAY_SCOPE_STRATEGY.name());
         scope.put("percentage", DEFAULT_GRAY_SCOPE_PERCENTAGE);
         scope.put("scopeCode", scopeCode);
-        return new ReleaseScope(ReleaseScopeType.HOSPITAL, scope.toString());
+        return new ReleaseScope(ReleaseScopeType.FACILITY, scope.toString());
     }
 
     private String normalizedText(String value) {

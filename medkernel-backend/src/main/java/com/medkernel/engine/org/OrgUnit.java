@@ -24,6 +24,7 @@ public record OrgUnit(
     @Column("code") String code,
     @Column("name") String name,
     @Column("name_pinyin") String namePinyin,
+    @Column("facility_type") OrgFacilityType facilityType,
     @Column("specialty_id") String specialtyId,
     @Column("status") OrgUnitStatus status,
     @Column("created_at") Instant createdAt,

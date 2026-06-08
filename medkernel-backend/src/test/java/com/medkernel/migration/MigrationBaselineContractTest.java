@@ -129,10 +129,12 @@ class MigrationBaselineContractTest {
         "V100__mk_engine_condition_fragment.sql",
         "V101__authoring_asset_library.sql",
         "V102__authoring_batch_job.sql",
-        "V103__formula_asset_type_unification.sql"
+        "V103__formula_asset_type_unification.sql",
+        "V104__org_scope_second_phase.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
-        "medkernel_meta", "org_unit", "org_closure", "audit_event", "source_document", "source_version",
+        "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
+        "audit_event", "source_document", "source_version",
         "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
         "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
         "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
@@ -195,6 +197,7 @@ class MigrationBaselineContractTest {
     private static final Set<String> REQUIRED_INDEXES = Set.of(
         "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
         "idx_org_closure_ancestor", "idx_org_closure_descendant",
+        "idx_mk_org_secondary_child", "idx_mk_org_secondary_parent",
         "idx_audit_event_resource",
         "idx_audit_event_actor", "idx_audit_event_tenant", "idx_audit_event_trace",
         "idx_audit_event_large_cursor", "idx_audit_event_large_action",
@@ -360,6 +363,9 @@ class MigrationBaselineContractTest {
     );
     private static final Set<String> COMMON_CONSTRAINTS = Set.of(
         "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
+        "ck_org_unit_facility_type", "pk_mk_org_secondary_membership",
+        "fk_mk_org_secondary_child", "fk_mk_org_secondary_parent",
+        "ck_mk_org_secondary_not_self", "ck_mk_org_secondary_priority",
         "pk_org_closure", "fk_org_closure_ancestor", "fk_org_closure_descendant",
         "ck_org_closure_depth",
         "uk_audit_event_event_id", "ck_audit_event_status",
@@ -1004,6 +1010,27 @@ class MigrationBaselineContractTest {
                 .contains("ck_org_unit_level")
                 .contains("platform")
                 .contains("comment on column org_unit.level_code");
+        }
+    }
+
+    @Test
+    void v104ShouldCompleteOrgScopeSecondPhaseForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String sql = readMigration(dialect, "V104__org_scope_second_phase.sql")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ");
+
+            assertThat(sql)
+                .as("%s 组织树二期补全迁移", dialect)
+                .contains("facility_type")
+                .contains("region")
+                .contains("facility")
+                .contains("ward")
+                .contains("mk_org_secondary_membership")
+                .contains("ck_org_unit_facility_type")
+                .contains("idx_mk_org_secondary_child")
+                .contains("comment on column org_unit.facility_type")
+                .contains("comment on table mk_org_secondary_membership");
         }
     }
 
@@ -2342,13 +2369,15 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void v15ReleaseScopeMustContainOnlyOrganizationScopeValues() {
+    void v104ReleaseScopeMustUseCanonicalOrganizationScopeValues() {
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V15__package_release_baseline.sql");
+            String ddl = readMigration(dialect, "V104__org_scope_second_phase.sql");
             assertThat(ddl)
-                .as("%s 包发布作用域必须只保留组织层级", dialect)
-                .contains("('ALL','GROUP','HOSPITAL','CAMPUS','SITE','DEPARTMENT')")
-                .doesNotContain("SPECIALTY", "WARD", "DOCTOR_TEAM", "sync_target");
+                .as("%s 包发布作用域必须收敛到组织树二期层级", dialect)
+                .contains("('ALL','REGION','FACILITY','CAMPUS','DEPARTMENT','WARD')")
+                .contains("ck_release_plan_scope_type")
+                .contains("ck_mk_version_release_plan_scope")
+                .doesNotContain("DOCTOR_TEAM", "sync_target");
         }
     }
 
