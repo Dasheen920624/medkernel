@@ -40,6 +40,7 @@ class VersionReleaseServiceTest {
     private VersionReleasePlanRepository releasePlans;
     private VersionActivationTransactionRepository activationTransactions;
     private PermissionEvaluator permissionEvaluator;
+    private AssetDependencyService assetDependencies;
     private VersionReleaseService service;
 
     @Test
@@ -54,8 +55,9 @@ class VersionReleaseServiceTest {
         releasePlans = mock(VersionReleasePlanRepository.class);
         activationTransactions = mock(VersionActivationTransactionRepository.class);
         permissionEvaluator = mock(PermissionEvaluator.class);
+        assetDependencies = mock(AssetDependencyService.class);
         service = new VersionReleaseService(
-            assetVersions, releasePlans, activationTransactions, permissionEvaluator, CLOCK);
+            assetVersions, releasePlans, activationTransactions, permissionEvaluator, assetDependencies, CLOCK);
         authenticate(RoleCode.HOSPITAL_ADMIN);
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
         when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(false);
@@ -307,6 +309,32 @@ class VersionReleaseServiceTest {
         assertThat(result.status()).isEqualTo(VersionReleaseStatus.FULL);
         verify(permissionEvaluator).has(PermissionCode.PLATFORM_PUBLISH);
         verify(activationTransactions).save(any(VersionActivationTransaction.class));
+    }
+
+    @Test
+    void releaseFullRunsDependencyIntegrityBeforeActivation() {
+        AssetVersion target = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(target));
+        org.mockito.Mockito.doThrow(new ApiException(
+            ErrorCode.CONFLICT,
+            "引用完整性校验失败：TERMINOLOGY.LOINC.718-7 在目标作用域不可解析"
+        )).when(assetDependencies).assertDependenciesResolvable(target);
+
+        assertThatThrownBy(() -> service.releaseFull(releaseCommand(
+            "av-v2",
+            VersionReleaseScopeType.ALL,
+            null,
+            "影响摘要 d1",
+            List.of("HOSPITAL_ADMIN")
+        )))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("引用完整性")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(activationTransactions, never()).save(any(VersionActivationTransaction.class));
+        verify(assetVersions, never()).save(org.mockito.ArgumentMatchers.argThat(saved ->
+            saved.status() == AssetVersionStatus.ACTIVE));
     }
 
     private void authenticate(RoleCode role) {

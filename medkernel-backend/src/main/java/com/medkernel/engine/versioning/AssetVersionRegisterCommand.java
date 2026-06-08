@@ -1,5 +1,7 @@
 package com.medkernel.engine.versioning;
 
+import java.util.List;
+
 /**
  * 登记配置资产草稿版本的命令。
  *
@@ -18,8 +20,34 @@ public record AssetVersionRegisterCommand(
     String createdBy,
     String traceId,
     AssetVersionSafetyPolicy safetyPolicy,
-    AssetVersionOverridePolicy overridePolicy
+    AssetVersionOverridePolicy overridePolicy,
+    List<AssetDependencyDeclaration> dependencies
 ) {
+    public AssetVersionRegisterCommand {
+        dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
+    }
+
+    public AssetVersionRegisterCommand(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
+            String applicableScope,
+            String content,
+            String contentHash,
+            String sourceRef,
+            String createdBy,
+            String traceId,
+            AssetVersionSafetyPolicy safetyPolicy,
+            AssetVersionOverridePolicy overridePolicy) {
+        this(
+            tenantId, assetType, assetIdentity, versionNo, organizationScope,
+            applicableScope, content, contentHash, sourceRef, createdBy, traceId,
+            safetyPolicy, overridePolicy, List.of()
+        );
+    }
+
     public AssetVersionRegisterCommand(
             String tenantId,
             VersionedAssetType assetType,
@@ -35,7 +63,7 @@ public record AssetVersionRegisterCommand(
         this(
             tenantId, assetType, assetIdentity, versionNo, organizationScope,
             applicableScope, content, contentHash, sourceRef, createdBy, traceId,
-            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE
+            AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE, List.of()
         );
     }
 }

@@ -30,6 +30,7 @@ public class InheritanceOverrideService {
     private final InheritanceOverrideRepository overrides;
     private final OrgHierarchyRepository hierarchy;
     private final PermissionEvaluator permissionEvaluator;
+    private final AssetDependencyService assetDependencies;
     private final Clock clock;
 
     @Autowired
@@ -37,8 +38,9 @@ public class InheritanceOverrideService {
             AssetVersionRepository assetVersions,
             InheritanceOverrideRepository overrides,
             OrgHierarchyRepository hierarchy,
-            PermissionEvaluator permissionEvaluator) {
-        this(assetVersions, overrides, hierarchy, permissionEvaluator, Clock.systemUTC());
+            PermissionEvaluator permissionEvaluator,
+            AssetDependencyService assetDependencies) {
+        this(assetVersions, overrides, hierarchy, permissionEvaluator, assetDependencies, Clock.systemUTC());
     }
 
     InheritanceOverrideService(
@@ -47,10 +49,21 @@ public class InheritanceOverrideService {
             OrgHierarchyRepository hierarchy,
             PermissionEvaluator permissionEvaluator,
             Clock clock) {
+        this(assetVersions, overrides, hierarchy, permissionEvaluator, null, clock);
+    }
+
+    InheritanceOverrideService(
+            AssetVersionRepository assetVersions,
+            InheritanceOverrideRepository overrides,
+            OrgHierarchyRepository hierarchy,
+            PermissionEvaluator permissionEvaluator,
+            AssetDependencyService assetDependencies,
+            Clock clock) {
         this.assetVersions = assetVersions;
         this.overrides = overrides;
         this.hierarchy = hierarchy;
         this.permissionEvaluator = permissionEvaluator;
+        this.assetDependencies = assetDependencies;
         this.clock = clock;
     }
 
@@ -107,6 +120,9 @@ public class InheritanceOverrideService {
         }
 
         denyUnsafeLowerOverride(inherited, overrideVersion, mode, target.orgPath());
+        if (mode == InheritanceOverrideMode.DISABLE && assetDependencies != null) {
+            assetDependencies.assertDisableAllowed(tenantId, assetType, assetIdentity, target.orgPath(), applicableScope);
+        }
 
         InheritancePropagation propagation = command.propagation() == null
             ? InheritancePropagation.INHERITABLE

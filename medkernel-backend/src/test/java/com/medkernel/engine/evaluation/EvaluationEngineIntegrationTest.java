@@ -24,6 +24,7 @@ import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.security.PermissionCode;
 import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetDependencyService;
 import com.medkernel.engine.versioning.AssetVersionService;
 import com.medkernel.engine.versioning.VersionReleaseService;
 import com.medkernel.shared.api.PageRequest;
@@ -56,6 +57,7 @@ import org.springframework.test.context.TestPropertySource;
 @Import({
     EvaluationEngineService.class,
     EvaluationVersionedAssetAdapter.class,
+    AssetDependencyService.class,
     AssetVersionService.class,
     VersionReleaseService.class
 })

@@ -132,7 +132,8 @@ class MigrationBaselineContractTest {
         "V103__formula_asset_type_unification.sql",
         "V104__org_scope_second_phase.sql",
         "V105__tenant_package_reference.sql",
-        "V106__platform_tenant_governance_permissions.sql"
+        "V106__platform_tenant_governance_permissions.sql",
+        "V107__asset_dependency_integrity.sql"
     );
     private static final Set<String> REQUIRED_TABLES = Set.of(
         "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
@@ -192,6 +193,7 @@ class MigrationBaselineContractTest {
         "mk_projection_sync", "mk_projection_snapshot",
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_version_asset_dependency",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
         "mk_context_field_catalog",
         "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
@@ -359,6 +361,7 @@ class MigrationBaselineContractTest {
         "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
         "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
         "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
+        "idx_mk_version_asset_dependency_owner", "idx_mk_version_asset_dependency_target",
         "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
         "idx_mk_ctx_field_catalog_tenant",
         "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
@@ -579,6 +582,9 @@ class MigrationBaselineContractTest {
         "ck_mk_version_activation_transaction_type", "ck_mk_version_activation_transaction_action",
         "uk_mk_version_replay_binding_id", "uk_mk_version_replay_binding_event",
         "ck_mk_version_replay_binding_type", "ck_mk_version_replay_binding_hash",
+        "uk_mk_version_asset_dependency_id", "uk_mk_version_asset_dependency_edge",
+        "ck_mk_version_asset_dependency_owner_type", "ck_mk_version_asset_dependency_target_type",
+        "ck_mk_version_asset_dependency_kind",
         "uk_mk_fhir_res_map_fhir", "uk_mk_fhir_res_map_canon",
         "ck_mk_fhir_res_map_ver", "ck_mk_fhir_res_map_status",
         "ck_mk_fhir_res_map_rate", "ck_mk_fhir_res_map_missing",
@@ -640,6 +646,7 @@ class MigrationBaselineContractTest {
         "mk_projection_sync", "mk_projection_snapshot",
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_version_asset_dependency",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
@@ -683,6 +690,7 @@ class MigrationBaselineContractTest {
         "mk_clinical_follow_up", "mk_clinical_claim",
         "mk_version_asset_version", "mk_version_inheritance_override",
         "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
+        "mk_version_asset_dependency",
         "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
     );
     private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
@@ -818,6 +826,7 @@ class MigrationBaselineContractTest {
         Map.entry("mk_version_release_plan", Set.of("scope_type", "status")),
         Map.entry("mk_version_activation_transaction", Set.of("action")),
         Map.entry("mk_version_replay_binding", Set.of("result_hash")),
+        Map.entry("mk_version_asset_dependency", Set.of("asset_type", "depends_on_asset_type", "dependency_kind")),
         Map.entry("mk_fhir_resource_mapping", Set.of("fhir_version", "mapping_status")),
         Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status")),
         Map.entry("mk_compliance_interop_assessment_item", Set.of("dimension", "status", "version")),
@@ -1710,6 +1719,30 @@ class MigrationBaselineContractTest {
                 .contains("COMMENT ON TABLE mk_version_activation_transaction")
                 .contains("COMMENT ON TABLE mk_version_replay_binding")
                 .contains("COMMENT ON COLUMN mk_version_asset_version.status");
+        }
+    }
+
+    @Test
+    void v107ShouldDeclareAssetDependencyIntegrityForAllDialects() {
+        for (String dialect : DIALECTS) {
+            String ddl = readMigration(dialect, "V107__asset_dependency_integrity.sql");
+            assertThat(ddl).as("%s 资产依赖与一致性快照迁移", dialect)
+                .contains("mk_version_asset_dependency")
+                .contains("dependency_id")
+                .contains("depends_on_asset_type")
+                .contains("depends_on_identity")
+                .contains("min_version_no")
+                .contains("max_version_no")
+                .contains("dependency_kind")
+                .contains("uk_mk_version_asset_dependency_id")
+                .contains("uk_mk_version_asset_dependency_edge")
+                .contains("ck_mk_version_asset_dependency_kind")
+                .contains("idx_mk_version_asset_dependency_owner")
+                .contains("idx_mk_version_asset_dependency_target")
+                .contains("COMMENT ON TABLE mk_version_asset_dependency")
+                .contains("COMMENT ON COLUMN mk_version_asset_dependency.depends_on_identity")
+                .contains("COMMENT ON COLUMN mk_version_asset_dependency.min_version_no")
+                .contains("COMMENT ON COLUMN mk_version_asset_dependency.max_version_no");
         }
     }
 

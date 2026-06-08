@@ -30,6 +30,7 @@ class InheritanceResolverTest {
 
     private AssetVersionRepository assetVersions;
     private InheritanceOverrideRepository overrides;
+    private AssetDependencyRepository assetDependencies;
     private OrgHierarchyRepository hierarchy;
     private InheritanceResolver resolver;
 
@@ -37,8 +38,9 @@ class InheritanceResolverTest {
     void setUp() {
         assetVersions = mock(AssetVersionRepository.class);
         overrides = mock(InheritanceOverrideRepository.class);
+        assetDependencies = mock(AssetDependencyRepository.class);
         hierarchy = mock(OrgHierarchyRepository.class);
-        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides, List.of());
+        resolver = new InheritanceResolver(hierarchy, assetVersions, overrides, List.of(), assetDependencies);
     }
 
     @Test
@@ -810,6 +812,66 @@ class InheritanceResolverTest {
         assertThat(atSite.version()).isNull();
         assertThat(atSite.sourceOrgPath()).isEqualTo(sitePath);
         assertThat(atSite.explanation().resolutionSummary()).contains("停用", "io-term-site-disable");
+    }
+
+    @Test
+    void resolveWithDependenciesReturnsCoResolvedAssetsAndStableEpochBindings() {
+        String termIdentity = "TERMINOLOGY.LOINC.718-7";
+        OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
+        OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
+        AssetVersion rule = version("av-rule-root", "2.0.0", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        AssetVersion termOverride = terminologyVersion(
+            "av-term-hosp", "2.1.0-hosp", "tenant-A", HOSP_PATH, termIdentity, "adult|inpatient");
+        AssetDependency edge = new AssetDependency(
+            1L,
+            "dep-rule-term",
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.VTE.RISK",
+            rule.versionId(),
+            VersionedAssetType.TERMINOLOGY,
+            termIdentity,
+            "2.0.0",
+            "2.9.9",
+            AssetDependencyKind.TERMINOLOGY,
+            Instant.parse("2026-06-03T08:00:00Z"),
+            "publisher-1",
+            Instant.parse("2026-06-03T08:00:00Z"),
+            "publisher-1",
+            "trace-sys04"
+        );
+
+        when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
+        stubActiveAt(HOSP_PATH, rule);
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", rule.versionId()))
+            .thenReturn(Optional.empty());
+        stubTerminologyVersion(termIdentity, "adult|inpatient", HOSP_PATH, termOverride);
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", termOverride.versionId()))
+            .thenReturn(Optional.empty());
+        when(assetDependencies.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", rule.versionId()
+        )).thenReturn(List.of(edge));
+        when(assetDependencies.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, termIdentity, termOverride.versionId()
+        )).thenReturn(List.of());
+
+        ResolvedAssetGraph graph = resolver.resolveWithDependencies(new InheritanceResolveQuery(
+            "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
+
+        assertThat(graph.root().version()).isEqualTo(rule);
+        assertThat(graph.dependencies()).singleElement()
+            .satisfies(dependency -> {
+                assertThat(dependency.edge()).isEqualTo(edge);
+                assertThat(dependency.resolved().version()).isEqualTo(termOverride);
+            });
+        assertThat(graph.resolutionEpoch()).matches("[0-9a-f]{64}");
+        assertThat(graph.epochBindings())
+            .extracting(ResolutionEpochBinding::assetIdentity, ResolutionEpochBinding::versionId,
+                ResolutionEpochBinding::contentHash)
+            .containsExactlyInAnyOrder(
+                org.assertj.core.groups.Tuple.tuple("RULE.VTE.RISK", "av-rule-root", rule.contentHash()),
+                org.assertj.core.groups.Tuple.tuple(termIdentity, "av-term-hosp", termOverride.contentHash())
+            );
     }
 
     private void stubTerminologyVersion(
