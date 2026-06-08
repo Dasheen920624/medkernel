@@ -52,6 +52,16 @@ public class InteroperabilityController {
     }
 
     /**
+     * 从受控 CQL 语句回导规则草稿。
+     */
+    @PostMapping("/rules/cql:import")
+    @PreAuthorize("@perm.has('rule.write')")
+    public ApiResult<RuleCreateRequest> importRuleFromCql(
+            @RequestBody @Valid CqlRuleImportRequest request) {
+        return ApiResult.ok(service.importRuleFromCql(request));
+    }
+
+    /**
      * 导出路径模板草稿到 FHIR PlanDefinition 与 GLIF 概念映射。
      */
     @PostMapping("/pathways/plan-definition:export")

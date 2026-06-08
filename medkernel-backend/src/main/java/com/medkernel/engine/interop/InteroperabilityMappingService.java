@@ -3,9 +3,12 @@ package com.medkernel.engine.interop;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -20,10 +23,12 @@ import com.medkernel.engine.pathway.PathwayMilestoneRequest;
 import com.medkernel.engine.pathway.PathwayNodeRequest;
 import com.medkernel.engine.pathway.PathwayTemplateCreateRequest;
 import com.medkernel.engine.rule.RuleActionCode;
+import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleCreateRequest;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
  * P11 标准互操作映射服务。
@@ -36,6 +41,10 @@ public class InteroperabilityMappingService {
 
     private static final String RULE_DSL_EXTENSION = "medkernelRuleDsl";
     private static final String PATHWAY_DRAFT_EXTENSION = "medkernelPathwayDraft";
+    private static final String PROVENANCE_EXTENSION = "medkernelProvenance";
+    private static final Pattern CONTROLLED_CQL_STATEMENT = Pattern.compile(
+        "^\\s*define\\s+\"([^\"]+)\"\\s*:\\s*hook\\s*=\\s*'([^']+)'\\s+and\\s+when\\s*=\\s*(\\{.*})\\s*$",
+        Pattern.DOTALL);
 
     private final ObjectMapper json;
 
@@ -100,6 +109,63 @@ public class InteroperabilityMappingService {
     }
 
     /**
+     * 从受控 CQL 语句回导规则草稿；复杂 CQL 不进入内部 DSL，避免形成第二套规则引擎。
+     */
+    public RuleCreateRequest importRuleFromCql(CqlRuleImportRequest request) {
+        if (request == null) {
+            throw invalidRule("CQL 导入请求不能为空");
+        }
+        String statement = requiredText(request.statement(), "statement");
+        String ruleCode = requiredText(request.ruleCode(), "ruleCode");
+        String name = requiredText(request.name(), "name");
+        String library = requiredText(request.library(), "library");
+        String sourceRef = requiredText(request.sourceRef(), "sourceRef");
+        if (request.ruleType() == null) {
+            throw invalidRule("缺少字段: ruleType");
+        }
+        if (request.riskLevel() == null) {
+            throw invalidRule("缺少字段: riskLevel");
+        }
+        Matcher matcher = CONTROLLED_CQL_STATEMENT.matcher(statement);
+        if (!matcher.matches()) {
+            throw unsupportedCql();
+        }
+        String statementRuleCode = matcher.group(1).trim();
+        if (!ruleCode.equals(statementRuleCode)) {
+            throw invalidRule("CQL 规则编码与请求 ruleCode 不一致");
+        }
+        ClinicalEventTriggerPoint hook = parseTrigger(matcher.group(2));
+        JsonNode condition = parseControlledCqlCondition(matcher.group(3));
+
+        ObjectNode dsl = json.createObjectNode();
+        dsl.put("trigger", hook.wireValue());
+        dsl.set("when", condition);
+        dsl.putArray("then");
+        ObjectNode explain = dsl.putObject("explain");
+        explain.put("summary", "从 CQL 受控导入: " + library);
+
+        ObjectNode parameterBindings = json.createObjectNode();
+        ObjectNode cql = parameterBindings.putObject("cql");
+        cql.put("library", library);
+        cql.put("statement", statement);
+        cql.put("status", "CONTROLLED_IMPORT");
+
+        return new RuleCreateRequest(
+            ruleCode,
+            name,
+            request.ruleType(),
+            RuleAuthoringMode.DSL,
+            request.riskLevel(),
+            request.packageVersion(),
+            request.applicableOrgUnitId(),
+            sourceRef,
+            "CQL 受控导入: " + library,
+            dsl,
+            json.createObjectNode(),
+            parameterBindings);
+    }
+
+    /**
      * 将路径模板草稿导出为 FHIR PlanDefinition 与 GLIF 概念结构。
      */
     public PathwayStandardMapping exportPathwayToPlanDefinition(PathwayTemplateCreateRequest request) {
@@ -161,6 +227,8 @@ public class InteroperabilityMappingService {
         extension.set(RULE_DSL_EXTENSION, dsl.deepCopy());
         extension.put("packageVersion", request.packageVersion());
         extension.put("sourceRef", request.sourceRef());
+        addExportProvenance(service, extension, "RULE", request.ruleCode(), null,
+            request.packageVersion(), request.sourceRef(), dsl);
         return service;
     }
 
@@ -170,6 +238,8 @@ public class InteroperabilityMappingService {
         cql.put("status", "DETERMINISTIC_EXPORT");
         cql.put("statement", "define \"" + request.ruleCode() + "\": hook = '" + hook.wireValue()
             + "' and when = " + compact(condition));
+        cql.put("content_hash", contentHash(condition));
+        cql.put("sourceRef", request.sourceRef());
         return cql;
     }
 
@@ -198,6 +268,8 @@ public class InteroperabilityMappingService {
         ObjectNode extension = plan.putObject("extension");
         extension.set(PATHWAY_DRAFT_EXTENSION, json.valueToTree(request));
         extension.put("mappingLevel", "CONCEPTUAL");
+        addExportProvenance(plan, extension, "PATHWAY", request.templateCode(), request.packageId(),
+            request.packageVersion(), request.sourceRef(), json.valueToTree(request));
 
         ArrayNode goals = plan.putArray("goal");
         for (PathwayMilestoneRequest milestone : request.milestones()) {
@@ -272,6 +344,13 @@ public class InteroperabilityMappingService {
         glif.put("standard", "GLIF-CONCEPTUAL");
         glif.put("guidelineId", request.templateCode());
         glif.put("title", request.name());
+        ObjectNode provenance = glif.putObject("provenance");
+        provenance.put("content_hash", contentHash(json.valueToTree(request)));
+        provenance.put("assetType", "PATHWAY");
+        provenance.put("assetId", request.templateCode());
+        provenance.put("packageId", request.packageId());
+        provenance.put("packageVersion", request.packageVersion());
+        provenance.put("sourceRef", request.sourceRef());
         ArrayNode phases = glif.putArray("phases");
         for (PathwayMilestoneRequest milestone : request.milestones()) {
             ObjectNode phase = phases.addObject();
@@ -305,6 +384,37 @@ public class InteroperabilityMappingService {
             }
         }
         return glif;
+    }
+
+    private void addExportProvenance(ObjectNode standard,
+                                     ObjectNode extension,
+                                     String assetType,
+                                     String assetId,
+                                     String packageId,
+                                     String packageVersion,
+                                     String sourceRef,
+                                     JsonNode content) {
+        String hash = contentHash(content);
+        ObjectNode provenance = extension.putObject(PROVENANCE_EXTENSION);
+        provenance.put("content_hash", hash);
+        provenance.put("assetType", assetType);
+        provenance.put("assetId", assetId);
+        if (packageId != null && !packageId.isBlank()) {
+            provenance.put("packageId", packageId);
+        }
+        provenance.put("packageVersion", packageVersion);
+        provenance.put("sourceRef", sourceRef);
+
+        ObjectNode meta = standard.path("meta").isObject()
+            ? (ObjectNode) standard.path("meta")
+            : standard.putObject("meta");
+        ArrayNode tags = meta.path("tag").isArray()
+            ? (ArrayNode) meta.path("tag")
+            : meta.putArray("tag");
+        ObjectNode tag = tags.addObject();
+        tag.put("system", "https://medkernel.local/fhir/CodeSystem/interoperability-provenance");
+        tag.put("code", "content_hash");
+        tag.put("display", hash);
     }
 
     private boolean isDecisionEdge(PathwayEdgeType edgeType) {
@@ -378,7 +488,11 @@ public class InteroperabilityMappingService {
 
     private ClinicalEventTriggerPoint parseTrigger(String value) {
         try {
-            return ClinicalEventTriggerPoint.fromWireValue(value);
+            ClinicalEventTriggerPoint trigger = ClinicalEventTriggerPoint.fromWireValue(value);
+            if (trigger == null) {
+                throw invalidRule("规则触发点无效: " + value);
+            }
+            return trigger;
         } catch (IllegalArgumentException exception) {
             throw invalidRule("规则触发点无效: " + value);
         }
@@ -390,6 +504,25 @@ public class InteroperabilityMappingService {
             || actionCode == RuleActionCode.BLOCK
             || actionCode == RuleActionCode.STRONG_REMINDER
             || actionCode == RuleActionCode.SUGGEST_ORDER;
+    }
+
+    private JsonNode parseControlledCqlCondition(String expression) {
+        try {
+            JsonNode condition = json.readTree(expression);
+            if (!condition.isObject()) {
+                throw unsupportedCql();
+            }
+            return condition;
+        } catch (JsonProcessingException exception) {
+            throw unsupportedCql();
+        }
+    }
+
+    private String requiredText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw invalidRule("缺少字段: " + field);
+        }
+        return value.trim();
     }
 
     private String requiredText(JsonNode node, String field) {
@@ -428,7 +561,15 @@ public class InteroperabilityMappingService {
     private String compact(JsonNode node) {
         try {
             return json.writeValueAsString(node);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+        } catch (JsonProcessingException exception) {
+            throw invalidRule("标准映射序列化失败");
+        }
+    }
+
+    private String contentHash(JsonNode node) {
+        try {
+            return Sha256ContentHash.sha256(json.writeValueAsString(node), "互操作导出内容不能为空");
+        } catch (JsonProcessingException exception) {
             throw invalidRule("标准映射序列化失败");
         }
     }
@@ -441,6 +582,10 @@ public class InteroperabilityMappingService {
 
     private ApiException invalidRule(String message) {
         return new ApiException(ErrorCode.ENG_RULE_001, message);
+    }
+
+    private ApiException unsupportedCql() {
+        return invalidRule("CQL 受控导入仅支持 define \"规则\": hook = '触发点' and when = {条件树}");
     }
 
     private ApiException invalidPathway(String message) {

@@ -85,8 +85,8 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/interoperability",
             permissions("rule.read", "rule.write", "pathway.read", "pathway.write"),
             audits(
-                audit(AuditAction.EXPORT, "interop_mapping", "导出规则或路径标准互操作映射"),
-                audit(AuditAction.IMPORT, "interop_mapping", "从标准互操作映射回导规则或路径草稿"))),
+                audit(AuditAction.EXPORT, "interop_mapping", "导出带内容指纹和溯源的规则或路径标准互操作映射"),
+                audit(AuditAction.IMPORT, "interop_mapping", "从标准互操作映射或受控 CQL 回导规则/路径草稿"))),
         contract("clinical-event", "临床事件服务",
             "com.medkernel.engine.context.ClinicalEventController", "/api/v1/engine/clinical-events",
             permissions("event.write", "event.read"),

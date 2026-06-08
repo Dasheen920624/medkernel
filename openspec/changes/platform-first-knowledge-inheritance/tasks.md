@@ -49,7 +49,7 @@
 - [ ] 5.8 发布前影响模拟（what-if 历史回放）+ 灰度放量(RolloutStrategy)+ 批量/模板/克隆（附录 R）
 
 ## P5 开通 + 治理 + 影响 + 互操作
-- [ ] 6.5 互操作：CDS Hooks / FHIR PlanDefinition 导入导出 / CQL 受控导入（附录 I1）
+- [x] 6.5 互操作：CDS Hooks / FHIR PlanDefinition 导入导出 / CQL 受控导入（附录 I1）
 - [ ] 6.6 第三方接入 API 契约 + OpenAPI 文档（有效解析查询/上下文写入/覆盖管理/包分发，附录 I2）
 - [ ] 6.7 entitlement 授权层（受限平台包按租户授权可见/下发，附录 I4）
 

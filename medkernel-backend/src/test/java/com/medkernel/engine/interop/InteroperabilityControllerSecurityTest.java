@@ -37,6 +37,19 @@ class InteroperabilityControllerSecurityTest {
         }
         """;
 
+    private static final String CQL_IMPORT_BODY = """
+        {
+          "ruleCode": "RULE-CKD-ACEI",
+          "name": "CKD ACEI 开嘱复核",
+          "ruleType": "ORDER",
+          "riskLevel": "HIGH",
+          "packageVersion": "pkg-ckd-2026.06",
+          "sourceRef": "CKD-PACKAGE",
+          "library": "RULE_CKD_ACEI",
+          "statement": "define \\"RULE-CKD-ACEI\\": hook = 'order-sign' and when = {\\"all\\":[{\\"fact\\":\\"order.drugClass\\",\\"operator\\":\\"equals\\",\\"value\\":\\"ACEI\\"}]}"
+        }
+        """;
+
     @Autowired
     MockMvc mvc;
 
@@ -64,6 +77,25 @@ class InteroperabilityControllerSecurityTest {
         mvc.perform(post("/api/v1/engine/interoperability/rules/cds-hooks:export")
                 .contentType("application/json")
                 .content(RULE_EXPORT_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_MEDICAL_AFFAIRS")
+    void medicalAffairsCanImportControlledCqlButDataScopeRejectsMissingTenant() throws Exception {
+        mvc.perform(post("/api/v1/engine/interoperability/rules/cql:import")
+                .contentType("application/json")
+                .content(CQL_IMPORT_BODY))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_GUEST")
+    void guestCannotImportControlledCql() throws Exception {
+        mvc.perform(post("/api/v1/engine/interoperability/rules/cql:import")
+                .contentType("application/json")
+                .content(CQL_IMPORT_BODY))
             .andExpect(status().isForbidden());
     }
 }

@@ -185,6 +185,20 @@ class InteroperabilityMappingServiceTest {
         assertThat(mapping.glif().path("decisions")).hasSize(1);
         assertThat(plan.path("extension").path("medkernelPathwayDraft").path("templateCode").asText())
             .isEqualTo("PATH-CKD");
+        assertThat(plan.path("extension").path("medkernelProvenance").path("content_hash").asText())
+            .matches("[a-f0-9]{64}");
+        assertThat(plan.path("extension").path("medkernelProvenance").path("assetType").asText())
+            .isEqualTo("PATHWAY");
+        assertThat(plan.path("extension").path("medkernelProvenance").path("assetId").asText())
+            .isEqualTo("PATH-CKD");
+        assertThat(plan.path("extension").path("medkernelProvenance").path("packageId").asText())
+            .isEqualTo("PKG-CKD");
+        assertThat(plan.path("extension").path("medkernelProvenance").path("sourceRef").asText())
+            .isEqualTo("CKD-PACKAGE");
+        assertThat(plan.path("meta").path("tag").findValuesAsText("code"))
+            .contains("content_hash");
+        assertThat(mapping.glif().path("provenance").path("content_hash").asText())
+            .isEqualTo(plan.path("extension").path("medkernelProvenance").path("content_hash").asText());
 
         PathwayTemplateCreateRequest roundTrip = service.importPathwayFromPlanDefinition(mapping);
 
@@ -196,5 +210,56 @@ class InteroperabilityMappingServiceTest {
         assertThat(roundTrip.edges()).extracting(PathwayEdgeRequest::edgeCode)
             .containsExactly("E1", "E2");
         assertThat(roundTrip.edges().get(1).condition()).isEqualTo(guard);
+    }
+
+    @Test
+    void controlledCqlImportMapsRuleDraftDslAndKeepsReplaySource() throws Exception {
+        JsonNode condition = json.readTree("""
+            {"all": [{"fact": "order.drugClass", "operator": "equals", "value": "ACEI"}]}
+            """);
+        CqlRuleImportRequest request = new CqlRuleImportRequest(
+            "RULE-CKD-ACEI",
+            "CKD ACEI 开嘱复核",
+            RuleType.ORDER,
+            RuleRiskLevel.HIGH,
+            "pkg-ckd-2026.06",
+            "HOSPITAL-1",
+            "CKD-PACKAGE",
+            "RULE_CKD_ACEI",
+            "define \"RULE-CKD-ACEI\": hook = 'order-sign' and when = " + json.writeValueAsString(condition));
+
+        RuleCreateRequest draft = service.importRuleFromCql(request);
+
+        assertThat(draft.ruleCode()).isEqualTo("RULE-CKD-ACEI");
+        assertThat(draft.name()).isEqualTo("CKD ACEI 开嘱复核");
+        assertThat(draft.authoringMode()).isEqualTo(RuleAuthoringMode.DSL);
+        assertThat(draft.riskLevel()).isEqualTo(RuleRiskLevel.HIGH);
+        assertThat(draft.packageVersion()).isEqualTo("pkg-ckd-2026.06");
+        assertThat(draft.applicableOrgUnitId()).isEqualTo("HOSPITAL-1");
+        assertThat(draft.sourceRef()).isEqualTo("CKD-PACKAGE");
+        assertThat(draft.changeSummary()).contains("CQL 受控导入");
+        assertThat(draft.dsl().path("trigger").asText()).isEqualTo("order-sign");
+        assertThat(draft.dsl().path("when")).isEqualTo(condition);
+        assertThat(draft.dsl().path("then")).isEmpty();
+        assertThat(draft.dsl().path("explain").path("summary").asText()).contains("RULE_CKD_ACEI");
+        assertThat(draft.parameterBindings().path("cql").path("library").asText()).isEqualTo("RULE_CKD_ACEI");
+    }
+
+    @Test
+    void controlledCqlImportRejectsUnsupportedExpressionsBeforeTheyEnterRuleDsl() {
+        CqlRuleImportRequest request = new CqlRuleImportRequest(
+            "RULE-BAD-CQL",
+            "非法 CQL",
+            RuleType.ORDER,
+            RuleRiskLevel.LOW,
+            "pkg-ckd-2026.06",
+            null,
+            "CKD-PACKAGE",
+            "RULE_BAD_CQL",
+            "define \"RULE-BAD-CQL\": exists([Observation])");
+
+        assertThatThrownBy(() -> service.importRuleFromCql(request))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("CQL 受控导入仅支持");
     }
 }
