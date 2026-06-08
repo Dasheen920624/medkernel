@@ -13,7 +13,13 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CopyOutlined, EditOutlined, StarFilled, StarOutlined } from "@ant-design/icons";
+import {
+  AppstoreAddOutlined,
+  CopyOutlined,
+  EditOutlined,
+  StarFilled,
+  StarOutlined,
+} from "@ant-design/icons";
 
 import {
   useAuthoringAssets,
@@ -25,6 +31,7 @@ import {
 } from "@/shared/api/hooks";
 import type { AuthoringAssetLibraryItem, EngineAssetType } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
+import AuthoringBatchDrawer from "./AuthoringBatchDrawer";
 import styles from "./AuthoringAssets.module.css";
 
 const { Option } = Select;
@@ -84,6 +91,7 @@ export default function AuthoringAssets() {
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [profileAsset, setProfileAsset] = useState<AuthoringAssetLibraryItem | null>(null);
   const [cloneAsset, setCloneAsset] = useState<AuthoringAssetLibraryItem | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [profileForm] = Form.useForm<{ category: string; tags: string }>();
   const [cloneForm] = Form.useForm<{
     newCode: string;
@@ -314,6 +322,13 @@ export default function AuthoringAssets() {
           >
             仅收藏
           </Checkbox>
+          <Button
+            icon={<AppstoreAddOutlined />}
+            disabled={!canWrite}
+            onClick={() => setBatchOpen(true)}
+          >
+            批量处理
+          </Button>
         </Space>
         <Table
           rowKey={(asset) => `${asset.assetType}-${asset.assetId}-${asset.version}`}
@@ -371,6 +386,10 @@ export default function AuthoringAssets() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {batchOpen && (
+        <AuthoringBatchDrawer open canWrite={canWrite} onClose={() => setBatchOpen(false)} />
+      )}
     </PageShell>
   );
 }

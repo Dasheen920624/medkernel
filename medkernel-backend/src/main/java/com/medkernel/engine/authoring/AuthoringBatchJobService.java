@@ -1,0 +1,538 @@
+package com.medkernel.engine.authoring;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.pkg.PackageOfflineImportResponse;
+import com.medkernel.engine.pkg.PackageSyncResponse;
+import com.medkernel.engine.pkg.ReleasePlanStatus;
+import com.medkernel.engine.rule.RuleCreateResponse;
+import com.medkernel.engine.rule.RuleGovernanceResponse;
+import com.medkernel.engine.rule.RuleImpactResponse;
+import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.audit.AuditAction;
+import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.RequestContext;
+import org.springframework.stereotype.Service;
+
+/**
+ * 创作批量任务应用服务。
+ *
+ * <p>任务在当前请求内真实执行并逐项落库，避免提交到尚无执行器的伪异步队列。
+ * 后续引入工作进程时可直接复用本服务的逐项执行语义。
+ */
+@Service
+public class AuthoringBatchJobService {
+
+    private static final String ENTITY = "mk_engine_authoring_batch_job";
+
+    private final ObjectMapper json;
+    private final AuthoringBatchJobRepository jobs;
+    private final AuthoringBatchItemRepository items;
+    private final AuthoringBatchRulePort rules;
+    private final AuthoringBatchPackagePort packages;
+    private final AuthoringFeatureGate featureGate;
+    private final AuditRecorder auditRecorder;
+
+    public AuthoringBatchJobService(
+            ObjectMapper json,
+            AuthoringBatchJobRepository jobs,
+            AuthoringBatchItemRepository items,
+            AuthoringBatchRulePort rules,
+            AuthoringBatchPackagePort packages,
+            AuthoringFeatureGate featureGate,
+            AuditRecorder auditRecorder) {
+        this.json = json;
+        this.jobs = jobs;
+        this.items = items;
+        this.rules = rules;
+        this.packages = packages;
+        this.featureGate = featureGate;
+        this.auditRecorder = auditRecorder;
+    }
+
+    /**
+     * 使用一条参数化规则模板与参数表生成独立草稿。
+     */
+    public AuthoringBatchJobResponse generateRules(AuthoringBatchRuleGenerateRequest request) {
+        requireFeature();
+        requireDistinctIds(request.rows().stream().map(AuthoringBatchRuleGenerateRow::rowId).toList());
+        AuthoringBatchRuleTemplate template = rules.loadTemplate(request.templateRuleId());
+        AuthoringBatchJob job = createJob(
+            AuthoringBatchJobType.RULE_GENERATE, request.rows().size(), request);
+        List<AuthoringBatchItem> results = new ArrayList<>();
+        for (AuthoringBatchRuleGenerateRow row : request.rows()) {
+            try {
+                RuleCreateResponse created = rules.createDraft(new AuthoringBatchRuleDraftCommand(
+                    row.ruleCode(),
+                    row.name(),
+                    template,
+                    row.packageVersion(),
+                    row.applicableOrgUnitId(),
+                    row.changeSummary(),
+                    row.parameterBindings()));
+                results.add(saveSuccess(
+                    job,
+                    row.rowId(),
+                    "RULE",
+                    created.ruleId(),
+                    Map.of(
+                        "ruleId", created.ruleId(),
+                        "versionId", created.versionId(),
+                        "status", created.status()),
+                    null,
+                    "规则草稿已生成"));
+            } catch (RuntimeException exception) {
+                results.add(saveFailure(job, row.rowId(), "RULE", row.ruleCode(), exception));
+            }
+        }
+        return finish(job, results);
+    }
+
+    /**
+     * 聚合分析多条规则的发布影响，不产生发布副作用。
+     */
+    public AuthoringBatchRuleImpactResponse analyzeRuleImpacts(AuthoringBatchRuleImpactRequest request) {
+        requireFeature();
+        requireDistinctIds(request.ruleIds());
+        List<AuthoringBatchRuleImpactItem> results = request.ruleIds().stream()
+            .map(rules::impact)
+            .map(this::impactItem)
+            .toList();
+        int high = (int) results.stream().filter(item -> item.riskLevel() == RuleRiskLevel.HIGH).count();
+        int critical = (int) results.stream().filter(item -> item.riskLevel() == RuleRiskLevel.CRITICAL).count();
+        return new AuthoringBatchRuleImpactResponse(
+            results.size(), high, critical, results, RequestContext.currentTraceId());
+    }
+
+    /**
+     * 批量推进规则治理状态；高危与极高危规则必须逐条显式确认。
+     */
+    public AuthoringBatchJobResponse publishRules(AuthoringBatchRulePublishRequest request) {
+        requireFeature();
+        requireDistinctIds(request.items().stream().map(AuthoringBatchRulePublishItem::itemId).toList());
+        Map<String, RuleImpactResponse> impacts = new HashMap<>();
+        for (AuthoringBatchRulePublishItem item : request.items()) {
+            RuleImpactResponse impact = rules.impact(item.ruleId());
+            impacts.put(item.ruleId(), impact);
+            if (isHighRisk(impact.riskLevel()) && !item.highRiskConfirmed()) {
+                throw new ApiException(
+                    ErrorCode.ENG_RULE_004,
+                    "高危规则必须逐条确认后才能批量推进: " + item.ruleId());
+            }
+        }
+
+        AuthoringBatchJob job = createJob(
+            AuthoringBatchJobType.RULE_PUBLISH, request.items().size(), request);
+        List<AuthoringBatchItem> results = new ArrayList<>();
+        for (AuthoringBatchRulePublishItem item : request.items()) {
+            try {
+                RuleImpactResponse impact = impacts.get(item.ruleId());
+                if (!impact.impactDigest().equals(item.impactDigest())) {
+                    throw new ApiException(ErrorCode.ENG_RULE_004, "规则影响摘要已变化，请重新分析");
+                }
+                RuleGovernanceResponse transitioned = rules.transition(
+                    item.ruleId(),
+                    new AuthoringBatchRuleTransitionCommand(
+                        request.targetState(), item.impactDigest(), request.reason()));
+                results.add(saveSuccess(
+                    job,
+                    item.itemId(),
+                    "RULE",
+                    item.ruleId(),
+                    Map.of(
+                        "state", transitioned.state(),
+                        "versionId", transitioned.versionId(),
+                        "impactDigest", item.impactDigest()),
+                    transitioned.versionId(),
+                    "规则治理状态已推进"));
+            } catch (RuntimeException exception) {
+                results.add(saveFailure(job, item.itemId(), "RULE", item.ruleId(), exception));
+            }
+        }
+        return finish(job, results);
+    }
+
+    /**
+     * 批量导入离线配置包。
+     */
+    public AuthoringBatchJobResponse importPackages(AuthoringBatchPackageImportRequest request) {
+        requireFeature();
+        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageImportItem::itemId).toList());
+        AuthoringBatchJob job = createJob(
+            AuthoringBatchJobType.PACKAGE_IMPORT, request.items().size(),
+            Map.of("itemIds", request.items().stream().map(AuthoringBatchPackageImportItem::itemId).toList()));
+        List<AuthoringBatchItem> results = new ArrayList<>();
+        for (AuthoringBatchPackageImportItem item : request.items()) {
+            try {
+                PackageOfflineImportResponse imported = packages.importOfflinePackage(item.offlinePackageJson());
+                results.add(saveSuccess(
+                    job,
+                    item.itemId(),
+                    "PACKAGE",
+                    imported.packageId(),
+                    imported,
+                    imported.packageVersion(),
+                    "离线配置包已导入"));
+            } catch (RuntimeException exception) {
+                results.add(saveFailure(job, item.itemId(), "PACKAGE", null, exception));
+            }
+        }
+        return finish(job, results);
+    }
+
+    /**
+     * 批量导出离线配置包。
+     */
+    public AuthoringBatchJobResponse exportPackages(AuthoringBatchPackageExportRequest request) {
+        requireFeature();
+        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageExportItem::itemId).toList());
+        AuthoringBatchJob job = createJob(
+            AuthoringBatchJobType.PACKAGE_EXPORT, request.items().size(), request);
+        List<AuthoringBatchItem> results = new ArrayList<>();
+        for (AuthoringBatchPackageExportItem item : request.items()) {
+            try {
+                String payload = packages.exportOfflinePackage(item.packageId(), item.targetOrgUnitId());
+                results.add(saveSuccess(
+                    job,
+                    item.itemId(),
+                    "PACKAGE",
+                    item.packageId(),
+                    Map.of(
+                        "packageId", item.packageId(),
+                        "targetOrgUnitId", item.targetOrgUnitId(),
+                        "offlinePackageJson", payload),
+                    null,
+                    "离线配置包已导出"));
+            } catch (RuntimeException exception) {
+                results.add(saveFailure(job, item.itemId(), "PACKAGE", item.packageId(), exception));
+            }
+        }
+        return finish(job, results);
+    }
+
+    /**
+     * 批量向多个组织分发配置包，目标不可达时保留可重试的诚实状态。
+     */
+    public AuthoringBatchJobResponse distributePackages(AuthoringBatchPackageDistributeRequest request) {
+        requireFeature();
+        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageDistributeItem::itemId).toList());
+        AuthoringBatchJob job = createJob(
+            AuthoringBatchJobType.PACKAGE_DISTRIBUTE, request.items().size(), request);
+        List<AuthoringBatchItem> results = new ArrayList<>();
+        for (AuthoringBatchPackageDistributeItem item : request.items()) {
+            try {
+                PackageSyncResponse distributed = packages.distribute(
+                    new AuthoringBatchPackageDistributeCommand(
+                        item.packageId(),
+                        item.targetOrgUnitId(),
+                        item.strategy(),
+                        item.scopeType(),
+                        item.scopeValue(),
+                        item.adapterIds(),
+                        item.reason()));
+                if (distributed.status() == ReleasePlanStatus.NOT_SYNCED) {
+                    results.add(saveNotConnected(
+                        job,
+                        item.itemId(),
+                        item.targetOrgUnitId(),
+                        distributed,
+                        distributed.planId()));
+                } else if (distributed.status() == ReleasePlanStatus.SUCCESS) {
+                    results.add(saveSuccess(
+                        job,
+                        item.itemId(),
+                        "SYNC_TARGET",
+                        item.targetOrgUnitId(),
+                        distributed,
+                        distributed.planId(),
+                        "配置包已分发"));
+                } else {
+                    results.add(saveFailure(
+                        job,
+                        item.itemId(),
+                        "SYNC_TARGET",
+                        item.targetOrgUnitId(),
+                        new ApiException(
+                            ErrorCode.ENG_PACKAGE_005,
+                            "配置包分发失败: " + distributed.status())));
+                }
+            } catch (RuntimeException exception) {
+                results.add(saveFailure(
+                    job, item.itemId(), "SYNC_TARGET", item.targetOrgUnitId(), exception));
+            }
+        }
+        return finish(job, results);
+    }
+
+    /**
+     * 查询单个任务及逐项结果。
+     */
+    public AuthoringBatchJobResponse get(String jobId) {
+        requireFeature();
+        String tenantId = requireTenant();
+        AuthoringBatchJob job = jobs.findByTenantIdAndJobId(tenantId, jobId)
+            .orElseThrow(() -> ApiException.notFound("批量任务"));
+        return response(job, items.findByTenantIdAndJobIdOrderByIdAsc(tenantId, jobId));
+    }
+
+    /**
+     * 查询当前租户最近任务。
+     */
+    public List<AuthoringBatchJobResponse> listRecent() {
+        requireFeature();
+        String tenantId = requireTenant();
+        return jobs.findTop50ByTenantIdOrderByCreatedAtDesc(tenantId).stream()
+            .map(job -> response(job, List.of()))
+            .toList();
+    }
+
+    private AuthoringBatchJob createJob(AuthoringBatchJobType type, int totalCount, Object request) {
+        String tenantId = requireTenant();
+        Instant now = Instant.now();
+        String actor = actor();
+        AuthoringBatchJob saved = jobs.save(new AuthoringBatchJob(
+            null,
+            "abj-" + UUID.randomUUID(),
+            tenantId,
+            type,
+            AuthoringBatchJobStatus.RUNNING,
+            totalCount,
+            0,
+            0,
+            0,
+            writeJson(request, "批量任务请求摘要无法序列化"),
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            RequestContext.currentTraceId()));
+        auditRecorder.record(AuditAction.CREATE, ENTITY, saved.jobId(), "创建创作批量任务 " + type);
+        return saved;
+    }
+
+    private AuthoringBatchItem saveSuccess(
+            AuthoringBatchJob job,
+            String itemId,
+            String targetType,
+            String targetId,
+            Object result,
+            String rollbackRef,
+            String message) {
+        return saveItem(
+            job, itemId, AuthoringBatchItemStatus.SUCCEEDED, targetType, targetId,
+            writeJson(result, "批量任务结果无法序列化"), rollbackRef, null, message);
+    }
+
+    private AuthoringBatchItem saveNotConnected(
+            AuthoringBatchJob job,
+            String itemId,
+            String targetId,
+            Object result,
+            String rollbackRef) {
+        return saveItem(
+            job, itemId, AuthoringBatchItemStatus.NOT_CONNECTED, "SYNC_TARGET", targetId,
+            writeJson(result, "批量分发结果无法序列化"), rollbackRef,
+            ErrorCode.DOWNSTREAM_UNAVAILABLE.code(), "目标同步通道未连接，可重试");
+    }
+
+    private AuthoringBatchItem saveFailure(
+            AuthoringBatchJob job,
+            String itemId,
+            String targetType,
+            String targetId,
+            RuntimeException exception) {
+        String code = exception instanceof ApiException api
+            ? api.errorCode().code()
+            : ErrorCode.INTERNAL_ERROR.code();
+        String message = exception.getMessage() == null ? "批量任务逐项执行失败" : exception.getMessage();
+        return saveItem(
+            job, itemId, AuthoringBatchItemStatus.FAILED, targetType, targetId,
+            null, null, code, message);
+    }
+
+    private AuthoringBatchItem saveItem(
+            AuthoringBatchJob job,
+            String itemId,
+            AuthoringBatchItemStatus status,
+            String targetType,
+            String targetId,
+            String resultJson,
+            String rollbackRef,
+            String errorCode,
+            String message) {
+        return items.save(new AuthoringBatchItem(
+            null,
+            job.jobId(),
+            job.tenantId(),
+            itemId,
+            status,
+            targetType,
+            targetId,
+            resultJson,
+            rollbackRef,
+            errorCode,
+            message,
+            Instant.now(),
+            actor(),
+            job.traceId()));
+    }
+
+    private AuthoringBatchJobResponse finish(
+            AuthoringBatchJob job,
+            List<AuthoringBatchItem> results) {
+        int successes = count(results, AuthoringBatchItemStatus.SUCCEEDED);
+        int failures = count(results, AuthoringBatchItemStatus.FAILED);
+        int retryable = count(results, AuthoringBatchItemStatus.NOT_CONNECTED);
+        AuthoringBatchJobStatus status = finalStatus(results.size(), successes, failures, retryable);
+        Map<String, Object> summary = Map.of(
+            "status", status,
+            "totalCount", results.size(),
+            "successCount", successes,
+            "failureCount", failures,
+            "retryableCount", retryable);
+        AuthoringBatchJob completed = jobs.save(job.completed(
+            status,
+            successes,
+            failures,
+            retryable,
+            writeJson(summary, "批量任务汇总无法序列化"),
+            Instant.now(),
+            actor()));
+        auditRecorder.record(
+            completionAuditAction(completed.jobType()),
+            ENTITY,
+            completed.jobId(),
+            "完成创作批量任务 " + completed.jobType() + "，状态 " + completed.status());
+        return response(completed, results);
+    }
+
+    private AuditAction completionAuditAction(AuthoringBatchJobType type) {
+        return switch (type) {
+            case RULE_GENERATE -> AuditAction.CREATE;
+            case RULE_PUBLISH, PACKAGE_DISTRIBUTE -> AuditAction.PUBLISH;
+            case PACKAGE_IMPORT -> AuditAction.IMPORT;
+            case PACKAGE_EXPORT -> AuditAction.EXPORT;
+        };
+    }
+
+    private AuthoringBatchJobStatus finalStatus(
+            int total,
+            int successes,
+            int failures,
+            int retryable) {
+        if (successes == total) {
+            return AuthoringBatchJobStatus.SUCCEEDED;
+        }
+        if (successes > 0) {
+            return AuthoringBatchJobStatus.PARTIAL_SUCCESS;
+        }
+        if (retryable == total) {
+            return AuthoringBatchJobStatus.NOT_CONNECTED;
+        }
+        return AuthoringBatchJobStatus.FAILED;
+    }
+
+    private int count(List<AuthoringBatchItem> values, AuthoringBatchItemStatus status) {
+        return (int) values.stream().filter(item -> item.status() == status).count();
+    }
+
+    private AuthoringBatchRuleImpactItem impactItem(RuleImpactResponse impact) {
+        int affected = impact.affectedRules().size()
+            + impact.affectedPathways().size()
+            + impact.inPathPatients().size()
+            + impact.integrationAdapters().size();
+        return new AuthoringBatchRuleImpactItem(
+            impact.ruleId(),
+            impact.versionId(),
+            impact.riskLevel(),
+            impact.analysisStatus(),
+            impact.impactDigest(),
+            affected,
+            impact.unavailableScopes());
+    }
+
+    private AuthoringBatchJobResponse response(
+            AuthoringBatchJob job,
+            List<AuthoringBatchItem> jobItems) {
+        return new AuthoringBatchJobResponse(
+            job.jobId(),
+            job.jobType(),
+            job.status(),
+            job.totalCount(),
+            job.successCount(),
+            job.failureCount(),
+            job.retryableCount(),
+            job.resultSummaryJson(),
+            jobItems.stream().map(this::responseItem).toList(),
+            job.traceId(),
+            job.createdAt(),
+            job.updatedAt());
+    }
+
+    private AuthoringBatchItemResponse responseItem(AuthoringBatchItem item) {
+        return new AuthoringBatchItemResponse(
+            item.itemId(),
+            item.status(),
+            item.targetType(),
+            item.targetId(),
+            item.resultJson(),
+            item.rollbackRef(),
+            item.errorCode(),
+            item.message(),
+            item.createdAt());
+    }
+
+    private void requireFeature() {
+        if (!featureGate.enabled(AuthoringFeatureFlag.BATCH_AUTHORING)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "批量创作能力未启用");
+        }
+    }
+
+    private void requireDistinctIds(List<String> ids) {
+        Set<String> distinct = new HashSet<>();
+        for (String id : ids) {
+            if (id == null || id.isBlank()) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "批量任务逐项标识不能为空");
+            }
+            if (!distinct.add(id)) {
+                throw new ApiException(ErrorCode.CONFLICT, "批量任务逐项标识重复: " + id);
+            }
+        }
+    }
+
+    private boolean isHighRisk(RuleRiskLevel riskLevel) {
+        return riskLevel == RuleRiskLevel.HIGH || riskLevel == RuleRiskLevel.CRITICAL;
+    }
+
+    private String requireTenant() {
+        String tenantId = RequestContext.currentOrgScope().tenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            throw ApiException.tenantMissing();
+        }
+        return tenantId;
+    }
+
+    private String actor() {
+        return RequestContext.currentUserId().orElse("system");
+    }
+
+    private String writeJson(Object value, String message) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, message, exception);
+        }
+    }
+}

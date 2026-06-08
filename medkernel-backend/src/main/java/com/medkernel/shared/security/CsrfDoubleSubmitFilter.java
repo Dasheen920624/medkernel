@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -29,6 +32,7 @@ import jakarta.servlet.http.HttpServletResponse;
  */
 public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
 
+    private static final Logger LOG = LoggerFactory.getLogger(CsrfDoubleSubmitFilter.class);
     public static final String XSRF_COOKIE = "XSRF-TOKEN";
     public static final String XSRF_HEADER = "X-XSRF-TOKEN";
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
@@ -54,13 +58,14 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String cookieToken = cookieValue(request, XSRF_COOKIE);
         String headerToken = headerToken(request);
-        if (matches(cookieToken, headerToken)) {
+        if (hasMatchingCookie(request, XSRF_COOKIE, headerToken)) {
             chain.doFilter(request, response);
             return;
         }
 
+        LOG.debug("CSRF 校验失败：xsrfCookieCount={} cookiePresent={} headerPresent={}",
+            cookieCount(request, XSRF_COOKIE), cookieCount(request, XSRF_COOKIE) > 0, headerToken != null);
         writeForbidden(response);
     }
 
@@ -89,6 +94,14 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
         return null;
     }
 
+    private static long cookieCount(HttpServletRequest request, String name) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return 0;
+        }
+        return Arrays.stream(cookies).filter(cookie -> name.equals(cookie.getName())).count();
+    }
+
     private static String headerToken(HttpServletRequest request) {
         String token = request.getHeader(XSRF_HEADER);
         return token == null || token.isBlank() ? null : token;
@@ -101,6 +114,17 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
         return MessageDigest.isEqual(
             cookieToken.getBytes(StandardCharsets.UTF_8),
             headerToken.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static boolean hasMatchingCookie(HttpServletRequest request, String name, String headerToken) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return false;
+        }
+        return Arrays.stream(cookies)
+            .filter(cookie -> name.equals(cookie.getName()))
+            .map(Cookie::getValue)
+            .anyMatch(cookieToken -> matches(cookieToken, headerToken));
     }
 
     private void writeForbidden(HttpServletResponse response) throws IOException {

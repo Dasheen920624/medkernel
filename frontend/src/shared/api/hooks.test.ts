@@ -44,6 +44,8 @@ import {
   useBuildTerminologyPackage,
   useActivateEvaluationIndicator,
   useAuthoringAssets,
+  useAuthoringBatchJobs,
+  useAnalyzeAuthoringBatchRuleImpacts,
   useConfirmTerminologyCandidate,
   useContextFieldCatalog,
   useCreateEvaluationIndicator,
@@ -104,7 +106,10 @@ import {
   useAuthoringPreview,
   useAuthoringPreviewRun,
   useCloneAuthoringAsset,
+  useDistributeAuthoringBatchPackages,
+  useGenerateAuthoringBatchRules,
   useFavoriteAuthoringAsset,
+  usePublishAuthoringBatchRules,
   useRuleBacktestLatest,
   useRunRuleBacktest,
   useRuleDriftLatest,
@@ -957,6 +962,132 @@ describe("package export api helpers", () => {
         newVersion: 1,
         packageVersion: "pkg-2026.06",
       },
+    );
+  });
+
+  it("loads authoring batch jobs and executes rule generation", async () => {
+    const job = {
+      jobId: "abj-1",
+      jobType: "RULE_GENERATE",
+      status: "SUCCEEDED",
+      totalCount: 1,
+      successCount: 1,
+      failureCount: 0,
+      retryableCount: 0,
+      items: [],
+      traceId: "trace-batch",
+      createdAt: "2026-06-08T00:00:00Z",
+      updatedAt: "2026-06-08T00:00:01Z",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [job] } });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: job } });
+
+    const jobs = renderApiHook(() => useAuthoringBatchJobs());
+    await waitFor(() => expect(jobs.result.current.data).toEqual([job]));
+
+    const generate = renderApiHook(() => useGenerateAuthoringBatchRules());
+    const request = {
+      templateRuleId: "rule-template",
+      rows: [
+        {
+          rowId: "row-1",
+          ruleCode: "RULE.CKD.1",
+          name: "CKD 阈值 1",
+          parameterBindings: { threshold: 45 },
+        },
+      ],
+    };
+    await generate.result.current.mutateAsync(request);
+
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/batch");
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/authoring/batch/rules/generate", request);
+  });
+
+  it("analyzes high-risk rules before publishing and distributes packages through one batch API", async () => {
+    const impact = {
+      totalCount: 1,
+      highRiskCount: 1,
+      criticalRiskCount: 0,
+      items: [
+        {
+          ruleId: "rule-high",
+          versionId: "version-1",
+          riskLevel: "HIGH",
+          analysisStatus: "COMPLETE",
+          impactDigest: "impact-rule-high",
+          affectedCount: 2,
+          unavailableScopes: [],
+        },
+      ],
+      traceId: "trace-impact",
+    };
+    const job = {
+      jobId: "abj-2",
+      jobType: "RULE_PUBLISH",
+      status: "SUCCEEDED",
+      totalCount: 1,
+      successCount: 1,
+      failureCount: 0,
+      retryableCount: 0,
+      items: [],
+      traceId: "trace-batch",
+      createdAt: "2026-06-08T00:00:00Z",
+      updatedAt: "2026-06-08T00:00:01Z",
+    };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { data: impact } })
+      .mockResolvedValueOnce({ data: { data: job } })
+      .mockResolvedValueOnce({
+        data: { data: { ...job, jobType: "PACKAGE_DISTRIBUTE", status: "NOT_CONNECTED" } },
+      });
+
+    const analyze = renderApiHook(() => useAnalyzeAuthoringBatchRuleImpacts());
+    await analyze.result.current.mutateAsync(["rule-high"]);
+
+    const publish = renderApiHook(() => usePublishAuthoringBatchRules());
+    const publishRequest = {
+      targetState: "FULL" as const,
+      reason: "委员会批准",
+      items: [
+        {
+          itemId: "rule-high",
+          ruleId: "rule-high",
+          impactDigest: "impact-rule-high",
+          highRiskConfirmed: true,
+        },
+      ],
+    };
+    await publish.result.current.mutateAsync(publishRequest);
+
+    const distribute = renderApiHook(() => useDistributeAuthoringBatchPackages());
+    const distributeRequest = {
+      items: [
+        {
+          itemId: "package-1-hospital-1",
+          packageId: "package-1",
+          targetOrgUnitId: "hospital-1",
+          strategy: "FULL" as const,
+          scopeType: "HOSPITAL" as const,
+          scopeValue: "hospital-1",
+          adapterIds: ["fhir"],
+          reason: "批量分发",
+        },
+      ],
+    };
+    await distribute.result.current.mutateAsync(distributeRequest);
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/authoring/batch/rules/impact", {
+      ruleIds: ["rule-high"],
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/authoring/batch/rules/publish",
+      publishRequest,
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/authoring/batch/packages/distribute",
+      distributeRequest,
     );
   });
 

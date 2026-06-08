@@ -184,6 +184,7 @@ class AuthControllerTest {
             .andExpect(cookie().httpOnly("mk_access", true))
             .andExpect(cookie().exists(XSRF_COOKIE))
             .andExpect(cookie().httpOnly(XSRF_COOKIE, false))
+            .andExpect(cookie().path(XSRF_COOKIE, "/"))
             .andExpect(jsonPath("$.data.userId").value(USER_ID))
             .andExpect(jsonPath("$.data.tenantId").value(TENANT))
             .andExpect(jsonPath("$.data.mustChangePwd").value(false));
@@ -315,6 +316,28 @@ class AuthControllerTest {
                 .cookie(new Cookie(XSRF_COOKIE, "xsrf-token-without-header")))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("ENG-API-004"));
+    }
+
+    @Test
+    void cookieSessionRenewAcceptsMatchingXsrfWhenStalePathCookieExists() throws Exception {
+        var body = objectMapper.writeValueAsString(
+            new LoginRequest(USERNAME, RAW_PASSWORD, TENANT));
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk())
+            .andReturn();
+        Cookie xsrf = login.getResponse().getCookie(XSRF_COOKIE);
+        Cookie stalePathCookie = new Cookie(XSRF_COOKIE, "stale-path-token");
+        stalePathCookie.setPath("/medkernel");
+
+        mvc.perform(post("/api/v1/auth/session/renew")
+                .cookie(login.getResponse().getCookie("mk_access"))
+                .cookie(stalePathCookie)
+                .cookie(xsrf)
+                .header(XSRF_HEADER, xsrf.getValue()))
+            .andExpect(status().isOk());
     }
 
     @Test
