@@ -154,6 +154,28 @@ class RecommendationRepositoryTest {
     }
 
     @Test
+    void openRecommendationWorkflowRowsCanBeScopedToClinicalEventSource() {
+        String firstTriggerId = "rt-" + UUID.randomUUID();
+        String firstCardId = "rc-" + UUID.randomUUID();
+        String otherTriggerId = "rt-" + UUID.randomUUID();
+        String otherCardId = "rc-" + UUID.randomUUID();
+        triggers.save(sampleTrigger(firstTriggerId, "tenant-A", "evt-order-1"));
+        cards.save(sampleCard(firstCardId, "tenant-A", firstTriggerId));
+        triggers.save(sampleTrigger(otherTriggerId, "tenant-A", "evt-other"));
+        cards.save(sampleCard(otherCardId, "tenant-A", otherTriggerId));
+
+        List<RecommendationWorkflowTodoRow> rows =
+            cards.pageOpenWorkflowRowsBySourceEventId("tenant-A", "evt-order-1", 0, 10);
+
+        assertThat(rows).singleElement()
+            .satisfies(row -> {
+                assertThat(row.cardId()).isEqualTo(firstCardId);
+                assertThat(row.patientId()).isEqualTo("patient-1");
+                assertThat(row.scenarioCode()).isEqualTo("WARD_ORDER");
+            });
+    }
+
+    @Test
     void fatigueRepositoryCountsRecentLowValueSignalsForSuppression() {
         String triggerId = "rt-" + UUID.randomUUID();
         String cardId = "rc-" + UUID.randomUUID();
@@ -172,10 +194,14 @@ class RecommendationRepositoryTest {
     }
 
     private RecommendationTrigger sampleTrigger(String triggerId, String tenantId) {
+        return sampleTrigger(triggerId, tenantId, "event-1");
+    }
+
+    private RecommendationTrigger sampleTrigger(String triggerId, String tenantId, String sourceEventId) {
         Instant now = Instant.now();
         return new RecommendationTrigger(
             null, triggerId, tenantId, "TRG." + triggerId, "order-sign",
-            "event-1", "snapshot-1", "patient-1", "enc-1", "pathway-1",
+            sourceEventId, "snapshot-1", "patient-1", "enc-1", "pathway-1",
             "WARD_ORDER", "1.0.0", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
             null, now, now, "tester", now, "tester", "trace-recommendation");
     }

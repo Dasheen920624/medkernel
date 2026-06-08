@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -132,5 +133,110 @@ class EngineWorkflowDomainEventAdapterTest {
         assertThat(alertCap.getValue().sourceId()).isEqualTo("clock-1");
         assertThat(alertCap.getValue().severity()).isEqualTo("P1");
         assertThat(alertCap.getValue().evidenceSummary()).contains("pkg-2026.06", "QUALITY_RECORD");
+    }
+
+    @Test
+    void pathwayVarianceReplayDoesNotDuplicateTodoNotificationOrQualityAlert() {
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A", WorkflowTodoSourceType.PATHWAY_EVENT, "pv-1"))
+            .thenReturn(Optional.of(existingTodo()));
+        when(notifications.findByTenantIdAndDedupeKey("tenant-A", "pathway-variance:pv-1"))
+            .thenReturn(Optional.of(existingNotification()));
+        when(alerts.findByTenantIdAndAlertTypeAndSourceTypeAndSourceId(
+                "tenant-A", QualityDashboardAlertType.PATHWAY_VARIANCE, "pathway_variance", "pv-1"))
+            .thenReturn(Optional.of(existingAlert()));
+
+        adapter.pathwayVarianceRecorded(new PathwayVarianceRecordedEvent(
+            "tenant-A", "trace-pathway", "pkg-2026.06", "pp-1", "patient-1", "enc-1",
+            "pv-1", "ASSESS", "CLINICAL", "CLINICAL_ESCALATION", "主管医师",
+            "HOLD", Instant.parse("2026-06-08T08:10:00Z")));
+
+        verify(todos, never()).save(any());
+        verify(notifications, never()).save(any());
+        ArgumentCaptor<QualityDashboardAlert> alertCap = ArgumentCaptor.forClass(QualityDashboardAlert.class);
+        verify(alerts).save(alertCap.capture());
+        assertThat(alertCap.getValue().id()).isEqualTo(1L);
+        assertThat(alertCap.getValue().alertId()).isEqualTo("qalert-existing");
+    }
+
+    private WorkflowTodo existingTodo() {
+        Instant now = Instant.parse("2026-06-08T08:00:00Z");
+        return new WorkflowTodo(
+            1L,
+            "todo-existing",
+            "tenant-A",
+            WorkflowTodoSourceType.PATHWAY_EVENT,
+            "pv-1",
+            "路径变异待处理",
+            "已存在",
+            WorkflowPriority.HIGH,
+            WorkflowTodoStatus.PENDING,
+            null,
+            "主管医师",
+            "patient-1",
+            "enc-1",
+            null,
+            "/clinical/pathways?varianceId=pv-1",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "trace-pathway",
+            now,
+            "engine-event",
+            now,
+            "engine-event");
+    }
+
+    private WorkflowNotification existingNotification() {
+        Instant now = Instant.parse("2026-06-08T08:00:00Z");
+        return new WorkflowNotification(
+            1L,
+            "notify-existing",
+            "tenant-A",
+            WorkflowNotificationSourceType.PATHWAY_EVENT,
+            "pv-1",
+            "pathway-variance:pv-1",
+            "路径变异已登记",
+            "已存在",
+            WorkflowNotificationLevel.HIGH,
+            WorkflowNotificationStatus.UNREAD,
+            null,
+            "主管医师",
+            "patient-1",
+            "enc-1",
+            "/clinical/pathways?varianceId=pv-1",
+            null,
+            null,
+            "trace-pathway",
+            now,
+            "engine-event",
+            now,
+            "engine-event");
+    }
+
+    private QualityDashboardAlert existingAlert() {
+        Instant now = Instant.parse("2026-06-08T08:00:00Z");
+        return new QualityDashboardAlert(
+            1L,
+            "qalert-existing",
+            "tenant-A",
+            null,
+            QualityDashboardAlertType.PATHWAY_VARIANCE,
+            "pathway_variance",
+            "pv-1",
+            "P2",
+            com.medkernel.engine.quality.dashboard.QualityDashboardAlertStatus.OPEN,
+            "PATHWAY_VARIANCE",
+            null,
+            null,
+            "路径变异已登记",
+            "已存在",
+            now,
+            "engine-event",
+            now,
+            "engine-event",
+            "trace-pathway");
     }
 }
